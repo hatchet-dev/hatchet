@@ -69,24 +69,11 @@ export class WorkflowsClient {
    * Gets the workflow ID from a workflow name, ID, or object.
    * If the input is not a valid UUID, it will look up the workflow by name.
    * @param workflow - The workflow name, ID, or object.
-   * @returns The workflow ID as a string.
    */
   async getWorkflowIdFromName(
     workflow: string | WorkflowDefinition | BaseWorkflowDeclaration<any, any> | LegacyWorkflow
   ): Promise<string> {
-    const str = (() => {
-      if (typeof workflow === 'string') {
-        return workflow;
-      }
-
-      if (typeof workflow === 'object' && 'name' in workflow) {
-        return workflow.name;
-      }
-
-      throw new Error(
-        'Invalid workflow: must be a string, Workflow object, or WorkflowDefinition object'
-      );
-    })();
+    const str = workflowNameString(workflow);
 
     if (!isValidUUID(str)) {
       const wf = await this.get(str);

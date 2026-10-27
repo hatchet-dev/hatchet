@@ -5,6 +5,13 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.44.1] - 2026-10-27
+
+### Fixed
+
+- `schedules.create` accepts v1 `WorkflowDeclaration` and `WorkflowDefinition` objects in addition to strings and legacy workflows, consistent with `schedules.list`.
+- `crons` and `schedules` share the client's `WorkflowsClient` instance and cache instead of instantiating separate unshared clients, ensuring `workflows.delete()` invalidates cached workflow IDs across all feature clients.
+
 ## [1.44.0] - 2026-10-26
 
 ### Added

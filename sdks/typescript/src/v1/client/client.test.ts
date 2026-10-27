@@ -46,4 +46,12 @@ describe('HatchetClient transport', () => {
     expect(transport.unary).toHaveBeenCalledTimes(1);
     expect(createNodeTransport).not.toHaveBeenCalled();
   });
+
+  it('shares WorkflowsClient across crons and scheduled clients', () => {
+    const client = new HatchetClient(config);
+
+    expect(client.crons.workflows).toBe(client.workflows);
+    expect(client.scheduled.workflows).toBe(client.workflows);
+    expect(client.schedules.workflows).toBe(client.workflows);
+  });
 });

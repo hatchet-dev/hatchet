@@ -53,4 +53,5 @@ export interface RestClientDeps {
   api: RestApi;
   tenantId: string;
   config?: { namespace?: string };
+  workflows?: unknown;
 }

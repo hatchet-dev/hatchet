@@ -508,7 +508,7 @@ export class HatchetClient<
    */
   get crons() {
     if (!this._crons) {
-      this._crons = new CronClient(this);
+      this._crons = new CronClient(this, this.workflows);
     }
     return this._crons;
   }
@@ -531,7 +531,7 @@ export class HatchetClient<
    */
   get scheduled() {
     if (!this._scheduled) {
-      this._scheduled = new ScheduleClient(this);
+      this._scheduled = new ScheduleClient(this, this.workflows);
     }
     return this._scheduled;
   }

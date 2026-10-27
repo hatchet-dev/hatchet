@@ -31,6 +31,7 @@ import { setHatchetSpanAttributes, hatchetSpanAttributes } from './hatchet-span-
 import type { HatchetBspConfig } from './hatchet-exporter';
 import { ScheduledWorkflows } from '../clients/rest/generated/data-contracts';
 import { ScheduleClient, CreateScheduledRunInput } from '../v1/client/features/schedules';
+import { workflowNameString } from '../v1/client/features/workflows';
 
 try {
   require.resolve('@opentelemetry/api');
@@ -824,7 +825,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
     this._wrap(prototype, 'create', (original: ScheduleClient['create']) => {
       return async function wrappedCreate(
         this: ScheduleClient,
-        workflow: string,
+        workflow: Parameters<ScheduleClient['create']>[0],
         input: CreateScheduledRunInput
       ): Promise<ScheduledWorkflows> {
         const triggerAtIso =
@@ -832,9 +833,11 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
             ? input.triggerAt.toISOString()
             : new Date(input.triggerAt).toISOString();
 
+        const workflowName = typeof workflow === 'string' ? workflow : workflowNameString(workflow);
+
         const attributes = filterAttributes(
           {
-            [OTelAttribute.WORKFLOW_NAME]: workflow,
+            [OTelAttribute.WORKFLOW_NAME]: workflowName,
             [OTelAttribute.RUN_AT_TIMESTAMPS]: JSON.stringify([triggerAtIso]),
             [OTelAttribute.ACTION_PAYLOAD]: JSON.stringify(input.input),
             [OTelAttribute.ADDITIONAL_METADATA]: input.additionalMetadata

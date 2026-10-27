@@ -1,7 +1,7 @@
 import { CronWorkflows, CronWorkflowsList } from '@hatchet/clients/rest/generated/data-contracts';
 import { z } from 'zod/v4';
 import { isValidUUID } from '@util/uuid';
-import { BaseWorkflowDeclaration } from '@hatchet/v1';
+import { BaseWorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1';
 import type { LegacyWorkflow } from '@hatchet/legacy/legacy-transformer';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import type { RestApi, RestClientDeps } from '@hatchet/clients/rest/rest-api';
@@ -35,10 +35,14 @@ export class CronClient {
   workflows: WorkflowsClient;
   namespace: string | undefined;
 
-  constructor(client: RestClientDeps) {
+  constructor(client: RestClientDeps, workflows?: WorkflowsClient) {
     this.api = client.api;
     this.tenantId = client.tenantId;
-    this.workflows = new WorkflowsClient(client);
+    this.workflows =
+      workflows ??
+      (client.workflows instanceof WorkflowsClient
+        ? client.workflows
+        : new WorkflowsClient(client));
     this.namespace = client.config?.namespace;
   }
 
@@ -65,7 +69,7 @@ export class CronClient {
    * @throws Will throw an error if the input is invalid or the API call fails.
    */
   async create(
-    workflow: string | BaseWorkflowDeclaration<any, any> | LegacyWorkflow,
+    workflow: string | WorkflowDefinition | BaseWorkflowDeclaration<any, any> | LegacyWorkflow,
     cron: CreateCronInput
   ): Promise<CronWorkflows> {
     const workflowId = applyNamespace(workflowNameString(workflow), this.namespace).toLowerCase();
@@ -107,7 +111,7 @@ export class CronClient {
    */
   async list(
     query: Parameters<typeof this.api.cronWorkflowList>[1] & {
-      workflow?: string | BaseWorkflowDeclaration<any, any> | LegacyWorkflow;
+      workflow?: string | WorkflowDefinition | BaseWorkflowDeclaration<any, any> | LegacyWorkflow;
     }
   ): Promise<CronWorkflowsList> {
     const { workflow, ...rest } = query;

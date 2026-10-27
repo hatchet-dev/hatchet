@@ -121,6 +121,27 @@ describe('core REST base URL', () => {
     expect(api.requests.map((r) => r.method)).toEqual(['GET', 'DELETE', 'GET']);
   });
 
+  it('crons and schedules share workflow cache with workflows.delete', async () => {
+    const api = fakeApi();
+    api.reply({ rows: [{ metadata: { id: 'wf-1' }, name: 'greet' }] });
+    api.reply({ rows: [] });
+    api.reply({});
+    api.reply({ rows: [{ metadata: { id: 'wf-2' }, name: 'greet' }] });
+    api.reply({ rows: [] });
+    const client = new HatchetCore({ token: TOKEN, fetch: api.fetch });
+
+    expect(client.crons.workflows).toBe(client.workflows);
+    expect(client.schedules.workflows).toBe(client.workflows);
+
+    await client.crons.list({ workflow: 'greet' });
+    await client.workflows.delete('greet');
+    // after workflows.delete, crons.list and schedules.list re-fetch the recreated workflow id
+    await client.schedules.list({ workflow: 'greet' });
+
+    expect(api.requests[3].url.searchParams.get('name')).toBe('greet');
+    expect(api.requests[4].url.searchParams.get('workflowId')).toBe('wf-2');
+  });
+
   it("defaults to the token's server_url claim and sends the token as a bearer", async () => {
     const api = fakeApi();
     const client = new HatchetCore({ token: TOKEN, fetch: api.fetch });
@@ -311,6 +332,34 @@ describe('core REST features', () => {
       additionalMetadata: {},
       triggerAt: '2026-11-01T00:00:00.000Z',
     });
+  });
+
+  it('schedules.create accepts a workflow declaration or definition object', async () => {
+    const api = fakeApi();
+    const client = new HatchetCore({ token: TOKEN, fetch: api.fetch });
+    const created = { metadata: { id: CRON_ID }, triggerAt: '2026-11-01T00:00:00.000Z' };
+    api.reply(created);
+    api.reply(created);
+
+    const declaration = {
+      name: 'greet-decl',
+      definition: { name: 'greet-decl' },
+    } as any;
+    const definition = { name: 'greet-def' } as any;
+
+    await client.schedules.create(declaration, {
+      triggerAt: new Date('2026-11-01T00:00:00Z'),
+    });
+    await client.schedules.create(definition, {
+      triggerAt: new Date('2026-11-01T00:00:00Z'),
+    });
+
+    expect(api.requests[0].url.pathname).toBe(
+      `/api/v1/tenants/${TENANT_ID}/workflows/greet-decl/scheduled`
+    );
+    expect(api.requests[1].url.pathname).toBe(
+      `/api/v1/tenants/${TENANT_ID}/workflows/greet-def/scheduled`
+    );
   });
 
   it('schedules.list resolves the workflow filter by name', async () => {

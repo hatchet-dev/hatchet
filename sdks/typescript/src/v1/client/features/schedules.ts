@@ -49,10 +49,14 @@ export class ScheduleClient {
   workflows: WorkflowsClient;
   namespace: string | undefined;
 
-  constructor(client: RestClientDeps) {
+  constructor(client: RestClientDeps, workflows?: WorkflowsClient) {
     this.api = client.api;
     this.tenantId = client.tenantId;
-    this.workflows = new WorkflowsClient(client);
+    this.workflows =
+      workflows ??
+      (client.workflows instanceof WorkflowsClient
+        ? client.workflows
+        : new WorkflowsClient(client));
     this.namespace = client.config?.namespace;
   }
 
@@ -82,7 +86,7 @@ export class ScheduleClient {
    * Keep the signature in sync with the instrumentor wrapper.
    */
   async create(
-    workflow: string | Workflow,
+    workflow: string | Workflow | WorkflowDefinition | BaseWorkflowDeclaration<any, any>,
     cron: CreateScheduledRunInput
   ): Promise<ScheduledWorkflows> {
     const workflowId = applyNamespace(workflowNameString(workflow), this.namespace).toLowerCase();
