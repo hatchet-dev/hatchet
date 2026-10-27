@@ -1834,10 +1834,6 @@ func (r *OLAPRepositoryImpl) prepareStatusUpdateBatch(ctx context.Context, tenan
 		} else {
 			workerIds = append(workerIds, uuid.Nil)
 		}
-
-		if !minInsertedAt.Valid || idInsertedAt.InsertedAtUnixMicros < minInsertedAt.Time.UnixMicro() {
-			minInsertedAt = sqlchelpers.TimestamptzFromUnixMicros(idInsertedAt.InsertedAtUnixMicros)
-		}
 	}
 
 	return sqlcv1.UpdateTaskStatusesFromMQParams{
@@ -1847,7 +1843,7 @@ func (r *OLAPRepositoryImpl) prepareStatusUpdateBatch(ctx context.Context, tenan
 		Statuses:        statuses,
 		Workerids:       workerIds,
 		Retrycounts:     retryCounts,
-		Mininsertedat:   minInsertedAt,
+		Mininsertedat:   sqlchelpers.MinTimestamptz(taskInsertedAts),
 	}
 }
 
