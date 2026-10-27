@@ -1828,7 +1828,7 @@ export class Api<
    * @secure
    */
   userUpdateSlackOauthStart = Object.assign((tenant: string, params: RequestParams = {}) =>
-    this.request<any, void>({
+    this.request<any, void | APIErrors>({
       path: `/api/v1/tenants/${tenant}/slack/start`,
       method: "GET",
       secure: true,
@@ -1845,7 +1845,7 @@ export class Api<
    * @secure
    */
   userUpdateSlackOauthCallback = Object.assign((params: RequestParams = {}) =>
-    this.request<any, void>({
+    this.request<any, void | APIErrors>({
       path: `/api/v1/users/slack/callback`,
       method: "GET",
       secure: true,

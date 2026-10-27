@@ -3454,35 +3454,43 @@ func (q *Queries) ManualSlotRelease(ctx context.Context, db DBTX, arg ManualSlot
 const markTaskRuntimesAcked = `-- name: MarkTaskRuntimesAcked :exec
 WITH input AS (
     SELECT
-        unnest($2::bigint[]) AS task_id,
-        unnest($3::timestamptz[]) AS task_inserted_at,
-        unnest($4::integer[]) AS retry_count
+        unnest($1::bigint[]) AS task_id,
+        unnest($2::timestamptz[]) AS task_inserted_at,
+        unnest($3::integer[]) AS retry_count
+), locked_runtimes AS (
+    SELECT task_id, task_inserted_at, retry_count
+    FROM v1_task_runtime
+    WHERE
+        tenant_id = $4::uuid
+        AND acked_at IS NULL
+        AND (task_id, task_inserted_at, retry_count) IN (
+            SELECT task_id, task_inserted_at, retry_count
+            FROM input
+        )
+    ORDER BY task_id, task_inserted_at, retry_count
+    FOR UPDATE
 )
-
 UPDATE v1_task_runtime
 SET acked_at = NOW()
-WHERE
-    tenant_id = $1::uuid
-    AND acked_at IS NULL
-    AND (task_id, task_inserted_at, retry_count) IN (
-        SELECT task_id, task_inserted_at, retry_count
-        FROM input
-    )
+WHERE (task_id, task_inserted_at, retry_count) IN (
+    SELECT task_id, task_inserted_at, retry_count
+    FROM locked_runtimes
+)
 `
 
 type MarkTaskRuntimesAckedParams struct {
-	Tenantid        uuid.UUID            `json:"tenantid"`
 	Taskids         []int64              `json:"taskids"`
 	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
 	Retrycounts     []int32              `json:"retrycounts"`
+	Tenantid        uuid.UUID            `json:"tenantid"`
 }
 
 func (q *Queries) MarkTaskRuntimesAcked(ctx context.Context, db DBTX, arg MarkTaskRuntimesAckedParams) error {
 	_, err := db.Exec(ctx, markTaskRuntimesAcked,
-		arg.Tenantid,
 		arg.Taskids,
 		arg.Taskinsertedats,
 		arg.Retrycounts,
+		arg.Tenantid,
 	)
 	return err
 }

@@ -370,6 +370,20 @@ WHERE
 GROUP BY wc.tenant_id
 ;
 
+-- name: GetTotalActiveSlotsForTenant :one
+SELECT
+    COALESCE(SUM(wc.max_units), 0)::bigint AS "totalActiveSlots"
+FROM v1_worker_slot_config wc
+JOIN "Worker" w ON w."id" = wc.worker_id AND w."tenantId" = wc.tenant_id
+WHERE
+    wc.tenant_id = @tenantId::uuid
+    AND w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false
+    AND NOT w."isExemptFromLimits"
+;
+
 -- name: ListActiveSlotsPerTenantAndSlotType :many
 SELECT
     wc.tenant_id AS "tenantId",

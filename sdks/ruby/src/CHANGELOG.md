@@ -5,6 +5,12 @@ All notable changes to Hatchet's Ruby SDK will be documented in this changelog.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.2] - 2026-10-27
+
+### Changed
+
+- The REST client sends `Accept: application/json` on the Slack OAuth start and callback calls, since the API now declares a `429 Too Many Requests` response on every authenticated operation.
+
 ## [0.11.1] - 2026-10-23
 
 ### Fixed

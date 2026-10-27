@@ -532,12 +532,7 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 			continue
 		}
 
-		var parentTaskRunIds []uuid.UUID
-		for _, p := range d.tasks {
-			if p.isCompleted && !p.isFailed && p.workflowRunExternalId != nil {
-				parentTaskRunIds = append(parentTaskRunIds, *p.workflowRunExternalId)
-			}
-		}
+		parentTaskRunIds := d.finishedTaskRunIds()
 
 		parentReExecuted := false
 		for _, p := range t.parents {
@@ -725,6 +720,22 @@ func (d *dag) drainPendingEntryCompletions(ctx context.Context) {
 	d.pendingEntryCompletions = remaining
 }
 
+// finishedTaskRunIds lists every task that has reached a terminal state, including failed ones. The
+// dispatcher resolves each id to the task's latest COMPLETED or FAILED event at dispatch time, so a
+// step created cancelled because its parent failed still receives the parent's output once the parent
+// is replayed and succeeds, and a failed parent lands in step_run_errors rather than being omitted.
+func (d *dag) finishedTaskRunIds() []uuid.UUID {
+	var taskRunIds []uuid.UUID
+
+	for _, t := range d.tasks {
+		if t.isCompleted && t.workflowRunExternalId != nil {
+			taskRunIds = append(taskRunIds, *t.workflowRunExternalId)
+		}
+	}
+
+	return taskRunIds
+}
+
 func (d *dag) applyCompletion(ctx context.Context, t *task, isFailure bool, errorMessage string, payload []byte) error {
 	t.isCompleted = true
 
@@ -871,15 +882,7 @@ func (d *dag) evaluateOnFailure(ctx context.Context) (bool, error) {
 		attribute.Bool("dag.on_failure_skipped", skip),
 	)
 
-	// Failed parents are included so the dispatcher can populate step_run_errors for the on-failure task.
-	var parentTaskRunIds []uuid.UUID
-	for _, p := range d.tasks {
-		if p.isCompleted && p.workflowRunExternalId != nil {
-			parentTaskRunIds = append(parentTaskRunIds, *p.workflowRunExternalId)
-		}
-	}
-
-	result, err := d.triggerStep(ctx, d.onFailureTask.actionId, d.onFailureTask.workflowName, d.onFailureTask.index, parentTaskRunIds, skip, false, false)
+	result, err := d.triggerStep(ctx, d.onFailureTask.actionId, d.onFailureTask.workflowName, d.onFailureTask.index, d.finishedTaskRunIds(), skip, false, false)
 	if err != nil {
 		d.err = fmt.Errorf("failed to trigger on-failure step %q: %w", d.onFailureTask.actionId, err)
 		return false, d.err

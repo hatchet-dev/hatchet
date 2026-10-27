@@ -65,7 +65,7 @@ func (u *UserService) TenantInviteReject(ctx echo.Context, request gen.TenantInv
 	}
 
 	// update the invite
-	invite, err = u.config.V1.TenantInvite().UpdateTenantInvite(ctx.Request().Context(), invite.ID, updateOpts)
+	invite, err = u.config.V1.TenantInvite().UpdateTenantInvite(ctx.Request().Context(), invite.TenantId, invite.ID, updateOpts)
 
 	if err != nil {
 		return nil, err

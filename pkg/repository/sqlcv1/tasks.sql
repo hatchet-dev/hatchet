@@ -336,18 +336,25 @@ WITH input AS (
         unnest(@taskIds::bigint[]) AS task_id,
         unnest(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
         unnest(@retryCounts::integer[]) AS retry_count
+), locked_runtimes AS (
+    SELECT task_id, task_inserted_at, retry_count
+    FROM v1_task_runtime
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND acked_at IS NULL
+        AND (task_id, task_inserted_at, retry_count) IN (
+            SELECT task_id, task_inserted_at, retry_count
+            FROM input
+        )
+    ORDER BY task_id, task_inserted_at, retry_count
+    FOR UPDATE
 )
-
 UPDATE v1_task_runtime
 SET acked_at = NOW()
-WHERE
-    tenant_id = @tenantId::uuid
-    AND acked_at IS NULL
-    AND (task_id, task_inserted_at, retry_count) IN (
-        SELECT task_id, task_inserted_at, retry_count
-        FROM input
-    )
-;
+WHERE (task_id, task_inserted_at, retry_count) IN (
+    SELECT task_id, task_inserted_at, retry_count
+    FROM locked_runtimes
+);
 
 -- name: ListTaskMetas :many
 SELECT
