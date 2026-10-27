@@ -480,10 +480,12 @@ describe('StreamsClient.reset', () => {
     const streams = new StreamsClient(fakeHatchetClient());
     await streams.reset('topic');
     await streams.reset('topic', { namespace: 'ns' });
+    await streams.reset('topic', { cursor: 'c' });
 
     expect(reset.mock.calls.map(([req]) => req)).toEqual([
-      { namespace: '', topic: 'topic' },
-      { namespace: 'ns', topic: 'topic' },
+      { namespace: '', topic: 'topic', cursor: undefined },
+      { namespace: 'ns', topic: 'topic', cursor: undefined },
+      { namespace: '', topic: 'topic', cursor: 'c' },
     ]);
   });
 });

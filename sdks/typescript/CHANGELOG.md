@@ -5,6 +5,18 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.44.1] - 2026-10-27
+
+### Changed
+
+- The REST client types the Slack OAuth start and callback responses as `void | APIErrors`, since the API now declares a `429 Too Many Requests` response on every authenticated operation.
+
+## [1.44.0] - 2026-10-26
+
+### Added
+
+- `streams.reset` (Node client and `/core`) takes a `cursor` option: `events()` calls without a cursor then start after that message instead of the topic's latest.
+
 ## [1.43.1] - 2026-10-26
 
 ### Fixed

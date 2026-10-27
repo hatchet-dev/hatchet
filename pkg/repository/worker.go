@@ -199,7 +199,7 @@ type WorkerRepository interface {
 	// has superseded this one, in which case the worker is left untouched.
 	PauseWorkerForListener(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID, paused bool) error
 
-	UpsertWorkerLabels(ctx context.Context, workerId uuid.UUID, opts []UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error)
+	UpsertWorkerLabels(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, opts []UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error)
 
 	CleanupOldWorkers(ctx context.Context, tenantId uuid.UUID, lastHeartbeatBefore time.Time) (bool, error)
 
@@ -221,6 +221,8 @@ func newWorkerRepository(shared *sharedRepository) WorkerRepository {
 }
 
 func (w *workerRepository) ListWorkers(ctx context.Context, tenantId uuid.UUID, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersRow, int64, error) {
+	db := w.pool.ForTenant(tenantId)
+
 	if err := w.v.Validate(opts); err != nil {
 		return nil, 0, err
 	}
@@ -289,13 +291,13 @@ func (w *workerRepository) ListWorkers(ctx context.Context, tenantId uuid.UUID, 
 		}
 	}
 
-	count, err := w.queries.CountWorkers(ctx, w.pool, countParams)
+	count, err := w.queries.CountWorkers(ctx, db, countParams)
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, 0, fmt.Errorf("could not count workers: %w", err)
 	}
 
-	workers, err := w.queries.ListWorkers(ctx, w.pool, queryParams)
+	workers, err := w.queries.ListWorkers(ctx, db, queryParams)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -309,7 +311,7 @@ func (w *workerRepository) ListWorkers(ctx context.Context, tenantId uuid.UUID, 
 }
 
 func (w *workerRepository) GetWorkerById(ctx context.Context, workerId uuid.UUID) (*sqlcv1.GetWorkerByIdRow, error) {
-	return w.queries.GetWorkerById(ctx, w.pool, workerId)
+	return w.queries.GetWorkerById(ctx, w.pool.ForShared(), workerId)
 }
 
 type SDK struct {
@@ -330,7 +332,7 @@ type TenantIdSlotTypeTuple struct {
 }
 
 func (w *workerRepository) ListActiveSDKsPerTenant(ctx context.Context) (map[TenantIdSDKTuple]int64, error) {
-	sdks, err := w.queries.ListActiveSDKsPerTenant(ctx, w.pool)
+	sdks, err := w.queries.ListActiveSDKsPerTenant(ctx, w.pool.ForShared())
 
 	if err != nil {
 		return nil, fmt.Errorf("could not list active sdks per tenant: %w", err)
@@ -357,7 +359,7 @@ func (w *workerRepository) ListActiveSDKsPerTenant(ctx context.Context) (map[Ten
 }
 
 func (w *workerRepository) ListTotalActiveSlotsPerTenant(ctx context.Context) (map[uuid.UUID]int64, error) {
-	rows, err := w.queries.ListTotalActiveSlotsPerTenant(ctx, w.pool)
+	rows, err := w.queries.ListTotalActiveSlotsPerTenant(ctx, w.pool.ForShared())
 	if err != nil {
 		return nil, fmt.Errorf("could not list total active slots per tenant: %w", err)
 	}
@@ -372,7 +374,7 @@ func (w *workerRepository) ListTotalActiveSlotsPerTenant(ctx context.Context) (m
 }
 
 func (w *workerRepository) ListActiveSlotsPerTenantAndSlotType(ctx context.Context) (map[TenantIdSlotTypeTuple]int64, error) {
-	rows, err := w.queries.ListActiveSlotsPerTenantAndSlotType(ctx, w.pool)
+	rows, err := w.queries.ListActiveSlotsPerTenantAndSlotType(ctx, w.pool.ForShared())
 	if err != nil {
 		return nil, fmt.Errorf("could not list active slots per tenant and slot type: %w", err)
 	}
@@ -392,7 +394,7 @@ func (w *workerRepository) ListActiveSlotsPerTenantAndSlotType(ctx context.Conte
 }
 
 func (w *workerRepository) CountActiveWorkersPerTenant(ctx context.Context) (map[uuid.UUID]int64, error) {
-	workers, err := w.queries.ListActiveWorkersPerTenant(ctx, w.pool)
+	workers, err := w.queries.ListActiveWorkersPerTenant(ctx, w.pool.ForShared())
 
 	if err != nil {
 		return nil, fmt.Errorf("could not list active workers per tenant: %w", err)
@@ -408,6 +410,8 @@ func (w *workerRepository) CountActiveWorkersPerTenant(ctx context.Context) (map
 }
 
 func (w *workerRepository) GetWorkerActionsForWorkers(ctx context.Context, tenantId uuid.UUID, workers []sqlcv1.Worker) (map[string][]string, error) {
+	db := w.pool.ForTenant(tenantId)
+
 	ctx, span := telemetry.NewSpan(ctx, "WorkerRepository.GetWorkerActionsForWorkers")
 	defer span.End()
 
@@ -436,7 +440,7 @@ func (w *workerRepository) GetWorkerActionsForWorkers(ctx context.Context, tenan
 		actionHashes = append(actionHashes, []byte(actionHash))
 	}
 
-	recordsFromActionHashes, err := w.queries.GetWorkerActionsByWorkerActionHash(ctx, w.pool, sqlcv1.GetWorkerActionsByWorkerActionHashParams{
+	recordsFromActionHashes, err := w.queries.GetWorkerActionsByWorkerActionHash(ctx, db, sqlcv1.GetWorkerActionsByWorkerActionHashParams{
 		Actionhashes: actionHashes,
 		Tenantid:     tenantId,
 	})
@@ -472,7 +476,7 @@ func (w *workerRepository) GetWorkerActionsForWorkers(ctx context.Context, tenan
 	)
 
 	if len(workerIds) > 0 {
-		recordsFromWorkerIds, err := w.queries.GetWorkerActionsByWorkerId(ctx, w.pool, sqlcv1.GetWorkerActionsByWorkerIdParams{
+		recordsFromWorkerIds, err := w.queries.GetWorkerActionsByWorkerId(ctx, db, sqlcv1.GetWorkerActionsByWorkerIdParams{
 			Workerids: workerIds,
 			Tenantid:  tenantId,
 		})
@@ -495,14 +499,18 @@ func (w *workerRepository) GetWorkerActionsForWorkers(ctx context.Context, tenan
 }
 
 func (w *workerRepository) GetWorkerWorkflowsByWorkerId(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) ([]*sqlcv1.Workflow, error) {
-	return w.queries.GetWorkerWorkflowsByWorkerId(ctx, w.pool, sqlcv1.GetWorkerWorkflowsByWorkerIdParams{
+	db := w.pool.ForTenant(tenantId)
+
+	return w.queries.GetWorkerWorkflowsByWorkerId(ctx, db, sqlcv1.GetWorkerWorkflowsByWorkerIdParams{
 		Workerid: workerId,
 		Tenantid: tenantId,
 	})
 }
 
 func (w *workerRepository) ListWorkerLabels(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID][]*sqlcv1.ListWorkerLabelsRow, error) {
-	labels, err := w.queries.ListWorkerLabels(ctx, w.pool, workerIds)
+	db := w.pool.ForTenant(tenantId)
+
+	labels, err := w.queries.ListWorkerLabels(ctx, db, workerIds)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not list worker labels: %w", err)
@@ -514,7 +522,9 @@ func (w *workerRepository) ListWorkerLabels(ctx context.Context, tenantId uuid.U
 }
 
 func (w *workerRepository) ListWorkerSlotConfigs(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]map[string]int32, error) {
-	rows, err := w.queries.ListWorkerSlotConfigs(ctx, w.pool, sqlcv1.ListWorkerSlotConfigsParams{
+	db := w.pool.ForTenant(tenantId)
+
+	rows, err := w.queries.ListWorkerSlotConfigs(ctx, db, sqlcv1.ListWorkerSlotConfigsParams{
 		Tenantid:  tenantId,
 		Workerids: workerIds,
 	})
@@ -535,7 +545,9 @@ func (w *workerRepository) ListWorkerSlotConfigs(ctx context.Context, tenantId u
 }
 
 func (w *workerRepository) ListAvailableSlotsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID, slotType string) (map[uuid.UUID]int32, error) {
-	rows, err := w.queries.ListAvailableSlotsForWorkers(ctx, w.pool, sqlcv1.ListAvailableSlotsForWorkersParams{
+	db := w.pool.ForTenant(tenantId)
+
+	rows, err := w.queries.ListAvailableSlotsForWorkers(ctx, db, sqlcv1.ListAvailableSlotsForWorkersParams{
 		Tenantid:  tenantId,
 		Workerids: workerIds,
 		Slottype:  slotType,
@@ -555,7 +567,9 @@ func (w *workerRepository) ListAvailableSlotsForWorkers(ctx context.Context, ten
 }
 
 func (w *workerRepository) ListAvailableSlotsForWorkersAndTypes(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID, slotTypes []string) (map[uuid.UUID]map[string]int32, error) {
-	rows, err := w.queries.ListAvailableSlotsForWorkersAndTypes(ctx, w.pool, sqlcv1.ListAvailableSlotsForWorkersAndTypesParams{
+	db := w.pool.ForTenant(tenantId)
+
+	rows, err := w.queries.ListAvailableSlotsForWorkersAndTypes(ctx, db, sqlcv1.ListAvailableSlotsForWorkersAndTypesParams{
 		Tenantid:  tenantId,
 		Workerids: workerIds,
 		Slottypes: slotTypes,
@@ -577,7 +591,9 @@ func (w *workerRepository) ListAvailableSlotsForWorkersAndTypes(ctx context.Cont
 }
 
 func (w *workerRepository) GetWorkerForEngine(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) (*sqlcv1.GetWorkerForEngineRow, error) {
-	return w.queries.GetWorkerForEngine(ctx, w.pool, sqlcv1.GetWorkerForEngineParams{
+	db := w.pool.ForTenant(tenantId)
+
+	return w.queries.GetWorkerForEngine(ctx, db, sqlcv1.GetWorkerForEngineParams{
 		ID:       workerId,
 		Tenantid: tenantId,
 	})
@@ -640,6 +656,8 @@ func workerSDKFromContract(sdk contracts.SDKS) (sqlcv1.NullWorkerSDKS, error) {
 }
 
 func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkerOpts) (*sqlcv1.Worker, error) {
+	db := w.pool.ForTenant(tenantId)
+
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -677,7 +695,7 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 		}
 	}
 
-	tx, err := w.pool.Begin(ctx)
+	tx, err := db.Begin(ctx)
 
 	if err != nil {
 		return nil, err
@@ -835,6 +853,8 @@ func (e *ActionBudgetError) Error() string {
 func (e *ActionBudgetError) Unwrap() error { return ErrWorkerActionBudgetExceeded }
 
 func (w *workerRepository) ApplyWorkerActionsDelta(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, add, remove []string, maxOperatorLinks int64) (int, int, error) {
+	db := w.pool.ForTenant(tenantId)
+
 	add = dedupeActionIds(add)
 	remove = dedupeActionIds(remove)
 
@@ -842,7 +862,7 @@ func (w *workerRepository) ApplyWorkerActionsDelta(ctx context.Context, tenantId
 		return 0, 0, nil
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, w.l)
 
 	if err != nil {
 		return 0, 0, err
@@ -914,7 +934,9 @@ func (w *workerRepository) ApplyWorkerActionsDelta(ctx context.Context, tenantId
 // worker's row lock, so the digest written is the digest of the links the last committed delta
 // left behind.
 func (w *workerRepository) RefreshWorkerActionHash(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) error {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l)
+	db := w.pool.ForTenant(tenantId)
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, w.l)
 
 	if err != nil {
 		return err
@@ -1000,7 +1022,9 @@ func (w *workerRepository) unlinkActions(ctx context.Context, tx pgx.Tx, tenantI
 }
 
 func (w *workerRepository) CountOperatorWorkerActions(ctx context.Context, tenantId uuid.UUID, operatorId uuid.UUID) (int64, error) {
-	return w.queries.CountOperatorWorkerActions(ctx, w.pool, sqlcv1.CountOperatorWorkerActionsParams{
+	db := w.pool.ForTenant(tenantId)
+
+	return w.queries.CountOperatorWorkerActions(ctx, db, sqlcv1.CountOperatorWorkerActionsParams{
 		Tenantid:   tenantId,
 		Operatorid: operatorId,
 	})
@@ -1144,11 +1168,13 @@ func dedupeActionIds(actionIds []string) []string {
 // UpdateWorker updates a worker.
 // It will only update the worker if there is no lock on the worker, else it will skip.
 func (w *workerRepository) UpdateWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, opts *UpdateWorkerOpts) (*sqlcv1.Worker, error) {
+	db := w.pool.ForTenant(tenantId)
+
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
-	tx, err := w.pool.Begin(ctx)
+	tx, err := db.Begin(ctx)
 
 	if err != nil {
 		return nil, err
@@ -1229,7 +1255,9 @@ func (w *workerRepository) UpdateWorker(ctx context.Context, tenantId uuid.UUID,
 }
 
 func (w *workerRepository) UpdateWorkerHeartbeat(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, lastHeartbeat time.Time) error {
-	_, err := w.queries.UpdateWorkerHeartbeat(ctx, w.pool, sqlcv1.UpdateWorkerHeartbeatParams{
+	db := w.pool.ForTenant(tenantId)
+
+	_, err := w.queries.UpdateWorkerHeartbeat(ctx, db, sqlcv1.UpdateWorkerHeartbeatParams{
 		ID:              workerId,
 		LastHeartbeatAt: sqlchelpers.TimestampFromTime(lastHeartbeat),
 	})
@@ -1246,7 +1274,7 @@ func (w *workerRepository) UpdateWorkerHeartbeats(ctx context.Context, workerIds
 		return nil
 	}
 
-	err := w.queries.UpdateWorkerHeartbeats(ctx, w.pool, sqlcv1.UpdateWorkerHeartbeatsParams{
+	err := w.queries.UpdateWorkerHeartbeats(ctx, w.pool.ForShared(), sqlcv1.UpdateWorkerHeartbeatsParams{
 		Ids:             workerIds,
 		Lastheartbeatat: sqlchelpers.TimestampFromTime(lastHeartbeat),
 	})
@@ -1263,7 +1291,7 @@ func (w *workerRepository) PauseWorkers(ctx context.Context, workerIds []uuid.UU
 		return nil
 	}
 
-	err := w.queries.PauseWorkers(ctx, w.pool, workerIds)
+	err := w.queries.PauseWorkers(ctx, w.pool.ForShared(), workerIds)
 
 	if err != nil {
 		return fmt.Errorf("could not pause workers: %w", err)
@@ -1273,13 +1301,17 @@ func (w *workerRepository) PauseWorkers(ctx context.Context, workerIds []uuid.UU
 }
 
 func (w *workerRepository) DeleteWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) error {
-	_, err := w.queries.DeleteWorker(ctx, w.pool, workerId)
+	db := w.pool.ForTenant(tenantId)
+
+	_, err := w.queries.DeleteWorker(ctx, db, workerId)
 
 	return err
 }
 
 func (w *workerRepository) ActivateWorkerListener(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID) (*sqlcv1.Worker, error) {
-	worker, err := w.queries.ActivateWorkerListener(ctx, w.pool, sqlcv1.ActivateWorkerListenerParams{
+	db := w.pool.ForTenant(tenantId)
+
+	worker, err := w.queries.ActivateWorkerListener(ctx, db, sqlcv1.ActivateWorkerListenerParams{
 		ID:        workerId,
 		Tenantid:  tenantId,
 		Sessionid: sessionId,
@@ -1293,7 +1325,9 @@ func (w *workerRepository) ActivateWorkerListener(ctx context.Context, tenantId 
 }
 
 func (w *workerRepository) DeactivateWorkerListener(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID) (*sqlcv1.Worker, error) {
-	worker, err := w.queries.DeactivateWorkerListener(ctx, w.pool, sqlcv1.DeactivateWorkerListenerParams{
+	db := w.pool.ForTenant(tenantId)
+
+	worker, err := w.queries.DeactivateWorkerListener(ctx, db, sqlcv1.DeactivateWorkerListenerParams{
 		ID:        workerId,
 		Tenantid:  tenantId,
 		Sessionid: sessionId,
@@ -1307,7 +1341,9 @@ func (w *workerRepository) DeactivateWorkerListener(ctx context.Context, tenantI
 }
 
 func (w *workerRepository) PauseWorkerForListener(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, sessionId uuid.UUID, paused bool) error {
-	if _, err := w.queries.UpdateWorker(ctx, w.pool, sqlcv1.UpdateWorkerParams{
+	db := w.pool.ForTenant(tenantId)
+
+	if _, err := w.queries.UpdateWorker(ctx, db, sqlcv1.UpdateWorkerParams{
 		ID:                workerId,
 		Tenantid:          tenantId,
 		IsPaused:          pgtype.Bool{Bool: paused, Valid: true},
@@ -1319,7 +1355,7 @@ func (w *workerRepository) PauseWorkerForListener(ctx context.Context, tenantId 
 	return nil
 }
 
-func (w *workerRepository) UpsertWorkerLabels(ctx context.Context, workerId uuid.UUID, opts []UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error) {
+func (w *workerRepository) UpsertWorkerLabels(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, opts []UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error) {
 	if len(opts) == 0 {
 		return nil, nil
 	}
@@ -1351,7 +1387,7 @@ func (w *workerRepository) UpsertWorkerLabels(ctx context.Context, workerId uuid
 			StrValue: strValue,
 		}
 
-		affinity, err := w.queries.UpsertWorkerLabel(ctx, w.pool, dbsqlcOpts)
+		affinity, err := w.queries.UpsertWorkerLabel(ctx, w.pool.ForTenant(tenantId), dbsqlcOpts)
 		if err != nil {
 			return nil, fmt.Errorf("could not update worker affinity state: %w", err)
 		}
@@ -1363,10 +1399,12 @@ func (w *workerRepository) UpsertWorkerLabels(ctx context.Context, workerId uuid
 }
 
 func (w *workerRepository) CleanupOldWorkers(ctx context.Context, tenantId uuid.UUID, lastHeartbeatBefore time.Time) (bool, error) {
+	db := w.pool.ForTenant(tenantId)
+
 	const timeout = 1000 * 60 * 3 // 3 minutes
 	const batchSize int32 = 10000
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, w.pool, w.l, timeout)
+	tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, db, w.l, timeout)
 	if err != nil {
 		return false, fmt.Errorf("error beginning transaction: %w", err)
 	}
@@ -1389,7 +1427,9 @@ func (w *workerRepository) CleanupOldWorkers(ctx context.Context, tenantId uuid.
 }
 
 func (w *workerRepository) GetDispatcherIdsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]uuid.UUID, map[uuid.UUID]struct{}, error) {
-	rows, err := w.queries.ListDispatcherIdsForWorkers(ctx, w.pool, sqlcv1.ListDispatcherIdsForWorkersParams{
+	db := w.pool.ForTenant(tenantId)
+
+	rows, err := w.queries.ListDispatcherIdsForWorkers(ctx, db, sqlcv1.ListDispatcherIdsForWorkersParams{
 		Tenantid:  tenantId,
 		Workerids: enumerables.Uniq(workerIds),
 	})
@@ -1425,7 +1465,9 @@ func (w *workerRepository) GetDispatcherIdsForWorkers(ctx context.Context, tenan
 }
 
 func (w *workerRepository) UpdateWorkerDurableTaskDispatcherId(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, dispatcherId uuid.UUID) error {
-	return w.queries.UpdateWorkerDurableTaskDispatcherId(ctx, w.pool, sqlcv1.UpdateWorkerDurableTaskDispatcherIdParams{
+	db := w.pool.ForTenant(tenantId)
+
+	return w.queries.UpdateWorkerDurableTaskDispatcherId(ctx, db, sqlcv1.UpdateWorkerDurableTaskDispatcherIdParams{
 		Workerid:     workerId,
 		Dispatcherid: dispatcherId,
 		Tenantid:     tenantId,
@@ -1433,6 +1475,8 @@ func (w *workerRepository) UpdateWorkerDurableTaskDispatcherId(ctx context.Conte
 }
 
 func (w *workerRepository) GetDurableDispatcherIdsForTasks(ctx context.Context, tenantId uuid.UUID, idInsertedAtTuples []IdInsertedAt) (map[IdInsertedAt]DurableTaskDispatcherLookup, error) {
+	db := w.pool.ForTenant(tenantId)
+
 	taskIds := make([]int64, len(idInsertedAtTuples))
 	taskInsertedAts := make([]pgtype.Timestamptz, len(idInsertedAtTuples))
 
@@ -1441,7 +1485,7 @@ func (w *workerRepository) GetDurableDispatcherIdsForTasks(ctx context.Context, 
 		taskInsertedAts[i] = sqlchelpers.TimestamptzFromUnixMicros(tuple.InsertedAtUnixMicros)
 	}
 
-	rows, err := w.queries.ListDurableTaskDispatcherIdsForTasks(ctx, w.pool, sqlcv1.ListDurableTaskDispatcherIdsForTasksParams{
+	rows, err := w.queries.ListDurableTaskDispatcherIdsForTasks(ctx, db, sqlcv1.ListDurableTaskDispatcherIdsForTasksParams{
 		Tenantid:        tenantId,
 		Taskids:         taskIds,
 		Taskinsertedats: taskInsertedAts,

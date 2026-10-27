@@ -85,6 +85,8 @@ update-password:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Unprocessable Entity - validation or processing errors
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     security:
       - cookieAuth: []
     x-enable-rate-limiting: true
@@ -121,6 +123,8 @@ current:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Method not allowed
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     security:
       - cookieAuth: []
     summary: Get current user
@@ -263,6 +267,8 @@ oauth-start-slack:
           location:
             schema:
               type: string
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     # Note that the security scheme requires cookies, because this endpoint is for linking
     # a Slack account to an existing user account.
     security:
@@ -283,6 +289,8 @@ oauth-callback-slack:
           location:
             schema:
               type: string
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     # Note that the security scheme requires cookies, because this endpoint is for linking
     # a Slack account to an existing user account.
     security:
@@ -321,6 +329,8 @@ logout:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Method not allowed
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     security:
       - cookieAuth: []
     x-enable-rate-limiting: true
@@ -351,6 +361,8 @@ memberships:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     security:
       - cookieAuth: []
     summary: List tenant memberships
@@ -380,6 +392,8 @@ invites:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     security:
       - cookieAuth: []
     summary: List tenant invites
@@ -410,6 +424,8 @@ acceptInvite:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIError"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Accept tenant invite
     tags:
       - Tenant
@@ -438,6 +454,8 @@ rejectInvite:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIError"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Reject tenant invite
     tags:
       - Tenant

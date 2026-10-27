@@ -2936,6 +2936,9 @@ type WorkflowWorkersCount struct {
 	WorkflowRunId *string `json:"workflowRunId,omitempty"`
 }
 
+// TooManyRequests defines model for TooManyRequests.
+type TooManyRequests = APIErrors
+
 // V1DagListTasksParams defines parameters for V1DagListTasks.
 type V1DagListTasksParams struct {
 	// DagIds The external id of the DAG
@@ -16420,6 +16423,7 @@ type AlertEmailGroupDeleteResponse struct {
 	HTTPResponse *http.Response
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16444,6 +16448,7 @@ type AlertEmailGroupUpdateResponse struct {
 	JSON200      *TenantAlertEmailGroup
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16467,6 +16472,7 @@ type ApiTokenUpdateRevokeResponse struct {
 	HTTPResponse *http.Response
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16514,6 +16520,7 @@ type EventGetResponse struct {
 	JSON200      *Event
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16538,6 +16545,7 @@ type EventDataGetResponse struct {
 	JSON200      *EventData
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16584,6 +16592,7 @@ type MetadataListIntegrationsResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *ListAPIMetaIntegration
 	JSON400      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16606,6 +16615,7 @@ type MonitoringPostRunProbeResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16630,6 +16640,7 @@ type SlackWebhookDeleteResponse struct {
 	JSON400      *APIErrors
 	JSON401      *APIErrors
 	JSON405      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16654,6 +16665,7 @@ type SnsDeleteResponse struct {
 	JSON400      *APIErrors
 	JSON401      *APIErrors
 	JSON405      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16702,6 +16714,7 @@ type V1DagListTasksResponse struct {
 	JSON200      *[]V1DagChildren
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 	JSON501      *APIErrors
 }
 
@@ -16728,6 +16741,7 @@ type V1ServerlessEndpointDeleteResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16753,6 +16767,7 @@ type V1ServerlessEndpointGetResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16778,6 +16793,7 @@ type V1ServerlessEndpointUpdateResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16803,6 +16819,7 @@ type V1TaskGetResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 	JSON501      *APIErrors
 }
 
@@ -16828,6 +16845,7 @@ type V1LogLineListResponse struct {
 	JSON200      *V1LogLineList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16853,6 +16871,7 @@ type V1TaskRestoreResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16878,6 +16897,7 @@ type V1TaskEventListResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 	JSON501      *APIErrors
 }
 
@@ -16903,6 +16923,7 @@ type V1CelDebugResponse struct {
 	JSON200      *V1CELDebugResponse
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16927,6 +16948,7 @@ type V1DurableTaskBranchResponse struct {
 	JSON200      *V1BranchDurableTaskResponse
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16952,6 +16974,7 @@ type V1DurableTaskEventLogListResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16976,6 +16999,7 @@ type V1EventListResponse struct {
 	JSON200      *V1EventList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17000,6 +17024,7 @@ type V1EventKeyListResponse struct {
 	JSON200      *EventKeyList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17024,6 +17049,7 @@ type V1EventGetResponse struct {
 	JSON200      *V1Event
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17048,6 +17074,7 @@ type V1FilterListResponse struct {
 	JSON200      *V1FilterList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17073,6 +17100,7 @@ type V1FilterCreateResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17098,6 +17126,7 @@ type V1FilterDeleteResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17122,6 +17151,7 @@ type V1FilterGetResponse struct {
 	JSON200      *V1Filter
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17147,6 +17177,7 @@ type V1FilterUpdateResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17171,6 +17202,7 @@ type V1TenantLogLineGetPointMetricsResponse struct {
 	JSON200      *V1LogsPointMetrics
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 	JSON501      *APIErrors
 }
 
@@ -17196,6 +17228,7 @@ type V1TenantLogLineListResponse struct {
 	JSON200      *V1LogLineList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17220,6 +17253,7 @@ type V1ServerlessEndpointListResponse struct {
 	JSON200      *V1ServerlessEndpointList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17245,6 +17279,7 @@ type V1ServerlessEndpointCreateResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17269,6 +17304,7 @@ type V1StreamPayloadGetResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17343,6 +17379,7 @@ type V1TaskListStatusMetricsResponse struct {
 	JSON200      *V1TaskRunMetrics
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 	JSON501      *APIErrors
 }
 
@@ -17368,6 +17405,7 @@ type V1TaskGetPointMetricsResponse struct {
 	JSON200      *V1TaskPointMetrics
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 	JSON501      *APIErrors
 }
 
@@ -17394,6 +17432,7 @@ type V1TaskCancelResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 	JSON501      *APIErrors
 }
 
@@ -17420,6 +17459,7 @@ type V1TaskReplayResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 	JSON501      *APIErrors
 }
 
@@ -17446,6 +17486,7 @@ type V1ObservabilityGetTraceResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17470,6 +17511,7 @@ type V1WebhookListResponse struct {
 	JSON200      *V1WebhookList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17495,6 +17537,7 @@ type V1WebhookCreateResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17520,6 +17563,7 @@ type V1WebhookDeleteResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17544,6 +17588,7 @@ type V1WebhookGetResponse struct {
 	JSON200      *V1Webhook
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17569,6 +17614,7 @@ type V1WebhookUpdateResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17618,6 +17664,7 @@ type V1WorkflowRunListResponse struct {
 	JSON200      *V1TaskSummaryList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 	JSON501      *APIErrors
 }
 
@@ -17643,6 +17690,7 @@ type V1WorkflowRunCountGetResponse struct {
 	JSON200      *V1WorkflowRunCount
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17667,6 +17715,7 @@ type V1WorkflowRunDisplayNamesListResponse struct {
 	JSON200      *V1WorkflowRunDisplayNameList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 	JSON501      *APIErrors
 }
 
@@ -17692,6 +17741,7 @@ type V1WorkflowRunExternalIdsListResponse struct {
 	JSON200      *V1WorkflowRunExternalIdList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 	JSON501      *APIErrors
 }
 
@@ -17717,6 +17767,7 @@ type V1WorkflowRunCreateResponse struct {
 	JSON200      *V1WorkflowRunDetails
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17741,6 +17792,7 @@ type V1WorkflowRunGetResponse struct {
 	JSON200      *V1WorkflowRunDetails
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 	JSON501      *APIErrors
 }
 
@@ -17767,6 +17819,7 @@ type V1WorkflowRunGetStatusResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 	JSON501      *APIErrors
 }
 
@@ -17792,6 +17845,7 @@ type V1WorkflowRunTaskEventsListResponse struct {
 	JSON200      *V1TaskEventList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 	JSON501      *APIErrors
 }
 
@@ -17817,6 +17871,7 @@ type V1WorkflowRunGetTimingsResponse struct {
 	JSON200      *V1TaskTimingList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 	JSON501      *APIErrors
 }
 
@@ -17843,6 +17898,7 @@ type StepRunListArchivesResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17868,6 +17924,7 @@ type StepRunListEventsResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17892,6 +17949,7 @@ type TenantCreateResponse struct {
 	JSON200      *Tenant
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17917,6 +17975,7 @@ type TenantGetResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIError
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17941,6 +18000,7 @@ type TenantUpdateResponse struct {
 	JSON200      *Tenant
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17965,6 +18025,7 @@ type AlertEmailGroupListResponse struct {
 	JSON200      *TenantAlertEmailGroupList
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17989,6 +18050,7 @@ type AlertEmailGroupCreateResponse struct {
 	JSON201      *TenantAlertEmailGroup
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18013,6 +18075,7 @@ type TenantAlertingSettingsGetResponse struct {
 	JSON200      *TenantAlertingSettings
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18037,6 +18100,7 @@ type ApiTokenListResponse struct {
 	JSON200      *ListAPITokensResponse
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18061,6 +18125,7 @@ type ApiTokenCreateResponse struct {
 	JSON200      *CreateAPITokenResponse
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18109,6 +18174,7 @@ type EventListResponse struct {
 	JSON200      *EventList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18133,7 +18199,7 @@ type EventCreateResponse struct {
 	JSON200      *Event
 	JSON400      *APIErrors
 	JSON403      *APIErrors
-	JSON429      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18158,7 +18224,7 @@ type EventCreateBulkResponse struct {
 	JSON200      *Events
 	JSON400      *APIErrors
 	JSON403      *APIErrors
-	JSON429      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18185,7 +18251,7 @@ type EventUpdateCancelResponse struct {
 	}
 	JSON400 *APIErrors
 	JSON403 *APIErrors
-	JSON429 *APIErrors
+	JSON429 *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18210,6 +18276,7 @@ type EventKeyListResponse struct {
 	JSON200      *EventKeyList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18234,7 +18301,7 @@ type EventUpdateReplayResponse struct {
 	JSON200      *EventList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
-	JSON429      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18259,6 +18326,7 @@ type EventDataGetWithTenantResponse struct {
 	JSON200      *EventData
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18284,6 +18352,7 @@ type TenantFeatureFlagEvaluateResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18308,6 +18377,7 @@ type TenantInviteListResponse struct {
 	JSON200      *TenantInviteList
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18333,6 +18403,7 @@ type TenantInviteCreateResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIError
 	JSON422      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18356,6 +18427,7 @@ type TenantInviteDeleteResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *TenantInvite
 	JSON400      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18379,6 +18451,7 @@ type TenantInviteUpdateResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *TenantInvite
 	JSON400      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18403,6 +18476,7 @@ type TenantMemberListResponse struct {
 	JSON200      *TenantMemberList
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18428,6 +18502,7 @@ type TenantMemberDeleteResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18453,6 +18528,7 @@ type TenantMemberUpdateResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18477,6 +18553,7 @@ type TenantGetPrometheusMetricsResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18502,6 +18579,7 @@ type TenantGetQueueMetricsResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18525,6 +18603,7 @@ type RateLimitDeleteResponse struct {
 	HTTPResponse *http.Response
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18549,6 +18628,7 @@ type RateLimitListResponse struct {
 	JSON200      *RateLimitList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18573,6 +18653,7 @@ type TenantResourcePolicyGetResponse struct {
 	JSON200      *TenantResourcePolicy
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18598,6 +18679,7 @@ type SlackWebhookListResponse struct {
 	JSON400      *APIErrors
 	JSON401      *APIErrors
 	JSON405      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18619,6 +18701,7 @@ func (r SlackWebhookListResponse) StatusCode() int {
 type UserUpdateSlackOauthStartResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18644,6 +18727,7 @@ type SnsListResponse struct {
 	JSON400      *APIErrors
 	JSON401      *APIErrors
 	JSON405      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18669,6 +18753,7 @@ type SnsCreateResponse struct {
 	JSON400      *APIErrors
 	JSON401      *APIErrors
 	JSON405      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18694,6 +18779,7 @@ type TenantGetStepRunQueueMetricsResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18719,6 +18805,7 @@ type StepRunGetResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18743,6 +18830,7 @@ type StepRunUpdateCancelResponse struct {
 	JSON200      *StepRun
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18767,6 +18855,7 @@ type StepRunUpdateRerunResponse struct {
 	JSON200      *StepRun
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18792,6 +18881,7 @@ type StepRunGetSchemaResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18817,6 +18907,7 @@ type TenantGetTaskStatsResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18842,6 +18933,7 @@ type WebhookListResponse struct {
 	JSON400      *APIErrors
 	JSON401      *APIErrors
 	JSON405      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18867,6 +18959,7 @@ type WebhookCreateResponse struct {
 	JSON400      *APIErrors
 	JSON401      *APIErrors
 	JSON405      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18891,6 +18984,7 @@ type WorkerListResponse struct {
 	JSON200      *WorkerList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18915,7 +19009,7 @@ type WorkflowRunUpdateReplayResponse struct {
 	JSON200      *ReplayWorkflowRunsResponse
 	JSON400      *APIErrors
 	JSON403      *APIErrors
-	JSON429      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18940,6 +19034,7 @@ type WorkflowRunGetResponse struct {
 	JSON200      *WorkflowRun
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18965,6 +19060,7 @@ type WorkflowRunGetInputResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18989,6 +19085,7 @@ type WorkflowRunGetShapeResponse struct {
 	JSON200      *WorkflowRunShape
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19014,6 +19111,7 @@ type WorkflowRunListStepRunEventsResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19038,6 +19136,7 @@ type WorkflowListResponse struct {
 	JSON200      *WorkflowList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19064,6 +19163,7 @@ type WorkflowRunCancelResponse struct {
 	}
 	JSON400 *APIErrors
 	JSON403 *APIErrors
+	JSON429 *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19088,6 +19188,7 @@ type CronWorkflowListResponse struct {
 	JSON200      *CronWorkflowsList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19111,6 +19212,7 @@ type WorkflowCronDeleteResponse struct {
 	HTTPResponse *http.Response
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19136,6 +19238,7 @@ type WorkflowCronGetResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19159,6 +19262,7 @@ type WorkflowCronUpdateResponse struct {
 	HTTPResponse *http.Response
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19184,6 +19288,7 @@ type WorkflowCronTriggerResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIError
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 	JSON500      *APIErrors
 }
 
@@ -19209,6 +19314,7 @@ type WorkflowRunListResponse struct {
 	JSON200      *WorkflowRunList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19233,6 +19339,7 @@ type WorkflowRunGetMetricsResponse struct {
 	JSON200      *WorkflowRunsMetrics
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19257,6 +19364,7 @@ type WorkflowScheduledListResponse struct {
 	JSON200      *ScheduledWorkflowsList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19281,6 +19389,7 @@ type WorkflowScheduledBulkDeleteResponse struct {
 	JSON200      *ScheduledWorkflowsBulkDeleteResponse
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19305,6 +19414,7 @@ type WorkflowScheduledBulkUpdateResponse struct {
 	JSON200      *ScheduledWorkflowsBulkUpdateResponse
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19328,6 +19438,7 @@ type WorkflowScheduledDeleteResponse struct {
 	HTTPResponse *http.Response
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19353,6 +19464,7 @@ type WorkflowScheduledGetResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19378,6 +19490,7 @@ type WorkflowScheduledUpdateResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19403,6 +19516,7 @@ type WorkflowScheduledTriggerResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 	JSON500      *APIErrors
 }
 
@@ -19429,7 +19543,7 @@ type CronWorkflowTriggerCreateResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
-	JSON429      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19455,7 +19569,7 @@ type ScheduledWorkflowRunCreateResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
-	JSON429      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19480,6 +19594,7 @@ type WorkflowGetWorkersCountResponse struct {
 	JSON200      *WorkflowWorkersCount
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19505,6 +19620,7 @@ type UserGetCurrentResponse struct {
 	JSON400      *APIErrors
 	JSON401      *APIErrors
 	JSON405      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19613,6 +19729,7 @@ type UserListTenantInvitesResponse struct {
 	JSON200      *TenantInviteList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19636,6 +19753,7 @@ type TenantInviteAcceptResponse struct {
 	HTTPResponse *http.Response
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19659,6 +19777,7 @@ type TenantInviteRejectResponse struct {
 	HTTPResponse *http.Response
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19710,6 +19829,7 @@ type UserUpdateLogoutResponse struct {
 	JSON400      *APIErrors
 	JSON401      *APIErrors
 	JSON405      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19734,6 +19854,7 @@ type TenantMembershipsListResponse struct {
 	JSON200      *UserTenantMembershipsList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19760,6 +19881,7 @@ type UserUpdatePasswordResponse struct {
 	JSON401      *APIErrors
 	JSON405      *APIErrors
 	JSON422      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19807,6 +19929,7 @@ func (r UserCreateResponse) StatusCode() int {
 type UserUpdateSlackOauthCallbackResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19855,6 +19978,7 @@ type WebhookDeleteResponse struct {
 	JSON400      *APIErrors
 	JSON401      *APIErrors
 	JSON405      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19880,6 +20004,7 @@ type WebhookRequestsListResponse struct {
 	JSON400      *APIErrors
 	JSON401      *APIErrors
 	JSON405      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19904,6 +20029,7 @@ type WorkerGetResponse struct {
 	JSON200      *Worker
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19928,6 +20054,7 @@ type WorkerUpdateResponse struct {
 	JSON200      *Worker
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19952,6 +20079,7 @@ type WorkflowDeleteResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19977,6 +20105,7 @@ type WorkflowGetResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -20001,6 +20130,7 @@ type WorkflowUpdateResponse struct {
 	JSON200      *Workflow
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -20026,6 +20156,7 @@ type WorkflowGetMetricsResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -20051,7 +20182,7 @@ type WorkflowRunCreateResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
-	JSON429      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -20077,6 +20208,7 @@ type WorkflowVersionGetResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -21888,6 +22020,13 @@ func ParseAlertEmailGroupDeleteResponse(rsp *http.Response) (*AlertEmailGroupDel
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -21928,6 +22067,13 @@ func ParseAlertEmailGroupUpdateResponse(rsp *http.Response) (*AlertEmailGroupUpd
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -21960,6 +22106,13 @@ func ParseApiTokenUpdateRevokeResponse(rsp *http.Response) (*ApiTokenUpdateRevok
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -22034,6 +22187,13 @@ func ParseEventGetResponse(rsp *http.Response) (*EventGetResponse, error) {
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -22073,6 +22233,13 @@ func ParseEventDataGetResponse(rsp *http.Response) (*EventDataGetResponse, error
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -22140,6 +22307,13 @@ func ParseMetadataListIntegrationsResponse(rsp *http.Response) (*MetadataListInt
 		}
 		response.JSON400 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -22165,6 +22339,13 @@ func ParseMonitoringPostRunProbeResponse(rsp *http.Response) (*MonitoringPostRun
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -22206,6 +22387,13 @@ func ParseSlackWebhookDeleteResponse(rsp *http.Response) (*SlackWebhookDeleteRes
 		}
 		response.JSON405 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -22245,6 +22433,13 @@ func ParseSnsDeleteResponse(rsp *http.Response) (*SnsDeleteResponse, error) {
 			return nil, err
 		}
 		response.JSON405 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -22326,6 +22521,13 @@ func ParseV1DagListTasksResponse(rsp *http.Response) (*V1DagListTasksResponse, e
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -22380,6 +22582,13 @@ func ParseV1ServerlessEndpointDeleteResponse(rsp *http.Response) (*V1ServerlessE
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -22426,6 +22635,13 @@ func ParseV1ServerlessEndpointGetResponse(rsp *http.Response) (*V1ServerlessEndp
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -22474,6 +22690,13 @@ func ParseV1ServerlessEndpointUpdateResponse(rsp *http.Response) (*V1ServerlessE
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -22520,6 +22743,13 @@ func ParseV1TaskGetResponse(rsp *http.Response) (*V1TaskGetResponse, error) {
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
@@ -22568,6 +22798,13 @@ func ParseV1LogLineListResponse(rsp *http.Response) (*V1LogLineListResponse, err
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -22614,6 +22851,13 @@ func ParseV1TaskRestoreResponse(rsp *http.Response) (*V1TaskRestoreResponse, err
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -22662,6 +22906,13 @@ func ParseV1TaskEventListResponse(rsp *http.Response) (*V1TaskEventListResponse,
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -22709,6 +22960,13 @@ func ParseV1CelDebugResponse(rsp *http.Response) (*V1CelDebugResponse, error) {
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -22748,6 +23006,13 @@ func ParseV1DurableTaskBranchResponse(rsp *http.Response) (*V1DurableTaskBranchR
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -22796,6 +23061,13 @@ func ParseV1DurableTaskEventLogListResponse(rsp *http.Response) (*V1DurableTaskE
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -22835,6 +23107,13 @@ func ParseV1EventListResponse(rsp *http.Response) (*V1EventListResponse, error) 
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -22876,6 +23155,13 @@ func ParseV1EventKeyListResponse(rsp *http.Response) (*V1EventKeyListResponse, e
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -22916,6 +23202,13 @@ func ParseV1EventGetResponse(rsp *http.Response) (*V1EventGetResponse, error) {
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -22955,6 +23248,13 @@ func ParseV1FilterListResponse(rsp *http.Response) (*V1FilterListResponse, error
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -23003,6 +23303,13 @@ func ParseV1FilterCreateResponse(rsp *http.Response) (*V1FilterCreateResponse, e
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -23050,6 +23357,13 @@ func ParseV1FilterDeleteResponse(rsp *http.Response) (*V1FilterDeleteResponse, e
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -23089,6 +23403,13 @@ func ParseV1FilterGetResponse(rsp *http.Response) (*V1FilterGetResponse, error) 
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -23137,6 +23458,13 @@ func ParseV1FilterUpdateResponse(rsp *http.Response) (*V1FilterUpdateResponse, e
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -23176,6 +23504,13 @@ func ParseV1TenantLogLineGetPointMetricsResponse(rsp *http.Response) (*V1TenantL
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
@@ -23224,6 +23559,13 @@ func ParseV1TenantLogLineListResponse(rsp *http.Response) (*V1TenantLogLineListR
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -23263,6 +23605,13 @@ func ParseV1ServerlessEndpointListResponse(rsp *http.Response) (*V1ServerlessEnd
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -23311,6 +23660,13 @@ func ParseV1ServerlessEndpointCreateResponse(rsp *http.Response) (*V1ServerlessE
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -23350,6 +23706,13 @@ func ParseV1StreamPayloadGetResponse(rsp *http.Response) (*V1StreamPayloadGetRes
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -23485,6 +23848,13 @@ func ParseV1TaskListStatusMetricsResponse(rsp *http.Response) (*V1TaskListStatus
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -23531,6 +23901,13 @@ func ParseV1TaskGetPointMetricsResponse(rsp *http.Response) (*V1TaskGetPointMetr
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
@@ -23586,6 +23963,13 @@ func ParseV1TaskCancelResponse(rsp *http.Response) (*V1TaskCancelResponse, error
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -23639,6 +24023,13 @@ func ParseV1TaskReplayResponse(rsp *http.Response) (*V1TaskReplayResponse, error
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
@@ -23694,6 +24085,13 @@ func ParseV1ObservabilityGetTraceResponse(rsp *http.Response) (*V1ObservabilityG
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -23733,6 +24131,13 @@ func ParseV1WebhookListResponse(rsp *http.Response) (*V1WebhookListResponse, err
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -23781,6 +24186,13 @@ func ParseV1WebhookCreateResponse(rsp *http.Response) (*V1WebhookCreateResponse,
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -23828,6 +24240,13 @@ func ParseV1WebhookDeleteResponse(rsp *http.Response) (*V1WebhookDeleteResponse,
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -23867,6 +24286,13 @@ func ParseV1WebhookGetResponse(rsp *http.Response) (*V1WebhookGetResponse, error
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -23914,6 +24340,13 @@ func ParseV1WebhookUpdateResponse(rsp *http.Response) (*V1WebhookUpdateResponse,
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -24002,6 +24435,13 @@ func ParseV1WorkflowRunListResponse(rsp *http.Response) (*V1WorkflowRunListRespo
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -24049,6 +24489,13 @@ func ParseV1WorkflowRunCountGetResponse(rsp *http.Response) (*V1WorkflowRunCount
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -24088,6 +24535,13 @@ func ParseV1WorkflowRunDisplayNamesListResponse(rsp *http.Response) (*V1Workflow
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
@@ -24136,6 +24590,13 @@ func ParseV1WorkflowRunExternalIdsListResponse(rsp *http.Response) (*V1WorkflowR
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -24183,6 +24644,13 @@ func ParseV1WorkflowRunCreateResponse(rsp *http.Response) (*V1WorkflowRunCreateR
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -24222,6 +24690,13 @@ func ParseV1WorkflowRunGetResponse(rsp *http.Response) (*V1WorkflowRunGetRespons
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
@@ -24277,6 +24752,13 @@ func ParseV1WorkflowRunGetStatusResponse(rsp *http.Response) (*V1WorkflowRunGetS
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -24324,6 +24806,13 @@ func ParseV1WorkflowRunTaskEventsListResponse(rsp *http.Response) (*V1WorkflowRu
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -24370,6 +24859,13 @@ func ParseV1WorkflowRunGetTimingsResponse(rsp *http.Response) (*V1WorkflowRunGet
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
@@ -24425,6 +24921,13 @@ func ParseStepRunListArchivesResponse(rsp *http.Response) (*StepRunListArchivesR
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -24472,6 +24975,13 @@ func ParseStepRunListEventsResponse(rsp *http.Response) (*StepRunListEventsRespo
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -24511,6 +25021,13 @@ func ParseTenantCreateResponse(rsp *http.Response) (*TenantCreateResponse, error
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -24559,6 +25076,13 @@ func ParseTenantGetResponse(rsp *http.Response) (*TenantGetResponse, error) {
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -24598,6 +25122,13 @@ func ParseTenantUpdateResponse(rsp *http.Response) (*TenantUpdateResponse, error
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -24639,6 +25170,13 @@ func ParseAlertEmailGroupListResponse(rsp *http.Response) (*AlertEmailGroupListR
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -24678,6 +25216,13 @@ func ParseAlertEmailGroupCreateResponse(rsp *http.Response) (*AlertEmailGroupCre
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -24719,6 +25264,13 @@ func ParseTenantAlertingSettingsGetResponse(rsp *http.Response) (*TenantAlerting
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -24759,6 +25311,13 @@ func ParseApiTokenListResponse(rsp *http.Response) (*ApiTokenListResponse, error
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -24798,6 +25357,13 @@ func ParseApiTokenCreateResponse(rsp *http.Response) (*ApiTokenCreateResponse, e
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -24879,6 +25445,13 @@ func ParseEventListResponse(rsp *http.Response) (*EventListResponse, error) {
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -24920,7 +25493,7 @@ func ParseEventCreateResponse(rsp *http.Response) (*EventCreateResponse, error) 
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest APIErrors
+		var dest TooManyRequests
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -24967,7 +25540,7 @@ func ParseEventCreateBulkResponse(rsp *http.Response) (*EventCreateBulkResponse,
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest APIErrors
+		var dest TooManyRequests
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -25016,7 +25589,7 @@ func ParseEventUpdateCancelResponse(rsp *http.Response) (*EventUpdateCancelRespo
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest APIErrors
+		var dest TooManyRequests
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -25062,6 +25635,13 @@ func ParseEventKeyListResponse(rsp *http.Response) (*EventKeyListResponse, error
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -25103,7 +25683,7 @@ func ParseEventUpdateReplayResponse(rsp *http.Response) (*EventUpdateReplayRespo
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest APIErrors
+		var dest TooManyRequests
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -25148,6 +25728,13 @@ func ParseEventDataGetWithTenantResponse(rsp *http.Response) (*EventDataGetWithT
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -25196,6 +25783,13 @@ func ParseTenantFeatureFlagEvaluateResponse(rsp *http.Response) (*TenantFeatureF
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -25235,6 +25829,13 @@ func ParseTenantInviteListResponse(rsp *http.Response) (*TenantInviteListRespons
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -25283,6 +25884,13 @@ func ParseTenantInviteCreateResponse(rsp *http.Response) (*TenantInviteCreateRes
 		}
 		response.JSON422 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -25316,6 +25924,13 @@ func ParseTenantInviteDeleteResponse(rsp *http.Response) (*TenantInviteDeleteRes
 		}
 		response.JSON400 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -25348,6 +25963,13 @@ func ParseTenantInviteUpdateResponse(rsp *http.Response) (*TenantInviteUpdateRes
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -25388,6 +26010,13 @@ func ParseTenantMemberListResponse(rsp *http.Response) (*TenantMemberListRespons
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -25436,6 +26065,13 @@ func ParseTenantMemberDeleteResponse(rsp *http.Response) (*TenantMemberDeleteRes
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -25483,6 +26119,13 @@ func ParseTenantMemberUpdateResponse(rsp *http.Response) (*TenantMemberUpdateRes
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -25522,6 +26165,13 @@ func ParseTenantGetPrometheusMetricsResponse(rsp *http.Response) (*TenantGetProm
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -25570,6 +26220,13 @@ func ParseTenantGetQueueMetricsResponse(rsp *http.Response) (*TenantGetQueueMetr
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -25602,6 +26259,13 @@ func ParseRateLimitDeleteResponse(rsp *http.Response) (*RateLimitDeleteResponse,
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -25643,6 +26307,13 @@ func ParseRateLimitListResponse(rsp *http.Response) (*RateLimitListResponse, err
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -25682,6 +26353,13 @@ func ParseTenantResourcePolicyGetResponse(rsp *http.Response) (*TenantResourcePo
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -25730,6 +26408,13 @@ func ParseSlackWebhookListResponse(rsp *http.Response) (*SlackWebhookListRespons
 		}
 		response.JSON405 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -25746,6 +26431,16 @@ func ParseUserUpdateSlackOauthStartResponse(rsp *http.Response) (*UserUpdateSlac
 	response := &UserUpdateSlackOauthStartResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -25792,6 +26487,13 @@ func ParseSnsListResponse(rsp *http.Response) (*SnsListResponse, error) {
 			return nil, err
 		}
 		response.JSON405 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -25840,6 +26542,13 @@ func ParseSnsCreateResponse(rsp *http.Response) (*SnsCreateResponse, error) {
 		}
 		response.JSON405 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -25886,6 +26595,13 @@ func ParseTenantGetStepRunQueueMetricsResponse(rsp *http.Response) (*TenantGetSt
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -25934,6 +26650,13 @@ func ParseStepRunGetResponse(rsp *http.Response) (*StepRunGetResponse, error) {
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -25974,6 +26697,13 @@ func ParseStepRunUpdateCancelResponse(rsp *http.Response) (*StepRunUpdateCancelR
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -26013,6 +26743,13 @@ func ParseStepRunUpdateRerunResponse(rsp *http.Response) (*StepRunUpdateRerunRes
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -26061,6 +26798,13 @@ func ParseStepRunGetSchemaResponse(rsp *http.Response) (*StepRunGetSchemaRespons
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -26107,6 +26851,13 @@ func ParseTenantGetTaskStatsResponse(rsp *http.Response) (*TenantGetTaskStatsRes
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -26155,6 +26906,13 @@ func ParseWebhookListResponse(rsp *http.Response) (*WebhookListResponse, error) 
 		}
 		response.JSON405 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -26202,6 +26960,13 @@ func ParseWebhookCreateResponse(rsp *http.Response) (*WebhookCreateResponse, err
 		}
 		response.JSON405 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -26241,6 +27006,13 @@ func ParseWorkerListResponse(rsp *http.Response) (*WorkerListResponse, error) {
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -26283,7 +27055,7 @@ func ParseWorkflowRunUpdateReplayResponse(rsp *http.Response) (*WorkflowRunUpdat
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest APIErrors
+		var dest TooManyRequests
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -26328,6 +27100,13 @@ func ParseWorkflowRunGetResponse(rsp *http.Response) (*WorkflowRunGetResponse, e
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -26376,6 +27155,13 @@ func ParseWorkflowRunGetInputResponse(rsp *http.Response) (*WorkflowRunGetInputR
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -26415,6 +27201,13 @@ func ParseWorkflowRunGetShapeResponse(rsp *http.Response) (*WorkflowRunGetShapeR
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -26463,6 +27256,13 @@ func ParseWorkflowRunListStepRunEventsResponse(rsp *http.Response) (*WorkflowRun
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -26502,6 +27302,13 @@ func ParseWorkflowListResponse(rsp *http.Response) (*WorkflowListResponse, error
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -26545,6 +27352,13 @@ func ParseWorkflowRunCancelResponse(rsp *http.Response) (*WorkflowRunCancelRespo
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -26585,6 +27399,13 @@ func ParseCronWorkflowListResponse(rsp *http.Response) (*CronWorkflowListRespons
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -26617,6 +27438,13 @@ func ParseWorkflowCronDeleteResponse(rsp *http.Response) (*WorkflowCronDeleteRes
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -26665,6 +27493,13 @@ func ParseWorkflowCronGetResponse(rsp *http.Response) (*WorkflowCronGetResponse,
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -26697,6 +27532,13 @@ func ParseWorkflowCronUpdateResponse(rsp *http.Response) (*WorkflowCronUpdateRes
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -26745,6 +27587,13 @@ func ParseWorkflowCronTriggerResponse(rsp *http.Response) (*WorkflowCronTriggerR
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -26792,6 +27641,13 @@ func ParseWorkflowRunListResponse(rsp *http.Response) (*WorkflowRunListResponse,
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -26831,6 +27687,13 @@ func ParseWorkflowRunGetMetricsResponse(rsp *http.Response) (*WorkflowRunGetMetr
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -26872,6 +27735,13 @@ func ParseWorkflowScheduledListResponse(rsp *http.Response) (*WorkflowScheduledL
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -26911,6 +27781,13 @@ func ParseWorkflowScheduledBulkDeleteResponse(rsp *http.Response) (*WorkflowSche
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -26952,6 +27829,13 @@ func ParseWorkflowScheduledBulkUpdateResponse(rsp *http.Response) (*WorkflowSche
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -26984,6 +27868,13 @@ func ParseWorkflowScheduledDeleteResponse(rsp *http.Response) (*WorkflowSchedule
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -27032,6 +27923,13 @@ func ParseWorkflowScheduledGetResponse(rsp *http.Response) (*WorkflowScheduledGe
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -27079,6 +27977,13 @@ func ParseWorkflowScheduledUpdateResponse(rsp *http.Response) (*WorkflowSchedule
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -27125,6 +28030,13 @@ func ParseWorkflowScheduledTriggerResponse(rsp *http.Response) (*WorkflowSchedul
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest APIErrors
@@ -27181,7 +28093,7 @@ func ParseCronWorkflowTriggerCreateResponse(rsp *http.Response) (*CronWorkflowTr
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest APIErrors
+		var dest TooManyRequests
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -27235,7 +28147,7 @@ func ParseScheduledWorkflowRunCreateResponse(rsp *http.Response) (*ScheduledWork
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest APIErrors
+		var dest TooManyRequests
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -27280,6 +28192,13 @@ func ParseWorkflowGetWorkersCountResponse(rsp *http.Response) (*WorkflowGetWorke
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -27327,6 +28246,13 @@ func ParseUserGetCurrentResponse(rsp *http.Response) (*UserGetCurrentResponse, e
 			return nil, err
 		}
 		response.JSON405 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -27432,6 +28358,13 @@ func ParseUserListTenantInvitesResponse(rsp *http.Response) (*UserListTenantInvi
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -27465,6 +28398,13 @@ func ParseTenantInviteAcceptResponse(rsp *http.Response) (*TenantInviteAcceptRes
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -27497,6 +28437,13 @@ func ParseTenantInviteRejectResponse(rsp *http.Response) (*TenantInviteRejectRes
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -27599,6 +28546,13 @@ func ParseUserUpdateLogoutResponse(rsp *http.Response) (*UserUpdateLogoutRespons
 		}
 		response.JSON405 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -27638,6 +28592,13 @@ func ParseTenantMembershipsListResponse(rsp *http.Response) (*TenantMembershipsL
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -27692,6 +28653,13 @@ func ParseUserUpdatePasswordResponse(rsp *http.Response) (*UserUpdatePasswordRes
 			return nil, err
 		}
 		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -27765,6 +28733,16 @@ func ParseUserUpdateSlackOauthCallbackResponse(rsp *http.Response) (*UserUpdateS
 		HTTPResponse: rsp,
 	}
 
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	}
+
 	return response, nil
 }
 
@@ -27831,6 +28809,13 @@ func ParseWebhookDeleteResponse(rsp *http.Response) (*WebhookDeleteResponse, err
 		}
 		response.JSON405 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -27878,6 +28863,13 @@ func ParseWebhookRequestsListResponse(rsp *http.Response) (*WebhookRequestsListR
 		}
 		response.JSON405 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -27917,6 +28909,13 @@ func ParseWorkerGetResponse(rsp *http.Response) (*WorkerGetResponse, error) {
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -27958,6 +28957,13 @@ func ParseWorkerUpdateResponse(rsp *http.Response) (*WorkerUpdateResponse, error
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -27997,6 +29003,13 @@ func ParseWorkflowDeleteResponse(rsp *http.Response) (*WorkflowDeleteResponse, e
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -28045,6 +29058,13 @@ func ParseWorkflowGetResponse(rsp *http.Response) (*WorkflowGetResponse, error) 
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -28084,6 +29104,13 @@ func ParseWorkflowUpdateResponse(rsp *http.Response) (*WorkflowUpdateResponse, e
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -28131,6 +29158,13 @@ func ParseWorkflowGetMetricsResponse(rsp *http.Response) (*WorkflowGetMetricsRes
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -28180,7 +29214,7 @@ func ParseWorkflowRunCreateResponse(rsp *http.Response) (*WorkflowRunCreateRespo
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest APIErrors
+		var dest TooManyRequests
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -28232,6 +29266,13 @@ func ParseWorkflowVersionGetResponse(rsp *http.Response) (*WorkflowVersionGetRes
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 

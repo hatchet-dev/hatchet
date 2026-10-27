@@ -55,6 +55,8 @@ withTenant:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get workflows
     tags:
       - Workflow
@@ -100,6 +102,8 @@ withWorkflow:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get workflow
     tags:
       - Workflow
@@ -139,6 +143,8 @@ withWorkflow:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Delete workflow
     tags:
       - Workflow
@@ -183,6 +189,8 @@ withWorkflow:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Update workflow
     tags:
       - Workflow
@@ -228,6 +236,8 @@ workflowPause:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Toggle workflow paused state
     tags:
       - Workflow
@@ -281,6 +291,8 @@ workflowVersion:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get workflow version
     tags:
       - Workflow
@@ -334,6 +346,8 @@ workflowVersionDefinition:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get workflow version definition
     tags:
       - Workflow
@@ -383,11 +397,7 @@ triggerWorkflow:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: A malformed or bad request
       "429":
-        content:
-          application/json:
-            schema:
-              $ref: "../../components/schemas/_index.yaml#/APIErrors"
-        description: Resource limit exceeded
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
       "403":
         content:
           application/json:
@@ -454,6 +464,8 @@ cancelWorkflowRuns:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Cancel workflow runs
     tags:
       - Workflow Run
@@ -608,6 +620,8 @@ workflowRuns:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get workflow runs
     tags:
       - Workflow
@@ -707,6 +721,8 @@ workflowRunsMetrics:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get workflow runs metrics
     tags:
       - Workflow
@@ -754,6 +770,8 @@ workflowRun:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get workflow run
     tags:
       - Workflow
@@ -801,6 +819,8 @@ workflowRunShape:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get workflow run
     tags:
       - Workflow
@@ -857,6 +877,8 @@ getMetrics:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get workflow metrics
     tags:
       - Workflow
@@ -905,6 +927,8 @@ workflowWorkersCount:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get workflow worker count
     tags:
       - Workflow
@@ -952,11 +976,7 @@ scheduledCreate:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: A malformed or bad request
       "429":
-        content:
-          application/json:
-            schema:
-              $ref: "../../components/schemas/_index.yaml#/APIErrors"
-        description: Resource limit exceeded
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
       "403":
         content:
           application/json:
@@ -1078,6 +1098,8 @@ scheduledList:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get scheduled workflow runs
     tags:
       - Workflow
@@ -1132,6 +1154,8 @@ scheduled:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get scheduled workflow run
     tags:
       - Workflow
@@ -1174,6 +1198,8 @@ scheduled:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIError"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Delete scheduled workflow run
     tags:
       - Workflow
@@ -1233,6 +1259,8 @@ scheduled:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Update scheduled workflow run
     tags:
       - Workflow
@@ -1291,6 +1319,8 @@ scheduled:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Internal server error
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Trigger scheduled workflow run
     tags:
       - Workflow
@@ -1337,6 +1367,8 @@ scheduledBulkDelete:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Bulk delete scheduled workflow runs
     tags:
       - Workflow
@@ -1383,6 +1415,8 @@ scheduledBulkUpdate:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Bulk update scheduled workflow runs
     tags:
       - Workflow
@@ -1437,6 +1471,8 @@ crons:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get cron job workflow run
     tags:
       - Workflow
@@ -1479,6 +1515,8 @@ crons:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIError"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Delete cron job workflow run
     tags:
       - Workflow
@@ -1528,6 +1566,8 @@ crons:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIError"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Update cron job workflow run
     tags:
       - Workflow
@@ -1586,6 +1626,8 @@ crons:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Internal server error
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Trigger cron job workflow run immediately
     tags:
       - Workflow
@@ -1633,11 +1675,7 @@ cronsCreate:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: A malformed or bad request
       "429":
-        content:
-          application/json:
-            schema:
-              $ref: "../../components/schemas/_index.yaml#/APIErrors"
-        description: Resource limit exceeded
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
       "403":
         content:
           application/json:
@@ -1745,6 +1783,8 @@ cronsList:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get cron job workflows
     tags:
       - Workflow

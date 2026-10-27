@@ -84,6 +84,32 @@ describe('durable-streams-e2e', () => {
     await existing.return?.();
   }, 30_000);
 
+  it('reset to a cursor starts new subscribers after that message', async () => {
+    const topic = makeTestScope('durable_streams_reset_cursor');
+
+    await hatchet.streams.publish(topic, 'one');
+    await hatchet.streams.publish(topic, 'two');
+    await hatchet.streams.publish(topic, 'three');
+
+    const [first] = await collect(hatchet.streams.events(topic), 1);
+    await hatchet.streams.reset(topic, { cursor: first.cursor });
+
+    const fresh = await collect(hatchet.streams.events(topic), 2);
+    expect(fresh.map((e) => decode(e.payload))).toEqual(['two', 'three']);
+  }, 30_000);
+
+  it('rejects a reset to a cursor from another topic', async () => {
+    const topic = makeTestScope('durable_streams_reset_foreign_cursor');
+    const other = makeTestScope('durable_streams_reset_foreign_cursor_other');
+
+    await hatchet.streams.publish(other, 'elsewhere');
+    const [foreign] = await collect(hatchet.streams.events(other), 1);
+
+    await expect(hatchet.streams.reset(topic, { cursor: foreign.cursor })).rejects.toMatchObject({
+      code: Status.INVALID_ARGUMENT,
+    });
+  }, 30_000);
+
   it('isolates messages by namespace', async () => {
     const topic = makeTestScope('durable_streams_namespace');
     const namespaceA = 'ns-a';

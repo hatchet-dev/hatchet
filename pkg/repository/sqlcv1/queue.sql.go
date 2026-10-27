@@ -260,7 +260,7 @@ WITH assign_input AS (
         $9::uuid,
         t.batch_key,
         t.timeout_at,
-        NOW()
+        CASE WHEN $11::boolean THEN NOW() END
     FROM
         to_assign t
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO UPDATE
@@ -325,6 +325,7 @@ type FlushAssignedQueueItemsParams struct {
 	Removeretrycounts     []int32              `json:"removeretrycounts"`
 	Tenantid              uuid.UUID            `json:"tenantid"`
 	Mintaskinsertedat     pgtype.Timestamptz   `json:"mintaskinsertedat"`
+	Reassignunackedtasks  bool                 `json:"reassignunackedtasks"`
 }
 
 type FlushAssignedQueueItemsRow struct {
@@ -356,6 +357,7 @@ func (q *Queries) FlushAssignedQueueItems(ctx context.Context, db DBTX, arg Flus
 		arg.Removeretrycounts,
 		arg.Tenantid,
 		arg.Mintaskinsertedat,
+		arg.Reassignunackedtasks,
 	)
 	if err != nil {
 		return nil, err
@@ -2846,7 +2848,7 @@ WITH input AS (
         $6::uuid,
         t.batch_key,
         t.timeout_at,
-        NOW()
+        CASE WHEN $7::boolean THEN NOW() END
     FROM
         updated_tasks t
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO UPDATE
@@ -2910,12 +2912,13 @@ JOIN
 `
 
 type UpdateTasksToAssignedParams struct {
-	Taskids           []int64              `json:"taskids"`
-	Taskinsertedats   []pgtype.Timestamptz `json:"taskinsertedats"`
-	Taskretrycounts   []int32              `json:"taskretrycounts"`
-	Workerids         []uuid.UUID          `json:"workerids"`
-	Mintaskinsertedat pgtype.Timestamptz   `json:"mintaskinsertedat"`
-	Tenantid          uuid.UUID            `json:"tenantid"`
+	Taskids              []int64              `json:"taskids"`
+	Taskinsertedats      []pgtype.Timestamptz `json:"taskinsertedats"`
+	Taskretrycounts      []int32              `json:"taskretrycounts"`
+	Workerids            []uuid.UUID          `json:"workerids"`
+	Mintaskinsertedat    pgtype.Timestamptz   `json:"mintaskinsertedat"`
+	Tenantid             uuid.UUID            `json:"tenantid"`
+	Reassignunackedtasks bool                 `json:"reassignunackedtasks"`
 }
 
 type UpdateTasksToAssignedRow struct {
@@ -2934,6 +2937,7 @@ func (q *Queries) UpdateTasksToAssigned(ctx context.Context, db DBTX, arg Update
 		arg.Workerids,
 		arg.Mintaskinsertedat,
 		arg.Tenantid,
+		arg.Reassignunackedtasks,
 	)
 	if err != nil {
 		return nil, err

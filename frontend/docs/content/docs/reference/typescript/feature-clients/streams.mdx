@@ -59,16 +59,16 @@ Returns
 
 ##### `reset()`
 
-Makes events() calls without a cursor start after the topic's latest
-message. Readers already iterating, and any call with a cursor, are
-unaffected.
+Makes events() calls without a cursor start after options.cursor, or the
+topic's latest message. Readers already iterating, and any call with a
+cursor, are unaffected.
 
 Parameters
 
-| Parameter  | Type                                                               | Description                 |
-| ---------- | ------------------------------------------------------------------ | --------------------------- |
-| `topic`    | `string`                                                           | the topic to reset          |
-| `options?` | `Pick`\<[`StreamCallOptions`](#streamcalloptions), `"namespace"`\> | optional namespace override |
+| Parameter  | Type                                                                             | Description                                        |
+| ---------- | -------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `topic`    | `string`                                                                         | the topic to reset                                 |
+| `options?` | `Pick`\<[`StreamCallOptions`](#streamcalloptions), `"namespace"` \| `"cursor"`\> | optional namespace override and cursor to reset to |
 
 Returns
 

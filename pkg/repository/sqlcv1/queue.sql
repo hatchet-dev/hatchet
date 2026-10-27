@@ -262,7 +262,7 @@ WITH input AS (
         @tenantId::uuid,
         t.batch_key,
         t.timeout_at,
-        NOW()
+        CASE WHEN @reassignUnackedTasks::boolean THEN NOW() END
     FROM
         updated_tasks t
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO UPDATE
@@ -436,7 +436,7 @@ WITH assign_input AS (
         @tenantId::uuid,
         t.batch_key,
         t.timeout_at,
-        NOW()
+        CASE WHEN @reassignUnackedTasks::boolean THEN NOW() END
     FROM
         to_assign t
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO UPDATE

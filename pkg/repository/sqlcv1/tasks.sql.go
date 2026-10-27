@@ -3442,35 +3442,43 @@ func (q *Queries) ManualSlotRelease(ctx context.Context, db DBTX, arg ManualSlot
 const markTaskRuntimesAcked = `-- name: MarkTaskRuntimesAcked :exec
 WITH input AS (
     SELECT
-        unnest($2::bigint[]) AS task_id,
-        unnest($3::timestamptz[]) AS task_inserted_at,
-        unnest($4::integer[]) AS retry_count
+        unnest($1::bigint[]) AS task_id,
+        unnest($2::timestamptz[]) AS task_inserted_at,
+        unnest($3::integer[]) AS retry_count
+), locked_runtimes AS (
+    SELECT task_id, task_inserted_at, retry_count
+    FROM v1_task_runtime
+    WHERE
+        tenant_id = $4::uuid
+        AND acked_at IS NULL
+        AND (task_id, task_inserted_at, retry_count) IN (
+            SELECT task_id, task_inserted_at, retry_count
+            FROM input
+        )
+    ORDER BY task_id, task_inserted_at, retry_count
+    FOR UPDATE
 )
-
 UPDATE v1_task_runtime
 SET acked_at = NOW()
-WHERE
-    tenant_id = $1::uuid
-    AND acked_at IS NULL
-    AND (task_id, task_inserted_at, retry_count) IN (
-        SELECT task_id, task_inserted_at, retry_count
-        FROM input
-    )
+WHERE (task_id, task_inserted_at, retry_count) IN (
+    SELECT task_id, task_inserted_at, retry_count
+    FROM locked_runtimes
+)
 `
 
 type MarkTaskRuntimesAckedParams struct {
-	Tenantid        uuid.UUID            `json:"tenantid"`
 	Taskids         []int64              `json:"taskids"`
 	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
 	Retrycounts     []int32              `json:"retrycounts"`
+	Tenantid        uuid.UUID            `json:"tenantid"`
 }
 
 func (q *Queries) MarkTaskRuntimesAcked(ctx context.Context, db DBTX, arg MarkTaskRuntimesAckedParams) error {
 	_, err := db.Exec(ctx, markTaskRuntimesAcked,
-		arg.Tenantid,
 		arg.Taskids,
 		arg.Taskinsertedats,
 		arg.Retrycounts,
+		arg.Tenantid,
 	)
 	return err
 }
@@ -3854,9 +3862,9 @@ func (q *Queries) ReserveTaskBatchRun(ctx context.Context, db DBTX, arg ReserveT
 const updateTaskBatchMetadata = `-- name: UpdateTaskBatchMetadata :exec
 WITH input AS (
     SELECT
-        unnest($6::bigint[]) AS task_id,
-        unnest($7::timestamptz[]) AS task_inserted_at,
-        unnest($8::integer[]) AS batch_index
+        unnest($7::bigint[]) AS task_id,
+        unnest($8::timestamptz[]) AS task_inserted_at,
+        unnest($9::integer[]) AS batch_index
 )
 UPDATE
     v1_task_runtime AS tr
@@ -3866,25 +3874,26 @@ SET
     batch_index = input.batch_index,
     worker_id = $3::uuid,
     batch_key = COALESCE(NULLIF($4::text, ''), tr.batch_key),
-    assigned_at = NOW(),
+    assigned_at = CASE WHEN $5::boolean THEN NOW() END,
     acked_at = NULL
 FROM
     input
 WHERE
-    tr.tenant_id = $5::uuid
+    tr.tenant_id = $6::uuid
     AND tr.task_id = input.task_id
     AND tr.task_inserted_at = input.task_inserted_at
 `
 
 type UpdateTaskBatchMetadataParams struct {
-	Batchid         uuid.UUID            `json:"batchid"`
-	Batchsize       int32                `json:"batchsize"`
-	Workerid        uuid.UUID            `json:"workerid"`
-	Batchkey        string               `json:"batchkey"`
-	Tenantid        uuid.UUID            `json:"tenantid"`
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Batchindexes    []int32              `json:"batchindexes"`
+	Batchid              uuid.UUID            `json:"batchid"`
+	Batchsize            int32                `json:"batchsize"`
+	Workerid             uuid.UUID            `json:"workerid"`
+	Batchkey             string               `json:"batchkey"`
+	Reassignunackedtasks bool                 `json:"reassignunackedtasks"`
+	Tenantid             uuid.UUID            `json:"tenantid"`
+	Taskids              []int64              `json:"taskids"`
+	Taskinsertedats      []pgtype.Timestamptz `json:"taskinsertedats"`
+	Batchindexes         []int32              `json:"batchindexes"`
 }
 
 func (q *Queries) UpdateTaskBatchMetadata(ctx context.Context, db DBTX, arg UpdateTaskBatchMetadataParams) error {
@@ -3893,6 +3902,7 @@ func (q *Queries) UpdateTaskBatchMetadata(ctx context.Context, db DBTX, arg Upda
 		arg.Batchsize,
 		arg.Workerid,
 		arg.Batchkey,
+		arg.Reassignunackedtasks,
 		arg.Tenantid,
 		arg.Taskids,
 		arg.Taskinsertedats,

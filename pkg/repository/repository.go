@@ -9,13 +9,16 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
+
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 )
 
 type TaskOperationLimits struct {
-	TimeoutLimit      int
-	ReassignLimit     int
-	RetryQueueLimit   int
-	DurableSleepLimit int
+	TimeoutLimit         int
+	ReassignLimit        int
+	RetryQueueLimit      int
+	DurableSleepLimit    int
+	ReassignUnackedTasks bool
 }
 
 type Repository interface {
@@ -100,7 +103,8 @@ type repositoryImpl struct {
 }
 
 func NewRepository(
-	pool, ddlPool *pgxpool.Pool,
+	pool *fairpool.Pool,
+	ddlPool *pgxpool.Pool,
 	l *zerolog.Logger,
 	cacheDuration time.Duration,
 	taskRetentionPeriod, olapRetentionPeriod time.Duration,
@@ -114,7 +118,7 @@ func NewRepository(
 ) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, ddlPool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration)
+	shared, cleanupShared := newSharedRepository(pool, ddlPool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration, taskLimits.ReassignUnackedTasks)
 
 	mq, cleanupMq := newMessageQueueRepository(shared)
 
