@@ -5,6 +5,12 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.44.2] - 2026-10-27
+
+### Fixed
+
+- Worker shutdown now waits for [durable tasks](https://docs.hatchet.run/v1/durable-tasks) that were already waiting (for example in `sleepFor` or on a child) when shutdown began. Evicting such a task removed it from the worker's in-flight list before the drain list was built, so the worker stopped its durable stream and unregistered while the task was still winding down.
+
 ## [1.44.1] - 2026-10-27
 
 ### Changed
