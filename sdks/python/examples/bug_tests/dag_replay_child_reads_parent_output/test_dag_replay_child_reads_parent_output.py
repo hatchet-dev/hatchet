@@ -7,7 +7,6 @@ from examples.bug_tests.dag_replay_child_reads_parent_output.worker import (
     dag_replay_child_reads_parent_output,
     parent_failing_on_first_attempt,
 )
-from examples.test_utils import wait_for_running_status
 from hatchet_sdk import FailedTaskRunExceptionGroup, Hatchet, RunStatus, V1TaskStatus
 
 
@@ -55,7 +54,6 @@ async def replay_and_assert_child_received_parent_output(
     expected_child_retry_count: int,
 ) -> None:
     await hatchet.runs.aio_replay(replay_target_id)
-    await wait_for_running_status(hatchet, run_id)
     await wait_for_run_status(hatchet, run_id, RunStatus.COMPLETED, timeout=90)
 
     details = await hatchet.runs.aio_get_details(run_id)
