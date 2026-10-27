@@ -35,7 +35,6 @@ func newDispatcherIdCache(lookup dispatcherIdLookup) *dispatcherIdCache {
 	}
 }
 
-// set records the dispatcher a worker is now connected to, replacing whatever the cache held for it.
 func (c *dispatcherIdCache) set(workerId, dispatcherId uuid.UUID) {
 	c.ids.Add(workerId, dispatcherId)
 }
