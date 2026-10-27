@@ -38,15 +38,19 @@ from examples.bug_tests.durable_dag_child.worker import (
     spawned_child,
     spawned_child_dag,
 )
+from examples.bug_tests.durable_dag_idempotency_hang.worker import (
+    durable_dag_idempotency_hang_bug_repro_wf,
+    durable_dag_status_based_idempotency_wf,
+)
 from examples.bug_tests.durable_dag_replay_satisfied_order_gap.worker import replay_gap
 from examples.bug_tests.durable_evict_timeout.worker import evictable_durable
-from examples.bug_tests.durable_stream_reconnect_mid_wait.worker import (
-    durable_stream_reconnect_mid_wait,
-)
 from examples.bug_tests.durable_spawn_index_collision.worker import (
     durable_spawn_index_collision,
     spawn_index_child_a,
     spawn_index_child_b,
+)
+from examples.bug_tests.durable_stream_reconnect_mid_wait.worker import (
+    durable_stream_reconnect_mid_wait,
 )
 from examples.bug_tests.payload_bug_on_replay.worker import (
     payload_initial_cancel_bug_workflow,
@@ -164,6 +168,10 @@ from examples.durable_eviction.worker import (
 from examples.durable_eviction.worker import (
     child_task as eviction_child_task,
 )
+from examples.durable_streams.worker import (
+    durable_streams_progress,
+    durable_streams_retrying_progress,
+)
 from examples.events.worker import event_workflow
 from examples.fanout.worker import child_wf, parent_wf
 from examples.fanout_sync.worker import sync_fanout_child, sync_fanout_parent
@@ -209,10 +217,6 @@ from examples.webhook_with_scope.worker import (
 )
 from examples.webhooks.worker import webhook
 from examples.welcome_email.worker import welcome_email
-from examples.bug_tests.durable_dag_idempotency_hang.worker import (
-    durable_dag_idempotency_hang_bug_repro_wf,
-    durable_dag_status_based_idempotency_wf,
-)
 from examples.workflow_pause.worker import pausable_workflow
 from hatchet_sdk import Hatchet
 
@@ -225,6 +229,8 @@ def main() -> None:
         slots=250,
         workflows=[
             affinity_worker_workflow,
+            durable_streams_progress,
+            durable_streams_retrying_progress,
             batch_simple,
             batch_keyed,
             batch_keyed_interval,

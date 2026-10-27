@@ -5,6 +5,12 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.44.0] - 2026-10-26
+
+### Added
+
+- Adds `hatchet.streams`, a client for durable streams: topics that store messages independent of any run, which readers can resume from a cursor. `publish` / `aio_publish` return once a message is stored, keep a client's messages to a topic in call order, and batch publishes queued behind an in-flight request (`batch_timeout` holds a message to gather more). Payloads over 4 MiB are uploaded over REST, up to 64 MiB. `events` / `aio_events` read a topic from the oldest retained message or a `cursor`, resubscribing from the last event read when the connection drops. `reset` / `aio_reset` start new readers after the latest message or a given cursor, and `topic_metadata` / `aio_topic_metadata` describe a topic's retained messages.
+
 ## [1.43.1] - 2026-10-23
 
 ### Fixed

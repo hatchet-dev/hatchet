@@ -142,7 +142,7 @@ jobs:
           ON CONFLICT (tenant_id) DO NOTHING;
 
           UPDATE tenant_entitlement
-          SET dag_operator = ${{ matrix.dag-operator }};
+          SET dag_operator = ${{ matrix.dag-operator }}, durable_streams = TRUE;
           SQL
 
           go run ./cmd/hatchet-engine --config ./generated/ > engine.log 2>&1 &
