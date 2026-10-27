@@ -4,10 +4,12 @@
 # messages it imports and the messages of the engine streams an endpoint may open over the
 # socket (ServerlessStreamOpen.procedure). Run from this directory (pnpm run generate-proto).
 #
-# The ts-proto options match sdks/typescript/generate-protoc.sh so that fromJSON and toJSON
-# produce the protojson encoding the operator uses. api-contracts/dispatcher is a second proto
-# path because v1/serverless.proto imports the package-less dispatcher.proto under that name,
-# the same way the Go build compiles it (hack/proto/proto.sh).
+# useExactTypes=false matches sdks/typescript/generate-protoc.sh so that fromJSON and toJSON
+# produce the protojson encoding the operator uses. Service stubs are left out: the package
+# never speaks gRPC, and the stubs would pull in nice-grpc types the package does not depend
+# on. api-contracts/dispatcher is a second proto path because v1/serverless.proto imports the
+# package-less dispatcher.proto under that name, the same way the Go build compiles it
+# (hack/proto/proto.sh).
 
 set -euo pipefail
 
@@ -23,7 +25,7 @@ mkdir -p "$OUT_DIR"
 ./node_modules/.bin/grpc_tools_node_protoc \
   --plugin=protoc-gen-ts_proto=./node_modules/.bin/protoc-gen-ts_proto \
   --ts_proto_out="$OUT_DIR" \
-  --ts_proto_opt=outputServices=nice-grpc,outputServices=generic-definitions,useExactTypes=false \
+  --ts_proto_opt=outputServices=false,useExactTypes=false \
   --proto_path="$IN_DIR" \
   --proto_path="$IN_DIR/dispatcher" \
   --proto_path="$VENDOR_DIR" \
