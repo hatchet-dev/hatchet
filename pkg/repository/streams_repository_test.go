@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
@@ -26,7 +27,7 @@ func createStreamsRepository(t *testing.T, pool *pgxpool.Pool) *streamsRepositor
 
 	return &streamsRepositoryImpl{
 		sharedRepository: &sharedRepository{
-			pool:    pool,
+			pool:    fairpool.Ungated(pool),
 			ddlPool: pool,
 			v:       validator.NewDefaultValidator(),
 			l:       &logger,
@@ -455,7 +456,7 @@ func TestStreamsRepository(t *testing.T) {
 		repo := createStreamsRepository(t, pool)
 		tenantId := uuid.New()
 
-		require.NoError(t, repo.ResetTopic(ctx, tenantId, "", "t"), "resetting a topic never published to is a no-op")
+		require.NoError(t, repo.ResetTopic(ctx, tenantId, "", "t", nil), "resetting a topic never published to is a no-op")
 
 		for seq, payload := range []string{"one", "two"} {
 			_, err := repo.InsertOrderedStreamMessage(ctx, tenantId, streamOpts(int64(seq), payload))
@@ -466,7 +467,7 @@ func TestStreamsRepository(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, int64(0), before.ID, "a topic never reset starts at its beginning")
 
-		require.NoError(t, repo.ResetTopic(ctx, tenantId, "", "t"))
+		require.NoError(t, repo.ResetTopic(ctx, tenantId, "", "t", nil))
 
 		_, err = repo.InsertOrderedStreamMessage(ctx, tenantId, streamOpts(2, "three"))
 		require.NoError(t, err)
@@ -482,5 +483,36 @@ func TestStreamsRepository(t *testing.T) {
 		fromBefore, err := repo.ListMessagesAfterCursor(ctx, tenantId, ListStreamMessagesOpts{Topic: "t", Cursor: before})
 		require.NoError(t, err)
 		assert.Equal(t, []string{"one", "two", "three"}, streamPayloads(t, fromBefore))
+	})
+
+	t.Run("reset to a cursor starts cursorless subscribers after it", func(t *testing.T) {
+		repo := createStreamsRepository(t, pool)
+		tenantId := uuid.New()
+
+		for seq, payload := range []string{"one", "two", "three"} {
+			_, err := repo.InsertOrderedStreamMessage(ctx, tenantId, streamOpts(int64(seq), payload))
+			require.NoError(t, err)
+		}
+
+		msgs, err := repo.ListMessagesAfterCursor(ctx, tenantId, ListStreamMessagesOpts{Topic: "t"})
+		require.NoError(t, err)
+		require.Len(t, msgs, 3)
+
+		first := StreamCursor{Topic: "t", CreatedAt: msgs[0].InsertedAt.Time, ID: msgs[0].ID}
+		require.NoError(t, repo.ResetTopic(ctx, tenantId, "", "t", &first))
+
+		start, err := repo.TopicStartCursor(ctx, tenantId, "", "t")
+		require.NoError(t, err)
+
+		fromReset, err := repo.ListMessagesAfterCursor(ctx, tenantId, ListStreamMessagesOpts{Topic: "t", Cursor: start})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"two", "three"}, streamPayloads(t, fromReset))
+
+		past := StreamCursor{Topic: "t", ID: msgs[2].ID + 10}
+		require.NoError(t, repo.ResetTopic(ctx, tenantId, "", "t", &past))
+
+		start, err = repo.TopicStartCursor(ctx, tenantId, "", "t")
+		require.NoError(t, err)
+		assert.Equal(t, msgs[2].ID, start.ID, "a cursor past the last reserved offset is capped to it")
 	})
 }

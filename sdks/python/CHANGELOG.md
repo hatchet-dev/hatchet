@@ -5,11 +5,23 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.43.1] - 2026-10-27
+## [1.43.3] - 2026-10-27
 
 ### Fixed
 
 - Propagate worker registration failures without a secondary cleanup error, and fail the worker when its action listener exits unexpectedly so supervisors can restart it.
+
+## [1.43.2] - 2026-10-27
+
+### Changed
+
+- The REST client deserializes a `429 Too Many Requests` response body as `APIErrors`, which the API now declares on every authenticated operation.
+
+## [1.43.1] - 2026-10-23
+
+### Fixed
+
+- [Durable tasks](https://docs.hatchet.run/v1/durable-tasks) no longer stall after the worker's durable stream reconnects in the middle of a wait. The worker now reports the last completion it received in its status requests, so the engine resumes delivery from there instead of holding later completions until the task is evicted and replayed.
 
 ## [1.43.0] - 2026-10-14
 

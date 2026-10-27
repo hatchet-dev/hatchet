@@ -67,6 +67,7 @@ module Hatchet
   require_relative "hatchet/worker/workflow_run_listener"
   require_relative "hatchet/worker/durable_eviction/cache"
   require_relative "hatchet/worker/durable_eviction/manager"
+  require_relative "hatchet/worker/received_satisfied_orders"
   require_relative "hatchet/worker/durable_event_listener"
   require_relative "hatchet/worker/runner"
 

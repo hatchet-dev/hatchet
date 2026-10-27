@@ -10,6 +10,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
+
+	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 )
 
 // Options configures the connection caps.
@@ -96,10 +98,12 @@ func newPool(inner *pgxpool.Pool, opts Options) *Pool {
 
 	if limit := connectionLimit(maxConns, opts.MaxPercent); limit > 0 {
 		p.gate = newGate(limit, opts.MaxWait, opts.PoolName, opts.L)
+		prometheus.FairpoolConnectionLimit.WithLabelValues(opts.PoolName, "tenant").Set(float64(limit))
 	}
 
 	if limit := connectionLimit(maxConns, opts.SharedMaxPercent); limit > 0 {
 		p.sharedGate = newGate(limit, opts.MaxWait, opts.PoolName, opts.L)
+		prometheus.FairpoolConnectionLimit.WithLabelValues(opts.PoolName, sharedKey).Set(float64(limit))
 	}
 
 	p.shared = &handle{pool: p, key: sharedKey, gate: p.sharedGate}

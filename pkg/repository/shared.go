@@ -12,6 +12,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
+
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/pkg/config/limits"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
@@ -40,7 +42,7 @@ type eventKeyTenantIdTuple struct {
 }
 
 type sharedRepository struct {
-	pool    *pgxpool.Pool
+	pool    *fairpool.Pool
 	ddlPool *pgxpool.Pool // bypasses pgbouncer for DDL operations
 	v       validator.Validator
 	l       *zerolog.Logger
@@ -75,16 +77,19 @@ type sharedRepository struct {
 
 	wrapTaskInputInStepRunData bool
 	enablePayloadConsolidation bool
+	reassignUnackedTasks       bool
 }
 
 func newSharedRepository(
-	pool, ddlPool *pgxpool.Pool,
+	pool *fairpool.Pool,
+	ddlPool *pgxpool.Pool,
 	v validator.Validator,
 	l *zerolog.Logger,
 	payloadStoreOpts PayloadStoreRepositoryOpts,
 	c limits.LimitConfigFile,
 	shouldEnforceLimits bool,
 	cacheDuration time.Duration,
+	reassignUnackedTasks bool,
 ) (*sharedRepository, func() error) {
 	queries := sqlcv1.New()
 	queueCache := cache.New(5 * time.Minute)
@@ -148,6 +153,7 @@ func newSharedRepository(
 		payloadStore:                payloadStore,
 		wrapTaskInputInStepRunData:  payloadStoreOpts.WrapTaskInputInStepRunData,
 		enablePayloadConsolidation:  payloadStoreOpts.EnablePayloadConsolidation,
+		reassignUnackedTasks:        reassignUnackedTasks,
 	}
 
 	tenantLimitRepository := newTenantLimitRepository(s, c, shouldEnforceLimits, cacheDuration)

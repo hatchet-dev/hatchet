@@ -48,7 +48,7 @@ func (t *TenantService) TenantMemberUpdate(ctx echo.Context, request gen.TenantM
 		CanViewPayloads: request.Body.CanViewPayloads,
 	}
 
-	updatedMember, err := t.config.V1.Tenant().UpdateTenantMember(ctx.Request().Context(), memberToUpdate.ID, updateOpts)
+	updatedMember, err := t.config.V1.Tenant().UpdateTenantMember(ctx.Request().Context(), memberToUpdate.TenantId, memberToUpdate.ID, updateOpts)
 
 	if err != nil {
 		return nil, err

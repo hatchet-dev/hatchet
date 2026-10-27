@@ -210,17 +210,17 @@ export class StreamsClient {
   }
 
   /**
-   * Makes `events()` calls without a cursor start after the topic's latest message. Readers
-   * already iterating, and any call with a cursor, are unaffected.
+   * Makes `events()` calls without a cursor start after `options.cursor`, or the topic's latest
+   * message. Readers already iterating, and any call with a cursor, are unaffected.
    * @param topic - the topic to reset
-   * @param options - optional namespace override and abort signal
+   * @param options - optional namespace override, cursor to reset to and abort signal
    */
   async reset(
     topic: string,
-    options?: Pick<StreamCallOptions, 'namespace' | 'signal'>
+    options?: Pick<StreamCallOptions, 'namespace' | 'cursor' | 'signal'>
   ): Promise<void> {
     await this.durable().reset(
-      { namespace: options?.namespace ?? '', topic },
+      { namespace: options?.namespace ?? '', topic, cursor: options?.cursor },
       { signal: options?.signal }
     );
   }

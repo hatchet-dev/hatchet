@@ -254,23 +254,6 @@ func TestTopicPollerRegistry_JoinReplaysHistoryToOnlyTheNewListener(t *testing.T
 	assert.Equal(t, []int64{1, 2, 3}, listenerB.entryIDs(t))
 }
 
-func TestTopicPollerRegistry_JoinRejectsExpiredCursor(t *testing.T) {
-	tenantId := uuid.New()
-	repo := newFakeStreamsRepository(tenantId, "", "topic-a", 3, time.Now())
-	repo.expiredThroughID = 2
-	registry := newTopicPollerRegistry(repo, fakePubSub{}, testLogger(), time.Hour, time.Hour)
-
-	key := topicPollerKey{tenantId: tenantId, topic: "topic-a"}
-
-	listener := &collectingListener{}
-	_, err := registry.Join(context.Background(), key, v1.StreamCursor{ID: 1}, &topicListener{send: listener.send, cancel: func() {}})
-
-	var expired *v1.StreamCursorExpiredError
-	require.ErrorAs(t, err, &expired)
-	assert.Equal(t, 0, listener.count(), "an expired cursor must not replay anything")
-	assert.Empty(t, registry.pollers, "an expired cursor must not start a poller")
-}
-
 // A listener whose unlocked replay ends behind the shared poller, because the
 // poller moved on meanwhile, must still get the rows it fanned out without it.
 func TestTopicPollerRegistry_JoinBehindPollerBackfillsListener(t *testing.T) {

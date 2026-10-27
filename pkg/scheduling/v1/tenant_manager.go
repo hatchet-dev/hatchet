@@ -9,6 +9,7 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/timeout_lock"
 
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
@@ -257,11 +258,7 @@ func (t *tenantManager) setQueuers(queueNames []string) {
 	t.queuersMu.Lock()
 	defer t.queuersMu.Unlock()
 
-	queueNamesSet := make(map[string]struct{}, len(queueNames))
-
-	for _, queueName := range queueNames {
-		queueNamesSet[queueName] = struct{}{}
-	}
+	queueNamesSet := enumerables.ToSet(queueNames, func(queueName string) string { return queueName })
 
 	newQueueArr := make([]*Queuer, 0, len(queueNames))
 
@@ -309,11 +306,7 @@ func (t *tenantManager) setConcurrencyStrategies(strategies []*sqlcv1.V1StepConc
 	t.concurrencyMu.Lock()
 	defer t.concurrencyMu.Unlock()
 
-	strategiesSet := make(map[int64]*sqlcv1.V1StepConcurrency, len(strategies))
-
-	for _, strat := range strategies {
-		strategiesSet[strat.ID] = strat
-	}
+	strategiesSet := enumerables.KeyBy(strategies, func(strat *sqlcv1.V1StepConcurrency) int64 { return strat.ID })
 
 	newArr := make([]*ConcurrencyManager, 0, len(strategies))
 
@@ -454,11 +447,7 @@ func (t *tenantManager) setBatchSchedulers(ctx context.Context, batches []*sqlcv
 // missed capacity are retried as soon as the scheduler's pools have it rather
 // than on the queuers' next poll.
 func (t *tenantManager) notifyQueuers(ctx context.Context, queueNames []string) {
-	wanted := make(map[string]struct{}, len(queueNames))
-
-	for _, queueName := range queueNames {
-		wanted[queueName] = struct{}{}
-	}
+	wanted := enumerables.ToSet(queueNames, func(queueName string) string { return queueName })
 
 	t.queuersMu.RLock()
 	defer t.queuersMu.RUnlock()
@@ -604,10 +593,7 @@ func (t *tenantManager) notifyNewConcurrencyStrategy(ctx context.Context, strate
 
 func (t *tenantManager) queue(ctx context.Context, queueNames []string) {
 	t.queuersMu.RLock()
-	requested := make(map[string]struct{}, len(queueNames))
-	for _, name := range queueNames {
-		requested[name] = struct{}{}
-	}
+	requested := enumerables.ToSet(queueNames, func(name string) string { return name })
 	for _, q := range t.queuers {
 		if _, ok := requested[q.queueName]; ok {
 			q.queue(ctx)
@@ -628,7 +614,7 @@ func (t *tenantManager) runOptimisticScheduling(
 	localWorkerIds map[uuid.UUID]struct{},
 ) (map[uuid.UUID][]*AssignedItemWithTask, []*v1.V1TaskWithPayload, []*v1.DAGWithData, []v1.IdempotencyCollision, error) {
 	// create a transaction
-	tx, err := t.cf.repo.Optimistic().StartTx(ctx)
+	tx, err := t.cf.repo.Optimistic().StartTx(ctx, t.tenantId)
 
 	if err != nil {
 		return nil, nil, nil, nil, err
@@ -648,11 +634,7 @@ func (t *tenantManager) runOptimisticScheduling(
 	// and then immediately flush to the database
 
 	// split qis by their queue name
-	qisByQueueName := make(map[string][]*sqlcv1.V1QueueItem, len(qis))
-
-	for _, qi := range qis {
-		qisByQueueName[qi.Queue] = append(qisByQueueName[qi.Queue], qi)
-	}
+	qisByQueueName := enumerables.GroupBy(qis, func(qi *sqlcv1.V1QueueItem) string { return qi.Queue })
 
 	var allLocalAssigned []*v1.AssignedItem
 	var allQueueResults []*QueueResults
@@ -685,16 +667,8 @@ func (t *tenantManager) runOptimisticScheduling(
 	}
 
 	// map the tasks to the assigned items
-	taskUUIDToAssigned := make(map[uuid.UUID]*v1.AssignedItem, len(allLocalAssigned))
-	taskUUIDToTask := make(map[uuid.UUID]*v1.V1TaskWithPayload, len(qis))
-
-	for _, ai := range allLocalAssigned {
-		taskUUIDToAssigned[ai.QueueItem.ExternalID] = ai
-	}
-
-	for _, task := range tasks {
-		taskUUIDToTask[task.ExternalID] = task
-	}
+	taskUUIDToAssigned := enumerables.KeyBy(allLocalAssigned, func(ai *v1.AssignedItem) uuid.UUID { return ai.QueueItem.ExternalID })
+	taskUUIDToTask := enumerables.KeyBy(tasks, func(task *v1.V1TaskWithPayload) uuid.UUID { return task.ExternalID })
 
 	// return the assigned items with their tasks
 	res := make(map[uuid.UUID][]*AssignedItemWithTask)
@@ -723,7 +697,7 @@ func (t *tenantManager) runOptimisticSchedulingFromEvents(
 	localWorkerIds map[uuid.UUID]struct{},
 ) (map[uuid.UUID][]*AssignedItemWithTask, *v1.TriggerFromEventsResult, error) {
 	// create a transaction
-	tx, err := t.cf.repo.Optimistic().StartTx(ctx)
+	tx, err := t.cf.repo.Optimistic().StartTx(ctx, t.tenantId)
 
 	if err != nil {
 		return nil, nil, err
@@ -743,11 +717,7 @@ func (t *tenantManager) runOptimisticSchedulingFromEvents(
 	// and then immediately flush to the database
 
 	// split qis by their queue name
-	qisByQueueName := make(map[string][]*sqlcv1.V1QueueItem, len(qis))
-
-	for _, qi := range qis {
-		qisByQueueName[qi.Queue] = append(qisByQueueName[qi.Queue], qi)
-	}
+	qisByQueueName := enumerables.GroupBy(qis, func(qi *sqlcv1.V1QueueItem) string { return qi.Queue })
 
 	var allLocalAssigned []*v1.AssignedItem
 	var allQueueResults []*QueueResults
@@ -780,16 +750,8 @@ func (t *tenantManager) runOptimisticSchedulingFromEvents(
 	}
 
 	// map the tasks to the assigned items
-	taskUUIDToAssigned := make(map[uuid.UUID]*v1.AssignedItem, len(allLocalAssigned))
-	taskUUIDToTask := make(map[uuid.UUID]*v1.V1TaskWithPayload, len(qis))
-
-	for _, ai := range allLocalAssigned {
-		taskUUIDToAssigned[ai.QueueItem.ExternalID] = ai
-	}
-
-	for _, task := range eventsRes.Tasks {
-		taskUUIDToTask[task.ExternalID] = task
-	}
+	taskUUIDToAssigned := enumerables.KeyBy(allLocalAssigned, func(ai *v1.AssignedItem) uuid.UUID { return ai.QueueItem.ExternalID })
+	taskUUIDToTask := enumerables.KeyBy(eventsRes.Tasks, func(task *v1.V1TaskWithPayload) uuid.UUID { return task.ExternalID })
 
 	// return the assigned items with their tasks
 	res := make(map[uuid.UUID][]*AssignedItemWithTask)

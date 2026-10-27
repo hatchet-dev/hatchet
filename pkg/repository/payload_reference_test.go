@@ -127,7 +127,7 @@ func triggerTwoStepDag(t *testing.T, enablePayloadConsolidation bool) ([]*V1Task
 func assertTaskHasNoOwnInputRow(t *testing.T, shared *sharedRepository, task *V1TaskWithPayload) {
 	t.Helper()
 
-	ownRow, err := shared.payloadStore.TaskInputs().RetrieveOne(context.Background(), shared.pool, PayloadRef[TaskInputShape]{
+	ownRow, err := shared.payloadStore.TaskInputs().RetrieveOne(context.Background(), shared.pool.ForShared(), PayloadRef[TaskInputShape]{
 		Id:         task.ID,
 		InsertedAt: task.InsertedAt,
 		TenantId:   internalTenantId,
@@ -141,7 +141,7 @@ func assertTaskHasNoOwnInputRow(t *testing.T, shared *sharedRepository, task *V1
 func assertTaskInputIsStored(t *testing.T, shared *sharedRepository, task *V1TaskWithPayload) {
 	t.Helper()
 
-	stored, err := shared.payloadStore.TaskInputs().RetrieveOne(context.Background(), shared.pool, PayloadRef[TaskInputShape]{
+	stored, err := shared.payloadStore.TaskInputs().RetrieveOne(context.Background(), shared.pool.ForShared(), PayloadRef[TaskInputShape]{
 		Id:                 task.ID,
 		InsertedAt:         task.InsertedAt,
 		TenantId:           internalTenantId,

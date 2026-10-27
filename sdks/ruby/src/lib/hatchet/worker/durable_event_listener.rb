@@ -71,6 +71,7 @@ module Hatchet
         @waiting_since = {}
         # key -> [inserted_at, result] (rudimentary TTL cache)
         @buffered_completions = {}
+        @received_satisfied_orders = ReceivedSatisfiedOrders.new
 
         @running = false
         @start_mu = Mutex.new
@@ -259,11 +260,8 @@ module Hatchet
             @pending_event_acks.delete(k)&.close
           end
 
-          @buffered_completions.each_key do |k|
-            next unless k[0] == durable_task_external_id && k[1] <= invocation_count
-
-            @buffered_completions.delete(k)
-          end
+          @buffered_completions.delete_if { |k, _| k[0] == durable_task_external_id && k[1] <= invocation_count }
+          @received_satisfied_orders.delete_through(durable_task_external_id, invocation_count)
         end
       end
 
@@ -501,6 +499,7 @@ module Hatchet
             worker_status: ::V1::DurableTaskWorkerStatusRequest.new(
               worker_id: @worker_id,
               waiting_entries: waiting,
+              received_satisfied_orders: @mu.synchronize { @received_satisfied_orders.to_proto_for(keys_for_request) },
             ),
           )
         end
@@ -661,6 +660,7 @@ module Hatchet
         result = parse_entry_completed(completed)
 
         @mu.synchronize do
+          @received_satisfied_orders.record(completed)
           queue = @pending_callbacks.delete(key)
           if queue
             queue << [:ok, result]

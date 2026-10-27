@@ -98,6 +98,7 @@ class UserApi:
             "200": "UserTenantMembershipsList",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -160,6 +161,7 @@ class UserApi:
             "200": "UserTenantMembershipsList",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -222,6 +224,7 @@ class UserApi:
             "200": "UserTenantMembershipsList",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -596,6 +599,7 @@ class UserApi:
             "400": "APIErrors",
             "401": "APIErrors",
             "405": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -659,6 +663,7 @@ class UserApi:
             "400": "APIErrors",
             "401": "APIErrors",
             "405": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -722,6 +727,7 @@ class UserApi:
             "400": "APIErrors",
             "401": "APIErrors",
             "405": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -1980,6 +1986,7 @@ class UserApi:
             "400": "APIErrors",
             "401": "APIErrors",
             "405": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -2043,6 +2050,7 @@ class UserApi:
             "400": "APIErrors",
             "401": "APIErrors",
             "405": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -2106,6 +2114,7 @@ class UserApi:
             "400": "APIErrors",
             "401": "APIErrors",
             "405": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -2221,6 +2230,7 @@ class UserApi:
             "401": "APIErrors",
             "405": "APIErrors",
             "422": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -2289,6 +2299,7 @@ class UserApi:
             "401": "APIErrors",
             "405": "APIErrors",
             "422": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -2357,6 +2368,7 @@ class UserApi:
             "401": "APIErrors",
             "405": "APIErrors",
             "422": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -2477,6 +2489,7 @@ class UserApi:
 
         _response_types_map: Dict[str, Optional[str]] = {
             "302": None,
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -2537,6 +2550,7 @@ class UserApi:
 
         _response_types_map: Dict[str, Optional[str]] = {
             "302": None,
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -2597,6 +2611,7 @@ class UserApi:
 
         _response_types_map: Dict[str, Optional[str]] = {
             "302": None,
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -2629,6 +2644,12 @@ class UserApi:
         # process the header parameters
         # process the form parameters
         # process the body parameter
+
+        # set the HTTP header `Accept`
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
+            )
 
         # authentication setting
         _auth_settings: List[str] = ["cookieAuth"]
@@ -2707,6 +2728,7 @@ class UserApi:
 
         _response_types_map: Dict[str, Optional[str]] = {
             "302": None,
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -2776,6 +2798,7 @@ class UserApi:
 
         _response_types_map: Dict[str, Optional[str]] = {
             "302": None,
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -2845,6 +2868,7 @@ class UserApi:
 
         _response_types_map: Dict[str, Optional[str]] = {
             "302": None,
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -2880,6 +2904,12 @@ class UserApi:
         # process the header parameters
         # process the form parameters
         # process the body parameter
+
+        # set the HTTP header `Accept`
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
+            )
 
         # authentication setting
         _auth_settings: List[str] = ["cookieAuth"]
