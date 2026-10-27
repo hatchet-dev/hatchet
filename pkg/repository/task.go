@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -4059,19 +4058,17 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		return nil, fmt.Errorf("failed to list tasks for replay: %w", err)
 	}
 
-	hasLegacyDags := slices.ContainsFunc(lockedTasks, func(task *sqlcv1.ListTasksForReplayRow) bool {
-		return task.DagID.Valid
-	})
-
-	if !hasLegacyDags {
-		return r.replayTasksWithoutLegacyDags(ctx, tx, commit, tenantId, lockedTasks)
-	}
-
+	lockedTaskIds := make([]int64, len(lockedTasks))
+	lockedTaskInsertedAts := make([]pgtype.Timestamptz, len(lockedTasks))
 	subtreeStepIds := make(map[int64]map[uuid.UUID]bool) // dag id -> step id -> true
 	subtreeExternalIds := make(map[uuid.UUID]struct{})
 	dagIdsToLockMap := make(map[int64]pgtype.Timestamptz)
+	minInsertedAt := sqlchelpers.TimestamptzFromTime(time.Now()) // current time as a placeholder - will be overwritten
 
-	for _, task := range lockedTasks {
+	for i, task := range lockedTasks {
+		lockedTaskIds[i] = task.ID
+		lockedTaskInsertedAts[i] = task.InsertedAt
+
 		if task.DagID.Valid {
 			if _, ok := subtreeStepIds[task.DagID.Int64]; !ok {
 				subtreeStepIds[task.DagID.Int64] = make(map[uuid.UUID]bool)
@@ -4081,6 +4078,10 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 			subtreeExternalIds[task.ExternalID] = struct{}{}
 
 			dagIdsToLockMap[task.DagID.Int64] = task.DagInsertedAt
+		}
+
+		if task.InsertedAt.Time.Before(minInsertedAt.Time) {
+			minInsertedAt = task.InsertedAt
 		}
 	}
 
@@ -4093,24 +4094,26 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		dagInsertedAtsToLock = append(dagInsertedAtsToLock, dagInsertedAt)
 	}
 
-	successfullyLockedDAGs, err := r.queries.LockDAGsForReplay(ctx, tx, sqlcv1.LockDAGsForReplayParams{
-		Dagids:         dagIdsToLock,
-		Daginsertedats: dagInsertedAtsToLock,
-		Tenantid:       tenantId,
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to lock DAGs for replay: %w", err)
-	}
-
 	successfullyLockedDAGsMap := make(map[int64]bool)
-	successfullyLockedDAGIds := make([]int64, 0, len(successfullyLockedDAGs))
-	successfullyLockedDAGInsertedAts := make([]pgtype.Timestamptz, 0, len(successfullyLockedDAGs))
+	successfullyLockedDAGIds := make([]int64, 0, len(dagIdsToLock))
+	successfullyLockedDAGInsertedAts := make([]pgtype.Timestamptz, 0, len(dagIdsToLock))
 
-	for _, dag := range successfullyLockedDAGs {
-		successfullyLockedDAGsMap[dag.ID] = true
-		successfullyLockedDAGIds = append(successfullyLockedDAGIds, dag.ID)
-		successfullyLockedDAGInsertedAts = append(successfullyLockedDAGInsertedAts, dag.InsertedAt)
+	if len(dagIdsToLock) > 0 {
+		successfullyLockedDAGs, err := r.queries.LockDAGsForReplay(ctx, tx, sqlcv1.LockDAGsForReplayParams{
+			Dagids:         dagIdsToLock,
+			Daginsertedats: dagInsertedAtsToLock,
+			Tenantid:       tenantId,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to lock DAGs for replay: %w", err)
+		}
+
+		for _, dag := range successfullyLockedDAGs {
+			successfullyLockedDAGsMap[dag.ID] = true
+			successfullyLockedDAGIds = append(successfullyLockedDAGIds, dag.ID)
+			successfullyLockedDAGInsertedAts = append(successfullyLockedDAGInsertedAts, dag.InsertedAt)
+		}
 	}
 
 	// Discard tasks which can't be replayed. Discard rules are as follows:
@@ -4119,28 +4122,37 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	// 3. If a task has a DAG id but it is not present in the successfully locked DAGs, discard it.
 	dagIdsFailedPreflight := make(map[int64]bool)
 
-	preflightDAGs, err := r.queries.PreflightCheckDAGsForReplay(ctx, tx, sqlcv1.PreflightCheckDAGsForReplayParams{
-		Dagids:           successfullyLockedDAGIds,
-		Daginsertedats:   successfullyLockedDAGInsertedAts,
-		Mindaginsertedat: sqlchelpers.MinTimestamptz(successfullyLockedDAGInsertedAts),
-		Tenantid:         tenantId,
-	})
+	if len(successfullyLockedDAGIds) > 0 {
+		preflightDAGs, err := r.queries.PreflightCheckDAGsForReplay(ctx, tx, sqlcv1.PreflightCheckDAGsForReplayParams{
+			Dagids:           successfullyLockedDAGIds,
+			Daginsertedats:   successfullyLockedDAGInsertedAts,
+			Mindaginsertedat: sqlchelpers.MinTimestamptz(successfullyLockedDAGInsertedAts),
+			Tenantid:         tenantId,
+		})
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to preflight check DAGs for replay: %w", err)
-	}
+		if err != nil {
+			return nil, fmt.Errorf("failed to preflight check DAGs for replay: %w", err)
+		}
 
-	for _, dag := range preflightDAGs {
-		if dag.StepCount != dag.TaskCount {
-			dagIdsFailedPreflight[dag.ID] = true
+		for _, dag := range preflightDAGs {
+			if dag.StepCount != dag.TaskCount {
+				dagIdsFailedPreflight[dag.ID] = true
+			}
 		}
 	}
 
-	tasksFailedPreflight, err := r.preflightCheckTasksForReplay(ctx, tx, tenantId, lockedTasks)
+	failedPreflightChecks, err := r.queries.PreflightCheckTasksForReplay(ctx, tx, sqlcv1.PreflightCheckTasksForReplayParams{
+		Taskids:         lockedTaskIds,
+		Taskinsertedats: lockedTaskInsertedAts,
+		Tenantid:        tenantId,
+		Mininsertedat:   minInsertedAt,
+	})
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to preflight check tasks for replay: %w", err)
 	}
+
+	tasksFailedPreflight := enumerables.ToSet(failedPreflightChecks, func(task *sqlcv1.PreflightCheckTasksForReplayRow) int64 { return task.ID })
 
 	// group tasks by their dag_id, if it exists
 	dagIdsToChildTasks := make(map[int64][]*sqlcv1.ListTasksForReplayRow)
@@ -4150,10 +4162,22 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	replayOpts := make([]ReplayTaskOpts, 0)
 	replayedTasks := make([]TaskIdInsertedAtRetryCount, 0)
 
-	payloads, err := r.retrieveReplayTaskInputs(ctx, tx, tenantId, lockedTasks)
+	retrieveOpts := make([]PayloadRef[TaskInputShape], len(lockedTasks))
+
+	for i, task := range lockedTasks {
+		retrieveOpts[i] = PayloadRef[TaskInputShape]{
+			Id:                 task.ID,
+			InsertedAt:         task.InsertedAt,
+			TenantId:           tenantId,
+			ExternalId:         task.ExternalID,
+			PayloadReferenceId: task.PayloadReferenceID,
+		}
+	}
+
+	payloads, err := r.payloadStore.TaskInputs().Retrieve(ctx, tx, retrieveOpts...)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to bulk retrieve task inputs: %w", err)
 	}
 
 	for _, task := range lockedTasks {
@@ -4227,7 +4251,36 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 			}
 		}
 
-		replayOpts = append(replayOpts, r.replayTaskOptsFromLockedTask(tenantId, task, payloads))
+		retrieveOpt := PayloadRef[TaskInputShape]{
+			Id:                 task.ID,
+			InsertedAt:         task.InsertedAt,
+			TenantId:           tenantId,
+			ExternalId:         task.ExternalID,
+			PayloadReferenceId: task.PayloadReferenceID,
+		}
+
+		input := RetrievePayloadOrFallback(payloads, retrieveOpt, task.Input)
+
+		var triggeringEventKey *string
+		if task.TriggeringEventKey.Valid {
+			triggeringEventKey = &task.TriggeringEventKey.String
+		}
+
+		replayOpts = append(replayOpts, ReplayTaskOpts{
+			TaskId:                    task.ID,
+			InsertedAt:                task.InsertedAt,
+			StepId:                    task.StepID,
+			ExternalId:                task.ExternalID,
+			InitialState:              sqlcv1.V1TaskInitialStateQUEUED,
+			AdditionalMetadata:        task.AdditionalMetadata,
+			DesiredWorkerLabel:        task.DesiredWorkerLabel,
+			TriggeringEventExternalId: task.TriggeringEventExternalID,
+			TriggeringEventKey:        triggeringEventKey,
+			// NOTE: we require the input to be passed in to the replay method so we can re-evaluate the concurrency keys
+			// Ideally we could preserve the same concurrency keys, but the replay tasks method is currently unaware of existing concurrency
+			// keys because they may change between retries.
+			Input: r.newTaskInputFromTaskInputPayload(taskInputPayloadVersion(task.TaskInputPayloadVersion), input.Bytes()),
+		})
 	}
 
 	dagIdsArr := make([]int64, 0, len(dagIdsToDagInsertedAts))
@@ -4238,28 +4291,30 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		dagInsertedAtsArr = append(dagInsertedAtsArr, dagInsertedAt)
 	}
 
-	allTasksInDAGs, err := r.queries.ListAllTasksInDags(ctx, tx, sqlcv1.ListAllTasksInDagsParams{
-		Dagids:           dagIdsArr,
-		Daginsertedats:   dagInsertedAtsArr,
-		Mindaginsertedat: sqlchelpers.MinTimestamptz(dagInsertedAtsArr),
-		Tenantid:         tenantId,
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to list all tasks in DAGs: %w", err)
-	}
-
 	dagIdsToAllTasks := make(map[int64][]*sqlcv1.ListAllTasksInDagsRow)
 	stepIdsInDAGs := make([]uuid.UUID, 0)
 
-	for _, task := range allTasksInDAGs {
-		if _, ok := dagIdsToAllTasks[task.DagID.Int64]; !ok {
-			dagIdsToAllTasks[task.DagID.Int64] = make([]*sqlcv1.ListAllTasksInDagsRow, 0)
+	if len(dagIdsArr) > 0 {
+		allTasksInDAGs, err := r.queries.ListAllTasksInDags(ctx, tx, sqlcv1.ListAllTasksInDagsParams{
+			Dagids:           dagIdsArr,
+			Daginsertedats:   dagInsertedAtsArr,
+			Mindaginsertedat: sqlchelpers.MinTimestamptz(dagInsertedAtsArr),
+			Tenantid:         tenantId,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to list all tasks in DAGs: %w", err)
 		}
 
-		stepIdsInDAGs = append(stepIdsInDAGs, task.StepID)
+		for _, task := range allTasksInDAGs {
+			if _, ok := dagIdsToAllTasks[task.DagID.Int64]; !ok {
+				dagIdsToAllTasks[task.DagID.Int64] = make([]*sqlcv1.ListAllTasksInDagsRow, 0)
+			}
 
-		dagIdsToAllTasks[task.DagID.Int64] = append(dagIdsToAllTasks[task.DagID.Int64], task)
+			stepIdsInDAGs = append(stepIdsInDAGs, task.StepID)
+
+			dagIdsToAllTasks[task.DagID.Int64] = append(dagIdsToAllTasks[task.DagID.Int64], task)
+		}
 	}
 
 	upsertedTasks := make([]*V1TaskWithPayload, 0)
@@ -4273,10 +4328,63 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		}
 	}
 
-	eventMatches, err := r.resetChildWorkflowSignals(ctx, tx, tenantId, lockedTasks)
+	// for any tasks which are child tasks, we need to reset the match signals for the parent tasks
+	spawnedChildTasks := enumerables.Filter(lockedTasks, func(task *sqlcv1.ListTasksForReplayRow) bool { return task.ParentTaskID.Valid })
 
-	if err != nil {
-		return nil, err
+	eventMatches := make([]CreateMatchOpts, 0)
+
+	if len(spawnedChildTasks) > 0 {
+		// construct a list of signals to reset
+		signalEventKeys := make([]string, 0)
+		parentTaskIds := make([]int64, 0)
+		parentTaskInsertedAts := make([]pgtype.Timestamptz, 0)
+
+		for _, task := range spawnedChildTasks {
+			if !task.ChildIndex.Valid {
+				// TODO: handle error better/check with validation that this won't happen
+				r.l.Error().Ctx(ctx).Msg("could not find child key or index for child workflow")
+				continue
+			}
+
+			var childKey *string
+
+			if task.ChildKey.Valid {
+				childKey = &task.ChildKey.String
+			}
+
+			var parentExternalId uuid.UUID
+
+			if task.ParentTaskExternalID != nil {
+				parentExternalId = *task.ParentTaskExternalID
+			}
+			k := getChildSignalEventKey(parentExternalId, task.StepIndex, task.ChildIndex.Int64, childKey)
+
+			signalEventKeys = append(signalEventKeys, k)
+			parentTaskIds = append(parentTaskIds, task.ParentTaskID.Int64)
+			parentTaskInsertedAts = append(parentTaskInsertedAts, task.ParentTaskInsertedAt)
+
+			eventMatches = append(eventMatches, CreateMatchOpts{
+				Kind:                 sqlcv1.V1MatchKindSIGNAL,
+				Conditions:           getChildWorkflowGroupMatches(task.ExternalID, task.StepReadableID),
+				SignalExternalId:     task.ParentTaskExternalID,
+				SignalTaskId:         &task.ParentTaskID.Int64,
+				SignalTaskInsertedAt: task.ParentTaskInsertedAt,
+				SignalTaskExternalId: &task.ExternalID,
+				SignalKey:            &k,
+			})
+		}
+
+		err = r.queries.DeleteMatchingSignalEvents(ctx, tx, sqlcv1.DeleteMatchingSignalEventsParams{
+			Tenantid:        tenantId,
+			Eventkeys:       signalEventKeys,
+			Taskids:         parentTaskIds,
+			Taskinsertedats: parentTaskInsertedAts,
+			Eventtype:       sqlcv1.V1TaskEventTypeSIGNALCOMPLETED,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to delete matching signal events: %w", err)
+		}
 	}
 
 	// For any DAGs, reset all match conditions which refer to internal events within the subtree of the DAG.
@@ -4443,215 +4551,6 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	}, nil
 }
 
-func (r *TaskRepositoryImpl) replayTasksWithoutLegacyDags(
-	ctx context.Context,
-	tx pgx.Tx,
-	commit func(context.Context) error,
-	tenantId uuid.UUID,
-	lockedTasks []*sqlcv1.ListTasksForReplayRow,
-) (*ReplayTasksResult, error) {
-	result := &ReplayTasksResult{
-		ReplayedTasks:        make([]TaskIdInsertedAtRetryCount, 0, len(lockedTasks)),
-		UpsertedTasks:        make([]*V1TaskWithPayload, 0),
-		InternalEventResults: &EventMatchResults{},
-	}
-
-	if len(lockedTasks) == 0 {
-		return result, nil
-	}
-
-	tasksFailedPreflight, err := r.preflightCheckTasksForReplay(ctx, tx, tenantId, lockedTasks)
-
-	if err != nil {
-		return nil, err
-	}
-
-	payloads, err := r.retrieveReplayTaskInputs(ctx, tx, tenantId, lockedTasks)
-
-	if err != nil {
-		return nil, err
-	}
-
-	replayOpts := make([]ReplayTaskOpts, 0, len(lockedTasks))
-
-	for _, task := range lockedTasks {
-		if enumerables.HasKey(tasksFailedPreflight, task.ID) {
-			r.l.Warn().Ctx(ctx).Int64("task_id", task.ID).Msg("discarding task, failed preflight check")
-			continue
-		}
-
-		result.ReplayedTasks = append(result.ReplayedTasks, TaskIdInsertedAtRetryCount{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			RetryCount: task.RetryCount,
-		})
-
-		replayOpts = append(replayOpts, r.replayTaskOptsFromLockedTask(tenantId, task, payloads))
-	}
-
-	if len(replayOpts) > 0 {
-		result.UpsertedTasks, err = r.replayTasks(ctx, tx, tenantId, replayOpts)
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to replay existing tasks: %w", err)
-		}
-	}
-
-	childWorkflowSignalMatches, err := r.resetChildWorkflowSignals(ctx, tx, tenantId, lockedTasks)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if len(childWorkflowSignalMatches) > 0 {
-		if err := r.createEventMatches(ctx, tx, tenantId, childWorkflowSignalMatches); err != nil {
-			return nil, fmt.Errorf("failed to create event matches: %w", err)
-		}
-	}
-
-	if err := commit(ctx); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	return result, nil
-}
-
-func (r *TaskRepositoryImpl) preflightCheckTasksForReplay(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, lockedTasks []*sqlcv1.ListTasksForReplayRow) (map[int64]struct{}, error) {
-	taskIds := make([]int64, len(lockedTasks))
-	taskInsertedAts := make([]pgtype.Timestamptz, len(lockedTasks))
-
-	for i, task := range lockedTasks {
-		taskIds[i] = task.ID
-		taskInsertedAts[i] = task.InsertedAt
-	}
-
-	failedPreflightChecks, err := r.queries.PreflightCheckTasksForReplay(ctx, tx, sqlcv1.PreflightCheckTasksForReplayParams{
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
-		Tenantid:        tenantId,
-		Mininsertedat:   sqlchelpers.MinTimestamptz(taskInsertedAts),
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to preflight check tasks for replay: %w", err)
-	}
-
-	return enumerables.ToSet(failedPreflightChecks, func(task *sqlcv1.PreflightCheckTasksForReplayRow) int64 { return task.ID }), nil
-}
-
-func replayTaskInputRef(tenantId uuid.UUID, task *sqlcv1.ListTasksForReplayRow) PayloadRef[TaskInputShape] {
-	return PayloadRef[TaskInputShape]{
-		Id:                 task.ID,
-		InsertedAt:         task.InsertedAt,
-		TenantId:           tenantId,
-		ExternalId:         task.ExternalID,
-		PayloadReferenceId: task.PayloadReferenceID,
-	}
-}
-
-func (r *TaskRepositoryImpl) retrieveReplayTaskInputs(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, lockedTasks []*sqlcv1.ListTasksForReplayRow) (map[PayloadRef[TaskInputShape]]Payload[TaskInputShape], error) {
-	retrieveOpts := enumerables.Map(lockedTasks, func(task *sqlcv1.ListTasksForReplayRow) PayloadRef[TaskInputShape] {
-		return replayTaskInputRef(tenantId, task)
-	})
-
-	payloads, err := r.payloadStore.TaskInputs().Retrieve(ctx, tx, retrieveOpts...)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to bulk retrieve task inputs: %w", err)
-	}
-
-	return payloads, nil
-}
-
-func (r *TaskRepositoryImpl) replayTaskOptsFromLockedTask(tenantId uuid.UUID, task *sqlcv1.ListTasksForReplayRow, payloads map[PayloadRef[TaskInputShape]]Payload[TaskInputShape]) ReplayTaskOpts {
-	input := RetrievePayloadOrFallback(payloads, replayTaskInputRef(tenantId, task), task.Input)
-
-	var triggeringEventKey *string
-	if task.TriggeringEventKey.Valid {
-		triggeringEventKey = &task.TriggeringEventKey.String
-	}
-
-	return ReplayTaskOpts{
-		TaskId:                    task.ID,
-		InsertedAt:                task.InsertedAt,
-		StepId:                    task.StepID,
-		ExternalId:                task.ExternalID,
-		InitialState:              sqlcv1.V1TaskInitialStateQUEUED,
-		AdditionalMetadata:        task.AdditionalMetadata,
-		DesiredWorkerLabel:        task.DesiredWorkerLabel,
-		TriggeringEventExternalId: task.TriggeringEventExternalID,
-		TriggeringEventKey:        triggeringEventKey,
-		// NOTE: we require the input to be passed in to the replay method so we can re-evaluate the concurrency keys
-		// Ideally we could preserve the same concurrency keys, but the replay tasks method is currently unaware of existing concurrency
-		// keys because they may change between retries.
-		Input: r.newTaskInputFromTaskInputPayload(taskInputPayloadVersion(task.TaskInputPayloadVersion), input.Bytes()),
-	}
-}
-
-func (r *TaskRepositoryImpl) resetChildWorkflowSignals(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, lockedTasks []*sqlcv1.ListTasksForReplayRow) ([]CreateMatchOpts, error) {
-	eventMatches := make([]CreateMatchOpts, 0)
-	signalEventKeys := make([]string, 0)
-	parentTaskIds := make([]int64, 0)
-	parentTaskInsertedAts := make([]pgtype.Timestamptz, 0)
-
-	for _, task := range lockedTasks {
-		if !task.ParentTaskID.Valid {
-			continue
-		}
-
-		if !task.ChildIndex.Valid {
-			// TODO: handle error better/check with validation that this won't happen
-			r.l.Error().Ctx(ctx).Msg("could not find child key or index for child workflow")
-			continue
-		}
-
-		var childKey *string
-
-		if task.ChildKey.Valid {
-			childKey = &task.ChildKey.String
-		}
-
-		var parentExternalId uuid.UUID
-
-		if task.ParentTaskExternalID != nil {
-			parentExternalId = *task.ParentTaskExternalID
-		}
-		k := getChildSignalEventKey(parentExternalId, task.StepIndex, task.ChildIndex.Int64, childKey)
-
-		signalEventKeys = append(signalEventKeys, k)
-		parentTaskIds = append(parentTaskIds, task.ParentTaskID.Int64)
-		parentTaskInsertedAts = append(parentTaskInsertedAts, task.ParentTaskInsertedAt)
-
-		eventMatches = append(eventMatches, CreateMatchOpts{
-			Kind:                 sqlcv1.V1MatchKindSIGNAL,
-			Conditions:           getChildWorkflowGroupMatches(task.ExternalID, task.StepReadableID),
-			SignalExternalId:     task.ParentTaskExternalID,
-			SignalTaskId:         &task.ParentTaskID.Int64,
-			SignalTaskInsertedAt: task.ParentTaskInsertedAt,
-			SignalTaskExternalId: &task.ExternalID,
-			SignalKey:            &k,
-		})
-	}
-
-	if len(signalEventKeys) == 0 {
-		return eventMatches, nil
-	}
-
-	err := r.queries.DeleteMatchingSignalEvents(ctx, tx, sqlcv1.DeleteMatchingSignalEventsParams{
-		Tenantid:        tenantId,
-		Eventkeys:       signalEventKeys,
-		Taskids:         parentTaskIds,
-		Taskinsertedats: parentTaskInsertedAts,
-		Eventtype:       sqlcv1.V1TaskEventTypeSIGNALCOMPLETED,
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to delete matching signal events: %w", err)
-	}
-
-	return eventMatches, nil
-}
-
 func (r *TaskRepositoryImpl) reconstructGroupConditions(
 	ctx context.Context,
 	tx sqlcv1.DBTX,
@@ -4704,22 +4603,24 @@ func (r *TaskRepositoryImpl) reconstructGroupConditions(
 	//
 	// NOTE: at this point, we have already deleted the tasks and events that are in the subtree, so we
 	// don't have to worry about collisions with the tasks we're replaying.
-	matchedEvents, err := r.queries.ListMatchingTaskEvents(ctx, tx, sqlcv1.ListMatchingTaskEventsParams{
-		Tenantid:        tenantId,
-		Taskexternalids: externalIds,
-		Eventtypes:      eventTypes,
-	})
-
-	if err != nil {
-		return nil, nil, err
-	}
-
 	foundMatchKeys := make(map[string]*sqlcv1.ListMatchingTaskEventsRow)
 
-	for _, eventMatch := range matchedEvents {
-		key := fmt.Sprintf("%s:%s", eventMatch.TaskExternalID.String(), string(eventMatch.EventType))
+	if len(externalIds) > 0 {
+		matchedEvents, err := r.queries.ListMatchingTaskEvents(ctx, tx, sqlcv1.ListMatchingTaskEventsParams{
+			Tenantid:        tenantId,
+			Taskexternalids: externalIds,
+			Eventtypes:      eventTypes,
+		})
 
-		foundMatchKeys[key] = eventMatch
+		if err != nil {
+			return nil, nil, err
+		}
+
+		for _, eventMatch := range matchedEvents {
+			key := fmt.Sprintf("%s:%s", eventMatch.TaskExternalID.String(), string(eventMatch.EventType))
+
+			foundMatchKeys[key] = eventMatch
+		}
 	}
 
 	resMatches := make([]CreateMatchOpts, 0)
