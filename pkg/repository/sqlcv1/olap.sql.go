@@ -3806,7 +3806,8 @@ WITH inputs AS (
     SELECT id, inserted_at, tenant_id, external_id, display_name, workflow_id, workflow_version_id, readable_status, input, additional_metadata, parent_task_external_id, total_tasks, idempotency_key, latest_retry_count, is_dag_operator, payload_reference_id
     FROM v1_dags_olap d
     WHERE
-        (d.inserted_at, d.id, d.tenant_id) IN (
+        d.inserted_at >= $4::TIMESTAMPTZ
+        AND (d.inserted_at, d.id, d.tenant_id) IN (
             SELECT dag_inserted_at, dag_id, tenant_id
             FROM inputs
         )
@@ -3868,6 +3869,7 @@ WITH inputs AS (
         dag_new_statuses dns
     WHERE
         (d.inserted_at, d.id, d.tenant_id) = (dns.inserted_at, dns.id, dns.tenant_id)
+        AND d.inserted_at >= $4::TIMESTAMPTZ
         AND dns.new_readable_status != d.readable_status
     RETURNING
         d.tenant_id, d.id, d.inserted_at, d.external_id, d.readable_status, d.workflow_id
@@ -4378,18 +4380,19 @@ func (q *Queries) UpdateTaskStatuses(ctx context.Context, db DBTX, arg UpdateTas
 const updateTaskStatusesFromMQ = `-- name: UpdateTaskStatusesFromMQ :many
 WITH inputs AS (
     SELECT
-        UNNEST($1::UUID[]) AS tenant_id,
-        UNNEST($2::BIGINT[]) AS task_id,
-        UNNEST($3::TIMESTAMPTZ[]) AS task_inserted_at,
-        UNNEST($4::v1_readable_status_olap[]) AS readable_status,
-        UNNEST($5::UUID[]) AS worker_id,
-        UNNEST($6::INTEGER[]) AS retry_count
+        UNNEST($2::UUID[]) AS tenant_id,
+        UNNEST($3::BIGINT[]) AS task_id,
+        UNNEST($4::TIMESTAMPTZ[]) AS task_inserted_at,
+        UNNEST($5::v1_readable_status_olap[]) AS readable_status,
+        UNNEST($6::UUID[]) AS worker_id,
+        UNNEST($7::INTEGER[]) AS retry_count
 ), locked_tasks AS (
     SELECT t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.is_durable, t.idempotency_key, t.payload_reference_id, i.readable_status AS new_readable_status, i.worker_id AS new_worker_id, i.retry_count AS new_retry_count
     FROM v1_tasks_olap t
     JOIN inputs i ON (i.tenant_id, i.task_id, i.task_inserted_at) = (t.tenant_id, t.id, t.inserted_at)
     WHERE
-        (
+        t.inserted_at >= $1::TIMESTAMPTZ
+        AND (
             -- A newer retry count must always apply, even when the readable
             -- status is unchanged, because this is the only chance to record it:
             -- the message this batch came from is acked once the transaction
@@ -4428,6 +4431,7 @@ WITH inputs AS (
     FROM locked_tasks lt
     WHERE
         (t.inserted_at, t.id, t.tenant_id) = (lt.inserted_at, lt.id, lt.tenant_id)
+        AND t.inserted_at >= $1::TIMESTAMPTZ
     RETURNING t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.is_durable, t.idempotency_key, t.payload_reference_id
 )
 
@@ -4445,13 +4449,16 @@ SELECT
     (ut.id IS NOT NULL)::BOOLEAN AS was_updated
 FROM v1_tasks_olap t
 LEFT JOIN updated_tasks ut ON (ut.tenant_id, ut.id, ut.inserted_at) = (t.tenant_id, t.id, t.inserted_at)
-WHERE (t.inserted_at, t.id, t.tenant_id) IN (
-    SELECT task_inserted_at, task_id, tenant_id
-    FROM inputs
-)
+WHERE
+    t.inserted_at >= $1::TIMESTAMPTZ
+    AND (t.inserted_at, t.id, t.tenant_id) IN (
+        SELECT task_inserted_at, task_id, tenant_id
+        FROM inputs
+    )
 `
 
 type UpdateTaskStatusesFromMQParams struct {
+	Mininsertedat   pgtype.Timestamptz     `json:"mininsertedat"`
 	Tenantids       []uuid.UUID            `json:"tenantids"`
 	Taskids         []int64                `json:"taskids"`
 	Taskinsertedats []pgtype.Timestamptz   `json:"taskinsertedats"`
@@ -4476,6 +4483,7 @@ type UpdateTaskStatusesFromMQRow struct {
 
 func (q *Queries) UpdateTaskStatusesFromMQ(ctx context.Context, db DBTX, arg UpdateTaskStatusesFromMQParams) ([]*UpdateTaskStatusesFromMQRow, error) {
 	rows, err := db.Query(ctx, updateTaskStatusesFromMQ,
+		arg.Mininsertedat,
 		arg.Tenantids,
 		arg.Taskids,
 		arg.Taskinsertedats,

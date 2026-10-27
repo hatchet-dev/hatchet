@@ -1842,6 +1842,7 @@ func (r *OLAPRepositoryImpl) prepareStatusUpdateBatch(ctx context.Context, tenan
 		Statuses:        statuses,
 		Workerids:       workerIds,
 		Retrycounts:     retryCounts,
+		Mininsertedat:   sqlchelpers.MinTimestamptz(taskInsertedAts),
 	}
 }
 
@@ -1995,6 +1996,7 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 	eventsToWrite := make([]sqlcv1.CreateTaskEventsOLAPParams, 0)
 	eventsForStatusUpdate := make([]sqlcv1.CreateTaskEventsOLAPParams, 0, len(events))
 	payloadsToWrite := make([]StoreOLAPPayloadOpts, 0)
+	oldestRetainedPartitionStart := r.oldestRetainedPartitionStart()
 
 	for _, event := range events {
 		workflowRunId, ok := eventExternalIdToWorkflowRunId[event.ExternalID]
@@ -2011,7 +2013,9 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 		key := getCacheKey(event)
 		output := event.Output
 
-		if _, ok := r.eventCache.Get(key); !ok {
+		isTaskPartitionDropped := event.TaskInsertedAt.Time.Before(oldestRetainedPartitionStart)
+
+		if _, ok := r.eventCache.Get(key); !ok && !isTaskPartitionDropped {
 			if event.Output != nil || event.PayloadReferenceID != nil {
 				event.Output = []byte("{}")
 			}
@@ -2676,6 +2680,10 @@ func dedupeOrchestratorUpdates(updates []OrchestratorDAGStatusUpdateOpt) []Orche
 	return deduped
 }
 
+func (r *OLAPRepositoryImpl) oldestRetainedPartitionStart() time.Time {
+	return time.Now().UTC().Add(-1 * r.olapRetentionPeriod).Truncate(24 * time.Hour)
+}
+
 func (r *OLAPRepositoryImpl) applyOrchestratorEventsToDAGs(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, updates []OrchestratorDAGStatusUpdateOpt) ([]UpdateDAGStatusRow, error) {
 	if len(updates) == 0 {
 		return nil, nil
@@ -2685,7 +2693,13 @@ func (r *OLAPRepositoryImpl) applyOrchestratorEventsToDAGs(ctx context.Context, 
 		Tenantid: tenantId,
 	}
 
+	oldestRetainedPartitionStart := r.oldestRetainedPartitionStart()
+
 	for _, update := range dedupeOrchestratorUpdates(updates) {
+		if update.DagInsertedAt.Time.Before(oldestRetainedPartitionStart) {
+			continue
+		}
+
 		params.Dagids = append(params.Dagids, update.DagId)
 		params.Daginsertedats = append(params.Daginsertedats, update.DagInsertedAt)
 		params.Statuses = append(params.Statuses, update.ReadableStatus)
