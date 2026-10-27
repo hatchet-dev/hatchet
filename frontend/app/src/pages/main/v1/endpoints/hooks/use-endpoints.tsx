@@ -57,9 +57,9 @@ export const useEndpointMutations = () => {
   const { tenantId } = useCurrentTenantId();
 
   const invalidate = async (endpointId?: string) => {
-    // every page of the list
+    // every page of the list, for every tenant
     await queryClient.invalidateQueries({
-      queryKey: ['v1:serverless-endpoint:list', tenantId],
+      queryKey: queries.v1ServerlessEndpoints.list._def,
     });
 
     if (endpointId) {

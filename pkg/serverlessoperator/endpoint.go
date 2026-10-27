@@ -64,6 +64,11 @@ type endpointPoller struct {
 	rejectedBackoff time.Duration
 	failures        int
 
+	// rejectedEventHash is the refused catalog whose CATALOG_REJECTED event was written: a
+	// refusal is recorded once, not on every backoff retry, and one the recorder held back
+	// is offered again on the next retry until it is.
+	rejectedEventHash string
+
 	// lastFailureEvent is the error of the last HEALTHCHECK_FAILED event of the current
 	// failure streak: a streak records its first failure and every change of error, not
 	// every poll, and the recorder holds those to one per failureEventWindow.
@@ -276,10 +281,8 @@ func (p *endpointPoller) apply(ctx context.Context, res *healthcheckResult) poll
 		var rejection catalogRejected
 
 		if errors.As(err, &rejection) {
-			// Recorded once per refused catalog, not on every backoff retry of it; the
-			// recorder holds a stream of distinct refused catalogs to one per window.
-			if p.rejectedHash != res.hash {
-				p.r.events.record(p.ep, sqlcv1.V1ServerlessEndpointEventKindCATALOGREJECTED, err.Error(), details)
+			if p.rejectedEventHash != res.hash && p.r.events.record(p.ep, sqlcv1.V1ServerlessEndpointEventKindCATALOGREJECTED, err.Error(), details) {
+				p.rejectedEventHash = res.hash
 			}
 
 			p.rejected(res.hash, err.Error())
@@ -296,6 +299,7 @@ func (p *endpointPoller) apply(ctx context.Context, res *healthcheckResult) poll
 
 	p.lastHash = res.hash
 	p.rejectedHash = ""
+	p.rejectedEventHash = ""
 
 	return pollStatus{healthy: true}
 }
