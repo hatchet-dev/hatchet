@@ -338,12 +338,15 @@ func (q *Queries) CountOLAPTempTableSizeForTaskStatusUpdates(ctx context.Context
 }
 
 const createDagToTaskOLAPSelfMappings = `-- name: CreateDagToTaskOLAPSelfMappings :exec
+WITH inputs AS (
+    SELECT
+        UNNEST($1::bigint[]) AS dag_id,
+        UNNEST($2::timestamptz[]) AS dag_inserted_at
+)
 INSERT INTO v1_dag_to_task_olap (dag_id, dag_inserted_at, task_id, task_inserted_at)
-SELECT
-    UNNEST($1::bigint[]),
-    UNNEST($2::timestamptz[]),
-    UNNEST($1::bigint[]),
-    UNNEST($2::timestamptz[])
+SELECT i.dag_id, i.dag_inserted_at, i.dag_id, i.dag_inserted_at
+FROM inputs i
+ORDER BY i.dag_inserted_at, i.dag_id
 ON CONFLICT DO NOTHING
 `
 
