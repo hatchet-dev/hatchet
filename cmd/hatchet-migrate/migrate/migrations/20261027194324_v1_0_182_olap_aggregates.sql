@@ -22,8 +22,6 @@ CREATE TABLE v1_agg_task_events_minute_olap (
     completed_count BIGINT NOT NULL DEFAULT 0,
     cancelled_count BIGINT NOT NULL DEFAULT 0,
     failed_count BIGINT NOT NULL DEFAULT 0,
-    -- terminal events written by DAG orchestrator tasks
-    dag_orchestrator_terminal_count BIGINT NOT NULL DEFAULT 0,
     PRIMARY KEY (tenant_id, bucket, workflow_id)
 ) PARTITION BY RANGE (bucket);
 
@@ -58,7 +56,6 @@ CREATE TABLE v1_agg_task_events_minute_delta_olap (
     completed_count INTEGER NOT NULL,
     cancelled_count INTEGER NOT NULL,
     failed_count INTEGER NOT NULL,
-    dag_orchestrator_terminal_count INTEGER NOT NULL,
     PRIMARY KEY (id, tenant_id)
 ) PARTITION BY HASH (tenant_id);
 
@@ -198,7 +195,7 @@ BEGIN
         RETURN NULL;
     END IF;
 
-    INSERT INTO v1_agg_task_events_minute_delta_olap (tenant_id, bucket, workflow_id, queued_count, running_count, completed_count, cancelled_count, failed_count, dag_orchestrator_terminal_count)
+    INSERT INTO v1_agg_task_events_minute_delta_olap (tenant_id, bucket, workflow_id, queued_count, running_count, completed_count, cancelled_count, failed_count)
     SELECT
         tenant_id,
         date_bin('1 minute', task_inserted_at, TIMESTAMPTZ '1970-01-01 00:00:00+00'),
@@ -207,9 +204,9 @@ BEGIN
         COUNT(*) FILTER (WHERE readable_status = 'RUNNING'),
         COUNT(*) FILTER (WHERE readable_status = 'COMPLETED'),
         COUNT(*) FILTER (WHERE readable_status = 'CANCELLED'),
-        COUNT(*) FILTER (WHERE readable_status = 'FAILED'),
-        COUNT(*) FILTER (WHERE is_dag_orchestrator AND readable_status IN ('COMPLETED', 'CANCELLED', 'FAILED'))
+        COUNT(*) FILTER (WHERE readable_status = 'FAILED')
     FROM new_rows
+    WHERE NOT is_dag_orchestrator
     GROUP BY 1, 2, 3;
 
     RETURN NULL;
