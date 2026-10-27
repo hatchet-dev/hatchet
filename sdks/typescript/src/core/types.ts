@@ -42,6 +42,15 @@ export interface CoreClientConfig {
   /** The engine's `host:port`, combined with `tls` into the base URL. */
   hostPort?: string;
   /**
+   * The REST API server's base URL, for example `https://cloud.onhatchet.run`: an absolute
+   * `http://` or `https://` URL, which is where `api` and the REST-backed features
+   * (`runs.list`, `crons`, `schedules`, `workers` and the rest) send their requests. It is
+   * the API server, not the engine, so it is separate from `serverUrl`. Defaults to the
+   * token's `server_url` claim; when the token has none and this is unset, those calls
+   * reject with a `HatchetError` and everything else works.
+   */
+  apiUrl?: string;
+  /**
    * Defaults to `{ strategy: 'tls' }`. The token travels on every call, so plain HTTP has to
    * be chosen explicitly with `{ strategy: 'none' }`.
    */
@@ -58,7 +67,7 @@ export interface CoreClientConfig {
    * authentication and limits.
    */
   transport?: Transport;
-  /** The `fetch` the transport sends with. Defaults to the runtime's global `fetch`. */
+  /** The `fetch` the transport and the REST client send with. Defaults to the runtime's global `fetch`. */
   fetch?: typeof globalThis.fetch;
   /**
    * The largest response accepted, in bytes after HTTP decompression; a larger one rejects
@@ -179,8 +188,9 @@ export type RunFilterBase = {
 };
 
 /**
- * The core client's run filter. It takes workflow ids rather than names because resolving a
- * name is a REST call, which the core client does not make.
+ * The filter `runs.cancel` and `runs.replay` take on the core client: workflow ids rather
+ * than names, since those two calls go to the engine directly; `runs.list` takes names and
+ * resolves them over the REST API.
  */
 export type RunFilter = RunFilterBase & {
   workflowIds?: string[];
@@ -212,6 +222,12 @@ export type StreamCallOptions = {
   cursor?: string;
   /** Ends an `events()` iteration cleanly, without throwing; aborts a unary call. */
   signal?: AbortSignal;
+  /**
+   * For `publish`: how long the message may wait for later publishes to the same topic to
+   * share its request, bounding the latency batching adds. 0, the default, sends it as soon as
+   * no other request to the topic is in flight.
+   */
+  batchTimeoutMs?: number;
 };
 
 /** What a durable stream topic retains; counts and the latest message cover the tenant's retention. */

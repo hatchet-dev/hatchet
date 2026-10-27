@@ -4119,6 +4119,8 @@ type V1TaskRuntime struct {
 	TenantID       uuid.UUID          `json:"tenant_id"`
 	TimeoutAt      pgtype.Timestamp   `json:"timeout_at"`
 	EvictedAt      pgtype.Timestamptz `json:"evicted_at"`
+	AssignedAt     pgtype.Timestamptz `json:"assigned_at"`
+	AckedAt        pgtype.Timestamptz `json:"acked_at"`
 }
 
 type V1TaskRuntimeSlot struct {

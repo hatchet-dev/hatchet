@@ -24,3 +24,5 @@ probe:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Not authorized to perform this action
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"

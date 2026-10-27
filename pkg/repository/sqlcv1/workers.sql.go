@@ -524,6 +524,27 @@ func (q *Queries) GetActiveWorkerById(ctx context.Context, db DBTX, arg GetActiv
 	return &i, err
 }
 
+const getTotalActiveSlotsForTenant = `-- name: GetTotalActiveSlotsForTenant :one
+SELECT
+    COALESCE(SUM(wc.max_units), 0)::bigint AS "totalActiveSlots"
+FROM v1_worker_slot_config wc
+JOIN "Worker" w ON w."id" = wc.worker_id AND w."tenantId" = wc.tenant_id
+WHERE
+    wc.tenant_id = $1::uuid
+    AND w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false
+    AND NOT w."isExemptFromLimits"
+`
+
+func (q *Queries) GetTotalActiveSlotsForTenant(ctx context.Context, db DBTX, tenantid uuid.UUID) (int64, error) {
+	row := db.QueryRow(ctx, getTotalActiveSlotsForTenant, tenantid)
+	var totalActiveSlots int64
+	err := row.Scan(&totalActiveSlots)
+	return totalActiveSlots, err
+}
+
 const getWorkerActionsByWorkerActionHash = `-- name: GetWorkerActionsByWorkerActionHash :many
 SELECT
     rep.action_hash,
@@ -1287,7 +1308,7 @@ WITH tasks AS (
 )
 
 SELECT
-    rt.task_id, rt.task_inserted_at, rt.retry_count, rt.worker_id, rt.batch_id, rt.batch_size, rt.batch_index, rt.batch_key, rt.tenant_id, rt.timeout_at, rt.evicted_at,
+    rt.task_id, rt.task_inserted_at, rt.retry_count, rt.worker_id, rt.batch_id, rt.batch_size, rt.batch_index, rt.batch_key, rt.tenant_id, rt.timeout_at, rt.evicted_at, rt.assigned_at, rt.acked_at,
     w."durableTaskDispatcherId"
 FROM v1_task_runtime rt
 LEFT JOIN "Worker" w ON rt.worker_id = w.id
@@ -1317,6 +1338,8 @@ type ListDurableTaskDispatcherIdsForTasksRow struct {
 	TenantID                uuid.UUID          `json:"tenant_id"`
 	TimeoutAt               pgtype.Timestamp   `json:"timeout_at"`
 	EvictedAt               pgtype.Timestamptz `json:"evicted_at"`
+	AssignedAt              pgtype.Timestamptz `json:"assigned_at"`
+	AckedAt                 pgtype.Timestamptz `json:"acked_at"`
 	DurableTaskDispatcherId *uuid.UUID         `json:"durableTaskDispatcherId"`
 }
 
@@ -1341,6 +1364,8 @@ func (q *Queries) ListDurableTaskDispatcherIdsForTasks(ctx context.Context, db D
 			&i.TenantID,
 			&i.TimeoutAt,
 			&i.EvictedAt,
+			&i.AssignedAt,
+			&i.AckedAt,
 			&i.DurableTaskDispatcherId,
 		); err != nil {
 			return nil, err
@@ -1406,7 +1431,7 @@ func (q *Queries) ListManyWorkerLabels(ctx context.Context, db DBTX, workerids [
 
 const listSemaphoreSlotsWithStateForWorker = `-- name: ListSemaphoreSlotsWithStateForWorker :many
 SELECT
-    task_id, task_inserted_at, runtime.retry_count, worker_id, batch_id, batch_size, batch_index, runtime.batch_key, runtime.tenant_id, timeout_at, evicted_at, id, inserted_at, v1_task.tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, v1_task.retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, v1_task.batch_key, retry_backoff_factor, retry_max_backoff, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, is_dag_orchestrator, concurrency_max_runs, payload_reference_id, triggers, dag_parent_task_run_ids, child_task_desired_worker_labels, task_input_payload_version
+    task_id, task_inserted_at, runtime.retry_count, worker_id, batch_id, batch_size, batch_index, runtime.batch_key, runtime.tenant_id, timeout_at, evicted_at, assigned_at, acked_at, id, inserted_at, v1_task.tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, v1_task.retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, v1_task.batch_key, retry_backoff_factor, retry_max_backoff, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, is_dag_orchestrator, concurrency_max_runs, payload_reference_id, triggers, dag_parent_task_run_ids, child_task_desired_worker_labels, task_input_payload_version
 FROM
     v1_task_runtime runtime
 JOIN
@@ -1436,6 +1461,8 @@ type ListSemaphoreSlotsWithStateForWorkerRow struct {
 	TenantID                     uuid.UUID          `json:"tenant_id"`
 	TimeoutAt                    pgtype.Timestamp   `json:"timeout_at"`
 	EvictedAt                    pgtype.Timestamptz `json:"evicted_at"`
+	AssignedAt                   pgtype.Timestamptz `json:"assigned_at"`
+	AckedAt                      pgtype.Timestamptz `json:"acked_at"`
 	ID                           int64              `json:"id"`
 	InsertedAt                   pgtype.Timestamptz `json:"inserted_at"`
 	TenantID_2                   uuid.UUID          `json:"tenant_id_2"`
@@ -1509,6 +1536,8 @@ func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db D
 			&i.TenantID,
 			&i.TimeoutAt,
 			&i.EvictedAt,
+			&i.AssignedAt,
+			&i.AckedAt,
 			&i.ID,
 			&i.InsertedAt,
 			&i.TenantID_2,

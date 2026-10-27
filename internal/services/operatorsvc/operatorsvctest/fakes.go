@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/operatorsvc"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -348,7 +349,7 @@ func (f *WorkerStore) BulkHeartbeats() [][]uuid.UUID {
 	return append([][]uuid.UUID(nil), f.bulkHeartbeats...)
 }
 
-func (f *WorkerStore) UpsertWorkerLabels(_ context.Context, workerId uuid.UUID, opts []repository.UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error) {
+func (f *WorkerStore) UpsertWorkerLabels(_ context.Context, _ uuid.UUID, workerId uuid.UUID, opts []repository.UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -372,21 +373,13 @@ func (f *WorkerStore) ApplyWorkerActionsDelta(_ context.Context, tenantId uuid.U
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	var fresh []string
+	fresh := enumerables.Filter(add, func(id string) bool {
+		return !enumerables.HasKey(f.actions[workerId], id)
+	})
 
-	for _, id := range add {
-		if _, ok := f.actions[workerId][id]; !ok {
-			fresh = append(fresh, id)
-		}
-	}
-
-	var gone []string
-
-	for _, id := range remove {
-		if _, ok := f.actions[workerId][id]; ok {
-			gone = append(gone, id)
-		}
-	}
+	gone := enumerables.Filter(remove, func(id string) bool {
+		return enumerables.HasKey(f.actions[workerId], id)
+	})
 
 	if len(fresh) == 0 && len(gone) == 0 {
 		return 0, 0, nil
@@ -864,31 +857,53 @@ type RunStream struct {
 	First     proto.Message
 	Requests  chan proto.Message
 	Responses chan proto.Message
+	// Tenant is the tenant the stream was registered with on its context, when the backend
+	// records it (Streams does).
+	Tenant *sqlcv1.Tenant
 
 	end     chan struct{}
 	endOnce sync.Once
+	endErr  error
 }
 
-// End closes the engine's side of the stream.
+// End closes the engine's side of the stream as finished.
 func (rs *RunStream) End() {
-	rs.endOnce.Do(func() { close(rs.end) })
+	rs.EndWith(nil)
+}
+
+// EndWith closes the engine's side of the stream with the handler's error, which the session
+// reports from Recv once the responses are drained.
+func (rs *RunStream) EndWith(err error) {
+	rs.endOnce.Do(func() {
+		rs.endErr = err
+		close(rs.end)
+	})
 }
 
 // Done is closed once the stream's context ended or End was called.
 func (rs *RunStream) Done() <-chan struct{} { return rs.end }
 
-// RegisterRunStream hands out a channel pair for the stream and records it.
-func (f *Dispatcher) RegisterRunStream(ctx context.Context, kind operator.RunStreamKind, first proto.Message) (chan<- proto.Message, <-chan proto.Message, error) {
+// RegisterRunStream hands out a channel-backed stream and records it.
+func (f *Dispatcher) RegisterRunStream(ctx context.Context, kind operator.RunStreamKind, first proto.Message) (*rpcstream.ChannelStream, error) {
 	f.mu.Lock()
 
 	if err := f.registerRunStreamErr; err != nil {
 		f.mu.Unlock()
-		return nil, nil, err
+		return nil, err
 	}
 
+	rs := newRunStream(kind, first, nil)
+	f.runStreams = append(f.runStreams, rs)
+	f.mu.Unlock()
+
+	return rs.serve(ctx), nil
+}
+
+func newRunStream(kind operator.RunStreamKind, first proto.Message, tenant *sqlcv1.Tenant) *RunStream {
 	rs := &RunStream{
 		Kind:      kind,
 		First:     first,
+		Tenant:    tenant,
 		Responses: make(chan proto.Message, 64),
 		end:       make(chan struct{}),
 	}
@@ -897,8 +912,17 @@ func (f *Dispatcher) RegisterRunStream(ctx context.Context, kind operator.RunStr
 		rs.Requests = make(chan proto.Message, 64)
 	}
 
-	f.runStreams = append(f.runStreams, rs)
-	f.mu.Unlock()
+	return rs
+}
+
+// serve is the channel-backed stream handed to the session: it carries what the test puts on
+// Responses until End, or until the session cancels the stream, and reports End's error.
+func (rs *RunStream) serve(ctx context.Context) *rpcstream.ChannelStream {
+	cs := &rpcstream.ChannelStream{Responses: rs.Responses}
+
+	if rs.Requests != nil {
+		cs.Requests = rs.Requests
+	}
 
 	go func() {
 		select {
@@ -907,14 +931,11 @@ func (f *Dispatcher) RegisterRunStream(ctx context.Context, kind operator.RunStr
 		case <-rs.end:
 		}
 
+		cs.Err = rs.endErr
 		close(rs.Responses)
 	}()
 
-	if rs.Requests == nil {
-		return nil, rs.Responses, nil
-	}
-
-	return rs.Requests, rs.Responses, nil
+	return cs
 }
 
 // FailRegisterRunStream makes the next RegisterRunStream calls fail.
@@ -1030,4 +1051,52 @@ func (f *Dispatcher) AckedSequences() []uint64 {
 	}
 
 	return out
+}
+
+// Streams is an in-memory StreamsBackend: every RegisterSubscribe is recorded as a RunStream
+// of kind RunStreamDurableStreams the test feeds, with the request as First and the tenant the
+// session put on the context.
+type Streams struct {
+	mu sync.Mutex
+
+	subscriptions []*RunStream
+	registerErr   error
+}
+
+// NewStreams creates an in-memory durable streams backend for tests.
+func NewStreams() *Streams {
+	return &Streams{}
+}
+
+// RegisterSubscribe hands out a channel-backed stream and records it.
+func (f *Streams) RegisterSubscribe(ctx context.Context, req *v1contracts.SubscribeStreamRequest) (*rpcstream.ChannelStream, error) {
+	f.mu.Lock()
+
+	if err := f.registerErr; err != nil {
+		f.mu.Unlock()
+		return nil, err
+	}
+
+	tenant, _ := ctx.Value("tenant").(*sqlcv1.Tenant)
+	rs := newRunStream(operator.RunStreamDurableStreams, req, tenant)
+	f.subscriptions = append(f.subscriptions, rs)
+	f.mu.Unlock()
+
+	return rs.serve(ctx), nil
+}
+
+// FailRegisterSubscribe makes the next RegisterSubscribe calls fail.
+func (f *Streams) FailRegisterSubscribe(err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.registerErr = err
+}
+
+// Subscriptions returns the subscriptions registered so far, in order.
+func (f *Streams) Subscriptions() []*RunStream {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]*RunStream(nil), f.subscriptions...)
 }

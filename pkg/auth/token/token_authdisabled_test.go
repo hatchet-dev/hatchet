@@ -56,7 +56,7 @@ func (s *stubAPITokenRepository) ListAPITokensByTenant(ctx context.Context, tena
 	return nil, nil
 }
 
-func (s *stubAPITokenRepository) RevokeAPIToken(ctx context.Context, id uuid.UUID) error {
+func (s *stubAPITokenRepository) RevokeAPIToken(ctx context.Context, tenantId uuid.UUID, id uuid.UUID) error {
 	return nil
 }
 

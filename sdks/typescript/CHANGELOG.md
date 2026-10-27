@@ -5,6 +5,55 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.44.1] - 2026-10-27
+
+### Changed
+
+- The REST client types the Slack OAuth start and callback responses as `void | APIErrors`, since the API now declares a `429 Too Many Requests` response on every authenticated operation.
+
+## [1.44.0] - 2026-10-26
+
+### Added
+
+- `streams.reset` (Node client and `/core`) takes a `cursor` option: `events()` calls without a cursor then start after that message instead of the topic's latest.
+
+## [1.43.1] - 2026-10-26
+
+### Fixed
+
+- [Durable tasks](https://docs.hatchet.run/v1/durable-tasks) no longer stall after the worker's durable stream reconnects in the middle of a wait. The worker now reports the last completion it received in its status requests, so the engine resumes delivery from there instead of holding later completions until the task is evicted and replayed.
+
+## [1.43.0] - 2026-10-23
+
+### Fixed
+
+- `streams.publish` works against engines that predate `V1Streams/PublishBatch` again; 1.42.0 rejected every publish to them as unimplemented. On the first `UNIMPLEMENTED` from `PublishBatch` the client sends that request's messages, and every later one, as one `Publish` per message, settling each publish on its own; `batchTimeoutMs` still groups messages there, but each goes out in its own request.
+
+## [1.42.0] - 2026-10-23
+
+### Added
+
+- `streams.publish` takes a `batchTimeoutMs` option: how long a message may wait for later publishes to the same topic to share its request, bounding the latency batching adds. It defaults to 0.
+
+### Changed
+
+- `streams.publish` (Node client and `/core`) now sends the publishes queued behind an in-flight request to the same topic as one `PublishBatch` request, up to 500 messages or about 4 MiB, instead of one round trip per message. Ordering and delivery guarantees are unchanged. Requires an engine that serves `V1Streams/PublishBatch`; older engines reject it as unimplemented.
+- `streams.publish` rejects an empty payload, and a `batchTimeoutMs` that is negative or not finite, before sending anything, since the engine would otherwise reject every publish sharing that request.
+
+## [1.41.1] - 2026-10-23
+
+### Fixed
+
+- `DurableContext.spawnChild` and `spawnChildren` now send `desiredWorkerLabels` to the engine; the eviction-enabled durable path previously dropped them, so durable children ignored per-call worker affinity.
+- Worker shutdown no longer fails durable tasks with `DurableListener stopped`. The durable listener now stays up until in-flight tasks drain, and a task that enters a wait after shutdown's eviction pass (for example one still awaiting the wait registration ack) is evicted and handed off instead of failed.
+
+## [1.41.0] - 2026-10-23
+
+### Added
+
+- `/core`: the REST API (`client.api`) and the REST-backed features of the Node client (`runs.list`, `restoreTask` and `branchDurableTask`, `crons`, `schedules`, `filters`, `metrics`, `tenant`, `webhooks`, `workers`, `cel`, and `workflows.get`, `list`, `delete`, `pause` and `unpause`), generated from the OpenAPI spec over `fetch`. The base URL is the token's `server_url` claim or the new `apiUrl` config field.
+- `/core`: `tasks.refreshTimeout` and `tasks.releaseSlot`.
+
 ## [1.40.0] - 2026-10-14
 
 ### Added
@@ -171,13 +220,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added support for `CANCEL_QUEUED_EXCEPT_NEWEST` and `CANCEL_QUEUED_EXCEPT_OLDEST` concurrency strategies.
 
-
 ## [1.29.3] - 2026-08-31
 
 ### Changed
 
 - The missing-token configuration error now explains how to run Hatchet embedded for local development, via `HatchetEmbeddedClient.init()`, with a link to the embedded mode docs.
-
 
 ## [1.29.2] - 2026-08-10
 
@@ -185,13 +232,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Improved error handling around failed heartbeats
 
-
 ## [1.29.1] - 2026-08-25
 
 ### Added
 
 - Added `stopEmbedded()` on clients returned by `HatchetEmbeddedClient.init()` and a standalone `stopEmbeddedSidecar()` export, which gracefully stop the embedded engine (including its bundled Postgres) and resolve once it has fully exited.
-
 
 ## [1.29.0] - 2026-08-24
 
@@ -199,13 +244,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added embedded mode (early beta): `HatchetEmbeddedClient.init()` from the `@hatchet-dev/typescript-sdk/v1/embedded` entry point downloads and spawns the `hatchet-embedded` sidecar (checksum-verified, cached under `~/.hatchet/embedded`), runs a full Hatchet engine locally with a bundled Postgres by default (pass `databaseUrl` to use your own), and returns a client wired to it. The separate entry point keeps embedded support out of production bundles.
 
-
 ## [1.28.2] - 2026-08-10
 
 ### Fixed
 
 - Changed `hatchet.task` constructor concurrency options handling so that it does not set concurrency options at the workflow level, which would cause slow concurrency strategy handling in the engine
-
 
 ## [1.28.1] - 2026-07-30
 
@@ -221,13 +264,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Adds beta `batchTask` methods to both tasks and workflows, allowing for dynamic batching based on either time or batch size.
 
-
 ## [1.27.0] - 2026-07-22
 
 ### Added
 
 - Adds support for terminal status-based idempotency keys, which are released when the task holding the key reaches a terminal state (either completed, cancelled, or having failed and exhausted all retries).
-
 
 ## [1.26.2] - 2026-07-21
 
@@ -284,7 +325,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added a `getDetails` method to `hatchet.runs` to retrieve task details.
-
 
 ## [1.23.1] - 2026-06-09
 

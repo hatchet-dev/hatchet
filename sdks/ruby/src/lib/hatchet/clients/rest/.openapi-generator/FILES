@@ -145,6 +145,7 @@ lib/hatchet-sdk-rest/models/tenant.rb
 lib/hatchet-sdk-rest/models/tenant_alert_email_group.rb
 lib/hatchet-sdk-rest/models/tenant_alert_email_group_list.rb
 lib/hatchet-sdk-rest/models/tenant_alerting_settings.rb
+lib/hatchet-sdk-rest/models/tenant_entitlements.rb
 lib/hatchet-sdk-rest/models/tenant_environment.rb
 lib/hatchet-sdk-rest/models/tenant_invite.rb
 lib/hatchet-sdk-rest/models/tenant_invite_list.rb
@@ -215,6 +216,8 @@ lib/hatchet-sdk-rest/models/v1_serverless_endpoint_kind.rb
 lib/hatchet-sdk-rest/models/v1_serverless_endpoint_list.rb
 lib/hatchet-sdk-rest/models/v1_serverless_endpoint_status.rb
 lib/hatchet-sdk-rest/models/v1_stream_payload_ref.rb
+lib/hatchet-sdk-rest/models/v1_stream_topic.rb
+lib/hatchet-sdk-rest/models/v1_stream_topic_list.rb
 lib/hatchet-sdk-rest/models/v1_task_event.rb
 lib/hatchet-sdk-rest/models/v1_task_event_list.rb
 lib/hatchet-sdk-rest/models/v1_task_event_type.rb

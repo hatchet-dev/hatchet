@@ -19,6 +19,7 @@ import (
 	telemetry_codes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
@@ -97,7 +98,7 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 	workerId := worker.ID.String()
 
 	if request.Labels != nil {
-		_, err = s.upsertLabels(ctx, worker.ID, request.Labels)
+		_, err = s.upsertLabels(ctx, tenantId, worker.ID, request.Labels)
 
 		if err != nil {
 			return nil, err
@@ -143,7 +144,7 @@ func (s *DispatcherImpl) UpsertWorkerLabels(ctx context.Context, request *contra
 		return nil, err
 	}
 
-	_, err = s.upsertLabels(ctx, workerId, request.Labels)
+	_, err = s.upsertLabels(ctx, tenant.ID, workerId, request.Labels)
 
 	if err != nil {
 		return nil, err
@@ -155,7 +156,7 @@ func (s *DispatcherImpl) UpsertWorkerLabels(ctx context.Context, request *contra
 	}, nil
 }
 
-func (s *DispatcherImpl) upsertLabels(ctx context.Context, workerId uuid.UUID, request map[string]*contracts.WorkerLabels) ([]*sqlcv1.WorkerLabel, error) {
+func (s *DispatcherImpl) upsertLabels(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, request map[string]*contracts.WorkerLabels) ([]*sqlcv1.WorkerLabel, error) {
 	affinities := make([]v1.UpsertWorkerLabelOpts, 0, len(request))
 
 	for key, config := range request {
@@ -173,7 +174,7 @@ func (s *DispatcherImpl) upsertLabels(ctx context.Context, workerId uuid.UUID, r
 		})
 	}
 
-	res, err := s.repov1.Workers().UpsertWorkerLabels(ctx, workerId, affinities)
+	res, err := s.repov1.Workers().UpsertWorkerLabels(ctx, tenantId, workerId, affinities)
 
 	if err != nil {
 		s.l.Error().Ctx(ctx).Err(err).Msgf("could not upsert worker affinities for worker %s", workerId.String())
@@ -556,8 +557,7 @@ func (w *workflowRunAcks) hasWorkflowRun(id uuid.UUID) bool {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
-	_, ok := w.acks[id]
-	return ok
+	return enumerables.HasKey(w.acks, id)
 }
 
 func (d *DispatcherImpl) cleanResults(results []*contracts.StepRunResult) []*contracts.StepRunResult {
@@ -1554,6 +1554,18 @@ func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv
 	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
+	ackedMsg, err := tasktypes.AckedTaskMessage(tenantId, task.ID, task.InsertedAt, retryCount)
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = s.pubBuffer.Pub(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, ackedMsg, false)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not publish acked message for task %d: %w", task.ID, err)
+	}
+
 	msg, err := tasktypes.MonitoringEventMessageFromActionEvent(
 		tenantId,
 		task.ID,
@@ -1803,13 +1815,19 @@ func (s *DispatcherImpl) handleBatchTaskStarted(
 	idInsertedAts := make([]v1.IdInsertedAt, 0, len(tasks))
 
 	for _, task := range tasks {
+		if !task.IsDurable.Valid || !task.IsDurable.Bool {
+			continue
+		}
+
 		idInsertedAts = append(idInsertedAts, v1.IdInsertedAt{ID: task.ID, InsertedAtUnixMicros: task.InsertedAt.Time.UnixMicro()})
 	}
 
-	durableInvocationCounts, err := s.repov1.DurableEvents().GetDurableTaskInvocationCounts(inputCtx, tenantId, idInsertedAts)
+	var durableInvocationCounts map[v1.IdInsertedAt]*int32
 
-	if err != nil {
-		durableInvocationCounts = nil
+	if len(idInsertedAts) > 0 {
+		durableInvocationCounts, _ = s.repov1.DurableEvents().GetDurableTaskInvocationCounts(inputCtx, tenantId, idInsertedAts)
+
+		// intentionally swallow the error and continue
 	}
 
 	var workerId *uuid.UUID
@@ -1819,6 +1837,7 @@ func (s *DispatcherImpl) handleBatchTaskStarted(
 	}
 
 	payloads := make([]tasktypes.CreateMonitoringEventPayload, 0, len(tasks))
+	ackedTasks := make([]v1.TaskIdInsertedAtRetryCount, 0, len(tasks))
 
 	for _, task := range tasks {
 		item, ok := itemsByExternalId[task.ExternalID]
@@ -1839,6 +1858,12 @@ func (s *DispatcherImpl) handleBatchTaskStarted(
 			durableInvocationCount = *count
 		}
 
+		ackedTasks = append(ackedTasks, v1.TaskIdInsertedAtRetryCount{
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt,
+			RetryCount: retryCount,
+		})
+
 		payloads = append(payloads, tasktypes.CreateMonitoringEventPayload{
 			TaskId:                 task.ID,
 			RetryCount:             retryCount,
@@ -1852,6 +1877,22 @@ func (s *DispatcherImpl) handleBatchTaskStarted(
 
 	if len(payloads) == 0 {
 		return resp, nil
+	}
+
+	ackedMsg, err := msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDTaskAcked,
+		false,
+		true,
+		ackedTasks...,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.pubBuffer.Pub(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, ackedMsg, false); err != nil {
+		return nil, fmt.Errorf("could not publish acked message for batch tasks: %w", err)
 	}
 
 	msg, err := msgqueue.NewTenantMessage(
@@ -1893,13 +1934,19 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 	idInsertedAts := make([]v1.IdInsertedAt, 0, len(tasks))
 
 	for _, task := range tasks {
+		if !task.IsDurable.Valid || !task.IsDurable.Bool {
+			continue
+		}
+
 		idInsertedAts = append(idInsertedAts, v1.IdInsertedAt{ID: task.ID, InsertedAtUnixMicros: task.InsertedAt.Time.UnixMicro()})
 	}
 
-	durableInvocationCounts, err := s.repov1.DurableEvents().GetDurableTaskInvocationCounts(inputCtx, tenantId, idInsertedAts)
+	var durableInvocationCounts map[v1.IdInsertedAt]*int32
 
-	if err != nil {
-		durableInvocationCounts = nil
+	if len(idInsertedAts) > 0 {
+		durableInvocationCounts, _ = s.repov1.DurableEvents().GetDurableTaskInvocationCounts(inputCtx, tenantId, idInsertedAts)
+
+		// intentionally swallow the error and continue
 	}
 
 	var workerId *uuid.UUID
@@ -2602,11 +2649,9 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMetaV1(ctx context
 					return nil, err
 				}
 
-				workflowRunIdsToRow := make(map[uuid.UUID]*listWorkflowRunsResult)
-
-				for _, wr := range workflowRuns {
-					workflowRunIdsToRow[wr.WorkflowRunId] = wr
-				}
+				workflowRunIdsToRow := enumerables.KeyBy(workflowRuns, func(wr *listWorkflowRunsResult) uuid.UUID {
+					return wr.WorkflowRunId
+				})
 
 				res := make([]*contracts.WorkflowEvent, 0)
 

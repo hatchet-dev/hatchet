@@ -11,6 +11,7 @@ import invariant from 'tiny-invariant';
 
 type ListEventQuery = Parameters<typeof api.eventList>[1];
 type ListRateLimitsQuery = Parameters<typeof api.rateLimitList>[1];
+type ListStreamTopicsQuery = Parameters<typeof api.v1StreamTopicList>[1];
 type ListWorkersQuery = Parameters<typeof api.workerList>[1];
 type ListLogLineQuery = Parameters<typeof api.v1LogLineList>[1];
 type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
@@ -187,6 +188,12 @@ export const queries = createQueryKeyStore({
     get: (tenant: string) => ({
       queryKey: ['tenant-alerting-settings:get', tenant],
       queryFn: async () => (await api.tenantAlertingSettingsGet(tenant)).data,
+    }),
+  },
+  tenantEntitlements: {
+    get: (tenant: string) => ({
+      queryKey: ['tenant-entitlements:get', tenant],
+      queryFn: async () => (await api.tenantEntitlementsGet(tenant)).data,
     }),
   },
   tenantResourcePolicy: {
@@ -528,6 +535,12 @@ export const queries = createQueryKeyStore({
     list: (tenant: string, query: ListRateLimitsQuery) => ({
       queryKey: ['rate-limits:list', tenant, query],
       queryFn: async () => (await api.rateLimitList(tenant, query)).data,
+    }),
+  },
+  stream_topics: {
+    list: (tenant: string, query: ListStreamTopicsQuery) => ({
+      queryKey: ['stream-topics:list', tenant, query],
+      queryFn: async () => (await api.v1StreamTopicList(tenant, query)).data,
     }),
   },
   workers: {

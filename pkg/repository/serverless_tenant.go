@@ -17,11 +17,11 @@ type serverlessTenantRepository struct {
 }
 
 func (r *serverlessTenantRepository) Upsert(ctx context.Context, tenantId uuid.UUID, endpointPartitionCount int32) (*sqlcv1.V1ServerlessTenant, error) {
-	return r.queries.UpsertServerlessTenant(ctx, r.pool, upsertServerlessTenantParams(tenantId, endpointPartitionCount))
+	return r.queries.UpsertServerlessTenant(ctx, r.pool.ForTenant(tenantId), upsertServerlessTenantParams(tenantId, endpointPartitionCount))
 }
 
 func (r *serverlessTenantRepository) Get(ctx context.Context, tenantId uuid.UUID) (*sqlcv1.V1ServerlessTenant, error) {
-	return r.queries.GetServerlessTenant(ctx, r.pool, tenantId)
+	return r.queries.GetServerlessTenant(ctx, r.pool.ForTenant(tenantId), tenantId)
 }
 
 // upsertServerlessTenantParams substitutes the default for a zero partition count.

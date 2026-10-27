@@ -22,6 +22,8 @@ components:
       scheme: bearer
   schemas:
     $ref: "./components/schemas/_index.yaml"
+  responses:
+    $ref: "./components/responses/_index.yaml"
 paths:
   /api/v1/stable/tasks/{task}:
     $ref: "./paths/v1/tasks/tasks.yaml#/getTask"
@@ -57,6 +59,8 @@ paths:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/listDurableEventLog"
   /api/v1/stable/tenants/{tenant}/streams/payloads:
     $ref: "./paths/v1/streams/streams.yaml#/streamPayload"
+  /api/v1/stable/tenants/{tenant}/streams/topics:
+    $ref: "./paths/v1/streams/streams.yaml#/streamTopics"
   /api/v1/stable/workflow-runs/{v1-workflow-run}:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/getWorkflowRunDetails"
   /api/v1/stable/workflow-runs/{v1-workflow-run}/status:
@@ -123,6 +127,8 @@ paths:
     $ref: "./paths/tenant/tenant.yaml#/tenantAlertEmailGroups"
   /api/v1/tenants/{tenant}/resource-policy:
     $ref: "./paths/tenant/tenant.yaml#/tenantResourcePolicy"
+  /api/v1/tenants/{tenant}/entitlements:
+    $ref: "./paths/tenant/tenant.yaml#/tenantEntitlements"
   /api/v1/alerting-email-groups/{alert-email-group}:
     $ref: "./paths/tenant/tenant.yaml#/alertEmailGroup"
   /api/v1/sns/{sns}:
