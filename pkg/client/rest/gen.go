@@ -16986,6 +16986,7 @@ type V1ServerlessEndpointEventListResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -22944,6 +22945,13 @@ func ParseV1ServerlessEndpointEventListResponse(rsp *http.Response) (*V1Serverle
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 

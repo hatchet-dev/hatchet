@@ -308,10 +308,10 @@ export const queries = createQueryKeyStore({
     }),
   },
   v1ServerlessEndpoints: {
-    list: (tenant: string) => ({
-      queryKey: ['v1:serverless-endpoint:list', tenant],
+    list: (tenant: string, query: { offset: number; limit: number }) => ({
+      queryKey: ['v1:serverless-endpoint:list', tenant, query],
       queryFn: async () =>
-        (await api.v1ServerlessEndpointList(tenant, { limit: 500 })).data,
+        (await api.v1ServerlessEndpointList(tenant, query)).data,
     }),
     get: (endpoint: string) => ({
       queryKey: ['v1:serverless-endpoint:get', endpoint],

@@ -5,12 +5,11 @@ import { EndpointStatusBadge } from './components/endpoint-status-badge';
 import { EntitlementGate } from './components/entitlement-gate';
 import { PlatformBadge } from './components/platform-name';
 import { useEndpoints } from './hooks/use-endpoints';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import RelativeDate from '@/components/v1/molecules/relative-date';
-import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Button } from '@/components/v1/ui/button';
 import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
-import { Loading } from '@/components/v1/ui/loading';
 import {
   Tooltip,
   TooltipContent,
@@ -23,6 +22,7 @@ import { V1ServerlessEndpoint } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { appRoutes } from '@/router';
 import { Link } from '@tanstack/react-router';
+import { ColumnDef } from '@tanstack/react-table';
 import { ChevronRight } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
@@ -84,52 +84,62 @@ export default function EndpointsPage() {
 function EndpointsPageContent() {
   const { tenantId } = useCurrentTenantId();
   const canWrite = useCanWrite();
-  const { data, isLoading, error } = useEndpoints();
+  const {
+    data,
+    pageCount,
+    pagination,
+    setPagination,
+    setPageSize,
+    isLoading,
+    isPlaceholderData,
+    error,
+  } = useEndpoints();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
-  const columns = useMemo(
+  const columns = useMemo<ColumnDef<V1ServerlessEndpoint>[]>(
     () => [
       {
-        columnLabel: t('list.column.name'),
-        cellRenderer: (endpoint: V1ServerlessEndpoint) => (
+        id: 'name',
+        header: t('list.column.name'),
+        cell: ({ row }) => (
           <div className="flex flex-row items-center gap-2">
-            <PlatformBadge kind={endpoint.kind} />
+            <PlatformBadge kind={row.original.kind} />
             <Link
               to={appRoutes.tenantEndpointRoute.to}
-              params={{ tenant: tenantId, endpoint: endpoint.metadata.id }}
+              params={{ tenant: tenantId, endpoint: row.original.metadata.id }}
               className="font-medium hover:underline"
             >
-              {endpoint.name}
+              {row.original.name}
             </Link>
           </div>
         ),
       },
       {
-        columnLabel: t('list.column.status'),
-        cellRenderer: (endpoint: V1ServerlessEndpoint) => (
-          <EndpointStatusBadge endpoint={endpoint} />
-        ),
+        id: 'status',
+        header: t('list.column.status'),
+        cell: ({ row }) => <EndpointStatusBadge endpoint={row.original} />,
       },
       {
-        columnLabel: t('list.column.triggerUrl'),
-        cellRenderer: (endpoint: V1ServerlessEndpoint) => (
-          <ExpandableUrl url={endpoint.triggerUrl} />
-        ),
+        id: 'triggerUrl',
+        header: t('list.column.triggerUrl'),
+        cell: ({ row }) => <ExpandableUrl url={row.original.triggerUrl} />,
       },
       {
-        columnLabel: t('list.column.statusChanged'),
-        cellRenderer: (endpoint: V1ServerlessEndpoint) =>
-          endpoint.status.changedAt ? (
-            <RelativeDate date={endpoint.status.changedAt} />
+        id: 'statusChanged',
+        header: t('list.column.statusChanged'),
+        cell: ({ row }) =>
+          row.original.status.changedAt ? (
+            <RelativeDate date={row.original.status.changedAt} />
           ) : (
             <span className="text-xs text-muted-foreground">—</span>
           ),
       },
       {
-        columnLabel: ' ',
-        cellRenderer: (endpoint: V1ServerlessEndpoint) => (
+        id: 'actions',
+        header: '',
+        cell: ({ row }) => (
           <div className="flex justify-end">
-            <EndpointActionsMenu endpoint={endpoint} />
+            <EndpointActionsMenu endpoint={row.original} />
           </div>
         ),
       },
@@ -137,31 +147,32 @@ function EndpointsPageContent() {
     [tenantId],
   );
 
-  if (isLoading) {
-    return <Loading />;
-  }
-
   if (error) {
     throw error;
   }
 
   return (
     <div className="flex h-full flex-col">
-      {data.length > 0 && canWrite && (
-        <div className="mb-4 flex w-full shrink-0 flex-row justify-end">
-          <Button variant="cta" onClick={() => setIsCreateOpen(true)}>
-            {t('list.add')}
-          </Button>
-        </div>
-      )}
-      {data.length > 0 ? (
-        <SimpleTable
-          columns={columns}
-          data={data}
-          rowKey={(row) => row.metadata.id}
-        />
-      ) : (
-        <div className="flex flex-1 items-center justify-center">
+      <DataTable
+        columns={columns}
+        data={data}
+        isLoading={isLoading}
+        isPlaceholderData={isPlaceholderData}
+        // the empty state has its own button
+        rightActions={
+          data.length > 0 && canWrite
+            ? [
+                <Button
+                  key="add"
+                  variant="cta"
+                  onClick={() => setIsCreateOpen(true)}
+                >
+                  {t('list.add')}
+                </Button>,
+              ]
+            : []
+        }
+        emptyState={
           <EmptyState
             title={t('list.empty.title')}
             description={t('list.empty.description')}
@@ -183,8 +194,13 @@ function EndpointsPageContent() {
                 : undefined
             }
           />
-        </div>
-      )}
+        }
+        showSelectedRows={false}
+        pagination={pagination}
+        setPagination={setPagination}
+        onSetPageSize={setPageSize}
+        pageCount={pageCount}
+      />
       <CreateEndpointDialog
         open={isCreateOpen}
         onOpenChange={setIsCreateOpen}

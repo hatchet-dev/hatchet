@@ -6,6 +6,7 @@ import {
   deriveEndpointUrls,
   validateEndpointUrl,
 } from '../lib/platforms';
+import { usePagination } from '@/hooks/use-pagination';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, {
   queries,
@@ -13,20 +14,38 @@ import api, {
   V1ServerlessEndpointKind,
   V1UpdateServerlessEndpointRequest,
 } from '@/lib/api';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { z } from 'zod';
 
 export const ENDPOINTS_REFETCH_INTERVAL_MS = 5000;
 
+/** One page of the tenant's endpoints, with the page kept in the URL like the other lists. */
 export const useEndpoints = () => {
   const { tenantId } = useCurrentTenantId();
+  const { pagination, setPagination, setPageSize, limit, offset } =
+    usePagination({ key: 'endpoints' });
 
-  const { data, isLoading, error } = useQuery({
-    ...queries.v1ServerlessEndpoints.list(tenantId),
+  const { data, isLoading, isPlaceholderData, error } = useQuery({
+    ...queries.v1ServerlessEndpoints.list(tenantId, { offset, limit }),
     refetchInterval: ENDPOINTS_REFETCH_INTERVAL_MS,
+    placeholderData: keepPreviousData,
   });
 
-  return { data: data?.rows || [], isLoading, error };
+  return {
+    data: data?.rows ?? [],
+    pageCount: data?.pagination?.num_pages ?? 0,
+    pagination,
+    setPagination,
+    setPageSize,
+    isLoading,
+    isPlaceholderData,
+    error,
+  };
 };
 
 /**
@@ -38,8 +57,9 @@ export const useEndpointMutations = () => {
   const { tenantId } = useCurrentTenantId();
 
   const invalidate = async (endpointId?: string) => {
+    // every page of the list
     await queryClient.invalidateQueries({
-      queryKey: queries.v1ServerlessEndpoints.list(tenantId).queryKey,
+      queryKey: ['v1:serverless-endpoint:list', tenantId],
     });
 
     if (endpointId) {

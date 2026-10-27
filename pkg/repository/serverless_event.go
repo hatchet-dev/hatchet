@@ -108,7 +108,8 @@ func (r *serverlessEventRepository) Insert(ctx context.Context, events []Serverl
 		params.Details[i] = details
 	}
 
-	return r.queries.InsertServerlessEndpointEvents(ctx, r.pool, params)
+	// One batch carries the events of every tenant the operator process serves.
+	return r.queries.InsertServerlessEndpointEvents(ctx, r.pool.ForShared(), params)
 }
 
 func (r *serverlessEventRepository) List(ctx context.Context, tenantId, endpointId uuid.UUID, retentionStart time.Time, since *time.Time, limit int64) ([]*sqlcv1.V1ServerlessEndpointEvent, error) {
@@ -130,5 +131,5 @@ func (r *serverlessEventRepository) List(ctx context.Context, tenantId, endpoint
 		params.Since = pgtype.Timestamptz{Time: *since, Valid: true}
 	}
 
-	return r.queries.ListServerlessEndpointEvents(ctx, r.pool, params)
+	return r.queries.ListServerlessEndpointEvents(ctx, r.pool.ForTenant(tenantId), params)
 }
