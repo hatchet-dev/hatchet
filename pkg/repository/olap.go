@@ -1820,7 +1820,6 @@ func (r *OLAPRepositoryImpl) prepareStatusUpdateBatch(ctx context.Context, tenan
 	statuses := make([]sqlcv1.V1ReadableStatusOlap, 0)
 	workerIds := make([]uuid.UUID, 0)
 	retryCounts := make([]int32, 0)
-	minInsertedAt := pgtype.Timestamptz{}
 
 	for idInsertedAt, meta := range taskIdInsertedAtToMeta {
 		tenantIds = append(tenantIds, tenantId)
