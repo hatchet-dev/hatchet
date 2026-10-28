@@ -15,6 +15,21 @@ describe('rowsToLabels', () => {
     );
   });
 
+  it('keeps a whole number too large to hold exactly as a string', () => {
+    assert.deepEqual(
+      rowsToLabels([
+        { key: 'big', value: '9007199254740993' },
+        { key: 'max', value: '9007199254740991' },
+        { key: 'negative', value: '-9007199254740993' },
+      ]),
+      {
+        big: '9007199254740993',
+        max: 9007199254740991,
+        negative: '-9007199254740993',
+      },
+    );
+  });
+
   it('keeps the type of a value the user left as it was', () => {
     const existing = { version: '123', weight: 10, canary: true };
     const rows = labelsToRows(existing);
