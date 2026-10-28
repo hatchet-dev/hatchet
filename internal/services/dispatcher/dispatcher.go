@@ -489,6 +489,16 @@ func (d *DispatcherImpl) handleV1Task(ctx context.Context, task *msgqueue.Messag
 	return err
 }
 
+// MarkDraining is the first step of shutdown: it flags this dispatcher inactive so the
+// operator claim query stops claiming for it and other dispatchers take its operators over
+// while it is still draining.
+func (d *DispatcherImpl) MarkDraining(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	return d.repov1.Dispatcher().MarkInactive(ctx, d.dispatcherId)
+}
+
 func (d *DispatcherImpl) DispatcherId() uuid.UUID {
 	return d.dispatcherId
 }

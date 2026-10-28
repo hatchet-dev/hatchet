@@ -553,6 +553,12 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		}
 
 		cleanupGrpcApi := func() error {
+			// flag this dispatcher as leaving first, so other dispatchers start claiming its
+			// operators now rather than after the drain, and it claims nothing more itself
+			if err := d.MarkDraining(context.Background()); err != nil {
+				l.Error().Err(err).Msg("could not mark dispatcher as draining; its operators are handed over when it is deleted instead")
+			}
+
 			// the serverless operator closes its registrations (and deactivates their workers)
 			// before the dispatcher drains, while events can still be reported
 			if err := stopServerlessOperator(); err != nil {
@@ -1091,6 +1097,12 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		}
 
 		grpcApiCleanup := func() error {
+			// flag this dispatcher as leaving first, so other dispatchers start claiming its
+			// operators now rather than after the drain, and it claims nothing more itself
+			if err := d.MarkDraining(context.Background()); err != nil {
+				l.Error().Err(err).Msg("could not mark dispatcher as draining; its operators are handed over when it is deleted instead")
+			}
+
 			// the serverless operator closes its registrations (and deactivates their workers)
 			// before the dispatcher drains, while events can still be reported
 			if err := stopServerlessOperator(); err != nil {
