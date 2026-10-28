@@ -1381,43 +1381,15 @@ FROM (
         AND ($3::TIMESTAMPTZ IS NULL OR inserted_at <= $3::TIMESTAMPTZ)
         AND ($4::UUID[] IS NULL OR workflow_id = ANY($4::UUID[]))
         AND inserted_at < $5::TIMESTAMPTZ
-        AND ($6::UUID IS NULL OR parent_task_external_id = $6::UUID)
-        AND (
-            $7::UUID IS NULL
-            OR (id, inserted_at) IN (
-                SELECT etr.run_id, etr.run_inserted_at
-                FROM v1_event_lookup_table_olap lt
-                JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
-                JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
-                WHERE
-                    lt.tenant_id = $1::UUID
-                    AND lt.external_id = $7::UUID
-            )
-        )
-        AND (
-            $8::TEXT[] IS NULL
-            OR $9::TEXT[] IS NULL
-            OR EXISTS (
-                SELECT 1 FROM jsonb_each_text(additional_metadata) kv
-                JOIN LATERAL (
-                    SELECT unnest($8::TEXT[]) AS k,
-                        unnest($9::TEXT[]) AS v
-                ) AS u ON kv.key = u.k AND kv.value = u.v
-            )
-        )
 ) status_counts
 `
 
 type GetTenantStatusMetricsParams struct {
-	Tenantid                  uuid.UUID          `json:"tenantid"`
-	Createdafter              pgtype.Timestamptz `json:"createdafter"`
-	CreatedBefore             pgtype.Timestamptz `json:"createdBefore"`
-	WorkflowIds               []uuid.UUID        `json:"workflowIds"`
-	AggregatesCompleteFrom    pgtype.Timestamptz `json:"aggregatesCompleteFrom"`
-	ParentTaskExternalId      *uuid.UUID         `json:"parentTaskExternalId"`
-	TriggeringEventExternalId *uuid.UUID         `json:"triggeringEventExternalId"`
-	AdditionalMetaKeys        []string           `json:"additionalMetaKeys"`
-	AdditionalMetaValues      []string           `json:"additionalMetaValues"`
+	Tenantid               uuid.UUID          `json:"tenantid"`
+	Createdafter           pgtype.Timestamptz `json:"createdafter"`
+	CreatedBefore          pgtype.Timestamptz `json:"createdBefore"`
+	WorkflowIds            []uuid.UUID        `json:"workflowIds"`
+	AggregatesCompleteFrom pgtype.Timestamptz `json:"aggregatesCompleteFrom"`
 }
 
 type GetTenantStatusMetricsRow struct {
@@ -1436,10 +1408,6 @@ func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTe
 		arg.CreatedBefore,
 		arg.WorkflowIds,
 		arg.AggregatesCompleteFrom,
-		arg.ParentTaskExternalId,
-		arg.TriggeringEventExternalId,
-		arg.AdditionalMetaKeys,
-		arg.AdditionalMetaValues,
 	)
 	var i GetTenantStatusMetricsRow
 	err := row.Scan(

@@ -131,12 +131,6 @@ type ReadTaskRunMetricsOpts struct {
 	CreatedBefore *time.Time
 
 	WorkflowIds []uuid.UUID
-
-	ParentTaskExternalID *uuid.UUID
-
-	TriggeringEventExternalId *uuid.UUID
-
-	AdditionalMetadata map[string]interface{}
 }
 
 type WorkflowRunData struct {
@@ -1742,42 +1736,22 @@ func (r *OLAPRepositoryImpl) ReadTaskRunMetrics(ctx context.Context, tenantId uu
 		workflowIds = append(workflowIds, opts.WorkflowIds...)
 	}
 
-	var additionalMetaKeys []string
-	var additionalMetaValues []string
+	aggregatesCompleteFrom, err := r.aggregatesCompleteFrom(ctx, readDB)
 
-	for key, value := range opts.AdditionalMetadata {
-		additionalMetaKeys = append(additionalMetaKeys, key)
-		additionalMetaValues = append(additionalMetaValues, value.(string))
+	if err != nil {
+		return nil, fmt.Errorf("could not read when the OLAP aggregates became complete: %w", err)
 	}
 
 	params := sqlcv1.GetTenantStatusMetricsParams{
-		Tenantid:                  tenantId,
-		Createdafter:              sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
-		WorkflowIds:               workflowIds,
-		ParentTaskExternalId:      opts.ParentTaskExternalID,
-		TriggeringEventExternalId: opts.TriggeringEventExternalId,
-		AdditionalMetaKeys:        additionalMetaKeys,
-		AdditionalMetaValues:      additionalMetaValues,
+		Tenantid:               tenantId,
+		Createdafter:           sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
+		WorkflowIds:            workflowIds,
+		AggregatesCompleteFrom: aggregatesCompleteFrom,
 	}
 
 	if opts.CreatedBefore != nil {
 		params.CreatedBefore = sqlchelpers.TimestamptzFromTime(*opts.CreatedBefore)
 	}
-
-	// the aggregates cannot filter by parent task, triggering event or metadata, so those reads
-	// count every run from the source table
-	aggregatesCompleteFrom := pgtype.Timestamptz{InfinityModifier: pgtype.Infinity, Valid: true}
-
-	if opts.ParentTaskExternalID == nil && opts.TriggeringEventExternalId == nil && len(opts.AdditionalMetadata) == 0 {
-		var err error
-		aggregatesCompleteFrom, err = r.aggregatesCompleteFrom(ctx, readDB)
-
-		if err != nil {
-			return nil, fmt.Errorf("could not read when the OLAP aggregates became complete: %w", err)
-		}
-	}
-
-	params.AggregatesCompleteFrom = aggregatesCompleteFrom
 
 	res, err := r.queries.GetTenantStatusMetrics(ctx, readDB, params)
 	if err != nil {
