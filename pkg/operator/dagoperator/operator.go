@@ -403,8 +403,21 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 		if isDagEvictedErr(dagErr) {
 			span.SetAttributes(attribute.Bool("dagoperator.evicted", true))
 
+			var staleInvocation *repository.StaleInvocationError
+
+			if errors.As(dagErr, &staleInvocation) {
+				d.Logger().Warn().
+					Str("task_run_external_id", action.TaskRunExternalId).
+					Int32("durable_invocation_count", staleInvocation.ActualInvocationCount).
+					Int32("latest_invocation_count", staleInvocation.ExpectedInvocationCount).
+					Msg("dag run triggered a step after a newer invocation was assigned; standing down without reporting")
+
+				return nil
+			}
+
 			d.Logger().Debug().
 				Str("task_run_external_id", action.TaskRunExternalId).
+				Int32("durable_invocation_count", action.GetDurableTaskInvocationCount()).
 				Msg("dag run evicted while waiting on durable events; slots released until restore")
 
 			return nil

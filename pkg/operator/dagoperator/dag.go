@@ -107,8 +107,9 @@ func (e *dagEvictedError) Error() string {
 }
 
 func isDagEvictedErr(err error) bool {
-	var e *dagEvictedError
-	return errors.As(err, &e)
+	var evicted *dagEvictedError
+	var staleInvocation *repository.StaleInvocationError
+	return errors.As(err, &evicted) || errors.As(err, &staleInvocation)
 }
 
 type dag struct {
