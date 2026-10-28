@@ -25,18 +25,24 @@ import (
 )
 
 const (
-	latestCaskURL       = "https://raw.githubusercontent.com/hatchet-dev/homebrew-hatchet/main/Casks/hatchet.rb"
-	releasesPageURL     = "https://github.com/hatchet-dev/hatchet/releases"
+	latestVersionURL    = "https://raw.githubusercontent.com/hatchet-dev/homebrew-hatchet/main/Casks/hatchet.rb"
 	installScriptURL    = "https://install.hatchet.run/install.sh"
-	brewCask            = "hatchet-dev/hatchet/hatchet"
 	updateCheckInterval = 24 * time.Hour
 	updateCheckTimeout  = 2 * time.Second
-	noUpdateCheckEnv    = "HATCHET_CLI_NO_UPDATE_CHECK"
 )
 
 var (
 	upgradeYes       bool
 	upgradeCheckOnly bool
+	caskVersionRe    = regexp.MustCompile(`(?m)^\s*version\s+"([^"]+)"`)
+	httpsOnlyClient  = &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if req.URL.Scheme != "https" {
+				return fmt.Errorf("refusing redirect to non-https URL %s", req.URL)
+			}
+			return nil
+		},
+	}
 )
 
 var versionCmd = &cobra.Command{
@@ -58,15 +64,13 @@ var upgradeCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(versionCmd)
-	rootCmd.AddCommand(upgradeCmd)
-
+	rootCmd.AddCommand(versionCmd, upgradeCmd)
 	upgradeCmd.Flags().BoolVarP(&upgradeYes, "yes", "y", false, "Upgrade without asking for confirmation")
 	upgradeCmd.Flags().BoolVar(&upgradeCheckOnly, "check", false, "Only check for a new version; exit 1 if one is available")
 }
 
 func buildInfo() string {
-	goVersion, commit, commitTime := runtime.Version(), "unknown", ""
+	goVersion, commit := runtime.Version(), "unknown"
 
 	if bi, ok := debug.ReadBuildInfo(); ok {
 		goVersion = bi.GoVersion
@@ -75,13 +79,9 @@ func buildInfo() string {
 			case "vcs.revision":
 				commit = s.Value
 			case "vcs.time":
-				commitTime = s.Value
+				commit += " (" + s.Value + ")"
 			}
 		}
-	}
-
-	if commitTime != "" {
-		commit += " (" + commitTime + ")"
 	}
 
 	return fmt.Sprintf("hatchet version %s\ngo version: %s\nplatform: %s/%s\ncommit: %s\n",
@@ -101,14 +101,11 @@ func runUpgrade(ctx context.Context) error {
 		return fmt.Errorf("could not check the latest version: %w", err)
 	}
 
-	newer, err := isNewer(latest, Version)
-	if err != nil {
+	if newer, err := isNewer(latest, Version); err != nil || !newer {
+		if err == nil {
+			fmt.Printf("hatchet %s is already the latest version.\n", Version)
+		}
 		return err
-	}
-
-	if !newer {
-		fmt.Printf("hatchet %s is already the latest version.\n", Version)
-		return nil
 	}
 
 	fmt.Printf("A new version of hatchet is available: %s (you have %s)\n", latest, Version)
@@ -117,30 +114,37 @@ func runUpgrade(ctx context.Context) error {
 		os.Exit(1)
 	}
 
+	if runtime.GOOS == "windows" {
+		fmt.Println("Automatic upgrades are not supported on Windows. Download the latest release from https://github.com/hatchet-dev/hatchet/releases")
+		return nil
+	}
+
 	exe, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("could not locate the running binary: %w", err)
 	}
-
 	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
 		exe = resolved
 	}
 
-	if runtime.GOOS == "windows" {
-		fmt.Printf("Automatic upgrades are not supported on Windows. Download the latest release from %s\n", releasesPageURL)
-		return nil
+	upgrade, describe, err := brewUpgradeCommand(ctx, exe)
+	if err != nil {
+		return err
 	}
 
-	var upgrade *exec.Cmd
-	var describe string
-
-	method := detectInstallMethod(exe)
-
-	if method == "homebrew" {
-		upgrade = exec.CommandContext(ctx, "brew", "upgrade", "--cask", brewCask)
-		describe = strings.Join(upgrade.Args, " ")
-	} else {
-		upgrade = exec.CommandContext(ctx, "bash", "-s", "--", latest)
+	if upgrade == nil {
+		bash := "/bin/bash"
+		if _, err := os.Stat(bash); err != nil {
+			if bash, err = exec.LookPath("bash"); err != nil {
+				return err
+			}
+		}
+		script, err := httpGet(ctx, installScriptURL)
+		if err != nil {
+			return err
+		}
+		upgrade = exec.CommandContext(ctx, bash, "-s", "--", latest)
+		upgrade.Stdin = strings.NewReader(script)
 		upgrade.Env = append(os.Environ(), "INSTALL_DIR="+filepath.Dir(exe))
 		describe = fmt.Sprintf("curl -fsSL %s | INSTALL_DIR=%s bash -s -- %s", installScriptURL, filepath.Dir(exe), latest)
 	}
@@ -151,31 +155,19 @@ func runUpgrade(ctx context.Context) error {
 		}
 
 		confirmed := false
-		form := huh.NewForm(
-			huh.NewGroup(
-				huh.NewConfirm().
-					Title(fmt.Sprintf("Upgrade hatchet %s → %s?", Version, latest)).
-					Description("Will run: " + describe).
-					Value(&confirmed),
-			),
-		).WithTheme(styles.HatchetTheme())
-
-		if err := form.Run(); err != nil {
+		err := huh.NewForm(huh.NewGroup(
+			huh.NewConfirm().
+				Title(fmt.Sprintf("Upgrade hatchet %s → %s?", Version, latest)).
+				Description("Will run: " + describe).
+				Value(&confirmed),
+		)).WithTheme(styles.HatchetTheme()).Run()
+		if err != nil {
 			return err
 		}
-
 		if !confirmed {
 			fmt.Println("Upgrade cancelled.")
 			return nil
 		}
-	}
-
-	if method == "script" {
-		script, err := fetchInstallScript(ctx)
-		if err != nil {
-			return err
-		}
-		upgrade.Stdin = strings.NewReader(script)
 	}
 
 	upgrade.Stdout = os.Stdout
@@ -186,13 +178,6 @@ func runUpgrade(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-func detectInstallMethod(exe string) string {
-	if strings.Contains(exe, "/Caskroom/") || strings.Contains(exe, "/Cellar/") {
-		return "homebrew"
-	}
-	return "script"
 }
 
 func isNewer(latest, current string) (bool, error) {
@@ -209,30 +194,12 @@ func isNewer(latest, current string) (bool, error) {
 	return l.GreaterThan(c), nil
 }
 
-var caskVersionRe = regexp.MustCompile(`(?m)^\s*version\s+"([^"]+)"`)
-
 func fetchLatestVersion(ctx context.Context) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, latestCaskURL, nil)
+	cask, err := httpGet(ctx, latestVersionURL)
 	if err != nil {
 		return "", err
 	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("unexpected status %s from %s", resp.Status, latestCaskURL)
-	}
-
-	b, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if err != nil {
-		return "", err
-	}
-
-	return parseCaskVersion(string(b))
+	return parseCaskVersion(cask)
 }
 
 func parseCaskVersion(cask string) (string, error) {
@@ -250,47 +217,39 @@ func parseCaskVersion(cask string) (string, error) {
 	return tag, nil
 }
 
-func fetchInstallScript(ctx context.Context) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, installScriptURL, nil)
+func httpGet(ctx context.Context, url string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return "", err
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpsOnlyClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("could not download the install script: %w", err)
+		return "", err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("unexpected status %s from %s", resp.Status, installScriptURL)
+		return "", fmt.Errorf("unexpected status %s from %s", resp.Status, url)
 	}
 
 	b, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if err != nil {
-		return "", err
-	}
 
-	return string(b), nil
+	return string(b), err
 }
 
 func startUpdateCheck() func() string {
-	result := make(chan string, 1)
-
 	if Version == devDefaultVersion ||
-		os.Getenv(noUpdateCheckEnv) != "" ||
+		os.Getenv("HATCHET_CLI_NO_UPDATE_CHECK") != "" ||
 		!cliconfig.TelemetryEnabled() ||
 		!term.IsTerminal(int(os.Stderr.Fd())) {
-		close(result)
 		return func() string { return "" }
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), updateCheckTimeout)
+	result := make(chan string, 1)
 
-	go func() {
-		defer close(result)
-		result <- updateNotice(ctx)
-	}()
+	go func() { result <- updateNotice(ctx) }()
 
 	return func() string {
 		defer cancel()
@@ -308,9 +267,8 @@ func updateNotice(ctx context.Context) string {
 
 	latest := ""
 	if info, err := os.Stat(cachePath); err == nil && time.Since(info.ModTime()) < updateCheckInterval {
-		if b, err := os.ReadFile(cachePath); err == nil {
-			latest = strings.TrimSpace(string(b))
-		}
+		b, _ := os.ReadFile(cachePath)
+		latest = strings.TrimSpace(string(b))
 	}
 
 	if latest == "" {

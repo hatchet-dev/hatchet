@@ -56,10 +56,11 @@ func Execute() {
 }
 
 var noUpdateNoticeCommands = map[string]bool{
-	"upgrade":    true,
-	"version":    true,
-	"completion": true,
-	"__complete": true,
+	"upgrade":                       true,
+	"version":                       true,
+	"completion":                    true,
+	cobra.ShellCompRequestCmd:       true,
+	cobra.ShellCompNoDescRequestCmd: true,
 }
 
 func init() {

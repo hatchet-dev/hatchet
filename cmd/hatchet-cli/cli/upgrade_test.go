@@ -1,6 +1,12 @@
 package cli
 
-import "testing"
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"runtime"
+	"testing"
+)
 
 func TestUpgradeVersionAndInstallDetection(t *testing.T) {
 	cases := []struct {
@@ -35,13 +41,26 @@ func TestUpgradeVersionAndInstallDetection(t *testing.T) {
 		t.Error("expected error for cask without a version")
 	}
 
-	if got := detectInstallMethod("/opt/homebrew/Caskroom/hatchet/0.114.2/hatchet"); got != "homebrew" {
-		t.Errorf("Caskroom path detected as %q", got)
+	ctx := context.Background()
+	prefix := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(prefix, "bin"), 0o755); err != nil {
+		t.Fatal(err)
 	}
-	if got := detectInstallMethod("/usr/local/Cellar/hatchet/0.114.2/bin/hatchet"); got != "homebrew" {
-		t.Errorf("Cellar path detected as %q", got)
+	if err := os.WriteFile(filepath.Join(prefix, "bin", "brew"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
 	}
-	if got := detectInstallMethod("/Users/dev/.local/bin/hatchet"); got != "script" {
-		t.Errorf("script path detected as %q", got)
+	brew, _, err := brewUpgradeCommand(ctx, filepath.Join(prefix, "Caskroom", "hatchet", "0.114.2", "hatchet"))
+	if runtime.GOOS == "darwin" {
+		if err != nil || brew == nil || brew.Path != filepath.Join(prefix, "bin", "brew") {
+			t.Errorf("Caskroom install: cmd=%v err=%v, want brew at %s", brew, err, filepath.Join(prefix, "bin", "brew"))
+		}
+		if _, _, err := brewUpgradeCommand(ctx, "/opt/missing/Caskroom/hatchet/0.114.2/hatchet"); err == nil {
+			t.Error("expected error when the Homebrew prefix has no brew binary")
+		}
+	} else if brew != nil || err != nil {
+		t.Errorf("non-darwin brew command = %v, %v; want nil, nil", brew, err)
+	}
+	if brew, _, err := brewUpgradeCommand(ctx, "/home/dev/.local/bin/hatchet"); brew != nil || err != nil {
+		t.Errorf("script install path: cmd=%v err=%v; want nil, nil", brew, err)
 	}
 }
