@@ -1718,6 +1718,13 @@ LEFT JOIN task_output o ON r.run_id = o.run_id
 LEFT JOIN max_retry_count mrc ON r.run_id = mrc.run_id
 ORDER BY r.inserted_at DESC, r.run_id DESC;
 
+-- name: GetOLAPAggregatesCompleteFrom :one
+-- The aggregate triggers only count rows written after v1_0_182 installed them, so buckets
+-- before the first full minute after that are incomplete.
+SELECT (DATE_BIN('1 minute', MIN(tstamp)::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00') + INTERVAL '1 minute')::TIMESTAMPTZ AS complete_from
+FROM goose_db_version
+WHERE version_id = 20261027194324 AND is_applied;
+
 -- name: GetTaskPointMetrics :many
 SELECT
     DATE_BIN(
@@ -1734,6 +1741,7 @@ FROM (
         tenant_id = @tenantId::UUID
         AND bucket >= DATE_BIN('1 minute', @createdAfter::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
         AND bucket <= @createdBefore::TIMESTAMPTZ
+        AND (sqlc.narg('aggregatesCompleteFrom')::TIMESTAMPTZ IS NULL OR bucket >= sqlc.narg('aggregatesCompleteFrom')::TIMESTAMPTZ)
 
     UNION ALL
 
@@ -1743,6 +1751,20 @@ FROM (
         tenant_id = @tenantId::UUID
         AND bucket >= DATE_BIN('1 minute', @createdAfter::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
         AND bucket <= @createdBefore::TIMESTAMPTZ
+        AND (sqlc.narg('aggregatesCompleteFrom')::TIMESTAMPTZ IS NULL OR bucket >= sqlc.narg('aggregatesCompleteFrom')::TIMESTAMPTZ)
+
+    UNION ALL
+
+    SELECT
+        DATE_BIN('1 minute', inserted_at, TIMESTAMPTZ '1970-01-01 00:00:00+00') AS bucket,
+        (readable_status = 'COMPLETED')::INTEGER AS completed_count,
+        (readable_status = 'FAILED')::INTEGER AS failed_count
+    FROM v1_statuses_olap
+    WHERE
+        tenant_id = @tenantId::UUID
+        AND inserted_at >= DATE_BIN('1 minute', @createdAfter::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
+        AND inserted_at <= @createdBefore::TIMESTAMPTZ
+        AND inserted_at < sqlc.narg('aggregatesCompleteFrom')::TIMESTAMPTZ
 ) status_counts
 GROUP BY minute_bucket
 ORDER BY minute_bucket;
@@ -1763,6 +1785,7 @@ FROM (
         AND bucket >= DATE_BIN('1 minute', @createdAfter::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
         AND (sqlc.narg('createdBefore')::TIMESTAMPTZ IS NULL OR bucket <= sqlc.narg('createdBefore')::TIMESTAMPTZ)
         AND (sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[]))
+        AND (sqlc.narg('aggregatesCompleteFrom')::TIMESTAMPTZ IS NULL OR bucket >= sqlc.narg('aggregatesCompleteFrom')::TIMESTAMPTZ)
 
     UNION ALL
 
@@ -1773,8 +1796,25 @@ FROM (
         AND bucket >= DATE_BIN('1 minute', @createdAfter::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
         AND (sqlc.narg('createdBefore')::TIMESTAMPTZ IS NULL OR bucket <= sqlc.narg('createdBefore')::TIMESTAMPTZ)
         AND (sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[]))
-) status_counts;
+        AND (sqlc.narg('aggregatesCompleteFrom')::TIMESTAMPTZ IS NULL OR bucket >= sqlc.narg('aggregatesCompleteFrom')::TIMESTAMPTZ)
 
+    UNION ALL
+
+    SELECT
+        (readable_status = 'QUEUED')::INTEGER,
+        (readable_status = 'RUNNING')::INTEGER,
+        (readable_status = 'COMPLETED')::INTEGER,
+        (readable_status = 'CANCELLED')::INTEGER,
+        (readable_status = 'FAILED')::INTEGER,
+        (readable_status = 'EVICTED')::INTEGER
+    FROM v1_statuses_olap
+    WHERE
+        tenant_id = @tenantId::UUID
+        AND inserted_at >= DATE_BIN('1 minute', @createdAfter::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
+        AND (sqlc.narg('createdBefore')::TIMESTAMPTZ IS NULL OR inserted_at <= sqlc.narg('createdBefore')::TIMESTAMPTZ)
+        AND (sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[]))
+        AND inserted_at < sqlc.narg('aggregatesCompleteFrom')::TIMESTAMPTZ
+) status_counts;
 
 -- name: GetTenantStatusMetrics :one
 WITH task_external_ids AS (

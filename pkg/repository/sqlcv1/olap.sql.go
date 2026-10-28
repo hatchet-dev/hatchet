@@ -933,6 +933,21 @@ func (q *Queries) GetOLAPAggregateRetainedFrom(ctx context.Context, db DBTX, agg
 	return retained_from, err
 }
 
+const getOLAPAggregatesCompleteFrom = `-- name: GetOLAPAggregatesCompleteFrom :one
+SELECT (DATE_BIN('1 minute', MIN(tstamp)::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00') + INTERVAL '1 minute')::TIMESTAMPTZ AS complete_from
+FROM goose_db_version
+WHERE version_id = 20261027194324 AND is_applied
+`
+
+// The aggregate triggers only count rows written after v1_0_182 installed them, so buckets
+// before the first full minute after that are incomplete.
+func (q *Queries) GetOLAPAggregatesCompleteFrom(ctx context.Context, db DBTX) (pgtype.Timestamptz, error) {
+	row := db.QueryRow(ctx, getOLAPAggregatesCompleteFrom)
+	var complete_from pgtype.Timestamptz
+	err := row.Scan(&complete_from)
+	return complete_from, err
+}
+
 const getOLAPOffloadedPayloadIndexBlocks = `-- name: GetOLAPOffloadedPayloadIndexBlocks :many
 WITH inputs AS (
     SELECT
@@ -1199,6 +1214,7 @@ FROM (
         tenant_id = $2::UUID
         AND bucket >= DATE_BIN('1 minute', $3::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
         AND bucket <= $4::TIMESTAMPTZ
+        AND ($5::TIMESTAMPTZ IS NULL OR bucket >= $5::TIMESTAMPTZ)
 
     UNION ALL
 
@@ -1208,16 +1224,31 @@ FROM (
         tenant_id = $2::UUID
         AND bucket >= DATE_BIN('1 minute', $3::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
         AND bucket <= $4::TIMESTAMPTZ
+        AND ($5::TIMESTAMPTZ IS NULL OR bucket >= $5::TIMESTAMPTZ)
+
+    UNION ALL
+
+    SELECT
+        DATE_BIN('1 minute', inserted_at, TIMESTAMPTZ '1970-01-01 00:00:00+00') AS bucket,
+        (readable_status = 'COMPLETED')::INTEGER AS completed_count,
+        (readable_status = 'FAILED')::INTEGER AS failed_count
+    FROM v1_statuses_olap
+    WHERE
+        tenant_id = $2::UUID
+        AND inserted_at >= DATE_BIN('1 minute', $3::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
+        AND inserted_at <= $4::TIMESTAMPTZ
+        AND inserted_at < $5::TIMESTAMPTZ
 ) status_counts
 GROUP BY minute_bucket
 ORDER BY minute_bucket
 `
 
 type GetTaskPointMetricsParams struct {
-	Interval      pgtype.Interval    `json:"interval"`
-	Tenantid      uuid.UUID          `json:"tenantid"`
-	Createdafter  pgtype.Timestamptz `json:"createdafter"`
-	Createdbefore pgtype.Timestamptz `json:"createdbefore"`
+	Interval               pgtype.Interval    `json:"interval"`
+	Tenantid               uuid.UUID          `json:"tenantid"`
+	Createdafter           pgtype.Timestamptz `json:"createdafter"`
+	Createdbefore          pgtype.Timestamptz `json:"createdbefore"`
+	AggregatesCompleteFrom pgtype.Timestamptz `json:"aggregatesCompleteFrom"`
 }
 
 type GetTaskPointMetricsRow struct {
@@ -1232,6 +1263,7 @@ func (q *Queries) GetTaskPointMetrics(ctx context.Context, db DBTX, arg GetTaskP
 		arg.Tenantid,
 		arg.Createdafter,
 		arg.Createdbefore,
+		arg.AggregatesCompleteFrom,
 	)
 	if err != nil {
 		return nil, err
@@ -1440,6 +1472,7 @@ FROM (
         AND bucket >= DATE_BIN('1 minute', $2::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
         AND ($3::TIMESTAMPTZ IS NULL OR bucket <= $3::TIMESTAMPTZ)
         AND ($4::UUID[] IS NULL OR workflow_id = ANY($4::UUID[]))
+        AND ($5::TIMESTAMPTZ IS NULL OR bucket >= $5::TIMESTAMPTZ)
 
     UNION ALL
 
@@ -1450,14 +1483,33 @@ FROM (
         AND bucket >= DATE_BIN('1 minute', $2::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
         AND ($3::TIMESTAMPTZ IS NULL OR bucket <= $3::TIMESTAMPTZ)
         AND ($4::UUID[] IS NULL OR workflow_id = ANY($4::UUID[]))
+        AND ($5::TIMESTAMPTZ IS NULL OR bucket >= $5::TIMESTAMPTZ)
+
+    UNION ALL
+
+    SELECT
+        (readable_status = 'QUEUED')::INTEGER,
+        (readable_status = 'RUNNING')::INTEGER,
+        (readable_status = 'COMPLETED')::INTEGER,
+        (readable_status = 'CANCELLED')::INTEGER,
+        (readable_status = 'FAILED')::INTEGER,
+        (readable_status = 'EVICTED')::INTEGER
+    FROM v1_statuses_olap
+    WHERE
+        tenant_id = $1::UUID
+        AND inserted_at >= DATE_BIN('1 minute', $2::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
+        AND ($3::TIMESTAMPTZ IS NULL OR inserted_at <= $3::TIMESTAMPTZ)
+        AND ($4::UUID[] IS NULL OR workflow_id = ANY($4::UUID[]))
+        AND inserted_at < $5::TIMESTAMPTZ
 ) status_counts
 `
 
 type GetTenantStatusMetricsFromAggregateParams struct {
-	Tenantid      uuid.UUID          `json:"tenantid"`
-	Createdafter  pgtype.Timestamptz `json:"createdafter"`
-	CreatedBefore pgtype.Timestamptz `json:"createdBefore"`
-	WorkflowIds   []uuid.UUID        `json:"workflowIds"`
+	Tenantid               uuid.UUID          `json:"tenantid"`
+	Createdafter           pgtype.Timestamptz `json:"createdafter"`
+	CreatedBefore          pgtype.Timestamptz `json:"createdBefore"`
+	WorkflowIds            []uuid.UUID        `json:"workflowIds"`
+	AggregatesCompleteFrom pgtype.Timestamptz `json:"aggregatesCompleteFrom"`
 }
 
 type GetTenantStatusMetricsFromAggregateRow struct {
@@ -1475,6 +1527,7 @@ func (q *Queries) GetTenantStatusMetricsFromAggregate(ctx context.Context, db DB
 		arg.Createdafter,
 		arg.CreatedBefore,
 		arg.WorkflowIds,
+		arg.AggregatesCompleteFrom,
 	)
 	var i GetTenantStatusMetricsFromAggregateRow
 	err := row.Scan(
