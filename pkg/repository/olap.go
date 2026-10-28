@@ -1748,7 +1748,34 @@ func (r *OLAPRepositoryImpl) ReadTaskRunMetrics(ctx context.Context, tenantId uu
 		params.CreatedBefore = sqlchelpers.TimestamptzFromTime(*opts.CreatedBefore)
 	}
 
-	res, err := r.queries.GetTenantStatusMetrics(ctx, readDB, params)
+	var res *sqlcv1.GetTenantStatusMetricsFromAggregateRow
+	var err error
+
+	aggregateCanAnswerFilters := opts.ParentTaskExternalID == nil && opts.TriggeringEventExternalId == nil && len(opts.AdditionalMetadata) == 0
+
+	if aggregateCanAnswerFilters {
+		res, err = r.queries.GetTenantStatusMetricsFromAggregate(ctx, readDB, sqlcv1.GetTenantStatusMetricsFromAggregateParams{
+			Tenantid:      params.Tenantid,
+			Createdafter:  params.Createdafter,
+			CreatedBefore: params.CreatedBefore,
+			WorkflowIds:   params.WorkflowIds,
+		})
+	} else {
+		var rawCounts *sqlcv1.GetTenantStatusMetricsRow
+		rawCounts, err = r.queries.GetTenantStatusMetrics(ctx, readDB, params)
+
+		if rawCounts != nil {
+			res = &sqlcv1.GetTenantStatusMetricsFromAggregateRow{
+				TotalQueued:    rawCounts.TotalQueued,
+				TotalRunning:   rawCounts.TotalRunning,
+				TotalCompleted: rawCounts.TotalCompleted,
+				TotalCancelled: rawCounts.TotalCancelled,
+				TotalFailed:    rawCounts.TotalFailed,
+				TotalEvicted:   rawCounts.TotalEvicted,
+			}
+		}
+	}
+
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return []TaskRunMetric{}, nil

@@ -1722,17 +1722,58 @@ ORDER BY r.inserted_at DESC, r.run_id DESC;
 SELECT
     DATE_BIN(
         COALESCE(sqlc.narg('interval')::INTERVAL, '1 minute'),
-        inserted_at,
+        bucket,
         TIMESTAMPTZ '1970-01-01 00:00:00+00'
     ) :: TIMESTAMPTZ AS minute_bucket,
-    COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS completed_count,
-    COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS failed_count
-FROM v1_statuses_olap
-WHERE
-    tenant_id = @tenantId::UUID
-    AND inserted_at BETWEEN @createdAfter::TIMESTAMPTZ AND @createdBefore::TIMESTAMPTZ
+    SUM(completed_count)::BIGINT AS completed_count,
+    SUM(failed_count)::BIGINT AS failed_count
+FROM (
+    SELECT bucket, completed_count, failed_count
+    FROM v1_agg_task_statuses_minute_olap
+    WHERE
+        tenant_id = @tenantId::UUID
+        AND bucket >= DATE_BIN('1 minute', @createdAfter::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
+        AND bucket <= @createdBefore::TIMESTAMPTZ
+
+    UNION ALL
+
+    SELECT bucket, completed_count, failed_count
+    FROM v1_agg_task_statuses_minute_delta_olap
+    WHERE
+        tenant_id = @tenantId::UUID
+        AND bucket >= DATE_BIN('1 minute', @createdAfter::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
+        AND bucket <= @createdBefore::TIMESTAMPTZ
+) status_counts
 GROUP BY minute_bucket
 ORDER BY minute_bucket;
+
+-- name: GetTenantStatusMetricsFromAggregate :one
+SELECT
+    COALESCE(SUM(queued_count), 0)::BIGINT AS total_queued,
+    COALESCE(SUM(running_count), 0)::BIGINT AS total_running,
+    COALESCE(SUM(completed_count), 0)::BIGINT AS total_completed,
+    COALESCE(SUM(cancelled_count), 0)::BIGINT AS total_cancelled,
+    COALESCE(SUM(failed_count), 0)::BIGINT AS total_failed,
+    COALESCE(SUM(evicted_count), 0)::BIGINT AS total_evicted
+FROM (
+    SELECT queued_count, running_count, completed_count, cancelled_count, failed_count, evicted_count
+    FROM v1_agg_task_statuses_minute_olap
+    WHERE
+        tenant_id = @tenantId::UUID
+        AND bucket >= DATE_BIN('1 minute', @createdAfter::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
+        AND (sqlc.narg('createdBefore')::TIMESTAMPTZ IS NULL OR bucket <= sqlc.narg('createdBefore')::TIMESTAMPTZ)
+        AND (sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[]))
+
+    UNION ALL
+
+    SELECT queued_count, running_count, completed_count, cancelled_count, failed_count, evicted_count
+    FROM v1_agg_task_statuses_minute_delta_olap
+    WHERE
+        tenant_id = @tenantId::UUID
+        AND bucket >= DATE_BIN('1 minute', @createdAfter::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
+        AND (sqlc.narg('createdBefore')::TIMESTAMPTZ IS NULL OR bucket <= sqlc.narg('createdBefore')::TIMESTAMPTZ)
+        AND (sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[]))
+) status_counts;
 
 
 -- name: GetTenantStatusMetrics :one

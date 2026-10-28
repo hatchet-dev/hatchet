@@ -1187,15 +1187,28 @@ const getTaskPointMetrics = `-- name: GetTaskPointMetrics :many
 SELECT
     DATE_BIN(
         COALESCE($1::INTERVAL, '1 minute'),
-        inserted_at,
+        bucket,
         TIMESTAMPTZ '1970-01-01 00:00:00+00'
     ) :: TIMESTAMPTZ AS minute_bucket,
-    COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS completed_count,
-    COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS failed_count
-FROM v1_statuses_olap
-WHERE
-    tenant_id = $2::UUID
-    AND inserted_at BETWEEN $3::TIMESTAMPTZ AND $4::TIMESTAMPTZ
+    SUM(completed_count)::BIGINT AS completed_count,
+    SUM(failed_count)::BIGINT AS failed_count
+FROM (
+    SELECT bucket, completed_count, failed_count
+    FROM v1_agg_task_statuses_minute_olap
+    WHERE
+        tenant_id = $2::UUID
+        AND bucket >= DATE_BIN('1 minute', $3::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
+        AND bucket <= $4::TIMESTAMPTZ
+
+    UNION ALL
+
+    SELECT bucket, completed_count, failed_count
+    FROM v1_agg_task_statuses_minute_delta_olap
+    WHERE
+        tenant_id = $2::UUID
+        AND bucket >= DATE_BIN('1 minute', $3::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
+        AND bucket <= $4::TIMESTAMPTZ
+) status_counts
 GROUP BY minute_bucket
 ORDER BY minute_bucket
 `
@@ -1401,6 +1414,70 @@ func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTe
 	var i GetTenantStatusMetricsRow
 	err := row.Scan(
 		&i.TenantID,
+		&i.TotalQueued,
+		&i.TotalRunning,
+		&i.TotalCompleted,
+		&i.TotalCancelled,
+		&i.TotalFailed,
+		&i.TotalEvicted,
+	)
+	return &i, err
+}
+
+const getTenantStatusMetricsFromAggregate = `-- name: GetTenantStatusMetricsFromAggregate :one
+SELECT
+    COALESCE(SUM(queued_count), 0)::BIGINT AS total_queued,
+    COALESCE(SUM(running_count), 0)::BIGINT AS total_running,
+    COALESCE(SUM(completed_count), 0)::BIGINT AS total_completed,
+    COALESCE(SUM(cancelled_count), 0)::BIGINT AS total_cancelled,
+    COALESCE(SUM(failed_count), 0)::BIGINT AS total_failed,
+    COALESCE(SUM(evicted_count), 0)::BIGINT AS total_evicted
+FROM (
+    SELECT queued_count, running_count, completed_count, cancelled_count, failed_count, evicted_count
+    FROM v1_agg_task_statuses_minute_olap
+    WHERE
+        tenant_id = $1::UUID
+        AND bucket >= DATE_BIN('1 minute', $2::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
+        AND ($3::TIMESTAMPTZ IS NULL OR bucket <= $3::TIMESTAMPTZ)
+        AND ($4::UUID[] IS NULL OR workflow_id = ANY($4::UUID[]))
+
+    UNION ALL
+
+    SELECT queued_count, running_count, completed_count, cancelled_count, failed_count, evicted_count
+    FROM v1_agg_task_statuses_minute_delta_olap
+    WHERE
+        tenant_id = $1::UUID
+        AND bucket >= DATE_BIN('1 minute', $2::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
+        AND ($3::TIMESTAMPTZ IS NULL OR bucket <= $3::TIMESTAMPTZ)
+        AND ($4::UUID[] IS NULL OR workflow_id = ANY($4::UUID[]))
+) status_counts
+`
+
+type GetTenantStatusMetricsFromAggregateParams struct {
+	Tenantid      uuid.UUID          `json:"tenantid"`
+	Createdafter  pgtype.Timestamptz `json:"createdafter"`
+	CreatedBefore pgtype.Timestamptz `json:"createdBefore"`
+	WorkflowIds   []uuid.UUID        `json:"workflowIds"`
+}
+
+type GetTenantStatusMetricsFromAggregateRow struct {
+	TotalQueued    int64 `json:"total_queued"`
+	TotalRunning   int64 `json:"total_running"`
+	TotalCompleted int64 `json:"total_completed"`
+	TotalCancelled int64 `json:"total_cancelled"`
+	TotalFailed    int64 `json:"total_failed"`
+	TotalEvicted   int64 `json:"total_evicted"`
+}
+
+func (q *Queries) GetTenantStatusMetricsFromAggregate(ctx context.Context, db DBTX, arg GetTenantStatusMetricsFromAggregateParams) (*GetTenantStatusMetricsFromAggregateRow, error) {
+	row := db.QueryRow(ctx, getTenantStatusMetricsFromAggregate,
+		arg.Tenantid,
+		arg.Createdafter,
+		arg.CreatedBefore,
+		arg.WorkflowIds,
+	)
+	var i GetTenantStatusMetricsFromAggregateRow
+	err := row.Scan(
 		&i.TotalQueued,
 		&i.TotalRunning,
 		&i.TotalCompleted,
