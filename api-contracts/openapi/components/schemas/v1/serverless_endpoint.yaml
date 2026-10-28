@@ -2,11 +2,12 @@ V1ServerlessEndpointKind:
   type: string
   description: >-
     The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the
-    serverless endpoint contract; CLOUDFLARE_WORKERS applies the Cloudflare Workers runtime
-    constraints on top of it.
+    serverless endpoint contract; CLOUDFLARE_WORKERS and VERCEL name the platform the endpoint
+    is deployed on, which the dashboard uses to guide setup and diagnose failures.
   enum:
     - GENERIC_HTTP
     - CLOUDFLARE_WORKERS
+    - VERCEL
 
 V1ServerlessEndpointStatus:
   type: object
@@ -126,7 +127,7 @@ V1CreateServerlessEndpointRequest:
     requestTimeoutSeconds:
       type: integer
       format: int32
-      description: The per-request timeout backstop for trigger requests, in seconds. Defaults to 60.
+      description: The per-request timeout backstop for trigger requests, in seconds. Defaults to 300.
     pollIntervalSeconds:
       type: integer
       format: int32
@@ -188,3 +189,116 @@ V1UpdateServerlessEndpointRequest:
     enabled:
       type: boolean
       description: Whether the operator polls and dispatches to this endpoint.
+
+V1ServerlessEndpointCheckStage:
+  type: string
+  description: >-
+    How far a failed healthcheck got. REQUEST: no HTTP response (DNS, TLS, connection, timeout
+    or a blocked destination). STATUS: the endpoint answered with a non-2xx status. PARSE: the
+    body is not a healthcheck response. CATALOG: the response parsed but the workflows or
+    actions it declares were refused.
+  enum:
+    - REQUEST
+    - STATUS
+    - PARSE
+    - CATALOG
+
+V1ServerlessEndpointEventKind:
+  type: string
+  description: >-
+    HEALTHCHECK_FAILED: a healthcheck failed; recorded at the start of a failure streak and
+    whenever the error changes. UNHEALTHY: the endpoint's health flipped to unhealthy.
+    HEALTHY: the endpoint's health flipped to healthy, or its healthchecks succeed again
+    after a streak of failures too short to flip it. CATALOG_REGISTERED: a changed set of
+    workflows and actions was registered. CATALOG_REJECTED: the engine refused the declared
+    workflows. DELIVERY_FAILED: a task delivered to the endpoint failed. HEALTHCHECK_FAILED,
+    CATALOG_REJECTED, DELIVERY_FAILED and HEALTHY are each recorded at most once per endpoint
+    every 30 seconds, and an endpoint records at most 120 events an hour; what is held back
+    is counted in details.suppressed of the next event of the same kind.
+  enum:
+    - HEALTHCHECK_FAILED
+    - UNHEALTHY
+    - HEALTHY
+    - CATALOG_REGISTERED
+    - CATALOG_REJECTED
+    - DELIVERY_FAILED
+
+V1ServerlessEndpointEventDetails:
+  type: object
+  properties:
+    stage:
+      $ref: "#/V1ServerlessEndpointCheckStage"
+    url:
+      type: string
+    statusCode:
+      type: integer
+      format: int32
+    durationMs:
+      type: integer
+      format: int32
+    responseExcerpt:
+      x-payload: true
+      type: string
+      description: The start of the response body, at most 1 KiB. Omitted for members who cannot view payloads.
+    actions:
+      type: array
+      items:
+        type: string
+    workflows:
+      type: array
+      items:
+        type: string
+    taskRunExternalId:
+      type: string
+      format: uuid
+    actionId:
+      type: string
+    retryCount:
+      type: integer
+      format: int32
+    retryable:
+      type: boolean
+      description: Whether the engine will retry the failed delivery.
+    suppressed:
+      type: integer
+      format: int32
+      description: >-
+        Events of this kind since the previous one that were not recorded on their own, because
+        they came too soon after it or past the endpoint's event budget.
+    truncated:
+      type: boolean
+      description: >-
+        Whether the details were cut to bound the event's size: the workflows and actions lists
+        keep their first 50 entries, and long names are shortened.
+
+V1ServerlessEndpointEvent:
+  type: object
+  properties:
+    id:
+      type: integer
+      format: int64
+    createdAt:
+      type: string
+      format: date-time
+    kind:
+      $ref: "#/V1ServerlessEndpointEventKind"
+    message:
+      type: string
+    details:
+      $ref: "#/V1ServerlessEndpointEventDetails"
+  required:
+    - id
+    - createdAt
+    - kind
+    - message
+    - details
+
+V1ServerlessEndpointEventList:
+  type: object
+  properties:
+    rows:
+      type: array
+      items:
+        $ref: "#/V1ServerlessEndpointEvent"
+  required:
+    - rows

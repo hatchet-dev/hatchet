@@ -146,6 +146,7 @@ Class | Method | HTTP request | Description
 *HatchetSdkRest::SNSApi* | [**sns_list**](docs/SNSApi.md#sns_list) | **GET** /api/v1/tenants/{tenant}/sns | List SNS integrations
 *HatchetSdkRest::ServerlessApi* | [**v1_serverless_endpoint_create**](docs/ServerlessApi.md#v1_serverless_endpoint_create) | **POST** /api/v1/stable/tenants/{tenant}/serverless/endpoints | Create a serverless endpoint
 *HatchetSdkRest::ServerlessApi* | [**v1_serverless_endpoint_delete**](docs/ServerlessApi.md#v1_serverless_endpoint_delete) | **DELETE** /api/v1/stable/serverless/endpoints/{v1-serverless-endpoint} | Delete a serverless endpoint
+*HatchetSdkRest::ServerlessApi* | [**v1_serverless_endpoint_event_list**](docs/ServerlessApi.md#v1_serverless_endpoint_event_list) | **GET** /api/v1/stable/serverless/endpoints/{v1-serverless-endpoint}/events | List serverless endpoint events
 *HatchetSdkRest::ServerlessApi* | [**v1_serverless_endpoint_get**](docs/ServerlessApi.md#v1_serverless_endpoint_get) | **GET** /api/v1/stable/serverless/endpoints/{v1-serverless-endpoint} | Get a serverless endpoint
 *HatchetSdkRest::ServerlessApi* | [**v1_serverless_endpoint_list**](docs/ServerlessApi.md#v1_serverless_endpoint_list) | **GET** /api/v1/stable/tenants/{tenant}/serverless/endpoints | List serverless endpoints
 *HatchetSdkRest::ServerlessApi* | [**v1_serverless_endpoint_update**](docs/ServerlessApi.md#v1_serverless_endpoint_update) | **PATCH** /api/v1/stable/serverless/endpoints/{v1-serverless-endpoint} | Update a serverless endpoint
@@ -436,6 +437,11 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::V1RunningDetailCount](docs/V1RunningDetailCount.md)
  - [HatchetSdkRest::V1RunningFilter](docs/V1RunningFilter.md)
  - [HatchetSdkRest::V1ServerlessEndpoint](docs/V1ServerlessEndpoint.md)
+ - [HatchetSdkRest::V1ServerlessEndpointCheckStage](docs/V1ServerlessEndpointCheckStage.md)
+ - [HatchetSdkRest::V1ServerlessEndpointEvent](docs/V1ServerlessEndpointEvent.md)
+ - [HatchetSdkRest::V1ServerlessEndpointEventDetails](docs/V1ServerlessEndpointEventDetails.md)
+ - [HatchetSdkRest::V1ServerlessEndpointEventKind](docs/V1ServerlessEndpointEventKind.md)
+ - [HatchetSdkRest::V1ServerlessEndpointEventList](docs/V1ServerlessEndpointEventList.md)
  - [HatchetSdkRest::V1ServerlessEndpointKind](docs/V1ServerlessEndpointKind.md)
  - [HatchetSdkRest::V1ServerlessEndpointList](docs/V1ServerlessEndpointList.md)
  - [HatchetSdkRest::V1ServerlessEndpointStatus](docs/V1ServerlessEndpointStatus.md)

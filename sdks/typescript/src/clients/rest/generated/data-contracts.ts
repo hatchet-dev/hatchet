@@ -237,10 +237,29 @@ export enum V1CELDebugResponseStatus {
   ERROR = 'ERROR',
 }
 
-/** The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS applies the Cloudflare Workers runtime constraints on top of it. */
+/** How far a failed healthcheck got. REQUEST: no HTTP response (DNS, TLS, connection, timeout or a blocked destination). STATUS: the endpoint answered with a non-2xx status. PARSE: the body is not a healthcheck response. CATALOG: the response parsed but the workflows or actions it declares were refused. */
+export enum V1ServerlessEndpointCheckStage {
+  REQUEST = 'REQUEST',
+  STATUS = 'STATUS',
+  PARSE = 'PARSE',
+  CATALOG = 'CATALOG',
+}
+
+/** HEALTHCHECK_FAILED: a healthcheck failed; recorded at the start of a failure streak and whenever the error changes. UNHEALTHY: the endpoint's health flipped to unhealthy. HEALTHY: the endpoint's health flipped to healthy, or its healthchecks succeed again after a streak of failures too short to flip it. CATALOG_REGISTERED: a changed set of workflows and actions was registered. CATALOG_REJECTED: the engine refused the declared workflows. DELIVERY_FAILED: a task delivered to the endpoint failed. HEALTHCHECK_FAILED, CATALOG_REJECTED, DELIVERY_FAILED and HEALTHY are each recorded at most once per endpoint every 30 seconds, and an endpoint records at most 120 events an hour; what is held back is counted in details.suppressed of the next event of the same kind. */
+export enum V1ServerlessEndpointEventKind {
+  HEALTHCHECK_FAILED = 'HEALTHCHECK_FAILED',
+  UNHEALTHY = 'UNHEALTHY',
+  HEALTHY = 'HEALTHY',
+  CATALOG_REGISTERED = 'CATALOG_REGISTERED',
+  CATALOG_REJECTED = 'CATALOG_REJECTED',
+  DELIVERY_FAILED = 'DELIVERY_FAILED',
+}
+
+/** The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS and VERCEL name the platform the endpoint is deployed on, which the dashboard uses to guide setup and diagnose failures. */
 export enum V1ServerlessEndpointKind {
   GENERIC_HTTP = 'GENERIC_HTTP',
   CLOUDFLARE_WORKERS = 'CLOUDFLARE_WORKERS',
+  VERCEL = 'VERCEL',
 }
 
 export enum V1WebhookHMACEncoding {
@@ -1447,7 +1466,7 @@ export interface V1ServerlessEndpoint {
   tenantId: string;
   /** The name of the endpoint. Unique within the tenant. */
   name: string;
-  /** The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS applies the Cloudflare Workers runtime constraints on top of it. */
+  /** The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS and VERCEL name the platform the endpoint is deployed on, which the dashboard uses to guide setup and diagnose failures. */
   kind: V1ServerlessEndpointKind;
   /** The HTTPS URL (port 443) polled periodically to discover the workflows this endpoint serves. */
   healthcheckUrl: string;
@@ -1484,7 +1503,7 @@ export interface V1ServerlessEndpointList {
 export interface V1CreateServerlessEndpointRequest {
   /** The name of the endpoint. Unique within the tenant. */
   name: string;
-  /** The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS applies the Cloudflare Workers runtime constraints on top of it. */
+  /** The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS and VERCEL name the platform the endpoint is deployed on, which the dashboard uses to guide setup and diagnose failures. */
   kind?: V1ServerlessEndpointKind;
   /** The HTTPS URL (port 443) polled periodically to discover the workflows this endpoint serves. */
   healthcheckUrl: string;
@@ -1496,7 +1515,7 @@ export interface V1CreateServerlessEndpointRequest {
    */
   signingSecret: string;
   /**
-   * The per-request timeout backstop for trigger requests, in seconds. Defaults to 60.
+   * The per-request timeout backstop for trigger requests, in seconds. Defaults to 300.
    * @format int32
    */
   requestTimeoutSeconds?: number;
@@ -1520,7 +1539,7 @@ export interface V1CreateServerlessEndpointRequest {
 export interface V1UpdateServerlessEndpointRequest {
   /** The name of the endpoint. Unique within the tenant. */
   name?: string;
-  /** The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS applies the Cloudflare Workers runtime constraints on top of it. */
+  /** The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS and VERCEL name the platform the endpoint is deployed on, which the dashboard uses to guide setup and diagnose failures. */
   kind?: V1ServerlessEndpointKind;
   /** The HTTPS URL (port 443) polled periodically to discover the workflows this endpoint serves. */
   healthcheckUrl?: string;
@@ -1550,6 +1569,49 @@ export interface V1UpdateServerlessEndpointRequest {
   labels?: Record<string, any>;
   /** Whether the operator polls and dispatches to this endpoint. */
   enabled?: boolean;
+}
+
+export interface V1ServerlessEndpointEventDetails {
+  /** How far a failed healthcheck got. REQUEST: no HTTP response (DNS, TLS, connection, timeout or a blocked destination). STATUS: the endpoint answered with a non-2xx status. PARSE: the body is not a healthcheck response. CATALOG: the response parsed but the workflows or actions it declares were refused. */
+  stage?: V1ServerlessEndpointCheckStage;
+  url?: string;
+  /** @format int32 */
+  statusCode?: number;
+  /** @format int32 */
+  durationMs?: number;
+  /** The start of the response body, at most 1 KiB. Omitted for members who cannot view payloads. */
+  responseExcerpt?: string;
+  actions?: string[];
+  workflows?: string[];
+  /** @format uuid */
+  taskRunExternalId?: string;
+  actionId?: string;
+  /** @format int32 */
+  retryCount?: number;
+  /** Whether the engine will retry the failed delivery. */
+  retryable?: boolean;
+  /**
+   * Events of this kind since the previous one that were not recorded on their own, because they came too soon after it or past the endpoint's event budget.
+   * @format int32
+   */
+  suppressed?: number;
+  /** Whether the details were cut to bound the event's size: the workflows and actions lists keep their first 50 entries, and long names are shortened. */
+  truncated?: boolean;
+}
+
+export interface V1ServerlessEndpointEvent {
+  /** @format int64 */
+  id: number;
+  /** @format date-time */
+  createdAt: string;
+  /** HEALTHCHECK_FAILED: a healthcheck failed; recorded at the start of a failure streak and whenever the error changes. UNHEALTHY: the endpoint's health flipped to unhealthy. HEALTHY: the endpoint's health flipped to healthy, or its healthchecks succeed again after a streak of failures too short to flip it. CATALOG_REGISTERED: a changed set of workflows and actions was registered. CATALOG_REJECTED: the engine refused the declared workflows. DELIVERY_FAILED: a task delivered to the endpoint failed. HEALTHCHECK_FAILED, CATALOG_REJECTED, DELIVERY_FAILED and HEALTHY are each recorded at most once per endpoint every 30 seconds, and an endpoint records at most 120 events an hour; what is held back is counted in details.suppressed of the next event of the same kind. */
+  kind: V1ServerlessEndpointEventKind;
+  message: string;
+  details: V1ServerlessEndpointEventDetails;
+}
+
+export interface V1ServerlessEndpointEventList {
+  rows: V1ServerlessEndpointEvent[];
 }
 
 export interface V1CELDebugRequest {

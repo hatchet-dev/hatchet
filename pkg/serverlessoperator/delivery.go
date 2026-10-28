@@ -26,8 +26,14 @@ type outcome struct {
 	// result labels the deliveries_total metric: completed, failed, retryable, cancelled.
 	result string
 	output []byte
-	status contracts.StepActionEventType
-	retry  bool
+	// body is the endpoint's response body when the outcome came from an HTTP response;
+	// statusCode is then set, and duration is the request's. They feed the endpoint's
+	// DELIVERY_FAILED event only, never the task's error.
+	body       []byte
+	statusCode int
+	duration   time.Duration
+	status     contracts.StepActionEventType
+	retry      bool
 }
 
 func completedOutcome(output []byte) outcome {
@@ -120,13 +126,20 @@ func deliverAction(ctx context.Context, sender RequestSender, ep *cachedEndpoint
 	rctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	start := time.Now()
 	res, err := sender.Deliver(rctx, http.MethodPost, cfg.triggerUrl, body, headers)
 
 	if err != nil {
-		return classifyError(ctx, err, timeout)
+		out := classifyError(ctx, err, timeout)
+		out.duration = time.Since(start)
+
+		return out
 	}
 
-	return classifyResponse(res)
+	out := classifyResponse(res)
+	out.duration = time.Since(start)
+
+	return out
 }
 
 // classifyError maps a transport-level failure. A cancelled delivery context means a
@@ -163,7 +176,11 @@ func classifyResponse(res *safeclient.DeliveryResult) outcome {
 		return completedOutcome(nil)
 	case code >= http.StatusOK && code < http.StatusMultipleChoices:
 		if len(res.BodyPrefix) > 0 && !json.Valid(res.BodyPrefix) {
-			return failedOutcome(fmt.Sprintf("endpoint returned status %d with a non-JSON body", code), false)
+			out := failedOutcome(fmt.Sprintf("endpoint returned status %d with a non-JSON body", code), false)
+			out.statusCode = code
+			out.body = res.BodyPrefix
+
+			return out
 		}
 
 		return completedOutcome(res.BodyPrefix)
@@ -196,5 +213,9 @@ func classifyResponse(res *safeclient.DeliveryResult) outcome {
 		}
 	}
 
-	return failedOutcome(msg, retry)
+	out := failedOutcome(msg, retry)
+	out.statusCode = code
+	out.body = res.BodyPrefix
+
+	return out
 }

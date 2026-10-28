@@ -120,6 +120,7 @@ import {
   V1RestoreTaskResponse,
   V1RunningFilter,
   V1ServerlessEndpoint,
+  V1ServerlessEndpointEventList,
   V1ServerlessEndpointList,
   V1StreamPayloadRef,
   V1StreamTopicList,
@@ -1563,6 +1564,39 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     this.request<V1ServerlessEndpoint, APIErrors>({
       path: `/api/v1/stable/serverless/endpoints/${v1ServerlessEndpoint}`,
       method: 'DELETE',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Lists the most recent events the serverless operator recorded for an endpoint, newest first.
+   *
+   * @tags Serverless
+   * @name V1ServerlessEndpointEventList
+   * @summary List serverless endpoint events
+   * @request GET:/api/v1/stable/serverless/endpoints/{v1-serverless-endpoint}/events
+   * @secure
+   */
+  v1ServerlessEndpointEventList = (
+    v1ServerlessEndpoint: string,
+    query?: {
+      /**
+       * The number of events to return, at most 500. Defaults to 100.
+       * @format int64
+       */
+      limit?: number;
+      /**
+       * Only return events created after this time
+       * @format date-time
+       */
+      since?: string;
+    },
+    params: RequestParams = {}
+  ) =>
+    this.request<V1ServerlessEndpointEventList, APIErrors>({
+      path: `/api/v1/stable/serverless/endpoints/${v1ServerlessEndpoint}/events`,
+      method: 'GET',
+      query: query,
       secure: true,
       format: 'json',
       ...params,

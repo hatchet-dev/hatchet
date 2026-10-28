@@ -1889,11 +1889,58 @@ func (ns NullV1RunKind) Value() (driver.Value, error) {
 	return string(ns.V1RunKind), nil
 }
 
+type V1ServerlessEndpointEventKind string
+
+const (
+	V1ServerlessEndpointEventKindHEALTHCHECKFAILED V1ServerlessEndpointEventKind = "HEALTHCHECK_FAILED"
+	V1ServerlessEndpointEventKindUNHEALTHY         V1ServerlessEndpointEventKind = "UNHEALTHY"
+	V1ServerlessEndpointEventKindHEALTHY           V1ServerlessEndpointEventKind = "HEALTHY"
+	V1ServerlessEndpointEventKindCATALOGREGISTERED V1ServerlessEndpointEventKind = "CATALOG_REGISTERED"
+	V1ServerlessEndpointEventKindCATALOGREJECTED   V1ServerlessEndpointEventKind = "CATALOG_REJECTED"
+	V1ServerlessEndpointEventKindDELIVERYFAILED    V1ServerlessEndpointEventKind = "DELIVERY_FAILED"
+)
+
+func (e *V1ServerlessEndpointEventKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1ServerlessEndpointEventKind(s)
+	case string:
+		*e = V1ServerlessEndpointEventKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1ServerlessEndpointEventKind: %T", src)
+	}
+	return nil
+}
+
+type NullV1ServerlessEndpointEventKind struct {
+	V1ServerlessEndpointEventKind V1ServerlessEndpointEventKind `json:"v1_serverless_endpoint_event_kind"`
+	Valid                         bool                          `json:"valid"` // Valid is true if V1ServerlessEndpointEventKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1ServerlessEndpointEventKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1ServerlessEndpointEventKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1ServerlessEndpointEventKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1ServerlessEndpointEventKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1ServerlessEndpointEventKind), nil
+}
+
 type V1ServerlessEndpointKind string
 
 const (
 	V1ServerlessEndpointKindGENERICHTTP       V1ServerlessEndpointKind = "GENERIC_HTTP"
 	V1ServerlessEndpointKindCLOUDFLAREWORKERS V1ServerlessEndpointKind = "CLOUDFLARE_WORKERS"
+	V1ServerlessEndpointKindVERCEL            V1ServerlessEndpointKind = "VERCEL"
 )
 
 func (e *V1ServerlessEndpointKind) Scan(src interface{}) error {
@@ -3934,6 +3981,16 @@ type V1ServerlessEndpoint struct {
 	StreamActions         []string                 `json:"stream_actions"`
 	DurableSupported      bool                     `json:"durable_supported"`
 	DeletedAt             pgtype.Timestamptz       `json:"deleted_at"`
+}
+
+type V1ServerlessEndpointEvent struct {
+	ID         int64                         `json:"id"`
+	TenantID   uuid.UUID                     `json:"tenant_id"`
+	EndpointID uuid.UUID                     `json:"endpoint_id"`
+	CreatedAt  pgtype.Timestamptz            `json:"created_at"`
+	Kind       V1ServerlessEndpointEventKind `json:"kind"`
+	Message    string                        `json:"message"`
+	Details    []byte                        `json:"details"`
 }
 
 type V1ServerlessLease struct {

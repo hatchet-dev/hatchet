@@ -516,6 +516,39 @@ func (q *Queries) IncrementServerlessLeaseEndpointCount(ctx context.Context, db 
 	return err
 }
 
+const insertServerlessEndpointEvents = `-- name: InsertServerlessEndpointEvents :exec
+INSERT INTO v1_serverless_endpoint_event (tenant_id, endpoint_id, created_at, kind, message, details)
+SELECT
+    unnest($1::UUID[]),
+    unnest($2::UUID[]),
+    unnest($3::TIMESTAMPTZ[]),
+    unnest($4::TEXT[])::v1_serverless_endpoint_event_kind,
+    unnest($5::TEXT[]),
+    unnest($6::JSONB[])
+`
+
+type InsertServerlessEndpointEventsParams struct {
+	Tenantids   []uuid.UUID          `json:"tenantids"`
+	Endpointids []uuid.UUID          `json:"endpointids"`
+	Createdats  []pgtype.Timestamptz `json:"createdats"`
+	Kinds       []string             `json:"kinds"`
+	Messages    []string             `json:"messages"`
+	Details     [][]byte             `json:"details"`
+}
+
+// Batch insert; the arrays are parallel.
+func (q *Queries) InsertServerlessEndpointEvents(ctx context.Context, db DBTX, arg InsertServerlessEndpointEventsParams) error {
+	_, err := db.Exec(ctx, insertServerlessEndpointEvents,
+		arg.Tenantids,
+		arg.Endpointids,
+		arg.Createdats,
+		arg.Kinds,
+		arg.Messages,
+		arg.Details,
+	)
+	return err
+}
+
 const insertServerlessLeaseIfAbsent = `-- name: InsertServerlessLeaseIfAbsent :exec
 INSERT INTO v1_serverless_lease (tenant_id, endpoint_partition)
 VALUES ($1::UUID, $2::INT)
@@ -554,6 +587,62 @@ func (q *Queries) ListOwnedServerlessLeases(ctx context.Context, db DBTX, proces
 			&i.ProcessID,
 			&i.ClaimedAt,
 			&i.EndpointCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listServerlessEndpointEvents = `-- name: ListServerlessEndpointEvents :many
+SELECT id, tenant_id, endpoint_id, created_at, kind, message, details
+FROM v1_serverless_endpoint_event
+WHERE
+    tenant_id = $1::UUID
+    AND endpoint_id = $2::UUID
+    AND created_at >= $3::TIMESTAMPTZ
+    AND ($4::TIMESTAMPTZ IS NULL OR created_at > $4::TIMESTAMPTZ)
+ORDER BY created_at DESC, id DESC
+LIMIT $5::BIGINT
+`
+
+type ListServerlessEndpointEventsParams struct {
+	Tenantid       uuid.UUID          `json:"tenantid"`
+	Endpointid     uuid.UUID          `json:"endpointid"`
+	Retentionstart pgtype.Timestamptz `json:"retentionstart"`
+	Since          pgtype.Timestamptz `json:"since"`
+	Eventlimit     int64              `json:"eventlimit"`
+}
+
+// retentionStart is the start of the tenant's retention window: older events are never
+// returned, though their partition may not be dropped yet. It also prunes the partitions read.
+func (q *Queries) ListServerlessEndpointEvents(ctx context.Context, db DBTX, arg ListServerlessEndpointEventsParams) ([]*V1ServerlessEndpointEvent, error) {
+	rows, err := db.Query(ctx, listServerlessEndpointEvents,
+		arg.Tenantid,
+		arg.Endpointid,
+		arg.Retentionstart,
+		arg.Since,
+		arg.Eventlimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1ServerlessEndpointEvent
+	for rows.Next() {
+		var i V1ServerlessEndpointEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.EndpointID,
+			&i.CreatedAt,
+			&i.Kind,
+			&i.Message,
+			&i.Details,
 		); err != nil {
 			return nil, err
 		}

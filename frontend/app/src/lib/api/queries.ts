@@ -313,6 +313,23 @@ export const queries = createQueryKeyStore({
       queryFn: async () => (await api.v1WebhookList(tenant, params)).data,
     }),
   },
+  v1ServerlessEndpoints: {
+    list: (tenant: string, query: { offset: number; limit: number }) => ({
+      queryKey: ['v1:serverless-endpoint:list', tenant, query],
+      queryFn: async () =>
+        (await api.v1ServerlessEndpointList(tenant, query)).data,
+    }),
+    get: (endpoint: string) => ({
+      queryKey: ['v1:serverless-endpoint:get', endpoint],
+      queryFn: async () => (await api.v1ServerlessEndpointGet(endpoint)).data,
+    }),
+    events: (endpoint: string) => ({
+      queryKey: ['v1:serverless-endpoint:events', endpoint],
+      queryFn: async () =>
+        (await api.v1ServerlessEndpointEventList(endpoint, { limit: 200 }))
+          .data,
+    }),
+  },
   v1Events: {
     list: (tenant: string, query: V1EventListQuery, isSelfHosted: boolean) => ({
       queryKey: ['v1:events:list', tenant, query],
