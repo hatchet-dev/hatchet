@@ -14,14 +14,19 @@ import (
 
 const createDispatcher = `-- name: CreateDispatcher :one
 INSERT INTO
-    "Dispatcher" ("id", "lastHeartbeatAt", "isActive")
+    "Dispatcher" ("id", "lastHeartbeatAt", "isActive", "brokerId")
 VALUES
-    ($1::uuid, CURRENT_TIMESTAMP, 't')
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "lastHeartbeatAt", "isActive"
+    ($1::uuid, CURRENT_TIMESTAMP, 't', $2::text)
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "lastHeartbeatAt", "isActive", "brokerId"
 `
 
-func (q *Queries) CreateDispatcher(ctx context.Context, db DBTX, id uuid.UUID) (*Dispatcher, error) {
-	row := db.QueryRow(ctx, createDispatcher, id)
+type CreateDispatcherParams struct {
+	ID       uuid.UUID   `json:"id"`
+	BrokerId pgtype.Text `json:"brokerId"`
+}
+
+func (q *Queries) CreateDispatcher(ctx context.Context, db DBTX, arg CreateDispatcherParams) (*Dispatcher, error) {
+	row := db.QueryRow(ctx, createDispatcher, arg.ID, arg.BrokerId)
 	var i Dispatcher
 	err := row.Scan(
 		&i.ID,
@@ -30,6 +35,7 @@ func (q *Queries) CreateDispatcher(ctx context.Context, db DBTX, id uuid.UUID) (
 		&i.DeletedAt,
 		&i.LastHeartbeatAt,
 		&i.IsActive,
+		&i.BrokerId,
 	)
 	return &i, err
 }
@@ -39,7 +45,7 @@ DELETE FROM
     "Dispatcher" as dispatchers
 WHERE
     "id" = $1::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "lastHeartbeatAt", "isActive"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "lastHeartbeatAt", "isActive", "brokerId"
 `
 
 func (q *Queries) DeleteDispatcher(ctx context.Context, db DBTX, id uuid.UUID) (*Dispatcher, error) {
@@ -52,13 +58,14 @@ func (q *Queries) DeleteDispatcher(ctx context.Context, db DBTX, id uuid.UUID) (
 		&i.DeletedAt,
 		&i.LastHeartbeatAt,
 		&i.IsActive,
+		&i.BrokerId,
 	)
 	return &i, err
 }
 
 const listActiveDispatchers = `-- name: ListActiveDispatchers :many
 SELECT
-    dispatchers.id, dispatchers."createdAt", dispatchers."updatedAt", dispatchers."deletedAt", dispatchers."lastHeartbeatAt", dispatchers."isActive"
+    dispatchers.id, dispatchers."createdAt", dispatchers."updatedAt", dispatchers."deletedAt", dispatchers."lastHeartbeatAt", dispatchers."isActive", dispatchers."brokerId"
 FROM "Dispatcher" as dispatchers
 WHERE
     -- last heartbeat greater than 15 seconds
@@ -87,6 +94,7 @@ func (q *Queries) ListActiveDispatchers(ctx context.Context, db DBTX) ([]*ListAc
 			&i.Dispatcher.DeletedAt,
 			&i.Dispatcher.LastHeartbeatAt,
 			&i.Dispatcher.IsActive,
+			&i.Dispatcher.BrokerId,
 		); err != nil {
 			return nil, err
 		}
@@ -100,7 +108,7 @@ func (q *Queries) ListActiveDispatchers(ctx context.Context, db DBTX) ([]*ListAc
 
 const listDispatchers = `-- name: ListDispatchers :many
 SELECT
-    dispatchers.id, dispatchers."createdAt", dispatchers."updatedAt", dispatchers."deletedAt", dispatchers."lastHeartbeatAt", dispatchers."isActive"
+    dispatchers.id, dispatchers."createdAt", dispatchers."updatedAt", dispatchers."deletedAt", dispatchers."lastHeartbeatAt", dispatchers."isActive", dispatchers."brokerId"
 FROM
     "Dispatcher" as dispatchers
 `
@@ -125,6 +133,7 @@ func (q *Queries) ListDispatchers(ctx context.Context, db DBTX) ([]*ListDispatch
 			&i.Dispatcher.DeletedAt,
 			&i.Dispatcher.LastHeartbeatAt,
 			&i.Dispatcher.IsActive,
+			&i.Dispatcher.BrokerId,
 		); err != nil {
 			return nil, err
 		}
@@ -138,7 +147,7 @@ func (q *Queries) ListDispatchers(ctx context.Context, db DBTX) ([]*ListDispatch
 
 const listStaleDispatchers = `-- name: ListStaleDispatchers :many
 SELECT
-    dispatchers.id, dispatchers."createdAt", dispatchers."updatedAt", dispatchers."deletedAt", dispatchers."lastHeartbeatAt", dispatchers."isActive"
+    dispatchers.id, dispatchers."createdAt", dispatchers."updatedAt", dispatchers."deletedAt", dispatchers."lastHeartbeatAt", dispatchers."isActive", dispatchers."brokerId"
 FROM "Dispatcher" as dispatchers
 WHERE
     -- last heartbeat older than 15 seconds
@@ -167,6 +176,7 @@ func (q *Queries) ListStaleDispatchers(ctx context.Context, db DBTX) ([]*ListSta
 			&i.Dispatcher.DeletedAt,
 			&i.Dispatcher.LastHeartbeatAt,
 			&i.Dispatcher.IsActive,
+			&i.Dispatcher.BrokerId,
 		); err != nil {
 			return nil, err
 		}
@@ -186,7 +196,7 @@ SET
 WHERE
     "id" = ANY ($1::uuid[])
 RETURNING
-    dispatchers.id, dispatchers."createdAt", dispatchers."updatedAt", dispatchers."deletedAt", dispatchers."lastHeartbeatAt", dispatchers."isActive"
+    dispatchers.id, dispatchers."createdAt", dispatchers."updatedAt", dispatchers."deletedAt", dispatchers."lastHeartbeatAt", dispatchers."isActive", dispatchers."brokerId"
 `
 
 type SetDispatchersInactiveRow struct {
@@ -209,6 +219,7 @@ func (q *Queries) SetDispatchersInactive(ctx context.Context, db DBTX, ids []uui
 			&i.Dispatcher.DeletedAt,
 			&i.Dispatcher.LastHeartbeatAt,
 			&i.Dispatcher.IsActive,
+			&i.Dispatcher.BrokerId,
 		); err != nil {
 			return nil, err
 		}
@@ -224,19 +235,21 @@ const updateDispatcher = `-- name: UpdateDispatcher :one
 UPDATE
     "Dispatcher" as dispatchers
 SET
-    "lastHeartbeatAt" = $1::timestamp
+    "lastHeartbeatAt" = $1::timestamp,
+    "brokerId" = COALESCE($2::text, "brokerId")
 WHERE
-    "id" = $2::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "lastHeartbeatAt", "isActive"
+    "id" = $3::uuid
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "lastHeartbeatAt", "isActive", "brokerId"
 `
 
 type UpdateDispatcherParams struct {
 	LastHeartbeatAt pgtype.Timestamp `json:"lastHeartbeatAt"`
+	BrokerId        pgtype.Text      `json:"brokerId"`
 	ID              uuid.UUID        `json:"id"`
 }
 
 func (q *Queries) UpdateDispatcher(ctx context.Context, db DBTX, arg UpdateDispatcherParams) (*Dispatcher, error) {
-	row := db.QueryRow(ctx, updateDispatcher, arg.LastHeartbeatAt, arg.ID)
+	row := db.QueryRow(ctx, updateDispatcher, arg.LastHeartbeatAt, arg.BrokerId, arg.ID)
 	var i Dispatcher
 	err := row.Scan(
 		&i.ID,
@@ -245,6 +258,7 @@ func (q *Queries) UpdateDispatcher(ctx context.Context, db DBTX, arg UpdateDispa
 		&i.DeletedAt,
 		&i.LastHeartbeatAt,
 		&i.IsActive,
+		&i.BrokerId,
 	)
 	return &i, err
 }

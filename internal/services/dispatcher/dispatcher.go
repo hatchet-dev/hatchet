@@ -357,7 +357,8 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 
 	// register the dispatcher by creating a new dispatcher in the database
 	dispatcher, err := d.repov1.Dispatcher().CreateNewDispatcher(ctx, &v1.CreateDispatcherOpts{
-		ID: d.dispatcherId,
+		ID:       d.dispatcherId,
+		BrokerID: msgqueue.BrokerID(d.mqv1),
 	})
 
 	if err != nil {
@@ -541,8 +542,10 @@ func (d *DispatcherImpl) runUpdateHeartbeat(ctx context.Context) func() {
 		now := time.Now().UTC()
 
 		// update the heartbeat
+		// the broker can change when the connection is re-established behind the same URL
 		_, err := d.repov1.Dispatcher().UpdateDispatcher(ctx, d.dispatcherId, &v1.UpdateDispatcherOpts{
 			LastHeartbeatAt: &now,
+			BrokerID:        msgqueue.BrokerID(d.mqv1),
 		})
 
 		if err != nil {

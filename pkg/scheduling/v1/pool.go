@@ -41,6 +41,28 @@ type sharedConfig struct {
 	schedulerAdvisoryLockTimeout time.Duration
 
 	concurrencyInMemoryIndexEnabled bool
+
+	brokerId func() string
+}
+
+// currentBrokerId returns the identity of the broker assignments are published to, or "" when unknown.
+func (c *sharedConfig) currentBrokerId() string {
+	if c == nil || c.brokerId == nil {
+		return ""
+	}
+
+	return c.brokerId()
+}
+
+type SchedulingPoolOpt func(*sharedConfig)
+
+// WithBrokerID makes the pool skip workers whose dispatcher consumes from a different broker than the one
+// brokerId reports: assignments published to this broker would never reach them. brokerId is called on every
+// worker refresh, so it can follow a reconnect to another broker.
+func WithBrokerID(brokerId func() string) SchedulingPoolOpt {
+	return func(c *sharedConfig) {
+		c.brokerId = brokerId
+	}
 }
 
 // SchedulingPool is responsible for managing a pool of tenantManagers.
@@ -81,6 +103,7 @@ func NewSchedulingPool(
 	optimisticSlots int,
 	concurrencyInMemoryIndexEnabled bool,
 	promGate *prometheus.Gate,
+	opts ...SchedulingPoolOpt,
 ) (*SchedulingPool, func() error, error) {
 	resultsCh := make(chan *QueueResults, 1000)
 	concurrencyResultsCh := make(chan *ConcurrencyResults, 1000)
@@ -110,6 +133,10 @@ func NewSchedulingPool(
 		setMu:                       newMu(l),
 		optimisticSchedulingEnabled: optimisticSchedulingEnabled,
 		optimisticSemaphore:         semaphore,
+	}
+
+	for _, opt := range opts {
+		opt(s.cf)
 	}
 
 	return s, func() error {

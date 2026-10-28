@@ -174,6 +174,21 @@ type MessageQueue interface {
 	IsReady() bool
 }
 
+// BrokerIdentifier is implemented by message queues that can name the broker they are connected to.
+type BrokerIdentifier interface {
+	// BrokerID returns the identity of the connected broker, or "" when it is unknown.
+	BrokerID() string
+}
+
+// BrokerID returns the identity of the broker mq is connected to, or "" when mq can't tell.
+func BrokerID(mq MessageQueue) string {
+	if b, ok := mq.(BrokerIdentifier); ok {
+		return b.BrokerID()
+	}
+
+	return ""
+}
+
 func NoOpHook(task *Message) error {
 	return nil
 }

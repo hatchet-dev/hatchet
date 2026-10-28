@@ -121,14 +121,17 @@ func (d *leaseRepository) ListQueues(ctx context.Context, tenantId uuid.UUID) ([
 	return d.queries.ListQueues(ctx, db, tenantId)
 }
 
-func (d *leaseRepository) ListActiveWorkers(ctx context.Context, tenantId uuid.UUID) ([]*ListActiveWorkersResult, error) {
+func (d *leaseRepository) ListActiveWorkers(ctx context.Context, tenantId uuid.UUID, brokerId string) ([]*ListActiveWorkersResult, error) {
 	db := d.pool.ForTenant(tenantId)
 
 	ctx, span := telemetry.NewSpan(ctx, "list-active-workers")
 	defer span.End()
 
 	// the query returns one row per (worker, slot type)
-	activeWorkerRows, err := d.queries.ListActiveWorkers(ctx, db, tenantId)
+	activeWorkerRows, err := d.queries.ListActiveWorkers(ctx, db, sqlcv1.ListActiveWorkersParams{
+		Tenantid: tenantId,
+		BrokerId: brokerIDText(brokerId),
+	})
 
 	if err != nil {
 		return nil, err
@@ -196,7 +199,7 @@ func (d *leaseRepository) listTotalSlotsForWorkers(ctx context.Context, tenantId
 	return workerIdsToTotalSlots, nil
 }
 
-func (d *leaseRepository) GetActiveWorker(ctx context.Context, tenantId, workerId uuid.UUID) (*ListActiveWorkersResult, error) {
+func (d *leaseRepository) GetActiveWorker(ctx context.Context, tenantId, workerId uuid.UUID, brokerId string) (*ListActiveWorkersResult, error) {
 	db := d.pool.ForTenant(tenantId)
 
 	ctx, span := telemetry.NewSpan(ctx, "get-active-worker")
@@ -205,6 +208,7 @@ func (d *leaseRepository) GetActiveWorker(ctx context.Context, tenantId, workerI
 	worker, err := d.queries.GetActiveWorkerById(ctx, db, sqlcv1.GetActiveWorkerByIdParams{
 		Tenantid: tenantId,
 		ID:       workerId,
+		BrokerId: brokerIDText(brokerId),
 	})
 
 	if err != nil {

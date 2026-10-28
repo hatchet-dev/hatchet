@@ -158,7 +158,7 @@ func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 	l.workerLeasesMu.Lock()
 	defer l.workerLeasesMu.Unlock()
 
-	activeWorkers, err := l.lr.ListActiveWorkers(ctx, l.tenantId)
+	activeWorkers, err := l.lr.ListActiveWorkers(ctx, l.tenantId, l.conf.currentBrokerId())
 
 	if err != nil {
 		return err
@@ -238,7 +238,7 @@ func (l *LeaseManager) notifyNewWorker(ctx context.Context, workerId uuid.UUID) 
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 	defer cancel()
 
-	worker, err := l.lr.GetActiveWorker(ctx, l.tenantId, workerId)
+	worker, err := l.lr.GetActiveWorker(ctx, l.tenantId, workerId, l.conf.currentBrokerId())
 
 	if err != nil {
 		// if the worker isn't active yet, just abort

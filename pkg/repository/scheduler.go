@@ -22,8 +22,10 @@ type SchedulerRepository interface {
 
 type LeaseRepository interface {
 	ListQueues(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.V1Queue, error)
-	ListActiveWorkers(ctx context.Context, tenantId uuid.UUID) ([]*ListActiveWorkersResult, error)
-	GetActiveWorker(ctx context.Context, tenantId, workerId uuid.UUID) (*ListActiveWorkersResult, error)
+	// ListActiveWorkers and GetActiveWorker skip workers whose dispatcher reports a broker other than brokerId.
+	// An empty brokerId, or a dispatcher with no broker recorded, disables that check.
+	ListActiveWorkers(ctx context.Context, tenantId uuid.UUID, brokerId string) ([]*ListActiveWorkersResult, error)
+	GetActiveWorker(ctx context.Context, tenantId, workerId uuid.UUID, brokerId string) (*ListActiveWorkersResult, error)
 	ListConcurrencyStrategies(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.V1StepConcurrency, error)
 	GetConcurrencyStrategy(ctx context.Context, tenantId uuid.UUID, id int64) (*sqlcv1.V1StepConcurrency, error)
 

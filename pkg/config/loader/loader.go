@@ -862,6 +862,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		cf.Runtime.OptimisticSchedulingSlots,
 		cf.Runtime.ConcurrencyInMemoryIndexEnabled,
 		promGate,
+		v1.WithBrokerID(func() string { return msgqueue.BrokerID(mqv1) }),
 	)
 
 	if err != nil {

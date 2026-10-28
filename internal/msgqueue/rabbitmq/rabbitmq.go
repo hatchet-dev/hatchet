@@ -58,6 +58,16 @@ func (t *MessageQueueImpl) IsReady() bool {
 	return t.pubChannels.hasActiveConnection() && t.subChannels.hasActiveConnection()
 }
 
+// BrokerID identifies the broker by its cluster_name, which every node of one RabbitMQ cluster
+// shares and separate deployments (such as two brokers during a migration) don't.
+func (t *MessageQueueImpl) BrokerID() string {
+	if id := t.pubChannels.brokerID(); id != "" {
+		return id
+	}
+
+	return t.subChannels.brokerID()
+}
+
 type MessageQueueImplOpt func(*MessageQueueImplOpts)
 
 type MessageQueueImplOpts struct {

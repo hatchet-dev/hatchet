@@ -2665,6 +2665,7 @@ type Dispatcher struct {
 	DeletedAt       pgtype.Timestamp `json:"deletedAt"`
 	LastHeartbeatAt pgtype.Timestamp `json:"lastHeartbeatAt"`
 	IsActive        bool             `json:"isActive"`
+	BrokerId        pgtype.Text      `json:"brokerId"`
 }
 
 type Event struct {

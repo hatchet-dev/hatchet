@@ -469,6 +469,8 @@ FROM
     "Worker" w
 LEFT JOIN
     "WebhookWorker" ww ON w."webhookId" = ww."id"
+LEFT JOIN
+    "Dispatcher" d ON d."id" = w."dispatcherId"
 WHERE
     w."id" = $1::uuid
     AND w."tenantId" = $2::uuid
@@ -476,11 +478,18 @@ WHERE
     AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false
+    -- a dispatcher on another broker never receives messages published to this one
+    AND (
+        $3::text IS NULL
+        OR d."brokerId" IS NULL
+        OR d."brokerId" = $3::text
+    )
 `
 
 type GetActiveWorkerByIdParams struct {
-	ID       uuid.UUID `json:"id"`
-	Tenantid uuid.UUID `json:"tenantid"`
+	ID       uuid.UUID   `json:"id"`
+	Tenantid uuid.UUID   `json:"tenantid"`
+	BrokerId pgtype.Text `json:"brokerId"`
 }
 
 type GetActiveWorkerByIdRow struct {
@@ -490,7 +499,7 @@ type GetActiveWorkerByIdRow struct {
 }
 
 func (q *Queries) GetActiveWorkerById(ctx context.Context, db DBTX, arg GetActiveWorkerByIdParams) (*GetActiveWorkerByIdRow, error) {
-	row := db.QueryRow(ctx, getActiveWorkerById, arg.ID, arg.Tenantid)
+	row := db.QueryRow(ctx, getActiveWorkerById, arg.ID, arg.Tenantid, arg.BrokerId)
 	var i GetActiveWorkerByIdRow
 	err := row.Scan(
 		&i.Worker.ID,

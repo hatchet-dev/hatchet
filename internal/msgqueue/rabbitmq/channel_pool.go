@@ -71,6 +71,19 @@ func (p *channelPool) getConnection() *amqp.Connection {
 	return p.conn
 }
 
+// brokerID returns the cluster_name the broker reported when the open connection was established.
+func (p *channelPool) brokerID() string {
+	conn := p.getConnection()
+
+	if conn == nil || conn.IsClosed() {
+		return ""
+	}
+
+	name, _ := conn.Properties["cluster_name"].(string)
+
+	return name
+}
+
 func (p *channelPool) hasActiveConnection() bool {
 	p.connMu.Lock()
 	defer p.connMu.Unlock()

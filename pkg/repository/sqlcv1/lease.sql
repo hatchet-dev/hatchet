@@ -58,12 +58,20 @@ FROM
     "Worker" w
 JOIN
     v1_worker_slot_config wsc ON w."id" = wsc."worker_id"
+LEFT JOIN
+    "Dispatcher" d ON d."id" = w."dispatcherId"
 WHERE
     w."tenantId" = @tenantId::uuid
     AND w."dispatcherId" IS NOT NULL
     AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false
+    -- a dispatcher on another broker never receives messages published to this one
+    AND (
+        sqlc.narg('brokerId')::text IS NULL
+        OR d."brokerId" IS NULL
+        OR d."brokerId" = sqlc.narg('brokerId')::text
+    )
 GROUP BY
     w."id",
     w."name",

@@ -43,16 +43,17 @@ RETURNING *;
 
 -- name: CreateDispatcher :one
 INSERT INTO
-    "Dispatcher" ("id", "lastHeartbeatAt", "isActive")
+    "Dispatcher" ("id", "lastHeartbeatAt", "isActive", "brokerId")
 VALUES
-    (sqlc.arg('id')::uuid, CURRENT_TIMESTAMP, 't')
+    (sqlc.arg('id')::uuid, CURRENT_TIMESTAMP, 't', sqlc.narg('brokerId')::text)
 RETURNING *;
 
 -- name: UpdateDispatcher :one
 UPDATE
     "Dispatcher" as dispatchers
 SET
-    "lastHeartbeatAt" = sqlc.arg('lastHeartbeatAt')::timestamp
+    "lastHeartbeatAt" = sqlc.arg('lastHeartbeatAt')::timestamp,
+    "brokerId" = COALESCE(sqlc.narg('brokerId')::text, "brokerId")
 WHERE
     "id" = sqlc.arg('id')::uuid
 RETURNING *;

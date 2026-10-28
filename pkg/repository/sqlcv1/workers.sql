@@ -309,13 +309,21 @@ FROM
     "Worker" w
 LEFT JOIN
     "WebhookWorker" ww ON w."webhookId" = ww."id"
+LEFT JOIN
+    "Dispatcher" d ON d."id" = w."dispatcherId"
 WHERE
     w."id" = @id::uuid
     AND w."tenantId" = @tenantId::uuid
     AND w."dispatcherId" IS NOT NULL
     AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND w."isActive" = true
-    AND w."isPaused" = false;
+    AND w."isPaused" = false
+    -- a dispatcher on another broker never receives messages published to this one
+    AND (
+        sqlc.narg('brokerId')::text IS NULL
+        OR d."brokerId" IS NULL
+        OR d."brokerId" = sqlc.narg('brokerId')::text
+    );
 
 -- name: ListSemaphoreSlotsWithStateForWorker :many
 SELECT

@@ -28,8 +28,8 @@ func (m *mockLeaseRepo) ListQueues(ctx context.Context, tenantId uuid.UUID) ([]*
 	return args.Get(0).([]*sqlcv1.V1Queue), args.Error(1)
 }
 
-func (m *mockLeaseRepo) ListActiveWorkers(ctx context.Context, tenantId uuid.UUID) ([]*v1.ListActiveWorkersResult, error) {
-	args := m.Called(ctx, tenantId)
+func (m *mockLeaseRepo) ListActiveWorkers(ctx context.Context, tenantId uuid.UUID, brokerId string) ([]*v1.ListActiveWorkersResult, error) {
+	args := m.Called(ctx, tenantId, brokerId)
 	return args.Get(0).([]*v1.ListActiveWorkersResult), args.Error(1)
 }
 
@@ -111,11 +111,11 @@ func (f *fakeLeaseRepo) ListQueues(context.Context, uuid.UUID) ([]*sqlcv1.V1Queu
 	return nil, nil
 }
 
-func (f *fakeLeaseRepo) ListActiveWorkers(context.Context, uuid.UUID) ([]*v1.ListActiveWorkersResult, error) {
+func (f *fakeLeaseRepo) ListActiveWorkers(context.Context, uuid.UUID, string) ([]*v1.ListActiveWorkersResult, error) {
 	return nil, nil
 }
 
-func (f *fakeLeaseRepo) GetActiveWorker(context.Context, uuid.UUID, uuid.UUID) (*v1.ListActiveWorkersResult, error) {
+func (f *fakeLeaseRepo) GetActiveWorker(context.Context, uuid.UUID, uuid.UUID, string) (*v1.ListActiveWorkersResult, error) {
 	return nil, nil
 }
 
@@ -173,8 +173,8 @@ func (f *fakeSchedulerRepo) Assignment() v1repo.AssignmentRepository {
 	return nil
 }
 
-func (m *mockLeaseRepo) GetActiveWorker(ctx context.Context, tenantId, workerId uuid.UUID) (*v1.ListActiveWorkersResult, error) {
-	args := m.Called(ctx, tenantId, workerId)
+func (m *mockLeaseRepo) GetActiveWorker(ctx context.Context, tenantId, workerId uuid.UUID, brokerId string) (*v1.ListActiveWorkersResult, error) {
+	args := m.Called(ctx, tenantId, workerId, brokerId)
 	return args.Get(0).(*v1.ListActiveWorkersResult), args.Error(1)
 }
 
@@ -202,12 +202,39 @@ func TestLeaseManager_AcquireWorkerLeases(t *testing.T) {
 		{ID: 2, ResourceId: "worker-2"},
 	}
 
-	mockLeaseRepo.On("ListActiveWorkers", mock.Anything, tenantId).Return(mockWorkers, nil)
+	mockLeaseRepo.On("ListActiveWorkers", mock.Anything, tenantId, "").Return(mockWorkers, nil)
 	mockLeaseRepo.On("AcquireOrExtendLeases", mock.Anything, sqlcv1.LeaseKindWORKER, mock.Anything, mock.Anything).Return(mockLeases, nil)
 
 	err := leaseManager.acquireWorkerLeases(context.Background())
 	assert.NoError(t, err)
 	assert.Len(t, leaseManager.workerLeases, 2)
+}
+
+func TestLeaseManager_AcquireWorkerLeasesPassesBrokerID(t *testing.T) {
+	l := zerolog.Nop()
+	tenantId := uuid.UUID{}
+	mockLeaseRepo := &mockLeaseRepo{}
+	leaseManager := &LeaseManager{
+		lr:       mockLeaseRepo,
+		conf:     &sharedConfig{l: &l, brokerId: func() string { return "broker-b" }},
+		tenantId: tenantId,
+	}
+
+	mockLeaseRepo.On("ListActiveWorkers", mock.Anything, tenantId, "broker-b").Return([]*v1.ListActiveWorkersResult{}, nil)
+
+	err := leaseManager.acquireWorkerLeases(context.Background())
+	assert.NoError(t, err)
+	mockLeaseRepo.AssertExpectations(t)
+}
+
+func TestSharedConfig_CurrentBrokerId(t *testing.T) {
+	var nilConf *sharedConfig
+	assert.Equal(t, "", nilConf.currentBrokerId())
+	assert.Equal(t, "", (&sharedConfig{}).currentBrokerId())
+
+	conf := &sharedConfig{}
+	WithBrokerID(func() string { return "broker-a" })(conf)
+	assert.Equal(t, "broker-a", conf.currentBrokerId())
 }
 
 func TestLeaseManager_AcquireQueueLeases(t *testing.T) {

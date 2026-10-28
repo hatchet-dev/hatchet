@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -12,10 +13,16 @@ import (
 
 type CreateDispatcherOpts struct {
 	ID uuid.UUID `validate:"required"`
+
+	// BrokerID identifies the message broker the dispatcher consumes its queue from; "" when unknown.
+	BrokerID string
 }
 
 type UpdateDispatcherOpts struct {
 	LastHeartbeatAt *time.Time
+
+	// BrokerID replaces the stored broker identity unless it is "".
+	BrokerID string
 }
 
 type DispatcherRepository interface {
@@ -43,7 +50,10 @@ func (d *dispatcherRepository) CreateNewDispatcher(ctx context.Context, opts *Cr
 		return nil, err
 	}
 
-	return d.queries.CreateDispatcher(ctx, d.pool.ForShared(), opts.ID)
+	return d.queries.CreateDispatcher(ctx, d.pool.ForShared(), sqlcv1.CreateDispatcherParams{
+		ID:       opts.ID,
+		BrokerId: brokerIDText(opts.BrokerID),
+	})
 }
 
 func (d *dispatcherRepository) UpdateDispatcher(ctx context.Context, dispatcherId uuid.UUID, opts *UpdateDispatcherOpts) (*sqlcv1.Dispatcher, error) {
@@ -54,7 +64,13 @@ func (d *dispatcherRepository) UpdateDispatcher(ctx context.Context, dispatcherI
 	return d.queries.UpdateDispatcher(ctx, d.pool.ForShared(), sqlcv1.UpdateDispatcherParams{
 		ID:              dispatcherId,
 		LastHeartbeatAt: sqlchelpers.TimestampFromTime(opts.LastHeartbeatAt.UTC()),
+		BrokerId:        brokerIDText(opts.BrokerID),
 	})
+}
+
+// brokerIDText maps an unknown ("") broker identity to NULL.
+func brokerIDText(brokerID string) pgtype.Text {
+	return pgtype.Text{String: brokerID, Valid: brokerID != ""}
 }
 
 func (d *dispatcherRepository) Delete(ctx context.Context, dispatcherId uuid.UUID) error {

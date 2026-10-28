@@ -188,6 +188,8 @@ CREATE TABLE "Dispatcher" (
     "deletedAt" TIMESTAMP(3),
     "lastHeartbeatAt" TIMESTAMP(3),
     "isActive" BOOLEAN NOT NULL DEFAULT true,
+    -- identity of the message broker the dispatcher consumes its queue from; NULL when unknown
+    "brokerId" TEXT,
 
     CONSTRAINT "Dispatcher_pkey" PRIMARY KEY ("id")
 );

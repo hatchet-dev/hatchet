@@ -114,17 +114,30 @@ FROM
     "Worker" w
 JOIN
     v1_worker_slot_config wsc ON w."id" = wsc."worker_id"
+LEFT JOIN
+    "Dispatcher" d ON d."id" = w."dispatcherId"
 WHERE
     w."tenantId" = $1::uuid
     AND w."dispatcherId" IS NOT NULL
     AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false
+    -- a dispatcher on another broker never receives messages published to this one
+    AND (
+        $2::text IS NULL
+        OR d."brokerId" IS NULL
+        OR d."brokerId" = $2::text
+    )
 GROUP BY
     w."id",
     w."name",
     wsc."slot_type"
 `
+
+type ListActiveWorkersParams struct {
+	Tenantid uuid.UUID   `json:"tenantid"`
+	BrokerId pgtype.Text `json:"brokerId"`
+}
 
 type ListActiveWorkersRow struct {
 	ID       uuid.UUID `json:"id"`
@@ -133,8 +146,8 @@ type ListActiveWorkersRow struct {
 	MaxUnits int32     `json:"maxUnits"`
 }
 
-func (q *Queries) ListActiveWorkers(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*ListActiveWorkersRow, error) {
-	rows, err := db.Query(ctx, listActiveWorkers, tenantid)
+func (q *Queries) ListActiveWorkers(ctx context.Context, db DBTX, arg ListActiveWorkersParams) ([]*ListActiveWorkersRow, error) {
+	rows, err := db.Query(ctx, listActiveWorkers, arg.Tenantid, arg.BrokerId)
 	if err != nil {
 		return nil, err
 	}
