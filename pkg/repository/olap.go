@@ -412,6 +412,14 @@ func (r *OLAPRepositoryImpl) aggregatesCompleteFrom(ctx context.Context, db sqlc
 	return r.queries.GetOLAPAggregatesCompleteFrom(ctx, db)
 }
 
+func roundDownToMinute(t time.Time) time.Time {
+	return t.Truncate(time.Minute)
+}
+
+func roundUpToMinute(t time.Time) time.Time {
+	return t.Add(time.Minute - time.Nanosecond).Truncate(time.Minute)
+}
+
 // runPartitionDDLWithLockTimeout runs fn in one transaction that waits at most a minute for
 // each lock. While we wait, other queries on the same tables queue up behind us, so if the wait
 // runs out we give up and try again on the next scheduled run rather than waiting forever.
@@ -1740,13 +1748,13 @@ func (r *OLAPRepositoryImpl) ReadTaskRunMetrics(ctx context.Context, tenantId uu
 
 	params := sqlcv1.GetTenantStatusMetricsParams{
 		Tenantid:               tenantId,
-		Createdafter:           sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
+		Createdafter:           sqlchelpers.TimestamptzFromTime(roundDownToMinute(opts.CreatedAfter)),
 		WorkflowIds:            workflowIds,
 		Aggregatescompletefrom: aggregatesCompleteFrom,
 	}
 
 	if opts.CreatedBefore != nil {
-		params.CreatedBefore = sqlchelpers.TimestamptzFromTime(*opts.CreatedBefore)
+		params.CreatedBefore = sqlchelpers.TimestamptzFromTime(roundUpToMinute(*opts.CreatedBefore))
 	}
 
 	res, err := r.queries.GetTenantStatusMetrics(ctx, readDB, params)
@@ -2758,8 +2766,8 @@ func (r *OLAPRepositoryImpl) GetTaskPointMetrics(ctx context.Context, tenantId u
 	rows, err := r.queries.GetTaskPointMetrics(ctx, readDB, sqlcv1.GetTaskPointMetricsParams{
 		Interval:               durationToPgInterval(bucketInterval),
 		Tenantid:               tenantId,
-		Createdafter:           sqlchelpers.TimestamptzFromTime(*startTimestamp),
-		Createdbefore:          sqlchelpers.TimestamptzFromTime(*endTimestamp),
+		Createdafter:           sqlchelpers.TimestamptzFromTime(roundDownToMinute(*startTimestamp)),
+		Createdbefore:          sqlchelpers.TimestamptzFromTime(roundUpToMinute(*endTimestamp)),
 		Aggregatescompletefrom: aggregatesCompleteFrom,
 	})
 

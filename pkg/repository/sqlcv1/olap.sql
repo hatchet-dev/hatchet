@@ -1746,8 +1746,8 @@ FROM (
     ) aggregate_counts
     WHERE
         tenant_id = @tenantId::UUID
-        AND bucket >= DATE_BIN('1 minute', @createdAfter::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
-        AND bucket <= @createdBefore::TIMESTAMPTZ
+        AND bucket >= @createdAfter::TIMESTAMPTZ
+        AND bucket < @createdBefore::TIMESTAMPTZ
         AND bucket >= @aggregatesCompleteFrom::TIMESTAMPTZ
 
     UNION ALL
@@ -1759,8 +1759,8 @@ FROM (
     FROM v1_runs_olap
     WHERE
         tenant_id = @tenantId::UUID
-        AND inserted_at >= DATE_BIN('1 minute', @createdAfter::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
-        AND inserted_at <= @createdBefore::TIMESTAMPTZ
+        AND inserted_at >= @createdAfter::TIMESTAMPTZ
+        AND inserted_at < @createdBefore::TIMESTAMPTZ
         AND inserted_at < @aggregatesCompleteFrom::TIMESTAMPTZ
 ) status_counts
 GROUP BY minute_bucket
@@ -1785,8 +1785,8 @@ FROM (
     ) aggregate_counts
     WHERE
         tenant_id = @tenantId::UUID
-        AND bucket >= DATE_BIN('1 minute', @createdAfter::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
-        AND (sqlc.narg('createdBefore')::TIMESTAMPTZ IS NULL OR bucket <= sqlc.narg('createdBefore')::TIMESTAMPTZ)
+        AND bucket >= @createdAfter::TIMESTAMPTZ
+        AND (sqlc.narg('createdBefore')::TIMESTAMPTZ IS NULL OR bucket < sqlc.narg('createdBefore')::TIMESTAMPTZ)
         AND (sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[]))
         AND bucket >= @aggregatesCompleteFrom::TIMESTAMPTZ
 
@@ -1802,8 +1802,8 @@ FROM (
     FROM v1_runs_olap
     WHERE
         tenant_id = @tenantId::UUID
-        AND inserted_at >= DATE_BIN('1 minute', @createdAfter::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
-        AND (sqlc.narg('createdBefore')::TIMESTAMPTZ IS NULL OR inserted_at <= sqlc.narg('createdBefore')::TIMESTAMPTZ)
+        AND inserted_at >= @createdAfter::TIMESTAMPTZ
+        AND (sqlc.narg('createdBefore')::TIMESTAMPTZ IS NULL OR inserted_at < sqlc.narg('createdBefore')::TIMESTAMPTZ)
         AND (sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[]))
         AND inserted_at < @aggregatesCompleteFrom::TIMESTAMPTZ
 ) status_counts;

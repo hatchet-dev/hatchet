@@ -1219,8 +1219,8 @@ FROM (
     ) aggregate_counts
     WHERE
         tenant_id = $2::UUID
-        AND bucket >= DATE_BIN('1 minute', $3::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
-        AND bucket <= $4::TIMESTAMPTZ
+        AND bucket >= $3::TIMESTAMPTZ
+        AND bucket < $4::TIMESTAMPTZ
         AND bucket >= $5::TIMESTAMPTZ
 
     UNION ALL
@@ -1232,8 +1232,8 @@ FROM (
     FROM v1_runs_olap
     WHERE
         tenant_id = $2::UUID
-        AND inserted_at >= DATE_BIN('1 minute', $3::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
-        AND inserted_at <= $4::TIMESTAMPTZ
+        AND inserted_at >= $3::TIMESTAMPTZ
+        AND inserted_at < $4::TIMESTAMPTZ
         AND inserted_at < $5::TIMESTAMPTZ
 ) status_counts
 GROUP BY minute_bucket
@@ -1363,8 +1363,8 @@ FROM (
     ) aggregate_counts
     WHERE
         tenant_id = $1::UUID
-        AND bucket >= DATE_BIN('1 minute', $2::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
-        AND ($3::TIMESTAMPTZ IS NULL OR bucket <= $3::TIMESTAMPTZ)
+        AND bucket >= $2::TIMESTAMPTZ
+        AND ($3::TIMESTAMPTZ IS NULL OR bucket < $3::TIMESTAMPTZ)
         AND ($4::UUID[] IS NULL OR workflow_id = ANY($4::UUID[]))
         AND bucket >= $5::TIMESTAMPTZ
 
@@ -1380,8 +1380,8 @@ FROM (
     FROM v1_runs_olap
     WHERE
         tenant_id = $1::UUID
-        AND inserted_at >= DATE_BIN('1 minute', $2::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
-        AND ($3::TIMESTAMPTZ IS NULL OR inserted_at <= $3::TIMESTAMPTZ)
+        AND inserted_at >= $2::TIMESTAMPTZ
+        AND ($3::TIMESTAMPTZ IS NULL OR inserted_at < $3::TIMESTAMPTZ)
         AND ($4::UUID[] IS NULL OR workflow_id = ANY($4::UUID[]))
         AND inserted_at < $5::TIMESTAMPTZ
 ) status_counts
