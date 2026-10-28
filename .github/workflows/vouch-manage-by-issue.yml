@@ -33,5 +33,6 @@ jobs:
           denounce-keyword: "!denounce"
           unvouch-keyword: "!unvouch"
           roles: admin,maintain,write
+          pull-request: "true"
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}

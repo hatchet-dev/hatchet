@@ -39,7 +39,7 @@ Hatchet is maintained by a small team, and reviewing a change to the core of a d
 
 1. Open a [Vouch Request discussion](https://github.com/hatchet-dev/hatchet/discussions/new?category=vouch-request) describing the first change you want to make and why. Follow the template.
 2. Keep it short, and write it in your own voice. Do not have an AI write it.
-3. A maintainer will comment `!vouch` if approved. You can then open pull requests.
+3. A maintainer will comment `!vouch` if approved. This opens a pull request adding you to the list; once it is merged, you can open pull requests.
 
 **Once vouched, start small.** We would rather build a relationship over a few small, focused pull requests (documentation, examples, SDK fixes, dashboard polish, well-scoped bug fixes) than review a large change from someone we have not worked with. Keep those early pull requests light on AI: we want to see that you understand the code you are changing and can discuss and revise it yourself in review. A pull request that is mostly generated does not tell us that, even when it is disclosed in line with [AI_POLICY.md](./AI_POLICY.md). Changes to Hatchet's core (the engine, API, scheduling, database migrations, and CI/release tooling) come after that.
 
@@ -53,6 +53,8 @@ Anyone with write access can manage the list by commenting on a discussion, issu
 - `!vouch` vouches for the author; `!vouch @user` for any user.
 - `!denounce <reason>` or `!denounce @user <reason>` blocks a user.
 - `!unvouch` or `!unvouch @user` removes a user from the list.
+
+Each command opens a pull request against `main` with the change to `.github/VOUCHED.td`. It takes effect once another maintainer merges it.
 
 </details>
 
