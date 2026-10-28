@@ -22,6 +22,7 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       - uses: mitchellh/vouch/action/manage-by-discussion@d66fa29a64600490892131ad87597c30c91fcac4 # v1.5.0
+        id: vouch
         with:
           discussion-number: ${{ github.event.discussion.number }}
           comment-node-id: ${{ github.event.comment.node_id }}
@@ -32,3 +33,11 @@ jobs:
           pull-request: "true"
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+
+      - name: PR title update
+        if: steps.vouch.outputs.status != 'unchanged'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          gh pr list --repo "$GITHUB_REPOSITORY" --search 'author:app/hatchling-bot in:title "Update VOUCHED list"' --json number --jq '.[].number' \
+            | xargs -I{} gh pr edit {} --repo "$GITHUB_REPOSITORY" --title "chore: update VOUCHED list"
