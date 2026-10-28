@@ -179,11 +179,214 @@ class _QueuedPublish:
     def request_bytes(self) -> int:
         return PAYLOAD_REF_BYTES if self.uploaded else len(self.payload)
 
+    def settle(self, err: BaseException | None = None) -> None:
+        """Skips a publish whose caller stopped waiting, which cancelled its result."""
+        if self.result.done():
+            return
+
+        if err is None:
+            self.result.set_result(None)
+        elif isinstance(err, asyncio.CancelledError):
+            self.result.cancel()
+        else:
+            self.result.set_exception(err)
+
+    def drop_upload(self) -> None:
+        if self.uploaded is None:
+            return
+
+        ## a finished upload's error is retrieved so asyncio doesn't log it as unhandled
+        if self.uploaded.done():
+            self.uploaded.exception()
+        else:
+            self.uploaded.cancel()
+
 
 @dataclass
 class _PublishQueue:
+    """One topic's publishes on one event loop; one request is in flight at a time so two never share a seq."""
+
+    client: "StreamsClient"
+    stub: V1StreamsStub
+    namespace: str
+    topic: str
+
     items: list[_QueuedPublish] = field(default_factory=list)
     wake: asyncio.Event = field(default_factory=asyncio.Event)
+
+    ## seq only advances after a publish succeeds
+    producer: _Producer = field(default_factory=_Producer)
+
+    ## held here because asyncio keeps only weak references to tasks
+    drain: "asyncio.Task[None] | None" = None
+
+    async def publish(self, publish: _QueuedPublish) -> None:
+        self.items.append(publish)
+        ## a new publish may fill the request or have a shorter timeout
+        self.wake.set()
+
+        if self.drain is None:
+            self.drain = asyncio.create_task(self._drain())
+
+        await publish.result
+
+    def _fitting_publishes(self) -> int:
+        """Always at least one, so a max-size payload still goes out on its own."""
+        total = 0
+        count = 0
+
+        while count < len(self.items) and count < MAX_PUBLISH_BATCH_ENTRIES:
+            nxt = self.items[count].request_bytes + PUBLISH_ENTRY_OVERHEAD_BYTES
+            if count > 0 and total + nxt > MAX_PUBLISH_BATCH_BYTES:
+                break
+            total += nxt
+            count += 1
+
+        return count
+
+    async def _next_batch(self) -> list[_QueuedPublish] | None:
+        """The next request's publishes, or None once the queue is empty."""
+        while True:
+            ## a publish cancelled before its request goes out is dropped, so it never takes a seq
+            for p in self.items:
+                if p.result.cancelled():
+                    p.drop_upload()
+            self.items = [p for p in self.items if not p.result.cancelled()]
+
+            if not self.items:
+                return None
+
+            count = self._fitting_publishes()
+            full = count < len(self.items) or count == MAX_PUBLISH_BATCH_ENTRIES
+            wait = min(p.send_by for p in self.items) - time.monotonic()
+
+            if full or wait <= 0:
+                batch = self.items[:count]
+                del self.items[:count]
+                return batch
+
+            self.wake.clear()
+
+            with suppress(asyncio.TimeoutError):
+                await asyncio.wait_for(self.wake.wait(), wait)
+
+    async def _drain(self) -> None:
+        batch: list[_QueuedPublish] | None = None
+
+        try:
+            while (batch := await self._next_batch()) is not None:
+                await self._send_batch(batch)
+        except BaseException as e:
+            ## e.g. cancelled as its loop shuts down; no caller is left waiting on a publish it held
+            for p in [*(batch or []), *self.items]:
+                p.settle(e)
+            self.items.clear()
+            ## a request cut off mid-flight may still land under the current seq
+            self.producer = _Producer()
+            raise
+        finally:
+            ## cleared with no await since the last check, so a later publish starts a new drain
+            self.drain = None
+
+    async def _send_batch(self, batch: list[_QueuedPublish]) -> None:
+        sent: list[_QueuedPublish] = []
+        entries: list[streams_protos.StreamPublishEntry] = []
+
+        for p in batch:
+            if p.uploaded is None:
+                entries.append(streams_protos.StreamPublishEntry(payload=p.payload))
+                sent.append(p)
+                continue
+
+            ## a failed upload fails only its own publish, as the rest never depended on it
+            try:
+                ref = await p.uploaded
+            except Exception as e:
+                p.settle(e)
+                continue
+
+            entries.append(streams_protos.StreamPublishEntry(payload_ref=ref))
+            sent.append(p)
+
+        if entries:
+            await self._send_entries(sent, entries)
+
+    async def _send_entries(
+        self,
+        sent: list[_QueuedPublish],
+        entries: list[streams_protos.StreamPublishEntry],
+    ) -> None:
+        """Sends entries as one request, or one request per entry to an engine that predates PublishBatch, and settles each publish."""
+        if not self.client._publish_batch_unsupported:
+            try:
+                await self._publish_ordered(entries)
+            except Exception as e:
+                if _grpc_code(e) != grpc.StatusCode.UNIMPLEMENTED:
+                    for p in sent:
+                        p.settle(e)
+                    return
+                ## nothing was stored, so the batch goes out again below
+                self.client._publish_batch_unsupported = True
+            else:
+                for p in sent:
+                    p.settle()
+                return
+
+        ## settled one by one: a failure partway leaves the publishes before it stored
+        for p, entry in zip(sent, entries, strict=True):
+            try:
+                await self._publish_ordered([entry])
+            except Exception as e:  # noqa: PERF203
+                p.settle(e)
+            else:
+                p.settle()
+
+    async def _publish_ordered(
+        self,
+        entries: list[streams_protos.StreamPublishEntry],
+        retry_gap: bool = True,
+    ) -> None:
+        producer = self.producer
+
+        try:
+            if self.client._publish_batch_unsupported and len(entries) == 1:
+                await self.stub.Publish(  # type: ignore[misc]
+                    streams_protos.PublishStreamMessageRequest(
+                        namespace=self.namespace,
+                        topic=self.topic,
+                        payload=entries[0].payload,
+                        payload_ref=entries[0].payload_ref,
+                        producer_id=producer.producer_id,
+                        producer_seq=producer.seq,
+                    ),
+                    metadata=self.client._metadata(),
+                )
+            else:
+                await self.stub.PublishBatch(  # type: ignore[misc]
+                    streams_protos.PublishStreamMessagesRequest(
+                        namespace=self.namespace,
+                        topic=self.topic,
+                        producer_id=producer.producer_id,
+                        first_producer_seq=producer.seq,
+                        entries=entries,
+                    ),
+                    metadata=self.client._metadata(),
+                )
+        except Exception as e:
+            code = _grpc_code(e)
+
+            ## it may still land, and a different payload under its seq would be dropped as a duplicate
+            if code not in _REJECTED_BEFORE_STORING:
+                self.producer = _Producer()
+
+            ## a gap stored nothing (e.g. the watermark passed cursor retention), so resend as the new producer
+            if retry_gap and code == grpc.StatusCode.FAILED_PRECONDITION:
+                return await self._publish_ordered(entries, retry_gap=False)
+
+            raise
+
+        producer.seq += len(entries)
+        return None
 
 
 @dataclass
@@ -193,14 +396,8 @@ class _LoopPublisher:
     channel: grpc.aio.Channel
     stub: V1StreamsStub
 
-    ## per (namespace, topic); seq only advances after a publish succeeds
-    producers: dict[tuple[str, str], _Producer] = field(default_factory=dict)
-
-    ## per (namespace, topic); one request per topic is in flight at a time so two never share a seq
+    ## per (namespace, topic)
     queues: dict[tuple[str, str], _PublishQueue] = field(default_factory=dict)
-
-    ## asyncio keeps only weak references to tasks
-    drains: set["asyncio.Task[None]"] = field(default_factory=set)
 
     ## held here because a loop keeps only weak references to its async generators
     shutdown_hook: AsyncGenerator[None, None] | None = None
@@ -213,34 +410,6 @@ def _finish_shutdown_hook(publisher: _LoopPublisher) -> None:
 
     with suppress(StopIteration):
         publisher.shutdown_hook.aclose().send(None)
-
-
-def _settle(p: _QueuedPublish, err: BaseException | None = None) -> None:
-    """Skips a publish whose caller stopped waiting, which cancelled its result."""
-    if p.result.done():
-        return
-
-    if err is None:
-        p.result.set_result(None)
-    elif isinstance(err, asyncio.CancelledError):
-        p.result.cancel()
-    else:
-        p.result.set_exception(err)
-
-
-def _fitting_publishes(items: list[_QueuedPublish]) -> int:
-    """Always at least one, so a max-size payload still goes out on its own."""
-    total = 0
-    count = 0
-
-    while count < len(items) and count < MAX_PUBLISH_BATCH_ENTRIES:
-        nxt = items[count].request_bytes + PUBLISH_ENTRY_OVERHEAD_BYTES
-        if count > 0 and total + nxt > MAX_PUBLISH_BATCH_BYTES:
-            break
-        total += nxt
-        count += 1
-
-    return count
 
 
 class StreamsClient(BaseRestClient):
@@ -379,165 +548,6 @@ class StreamsClient(BaseRestClient):
                 )
             )
 
-    async def _next_batch(self, queue: _PublishQueue) -> list[_QueuedPublish] | None:
-        """The next request's publishes, or None once the queue is empty."""
-        while True:
-            ## a publish cancelled before its request goes out is dropped, so it never takes a seq
-            for p in queue.items:
-                if p.result.cancelled() and p.uploaded is not None:
-                    ## a finished upload's error is retrieved so asyncio doesn't log it as unhandled
-                    if p.uploaded.done():
-                        p.uploaded.exception()
-                    else:
-                        p.uploaded.cancel()
-            queue.items = [p for p in queue.items if not p.result.cancelled()]
-
-            if not queue.items:
-                return None
-
-            count = _fitting_publishes(queue.items)
-            full = count < len(queue.items) or count == MAX_PUBLISH_BATCH_ENTRIES
-            wait = min(p.send_by for p in queue.items) - time.monotonic()
-
-            if full or wait <= 0:
-                batch = queue.items[:count]
-                del queue.items[:count]
-                return batch
-
-            queue.wake.clear()
-
-            with suppress(asyncio.TimeoutError):
-                await asyncio.wait_for(queue.wake.wait(), wait)
-
-    async def _drain_publishes(
-        self, publisher: _LoopPublisher, key: tuple[str, str], queue: _PublishQueue
-    ) -> None:
-        batch: list[_QueuedPublish] | None = None
-
-        try:
-            while (batch := await self._next_batch(queue)) is not None:
-                await self._send_batch(publisher, key, batch)
-        except BaseException as e:
-            ## e.g. cancelled as its loop shuts down; no caller is left waiting on a publish it held
-            for p in [*(batch or []), *queue.items]:
-                _settle(p, e)
-            raise
-        finally:
-            ## removed with no await since the last check, so a later publish starts a new drain
-            del publisher.queues[key]
-
-    async def _send_batch(
-        self,
-        publisher: _LoopPublisher,
-        key: tuple[str, str],
-        batch: list[_QueuedPublish],
-    ) -> None:
-        sent: list[_QueuedPublish] = []
-        entries: list[streams_protos.StreamPublishEntry] = []
-
-        for p in batch:
-            if p.uploaded is None:
-                entries.append(streams_protos.StreamPublishEntry(payload=p.payload))
-                sent.append(p)
-                continue
-
-            ## a failed upload fails only its own publish, as the rest never depended on it
-            try:
-                ref = await p.uploaded
-            except Exception as e:
-                _settle(p, e)
-                continue
-
-            entries.append(streams_protos.StreamPublishEntry(payload_ref=ref))
-            sent.append(p)
-
-        if entries:
-            await self._send_publishes(publisher, key, sent, entries)
-
-    async def _send_publishes(
-        self,
-        publisher: _LoopPublisher,
-        key: tuple[str, str],
-        sent: list[_QueuedPublish],
-        entries: list[streams_protos.StreamPublishEntry],
-    ) -> None:
-        """Sends entries as one request, or one request per entry to an engine that predates PublishBatch, and settles each publish."""
-        if not self._publish_batch_unsupported:
-            try:
-                await self._publish_ordered(publisher, key, entries)
-            except Exception as e:
-                if _grpc_code(e) != grpc.StatusCode.UNIMPLEMENTED:
-                    for p in sent:
-                        _settle(p, e)
-                    return
-                ## nothing was stored, so the batch goes out again below
-                self._publish_batch_unsupported = True
-            else:
-                for p in sent:
-                    _settle(p)
-                return
-
-        ## settled one by one: a failure partway leaves the publishes before it stored
-        for p, entry in zip(sent, entries, strict=True):
-            try:
-                await self._publish_ordered(publisher, key, [entry])
-            except Exception as e:  # noqa: PERF203
-                _settle(p, e)
-            else:
-                _settle(p)
-
-    async def _publish_ordered(
-        self,
-        publisher: _LoopPublisher,
-        key: tuple[str, str],
-        entries: list[streams_protos.StreamPublishEntry],
-        retry_gap: bool = True,
-    ) -> None:
-        namespace, topic = key
-        producer = publisher.producers.setdefault(key, _Producer())
-
-        try:
-            if self._publish_batch_unsupported and len(entries) == 1:
-                await publisher.stub.Publish(  # type: ignore[misc]
-                    streams_protos.PublishStreamMessageRequest(
-                        namespace=namespace,
-                        topic=topic,
-                        payload=entries[0].payload,
-                        payload_ref=entries[0].payload_ref,
-                        producer_id=producer.producer_id,
-                        producer_seq=producer.seq,
-                    ),
-                    metadata=self._metadata(),
-                )
-            else:
-                await publisher.stub.PublishBatch(  # type: ignore[misc]
-                    streams_protos.PublishStreamMessagesRequest(
-                        namespace=namespace,
-                        topic=topic,
-                        producer_id=producer.producer_id,
-                        first_producer_seq=producer.seq,
-                        entries=entries,
-                    ),
-                    metadata=self._metadata(),
-                )
-        except Exception as e:
-            code = _grpc_code(e)
-
-            ## it may still land, and a different payload under its seq would be dropped as a duplicate
-            if code not in _REJECTED_BEFORE_STORING:
-                publisher.producers[key] = _Producer()
-
-            ## a gap stored nothing (e.g. the watermark passed cursor retention), so resend as the new producer
-            if retry_gap and code == grpc.StatusCode.FAILED_PRECONDITION:
-                return await self._publish_ordered(
-                    publisher, key, entries, retry_gap=False
-                )
-
-            raise
-
-        producer.seq += len(entries)
-        return None
-
     async def publish(
         self,
         topic: str,
@@ -582,26 +592,18 @@ class StreamsClient(BaseRestClient):
             else None
         )
 
-        publish = _QueuedPublish(
-            payload=payload,
-            send_by=time.monotonic() + timeout_seconds,
-            uploaded=uploaded,
-        )
-        key = (namespace, topic)
-
-        queue = publisher.queues.get(key)
+        queue = publisher.queues.get((namespace, topic))
         if queue is None:
-            queue = _PublishQueue()
-            publisher.queues[key] = queue
-            drain = asyncio.create_task(self._drain_publishes(publisher, key, queue))
-            publisher.drains.add(drain)
-            drain.add_done_callback(publisher.drains.discard)
+            queue = _PublishQueue(self, publisher.stub, namespace, topic)
+            publisher.queues[(namespace, topic)] = queue
 
-        queue.items.append(publish)
-        ## a new publish may fill the request or have a shorter timeout
-        queue.wake.set()
-
-        await publish.result
+        await queue.publish(
+            _QueuedPublish(
+                payload=payload,
+                send_by=time.monotonic() + timeout_seconds,
+                uploaded=uploaded,
+            )
+        )
 
     def topic_metadata(self, topic: str, namespace: str = "") -> StreamTopicMetadata:
         """
