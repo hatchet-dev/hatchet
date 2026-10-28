@@ -3,7 +3,7 @@ import random
 import threading
 import time
 import uuid
-from collections.abc import AsyncGenerator, AsyncIterator, Callable, Generator
+from collections.abc import AsyncGenerator, AsyncIterator, Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
@@ -148,40 +148,6 @@ def _to_event(entry: streams_protos.StreamEntry, payload: bytes) -> StreamEvent:
     )
 
 
-def _iterate_in_thread(agen: AsyncGenerator[T, None]) -> Generator[T, None, None]:
-    """Iterates an async generator from sync code on an event loop of its own."""
-    loop = asyncio.new_event_loop()
-    thread = threading.Thread(target=loop.run_forever, daemon=True)
-    thread.start()
-
-    reading: asyncio.Task[T] | None = None
-
-    async def next_item() -> T:
-        nonlocal reading
-        reading = asyncio.current_task()
-        return await agen.__anext__()
-
-    async def close() -> None:
-        ## interrupted mid-read: a running generator can't be closed until the read unwinds
-        if reading is not None and not reading.done():
-            reading.cancel()
-            await asyncio.wait([reading])
-        await agen.aclose()
-
-    try:
-        while True:
-            try:
-                item = asyncio.run_coroutine_threadsafe(next_item(), loop).result()
-            except StopAsyncIteration:
-                return
-            yield item
-    finally:
-        asyncio.run_coroutine_threadsafe(close(), loop).result()
-        loop.call_soon_threadsafe(loop.stop)
-        thread.join()
-        loop.close()
-
-
 def _subscribe_request(
     namespace: str, topic: str, cursor: str | None
 ) -> streams_protos.SubscribeStreamRequest:
@@ -264,7 +230,7 @@ class StreamsClient(BaseRestClient):
                 self._stub = V1StreamsStub(new_conn(self.client_config, False))
             return self._stub
 
-    ## an aio channel is bound to its event loop, and sync `events` runs each read on a loop of its own
+    ## an aio channel is bound to its event loop, so each read opens its own
     @asynccontextmanager
     async def _open_aio_client(self) -> AsyncIterator[V1StreamsStub]:
         channel = new_conn(self.client_config, True)
@@ -515,7 +481,7 @@ class StreamsClient(BaseRestClient):
         producer.seq += len(entries)
         return None
 
-    def publish(
+    async def publish(
         self,
         topic: str,
         message: bytes | str,
@@ -524,25 +490,6 @@ class StreamsClient(BaseRestClient):
     ) -> None:
         """
         Publish a message to a topic, returning once it is stored. A client's messages to a topic are delivered in the order `publish` was called. Publishes to a topic share requests: everything queued while one is in flight goes out in the next, and `batch_timeout` holds a message up to that long for more to join it.
-
-        :param topic: The topic to publish to.
-        :param message: The message payload. A string is encoded as UTF-8.
-        :param namespace: The topic's namespace; the empty namespace by default.
-        :param batch_timeout: How long the message may wait for later publishes to the same topic to share its request, bounding the latency batching adds. By default, it is sent as soon as no other request to the topic is in flight.
-
-        :return: None
-        """
-        self._enqueue_publish(topic, message, namespace, batch_timeout).result()
-
-    async def aio_publish(
-        self,
-        topic: str,
-        message: bytes | str,
-        namespace: str = "",
-        batch_timeout: timedelta | None = None,
-    ) -> None:
-        """
-        Publish a message to a topic, returning once it is stored. A client's messages to a topic are delivered in the order `aio_publish` was called. Publishes to a topic share requests: everything queued while one is in flight goes out in the next, and `batch_timeout` holds a message up to that long for more to join it.
 
         :param topic: The topic to publish to.
         :param message: The message payload. A string is encoded as UTF-8.
@@ -632,21 +579,7 @@ class StreamsClient(BaseRestClient):
         """
         await asyncio.to_thread(self.reset, topic, namespace, cursor)
 
-    def events(
-        self, topic: str, namespace: str = "", cursor: str | None = None
-    ) -> Generator[StreamEvent, None, None]:
-        """
-        Yield a topic's messages after `cursor`, or from the oldest retained (or, once the topic is reset, after the reset). If the connection drops, it resubscribes from the last message yielded, so nothing is skipped or repeated. Ends when the server hangs up an idle subscription or the caller stops iterating; raises on errors a retry can't fix, such as an expired cursor (`OUT_OF_RANGE`) or a tenant without durable streams (`PERMISSION_DENIED`). Runs `aio_events` on an event loop of its own.
-
-        :param topic: The topic to read from.
-        :param namespace: The topic's namespace; the empty namespace by default.
-        :param cursor: A cursor read off a previous event, to resume right after it.
-
-        :return: An iterator of the topic's events.
-        """
-        return _iterate_in_thread(self.aio_events(topic, namespace, cursor))
-
-    async def aio_events(
+    async def events(
         self, topic: str, namespace: str = "", cursor: str | None = None
     ) -> AsyncGenerator[StreamEvent, None]:
         """

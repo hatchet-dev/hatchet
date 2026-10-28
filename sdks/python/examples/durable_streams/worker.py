@@ -21,7 +21,7 @@ async def durable_streams_progress(
 
     for step in range(1, total + 1):
         await asyncio.sleep(0.5)
-        await hatchet.streams.aio_publish(
+        await hatchet.streams.publish(
             input.topic, json.dumps({"step": step, "total": total})
         )
 
@@ -39,14 +39,14 @@ async def durable_streams_retrying_progress(
     await hatchet.streams.aio_reset(input.topic)
 
     for chunk in range(3):
-        await hatchet.streams.aio_publish(
+        await hatchet.streams.publish(
             input.topic, json.dumps({"attempt": ctx.retry_count, "chunk": chunk})
         )
 
     if ctx.retry_count == 0:
         raise RuntimeError("intentional failure before the final message")
 
-    await hatchet.streams.aio_publish(input.topic, json.dumps({"done": True}))
+    await hatchet.streams.publish(input.topic, json.dumps({"done": True}))
 
     return {"chunks": 3}
 

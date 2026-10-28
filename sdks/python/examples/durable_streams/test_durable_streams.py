@@ -22,7 +22,7 @@ async def collect(
     events: list[StreamEvent] = []
 
     async def read() -> None:
-        async for event in hatchet.streams.aio_events(topic, **kwargs):
+        async for event in hatchet.streams.events(topic, **kwargs):
             events.append(event)
             if len(events) >= count:
                 break
@@ -40,12 +40,12 @@ def payloads(events: list[StreamEvent]) -> list[str]:
 async def test_reads_from_the_beginning_then_live(hatchet: Hatchet) -> None:
     topic = scope("durable_streams_from_beginning")
 
-    await hatchet.streams.aio_publish(topic, "published-before-consume")
+    await hatchet.streams.publish(topic, "published-before-consume")
 
     async def publish_later() -> None:
         await asyncio.sleep(0.2)
         for message in ["live-1", "live-2"]:
-            await hatchet.streams.aio_publish(topic, message)
+            await hatchet.streams.publish(topic, message)
 
     publishing = asyncio.create_task(publish_later())
     events = await collect(hatchet, topic, 3)
@@ -59,7 +59,7 @@ async def test_resumes_from_a_cursor(hatchet: Hatchet) -> None:
     topic = scope("durable_streams_resume_cursor")
 
     for message in ["one", "two", "three", "four"]:
-        await hatchet.streams.aio_publish(topic, message)
+        await hatchet.streams.publish(topic, message)
 
     first_two = await collect(hatchet, topic, 2)
     assert payloads(first_two) == ["one", "two"]
@@ -73,14 +73,14 @@ async def test_reset_starts_new_readers_after_it(hatchet: Hatchet) -> None:
     topic = scope("durable_streams_reset")
 
     for message in ["one", "two", "three"]:
-        await hatchet.streams.aio_publish(topic, message)
+        await hatchet.streams.publish(topic, message)
 
     [first] = await collect(hatchet, topic, 1)
     await hatchet.streams.aio_reset(topic, cursor=first.cursor)
     assert payloads(await collect(hatchet, topic, 2)) == ["two", "three"]
 
     await hatchet.streams.aio_reset(topic)
-    await hatchet.streams.aio_publish(topic, "after-reset")
+    await hatchet.streams.publish(topic, "after-reset")
     assert payloads(await collect(hatchet, topic, 1)) == ["after-reset"]
 
 
@@ -88,8 +88,8 @@ async def test_reset_starts_new_readers_after_it(hatchet: Hatchet) -> None:
 async def test_isolates_namespaces(hatchet: Hatchet) -> None:
     topic = scope("durable_streams_namespace")
 
-    await hatchet.streams.aio_publish(topic, "from-a", namespace="ns-a")
-    await hatchet.streams.aio_publish(topic, "from-b", namespace="ns-b")
+    await hatchet.streams.publish(topic, "from-a", namespace="ns-a")
+    await hatchet.streams.publish(topic, "from-b", namespace="ns-b")
 
     events = await collect(hatchet, topic, 1, namespace="ns-b")
     assert payloads(events) == ["from-b"]
@@ -100,7 +100,7 @@ async def test_topic_metadata(hatchet: Hatchet) -> None:
     topic = scope("durable_streams_metadata")
 
     for message in ["first", "second", "third"]:
-        await hatchet.streams.aio_publish(topic, message)
+        await hatchet.streams.publish(topic, message)
 
     metadata = await hatchet.streams.aio_topic_metadata(topic)
 
@@ -123,31 +123,12 @@ async def test_large_payload(hatchet: Hatchet) -> None:
     topic = scope("durable_streams_large_payload")
     large = b"x" * (5 * 1024 * 1024)
 
-    await hatchet.streams.aio_publish(topic, large)
-    await hatchet.streams.aio_publish(topic, "small")
+    await hatchet.streams.publish(topic, large)
+    await hatchet.streams.publish(topic, "small")
 
     events = await collect(hatchet, topic, 2)
     assert events[0].payload == large
     assert events[1].payload == b"small"
-
-
-@pytest.mark.asyncio(loop_scope="session")
-async def test_sync_publish_and_events(hatchet: Hatchet) -> None:
-    topic = scope("durable_streams_sync")
-
-    def publish_and_read() -> list[str]:
-        for message in ["one", "two"]:
-            hatchet.streams.publish(topic, message)
-
-        received = []
-        for event in hatchet.streams.events(topic):
-            received.append(event.payload.decode())
-            if len(received) == 2:
-                break
-
-        return received
-
-    assert await asyncio.to_thread(publish_and_read) == ["one", "two"]
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -157,7 +138,7 @@ async def test_new_readers_skip_a_failed_attempt(hatchet: Hatchet) -> None:
     await durable_streams_retrying_progress.aio_run(ProgressInput(topic=topic))
 
     received = []
-    async for event in hatchet.streams.aio_events(topic):
+    async for event in hatchet.streams.events(topic):
         message = json.loads(event.payload)
         if message.get("done"):
             break
