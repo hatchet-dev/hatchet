@@ -43,7 +43,6 @@
     "docker",
     "autoscaling-workers",
     "advanced-assignment",
-    "serverless",
     "---Observability---",
     "logging",
     "opentelemetry",
