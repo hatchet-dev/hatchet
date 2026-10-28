@@ -48,10 +48,14 @@ func Execute() {
 		os.Exit(1)
 	}
 
-	if cmd != nil && !noUpdateNoticeCommands[cmd.Name()] {
-		if msg := updateNotice(); msg != "" {
-			fmt.Fprintln(os.Stderr, msg)
+	for c := cmd; c != nil; c = c.Parent() {
+		if noUpdateNoticeCommands[c.Name()] {
+			return
 		}
+	}
+
+	if msg := updateNotice(); msg != "" {
+		fmt.Fprintln(os.Stderr, msg)
 	}
 }
 

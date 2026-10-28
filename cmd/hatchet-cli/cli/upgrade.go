@@ -36,6 +36,7 @@ var (
 	upgradeCheckOnly bool
 	caskVersionRe    = regexp.MustCompile(`(?m)^\s*version\s+"([^"]+)"`)
 	httpsOnlyClient  = &http.Client{
+		Timeout: 30 * time.Second,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if req.URL.Scheme != "https" {
 				return fmt.Errorf("refusing redirect to non-https URL %s", req.URL)
