@@ -87,6 +87,9 @@ func NotifyTaskCreated(tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload) (*msgq
 
 type TaskAssignedBulkTaskPayload struct {
 	WorkerIdToTaskIds map[uuid.UUID][]int64 `json:"worker_id_to_task_ids" validate:"required"`
+	// WorkerIdToTaskRetryCounts names the retry count of each task in WorkerIdToTaskIds, keyed by worker and
+	// then task id, so the dispatcher can tell the assigned attempt from a later one on the same worker.
+	WorkerIdToTaskRetryCounts map[uuid.UUID]map[int64]int32 `json:"worker_id_to_task_retry_counts,omitempty"`
 }
 
 type BatchTaskItem struct {

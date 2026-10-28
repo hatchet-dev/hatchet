@@ -572,22 +572,16 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 	}
 
 	for _, innerMsg := range msgs {
-		taskIdToWorkerId := make(map[int64]uuid.UUID)
-
-		for workerId, tasks := range innerMsg.WorkerIdToTaskIds {
-			for _, taskId := range tasks {
-				taskIdToWorkerId[taskId] = workerId
-			}
-		}
+		attempts := assignedAttemptsFromPayload(innerMsg)
 
 		// a message whose items were all delivered optimistically carries no task ids: nothing to send
-		if len(taskIdToWorkerId) == 0 {
+		if len(attempts) == 0 {
 			continue
 		}
 
 		// a task missing from the result (released or reassigned since the message was published, so it
 		// has no runtime row for its current retry) is skipped by sendTasksToWorker: not sent, not requeued
-		taskIdToData, err := d.populateTaskData(ctx, requeue, msg.TenantID, taskIdToWorkerId)
+		taskIdToData, err := d.populateTaskData(ctx, requeue, msg.TenantID, attempts)
 
 		if err != nil {
 			// we've already handled the requeue in populateTaskData, and we've logged the error, so we just continue
@@ -712,7 +706,47 @@ type V1TaskWithPayloadAndInvocationCount struct {
 // dispatchReadRecoveryTimeout bounds the task-only read that runs after a failed ListTasksForDispatch.
 const dispatchReadRecoveryTimeout = 5 * time.Second
 
-// requeueTasksAfterFailedDispatchRead hands every task of a failed ListTasksForDispatch to requeue. A
+// assignedAttempt is the attempt an assignment message names for one task: the worker it was assigned
+// to and, when the message carries it, the retry count it was assigned for.
+type assignedAttempt struct {
+	WorkerId      uuid.UUID
+	RetryCount    int32
+	HasRetryCount bool
+}
+
+// assignedAttemptsFromPayload reads the attempt each task of a task-assigned-bulk message was assigned
+// for. A task without a retry count in the message has HasRetryCount unset.
+func assignedAttemptsFromPayload(payload *tasktypesv1.TaskAssignedBulkTaskPayload) map[int64]assignedAttempt {
+	attempts := make(map[int64]assignedAttempt)
+
+	for workerId, taskIds := range payload.WorkerIdToTaskIds {
+		retryCounts := payload.WorkerIdToTaskRetryCounts[workerId]
+
+		for _, taskId := range taskIds {
+			retryCount, hasRetryCount := retryCounts[taskId]
+
+			attempts[taskId] = assignedAttempt{
+				WorkerId:      workerId,
+				RetryCount:    retryCount,
+				HasRetryCount: hasRetryCount,
+			}
+		}
+	}
+
+	return attempts
+}
+
+// matches reports whether runtime is the attempt the message named: same worker and same retry count.
+// An attempt without a retry count matches nothing.
+func (a assignedAttempt) matches(runtime *sqlcv1.V1TaskRuntime) bool {
+	return a.HasRetryCount &&
+		runtime != nil &&
+		runtime.WorkerID != nil &&
+		*runtime.WorkerID == a.WorkerId &&
+		runtime.RetryCount == a.RetryCount
+}
+
+// requeueTasksAfterFailedDispatchRead hands the tasks of a failed ListTasksForDispatch to requeue. A
 // failed read yields no task rows, so they are read on their own to give the requeue callback the rows
 // it needs. A task that cannot be read either way is left to the timeout path, and both errors are
 // logged.
@@ -723,22 +757,27 @@ const dispatchReadRecoveryTimeout = 5 * time.Second
 // past the time it already spent on the combined read. handleRetries publishes the requeued tasks under
 // its own background context as well.
 //
-// Only tasks whose runtime row still names the worker the message assigned them to are requeued: a task
-// that was retried elsewhere in the meantime belongs to that newer attempt, and the step timeout covers
-// anything whose identity cannot be confirmed.
+// A task is requeued only when its runtime row names the same worker and retry count as the message.
+// Otherwise, including when the message carries no retry count, the task is left to the timeout path.
 func (d *DispatcherImpl) requeueTasksAfterFailedDispatchRead(
 	ctx context.Context,
 	requeue func(task *sqlcv1.V1Task),
 	tenantId uuid.UUID,
-	taskIdToWorkerId map[int64]uuid.UUID,
+	attempts map[int64]assignedAttempt,
 ) {
 	recoveryCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), dispatchReadRecoveryTimeout)
 	defer cancel()
 
-	taskIds := make([]int64, 0, len(taskIdToWorkerId))
+	taskIds := make([]int64, 0, len(attempts))
 
-	for taskId := range taskIdToWorkerId {
-		taskIds = append(taskIds, taskId)
+	for taskId, attempt := range attempts {
+		if attempt.HasRetryCount {
+			taskIds = append(taskIds, taskId)
+		}
+	}
+
+	if len(taskIds) == 0 {
+		return
 	}
 
 	dispatchData, err := d.repov1.Tasks().ListTasksForDispatch(recoveryCtx, tenantId, taskIds)
@@ -749,9 +788,7 @@ func (d *DispatcherImpl) requeueTasksAfterFailedDispatchRead(
 	}
 
 	for _, task := range dispatchData.Tasks {
-		runtime := dispatchData.Runtimes[task.ID]
-
-		if runtime == nil || runtime.WorkerID == nil || *runtime.WorkerID != taskIdToWorkerId[task.ID] {
+		if !attempts[task.ID].matches(dispatchData.Runtimes[task.ID]) {
 			continue
 		}
 
@@ -763,15 +800,15 @@ func (d *DispatcherImpl) populateTaskData(
 	ctx context.Context,
 	requeue func(task *sqlcv1.V1Task),
 	tenantId uuid.UUID,
-	taskIdToWorkerId map[int64]uuid.UUID,
+	attempts map[int64]assignedAttempt,
 ) (map[int64]*V1TaskWithPayloadAndInvocationCount, error) {
-	if len(taskIdToWorkerId) == 0 {
+	if len(attempts) == 0 {
 		return map[int64]*V1TaskWithPayloadAndInvocationCount{}, nil
 	}
 
-	taskIds := make([]int64, 0, len(taskIdToWorkerId))
+	taskIds := make([]int64, 0, len(attempts))
 
-	for taskId := range taskIdToWorkerId {
+	for taskId := range attempts {
 		taskIds = append(taskIds, taskId)
 	}
 
@@ -779,7 +816,7 @@ func (d *DispatcherImpl) populateTaskData(
 
 	if err != nil {
 		d.l.Error().Ctx(ctx).Err(err).Msgf("could not bulk list step run data:")
-		d.requeueTasksAfterFailedDispatchRead(ctx, requeue, tenantId, taskIdToWorkerId)
+		d.requeueTasksAfterFailedDispatchRead(ctx, requeue, tenantId, attempts)
 
 		return nil, err
 	}
@@ -1255,18 +1292,20 @@ func (d *DispatcherImpl) sendBatchStartFromPayload(ctx context.Context, payload 
 	// Fetch all task payloads and embed them in the action payload.
 	var actionPayload string
 	if len(payload.Items) > 0 {
-		taskIdToWorkerId := make(map[int64]uuid.UUID, len(payload.Items))
+		// batch items name their worker only, with no retry count, so a failed read here requeues nothing
+		// and the requeue callback below is a no-op
+		attempts := make(map[int64]assignedAttempt, len(payload.Items))
 		externalIDByTaskID := make(map[int64]uuid.UUID, len(payload.Items))
 		workflowRunIDByTaskID := make(map[int64]uuid.UUID, len(payload.Items))
 
 		for _, item := range payload.Items {
-			taskIdToWorkerId[item.TaskID] = payload.WorkerId
+			attempts[item.TaskID] = assignedAttempt{WorkerId: payload.WorkerId}
 			externalIDByTaskID[item.TaskID] = item.ExternalID
 			workflowRunIDByTaskID[item.TaskID] = item.WorkflowRunID
 		}
 
 		// a task missing from the result (no runtime row for its current retry) is left out of the batch items
-		taskIdToData, populateErr := d.populateTaskData(ctx, func(_ *sqlcv1.V1Task) {}, payload.TenantId, taskIdToWorkerId)
+		taskIdToData, populateErr := d.populateTaskData(ctx, func(_ *sqlcv1.V1Task) {}, payload.TenantId, attempts)
 		if populateErr != nil {
 			return fmt.Errorf("could not populate task data for batch %s: %w", payload.BatchId, populateErr)
 		}

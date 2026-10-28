@@ -531,7 +531,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 
 	// bulk assign step runs
 	if len(res.Assigned) > 0 {
-		dispatcherIdToWorkerIdsToStepRuns := make(map[uuid.UUID]map[uuid.UUID][]int64)
+		dispatcherIdToAssignments := make(map[uuid.UUID]*workerAssignments)
 
 		workerIds := make([]uuid.UUID, 0)
 
@@ -595,11 +595,11 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 					continue
 				}
 
-				if _, ok := dispatcherIdToWorkerIdsToStepRuns[dispatcherId]; !ok {
-					dispatcherIdToWorkerIdsToStepRuns[dispatcherId] = make(map[uuid.UUID][]int64)
+				if _, ok := dispatcherIdToAssignments[dispatcherId]; !ok {
+					dispatcherIdToAssignments[dispatcherId] = newWorkerAssignments()
 				}
 
-				dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = append(dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId], taskId)
+				dispatcherIdToAssignments[dispatcherId].add(workerId, taskId, bulkAssigned.QueueItem.RetryCount)
 			}
 
 			var durableInvCount int32
@@ -637,8 +637,8 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 		}
 
 		// for each dispatcher, send a bulk assigned task
-		for dispatcherId, workerIdsToStepRuns := range dispatcherIdToWorkerIdsToStepRuns {
-			msg, err := taskBulkAssignedTask(tenantId, workerIdsToStepRuns)
+		for dispatcherId, assignments := range dispatcherIdToAssignments {
+			msg, err := taskBulkAssignedTask(tenantId, assignments)
 
 			if err != nil {
 				outerErr = multierror.Append(outerErr, fmt.Errorf("could not create bulk assigned task: %w", err))
@@ -1348,14 +1348,39 @@ func describeBatchFlushReason(reason repov1.BatchFlushReason, batchSize int, int
 	}
 }
 
-func taskBulkAssignedTask(tenantId uuid.UUID, workerIdsToTaskIds map[uuid.UUID][]int64) (*msgqueue.Message, error) {
+// workerAssignments collects the tasks assigned to each worker of one dispatcher, with the retry count of
+// the attempt each task was assigned for.
+type workerAssignments struct {
+	taskIds     map[uuid.UUID][]int64
+	retryCounts map[uuid.UUID]map[int64]int32
+}
+
+func newWorkerAssignments() *workerAssignments {
+	return &workerAssignments{
+		taskIds:     make(map[uuid.UUID][]int64),
+		retryCounts: make(map[uuid.UUID]map[int64]int32),
+	}
+}
+
+func (a *workerAssignments) add(workerId uuid.UUID, taskId int64, retryCount int32) {
+	a.taskIds[workerId] = append(a.taskIds[workerId], taskId)
+
+	if _, ok := a.retryCounts[workerId]; !ok {
+		a.retryCounts[workerId] = make(map[int64]int32)
+	}
+
+	a.retryCounts[workerId][taskId] = retryCount
+}
+
+func taskBulkAssignedTask(tenantId uuid.UUID, assignments *workerAssignments) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDTaskAssignedBulk,
 		false,
 		true,
 		tasktypes.TaskAssignedBulkTaskPayload{
-			WorkerIdToTaskIds: workerIdsToTaskIds,
+			WorkerIdToTaskIds:         assignments.taskIds,
+			WorkerIdToTaskRetryCounts: assignments.retryCounts,
 		},
 	)
 }
