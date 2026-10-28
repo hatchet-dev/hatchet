@@ -378,7 +378,10 @@ type orderedRelease struct {
 	maxSatisfiedOrderSentAlready int64
 	bufferedCompletions          map[int64]*contracts.DurableTaskResponse
 	oldestBufferedAt             time.Time
-	lastActivityAt               time.Time
+	// lastReleasedAt lets the gap timeout measure stalls rather than hold age: a replaying
+	// invocation keeps some completions held for its whole replay while still releasing.
+	lastReleasedAt time.Time
+	lastActivityAt time.Time
 }
 
 func (rel *orderedRelease) takeReleasable() []*contracts.DurableTaskResponse {
@@ -541,6 +544,7 @@ func (s *durableTaskInvocation) deliverOrdered(taskExternalId uuid.UUID, invocat
 		toSend = []*contracts.DurableTaskResponse{resp}
 	case order == rel.maxSatisfiedOrderSentAlready+1:
 		rel.maxSatisfiedOrderSentAlready++
+		rel.lastReleasedAt = rel.lastActivityAt
 		toSend = append([]*contracts.DurableTaskResponse{resp}, rel.takeReleasable()...)
 	default:
 		if buffered, exists := rel.bufferedCompletions[order]; exists {
@@ -603,6 +607,7 @@ func (s *durableTaskInvocation) resumeOrderedRelease(key orderedReleaseKey, high
 	}
 
 	rel.maxSatisfiedOrderSentAlready = highestReceivedSatisfiedOrder
+	rel.lastReleasedAt = time.Now()
 	for order := range rel.bufferedCompletions {
 		if order <= highestReceivedSatisfiedOrder {
 			delete(rel.bufferedCompletions, order)
@@ -636,7 +641,11 @@ func (s *durableTaskInvocation) timedOutOrderedReleases(timeout time.Duration) [
 
 	for key, rel := range s.releases {
 		rel.mu.Lock()
-		hasTimedOut := len(rel.bufferedCompletions) > 0 && !rel.oldestBufferedAt.IsZero() && now.Sub(rel.oldestBufferedAt) > timeout
+		stalledSince := rel.oldestBufferedAt
+		if rel.lastReleasedAt.After(stalledSince) {
+			stalledSince = rel.lastReleasedAt
+		}
+		hasTimedOut := len(rel.bufferedCompletions) > 0 && !stalledSince.IsZero() && now.Sub(stalledSince) > timeout
 
 		if hasTimedOut {
 			timedOut = append(timedOut, timedOutOrderedRelease{
@@ -1773,8 +1782,8 @@ func (d *DispatcherServiceImpl) evictIdleOperatorTasks(
 	}
 }
 
-// durableOrderedReleaseGapTimeout bounds how long a held EntryCompleted may wait for a
-// missing lower satisfied_order before the invocation is evicted to restart cleanly.
+// durableOrderedReleaseGapTimeout bounds how long an invocation with held EntryCompleted
+// responses may go without releasing any before it is evicted to restart cleanly.
 const durableOrderedReleaseGapTimeout = 60 * time.Second
 const durableReleaseIdleTTL = 24 * time.Hour
 
@@ -1782,7 +1791,7 @@ func (d *DispatcherServiceImpl) evictTimedOutOrderedReleases(ctx context.Context
 	for _, timedOut := range invocation.timedOutOrderedReleases(durableOrderedReleaseGapTimeout) {
 		key := timedOut.key
 		reason := fmt.Sprintf(
-			"completions with satisfied_order %v were held for over %s waiting for satisfied_order %d, which had not arrived when the hold timed out",
+			"completions with satisfied_order %v were held with no release for over %s waiting for satisfied_order %d, which had not arrived when the hold timed out",
 			timedOut.heldSatisfiedOrders, durableOrderedReleaseGapTimeout, timedOut.missingSatisfiedOrder,
 		)
 
