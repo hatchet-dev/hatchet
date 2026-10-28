@@ -527,7 +527,8 @@ func (d *DAGOperator) abortForShutdown(span trace.Span, action *contracts.Assign
 	d.Logger().Warn().Err(err).
 		Str("task_run_external_id", action.TaskRunExternalId).
 		Msg("dag operator shutting down mid-run; leaving task for reassignment")
-	return err
+
+	return nil
 }
 
 func (d *DAGOperator) handleRunCancellation(span trace.Span, action *contracts.AssignedAction, tasks []*task, err error) error {
