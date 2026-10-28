@@ -1,6 +1,7 @@
 import { config } from './config';
 import { NotFound } from './pages/error/components/not-found';
 import ErrorBoundary from './pages/error/index.tsx';
+import { concurrencySearchSchema } from './pages/main/v1/concurrency/search';
 import Root from './pages/root.tsx';
 import { userUniverseQuery } from './providers/user-universe';
 import api, { TenantMember } from '@/lib/api';
@@ -558,6 +559,16 @@ const tenantStreamsRoute = createRoute({
   ),
 });
 
+export const tenantConcurrencyRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'concurrency',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/concurrency'),
+    'default',
+  ),
+  validateSearch: concurrencySearchSchema,
+});
+
 const tenantScheduledRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'scheduled',
@@ -1092,6 +1103,7 @@ const tenantRoutes = [
   tenantWebhooksRoute,
   tenantRateLimitsRoute,
   tenantStreamsRoute,
+  tenantConcurrencyRoute,
   tenantScheduledRoute,
   tenantCronJobsRoute,
   tenantWorkflowsRoute,
@@ -1243,6 +1255,7 @@ export const appRoutes = {
   tenantWebhooksRoute,
   tenantRateLimitsRoute,
   tenantStreamsRoute,
+  tenantConcurrencyRoute,
   tenantScheduledRoute,
   tenantCronJobsRoute,
   tenantWorkflowsRoute,
