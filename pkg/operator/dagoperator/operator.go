@@ -604,8 +604,8 @@ func (d *DAGOperator) fail(span trace.Span, action *contracts.AssignedAction, er
 
 		d.Logger().Error().Err(reportErr).
 			Str("task_run_external_id", action.TaskRunExternalId).
+			Str("dag_error", err.Error()).
 			Msg("could not report task failure")
-		return err
 	}
 
 	return nil
