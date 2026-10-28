@@ -101,6 +101,145 @@ module HatchetSdkRest
       return data, status_code, headers
     end
 
+    # Count workflow runs
+    # Counts the workflow runs for a tenant matching the provided filters. The count is capped, so it is a lower bound when it reaches the cap.
+    # @param tenant [String] The tenant id
+    # @param since [Time] The earliest date to filter by
+    # @param only_tasks [Boolean] Whether to include DAGs or only to include tasks
+    # @param [Hash] opts the optional parameters
+    # @option opts [Array<V1TaskStatus>] :statuses A list of statuses to filter by
+    # @option opts [Time] :_until The latest date to filter by
+    # @option opts [Array<String>] :additional_metadata Additional metadata k-v pairs to filter by
+    # @option opts [V1AdditionalMetadataOperator] :additional_metadata_operator How to combine multiple additional_metadata pairs. OR matches runs containing any pair, AND matches runs containing all pairs. Defaults to OR.
+    # @option opts [Array<String>] :workflow_ids The workflow ids to find runs for
+    # @option opts [String] :worker_id The worker id to filter by
+    # @option opts [String] :parent_task_external_id The parent task external id to filter by
+    # @option opts [String] :triggering_event_external_id The external id of the event that triggered the workflow run
+    # @option opts [V1RunningFilter] :running_filter Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
+    # @option opts [Array<String>] :idempotency_keys The idempotency key(s) to filter for
+    # @return [V1WorkflowRunCount]
+    def v1_workflow_run_count_get(tenant, since, only_tasks, opts = {})
+      data, _status_code, _headers = v1_workflow_run_count_get_with_http_info(tenant, since, only_tasks, opts)
+      data
+    end
+
+    # Count workflow runs
+    # Counts the workflow runs for a tenant matching the provided filters. The count is capped, so it is a lower bound when it reaches the cap.
+    # @param tenant [String] The tenant id
+    # @param since [Time] The earliest date to filter by
+    # @param only_tasks [Boolean] Whether to include DAGs or only to include tasks
+    # @param [Hash] opts the optional parameters
+    # @option opts [Array<V1TaskStatus>] :statuses A list of statuses to filter by
+    # @option opts [Time] :_until The latest date to filter by
+    # @option opts [Array<String>] :additional_metadata Additional metadata k-v pairs to filter by
+    # @option opts [V1AdditionalMetadataOperator] :additional_metadata_operator How to combine multiple additional_metadata pairs. OR matches runs containing any pair, AND matches runs containing all pairs. Defaults to OR.
+    # @option opts [Array<String>] :workflow_ids The workflow ids to find runs for
+    # @option opts [String] :worker_id The worker id to filter by
+    # @option opts [String] :parent_task_external_id The parent task external id to filter by
+    # @option opts [String] :triggering_event_external_id The external id of the event that triggered the workflow run
+    # @option opts [V1RunningFilter] :running_filter Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
+    # @option opts [Array<String>] :idempotency_keys The idempotency key(s) to filter for
+    # @return [Array<(V1WorkflowRunCount, Integer, Hash)>] V1WorkflowRunCount data, response status code and response headers
+    def v1_workflow_run_count_get_with_http_info(tenant, since, only_tasks, opts = {})
+      if @api_client.config.debugging
+        @api_client.config.logger.debug 'Calling API: WorkflowRunsApi.v1_workflow_run_count_get ...'
+      end
+      # verify the required parameter 'tenant' is set
+      if @api_client.config.client_side_validation && tenant.nil?
+        fail ArgumentError, "Missing the required parameter 'tenant' when calling WorkflowRunsApi.v1_workflow_run_count_get"
+      end
+      if @api_client.config.client_side_validation && tenant.to_s.length > 36
+        fail ArgumentError, 'invalid value for "tenant" when calling WorkflowRunsApi.v1_workflow_run_count_get, the character length must be smaller than or equal to 36.'
+      end
+
+      if @api_client.config.client_side_validation && tenant.to_s.length < 36
+        fail ArgumentError, 'invalid value for "tenant" when calling WorkflowRunsApi.v1_workflow_run_count_get, the character length must be greater than or equal to 36.'
+      end
+
+      # verify the required parameter 'since' is set
+      if @api_client.config.client_side_validation && since.nil?
+        fail ArgumentError, "Missing the required parameter 'since' when calling WorkflowRunsApi.v1_workflow_run_count_get"
+      end
+      # verify the required parameter 'only_tasks' is set
+      if @api_client.config.client_side_validation && only_tasks.nil?
+        fail ArgumentError, "Missing the required parameter 'only_tasks' when calling WorkflowRunsApi.v1_workflow_run_count_get"
+      end
+      if @api_client.config.client_side_validation && !opts[:'worker_id'].nil? && opts[:'worker_id'].to_s.length > 36
+        fail ArgumentError, 'invalid value for "opts[:"worker_id"]" when calling WorkflowRunsApi.v1_workflow_run_count_get, the character length must be smaller than or equal to 36.'
+      end
+
+      if @api_client.config.client_side_validation && !opts[:'worker_id'].nil? && opts[:'worker_id'].to_s.length < 36
+        fail ArgumentError, 'invalid value for "opts[:"worker_id"]" when calling WorkflowRunsApi.v1_workflow_run_count_get, the character length must be greater than or equal to 36.'
+      end
+
+      if @api_client.config.client_side_validation && !opts[:'parent_task_external_id'].nil? && opts[:'parent_task_external_id'].to_s.length > 36
+        fail ArgumentError, 'invalid value for "opts[:"parent_task_external_id"]" when calling WorkflowRunsApi.v1_workflow_run_count_get, the character length must be smaller than or equal to 36.'
+      end
+
+      if @api_client.config.client_side_validation && !opts[:'parent_task_external_id'].nil? && opts[:'parent_task_external_id'].to_s.length < 36
+        fail ArgumentError, 'invalid value for "opts[:"parent_task_external_id"]" when calling WorkflowRunsApi.v1_workflow_run_count_get, the character length must be greater than or equal to 36.'
+      end
+
+      if @api_client.config.client_side_validation && !opts[:'triggering_event_external_id'].nil? && opts[:'triggering_event_external_id'].to_s.length > 36
+        fail ArgumentError, 'invalid value for "opts[:"triggering_event_external_id"]" when calling WorkflowRunsApi.v1_workflow_run_count_get, the character length must be smaller than or equal to 36.'
+      end
+
+      if @api_client.config.client_side_validation && !opts[:'triggering_event_external_id'].nil? && opts[:'triggering_event_external_id'].to_s.length < 36
+        fail ArgumentError, 'invalid value for "opts[:"triggering_event_external_id"]" when calling WorkflowRunsApi.v1_workflow_run_count_get, the character length must be greater than or equal to 36.'
+      end
+
+      # resource path
+      local_var_path = '/api/v1/stable/tenants/{tenant}/workflow-runs/count'.sub('{' + 'tenant' + '}', CGI.escape(tenant.to_s))
+
+      # query parameters
+      query_params = opts[:query_params] || {}
+      query_params[:'since'] = since
+      query_params[:'only_tasks'] = only_tasks
+      query_params[:'statuses'] = @api_client.build_collection_param(opts[:'statuses'], :multi) if !opts[:'statuses'].nil?
+      query_params[:'until'] = opts[:'_until'] if !opts[:'_until'].nil?
+      query_params[:'additional_metadata'] = @api_client.build_collection_param(opts[:'additional_metadata'], :multi) if !opts[:'additional_metadata'].nil?
+      query_params[:'additional_metadata_operator'] = opts[:'additional_metadata_operator'] if !opts[:'additional_metadata_operator'].nil?
+      query_params[:'workflow_ids'] = @api_client.build_collection_param(opts[:'workflow_ids'], :multi) if !opts[:'workflow_ids'].nil?
+      query_params[:'worker_id'] = opts[:'worker_id'] if !opts[:'worker_id'].nil?
+      query_params[:'parent_task_external_id'] = opts[:'parent_task_external_id'] if !opts[:'parent_task_external_id'].nil?
+      query_params[:'triggering_event_external_id'] = opts[:'triggering_event_external_id'] if !opts[:'triggering_event_external_id'].nil?
+      query_params[:'running_filter'] = opts[:'running_filter'] if !opts[:'running_filter'].nil?
+      query_params[:'idempotency_keys'] = @api_client.build_collection_param(opts[:'idempotency_keys'], :multi) if !opts[:'idempotency_keys'].nil?
+
+      # header parameters
+      header_params = opts[:header_params] || {}
+      # HTTP header 'Accept' (if needed)
+      header_params['Accept'] = @api_client.select_header_accept(['application/json']) unless header_params['Accept']
+
+      # form parameters
+      form_params = opts[:form_params] || {}
+
+      # http body (model)
+      post_body = opts[:debug_body]
+
+      # return_type
+      return_type = opts[:debug_return_type] || 'V1WorkflowRunCount'
+
+      # auth_names
+      auth_names = opts[:debug_auth_names] || ['cookieAuth', 'bearerAuth']
+
+      new_options = opts.merge(
+        :operation => :"WorkflowRunsApi.v1_workflow_run_count_get",
+        :header_params => header_params,
+        :query_params => query_params,
+        :form_params => form_params,
+        :body => post_body,
+        :auth_names => auth_names,
+        :return_type => return_type
+      )
+
+      data, status_code, headers = @api_client.call_api(:GET, local_var_path, new_options)
+      if @api_client.config.debugging
+        @api_client.config.logger.debug "API called: WorkflowRunsApi#v1_workflow_run_count_get\nData: #{data.inspect}\nStatus code: #{status_code}\nHeaders: #{headers}"
+      end
+      return data, status_code, headers
+    end
+
     # Create workflow run
     # Trigger a new workflow run
     # @param tenant [String] The tenant id
@@ -592,6 +731,7 @@ module HatchetSdkRest
     # @option opts [Boolean] :include_payloads A flag for whether or not to include the input and output payloads in the response. Defaults to &#x60;true&#x60; if unset.
     # @option opts [V1RunningFilter] :running_filter Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
     # @option opts [Array<String>] :idempotency_keys The idempotency key(s) to filter for
+    # @option opts [Boolean] :include_num_pages A flag for whether or not to count the matching runs in order to populate &#x60;pagination.num_pages&#x60;. Defaults to &#x60;true&#x60; if unset. When &#x60;false&#x60;, &#x60;pagination.num_pages&#x60; is &#x60;0&#x60;, and the count can be fetched separately from the count endpoint.
     # @return [V1TaskSummaryList]
     def v1_workflow_run_list(tenant, since, only_tasks, opts = {})
       data, _status_code, _headers = v1_workflow_run_list_with_http_info(tenant, since, only_tasks, opts)
@@ -617,6 +757,7 @@ module HatchetSdkRest
     # @option opts [Boolean] :include_payloads A flag for whether or not to include the input and output payloads in the response. Defaults to &#x60;true&#x60; if unset.
     # @option opts [V1RunningFilter] :running_filter Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
     # @option opts [Array<String>] :idempotency_keys The idempotency key(s) to filter for
+    # @option opts [Boolean] :include_num_pages A flag for whether or not to count the matching runs in order to populate &#x60;pagination.num_pages&#x60;. Defaults to &#x60;true&#x60; if unset. When &#x60;false&#x60;, &#x60;pagination.num_pages&#x60; is &#x60;0&#x60;, and the count can be fetched separately from the count endpoint.
     # @return [Array<(V1TaskSummaryList, Integer, Hash)>] V1TaskSummaryList data, response status code and response headers
     def v1_workflow_run_list_with_http_info(tenant, since, only_tasks, opts = {})
       if @api_client.config.debugging
@@ -686,6 +827,7 @@ module HatchetSdkRest
       query_params[:'include_payloads'] = opts[:'include_payloads'] if !opts[:'include_payloads'].nil?
       query_params[:'running_filter'] = opts[:'running_filter'] if !opts[:'running_filter'].nil?
       query_params[:'idempotency_keys'] = @api_client.build_collection_param(opts[:'idempotency_keys'], :multi) if !opts[:'idempotency_keys'].nil?
+      query_params[:'include_num_pages'] = opts[:'include_num_pages'] if !opts[:'include_num_pages'].nil?
 
       # header parameters
       header_params = opts[:header_params] || {}

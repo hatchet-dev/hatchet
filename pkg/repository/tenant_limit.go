@@ -94,7 +94,7 @@ func newTenantLimitRepository(shared *sharedRepository, s limits.LimitConfigFile
 }
 
 func (t *tenantLimitRepository) ResolveAllTenantResourceLimits(ctx context.Context) error {
-	_, err := t.queries.ResolveAllLimitsIfWindowPassed(ctx, t.pool)
+	_, err := t.queries.ResolveAllLimitsIfWindowPassed(ctx, t.pool.ForShared())
 	return err
 }
 
@@ -103,6 +103,8 @@ func hasCustomValueMeter(resource sqlcv1.LimitResource) bool {
 	switch resource {
 	case sqlcv1.LimitResourceWORKER, sqlcv1.LimitResourceWORKERSLOT, sqlcv1.LimitResourceINCOMINGWEBHOOK, sqlcv1.LimitResourceSTREAMTOPIC, sqlcv1.LimitResourceSTREAMRETENTION:
 		return true
+	case sqlcv1.LimitResourceTASKRUN, sqlcv1.LimitResourceEVENT, sqlcv1.LimitResourceCRON, sqlcv1.LimitResourceSCHEDULE, sqlcv1.LimitResourceSTREAMMESSAGE:
+		return false
 	}
 
 	return false
@@ -157,11 +159,13 @@ func (t *tenantLimitRepository) DefaultLimits() []Limit {
 }
 
 func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.TenantResourceLimit, error) {
+	db := t.pool.ForTenant(tenantId)
+
 	if !t.enforceLimits {
 		return []*sqlcv1.TenantResourceLimit{}, nil
 	}
 
-	limits, err := t.queries.ListTenantResourceLimits(ctx, t.pool, tenantId)
+	limits, err := t.queries.ListTenantResourceLimits(ctx, db, tenantId)
 
 	if err != nil {
 		return nil, err
@@ -171,7 +175,7 @@ func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId uuid.UUI
 	for _, limit := range limits {
 
 		if limit.Resource == sqlcv1.LimitResourceWORKER {
-			workerCount, err := t.queries.CountTenantWorkers(ctx, t.pool, tenantId)
+			workerCount, err := t.queries.CountTenantWorkers(ctx, db, tenantId)
 			if err != nil {
 				return nil, err
 			}
@@ -179,18 +183,11 @@ func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId uuid.UUI
 		}
 
 		if limit.Resource == sqlcv1.LimitResourceWORKERSLOT {
-			totalSlotsRows, err := t.queries.ListTotalActiveSlotsPerTenant(ctx, t.pool)
+			totalSlots, err := t.queries.GetTotalActiveSlotsForTenant(ctx, db, tenantId)
 			if err != nil {
 				return nil, err
 			}
-			var workerSlotCount int32
-			for _, row := range totalSlotsRows {
-				if row.TenantId == tenantId {
-					workerSlotCount = int32(row.TotalActiveSlots) // nolint: gosec
-					break
-				}
-			}
-			limit.Value = workerSlotCount
+			limit.Value = int32(totalSlots) // nolint: gosec
 		}
 
 	}
@@ -203,12 +200,14 @@ func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource sqlcv1.L
 }
 
 func (t *tenantLimitRepository) canCreate(ctx context.Context, dbtx sqlcv1.DBTX, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (bool, int, error) {
+	db := t.pool.ForTenant(tenantId)
+
 	if !t.enforceLimits {
 		return true, 0, nil
 	}
 
 	if dbtx == nil {
-		dbtx = t.pool
+		dbtx = db
 	}
 
 	limit, err := t.queries.GetTenantResourceLimit(ctx, dbtx, sqlcv1.GetTenantResourceLimitParams{
@@ -347,7 +346,7 @@ func (t *tenantLimitRepository) flushToDatabase(ctx context.Context) error {
 		numResources = append(numResources, n)
 	}
 
-	limits, err := t.queries.BulkMeterTenantResources(ctx, t.pool, sqlcv1.BulkMeterTenantResourcesParams{
+	limits, err := t.queries.BulkMeterTenantResources(ctx, t.pool.ForShared(), sqlcv1.BulkMeterTenantResourcesParams{
 		Tenantids:    tenantIds,
 		Resources:    resources,
 		Numresources: numResources,
@@ -406,6 +405,12 @@ func (t *tenantLimitRepository) cachedCanCreate(ctx context.Context, dbtx sqlcv1
 
 func (t *tenantLimitRepository) Meter(ctx context.Context, dbtx sqlcv1.DBTX, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (precommit func() error, postcommit func()) {
 	return func() error {
+			// skip the limit check when there's nothing to meter, so a running DAG can
+			// still trigger its steps after the tenant reaches its limit
+			if numberOfResources == 0 {
+				return nil
+			}
+
 			canCreate, _, err := t.cachedCanCreate(ctx, dbtx, resource, tenantId, numberOfResources)
 
 			if err != nil {
@@ -459,12 +464,14 @@ func prepareTenantResourceLimitParams(limits []Limit) (resources []string, limit
 }
 
 func (t *tenantLimitRepository) updateLimits(ctx context.Context, dbtx sqlcv1.DBTX, tenantId uuid.UUID, limits []Limit) error {
+	db := t.pool.ForTenant(tenantId)
+
 	if len(limits) == 0 {
 		return nil
 	}
 
 	if dbtx == nil {
-		dbtx = t.pool
+		dbtx = db
 	}
 
 	resources, limitValues, alarmValues, windows, customValueMeters := prepareTenantResourceLimitParams(limits)
@@ -541,7 +548,7 @@ func (t *tenantLimitRepository) StreamRetention(ctx context.Context, tenantId uu
 
 	hours := t.DefaultStreamRetentionHours()
 
-	limit, err := t.queries.GetTenantResourceLimit(ctx, t.pool, sqlcv1.GetTenantResourceLimitParams{
+	limit, err := t.queries.GetTenantResourceLimit(ctx, t.pool.ForTenant(tenantId), sqlcv1.GetTenantResourceLimitParams{
 		Tenantid: tenantId,
 		Resource: sqlcv1.NullLimitResource{LimitResource: sqlcv1.LimitResourceSTREAMRETENTION, Valid: true},
 	})
@@ -551,7 +558,7 @@ func (t *tenantLimitRepository) StreamRetention(ctx context.Context, tenantId uu
 		hours = clampStreamRetentionHours(limit.LimitValue, hours)
 	case errors.Is(err, pgx.ErrNoRows):
 		// best-effort, so the retention becomes editable in the database
-		if insertErr := t.insertDefaultLimitsIfMissing(ctx, t.pool, tenantId); insertErr != nil {
+		if insertErr := t.insertDefaultLimitsIfMissing(ctx, t.pool.ForTenant(tenantId), tenantId); insertErr != nil {
 			t.l.Warn().Ctx(ctx).Err(insertErr).Msg("could not store default stream retention limit")
 		}
 	default:

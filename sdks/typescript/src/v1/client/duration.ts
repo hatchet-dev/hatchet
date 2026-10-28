@@ -16,7 +16,7 @@ export interface DurationObject {
 /** A number is treated as milliseconds. */
 export type Duration = DurationString | DurationObject | number;
 
-const DURATION_RE = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/;
+const DURATION_RE = /^(?:(\d*\.?\d+)h)?(?:(\d*\.?\d+)m)?(?:(\d*\.?\d+)s)?$/;
 
 /** Normalizes a Duration to Go-style string format (e.g. "1h30m5s"). */
 export function durationToString(d: Duration): string {
@@ -48,12 +48,12 @@ export function durationToMs(d: Duration): number {
   const match = (d as string).match(DURATION_RE);
   if (!match) {
     throw new Error(
-      `Invalid duration string: "${d}". Expected format like "1h30m5s", "10m", "30s".`
+      `Invalid duration string: "${d}". Expected format like "1h30m5s", "10m", "30s", "0.5s".`
     );
   }
 
   const [, h, m, s] = match;
-  return (
-    (parseInt(h ?? '0', 10) * 3600 + parseInt(m ?? '0', 10) * 60 + parseInt(s ?? '0', 10)) * 1000
+  return Math.round(
+    parseFloat(h ?? '0') * 3_600_000 + parseFloat(m ?? '0') * 60_000 + parseFloat(s ?? '0') * 1000
   );
 }

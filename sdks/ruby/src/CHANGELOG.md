@@ -5,6 +5,30 @@ All notable changes to Hatchet's Ruby SDK will be documented in this changelog.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.2] - 2026-10-27
+
+### Changed
+
+- The REST client sends `Accept: application/json` on the Slack OAuth start and callback calls, since the API now declares a `429 Too Many Requests` response on every authenticated operation.
+
+## [0.11.1] - 2026-10-23
+
+### Fixed
+
+- [Durable tasks](https://docs.hatchet.run/v1/durable-tasks) no longer stall after the worker's durable stream reconnects in the middle of a wait. The worker now reports the last completion it received in its status requests, so the engine resumes delivery from there instead of holding later completions until the task is evicted and replayed.
+
+## [0.11.0] - 2026-10-14
+
+### Added
+
+- Adds `hatchet.rate_limits.pause(key:, until_time:)` and `Context#pause_rate_limit(key, until_time:)`, which keep queued runs that consume a rate limit key from starting until a given time.
+
+## [0.10.0] - 2026-10-08
+
+### Added
+
+- Adds `RetryAfterError`, which allows for custom retry strategies.
+
 ## [0.9.0] - 2026-09-23
 
 ### Added

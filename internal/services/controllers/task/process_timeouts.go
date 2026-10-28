@@ -7,8 +7,10 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -36,6 +38,10 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 		return false, fmt.Errorf("could not process fail tasks response: %w", err)
 	}
 
+	retried := enumerables.ToSet(res.RetriedTasks, func(r v1.RetriedTask) int64 {
+		return r.Id
+	})
+
 	cancellationSignals := make([]tasktypes.SignalTaskCancelledPayload, 0, len(res.TimeoutTasks))
 
 	for _, task := range res.TimeoutTasks {
@@ -51,6 +57,8 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 			WorkerId:   workerId,
 		})
 
+		willRetry := enumerables.HasKey(retried, task.ID)
+
 		// send failed tasks to the olap repository
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantIdUUID,
@@ -60,6 +68,7 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 				EventType:      sqlcv1.V1EventTypeOlapTIMEDOUT,
 				EventTimestamp: time.Now(),
 				EventMessage:   fmt.Sprintf("Task exceeded timeout of %s", task.StepTimeout),
+				WillRetry:      willRetry,
 			},
 		)
 

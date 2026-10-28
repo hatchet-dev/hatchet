@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 	"go.opentelemetry.io/otel/attribute"
 
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -47,27 +49,8 @@ func isDagChildFailedErr(err error) bool {
 	return errors.As(err, &e)
 }
 
-type dagConditionEvalError struct {
-	taskActionId string
-	expression   string
-	err          error
-}
-
-func (e *dagConditionEvalError) Error() string {
-	return fmt.Sprintf("CEL eval error for task %q condition %q: %v", e.taskActionId, e.expression, e.err)
-}
-
-func (e *dagConditionEvalError) Unwrap() error {
-	return e.err
-}
-
-func isDagConditionEvalErr(err error) bool {
-	var e *dagConditionEvalError
-	return errors.As(err, &e)
-}
-
 type dagEngineError struct {
-	errorType    string
+	errorType    v1contracts.DurableTaskErrorType
 	errorMessage string
 }
 
@@ -80,6 +63,41 @@ func isDagEngineErr(err error) bool {
 	return errors.As(err, &e)
 }
 
+func clientErrorMessageForDagErr(err error) (message string, ok bool) {
+	var childFailedErr *dagChildFailedError
+	var cancelledErr *dagCancelledError
+	var celFailureErr *operator.DAGStepCELFailureError
+	var nonDeterminismErr *repository.NonDeterminismError
+	var engineErr *dagEngineError
+
+	switch {
+	case errors.As(err, &childFailedErr):
+		return childFailedErr.errorMessage, true
+	case errors.As(err, &cancelledErr):
+		return repository.TaskCancelledErrorMessage, true
+	case errors.As(err, &celFailureErr):
+		return celFailureErr.Error(), true
+	case errors.As(err, &nonDeterminismErr):
+		return nonDeterminismErr.Error(), true
+	case errors.As(err, &engineErr) && engineErr.errorType == v1contracts.DurableTaskErrorType_DURABLE_TASK_ERROR_TYPE_NONDETERMINISM:
+		return engineErr.errorMessage, true
+	default:
+		return "", false
+	}
+}
+
+func isDagNonRetryablePgErr(err error) bool {
+	var pgErr *pgconn.PgError
+
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+
+	return pgerrcode.IsIntegrityConstraintViolation(pgErr.Code) ||
+		pgerrcode.IsDataException(pgErr.Code) ||
+		pgerrcode.IsProgramLimitExceeded(pgErr.Code)
+}
+
 type dagEvictedError struct {
 	reason string
 }
@@ -89,8 +107,9 @@ func (e *dagEvictedError) Error() string {
 }
 
 func isDagEvictedErr(err error) bool {
-	var e *dagEvictedError
-	return errors.As(err, &e)
+	var evicted *dagEvictedError
+	var staleInvocation *repository.StaleInvocationError
+	return errors.As(err, &evicted) || errors.As(err, &staleInvocation)
 }
 
 type dag struct {
@@ -160,8 +179,8 @@ type task struct {
 	errorMessage string
 	output       map[string]interface{}
 
-	// reExecuted is true when the task actually ran this invocation rather than being satisfied
-	// from the log; children of a re-executed parent must re-run during a replay
+	// reExecuted is true when the task ran as part of the current replay rather than being a
+	// cached result from an earlier branch; children of a re-executed parent must re-run too
 	reExecuted bool
 
 	isWaiting       bool
@@ -514,12 +533,7 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 			continue
 		}
 
-		var parentTaskRunIds []uuid.UUID
-		for _, p := range d.tasks {
-			if p.isCompleted && !p.isFailed && p.workflowRunExternalId != nil {
-				parentTaskRunIds = append(parentTaskRunIds, *p.workflowRunExternalId)
-			}
-		}
+		parentTaskRunIds := d.finishedTaskRunIds()
 
 		parentReExecuted := false
 		for _, p := range t.parents {
@@ -609,7 +623,7 @@ func (d *dag) taskConsumer(ctx context.Context, resp *v1contracts.DurableTaskRes
 		case conditionKindCancel:
 			ack.task.cancelWatchNodeId = ref.GetNodeId()
 			ack.task.cancelWatchBranchId = ref.GetBranchId()
-		default:
+		case conditionKindWait:
 			ack.task.waitNodeId = ref.GetNodeId()
 			ack.task.waitBranchId = ref.GetBranchId()
 		}
@@ -651,7 +665,7 @@ func (d *dag) taskConsumer(ctx context.Context, resp *v1contracts.DurableTaskRes
 
 		// Dropping this would leave the run waiting forever for an ack or completion that
 		// will never arrive (e.g. a nondeterminism error means the wait was never committed).
-		d.err = &dagEngineError{errorType: m.Error.GetErrorType().String(), errorMessage: m.Error.GetErrorMessage()}
+		d.err = &dagEngineError{errorType: m.Error.GetErrorType(), errorMessage: m.Error.GetErrorMessage()}
 	}
 }
 
@@ -707,6 +721,22 @@ func (d *dag) drainPendingEntryCompletions(ctx context.Context) {
 	d.pendingEntryCompletions = remaining
 }
 
+// finishedTaskRunIds lists every task that has reached a terminal state, including failed ones. The
+// dispatcher resolves each id to the task's latest COMPLETED or FAILED event at dispatch time, so a
+// step created cancelled because its parent failed still receives the parent's output once the parent
+// is replayed and succeeds, and a failed parent lands in step_run_errors rather than being omitted.
+func (d *dag) finishedTaskRunIds() []uuid.UUID {
+	var taskRunIds []uuid.UUID
+
+	for _, t := range d.tasks {
+		if t.isCompleted && t.workflowRunExternalId != nil {
+			taskRunIds = append(taskRunIds, *t.workflowRunExternalId)
+		}
+	}
+
+	return taskRunIds
+}
+
 func (d *dag) applyCompletion(ctx context.Context, t *task, isFailure bool, errorMessage string, payload []byte) error {
 	t.isCompleted = true
 
@@ -720,6 +750,9 @@ func (d *dag) applyCompletion(ctx context.Context, t *task, isFailure bool, erro
 	} else if len(payload) > 0 {
 		outputData := make(map[string]interface{})
 		if err := json.Unmarshal(payload, &outputData); err == nil {
+			if outputData == nil {
+				outputData = map[string]interface{}{}
+			}
 			t.output = outputData
 			if skipped, ok := outputData["skipped"].(bool); ok && skipped {
 				t.isSkipped = true
@@ -728,6 +761,8 @@ func (d *dag) applyCompletion(ctx context.Context, t *task, isFailure bool, erro
 				t.isCancelled = true
 			}
 		}
+	} else if !isFailure && !t.isCancelled {
+		t.output = map[string]interface{}{}
 	}
 
 	return d.evaluateConditionsForParent(ctx, t)
@@ -762,7 +797,10 @@ func (d *dag) evaluateConditionsForParent(ctx context.Context, parent *task) err
 
 			matched, err := d.evalBoolExpr(ctx, expr, map[string]interface{}{"output": parent.output})
 			if err != nil {
-				return &dagConditionEvalError{taskActionId: t.actionId, expression: expr, err: err}
+				// A condition that cannot be evaluated (e.g. a key missing from the parent output)
+				// counts as not matched instead of failing the DAG.
+				span.RecordError(fmt.Errorf("condition %q on task %q could not be evaluated: %w", expr, t.actionId, err))
+				matched = false
 			}
 
 			d.conditionMatches[cond] = matched
@@ -845,14 +883,7 @@ func (d *dag) evaluateOnFailure(ctx context.Context) (bool, error) {
 		attribute.Bool("dag.on_failure_skipped", skip),
 	)
 
-	var parentTaskRunIds []uuid.UUID
-	for _, p := range d.tasks {
-		if p.isCompleted && !p.isFailed && p.workflowRunExternalId != nil {
-			parentTaskRunIds = append(parentTaskRunIds, *p.workflowRunExternalId)
-		}
-	}
-
-	result, err := d.triggerStep(ctx, d.onFailureTask.actionId, d.onFailureTask.workflowName, d.onFailureTask.index, parentTaskRunIds, skip, false, false)
+	result, err := d.triggerStep(ctx, d.onFailureTask.actionId, d.onFailureTask.workflowName, d.onFailureTask.index, d.finishedTaskRunIds(), skip, false, false)
 	if err != nil {
 		d.err = fmt.Errorf("failed to trigger on-failure step %q: %w", d.onFailureTask.actionId, err)
 		return false, d.err
@@ -929,6 +960,7 @@ func (d *dag) evaluateParentConditions(ctx context.Context, t *task) (skip bool,
 			if satisfied {
 				cancelGroups[key.orGroupId] = true
 			}
+		case sqlcv1.V1MatchConditionActionCREATE, sqlcv1.V1MatchConditionActionQUEUE, sqlcv1.V1MatchConditionActionCREATEMATCH:
 		}
 	}
 
@@ -948,9 +980,11 @@ func getMatchConditionActionForWatchKind(kind conditionKind) sqlcv1.V1MatchCondi
 		return sqlcv1.V1MatchConditionActionSKIP
 	case conditionKindCancel:
 		return sqlcv1.V1MatchConditionActionCANCEL
-	default:
+	case conditionKindWait:
 		return sqlcv1.V1MatchConditionActionQUEUE
 	}
+
+	return sqlcv1.V1MatchConditionActionQUEUE
 }
 
 func (d *dag) hasEventOrSleepConditions(t *task, kind conditionKind) bool {
@@ -1060,6 +1094,7 @@ func (d *dag) registerCondition(ctx context.Context, t *task, kind conditionKind
 				},
 				UserEventKey: c.EventKey.String,
 			})
+		case sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE:
 		}
 	}
 

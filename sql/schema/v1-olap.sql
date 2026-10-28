@@ -221,6 +221,7 @@ CREATE TABLE v1_tasks_olap (
     parent_task_external_id UUID,
     is_durable BOOLEAN NOT NULL DEFAULT FALSE,
     idempotency_key TEXT,
+    payload_reference_id UUID,
 
     PRIMARY KEY (inserted_at, id)
 ) PARTITION BY RANGE(inserted_at);
@@ -250,6 +251,7 @@ CREATE TABLE v1_dags_olap (
     idempotency_key TEXT,
     latest_retry_count INT NOT NULL DEFAULT 0,
     is_dag_operator BOOLEAN NOT NULL DEFAULT FALSE,
+    payload_reference_id UUID,
     PRIMARY KEY (inserted_at, id)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -286,13 +288,13 @@ CREATE INDEX ix_v1_runs_olap_additional_metadata_gin ON v1_runs_olap USING gin (
 -- LOOKUP TABLES --
 CREATE TABLE v1_lookup_table_olap (
     tenant_id UUID NOT NULL,
-    external_id UUID NOT NULL,
+    external_id UUID NOT NULL, -- IMPORTANT: Each _partition_ of this table has a `UNIQUE` constraint on this column, but the parent does not
     task_id BIGINT,
     dag_id BIGINT,
     inserted_at TIMESTAMPTZ NOT NULL,
 
-    PRIMARY KEY (external_id)
-);
+    PRIMARY KEY (external_id, inserted_at)
+) PARTITION BY RANGE (inserted_at);
 
 CREATE TABLE v1_dag_to_task_olap (
     dag_id BIGINT NOT NULL,
@@ -300,7 +302,7 @@ CREATE TABLE v1_dag_to_task_olap (
     task_id BIGINT NOT NULL,
     task_inserted_at TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (dag_id, dag_inserted_at, task_id, task_inserted_at)
-);
+) PARTITION BY RANGE (dag_inserted_at);
 
 -- STATUS DEFINITION --
 CREATE TYPE v1_status_kind AS ENUM ('TASK', 'DAG');
@@ -314,7 +316,7 @@ CREATE TABLE v1_statuses_olap (
     readable_status v1_readable_status_olap NOT NULL DEFAULT 'QUEUED',
 
     PRIMARY KEY (external_id, inserted_at)
-);
+) PARTITION BY RANGE (inserted_at);
 
 
 -- EVENT DEFINITIONS --
@@ -406,11 +408,11 @@ CREATE TABLE v1_task_events_olap (
     additional__event_data TEXT,
     additional__event_message TEXT,
     durable_invocation_count INT NOT NULL DEFAULT 0,
+    is_dag_orchestrator BOOLEAN NOT NULL DEFAULT FALSE,
+    payload_reference_id UUID,
 
     PRIMARY KEY (task_id, task_inserted_at, id)
-);
-
-CREATE INDEX v1_task_events_olap_task_id_idx ON v1_task_events_olap (task_id);
+) PARTITION BY RANGE (task_inserted_at);
 
 CREATE TABLE v1_incoming_webhook_validation_failures_olap (
     id BIGINT NOT NULL GENERATED ALWAYS AS IDENTITY,
@@ -566,6 +568,7 @@ CREATE TABLE v1_events_olap (
     additional_metadata JSONB,
     scope TEXT,
     triggering_webhook_name TEXT,
+    payload_reference_id UUID,
 
     PRIMARY KEY (tenant_id, seen_at, id)
 ) PARTITION BY RANGE(seen_at);
@@ -655,7 +658,7 @@ BEGIN
         id,
         inserted_at
     FROM new_rows
-    ON CONFLICT (external_id) DO NOTHING;
+    ON CONFLICT (external_id, inserted_at) DO NOTHING;
 
     -- If the task has a dag_id and dag_inserted_at, insert into the lookup table
     INSERT INTO v1_dag_to_task_olap (
@@ -777,7 +780,7 @@ BEGIN
         id,
         inserted_at
     FROM new_rows
-    ON CONFLICT (external_id) DO NOTHING;
+    ON CONFLICT (external_id, inserted_at) DO NOTHING;
 
     RETURN NULL;
 END;
@@ -1413,3 +1416,302 @@ CREATE TABLE v1_otel_trace_lookup_olap (
     start_time      TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (tenant_id, external_id, retry_count, start_time)
 ) PARTITION BY RANGE (start_time);
+
+-- OLAP aggregates: per-minute counts of task statuses, task events and events.
+--
+-- Statement-level triggers on the source tables group each statement's rows by aggregate key
+-- and append the counts to the aggregate's delta table, in the writing transaction. The OLAP
+-- controller folds delta rows into the aggregate table in the transaction that deletes them.
+-- An aggregate's value is therefore its row plus the delta rows for the same key, and a query
+-- that reads both in one statement sees exactly the source writes committed in its snapshot.
+--
+-- Task statuses are counted from v1_runs_olap: one row per task or DAG run, whose status the
+-- task and DAG triggers keep current. A status change moves the run between counts, and a
+-- deleted run leaves them.
+--
+-- Writers never update aggregate rows, so hot keys (one tenant's current minute) are not a
+-- point of contention on the write path.
+--
+-- Aggregate tables are partitioned daily like the other OLAP tables, and the OLAP repository
+-- creates and drops their partitions with the same retention. Rows written before these triggers
+-- existed are not counted.
+
+CREATE TABLE v1_agg_task_statuses_minute_olap (
+    tenant_id UUID NOT NULL,
+    bucket TIMESTAMPTZ NOT NULL,
+    workflow_id UUID NOT NULL,
+    queued_count BIGINT NOT NULL DEFAULT 0,
+    running_count BIGINT NOT NULL DEFAULT 0,
+    completed_count BIGINT NOT NULL DEFAULT 0,
+    cancelled_count BIGINT NOT NULL DEFAULT 0,
+    failed_count BIGINT NOT NULL DEFAULT 0,
+    evicted_count BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (tenant_id, bucket, workflow_id)
+) PARTITION BY RANGE (bucket);
+
+CREATE TABLE v1_agg_task_events_minute_olap (
+    tenant_id UUID NOT NULL,
+    bucket TIMESTAMPTZ NOT NULL,
+    workflow_id UUID NOT NULL,
+    queued_count BIGINT NOT NULL DEFAULT 0,
+    running_count BIGINT NOT NULL DEFAULT 0,
+    completed_count BIGINT NOT NULL DEFAULT 0,
+    cancelled_count BIGINT NOT NULL DEFAULT 0,
+    failed_count BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (tenant_id, bucket, workflow_id)
+) PARTITION BY RANGE (bucket);
+
+CREATE TABLE v1_agg_events_minute_olap (
+    tenant_id UUID NOT NULL,
+    bucket TIMESTAMPTZ NOT NULL,
+    event_count BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (tenant_id, bucket)
+) PARTITION BY RANGE (bucket);
+
+-- Delta tables: the counts of each source statement, not yet folded into the aggregate. The
+-- columns match the aggregate's so the two can be read with UNION ALL. A key can have many
+-- delta rows.
+--
+-- Delta tables are hash partitioned by tenant. Each partition has its own compactor and is
+-- vacuumed on its own, and a read for one tenant only touches that tenant's partition.
+-- Compactors claim rows in id order, so the oldest deltas of a partition are folded first
+-- whichever tenant wrote them. The (tenant_id, bucket) index serves reads, and keeps them cheap
+-- if compaction falls far behind. The OLAP repository creates the partitions, with the same
+-- autovacuum settings as the other hash partitioned OLAP tables.
+CREATE TABLE v1_agg_task_statuses_minute_delta_olap (
+    id BIGINT GENERATED ALWAYS AS IDENTITY,
+    tenant_id UUID NOT NULL,
+    bucket TIMESTAMPTZ NOT NULL,
+    workflow_id UUID NOT NULL,
+    queued_count INTEGER NOT NULL,
+    running_count INTEGER NOT NULL,
+    completed_count INTEGER NOT NULL,
+    cancelled_count INTEGER NOT NULL,
+    failed_count INTEGER NOT NULL,
+    evicted_count INTEGER NOT NULL,
+    PRIMARY KEY (id, tenant_id)
+) PARTITION BY HASH (tenant_id);
+
+CREATE TABLE v1_agg_task_events_minute_delta_olap (
+    id BIGINT GENERATED ALWAYS AS IDENTITY,
+    tenant_id UUID NOT NULL,
+    bucket TIMESTAMPTZ NOT NULL,
+    workflow_id UUID NOT NULL,
+    queued_count INTEGER NOT NULL,
+    running_count INTEGER NOT NULL,
+    completed_count INTEGER NOT NULL,
+    cancelled_count INTEGER NOT NULL,
+    failed_count INTEGER NOT NULL,
+    PRIMARY KEY (id, tenant_id)
+) PARTITION BY HASH (tenant_id);
+
+CREATE TABLE v1_agg_events_minute_delta_olap (
+    id BIGINT GENERATED ALWAYS AS IDENTITY,
+    tenant_id UUID NOT NULL,
+    bucket TIMESTAMPTZ NOT NULL,
+    event_count INTEGER NOT NULL,
+    PRIMARY KEY (id, tenant_id)
+) PARTITION BY HASH (tenant_id);
+
+CREATE INDEX v1_agg_task_statuses_minute_delta_olap_idx ON v1_agg_task_statuses_minute_delta_olap (tenant_id, bucket);
+CREATE INDEX v1_agg_task_events_minute_delta_olap_idx ON v1_agg_task_events_minute_delta_olap (tenant_id, bucket);
+CREATE INDEX v1_agg_events_minute_delta_olap_idx ON v1_agg_events_minute_delta_olap (tenant_id, bucket);
+
+-- claim_agg_deltas deletes the oldest batch_size rows of one partition of a delta table, skipping
+-- rows another compactor has claimed, and returns them for the caller to fold into the aggregate.
+-- The delta table is given by the type of delta_table_row, e.g. NULL::v1_agg_events_minute_delta_olap,
+-- which is also the row type it returns.
+-- DELETE has no LIMIT, so the rows are claimed in a subquery and deleted by ctid, which looks
+-- each one up directly. Delta rows are never updated, so a claimed row keeps its ctid.
+CREATE OR REPLACE FUNCTION claim_agg_deltas(
+    delta_table_row anyelement,
+    partition_number INT,
+    batch_size INT
+) RETURNS SETOF anyelement
+LANGUAGE plpgsql AS
+$$
+DECLARE
+    partition_table text;
+BEGIN
+    partition_table := pg_typeof(delta_table_row)::text || '_' || partition_number::text;
+    RETURN QUERY EXECUTE format(
+        'DELETE FROM %I
+         WHERE ctid IN (
+             SELECT ctid
+             FROM %I
+             ORDER BY id
+             LIMIT $1
+             FOR UPDATE SKIP LOCKED
+         )
+         RETURNING *',
+         partition_table, partition_table)
+    USING batch_size;
+END;
+$$;
+
+-- Each trigger writes one delta row per key the statement touched. A statement that changes
+-- nothing returns before planning the insert.
+CREATE OR REPLACE FUNCTION v1_agg_task_statuses_insert_fn() RETURNS TRIGGER
+LANGUAGE plpgsql AS $$
+BEGIN
+    PERFORM 1 FROM new_rows LIMIT 1;
+    IF NOT FOUND THEN
+        RETURN NULL;
+    END IF;
+
+    INSERT INTO v1_agg_task_statuses_minute_delta_olap (tenant_id, bucket, workflow_id, queued_count, running_count, completed_count, cancelled_count, failed_count, evicted_count)
+    SELECT
+        tenant_id,
+        date_bin('1 minute', inserted_at, TIMESTAMPTZ '1970-01-01 00:00:00+00'),
+        workflow_id,
+        COUNT(*) FILTER (WHERE readable_status = 'QUEUED'),
+        COUNT(*) FILTER (WHERE readable_status = 'RUNNING'),
+        COUNT(*) FILTER (WHERE readable_status = 'COMPLETED'),
+        COUNT(*) FILTER (WHERE readable_status = 'CANCELLED'),
+        COUNT(*) FILTER (WHERE readable_status = 'FAILED'),
+        COUNT(*) FILTER (WHERE readable_status = 'EVICTED')
+    FROM new_rows
+    GROUP BY 1, 2, 3;
+
+    RETURN NULL;
+END;
+$$;
+
+-- A status change moves the run from the old status's count to the new one's. Updates that
+-- leave every key's counts unchanged write nothing.
+CREATE OR REPLACE FUNCTION v1_agg_task_statuses_update_fn() RETURNS TRIGGER
+LANGUAGE plpgsql AS $$
+BEGIN
+    PERFORM 1 FROM new_rows LIMIT 1;
+    IF NOT FOUND THEN
+        RETURN NULL;
+    END IF;
+
+    INSERT INTO v1_agg_task_statuses_minute_delta_olap (tenant_id, bucket, workflow_id, queued_count, running_count, completed_count, cancelled_count, failed_count, evicted_count)
+    SELECT *
+    FROM (
+        SELECT
+            tenant_id,
+            date_bin('1 minute', inserted_at, TIMESTAMPTZ '1970-01-01 00:00:00+00') AS bucket,
+            workflow_id,
+            COALESCE(SUM(sign) FILTER (WHERE readable_status = 'QUEUED'), 0) AS queued,
+            COALESCE(SUM(sign) FILTER (WHERE readable_status = 'RUNNING'), 0) AS running,
+            COALESCE(SUM(sign) FILTER (WHERE readable_status = 'COMPLETED'), 0) AS completed,
+            COALESCE(SUM(sign) FILTER (WHERE readable_status = 'CANCELLED'), 0) AS cancelled,
+            COALESCE(SUM(sign) FILTER (WHERE readable_status = 'FAILED'), 0) AS failed,
+            COALESCE(SUM(sign) FILTER (WHERE readable_status = 'EVICTED'), 0) AS evicted
+        FROM (
+            SELECT tenant_id, workflow_id, inserted_at, readable_status, 1 AS sign FROM new_rows
+            UNION ALL
+            SELECT tenant_id, workflow_id, inserted_at, readable_status, -1 AS sign FROM old_rows
+        ) c
+        GROUP BY 1, 2, 3
+    ) g
+    WHERE queued <> 0 OR running <> 0 OR completed <> 0 OR cancelled <> 0 OR failed <> 0 OR evicted <> 0;
+
+    RETURN NULL;
+END;
+$$;
+
+-- Deleting a run removes it from its status's count.
+CREATE OR REPLACE FUNCTION v1_agg_task_statuses_delete_fn() RETURNS TRIGGER
+LANGUAGE plpgsql AS $$
+BEGIN
+    PERFORM 1 FROM old_rows LIMIT 1;
+    IF NOT FOUND THEN
+        RETURN NULL;
+    END IF;
+
+    INSERT INTO v1_agg_task_statuses_minute_delta_olap (tenant_id, bucket, workflow_id, queued_count, running_count, completed_count, cancelled_count, failed_count, evicted_count)
+    SELECT
+        tenant_id,
+        date_bin('1 minute', inserted_at, TIMESTAMPTZ '1970-01-01 00:00:00+00'),
+        workflow_id,
+        -COUNT(*) FILTER (WHERE readable_status = 'QUEUED'),
+        -COUNT(*) FILTER (WHERE readable_status = 'RUNNING'),
+        -COUNT(*) FILTER (WHERE readable_status = 'COMPLETED'),
+        -COUNT(*) FILTER (WHERE readable_status = 'CANCELLED'),
+        -COUNT(*) FILTER (WHERE readable_status = 'FAILED'),
+        -COUNT(*) FILTER (WHERE readable_status = 'EVICTED')
+    FROM old_rows
+    GROUP BY 1, 2, 3;
+
+    RETURN NULL;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION v1_agg_task_events_insert_fn() RETURNS TRIGGER
+LANGUAGE plpgsql AS $$
+BEGIN
+    PERFORM 1 FROM new_rows LIMIT 1;
+    IF NOT FOUND THEN
+        RETURN NULL;
+    END IF;
+
+    INSERT INTO v1_agg_task_events_minute_delta_olap (tenant_id, bucket, workflow_id, queued_count, running_count, completed_count, cancelled_count, failed_count)
+    SELECT
+        tenant_id,
+        date_bin('1 minute', task_inserted_at, TIMESTAMPTZ '1970-01-01 00:00:00+00'),
+        workflow_id,
+        COUNT(*) FILTER (WHERE readable_status = 'QUEUED'),
+        COUNT(*) FILTER (WHERE readable_status = 'RUNNING'),
+        COUNT(*) FILTER (WHERE readable_status = 'COMPLETED'),
+        COUNT(*) FILTER (WHERE readable_status = 'CANCELLED'),
+        COUNT(*) FILTER (WHERE readable_status = 'FAILED')
+    FROM new_rows
+    WHERE NOT is_dag_orchestrator
+    GROUP BY 1, 2, 3;
+
+    RETURN NULL;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION v1_agg_events_insert_fn() RETURNS TRIGGER
+LANGUAGE plpgsql AS $$
+BEGIN
+    PERFORM 1 FROM new_rows LIMIT 1;
+    IF NOT FOUND THEN
+        RETURN NULL;
+    END IF;
+
+    INSERT INTO v1_agg_events_minute_delta_olap (tenant_id, bucket, event_count)
+    SELECT
+        tenant_id,
+        date_bin('1 minute', seen_at, TIMESTAMPTZ '1970-01-01 00:00:00+00'),
+        COUNT(*)
+    FROM new_rows
+    GROUP BY 1, 2;
+
+    RETURN NULL;
+END;
+$$;
+
+CREATE TRIGGER v1_agg_task_statuses_insert_trigger
+AFTER INSERT ON v1_runs_olap
+REFERENCING NEW TABLE AS new_rows
+FOR EACH STATEMENT
+EXECUTE FUNCTION v1_agg_task_statuses_insert_fn();
+
+CREATE TRIGGER v1_agg_task_statuses_update_trigger
+AFTER UPDATE ON v1_runs_olap
+REFERENCING OLD TABLE AS old_rows NEW TABLE AS new_rows
+FOR EACH STATEMENT
+EXECUTE FUNCTION v1_agg_task_statuses_update_fn();
+
+CREATE TRIGGER v1_agg_task_statuses_delete_trigger
+AFTER DELETE ON v1_runs_olap
+REFERENCING OLD TABLE AS old_rows
+FOR EACH STATEMENT
+EXECUTE FUNCTION v1_agg_task_statuses_delete_fn();
+
+CREATE TRIGGER v1_agg_task_events_insert_trigger
+AFTER INSERT ON v1_task_events_olap
+REFERENCING NEW TABLE AS new_rows
+FOR EACH STATEMENT
+EXECUTE FUNCTION v1_agg_task_events_insert_fn();
+
+CREATE TRIGGER v1_agg_events_insert_trigger
+AFTER INSERT ON v1_events_olap
+REFERENCING NEW TABLE AS new_rows
+FOR EACH STATEMENT
+EXECUTE FUNCTION v1_agg_events_insert_fn();

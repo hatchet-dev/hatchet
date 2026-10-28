@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 	"github.com/stretchr/testify/require"
@@ -17,7 +18,7 @@ func TestAPITokenReadOnlyPersistence(t *testing.T) {
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
 	ctx := context.Background()
-	repo := newAPITokenRepository(&sharedRepository{pool: pool, queries: sqlcv1.New(), v: validator.NewDefaultValidator()}, time.Minute)
+	repo := newAPITokenRepository(&sharedRepository{pool: fairpool.Ungated(pool), queries: sqlcv1.New(), v: validator.NewDefaultValidator()}, time.Minute)
 	for _, readOnly := range []bool{false, true} {
 		row, err := repo.CreateAPIToken(ctx, &CreateAPITokenOpts{ID: uuid.New(), ExpiresAt: time.Now().Add(time.Hour), ReadOnly: readOnly})
 		require.NoError(t, err)

@@ -266,6 +266,20 @@ class PutRateLimitResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 
+class PauseRateLimitRequest(_message.Message):
+    __slots__ = ("key", "paused_until")
+    KEY_FIELD_NUMBER: _ClassVar[int]
+    PAUSED_UNTIL_FIELD_NUMBER: _ClassVar[int]
+    key: str
+    paused_until: _timestamp_pb2.Timestamp
+    def __init__(self, key: _Optional[str] = ..., paused_until: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+
+class PauseRateLimitResponse(_message.Message):
+    __slots__ = ("paused_until",)
+    PAUSED_UNTIL_FIELD_NUMBER: _ClassVar[int]
+    paused_until: _timestamp_pb2.Timestamp
+    def __init__(self, paused_until: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+
 # Re-export for backwards compatibility
 from hatchet_sdk.contracts.v1.shared.trigger_pb2 import TriggerWorkflowRequest as TriggerWorkflowRequest
 from hatchet_sdk.contracts.v1.shared.trigger_pb2 import DesiredWorkerLabels as DesiredWorkerLabels

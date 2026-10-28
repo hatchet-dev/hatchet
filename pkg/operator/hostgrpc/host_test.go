@@ -24,6 +24,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -180,21 +181,25 @@ func TestStaticExchange(t *testing.T) {
 
 // fakeSession is the minimal operatorclient.Session the host needs. The durable task stream
 // is one fakeDurableStream (durable_test.go), created up front and handed out on every open.
-// Action deltas and flushes are recorded in order; flushErr, when set, fails the next Flush.
-// actions is what Actions hands the host's deliver loop; the channels close on Close.
+// Action deltas and flushes are recorded in order; flushErr, when set, fails the next Flush,
+// and flushGate, when set, holds every Flush until it is closed. actions is what Actions
+// hands the host's deliver loop; the channels close on Close.
 type fakeSession struct {
 	operatorclient.Session
-	stream   *fakeDurableStream
-	workerId string
-	tenantId string
-	added    [][]string
-	removed  [][]string
-	puts     []*v1.CreateWorkflowVersionRequest
-	events   []*contracts.StepActionEvent
-	flushErr error
-	flushes  int
-	pauses   int
-	closed   bool
+	stream    *fakeDurableStream
+	workerId  string
+	tenantId  string
+	added     [][]string
+	removed   [][]string
+	puts      []*v1.CreateWorkflowVersionRequest
+	events    []*contracts.StepActionEvent
+	flushErr  error
+	flushGate <-chan struct{}
+	flushes   int
+	pauses    int
+	closed    bool
+
+	runStreams []runStreamOpen
 
 	actions chan *contracts.AssignedAction
 	errs    chan error
@@ -262,7 +267,19 @@ func (f *fakeSession) RemoveActions(ids ...string) {
 	f.removed = append(f.removed, append([]string{}, ids...))
 }
 
-func (f *fakeSession) Flush(context.Context) error {
+func (f *fakeSession) Flush(ctx context.Context) error {
+	f.mu.Lock()
+	gate := f.flushGate
+	f.mu.Unlock()
+
+	if gate != nil {
+		select {
+		case <-gate:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -315,6 +332,63 @@ func (f *fakeSession) OpenDurableTaskStream(context.Context) (v1.V1Dispatcher_Du
 	return f.stream, nil
 }
 
+// runStreamOpen is one OpenRunStream call a fake session saw.
+type runStreamOpen struct {
+	first proto.Message
+	kind  operator.RunStreamKind
+}
+
+// OpenRunStream records the call and hands out a stream that echoes what is sent on it.
+func (f *fakeSession) OpenRunStream(_ context.Context, kind operator.RunStreamKind, first proto.Message) (operator.RunStream, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.closed {
+		return nil, operator.ErrSessionClosed
+	}
+
+	f.runStreams = append(f.runStreams, runStreamOpen{kind: kind, first: first})
+
+	return &echoRunStream{queue: make(chan proto.Message, 8)}, nil
+}
+
+func (f *fakeSession) openedRunStreams() []runStreamOpen {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]runStreamOpen(nil), f.runStreams...)
+}
+
+// echoRunStream is a RunStream whose Recv yields what Send put in.
+type echoRunStream struct {
+	queue  chan proto.Message
+	closed bool
+	mu     sync.Mutex
+}
+
+func (e *echoRunStream) Send(_ context.Context, msg proto.Message) error {
+	e.queue <- msg
+	return nil
+}
+
+func (e *echoRunStream) Recv(ctx context.Context) (proto.Message, error) {
+	select {
+	case msg := <-e.queue:
+		return msg, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func (e *echoRunStream) Close() error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.closed = true
+
+	return nil
+}
+
 func (f *fakeSession) Close(_ ...operatorclient.CloseOpt) error {
 	f.mu.Lock()
 
@@ -346,10 +420,12 @@ func (f *fakeSession) sentEvents() []*contracts.StepActionEvent {
 	return append([]*contracts.StepActionEvent(nil), f.events...)
 }
 
-// fakeOperatorClient connects sessions the engine authenticated as tenantId.
+// fakeOperatorClient connects sessions the engine authenticated as tenantId. flushErr and
+// flushGate are handed to the next session connected.
 type fakeOperatorClient struct {
 	connectErr error
 	flushErr   error
+	flushGate  <-chan struct{}
 	tenantId   string
 	requests   []*operatorclient.ConnectRequest
 	sessions   []*fakeSession
@@ -371,7 +447,9 @@ func (f *fakeOperatorClient) Connect(_ context.Context, req *operatorclient.Conn
 
 	s := newFakeSession(uuid.NewString(), f.tenantId)
 	s.flushErr = f.flushErr
+	s.flushGate = f.flushGate
 	f.flushErr = nil
+	f.flushGate = nil
 	f.sessions = append(f.sessions, s)
 
 	return s, nil
@@ -752,7 +830,7 @@ func TestOpenDeliversActionsToHandler(t *testing.T) {
 	ev := session.sentEvents()[0]
 	assert.Equal(t, contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED, ev.EventType)
 	assert.Equal(t, "run-2", ev.TaskRunExternalId)
-	assert.Equal(t, "no capacity", ev.EventPayload)
+	assert.Equal(t, refusedActionClientErrorMessage, ev.EventPayload, "the handler's error must not reach the client")
 	assert.Nil(t, ev.ShouldNotRetry)
 	require.NotNil(t, ev.RetryCount)
 	assert.Equal(t, int32(2), *ev.RetryCount)
@@ -1024,6 +1102,93 @@ func TestSessionReopensAfterTerminalFailure(t *testing.T) {
 	assert.NoError(t, s.Err())
 }
 
+// received is the action set the deltas recorded so far leave the fake with.
+func (f *fakeSession) received() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	set := map[string]struct{}{}
+
+	for _, ids := range f.added {
+		for _, id := range ids {
+			set[id] = struct{}{}
+		}
+	}
+
+	for _, ids := range f.removed {
+		for _, id := range ids {
+			delete(set, id)
+		}
+	}
+
+	out := make([]string, 0, len(set))
+
+	for id := range set {
+		out = append(out, id)
+	}
+
+	return out
+}
+
+// A delta made while a replacement client session is being restored, after the desired set
+// was snapshotted and before the replacement is installed, reaches the replacement: the
+// previous client is gone, and the Flush the caller makes afterwards must mean what it says.
+func TestSessionReplaysDeltasMadeDuringRecovery(t *testing.T) {
+	tenant := uuid.New()
+	source := newLockedSource(tenant, "tok")
+	op := &fakeOperatorClient{tenantId: tenant.String()}
+
+	host := newTestHost(t, source, func(string) (engineClient, error) {
+		return &fakeClient{operator: op}, nil
+	})
+
+	opened, err := host.Open(context.Background(), identity(tenant), operator.OpenOpts{Handler: &recordingHandler{}, Actions: []string{"svc:a", "svc:b"}})
+	require.NoError(t, err)
+
+	s := opened.(*session)
+	s.backoff = func(context.Context, int) error { return nil }
+
+	// the replacement's restore flush is held until the deltas below are made
+	gate := make(chan struct{})
+
+	op.mu.Lock()
+	op.flushGate = gate
+	op.mu.Unlock()
+
+	first := op.session(t, 0)
+	first.fail(status.Error(codes.Unavailable, "stream reset"))
+
+	second := op.session(t, 1)
+	require.Eventually(t, func() bool {
+		second.mu.Lock()
+		defer second.mu.Unlock()
+
+		return len(second.added) == 1
+	}, eventually, time.Millisecond, "the desired set was not restored on the replacement")
+
+	require.NoError(t, s.AddActions(context.Background(), []string{"svc:c"}))
+	require.NoError(t, s.RemoveActions(context.Background(), []string{"svc:b"}))
+
+	assert.Same(t, first, s.client(), "the deltas were made before the replacement was installed")
+
+	close(gate)
+
+	require.Eventually(t, func() bool { return s.client() == second }, eventually, time.Millisecond, "the replacement was never installed")
+
+	assert.ElementsMatch(t, []string{"svc:a", "svc:c"}, second.received(), "the replacement holds the desired set the deltas left")
+	assert.ElementsMatch(t, []string{"svc:a", "svc:c"}, first.received(), "the previous client was given the deltas too")
+	require.NoError(t, s.Flush(context.Background()))
+
+	// a delta made after the swap goes to the replacement alone
+	require.NoError(t, s.AddActions(context.Background(), []string{"svc:d"}))
+	assert.ElementsMatch(t, []string{"svc:a", "svc:c", "svc:d"}, second.received())
+	assert.ElementsMatch(t, []string{"svc:a", "svc:c"}, first.received())
+
+	require.NoError(t, s.Close(context.Background()))
+	<-s.Done()
+	assert.NoError(t, s.Err())
+}
+
 // A session whose tenant lost its token gives up: Done closes, Err says why and the client
 // reference is released.
 func TestSessionGivesUpWithoutToken(t *testing.T) {
@@ -1207,7 +1372,7 @@ func TestCancelsBypassBlockedStarts(t *testing.T) {
 	refused := fs.sentEvents()[0]
 	assert.Equal(t, "run-3", refused.TaskRunExternalId)
 	assert.Equal(t, contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED, refused.EventType)
-	assert.Contains(t, refused.EventPayload, "start queue")
+	assert.Equal(t, refusedActionClientErrorMessage, refused.EventPayload)
 	assert.Nil(t, refused.ShouldNotRetry)
 
 	assert.Len(t, handler.handled(), 2, "the queued start waits for the handler")

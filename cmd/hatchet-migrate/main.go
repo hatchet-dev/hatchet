@@ -10,6 +10,7 @@ import (
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-migrate/migrate"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
+	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 )
 
@@ -22,6 +23,9 @@ var upToVersion string
 var rootCmd = &cobra.Command{
 	Use:   "hatchet-migrate",
 	Short: "hatchet-migrate runs database migrations for Hatchet.",
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		return encryption.RequireFIPSBuild()
+	},
 	Run: func(cmd *cobra.Command, args []string) {
 		if printVersion {
 			fmt.Println(Version)

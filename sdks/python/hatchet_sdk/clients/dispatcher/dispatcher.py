@@ -142,10 +142,11 @@ class DispatcherClient:
         event_type: StepActionEventType,
         payload: str | None,
         should_not_retry: bool,
+        retry_after_ms: int | None = None,
     ) -> ActionEventResponse | None:
         try:
             return await self._try_send_step_action_event(
-                action, event_type, payload, should_not_retry
+                action, event_type, payload, should_not_retry, retry_after_ms
             )
         except Exception:
             was_completed = event_type == STEP_EVENT_TYPE_COMPLETED
@@ -178,6 +179,7 @@ class DispatcherClient:
         event_type: StepActionEventType,
         payload: str | None,
         should_not_retry: bool,
+        retry_after_ms: int | None = None,
     ) -> ActionEventResponse:
         aio_client = self._get_or_create_aio_client()
 
@@ -196,6 +198,7 @@ class DispatcherClient:
             event_payload=payload,
             retry_count=action.retry_count,
             should_not_retry=should_not_retry,
+            retry_after_ms=retry_after_ms,
         )
 
         try:
@@ -238,6 +241,7 @@ class DispatcherClient:
                     event_payload=item.payload or "",
                     retry_count=action.retry_count,
                     should_not_retry=item.should_not_retry,
+                    retry_after_ms=item.retry_after_ms,
                 )
                 for item in items
             ],

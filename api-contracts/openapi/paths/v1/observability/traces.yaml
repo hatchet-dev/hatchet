@@ -62,6 +62,8 @@ getTrace:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Trace not found
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get OTel trace
     tags:
       - Observability

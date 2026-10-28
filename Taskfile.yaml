@@ -15,7 +15,7 @@ tasks:
       - |
         cat > .env <<EOF
         DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
-        DATABASE_PGBOUNCER_URL='postgresql://hatchet:hatchet@127.0.0.1:6431/hatchet'
+        DATABASE_PGBOUNCER_URL='postgresql://hatchet:hatchet@127.0.0.1:6431/hatchet?statement_timeout=30000&idle_in_transaction_session_timeout=30000'
         EOF
   set-env-all:
     cmds:
@@ -24,7 +24,7 @@ tasks:
 
         cat > .env <<EOF
         DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
-        DATABASE_PGBOUNCER_URL='postgresql://hatchet:hatchet@127.0.0.1:6431/hatchet'
+        DATABASE_PGBOUNCER_URL='postgresql://hatchet:hatchet@127.0.0.1:6431/hatchet?statement_timeout=30000&idle_in_transaction_session_timeout=30000'
 
         SERVER_ENCRYPTION_MASTER_KEYSET_FILE=./hack/dev/encryption-keys/master.key
         SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET_FILE=./hack/dev/encryption-keys/private_ec256.key
@@ -192,6 +192,7 @@ tasks:
       - task: install-dependencies
       - task: generate-api
       - task: generate-proto
+      - task: generate-serverless-proto
       - task: generate-proto-typescript-es
       - task: generate-sqlc
       - task: generate-docs
@@ -263,6 +264,15 @@ tasks:
   generate-proto:
     cmds:
       - bash ./hack/proto/proto.sh
+  generate-serverless-proto:
+    desc: Regenerate the TypeScript bindings for the serverless wire contract
+    dir: sdks/typescript-serverless
+    cmds:
+      # The package depends on the TypeScript SDK's build output (file:../typescript/dist)
+      # until 1.32 is published, so the SDK is built before the package is installed.
+      - pnpm run build:sdk
+      - pnpm install --frozen-lockfile
+      - pnpm run generate-proto
   generate-proto-typescript-es:
     desc: Regenerate the TypeScript SDK's protobuf-es bindings (sdks/typescript/src/protoc-es)
     dir: sdks/typescript

@@ -4,13 +4,15 @@ WITH input AS (
         unnest(@dagIds::bigint[]) AS dag_id,
         unnest(@dagInsertedAts::timestamptz[]) AS dag_inserted_at
 )
-SELECT dd.*, d.desired_worker_labels, d.external_id
+SELECT dd.*, d.desired_worker_labels, d.external_id, d.payload_reference_id
 FROM v1_dag d
 JOIN v1_dag_data dd ON (d.id, d.inserted_at) = (dd.dag_id, dd.dag_inserted_at)
 WHERE (d.id, d.inserted_at) IN (
     SELECT dag_id, dag_inserted_at
     FROM input
-);
+)
+AND d.inserted_at >= @minDagInsertedAt::timestamptz
+AND dd.dag_inserted_at >= @minDagInsertedAt::timestamptz;
 
 -- name: CreateDAGs :many
 WITH input AS (
@@ -22,7 +24,8 @@ WITH input AS (
         unnest(@workflowVersionIds::uuid[]) AS workflow_version_id,
         unnest(@parentTaskExternalIds::uuid[]) AS parent_task_external_id,
         unnest(@desiredWorkerLabels::jsonb[]) AS desired_worker_labels,
-        unnest(@idempotencyKeys::text[]) AS idempotency_keys
+        unnest(@idempotencyKeys::text[]) AS idempotency_keys,
+        unnest(@payloadReferenceIds::uuid[]) AS payload_reference_id
 )
 INSERT INTO v1_dag (
     tenant_id,
@@ -32,7 +35,8 @@ INSERT INTO v1_dag (
     workflow_version_id,
     parent_task_external_id,
     desired_worker_labels,
-    idempotency_key
+    idempotency_key,
+    payload_reference_id
 )
 SELECT
     i.tenant_id,
@@ -42,7 +46,8 @@ SELECT
     i.workflow_version_id,
     NULLIF(i.parent_task_external_id, '00000000-0000-0000-0000-000000000000'::uuid),
     i.desired_worker_labels,
-    NULLIF(i.idempotency_keys, '')
+    NULLIF(i.idempotency_keys, ''),
+    NULLIF(i.payload_reference_id, '00000000-0000-0000-0000-000000000000'::uuid)
 FROM
     input i
 RETURNING

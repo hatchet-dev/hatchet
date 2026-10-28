@@ -225,18 +225,27 @@ func (s *ReconnectingStream[C]) ConnectOnceFrom(ctx context.Context, observed ui
 // ConnectSync connects with bounded retries and backoff, returning the last
 // error when every attempt fails.
 func (s *ReconnectingStream[C]) ConnectSync(ctx context.Context) error {
+	return s.ConnectSyncWait(ctx, ctx)
+}
+
+// ConnectSyncWait is ConnectSync with the retry loop bounded by waitCtx. ctx
+// opens the new client and so must outlive it (the lifecycle context);
+// waitCtx only gates the attempts and the backoff sleeps between them, so a
+// caller's deadline can stop waiting without ending the shared stream. When
+// waitCtx ends the returned error is waitCtx.Err().
+func (s *ReconnectingStream[C]) ConnectSyncWait(ctx, waitCtx context.Context) error {
 	if s.IsClosed() {
 		return ErrListenerClosed
 	}
 
-	if err := ctx.Err(); err != nil {
+	if err := waitCtx.Err(); err != nil {
 		return err
 	}
 
 	var lastErr error
 	for attempt := 0; attempt < retry.StreamSyncMaxAttempts; attempt++ {
 		if attempt > 0 {
-			if err := s.sleep(ctx, attempt-1); err != nil {
+			if err := s.sleep(waitCtx, attempt-1); err != nil {
 				return err
 			}
 		}
@@ -245,7 +254,7 @@ func (s *ReconnectingStream[C]) ConnectSync(ctx context.Context) error {
 			return ErrListenerClosed
 		}
 
-		if err := ctx.Err(); err != nil {
+		if err := waitCtx.Err(); err != nil {
 			return err
 		}
 
@@ -256,7 +265,7 @@ func (s *ReconnectingStream[C]) ConnectSync(ctx context.Context) error {
 
 		lastErr = err
 
-		if errors.Is(err, ErrListenerClosed) || retry.ClassifyStreamError(ctx, err) == retry.StreamDecisionStop {
+		if errors.Is(err, ErrListenerClosed) || retry.ClassifyStreamError(waitCtx, err) == retry.StreamDecisionStop {
 			return err
 		}
 
@@ -275,8 +284,20 @@ func (s *ReconnectingStream[C]) ConnectSync(ctx context.Context) error {
 // A reconnect failure that is permanent (ErrListenerClosed or classified
 // StreamDecisionStop) short-circuits immediately.
 func (s *ReconnectingStream[C]) RetrySend(ctx context.Context, send func(C) error) error {
+	return s.RetrySendWait(ctx, ctx, send)
+}
+
+// RetrySendWait is RetrySend with the retry loop bounded by waitCtx. ctx is
+// used to reconnect and so must outlive the stream (the lifecycle context);
+// waitCtx only gates the attempts and the backoff sleeps between them. When
+// waitCtx ends the returned error is waitCtx.Err().
+func (s *ReconnectingStream[C]) RetrySendWait(ctx, waitCtx context.Context, send func(C) error) error {
 	var lastErr error
 	for attempt := 0; attempt < retry.StreamSyncMaxAttempts; attempt++ {
+		if err := waitCtx.Err(); err != nil {
+			return err
+		}
+
 		var gen uint64
 		err := func() error {
 			s.sendMu.Lock()
@@ -300,14 +321,14 @@ func (s *ReconnectingStream[C]) RetrySend(ctx context.Context, send func(C) erro
 		s.l.Warn().Err(err).Str("stream", s.name).Int("attempt", attempt+1).Msg("stream send failed")
 
 		if rerr := s.ConnectOnceFrom(ctx, gen); rerr != nil {
-			if errors.Is(rerr, ErrListenerClosed) || retry.ClassifyStreamError(ctx, rerr) == retry.StreamDecisionStop {
+			if errors.Is(rerr, ErrListenerClosed) || retry.ClassifyStreamError(waitCtx, rerr) == retry.StreamDecisionStop {
 				return fmt.Errorf("could not reconnect %s to retry send: %w", s.name, rerr)
 			}
 			s.l.Error().Err(rerr).Str("stream", s.name).Msg("stream reconnect after send failure failed")
 		}
 
 		if attempt < retry.StreamSyncMaxAttempts-1 {
-			if serr := s.sleep(ctx, attempt); serr != nil {
+			if serr := s.sleep(waitCtx, attempt); serr != nil {
 				return serr
 			}
 		}

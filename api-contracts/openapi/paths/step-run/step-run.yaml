@@ -48,6 +48,8 @@ stepRunScoped:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: The step run was not found
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get step run
     tags:
       - Step Run
@@ -103,6 +105,8 @@ rerunStepRun:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Rerun step run
     tags:
       - Step Run
@@ -151,6 +155,8 @@ cancelStepRun:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Attempts to cancel a step run
     tags:
       - Step Run
@@ -205,6 +211,8 @@ getSchema:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: The step run was not found
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get step run schema
     tags:
       - Step Run
@@ -263,6 +271,8 @@ listEvents:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: The step run was not found
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: List events for step run
     tags:
       - Step Run
@@ -324,6 +334,8 @@ listStepRunEventsForWorkflowRun:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: The step run was not found
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: List events for all step runs for a workflow run
     tags:
       - Step Run
@@ -382,6 +394,8 @@ listArchives:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: The step run was not found
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: List archives for step run
     tags:
       - Step Run

@@ -70,6 +70,7 @@ class BatchEventItem(BaseModel):
     task_run_external_id: BatchMemberId
     payload: str | None = None
     should_not_retry: bool = False
+    retry_after_ms: int | None = None
 
 
 class Action(BaseModel):

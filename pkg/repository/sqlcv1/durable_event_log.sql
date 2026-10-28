@@ -123,6 +123,42 @@ WHERE durable_task_id = @durableTaskId::BIGINT
   AND node_id < @nodeId::BIGINT
 ORDER BY node_id ASC, branch_id ASC;
 
+-- name: ResetSatisfiedOrdersForNewBranch :one
+WITH input AS (
+    SELECT
+        UNNEST(@keptNodeIds::BIGINT[]) AS node_id,
+        UNNEST(@keptBranchIds::BIGINT[]) AS branch_id
+), renumbered AS (
+    SELECT
+        e.node_id,
+        e.branch_id,
+        -- this "compacts" the satisfied orders we're going to keep, so they're contiguous and start at 1
+        -- so that when the replay occurs, we don't end up with a gap causing us to hang. for instance, if we had
+        -- nodes 1, 2, and 3 with satisfied orders 3, 4, and 1, the satisfied orders would be renumbered to 2, 3, and 1
+        -- (in order of the nodes) so we never would hang waiting for order 2 to appear when it never would.
+        -- there's a bit more explanation of this in this PR description: https://github.com/hatchet-dev/hatchet/pull/5265
+        ROW_NUMBER() OVER (ORDER BY e.satisfied_order ASC) AS satisfied_order
+    FROM v1_durable_event_log_entry e
+    JOIN input i ON (i.node_id, i.branch_id) = (e.node_id, e.branch_id)
+    WHERE e.durable_task_id = @durableTaskId::BIGINT
+      AND e.durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
+      AND e.satisfied_order IS NOT NULL
+), updated AS (
+    UPDATE v1_durable_event_log_entry e
+    SET satisfied_order = (
+        SELECT r.satisfied_order
+        FROM renumbered r
+        WHERE (r.node_id, r.branch_id) = (e.node_id, e.branch_id)
+    )
+    WHERE e.durable_task_id = @durableTaskId::BIGINT
+      AND e.durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
+      AND e.satisfied_order IS NOT NULL
+    RETURNING e.satisfied_order
+)
+
+SELECT COALESCE(MAX(satisfied_order), 0)::BIGINT AS latest_satisfied_order
+FROM updated;
+
 -- name: UpdateDurableEventLogEntriesSatisfied :many
 WITH inputs AS (
     SELECT
@@ -151,6 +187,17 @@ WITH inputs AS (
         AND (durable_task_id, durable_task_inserted_at, branch_id, node_id) IN (
             SELECT durable_task_id, durable_task_inserted_at, branch_id, node_id
             FROM inputs
+        )
+        -- an entry past a fork on its branch is never replayed again, so giving it a
+        -- satisfied_order would leave a permanent gap for the live branch to wait on
+        AND NOT EXISTS (
+            SELECT 1
+            FROM v1_durable_event_log_branch_point bp
+            WHERE bp.durable_task_id = e.durable_task_id
+              AND bp.durable_task_inserted_at = e.durable_task_inserted_at
+              AND bp.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+              AND bp.parent_branch_id = e.branch_id
+              AND bp.first_node_id_in_new_branch <= e.node_id
         )
 ), updated AS (
     UPDATE v1_durable_event_log_entry e
@@ -198,7 +245,10 @@ WITH inputs AS MATERIALIZED (
         lt.inserted_at
     FROM inputs i
     JOIN v1_lookup_table lt ON lt.external_id = i.external_id
-    WHERE lt.tenant_id = @tenantId::UUID
+    WHERE
+        lt.tenant_id = @tenantId::UUID
+        AND lt.inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+        AND lt.inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
 ), satisfied_entries AS MATERIALIZED (
     SELECT
         e.*,
@@ -275,6 +325,7 @@ WITH inputs AS (
         UNNEST(@branchIds::BIGINT[]) AS branch_id,
         UNNEST(@idempotencyKeys::BYTEA[]) AS idempotency_key,
         UNNEST(@isSatisfieds::BOOLEAN[]) AS is_satisfied,
+        UNNEST(@isTriggereds::BOOLEAN[]) AS is_triggered,
         UNNEST(@userMessages::TEXT[]) AS user_message,
         UNNEST(@waitDatas::TEXT[]) AS wait_data
 ), ordered_inputs AS (
@@ -307,8 +358,9 @@ WITH inputs AS (
         satisfied_order,
         user_message,
         wait_data,
-        -- !!IMPORTANT: Writing the `triggered_at` explicitly as `NULL` since it has a `DEFAULT CURRENT_TIMESTAMP`,
-        -- so we write the explicit null to avoid it being set to the current timestamp on insert
+        -- !!IMPORTANT: `triggered_at` has a `DEFAULT CURRENT_TIMESTAMP`, so it is written explicitly: NULL
+        -- for an entry whose run the trigger path still has to spawn, NOW() for an entry whose child
+        -- already exists (an in-place replay)
         triggered_at
     )
     SELECT
@@ -327,7 +379,7 @@ WITH inputs AS (
         i.satisfied_order,
         NULLIF(i.user_message, ''),
         NULLIF(i.wait_data, '')::JSONB,
-        NULL::TIMESTAMPTZ
+        CASE WHEN i.is_triggered THEN NOW() END
     FROM ordered_inputs i
     ON CONFLICT (durable_task_id, durable_task_inserted_at, branch_id, node_id) DO NOTHING
     RETURNING *

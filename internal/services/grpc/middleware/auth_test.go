@@ -2,18 +2,32 @@ package middleware
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"testing"
 
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	authtoken "github.com/hatchet-dev/hatchet/pkg/auth/token"
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
-	"github.com/rs/zerolog"
-	"github.com/stretchr/testify/require"
 )
+
+func TestCouldNotCheckTokenKeepsLimitErrorRetryable(t *testing.T) {
+	l := zerolog.Nop()
+	a := &GRPCAuthN{l: &l}
+
+	err := a.couldNotCheckToken(context.Background(), fmt.Errorf("%w: %w", authtoken.ErrCouldNotReadTokenFromDatabase, &fairpool.LimitError{Key: "shared", Limit: 2}))
+
+	assert.Equal(t, connect.CodeResourceExhausted, connect.CodeOf(err))
+}
 
 type readonlyRepo struct {
 	fakeRepository

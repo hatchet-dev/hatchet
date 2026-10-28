@@ -38,6 +38,7 @@ from hatchet_sdk.engine_version import MinEngineVersion
 from hatchet_sdk.exceptions import (
     IllegalTaskOutputError,
     NonRetryableException,
+    RetryAfterException,
     TaskRunError,
 )
 from hatchet_sdk.features.runs import RunsClient
@@ -175,6 +176,10 @@ class Runner:
             engine_version
             and not semver_less_than(engine_version, MinEngineVersion.DURABLE_EVICTION)
         )
+        self._supports_retry_after = bool(
+            engine_version
+            and not semver_less_than(engine_version, MinEngineVersion.RETRY_AFTER)
+        )
 
         self.durable_event_listener: (
             DurableEventListener | PreEvictionDurableEventListener | None
@@ -283,6 +288,21 @@ class Runner:
             reason=rec.eviction_reason,
         )
 
+    def _retry_after_ms(
+        self, e: BaseException, action_id: str, retries: int
+    ) -> int | None:
+        if not isinstance(e, RetryAfterException):
+            return None
+
+        if not self._supports_retry_after:
+            logger.warning(
+                f"RetryAfterException requires engine >= {MinEngineVersion.RETRY_AFTER.value} "
+                f"(connected: {self.engine_version or 'unknown'}). Task {action_id} raised it, so the engine "
+                f"will handle the failure with the task's retry policy (retries={retries}) instead of the requested delay."
+            )
+
+        return e.after_ms
+
     def step_run_callback(
         self, action: Action, t: Task[TWorkflowInput, R]
     ) -> Callable[[asyncio.Task[Any]], None]:
@@ -297,6 +317,7 @@ class Runner:
                 output = task.result()
             except Exception as e:
                 should_not_retry = isinstance(e, NonRetryableException)
+                retry_after_ms = self._retry_after_ms(e, action.action_id, t.retries)
 
                 exc = TaskRunError.from_exception(e, action.step_run_id)
 
@@ -307,6 +328,7 @@ class Runner:
                         type=STEP_EVENT_TYPE_FAILED,
                         payload=exc.serialize(include_metadata=True),
                         should_not_retry=should_not_retry,
+                        retry_after_ms=retry_after_ms,
                     )
                 )
 
@@ -533,6 +555,7 @@ class Runner:
                         )
                 except Exception as e:
                     should_not_retry = isinstance(e, NonRetryableException)
+                    retry_after_ms = self._retry_after_ms(e, action_id, task.retries)
                     self.event_queue.put(
                         QueuedBatchActionEvent(
                             action=action,
@@ -544,6 +567,7 @@ class Runner:
                                         e, ext_id
                                     ).serialize(include_metadata=True),
                                     should_not_retry=should_not_retry,
+                                    retry_after_ms=retry_after_ms,
                                 )
                                 for ext_id in action.batch_items
                             ],
@@ -633,6 +657,7 @@ class Runner:
                 f"Batch task '{action_id}' failed for batch {action.batch_id}"
             )
             should_not_retry = isinstance(e, NonRetryableException)
+            retry_after_ms = self._retry_after_ms(e, action_id, task.retries)
             self.event_queue.put(
                 QueuedBatchActionEvent(
                     action=action,
@@ -644,6 +669,7 @@ class Runner:
                                 include_metadata=True
                             ),
                             should_not_retry=should_not_retry,
+                            retry_after_ms=retry_after_ms,
                         )
                         for ext_id in action.batch_items
                     ],

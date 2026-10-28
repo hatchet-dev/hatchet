@@ -3,21 +3,26 @@
 package streams
 
 import (
+	"context"
 	"errors"
 
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	v1connect "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1/v1connect"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/streams"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 // Service is the durable streams gRPC service. CancelStreamSessions lets the
-// engine hang up Subscribe RPCs on shutdown.
+// engine hang up Subscribe RPCs on shutdown; RegisterSubscribe is Subscribe for
+// a caller in the same process.
 type Service interface {
 	v1connect.V1StreamsHandler
+	RegisterSubscribe(ctx context.Context, req *contracts.SubscribeStreamRequest) (*rpcstream.ChannelStream, error)
 	CancelStreamSessions()
 	Cleanup() error
 }
