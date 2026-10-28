@@ -559,8 +559,9 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 			dispatcherId, ok := workerIdToDispatcherId[bulkAssigned.WorkerId]
 
 			if hasNoDispatcher || !ok {
-				s.l.Error().Ctx(ctx).Msg("could not assign step run to worker: no dispatcher id. attempting internal retry.")
+				s.l.Error().Ctx(ctx).Str("worker_id", bulkAssigned.WorkerId.String()).Msg("could not assign step run to worker: no dispatcher id. removing worker from the scheduler and attempting internal retry.")
 
+				s.pool.RemoveWorker(ctx, tenantId, bulkAssigned.WorkerId)
 				s.internalRetry(ctx, tenantId, bulkAssigned)
 
 				continue
@@ -1143,6 +1144,7 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId uuid.UU
 
 		dispatcherID, ok := workerIdToDispatcherId[key.WorkerID]
 		if !ok {
+			s.pool.RemoveWorker(ctx, tenantId, key.WorkerID)
 			s.internalRetry(ctx, tenantId, group...)
 			releaseOnError()
 			result = multierror.Append(result, fmt.Errorf("could not assign batch to worker %s: dispatcher id missing", key.WorkerID))
