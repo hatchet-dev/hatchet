@@ -4,10 +4,6 @@ on:
   issue_comment:
     types: [created]
 
-concurrency:
-  group: vouch-manage
-  cancel-in-progress: false
-
 permissions: {}
 
 jobs:
