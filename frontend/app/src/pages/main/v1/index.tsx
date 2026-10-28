@@ -4,6 +4,7 @@ import { ThreeColumnLayout } from '@/components/layout/three-column-layout';
 import { SidePanel } from '@/components/v1/nav/side-panel';
 import { Loading } from '@/components/v1/ui/loading';
 import useControlPlane from '@/hooks/use-control-plane';
+import { FeatureFlagId, useIsFeatureEnabled } from '@/hooks/use-feature-flags';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { useTenantEntitlements } from '@/hooks/use-tenant-entitlements';
@@ -52,6 +53,11 @@ export function MainShell({ children }: { children?: ReactNode }) {
   const hasDurableStreams = !!entitlements?.durableStreams;
   const hasServerlessEndpoints = !!entitlements?.serverlessOperator;
 
+  const { isEnabled: isConcurrencyEnabled } = useIsFeatureEnabled(
+    FeatureFlagId.ConcurrencyPageEnabled,
+    false,
+  );
+
   const navSections = useMemo(
     () =>
       sideNavItems({
@@ -61,6 +67,7 @@ export function MainShell({ children }: { children?: ReactNode }) {
         hasManagedWorkers,
         hasServerlessEndpoints,
         hasDurableStreams,
+        isConcurrencyEnabled,
       }),
     [
       canBill,
@@ -69,6 +76,7 @@ export function MainShell({ children }: { children?: ReactNode }) {
       hasManagedWorkers,
       hasServerlessEndpoints,
       hasDurableStreams,
+      isConcurrencyEnabled,
     ],
   );
 
