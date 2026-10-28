@@ -123,11 +123,12 @@ func TestOrderedRelease_ResumeCountsAsProgress(t *testing.T) {
 	s.deliver(t, 1)
 	s.deliver(t, 5)
 
-	time.Sleep(orderedReleaseTestTimeout * 3 / 4)
-	require.NoError(t, s.inv.resumeOrderedRelease(releaseKey, 3))
-	time.Sleep(orderedReleaseTestTimeout / 2)
+	time.Sleep(orderedReleaseTestTimeout * 3 / 2)
 
-	require.Empty(t, s.timedOut(), "the cursor moved to 3 after the hold started")
+	// check straight after the resume, as handleWorkerStatus runs the eviction check right after
+	// resumeOrderedRelease
+	require.NoError(t, s.inv.resumeOrderedRelease(releaseKey, 3))
+	require.Empty(t, s.timedOut(), "the cursor moved to 3 after the hold timed out")
 
 	time.Sleep(2 * orderedReleaseTestTimeout)
 
