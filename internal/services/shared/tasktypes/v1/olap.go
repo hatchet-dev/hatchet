@@ -65,11 +65,12 @@ type CreatedEventTriggerPayloadSingleton struct {
 	EventSeenAt             time.Time  `json:"event_seen_at"`
 	EventKey                string     `json:"event_key"`
 	EventExternalId         uuid.UUID  `json:"event_id"`
-	EventPayload            []byte     `json:"event_payload"`
+	EventPayload            []byte     `json:"event_payload,omitempty"`
 	EventAdditionalMetadata []byte     `json:"event_additional_metadata,omitempty"`
 	EventScope              *string    `json:"event_scope,omitempty"`
 	FilterId                *uuid.UUID `json:"filter_id,omitempty"`
 	TriggeringWebhookName   *string    `json:"triggering_webhook_name,omitempty"`
+	PayloadReferenceId      *uuid.UUID `json:"payload_reference_id,omitempty"`
 }
 
 type CreatedEventTriggerPayload struct {
@@ -101,9 +102,21 @@ type CreateMonitoringEventPayload struct {
 	EventTimestamp time.Time `json:"event_timestamp" validate:"required"`
 	EventPayload   string    `json:"event_payload" validate:"required"`
 	EventMessage   string    `json:"event_message,omitempty"`
+
+	// StatusOnly applies a DAG orchestrator event to its run's DAG status without writing a task
+	// event, for publishes that duplicate an event already sent by the regular reporting path.
+	// Ignored for other tasks.
+	StatusOnly bool `json:"status_only,omitempty"`
+
+	// WillRetry records the failure or timeout event but leaves the task and its run non-terminal.
+	WillRetry bool `json:"will_retry,omitempty"`
+
+	// PayloadReferenceId is set on FINISHED events whose output the task controller stores in the
+	// core payload store under this id, so OLAP keeps the reference instead of its own copy.
+	PayloadReferenceId *uuid.UUID `json:"payload_reference_id,omitempty"`
 }
 
-func MonitoringEventMessageFromActionEvent(tenantId uuid.UUID, taskId int64, retryCount int32, durableInvocationCount int32, request *contracts.StepActionEvent) (*msgqueue.Message, error) {
+func MonitoringEventMessageFromActionEvent(tenantId uuid.UUID, taskId int64, retryCount int32, durableInvocationCount int32, request *contracts.StepActionEvent, payloadReferenceId *uuid.UUID) (*msgqueue.Message, error) {
 	var workerId *uuid.UUID
 	parsedId, err := uuid.Parse(request.WorkerId)
 
@@ -118,15 +131,24 @@ func MonitoringEventMessageFromActionEvent(tenantId uuid.UUID, taskId int64, ret
 		WorkerId:               workerId,
 		EventTimestamp:         request.EventTimestamp.AsTime(),
 		EventPayload:           request.EventPayload,
+		PayloadReferenceId:     payloadReferenceId,
 	}
 
 	switch request.EventType {
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED:
 		payload.EventType = sqlcv1.V1EventTypeOlapFINISHED
+
+		if payloadReferenceId != nil {
+			payload.EventPayload = ""
+		}
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED:
 		payload.EventType = sqlcv1.V1EventTypeOlapFAILED
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED:
 		payload.EventType = sqlcv1.V1EventTypeOlapSTARTED
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_UNKNOWN,
+		contracts.StepActionEventType_STEP_EVENT_TYPE_ACKNOWLEDGED,
+		contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLED:
+		return nil, fmt.Errorf("unknown event type: %s", request.EventType.String())
 	default:
 		return nil, fmt.Errorf("unknown event type: %s", request.EventType.String())
 	}

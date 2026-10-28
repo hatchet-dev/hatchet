@@ -15,6 +15,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/olap/signal"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
@@ -146,6 +147,7 @@ type Scheduler struct {
 	signaler *signal.OLAPSignaler
 
 	tasksWithNoWorkerCache *expirable.LRU[string, struct{}]
+	rateLimitedTasksCache  *expirable.LRU[string, struct{}]
 
 	promGate *prometheus.Gate
 
@@ -194,6 +196,7 @@ func New(
 
 	// TODO: replace with config or pull into a constant
 	tasksWithNoWorkerCache := expirable.NewLRU(10000, func(string, struct{}) {}, 5*time.Minute)
+	rateLimitedTasksCache := expirable.NewLRU(10000, func(string, struct{}) {}, 1*time.Minute)
 
 	signaler := signal.NewOLAPSignaler(opts.mq, opts.pubsub, opts.repov1, opts.l, pubBuffer, opts.promGate)
 
@@ -210,6 +213,7 @@ func New(
 		ql:                     opts.queueLogger,
 		pool:                   opts.pool,
 		tasksWithNoWorkerCache: tasksWithNoWorkerCache,
+		rateLimitedTasksCache:  rateLimitedTasksCache,
 		signaler:               signaler,
 		promGate:               opts.promGate,
 		queueMetrics:           newQueueMetricsPoller(opts.repov1.Tasks(), opts.l),
@@ -324,6 +328,19 @@ func (s *Scheduler) Start() (func() error, error) {
 		}
 	}()
 
+	rateLimitPausesEnded := s.pool.GetRateLimitPausesEndedCh()
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case tenantId := <-rateLimitPausesEnded:
+				go s.notifyRateLimitPausesEnded(ctx, tenantId)
+			}
+		}
+	}()
+
 	cleanup := func() error {
 		cancel()
 
@@ -369,6 +386,8 @@ func (s *Scheduler) handleTask(ctx context.Context, task *msgqueue.Message) (err
 		return s.handleNewQueue(ctx, task)
 	case msgqueue.MsgIDNewConcurrencyStrategy:
 		return s.handleNewConcurrencyStrategy(ctx, task)
+	case msgqueue.MsgIDRateLimitsChanged:
+		return s.handleRateLimitsChanged(ctx, task)
 	}
 
 	return fmt.Errorf("unknown task: %s", task.ID)
@@ -421,6 +440,29 @@ func (s *Scheduler) handleNewQueue(ctx context.Context, msg *msgqueue.Message) e
 	}
 
 	return nil
+}
+
+func (s *Scheduler) handleRateLimitsChanged(ctx context.Context, msg *msgqueue.Message) error {
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-rate-limits-changed", msg.OtelCarrier)
+	defer span.End()
+
+	s.pool.NotifyRateLimitsChanged(ctx, msg.TenantID)
+
+	return nil
+}
+
+// notifyRateLimitPausesEnded asks the task controller to release the runs held by the ended pauses
+func (s *Scheduler) notifyRateLimitPausesEnded(ctx context.Context, tenantId uuid.UUID) {
+	msg, err := tasktypes.NewRateLimitPausesChangedMessage(tenantId, false)
+
+	if err != nil {
+		s.l.Error().Ctx(ctx).Err(err).Msg("could not create rate limit pauses ended message")
+		return
+	}
+
+	if err := s.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+		s.l.Error().Ctx(ctx).Err(err).Msg("could not send rate limit pauses ended message")
+	}
 }
 
 func (s *Scheduler) handleNewConcurrencyStrategy(ctx context.Context, msg *msgqueue.Message) error {
@@ -513,7 +555,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 				continue
 			}
 
-			_, hasNoDispatcher := workersWithoutDispatchers[bulkAssigned.WorkerId]
+			hasNoDispatcher := enumerables.HasKey(workersWithoutDispatchers, bulkAssigned.WorkerId)
 			dispatcherId, ok := workerIdToDispatcherId[bulkAssigned.WorkerId]
 
 			if hasNoDispatcher || !ok {
@@ -610,12 +652,26 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 
 	if len(res.RateLimited) > 0 {
 		for _, rateLimited := range res.RateLimited {
+			cacheKey := fmt.Sprintf("%d:%d", rateLimited.TaskId, rateLimited.RetryCount)
+
+			if _, ok := s.rateLimitedTasksCache.Get(cacheKey); ok {
+				continue
+			}
+
 			message := fmt.Sprintf(
 				"Rate limit exceeded for key %s, attempting to consume %d units, but only had %d remaining",
 				rateLimited.ExceededKey,
 				rateLimited.ExceededUnits,
 				rateLimited.ExceededVal,
 			)
+
+			if rateLimited.PausedUntil != nil {
+				message = fmt.Sprintf(
+					"Rate limit key %s is paused until %s",
+					rateLimited.ExceededKey,
+					rateLimited.PausedUntil.UTC().Format(time.RFC3339),
+				)
+			}
 
 			msg, err := tasktypes.MonitoringEventMessageFromInternal(
 				tenantId,
@@ -643,6 +699,8 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 			if err != nil {
 				outerErr = multierror.Append(outerErr, fmt.Errorf("could not send cancelled task: %w", err))
 			}
+
+			s.rateLimitedTasksCache.Add(cacheKey, struct{}{})
 		}
 	}
 
@@ -838,6 +896,7 @@ func (s *Scheduler) internalRetry(ctx context.Context, tenantId uuid.UUID, assig
 			false,
 			"could not assign step run to worker",
 			false,
+			nil,
 		)
 
 		if err != nil {
@@ -855,17 +914,9 @@ func (s *Scheduler) internalRetry(ctx context.Context, tenantId uuid.UUID, assig
 }
 
 func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId uuid.UUID, res *v1.ConcurrencyResults) {
-	uniqueQueueNames := make(map[string]struct{}, 0)
+	uniqueQueueNames := enumerables.ToSet(res.Queued, func(task repov1.TaskWithQueue) string { return task.Queue })
 
-	for _, task := range res.Queued {
-		uniqueQueueNames[task.Queue] = struct{}{}
-	}
-
-	uniqueNextStrategies := make(map[int64]struct{}, len(res.NextConcurrencyStrategies))
-
-	for _, id := range res.NextConcurrencyStrategies {
-		uniqueNextStrategies[id] = struct{}{}
-	}
+	uniqueNextStrategies := enumerables.ToSet(res.NextConcurrencyStrategies, func(id int64) int64 { return id })
 
 	strategies := make([]int64, 0, len(uniqueNextStrategies))
 
@@ -1386,6 +1437,7 @@ func (s *Scheduler) handleDeadLetteredTaskBulkAssigned(ctx context.Context, msg 
 			false,
 			"Could not send task to worker",
 			false,
+			nil,
 		)
 
 		if err != nil {
@@ -1436,6 +1488,7 @@ func (s *Scheduler) handleDeadLetteredBatchStart(ctx context.Context, msg *msgqu
 			false,
 			"Could not send task to worker",
 			false,
+			nil,
 		)
 
 		if err != nil {
@@ -1491,10 +1544,7 @@ func (s *Scheduler) handleDeadLetteredDurableCallbackCompleted(ctx context.Conte
 		return fmt.Errorf("could not resolve tasks for undelivered durable callbacks: %w", err)
 	}
 
-	flatByExternalId := make(map[uuid.UUID]*sqlcv1.FlattenExternalIdsRow, len(flatTasks))
-	for _, t := range flatTasks {
-		flatByExternalId[t.ExternalID] = t
-	}
+	flatByExternalId := enumerables.KeyBy(flatTasks, func(t *sqlcv1.FlattenExternalIdsRow) uuid.UUID { return t.ExternalID })
 
 	callbacks := make([]repov1.SatisfiedEntry, 0, len(payloads))
 
@@ -1568,7 +1618,7 @@ func (s *Scheduler) handleDeadLetteredTaskCancelled(ctx context.Context, msg *ms
 	for _, p := range payloads {
 		// if we no longer have the worker attached to a dispatcher, discard the message
 		dispatcherId, ok := workerIdToDispatcherId[p.WorkerId]
-		_, hasNoDispatcher := workersWithoutDispatchers[p.WorkerId]
+		hasNoDispatcher := enumerables.HasKey(workersWithoutDispatchers, p.WorkerId)
 
 		if hasNoDispatcher || !ok {
 			continue

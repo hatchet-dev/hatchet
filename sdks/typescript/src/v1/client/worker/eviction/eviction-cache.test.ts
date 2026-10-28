@@ -427,14 +427,12 @@ describe('DurableEvictionCache', () => {
       });
     });
 
-    // ------- evictionReason side-effect -------
-
-    describe('evictionReason is set on the chosen record', () => {
+    describe('evictionCause is set on the chosen record', () => {
       it('sets TTL reason on TTL eviction', () => {
         cache.registerRun('k1/0', 'ext-1', 1, T0, makePolicy({ ttl: '30s' }));
         cache.markWaiting('k1/0', T0, 'sleep', 'res-1');
         cache.selectEvictionCandidate(T0 + 31_000, DURABLE_SLOTS, RESERVE_SLOTS, MIN_WAIT_MS);
-        expect(cache.get('k1/0')!.evictionReason).toMatch(/TTL.*exceeded/);
+        expect(cache.get('k1/0')!.evictionCause).toBe(EvictionCause.TTL_EXCEEDED);
       });
 
       it('sets capacity reason on capacity eviction', () => {
@@ -448,7 +446,7 @@ describe('DurableEvictionCache', () => {
           RESERVE_SLOTS,
           MIN_WAIT_MS
         )!;
-        expect(cache.get(key)!.evictionReason).toMatch(/capacity/i);
+        expect(cache.get(key)!.evictionCause).toBe(EvictionCause.CAPACITY_PRESSURE);
       });
     });
   });
@@ -466,7 +464,7 @@ describe('buildEvictionReason', () => {
       waitKind: 'sleep',
       waitResourceId: 'res-1',
       _waitCount: 1,
-      evictionReason: undefined,
+      evictionCause: undefined,
       ...overrides,
     };
   }

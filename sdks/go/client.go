@@ -178,6 +178,8 @@ type Worker struct {
 	// false, they fall back to the legacy RegisterDurableEvent RPC path.
 	supportsDurableEviction bool
 
+	engineVersion string
+
 	hasDurable bool
 	logger     *zerolog.Logger
 }
@@ -385,16 +387,20 @@ func (w *Worker) wrapDurableAction(actionID string, fn internal.WrappedTaskFn) f
 
 		key := ctx.StepRunId()
 
+		// The engine omits invocation_count on the first invocation of a durable
+		// task (no entry in the durable event log yet). Treat zero as the implicit
+		// first attempt.
+		invCount := ctx.DurableTaskInvocationCount()
+		if invCount == 0 {
+			invCount = 1
+		}
+
+		if w.durableTaskListener != nil {
+			defer w.durableTaskListener.CleanupTaskState(key, invCount)
+		}
+
 		var evictionHook worker.DurableEvictionHook
 		if w.evictionManager != nil {
-			// The engine omits invocation_count on the first invocation of a durable
-			// task (no entry in the durable event log yet). Treat zero as the implicit
-			// first attempt.
-			invCount := ctx.DurableTaskInvocationCount()
-			if invCount == 0 {
-				invCount = 1
-			}
-
 			var ep *evictionpkg.EvictionPolicy
 			if policy, ok := w.evictionPolicies[actionID]; ok {
 				ep = &evictionpkg.EvictionPolicy{
@@ -511,6 +517,8 @@ func (w *Worker) checkEvictionSupport(ctx context.Context) error {
 		return nil
 	}
 
+	w.engineVersion = engineVersion
+
 	if engineVersion != "" {
 		if supported, verr := SupportsDurableEviction(engineVersion); verr == nil && supported {
 			w.supportsDurableEviction = true
@@ -546,6 +554,22 @@ func (w *Worker) checkEvictionSupport(ctx context.Context) error {
 	w.evictionManager = nil
 
 	return nil
+}
+
+func (w *Worker) warnUnsupportedRetryAfter(ctx worker.HatchetContext, next func(worker.HatchetContext) error) error {
+	err := next(ctx)
+
+	if _, ok := AsRetryAfterError(err); !ok || w.logger == nil {
+		return err
+	}
+
+	w.logger.Warn().
+		Str("engine_version", w.engineVersion).
+		Str("required_version", MinEngineVersion.RetryAfter).
+		Str("action", ctx.ActionId()).
+		Msg("engine does not support RetryAfterError; the failure is handled by the task's retry policy instead of the requested delay")
+
+	return err
 }
 
 func (w *Worker) fetchEngineVersion(ctx context.Context) (string, error) {
@@ -586,6 +610,10 @@ func (w *Worker) Start() (func() error, error) {
 
 	if err := w.checkEvictionSupport(context.Background()); err != nil {
 		return nil, err
+	}
+
+	if !SupportsRetryAfter(w.engineVersion) {
+		w.Use(w.warnUnsupportedRetryAfter)
 	}
 
 	// Track cleanup functions with a mutex to safely access from multiple goroutines
@@ -901,12 +929,24 @@ type WorkflowRunRef struct {
 }
 
 // Result blocks until the workflow run completes and returns its result.
+// It waits indefinitely; use ResultWithContext to bound the wait.
 func (wr *WorkflowRunRef) Result() (*WorkflowResult, error) {
 	return wr.resultWithContext(nil)
 }
 
+// ResultWithContext blocks until the workflow run completes and returns its
+// result. If ctx ends first, the wait stops and the returned error wraps
+// ctx.Err(), so callers can check errors.Is(err, context.DeadlineExceeded) or
+// context.Canceled. Ending the wait only drops the result subscription; the
+// run itself keeps executing on the engine.
+func (wr *WorkflowRunRef) ResultWithContext(ctx context.Context) (*WorkflowResult, error) {
+	return wr.resultWithContext(ctx)
+}
+
 func (wr *WorkflowRunRef) resultWithContext(ctx context.Context) (*WorkflowResult, error) {
 	if wr.resultFn != nil {
+		// Durable child results wait on the parent task's context inside
+		// resultFn, so ctx is not threaded through here.
 		return wr.resultFn()
 	}
 
@@ -1020,12 +1060,15 @@ func (wr *WorkflowResult) Raw() any {
 }
 
 // Run executes a workflow with the provided input and waits for completion.
+// If ctx ends before the run reaches a terminal state, the wait stops and the
+// returned error wraps ctx.Err(); the run itself keeps executing on the engine.
 func (c *Client) Run(ctx context.Context, workflowName string, input any, opts ...RunOptFunc) (*WorkflowResult, error) {
 	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/sdks/go")
 	otelCtx := ctx
 	if hCtx, ok := ctx.(Context); ok {
 		otelCtx = hCtx.GetContext()
 	}
+	resultWaitContext := otelCtx
 	otelCtx, span := tracer.Start(otelCtx, hatchetotel.SpanRunWorkflow,
 		trace.WithSpanKind(trace.SpanKindProducer),
 		trace.WithAttributes(
@@ -1040,7 +1083,7 @@ func (c *Client) Run(ctx context.Context, workflowName string, input any, opts .
 		return nil, err
 	}
 
-	result, err := workflowRunRef.Result()
+	result, err := workflowRunRef.resultWithContext(resultWaitContext)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)

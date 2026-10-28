@@ -11,11 +11,13 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/anypb"
 
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 )
 
 type countingAlerter struct {
@@ -58,6 +60,25 @@ func TestErrorInterceptorMapsNoRowsToNotFound(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, connect.CodeNotFound, connect.CodeOf(err))
 	assert.Equal(t, 0, alerter.n)
+}
+
+func TestErrorInterceptorMapsLimitErrorToResourceExhaustedWithRetryInfo(t *testing.T) {
+	err, alerter := runThroughErrorInterceptor(t, fmt.Errorf("trigger: %w", &fairpool.LimitError{Key: "shared", Limit: 2}))
+
+	require.Error(t, err)
+	assert.Equal(t, connect.CodeResourceExhausted, connect.CodeOf(err))
+	assert.Equal(t, 0, alerter.n)
+
+	var connectErr *connect.Error
+	require.ErrorAs(t, err, &connectErr)
+	require.Len(t, connectErr.Details(), 1)
+
+	detail, valueErr := connectErr.Details()[0].Value()
+	require.NoError(t, valueErr)
+
+	retryInfo, ok := detail.(*errdetails.RetryInfo)
+	require.True(t, ok, "detail is %T", detail)
+	assert.Equal(t, fairpool.RetryAfter, retryInfo.GetRetryDelay().AsDuration())
 }
 
 func TestErrorInterceptorMapsCanceledWithoutAlert(t *testing.T) {

@@ -291,7 +291,7 @@ class GroupKeyActionEvent(_message.Message):
     def __init__(self, worker_id: _Optional[str] = ..., workflow_run_id: _Optional[str] = ..., get_group_key_run_id: _Optional[str] = ..., action_id: _Optional[str] = ..., event_timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., event_type: _Optional[_Union[GroupKeyActionEventType, str]] = ..., event_payload: _Optional[str] = ...) -> None: ...
 
 class StepActionEvent(_message.Message):
-    __slots__ = ("worker_id", "job_id", "job_run_id", "task_id", "task_run_external_id", "action_id", "event_timestamp", "event_type", "event_payload", "retry_count", "should_not_retry")
+    __slots__ = ("worker_id", "job_id", "job_run_id", "task_id", "task_run_external_id", "action_id", "event_timestamp", "event_type", "event_payload", "retry_count", "should_not_retry", "retry_after_ms")
     WORKER_ID_FIELD_NUMBER: _ClassVar[int]
     JOB_ID_FIELD_NUMBER: _ClassVar[int]
     JOB_RUN_ID_FIELD_NUMBER: _ClassVar[int]
@@ -303,6 +303,7 @@ class StepActionEvent(_message.Message):
     EVENT_PAYLOAD_FIELD_NUMBER: _ClassVar[int]
     RETRY_COUNT_FIELD_NUMBER: _ClassVar[int]
     SHOULD_NOT_RETRY_FIELD_NUMBER: _ClassVar[int]
+    RETRY_AFTER_MS_FIELD_NUMBER: _ClassVar[int]
     worker_id: str
     job_id: str
     job_run_id: str
@@ -314,19 +315,22 @@ class StepActionEvent(_message.Message):
     event_payload: str
     retry_count: int
     should_not_retry: bool
-    def __init__(self, worker_id: _Optional[str] = ..., job_id: _Optional[str] = ..., job_run_id: _Optional[str] = ..., task_id: _Optional[str] = ..., task_run_external_id: _Optional[str] = ..., action_id: _Optional[str] = ..., event_timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., event_type: _Optional[_Union[StepActionEventType, str]] = ..., event_payload: _Optional[str] = ..., retry_count: _Optional[int] = ..., should_not_retry: bool = ...) -> None: ...
+    retry_after_ms: int
+    def __init__(self, worker_id: _Optional[str] = ..., job_id: _Optional[str] = ..., job_run_id: _Optional[str] = ..., task_id: _Optional[str] = ..., task_run_external_id: _Optional[str] = ..., action_id: _Optional[str] = ..., event_timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., event_type: _Optional[_Union[StepActionEventType, str]] = ..., event_payload: _Optional[str] = ..., retry_count: _Optional[int] = ..., should_not_retry: bool = ..., retry_after_ms: _Optional[int] = ...) -> None: ...
 
 class BatchActionEventItem(_message.Message):
-    __slots__ = ("task_run_external_id", "event_payload", "retry_count", "should_not_retry")
+    __slots__ = ("task_run_external_id", "event_payload", "retry_count", "should_not_retry", "retry_after_ms")
     TASK_RUN_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
     EVENT_PAYLOAD_FIELD_NUMBER: _ClassVar[int]
     RETRY_COUNT_FIELD_NUMBER: _ClassVar[int]
     SHOULD_NOT_RETRY_FIELD_NUMBER: _ClassVar[int]
+    RETRY_AFTER_MS_FIELD_NUMBER: _ClassVar[int]
     task_run_external_id: str
     event_payload: str
     retry_count: int
     should_not_retry: bool
-    def __init__(self, task_run_external_id: _Optional[str] = ..., event_payload: _Optional[str] = ..., retry_count: _Optional[int] = ..., should_not_retry: bool = ...) -> None: ...
+    retry_after_ms: int
+    def __init__(self, task_run_external_id: _Optional[str] = ..., event_payload: _Optional[str] = ..., retry_count: _Optional[int] = ..., should_not_retry: bool = ..., retry_after_ms: _Optional[int] = ...) -> None: ...
 
 class BatchActionEvent(_message.Message):
     __slots__ = ("worker_id", "job_id", "action_id", "batch_id", "event_timestamp", "event_type", "items")

@@ -965,8 +965,8 @@ WITH to_insert AS (
         -- Scopes are nullable
         UNNEST($6::TEXT[]) AS scope,
         -- Webhook names are nullable
-        UNNEST($7::TEXT[]) AS triggering_webhook_name
-
+        UNNEST($7::TEXT[]) AS triggering_webhook_name,
+        UNNEST($8::UUID[]) AS payload_reference_id
 )
 INSERT INTO v1_events_olap (
     tenant_id,
@@ -976,11 +976,12 @@ INSERT INTO v1_events_olap (
     payload,
     additional_metadata,
     scope,
-	triggering_webhook_name
+	triggering_webhook_name,
+    payload_reference_id
 )
-SELECT tenant_id, external_id, seen_at, key, '{}'::JSONB AS payload, additional_metadata, scope, triggering_webhook_name
+SELECT tenant_id, external_id, seen_at, key, '{}'::JSONB AS payload, additional_metadata, scope, triggering_webhook_name, payload_reference_id
 FROM to_insert
-RETURNING tenant_id, id, external_id, seen_at, key, payload, additional_metadata, scope, triggering_webhook_name
+RETURNING tenant_id, id, external_id, seen_at, key, payload, additional_metadata, scope, triggering_webhook_name, payload_reference_id
 `
 
 type BulkCreateEventsOLAPParams struct {
@@ -991,6 +992,7 @@ type BulkCreateEventsOLAPParams struct {
 	Additionalmetadatas    [][]byte             `json:"additionalmetadatas"`
 	Scopes                 []pgtype.Text        `json:"scopes"`
 	TriggeringWebhookNames []pgtype.Text        `json:"triggeringWebhookName"`
+	PayloadReferenceIds    []*uuid.UUID         `json:"payloadReferenceIds"`
 }
 
 func (q *Queries) BulkCreateEventsOLAP(ctx context.Context, db DBTX, arg BulkCreateEventsOLAPParams) ([]*V1EventsOlap, error) {
@@ -1002,6 +1004,7 @@ func (q *Queries) BulkCreateEventsOLAP(ctx context.Context, db DBTX, arg BulkCre
 		arg.Additionalmetadatas,
 		arg.Scopes,
 		arg.TriggeringWebhookNames,
+		arg.PayloadReferenceIds,
 	)
 	if err != nil {
 		return nil, err
@@ -1020,62 +1023,7 @@ func (q *Queries) BulkCreateEventsOLAP(ctx context.Context, db DBTX, arg BulkCre
 			&i.AdditionalMetadata,
 			&i.Scope,
 			&i.TriggeringWebhookName,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const findV1OLAPPayloadPartitionsBeforeDate = `-- name: findV1OLAPPayloadPartitionsBeforeDate :many
-WITH partitions AS (
-    SELECT
-        child.relname::text AS partition_name,
-        SUBSTRING(pg_get_expr(child.relpartbound, child.oid) FROM 'FROM \(''([^'']+)')::DATE AS lower_bound,
-        SUBSTRING(pg_get_expr(child.relpartbound, child.oid) FROM 'TO \(''([^'']+)')::DATE AS upper_bound
-    FROM pg_inherits
-    JOIN pg_class parent ON pg_inherits.inhparent = parent.oid
-    JOIN pg_class child ON pg_inherits.inhrelid = child.oid
-    WHERE parent.relname = 'v1_payloads_olap'
-)
-
-SELECT partition_name, lower_bound AS partition_date
-FROM partitions
-WHERE
-    lower_bound <= $2::DATE
-    AND NOT EXISTS (
-        SELECT 1
-        FROM v1_payloads_olap_cutover_job_offset offsets
-        WHERE offsets.key = partitions.lower_bound AND offsets.is_completed
-    )
-ORDER BY partition_date ASC -- finish old partitions before starting new ones
-LIMIT $1::INTEGER
-`
-
-type FindV1OLAPPayloadPartitionsBeforeDateRow struct {
-	PartitionName string      `json:"partition_name"`
-	PartitionDate pgtype.Date `json:"partition_date"`
-}
-
-func (q *Queries) FindV1OLAPPayloadPartitionsBeforeDate(ctx context.Context, db DBTX, maxPartitionsToProcess int32, date pgtype.Date) ([]*FindV1OLAPPayloadPartitionsBeforeDateRow, error) {
-	rows, err := db.Query(ctx, findV1OLAPPayloadPartitionsBeforeDate,
-		maxPartitionsToProcess,
-		date,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*FindV1OLAPPayloadPartitionsBeforeDateRow
-	for rows.Next() {
-		var i FindV1OLAPPayloadPartitionsBeforeDateRow
-		if err := rows.Scan(
-			&i.PartitionName,
-			&i.PartitionDate,
+			&i.PayloadReferenceID,
 		); err != nil {
 			return nil, err
 		}
@@ -1112,7 +1060,8 @@ WITH inputs AS (
         UNNEST($20::UUID[]) AS parent_task_external_id,
         UNNEST($21::BOOLEAN[]) AS is_durable,
 		UNNEST($22::TEXT[]) AS idempotency_key,
-        UNNEST(CAST($23::TEXT[] AS v1_readable_status_olap[])) AS readable_status
+        UNNEST(CAST($23::TEXT[] AS v1_readable_status_olap[])) AS readable_status,
+        UNNEST($24::UUID[]) AS payload_reference_id
 )
 INSERT INTO v1_tasks_olap (
     tenant_id,
@@ -1138,7 +1087,8 @@ INSERT INTO v1_tasks_olap (
     parent_task_external_id,
     is_durable,
 	idempotency_key,
-    readable_status
+    readable_status,
+    payload_reference_id
 )
 SELECT
     tenant_id,
@@ -1164,7 +1114,8 @@ SELECT
     parent_task_external_id,
     is_durable,
 	idempotency_key,
-    readable_status
+    readable_status,
+    payload_reference_id
 FROM inputs
 ON CONFLICT (inserted_at, id) DO NOTHING
 `
@@ -1193,6 +1144,7 @@ type CreateTasksOLAPParams struct {
 	Isdurables            []bool               `json:"isdurables"`
 	IdempotencyKeys       []pgtype.Text        `json:"idempotencykeys"`
 	ReadableStatuses      []string             `json:"readablestatuses"`
+	PayloadReferenceIds   []*uuid.UUID         `json:"payloadReferenceIds"`
 }
 
 func (q *Queries) CreateTasksOLAP(ctx context.Context, db DBTX, arg CreateTasksOLAPParams) error {
@@ -1220,6 +1172,7 @@ func (q *Queries) CreateTasksOLAP(ctx context.Context, db DBTX, arg CreateTasksO
 		arg.Isdurables,
 		arg.IdempotencyKeys,
 		arg.ReadableStatuses,
+		arg.PayloadReferenceIds,
 	)
 	return err
 }
@@ -1238,7 +1191,8 @@ WITH inputs AS (
         UNNEST($9::UUID[]) AS parent_task_external_id,
         UNNEST($10::INTEGER[]) AS total_tasks,
 		UNNEST($11::TEXT[]) AS idempotency_key,
-        UNNEST($12::BOOLEAN[]) AS is_dag_operator
+        UNNEST($12::BOOLEAN[]) AS is_dag_operator,
+        UNNEST($13::UUID[]) AS payload_reference_id
 ), dag_task_counts AS (
     SELECT
         i.id,
@@ -1285,7 +1239,8 @@ INSERT INTO v1_dags_olap (
     total_tasks,
     readable_status,
 	idempotency_key,
-    is_dag_operator
+    is_dag_operator,
+    payload_reference_id
 )
 SELECT
     i.tenant_id,
@@ -1301,9 +1256,11 @@ SELECT
     i.total_tasks,
     COALESCE(ds.computed_status, 'QUEUED'::v1_readable_status_olap),
 	i.idempotency_key,
-    i.is_dag_operator
+    i.is_dag_operator,
+    i.payload_reference_id
 FROM inputs i
 LEFT JOIN dag_statuses ds ON (i.id, i.inserted_at) = (ds.id, ds.inserted_at)
+ORDER BY i.inserted_at, i.id
 ON CONFLICT (inserted_at, id) DO UPDATE SET
     readable_status = CASE
         WHEN v1_status_to_priority(EXCLUDED.readable_status) > v1_status_to_priority(v1_dags_olap.readable_status)
@@ -1331,6 +1288,7 @@ type CreateDAGsOLAPOverwriteParams struct {
 	Totaltasks            []int32              `json:"totaltasks"`
 	IdempotencyKeys       []pgtype.Text        `json:"idempotencyKeys"`
 	IsDagOperators        []bool               `json:"isDagOperators"`
+	PayloadReferenceIds   []*uuid.UUID         `json:"payloadReferenceIds"`
 }
 
 func (q *Queries) CreateDAGsOLAP(ctx context.Context, db DBTX, arg CreateDAGsOLAPOverwriteParams) error {
@@ -1347,6 +1305,7 @@ func (q *Queries) CreateDAGsOLAP(ctx context.Context, db DBTX, arg CreateDAGsOLA
 		arg.Totaltasks,
 		arg.IdempotencyKeys,
 		arg.IsDagOperators,
+		arg.PayloadReferenceIds,
 	)
 	return err
 }

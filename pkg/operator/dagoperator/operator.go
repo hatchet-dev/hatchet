@@ -211,6 +211,8 @@ func (d *DAGOperator) HandleAction(ctx context.Context, action *contracts.Assign
 		defer release()
 
 		return d.cancelRun(ctx, action)
+	case contracts.ActionType_START_GET_GROUP_KEY, contracts.ActionType_START_BATCH:
+		fallthrough
 	default:
 		release := d.RecordTask()
 		defer release()
@@ -388,7 +390,7 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 		action.GetDurableTaskInvocationCount(),
 		action.ActionPayload,
 		ch,
-		d.repo.Matches().EvalBoolExpr,
+		d.evalBoolExprLoggingErrors(action),
 		triggerStep,
 	)
 
@@ -401,35 +403,39 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 		if isDagEvictedErr(dagErr) {
 			span.SetAttributes(attribute.Bool("dagoperator.evicted", true))
 
+			var staleInvocation *repository.StaleInvocationError
+
+			if errors.As(dagErr, &staleInvocation) {
+				d.Logger().Warn().
+					Str("task_run_external_id", action.TaskRunExternalId).
+					Int32("durable_invocation_count", staleInvocation.ActualInvocationCount).
+					Int32("latest_invocation_count", staleInvocation.ExpectedInvocationCount).
+					Msg("dag run triggered a step after a newer invocation was assigned; standing down without reporting")
+
+				return nil
+			}
+
 			d.Logger().Debug().
 				Str("task_run_external_id", action.TaskRunExternalId).
+				Int32("durable_invocation_count", action.GetDurableTaskInvocationCount()).
 				Msg("dag run evicted while waiting on durable events; slots released until restore")
 
 			return nil
 		}
 		if isDagCancelledErr(dagErr) {
-			return d.cancelDAG(span, action, dagErr.Error())
+			return d.cancelDAG(span, action, repository.TaskCancelledErrorMessage)
 		}
 		if errors.Is(dagErr, context.Canceled) {
 			return d.handleRunCancellation(span, action, tasks, dagErr)
 		}
-		// A child task failing, an engine-reported durable task error (e.g. nondeterminism), a
-		// nondeterministic ingestion, or a condition that cannot be evaluated against its parent's
-		// output are all terminal DAG outcomes that replay reproduces deterministically, so they
-		// must not be retried; anything else (operational errors) remains retriable.
+		// A child task failing, an engine-reported durable task error (e.g. nondeterminism), or a
+		// nondeterministic ingestion are all terminal DAG outcomes that replay reproduces
+		// deterministically, so they must not be retried; anything else (operational errors) remains retriable.
 		var nonDeterminismErr *repository.NonDeterminismError
-		isConditionEvalErr := isDagConditionEvalErr(dagErr)
 		shouldNotRetry := isDagChildFailedErr(dagErr) ||
 			isDagEngineErr(dagErr) ||
-			isConditionEvalErr ||
+			isDagNonRetryablePgErr(dagErr) ||
 			errors.As(dagErr, &nonDeterminismErr)
-
-		if isConditionEvalErr {
-			d.Logger().Error().Err(dagErr).
-				Str("task_run_external_id", action.TaskRunExternalId).
-				Str("workflow_version_id", action.GetWorkflowVersionId()).
-				Msg("dag step condition could not be evaluated against its parent output")
-		}
 
 		return d.fail(span, action, fmt.Errorf("dag failed: %w", dagErr), shouldNotRetry)
 	}
@@ -521,7 +527,8 @@ func (d *DAGOperator) abortForShutdown(span trace.Span, action *contracts.Assign
 	d.Logger().Warn().Err(err).
 		Str("task_run_external_id", action.TaskRunExternalId).
 		Msg("dag operator shutting down mid-run; leaving task for reassignment")
-	return err
+
+	return nil
 }
 
 func (d *DAGOperator) handleRunCancellation(span trace.Span, action *contracts.AssignedAction, tasks []*task, err error) error {
@@ -553,7 +560,28 @@ func (d *DAGOperator) handleRunCancellation(span trace.Span, action *contracts.A
 		}
 	}
 
-	return d.cancelDAG(span, action, err.Error())
+	d.Logger().Debug().Err(err).
+		Str("task_run_external_id", action.TaskRunExternalId).
+		Msg("dag run cancelled")
+
+	return d.cancelDAG(span, action, repository.TaskCancelledErrorMessage)
+}
+
+// A step condition that cannot be evaluated against its parent's output is treated as not matched,
+// so the only trace of a broken expression is this log line.
+func (d *DAGOperator) evalBoolExprLoggingErrors(action *contracts.AssignedAction) func(ctx context.Context, expr string, vars map[string]interface{}) (bool, error) {
+	return func(ctx context.Context, expr string, vars map[string]interface{}) (bool, error) {
+		matched, err := d.repo.Matches().EvalBoolExpr(ctx, expr, vars)
+		if err != nil {
+			d.Logger().Warn().Err(err).
+				Str("task_run_external_id", action.TaskRunExternalId).
+				Str("workflow_version_id", action.GetWorkflowVersionId()).
+				Str("expression", expr).
+				Msg("dag step condition could not be evaluated against its parent output, treating it as not matched")
+		}
+
+		return matched, err
+	}
 }
 
 func (d *DAGOperator) fail(span trace.Span, action *contracts.AssignedAction, err error, shouldNotRetry bool) error {
@@ -561,13 +589,23 @@ func (d *DAGOperator) fail(span trace.Span, action *contracts.AssignedAction, er
 	span.SetStatus(telemetry_codes.Error, "dag run failed")
 	span.SetAttributes(attribute.Bool("dagoperator.should_not_retry", shouldNotRetry))
 
-	if reportErr := d.SendFailed(action, err.Error(), shouldNotRetry); reportErr != nil {
+	clientErrorMessage := fmt.Sprintf("internal error while orchestrating the dag run (task run %s)", action.TaskRunExternalId)
+
+	if userFacingMessage, ok := clientErrorMessageForDagErr(err); ok {
+		clientErrorMessage = userFacingMessage
+	} else {
+		d.Logger().Error().Err(err).
+			Str("task_run_external_id", action.TaskRunExternalId).
+			Msg("dag orchestration failed with an internal error")
+	}
+
+	if reportErr := d.SendFailed(action, clientErrorMessage, shouldNotRetry); reportErr != nil {
 		span.RecordError(reportErr)
 
 		d.Logger().Error().Err(reportErr).
 			Str("task_run_external_id", action.TaskRunExternalId).
+			Str("dag_error", err.Error()).
 			Msg("could not report task failure")
-		return err
 	}
 
 	return nil

@@ -6,11 +6,13 @@ import (
 	"math/rand/v2"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
@@ -44,6 +46,11 @@ type Queuer struct {
 	s *Scheduler
 
 	lastReplenished *time.Time
+
+	// nextRateLimitRequeueAt (unix nanos) is the earliest tick that runs the rate-limited
+	// requeue: the next parked refill time when it is within queuePollInterval, otherwise
+	// one queuePollInterval, so the requeue does not run on every notify
+	nextRateLimitRequeueAt atomic.Int64
 
 	limit int
 
@@ -510,12 +517,27 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 	}
 }
 
+// requeueRateLimitedItems moves due rate-limited items back into the queue once
+// nextRateLimitRequeueAt has passed, then schedules the next run: the earliest parked refill
+// time if it falls within queuePollInterval, otherwise one queuePollInterval from now.
 func (q *Queuer) requeueRateLimitedItems(ctx context.Context) {
-	_, err := q.repo.RequeueRateLimitedItems(ctx, q.tenantId, q.queueName)
+	now := time.Now()
+
+	if now.UnixNano() < q.nextRateLimitRequeueAt.Load() {
+		return
+	}
+
+	next := now.Add(queuePollInterval)
+
+	nextRequeueAfter, err := q.repo.RequeueRateLimitedItems(ctx, q.tenantId, q.queueName)
 
 	if err != nil {
 		logger.ShutdownAware(ctx, q.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error requeuing rate limited items")
+	} else if nextRequeueAfter != nil && nextRequeueAfter.Before(next) {
+		next = *nextRequeueAfter
 	}
+
+	q.nextRateLimitRequeueAt.Store(next.UnixNano())
 }
 
 func (q *Queuer) refillQueue(ctx context.Context) ([]*sqlcv1.V1QueueItem, error) {
@@ -557,13 +579,9 @@ func (q *Queuer) refillQueue(ctx context.Context) ([]*sqlcv1.V1QueueItem, error)
 		}
 	}
 
-	newCurr := make([]*sqlcv1.V1QueueItem, 0, len(curr))
-
-	for _, qi := range curr {
-		if _, ok := q.unacked[qi.ID]; !ok {
-			newCurr = append(newCurr, qi)
-		}
-	}
+	newCurr := enumerables.Filter(curr, func(qi *sqlcv1.V1QueueItem) bool {
+		return !enumerables.HasKey(q.unacked, qi.ID)
+	})
 
 	// add all newCurr to unacked so we don't assign them again
 	for _, qi := range newCurr {
@@ -727,6 +745,7 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 			ExceededUnits:  rateLimitedItem.exceededUnits,
 			ExceededVal:    rateLimitedItem.exceededVal,
 			NextRefillAt:   rateLimitedItem.nextRefillAt,
+			PausedUntil:    rateLimitedItem.pausedUntil,
 			TaskId:         rateLimitedItem.qi.TaskID,
 			TaskInsertedAt: rateLimitedItem.qi.TaskInsertedAt,
 			RetryCount:     rateLimitedItem.qi.RetryCount,
@@ -740,6 +759,7 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 			ExceededUnits:  rateLimitedItemToMove.exceededUnits,
 			ExceededVal:    rateLimitedItemToMove.exceededVal,
 			NextRefillAt:   rateLimitedItemToMove.nextRefillAt,
+			PausedUntil:    rateLimitedItemToMove.pausedUntil,
 			TaskId:         rateLimitedItemToMove.qi.TaskID,
 			TaskInsertedAt: rateLimitedItemToMove.qi.TaskInsertedAt,
 			RetryCount:     rateLimitedItemToMove.qi.RetryCount,
@@ -986,6 +1006,7 @@ func (q *Queuer) flushToDatabaseOptimistic(
 			ExceededUnits:  rateLimitedItem.exceededUnits,
 			ExceededVal:    rateLimitedItem.exceededVal,
 			NextRefillAt:   rateLimitedItem.nextRefillAt,
+			PausedUntil:    rateLimitedItem.pausedUntil,
 			TaskId:         rateLimitedItem.qi.TaskID,
 			TaskInsertedAt: rateLimitedItem.qi.TaskInsertedAt,
 			RetryCount:     rateLimitedItem.qi.RetryCount,
@@ -999,6 +1020,7 @@ func (q *Queuer) flushToDatabaseOptimistic(
 			ExceededUnits:  rateLimitedItemToMove.exceededUnits,
 			ExceededVal:    rateLimitedItemToMove.exceededVal,
 			NextRefillAt:   rateLimitedItemToMove.nextRefillAt,
+			PausedUntil:    rateLimitedItemToMove.pausedUntil,
 			TaskId:         rateLimitedItemToMove.qi.TaskID,
 			TaskInsertedAt: rateLimitedItemToMove.qi.TaskInsertedAt,
 			RetryCount:     rateLimitedItemToMove.qi.RetryCount,

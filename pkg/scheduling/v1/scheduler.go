@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/pkg/randomticker"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
@@ -826,10 +827,15 @@ type scheduleRateLimitResult struct {
 
 // shouldRemoveFromQueue returns true if the queue item is being rate limited and should be removed from the queue
 // until the rate limit is reset.
-// we only do this if the requeue_after time is at least 2 seconds in the future, to avoid thrashing
+// unless the item is paused, we only do this if the requeue_after time is at least 2 seconds in the future, to avoid thrashing
 func (s *scheduleRateLimitResult) shouldRemoveFromQueue() bool {
 	if s.rateLimitResult == nil {
 		return false
+	}
+
+	// a paused item is held in the database until the pause ends, so its concurrency slot is freed for other keys
+	if s.pausedUntil != nil {
+		return true
 	}
 
 	nextRefillAt := s.nextRefillAt
@@ -1460,6 +1466,8 @@ func (s *Scheduler) rankWorkerIds(
 			if qi.DesiredWorkerID != nil && workerId == *qi.DesiredWorkerID {
 				rank = 1
 			}
+		case sqlcv1.V1StickyStrategyNONE:
+			fallthrough
 		default:
 			if len(labels) > 0 {
 				// Label affinity reads worker metadata from s.workers. Do not
@@ -1694,11 +1702,7 @@ func (s *Scheduler) tryAssign(
 }
 
 func (s *Scheduler) getExtensionInput(results []*assignResults) *PostAssignInput {
-	unassigned := make([]*sqlcv1.V1QueueItem, 0)
-
-	for _, res := range results {
-		unassigned = append(unassigned, res.unassigned...)
-	}
+	unassigned := enumerables.FlatMap(results, func(res *assignResults) []*sqlcv1.V1QueueItem { return res.unassigned })
 
 	return &PostAssignInput{
 		HasUnassignedStepRuns: len(unassigned) > 0,

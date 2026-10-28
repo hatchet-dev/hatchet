@@ -159,7 +159,7 @@ Parameters:
 
 #### `Run`
 
-Run executes the workflow with the provided input and waits for completion.
+Run executes the workflow with the provided input and waits for completion. If ctx ends before the run reaches a terminal state, the wait stops and the returned error wraps ctx.Err(); the run itself keeps executing on the engine.
 
 ```go
 func (w *Workflow) Run(ctx context.Context, input any, opts ...RunOptFunc) (*WorkflowResult, error)
@@ -367,15 +367,43 @@ Fields:
 | ------- | -------- | ----------- |
 | `RunId` | `string` |             |
 
+Methods:
+
+| Name                | Description                                                                       |
+| ------------------- | --------------------------------------------------------------------------------- |
+| `Result`            | Result blocks until the workflow run completes and returns its result.            |
+| `ResultWithContext` | ResultWithContext blocks until the workflow run completes and returns its result. |
+
 ### Functions
 
 #### `Result`
 
-Result blocks until the workflow run completes and returns its result.
+Result blocks until the workflow run completes and returns its result. It waits indefinitely; use ResultWithContext to bound the wait.
 
 ```go
 func (wr *WorkflowRunRef) Result() (*WorkflowResult, error)
 ```
+
+Returns:
+
+| Type              |
+| ----------------- |
+| `*WorkflowResult` |
+| `error`           |
+
+#### `ResultWithContext`
+
+ResultWithContext blocks until the workflow run completes and returns its result. If ctx ends first, the wait stops and the returned error wraps ctx.Err(), so callers can check errors.Is(err, context.DeadlineExceeded) or context.Canceled. Ending the wait only drops the result subscription; the run itself keeps executing on the engine.
+
+```go
+func (wr *WorkflowRunRef) ResultWithContext(ctx context.Context) (*WorkflowResult, error)
+```
+
+Parameters:
+
+| Name  | Type              |
+| ----- | ----------------- |
+| `ctx` | `context.Context` |
 
 Returns:
 
@@ -1339,6 +1367,33 @@ RateLimit declares a rate limit consumed by a task run, used with WithRateLimits
 
 RateLimitDuration is the window over which a rate limit applies.
 
+### RetryAfterError
+
+RetryAfterError marks a task failure as retryable after a delay of the task's choosing.
+
+#### Functions
+
+##### `AsRetryAfterError`
+
+AsRetryAfterError reports whether err is (or wraps) a RetryAfterError and returns it if so.
+
+```go
+func AsRetryAfterError(err error) (*RetryAfterError, bool)
+```
+
+Parameters:
+
+| Name  | Type    |
+| ----- | ------- |
+| `err` | `error` |
+
+Returns:
+
+| Type               |
+| ------------------ |
+| `*RetryAfterError` |
+| `bool`             |
+
 ### RunPriority
 
 ### SingleWaitResult
@@ -1597,6 +1652,27 @@ Returns:
 | ------- |
 | `error` |
 
+### `NewRetryAfterError`
+
+NewRetryAfterError wraps err so that the task's next retry runs after the given delay.
+
+```go
+func NewRetryAfterError(after time.Duration, err error) error
+```
+
+Parameters:
+
+| Name    | Type            |
+| ------- | --------------- |
+| `after` | `time.Duration` |
+| `err`   | `error`         |
+
+Returns:
+
+| Type    |
+| ------- |
+| `error` |
+
 ### `ParseSemver`
 
 ParseSemver extracts major, minor, patch from a version string like "v0.78.23". Returns (0,0,0) if parsing fails.
@@ -1660,3 +1736,23 @@ Returns:
 | ------- |
 | `bool`  |
 | `error` |
+
+### `SupportsRetryAfter`
+
+SupportsRetryAfter checks whether the engine version honors RetryAfterError delays.
+
+```go
+func SupportsRetryAfter(engineVersion string) bool
+```
+
+Parameters:
+
+| Name            | Type     |
+| --------------- | -------- |
+| `engineVersion` | `string` |
+
+Returns:
+
+| Type   |
+| ------ |
+| `bool` |

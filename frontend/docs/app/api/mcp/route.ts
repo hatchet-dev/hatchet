@@ -569,39 +569,15 @@ export async function OPTIONS() {
 export async function GET(req: Request) {
   const accept = (req.headers.get("accept") || "").toLowerCase();
 
+  // NOTE: Stateless MCP servers that do not send server-initiated notifications
+  // must return 405 Method Not Allowed for SSE GET streams per the Streamable HTTP
+  // spec, otherwise clients keep reconnecting and holding serverless functions open.
   if (accept.includes("text/event-stream")) {
-    const encoder = new TextEncoder();
-    let keepAlive: ReturnType<typeof setInterval>;
-    const stream = new ReadableStream({
-      start(controller) {
-        controller.enqueue(encoder.encode(": connected\n\n"));
-        keepAlive = setInterval(() => {
-          try {
-            controller.enqueue(encoder.encode(": ping\n\n"));
-          } catch {
-            clearInterval(keepAlive);
-          }
-        }, 15_000);
-        req.signal.addEventListener("abort", () => {
-          clearInterval(keepAlive);
-          try {
-            controller.close();
-          } catch {
-            void 0;
-          }
-        });
-      },
-      cancel() {
-        clearInterval(keepAlive);
-      },
-    });
-
-    return new Response(stream, {
+    return new Response(null, {
+      status: 405,
       headers: {
         ...CORS_HEADERS,
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache, no-transform",
-        Connection: "keep-alive",
+        Allow: "POST, DELETE, OPTIONS",
       },
     });
   }

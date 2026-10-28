@@ -196,6 +196,7 @@ func setTenantAttribute(ctx, authenticated context.Context) {
 // isServerErrorCode reports whether a code counts as a server-side failure. Codes caused by the
 // caller, such as a cancellation or an invalid argument, leave the span status unset.
 func isServerErrorCode(code connect.Code) bool {
+	//exhaustive:ignore
 	switch code {
 	case connect.CodeUnknown, connect.CodeDeadlineExceeded, connect.CodeUnimplemented,
 		connect.CodeInternal, connect.CodeUnavailable, connect.CodeDataLoss:

@@ -7,10 +7,13 @@ import (
 	"strings"
 
 	"connectrpc.com/connect"
+	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	authtoken "github.com/hatchet-dev/hatchet/pkg/auth/token"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 )
 
 type GRPCAuthN struct {
@@ -39,6 +42,10 @@ func (a *GRPCAuthN) Middleware(ctx context.Context, header http.Header) (context
 
 	tenantId, tokenUUID, err := a.config.Auth.JWTManager.ValidateTenantToken(ctx, token)
 
+	if errors.Is(err, authtoken.ErrCouldNotReadTokenFromDatabase) {
+		return nil, a.couldNotCheckToken(ctx, err)
+	}
+
 	if err != nil {
 		a.l.Debug().Ctx(ctx).Err(err).Msgf("error validating tenant token: %s", err)
 
@@ -56,12 +63,27 @@ func (a *GRPCAuthN) Middleware(ctx context.Context, header http.Header) (context
 
 	queriedTenant, err := a.config.V1.Tenant().GetTenantByID(ctx, tenantId)
 
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, a.couldNotCheckToken(ctx, err)
+	}
+
 	if err != nil {
 		a.l.Debug().Ctx(ctx).Err(err).Msgf("error getting tenant by id: %s", err)
 		return nil, forbidden
 	}
 
 	return context.WithValue(ctx, "tenant", queriedTenant), nil
+}
+
+func (a *GRPCAuthN) couldNotCheckToken(ctx context.Context, err error) error {
+	var limitErr *fairpool.LimitError
+	if ctx.Err() != nil || errors.As(err, &limitErr) {
+		return expectedStatus(ctx, err)
+	}
+
+	a.l.Error().Ctx(ctx).Err(err).Msg("could not check auth token against the database")
+
+	return connect.NewError(connect.CodeInternal, errors.New("An internal error occurred."))
 }
 
 // bearerToken extracts the token from the first authorization header value. The scheme is

@@ -1,5 +1,6 @@
 name: typescript
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - ".github/**"
@@ -8,17 +9,21 @@ on:
       - "internal/**"
       - "pkg/**"
       - "sdks/typescript/**"
+      - "sdks/typescript-serverless/**"
+      - "examples/serverless/cloudflare-workers/**"
   push:
     branches:
       - main
     paths:
       - "sdks/typescript/**"
+      - "sdks/typescript-serverless/**"
 defaults:
   run:
     working-directory: ./sdks/typescript
 
 jobs:
   lint:
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubicloud-standard-4
     strategy:
       matrix:
@@ -93,7 +98,7 @@ jobs:
         if: matrix.package-manager == 'pnpm'
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26"
+          go-version-file: go.mod
 
       - name: Install Protoc
         if: matrix.package-manager == 'pnpm'
@@ -122,19 +127,21 @@ jobs:
         if: matrix.package-manager == 'pnpm'
         run: |
           pnpm run generate-api
+          pnpm run generate-api-fetch
           ./generate-protoc.sh
           ./generate-protoc-es.sh
 
       - name: Check generated bindings are up to date
         if: matrix.package-manager == 'pnpm'
         run: |
-          git add -A src/protoc src/protoc-es src/clients/rest/generated
-          if ! git diff --cached --exit-code -- src/protoc src/protoc-es src/clients/rest/generated; then
-            echo "::error::Generated protobuf/REST bindings are out of date. Run 'pnpm run generate-api', 'sdks/typescript/generate-protoc.sh' and 'sdks/typescript/generate-protoc-es.sh' and commit the changes."
+          git add -A src/protoc src/protoc-es src/clients/rest/generated src/clients/rest/generated-fetch
+          if ! git diff --cached --exit-code -- src/protoc src/protoc-es src/clients/rest/generated src/clients/rest/generated-fetch; then
+            echo "::error::Generated protobuf/REST bindings are out of date. Run 'pnpm run generate-api', 'pnpm run generate-api-fetch', 'sdks/typescript/generate-protoc.sh' and 'sdks/typescript/generate-protoc-es.sh' and commit the changes."
             exit 1
           fi
 
   test-unit:
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubicloud-standard-4
     strategy:
       matrix:
@@ -191,6 +198,7 @@ jobs:
         run: ${{ matrix.unit-test-cmd }}
 
   test-e2e:
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubicloud-standard-4
     timeout-minutes: 20
     strategy:
@@ -229,7 +237,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26"
+          go-version-file: go.mod
 
       - name: Install pnpm
         if: matrix.package-manager == 'pnpm'
@@ -284,6 +292,8 @@ jobs:
           export DATABASE_LOGGER_LEVEL=warn
           export DATABASE_LOGGER_FORMAT=console
           export SERVER_SECURITY_CHECK_ENABLED=false
+          export SERVER_PAYLOAD_STORE_WRAP_TASK_INPUT_IN_STEP_RUN_DATA=false
+          export SERVER_PAYLOAD_STORE_ENABLE_PAYLOAD_CONSOLIDATION=true
 
           go run ./cmd/hatchet-admin quickstart
 
@@ -324,23 +334,83 @@ jobs:
           name: sdk-typescript-api-logs-${{ matrix.package-manager }}
           path: api.log
 
-  publish:
+  serverless:
+    # @hatchet-dev/serverless links the SDK from its build output, so the SDK is built first.
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubicloud-standard-4
+    defaults:
+      run:
+        working-directory: ./sdks/typescript-serverless
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install pnpm
+        run: npm install -g pnpm@10.16.1
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('sdks/typescript/pnpm-lock.yaml', 'sdks/typescript-serverless/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Build the SDK dist the package links
+        working-directory: ./sdks/typescript
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm tsc:build
+          pnpm prepublish
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Build and check the runtime entries are free of Node imports
+        run: pnpm check:edge
+
+      - name: Type check and bundle the Cloudflare example
+        working-directory: ./examples/serverless/cloudflare-workers
+        run: |
+          pnpm install
+          pnpm exec tsc --noEmit
+          pnpm exec wrangler deploy --dry-run --outdir dist
+
+  publish:
+    # npm trusted publishing only accepts OIDC from GitHub-hosted runners.
+    runs-on: ubuntu-latest
     needs: [lint, test-unit, test-e2e]
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
 
-      - name: Install pnpm
-        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g pnpm@10.16.1
-
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
+          check-latest: true
           node-version: "24.x"
-          registry-url: "https://registry.npmjs.org"
+
+      - name: Install pnpm
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g pnpm@10.16.1
 
       - name: Get pnpm store directory
         shell: bash
@@ -360,7 +430,7 @@ jobs:
 
       - name: Build and Publish SDK
         run: |
-          VERSION=$(jq '.version' package.json)
+          VERSION=$(jq -r '.version' package.json)
           CURRENT_NPM_VERSION=$(pnpm view @hatchet-dev/typescript-sdk version)
 
           if [[ "$VERSION" == "$CURRENT_NPM_VERSION" ]]; then
@@ -376,8 +446,6 @@ jobs:
               pnpm publish:ci
           fi
           echo "VERSION_TAG=$NEW_VERSION" >> $GITHUB_ENV
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: "Generate release notes"
         if: env.VERSION_TAG != ''
@@ -393,6 +461,103 @@ jobs:
           gh release create "ts/${VERSION_TAG}" \
             --target "$GITHUB_SHA" \
             --title "Typescript SDK ${VERSION_TAG}" \
+            --notes-file ./release_notes.md \
+            --latest=false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-serverless:
+    # @hatchet-dev/serverless declares the SDK as a peer, so it publishes after the SDK's own
+    # publish job (which exits early when the SDK version is unchanged) and only when its version
+    # is not on npm yet. A manual run skips the test jobs and publishes this package from main.
+    # npm trusted publishing only accepts OIDC from GitHub-hosted runners.
+    runs-on: ubuntu-latest
+    needs: [serverless, publish]
+    if: |
+      always() &&
+      github.ref == 'refs/heads/main' &&
+      (
+        (github.event_name == 'push' && needs.serverless.result == 'success' && needs.publish.result == 'success') ||
+        (github.event_name == 'workflow_dispatch' && needs.serverless.result == 'skipped' && needs.publish.result == 'skipped')
+      )
+    permissions:
+      contents: write
+      id-token: write
+    defaults:
+      run:
+        working-directory: ./sdks/typescript-serverless
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          check-latest: true
+          node-version: "24.x"
+
+      - name: Install pnpm
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" npm install -g pnpm@10.16.1
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('sdks/typescript/pnpm-lock.yaml', 'sdks/typescript-serverless/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Build the SDK dist the package links
+        working-directory: ./sdks/typescript
+        run: |
+          sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" pnpm install --frozen-lockfile
+          pnpm tsc:build
+          pnpm prepublish
+
+      - name: Install dependencies
+        run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" pnpm install --frozen-lockfile
+
+      - name: Build and publish the package
+        run: |
+          VERSION=$(jq -r '.version' package.json)
+
+          # The exact version, not the `latest` tag: an alpha published under its own tag or
+          # a `latest` that moved on must not trigger a republish. A registry or auth failure
+          # fails the job instead of passing for "not published".
+          if LOOKUP=$(pnpm view "@hatchet-dev/serverless@$VERSION" version 2>&1); then
+            echo "Version $VERSION is already published ($LOOKUP). Skipping publish."
+            exit 0
+          elif ! grep -q "E404" <<<"$LOOKUP"; then
+            echo "Could not check npm for @hatchet-dev/serverless@$VERSION:"
+            echo "$LOOKUP"
+            exit 1
+          fi
+
+          if [[ "$VERSION" == *alpha* ]]; then
+            pnpm publish:ci:alpha
+          else
+            pnpm publish:ci
+          fi
+          echo "VERSION_TAG=$VERSION" >> $GITHUB_ENV
+
+      - name: "Generate release notes"
+        if: env.VERSION_TAG != ''
+        working-directory: ${{ github.workspace }}
+        run: ./hack/ci/release-notes.sh serverless > ./release_notes.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Release"
+        if: env.VERSION_TAG != ''
+        working-directory: ${{ github.workspace }}
+        run: |
+          gh release create "serverless/${VERSION_TAG}" \
+            --target "$GITHUB_SHA" \
+            --title "Serverless package ${VERSION_TAG}" \
             --notes-file ./release_notes.md \
             --latest=false
         env:

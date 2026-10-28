@@ -66,6 +66,9 @@ roles:
       - WorkflowCronTrigger
       - WorkflowScheduledTrigger
       - V1FilterUpdate
+      - V1ServerlessEndpointCreate
+      - V1ServerlessEndpointUpdate
+      - V1ServerlessEndpointDelete
   VIEWER:
     permissions:
       - TenantAlertingSettingsGet
@@ -79,11 +82,16 @@ roles:
       - TenantInviteReject
       - V1LogLineList
       - V1StreamPayloadGet
+      - V1StreamTopicList
       - V1WebhookGet
+      - V1ServerlessEndpointList
+      - V1ServerlessEndpointGet
+      - V1ServerlessEndpointEventList
       - V1WebhookReceive
       - V1WorkflowRunList
       - V1EventKeyList
       - V1WorkflowRunExternalIdsList
+      - V1WorkflowRunCountGet
       - V1WorkflowRunTaskEventsList
       - WebhookRequestsList
       - UserCreate
@@ -129,10 +137,13 @@ roles:
       - UserUpdateGithubOauthStart
       - V1WebhookList
       - V1FilterList
+      - V1ConcurrencyStrategyList
+      - V1ConcurrencyKeyList
       - TenantGetStepRunQueueMetrics
       - UserUpdateLogin
       - V1FilterGet
       - TenantResourcePolicyGet
+      - TenantEntitlementsGet
       - UserUpdateSlackOauthStart
       - UserUpdateGoogleOauthStart
       - V1CelDebug

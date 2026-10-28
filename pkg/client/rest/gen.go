@@ -63,6 +63,7 @@ const (
 
 // Defines values for FeatureFlagId.
 const (
+	ConcurrencyPageEnabled         FeatureFlagId = "concurrency-page-enabled"
 	OperatorDetailsEnabled         FeatureFlagId = "operator-details-enabled"
 	OrganizationSsoEnabled         FeatureFlagId = "organization-sso-enabled"
 	TenantLogWorkflowFilterEnabled FeatureFlagId = "tenant-log-workflow-filter-enabled"
@@ -227,6 +228,23 @@ const (
 	V1CELDebugResponseStatusSUCCESS V1CELDebugResponseStatus = "SUCCESS"
 )
 
+// Defines values for V1ConcurrencyLimitStrategy.
+const (
+	V1ConcurrencyLimitStrategyCancelInProgress         V1ConcurrencyLimitStrategy = "CANCEL_IN_PROGRESS"
+	V1ConcurrencyLimitStrategyCancelNewest             V1ConcurrencyLimitStrategy = "CANCEL_NEWEST"
+	V1ConcurrencyLimitStrategyCancelQueuedExceptNewest V1ConcurrencyLimitStrategy = "CANCEL_QUEUED_EXCEPT_NEWEST"
+	V1ConcurrencyLimitStrategyCancelQueuedExceptOldest V1ConcurrencyLimitStrategy = "CANCEL_QUEUED_EXCEPT_OLDEST"
+	V1ConcurrencyLimitStrategyGroupRoundRobin          V1ConcurrencyLimitStrategy = "GROUP_ROUND_ROBIN"
+	V1ConcurrencyLimitStrategyNone                     V1ConcurrencyLimitStrategy = "NONE"
+)
+
+// Defines values for V1ConcurrencyScope.
+const (
+	V1ConcurrencyScopeShared   V1ConcurrencyScope = "SHARED"
+	V1ConcurrencyScopeTask     V1ConcurrencyScope = "TASK"
+	V1ConcurrencyScopeWorkflow V1ConcurrencyScope = "WORKFLOW"
+)
+
 // Defines values for V1CreateWebhookRequestAPIKeyAuthType.
 const (
 	V1CreateWebhookRequestAPIKeyAuthTypeAPIKEY V1CreateWebhookRequestAPIKeyAuthType = "API_KEY"
@@ -275,6 +293,31 @@ const (
 	ALL      V1RunningFilter = "ALL"
 	EVICTED  V1RunningFilter = "EVICTED"
 	ONWORKER V1RunningFilter = "ON_WORKER"
+)
+
+// Defines values for V1ServerlessEndpointCheckStage.
+const (
+	CATALOG V1ServerlessEndpointCheckStage = "CATALOG"
+	PARSE   V1ServerlessEndpointCheckStage = "PARSE"
+	REQUEST V1ServerlessEndpointCheckStage = "REQUEST"
+	STATUS  V1ServerlessEndpointCheckStage = "STATUS"
+)
+
+// Defines values for V1ServerlessEndpointEventKind.
+const (
+	CATALOGREGISTERED V1ServerlessEndpointEventKind = "CATALOG_REGISTERED"
+	CATALOGREJECTED   V1ServerlessEndpointEventKind = "CATALOG_REJECTED"
+	DELIVERYFAILED    V1ServerlessEndpointEventKind = "DELIVERY_FAILED"
+	HEALTHCHECKFAILED V1ServerlessEndpointEventKind = "HEALTHCHECK_FAILED"
+	HEALTHY           V1ServerlessEndpointEventKind = "HEALTHY"
+	UNHEALTHY         V1ServerlessEndpointEventKind = "UNHEALTHY"
+)
+
+// Defines values for V1ServerlessEndpointKind.
+const (
+	CLOUDFLAREWORKERS V1ServerlessEndpointKind = "CLOUDFLARE_WORKERS"
+	GENERICHTTP       V1ServerlessEndpointKind = "GENERIC_HTTP"
+	VERCEL            V1ServerlessEndpointKind = "VERCEL"
 )
 
 // Defines values for V1TaskEventType.
@@ -898,6 +941,9 @@ type RateLimit struct {
 	// LimitValue The maximum number of requests allowed within the window.
 	LimitValue int `json:"limitValue"`
 
+	// PausedUntil When the rate limit's pause ends, if it is paused. Runs that consume a paused key stay queued until then.
+	PausedUntil *time.Time `json:"pausedUntil,omitempty"`
+
 	// TenantId The ID of the tenant associated with this rate limit.
 	TenantId string `json:"tenantId"`
 
@@ -1290,6 +1336,16 @@ type TenantAlertingSettings struct {
 	Metadata             APIResourceMeta `json:"metadata"`
 }
 
+// TenantEntitlements defines model for TenantEntitlements.
+type TenantEntitlements struct {
+	AuditLogs                       bool `json:"auditLogs"`
+	DagOperator                     bool `json:"dagOperator"`
+	DurableStreams                  bool `json:"durableStreams"`
+	PrometheusMetrics               bool `json:"prometheusMetrics"`
+	ServerlessOperator              bool `json:"serverlessOperator"`
+	StrictAdditionalMetadataFilters bool `json:"strictAdditionalMetadataFilters"`
+}
+
 // TenantEnvironment defines model for TenantEnvironment.
 type TenantEnvironment string
 
@@ -1592,6 +1648,109 @@ type V1CancelledTasks struct {
 	Ids *[]openapi_types.UUID `json:"ids,omitempty"`
 }
 
+// V1ConcurrencyKey defines model for V1ConcurrencyKey.
+type V1ConcurrencyKey struct {
+	Key string `json:"key"`
+
+	// MaxRuns The effective max runs for this key. With a max runs expression, this is the value evaluated for the key's most recent run.
+	MaxRuns int32 `json:"maxRuns"`
+
+	// OldestQueuedAt When the longest-queued run on this key was created. Unset when nothing is queued.
+	OldestQueuedAt *time.Time `json:"oldestQueuedAt,omitempty"`
+	QueuedCount    int64      `json:"queuedCount"`
+	RunningCount   int64      `json:"runningCount"`
+}
+
+// V1ConcurrencyKeyList defines model for V1ConcurrencyKeyList.
+type V1ConcurrencyKeyList struct {
+	Pagination *PaginationResponse `json:"pagination,omitempty"`
+	Rows       []V1ConcurrencyKey  `json:"rows"`
+
+	// Total The number of keys matching the filters, across all pages.
+	Total int64 `json:"total"`
+}
+
+// V1ConcurrencyLimitStrategy What happens to a run when its key has no free slot. NONE is the database default and is not set on registered strategies.
+type V1ConcurrencyLimitStrategy string
+
+// V1ConcurrencyScope Where a concurrency strategy is defined. SHARED strategies are named, tenant-wide and can be used by tasks in several workflows.
+type V1ConcurrencyScope string
+
+// V1ConcurrencyStrategy defines model for V1ConcurrencyStrategy.
+type V1ConcurrencyStrategy struct {
+	// Expression The CEL expression that computes a run's key.
+	Expression string `json:"expression"`
+
+	// Id The strategy id. Unique within a scope; WORKFLOW ids can collide with SHARED and TASK ids.
+	Id int64 `json:"id"`
+
+	// IsDraining Whether no latest workflow version uses this strategy, and it is only listed because runs of an older version still hold or wait for its slots.
+	IsDraining bool `json:"isDraining"`
+
+	// KeyCount Keys with at least one run running or queued.
+	KeyCount int64 `json:"keyCount"`
+
+	// LimitStrategy What happens to a run when its key has no free slot. NONE is the database default and is not set on registered strategies.
+	LimitStrategy V1ConcurrencyLimitStrategy `json:"limitStrategy"`
+
+	// MaxRuns The static max runs per key.
+	MaxRuns int32 `json:"maxRuns"`
+
+	// MaxRunsExpression CEL expression computing max runs per key from the task input, when set. Overrides maxRuns.
+	MaxRunsExpression *string `json:"maxRunsExpression,omitempty"`
+
+	// Name The shared strategy's name, the workflow name for WORKFLOW strategies, or the task name for TASK strategies.
+	Name string `json:"name"`
+
+	// OldestQueuedAt When the longest-queued run was created. Unset when nothing is queued.
+	OldestQueuedAt *time.Time `json:"oldestQueuedAt,omitempty"`
+
+	// OldestQueuedKey The key of the longest-queued run. Unset when nothing is queued.
+	OldestQueuedKey *string `json:"oldestQueuedKey,omitempty"`
+
+	// QueuedCount Queued runs.
+	QueuedCount int64 `json:"queuedCount"`
+
+	// QueuedKeyCount Keys with at least one queued run.
+	QueuedKeyCount int64 `json:"queuedKeyCount"`
+
+	// RunningCount Running runs, each holding a slot.
+	RunningCount int64 `json:"runningCount"`
+
+	// Scope Where a concurrency strategy is defined. SHARED strategies are named, tenant-wide and can be used by tasks in several workflows.
+	Scope V1ConcurrencyScope `json:"scope"`
+
+	// TaskName The task the strategy is defined on. Only set for TASK strategies.
+	TaskName *string `json:"taskName,omitempty"`
+
+	// UsedBy Tasks on their workflow's latest version that use this strategy. Only set for SHARED strategies.
+	UsedBy *[]V1ConcurrencyStrategyUsage `json:"usedBy,omitempty"`
+
+	// WorkflowId The workflow the strategy is defined on. Unset for SHARED strategies.
+	WorkflowId *openapi_types.UUID `json:"workflowId,omitempty"`
+
+	// WorkflowName Unset for SHARED strategies.
+	WorkflowName *string `json:"workflowName,omitempty"`
+
+	// WorkflowVersion The workflow version's user-defined label, when one was set. Unset for SHARED strategies.
+	WorkflowVersion *string `json:"workflowVersion,omitempty"`
+
+	// WorkflowVersionId The workflow version the strategy is attached to. Unset for SHARED strategies.
+	WorkflowVersionId *openapi_types.UUID `json:"workflowVersionId,omitempty"`
+}
+
+// V1ConcurrencyStrategyList defines model for V1ConcurrencyStrategyList.
+type V1ConcurrencyStrategyList struct {
+	Rows []V1ConcurrencyStrategy `json:"rows"`
+}
+
+// V1ConcurrencyStrategyUsage defines model for V1ConcurrencyStrategyUsage.
+type V1ConcurrencyStrategyUsage struct {
+	TaskName     string             `json:"taskName"`
+	WorkflowId   openapi_types.UUID `json:"workflowId"`
+	WorkflowName string             `json:"workflowName"`
+}
+
 // V1CreateFilterRequest defines model for V1CreateFilterRequest.
 type V1CreateFilterRequest struct {
 	// Expression The expression for the filter
@@ -1605,6 +1764,39 @@ type V1CreateFilterRequest struct {
 
 	// WorkflowId The workflow id
 	WorkflowId openapi_types.UUID `json:"workflowId"`
+}
+
+// V1CreateServerlessEndpointRequest defines model for V1CreateServerlessEndpointRequest.
+type V1CreateServerlessEndpointRequest struct {
+	// Enabled Whether the operator polls and dispatches to this endpoint. Defaults to true.
+	Enabled *bool `json:"enabled,omitempty"`
+
+	// HealthcheckUrl The HTTPS URL (port 443) polled periodically to discover the workflows this endpoint serves.
+	HealthcheckUrl string `json:"healthcheckUrl"`
+
+	// InlineWaitBudgetMs The inline wait budget for durable results, in milliseconds. Defaults to 5000.
+	InlineWaitBudgetMs *int32 `json:"inlineWaitBudgetMs,omitempty"`
+
+	// Kind The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS and VERCEL name the platform the endpoint is deployed on, which the dashboard uses to guide setup and diagnose failures.
+	Kind *V1ServerlessEndpointKind `json:"kind,omitempty"`
+
+	// Labels Worker labels applied to the worker the operator creates for this endpoint.
+	Labels *map[string]interface{} `json:"labels,omitempty"`
+
+	// Name The name of the endpoint. Unique within the tenant.
+	Name string `json:"name"`
+
+	// PollIntervalSeconds How often the healthcheck URL is polled, in seconds. Defaults to 30.
+	PollIntervalSeconds *int32 `json:"pollIntervalSeconds,omitempty"`
+
+	// RequestTimeoutSeconds The per-request timeout backstop for trigger requests, in seconds. Defaults to 300.
+	RequestTimeoutSeconds *int32 `json:"requestTimeoutSeconds,omitempty"`
+
+	// SigningSecret The secret used to HMAC-sign requests delivered to the endpoint. At least 32 characters. Write-only: it is stored encrypted and never returned in responses.
+	SigningSecret string `json:"signingSecret"`
+
+	// TriggerUrl The HTTPS URL (port 443) that assigned tasks are delivered to.
+	TriggerUrl string `json:"triggerUrl"`
 }
 
 // V1CreateWebhookRequest defines model for V1CreateWebhookRequest.
@@ -1939,10 +2131,142 @@ type V1RunningDetailCount struct {
 // V1RunningFilter defines model for V1RunningFilter.
 type V1RunningFilter string
 
+// V1ServerlessEndpoint defines model for V1ServerlessEndpoint.
+type V1ServerlessEndpoint struct {
+	// Enabled Whether the operator polls and dispatches to this endpoint.
+	Enabled bool `json:"enabled"`
+
+	// HealthcheckUrl The HTTPS URL (port 443) polled periodically to discover the workflows this endpoint serves.
+	HealthcheckUrl string `json:"healthcheckUrl"`
+
+	// InlineWaitBudgetMs How long a trigger request may block waiting for a durable result before the operator falls back to the websocket durable protocol, in milliseconds.
+	InlineWaitBudgetMs int32 `json:"inlineWaitBudgetMs"`
+
+	// Kind The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS and VERCEL name the platform the endpoint is deployed on, which the dashboard uses to guide setup and diagnose failures.
+	Kind V1ServerlessEndpointKind `json:"kind"`
+
+	// Labels Worker labels applied to the connection-backed worker the operator creates for this endpoint.
+	Labels   map[string]interface{} `json:"labels"`
+	Metadata APIResourceMeta        `json:"metadata"`
+
+	// Name The name of the endpoint. Unique within the tenant.
+	Name string `json:"name"`
+
+	// PollIntervalSeconds How often the healthcheck URL is polled, in seconds.
+	PollIntervalSeconds int32 `json:"pollIntervalSeconds"`
+
+	// RequestTimeoutSeconds The per-request timeout backstop for trigger requests, in seconds.
+	RequestTimeoutSeconds int32 `json:"requestTimeoutSeconds"`
+
+	// Status The health of the endpoint as last observed by the serverless operator. Written on state transitions only, so changedAt is the time the endpoint last flipped between healthy and unhealthy.
+	Status V1ServerlessEndpointStatus `json:"status"`
+
+	// TenantId The ID of the tenant that owns this endpoint.
+	TenantId openapi_types.UUID `json:"tenantId"`
+
+	// TriggerUrl The HTTPS URL (port 443) that assigned tasks are delivered to.
+	TriggerUrl string `json:"triggerUrl"`
+}
+
+// V1ServerlessEndpointCheckStage How far a failed healthcheck got. REQUEST: no HTTP response (DNS, TLS, connection, timeout or a blocked destination). STATUS: the endpoint answered with a non-2xx status. PARSE: the body is not a healthcheck response. CATALOG: the response parsed but the workflows or actions it declares were refused.
+type V1ServerlessEndpointCheckStage string
+
+// V1ServerlessEndpointEvent defines model for V1ServerlessEndpointEvent.
+type V1ServerlessEndpointEvent struct {
+	CreatedAt time.Time                        `json:"createdAt"`
+	Details   V1ServerlessEndpointEventDetails `json:"details"`
+	Id        int64                            `json:"id"`
+
+	// Kind HEALTHCHECK_FAILED: a healthcheck failed; recorded at the start of a failure streak and whenever the error changes. UNHEALTHY: the endpoint's health flipped to unhealthy. HEALTHY: the endpoint's health flipped to healthy, or its healthchecks succeed again after a streak of failures too short to flip it. CATALOG_REGISTERED: a changed set of workflows and actions was registered. CATALOG_REJECTED: the engine refused the declared workflows. DELIVERY_FAILED: a task delivered to the endpoint failed. HEALTHCHECK_FAILED, CATALOG_REJECTED, DELIVERY_FAILED and HEALTHY are each recorded at most once per endpoint every 30 seconds, and an endpoint records at most 120 events an hour; what is held back is counted in details.suppressed of the next event of the same kind.
+	Kind    V1ServerlessEndpointEventKind `json:"kind"`
+	Message string                        `json:"message"`
+}
+
+// V1ServerlessEndpointEventDetails defines model for V1ServerlessEndpointEventDetails.
+type V1ServerlessEndpointEventDetails struct {
+	ActionId   *string   `json:"actionId,omitempty"`
+	Actions    *[]string `json:"actions,omitempty"`
+	DurationMs *int32    `json:"durationMs,omitempty"`
+
+	// ResponseExcerpt The start of the response body, at most 1 KiB. Omitted for members who cannot view payloads.
+	ResponseExcerpt *string `json:"responseExcerpt,omitempty"`
+	RetryCount      *int32  `json:"retryCount,omitempty"`
+
+	// Retryable Whether the engine will retry the failed delivery.
+	Retryable *bool `json:"retryable,omitempty"`
+
+	// Stage How far a failed healthcheck got. REQUEST: no HTTP response (DNS, TLS, connection, timeout or a blocked destination). STATUS: the endpoint answered with a non-2xx status. PARSE: the body is not a healthcheck response. CATALOG: the response parsed but the workflows or actions it declares were refused.
+	Stage      *V1ServerlessEndpointCheckStage `json:"stage,omitempty"`
+	StatusCode *int32                          `json:"statusCode,omitempty"`
+
+	// Suppressed Events of this kind since the previous one that were not recorded on their own, because they came too soon after it or past the endpoint's event budget.
+	Suppressed        *int32              `json:"suppressed,omitempty"`
+	TaskRunExternalId *openapi_types.UUID `json:"taskRunExternalId,omitempty"`
+
+	// Truncated Whether the details were cut to bound the event's size: the workflows and actions lists keep their first 50 entries, and long names are shortened.
+	Truncated *bool     `json:"truncated,omitempty"`
+	Url       *string   `json:"url,omitempty"`
+	Workflows *[]string `json:"workflows,omitempty"`
+}
+
+// V1ServerlessEndpointEventKind HEALTHCHECK_FAILED: a healthcheck failed; recorded at the start of a failure streak and whenever the error changes. UNHEALTHY: the endpoint's health flipped to unhealthy. HEALTHY: the endpoint's health flipped to healthy, or its healthchecks succeed again after a streak of failures too short to flip it. CATALOG_REGISTERED: a changed set of workflows and actions was registered. CATALOG_REJECTED: the engine refused the declared workflows. DELIVERY_FAILED: a task delivered to the endpoint failed. HEALTHCHECK_FAILED, CATALOG_REJECTED, DELIVERY_FAILED and HEALTHY are each recorded at most once per endpoint every 30 seconds, and an endpoint records at most 120 events an hour; what is held back is counted in details.suppressed of the next event of the same kind.
+type V1ServerlessEndpointEventKind string
+
+// V1ServerlessEndpointEventList defines model for V1ServerlessEndpointEventList.
+type V1ServerlessEndpointEventList struct {
+	Rows []V1ServerlessEndpointEvent `json:"rows"`
+}
+
+// V1ServerlessEndpointKind The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS and VERCEL name the platform the endpoint is deployed on, which the dashboard uses to guide setup and diagnose failures.
+type V1ServerlessEndpointKind string
+
+// V1ServerlessEndpointList defines model for V1ServerlessEndpointList.
+type V1ServerlessEndpointList struct {
+	Pagination *PaginationResponse     `json:"pagination,omitempty"`
+	Rows       *[]V1ServerlessEndpoint `json:"rows,omitempty"`
+}
+
+// V1ServerlessEndpointStatus The health of the endpoint as last observed by the serverless operator. Written on state transitions only, so changedAt is the time the endpoint last flipped between healthy and unhealthy.
+type V1ServerlessEndpointStatus struct {
+	// ChangedAt When the healthy flag last changed.
+	ChangedAt *time.Time `json:"changedAt,omitempty"`
+
+	// Error The error from the last failed healthcheck, if the endpoint is unhealthy.
+	Error *string `json:"error,omitempty"`
+
+	// Healthy Whether the last healthcheck succeeded. Absent until the operator has polled the endpoint at least once.
+	Healthy *bool `json:"healthy,omitempty"`
+
+	// RegisteredActions The action ids the operator registered for this endpoint from its last healthcheck, as the endpoint declared them. Several endpoints of a tenant may register the same action; each then serves it.
+	RegisteredActions []string `json:"registeredActions"`
+}
+
 // V1StreamPayloadRef defines model for V1StreamPayloadRef.
 type V1StreamPayloadRef struct {
 	// Ref Publish the message with this as its payload_ref
 	Ref string `json:"ref"`
+}
+
+// V1StreamTopic defines model for V1StreamTopic.
+type V1StreamTopic struct {
+	CreatedAt       time.Time `json:"createdAt"`
+	LastPublishedAt time.Time `json:"lastPublishedAt"`
+
+	// MessageCount The number of messages within the tenant's retention
+	MessageCount int64 `json:"messageCount"`
+
+	// Namespace The topic's namespace, empty for the default namespace
+	Namespace string `json:"namespace"`
+	Topic     string `json:"topic"`
+}
+
+// V1StreamTopicList defines model for V1StreamTopicList.
+type V1StreamTopicList struct {
+	Pagination PaginationResponse `json:"pagination"`
+
+	// RetentionHours How long messages are kept, and how long a topic is kept after its last publish
+	RetentionHours int             `json:"retentionHours"`
+	Rows           []V1StreamTopic `json:"rows"`
 }
 
 // V1TaskEvent defines model for V1TaskEvent.
@@ -2183,6 +2507,39 @@ type V1UpdateFilterRequest struct {
 	Scope *string `json:"scope,omitempty"`
 }
 
+// V1UpdateServerlessEndpointRequest Fields to update on a serverless endpoint. Omitted fields are left unchanged.
+type V1UpdateServerlessEndpointRequest struct {
+	// Enabled Whether the operator polls and dispatches to this endpoint.
+	Enabled *bool `json:"enabled,omitempty"`
+
+	// HealthcheckUrl The HTTPS URL (port 443) polled periodically to discover the workflows this endpoint serves.
+	HealthcheckUrl *string `json:"healthcheckUrl,omitempty"`
+
+	// InlineWaitBudgetMs The inline wait budget for durable results, in milliseconds.
+	InlineWaitBudgetMs *int32 `json:"inlineWaitBudgetMs,omitempty"`
+
+	// Kind The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS and VERCEL name the platform the endpoint is deployed on, which the dashboard uses to guide setup and diagnose failures.
+	Kind *V1ServerlessEndpointKind `json:"kind,omitempty"`
+
+	// Labels Worker labels applied to the worker the operator creates for this endpoint. Replaces the existing labels.
+	Labels *map[string]interface{} `json:"labels,omitempty"`
+
+	// Name The name of the endpoint. Unique within the tenant.
+	Name *string `json:"name,omitempty"`
+
+	// PollIntervalSeconds How often the healthcheck URL is polled, in seconds.
+	PollIntervalSeconds *int32 `json:"pollIntervalSeconds,omitempty"`
+
+	// RequestTimeoutSeconds The per-request timeout backstop for trigger requests, in seconds.
+	RequestTimeoutSeconds *int32 `json:"requestTimeoutSeconds,omitempty"`
+
+	// SigningSecret A new secret used to HMAC-sign requests delivered to the endpoint. At least 32 characters. Provide a value to rotate the secret; it is never returned in responses.
+	SigningSecret *string `json:"signingSecret,omitempty"`
+
+	// TriggerUrl The HTTPS URL (port 443) that assigned tasks are delivered to.
+	TriggerUrl *string `json:"triggerUrl,omitempty"`
+}
+
 // V1UpdateWebhookRequest defines model for V1UpdateWebhookRequest.
 type V1UpdateWebhookRequest struct {
 	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
@@ -2333,6 +2690,12 @@ type V1WorkflowRun struct {
 
 	// WorkflowVersionId The ID of the workflow version.
 	WorkflowVersionId *openapi_types.UUID `json:"workflowVersionId,omitempty"`
+}
+
+// V1WorkflowRunCount defines model for V1WorkflowRunCount.
+type V1WorkflowRunCount struct {
+	// Count The number of workflow runs matching the filters
+	Count int64 `json:"count"`
 }
 
 // V1WorkflowRunDetails defines model for V1WorkflowRunDetails.
@@ -2542,6 +2905,7 @@ type Workflow struct {
 
 	// TenantId The tenant id of the workflow.
 	TenantId string                 `json:"tenantId"`
+	Triggers *WorkflowTriggers      `json:"triggers,omitempty"`
 	Versions *[]WorkflowVersionMeta `json:"versions,omitempty"`
 }
 
@@ -2761,6 +3125,9 @@ type WorkflowWorkersCount struct {
 	WorkflowRunId *string `json:"workflowRunId,omitempty"`
 }
 
+// TooManyRequests defines model for TooManyRequests.
+type TooManyRequests = APIErrors
+
 // V1DagListTasksParams defines parameters for V1DagListTasks.
 type V1DagListTasksParams struct {
 	// DagIds The external id of the DAG
@@ -2768,6 +3135,15 @@ type V1DagListTasksParams struct {
 
 	// Tenant The tenant id
 	Tenant openapi_types.UUID `form:"tenant" json:"tenant"`
+}
+
+// V1ServerlessEndpointEventListParams defines parameters for V1ServerlessEndpointEventList.
+type V1ServerlessEndpointEventListParams struct {
+	// Limit The number of events to return, at most 500. Defaults to 100.
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Since Only return events created after this time
+	Since *time.Time `form:"since,omitempty" json:"since,omitempty"`
 }
 
 // V1TaskGetParams defines parameters for V1TaskGet.
@@ -2802,6 +3178,21 @@ type V1LogLineListParams struct {
 
 // V1TaskEventListParams defines parameters for V1TaskEventList.
 type V1TaskEventListParams struct {
+	// Offset The number to skip
+	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// V1ConcurrencyKeyListParams defines parameters for V1ConcurrencyKeyList.
+type V1ConcurrencyKeyListParams struct {
+	// Search Only return keys containing this string (case-insensitive)
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+
+	// OnlyQueued Only return keys with at least one queued run
+	OnlyQueued *bool `form:"onlyQueued,omitempty" json:"onlyQueued,omitempty"`
+
 	// Offset The number to skip
 	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
 
@@ -2923,6 +3314,15 @@ type V1TenantLogLineListParams struct {
 	StepIds *[]openapi_types.UUID `form:"step_ids,omitempty" json:"step_ids,omitempty"`
 }
 
+// V1ServerlessEndpointListParams defines parameters for V1ServerlessEndpointList.
+type V1ServerlessEndpointListParams struct {
+	// Offset The number to skip
+	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // V1StreamPayloadGetParams defines parameters for V1StreamPayloadGet.
 type V1StreamPayloadGetParams struct {
 	// Ref The payload_ref of the stream message
@@ -2932,6 +3332,18 @@ type V1StreamPayloadGetParams struct {
 // V1StreamPayloadUploadMultipartBody defines parameters for V1StreamPayloadUpload.
 type V1StreamPayloadUploadMultipartBody struct {
 	Payload openapi_types.File `json:"payload"`
+}
+
+// V1StreamTopicListParams defines parameters for V1StreamTopicList.
+type V1StreamTopicListParams struct {
+	// Offset The number to skip
+	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Search Matches topics or namespaces containing it
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
 }
 
 // V1TaskListStatusMetricsParams defines parameters for V1TaskListStatusMetrics.
@@ -3031,6 +3443,48 @@ type V1WorkflowRunListParams struct {
 
 	// IncludePayloads A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset.
 	IncludePayloads *bool `form:"include_payloads,omitempty" json:"include_payloads,omitempty"`
+
+	// RunningFilter Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
+	RunningFilter *V1RunningFilter `form:"running_filter,omitempty" json:"running_filter,omitempty"`
+
+	// IdempotencyKeys The idempotency key(s) to filter for
+	IdempotencyKeys *[]string `form:"idempotency_keys,omitempty" json:"idempotency_keys,omitempty"`
+
+	// IncludeNumPages A flag for whether or not to count the matching runs in order to populate `pagination.num_pages`. Defaults to `true` if unset. When `false`, `pagination.num_pages` is `0`, and the count can be fetched separately from the count endpoint.
+	IncludeNumPages *bool `form:"include_num_pages,omitempty" json:"include_num_pages,omitempty"`
+}
+
+// V1WorkflowRunCountGetParams defines parameters for V1WorkflowRunCountGet.
+type V1WorkflowRunCountGetParams struct {
+	// Statuses A list of statuses to filter by
+	Statuses *[]V1TaskStatus `form:"statuses,omitempty" json:"statuses,omitempty"`
+
+	// Since The earliest date to filter by
+	Since time.Time `form:"since" json:"since"`
+
+	// Until The latest date to filter by
+	Until *time.Time `form:"until,omitempty" json:"until,omitempty"`
+
+	// AdditionalMetadata Additional metadata k-v pairs to filter by
+	AdditionalMetadata *[]string `form:"additional_metadata,omitempty" json:"additional_metadata,omitempty"`
+
+	// AdditionalMetadataOperator How to combine multiple additional_metadata pairs. OR matches runs containing any pair, AND matches runs containing all pairs. Defaults to OR.
+	AdditionalMetadataOperator *V1AdditionalMetadataOperator `form:"additional_metadata_operator,omitempty" json:"additional_metadata_operator,omitempty"`
+
+	// WorkflowIds The workflow ids to find runs for
+	WorkflowIds *[]openapi_types.UUID `form:"workflow_ids,omitempty" json:"workflow_ids,omitempty"`
+
+	// WorkerId The worker id to filter by
+	WorkerId *openapi_types.UUID `form:"worker_id,omitempty" json:"worker_id,omitempty"`
+
+	// OnlyTasks Whether to include DAGs or only to include tasks
+	OnlyTasks bool `form:"only_tasks" json:"only_tasks"`
+
+	// ParentTaskExternalId The parent task external id to filter by
+	ParentTaskExternalId *openapi_types.UUID `form:"parent_task_external_id,omitempty" json:"parent_task_external_id,omitempty"`
+
+	// TriggeringEventExternalId The external id of the event that triggered the workflow run
+	TriggeringEventExternalId *openapi_types.UUID `form:"triggering_event_external_id,omitempty" json:"triggering_event_external_id,omitempty"`
 
 	// RunningFilter Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
 	RunningFilter *V1RunningFilter `form:"running_filter,omitempty" json:"running_filter,omitempty"`
@@ -3375,6 +3829,9 @@ type WorkflowVersionGetParams struct {
 // AlertEmailGroupUpdateJSONRequestBody defines body for AlertEmailGroupUpdate for application/json ContentType.
 type AlertEmailGroupUpdateJSONRequestBody = UpdateTenantAlertEmailGroupRequest
 
+// V1ServerlessEndpointUpdateJSONRequestBody defines body for V1ServerlessEndpointUpdate for application/json ContentType.
+type V1ServerlessEndpointUpdateJSONRequestBody = V1UpdateServerlessEndpointRequest
+
 // V1CelDebugJSONRequestBody defines body for V1CelDebug for application/json ContentType.
 type V1CelDebugJSONRequestBody = V1CELDebugRequest
 
@@ -3386,6 +3843,9 @@ type V1FilterCreateJSONRequestBody = V1CreateFilterRequest
 
 // V1FilterUpdateJSONRequestBody defines body for V1FilterUpdate for application/json ContentType.
 type V1FilterUpdateJSONRequestBody = V1UpdateFilterRequest
+
+// V1ServerlessEndpointCreateJSONRequestBody defines body for V1ServerlessEndpointCreate for application/json ContentType.
+type V1ServerlessEndpointCreateJSONRequestBody = V1CreateServerlessEndpointRequest
 
 // V1StreamPayloadUploadMultipartRequestBody defines body for V1StreamPayloadUpload for multipart/form-data ContentType.
 type V1StreamPayloadUploadMultipartRequestBody V1StreamPayloadUploadMultipartBody
@@ -3765,6 +4225,20 @@ type ClientInterface interface {
 	// V1DagListTasks request
 	V1DagListTasks(ctx context.Context, params *V1DagListTasksParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// V1ServerlessEndpointDelete request
+	V1ServerlessEndpointDelete(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1ServerlessEndpointGet request
+	V1ServerlessEndpointGet(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1ServerlessEndpointUpdateWithBody request with any body
+	V1ServerlessEndpointUpdateWithBody(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	V1ServerlessEndpointUpdate(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, body V1ServerlessEndpointUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1ServerlessEndpointEventList request
+	V1ServerlessEndpointEventList(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, params *V1ServerlessEndpointEventListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// V1TaskGet request
 	V1TaskGet(ctx context.Context, task openapi_types.UUID, params *V1TaskGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -3781,6 +4255,12 @@ type ClientInterface interface {
 	V1CelDebugWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	V1CelDebug(ctx context.Context, tenant openapi_types.UUID, body V1CelDebugJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1ConcurrencyStrategyList request
+	V1ConcurrencyStrategyList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1ConcurrencyKeyList request
+	V1ConcurrencyKeyList(ctx context.Context, tenant openapi_types.UUID, scope V1ConcurrencyScope, strategy int64, params *V1ConcurrencyKeyListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1DurableTaskBranchWithBody request with any body
 	V1DurableTaskBranchWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3824,11 +4304,22 @@ type ClientInterface interface {
 	// V1TenantLogLineList request
 	V1TenantLogLineList(ctx context.Context, tenant openapi_types.UUID, params *V1TenantLogLineListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// V1ServerlessEndpointList request
+	V1ServerlessEndpointList(ctx context.Context, tenant openapi_types.UUID, params *V1ServerlessEndpointListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1ServerlessEndpointCreateWithBody request with any body
+	V1ServerlessEndpointCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	V1ServerlessEndpointCreate(ctx context.Context, tenant openapi_types.UUID, body V1ServerlessEndpointCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// V1StreamPayloadGet request
 	V1StreamPayloadGet(ctx context.Context, tenant openapi_types.UUID, params *V1StreamPayloadGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1StreamPayloadUploadWithBody request with any body
 	V1StreamPayloadUploadWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1StreamTopicList request
+	V1StreamTopicList(ctx context.Context, tenant openapi_types.UUID, params *V1StreamTopicListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1TaskListStatusMetrics request
 	V1TaskListStatusMetrics(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListStatusMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3873,6 +4364,9 @@ type ClientInterface interface {
 
 	// V1WorkflowRunList request
 	V1WorkflowRunList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1WorkflowRunCountGet request
+	V1WorkflowRunCountGet(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunCountGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1WorkflowRunDisplayNamesList request
 	V1WorkflowRunDisplayNamesList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunDisplayNamesListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3934,6 +4428,9 @@ type ClientInterface interface {
 	ApiTokenCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	ApiTokenCreate(ctx context.Context, tenant openapi_types.UUID, body ApiTokenCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TenantEntitlementsGet request
+	TenantEntitlementsGet(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// EventList request
 	EventList(ctx context.Context, tenant openapi_types.UUID, params *EventListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -4426,6 +4923,66 @@ func (c *Client) V1DagListTasks(ctx context.Context, params *V1DagListTasksParam
 	return c.Client.Do(req)
 }
 
+func (c *Client) V1ServerlessEndpointDelete(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1ServerlessEndpointDeleteRequest(c.Server, v1ServerlessEndpoint)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1ServerlessEndpointGet(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1ServerlessEndpointGetRequest(c.Server, v1ServerlessEndpoint)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1ServerlessEndpointUpdateWithBody(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1ServerlessEndpointUpdateRequestWithBody(c.Server, v1ServerlessEndpoint, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1ServerlessEndpointUpdate(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, body V1ServerlessEndpointUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1ServerlessEndpointUpdateRequest(c.Server, v1ServerlessEndpoint, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1ServerlessEndpointEventList(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, params *V1ServerlessEndpointEventListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1ServerlessEndpointEventListRequest(c.Server, v1ServerlessEndpoint, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) V1TaskGet(ctx context.Context, task openapi_types.UUID, params *V1TaskGetParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1TaskGetRequest(c.Server, task, params)
 	if err != nil {
@@ -4488,6 +5045,30 @@ func (c *Client) V1CelDebugWithBody(ctx context.Context, tenant openapi_types.UU
 
 func (c *Client) V1CelDebug(ctx context.Context, tenant openapi_types.UUID, body V1CelDebugJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1CelDebugRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1ConcurrencyStrategyList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1ConcurrencyStrategyListRequest(c.Server, tenant)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1ConcurrencyKeyList(ctx context.Context, tenant openapi_types.UUID, scope V1ConcurrencyScope, strategy int64, params *V1ConcurrencyKeyListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1ConcurrencyKeyListRequest(c.Server, tenant, scope, strategy, params)
 	if err != nil {
 		return nil, err
 	}
@@ -4678,6 +5259,42 @@ func (c *Client) V1TenantLogLineList(ctx context.Context, tenant openapi_types.U
 	return c.Client.Do(req)
 }
 
+func (c *Client) V1ServerlessEndpointList(ctx context.Context, tenant openapi_types.UUID, params *V1ServerlessEndpointListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1ServerlessEndpointListRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1ServerlessEndpointCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1ServerlessEndpointCreateRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1ServerlessEndpointCreate(ctx context.Context, tenant openapi_types.UUID, body V1ServerlessEndpointCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1ServerlessEndpointCreateRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) V1StreamPayloadGet(ctx context.Context, tenant openapi_types.UUID, params *V1StreamPayloadGetParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1StreamPayloadGetRequest(c.Server, tenant, params)
 	if err != nil {
@@ -4692,6 +5309,18 @@ func (c *Client) V1StreamPayloadGet(ctx context.Context, tenant openapi_types.UU
 
 func (c *Client) V1StreamPayloadUploadWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1StreamPayloadUploadRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1StreamTopicList(ctx context.Context, tenant openapi_types.UUID, params *V1StreamTopicListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1StreamTopicListRequest(c.Server, tenant, params)
 	if err != nil {
 		return nil, err
 	}
@@ -4884,6 +5513,18 @@ func (c *Client) V1WebhookReceiveWithBody(ctx context.Context, tenant openapi_ty
 
 func (c *Client) V1WorkflowRunList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1WorkflowRunListRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1WorkflowRunCountGet(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunCountGetParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WorkflowRunCountGetRequest(c.Server, tenant, params)
 	if err != nil {
 		return nil, err
 	}
@@ -5148,6 +5789,18 @@ func (c *Client) ApiTokenCreateWithBody(ctx context.Context, tenant openapi_type
 
 func (c *Client) ApiTokenCreate(ctx context.Context, tenant openapi_types.UUID, body ApiTokenCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewApiTokenCreateRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TenantEntitlementsGet(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTenantEntitlementsGetRequest(c.Server, tenant)
 	if err != nil {
 		return nil, err
 	}
@@ -6972,6 +7625,193 @@ func NewV1DagListTasksRequest(server string, params *V1DagListTasksParams) (*htt
 	return req, nil
 }
 
+// NewV1ServerlessEndpointDeleteRequest generates requests for V1ServerlessEndpointDelete
+func NewV1ServerlessEndpointDeleteRequest(server string, v1ServerlessEndpoint openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "v1-serverless-endpoint", runtime.ParamLocationPath, v1ServerlessEndpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/serverless/endpoints/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1ServerlessEndpointGetRequest generates requests for V1ServerlessEndpointGet
+func NewV1ServerlessEndpointGetRequest(server string, v1ServerlessEndpoint openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "v1-serverless-endpoint", runtime.ParamLocationPath, v1ServerlessEndpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/serverless/endpoints/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1ServerlessEndpointUpdateRequest calls the generic V1ServerlessEndpointUpdate builder with application/json body
+func NewV1ServerlessEndpointUpdateRequest(server string, v1ServerlessEndpoint openapi_types.UUID, body V1ServerlessEndpointUpdateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewV1ServerlessEndpointUpdateRequestWithBody(server, v1ServerlessEndpoint, "application/json", bodyReader)
+}
+
+// NewV1ServerlessEndpointUpdateRequestWithBody generates requests for V1ServerlessEndpointUpdate with any type of body
+func NewV1ServerlessEndpointUpdateRequestWithBody(server string, v1ServerlessEndpoint openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "v1-serverless-endpoint", runtime.ParamLocationPath, v1ServerlessEndpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/serverless/endpoints/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV1ServerlessEndpointEventListRequest generates requests for V1ServerlessEndpointEventList
+func NewV1ServerlessEndpointEventListRequest(server string, v1ServerlessEndpoint openapi_types.UUID, params *V1ServerlessEndpointEventListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "v1-serverless-endpoint", runtime.ParamLocationPath, v1ServerlessEndpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/serverless/endpoints/%s/events", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Since != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "since", runtime.ParamLocationQuery, *params.Since); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewV1TaskGetRequest generates requests for V1TaskGet
 func NewV1TaskGetRequest(server string, task openapi_types.UUID, params *V1TaskGetParams) (*http.Request, error) {
 	var err error
@@ -7329,6 +8169,158 @@ func NewV1CelDebugRequestWithBody(server string, tenant openapi_types.UUID, cont
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV1ConcurrencyStrategyListRequest generates requests for V1ConcurrencyStrategyList
+func NewV1ConcurrencyStrategyListRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/concurrency/strategies", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1ConcurrencyKeyListRequest generates requests for V1ConcurrencyKeyList
+func NewV1ConcurrencyKeyListRequest(server string, tenant openapi_types.UUID, scope V1ConcurrencyScope, strategy int64, params *V1ConcurrencyKeyListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "scope", runtime.ParamLocationPath, scope)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "strategy", runtime.ParamLocationPath, strategy)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/concurrency/strategies/%s/%s/keys", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Search != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "search", runtime.ParamLocationQuery, *params.Search); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.OnlyQueued != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "onlyQueued", runtime.ParamLocationQuery, *params.OnlyQueued); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -8373,6 +9365,125 @@ func NewV1TenantLogLineListRequest(server string, tenant openapi_types.UUID, par
 	return req, nil
 }
 
+// NewV1ServerlessEndpointListRequest generates requests for V1ServerlessEndpointList
+func NewV1ServerlessEndpointListRequest(server string, tenant openapi_types.UUID, params *V1ServerlessEndpointListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/serverless/endpoints", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1ServerlessEndpointCreateRequest calls the generic V1ServerlessEndpointCreate builder with application/json body
+func NewV1ServerlessEndpointCreateRequest(server string, tenant openapi_types.UUID, body V1ServerlessEndpointCreateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewV1ServerlessEndpointCreateRequestWithBody(server, tenant, "application/json", bodyReader)
+}
+
+// NewV1ServerlessEndpointCreateRequestWithBody generates requests for V1ServerlessEndpointCreate with any type of body
+func NewV1ServerlessEndpointCreateRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/serverless/endpoints", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewV1StreamPayloadGetRequest generates requests for V1StreamPayloadGet
 func NewV1StreamPayloadGetRequest(server string, tenant openapi_types.UUID, params *V1StreamPayloadGetParams) (*http.Request, error) {
 	var err error
@@ -8457,6 +9568,94 @@ func NewV1StreamPayloadUploadRequestWithBody(server string, tenant openapi_types
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV1StreamTopicListRequest generates requests for V1StreamTopicList
+func NewV1StreamTopicListRequest(server string, tenant openapi_types.UUID, params *V1StreamTopicListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/streams/topics", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Search != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "search", runtime.ParamLocationQuery, *params.Search); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -9434,6 +10633,246 @@ func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, param
 
 		}
 
+		if params.IncludeNumPages != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "include_num_pages", runtime.ParamLocationQuery, *params.IncludeNumPages); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1WorkflowRunCountGetRequest generates requests for V1WorkflowRunCountGet
+func NewV1WorkflowRunCountGetRequest(server string, tenant openapi_types.UUID, params *V1WorkflowRunCountGetParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/workflow-runs/count", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Statuses != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "statuses", runtime.ParamLocationQuery, *params.Statuses); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "since", runtime.ParamLocationQuery, params.Since); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if params.Until != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "until", runtime.ParamLocationQuery, *params.Until); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AdditionalMetadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additional_metadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AdditionalMetadataOperator != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additional_metadata_operator", runtime.ParamLocationQuery, *params.AdditionalMetadataOperator); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.WorkflowIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflow_ids", runtime.ParamLocationQuery, *params.WorkflowIds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.WorkerId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "worker_id", runtime.ParamLocationQuery, *params.WorkerId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "only_tasks", runtime.ParamLocationQuery, params.OnlyTasks); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if params.ParentTaskExternalId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "parent_task_external_id", runtime.ParamLocationQuery, *params.ParentTaskExternalId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.TriggeringEventExternalId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "triggering_event_external_id", runtime.ParamLocationQuery, *params.TriggeringEventExternalId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.RunningFilter != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "running_filter", runtime.ParamLocationQuery, *params.RunningFilter); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.IdempotencyKeys != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "idempotency_keys", runtime.ParamLocationQuery, *params.IdempotencyKeys); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		queryURL.RawQuery = queryValues.Encode()
 	}
 
@@ -10351,6 +11790,40 @@ func NewApiTokenCreateRequestWithBody(server string, tenant openapi_types.UUID, 
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewTenantEntitlementsGetRequest generates requests for TenantEntitlementsGet
+func NewTenantEntitlementsGetRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/entitlements", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -14886,6 +16359,20 @@ type ClientWithResponsesInterface interface {
 	// V1DagListTasksWithResponse request
 	V1DagListTasksWithResponse(ctx context.Context, params *V1DagListTasksParams, reqEditors ...RequestEditorFn) (*V1DagListTasksResponse, error)
 
+	// V1ServerlessEndpointDeleteWithResponse request
+	V1ServerlessEndpointDeleteWithResponse(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointDeleteResponse, error)
+
+	// V1ServerlessEndpointGetWithResponse request
+	V1ServerlessEndpointGetWithResponse(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointGetResponse, error)
+
+	// V1ServerlessEndpointUpdateWithBodyWithResponse request with any body
+	V1ServerlessEndpointUpdateWithBodyWithResponse(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointUpdateResponse, error)
+
+	V1ServerlessEndpointUpdateWithResponse(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, body V1ServerlessEndpointUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointUpdateResponse, error)
+
+	// V1ServerlessEndpointEventListWithResponse request
+	V1ServerlessEndpointEventListWithResponse(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, params *V1ServerlessEndpointEventListParams, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointEventListResponse, error)
+
 	// V1TaskGetWithResponse request
 	V1TaskGetWithResponse(ctx context.Context, task openapi_types.UUID, params *V1TaskGetParams, reqEditors ...RequestEditorFn) (*V1TaskGetResponse, error)
 
@@ -14902,6 +16389,12 @@ type ClientWithResponsesInterface interface {
 	V1CelDebugWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1CelDebugResponse, error)
 
 	V1CelDebugWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1CelDebugJSONRequestBody, reqEditors ...RequestEditorFn) (*V1CelDebugResponse, error)
+
+	// V1ConcurrencyStrategyListWithResponse request
+	V1ConcurrencyStrategyListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1ConcurrencyStrategyListResponse, error)
+
+	// V1ConcurrencyKeyListWithResponse request
+	V1ConcurrencyKeyListWithResponse(ctx context.Context, tenant openapi_types.UUID, scope V1ConcurrencyScope, strategy int64, params *V1ConcurrencyKeyListParams, reqEditors ...RequestEditorFn) (*V1ConcurrencyKeyListResponse, error)
 
 	// V1DurableTaskBranchWithBodyWithResponse request with any body
 	V1DurableTaskBranchWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1DurableTaskBranchResponse, error)
@@ -14945,11 +16438,22 @@ type ClientWithResponsesInterface interface {
 	// V1TenantLogLineListWithResponse request
 	V1TenantLogLineListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1TenantLogLineListParams, reqEditors ...RequestEditorFn) (*V1TenantLogLineListResponse, error)
 
+	// V1ServerlessEndpointListWithResponse request
+	V1ServerlessEndpointListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1ServerlessEndpointListParams, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointListResponse, error)
+
+	// V1ServerlessEndpointCreateWithBodyWithResponse request with any body
+	V1ServerlessEndpointCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointCreateResponse, error)
+
+	V1ServerlessEndpointCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1ServerlessEndpointCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointCreateResponse, error)
+
 	// V1StreamPayloadGetWithResponse request
 	V1StreamPayloadGetWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1StreamPayloadGetParams, reqEditors ...RequestEditorFn) (*V1StreamPayloadGetResponse, error)
 
 	// V1StreamPayloadUploadWithBodyWithResponse request with any body
 	V1StreamPayloadUploadWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1StreamPayloadUploadResponse, error)
+
+	// V1StreamTopicListWithResponse request
+	V1StreamTopicListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1StreamTopicListParams, reqEditors ...RequestEditorFn) (*V1StreamTopicListResponse, error)
 
 	// V1TaskListStatusMetricsWithResponse request
 	V1TaskListStatusMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListStatusMetricsParams, reqEditors ...RequestEditorFn) (*V1TaskListStatusMetricsResponse, error)
@@ -14994,6 +16498,9 @@ type ClientWithResponsesInterface interface {
 
 	// V1WorkflowRunListWithResponse request
 	V1WorkflowRunListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunListResponse, error)
+
+	// V1WorkflowRunCountGetWithResponse request
+	V1WorkflowRunCountGetWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunCountGetParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunCountGetResponse, error)
 
 	// V1WorkflowRunDisplayNamesListWithResponse request
 	V1WorkflowRunDisplayNamesListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunDisplayNamesListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunDisplayNamesListResponse, error)
@@ -15055,6 +16562,9 @@ type ClientWithResponsesInterface interface {
 	ApiTokenCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ApiTokenCreateResponse, error)
 
 	ApiTokenCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body ApiTokenCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*ApiTokenCreateResponse, error)
+
+	// TenantEntitlementsGetWithResponse request
+	TenantEntitlementsGetWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantEntitlementsGetResponse, error)
 
 	// EventListWithResponse request
 	EventListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *EventListParams, reqEditors ...RequestEditorFn) (*EventListResponse, error)
@@ -15404,6 +16914,7 @@ type AlertEmailGroupDeleteResponse struct {
 	HTTPResponse *http.Response
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -15428,6 +16939,7 @@ type AlertEmailGroupUpdateResponse struct {
 	JSON200      *TenantAlertEmailGroup
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -15451,6 +16963,7 @@ type ApiTokenUpdateRevokeResponse struct {
 	HTTPResponse *http.Response
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -15498,6 +17011,7 @@ type EventGetResponse struct {
 	JSON200      *Event
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -15522,6 +17036,7 @@ type EventDataGetResponse struct {
 	JSON200      *EventData
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -15568,6 +17083,7 @@ type MetadataListIntegrationsResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *ListAPIMetaIntegration
 	JSON400      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -15590,6 +17106,7 @@ type MonitoringPostRunProbeResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -15614,6 +17131,7 @@ type SlackWebhookDeleteResponse struct {
 	JSON400      *APIErrors
 	JSON401      *APIErrors
 	JSON405      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -15638,6 +17156,7 @@ type SnsDeleteResponse struct {
 	JSON400      *APIErrors
 	JSON401      *APIErrors
 	JSON405      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -15686,6 +17205,7 @@ type V1DagListTasksResponse struct {
 	JSON200      *[]V1DagChildren
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 	JSON501      *APIErrors
 }
 
@@ -15705,6 +17225,110 @@ func (r V1DagListTasksResponse) StatusCode() int {
 	return 0
 }
 
+type V1ServerlessEndpointDeleteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1ServerlessEndpoint
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+	JSON429      *TooManyRequests
+}
+
+// Status returns HTTPResponse.Status
+func (r V1ServerlessEndpointDeleteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1ServerlessEndpointDeleteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1ServerlessEndpointGetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1ServerlessEndpoint
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+	JSON429      *TooManyRequests
+}
+
+// Status returns HTTPResponse.Status
+func (r V1ServerlessEndpointGetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1ServerlessEndpointGetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1ServerlessEndpointUpdateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1ServerlessEndpoint
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+	JSON429      *TooManyRequests
+}
+
+// Status returns HTTPResponse.Status
+func (r V1ServerlessEndpointUpdateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1ServerlessEndpointUpdateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1ServerlessEndpointEventListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1ServerlessEndpointEventList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+	JSON429      *TooManyRequests
+}
+
+// Status returns HTTPResponse.Status
+func (r V1ServerlessEndpointEventListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1ServerlessEndpointEventListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type V1TaskGetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -15712,6 +17336,7 @@ type V1TaskGetResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 	JSON501      *APIErrors
 }
 
@@ -15737,6 +17362,7 @@ type V1LogLineListResponse struct {
 	JSON200      *V1LogLineList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -15762,6 +17388,7 @@ type V1TaskRestoreResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -15787,6 +17414,7 @@ type V1TaskEventListResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 	JSON501      *APIErrors
 }
 
@@ -15812,6 +17440,7 @@ type V1CelDebugResponse struct {
 	JSON200      *V1CELDebugResponse
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -15830,12 +17459,62 @@ func (r V1CelDebugResponse) StatusCode() int {
 	return 0
 }
 
+type V1ConcurrencyStrategyListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1ConcurrencyStrategyList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1ConcurrencyStrategyListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1ConcurrencyStrategyListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1ConcurrencyKeyListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1ConcurrencyKeyList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1ConcurrencyKeyListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1ConcurrencyKeyListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type V1DurableTaskBranchResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *V1BranchDurableTaskResponse
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -15861,6 +17540,7 @@ type V1DurableTaskEventLogListResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -15885,6 +17565,7 @@ type V1EventListResponse struct {
 	JSON200      *V1EventList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -15909,6 +17590,7 @@ type V1EventKeyListResponse struct {
 	JSON200      *EventKeyList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -15933,6 +17615,7 @@ type V1EventGetResponse struct {
 	JSON200      *V1Event
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -15957,6 +17640,7 @@ type V1FilterListResponse struct {
 	JSON200      *V1FilterList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -15982,6 +17666,7 @@ type V1FilterCreateResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16007,6 +17692,7 @@ type V1FilterDeleteResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16031,6 +17717,7 @@ type V1FilterGetResponse struct {
 	JSON200      *V1Filter
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16056,6 +17743,7 @@ type V1FilterUpdateResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16080,6 +17768,7 @@ type V1TenantLogLineGetPointMetricsResponse struct {
 	JSON200      *V1LogsPointMetrics
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 	JSON501      *APIErrors
 }
 
@@ -16105,6 +17794,7 @@ type V1TenantLogLineListResponse struct {
 	JSON200      *V1LogLineList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16123,12 +17813,64 @@ func (r V1TenantLogLineListResponse) StatusCode() int {
 	return 0
 }
 
+type V1ServerlessEndpointListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1ServerlessEndpointList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON429      *TooManyRequests
+}
+
+// Status returns HTTPResponse.Status
+func (r V1ServerlessEndpointListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1ServerlessEndpointListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1ServerlessEndpointCreateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1ServerlessEndpoint
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+	JSON429      *TooManyRequests
+}
+
+// Status returns HTTPResponse.Status
+func (r V1ServerlessEndpointCreateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1ServerlessEndpointCreateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type V1StreamPayloadGetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16173,12 +17915,37 @@ func (r V1StreamPayloadUploadResponse) StatusCode() int {
 	return 0
 }
 
+type V1StreamTopicListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1StreamTopicList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1StreamTopicListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1StreamTopicListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type V1TaskListStatusMetricsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *V1TaskRunMetrics
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 	JSON501      *APIErrors
 }
 
@@ -16204,6 +17971,7 @@ type V1TaskGetPointMetricsResponse struct {
 	JSON200      *V1TaskPointMetrics
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 	JSON501      *APIErrors
 }
 
@@ -16230,6 +17998,7 @@ type V1TaskCancelResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 	JSON501      *APIErrors
 }
 
@@ -16256,6 +18025,7 @@ type V1TaskReplayResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 	JSON501      *APIErrors
 }
 
@@ -16282,6 +18052,7 @@ type V1ObservabilityGetTraceResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16306,6 +18077,7 @@ type V1WebhookListResponse struct {
 	JSON200      *V1WebhookList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16331,6 +18103,7 @@ type V1WebhookCreateResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16356,6 +18129,7 @@ type V1WebhookDeleteResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16380,6 +18154,7 @@ type V1WebhookGetResponse struct {
 	JSON200      *V1Webhook
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16405,6 +18180,7 @@ type V1WebhookUpdateResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16454,6 +18230,7 @@ type V1WorkflowRunListResponse struct {
 	JSON200      *V1TaskSummaryList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 	JSON501      *APIErrors
 }
 
@@ -16473,12 +18250,38 @@ func (r V1WorkflowRunListResponse) StatusCode() int {
 	return 0
 }
 
+type V1WorkflowRunCountGetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1WorkflowRunCount
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON429      *TooManyRequests
+}
+
+// Status returns HTTPResponse.Status
+func (r V1WorkflowRunCountGetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1WorkflowRunCountGetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type V1WorkflowRunDisplayNamesListResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *V1WorkflowRunDisplayNameList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 	JSON501      *APIErrors
 }
 
@@ -16504,6 +18307,7 @@ type V1WorkflowRunExternalIdsListResponse struct {
 	JSON200      *V1WorkflowRunExternalIdList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 	JSON501      *APIErrors
 }
 
@@ -16529,6 +18333,7 @@ type V1WorkflowRunCreateResponse struct {
 	JSON200      *V1WorkflowRunDetails
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16553,6 +18358,7 @@ type V1WorkflowRunGetResponse struct {
 	JSON200      *V1WorkflowRunDetails
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 	JSON501      *APIErrors
 }
 
@@ -16579,6 +18385,7 @@ type V1WorkflowRunGetStatusResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 	JSON501      *APIErrors
 }
 
@@ -16604,6 +18411,7 @@ type V1WorkflowRunTaskEventsListResponse struct {
 	JSON200      *V1TaskEventList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 	JSON501      *APIErrors
 }
 
@@ -16629,6 +18437,7 @@ type V1WorkflowRunGetTimingsResponse struct {
 	JSON200      *V1TaskTimingList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 	JSON501      *APIErrors
 }
 
@@ -16655,6 +18464,7 @@ type StepRunListArchivesResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16680,6 +18490,7 @@ type StepRunListEventsResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16704,6 +18515,7 @@ type TenantCreateResponse struct {
 	JSON200      *Tenant
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16729,6 +18541,7 @@ type TenantGetResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIError
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16753,6 +18566,7 @@ type TenantUpdateResponse struct {
 	JSON200      *Tenant
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16777,6 +18591,7 @@ type AlertEmailGroupListResponse struct {
 	JSON200      *TenantAlertEmailGroupList
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16801,6 +18616,7 @@ type AlertEmailGroupCreateResponse struct {
 	JSON201      *TenantAlertEmailGroup
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16825,6 +18641,7 @@ type TenantAlertingSettingsGetResponse struct {
 	JSON200      *TenantAlertingSettings
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16849,6 +18666,7 @@ type ApiTokenListResponse struct {
 	JSON200      *ListAPITokensResponse
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16873,6 +18691,7 @@ type ApiTokenCreateResponse struct {
 	JSON200      *CreateAPITokenResponse
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16891,12 +18710,37 @@ func (r ApiTokenCreateResponse) StatusCode() int {
 	return 0
 }
 
+type TenantEntitlementsGetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *TenantEntitlements
+	JSON400      *APIErrors
+	JSON403      *APIError
+}
+
+// Status returns HTTPResponse.Status
+func (r TenantEntitlementsGetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TenantEntitlementsGetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type EventListResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *EventList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16921,7 +18765,7 @@ type EventCreateResponse struct {
 	JSON200      *Event
 	JSON400      *APIErrors
 	JSON403      *APIErrors
-	JSON429      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16946,7 +18790,7 @@ type EventCreateBulkResponse struct {
 	JSON200      *Events
 	JSON400      *APIErrors
 	JSON403      *APIErrors
-	JSON429      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16973,7 +18817,7 @@ type EventUpdateCancelResponse struct {
 	}
 	JSON400 *APIErrors
 	JSON403 *APIErrors
-	JSON429 *APIErrors
+	JSON429 *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -16998,6 +18842,7 @@ type EventKeyListResponse struct {
 	JSON200      *EventKeyList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17022,7 +18867,7 @@ type EventUpdateReplayResponse struct {
 	JSON200      *EventList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
-	JSON429      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17047,6 +18892,7 @@ type EventDataGetWithTenantResponse struct {
 	JSON200      *EventData
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17072,6 +18918,7 @@ type TenantFeatureFlagEvaluateResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17096,6 +18943,7 @@ type TenantInviteListResponse struct {
 	JSON200      *TenantInviteList
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17121,6 +18969,7 @@ type TenantInviteCreateResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIError
 	JSON422      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17144,6 +18993,7 @@ type TenantInviteDeleteResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *TenantInvite
 	JSON400      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17167,6 +19017,7 @@ type TenantInviteUpdateResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *TenantInvite
 	JSON400      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17191,6 +19042,7 @@ type TenantMemberListResponse struct {
 	JSON200      *TenantMemberList
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17216,6 +19068,7 @@ type TenantMemberDeleteResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17241,6 +19094,7 @@ type TenantMemberUpdateResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17265,6 +19119,7 @@ type TenantGetPrometheusMetricsResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17290,6 +19145,7 @@ type TenantGetQueueMetricsResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17313,6 +19169,7 @@ type RateLimitDeleteResponse struct {
 	HTTPResponse *http.Response
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17337,6 +19194,7 @@ type RateLimitListResponse struct {
 	JSON200      *RateLimitList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17361,6 +19219,7 @@ type TenantResourcePolicyGetResponse struct {
 	JSON200      *TenantResourcePolicy
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17386,6 +19245,7 @@ type SlackWebhookListResponse struct {
 	JSON400      *APIErrors
 	JSON401      *APIErrors
 	JSON405      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17407,6 +19267,7 @@ func (r SlackWebhookListResponse) StatusCode() int {
 type UserUpdateSlackOauthStartResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17432,6 +19293,7 @@ type SnsListResponse struct {
 	JSON400      *APIErrors
 	JSON401      *APIErrors
 	JSON405      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17457,6 +19319,7 @@ type SnsCreateResponse struct {
 	JSON400      *APIErrors
 	JSON401      *APIErrors
 	JSON405      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17482,6 +19345,7 @@ type TenantGetStepRunQueueMetricsResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17507,6 +19371,7 @@ type StepRunGetResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17531,6 +19396,7 @@ type StepRunUpdateCancelResponse struct {
 	JSON200      *StepRun
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17555,6 +19421,7 @@ type StepRunUpdateRerunResponse struct {
 	JSON200      *StepRun
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17580,6 +19447,7 @@ type StepRunGetSchemaResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17605,6 +19473,7 @@ type TenantGetTaskStatsResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17630,6 +19499,7 @@ type WebhookListResponse struct {
 	JSON400      *APIErrors
 	JSON401      *APIErrors
 	JSON405      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17655,6 +19525,7 @@ type WebhookCreateResponse struct {
 	JSON400      *APIErrors
 	JSON401      *APIErrors
 	JSON405      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17679,6 +19550,7 @@ type WorkerListResponse struct {
 	JSON200      *WorkerList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17703,7 +19575,7 @@ type WorkflowRunUpdateReplayResponse struct {
 	JSON200      *ReplayWorkflowRunsResponse
 	JSON400      *APIErrors
 	JSON403      *APIErrors
-	JSON429      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17728,6 +19600,7 @@ type WorkflowRunGetResponse struct {
 	JSON200      *WorkflowRun
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17753,6 +19626,7 @@ type WorkflowRunGetInputResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17777,6 +19651,7 @@ type WorkflowRunGetShapeResponse struct {
 	JSON200      *WorkflowRunShape
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17802,6 +19677,7 @@ type WorkflowRunListStepRunEventsResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17826,6 +19702,7 @@ type WorkflowListResponse struct {
 	JSON200      *WorkflowList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17852,6 +19729,7 @@ type WorkflowRunCancelResponse struct {
 	}
 	JSON400 *APIErrors
 	JSON403 *APIErrors
+	JSON429 *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17876,6 +19754,7 @@ type CronWorkflowListResponse struct {
 	JSON200      *CronWorkflowsList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17899,6 +19778,7 @@ type WorkflowCronDeleteResponse struct {
 	HTTPResponse *http.Response
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17924,6 +19804,7 @@ type WorkflowCronGetResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17947,6 +19828,7 @@ type WorkflowCronUpdateResponse struct {
 	HTTPResponse *http.Response
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -17972,6 +19854,7 @@ type WorkflowCronTriggerResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIError
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 	JSON500      *APIErrors
 }
 
@@ -17997,6 +19880,7 @@ type WorkflowRunListResponse struct {
 	JSON200      *WorkflowRunList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18021,6 +19905,7 @@ type WorkflowRunGetMetricsResponse struct {
 	JSON200      *WorkflowRunsMetrics
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18045,6 +19930,7 @@ type WorkflowScheduledListResponse struct {
 	JSON200      *ScheduledWorkflowsList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18069,6 +19955,7 @@ type WorkflowScheduledBulkDeleteResponse struct {
 	JSON200      *ScheduledWorkflowsBulkDeleteResponse
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18093,6 +19980,7 @@ type WorkflowScheduledBulkUpdateResponse struct {
 	JSON200      *ScheduledWorkflowsBulkUpdateResponse
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18116,6 +20004,7 @@ type WorkflowScheduledDeleteResponse struct {
 	HTTPResponse *http.Response
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18141,6 +20030,7 @@ type WorkflowScheduledGetResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18166,6 +20056,7 @@ type WorkflowScheduledUpdateResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18191,6 +20082,7 @@ type WorkflowScheduledTriggerResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 	JSON500      *APIErrors
 }
 
@@ -18217,7 +20109,7 @@ type CronWorkflowTriggerCreateResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
-	JSON429      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18243,7 +20135,7 @@ type ScheduledWorkflowRunCreateResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
-	JSON429      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18268,6 +20160,7 @@ type WorkflowGetWorkersCountResponse struct {
 	JSON200      *WorkflowWorkersCount
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18293,6 +20186,7 @@ type UserGetCurrentResponse struct {
 	JSON400      *APIErrors
 	JSON401      *APIErrors
 	JSON405      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18401,6 +20295,7 @@ type UserListTenantInvitesResponse struct {
 	JSON200      *TenantInviteList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18424,6 +20319,7 @@ type TenantInviteAcceptResponse struct {
 	HTTPResponse *http.Response
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18447,6 +20343,7 @@ type TenantInviteRejectResponse struct {
 	HTTPResponse *http.Response
 	JSON400      *APIErrors
 	JSON403      *APIError
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18498,6 +20395,7 @@ type UserUpdateLogoutResponse struct {
 	JSON400      *APIErrors
 	JSON401      *APIErrors
 	JSON405      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18522,6 +20420,7 @@ type TenantMembershipsListResponse struct {
 	JSON200      *UserTenantMembershipsList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18548,6 +20447,7 @@ type UserUpdatePasswordResponse struct {
 	JSON401      *APIErrors
 	JSON405      *APIErrors
 	JSON422      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18595,6 +20495,7 @@ func (r UserCreateResponse) StatusCode() int {
 type UserUpdateSlackOauthCallbackResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18643,6 +20544,7 @@ type WebhookDeleteResponse struct {
 	JSON400      *APIErrors
 	JSON401      *APIErrors
 	JSON405      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18668,6 +20570,7 @@ type WebhookRequestsListResponse struct {
 	JSON400      *APIErrors
 	JSON401      *APIErrors
 	JSON405      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18692,6 +20595,7 @@ type WorkerGetResponse struct {
 	JSON200      *Worker
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18716,6 +20620,7 @@ type WorkerUpdateResponse struct {
 	JSON200      *Worker
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18740,6 +20645,7 @@ type WorkflowDeleteResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18765,6 +20671,7 @@ type WorkflowGetResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18789,6 +20696,7 @@ type WorkflowUpdateResponse struct {
 	JSON200      *Workflow
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18814,6 +20722,7 @@ type WorkflowGetMetricsResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18839,7 +20748,7 @@ type WorkflowRunCreateResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
-	JSON429      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -18865,6 +20774,7 @@ type WorkflowVersionGetResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
@@ -19026,6 +20936,50 @@ func (c *ClientWithResponses) V1DagListTasksWithResponse(ctx context.Context, pa
 	return ParseV1DagListTasksResponse(rsp)
 }
 
+// V1ServerlessEndpointDeleteWithResponse request returning *V1ServerlessEndpointDeleteResponse
+func (c *ClientWithResponses) V1ServerlessEndpointDeleteWithResponse(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointDeleteResponse, error) {
+	rsp, err := c.V1ServerlessEndpointDelete(ctx, v1ServerlessEndpoint, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1ServerlessEndpointDeleteResponse(rsp)
+}
+
+// V1ServerlessEndpointGetWithResponse request returning *V1ServerlessEndpointGetResponse
+func (c *ClientWithResponses) V1ServerlessEndpointGetWithResponse(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointGetResponse, error) {
+	rsp, err := c.V1ServerlessEndpointGet(ctx, v1ServerlessEndpoint, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1ServerlessEndpointGetResponse(rsp)
+}
+
+// V1ServerlessEndpointUpdateWithBodyWithResponse request with arbitrary body returning *V1ServerlessEndpointUpdateResponse
+func (c *ClientWithResponses) V1ServerlessEndpointUpdateWithBodyWithResponse(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointUpdateResponse, error) {
+	rsp, err := c.V1ServerlessEndpointUpdateWithBody(ctx, v1ServerlessEndpoint, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1ServerlessEndpointUpdateResponse(rsp)
+}
+
+func (c *ClientWithResponses) V1ServerlessEndpointUpdateWithResponse(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, body V1ServerlessEndpointUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointUpdateResponse, error) {
+	rsp, err := c.V1ServerlessEndpointUpdate(ctx, v1ServerlessEndpoint, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1ServerlessEndpointUpdateResponse(rsp)
+}
+
+// V1ServerlessEndpointEventListWithResponse request returning *V1ServerlessEndpointEventListResponse
+func (c *ClientWithResponses) V1ServerlessEndpointEventListWithResponse(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, params *V1ServerlessEndpointEventListParams, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointEventListResponse, error) {
+	rsp, err := c.V1ServerlessEndpointEventList(ctx, v1ServerlessEndpoint, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1ServerlessEndpointEventListResponse(rsp)
+}
+
 // V1TaskGetWithResponse request returning *V1TaskGetResponse
 func (c *ClientWithResponses) V1TaskGetWithResponse(ctx context.Context, task openapi_types.UUID, params *V1TaskGetParams, reqEditors ...RequestEditorFn) (*V1TaskGetResponse, error) {
 	rsp, err := c.V1TaskGet(ctx, task, params, reqEditors...)
@@ -19077,6 +21031,24 @@ func (c *ClientWithResponses) V1CelDebugWithResponse(ctx context.Context, tenant
 		return nil, err
 	}
 	return ParseV1CelDebugResponse(rsp)
+}
+
+// V1ConcurrencyStrategyListWithResponse request returning *V1ConcurrencyStrategyListResponse
+func (c *ClientWithResponses) V1ConcurrencyStrategyListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1ConcurrencyStrategyListResponse, error) {
+	rsp, err := c.V1ConcurrencyStrategyList(ctx, tenant, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1ConcurrencyStrategyListResponse(rsp)
+}
+
+// V1ConcurrencyKeyListWithResponse request returning *V1ConcurrencyKeyListResponse
+func (c *ClientWithResponses) V1ConcurrencyKeyListWithResponse(ctx context.Context, tenant openapi_types.UUID, scope V1ConcurrencyScope, strategy int64, params *V1ConcurrencyKeyListParams, reqEditors ...RequestEditorFn) (*V1ConcurrencyKeyListResponse, error) {
+	rsp, err := c.V1ConcurrencyKeyList(ctx, tenant, scope, strategy, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1ConcurrencyKeyListResponse(rsp)
 }
 
 // V1DurableTaskBranchWithBodyWithResponse request with arbitrary body returning *V1DurableTaskBranchResponse
@@ -19211,6 +21183,32 @@ func (c *ClientWithResponses) V1TenantLogLineListWithResponse(ctx context.Contex
 	return ParseV1TenantLogLineListResponse(rsp)
 }
 
+// V1ServerlessEndpointListWithResponse request returning *V1ServerlessEndpointListResponse
+func (c *ClientWithResponses) V1ServerlessEndpointListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1ServerlessEndpointListParams, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointListResponse, error) {
+	rsp, err := c.V1ServerlessEndpointList(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1ServerlessEndpointListResponse(rsp)
+}
+
+// V1ServerlessEndpointCreateWithBodyWithResponse request with arbitrary body returning *V1ServerlessEndpointCreateResponse
+func (c *ClientWithResponses) V1ServerlessEndpointCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointCreateResponse, error) {
+	rsp, err := c.V1ServerlessEndpointCreateWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1ServerlessEndpointCreateResponse(rsp)
+}
+
+func (c *ClientWithResponses) V1ServerlessEndpointCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1ServerlessEndpointCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointCreateResponse, error) {
+	rsp, err := c.V1ServerlessEndpointCreate(ctx, tenant, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1ServerlessEndpointCreateResponse(rsp)
+}
+
 // V1StreamPayloadGetWithResponse request returning *V1StreamPayloadGetResponse
 func (c *ClientWithResponses) V1StreamPayloadGetWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1StreamPayloadGetParams, reqEditors ...RequestEditorFn) (*V1StreamPayloadGetResponse, error) {
 	rsp, err := c.V1StreamPayloadGet(ctx, tenant, params, reqEditors...)
@@ -19227,6 +21225,15 @@ func (c *ClientWithResponses) V1StreamPayloadUploadWithBodyWithResponse(ctx cont
 		return nil, err
 	}
 	return ParseV1StreamPayloadUploadResponse(rsp)
+}
+
+// V1StreamTopicListWithResponse request returning *V1StreamTopicListResponse
+func (c *ClientWithResponses) V1StreamTopicListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1StreamTopicListParams, reqEditors ...RequestEditorFn) (*V1StreamTopicListResponse, error) {
+	rsp, err := c.V1StreamTopicList(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1StreamTopicListResponse(rsp)
 }
 
 // V1TaskListStatusMetricsWithResponse request returning *V1TaskListStatusMetricsResponse
@@ -19367,6 +21374,15 @@ func (c *ClientWithResponses) V1WorkflowRunListWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParseV1WorkflowRunListResponse(rsp)
+}
+
+// V1WorkflowRunCountGetWithResponse request returning *V1WorkflowRunCountGetResponse
+func (c *ClientWithResponses) V1WorkflowRunCountGetWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunCountGetParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunCountGetResponse, error) {
+	rsp, err := c.V1WorkflowRunCountGet(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WorkflowRunCountGetResponse(rsp)
 }
 
 // V1WorkflowRunDisplayNamesListWithResponse request returning *V1WorkflowRunDisplayNamesListResponse
@@ -19560,6 +21576,15 @@ func (c *ClientWithResponses) ApiTokenCreateWithResponse(ctx context.Context, te
 		return nil, err
 	}
 	return ParseApiTokenCreateResponse(rsp)
+}
+
+// TenantEntitlementsGetWithResponse request returning *TenantEntitlementsGetResponse
+func (c *ClientWithResponses) TenantEntitlementsGetWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantEntitlementsGetResponse, error) {
+	rsp, err := c.TenantEntitlementsGet(ctx, tenant, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTenantEntitlementsGetResponse(rsp)
 }
 
 // EventListWithResponse request returning *EventListResponse
@@ -20588,6 +22613,13 @@ func ParseAlertEmailGroupDeleteResponse(rsp *http.Response) (*AlertEmailGroupDel
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -20628,6 +22660,13 @@ func ParseAlertEmailGroupUpdateResponse(rsp *http.Response) (*AlertEmailGroupUpd
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -20660,6 +22699,13 @@ func ParseApiTokenUpdateRevokeResponse(rsp *http.Response) (*ApiTokenUpdateRevok
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -20734,6 +22780,13 @@ func ParseEventGetResponse(rsp *http.Response) (*EventGetResponse, error) {
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -20773,6 +22826,13 @@ func ParseEventDataGetResponse(rsp *http.Response) (*EventDataGetResponse, error
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -20840,6 +22900,13 @@ func ParseMetadataListIntegrationsResponse(rsp *http.Response) (*MetadataListInt
 		}
 		response.JSON400 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -20865,6 +22932,13 @@ func ParseMonitoringPostRunProbeResponse(rsp *http.Response) (*MonitoringPostRun
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -20906,6 +22980,13 @@ func ParseSlackWebhookDeleteResponse(rsp *http.Response) (*SlackWebhookDeleteRes
 		}
 		response.JSON405 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -20945,6 +23026,13 @@ func ParseSnsDeleteResponse(rsp *http.Response) (*SnsDeleteResponse, error) {
 			return nil, err
 		}
 		response.JSON405 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -21026,12 +23114,235 @@ func ParseV1DagListTasksResponse(rsp *http.Response) (*V1DagListTasksResponse, e
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1ServerlessEndpointDeleteResponse parses an HTTP response from a V1ServerlessEndpointDeleteWithResponse call
+func ParseV1ServerlessEndpointDeleteResponse(rsp *http.Response) (*V1ServerlessEndpointDeleteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1ServerlessEndpointDeleteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1ServerlessEndpoint
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1ServerlessEndpointGetResponse parses an HTTP response from a V1ServerlessEndpointGetWithResponse call
+func ParseV1ServerlessEndpointGetResponse(rsp *http.Response) (*V1ServerlessEndpointGetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1ServerlessEndpointGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1ServerlessEndpoint
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1ServerlessEndpointUpdateResponse parses an HTTP response from a V1ServerlessEndpointUpdateWithResponse call
+func ParseV1ServerlessEndpointUpdateResponse(rsp *http.Response) (*V1ServerlessEndpointUpdateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1ServerlessEndpointUpdateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1ServerlessEndpoint
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1ServerlessEndpointEventListResponse parses an HTTP response from a V1ServerlessEndpointEventListWithResponse call
+func ParseV1ServerlessEndpointEventListResponse(rsp *http.Response) (*V1ServerlessEndpointEventListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1ServerlessEndpointEventListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1ServerlessEndpointEventList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -21080,6 +23391,13 @@ func ParseV1TaskGetResponse(rsp *http.Response) (*V1TaskGetResponse, error) {
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -21126,6 +23444,13 @@ func ParseV1LogLineListResponse(rsp *http.Response) (*V1LogLineListResponse, err
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -21174,6 +23499,13 @@ func ParseV1TaskRestoreResponse(rsp *http.Response) (*V1TaskRestoreResponse, err
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -21220,6 +23552,13 @@ func ParseV1TaskEventListResponse(rsp *http.Response) (*V1TaskEventListResponse,
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
@@ -21268,6 +23607,100 @@ func ParseV1CelDebugResponse(rsp *http.Response) (*V1CelDebugResponse, error) {
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1ConcurrencyStrategyListResponse parses an HTTP response from a V1ConcurrencyStrategyListWithResponse call
+func ParseV1ConcurrencyStrategyListResponse(rsp *http.Response) (*V1ConcurrencyStrategyListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1ConcurrencyStrategyListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1ConcurrencyStrategyList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1ConcurrencyKeyListResponse parses an HTTP response from a V1ConcurrencyKeyListWithResponse call
+func ParseV1ConcurrencyKeyListResponse(rsp *http.Response) (*V1ConcurrencyKeyListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1ConcurrencyKeyListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1ConcurrencyKeyList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
 	}
 
 	return response, nil
@@ -21307,6 +23740,13 @@ func ParseV1DurableTaskBranchResponse(rsp *http.Response) (*V1DurableTaskBranchR
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -21355,6 +23795,13 @@ func ParseV1DurableTaskEventLogListResponse(rsp *http.Response) (*V1DurableTaskE
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -21394,6 +23841,13 @@ func ParseV1EventListResponse(rsp *http.Response) (*V1EventListResponse, error) 
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -21435,6 +23889,13 @@ func ParseV1EventKeyListResponse(rsp *http.Response) (*V1EventKeyListResponse, e
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -21475,6 +23936,13 @@ func ParseV1EventGetResponse(rsp *http.Response) (*V1EventGetResponse, error) {
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -21514,6 +23982,13 @@ func ParseV1FilterListResponse(rsp *http.Response) (*V1FilterListResponse, error
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -21562,6 +24037,13 @@ func ParseV1FilterCreateResponse(rsp *http.Response) (*V1FilterCreateResponse, e
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -21609,6 +24091,13 @@ func ParseV1FilterDeleteResponse(rsp *http.Response) (*V1FilterDeleteResponse, e
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -21648,6 +24137,13 @@ func ParseV1FilterGetResponse(rsp *http.Response) (*V1FilterGetResponse, error) 
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -21696,6 +24192,13 @@ func ParseV1FilterUpdateResponse(rsp *http.Response) (*V1FilterUpdateResponse, e
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -21735,6 +24238,13 @@ func ParseV1TenantLogLineGetPointMetricsResponse(rsp *http.Response) (*V1TenantL
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
@@ -21783,6 +24293,114 @@ func ParseV1TenantLogLineListResponse(rsp *http.Response) (*V1TenantLogLineListR
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1ServerlessEndpointListResponse parses an HTTP response from a V1ServerlessEndpointListWithResponse call
+func ParseV1ServerlessEndpointListResponse(rsp *http.Response) (*V1ServerlessEndpointListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1ServerlessEndpointListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1ServerlessEndpointList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1ServerlessEndpointCreateResponse parses an HTTP response from a V1ServerlessEndpointCreateWithResponse call
+func ParseV1ServerlessEndpointCreateResponse(rsp *http.Response) (*V1ServerlessEndpointCreateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1ServerlessEndpointCreateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1ServerlessEndpoint
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -21822,6 +24440,13 @@ func ParseV1StreamPayloadGetResponse(rsp *http.Response) (*V1StreamPayloadGetRes
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -21882,6 +24507,46 @@ func ParseV1StreamPayloadUploadResponse(rsp *http.Response) (*V1StreamPayloadUpl
 	return response, nil
 }
 
+// ParseV1StreamTopicListResponse parses an HTTP response from a V1StreamTopicListWithResponse call
+func ParseV1StreamTopicListResponse(rsp *http.Response) (*V1StreamTopicListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1StreamTopicListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1StreamTopicList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseV1TaskListStatusMetricsResponse parses an HTTP response from a V1TaskListStatusMetricsWithResponse call
 func ParseV1TaskListStatusMetricsResponse(rsp *http.Response) (*V1TaskListStatusMetricsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -21916,6 +24581,13 @@ func ParseV1TaskListStatusMetricsResponse(rsp *http.Response) (*V1TaskListStatus
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
@@ -21963,6 +24635,13 @@ func ParseV1TaskGetPointMetricsResponse(rsp *http.Response) (*V1TaskGetPointMetr
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
@@ -22018,6 +24697,13 @@ func ParseV1TaskCancelResponse(rsp *http.Response) (*V1TaskCancelResponse, error
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -22071,6 +24757,13 @@ func ParseV1TaskReplayResponse(rsp *http.Response) (*V1TaskReplayResponse, error
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
@@ -22126,6 +24819,13 @@ func ParseV1ObservabilityGetTraceResponse(rsp *http.Response) (*V1ObservabilityG
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -22165,6 +24865,13 @@ func ParseV1WebhookListResponse(rsp *http.Response) (*V1WebhookListResponse, err
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -22213,6 +24920,13 @@ func ParseV1WebhookCreateResponse(rsp *http.Response) (*V1WebhookCreateResponse,
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -22260,6 +24974,13 @@ func ParseV1WebhookDeleteResponse(rsp *http.Response) (*V1WebhookDeleteResponse,
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -22299,6 +25020,13 @@ func ParseV1WebhookGetResponse(rsp *http.Response) (*V1WebhookGetResponse, error
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -22346,6 +25074,13 @@ func ParseV1WebhookUpdateResponse(rsp *http.Response) (*V1WebhookUpdateResponse,
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -22434,12 +25169,66 @@ func ParseV1WorkflowRunListResponse(rsp *http.Response) (*V1WorkflowRunListRespo
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1WorkflowRunCountGetResponse parses an HTTP response from a V1WorkflowRunCountGetWithResponse call
+func ParseV1WorkflowRunCountGetResponse(rsp *http.Response) (*V1WorkflowRunCountGetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1WorkflowRunCountGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1WorkflowRunCount
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -22480,6 +25269,13 @@ func ParseV1WorkflowRunDisplayNamesListResponse(rsp *http.Response) (*V1Workflow
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
@@ -22528,6 +25324,13 @@ func ParseV1WorkflowRunExternalIdsListResponse(rsp *http.Response) (*V1WorkflowR
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -22575,6 +25378,13 @@ func ParseV1WorkflowRunCreateResponse(rsp *http.Response) (*V1WorkflowRunCreateR
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -22614,6 +25424,13 @@ func ParseV1WorkflowRunGetResponse(rsp *http.Response) (*V1WorkflowRunGetRespons
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
@@ -22669,6 +25486,13 @@ func ParseV1WorkflowRunGetStatusResponse(rsp *http.Response) (*V1WorkflowRunGetS
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -22716,6 +25540,13 @@ func ParseV1WorkflowRunTaskEventsListResponse(rsp *http.Response) (*V1WorkflowRu
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -22762,6 +25593,13 @@ func ParseV1WorkflowRunGetTimingsResponse(rsp *http.Response) (*V1WorkflowRunGet
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors
@@ -22817,6 +25655,13 @@ func ParseStepRunListArchivesResponse(rsp *http.Response) (*StepRunListArchivesR
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -22864,6 +25709,13 @@ func ParseStepRunListEventsResponse(rsp *http.Response) (*StepRunListEventsRespo
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -22903,6 +25755,13 @@ func ParseTenantCreateResponse(rsp *http.Response) (*TenantCreateResponse, error
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -22951,6 +25810,13 @@ func ParseTenantGetResponse(rsp *http.Response) (*TenantGetResponse, error) {
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -22990,6 +25856,13 @@ func ParseTenantUpdateResponse(rsp *http.Response) (*TenantUpdateResponse, error
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -23031,6 +25904,13 @@ func ParseAlertEmailGroupListResponse(rsp *http.Response) (*AlertEmailGroupListR
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -23070,6 +25950,13 @@ func ParseAlertEmailGroupCreateResponse(rsp *http.Response) (*AlertEmailGroupCre
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -23111,6 +25998,13 @@ func ParseTenantAlertingSettingsGetResponse(rsp *http.Response) (*TenantAlerting
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -23151,6 +26045,13 @@ func ParseApiTokenListResponse(rsp *http.Response) (*ApiTokenListResponse, error
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -23186,6 +26087,53 @@ func ParseApiTokenCreateResponse(rsp *http.Response) (*ApiTokenCreateResponse, e
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTenantEntitlementsGetResponse parses an HTTP response from a TenantEntitlementsGetWithResponse call
+func ParseTenantEntitlementsGetResponse(rsp *http.Response) (*TenantEntitlementsGetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TenantEntitlementsGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TenantEntitlements
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -23231,6 +26179,13 @@ func ParseEventListResponse(rsp *http.Response) (*EventListResponse, error) {
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -23272,7 +26227,7 @@ func ParseEventCreateResponse(rsp *http.Response) (*EventCreateResponse, error) 
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest APIErrors
+		var dest TooManyRequests
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -23319,7 +26274,7 @@ func ParseEventCreateBulkResponse(rsp *http.Response) (*EventCreateBulkResponse,
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest APIErrors
+		var dest TooManyRequests
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -23368,7 +26323,7 @@ func ParseEventUpdateCancelResponse(rsp *http.Response) (*EventUpdateCancelRespo
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest APIErrors
+		var dest TooManyRequests
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -23414,6 +26369,13 @@ func ParseEventKeyListResponse(rsp *http.Response) (*EventKeyListResponse, error
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -23455,7 +26417,7 @@ func ParseEventUpdateReplayResponse(rsp *http.Response) (*EventUpdateReplayRespo
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest APIErrors
+		var dest TooManyRequests
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -23500,6 +26462,13 @@ func ParseEventDataGetWithTenantResponse(rsp *http.Response) (*EventDataGetWithT
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -23548,6 +26517,13 @@ func ParseTenantFeatureFlagEvaluateResponse(rsp *http.Response) (*TenantFeatureF
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -23587,6 +26563,13 @@ func ParseTenantInviteListResponse(rsp *http.Response) (*TenantInviteListRespons
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -23635,6 +26618,13 @@ func ParseTenantInviteCreateResponse(rsp *http.Response) (*TenantInviteCreateRes
 		}
 		response.JSON422 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -23668,6 +26658,13 @@ func ParseTenantInviteDeleteResponse(rsp *http.Response) (*TenantInviteDeleteRes
 		}
 		response.JSON400 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -23700,6 +26697,13 @@ func ParseTenantInviteUpdateResponse(rsp *http.Response) (*TenantInviteUpdateRes
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -23740,6 +26744,13 @@ func ParseTenantMemberListResponse(rsp *http.Response) (*TenantMemberListRespons
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -23788,6 +26799,13 @@ func ParseTenantMemberDeleteResponse(rsp *http.Response) (*TenantMemberDeleteRes
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -23835,6 +26853,13 @@ func ParseTenantMemberUpdateResponse(rsp *http.Response) (*TenantMemberUpdateRes
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -23874,6 +26899,13 @@ func ParseTenantGetPrometheusMetricsResponse(rsp *http.Response) (*TenantGetProm
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -23922,6 +26954,13 @@ func ParseTenantGetQueueMetricsResponse(rsp *http.Response) (*TenantGetQueueMetr
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -23954,6 +26993,13 @@ func ParseRateLimitDeleteResponse(rsp *http.Response) (*RateLimitDeleteResponse,
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -23995,6 +27041,13 @@ func ParseRateLimitListResponse(rsp *http.Response) (*RateLimitListResponse, err
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -24034,6 +27087,13 @@ func ParseTenantResourcePolicyGetResponse(rsp *http.Response) (*TenantResourcePo
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -24082,6 +27142,13 @@ func ParseSlackWebhookListResponse(rsp *http.Response) (*SlackWebhookListRespons
 		}
 		response.JSON405 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -24098,6 +27165,16 @@ func ParseUserUpdateSlackOauthStartResponse(rsp *http.Response) (*UserUpdateSlac
 	response := &UserUpdateSlackOauthStartResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -24144,6 +27221,13 @@ func ParseSnsListResponse(rsp *http.Response) (*SnsListResponse, error) {
 			return nil, err
 		}
 		response.JSON405 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -24192,6 +27276,13 @@ func ParseSnsCreateResponse(rsp *http.Response) (*SnsCreateResponse, error) {
 		}
 		response.JSON405 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -24238,6 +27329,13 @@ func ParseTenantGetStepRunQueueMetricsResponse(rsp *http.Response) (*TenantGetSt
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -24286,6 +27384,13 @@ func ParseStepRunGetResponse(rsp *http.Response) (*StepRunGetResponse, error) {
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -24326,6 +27431,13 @@ func ParseStepRunUpdateCancelResponse(rsp *http.Response) (*StepRunUpdateCancelR
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -24365,6 +27477,13 @@ func ParseStepRunUpdateRerunResponse(rsp *http.Response) (*StepRunUpdateRerunRes
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -24413,6 +27532,13 @@ func ParseStepRunGetSchemaResponse(rsp *http.Response) (*StepRunGetSchemaRespons
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -24459,6 +27585,13 @@ func ParseTenantGetTaskStatsResponse(rsp *http.Response) (*TenantGetTaskStatsRes
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -24507,6 +27640,13 @@ func ParseWebhookListResponse(rsp *http.Response) (*WebhookListResponse, error) 
 		}
 		response.JSON405 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -24554,6 +27694,13 @@ func ParseWebhookCreateResponse(rsp *http.Response) (*WebhookCreateResponse, err
 		}
 		response.JSON405 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -24593,6 +27740,13 @@ func ParseWorkerListResponse(rsp *http.Response) (*WorkerListResponse, error) {
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -24635,7 +27789,7 @@ func ParseWorkflowRunUpdateReplayResponse(rsp *http.Response) (*WorkflowRunUpdat
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest APIErrors
+		var dest TooManyRequests
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -24680,6 +27834,13 @@ func ParseWorkflowRunGetResponse(rsp *http.Response) (*WorkflowRunGetResponse, e
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -24728,6 +27889,13 @@ func ParseWorkflowRunGetInputResponse(rsp *http.Response) (*WorkflowRunGetInputR
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -24767,6 +27935,13 @@ func ParseWorkflowRunGetShapeResponse(rsp *http.Response) (*WorkflowRunGetShapeR
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -24815,6 +27990,13 @@ func ParseWorkflowRunListStepRunEventsResponse(rsp *http.Response) (*WorkflowRun
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -24854,6 +28036,13 @@ func ParseWorkflowListResponse(rsp *http.Response) (*WorkflowListResponse, error
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -24897,6 +28086,13 @@ func ParseWorkflowRunCancelResponse(rsp *http.Response) (*WorkflowRunCancelRespo
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -24937,6 +28133,13 @@ func ParseCronWorkflowListResponse(rsp *http.Response) (*CronWorkflowListRespons
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -24969,6 +28172,13 @@ func ParseWorkflowCronDeleteResponse(rsp *http.Response) (*WorkflowCronDeleteRes
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -25017,6 +28227,13 @@ func ParseWorkflowCronGetResponse(rsp *http.Response) (*WorkflowCronGetResponse,
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -25049,6 +28266,13 @@ func ParseWorkflowCronUpdateResponse(rsp *http.Response) (*WorkflowCronUpdateRes
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -25097,6 +28321,13 @@ func ParseWorkflowCronTriggerResponse(rsp *http.Response) (*WorkflowCronTriggerR
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -25144,6 +28375,13 @@ func ParseWorkflowRunListResponse(rsp *http.Response) (*WorkflowRunListResponse,
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -25183,6 +28421,13 @@ func ParseWorkflowRunGetMetricsResponse(rsp *http.Response) (*WorkflowRunGetMetr
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -25224,6 +28469,13 @@ func ParseWorkflowScheduledListResponse(rsp *http.Response) (*WorkflowScheduledL
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -25263,6 +28515,13 @@ func ParseWorkflowScheduledBulkDeleteResponse(rsp *http.Response) (*WorkflowSche
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -25304,6 +28563,13 @@ func ParseWorkflowScheduledBulkUpdateResponse(rsp *http.Response) (*WorkflowSche
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -25336,6 +28602,13 @@ func ParseWorkflowScheduledDeleteResponse(rsp *http.Response) (*WorkflowSchedule
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -25384,6 +28657,13 @@ func ParseWorkflowScheduledGetResponse(rsp *http.Response) (*WorkflowScheduledGe
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -25431,6 +28711,13 @@ func ParseWorkflowScheduledUpdateResponse(rsp *http.Response) (*WorkflowSchedule
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -25477,6 +28764,13 @@ func ParseWorkflowScheduledTriggerResponse(rsp *http.Response) (*WorkflowSchedul
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest APIErrors
@@ -25533,7 +28827,7 @@ func ParseCronWorkflowTriggerCreateResponse(rsp *http.Response) (*CronWorkflowTr
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest APIErrors
+		var dest TooManyRequests
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -25587,7 +28881,7 @@ func ParseScheduledWorkflowRunCreateResponse(rsp *http.Response) (*ScheduledWork
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest APIErrors
+		var dest TooManyRequests
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -25632,6 +28926,13 @@ func ParseWorkflowGetWorkersCountResponse(rsp *http.Response) (*WorkflowGetWorke
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -25679,6 +28980,13 @@ func ParseUserGetCurrentResponse(rsp *http.Response) (*UserGetCurrentResponse, e
 			return nil, err
 		}
 		response.JSON405 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -25784,6 +29092,13 @@ func ParseUserListTenantInvitesResponse(rsp *http.Response) (*UserListTenantInvi
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -25817,6 +29132,13 @@ func ParseTenantInviteAcceptResponse(rsp *http.Response) (*TenantInviteAcceptRes
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -25849,6 +29171,13 @@ func ParseTenantInviteRejectResponse(rsp *http.Response) (*TenantInviteRejectRes
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -25951,6 +29280,13 @@ func ParseUserUpdateLogoutResponse(rsp *http.Response) (*UserUpdateLogoutRespons
 		}
 		response.JSON405 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -25990,6 +29326,13 @@ func ParseTenantMembershipsListResponse(rsp *http.Response) (*TenantMembershipsL
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -26044,6 +29387,13 @@ func ParseUserUpdatePasswordResponse(rsp *http.Response) (*UserUpdatePasswordRes
 			return nil, err
 		}
 		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -26117,6 +29467,16 @@ func ParseUserUpdateSlackOauthCallbackResponse(rsp *http.Response) (*UserUpdateS
 		HTTPResponse: rsp,
 	}
 
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	}
+
 	return response, nil
 }
 
@@ -26183,6 +29543,13 @@ func ParseWebhookDeleteResponse(rsp *http.Response) (*WebhookDeleteResponse, err
 		}
 		response.JSON405 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -26230,6 +29597,13 @@ func ParseWebhookRequestsListResponse(rsp *http.Response) (*WebhookRequestsListR
 		}
 		response.JSON405 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -26269,6 +29643,13 @@ func ParseWorkerGetResponse(rsp *http.Response) (*WorkerGetResponse, error) {
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -26310,6 +29691,13 @@ func ParseWorkerUpdateResponse(rsp *http.Response) (*WorkerUpdateResponse, error
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -26349,6 +29737,13 @@ func ParseWorkflowDeleteResponse(rsp *http.Response) (*WorkflowDeleteResponse, e
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -26397,6 +29792,13 @@ func ParseWorkflowGetResponse(rsp *http.Response) (*WorkflowGetResponse, error) 
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	}
 
 	return response, nil
@@ -26436,6 +29838,13 @@ func ParseWorkflowUpdateResponse(rsp *http.Response) (*WorkflowUpdateResponse, e
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -26483,6 +29892,13 @@ func ParseWorkflowGetMetricsResponse(rsp *http.Response) (*WorkflowGetMetricsRes
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -26532,7 +29948,7 @@ func ParseWorkflowRunCreateResponse(rsp *http.Response) (*WorkflowRunCreateRespo
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest APIErrors
+		var dest TooManyRequests
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -26584,6 +30000,13 @@ func ParseWorkflowVersionGetResponse(rsp *http.Response) (*WorkflowVersionGetRes
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 

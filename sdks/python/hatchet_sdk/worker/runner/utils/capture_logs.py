@@ -3,6 +3,8 @@ import logging
 import queue
 import threading
 from collections.abc import Awaitable, Callable
+from contextlib import suppress
+from contextvars import Context
 from dataclasses import dataclass
 from typing import Any, Literal, ParamSpec, TypeVar
 
@@ -127,7 +129,9 @@ class LogRecord:
 class AsyncLogSender:
     def __init__(self, event_client: EventClient):
         self._event_client = event_client
-        self.q: queue.SimpleQueue[LogRecord | STOP_LOOP_TYPE] = queue.SimpleQueue()
+        self.q: queue.Queue[LogRecord | STOP_LOOP_TYPE] = queue.Queue(
+            maxsize=event_client.client_config.log_queue_size
+        )
         self._thread: threading.Thread | None = None
 
     def _consume(self) -> None:
@@ -146,7 +150,11 @@ class AsyncLogSender:
                 logger.exception("failed to send log to Hatchet")
 
     def publish(self, record: LogRecord | STOP_LOOP_TYPE) -> None:
-        self.q.put(record)
+        try:
+            self.q.put_nowait(record)
+        except queue.Full:
+            # logged outside the task's context so that `LogForwardingHandler` does not forward the warning back into this full queue
+            Context().run(logger.warning, "log queue is full, dropping log message")
 
     def start(self) -> None:
         self._thread = threading.Thread(target=self._consume, daemon=True)
@@ -155,7 +163,8 @@ class AsyncLogSender:
     def stop(self, timeout: float = 5.0) -> None:
         if self._thread is None:
             return
-        self.q.put(STOP_LOOP)
+        with suppress(queue.Full):
+            self.q.put(STOP_LOOP, timeout=timeout)
         self._thread.join(timeout)
         self._thread = None
 

@@ -25,7 +25,7 @@ export interface DurableRunRecord {
   // child completes before the others.
   _waitCount: number;
 
-  evictionReason: string | undefined;
+  evictionCause: EvictionCause | undefined;
 }
 
 export class DurableEvictionCache {
@@ -48,7 +48,7 @@ export class DurableEvictionCache {
       waitKind: undefined,
       waitResourceId: undefined,
       _waitCount: 0,
-      evictionReason: undefined,
+      evictionCause: undefined,
     });
   }
 
@@ -118,7 +118,7 @@ export class DurableEvictionCache {
           (a.waitingSince ?? now) - (b.waitingSince ?? now)
       );
       const [chosen] = ttlEligible;
-      chosen.evictionReason = buildEvictionReason(EvictionCause.TTL_EXCEEDED, chosen);
+      chosen.evictionCause = EvictionCause.TTL_EXCEEDED;
       return chosen.key;
     }
 
@@ -141,7 +141,7 @@ export class DurableEvictionCache {
         (a.waitingSince ?? now) - (b.waitingSince ?? now)
     );
     const [chosen] = capacityCandidates;
-    chosen.evictionReason = buildEvictionReason(EvictionCause.CAPACITY_PRESSURE, chosen);
+    chosen.evictionCause = EvictionCause.CAPACITY_PRESSURE;
     return chosen.key;
   }
 

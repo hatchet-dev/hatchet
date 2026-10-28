@@ -42,6 +42,7 @@ const (
 	EntitlementStrictAdditionalMetadataFilters Entitlement = "strict_additional_metadata_filters"
 	EntitlementDAGOperator                     Entitlement = "dag_operator"
 	EntitlementDurableStreams                  Entitlement = "durable_streams"
+	EntitlementServerlessOperator              Entitlement = "serverless_operator"
 )
 
 // Entitlements only change on plan changes fanned out from the control plane,
@@ -58,6 +59,7 @@ type TenantEntitlements struct {
 	StrictAdditionalMetadataFilters bool
 	DAGOperator                     bool
 	DurableStreams                  bool
+	ServerlessOperator              bool
 }
 
 // Has reports whether this set includes the named entitlement.
@@ -73,6 +75,8 @@ func (e TenantEntitlements) Has(entitlement Entitlement) (bool, error) {
 		return e.DAGOperator, nil
 	case EntitlementDurableStreams:
 		return e.DurableStreams, nil
+	case EntitlementServerlessOperator:
+		return e.ServerlessOperator, nil
 	default:
 		return false, fmt.Errorf("unknown entitlement %q", entitlement)
 	}
@@ -127,11 +131,11 @@ func (t *tenantEntitlementRepository) AnyTenantHasAuditLogs(ctx context.Context,
 		return false, nil
 	}
 
-	return t.queries.AnyTenantHasAuditLogs(ctx, t.pool, tenantIds)
+	return t.queries.AnyTenantHasAuditLogs(ctx, t.pool.ForShared(), tenantIds)
 }
 
 func (t *tenantEntitlementRepository) GetEntitlements(ctx context.Context, tenantId uuid.UUID) (TenantEntitlements, error) {
-	entitlement, err := t.queries.GetTenantEntitlement(ctx, t.pool, tenantId)
+	entitlement, err := t.queries.GetTenantEntitlement(ctx, t.pool.ForTenant(tenantId), tenantId)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -147,17 +151,21 @@ func (t *tenantEntitlementRepository) GetEntitlements(ctx context.Context, tenan
 		StrictAdditionalMetadataFilters: entitlement.StrictAdditionalMetadataFilters,
 		DAGOperator:                     entitlement.DagOperator,
 		DurableStreams:                  entitlement.DurableStreams,
+		ServerlessOperator:              entitlement.ServerlessOperator,
 	}, nil
 }
 
 func (t *tenantEntitlementRepository) SetEntitlements(ctx context.Context, tenantId uuid.UUID, entitlements TenantEntitlements) error {
-	_, err := t.queries.UpsertTenantEntitlement(ctx, t.pool, sqlcv1.UpsertTenantEntitlementParams{
+	db := t.pool.ForTenant(tenantId)
+
+	_, err := t.queries.UpsertTenantEntitlement(ctx, db, sqlcv1.UpsertTenantEntitlementParams{
 		Tenantid:                        tenantId,
 		Auditlogs:                       entitlements.AuditLogs,
 		Prometheusmetrics:               entitlements.PrometheusMetrics,
 		Strictadditionalmetadatafilters: entitlements.StrictAdditionalMetadataFilters,
 		Dagoperator:                     entitlements.DAGOperator,
 		Durablestreams:                  entitlements.DurableStreams,
+		Serverlessoperator:              entitlements.ServerlessOperator,
 	})
 
 	if err != nil {

@@ -10,11 +10,9 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
-	"github.com/jackc/pgerrcode"
-	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -691,9 +689,9 @@ func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.Get
 		}
 	}
 
-	done := !listutils.Any(statuses, "QUEUED") && !listutils.Any(statuses, "RUNNING") && !listutils.Any(statuses, "EVICTED")
+	done := !enumerables.Any(statuses, "QUEUED") && !enumerables.Any(statuses, "RUNNING") && !enumerables.Any(statuses, "EVICTED")
 
-	anyEvicted := listutils.Any(statuses, "EVICTED")
+	anyEvicted := enumerables.Any(statuses, "EVICTED")
 
 	derivedStatusPtr, err := derivedWorkflowRunStatus.ToProto()
 
@@ -859,7 +857,9 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 	createOpts, err := getCreateWorkflowOpts(req)
 
 	if err != nil {
-		return nil, err
+		// the request could not be turned into workflow options: a malformed duration,
+		// expression or reference the caller supplied
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 
 	// validate createOpts
@@ -884,6 +884,14 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New(tenantConcurrencyErr.Error()))
 		}
 
+		// a cycle among the tasks is a property of the workflow as declared; only a changed
+		// declaration can fix it
+		var cycleErr *v1.JobRunHasCycleError
+
+		if errors.As(err, &cycleErr) {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New(cycleErr.Error()))
+		}
+
 		return nil, err
 	}
 
@@ -892,12 +900,6 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 		err = a.mq.SendMessage(ctx, msgqueue.TICKER_UPDATE_QUEUE, msg)
 		if err != nil {
 			a.l.Err(err).Ctx(ctx).Msg("could not send cron trigger update message")
-		}
-	}
-
-	if currWorkflow.WorkflowVersion.IsUsingDagOperator {
-		if err := a.ensureDAGOperator(ctx, tenantId); err != nil {
-			a.l.Err(err).Ctx(ctx).Msg("could not ensure DAG operator for tenant")
 		}
 	}
 
@@ -943,50 +945,6 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 		Id:         currWorkflow.WorkflowVersion.ID.String(),
 		WorkflowId: currWorkflow.WorkflowVersion.WorkflowId.String(),
 	}, nil
-}
-
-func (a *AdminServiceImpl) ensureDAGOperator(ctx context.Context, tenantId uuid.UUID) error {
-	exists, err := a.repo.Operators().HasDAGOperator(ctx, tenantId)
-
-	if err != nil {
-		return fmt.Errorf("could not check for DAG operator: %w", err)
-	}
-
-	if exists {
-		return nil
-	}
-
-	config, err := json.Marshal(struct{}{})
-
-	if err != nil {
-		return fmt.Errorf("could not marshal DAG operator config: %w", err)
-	}
-
-	// The DAG operator is engine-leased: the claimer assigns the row to a dispatcher and
-	// builds the operator there.
-	_, err = a.repo.Operators().CreateOperator(ctx, tenantId, v1.CreateOperatorOpts{
-		Name:           "default",
-		Kind:           sqlcv1.V1OperatorKindDAG,
-		LeasingManager: sqlcv1.V1OperatorLeasingManagerDISPATCHER,
-		Config:         config,
-	})
-
-	// Two workflows put at once both see no operator and both create one; the row is unique
-	// per (tenant, name, kind), so the second insert loses and the tenant has its operator
-	// either way.
-	if isUniqueViolation(err) {
-		return nil
-	}
-
-	return err
-}
-
-// isUniqueViolation reports whether err is Postgres refusing a row that duplicates a unique
-// index.
-func isUniqueViolation(err error) bool {
-	var pgErr *pgconn.PgError
-
-	return errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation
 }
 
 func getActionsForTasks(tasks []*contracts.CreateTaskOpts) ([]string, error) {

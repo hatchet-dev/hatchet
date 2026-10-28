@@ -14,6 +14,16 @@ jobs:
     name: hatchet-e2e-go
     runs-on: ubuntu-latest
     steps:
+      - &update-ca-certificates
+        name: Update CA certificates
+        # Runner images predate Ubuntu's ca-certificates fix for the compromised eMudhra CAs (USN-8944-1); drop this step once they ship 20260816ubuntu0.* or later.
+        run: |
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 -o DPkg::Lock::Timeout=120 update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=120 install -y --only-upgrade ca-certificates
+          v=$(dpkg-query -W -f='${Version}' ca-certificates)
+          dpkg --compare-versions "$v" ge 20260816 || { echo "::error::ca-certificates $v predates USN-8944-1"; exit 1; }
+          # dockerd keeps the roots it loaded at first use.
+          sudo systemctl restart docker
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Login to GHCR
@@ -32,6 +42,7 @@ jobs:
     name: hatchet-e2e-python
     runs-on: ubuntu-latest
     steps:
+      - *update-ca-certificates
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Login to GHCR
@@ -50,6 +61,7 @@ jobs:
     name: hatchet-e2e-typescript
     runs-on: ubuntu-latest
     steps:
+      - *update-ca-certificates
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Login to GHCR
@@ -68,6 +80,7 @@ jobs:
     name: hatchet-e2e-ruby
     runs-on: ubuntu-latest
     steps:
+      - *update-ca-certificates
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Login to GHCR

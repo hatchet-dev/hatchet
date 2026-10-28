@@ -1,6 +1,7 @@
 package authz
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/pkg/auth/rbac"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -174,6 +176,11 @@ func (a *AuthZ) validateUserTenantPermissions(c echo.Context, r *middleware.Rout
 		tenantMember, err := a.config.V1.Tenant().GetTenantMemberByUserID(c.Request().Context(), tenant.ID, user.ID)
 
 		if err != nil {
+			var limitErr *fairpool.LimitError
+			if errors.As(err, &limitErr) {
+				return err
+			}
+
 			a.l.Debug().Ctx(ctx).Err(err).Msgf("error getting tenant member")
 
 			return unauthorized
