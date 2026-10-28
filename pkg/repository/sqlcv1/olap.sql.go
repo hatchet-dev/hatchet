@@ -1209,17 +1209,11 @@ SELECT
     SUM(failed_count)::BIGINT AS failed_count
 FROM (
     SELECT bucket, completed_count, failed_count
-    FROM v1_agg_task_statuses_minute_olap
-    WHERE
-        tenant_id = $2::UUID
-        AND bucket >= DATE_BIN('1 minute', $3::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
-        AND bucket <= $4::TIMESTAMPTZ
-        AND ($5::TIMESTAMPTZ IS NULL OR bucket >= $5::TIMESTAMPTZ)
-
-    UNION ALL
-
-    SELECT bucket, completed_count, failed_count
-    FROM v1_agg_task_statuses_minute_delta_olap
+    FROM (
+        SELECT tenant_id, bucket, completed_count, failed_count FROM v1_agg_task_statuses_minute_olap
+        UNION ALL
+        SELECT tenant_id, bucket, completed_count, failed_count FROM v1_agg_task_statuses_minute_delta_olap
+    ) aggregate_counts
     WHERE
         tenant_id = $2::UUID
         AND bucket >= DATE_BIN('1 minute', $3::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
@@ -1229,10 +1223,10 @@ FROM (
     UNION ALL
 
     SELECT
-        DATE_BIN('1 minute', inserted_at, TIMESTAMPTZ '1970-01-01 00:00:00+00') AS bucket,
-        (readable_status = 'COMPLETED')::INTEGER AS completed_count,
-        (readable_status = 'FAILED')::INTEGER AS failed_count
-    FROM v1_statuses_olap
+        DATE_BIN('1 minute', inserted_at, TIMESTAMPTZ '1970-01-01 00:00:00+00'),
+        (readable_status = 'COMPLETED')::INTEGER,
+        (readable_status = 'FAILED')::INTEGER
+    FROM v1_runs_olap
     WHERE
         tenant_id = $2::UUID
         AND inserted_at >= DATE_BIN('1 minute', $3::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
@@ -1348,115 +1342,6 @@ func (q *Queries) GetTaskStartedTimestamps(ctx context.Context, db DBTX, arg Get
 }
 
 const getTenantStatusMetrics = `-- name: GetTenantStatusMetrics :one
-WITH task_external_ids AS (
-    SELECT external_id
-    FROM v1_runs_olap
-    WHERE (
-        $5::UUID IS NULL OR parent_task_external_id = $5::UUID
-    ) AND (
-        $6::UUID IS NULL
-        OR (id, inserted_at) IN (
-            SELECT etr.run_id, etr.run_inserted_at
-            FROM v1_event_lookup_table_olap lt
-            JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
-            JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
-            WHERE
-                lt.tenant_id = $1::uuid
-                AND lt.external_id = $6::UUID
-        )
-    )
-    AND (
-        $7::text[] IS NULL
-        OR $8::text[] IS NULL
-        OR EXISTS (
-            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
-            JOIN LATERAL (
-                SELECT unnest($7::text[]) AS k,
-                    unnest($8::text[]) AS v
-            ) AS u ON kv.key = u.k AND kv.value = u.v
-        )
-    )
-    AND tenant_id = $1::UUID
-    AND inserted_at >= $2::TIMESTAMPTZ
-    AND (
-        $3::TIMESTAMPTZ IS NULL OR inserted_at <= $3::TIMESTAMPTZ
-    )
-    AND (
-        $4::UUID[] IS NULL OR workflow_id = ANY($4::UUID[])
-    )
-)
-
-SELECT
-    tenant_id,
-    COUNT(*) FILTER (WHERE readable_status = 'QUEUED') AS total_queued,
-    COUNT(*) FILTER (WHERE readable_status = 'RUNNING') AS total_running,
-    COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS total_completed,
-    COUNT(*) FILTER (WHERE readable_status = 'CANCELLED') AS total_cancelled,
-    COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS total_failed,
-    COUNT(*) FILTER (WHERE readable_status = 'EVICTED') AS total_evicted
-FROM v1_statuses_olap
-WHERE
-    tenant_id = $1::UUID
-    AND inserted_at >= $2::TIMESTAMPTZ
-    AND (
-        $3::TIMESTAMPTZ IS NULL OR inserted_at <= $3::TIMESTAMPTZ
-    )
-    AND (
-        $4::UUID[] IS NULL OR workflow_id = ANY($4::UUID[])
-    )
-    AND external_id IN (
-        SELECT external_id
-        FROM task_external_ids
-    )
-GROUP BY tenant_id
-`
-
-type GetTenantStatusMetricsParams struct {
-	Tenantid                  uuid.UUID          `json:"tenantid"`
-	Createdafter              pgtype.Timestamptz `json:"createdafter"`
-	CreatedBefore             pgtype.Timestamptz `json:"createdBefore"`
-	WorkflowIds               []uuid.UUID        `json:"workflowIds"`
-	ParentTaskExternalId      *uuid.UUID         `json:"parentTaskExternalId"`
-	TriggeringEventExternalId *uuid.UUID         `json:"triggeringEventExternalId"`
-	AdditionalMetaKeys        []string           `json:"additionalMetaKeys"`
-	AdditionalMetaValues      []string           `json:"additionalMetaValues"`
-}
-
-type GetTenantStatusMetricsRow struct {
-	TenantID       uuid.UUID `json:"tenant_id"`
-	TotalQueued    int64     `json:"total_queued"`
-	TotalRunning   int64     `json:"total_running"`
-	TotalCompleted int64     `json:"total_completed"`
-	TotalCancelled int64     `json:"total_cancelled"`
-	TotalFailed    int64     `json:"total_failed"`
-	TotalEvicted   int64     `json:"total_evicted"`
-}
-
-func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTenantStatusMetricsParams) (*GetTenantStatusMetricsRow, error) {
-	row := db.QueryRow(ctx, getTenantStatusMetrics,
-		arg.Tenantid,
-		arg.Createdafter,
-		arg.CreatedBefore,
-		arg.WorkflowIds,
-		arg.ParentTaskExternalId,
-		arg.TriggeringEventExternalId,
-		arg.AdditionalMetaKeys,
-		arg.AdditionalMetaValues,
-	)
-	var i GetTenantStatusMetricsRow
-	err := row.Scan(
-		&i.TenantID,
-		&i.TotalQueued,
-		&i.TotalRunning,
-		&i.TotalCompleted,
-		&i.TotalCancelled,
-		&i.TotalFailed,
-		&i.TotalEvicted,
-	)
-	return &i, err
-}
-
-const getTenantStatusMetricsFromAggregate = `-- name: GetTenantStatusMetricsFromAggregate :one
 SELECT
     COALESCE(SUM(queued_count), 0)::BIGINT AS total_queued,
     COALESCE(SUM(running_count), 0)::BIGINT AS total_running,
@@ -1466,18 +1351,13 @@ SELECT
     COALESCE(SUM(evicted_count), 0)::BIGINT AS total_evicted
 FROM (
     SELECT queued_count, running_count, completed_count, cancelled_count, failed_count, evicted_count
-    FROM v1_agg_task_statuses_minute_olap
-    WHERE
-        tenant_id = $1::UUID
-        AND bucket >= DATE_BIN('1 minute', $2::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
-        AND ($3::TIMESTAMPTZ IS NULL OR bucket <= $3::TIMESTAMPTZ)
-        AND ($4::UUID[] IS NULL OR workflow_id = ANY($4::UUID[]))
-        AND ($5::TIMESTAMPTZ IS NULL OR bucket >= $5::TIMESTAMPTZ)
-
-    UNION ALL
-
-    SELECT queued_count, running_count, completed_count, cancelled_count, failed_count, evicted_count
-    FROM v1_agg_task_statuses_minute_delta_olap
+    FROM (
+        SELECT tenant_id, bucket, workflow_id, queued_count, running_count, completed_count, cancelled_count, failed_count, evicted_count
+        FROM v1_agg_task_statuses_minute_olap
+        UNION ALL
+        SELECT tenant_id, bucket, workflow_id, queued_count, running_count, completed_count, cancelled_count, failed_count, evicted_count
+        FROM v1_agg_task_statuses_minute_delta_olap
+    ) aggregate_counts
     WHERE
         tenant_id = $1::UUID
         AND bucket >= DATE_BIN('1 minute', $2::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
@@ -1494,25 +1374,53 @@ FROM (
         (readable_status = 'CANCELLED')::INTEGER,
         (readable_status = 'FAILED')::INTEGER,
         (readable_status = 'EVICTED')::INTEGER
-    FROM v1_statuses_olap
+    FROM v1_runs_olap
     WHERE
         tenant_id = $1::UUID
         AND inserted_at >= DATE_BIN('1 minute', $2::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
         AND ($3::TIMESTAMPTZ IS NULL OR inserted_at <= $3::TIMESTAMPTZ)
         AND ($4::UUID[] IS NULL OR workflow_id = ANY($4::UUID[]))
         AND inserted_at < $5::TIMESTAMPTZ
+        AND ($6::UUID IS NULL OR parent_task_external_id = $6::UUID)
+        AND (
+            $7::UUID IS NULL
+            OR (id, inserted_at) IN (
+                SELECT etr.run_id, etr.run_inserted_at
+                FROM v1_event_lookup_table_olap lt
+                JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+                JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+                WHERE
+                    lt.tenant_id = $1::UUID
+                    AND lt.external_id = $7::UUID
+            )
+        )
+        AND (
+            $8::TEXT[] IS NULL
+            OR $9::TEXT[] IS NULL
+            OR EXISTS (
+                SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+                JOIN LATERAL (
+                    SELECT unnest($8::TEXT[]) AS k,
+                        unnest($9::TEXT[]) AS v
+                ) AS u ON kv.key = u.k AND kv.value = u.v
+            )
+        )
 ) status_counts
 `
 
-type GetTenantStatusMetricsFromAggregateParams struct {
-	Tenantid               uuid.UUID          `json:"tenantid"`
-	Createdafter           pgtype.Timestamptz `json:"createdafter"`
-	CreatedBefore          pgtype.Timestamptz `json:"createdBefore"`
-	WorkflowIds            []uuid.UUID        `json:"workflowIds"`
-	AggregatesCompleteFrom pgtype.Timestamptz `json:"aggregatesCompleteFrom"`
+type GetTenantStatusMetricsParams struct {
+	Tenantid                  uuid.UUID          `json:"tenantid"`
+	Createdafter              pgtype.Timestamptz `json:"createdafter"`
+	CreatedBefore             pgtype.Timestamptz `json:"createdBefore"`
+	WorkflowIds               []uuid.UUID        `json:"workflowIds"`
+	AggregatesCompleteFrom    pgtype.Timestamptz `json:"aggregatesCompleteFrom"`
+	ParentTaskExternalId      *uuid.UUID         `json:"parentTaskExternalId"`
+	TriggeringEventExternalId *uuid.UUID         `json:"triggeringEventExternalId"`
+	AdditionalMetaKeys        []string           `json:"additionalMetaKeys"`
+	AdditionalMetaValues      []string           `json:"additionalMetaValues"`
 }
 
-type GetTenantStatusMetricsFromAggregateRow struct {
+type GetTenantStatusMetricsRow struct {
 	TotalQueued    int64 `json:"total_queued"`
 	TotalRunning   int64 `json:"total_running"`
 	TotalCompleted int64 `json:"total_completed"`
@@ -1521,15 +1429,19 @@ type GetTenantStatusMetricsFromAggregateRow struct {
 	TotalEvicted   int64 `json:"total_evicted"`
 }
 
-func (q *Queries) GetTenantStatusMetricsFromAggregate(ctx context.Context, db DBTX, arg GetTenantStatusMetricsFromAggregateParams) (*GetTenantStatusMetricsFromAggregateRow, error) {
-	row := db.QueryRow(ctx, getTenantStatusMetricsFromAggregate,
+func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTenantStatusMetricsParams) (*GetTenantStatusMetricsRow, error) {
+	row := db.QueryRow(ctx, getTenantStatusMetrics,
 		arg.Tenantid,
 		arg.Createdafter,
 		arg.CreatedBefore,
 		arg.WorkflowIds,
 		arg.AggregatesCompleteFrom,
+		arg.ParentTaskExternalId,
+		arg.TriggeringEventExternalId,
+		arg.AdditionalMetaKeys,
+		arg.AdditionalMetaValues,
 	)
-	var i GetTenantStatusMetricsFromAggregateRow
+	var i GetTenantStatusMetricsRow
 	err := row.Scan(
 		&i.TotalQueued,
 		&i.TotalRunning,

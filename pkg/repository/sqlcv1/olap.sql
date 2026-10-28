@@ -1736,17 +1736,11 @@ SELECT
     SUM(failed_count)::BIGINT AS failed_count
 FROM (
     SELECT bucket, completed_count, failed_count
-    FROM v1_agg_task_statuses_minute_olap
-    WHERE
-        tenant_id = @tenantId::UUID
-        AND bucket >= DATE_BIN('1 minute', @createdAfter::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
-        AND bucket <= @createdBefore::TIMESTAMPTZ
-        AND (sqlc.narg('aggregatesCompleteFrom')::TIMESTAMPTZ IS NULL OR bucket >= sqlc.narg('aggregatesCompleteFrom')::TIMESTAMPTZ)
-
-    UNION ALL
-
-    SELECT bucket, completed_count, failed_count
-    FROM v1_agg_task_statuses_minute_delta_olap
+    FROM (
+        SELECT tenant_id, bucket, completed_count, failed_count FROM v1_agg_task_statuses_minute_olap
+        UNION ALL
+        SELECT tenant_id, bucket, completed_count, failed_count FROM v1_agg_task_statuses_minute_delta_olap
+    ) aggregate_counts
     WHERE
         tenant_id = @tenantId::UUID
         AND bucket >= DATE_BIN('1 minute', @createdAfter::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
@@ -1756,10 +1750,10 @@ FROM (
     UNION ALL
 
     SELECT
-        DATE_BIN('1 minute', inserted_at, TIMESTAMPTZ '1970-01-01 00:00:00+00') AS bucket,
-        (readable_status = 'COMPLETED')::INTEGER AS completed_count,
-        (readable_status = 'FAILED')::INTEGER AS failed_count
-    FROM v1_statuses_olap
+        DATE_BIN('1 minute', inserted_at, TIMESTAMPTZ '1970-01-01 00:00:00+00'),
+        (readable_status = 'COMPLETED')::INTEGER,
+        (readable_status = 'FAILED')::INTEGER
+    FROM v1_runs_olap
     WHERE
         tenant_id = @tenantId::UUID
         AND inserted_at >= DATE_BIN('1 minute', @createdAfter::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
@@ -1769,7 +1763,7 @@ FROM (
 GROUP BY minute_bucket
 ORDER BY minute_bucket;
 
--- name: GetTenantStatusMetricsFromAggregate :one
+-- name: GetTenantStatusMetrics :one
 SELECT
     COALESCE(SUM(queued_count), 0)::BIGINT AS total_queued,
     COALESCE(SUM(running_count), 0)::BIGINT AS total_running,
@@ -1779,18 +1773,13 @@ SELECT
     COALESCE(SUM(evicted_count), 0)::BIGINT AS total_evicted
 FROM (
     SELECT queued_count, running_count, completed_count, cancelled_count, failed_count, evicted_count
-    FROM v1_agg_task_statuses_minute_olap
-    WHERE
-        tenant_id = @tenantId::UUID
-        AND bucket >= DATE_BIN('1 minute', @createdAfter::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
-        AND (sqlc.narg('createdBefore')::TIMESTAMPTZ IS NULL OR bucket <= sqlc.narg('createdBefore')::TIMESTAMPTZ)
-        AND (sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[]))
-        AND (sqlc.narg('aggregatesCompleteFrom')::TIMESTAMPTZ IS NULL OR bucket >= sqlc.narg('aggregatesCompleteFrom')::TIMESTAMPTZ)
-
-    UNION ALL
-
-    SELECT queued_count, running_count, completed_count, cancelled_count, failed_count, evicted_count
-    FROM v1_agg_task_statuses_minute_delta_olap
+    FROM (
+        SELECT tenant_id, bucket, workflow_id, queued_count, running_count, completed_count, cancelled_count, failed_count, evicted_count
+        FROM v1_agg_task_statuses_minute_olap
+        UNION ALL
+        SELECT tenant_id, bucket, workflow_id, queued_count, running_count, completed_count, cancelled_count, failed_count, evicted_count
+        FROM v1_agg_task_statuses_minute_delta_olap
+    ) aggregate_counts
     WHERE
         tenant_id = @tenantId::UUID
         AND bucket >= DATE_BIN('1 minute', @createdAfter::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
@@ -1807,78 +1796,38 @@ FROM (
         (readable_status = 'CANCELLED')::INTEGER,
         (readable_status = 'FAILED')::INTEGER,
         (readable_status = 'EVICTED')::INTEGER
-    FROM v1_statuses_olap
+    FROM v1_runs_olap
     WHERE
         tenant_id = @tenantId::UUID
         AND inserted_at >= DATE_BIN('1 minute', @createdAfter::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
         AND (sqlc.narg('createdBefore')::TIMESTAMPTZ IS NULL OR inserted_at <= sqlc.narg('createdBefore')::TIMESTAMPTZ)
         AND (sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[]))
         AND inserted_at < sqlc.narg('aggregatesCompleteFrom')::TIMESTAMPTZ
+        AND (sqlc.narg('parentTaskExternalId')::UUID IS NULL OR parent_task_external_id = sqlc.narg('parentTaskExternalId')::UUID)
+        AND (
+            sqlc.narg('triggeringEventExternalId')::UUID IS NULL
+            OR (id, inserted_at) IN (
+                SELECT etr.run_id, etr.run_inserted_at
+                FROM v1_event_lookup_table_olap lt
+                JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+                JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+                WHERE
+                    lt.tenant_id = @tenantId::UUID
+                    AND lt.external_id = sqlc.narg('triggeringEventExternalId')::UUID
+            )
+        )
+        AND (
+            sqlc.narg('additionalMetaKeys')::TEXT[] IS NULL
+            OR sqlc.narg('additionalMetaValues')::TEXT[] IS NULL
+            OR EXISTS (
+                SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+                JOIN LATERAL (
+                    SELECT unnest(sqlc.narg('additionalMetaKeys')::TEXT[]) AS k,
+                        unnest(sqlc.narg('additionalMetaValues')::TEXT[]) AS v
+                ) AS u ON kv.key = u.k AND kv.value = u.v
+            )
+        )
 ) status_counts;
-
--- name: GetTenantStatusMetrics :one
-WITH task_external_ids AS (
-    SELECT external_id
-    FROM v1_runs_olap
-    WHERE (
-        sqlc.narg('parentTaskExternalId')::UUID IS NULL OR parent_task_external_id = sqlc.narg('parentTaskExternalId')::UUID
-    ) AND (
-        sqlc.narg('triggeringEventExternalId')::UUID IS NULL
-        OR (id, inserted_at) IN (
-            SELECT etr.run_id, etr.run_inserted_at
-            FROM v1_event_lookup_table_olap lt
-            JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
-            JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
-            WHERE
-                lt.tenant_id = @tenantId::uuid
-                AND lt.external_id = sqlc.narg('triggeringEventExternalId')::UUID
-        )
-    )
-    AND (
-        sqlc.narg('additionalMetaKeys')::text[] IS NULL
-        OR sqlc.narg('additionalMetaValues')::text[] IS NULL
-        OR EXISTS (
-            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
-            JOIN LATERAL (
-                SELECT unnest(sqlc.narg('additionalMetaKeys')::text[]) AS k,
-                    unnest(sqlc.narg('additionalMetaValues')::text[]) AS v
-            ) AS u ON kv.key = u.k AND kv.value = u.v
-        )
-    )
-    AND tenant_id = @tenantId::UUID
-    AND inserted_at >= @createdAfter::TIMESTAMPTZ
-    AND (
-        sqlc.narg('createdBefore')::TIMESTAMPTZ IS NULL OR inserted_at <= sqlc.narg('createdBefore')::TIMESTAMPTZ
-    )
-    AND (
-        sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
-    )
-)
-
-SELECT
-    tenant_id,
-    COUNT(*) FILTER (WHERE readable_status = 'QUEUED') AS total_queued,
-    COUNT(*) FILTER (WHERE readable_status = 'RUNNING') AS total_running,
-    COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS total_completed,
-    COUNT(*) FILTER (WHERE readable_status = 'CANCELLED') AS total_cancelled,
-    COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS total_failed,
-    COUNT(*) FILTER (WHERE readable_status = 'EVICTED') AS total_evicted
-FROM v1_statuses_olap
-WHERE
-    tenant_id = @tenantId::UUID
-    AND inserted_at >= @createdAfter::TIMESTAMPTZ
-    AND (
-        sqlc.narg('createdBefore')::TIMESTAMPTZ IS NULL OR inserted_at <= sqlc.narg('createdBefore')::TIMESTAMPTZ
-    )
-    AND (
-        sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
-    )
-    AND external_id IN (
-        SELECT external_id
-        FROM task_external_ids
-    )
-GROUP BY tenant_id
-;
 
 -- name: ReadWorkflowRunByExternalId :one
 WITH runs AS (
