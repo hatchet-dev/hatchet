@@ -2501,12 +2501,15 @@ RETURNING
 -- shares the DAG's id and inserted_at) so run metadata queries surface the orchestrator's error
 -- message and timings. Status derivation is unaffected: status queries join through
 -- v1_tasks_olap, which has no row for the orchestrator.
+WITH inputs AS (
+    SELECT
+        UNNEST(@dagIds::bigint[]) AS dag_id,
+        UNNEST(@dagInsertedAts::timestamptz[]) AS dag_inserted_at
+)
 INSERT INTO v1_dag_to_task_olap (dag_id, dag_inserted_at, task_id, task_inserted_at)
-SELECT
-    UNNEST(@dagIds::bigint[]),
-    UNNEST(@dagInsertedAts::timestamptz[]),
-    UNNEST(@dagIds::bigint[]),
-    UNNEST(@dagInsertedAts::timestamptz[])
+SELECT i.dag_id, i.dag_inserted_at, i.dag_id, i.dag_inserted_at
+FROM inputs i
+ORDER BY i.dag_inserted_at, i.dag_id
 ON CONFLICT DO NOTHING;
 
 -- name: ReconcileOperatorDAGStatusesOnCreate :exec
