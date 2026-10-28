@@ -24,6 +24,12 @@ type OperatorRepository interface {
 	// points the row's worker_id at it so later polls see the assignment.
 	ClaimOperators(ctx context.Context, dispatcherId uuid.UUID) ([]*sqlcv1.V1Operator, error)
 
+	// ReleaseOperators detaches and pauses the workers of every DISPATCHER-leased operator this
+	// dispatcher runs, so another live dispatcher claims them on its next poll instead of
+	// waiting for this dispatcher's row to be deleted at the end of its shutdown. It returns
+	// the released worker ids.
+	ReleaseOperators(ctx context.Context, dispatcherId uuid.UUID) ([]uuid.UUID, error)
+
 	// UpsertOperator registers an operator by (tenant, name, kind), returning the existing row
 	// on repeat registrations with its leasing manager set to the one given. A SELF row never gets a
 	// worker_id on the operator row: each registration owns its own worker, created through
@@ -204,6 +210,10 @@ func nullOperatorKind(kind *sqlcv1.V1OperatorKind) sqlcv1.NullV1OperatorKind {
 
 func (r *operatorRepository) ClaimOperators(ctx context.Context, dispatcherId uuid.UUID) ([]*sqlcv1.V1Operator, error) {
 	return r.queries.ClaimOperators(ctx, r.pool.ForShared(), dispatcherId)
+}
+
+func (r *operatorRepository) ReleaseOperators(ctx context.Context, dispatcherId uuid.UUID) ([]uuid.UUID, error) {
+	return r.queries.ReleaseOperatorWorkers(ctx, r.pool.ForShared(), dispatcherId)
 }
 
 func (r *operatorRepository) ListDAGOrchestrationActions(ctx context.Context, tenantId uuid.UUID) ([]string, error) {

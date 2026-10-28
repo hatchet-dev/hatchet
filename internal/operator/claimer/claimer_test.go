@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/operator/claimer"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
@@ -112,11 +113,12 @@ func (h *fakeHost) openCount() int {
 	return len(h.opens)
 }
 
-// fakeClaims answers the claim query with whatever the test set.
+// fakeClaims answers the claim query with whatever the test set and counts releases.
 type fakeClaims struct {
-	mu   sync.Mutex
-	rows []*sqlcv1.V1Operator
-	err  error
+	mu       sync.Mutex
+	rows     []*sqlcv1.V1Operator
+	err      error
+	releases int
 }
 
 func (c *fakeClaims) ClaimOperators(context.Context, uuid.UUID) ([]*sqlcv1.V1Operator, error) {
@@ -124,6 +126,22 @@ func (c *fakeClaims) ClaimOperators(context.Context, uuid.UUID) ([]*sqlcv1.V1Ope
 	defer c.mu.Unlock()
 
 	return c.rows, c.err
+}
+
+func (c *fakeClaims) ReleaseOperators(context.Context, uuid.UUID) ([]uuid.UUID, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.releases++
+
+	return enumerables.Map(c.rows, func(op *sqlcv1.V1Operator) uuid.UUID { return op.ID }), nil
+}
+
+func (c *fakeClaims) releaseCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.releases
 }
 
 func (c *fakeClaims) set(rows ...*sqlcv1.V1Operator) {
@@ -324,11 +342,13 @@ func TestStartPollsAndStopTearsDown(t *testing.T) {
 	h.Stop(t.Context())
 
 	assert.Zero(t, h.Running())
+	assert.Equal(t, 1, h.claims.releaseCount(), "stop releases the claimed operators before draining them")
 	assert.Equal(t, []string{"pause", "close"}, h.host.session(a.ID).Ops())
 	assert.True(t, h.operator(a).isDrained())
 
 	// stopping again is a no-op, and nothing is hosted afterwards
 	h.Stop(t.Context())
+	assert.Equal(t, 1, h.claims.releaseCount())
 	assert.Equal(t, 2, h.host.openCount())
 }
 
