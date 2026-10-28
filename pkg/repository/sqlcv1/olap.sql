@@ -1719,9 +1719,9 @@ LEFT JOIN max_retry_count mrc ON r.run_id = mrc.run_id
 ORDER BY r.inserted_at DESC, r.run_id DESC;
 
 -- name: GetOLAPAggregatesCompleteFrom :one
--- The aggregate triggers only count rows written after v1_0_182 installed them, so buckets
--- before the first full minute after that are incomplete.
-SELECT (DATE_BIN('1 minute', MIN(tstamp)::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00') + INTERVAL '1 minute')::TIMESTAMPTZ AS complete_from
+-- The aggregate triggers only count rows written after v1_0_182 installed them. A day of margin
+-- covers runs whose inserted_at is ahead of the database clock.
+SELECT (DATE_BIN('1 minute', MIN(tstamp)::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00') + INTERVAL '1 day')::TIMESTAMPTZ AS complete_from
 FROM goose_db_version
 WHERE version_id = 20261027194324 AND is_applied;
 

@@ -934,13 +934,13 @@ func (q *Queries) GetOLAPAggregateRetainedFrom(ctx context.Context, db DBTX, agg
 }
 
 const getOLAPAggregatesCompleteFrom = `-- name: GetOLAPAggregatesCompleteFrom :one
-SELECT (DATE_BIN('1 minute', MIN(tstamp)::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00') + INTERVAL '1 minute')::TIMESTAMPTZ AS complete_from
+SELECT (DATE_BIN('1 minute', MIN(tstamp)::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00') + INTERVAL '1 day')::TIMESTAMPTZ AS complete_from
 FROM goose_db_version
 WHERE version_id = 20261027194324 AND is_applied
 `
 
-// The aggregate triggers only count rows written after v1_0_182 installed them, so buckets
-// before the first full minute after that are incomplete.
+// The aggregate triggers only count rows written after v1_0_182 installed them. A day of margin
+// covers runs whose inserted_at is ahead of the database clock.
 func (q *Queries) GetOLAPAggregatesCompleteFrom(ctx context.Context, db DBTX) (pgtype.Timestamptz, error) {
 	row := db.QueryRow(ctx, getOLAPAggregatesCompleteFrom)
 	var complete_from pgtype.Timestamptz
