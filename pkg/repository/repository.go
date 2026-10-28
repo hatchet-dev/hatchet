@@ -137,7 +137,7 @@ func NewRepository(
 		tasks:               newTaskRepository(shared, taskRetentionPeriod, maxInternalRetryCount, taskLimits.TimeoutLimit, taskLimits.ReassignLimit, taskLimits.RetryQueueLimit, taskLimits.DurableSleepLimit),
 		scheduler:           newSchedulerRepository(shared),
 		matches:             newMatchRepository(shared),
-		olap:                newOLAPRepository(shared, olapRetentionPeriod, true, true, false, statusUpdateBatchSizeLimits),
+		olap:                newOLAPRepository(shared, olapRetentionPeriod, true, true, statusUpdateBatchSizeLimits),
 		logs:                newLogLineRepository(shared),
 		streams:             newStreamsRepository(shared),
 		workers:             newWorkerRepository(shared),
