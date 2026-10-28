@@ -1,4 +1,9 @@
-import { V1EventList, V1TaskSummaryList, WebhookWorkerCreateRequest } from '.';
+import {
+  V1ConcurrencyScope,
+  V1EventList,
+  V1TaskSummaryList,
+  WebhookWorkerCreateRequest,
+} from '.';
 import api, {
   cloudApi,
   controlPlaneApi,
@@ -12,6 +17,7 @@ import invariant from 'tiny-invariant';
 type ListEventQuery = Parameters<typeof api.eventList>[1];
 type ListRateLimitsQuery = Parameters<typeof api.rateLimitList>[1];
 type ListStreamTopicsQuery = Parameters<typeof api.v1StreamTopicList>[1];
+type V1ConcurrencyKeyListQuery = Parameters<typeof api.v1ConcurrencyKeyList>[3];
 type ListWorkersQuery = Parameters<typeof api.workerList>[1];
 type ListLogLineQuery = Parameters<typeof api.v1LogLineList>[1];
 type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
@@ -541,6 +547,27 @@ export const queries = createQueryKeyStore({
     list: (tenant: string, query: ListStreamTopicsQuery) => ({
       queryKey: ['stream-topics:list', tenant, query],
       queryFn: async () => (await api.v1StreamTopicList(tenant, query)).data,
+    }),
+  },
+  v1Concurrency: {
+    strategies: (tenant: string) => ({
+      queryKey: ['v1:concurrency:strategies', tenant],
+      queryFn: async ({ signal }) =>
+        (await api.v1ConcurrencyStrategyList(tenant, { signal })).data,
+    }),
+    keys: (
+      tenant: string,
+      scope: V1ConcurrencyScope,
+      strategy: number,
+      query: V1ConcurrencyKeyListQuery,
+    ) => ({
+      queryKey: ['v1:concurrency:keys', tenant, scope, strategy, query],
+      queryFn: async ({ signal }) =>
+        (
+          await api.v1ConcurrencyKeyList(tenant, scope, strategy, query, {
+            signal,
+          })
+        ).data,
     }),
   },
   workers: {
