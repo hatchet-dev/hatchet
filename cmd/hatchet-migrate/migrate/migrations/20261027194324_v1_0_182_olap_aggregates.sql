@@ -1,6 +1,7 @@
+-- +goose NO TRANSACTION
 -- +goose Up
 -- +goose StatementBegin
-CREATE TABLE v1_agg_task_statuses_minute_olap (
+CREATE TABLE IF NOT EXISTS v1_agg_task_statuses_minute_olap (
     tenant_id UUID NOT NULL,
     bucket TIMESTAMPTZ NOT NULL,
     workflow_id UUID NOT NULL,
@@ -13,7 +14,7 @@ CREATE TABLE v1_agg_task_statuses_minute_olap (
     PRIMARY KEY (tenant_id, bucket, workflow_id)
 ) PARTITION BY RANGE (bucket);
 
-CREATE TABLE v1_agg_task_events_minute_olap (
+CREATE TABLE IF NOT EXISTS v1_agg_task_events_minute_olap (
     tenant_id UUID NOT NULL,
     bucket TIMESTAMPTZ NOT NULL,
     workflow_id UUID NOT NULL,
@@ -25,14 +26,14 @@ CREATE TABLE v1_agg_task_events_minute_olap (
     PRIMARY KEY (tenant_id, bucket, workflow_id)
 ) PARTITION BY RANGE (bucket);
 
-CREATE TABLE v1_agg_events_minute_olap (
+CREATE TABLE IF NOT EXISTS v1_agg_events_minute_olap (
     tenant_id UUID NOT NULL,
     bucket TIMESTAMPTZ NOT NULL,
     event_count BIGINT NOT NULL DEFAULT 0,
     PRIMARY KEY (tenant_id, bucket)
 ) PARTITION BY RANGE (bucket);
 
-CREATE TABLE v1_agg_task_statuses_minute_delta_olap (
+CREATE TABLE IF NOT EXISTS v1_agg_task_statuses_minute_delta_olap (
     id BIGINT GENERATED ALWAYS AS IDENTITY,
     tenant_id UUID NOT NULL,
     bucket TIMESTAMPTZ NOT NULL,
@@ -46,7 +47,7 @@ CREATE TABLE v1_agg_task_statuses_minute_delta_olap (
     PRIMARY KEY (id, tenant_id)
 ) PARTITION BY HASH (tenant_id);
 
-CREATE TABLE v1_agg_task_events_minute_delta_olap (
+CREATE TABLE IF NOT EXISTS v1_agg_task_events_minute_delta_olap (
     id BIGINT GENERATED ALWAYS AS IDENTITY,
     tenant_id UUID NOT NULL,
     bucket TIMESTAMPTZ NOT NULL,
@@ -59,7 +60,7 @@ CREATE TABLE v1_agg_task_events_minute_delta_olap (
     PRIMARY KEY (id, tenant_id)
 ) PARTITION BY HASH (tenant_id);
 
-CREATE TABLE v1_agg_events_minute_delta_olap (
+CREATE TABLE IF NOT EXISTS v1_agg_events_minute_delta_olap (
     id BIGINT GENERATED ALWAYS AS IDENTITY,
     tenant_id UUID NOT NULL,
     bucket TIMESTAMPTZ NOT NULL,
@@ -67,9 +68,9 @@ CREATE TABLE v1_agg_events_minute_delta_olap (
     PRIMARY KEY (id, tenant_id)
 ) PARTITION BY HASH (tenant_id);
 
-CREATE INDEX v1_agg_task_statuses_minute_delta_olap_idx ON v1_agg_task_statuses_minute_delta_olap (tenant_id, bucket);
-CREATE INDEX v1_agg_task_events_minute_delta_olap_idx ON v1_agg_task_events_minute_delta_olap (tenant_id, bucket);
-CREATE INDEX v1_agg_events_minute_delta_olap_idx ON v1_agg_events_minute_delta_olap (tenant_id, bucket);
+CREATE INDEX IF NOT EXISTS v1_agg_task_statuses_minute_delta_olap_idx ON v1_agg_task_statuses_minute_delta_olap (tenant_id, bucket);
+CREATE INDEX IF NOT EXISTS v1_agg_task_events_minute_delta_olap_idx ON v1_agg_task_events_minute_delta_olap (tenant_id, bucket);
+CREATE INDEX IF NOT EXISTS v1_agg_events_minute_delta_olap_idx ON v1_agg_events_minute_delta_olap (tenant_id, bucket);
 
 CREATE OR REPLACE FUNCTION claim_agg_deltas(
     delta_table_row anyelement,
@@ -232,37 +233,37 @@ BEGIN
     RETURN NULL;
 END;
 $$;
+-- +goose StatementEnd
 
-CREATE TRIGGER v1_agg_task_statuses_insert_trigger
+CREATE OR REPLACE TRIGGER v1_agg_task_statuses_insert_trigger
 AFTER INSERT ON v1_runs_olap
 REFERENCING NEW TABLE AS new_rows
 FOR EACH STATEMENT
 EXECUTE FUNCTION v1_agg_task_statuses_insert_fn();
 
-CREATE TRIGGER v1_agg_task_statuses_update_trigger
+CREATE OR REPLACE TRIGGER v1_agg_task_statuses_update_trigger
 AFTER UPDATE ON v1_runs_olap
 REFERENCING OLD TABLE AS old_rows NEW TABLE AS new_rows
 FOR EACH STATEMENT
 EXECUTE FUNCTION v1_agg_task_statuses_update_fn();
 
-CREATE TRIGGER v1_agg_task_statuses_delete_trigger
+CREATE OR REPLACE TRIGGER v1_agg_task_statuses_delete_trigger
 AFTER DELETE ON v1_runs_olap
 REFERENCING OLD TABLE AS old_rows
 FOR EACH STATEMENT
 EXECUTE FUNCTION v1_agg_task_statuses_delete_fn();
 
-CREATE TRIGGER v1_agg_task_events_insert_trigger
+CREATE OR REPLACE TRIGGER v1_agg_task_events_insert_trigger
 AFTER INSERT ON v1_task_events_olap
 REFERENCING NEW TABLE AS new_rows
 FOR EACH STATEMENT
 EXECUTE FUNCTION v1_agg_task_events_insert_fn();
 
-CREATE TRIGGER v1_agg_events_insert_trigger
+CREATE OR REPLACE TRIGGER v1_agg_events_insert_trigger
 AFTER INSERT ON v1_events_olap
 REFERENCING NEW TABLE AS new_rows
 FOR EACH STATEMENT
 EXECUTE FUNCTION v1_agg_events_insert_fn();
--- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
