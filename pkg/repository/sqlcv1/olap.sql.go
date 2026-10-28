@@ -934,7 +934,10 @@ func (q *Queries) GetOLAPAggregateRetainedFrom(ctx context.Context, db DBTX, agg
 }
 
 const getOLAPAggregatesCompleteFrom = `-- name: GetOLAPAggregatesCompleteFrom :one
-SELECT (DATE_BIN('1 minute', MIN(tstamp)::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00') + INTERVAL '1 day')::TIMESTAMPTZ AS complete_from
+SELECT COALESCE(
+    DATE_BIN('1 minute', MIN(tstamp)::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00') + INTERVAL '1 day',
+    TIMESTAMPTZ '1970-01-01 00:00:00+00'
+)::TIMESTAMPTZ AS complete_from
 FROM goose_db_version
 WHERE version_id = 20261027194324 AND is_applied
 `
@@ -1218,7 +1221,7 @@ FROM (
         tenant_id = $2::UUID
         AND bucket >= DATE_BIN('1 minute', $3::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
         AND bucket <= $4::TIMESTAMPTZ
-        AND ($5::TIMESTAMPTZ IS NULL OR bucket >= $5::TIMESTAMPTZ)
+        AND bucket >= $5::TIMESTAMPTZ
 
     UNION ALL
 
@@ -1242,7 +1245,7 @@ type GetTaskPointMetricsParams struct {
 	Tenantid               uuid.UUID          `json:"tenantid"`
 	Createdafter           pgtype.Timestamptz `json:"createdafter"`
 	Createdbefore          pgtype.Timestamptz `json:"createdbefore"`
-	AggregatesCompleteFrom pgtype.Timestamptz `json:"aggregatesCompleteFrom"`
+	Aggregatescompletefrom pgtype.Timestamptz `json:"aggregatescompletefrom"`
 }
 
 type GetTaskPointMetricsRow struct {
@@ -1257,7 +1260,7 @@ func (q *Queries) GetTaskPointMetrics(ctx context.Context, db DBTX, arg GetTaskP
 		arg.Tenantid,
 		arg.Createdafter,
 		arg.Createdbefore,
-		arg.AggregatesCompleteFrom,
+		arg.Aggregatescompletefrom,
 	)
 	if err != nil {
 		return nil, err
@@ -1363,7 +1366,7 @@ FROM (
         AND bucket >= DATE_BIN('1 minute', $2::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
         AND ($3::TIMESTAMPTZ IS NULL OR bucket <= $3::TIMESTAMPTZ)
         AND ($4::UUID[] IS NULL OR workflow_id = ANY($4::UUID[]))
-        AND ($5::TIMESTAMPTZ IS NULL OR bucket >= $5::TIMESTAMPTZ)
+        AND bucket >= $5::TIMESTAMPTZ
 
     UNION ALL
 
@@ -1389,7 +1392,7 @@ type GetTenantStatusMetricsParams struct {
 	Createdafter           pgtype.Timestamptz `json:"createdafter"`
 	CreatedBefore          pgtype.Timestamptz `json:"createdBefore"`
 	WorkflowIds            []uuid.UUID        `json:"workflowIds"`
-	AggregatesCompleteFrom pgtype.Timestamptz `json:"aggregatesCompleteFrom"`
+	Aggregatescompletefrom pgtype.Timestamptz `json:"aggregatescompletefrom"`
 }
 
 type GetTenantStatusMetricsRow struct {
@@ -1407,7 +1410,7 @@ func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTe
 		arg.Createdafter,
 		arg.CreatedBefore,
 		arg.WorkflowIds,
-		arg.AggregatesCompleteFrom,
+		arg.Aggregatescompletefrom,
 	)
 	var i GetTenantStatusMetricsRow
 	err := row.Scan(

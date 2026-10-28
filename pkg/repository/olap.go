@@ -406,11 +406,11 @@ func (r *OLAPRepositoryImpl) Aggregates() *olapagg.Aggregator {
 	return r.aggregates
 }
 
-// aggregatesCompleteFrom returns the first bucket the aggregates count completely. It is NULL
+// aggregatesCompleteFrom returns the first bucket the aggregates count completely. It is the epoch
 // when they are complete for all time.
 func (r *OLAPRepositoryImpl) aggregatesCompleteFrom(ctx context.Context, db sqlcv1.DBTX) (pgtype.Timestamptz, error) {
 	if r.hasBackfilledOLAPAggregates {
-		return pgtype.Timestamptz{}, nil
+		return sqlchelpers.TimestamptzFromTime(time.Unix(0, 0).UTC()), nil
 	}
 
 	return r.queries.GetOLAPAggregatesCompleteFrom(ctx, db)
@@ -1746,7 +1746,7 @@ func (r *OLAPRepositoryImpl) ReadTaskRunMetrics(ctx context.Context, tenantId uu
 		Tenantid:               tenantId,
 		Createdafter:           sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
 		WorkflowIds:            workflowIds,
-		AggregatesCompleteFrom: aggregatesCompleteFrom,
+		Aggregatescompletefrom: aggregatesCompleteFrom,
 	}
 
 	if opts.CreatedBefore != nil {
@@ -2764,7 +2764,7 @@ func (r *OLAPRepositoryImpl) GetTaskPointMetrics(ctx context.Context, tenantId u
 		Tenantid:               tenantId,
 		Createdafter:           sqlchelpers.TimestamptzFromTime(*startTimestamp),
 		Createdbefore:          sqlchelpers.TimestamptzFromTime(*endTimestamp),
-		AggregatesCompleteFrom: aggregatesCompleteFrom,
+		Aggregatescompletefrom: aggregatesCompleteFrom,
 	})
 
 	if err != nil {

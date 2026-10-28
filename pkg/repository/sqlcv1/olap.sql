@@ -1721,7 +1721,10 @@ ORDER BY r.inserted_at DESC, r.run_id DESC;
 -- name: GetOLAPAggregatesCompleteFrom :one
 -- The aggregate triggers only count rows written after v1_0_182 installed them. A day of margin
 -- covers runs whose inserted_at is ahead of the database clock.
-SELECT (DATE_BIN('1 minute', MIN(tstamp)::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00') + INTERVAL '1 day')::TIMESTAMPTZ AS complete_from
+SELECT COALESCE(
+    DATE_BIN('1 minute', MIN(tstamp)::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00') + INTERVAL '1 day',
+    TIMESTAMPTZ '1970-01-01 00:00:00+00'
+)::TIMESTAMPTZ AS complete_from
 FROM goose_db_version
 WHERE version_id = 20261027194324 AND is_applied;
 
@@ -1745,7 +1748,7 @@ FROM (
         tenant_id = @tenantId::UUID
         AND bucket >= DATE_BIN('1 minute', @createdAfter::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
         AND bucket <= @createdBefore::TIMESTAMPTZ
-        AND (sqlc.narg('aggregatesCompleteFrom')::TIMESTAMPTZ IS NULL OR bucket >= sqlc.narg('aggregatesCompleteFrom')::TIMESTAMPTZ)
+        AND bucket >= @aggregatesCompleteFrom::TIMESTAMPTZ
 
     UNION ALL
 
@@ -1758,7 +1761,7 @@ FROM (
         tenant_id = @tenantId::UUID
         AND inserted_at >= DATE_BIN('1 minute', @createdAfter::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
         AND inserted_at <= @createdBefore::TIMESTAMPTZ
-        AND inserted_at < sqlc.narg('aggregatesCompleteFrom')::TIMESTAMPTZ
+        AND inserted_at < @aggregatesCompleteFrom::TIMESTAMPTZ
 ) status_counts
 GROUP BY minute_bucket
 ORDER BY minute_bucket;
@@ -1785,7 +1788,7 @@ FROM (
         AND bucket >= DATE_BIN('1 minute', @createdAfter::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
         AND (sqlc.narg('createdBefore')::TIMESTAMPTZ IS NULL OR bucket <= sqlc.narg('createdBefore')::TIMESTAMPTZ)
         AND (sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[]))
-        AND (sqlc.narg('aggregatesCompleteFrom')::TIMESTAMPTZ IS NULL OR bucket >= sqlc.narg('aggregatesCompleteFrom')::TIMESTAMPTZ)
+        AND bucket >= @aggregatesCompleteFrom::TIMESTAMPTZ
 
     UNION ALL
 
@@ -1802,7 +1805,7 @@ FROM (
         AND inserted_at >= DATE_BIN('1 minute', @createdAfter::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00')
         AND (sqlc.narg('createdBefore')::TIMESTAMPTZ IS NULL OR inserted_at <= sqlc.narg('createdBefore')::TIMESTAMPTZ)
         AND (sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[]))
-        AND inserted_at < sqlc.narg('aggregatesCompleteFrom')::TIMESTAMPTZ
+        AND inserted_at < @aggregatesCompleteFrom::TIMESTAMPTZ
 ) status_counts;
 
 -- name: ReadWorkflowRunByExternalId :one
