@@ -361,9 +361,9 @@ type OLAPRepositoryImpl struct {
 
 	aggregates *olapagg.Aggregator
 
-	// isCloud is set by hatchet-cloud, which backfilled the aggregate tables with the rows written
-	// before their triggers existed, so reads never need to count those rows from the source tables.
-	isCloud bool
+	// hasBackfilledOLAPAggregates is set when the aggregate tables also count the rows written before
+	// their triggers existed, so reads never need to count those rows from the source tables.
+	hasBackfilledOLAPAggregates bool
 }
 
 func NewOLAPRepositoryFromPool(
@@ -376,16 +376,16 @@ func NewOLAPRepositoryFromPool(
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits,
 	cacheDuration time.Duration,
 	shouldPartitionOtelTables bool,
-	isCloud bool,
+	hasBackfilledOLAPAggregates bool,
 ) (OLAPRepository, func() error) {
 	v := validator.NewDefaultValidator()
 
 	shared, cleanupShared := newSharedRepository(fairpool.Ungated(pool), pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration, false)
 
-	return newOLAPRepository(shared, olapRetentionPeriod, shouldManageOptionalTablePartitions, shouldPartitionOtelTables, isCloud, statusUpdateBatchSizeLimits), cleanupShared
+	return newOLAPRepository(shared, olapRetentionPeriod, shouldManageOptionalTablePartitions, shouldPartitionOtelTables, hasBackfilledOLAPAggregates, statusUpdateBatchSizeLimits), cleanupShared
 }
 
-func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Duration, shouldManageOptionalTablePartitions bool, shouldPartitionOtelTables bool, isCloud bool, statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits) OLAPRepository {
+func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Duration, shouldManageOptionalTablePartitions bool, shouldPartitionOtelTables bool, hasBackfilledOLAPAggregates bool, statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits) OLAPRepository {
 	eventCache, err := lru.New[string, bool](100000)
 
 	if err != nil {
@@ -402,7 +402,7 @@ func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Durati
 		olapRetentionPeriod:                 olapRetentionPeriod,
 		shouldManageOptionalTablePartitions: shouldManageOptionalTablePartitions,
 		shouldPartitionOtelTables:           shouldPartitionOtelTables,
-		isCloud:                             isCloud,
+		hasBackfilledOLAPAggregates:         hasBackfilledOLAPAggregates,
 		statusUpdateBatchSizeLimits:         statusUpdateBatchSizeLimits,
 		aggregates:                          olapagg.New(shared.pool.ForShared(), shared.l, aggOpts),
 	}
@@ -415,7 +415,7 @@ func (r *OLAPRepositoryImpl) Aggregates() *olapagg.Aggregator {
 // aggregatesCompleteFrom returns the first bucket the aggregates count completely. It is NULL
 // when they are complete for all time.
 func (r *OLAPRepositoryImpl) aggregatesCompleteFrom(ctx context.Context, db sqlcv1.DBTX) (pgtype.Timestamptz, error) {
-	if r.isCloud {
+	if r.hasBackfilledOLAPAggregates {
 		return pgtype.Timestamptz{}, nil
 	}
 
