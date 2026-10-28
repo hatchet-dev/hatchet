@@ -4,8 +4,8 @@ import threading
 import time
 import uuid
 from collections.abc import AsyncGenerator, AsyncIterator, Callable
-from concurrent.futures import Future, ThreadPoolExecutor
-from contextlib import asynccontextmanager
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import TypeVar, cast
@@ -170,8 +170,10 @@ class _QueuedPublish:
     payload: bytes
     send_by: float
     ## set instead of an inline payload for one too large for a gRPC message
-    uploaded: "Future[str] | None"
-    result: "Future[None]" = field(default_factory=Future)
+    uploaded: "asyncio.Future[str] | None"
+    result: "asyncio.Future[None]" = field(
+        default_factory=lambda: asyncio.get_running_loop().create_future()
+    )
 
     @property
     def request_bytes(self) -> int:
@@ -181,7 +183,49 @@ class _QueuedPublish:
 @dataclass
 class _PublishQueue:
     items: list[_QueuedPublish] = field(default_factory=list)
-    wake: threading.Event = field(default_factory=threading.Event)
+    wake: asyncio.Event = field(default_factory=asyncio.Event)
+
+
+@dataclass
+class _LoopPublisher:
+    """Publish state for one event loop, as an aio channel and asyncio primitives only work on the loop that made them."""
+
+    channel: grpc.aio.Channel
+    stub: V1StreamsStub
+
+    ## per (namespace, topic); seq only advances after a publish succeeds
+    producers: dict[tuple[str, str], _Producer] = field(default_factory=dict)
+
+    ## per (namespace, topic); one request per topic is in flight at a time so two never share a seq
+    queues: dict[tuple[str, str], _PublishQueue] = field(default_factory=dict)
+
+    ## asyncio keeps only weak references to tasks
+    drains: set["asyncio.Task[None]"] = field(default_factory=set)
+
+    ## held here because a loop keeps only weak references to its async generators
+    shutdown_hook: AsyncGenerator[None, None] | None = None
+
+
+def _finish_shutdown_hook(publisher: _LoopPublisher) -> None:
+    """Runs a closed loop's hook by hand; left unfinished, asyncio would schedule its cleanup on that closed loop when it is collected."""
+    if publisher.shutdown_hook is None:
+        return
+
+    with suppress(StopIteration):
+        publisher.shutdown_hook.aclose().send(None)
+
+
+def _settle(p: _QueuedPublish, err: BaseException | None = None) -> None:
+    """Skips a publish whose caller stopped waiting, which cancelled its result."""
+    if p.result.done():
+        return
+
+    if err is None:
+        p.result.set_result(None)
+    elif isinstance(err, asyncio.CancelledError):
+        p.result.cancel()
+    else:
+        p.result.set_exception(err)
 
 
 def _fitting_publishes(items: list[_QueuedPublish]) -> int:
@@ -214,12 +258,7 @@ class StreamsClient(BaseRestClient):
         self._lock = threading.Lock()
         self._stub: V1StreamsStub | None = None
         self._upload_pool: ThreadPoolExecutor | None = None
-
-        ## per (namespace, topic); seq only advances after a publish succeeds
-        self._producers: dict[tuple[str, str], _Producer] = {}
-
-        ## per (namespace, topic); one request per topic is in flight at a time so two never share a seq
-        self._queues: dict[tuple[str, str], _PublishQueue] = {}
+        self._publishers: dict[asyncio.AbstractEventLoop, _LoopPublisher] = {}
 
         ## set once the engine answers PublishBatch as unimplemented: it predates batching
         self._publish_batch_unsupported = False
@@ -229,6 +268,58 @@ class StreamsClient(BaseRestClient):
             if self._stub is None:
                 self._stub = V1StreamsStub(new_conn(self.client_config, False))
             return self._stub
+
+    async def _loop_publisher(self) -> _LoopPublisher:
+        loop = asyncio.get_running_loop()
+
+        with self._lock:
+            ## a loop closed without shutting down its async generators never ran its hook
+            abandoned = [
+                self._publishers.pop(lp)
+                for lp in list(self._publishers)
+                if lp.is_closed()
+            ]
+
+            publisher = self._publishers.get(loop)
+            created = publisher is None
+            if publisher is None:
+                channel = new_conn(self.client_config, True)
+                publisher = _LoopPublisher(channel=channel, stub=V1StreamsStub(channel))
+                self._publishers[loop] = publisher
+
+        for closed in abandoned:
+            _finish_shutdown_hook(closed)
+
+        if created:
+            publisher.shutdown_hook = self._close_at_shutdown(loop, publisher)
+            ## the first iteration registers it with the loop, and reaches the yield without suspending
+            await anext(publisher.shutdown_hook)
+
+        return publisher
+
+    async def _close_at_shutdown(
+        self, loop: asyncio.AbstractEventLoop, publisher: _LoopPublisher
+    ) -> AsyncGenerator[None, None]:
+        """A loop's shutdown hook: `asyncio.run` and other runners close every async generator before closing the loop, after cancelling its tasks."""
+        try:
+            yield
+        finally:
+            with self._lock:
+                if self._publishers.get(loop) is publisher:
+                    del self._publishers[loop]
+
+            ## finished by hand once the loop is closed, when nothing can be awaited
+            if not loop.is_closed():
+                await publisher.channel.close()
+
+    ## its own pool, so large uploads don't hold the default executor's threads that `to_thread` callers share
+    def _upload_executor(self) -> ThreadPoolExecutor:
+        with self._lock:
+            if self._upload_pool is None:
+                self._upload_pool = ThreadPoolExecutor(
+                    thread_name_prefix="hatchet-stream-upload"
+                )
+            return self._upload_pool
 
     ## an aio channel is bound to its event loop, so each read opens its own
     @asynccontextmanager
@@ -288,13 +379,182 @@ class StreamsClient(BaseRestClient):
                 )
             )
 
-    def _enqueue_publish(
+    async def _next_batch(self, queue: _PublishQueue) -> list[_QueuedPublish] | None:
+        """The next request's publishes, or None once the queue is empty."""
+        while True:
+            ## a publish cancelled before its request goes out is dropped, so it never takes a seq
+            for p in queue.items:
+                if p.result.cancelled() and p.uploaded is not None:
+                    ## a finished upload's error is retrieved so asyncio doesn't log it as unhandled
+                    if p.uploaded.done():
+                        p.uploaded.exception()
+                    else:
+                        p.uploaded.cancel()
+            queue.items = [p for p in queue.items if not p.result.cancelled()]
+
+            if not queue.items:
+                return None
+
+            count = _fitting_publishes(queue.items)
+            full = count < len(queue.items) or count == MAX_PUBLISH_BATCH_ENTRIES
+            wait = min(p.send_by for p in queue.items) - time.monotonic()
+
+            if full or wait <= 0:
+                batch = queue.items[:count]
+                del queue.items[:count]
+                return batch
+
+            queue.wake.clear()
+
+            with suppress(asyncio.TimeoutError):
+                await asyncio.wait_for(queue.wake.wait(), wait)
+
+    async def _drain_publishes(
+        self, publisher: _LoopPublisher, key: tuple[str, str], queue: _PublishQueue
+    ) -> None:
+        batch: list[_QueuedPublish] | None = None
+
+        try:
+            while (batch := await self._next_batch(queue)) is not None:
+                await self._send_batch(publisher, key, batch)
+        except BaseException as e:
+            ## e.g. cancelled as its loop shuts down; no caller is left waiting on a publish it held
+            for p in [*(batch or []), *queue.items]:
+                _settle(p, e)
+            raise
+        finally:
+            ## removed with no await since the last check, so a later publish starts a new drain
+            del publisher.queues[key]
+
+    async def _send_batch(
+        self,
+        publisher: _LoopPublisher,
+        key: tuple[str, str],
+        batch: list[_QueuedPublish],
+    ) -> None:
+        sent: list[_QueuedPublish] = []
+        entries: list[streams_protos.StreamPublishEntry] = []
+
+        for p in batch:
+            if p.uploaded is None:
+                entries.append(streams_protos.StreamPublishEntry(payload=p.payload))
+                sent.append(p)
+                continue
+
+            ## a failed upload fails only its own publish, as the rest never depended on it
+            try:
+                ref = await p.uploaded
+            except Exception as e:
+                _settle(p, e)
+                continue
+
+            entries.append(streams_protos.StreamPublishEntry(payload_ref=ref))
+            sent.append(p)
+
+        if entries:
+            await self._send_publishes(publisher, key, sent, entries)
+
+    async def _send_publishes(
+        self,
+        publisher: _LoopPublisher,
+        key: tuple[str, str],
+        sent: list[_QueuedPublish],
+        entries: list[streams_protos.StreamPublishEntry],
+    ) -> None:
+        """Sends entries as one request, or one request per entry to an engine that predates PublishBatch, and settles each publish."""
+        if not self._publish_batch_unsupported:
+            try:
+                await self._publish_ordered(publisher, key, entries)
+            except Exception as e:
+                if _grpc_code(e) != grpc.StatusCode.UNIMPLEMENTED:
+                    for p in sent:
+                        _settle(p, e)
+                    return
+                ## nothing was stored, so the batch goes out again below
+                self._publish_batch_unsupported = True
+            else:
+                for p in sent:
+                    _settle(p)
+                return
+
+        ## settled one by one: a failure partway leaves the publishes before it stored
+        for p, entry in zip(sent, entries, strict=True):
+            try:
+                await self._publish_ordered(publisher, key, [entry])
+            except Exception as e:  # noqa: PERF203
+                _settle(p, e)
+            else:
+                _settle(p)
+
+    async def _publish_ordered(
+        self,
+        publisher: _LoopPublisher,
+        key: tuple[str, str],
+        entries: list[streams_protos.StreamPublishEntry],
+        retry_gap: bool = True,
+    ) -> None:
+        namespace, topic = key
+        producer = publisher.producers.setdefault(key, _Producer())
+
+        try:
+            if self._publish_batch_unsupported and len(entries) == 1:
+                await publisher.stub.Publish(  # type: ignore[misc]
+                    streams_protos.PublishStreamMessageRequest(
+                        namespace=namespace,
+                        topic=topic,
+                        payload=entries[0].payload,
+                        payload_ref=entries[0].payload_ref,
+                        producer_id=producer.producer_id,
+                        producer_seq=producer.seq,
+                    ),
+                    metadata=self._metadata(),
+                )
+            else:
+                await publisher.stub.PublishBatch(  # type: ignore[misc]
+                    streams_protos.PublishStreamMessagesRequest(
+                        namespace=namespace,
+                        topic=topic,
+                        producer_id=producer.producer_id,
+                        first_producer_seq=producer.seq,
+                        entries=entries,
+                    ),
+                    metadata=self._metadata(),
+                )
+        except Exception as e:
+            code = _grpc_code(e)
+
+            ## it may still land, and a different payload under its seq would be dropped as a duplicate
+            if code not in _REJECTED_BEFORE_STORING:
+                publisher.producers[key] = _Producer()
+
+            ## a gap stored nothing (e.g. the watermark passed cursor retention), so resend as the new producer
+            if retry_gap and code == grpc.StatusCode.FAILED_PRECONDITION:
+                return await self._publish_ordered(
+                    publisher, key, entries, retry_gap=False
+                )
+
+            raise
+
+        producer.seq += len(entries)
+        return None
+
+    async def publish(
         self,
         topic: str,
         message: bytes | str,
-        namespace: str,
-        batch_timeout: timedelta | None,
-    ) -> "Future[None]":
+        namespace: str = "",
+        batch_timeout: timedelta | None = None,
+    ) -> None:
+        """
+        Publish a message to a topic, returning once it is stored. A client's messages to a topic are delivered in the order `publish` was called. Publishes to a topic share requests: everything queued while one is in flight goes out in the next, and `batch_timeout` holds a message up to that long for more to join it. Cancelling a publish before its request goes out drops the message; once the request is sent, it may still be stored.
+
+        :param topic: The topic to publish to.
+        :param message: The message payload. A string is encoded as UTF-8.
+        :param namespace: The topic's namespace; the empty namespace by default.
+        :param batch_timeout: How long the message may wait for later publishes to the same topic to share its request, bounding the latency batching adds. By default, it is sent as soon as no other request to the topic is in flight.
+
+        :return: None
+        """
         payload = message.encode() if isinstance(message, str) else bytes(message)
 
         ## the engine would reject the whole request it shares, failing other publishes too
@@ -311,17 +571,16 @@ class StreamsClient(BaseRestClient):
         if timeout_seconds < 0:
             raise ValueError(f"batch_timeout must be 0 or more; got {batch_timeout}")
 
-        uploaded: Future[str] | None = None
+        publisher = await self._loop_publisher()
 
         ## uploaded before taking its place in the topic's order, so uploads overlap
-        if len(payload) > MAX_INLINE_PAYLOAD_BYTES:
-            with self._lock:
-                if self._upload_pool is None:
-                    self._upload_pool = ThreadPoolExecutor(
-                        thread_name_prefix="hatchet-stream-upload"
-                    )
-                pool = self._upload_pool
-            uploaded = pool.submit(self._upload_payload, payload)
+        uploaded = (
+            asyncio.get_running_loop().run_in_executor(
+                self._upload_executor(), self._upload_payload, payload
+            )
+            if len(payload) > MAX_INLINE_PAYLOAD_BYTES
+            else None
+        )
 
         publish = _QueuedPublish(
             payload=payload,
@@ -330,177 +589,19 @@ class StreamsClient(BaseRestClient):
         )
         key = (namespace, topic)
 
-        with self._lock:
-            queue = self._queues.get(key)
-            draining = queue is not None
-            if queue is None:
-                queue = _PublishQueue()
-                self._queues[key] = queue
-            queue.items.append(publish)
-            ## a new publish may fill the request or have a shorter timeout
-            queue.wake.set()
+        queue = publisher.queues.get(key)
+        if queue is None:
+            queue = _PublishQueue()
+            publisher.queues[key] = queue
+            drain = asyncio.create_task(self._drain_publishes(publisher, key, queue))
+            publisher.drains.add(drain)
+            drain.add_done_callback(publisher.drains.discard)
 
-        if not draining:
-            threading.Thread(
-                target=self._drain_publishes,
-                args=(key, queue),
-                name="hatchet-stream-publish",
-                daemon=True,
-            ).start()
+        queue.items.append(publish)
+        ## a new publish may fill the request or have a shorter timeout
+        queue.wake.set()
 
-        return publish.result
-
-    def _next_batch(
-        self, key: tuple[str, str], queue: _PublishQueue
-    ) -> list[_QueuedPublish] | None:
-        """The next request's publishes, or None once the queue is empty and removed."""
-        while True:
-            with self._lock:
-                if not queue.items:
-                    ## removed under the lock publish takes, so a later publish starts a new drain
-                    del self._queues[key]
-                    return None
-
-                count = _fitting_publishes(queue.items)
-                full = count < len(queue.items) or count == MAX_PUBLISH_BATCH_ENTRIES
-                wait = min(p.send_by for p in queue.items) - time.monotonic()
-
-                if full or wait <= 0:
-                    batch = queue.items[:count]
-                    del queue.items[:count]
-                    return batch
-
-                queue.wake.clear()
-
-            queue.wake.wait(wait)
-
-    def _drain_publishes(self, key: tuple[str, str], queue: _PublishQueue) -> None:
-        while (batch := self._next_batch(key, queue)) is not None:
-            sent: list[_QueuedPublish] = []
-            entries: list[streams_protos.StreamPublishEntry] = []
-
-            for p in batch:
-                if p.uploaded is None:
-                    entries.append(streams_protos.StreamPublishEntry(payload=p.payload))
-                    sent.append(p)
-                    continue
-
-                ## a failed upload fails only its own publish, as the rest never depended on it
-                try:
-                    ref = p.uploaded.result()
-                except BaseException as e:
-                    p.result.set_exception(e)
-                    continue
-
-                entries.append(streams_protos.StreamPublishEntry(payload_ref=ref))
-                sent.append(p)
-
-            if entries:
-                self._send_publishes(key, sent, entries)
-
-    def _send_publishes(
-        self,
-        key: tuple[str, str],
-        sent: list[_QueuedPublish],
-        entries: list[streams_protos.StreamPublishEntry],
-    ) -> None:
-        """Sends entries as one request, or one request per entry to an engine that predates PublishBatch, and settles each publish."""
-        if not self._publish_batch_unsupported:
-            try:
-                self._publish_ordered(key, entries)
-            except Exception as e:
-                if _grpc_code(e) != grpc.StatusCode.UNIMPLEMENTED:
-                    for p in sent:
-                        p.result.set_exception(e)
-                    return
-                ## nothing was stored, so the batch goes out again below
-                self._publish_batch_unsupported = True
-            else:
-                for p in sent:
-                    p.result.set_result(None)
-                return
-
-        ## settled one by one: a failure partway leaves the publishes before it stored
-        for p, entry in zip(sent, entries, strict=True):
-            try:
-                self._publish_ordered(key, [entry])
-            except Exception as e:  # noqa: PERF203
-                p.result.set_exception(e)
-            else:
-                p.result.set_result(None)
-
-    def _publish_ordered(
-        self,
-        key: tuple[str, str],
-        entries: list[streams_protos.StreamPublishEntry],
-        retry_gap: bool = True,
-    ) -> None:
-        namespace, topic = key
-
-        with self._lock:
-            producer = self._producers.setdefault(key, _Producer())
-
-        try:
-            if self._publish_batch_unsupported and len(entries) == 1:
-                self._get_or_create_client().Publish(
-                    streams_protos.PublishStreamMessageRequest(
-                        namespace=namespace,
-                        topic=topic,
-                        payload=entries[0].payload,
-                        payload_ref=entries[0].payload_ref,
-                        producer_id=producer.producer_id,
-                        producer_seq=producer.seq,
-                    ),
-                    metadata=self._metadata(),
-                )
-            else:
-                self._get_or_create_client().PublishBatch(
-                    streams_protos.PublishStreamMessagesRequest(
-                        namespace=namespace,
-                        topic=topic,
-                        producer_id=producer.producer_id,
-                        first_producer_seq=producer.seq,
-                        entries=entries,
-                    ),
-                    metadata=self._metadata(),
-                )
-        except Exception as e:
-            code = _grpc_code(e)
-
-            ## it may still land, and a different payload under its seq would be dropped as a duplicate
-            if code not in _REJECTED_BEFORE_STORING:
-                with self._lock:
-                    self._producers[key] = _Producer()
-
-            ## a gap stored nothing (e.g. the watermark passed cursor retention), so resend as the new producer
-            if retry_gap and code == grpc.StatusCode.FAILED_PRECONDITION:
-                return self._publish_ordered(key, entries, retry_gap=False)
-
-            raise
-
-        producer.seq += len(entries)
-        return None
-
-    async def publish(
-        self,
-        topic: str,
-        message: bytes | str,
-        namespace: str = "",
-        batch_timeout: timedelta | None = None,
-    ) -> None:
-        """
-        Publish a message to a topic, returning once it is stored. A client's messages to a topic are delivered in the order `publish` was called. Publishes to a topic share requests: everything queued while one is in flight goes out in the next, and `batch_timeout` holds a message up to that long for more to join it.
-
-        :param topic: The topic to publish to.
-        :param message: The message payload. A string is encoded as UTF-8.
-        :param namespace: The topic's namespace; the empty namespace by default.
-        :param batch_timeout: How long the message may wait for later publishes to the same topic to share its request, bounding the latency batching adds. By default, it is sent as soon as no other request to the topic is in flight.
-
-        :return: None
-        """
-        await asyncio.wrap_future(
-            self._enqueue_publish(topic, message, namespace, batch_timeout)
-        )
+        await publish.result
 
     def topic_metadata(self, topic: str, namespace: str = "") -> StreamTopicMetadata:
         """
