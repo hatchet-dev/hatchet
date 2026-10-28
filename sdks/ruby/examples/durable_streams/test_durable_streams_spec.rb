@@ -14,7 +14,7 @@ RSpec.describe "DurableStreams" do
   def collect(topic, count, **opts)
     events = []
     Timeout.timeout(30) do
-      HATCHET.streams.events(topic, **opts) do |event|
+      HATCHET.streams.subscribe(topic, **opts) do |event|
         events << event
         break if events.length >= count
       end
@@ -90,12 +90,19 @@ RSpec.describe "DurableStreams" do
     expect(events[1].payload).to eq("small")
   end
 
+  it "reads through the events alias" do
+    topic = scope("durable_streams_events_alias")
+    HATCHET.streams.publish(topic, "one")
+
+    expect(HATCHET.streams.events(topic).first.payload).to eq("one")
+  end
+
   it "skips a failed attempt's messages for new readers" do
     topic = scope("durable_streams_retry")
     DURABLE_STREAMS_RETRYING_PROGRESS_TASK.run({ "topic" => topic })
 
     received = []
-    HATCHET.streams.events(topic) do |event|
+    HATCHET.streams.subscribe(topic) do |event|
       message = JSON.parse(event.payload)
       break if message["done"]
 

@@ -8,7 +8,7 @@ def consume
   topic = "progress-#{SecureRandom.uuid}"
   DURABLE_STREAMS_PROGRESS_TASK.run_no_wait({ "topic" => topic })
 
-  HATCHET.streams.events(topic) do |event|
+  HATCHET.streams.subscribe(topic) do |event|
     message = JSON.parse(event.payload)
     puts "step #{message['step']} of #{message['total']}"
 
@@ -25,13 +25,13 @@ def resume_from_cursor(topic)
   # > Resume from a cursor
   cursor = nil
 
-  HATCHET.streams.events(topic) do |event|
+  HATCHET.streams.subscribe(topic) do |event|
     puts event.payload
     cursor = event.cursor
     break
   end
 
-  HATCHET.streams.events(topic, cursor: cursor) do |event|
+  HATCHET.streams.subscribe(topic, cursor: cursor) do |event|
     puts event.payload
   end
 end
@@ -40,7 +40,7 @@ def stop_reading(topic)
   # > Stop reading
   deadline = Time.now + 10
 
-  HATCHET.streams.events(topic) do |event|
+  HATCHET.streams.subscribe(topic) do |event|
     puts event.payload
     break if Time.now > deadline
   end
@@ -50,7 +50,7 @@ def namespaces
   # > Namespaces
   HATCHET.streams.publish("updates", "hello", namespace: "customer-a")
 
-  HATCHET.streams.events("updates", namespace: "customer-a") do |event|
+  HATCHET.streams.subscribe("updates", namespace: "customer-a") do |event|
     puts event.payload
     break
   end
@@ -60,7 +60,7 @@ def reset_topic
   # > Reset a topic
   HATCHET.streams.reset("orders")
 
-  HATCHET.streams.events("orders") do |event|
+  HATCHET.streams.subscribe("orders") do |event|
     puts event.payload
   end
 end

@@ -57,9 +57,9 @@ interface QueuedPublish {
  *
  * `put` publishes a chunk on a task run's stream, the way `ctx.putStream` does from a worker.
  * `publish`, `reset` and `topicMetadata` are the Node client's durable topic calls
- * (`hatchet.streams`), with the same names and options. `events()` is not here: it is a
+ * (`hatchet.streams`), with the same names and options. `subscribe()` is not here: it is a
  * server stream, which the unary transport does not carry. Read a topic with the Node client
- * (`hatchet.streams.events(topic)`), or from a serverless task over the operator socket once
+ * (`hatchet.streams.subscribe(topic)`), or from a serverless task over the operator socket once
  * the operator relays the subscription.
  */
 export class StreamsClient {
@@ -210,7 +210,7 @@ export class StreamsClient {
   }
 
   /**
-   * Makes `events()` calls without a cursor start after `options.cursor`, or the topic's latest
+   * Makes `subscribe()` calls without a cursor start after `options.cursor`, or the topic's latest
    * message. Readers already iterating, and any call with a cursor, are unaffected.
    * @param topic - the topic to reset
    * @param options - optional namespace override, cursor to reset to and abort signal

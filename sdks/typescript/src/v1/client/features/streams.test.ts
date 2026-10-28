@@ -20,7 +20,7 @@ function entry(byte: number, cursor: string) {
   return { payload: new Uint8Array([byte]), cursor, createdAt: undefined };
 }
 
-describe('StreamsClient.events cancellation', () => {
+describe('StreamsClient.subscribe cancellation', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
@@ -29,8 +29,27 @@ describe('StreamsClient.events cancellation', () => {
     async function* subscribeStub() {
       yield { entries: [entry(1, 'c1')], hangup: false };
       yield { entries: [], hangup: true };
-      // events() must never reach this -- a hangup ends the iteration
+      // subscribe() must never reach this -- a hangup ends the iteration
       yield { entries: [entry(2, 'c2')], hangup: false };
+    }
+
+    const subscribe = jest.fn(() => subscribeStub());
+    mockedCreateGrpcClient.mockReturnValue({ client: { subscribe } } as any);
+
+    const streams = new StreamsClient(fakeHatchetClient());
+
+    const received: number[] = [];
+    for await (const event of streams.subscribe('topic')) {
+      received.push(event.payload[0]);
+    }
+
+    expect(received).toEqual([1]);
+  });
+
+  it('reads the same events through the events() alias', async () => {
+    async function* subscribeStub() {
+      yield { entries: [entry(1, 'c1')], hangup: false };
+      yield { entries: [], hangup: true };
     }
 
     const subscribe = jest.fn(() => subscribeStub());
@@ -65,7 +84,9 @@ describe('StreamsClient.events cancellation', () => {
 
     const streams = new StreamsClient(fakeHatchetClient());
     const controller = new AbortController();
-    const iterator = streams.events('topic', { signal: controller.signal })[Symbol.asyncIterator]();
+    const iterator = streams
+      .subscribe('topic', { signal: controller.signal })
+      [Symbol.asyncIterator]();
 
     const first = await iterator.next();
     expect(first.done).toBe(false);
@@ -90,7 +111,7 @@ describe('StreamsClient.events cancellation', () => {
     const streams = new StreamsClient(fakeHatchetClient());
 
     await expect(async () => {
-      for await (const _event of streams.events('topic')) {
+      for await (const _event of streams.subscribe('topic')) {
         // drain
       }
     }).rejects.toThrow('transport failure');
@@ -111,7 +132,7 @@ describe('StreamsClient.events cancellation', () => {
     const streams = new StreamsClient(fakeHatchetClient());
 
     const received: number[] = [];
-    for await (const event of streams.events('topic')) {
+    for await (const event of streams.subscribe('topic')) {
       received.push(event.payload[0]);
       if (received.length === 1) {
         break;
@@ -314,7 +335,7 @@ describe('StreamsClient without the durable streams entitlement', () => {
     expect(reqs[1].firstProducerSeq).toBe(0);
   });
 
-  it('throws from events() instead of ending the iteration as if the topic were quiet', async () => {
+  it('throws from subscribe() instead of ending the iteration as if the topic were quiet', async () => {
     // eslint-disable-next-line require-yield
     async function* subscribeStub(): AsyncGenerator<never> {
       throw denied();
@@ -325,7 +346,7 @@ describe('StreamsClient without the durable streams entitlement', () => {
     const received: unknown[] = [];
     await expect(
       (async () => {
-        for await (const event of streams.events('topic')) {
+        for await (const event of streams.subscribe('topic')) {
           received.push(event);
         }
       })()
@@ -334,7 +355,7 @@ describe('StreamsClient without the durable streams entitlement', () => {
   });
 });
 
-describe('StreamsClient.events reconnection', () => {
+describe('StreamsClient.subscribe reconnection', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
@@ -377,7 +398,7 @@ describe('StreamsClient.events reconnection', () => {
       },
     ]);
 
-    expect(await take(streams.events('topic', { cursor: 'c0' }), 10)).toEqual([1, 2, 3]);
+    expect(await take(streams.subscribe('topic', { cursor: 'c0' }), 10)).toEqual([1, 2, 3]);
     expect(subscribe.mock.calls.map(([req]) => req.cursor)).toEqual(['c0', 'c2']);
   });
 
@@ -392,7 +413,7 @@ describe('StreamsClient.events reconnection', () => {
       },
     ]);
 
-    expect(await take(streams.events('topic'), 10)).toEqual([1, 2]);
+    expect(await take(streams.subscribe('topic'), 10)).toEqual([1, 2]);
     expect(subscribe.mock.calls.map(([req]) => req.cursor)).toEqual([undefined, 'c1']);
   });
 
@@ -408,7 +429,7 @@ describe('StreamsClient.events reconnection', () => {
       },
     ]);
 
-    expect(await take(streams.events('topic'), 10)).toEqual([1]);
+    expect(await take(streams.subscribe('topic'), 10)).toEqual([1]);
     expect(subscribe.mock.calls.map(([req]) => req.cursor)).toEqual([undefined, undefined]);
   });
 
@@ -424,7 +445,7 @@ describe('StreamsClient.events reconnection', () => {
       },
     ]);
 
-    await expect(take(streams.events('topic'), 10)).rejects.toMatchObject({
+    await expect(take(streams.subscribe('topic'), 10)).rejects.toMatchObject({
       code: Status.OUT_OF_RANGE,
     });
     expect(subscribe).toHaveBeenCalledTimes(2);
@@ -437,7 +458,7 @@ describe('StreamsClient.events reconnection', () => {
     }
 
     const first = setup([unimplemented]);
-    await expect(take(first.streams.events('topic'), 10)).rejects.toMatchObject({
+    await expect(take(first.streams.subscribe('topic'), 10)).rejects.toMatchObject({
       code: Status.UNIMPLEMENTED,
     });
     expect(first.subscribe).toHaveBeenCalledTimes(1);
@@ -453,7 +474,7 @@ describe('StreamsClient.events reconnection', () => {
         yield* hangup();
       },
     ]);
-    expect(await take(later.streams.events('topic'), 10)).toEqual([1, 2]);
+    expect(await take(later.streams.subscribe('topic'), 10)).toEqual([1, 2]);
     expect(later.subscribe).toHaveBeenCalledTimes(3);
   });
 
@@ -467,7 +488,7 @@ describe('StreamsClient.events reconnection', () => {
       },
     ]);
 
-    expect(await take(streams.events('topic', { signal: controller.signal }), 10)).toEqual([1]);
+    expect(await take(streams.subscribe('topic', { signal: controller.signal }), 10)).toEqual([1]);
     expect(subscribe).toHaveBeenCalledTimes(1);
   });
 });
@@ -530,7 +551,7 @@ describe('StreamsClient.topicMetadata', () => {
   });
 });
 
-describe('StreamsClient.events large payloads', () => {
+describe('StreamsClient.subscribe large payloads', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
@@ -585,7 +606,7 @@ describe('StreamsClient.events large payloads', () => {
     );
 
     const received: number[] = [];
-    for await (const event of streams.events('topic')) {
+    for await (const event of streams.subscribe('topic')) {
       received.push(event.payload[0]);
       if (received.length >= 2) break;
     }
@@ -606,7 +627,7 @@ describe('StreamsClient.events large payloads', () => {
     );
 
     await expect(async () => {
-      for await (const _event of streams.events('topic')) {
+      for await (const _event of streams.subscribe('topic')) {
         // a 404 must not be delivered as an empty event
       }
     }).rejects.toMatchObject({ response: { status: 404 } });

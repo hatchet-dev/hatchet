@@ -24,7 +24,7 @@ func collectStreamEvents(t *testing.T, ctx context.Context, topic string, count 
 	defer cancel()
 
 	var events []features.StreamEvent
-	for event, err := range sharedClient.Streams().Events(ctx, topic, opts...) {
+	for event, err := range sharedClient.Streams().Subscribe(ctx, topic, opts...) {
 		require.NoError(t, err)
 		events = append(events, event)
 		if len(events) >= count {

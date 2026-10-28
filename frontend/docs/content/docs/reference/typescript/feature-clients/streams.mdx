@@ -16,12 +16,7 @@ readers can resume from a cursor.
 
 ##### `events()`
 
-Yields topic's messages after options.cursor, or from the oldest retained
-(or, once the topic is reset, after the reset).
-If the connection drops, it resubscribes from the last message yielded, so
-nothing is skipped or repeated. Ends when the server hangs up an idle
-subscription, options.signal aborts, or the caller stops iterating; throws
-on errors a retry can't fix, such as an expired cursor.
+An alias of subscribe(), which replaces it; events() will be removed in a future release.
 
 Parameters
 
@@ -59,7 +54,7 @@ Returns
 
 ##### `reset()`
 
-Makes events() calls without a cursor start after options.cursor, or the
+Makes subscribe() calls without a cursor start after options.cursor, or the
 topic's latest message. Readers already iterating, and any call with a
 cursor, are unaffected.
 
@@ -73,6 +68,28 @@ Parameters
 Returns
 
 `Promise`\<`void`\>
+
+<a id="subscribe"></a>
+
+##### `subscribe()`
+
+Yields topic's messages after options.cursor, or from the oldest retained
+(or, once the topic is reset, after the reset).
+If the connection drops, it resubscribes from the last message yielded, so
+nothing is skipped or repeated. Ends when the server hangs up an idle
+subscription, options.signal aborts, or the caller stops iterating; throws
+on errors a retry can't fix, such as an expired cursor.
+
+Parameters
+
+| Parameter  | Type                                      | Description                                                  |
+| ---------- | ----------------------------------------- | ------------------------------------------------------------ |
+| `topic`    | `string`                                  | the topic to read from                                       |
+| `options?` | [`StreamCallOptions`](#streamcalloptions) | optional namespace override, resume cursor, and abort signal |
+
+Returns
+
+`AsyncIterable`\<`StreamEvent`\>
 
 <a id="topicmetadata"></a>
 

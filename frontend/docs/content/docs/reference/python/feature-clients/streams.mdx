@@ -12,18 +12,19 @@ Methods:
 
 | Name                 | Description                                                                                                                                                                                                                                                                                                                                                                      |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `aio_reset`          | Make `events` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.                                                                                                                                                                                                                 |
+| `aio_reset`          | Make `subscribe` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.                                                                                                                                                                                                              |
 | `aio_topic_metadata` | Describe a topic's retained messages. Raises a `NOT_FOUND` gRPC error for a topic nothing was published to.                                                                                                                                                                                                                                                                      |
-| `events`             | Yield a topic's messages after `cursor`, or from the oldest retained (or, once the topic is reset, after the reset). If the connection drops, it resubscribes from the last message yielded, so nothing is skipped or repeated. Ends when the server hangs up an idle subscription or the caller stops iterating; raises on errors a retry can't fix, such as an expired cursor. |
+| `events`             | An alias of `subscribe`, which replaces it; `events` will be removed in a future release.                                                                                                                                                                                                                                                                                        |
 | `publish`            | Publish a message to a topic, returning once it is stored. A client's messages to a topic are delivered in the order `publish` was called. Publishes to a topic share requests: everything queued while one is in flight goes out in the next, and `batch_timeout` holds a message up to that long for more to join it.                                                          |
-| `reset`              | Make `events` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.                                                                                                                                                                                                                 |
+| `reset`              | Make `subscribe` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.                                                                                                                                                                                                              |
+| `subscribe`          | Yield a topic's messages after `cursor`, or from the oldest retained (or, once the topic is reset, after the reset). If the connection drops, it resubscribes from the last message yielded, so nothing is skipped or repeated. Ends when the server hangs up an idle subscription or the caller stops iterating; raises on errors a retry can't fix, such as an expired cursor. |
 | `topic_metadata`     | Describe a topic's retained messages. Raises a `NOT_FOUND` gRPC error for a topic nothing was published to.                                                                                                                                                                                                                                                                      |
 
 ### Functions
 
 #### `aio_reset`
 
-Make `events` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.
+Make `subscribe` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.
 
 Parameters:
 
@@ -58,7 +59,7 @@ Returns:
 
 #### `events`
 
-Yield a topic's messages after `cursor`, or from the oldest retained (or, once the topic is reset, after the reset). If the connection drops, it resubscribes from the last message yielded, so nothing is skipped or repeated. Ends when the server hangs up an idle subscription or the caller stops iterating; raises on errors a retry can't fix, such as an expired cursor.
+An alias of `subscribe`, which replaces it; `events` will be removed in a future release.
 
 Parameters:
 
@@ -73,12 +74,6 @@ Returns:
 | Type                                | Description                              |
 | ----------------------------------- | ---------------------------------------- |
 | `AsyncGenerator[StreamEvent, None]` | An async iterator of the topic's events. |
-
-Raises:
-
-| Type        | Description                                                                                                                             |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `Exception` | An error a resubscribe can't fix, such as an expired cursor (`OUT_OF_RANGE`) or a tenant without durable streams (`PERMISSION_DENIED`). |
 
 #### `publish`
 
@@ -101,7 +96,7 @@ Returns:
 
 #### `reset`
 
-Make `events` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.
+Make `subscribe` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.
 
 Parameters:
 
@@ -116,6 +111,30 @@ Returns:
 | Type   | Description |
 | ------ | ----------- |
 | `None` | None        |
+
+#### `subscribe`
+
+Yield a topic's messages after `cursor`, or from the oldest retained (or, once the topic is reset, after the reset). If the connection drops, it resubscribes from the last message yielded, so nothing is skipped or repeated. Ends when the server hangs up an idle subscription or the caller stops iterating; raises on errors a retry can't fix, such as an expired cursor.
+
+Parameters:
+
+| Name        | Type          | Description                                                   | Default    |
+| ----------- | ------------- | ------------------------------------------------------------- | ---------- |
+| `topic`     | `str`         | The topic to read from.                                       | _required_ |
+| `namespace` | `str`         | The topic's namespace; the empty namespace by default.        | `''`       |
+| `cursor`    | `str \| None` | A cursor read off a previous event, to resume right after it. | `None`     |
+
+Returns:
+
+| Type                                | Description                              |
+| ----------------------------------- | ---------------------------------------- |
+| `AsyncGenerator[StreamEvent, None]` | An async iterator of the topic's events. |
+
+Raises:
+
+| Type        | Description                                                                                                                             |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `Exception` | An error a resubscribe can't fix, such as an expired cursor (`OUT_OF_RANGE`) or a tenant without durable streams (`PERMISSION_DENIED`). |
 
 #### `topic_metadata`
 

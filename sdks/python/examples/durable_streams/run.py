@@ -15,7 +15,7 @@ async def consume() -> None:
         ProgressInput(topic=topic), wait_for_result=False
     )
 
-    async for event in hatchet.streams.events(topic):
+    async for event in hatchet.streams.subscribe(topic):
         message = json.loads(event.payload)
         print(f"step {message['step']} of {message['total']}")
 
@@ -36,12 +36,12 @@ async def resume_from_cursor(topic: str) -> None:
     # > Resume from a cursor
     cursor = None
 
-    async for event in hatchet.streams.events(topic):
+    async for event in hatchet.streams.subscribe(topic):
         print(event.payload.decode())
         cursor = event.cursor
         break
 
-    async for event in hatchet.streams.events(topic, cursor=cursor):
+    async for event in hatchet.streams.subscribe(topic, cursor=cursor):
         print(event.payload.decode())
     # !!
 
@@ -49,7 +49,7 @@ async def resume_from_cursor(topic: str) -> None:
 async def stop_reading(topic: str) -> None:
     # > Stop reading
     async def read() -> None:
-        async for event in hatchet.streams.events(topic):
+        async for event in hatchet.streams.subscribe(topic):
             print(event.payload.decode())
 
     try:
@@ -63,7 +63,7 @@ async def namespaces() -> None:
     # > Namespaces
     await hatchet.streams.publish("updates", "hello", namespace="customer-a")
 
-    async for event in hatchet.streams.events("updates", namespace="customer-a"):
+    async for event in hatchet.streams.subscribe("updates", namespace="customer-a"):
         print(event.payload.decode())
         break
     # !!
@@ -73,7 +73,7 @@ async def reset_topic() -> None:
     # > Reset a topic
     await hatchet.streams.aio_reset("orders")
 
-    async for event in hatchet.streams.events("orders"):
+    async for event in hatchet.streams.subscribe("orders"):
         print(event.payload.decode())
     # !!
 

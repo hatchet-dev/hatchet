@@ -121,7 +121,8 @@ describe('createTaskClient', () => {
 
     expect(task).toBeInstanceOf(HatchetCore);
     expect(task.tenantId).toBe(TENANT_ID);
-    expect(typeof task.streams.events).toBe('function');
+    expect(typeof task.streams.subscribe).toBe('function');
+    expect(task.streams.events).toBe(task.streams.subscribe);
     expect(typeof task.runs.events).toBe('function');
     expect(typeof task.runs.cancel).toBe('function');
     expect(typeof core.streams).not.toHaveProperty('events');
@@ -148,7 +149,7 @@ describe('createTaskClient', () => {
       { taskRunExternalId: 'run-1', message: 'progress' },
       { taskRunExternalId: 'run-1', message: 'bytes' },
     ]);
-    expect(task.streams.events).not.toBe(undefined);
+    expect(task.streams.subscribe).not.toBe(undefined);
     expect(typeof task.runs.cancel).toBe('function');
   });
 
@@ -160,7 +161,7 @@ describe('createTaskClient', () => {
       maxQueuedBytes: Math.floor(one * 1.5),
     });
     const task = createTaskClient(client(), streams);
-    const iterator = task.streams.events('orders')[Symbol.asyncIterator]();
+    const iterator = task.streams.subscribe('orders')[Symbol.asyncIterator]();
     const first = iterator.next();
     await settle();
     const { id } = received[0].streamOpen!;
@@ -190,7 +191,7 @@ describe('createTaskClient', () => {
     const { received, streams, fromOperator, settle } = harness();
     const task = createTaskClient(client(), streams);
 
-    const reading = collect(task.streams.events('orders', { namespace: 'e2e', cursor: 'c0' }));
+    const reading = collect(task.streams.subscribe('orders', { namespace: 'e2e', cursor: 'c0' }));
     await settle();
 
     expect(received).toEqual([
@@ -229,7 +230,7 @@ describe('createTaskClient', () => {
     const seen: StreamEvent[] = [];
 
     const reading = (async () => {
-      for await (const event of task.streams.events('orders')) {
+      for await (const event of task.streams.subscribe('orders')) {
         seen.push(event);
       }
     })();
@@ -253,7 +254,7 @@ describe('createTaskClient', () => {
     const seen: string[] = [];
 
     const reading = (async () => {
-      for await (const event of task.streams.events('orders')) {
+      for await (const event of task.streams.subscribe('orders')) {
         seen.push(decoder.decode(event.payload));
 
         if (seen.length === 2) {
@@ -281,7 +282,7 @@ describe('createTaskClient', () => {
     fromOperator(message('1', [{ payload: 'late', cursor: 'c4' }]));
     const controller = new AbortController();
     const next = task.streams
-      .events('orders', { signal: controller.signal })
+      .subscribe('orders', { signal: controller.signal })
       [Symbol.asyncIterator]();
     const pending = next.next();
     await settle();
@@ -295,13 +296,13 @@ describe('createTaskClient', () => {
     const { received, streams, fromOperator, settle } = harness();
     const task = createTaskClient(client(), streams);
 
-    expect(await collect(task.streams.events('orders', { signal: AbortSignal.abort() }))).toEqual(
-      []
-    );
+    expect(
+      await collect(task.streams.subscribe('orders', { signal: AbortSignal.abort() }))
+    ).toEqual([]);
     expect(received).toEqual([]);
 
     const controller = new AbortController();
-    const reading = collect(task.streams.events('orders', { signal: controller.signal }));
+    const reading = collect(task.streams.subscribe('orders', { signal: controller.signal }));
     await settle();
     fromOperator(message('1', [{ payload: 'a', cursor: 'c1' }]));
     await settle();
@@ -321,7 +322,7 @@ describe('createTaskClient', () => {
 
     const reading = (async () => {
       try {
-        for await (const event of task.streams.events('orders')) {
+        for await (const event of task.streams.subscribe('orders')) {
           seen.push(event.cursor);
         }
       } catch (err) {
@@ -353,7 +354,7 @@ describe('createTaskClient', () => {
     const { streams, fromOperator, settle } = harness();
     const task = createTaskClient(client(), streams);
 
-    const denied = collect(task.streams.events('orders'));
+    const denied = collect(task.streams.subscribe('orders'));
     await settle();
     fromOperator({
       streamClose: {
@@ -366,7 +367,7 @@ describe('createTaskClient', () => {
       'the subscription to topic "orders" closed with code 7 (permission_denied: the engine denied the request): durable streams are not enabled for this tenant; the durable_streams entitlement enables them'
     );
 
-    const unserved = collect(task.streams.events('orders'));
+    const unserved = collect(task.streams.subscribe('orders'));
     await settle();
     fromOperator({
       streamClose: {
@@ -385,7 +386,7 @@ describe('createTaskClient', () => {
     const { received, streams, fromOperator, settle } = harness();
     const task = createTaskClient(client(), streams);
 
-    const reading = collect(task.streams.events('orders'));
+    const reading = collect(task.streams.subscribe('orders'));
     await settle();
     fromOperator({
       streamMessage: {
@@ -457,9 +458,9 @@ describe('createTaskClient', () => {
   it('without a socket, both iterators throw ServerlessLimitationError at the call', () => {
     const task = createTaskClient(client(), undefined);
 
-    expect(() => task.streams.events('orders')).toThrow(ServerlessLimitationError);
-    expect(() => task.streams.events('orders')).toThrow(
-      /clientFromContext\(ctx\)\.streams\.events\(topic\) is not available in the serverless runtime: this task was invoked over a POST and has no invocation socket/
+    expect(() => task.streams.subscribe('orders')).toThrow(ServerlessLimitationError);
+    expect(() => task.streams.subscribe('orders')).toThrow(
+      /clientFromContext\(ctx\)\.streams\.subscribe\(topic\) is not available in the serverless runtime: this task was invoked over a POST and has no invocation socket/
     );
     expect(() => task.runs.events('run-1')).toThrow(
       /clientFromContext\(ctx\)\.runs\.events\(runId\) .* invoked over a POST/
@@ -472,12 +473,12 @@ describe('createTaskClient', () => {
     const controllers = Array.from({ length: 16 }, () => new AbortController());
     // Each read waits for its first message; the signal is what ends a waiting read.
     const pending = controllers.map((controller) =>
-      task.streams.events('orders', { signal: controller.signal })[Symbol.asyncIterator]().next()
+      task.streams.subscribe('orders', { signal: controller.signal })[Symbol.asyncIterator]().next()
     );
     await settle();
     expect(streams.size).toBe(16);
 
-    const over = task.streams.events('orders')[Symbol.asyncIterator]();
+    const over = task.streams.subscribe('orders')[Symbol.asyncIterator]();
     const refused = over.next();
     await expect(refused).rejects.toBeInstanceOf(StreamOpenError);
     await expect(refused).rejects.toThrow(/already holds 16 streams, the operator's limit/);
@@ -487,7 +488,7 @@ describe('createTaskClient', () => {
     await expect(pending[0]).resolves.toEqual({ done: true, value: undefined });
     expect(streams.size).toBe(15);
 
-    const fits = task.streams.events('orders', { signal: AbortSignal.abort() });
+    const fits = task.streams.subscribe('orders', { signal: AbortSignal.abort() });
     expect(await collect(fits)).toEqual([]);
 
     for (const controller of controllers.slice(1)) {
@@ -511,7 +512,7 @@ const streamEcho = hatchet.task({
     const read: string[] = [];
     let cursor: string | undefined;
 
-    for await (const event of client.streams.events(input.topic, { cursor: input.cursor })) {
+    for await (const event of client.streams.subscribe(input.topic, { cursor: input.cursor })) {
       read.push(decoder.decode(event.payload));
       ({ cursor } = event);
 
@@ -531,7 +532,7 @@ const abortingReader = hatchet.task({
     const controller = new AbortController();
     const read: string[] = [];
 
-    for await (const event of clientFromContext(ctx).streams.events(input.topic, {
+    for await (const event of clientFromContext(ctx).streams.subscribe(input.topic, {
       signal: controller.signal,
     })) {
       read.push(decoder.decode(event.payload));
@@ -560,7 +561,7 @@ const runEventsReader = hatchet.task({
 
 const workflows = [streamEcho, abortingReader, runEventsReader];
 
-describe('streams.events over the test operator', () => {
+describe('streams.subscribe over the test operator', () => {
   it('publishes through the client and reads the topic back over the socket', async () => {
     const engine = fakeEngine();
     const op = createTestOperator({
@@ -702,7 +703,7 @@ describe('streams.events over the test operator', () => {
 
     expect(outcome).toMatchObject({ status: 'failed', retry: false, httpStatus: 422 });
     expect((outcome as { error: string }).error).toMatch(
-      /clientFromContext\(ctx\)\.streams\.events\(topic\) is not available .* invoked over a POST and has no invocation socket/
+      /clientFromContext\(ctx\)\.streams\.subscribe\(topic\) is not available .* invoked over a POST and has no invocation socket/
     );
     // The publish before the read went through: the unary client works over a POST.
     expect(engine.published).toEqual([{ topic: 'orders', payload: 'a', producerSeq: 0 }]);

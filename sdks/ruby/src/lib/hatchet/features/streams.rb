@@ -11,7 +11,7 @@ module Hatchet
     # @!attribute payload
     #   @return [String] The message payload, as binary
     # @!attribute cursor
-    #   @return [String] Resumes {Streams#events} right after this event
+    #   @return [String] Resumes {Streams#subscribe} right after this event
     # @!attribute created_at
     #   @return [Time, nil] When the message was stored
     StreamEvent = Struct.new(:payload, :cursor, :created_at, keyword_init: true)
@@ -19,7 +19,7 @@ module Hatchet
     # What a durable stream topic retains; counts and the latest message cover the tenant's retention.
     #
     # @!attribute latest_cursor
-    #   @return [String, nil] Resumes {Streams#events} after the newest retained message; nil when none is retained
+    #   @return [String, nil] Resumes {Streams#subscribe} after the newest retained message; nil when none is retained
     # @!attribute last_published_at
     #   @return [Time, nil] When the newest retained message was stored; nil when none is retained
     StreamTopicMetadata = Struct.new(
@@ -33,7 +33,7 @@ module Hatchet
     #
     # @example Publishing and reading
     #   hatchet.streams.publish("orders", '{"status":"shipped"}')
-    #   hatchet.streams.events("orders") { |event| puts event.payload }
+    #   hatchet.streams.subscribe("orders") { |event| puts event.payload }
     #
     # @since 0.12.0
     class Streams
@@ -190,7 +190,7 @@ module Hatchet
         )
       end
 
-      # Make {#events} calls without a cursor start after +cursor+, or the
+      # Make {#subscribe} calls without a cursor start after +cursor+, or the
       # topic's latest message. Readers already iterating, and any call with a
       # cursor, are unaffected.
       #
@@ -220,12 +220,12 @@ module Hatchet
       # @return [Enumerator<StreamEvent>, nil] An enumerator of the topic's events when no block is given
       # @raise [GRPC::BadStatus] On an error a resubscribe can't fix
       # @example
-      #   hatchet.streams.events("orders") do |event|
+      #   hatchet.streams.subscribe("orders") do |event|
       #     puts event.payload
       #     break if event.payload == "done"
       #   end
-      def events(topic, namespace: "", cursor: nil, &block)
-        return enum_for(:events, topic, namespace: namespace, cursor: cursor) unless block
+      def subscribe(topic, namespace: "", cursor: nil, &block)
+        return enum_for(:subscribe, topic, namespace: namespace, cursor: cursor) unless block
 
         failures = 0
         attempt = 0
@@ -269,6 +269,9 @@ module Hatchet
           attempt += 1
         end
       end
+
+      # An alias of {#subscribe}, which replaces it; +events+ will be removed in a future release.
+      alias events subscribe
 
       private
 

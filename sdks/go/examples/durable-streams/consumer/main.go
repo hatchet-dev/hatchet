@@ -22,7 +22,7 @@ func consume(ctx context.Context, client *hatchet.Client) error {
 		return err
 	}
 
-	for event, err := range client.Streams().Events(ctx, topic) {
+	for event, err := range client.Streams().Subscribe(ctx, topic) {
 		if err != nil {
 			return err
 		}
@@ -53,7 +53,7 @@ func resumeFromCursor(ctx context.Context, client *hatchet.Client, topic string)
 	// > Resume from a cursor
 	var cursor string
 
-	for event, err := range client.Streams().Events(ctx, topic) {
+	for event, err := range client.Streams().Subscribe(ctx, topic) {
 		if err != nil {
 			return err
 		}
@@ -63,7 +63,7 @@ func resumeFromCursor(ctx context.Context, client *hatchet.Client, topic string)
 		break
 	}
 
-	for event, err := range client.Streams().Events(ctx, topic, features.WithStreamCursor(cursor)) {
+	for event, err := range client.Streams().Subscribe(ctx, topic, features.WithStreamCursor(cursor)) {
 		if err != nil {
 			return err
 		}
@@ -80,7 +80,7 @@ func stopReading(client *hatchet.Client, topic string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	for event, err := range client.Streams().Events(ctx, topic) {
+	for event, err := range client.Streams().Subscribe(ctx, topic) {
 		if err != nil {
 			return err
 		}
@@ -98,7 +98,7 @@ func namespaces(ctx context.Context, client *hatchet.Client) error {
 		return err
 	}
 
-	for event, err := range client.Streams().Events(ctx, "updates", features.WithStreamNamespace("customer-a")) {
+	for event, err := range client.Streams().Subscribe(ctx, "updates", features.WithStreamNamespace("customer-a")) {
 		if err != nil {
 			return err
 		}
@@ -117,7 +117,7 @@ func resetTopic(ctx context.Context, client *hatchet.Client) error {
 		return err
 	}
 
-	for event, err := range client.Streams().Events(ctx, "orders") {
+	for event, err := range client.Streams().Subscribe(ctx, "orders") {
 		if err != nil {
 			return err
 		}

@@ -80,7 +80,7 @@ class StreamEvent(BaseModel):
     """The message payload."""
 
     cursor: str
-    """Resumes `events` right after this event."""
+    """Resumes `subscribe` right after this event."""
 
     created_at: datetime | None = None
     """When the message was stored."""
@@ -95,7 +95,7 @@ class StreamTopicMetadata(BaseModel):
     message_count: int
 
     latest_cursor: str | None = None
-    """Resumes `events` after the newest retained message; None when none is retained."""
+    """Resumes `subscribe` after the newest retained message; None when none is retained."""
 
     last_published_at: datetime | None = None
     """When the newest retained message was stored; None when none is retained."""
@@ -551,7 +551,7 @@ class StreamsClient(BaseRestClient):
 
     def reset(self, topic: str, namespace: str = "", cursor: str | None = None) -> None:
         """
-        Make `events` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.
+        Make `subscribe` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.
 
         :param topic: The topic to reset.
         :param namespace: The topic's namespace; the empty namespace by default.
@@ -569,7 +569,7 @@ class StreamsClient(BaseRestClient):
         self, topic: str, namespace: str = "", cursor: str | None = None
     ) -> None:
         """
-        Make `events` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.
+        Make `subscribe` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.
 
         :param topic: The topic to reset.
         :param namespace: The topic's namespace; the empty namespace by default.
@@ -579,7 +579,21 @@ class StreamsClient(BaseRestClient):
         """
         await asyncio.to_thread(self.reset, topic, namespace, cursor)
 
-    async def events(
+    def events(
+        self, topic: str, namespace: str = "", cursor: str | None = None
+    ) -> AsyncGenerator[StreamEvent, None]:
+        """
+        An alias of `subscribe`, which replaces it; `events` will be removed in a future release.
+
+        :param topic: The topic to read from.
+        :param namespace: The topic's namespace; the empty namespace by default.
+        :param cursor: A cursor read off a previous event, to resume right after it.
+
+        :return: An async iterator of the topic's events.
+        """
+        return self.subscribe(topic, namespace, cursor)
+
+    async def subscribe(
         self, topic: str, namespace: str = "", cursor: str | None = None
     ) -> AsyncGenerator[StreamEvent, None]:
         """

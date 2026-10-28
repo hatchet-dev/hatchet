@@ -22,7 +22,7 @@ async def collect(
     events: list[StreamEvent] = []
 
     async def read() -> None:
-        async for event in hatchet.streams.events(topic, **kwargs):
+        async for event in hatchet.streams.subscribe(topic, **kwargs):
             events.append(event)
             if len(events) >= count:
                 break
@@ -132,13 +132,27 @@ async def test_large_payload(hatchet: Hatchet) -> None:
 
 
 @pytest.mark.asyncio(loop_scope="session")
+async def test_events_alias(hatchet: Hatchet) -> None:
+    topic = scope("durable_streams_events_alias")
+
+    await hatchet.streams.publish(topic, "one")
+
+    received = []
+    async for event in hatchet.streams.events(topic):
+        received.append(event.payload.decode())
+        break
+
+    assert received == ["one"]
+
+
+@pytest.mark.asyncio(loop_scope="session")
 async def test_new_readers_skip_a_failed_attempt(hatchet: Hatchet) -> None:
     topic = scope("durable_streams_retry")
 
     await durable_streams_retrying_progress.aio_run(ProgressInput(topic=topic))
 
     received = []
-    async for event in hatchet.streams.events(topic):
+    async for event in hatchet.streams.subscribe(topic):
         message = json.loads(event.payload)
         if message.get("done"):
             break

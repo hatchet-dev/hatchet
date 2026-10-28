@@ -60,7 +60,7 @@ func defaultStreamsConfig() streamsConfig {
 type StreamEvent struct {
 	// Payload is the message payload.
 	Payload []byte
-	// Cursor resumes Events right after this event.
+	// Cursor resumes Subscribe right after this event.
 	Cursor string
 	// CreatedAt is when the message was stored.
 	CreatedAt time.Time
@@ -73,7 +73,7 @@ type StreamTopicMetadata struct {
 	Topic        string
 	TenantId     string
 	MessageCount int64
-	// LatestCursor resumes Events after the newest retained message; nil when none is retained.
+	// LatestCursor resumes Subscribe after the newest retained message; nil when none is retained.
 	LatestCursor *string
 	// LastPublishedAt is when the newest retained message was stored; nil when none is retained.
 	LastPublishedAt *time.Time
@@ -95,7 +95,7 @@ func WithStreamNamespace(namespace string) StreamCallOpt {
 	}
 }
 
-// WithStreamCursor makes Events resume right after the message the cursor came from, or
+// WithStreamCursor makes Subscribe resume right after the message the cursor came from, or
 // Reset start new readers after it. Ignored by Publish and TopicMetadata.
 func WithStreamCursor(cursor string) StreamCallOpt {
 	return func(o *streamCallOpts) {
@@ -574,7 +574,7 @@ func (s *StreamsClient) TopicMetadata(ctx context.Context, topic string, opts ..
 	return md, nil
 }
 
-// Reset makes Events calls without a cursor start after WithStreamCursor's message, or the
+// Reset makes Subscribe calls without a cursor start after WithStreamCursor's message, or the
 // topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.
 func (s *StreamsClient) Reset(ctx context.Context, topic string, opts ...StreamCallOpt) error {
 	o := applyStreamOpts(opts)
@@ -591,12 +591,12 @@ type subscription struct {
 	failures  int
 }
 
-// Events yields topic's messages after WithStreamCursor's message, or from the oldest retained
+// Subscribe yields topic's messages after WithStreamCursor's message, or from the oldest retained
 // (or, once the topic is reset, after the reset). If the connection drops, it resubscribes from
 // the last message yielded, so nothing is skipped or repeated. It ends when the server hangs up
 // an idle subscription, ctx ends, or the caller stops iterating; it yields an error, then ends,
 // on errors a retry can't fix, such as an expired cursor.
-func (s *StreamsClient) Events(ctx context.Context, topic string, opts ...StreamCallOpt) iter.Seq2[StreamEvent, error] {
+func (s *StreamsClient) Subscribe(ctx context.Context, topic string, opts ...StreamCallOpt) iter.Seq2[StreamEvent, error] {
 	o := applyStreamOpts(opts)
 
 	return func(yield func(StreamEvent, error) bool) {
@@ -628,6 +628,11 @@ func (s *StreamsClient) Events(ctx context.Context, topic string, opts ...Stream
 			}
 		}
 	}
+}
+
+// Events is an alias of Subscribe, which replaces it; Events will be removed in a future release.
+func (s *StreamsClient) Events(ctx context.Context, topic string, opts ...StreamCallOpt) iter.Seq2[StreamEvent, error] {
+	return s.Subscribe(ctx, topic, opts...)
 }
 
 // subscribeOnce yields one subscription's events, and reports whether the iteration is over.
