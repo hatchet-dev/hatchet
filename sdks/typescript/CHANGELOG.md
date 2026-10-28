@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - The SDK now requires Node.js 22 or later (`engines.node` is `>=22`), matching `@connectrpc/connect-node` 2.3.0. Node.js 20 is no longer supported.
+
 ## [1.44.2] - 2026-10-27
 
 ### Fixed
