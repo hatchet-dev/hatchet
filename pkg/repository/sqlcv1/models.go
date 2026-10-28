@@ -3314,6 +3314,67 @@ type UserSession struct {
 	ExpiresAt pgtype.Timestamp `json:"expiresAt"`
 }
 
+type V1AggEventsMinuteDeltaOlap struct {
+	ID         int64              `json:"id"`
+	TenantID   uuid.UUID          `json:"tenant_id"`
+	Bucket     pgtype.Timestamptz `json:"bucket"`
+	EventCount int32              `json:"event_count"`
+}
+
+type V1AggEventsMinuteOlap struct {
+	TenantID   uuid.UUID          `json:"tenant_id"`
+	Bucket     pgtype.Timestamptz `json:"bucket"`
+	EventCount int64              `json:"event_count"`
+}
+
+type V1AggTaskEventsMinuteDeltaOlap struct {
+	ID             int64              `json:"id"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	Bucket         pgtype.Timestamptz `json:"bucket"`
+	WorkflowID     uuid.UUID          `json:"workflow_id"`
+	QueuedCount    int32              `json:"queued_count"`
+	RunningCount   int32              `json:"running_count"`
+	CompletedCount int32              `json:"completed_count"`
+	CancelledCount int32              `json:"cancelled_count"`
+	FailedCount    int32              `json:"failed_count"`
+}
+
+type V1AggTaskEventsMinuteOlap struct {
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	Bucket         pgtype.Timestamptz `json:"bucket"`
+	WorkflowID     uuid.UUID          `json:"workflow_id"`
+	QueuedCount    int64              `json:"queued_count"`
+	RunningCount   int64              `json:"running_count"`
+	CompletedCount int64              `json:"completed_count"`
+	CancelledCount int64              `json:"cancelled_count"`
+	FailedCount    int64              `json:"failed_count"`
+}
+
+type V1AggTaskStatusesMinuteDeltaOlap struct {
+	ID             int64              `json:"id"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	Bucket         pgtype.Timestamptz `json:"bucket"`
+	WorkflowID     uuid.UUID          `json:"workflow_id"`
+	QueuedCount    int32              `json:"queued_count"`
+	RunningCount   int32              `json:"running_count"`
+	CompletedCount int32              `json:"completed_count"`
+	CancelledCount int32              `json:"cancelled_count"`
+	FailedCount    int32              `json:"failed_count"`
+	EvictedCount   int32              `json:"evicted_count"`
+}
+
+type V1AggTaskStatusesMinuteOlap struct {
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	Bucket         pgtype.Timestamptz `json:"bucket"`
+	WorkflowID     uuid.UUID          `json:"workflow_id"`
+	QueuedCount    int64              `json:"queued_count"`
+	RunningCount   int64              `json:"running_count"`
+	CompletedCount int64              `json:"completed_count"`
+	CancelledCount int64              `json:"cancelled_count"`
+	FailedCount    int64              `json:"failed_count"`
+	EvictedCount   int64              `json:"evicted_count"`
+}
+
 type V1BatchRuntime struct {
 	TenantID  uuid.UUID          `json:"tenant_id"`
 	StepID    uuid.UUID          `json:"step_id"`

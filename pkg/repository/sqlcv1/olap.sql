@@ -2,10 +2,16 @@
 SELECT
     create_v1_hash_partitions('v1_task_events_olap_tmp'::text, @partitions::int) AS v1_task_events_olap_tmp,
     create_v1_hash_partitions('v1_task_status_updates_tmp'::text, @partitions::int) AS v1_task_status_updates_tmp,
+    create_v1_hash_partitions('v1_agg_task_statuses_minute_delta_olap'::text, @partitions::int) AS v1_agg_task_statuses_minute_delta_olap,
+    create_v1_hash_partitions('v1_agg_task_events_minute_delta_olap'::text, @partitions::int) AS v1_agg_task_events_minute_delta_olap,
+    create_v1_hash_partitions('v1_agg_events_minute_delta_olap'::text, @partitions::int) AS v1_agg_events_minute_delta_olap,
     create_v1_range_partition('v1_tasks_olap'::text, @date::date) AS v1_tasks_olap,
     create_v1_range_partition('v1_runs_olap'::text, @date::date) AS v1_runs_olap,
     create_v1_range_partition('v1_dags_olap'::text, @date::date) AS v1_dags_olap,
-    create_v1_range_partition('v1_payloads_olap'::text, @date::date) AS v1_payloads_olap
+    create_v1_range_partition('v1_payloads_olap'::text, @date::date) AS v1_payloads_olap,
+    create_v1_range_partition('v1_agg_task_statuses_minute_olap'::text, @date::date, 70) AS v1_agg_task_statuses_minute_olap,
+    create_v1_range_partition('v1_agg_task_events_minute_olap'::text, @date::date, 70) AS v1_agg_task_events_minute_olap,
+    create_v1_range_partition('v1_agg_events_minute_olap'::text, @date::date, 70) AS v1_agg_events_minute_olap
 ;
 
 -- name: CreateOLAPOptionalTablePartitions :one
@@ -25,6 +31,106 @@ SELECT
 SELECT
     create_v1_range_partition('v1_otel_trace_olap'::text, @date::date),
     create_v1_range_partition('v1_otel_trace_lookup_olap'::text, @date::date)
+;
+
+-- name: GetOLAPAggregateRetainedFrom :one
+SELECT MIN(SUBSTRING(p.partition_name, '_(\d{8})$')::DATE)::TIMESTAMPTZ AS retained_from
+FROM get_v1_partitions_before_date(@aggregateTable::TEXT, 'infinity'::DATE) AS p;
+
+-- name: CompactTaskStatusesMinuteDeltas :one
+WITH claimed AS (
+    SELECT (d).*
+    FROM claim_agg_deltas(NULL::v1_agg_task_statuses_minute_delta_olap, @partitionNumber::INTEGER, @batchSize::INTEGER) AS d
+), folded AS (
+    INSERT INTO v1_agg_task_statuses_minute_olap AS a (tenant_id, bucket, workflow_id, queued_count, running_count, completed_count, cancelled_count, failed_count, evicted_count)
+    SELECT
+        tenant_id, bucket, workflow_id,
+        SUM(queued_count),
+        SUM(running_count),
+        SUM(completed_count),
+        SUM(cancelled_count),
+        SUM(failed_count),
+        SUM(evicted_count)
+    FROM claimed
+    WHERE bucket >= @retainFrom::TIMESTAMPTZ
+    GROUP BY tenant_id, bucket, workflow_id
+    HAVING
+        SUM(queued_count) <> 0
+        OR SUM(running_count) <> 0
+        OR SUM(completed_count) <> 0
+        OR SUM(cancelled_count) <> 0
+        OR SUM(failed_count) <> 0
+        OR SUM(evicted_count) <> 0
+    -- one lock order for every compactor touching the same keys
+    ORDER BY tenant_id, bucket, workflow_id
+    ON CONFLICT (tenant_id, bucket, workflow_id) DO UPDATE SET
+        queued_count = a.queued_count + EXCLUDED.queued_count,
+        running_count = a.running_count + EXCLUDED.running_count,
+        completed_count = a.completed_count + EXCLUDED.completed_count,
+        cancelled_count = a.cancelled_count + EXCLUDED.cancelled_count,
+        failed_count = a.failed_count + EXCLUDED.failed_count,
+        evicted_count = a.evicted_count + EXCLUDED.evicted_count
+)
+
+SELECT COUNT(*)
+FROM claimed
+;
+
+-- name: CompactTaskEventsMinuteDeltas :one
+WITH claimed AS (
+    SELECT (d).*
+    FROM claim_agg_deltas(NULL::v1_agg_task_events_minute_delta_olap, @partitionNumber::INTEGER, @batchSize::INTEGER) AS d
+), folded AS (
+    INSERT INTO v1_agg_task_events_minute_olap AS a (tenant_id, bucket, workflow_id, queued_count, running_count, completed_count, cancelled_count, failed_count)
+    SELECT
+        tenant_id, bucket, workflow_id,
+        SUM(queued_count),
+        SUM(running_count),
+        SUM(completed_count),
+        SUM(cancelled_count),
+        SUM(failed_count)
+    FROM claimed
+    WHERE bucket >= @retainFrom::TIMESTAMPTZ
+    GROUP BY tenant_id, bucket, workflow_id
+    HAVING
+        SUM(queued_count) <> 0
+        OR SUM(running_count) <> 0
+        OR SUM(completed_count) <> 0
+        OR SUM(cancelled_count) <> 0
+        OR SUM(failed_count) <> 0
+    -- one lock order for every compactor touching the same keys
+    ORDER BY tenant_id, bucket, workflow_id
+    ON CONFLICT (tenant_id, bucket, workflow_id) DO UPDATE SET
+        queued_count = a.queued_count + EXCLUDED.queued_count,
+        running_count = a.running_count + EXCLUDED.running_count,
+        completed_count = a.completed_count + EXCLUDED.completed_count,
+        cancelled_count = a.cancelled_count + EXCLUDED.cancelled_count,
+        failed_count = a.failed_count + EXCLUDED.failed_count
+)
+
+SELECT COUNT(*)
+FROM claimed
+;
+
+-- name: CompactEventsMinuteDeltas :one
+WITH claimed AS (
+    SELECT (d).*
+    FROM claim_agg_deltas(NULL::v1_agg_events_minute_delta_olap, @partitionNumber::INTEGER, @batchSize::INTEGER) AS d
+), folded AS (
+    INSERT INTO v1_agg_events_minute_olap AS a (tenant_id, bucket, event_count)
+    SELECT tenant_id, bucket, SUM(event_count)
+    FROM claimed
+    WHERE bucket >= @retainFrom::TIMESTAMPTZ
+    GROUP BY tenant_id, bucket
+    HAVING SUM(event_count) <> 0
+    -- one lock order for every compactor touching the same keys
+    ORDER BY tenant_id, bucket
+    ON CONFLICT (tenant_id, bucket) DO UPDATE SET
+        event_count = a.event_count + EXCLUDED.event_count
+)
+
+SELECT COUNT(*)
+FROM claimed
 ;
 
 -- name: AnalyzeV1RunsOLAP :exec
@@ -97,6 +203,12 @@ WITH task_partitions AS (
     SELECT 'v1_lookup_table_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_monthly_partitions_before_date('v1_lookup_table_olap', @date::date) AS p
 ), statuses_partitions AS (
     SELECT 'v1_statuses_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_monthly_partitions_before_date('v1_statuses_olap', @date::date) AS p
+), agg_task_statuses_partitions AS (
+    SELECT 'v1_agg_task_statuses_minute_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_agg_task_statuses_minute_olap', @date::date) AS p
+), agg_task_events_partitions AS (
+    SELECT 'v1_agg_task_events_minute_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_agg_task_events_minute_olap', @date::date) AS p
+), agg_events_partitions AS (
+    SELECT 'v1_agg_events_minute_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_agg_events_minute_olap', @date::date) AS p
 ), candidates AS (
     SELECT
         *
@@ -200,6 +312,27 @@ WITH task_partitions AS (
         *
     FROM
         statuses_partitions
+
+    UNION ALL
+
+    SELECT
+        *
+    FROM
+        agg_task_statuses_partitions
+
+    UNION ALL
+
+    SELECT
+        *
+    FROM
+        agg_task_events_partitions
+
+    UNION ALL
+
+    SELECT
+        *
+    FROM
+        agg_events_partitions
 )
 
 SELECT *

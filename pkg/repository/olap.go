@@ -29,6 +29,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/pkg/config/limits"
 	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
+	"github.com/hatchet-dev/hatchet/pkg/repository/olapagg"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -276,6 +277,7 @@ type TaskEventWithPayloads struct {
 type OLAPRepository interface {
 	UpdateTablePartitions(ctx context.Context) error
 	SetReadReplicaPool(pool *fairpool.Pool)
+	Aggregates() *olapagg.Aggregator
 	SetPayloadStoreOnSeparateDatabase(store PayloadStoreRepository)
 
 	ReadTaskRun(ctx context.Context, taskExternalId uuid.UUID) (*sqlcv1.V1TasksOlap, error)
@@ -356,6 +358,8 @@ type OLAPRepositoryImpl struct {
 	shouldPartitionOtelTables           bool
 
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits
+
+	aggregates *olapagg.Aggregator
 }
 
 func NewOLAPRepositoryFromPool(
@@ -383,6 +387,9 @@ func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Durati
 		log.Fatal(err)
 	}
 
+	aggOpts := olapagg.DefaultOpts()
+	aggOpts.Partitions = NUM_PARTITIONS
+
 	return &OLAPRepositoryImpl{
 		sharedRepository:                    shared,
 		readPool:                            shared.pool,
@@ -391,7 +398,12 @@ func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Durati
 		shouldManageOptionalTablePartitions: shouldManageOptionalTablePartitions,
 		shouldPartitionOtelTables:           shouldPartitionOtelTables,
 		statusUpdateBatchSizeLimits:         statusUpdateBatchSizeLimits,
+		aggregates:                          olapagg.New(shared.pool.ForShared(), shared.l, aggOpts),
 	}
+}
+
+func (r *OLAPRepositoryImpl) Aggregates() *olapagg.Aggregator {
+	return r.aggregates
 }
 
 // runPartitionDDLWithLockTimeout runs fn in one transaction that waits at most a minute for
