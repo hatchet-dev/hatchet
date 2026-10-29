@@ -348,9 +348,7 @@ type OLAPRepositoryImpl struct {
 
 	olapRetentionPeriod time.Duration
 
-	// includeRawDataInAggregates makes the metrics queries fall back to the raw run tables for
-	// buckets before the aggregate triggers were installed. The cloud databases were backfilled
-	// and turn this off so the aggregates alone answer those queries.
+	// makes the metrics queries fall back to the raw run tables for buckets before the aggregate triggers were set up
 	includeRawDataInAggregates bool
 
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits
