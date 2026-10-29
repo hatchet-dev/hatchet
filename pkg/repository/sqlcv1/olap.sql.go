@@ -221,6 +221,141 @@ func (q *Queries) CheckLastAutovacuumForPartitionedTables(ctx context.Context, d
 	return items, nil
 }
 
+const compactEventsMinuteDeltas = `-- name: CompactEventsMinuteDeltas :one
+WITH claimed AS (
+    SELECT (d).*
+    FROM claim_agg_deltas(NULL::v1_agg_events_minute_delta_olap, $1::INTEGER, $2::INTEGER) AS d
+), folded AS (
+    INSERT INTO v1_agg_events_minute_olap AS a (tenant_id, bucket, event_count)
+    SELECT tenant_id, bucket, SUM(event_count)
+    FROM claimed
+    WHERE bucket >= $3::TIMESTAMPTZ
+    GROUP BY tenant_id, bucket
+    HAVING SUM(event_count) <> 0
+    -- one lock order for every compactor touching the same keys
+    ORDER BY tenant_id, bucket
+    ON CONFLICT (tenant_id, bucket) DO UPDATE SET
+        event_count = a.event_count + EXCLUDED.event_count
+)
+
+SELECT COUNT(*)
+FROM claimed
+`
+
+type CompactEventsMinuteDeltasParams struct {
+	Partitionnumber int32              `json:"partitionnumber"`
+	Batchsize       int32              `json:"batchsize"`
+	Retainfrom      pgtype.Timestamptz `json:"retainfrom"`
+}
+
+func (q *Queries) CompactEventsMinuteDeltas(ctx context.Context, db DBTX, arg CompactEventsMinuteDeltasParams) (int64, error) {
+	row := db.QueryRow(ctx, compactEventsMinuteDeltas, arg.Partitionnumber, arg.Batchsize, arg.Retainfrom)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const compactTaskEventsMinuteDeltas = `-- name: CompactTaskEventsMinuteDeltas :one
+WITH claimed AS (
+    SELECT (d).*
+    FROM claim_agg_deltas(NULL::v1_agg_task_events_minute_delta_olap, $1::INTEGER, $2::INTEGER) AS d
+), folded AS (
+    INSERT INTO v1_agg_task_events_minute_olap AS a (tenant_id, bucket, workflow_id, queued_count, running_count, completed_count, cancelled_count, failed_count)
+    SELECT
+        tenant_id, bucket, workflow_id,
+        SUM(queued_count),
+        SUM(running_count),
+        SUM(completed_count),
+        SUM(cancelled_count),
+        SUM(failed_count)
+    FROM claimed
+    WHERE bucket >= $3::TIMESTAMPTZ
+    GROUP BY tenant_id, bucket, workflow_id
+    HAVING
+        SUM(queued_count) <> 0
+        OR SUM(running_count) <> 0
+        OR SUM(completed_count) <> 0
+        OR SUM(cancelled_count) <> 0
+        OR SUM(failed_count) <> 0
+    -- one lock order for every compactor touching the same keys
+    ORDER BY tenant_id, bucket, workflow_id
+    ON CONFLICT (tenant_id, bucket, workflow_id) DO UPDATE SET
+        queued_count = a.queued_count + EXCLUDED.queued_count,
+        running_count = a.running_count + EXCLUDED.running_count,
+        completed_count = a.completed_count + EXCLUDED.completed_count,
+        cancelled_count = a.cancelled_count + EXCLUDED.cancelled_count,
+        failed_count = a.failed_count + EXCLUDED.failed_count
+)
+
+SELECT COUNT(*)
+FROM claimed
+`
+
+type CompactTaskEventsMinuteDeltasParams struct {
+	Partitionnumber int32              `json:"partitionnumber"`
+	Batchsize       int32              `json:"batchsize"`
+	Retainfrom      pgtype.Timestamptz `json:"retainfrom"`
+}
+
+func (q *Queries) CompactTaskEventsMinuteDeltas(ctx context.Context, db DBTX, arg CompactTaskEventsMinuteDeltasParams) (int64, error) {
+	row := db.QueryRow(ctx, compactTaskEventsMinuteDeltas, arg.Partitionnumber, arg.Batchsize, arg.Retainfrom)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const compactTaskStatusesMinuteDeltas = `-- name: CompactTaskStatusesMinuteDeltas :one
+WITH claimed AS (
+    SELECT (d).*
+    FROM claim_agg_deltas(NULL::v1_agg_task_statuses_minute_delta_olap, $1::INTEGER, $2::INTEGER) AS d
+), folded AS (
+    INSERT INTO v1_agg_task_statuses_minute_olap AS a (tenant_id, bucket, workflow_id, queued_count, running_count, completed_count, cancelled_count, failed_count, evicted_count)
+    SELECT
+        tenant_id, bucket, workflow_id,
+        SUM(queued_count),
+        SUM(running_count),
+        SUM(completed_count),
+        SUM(cancelled_count),
+        SUM(failed_count),
+        SUM(evicted_count)
+    FROM claimed
+    WHERE bucket >= $3::TIMESTAMPTZ
+    GROUP BY tenant_id, bucket, workflow_id
+    HAVING
+        SUM(queued_count) <> 0
+        OR SUM(running_count) <> 0
+        OR SUM(completed_count) <> 0
+        OR SUM(cancelled_count) <> 0
+        OR SUM(failed_count) <> 0
+        OR SUM(evicted_count) <> 0
+    -- one lock order for every compactor touching the same keys
+    ORDER BY tenant_id, bucket, workflow_id
+    ON CONFLICT (tenant_id, bucket, workflow_id) DO UPDATE SET
+        queued_count = a.queued_count + EXCLUDED.queued_count,
+        running_count = a.running_count + EXCLUDED.running_count,
+        completed_count = a.completed_count + EXCLUDED.completed_count,
+        cancelled_count = a.cancelled_count + EXCLUDED.cancelled_count,
+        failed_count = a.failed_count + EXCLUDED.failed_count,
+        evicted_count = a.evicted_count + EXCLUDED.evicted_count
+)
+
+SELECT COUNT(*)
+FROM claimed
+`
+
+type CompactTaskStatusesMinuteDeltasParams struct {
+	Partitionnumber int32              `json:"partitionnumber"`
+	Batchsize       int32              `json:"batchsize"`
+	Retainfrom      pgtype.Timestamptz `json:"retainfrom"`
+}
+
+func (q *Queries) CompactTaskStatusesMinuteDeltas(ctx context.Context, db DBTX, arg CompactTaskStatusesMinuteDeltasParams) (int64, error) {
+	row := db.QueryRow(ctx, compactTaskStatusesMinuteDeltas, arg.Partitionnumber, arg.Batchsize, arg.Retainfrom)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countEvents = `-- name: CountEvents :one
 WITH included_events AS (
     SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope, e.triggering_webhook_name, e.payload_reference_id
@@ -338,12 +473,15 @@ func (q *Queries) CountOLAPTempTableSizeForTaskStatusUpdates(ctx context.Context
 }
 
 const createDagToTaskOLAPSelfMappings = `-- name: CreateDagToTaskOLAPSelfMappings :exec
+WITH inputs AS (
+    SELECT
+        UNNEST($1::bigint[]) AS dag_id,
+        UNNEST($2::timestamptz[]) AS dag_inserted_at
+)
 INSERT INTO v1_dag_to_task_olap (dag_id, dag_inserted_at, task_id, task_inserted_at)
-SELECT
-    UNNEST($1::bigint[]),
-    UNNEST($2::timestamptz[]),
-    UNNEST($1::bigint[]),
-    UNNEST($2::timestamptz[])
+SELECT i.dag_id, i.dag_inserted_at, i.dag_id, i.dag_inserted_at
+FROM inputs i
+ORDER BY i.dag_inserted_at, i.dag_id
 ON CONFLICT DO NOTHING
 `
 
@@ -447,10 +585,16 @@ const createOLAPPartitions = `-- name: CreateOLAPPartitions :one
 SELECT
     create_v1_hash_partitions('v1_task_events_olap_tmp'::text, $1::int) AS v1_task_events_olap_tmp,
     create_v1_hash_partitions('v1_task_status_updates_tmp'::text, $1::int) AS v1_task_status_updates_tmp,
+    create_v1_hash_partitions('v1_agg_task_statuses_minute_delta_olap'::text, $1::int) AS v1_agg_task_statuses_minute_delta_olap,
+    create_v1_hash_partitions('v1_agg_task_events_minute_delta_olap'::text, $1::int) AS v1_agg_task_events_minute_delta_olap,
+    create_v1_hash_partitions('v1_agg_events_minute_delta_olap'::text, $1::int) AS v1_agg_events_minute_delta_olap,
     create_v1_range_partition('v1_tasks_olap'::text, $2::date) AS v1_tasks_olap,
     create_v1_range_partition('v1_runs_olap'::text, $2::date) AS v1_runs_olap,
     create_v1_range_partition('v1_dags_olap'::text, $2::date) AS v1_dags_olap,
-    create_v1_range_partition('v1_payloads_olap'::text, $2::date) AS v1_payloads_olap
+    create_v1_range_partition('v1_payloads_olap'::text, $2::date) AS v1_payloads_olap,
+    create_v1_range_partition('v1_agg_task_statuses_minute_olap'::text, $2::date, 70) AS v1_agg_task_statuses_minute_olap,
+    create_v1_range_partition('v1_agg_task_events_minute_olap'::text, $2::date, 70) AS v1_agg_task_events_minute_olap,
+    create_v1_range_partition('v1_agg_events_minute_olap'::text, $2::date, 70) AS v1_agg_events_minute_olap
 `
 
 type CreateOLAPPartitionsParams struct {
@@ -459,12 +603,18 @@ type CreateOLAPPartitionsParams struct {
 }
 
 type CreateOLAPPartitionsRow struct {
-	V1TaskEventsOlapTmp    int32 `json:"v1_task_events_olap_tmp"`
-	V1TaskStatusUpdatesTmp int32 `json:"v1_task_status_updates_tmp"`
-	V1TasksOlap            int32 `json:"v1_tasks_olap"`
-	V1RunsOlap             int32 `json:"v1_runs_olap"`
-	V1DagsOlap             int32 `json:"v1_dags_olap"`
-	V1PayloadsOlap         int32 `json:"v1_payloads_olap"`
+	V1TaskEventsOlapTmp              int32 `json:"v1_task_events_olap_tmp"`
+	V1TaskStatusUpdatesTmp           int32 `json:"v1_task_status_updates_tmp"`
+	V1AggTaskStatusesMinuteDeltaOlap int32 `json:"v1_agg_task_statuses_minute_delta_olap"`
+	V1AggTaskEventsMinuteDeltaOlap   int32 `json:"v1_agg_task_events_minute_delta_olap"`
+	V1AggEventsMinuteDeltaOlap       int32 `json:"v1_agg_events_minute_delta_olap"`
+	V1TasksOlap                      int32 `json:"v1_tasks_olap"`
+	V1RunsOlap                       int32 `json:"v1_runs_olap"`
+	V1DagsOlap                       int32 `json:"v1_dags_olap"`
+	V1PayloadsOlap                   int32 `json:"v1_payloads_olap"`
+	V1AggTaskStatusesMinuteOlap      int32 `json:"v1_agg_task_statuses_minute_olap"`
+	V1AggTaskEventsMinuteOlap        int32 `json:"v1_agg_task_events_minute_olap"`
+	V1AggEventsMinuteOlap            int32 `json:"v1_agg_events_minute_olap"`
 }
 
 func (q *Queries) CreateOLAPPartitions(ctx context.Context, db DBTX, arg CreateOLAPPartitionsParams) (*CreateOLAPPartitionsRow, error) {
@@ -473,10 +623,16 @@ func (q *Queries) CreateOLAPPartitions(ctx context.Context, db DBTX, arg CreateO
 	err := row.Scan(
 		&i.V1TaskEventsOlapTmp,
 		&i.V1TaskStatusUpdatesTmp,
+		&i.V1AggTaskStatusesMinuteDeltaOlap,
+		&i.V1AggTaskEventsMinuteDeltaOlap,
+		&i.V1AggEventsMinuteDeltaOlap,
 		&i.V1TasksOlap,
 		&i.V1RunsOlap,
 		&i.V1DagsOlap,
 		&i.V1PayloadsOlap,
+		&i.V1AggTaskStatusesMinuteOlap,
+		&i.V1AggTaskEventsMinuteOlap,
+		&i.V1AggEventsMinuteOlap,
 	)
 	return &i, err
 }
@@ -765,6 +921,36 @@ func (q *Queries) GetEventByExternalIdUsingTenantId(ctx context.Context, db DBTX
 	return &i, err
 }
 
+const getOLAPAggregateRetainedFrom = `-- name: GetOLAPAggregateRetainedFrom :one
+SELECT MIN(SUBSTRING(p.partition_name, '_(\d{8})$')::DATE)::TIMESTAMPTZ AS retained_from
+FROM get_v1_partitions_before_date($1::TEXT, 'infinity'::DATE) AS p
+`
+
+func (q *Queries) GetOLAPAggregateRetainedFrom(ctx context.Context, db DBTX, aggregatetable string) (pgtype.Timestamptz, error) {
+	row := db.QueryRow(ctx, getOLAPAggregateRetainedFrom, aggregatetable)
+	var retained_from pgtype.Timestamptz
+	err := row.Scan(&retained_from)
+	return retained_from, err
+}
+
+const getOLAPAggregatesCompleteFrom = `-- name: GetOLAPAggregatesCompleteFrom :one
+SELECT COALESCE(
+    DATE_BIN('1 minute', MIN(tstamp)::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00') + INTERVAL '1 day',
+    TIMESTAMPTZ '1970-01-01 00:00:00+00'
+)::TIMESTAMPTZ AS complete_from
+FROM goose_db_version
+WHERE version_id = 20261027194324 AND is_applied
+`
+
+// The aggregate triggers only count rows written after v1_0_182 installed them. A day of margin
+// covers runs whose inserted_at is ahead of the database clock.
+func (q *Queries) GetOLAPAggregatesCompleteFrom(ctx context.Context, db DBTX) (pgtype.Timestamptz, error) {
+	row := db.QueryRow(ctx, getOLAPAggregatesCompleteFrom)
+	var complete_from pgtype.Timestamptz
+	err := row.Scan(&complete_from)
+	return complete_from, err
+}
+
 const getOLAPOffloadedPayloadIndexBlocks = `-- name: GetOLAPOffloadedPayloadIndexBlocks :many
 WITH inputs AS (
     SELECT
@@ -1019,24 +1205,47 @@ const getTaskPointMetrics = `-- name: GetTaskPointMetrics :many
 SELECT
     DATE_BIN(
         COALESCE($1::INTERVAL, '1 minute'),
-        inserted_at,
+        bucket,
         TIMESTAMPTZ '1970-01-01 00:00:00+00'
     ) :: TIMESTAMPTZ AS minute_bucket,
-    COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS completed_count,
-    COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS failed_count
-FROM v1_statuses_olap
-WHERE
-    tenant_id = $2::UUID
-    AND inserted_at BETWEEN $3::TIMESTAMPTZ AND $4::TIMESTAMPTZ
+    SUM(completed_count)::BIGINT AS completed_count,
+    SUM(failed_count)::BIGINT AS failed_count
+FROM (
+    SELECT bucket, completed_count, failed_count
+    FROM (
+        SELECT tenant_id, bucket, completed_count, failed_count FROM v1_agg_task_statuses_minute_olap
+        UNION ALL
+        SELECT tenant_id, bucket, completed_count, failed_count FROM v1_agg_task_statuses_minute_delta_olap
+    ) aggregate_counts
+    WHERE
+        tenant_id = $2::UUID
+        AND bucket >= $3::TIMESTAMPTZ
+        AND bucket < $4::TIMESTAMPTZ
+        AND bucket >= $5::TIMESTAMPTZ
+
+    UNION ALL
+
+    SELECT
+        DATE_BIN('1 minute', inserted_at, TIMESTAMPTZ '1970-01-01 00:00:00+00'),
+        (readable_status = 'COMPLETED')::INTEGER,
+        (readable_status = 'FAILED')::INTEGER
+    FROM v1_runs_olap
+    WHERE
+        tenant_id = $2::UUID
+        AND inserted_at >= $3::TIMESTAMPTZ
+        AND inserted_at < $4::TIMESTAMPTZ
+        AND inserted_at < $5::TIMESTAMPTZ
+) status_counts
 GROUP BY minute_bucket
 ORDER BY minute_bucket
 `
 
 type GetTaskPointMetricsParams struct {
-	Interval      pgtype.Interval    `json:"interval"`
-	Tenantid      uuid.UUID          `json:"tenantid"`
-	Createdafter  pgtype.Timestamptz `json:"createdafter"`
-	Createdbefore pgtype.Timestamptz `json:"createdbefore"`
+	Interval               pgtype.Interval    `json:"interval"`
+	Tenantid               uuid.UUID          `json:"tenantid"`
+	Createdafter           pgtype.Timestamptz `json:"createdafter"`
+	Createdbefore          pgtype.Timestamptz `json:"createdbefore"`
+	Aggregatescompletefrom pgtype.Timestamptz `json:"aggregatescompletefrom"`
 }
 
 type GetTaskPointMetricsRow struct {
@@ -1051,6 +1260,7 @@ func (q *Queries) GetTaskPointMetrics(ctx context.Context, db DBTX, arg GetTaskP
 		arg.Tenantid,
 		arg.Createdafter,
 		arg.Createdbefore,
+		arg.Aggregatescompletefrom,
 	)
 	if err != nil {
 		return nil, err
@@ -1135,88 +1345,63 @@ func (q *Queries) GetTaskStartedTimestamps(ctx context.Context, db DBTX, arg Get
 }
 
 const getTenantStatusMetrics = `-- name: GetTenantStatusMetrics :one
-WITH task_external_ids AS (
-    SELECT external_id
-    FROM v1_runs_olap
-    WHERE (
-        $5::UUID IS NULL OR parent_task_external_id = $5::UUID
-    ) AND (
-        $6::UUID IS NULL
-        OR (id, inserted_at) IN (
-            SELECT etr.run_id, etr.run_inserted_at
-            FROM v1_event_lookup_table_olap lt
-            JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
-            JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
-            WHERE
-                lt.tenant_id = $1::uuid
-                AND lt.external_id = $6::UUID
-        )
-    )
-    AND (
-        $7::text[] IS NULL
-        OR $8::text[] IS NULL
-        OR EXISTS (
-            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
-            JOIN LATERAL (
-                SELECT unnest($7::text[]) AS k,
-                    unnest($8::text[]) AS v
-            ) AS u ON kv.key = u.k AND kv.value = u.v
-        )
-    )
-    AND tenant_id = $1::UUID
-    AND inserted_at >= $2::TIMESTAMPTZ
-    AND (
-        $3::TIMESTAMPTZ IS NULL OR inserted_at <= $3::TIMESTAMPTZ
-    )
-    AND (
-        $4::UUID[] IS NULL OR workflow_id = ANY($4::UUID[])
-    )
-)
-
 SELECT
-    tenant_id,
-    COUNT(*) FILTER (WHERE readable_status = 'QUEUED') AS total_queued,
-    COUNT(*) FILTER (WHERE readable_status = 'RUNNING') AS total_running,
-    COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS total_completed,
-    COUNT(*) FILTER (WHERE readable_status = 'CANCELLED') AS total_cancelled,
-    COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS total_failed,
-    COUNT(*) FILTER (WHERE readable_status = 'EVICTED') AS total_evicted
-FROM v1_statuses_olap
-WHERE
-    tenant_id = $1::UUID
-    AND inserted_at >= $2::TIMESTAMPTZ
-    AND (
-        $3::TIMESTAMPTZ IS NULL OR inserted_at <= $3::TIMESTAMPTZ
-    )
-    AND (
-        $4::UUID[] IS NULL OR workflow_id = ANY($4::UUID[])
-    )
-    AND external_id IN (
-        SELECT external_id
-        FROM task_external_ids
-    )
-GROUP BY tenant_id
+    COALESCE(SUM(queued_count), 0)::BIGINT AS total_queued,
+    COALESCE(SUM(running_count), 0)::BIGINT AS total_running,
+    COALESCE(SUM(completed_count), 0)::BIGINT AS total_completed,
+    COALESCE(SUM(cancelled_count), 0)::BIGINT AS total_cancelled,
+    COALESCE(SUM(failed_count), 0)::BIGINT AS total_failed,
+    COALESCE(SUM(evicted_count), 0)::BIGINT AS total_evicted
+FROM (
+    SELECT queued_count, running_count, completed_count, cancelled_count, failed_count, evicted_count
+    FROM (
+        SELECT tenant_id, bucket, workflow_id, queued_count, running_count, completed_count, cancelled_count, failed_count, evicted_count
+        FROM v1_agg_task_statuses_minute_olap
+        UNION ALL
+        SELECT tenant_id, bucket, workflow_id, queued_count, running_count, completed_count, cancelled_count, failed_count, evicted_count
+        FROM v1_agg_task_statuses_minute_delta_olap
+    ) aggregate_counts
+    WHERE
+        tenant_id = $1::UUID
+        AND bucket >= $2::TIMESTAMPTZ
+        AND ($3::TIMESTAMPTZ IS NULL OR bucket < $3::TIMESTAMPTZ)
+        AND ($4::UUID[] IS NULL OR workflow_id = ANY($4::UUID[]))
+        AND bucket >= $5::TIMESTAMPTZ
+
+    UNION ALL
+
+    SELECT
+        (readable_status = 'QUEUED')::INTEGER,
+        (readable_status = 'RUNNING')::INTEGER,
+        (readable_status = 'COMPLETED')::INTEGER,
+        (readable_status = 'CANCELLED')::INTEGER,
+        (readable_status = 'FAILED')::INTEGER,
+        (readable_status = 'EVICTED')::INTEGER
+    FROM v1_runs_olap
+    WHERE
+        tenant_id = $1::UUID
+        AND inserted_at >= $2::TIMESTAMPTZ
+        AND ($3::TIMESTAMPTZ IS NULL OR inserted_at < $3::TIMESTAMPTZ)
+        AND ($4::UUID[] IS NULL OR workflow_id = ANY($4::UUID[]))
+        AND inserted_at < $5::TIMESTAMPTZ
+) status_counts
 `
 
 type GetTenantStatusMetricsParams struct {
-	Tenantid                  uuid.UUID          `json:"tenantid"`
-	Createdafter              pgtype.Timestamptz `json:"createdafter"`
-	CreatedBefore             pgtype.Timestamptz `json:"createdBefore"`
-	WorkflowIds               []uuid.UUID        `json:"workflowIds"`
-	ParentTaskExternalId      *uuid.UUID         `json:"parentTaskExternalId"`
-	TriggeringEventExternalId *uuid.UUID         `json:"triggeringEventExternalId"`
-	AdditionalMetaKeys        []string           `json:"additionalMetaKeys"`
-	AdditionalMetaValues      []string           `json:"additionalMetaValues"`
+	Tenantid               uuid.UUID          `json:"tenantid"`
+	Createdafter           pgtype.Timestamptz `json:"createdafter"`
+	CreatedBefore          pgtype.Timestamptz `json:"createdBefore"`
+	WorkflowIds            []uuid.UUID        `json:"workflowIds"`
+	Aggregatescompletefrom pgtype.Timestamptz `json:"aggregatescompletefrom"`
 }
 
 type GetTenantStatusMetricsRow struct {
-	TenantID       uuid.UUID `json:"tenant_id"`
-	TotalQueued    int64     `json:"total_queued"`
-	TotalRunning   int64     `json:"total_running"`
-	TotalCompleted int64     `json:"total_completed"`
-	TotalCancelled int64     `json:"total_cancelled"`
-	TotalFailed    int64     `json:"total_failed"`
-	TotalEvicted   int64     `json:"total_evicted"`
+	TotalQueued    int64 `json:"total_queued"`
+	TotalRunning   int64 `json:"total_running"`
+	TotalCompleted int64 `json:"total_completed"`
+	TotalCancelled int64 `json:"total_cancelled"`
+	TotalFailed    int64 `json:"total_failed"`
+	TotalEvicted   int64 `json:"total_evicted"`
 }
 
 func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTenantStatusMetricsParams) (*GetTenantStatusMetricsRow, error) {
@@ -1225,14 +1410,10 @@ func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTe
 		arg.Createdafter,
 		arg.CreatedBefore,
 		arg.WorkflowIds,
-		arg.ParentTaskExternalId,
-		arg.TriggeringEventExternalId,
-		arg.AdditionalMetaKeys,
-		arg.AdditionalMetaValues,
+		arg.Aggregatescompletefrom,
 	)
 	var i GetTenantStatusMetricsRow
 	err := row.Scan(
-		&i.TenantID,
 		&i.TotalQueued,
 		&i.TotalRunning,
 		&i.TotalCompleted,
@@ -1446,6 +1627,12 @@ WITH task_partitions AS (
     SELECT 'v1_lookup_table_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_monthly_partitions_before_date('v1_lookup_table_olap', $3::date) AS p
 ), statuses_partitions AS (
     SELECT 'v1_statuses_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_monthly_partitions_before_date('v1_statuses_olap', $3::date) AS p
+), agg_task_statuses_partitions AS (
+    SELECT 'v1_agg_task_statuses_minute_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_agg_task_statuses_minute_olap', $3::date) AS p
+), agg_task_events_partitions AS (
+    SELECT 'v1_agg_task_events_minute_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_agg_task_events_minute_olap', $3::date) AS p
+), agg_events_partitions AS (
+    SELECT 'v1_agg_events_minute_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_agg_events_minute_olap', $3::date) AS p
 ), candidates AS (
     SELECT
         parent_table, partition_name
@@ -1549,6 +1736,27 @@ WITH task_partitions AS (
         parent_table, partition_name
     FROM
         statuses_partitions
+
+    UNION ALL
+
+    SELECT
+        parent_table, partition_name
+    FROM
+        agg_task_statuses_partitions
+
+    UNION ALL
+
+    SELECT
+        parent_table, partition_name
+    FROM
+        agg_task_events_partitions
+
+    UNION ALL
+
+    SELECT
+        parent_table, partition_name
+    FROM
+        agg_events_partitions
 )
 
 SELECT parent_table, partition_name
@@ -3806,7 +4014,8 @@ WITH inputs AS (
     SELECT id, inserted_at, tenant_id, external_id, display_name, workflow_id, workflow_version_id, readable_status, input, additional_metadata, parent_task_external_id, total_tasks, idempotency_key, latest_retry_count, is_dag_operator, payload_reference_id
     FROM v1_dags_olap d
     WHERE
-        (d.inserted_at, d.id, d.tenant_id) IN (
+        d.inserted_at >= $4::TIMESTAMPTZ
+        AND (d.inserted_at, d.id, d.tenant_id) IN (
             SELECT dag_inserted_at, dag_id, tenant_id
             FROM inputs
         )
@@ -3868,6 +4077,7 @@ WITH inputs AS (
         dag_new_statuses dns
     WHERE
         (d.inserted_at, d.id, d.tenant_id) = (dns.inserted_at, dns.id, dns.tenant_id)
+        AND d.inserted_at >= $4::TIMESTAMPTZ
         AND dns.new_readable_status != d.readable_status
     RETURNING
         d.tenant_id, d.id, d.inserted_at, d.external_id, d.readable_status, d.workflow_id
@@ -4378,18 +4588,19 @@ func (q *Queries) UpdateTaskStatuses(ctx context.Context, db DBTX, arg UpdateTas
 const updateTaskStatusesFromMQ = `-- name: UpdateTaskStatusesFromMQ :many
 WITH inputs AS (
     SELECT
-        UNNEST($1::UUID[]) AS tenant_id,
-        UNNEST($2::BIGINT[]) AS task_id,
-        UNNEST($3::TIMESTAMPTZ[]) AS task_inserted_at,
-        UNNEST($4::v1_readable_status_olap[]) AS readable_status,
-        UNNEST($5::UUID[]) AS worker_id,
-        UNNEST($6::INTEGER[]) AS retry_count
+        UNNEST($2::UUID[]) AS tenant_id,
+        UNNEST($3::BIGINT[]) AS task_id,
+        UNNEST($4::TIMESTAMPTZ[]) AS task_inserted_at,
+        UNNEST($5::v1_readable_status_olap[]) AS readable_status,
+        UNNEST($6::UUID[]) AS worker_id,
+        UNNEST($7::INTEGER[]) AS retry_count
 ), locked_tasks AS (
     SELECT t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.is_durable, t.idempotency_key, t.payload_reference_id, i.readable_status AS new_readable_status, i.worker_id AS new_worker_id, i.retry_count AS new_retry_count
     FROM v1_tasks_olap t
     JOIN inputs i ON (i.tenant_id, i.task_id, i.task_inserted_at) = (t.tenant_id, t.id, t.inserted_at)
     WHERE
-        (
+        t.inserted_at >= $1::TIMESTAMPTZ
+        AND (
             -- A newer retry count must always apply, even when the readable
             -- status is unchanged, because this is the only chance to record it:
             -- the message this batch came from is acked once the transaction
@@ -4428,6 +4639,7 @@ WITH inputs AS (
     FROM locked_tasks lt
     WHERE
         (t.inserted_at, t.id, t.tenant_id) = (lt.inserted_at, lt.id, lt.tenant_id)
+        AND t.inserted_at >= $1::TIMESTAMPTZ
     RETURNING t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.is_durable, t.idempotency_key, t.payload_reference_id
 )
 
@@ -4445,13 +4657,16 @@ SELECT
     (ut.id IS NOT NULL)::BOOLEAN AS was_updated
 FROM v1_tasks_olap t
 LEFT JOIN updated_tasks ut ON (ut.tenant_id, ut.id, ut.inserted_at) = (t.tenant_id, t.id, t.inserted_at)
-WHERE (t.inserted_at, t.id, t.tenant_id) IN (
-    SELECT task_inserted_at, task_id, tenant_id
-    FROM inputs
-)
+WHERE
+    t.inserted_at >= $1::TIMESTAMPTZ
+    AND (t.inserted_at, t.id, t.tenant_id) IN (
+        SELECT task_inserted_at, task_id, tenant_id
+        FROM inputs
+    )
 `
 
 type UpdateTaskStatusesFromMQParams struct {
+	Mininsertedat   pgtype.Timestamptz     `json:"mininsertedat"`
 	Tenantids       []uuid.UUID            `json:"tenantids"`
 	Taskids         []int64                `json:"taskids"`
 	Taskinsertedats []pgtype.Timestamptz   `json:"taskinsertedats"`
@@ -4476,6 +4691,7 @@ type UpdateTaskStatusesFromMQRow struct {
 
 func (q *Queries) UpdateTaskStatusesFromMQ(ctx context.Context, db DBTX, arg UpdateTaskStatusesFromMQParams) ([]*UpdateTaskStatusesFromMQRow, error) {
 	rows, err := db.Query(ctx, updateTaskStatusesFromMQ,
+		arg.Mininsertedat,
 		arg.Tenantids,
 		arg.Taskids,
 		arg.Taskinsertedats,

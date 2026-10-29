@@ -5,6 +5,22 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.45.0] - 2026-10-28
+
+### Fixed
+
+- A Node worker no longer freezes at 100% CPU on the first unary call (for example `putLog`) after its engine connection has been idle for about a minute. `@connectrpc/connect-node` 2.1.2 could spin forever in `Http2SessionManager.gotoReady()` when a reconnect found the session already closed; 2.3.0 reconnects or fails the call instead. The `@connectrpc/connect`, `connect-node` and `connect-web` dependencies move from `~2.1.2` to `~2.3.0`.
+
+### Changed
+
+- The SDK now requires Node.js 22 or later (`engines.node` is `>=22`), matching `@connectrpc/connect-node` 2.3.0. Node.js 20 is no longer supported.
+
+## [1.44.2] - 2026-10-27
+
+### Fixed
+
+- Worker shutdown now waits for [durable tasks](https://docs.hatchet.run/v1/durable-tasks) that were already waiting (for example in `sleepFor` or on a child) when shutdown began. Evicting such a task removed it from the worker's in-flight list before the drain list was built, so the worker stopped its durable stream and unregistered while the task was still winding down.
+
 ## [1.44.1] - 2026-10-27
 
 ### Changed

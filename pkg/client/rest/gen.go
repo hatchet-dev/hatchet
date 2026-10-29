@@ -63,6 +63,7 @@ const (
 
 // Defines values for FeatureFlagId.
 const (
+	ConcurrencyPageEnabled         FeatureFlagId = "concurrency-page-enabled"
 	OperatorDetailsEnabled         FeatureFlagId = "operator-details-enabled"
 	OrganizationSsoEnabled         FeatureFlagId = "organization-sso-enabled"
 	TenantLogWorkflowFilterEnabled FeatureFlagId = "tenant-log-workflow-filter-enabled"
@@ -227,6 +228,23 @@ const (
 	V1CELDebugResponseStatusSUCCESS V1CELDebugResponseStatus = "SUCCESS"
 )
 
+// Defines values for V1ConcurrencyLimitStrategy.
+const (
+	V1ConcurrencyLimitStrategyCancelInProgress         V1ConcurrencyLimitStrategy = "CANCEL_IN_PROGRESS"
+	V1ConcurrencyLimitStrategyCancelNewest             V1ConcurrencyLimitStrategy = "CANCEL_NEWEST"
+	V1ConcurrencyLimitStrategyCancelQueuedExceptNewest V1ConcurrencyLimitStrategy = "CANCEL_QUEUED_EXCEPT_NEWEST"
+	V1ConcurrencyLimitStrategyCancelQueuedExceptOldest V1ConcurrencyLimitStrategy = "CANCEL_QUEUED_EXCEPT_OLDEST"
+	V1ConcurrencyLimitStrategyGroupRoundRobin          V1ConcurrencyLimitStrategy = "GROUP_ROUND_ROBIN"
+	V1ConcurrencyLimitStrategyNone                     V1ConcurrencyLimitStrategy = "NONE"
+)
+
+// Defines values for V1ConcurrencyScope.
+const (
+	V1ConcurrencyScopeShared   V1ConcurrencyScope = "SHARED"
+	V1ConcurrencyScopeTask     V1ConcurrencyScope = "TASK"
+	V1ConcurrencyScopeWorkflow V1ConcurrencyScope = "WORKFLOW"
+)
+
 // Defines values for V1CreateWebhookRequestAPIKeyAuthType.
 const (
 	V1CreateWebhookRequestAPIKeyAuthTypeAPIKEY V1CreateWebhookRequestAPIKeyAuthType = "API_KEY"
@@ -277,10 +295,29 @@ const (
 	ONWORKER V1RunningFilter = "ON_WORKER"
 )
 
+// Defines values for V1ServerlessEndpointCheckStage.
+const (
+	CATALOG V1ServerlessEndpointCheckStage = "CATALOG"
+	PARSE   V1ServerlessEndpointCheckStage = "PARSE"
+	REQUEST V1ServerlessEndpointCheckStage = "REQUEST"
+	STATUS  V1ServerlessEndpointCheckStage = "STATUS"
+)
+
+// Defines values for V1ServerlessEndpointEventKind.
+const (
+	CATALOGREGISTERED V1ServerlessEndpointEventKind = "CATALOG_REGISTERED"
+	CATALOGREJECTED   V1ServerlessEndpointEventKind = "CATALOG_REJECTED"
+	DELIVERYFAILED    V1ServerlessEndpointEventKind = "DELIVERY_FAILED"
+	HEALTHCHECKFAILED V1ServerlessEndpointEventKind = "HEALTHCHECK_FAILED"
+	HEALTHY           V1ServerlessEndpointEventKind = "HEALTHY"
+	UNHEALTHY         V1ServerlessEndpointEventKind = "UNHEALTHY"
+)
+
 // Defines values for V1ServerlessEndpointKind.
 const (
 	CLOUDFLAREWORKERS V1ServerlessEndpointKind = "CLOUDFLARE_WORKERS"
 	GENERICHTTP       V1ServerlessEndpointKind = "GENERIC_HTTP"
+	VERCEL            V1ServerlessEndpointKind = "VERCEL"
 )
 
 // Defines values for V1TaskEventType.
@@ -1611,6 +1648,109 @@ type V1CancelledTasks struct {
 	Ids *[]openapi_types.UUID `json:"ids,omitempty"`
 }
 
+// V1ConcurrencyKey defines model for V1ConcurrencyKey.
+type V1ConcurrencyKey struct {
+	Key string `json:"key"`
+
+	// MaxRuns The effective max runs for this key. With a max runs expression, this is the value evaluated for the key's most recent run.
+	MaxRuns int32 `json:"maxRuns"`
+
+	// OldestQueuedAt When the longest-queued run on this key was created. Unset when nothing is queued.
+	OldestQueuedAt *time.Time `json:"oldestQueuedAt,omitempty"`
+	QueuedCount    int64      `json:"queuedCount"`
+	RunningCount   int64      `json:"runningCount"`
+}
+
+// V1ConcurrencyKeyList defines model for V1ConcurrencyKeyList.
+type V1ConcurrencyKeyList struct {
+	Pagination *PaginationResponse `json:"pagination,omitempty"`
+	Rows       []V1ConcurrencyKey  `json:"rows"`
+
+	// Total The number of keys matching the filters, across all pages.
+	Total int64 `json:"total"`
+}
+
+// V1ConcurrencyLimitStrategy What happens to a run when its key has no free slot. NONE is the database default and is not set on registered strategies.
+type V1ConcurrencyLimitStrategy string
+
+// V1ConcurrencyScope Where a concurrency strategy is defined. SHARED strategies are named, tenant-wide and can be used by tasks in several workflows.
+type V1ConcurrencyScope string
+
+// V1ConcurrencyStrategy defines model for V1ConcurrencyStrategy.
+type V1ConcurrencyStrategy struct {
+	// Expression The CEL expression that computes a run's key.
+	Expression string `json:"expression"`
+
+	// Id The strategy id. Unique within a scope; WORKFLOW ids can collide with SHARED and TASK ids.
+	Id int64 `json:"id"`
+
+	// IsDraining Whether no latest workflow version uses this strategy, and it is only listed because runs of an older version still hold or wait for its slots.
+	IsDraining bool `json:"isDraining"`
+
+	// KeyCount Keys with at least one run running or queued.
+	KeyCount int64 `json:"keyCount"`
+
+	// LimitStrategy What happens to a run when its key has no free slot. NONE is the database default and is not set on registered strategies.
+	LimitStrategy V1ConcurrencyLimitStrategy `json:"limitStrategy"`
+
+	// MaxRuns The static max runs per key.
+	MaxRuns int32 `json:"maxRuns"`
+
+	// MaxRunsExpression CEL expression computing max runs per key from the task input, when set. Overrides maxRuns.
+	MaxRunsExpression *string `json:"maxRunsExpression,omitempty"`
+
+	// Name The shared strategy's name, the workflow name for WORKFLOW strategies, or the task name for TASK strategies.
+	Name string `json:"name"`
+
+	// OldestQueuedAt When the longest-queued run was created. Unset when nothing is queued.
+	OldestQueuedAt *time.Time `json:"oldestQueuedAt,omitempty"`
+
+	// OldestQueuedKey The key of the longest-queued run. Unset when nothing is queued.
+	OldestQueuedKey *string `json:"oldestQueuedKey,omitempty"`
+
+	// QueuedCount Queued runs.
+	QueuedCount int64 `json:"queuedCount"`
+
+	// QueuedKeyCount Keys with at least one queued run.
+	QueuedKeyCount int64 `json:"queuedKeyCount"`
+
+	// RunningCount Running runs, each holding a slot.
+	RunningCount int64 `json:"runningCount"`
+
+	// Scope Where a concurrency strategy is defined. SHARED strategies are named, tenant-wide and can be used by tasks in several workflows.
+	Scope V1ConcurrencyScope `json:"scope"`
+
+	// TaskName The task the strategy is defined on. Only set for TASK strategies.
+	TaskName *string `json:"taskName,omitempty"`
+
+	// UsedBy Tasks on their workflow's latest version that use this strategy. Only set for SHARED strategies.
+	UsedBy *[]V1ConcurrencyStrategyUsage `json:"usedBy,omitempty"`
+
+	// WorkflowId The workflow the strategy is defined on. Unset for SHARED strategies.
+	WorkflowId *openapi_types.UUID `json:"workflowId,omitempty"`
+
+	// WorkflowName Unset for SHARED strategies.
+	WorkflowName *string `json:"workflowName,omitempty"`
+
+	// WorkflowVersion The workflow version's user-defined label, when one was set. Unset for SHARED strategies.
+	WorkflowVersion *string `json:"workflowVersion,omitempty"`
+
+	// WorkflowVersionId The workflow version the strategy is attached to. Unset for SHARED strategies.
+	WorkflowVersionId *openapi_types.UUID `json:"workflowVersionId,omitempty"`
+}
+
+// V1ConcurrencyStrategyList defines model for V1ConcurrencyStrategyList.
+type V1ConcurrencyStrategyList struct {
+	Rows []V1ConcurrencyStrategy `json:"rows"`
+}
+
+// V1ConcurrencyStrategyUsage defines model for V1ConcurrencyStrategyUsage.
+type V1ConcurrencyStrategyUsage struct {
+	TaskName     string             `json:"taskName"`
+	WorkflowId   openapi_types.UUID `json:"workflowId"`
+	WorkflowName string             `json:"workflowName"`
+}
+
 // V1CreateFilterRequest defines model for V1CreateFilterRequest.
 type V1CreateFilterRequest struct {
 	// Expression The expression for the filter
@@ -1637,7 +1777,7 @@ type V1CreateServerlessEndpointRequest struct {
 	// InlineWaitBudgetMs The inline wait budget for durable results, in milliseconds. Defaults to 5000.
 	InlineWaitBudgetMs *int32 `json:"inlineWaitBudgetMs,omitempty"`
 
-	// Kind The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS applies the Cloudflare Workers runtime constraints on top of it.
+	// Kind The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS and VERCEL name the platform the endpoint is deployed on, which the dashboard uses to guide setup and diagnose failures.
 	Kind *V1ServerlessEndpointKind `json:"kind,omitempty"`
 
 	// Labels Worker labels applied to the worker the operator creates for this endpoint.
@@ -1649,7 +1789,7 @@ type V1CreateServerlessEndpointRequest struct {
 	// PollIntervalSeconds How often the healthcheck URL is polled, in seconds. Defaults to 30.
 	PollIntervalSeconds *int32 `json:"pollIntervalSeconds,omitempty"`
 
-	// RequestTimeoutSeconds The per-request timeout backstop for trigger requests, in seconds. Defaults to 60.
+	// RequestTimeoutSeconds The per-request timeout backstop for trigger requests, in seconds. Defaults to 300.
 	RequestTimeoutSeconds *int32 `json:"requestTimeoutSeconds,omitempty"`
 
 	// SigningSecret The secret used to HMAC-sign requests delivered to the endpoint. At least 32 characters. Write-only: it is stored encrypted and never returned in responses.
@@ -2002,7 +2142,7 @@ type V1ServerlessEndpoint struct {
 	// InlineWaitBudgetMs How long a trigger request may block waiting for a durable result before the operator falls back to the websocket durable protocol, in milliseconds.
 	InlineWaitBudgetMs int32 `json:"inlineWaitBudgetMs"`
 
-	// Kind The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS applies the Cloudflare Workers runtime constraints on top of it.
+	// Kind The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS and VERCEL name the platform the endpoint is deployed on, which the dashboard uses to guide setup and diagnose failures.
 	Kind V1ServerlessEndpointKind `json:"kind"`
 
 	// Labels Worker labels applied to the connection-backed worker the operator creates for this endpoint.
@@ -2028,7 +2168,56 @@ type V1ServerlessEndpoint struct {
 	TriggerUrl string `json:"triggerUrl"`
 }
 
-// V1ServerlessEndpointKind The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS applies the Cloudflare Workers runtime constraints on top of it.
+// V1ServerlessEndpointCheckStage How far a failed healthcheck got. REQUEST: no HTTP response (DNS, TLS, connection, timeout or a blocked destination). STATUS: the endpoint answered with a non-2xx status. PARSE: the body is not a healthcheck response. CATALOG: the response parsed but the workflows or actions it declares were refused.
+type V1ServerlessEndpointCheckStage string
+
+// V1ServerlessEndpointEvent defines model for V1ServerlessEndpointEvent.
+type V1ServerlessEndpointEvent struct {
+	CreatedAt time.Time                        `json:"createdAt"`
+	Details   V1ServerlessEndpointEventDetails `json:"details"`
+	Id        int64                            `json:"id"`
+
+	// Kind HEALTHCHECK_FAILED: a healthcheck failed; recorded at the start of a failure streak and whenever the error changes. UNHEALTHY: the endpoint's health flipped to unhealthy. HEALTHY: the endpoint's health flipped to healthy, or its healthchecks succeed again after a streak of failures too short to flip it. CATALOG_REGISTERED: a changed set of workflows and actions was registered. CATALOG_REJECTED: the engine refused the declared workflows. DELIVERY_FAILED: a task delivered to the endpoint failed. HEALTHCHECK_FAILED, CATALOG_REJECTED, DELIVERY_FAILED and HEALTHY are each recorded at most once per endpoint every 30 seconds, and an endpoint records at most 120 events an hour; what is held back is counted in details.suppressed of the next event of the same kind.
+	Kind    V1ServerlessEndpointEventKind `json:"kind"`
+	Message string                        `json:"message"`
+}
+
+// V1ServerlessEndpointEventDetails defines model for V1ServerlessEndpointEventDetails.
+type V1ServerlessEndpointEventDetails struct {
+	ActionId   *string   `json:"actionId,omitempty"`
+	Actions    *[]string `json:"actions,omitempty"`
+	DurationMs *int32    `json:"durationMs,omitempty"`
+
+	// ResponseExcerpt The start of the response body, at most 1 KiB. Omitted for members who cannot view payloads.
+	ResponseExcerpt *string `json:"responseExcerpt,omitempty"`
+	RetryCount      *int32  `json:"retryCount,omitempty"`
+
+	// Retryable Whether the engine will retry the failed delivery.
+	Retryable *bool `json:"retryable,omitempty"`
+
+	// Stage How far a failed healthcheck got. REQUEST: no HTTP response (DNS, TLS, connection, timeout or a blocked destination). STATUS: the endpoint answered with a non-2xx status. PARSE: the body is not a healthcheck response. CATALOG: the response parsed but the workflows or actions it declares were refused.
+	Stage      *V1ServerlessEndpointCheckStage `json:"stage,omitempty"`
+	StatusCode *int32                          `json:"statusCode,omitempty"`
+
+	// Suppressed Events of this kind since the previous one that were not recorded on their own, because they came too soon after it or past the endpoint's event budget.
+	Suppressed        *int32              `json:"suppressed,omitempty"`
+	TaskRunExternalId *openapi_types.UUID `json:"taskRunExternalId,omitempty"`
+
+	// Truncated Whether the details were cut to bound the event's size: the workflows and actions lists keep their first 50 entries, and long names are shortened.
+	Truncated *bool     `json:"truncated,omitempty"`
+	Url       *string   `json:"url,omitempty"`
+	Workflows *[]string `json:"workflows,omitempty"`
+}
+
+// V1ServerlessEndpointEventKind HEALTHCHECK_FAILED: a healthcheck failed; recorded at the start of a failure streak and whenever the error changes. UNHEALTHY: the endpoint's health flipped to unhealthy. HEALTHY: the endpoint's health flipped to healthy, or its healthchecks succeed again after a streak of failures too short to flip it. CATALOG_REGISTERED: a changed set of workflows and actions was registered. CATALOG_REJECTED: the engine refused the declared workflows. DELIVERY_FAILED: a task delivered to the endpoint failed. HEALTHCHECK_FAILED, CATALOG_REJECTED, DELIVERY_FAILED and HEALTHY are each recorded at most once per endpoint every 30 seconds, and an endpoint records at most 120 events an hour; what is held back is counted in details.suppressed of the next event of the same kind.
+type V1ServerlessEndpointEventKind string
+
+// V1ServerlessEndpointEventList defines model for V1ServerlessEndpointEventList.
+type V1ServerlessEndpointEventList struct {
+	Rows []V1ServerlessEndpointEvent `json:"rows"`
+}
+
+// V1ServerlessEndpointKind The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS and VERCEL name the platform the endpoint is deployed on, which the dashboard uses to guide setup and diagnose failures.
 type V1ServerlessEndpointKind string
 
 // V1ServerlessEndpointList defines model for V1ServerlessEndpointList.
@@ -2329,7 +2518,7 @@ type V1UpdateServerlessEndpointRequest struct {
 	// InlineWaitBudgetMs The inline wait budget for durable results, in milliseconds.
 	InlineWaitBudgetMs *int32 `json:"inlineWaitBudgetMs,omitempty"`
 
-	// Kind The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS applies the Cloudflare Workers runtime constraints on top of it.
+	// Kind The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS and VERCEL name the platform the endpoint is deployed on, which the dashboard uses to guide setup and diagnose failures.
 	Kind *V1ServerlessEndpointKind `json:"kind,omitempty"`
 
 	// Labels Worker labels applied to the worker the operator creates for this endpoint. Replaces the existing labels.
@@ -2948,6 +3137,15 @@ type V1DagListTasksParams struct {
 	Tenant openapi_types.UUID `form:"tenant" json:"tenant"`
 }
 
+// V1ServerlessEndpointEventListParams defines parameters for V1ServerlessEndpointEventList.
+type V1ServerlessEndpointEventListParams struct {
+	// Limit The number of events to return, at most 500. Defaults to 100.
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Since Only return events created after this time
+	Since *time.Time `form:"since,omitempty" json:"since,omitempty"`
+}
+
 // V1TaskGetParams defines parameters for V1TaskGet.
 type V1TaskGetParams struct {
 	// Attempt The attempt number
@@ -2980,6 +3178,21 @@ type V1LogLineListParams struct {
 
 // V1TaskEventListParams defines parameters for V1TaskEventList.
 type V1TaskEventListParams struct {
+	// Offset The number to skip
+	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// V1ConcurrencyKeyListParams defines parameters for V1ConcurrencyKeyList.
+type V1ConcurrencyKeyListParams struct {
+	// Search Only return keys containing this string (case-insensitive)
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+
+	// OnlyQueued Only return keys with at least one queued run
+	OnlyQueued *bool `form:"onlyQueued,omitempty" json:"onlyQueued,omitempty"`
+
 	// Offset The number to skip
 	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
 
@@ -4023,6 +4236,9 @@ type ClientInterface interface {
 
 	V1ServerlessEndpointUpdate(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, body V1ServerlessEndpointUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// V1ServerlessEndpointEventList request
+	V1ServerlessEndpointEventList(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, params *V1ServerlessEndpointEventListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// V1TaskGet request
 	V1TaskGet(ctx context.Context, task openapi_types.UUID, params *V1TaskGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -4039,6 +4255,12 @@ type ClientInterface interface {
 	V1CelDebugWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	V1CelDebug(ctx context.Context, tenant openapi_types.UUID, body V1CelDebugJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1ConcurrencyStrategyList request
+	V1ConcurrencyStrategyList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1ConcurrencyKeyList request
+	V1ConcurrencyKeyList(ctx context.Context, tenant openapi_types.UUID, scope V1ConcurrencyScope, strategy int64, params *V1ConcurrencyKeyListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1DurableTaskBranchWithBody request with any body
 	V1DurableTaskBranchWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -4749,6 +4971,18 @@ func (c *Client) V1ServerlessEndpointUpdate(ctx context.Context, v1ServerlessEnd
 	return c.Client.Do(req)
 }
 
+func (c *Client) V1ServerlessEndpointEventList(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, params *V1ServerlessEndpointEventListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1ServerlessEndpointEventListRequest(c.Server, v1ServerlessEndpoint, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) V1TaskGet(ctx context.Context, task openapi_types.UUID, params *V1TaskGetParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1TaskGetRequest(c.Server, task, params)
 	if err != nil {
@@ -4811,6 +5045,30 @@ func (c *Client) V1CelDebugWithBody(ctx context.Context, tenant openapi_types.UU
 
 func (c *Client) V1CelDebug(ctx context.Context, tenant openapi_types.UUID, body V1CelDebugJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1CelDebugRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1ConcurrencyStrategyList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1ConcurrencyStrategyListRequest(c.Server, tenant)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1ConcurrencyKeyList(ctx context.Context, tenant openapi_types.UUID, scope V1ConcurrencyScope, strategy int64, params *V1ConcurrencyKeyListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1ConcurrencyKeyListRequest(c.Server, tenant, scope, strategy, params)
 	if err != nil {
 		return nil, err
 	}
@@ -7482,6 +7740,78 @@ func NewV1ServerlessEndpointUpdateRequestWithBody(server string, v1ServerlessEnd
 	return req, nil
 }
 
+// NewV1ServerlessEndpointEventListRequest generates requests for V1ServerlessEndpointEventList
+func NewV1ServerlessEndpointEventListRequest(server string, v1ServerlessEndpoint openapi_types.UUID, params *V1ServerlessEndpointEventListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "v1-serverless-endpoint", runtime.ParamLocationPath, v1ServerlessEndpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/serverless/endpoints/%s/events", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Since != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "since", runtime.ParamLocationQuery, *params.Since); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewV1TaskGetRequest generates requests for V1TaskGet
 func NewV1TaskGetRequest(server string, task openapi_types.UUID, params *V1TaskGetParams) (*http.Request, error) {
 	var err error
@@ -7839,6 +8169,158 @@ func NewV1CelDebugRequestWithBody(server string, tenant openapi_types.UUID, cont
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV1ConcurrencyStrategyListRequest generates requests for V1ConcurrencyStrategyList
+func NewV1ConcurrencyStrategyListRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/concurrency/strategies", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1ConcurrencyKeyListRequest generates requests for V1ConcurrencyKeyList
+func NewV1ConcurrencyKeyListRequest(server string, tenant openapi_types.UUID, scope V1ConcurrencyScope, strategy int64, params *V1ConcurrencyKeyListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "scope", runtime.ParamLocationPath, scope)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithLocation("simple", false, "strategy", runtime.ParamLocationPath, strategy)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/concurrency/strategies/%s/%s/keys", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Search != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "search", runtime.ParamLocationQuery, *params.Search); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.OnlyQueued != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "onlyQueued", runtime.ParamLocationQuery, *params.OnlyQueued); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -15888,6 +16370,9 @@ type ClientWithResponsesInterface interface {
 
 	V1ServerlessEndpointUpdateWithResponse(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, body V1ServerlessEndpointUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointUpdateResponse, error)
 
+	// V1ServerlessEndpointEventListWithResponse request
+	V1ServerlessEndpointEventListWithResponse(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, params *V1ServerlessEndpointEventListParams, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointEventListResponse, error)
+
 	// V1TaskGetWithResponse request
 	V1TaskGetWithResponse(ctx context.Context, task openapi_types.UUID, params *V1TaskGetParams, reqEditors ...RequestEditorFn) (*V1TaskGetResponse, error)
 
@@ -15904,6 +16389,12 @@ type ClientWithResponsesInterface interface {
 	V1CelDebugWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1CelDebugResponse, error)
 
 	V1CelDebugWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1CelDebugJSONRequestBody, reqEditors ...RequestEditorFn) (*V1CelDebugResponse, error)
+
+	// V1ConcurrencyStrategyListWithResponse request
+	V1ConcurrencyStrategyListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1ConcurrencyStrategyListResponse, error)
+
+	// V1ConcurrencyKeyListWithResponse request
+	V1ConcurrencyKeyListWithResponse(ctx context.Context, tenant openapi_types.UUID, scope V1ConcurrencyScope, strategy int64, params *V1ConcurrencyKeyListParams, reqEditors ...RequestEditorFn) (*V1ConcurrencyKeyListResponse, error)
 
 	// V1DurableTaskBranchWithBodyWithResponse request with any body
 	V1DurableTaskBranchWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1DurableTaskBranchResponse, error)
@@ -16812,6 +17303,32 @@ func (r V1ServerlessEndpointUpdateResponse) StatusCode() int {
 	return 0
 }
 
+type V1ServerlessEndpointEventListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1ServerlessEndpointEventList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+	JSON429      *TooManyRequests
+}
+
+// Status returns HTTPResponse.Status
+func (r V1ServerlessEndpointEventListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1ServerlessEndpointEventListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type V1TaskGetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -16936,6 +17453,55 @@ func (r V1CelDebugResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r V1CelDebugResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1ConcurrencyStrategyListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1ConcurrencyStrategyList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1ConcurrencyStrategyListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1ConcurrencyStrategyListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1ConcurrencyKeyListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1ConcurrencyKeyList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1ConcurrencyKeyListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1ConcurrencyKeyListResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -20405,6 +20971,15 @@ func (c *ClientWithResponses) V1ServerlessEndpointUpdateWithResponse(ctx context
 	return ParseV1ServerlessEndpointUpdateResponse(rsp)
 }
 
+// V1ServerlessEndpointEventListWithResponse request returning *V1ServerlessEndpointEventListResponse
+func (c *ClientWithResponses) V1ServerlessEndpointEventListWithResponse(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, params *V1ServerlessEndpointEventListParams, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointEventListResponse, error) {
+	rsp, err := c.V1ServerlessEndpointEventList(ctx, v1ServerlessEndpoint, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1ServerlessEndpointEventListResponse(rsp)
+}
+
 // V1TaskGetWithResponse request returning *V1TaskGetResponse
 func (c *ClientWithResponses) V1TaskGetWithResponse(ctx context.Context, task openapi_types.UUID, params *V1TaskGetParams, reqEditors ...RequestEditorFn) (*V1TaskGetResponse, error) {
 	rsp, err := c.V1TaskGet(ctx, task, params, reqEditors...)
@@ -20456,6 +21031,24 @@ func (c *ClientWithResponses) V1CelDebugWithResponse(ctx context.Context, tenant
 		return nil, err
 	}
 	return ParseV1CelDebugResponse(rsp)
+}
+
+// V1ConcurrencyStrategyListWithResponse request returning *V1ConcurrencyStrategyListResponse
+func (c *ClientWithResponses) V1ConcurrencyStrategyListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1ConcurrencyStrategyListResponse, error) {
+	rsp, err := c.V1ConcurrencyStrategyList(ctx, tenant, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1ConcurrencyStrategyListResponse(rsp)
+}
+
+// V1ConcurrencyKeyListWithResponse request returning *V1ConcurrencyKeyListResponse
+func (c *ClientWithResponses) V1ConcurrencyKeyListWithResponse(ctx context.Context, tenant openapi_types.UUID, scope V1ConcurrencyScope, strategy int64, params *V1ConcurrencyKeyListParams, reqEditors ...RequestEditorFn) (*V1ConcurrencyKeyListResponse, error) {
+	rsp, err := c.V1ConcurrencyKeyList(ctx, tenant, scope, strategy, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1ConcurrencyKeyListResponse(rsp)
 }
 
 // V1DurableTaskBranchWithBodyWithResponse request with arbitrary body returning *V1DurableTaskBranchResponse
@@ -22702,6 +23295,60 @@ func ParseV1ServerlessEndpointUpdateResponse(rsp *http.Response) (*V1ServerlessE
 	return response, nil
 }
 
+// ParseV1ServerlessEndpointEventListResponse parses an HTTP response from a V1ServerlessEndpointEventListWithResponse call
+func ParseV1ServerlessEndpointEventListResponse(rsp *http.Response) (*V1ServerlessEndpointEventListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1ServerlessEndpointEventListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1ServerlessEndpointEventList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseV1TaskGetResponse parses an HTTP response from a V1TaskGetWithResponse call
 func ParseV1TaskGetResponse(rsp *http.Response) (*V1TaskGetResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -22966,6 +23613,93 @@ func ParseV1CelDebugResponse(rsp *http.Response) (*V1CelDebugResponse, error) {
 			return nil, err
 		}
 		response.JSON429 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1ConcurrencyStrategyListResponse parses an HTTP response from a V1ConcurrencyStrategyListWithResponse call
+func ParseV1ConcurrencyStrategyListResponse(rsp *http.Response) (*V1ConcurrencyStrategyListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1ConcurrencyStrategyListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1ConcurrencyStrategyList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1ConcurrencyKeyListResponse parses an HTTP response from a V1ConcurrencyKeyListWithResponse call
+func ParseV1ConcurrencyKeyListResponse(rsp *http.Response) (*V1ConcurrencyKeyListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1ConcurrencyKeyListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1ConcurrencyKeyList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 

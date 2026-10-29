@@ -1,8 +1,8 @@
 {
   "name": "@hatchet-dev/typescript-sdk",
-  "version": "1.44.1",
+  "version": "1.45.0",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "description": "Background task orchestration & visibility for developers",
   "types": "index.d.ts",
@@ -197,9 +197,9 @@
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.15.0",
-    "@connectrpc/connect": "~2.1.2",
-    "@connectrpc/connect-node": "~2.1.2",
-    "@connectrpc/connect-web": "~2.1.2",
+    "@connectrpc/connect": "~2.3.0",
+    "@connectrpc/connect-node": "~2.3.0",
+    "@connectrpc/connect-web": "~2.3.0",
     "@types/qs": "^6.15.0",
     "abort-controller-x": "^0.5.0",
     "axios": "^1.15.2",

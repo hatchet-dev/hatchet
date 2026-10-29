@@ -1,6 +1,7 @@
 import { config } from './config';
 import { NotFound } from './pages/error/components/not-found';
 import ErrorBoundary from './pages/error/index.tsx';
+import { concurrencySearchSchema } from './pages/main/v1/concurrency/search';
 import Root from './pages/root.tsx';
 import { userUniverseQuery } from './providers/user-universe';
 import api, { TenantMember } from '@/lib/api';
@@ -558,6 +559,16 @@ const tenantStreamsRoute = createRoute({
   ),
 });
 
+export const tenantConcurrencyRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'concurrency',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/concurrency'),
+    'default',
+  ),
+  validateSearch: concurrencySearchSchema,
+});
+
 const tenantScheduledRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'scheduled',
@@ -681,6 +692,24 @@ const tenantWorkerRoute = createRoute({
   path: 'workers/$worker',
   component: lazyRouteComponent(
     () => import('./pages/main/v1/workers/$worker'),
+    'default',
+  ),
+});
+
+const tenantEndpointsRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'endpoints',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/endpoints'),
+    'default',
+  ),
+});
+
+const tenantEndpointRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'endpoints/$endpoint',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/endpoints/$endpoint'),
     'default',
   ),
 });
@@ -1092,6 +1121,7 @@ const tenantRoutes = [
   tenantWebhooksRoute,
   tenantRateLimitsRoute,
   tenantStreamsRoute,
+  tenantConcurrencyRoute,
   tenantScheduledRoute,
   tenantCronJobsRoute,
   tenantWorkflowsRoute,
@@ -1104,6 +1134,8 @@ const tenantRoutes = [
   tenantWorkersRoute,
   tenantWorkersAllRoute,
   tenantWorkerRoute,
+  tenantEndpointsRoute,
+  tenantEndpointRoute,
   tenantManagedWorkersRoute,
   tenantManagedWorkersTemplateRoute,
   tenantManagedWorkersCreateRoute,
@@ -1243,6 +1275,7 @@ export const appRoutes = {
   tenantWebhooksRoute,
   tenantRateLimitsRoute,
   tenantStreamsRoute,
+  tenantConcurrencyRoute,
   tenantScheduledRoute,
   tenantCronJobsRoute,
   tenantWorkflowsRoute,
@@ -1255,6 +1288,8 @@ export const appRoutes = {
   tenantWorkersRoute,
   tenantWorkersAllRoute,
   tenantWorkerRoute,
+  tenantEndpointsRoute,
+  tenantEndpointRoute,
   tenantManagedWorkersRoute,
   tenantManagedWorkersTemplateRoute,
   tenantManagedWorkersCreateRoute,

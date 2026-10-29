@@ -8,7 +8,9 @@ import {
   RiStackLine,
   RiWebhookLine,
   RiCpuLine,
+  RiCloudLine,
   RiEqualizer3Line,
+  RiLock2Line,
   RiFunctionLine,
   RiPlayLargeLine,
   RiFileTextLine,
@@ -22,7 +24,9 @@ export function sideNavItems(opts: {
   isControlPlaneEnabled?: boolean;
   orgId?: string;
   hasManagedWorkers?: boolean;
+  hasServerlessEndpoints?: boolean;
   hasDurableStreams?: boolean;
+  isConcurrencyEnabled?: boolean;
 }): SideNavSection[] {
   return [
     {
@@ -215,6 +219,20 @@ export function sideNavItems(opts: {
             />
           ),
         },
+        ...(opts.hasServerlessEndpoints
+          ? [
+              {
+                key: 'endpoints',
+                name: 'Endpoints',
+                to: appRoutes.tenantEndpointsRoute.to,
+                icon: ({ collapsed }: { collapsed: boolean }) => (
+                  <RiCloudLine
+                    className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+                  />
+                ),
+              },
+            ]
+          : []),
         {
           key: 'workflows',
           name: 'Workflows',
@@ -249,6 +267,20 @@ export function sideNavItems(opts: {
             />
           ),
         },
+        ...(opts.isConcurrencyEnabled
+          ? [
+              {
+                key: 'concurrency',
+                name: 'Concurrency',
+                to: appRoutes.tenantConcurrencyRoute.to,
+                icon: ({ collapsed }: { collapsed: boolean }) => (
+                  <RiLock2Line
+                    className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+                  />
+                ),
+              },
+            ]
+          : []),
         {
           key: 'filters',
           name: 'Filters',

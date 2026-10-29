@@ -1260,6 +1260,7 @@ SELECT
     i.payload_reference_id
 FROM inputs i
 LEFT JOIN dag_statuses ds ON (i.id, i.inserted_at) = (ds.id, ds.inserted_at)
+ORDER BY i.inserted_at, i.id
 ON CONFLICT (inserted_at, id) DO UPDATE SET
     readable_status = CASE
         WHEN v1_status_to_priority(EXCLUDED.readable_status) > v1_status_to_priority(v1_dags_olap.readable_status)

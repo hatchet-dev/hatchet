@@ -131,13 +131,24 @@ WHERE
     workers."tenantId" = @tenantId
     AND (
         COALESCE(sqlc.narg('includeOperators')::boolean, FALSE)
-        OR NOT EXISTS (
-            -- hide dag operators
-            SELECT 1
-            FROM v1_operator op
-            WHERE
-                op.id = workers."operatorId"
-                AND op.kind = 'DAG'
+        OR (
+            NOT EXISTS (
+                -- hide dag operators
+                SELECT 1
+                FROM v1_operator op
+                WHERE
+                    op.id = workers."operatorId"
+                    AND op.kind = 'DAG'
+            )
+            AND NOT EXISTS (
+                -- hide the serverless operator's workers, which carry its process label
+                -- (workerLabelProcess in pkg/serverlessoperator)
+                SELECT 1
+                FROM "WorkerLabel" wl
+                WHERE
+                    wl."workerId" = workers."id"
+                    AND wl."key" = 'hatchet-serverless-process'
+            )
         )
     )
     AND (
@@ -211,13 +222,24 @@ WHERE
     workers."tenantId" = @tenantId
     AND (
         COALESCE(sqlc.narg('includeOperators')::boolean, FALSE)
-        OR NOT EXISTS (
-            -- hide dag operators
-            SELECT 1
-            FROM v1_operator op
-            WHERE
-                op.id = workers."operatorId"
-                AND op.kind = 'DAG'
+        OR (
+            NOT EXISTS (
+                -- hide dag operators
+                SELECT 1
+                FROM v1_operator op
+                WHERE
+                    op.id = workers."operatorId"
+                    AND op.kind = 'DAG'
+            )
+            AND NOT EXISTS (
+                -- hide the serverless operator's workers, which carry its process label
+                -- (workerLabelProcess in pkg/serverlessoperator)
+                SELECT 1
+                FROM "WorkerLabel" wl
+                WHERE
+                    wl."workerId" = workers."id"
+                    AND wl."key" = 'hatchet-serverless-process'
+            )
         )
     )
     AND (
