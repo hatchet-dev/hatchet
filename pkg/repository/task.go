@@ -1545,24 +1545,12 @@ func tasksForDispatchFromRows(rows []*sqlcv1.ListTasksForDispatchRow) *TasksForD
 
 		task := row.V1Task
 
-		if row.PayloadID.Valid {
-			payloadRow := &sqlcv1.V1Payload{
-				TenantID:            task.TenantID,
-				ID:                  row.PayloadID.Int64,
-				ExternalID:          *row.PayloadExternalID,
-				InsertedAt:          row.PayloadInsertedAt,
-				Type:                row.PayloadType.V1PayloadType,
-				Location:            row.PayloadLocation.V1PayloadLocation,
-				ExternalLocationKey: row.PayloadExternalLocationKey,
-				InlineContent:       row.PayloadInlineContent,
-				UpdatedAt:           row.PayloadUpdatedAt,
-			}
-
-			key := payloadUniqueKeyFromRow(payloadRow)
+		if row.V1Payload != nil {
+			key := payloadUniqueKeyFromRow(row.V1Payload)
 
 			if _, seen := seenPayloadRows[key]; !seen {
 				seenPayloadRows[key] = struct{}{}
-				res.PayloadRows = append(res.PayloadRows, payloadRow)
+				res.PayloadRows = append(res.PayloadRows, row.V1Payload)
 			}
 		}
 
@@ -1573,19 +1561,7 @@ func tasksForDispatchFromRows(rows []*sqlcv1.ListTasksForDispatchRow) *TasksForD
 		seenTasks[task.ID] = struct{}{}
 		res.Tasks = append(res.Tasks, &task)
 
-		res.Runtimes[task.ID] = &sqlcv1.V1TaskRuntime{
-			TaskID:         task.ID,
-			TaskInsertedAt: task.InsertedAt,
-			RetryCount:     task.RetryCount,
-			WorkerID:       row.RuntimeWorkerID,
-			BatchID:        row.RuntimeBatchID,
-			BatchSize:      row.RuntimeBatchSize,
-			BatchIndex:     row.RuntimeBatchIndex,
-			BatchKey:       row.RuntimeBatchKey,
-			TenantID:       task.TenantID,
-			TimeoutAt:      row.RuntimeTimeoutAt,
-			EvictedAt:      row.RuntimeEvictedAt,
-		}
+		res.Runtimes[task.ID] = &row.V1TaskRuntime
 	}
 
 	return res

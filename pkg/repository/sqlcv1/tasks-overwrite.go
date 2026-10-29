@@ -1225,13 +1225,7 @@ func (q *Queries) ListDurableOrchestratorChildTaskExternalIds(ctx context.Contex
 const listTasksForDispatch = `-- name: ListTasksForDispatch :many
 SELECT
     v1_task.id, v1_task.inserted_at, v1_task.tenant_id, v1_task.queue, v1_task.action_id, v1_task.step_id, v1_task.step_readable_id, v1_task.workflow_id, v1_task.workflow_version_id, v1_task.workflow_run_id, v1_task.schedule_timeout, v1_task.step_timeout, v1_task.priority, v1_task.sticky, v1_task.desired_worker_id, v1_task.external_id, v1_task.display_name, v1_task.input, v1_task.retry_count, v1_task.internal_retry_count, v1_task.app_retry_count, v1_task.step_index, v1_task.additional_metadata, v1_task.dag_id, v1_task.dag_inserted_at, v1_task.parent_task_external_id, v1_task.parent_task_id, v1_task.parent_task_inserted_at, v1_task.child_index, v1_task.child_key, v1_task.initial_state, v1_task.initial_state_reason, v1_task.concurrency_parent_strategy_ids, v1_task.concurrency_strategy_ids, v1_task.concurrency_keys, v1_task.batch_key, v1_task.retry_backoff_factor, v1_task.retry_max_backoff, v1_task.is_durable, v1_task.desired_worker_label, v1_task.triggering_event_external_id, v1_task.triggering_event_key, v1_task.idempotency_key, v1_task.is_dag_orchestrator, v1_task.concurrency_max_runs, v1_task.payload_reference_id, v1_task.triggers, v1_task.dag_parent_task_run_ids, v1_task.child_task_desired_worker_labels, v1_task.task_input_payload_version,
-    tr.worker_id AS runtime_worker_id,
-    tr.batch_id AS runtime_batch_id,
-    tr.batch_size AS runtime_batch_size,
-    tr.batch_index AS runtime_batch_index,
-    tr.batch_key AS runtime_batch_key,
-    tr.timeout_at AS runtime_timeout_at,
-    tr.evicted_at AS runtime_evicted_at,
+    tr.task_id, tr.task_inserted_at, tr.retry_count, tr.worker_id, tr.batch_id, tr.batch_size, tr.batch_index, tr.batch_key, tr.tenant_id, tr.timeout_at, tr.evicted_at, tr.assigned_at, tr.acked_at,
     p.id AS payload_id,
     p.inserted_at AS payload_inserted_at,
     p.external_id AS payload_external_id,
@@ -1257,25 +1251,12 @@ LEFT JOIN LATERAL read_payloads(
 `
 
 // ListTasksForDispatchRow is one task of the dispatcher's pre-send read with its runtime row and one
-// v1_payload row holding its input (NULL payload columns when the task has none). The row type is
+// v1_payload row holding its input (nil V1Payload when the task has none). The row type is
 // hand-written because sqlc types the columns of a LEFT JOIN LATERAL function as NOT NULL.
 type ListTasksForDispatchRow struct {
-	V1Task                     V1Task                `json:"v1_task"`
-	RuntimeWorkerID            *uuid.UUID            `json:"runtime_worker_id"`
-	RuntimeBatchID             *uuid.UUID            `json:"runtime_batch_id"`
-	RuntimeBatchSize           pgtype.Int4           `json:"runtime_batch_size"`
-	RuntimeBatchIndex          pgtype.Int4           `json:"runtime_batch_index"`
-	RuntimeBatchKey            pgtype.Text           `json:"runtime_batch_key"`
-	RuntimeTimeoutAt           pgtype.Timestamp      `json:"runtime_timeout_at"`
-	RuntimeEvictedAt           pgtype.Timestamptz    `json:"runtime_evicted_at"`
-	PayloadID                  pgtype.Int8           `json:"payload_id"`
-	PayloadInsertedAt          pgtype.Timestamptz    `json:"payload_inserted_at"`
-	PayloadExternalID          *uuid.UUID            `json:"payload_external_id"`
-	PayloadType                NullV1PayloadType     `json:"payload_type"`
-	PayloadLocation            NullV1PayloadLocation `json:"payload_location"`
-	PayloadExternalLocationKey pgtype.Text           `json:"payload_external_location_key"`
-	PayloadInlineContent       []byte                `json:"payload_inline_content"`
-	PayloadUpdatedAt           pgtype.Timestamptz    `json:"payload_updated_at"`
+	V1Task        V1Task        `json:"v1_task"`
+	V1TaskRuntime V1TaskRuntime `json:"v1_task_runtime"`
+	V1Payload     *V1Payload    `json:"v1_payload"`
 }
 
 // ListTasksForDispatch is the dispatcher's pre-send read: for every id in ids, the task row, its
@@ -1294,7 +1275,7 @@ type ListTasksForDispatchRow struct {
 // read_payloads stays the one place that knows where an inline payload row lives; it is inlined per
 // task with one-element arrays, and a zero uuid stands for a task without a payload_reference_id, so
 // every row it returns belongs to that task and the join needs no matching condition. A task appears
-// once per payload row returned for it, and once with NULL payload columns when it has none.
+// once per payload row returned for it, and once with a nil V1Payload when it has none.
 func (q *Queries) ListTasksForDispatch(ctx context.Context, db DBTX, tenantId uuid.UUID, ids []int64) ([]*ListTasksForDispatchRow, error) {
 	rows, err := db.Query(ctx, listTasksForDispatch, tenantId, ids)
 	if err != nil {
@@ -1303,7 +1284,17 @@ func (q *Queries) ListTasksForDispatch(ctx context.Context, db DBTX, tenantId uu
 	defer rows.Close()
 	items := make([]*ListTasksForDispatchRow, 0, len(ids))
 	for rows.Next() {
-		var i ListTasksForDispatchRow
+		var (
+			i                          ListTasksForDispatchRow
+			payloadID                  pgtype.Int8
+			payloadInsertedAt          pgtype.Timestamptz
+			payloadExternalID          *uuid.UUID
+			payloadType                NullV1PayloadType
+			payloadLocation            NullV1PayloadLocation
+			payloadExternalLocationKey pgtype.Text
+			payloadInlineContent       []byte
+			payloadUpdatedAt           pgtype.Timestamptz
+		)
 		if err := rows.Scan(
 			&i.V1Task.ID,
 			&i.V1Task.InsertedAt,
@@ -1355,23 +1346,42 @@ func (q *Queries) ListTasksForDispatch(ctx context.Context, db DBTX, tenantId uu
 			&i.V1Task.DagParentTaskRunIds,
 			&i.V1Task.ChildTaskDesiredWorkerLabels,
 			&i.V1Task.TaskInputPayloadVersion,
-			&i.RuntimeWorkerID,
-			&i.RuntimeBatchID,
-			&i.RuntimeBatchSize,
-			&i.RuntimeBatchIndex,
-			&i.RuntimeBatchKey,
-			&i.RuntimeTimeoutAt,
-			&i.RuntimeEvictedAt,
-			&i.PayloadID,
-			&i.PayloadInsertedAt,
-			&i.PayloadExternalID,
-			&i.PayloadType,
-			&i.PayloadLocation,
-			&i.PayloadExternalLocationKey,
-			&i.PayloadInlineContent,
-			&i.PayloadUpdatedAt,
+			&i.V1TaskRuntime.TaskID,
+			&i.V1TaskRuntime.TaskInsertedAt,
+			&i.V1TaskRuntime.RetryCount,
+			&i.V1TaskRuntime.WorkerID,
+			&i.V1TaskRuntime.BatchID,
+			&i.V1TaskRuntime.BatchSize,
+			&i.V1TaskRuntime.BatchIndex,
+			&i.V1TaskRuntime.BatchKey,
+			&i.V1TaskRuntime.TenantID,
+			&i.V1TaskRuntime.TimeoutAt,
+			&i.V1TaskRuntime.EvictedAt,
+			&i.V1TaskRuntime.AssignedAt,
+			&i.V1TaskRuntime.AckedAt,
+			&payloadID,
+			&payloadInsertedAt,
+			&payloadExternalID,
+			&payloadType,
+			&payloadLocation,
+			&payloadExternalLocationKey,
+			&payloadInlineContent,
+			&payloadUpdatedAt,
 		); err != nil {
 			return nil, err
+		}
+		if payloadID.Valid {
+			i.V1Payload = &V1Payload{
+				TenantID:            i.V1Task.TenantID,
+				ID:                  payloadID.Int64,
+				InsertedAt:          payloadInsertedAt,
+				ExternalID:          *payloadExternalID,
+				Type:                payloadType.V1PayloadType,
+				Location:            payloadLocation.V1PayloadLocation,
+				ExternalLocationKey: payloadExternalLocationKey,
+				InlineContent:       payloadInlineContent,
+				UpdatedAt:           payloadUpdatedAt,
+			}
 		}
 		items = append(items, &i)
 	}
