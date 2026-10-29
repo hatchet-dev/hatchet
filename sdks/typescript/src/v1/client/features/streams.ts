@@ -83,7 +83,7 @@ function shouldResubscribe(err: unknown, attempt: number): boolean {
 export type StreamEvent = {
   /** the message payload */
   payload: Uint8Array;
-  /** resumes events() right after this event */
+  /** resumes subscribe() right after this event */
   cursor: string;
   /** when the message was stored */
   createdAt?: Date;
@@ -356,7 +356,7 @@ export class StreamsClient {
   }
 
   /**
-   * Makes events() calls without a cursor start after options.cursor, or the
+   * Makes subscribe() calls without a cursor start after options.cursor, or the
    * topic's latest message. Readers already iterating, and any call with a
    * cursor, are unaffected.
    * @param topic - the topic to reset
@@ -370,6 +370,15 @@ export class StreamsClient {
   }
 
   /**
+   * An alias of subscribe(), which replaces it; events() will be removed in a future release.
+   * @param topic - the topic to read from
+   * @param options - optional namespace override, resume cursor, and abort signal
+   */
+  events(topic: string, options?: StreamCallOptions): AsyncIterable<StreamEvent> {
+    return this.subscribe(topic, options);
+  }
+
+  /**
    * Yields topic's messages after options.cursor, or from the oldest retained
    * (or, once the topic is reset, after the reset).
    * If the connection drops, it resubscribes from the last message yielded, so
@@ -379,7 +388,7 @@ export class StreamsClient {
    * @param topic - the topic to read from
    * @param options - optional namespace override, resume cursor, and abort signal
    */
-  async *events(topic: string, options?: StreamCallOptions): AsyncIterable<StreamEvent> {
+  async *subscribe(topic: string, options?: StreamCallOptions): AsyncIterable<StreamEvent> {
     const namespace = options?.namespace ?? '';
     const signal = options?.signal;
     let { cursor } = options ?? {};

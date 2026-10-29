@@ -9,6 +9,7 @@
     "rate_limits",
     "runs",
     "scheduled",
+    "streams",
     "tenant",
     "workers",
     "workflows"

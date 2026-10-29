@@ -171,6 +171,10 @@ from examples.durable_eviction.worker import (
 from examples.durable_eviction.worker import (
     child_task as eviction_child_task,
 )
+from examples.durable_streams.worker import (
+    durable_streams_progress,
+    durable_streams_retrying_progress,
+)
 from examples.events.worker import event_workflow
 from examples.fanout.worker import child_wf, parent_wf
 from examples.fanout_sync.worker import sync_fanout_child, sync_fanout_parent
@@ -228,6 +232,8 @@ def main() -> None:
         slots=250,
         workflows=[
             affinity_worker_workflow,
+            durable_streams_progress,
+            durable_streams_retrying_progress,
             batch_simple,
             batch_keyed,
             batch_keyed_interval,

@@ -170,7 +170,7 @@ export class ServerlessRuntime implements ContextRuntime {
 
   /**
    * The task's view of the handler's client (`clientFromContext(ctx)`): the client with
-   * `streams.events` and `runs.events` reading over the invocation socket, which throw over a
+   * `streams.subscribe` and `runs.events` reading over the invocation socket, which throw over a
    * POST. One view per invocation; the same errors as `client()` without a client.
    */
   taskClient(feature: string): TaskClient {
@@ -333,7 +333,7 @@ export class ServerlessRuntime implements ContextRuntime {
  * The handler's Hatchet client from a task's context, for the engine calls `ctx` has no
  * member for: publishing to a durable stream (`client.streams.publish`), pushing an event,
  * triggering an unrelated run. It is the `HatchetCore` with two members the unary client
- * lacks, `client.streams.events(topic)` and `client.runs.events(runId)`, which read engine
+ * lacks, `client.streams.subscribe(topic)` and `client.runs.events(runId)`, which read engine
  * streams over the invocation socket and throw in a task delivered over a POST. Throws
  * `ServerlessLimitationError` when the handler has no `client` option, when the task is
  * declared with `hatchetClient: false`, and when the context did not come from a serverless

@@ -175,7 +175,7 @@ export interface RunStreamScript {
     request: SubscribeToWorkflowEventsRequest
   ) => WorkflowEvent[] | Promise<WorkflowEvent[]>;
   /**
-   * Answers a subscription to a durable stream topic (`client.streams.events(topic)`) with
+   * Answers a subscription to a durable stream topic (`client.streams.subscribe(topic)`) with
    * the script to play on it. Without one the subscription stays open with no messages until
    * the task closes it, as the engine does for a topic nothing was published to. A rejection
    * closes the stream the way `workflowRun` does: `{ code: 7 }` is the engine refusing a

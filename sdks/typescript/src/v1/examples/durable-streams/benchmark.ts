@@ -99,7 +99,7 @@ export async function openLiveSubscription(
   let onEvent: ((ev: StreamEvent) => void) | undefined;
 
   const consumer = (async () => {
-    for await (const ev of hatchet.streams.events(topic, { signal: abort.signal })) {
+    for await (const ev of hatchet.streams.subscribe(topic, { signal: abort.signal })) {
       onEvent?.(ev);
     }
   })();
