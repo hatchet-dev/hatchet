@@ -1941,8 +1941,6 @@ type V1SandboxProviderKind string
 
 const (
 	V1SandboxProviderKindE2B       V1SandboxProviderKind = "E2B"
-	V1SandboxProviderKindDAYTONA   V1SandboxProviderKind = "DAYTONA"
-	V1SandboxProviderKindMODAL     V1SandboxProviderKind = "MODAL"
 	V1SandboxProviderKindSUPABASE  V1SandboxProviderKind = "SUPABASE"
 	V1SandboxProviderKindARCHIL    V1SandboxProviderKind = "ARCHIL"
 	V1SandboxProviderKindFREESTYLE V1SandboxProviderKind = "FREESTYLE"

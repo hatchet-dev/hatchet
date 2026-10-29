@@ -1,7 +1,7 @@
 -- +goose Up
 -- +goose StatementBegin
 
-CREATE TYPE v1_sandbox_provider_kind AS ENUM ('E2B', 'DAYTONA', 'MODAL', 'SUPABASE', 'ARCHIL', 'FREESTYLE');
+CREATE TYPE v1_sandbox_provider_kind AS ENUM ('E2B', 'SUPABASE', 'ARCHIL', 'FREESTYLE');
 
 CREATE TABLE v1_sandbox_provider (
     id UUID NOT NULL DEFAULT gen_random_uuid(),
