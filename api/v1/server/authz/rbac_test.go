@@ -57,6 +57,8 @@ var memberOnlyOps = []string{
 	"V1FilterDelete",
 	"V1FilterUpdate",
 	"SlackWebhookDelete",
+	"UserUpdateSlackOauthStart",
+	"UserUpdateSlackOauthCallback",
 	"TenantMemberDelete",
 	"WorkflowScheduledDelete",
 	"WorkflowScheduledUpdate",
@@ -135,6 +137,8 @@ func TestAuthorizeTenantOperationsViewerRepresentativeSample(t *testing.T) {
 		"TenantUpdate",
 		"TenantMemberDelete",
 		"TenantCreate",
+		"UserUpdateSlackOauthStart",
+		"UserUpdateSlackOauthCallback",
 	}
 	for _, operationId := range deniedForViewer {
 		assert.False(t, r.IsAuthorized(string(sqlcv1.TenantMemberRoleVIEWER), operationId), "operationId: %s", operationId)

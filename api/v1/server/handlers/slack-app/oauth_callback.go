@@ -10,6 +10,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/redirect"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 // Note: we want all errors to redirect, otherwise the user will be greeted with raw JSON in the middle of the login flow.
@@ -40,6 +41,20 @@ func (g *SlackAppService) UserUpdateSlackOauthCallback(ctx echo.Context, _ gen.U
 
 	if err != nil || !isValid {
 		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Could not link Slack account. Please try again and make sure cookies are enabled.")
+	}
+
+	// The callback route has no tenant path parameter, so the RBAC middleware cannot check the
+	// role; the tenant comes from the session and must be authorized here.
+	user, ok := ctx.Get("user").(*sqlcv1.User)
+
+	if !ok {
+		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, nil, "Could not link Slack account. Please sign in and try again.")
+	}
+
+	tenantMember, err := g.config.V1.Tenant().GetTenantMemberByUserID(ctx.Request().Context(), *tenantId, user.ID)
+
+	if err != nil || tenantMember == nil || tenantMember.Role == sqlcv1.TenantMemberRoleVIEWER {
+		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Forbidden")
 	}
 
 	resp, err := slack.GetOAuthV2ResponseContext(

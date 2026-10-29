@@ -38,7 +38,7 @@ func TestBearerTokenPermissions(t *testing.T) {
 		config.Auth.AllowedWriteOperations = []string{"WorkflowRunCreate"}
 		auth, err := NewAuthZ(config)
 		require.NoError(t, err)
-		for _, op := range append([]string{"WorkflowRunList", "V1CelDebug", "WorkflowRunCreate", "V1TaskCancel", "EventCreate"}, restrictedWithBearerToken...) {
+		for _, op := range append([]string{"WorkflowRunList", "V1CelDebug", "WorkflowRunCreate", "V1TaskCancel", "EventCreate", "UserUpdateSlackOauthStart"}, restrictedWithBearerToken...) {
 			t.Run(op+map[bool]string{true: "/read-only", false: "/unrestricted"}[readOnly], func(t *testing.T) {
 				c := echo.New().NewContext(httptest.NewRequest("GET", "/", nil), httptest.NewRecorder())
 				c.Set(string(analytics.APITokenIDKey), uuid.New())

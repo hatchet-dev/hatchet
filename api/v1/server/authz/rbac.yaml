@@ -48,6 +48,8 @@ roles:
       - V1FilterDelete
       - V1FilterUpdate
       - SlackWebhookDelete
+      - UserUpdateSlackOauthStart
+      - UserUpdateSlackOauthCallback
       - TenantMemberDelete
       - WorkflowScheduledDelete
       - WorkflowScheduledUpdate
@@ -123,7 +125,6 @@ roles:
       - WebhookList
       - CloudMetadataGet
       - UserUpdateGoogleOauthCallback
-      - UserUpdateSlackOauthCallback
       - V1WorkflowRunDisplayNamesList
       - SlackWebhookList
       - V1TaskGet
@@ -144,7 +145,6 @@ roles:
       - V1FilterGet
       - TenantResourcePolicyGet
       - TenantEntitlementsGet
-      - UserUpdateSlackOauthStart
       - UserUpdateGoogleOauthStart
       - V1CelDebug
       - V1WorkflowRunGetTimings
