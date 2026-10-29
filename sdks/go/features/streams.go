@@ -630,11 +630,6 @@ func (s *StreamsClient) Subscribe(ctx context.Context, topic string, opts ...Str
 	}
 }
 
-// Events is an alias of Subscribe, which replaces it; Events will be removed in a future release.
-func (s *StreamsClient) Events(ctx context.Context, topic string, opts ...StreamCallOpt) iter.Seq2[StreamEvent, error] {
-	return s.Subscribe(ctx, topic, opts...)
-}
-
 // subscribeOnce yields one subscription's events, and reports whether the iteration is over.
 func (s *StreamsClient) subscribeOnce(ctx context.Context, sub *subscription, yield func(StreamEvent, error) bool) (bool, error) {
 	// cancels the stream when the caller stops iterating

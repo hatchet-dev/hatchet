@@ -270,9 +270,6 @@ module Hatchet
         end
       end
 
-      # An alias of {#subscribe}, which replaces it; +events+ will be removed in a future release.
-      alias events subscribe
-
       private
 
       def monotonic_now

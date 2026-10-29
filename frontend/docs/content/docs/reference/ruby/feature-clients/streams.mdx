@@ -21,7 +21,6 @@ Methods:
 | `topic_metadata` | Describe a topic's retained messages.                                                                               |
 | `reset`          | Make `subscribe` calls without a cursor start after `cursor`, or the topic's latest message.                        |
 | `subscribe`      | Read a topic's messages after `cursor`, or from the oldest retained (or, once the topic is reset, after the reset). |
-| `events`         | Read a topic's messages after `cursor`, or from the oldest retained (or, once the topic is reset, after the reset). |
 
 ### Functions
 
@@ -108,29 +107,6 @@ Parameters:
 | `topic`     | `String`        | The topic to read from.                                       | _required_ |
 | `namespace` | `String`        | The topic's namespace; the empty namespace by default.        | `""`       |
 | `cursor`    | `String \| nil` | A cursor read off a previous event, to resume right after it. | `nil`      |
-
-Returns:
-
-| Type                             | Description                                                 |
-| -------------------------------- | ----------------------------------------------------------- |
-| `Enumerator<StreamEvent> \| nil` | An enumerator of the topic's events when no block is given. |
-
-Raises:
-
-| Type              | Description                          |
-| ----------------- | ------------------------------------ |
-| `GRPC::BadStatus` | On an error a resubscribe can't fix. |
-
-#### `events`
-
-Read a topic's messages after `cursor`, or from the oldest retained (or, once the topic is reset, after the reset). If the connection drops, it resubscribes from the last message yielded, so nothing is skipped or repeated. Ends when the server hangs up an idle subscription or the block breaks; raises on errors a retry can't fix, such as an expired cursor. An alias of `subscribe`, which replaces it; `events` will be removed in a future release.
-
-```ruby
-hatchet.streams.subscribe("orders") do |event|
-  puts event.payload
-  break if event.payload == "done"
-end
-```
 
 Returns:
 

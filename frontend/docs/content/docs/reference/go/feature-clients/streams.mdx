@@ -14,35 +14,12 @@ Methods:
 
 | Name            | Description                                                                                                                                     |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Events`        | Events is an alias of Subscribe, which replaces it; Events will be removed in a future release.                                                 |
 | `Publish`       | Publish returns once the message is stored.                                                                                                     |
 | `Reset`         | Reset makes Subscribe calls without a cursor start after WithStreamCursor's message, or the topic's latest message.                             |
 | `Subscribe`     | Subscribe yields topic's messages after WithStreamCursor's message, or from the oldest retained (or, once the topic is reset, after the reset). |
 | `TopicMetadata` | TopicMetadata describes topic's retained messages.                                                                                              |
 
 ### Functions
-
-#### `Events`
-
-Events is an alias of Subscribe, which replaces it; Events will be removed in a future release.
-
-```go
-func (s *StreamsClient) Events(ctx context.Context, topic string, opts ...StreamCallOpt) iter.Seq2[StreamEvent, error]
-```
-
-Parameters:
-
-| Name    | Type               |
-| ------- | ------------------ |
-| `ctx`   | `context.Context`  |
-| `topic` | `string`           |
-| `opts`  | `...StreamCallOpt` |
-
-Returns:
-
-| Type                            |
-| ------------------------------- |
-| `iter.Seq2[StreamEvent, error]` |
 
 #### `Publish`
 

@@ -132,20 +132,6 @@ async def test_large_payload(hatchet: Hatchet) -> None:
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_events_alias(hatchet: Hatchet) -> None:
-    topic = scope("durable_streams_events_alias")
-
-    await hatchet.streams.publish(topic, "one")
-
-    received = []
-    async for event in hatchet.streams.events(topic):
-        received.append(event.payload.decode())
-        break
-
-    assert received == ["one"]
-
-
-@pytest.mark.asyncio(loop_scope="session")
 async def test_new_readers_skip_a_failed_attempt(hatchet: Hatchet) -> None:
     topic = scope("durable_streams_retry")
 

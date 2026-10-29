@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Adds `hatchet.streams`, a client for durable streams: topics that store messages independent of any run, which readers can resume from a cursor. `publish` returns once a message is stored, keeps a client's messages to a topic in call order, and batches publishes queued behind an in-flight request (`batch_timeout:` holds a message to gather more). Payloads over 4 MiB are uploaded over REST, up to 64 MiB. `subscribe` (aliased as `events`, which will be removed in a future release) reads a topic from the oldest retained message or a `cursor:`, yielding to a block or returning an `Enumerator`, and resubscribes from the last event read when the connection drops. `reset` starts new readers after the latest message or a given cursor, and `topic_metadata` describes a topic's retained messages.
+- Adds `hatchet.streams`, a client for durable streams: topics that store messages independent of any run, which readers can resume from a cursor. `publish` returns once a message is stored, keeps a client's messages to a topic in call order, and batches publishes queued behind an in-flight request (`batch_timeout:` holds a message to gather more). Payloads over 4 MiB are uploaded over REST, up to 64 MiB. `subscribe` reads a topic from the oldest retained message or a `cursor:`, yielding to a block or returning an `Enumerator`, and resubscribes from the last event read when the connection drops. `reset` starts new readers after the latest message or a given cursor, and `topic_metadata` describes a topic's retained messages.
 
 ## [0.11.2] - 2026-10-27
 

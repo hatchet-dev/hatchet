@@ -564,6 +564,8 @@ class StreamsClient(BaseRestClient):
         :param batch_timeout: How long the message may wait for later publishes to the same topic to share its request, bounding the latency batching adds. By default, it is sent as soon as no other request to the topic is in flight.
 
         :return: None
+
+        :raises ValueError: The payload is empty or over 64 MiB, or `batch_timeout` is negative.
         """
         payload = message.encode() if isinstance(message, str) else bytes(message)
 
@@ -681,20 +683,6 @@ class StreamsClient(BaseRestClient):
         :return: None
         """
         await asyncio.to_thread(self.reset, topic, namespace, cursor)
-
-    def events(
-        self, topic: str, namespace: str = "", cursor: str | None = None
-    ) -> AsyncGenerator[StreamEvent, None]:
-        """
-        An alias of `subscribe`, which replaces it; `events` will be removed in a future release.
-
-        :param topic: The topic to read from.
-        :param namespace: The topic's namespace; the empty namespace by default.
-        :param cursor: A cursor read off a previous event, to resume right after it.
-
-        :return: An async iterator of the topic's events.
-        """
-        return self.subscribe(topic, namespace, cursor)
 
     async def subscribe(
         self, topic: str, namespace: str = "", cursor: str | None = None

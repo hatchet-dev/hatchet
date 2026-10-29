@@ -34,7 +34,6 @@ module Hatchet
       def reset: (String topic, ?namespace: String, ?cursor: String?) -> void
       def subscribe: (String topic, ?namespace: String, ?cursor: String?) { (StreamEvent) -> void } -> void
                    | (String topic, ?namespace: String, ?cursor: String?) -> Enumerator[StreamEvent, void]
-      alias events subscribe
     end
   end
 end
