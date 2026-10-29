@@ -2683,6 +2683,7 @@ type APIToken struct {
 	TenantId    *uuid.UUID       `json:"tenantId"`
 	NextAlertAt pgtype.Timestamp `json:"nextAlertAt"`
 	Internal    bool             `json:"internal"`
+	ReadOnly    bool             `json:"readOnly"`
 }
 
 type Action struct {
@@ -2754,6 +2755,13 @@ type GetGroupKeyRun struct {
 	CancelledError    pgtype.Text      `json:"cancelledError"`
 	WorkflowRunId     uuid.UUID        `json:"workflowRunId"`
 	ScheduleTimeoutAt pgtype.Timestamp `json:"scheduleTimeoutAt"`
+}
+
+type GooseDbVersion struct {
+	ID        pgtype.Int4      `json:"id"`
+	VersionID pgtype.Int8      `json:"version_id"`
+	IsApplied pgtype.Bool      `json:"is_applied"`
+	Tstamp    pgtype.Timestamp `json:"tstamp"`
 }
 
 type InternalQueueItem struct {

@@ -933,6 +933,24 @@ func (q *Queries) GetOLAPAggregateRetainedFrom(ctx context.Context, db DBTX, agg
 	return retained_from, err
 }
 
+const getOLAPAggregatesCompleteFrom = `-- name: GetOLAPAggregatesCompleteFrom :one
+SELECT COALESCE(
+    DATE_BIN('1 minute', MIN(tstamp)::TIMESTAMPTZ, TIMESTAMPTZ '1970-01-01 00:00:00+00') + INTERVAL '1 day',
+    TIMESTAMPTZ '1970-01-01 00:00:00+00'
+)::TIMESTAMPTZ AS complete_from
+FROM goose_db_version
+WHERE version_id = 20261027194324 AND is_applied
+`
+
+// The aggregate triggers only count rows written after v1_0_182 installed them. A day of margin
+// covers runs whose inserted_at is ahead of the database clock.
+func (q *Queries) GetOLAPAggregatesCompleteFrom(ctx context.Context, db DBTX) (pgtype.Timestamptz, error) {
+	row := db.QueryRow(ctx, getOLAPAggregatesCompleteFrom)
+	var complete_from pgtype.Timestamptz
+	err := row.Scan(&complete_from)
+	return complete_from, err
+}
+
 const getOLAPOffloadedPayloadIndexBlocks = `-- name: GetOLAPOffloadedPayloadIndexBlocks :many
 WITH inputs AS (
     SELECT
@@ -1187,24 +1205,47 @@ const getTaskPointMetrics = `-- name: GetTaskPointMetrics :many
 SELECT
     DATE_BIN(
         COALESCE($1::INTERVAL, '1 minute'),
-        inserted_at,
+        bucket,
         TIMESTAMPTZ '1970-01-01 00:00:00+00'
     ) :: TIMESTAMPTZ AS minute_bucket,
-    COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS completed_count,
-    COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS failed_count
-FROM v1_statuses_olap
-WHERE
-    tenant_id = $2::UUID
-    AND inserted_at BETWEEN $3::TIMESTAMPTZ AND $4::TIMESTAMPTZ
+    SUM(completed_count)::BIGINT AS completed_count,
+    SUM(failed_count)::BIGINT AS failed_count
+FROM (
+    SELECT bucket, completed_count, failed_count
+    FROM (
+        SELECT tenant_id, bucket, completed_count, failed_count FROM v1_agg_task_statuses_minute_olap
+        UNION ALL
+        SELECT tenant_id, bucket, completed_count, failed_count FROM v1_agg_task_statuses_minute_delta_olap
+    ) aggregate_counts
+    WHERE
+        tenant_id = $2::UUID
+        AND bucket >= $3::TIMESTAMPTZ
+        AND bucket < $4::TIMESTAMPTZ
+        AND bucket >= $5::TIMESTAMPTZ
+
+    UNION ALL
+
+    SELECT
+        DATE_BIN('1 minute', inserted_at, TIMESTAMPTZ '1970-01-01 00:00:00+00'),
+        (readable_status = 'COMPLETED')::INTEGER,
+        (readable_status = 'FAILED')::INTEGER
+    FROM v1_runs_olap
+    WHERE
+        tenant_id = $2::UUID
+        AND inserted_at >= $3::TIMESTAMPTZ
+        AND inserted_at < $4::TIMESTAMPTZ
+        AND inserted_at < $5::TIMESTAMPTZ
+) status_counts
 GROUP BY minute_bucket
 ORDER BY minute_bucket
 `
 
 type GetTaskPointMetricsParams struct {
-	Interval      pgtype.Interval    `json:"interval"`
-	Tenantid      uuid.UUID          `json:"tenantid"`
-	Createdafter  pgtype.Timestamptz `json:"createdafter"`
-	Createdbefore pgtype.Timestamptz `json:"createdbefore"`
+	Interval               pgtype.Interval    `json:"interval"`
+	Tenantid               uuid.UUID          `json:"tenantid"`
+	Createdafter           pgtype.Timestamptz `json:"createdafter"`
+	Createdbefore          pgtype.Timestamptz `json:"createdbefore"`
+	Aggregatescompletefrom pgtype.Timestamptz `json:"aggregatescompletefrom"`
 }
 
 type GetTaskPointMetricsRow struct {
@@ -1219,6 +1260,7 @@ func (q *Queries) GetTaskPointMetrics(ctx context.Context, db DBTX, arg GetTaskP
 		arg.Tenantid,
 		arg.Createdafter,
 		arg.Createdbefore,
+		arg.Aggregatescompletefrom,
 	)
 	if err != nil {
 		return nil, err
@@ -1303,88 +1345,63 @@ func (q *Queries) GetTaskStartedTimestamps(ctx context.Context, db DBTX, arg Get
 }
 
 const getTenantStatusMetrics = `-- name: GetTenantStatusMetrics :one
-WITH task_external_ids AS (
-    SELECT external_id
-    FROM v1_runs_olap
-    WHERE (
-        $5::UUID IS NULL OR parent_task_external_id = $5::UUID
-    ) AND (
-        $6::UUID IS NULL
-        OR (id, inserted_at) IN (
-            SELECT etr.run_id, etr.run_inserted_at
-            FROM v1_event_lookup_table_olap lt
-            JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
-            JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
-            WHERE
-                lt.tenant_id = $1::uuid
-                AND lt.external_id = $6::UUID
-        )
-    )
-    AND (
-        $7::text[] IS NULL
-        OR $8::text[] IS NULL
-        OR EXISTS (
-            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
-            JOIN LATERAL (
-                SELECT unnest($7::text[]) AS k,
-                    unnest($8::text[]) AS v
-            ) AS u ON kv.key = u.k AND kv.value = u.v
-        )
-    )
-    AND tenant_id = $1::UUID
-    AND inserted_at >= $2::TIMESTAMPTZ
-    AND (
-        $3::TIMESTAMPTZ IS NULL OR inserted_at <= $3::TIMESTAMPTZ
-    )
-    AND (
-        $4::UUID[] IS NULL OR workflow_id = ANY($4::UUID[])
-    )
-)
-
 SELECT
-    tenant_id,
-    COUNT(*) FILTER (WHERE readable_status = 'QUEUED') AS total_queued,
-    COUNT(*) FILTER (WHERE readable_status = 'RUNNING') AS total_running,
-    COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS total_completed,
-    COUNT(*) FILTER (WHERE readable_status = 'CANCELLED') AS total_cancelled,
-    COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS total_failed,
-    COUNT(*) FILTER (WHERE readable_status = 'EVICTED') AS total_evicted
-FROM v1_statuses_olap
-WHERE
-    tenant_id = $1::UUID
-    AND inserted_at >= $2::TIMESTAMPTZ
-    AND (
-        $3::TIMESTAMPTZ IS NULL OR inserted_at <= $3::TIMESTAMPTZ
-    )
-    AND (
-        $4::UUID[] IS NULL OR workflow_id = ANY($4::UUID[])
-    )
-    AND external_id IN (
-        SELECT external_id
-        FROM task_external_ids
-    )
-GROUP BY tenant_id
+    COALESCE(SUM(queued_count), 0)::BIGINT AS total_queued,
+    COALESCE(SUM(running_count), 0)::BIGINT AS total_running,
+    COALESCE(SUM(completed_count), 0)::BIGINT AS total_completed,
+    COALESCE(SUM(cancelled_count), 0)::BIGINT AS total_cancelled,
+    COALESCE(SUM(failed_count), 0)::BIGINT AS total_failed,
+    COALESCE(SUM(evicted_count), 0)::BIGINT AS total_evicted
+FROM (
+    SELECT queued_count, running_count, completed_count, cancelled_count, failed_count, evicted_count
+    FROM (
+        SELECT tenant_id, bucket, workflow_id, queued_count, running_count, completed_count, cancelled_count, failed_count, evicted_count
+        FROM v1_agg_task_statuses_minute_olap
+        UNION ALL
+        SELECT tenant_id, bucket, workflow_id, queued_count, running_count, completed_count, cancelled_count, failed_count, evicted_count
+        FROM v1_agg_task_statuses_minute_delta_olap
+    ) aggregate_counts
+    WHERE
+        tenant_id = $1::UUID
+        AND bucket >= $2::TIMESTAMPTZ
+        AND ($3::TIMESTAMPTZ IS NULL OR bucket < $3::TIMESTAMPTZ)
+        AND ($4::UUID[] IS NULL OR workflow_id = ANY($4::UUID[]))
+        AND bucket >= $5::TIMESTAMPTZ
+
+    UNION ALL
+
+    SELECT
+        (readable_status = 'QUEUED')::INTEGER,
+        (readable_status = 'RUNNING')::INTEGER,
+        (readable_status = 'COMPLETED')::INTEGER,
+        (readable_status = 'CANCELLED')::INTEGER,
+        (readable_status = 'FAILED')::INTEGER,
+        (readable_status = 'EVICTED')::INTEGER
+    FROM v1_runs_olap
+    WHERE
+        tenant_id = $1::UUID
+        AND inserted_at >= $2::TIMESTAMPTZ
+        AND ($3::TIMESTAMPTZ IS NULL OR inserted_at < $3::TIMESTAMPTZ)
+        AND ($4::UUID[] IS NULL OR workflow_id = ANY($4::UUID[]))
+        AND inserted_at < $5::TIMESTAMPTZ
+) status_counts
 `
 
 type GetTenantStatusMetricsParams struct {
-	Tenantid                  uuid.UUID          `json:"tenantid"`
-	Createdafter              pgtype.Timestamptz `json:"createdafter"`
-	CreatedBefore             pgtype.Timestamptz `json:"createdBefore"`
-	WorkflowIds               []uuid.UUID        `json:"workflowIds"`
-	ParentTaskExternalId      *uuid.UUID         `json:"parentTaskExternalId"`
-	TriggeringEventExternalId *uuid.UUID         `json:"triggeringEventExternalId"`
-	AdditionalMetaKeys        []string           `json:"additionalMetaKeys"`
-	AdditionalMetaValues      []string           `json:"additionalMetaValues"`
+	Tenantid               uuid.UUID          `json:"tenantid"`
+	Createdafter           pgtype.Timestamptz `json:"createdafter"`
+	CreatedBefore          pgtype.Timestamptz `json:"createdBefore"`
+	WorkflowIds            []uuid.UUID        `json:"workflowIds"`
+	Aggregatescompletefrom pgtype.Timestamptz `json:"aggregatescompletefrom"`
 }
 
 type GetTenantStatusMetricsRow struct {
-	TenantID       uuid.UUID `json:"tenant_id"`
-	TotalQueued    int64     `json:"total_queued"`
-	TotalRunning   int64     `json:"total_running"`
-	TotalCompleted int64     `json:"total_completed"`
-	TotalCancelled int64     `json:"total_cancelled"`
-	TotalFailed    int64     `json:"total_failed"`
-	TotalEvicted   int64     `json:"total_evicted"`
+	TotalQueued    int64 `json:"total_queued"`
+	TotalRunning   int64 `json:"total_running"`
+	TotalCompleted int64 `json:"total_completed"`
+	TotalCancelled int64 `json:"total_cancelled"`
+	TotalFailed    int64 `json:"total_failed"`
+	TotalEvicted   int64 `json:"total_evicted"`
 }
 
 func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTenantStatusMetricsParams) (*GetTenantStatusMetricsRow, error) {
@@ -1393,14 +1410,10 @@ func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTe
 		arg.Createdafter,
 		arg.CreatedBefore,
 		arg.WorkflowIds,
-		arg.ParentTaskExternalId,
-		arg.TriggeringEventExternalId,
-		arg.AdditionalMetaKeys,
-		arg.AdditionalMetaValues,
+		arg.Aggregatescompletefrom,
 	)
 	var i GetTenantStatusMetricsRow
 	err := row.Scan(
-		&i.TenantID,
 		&i.TotalQueued,
 		&i.TotalRunning,
 		&i.TotalCompleted,

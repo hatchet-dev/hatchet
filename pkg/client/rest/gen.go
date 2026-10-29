@@ -555,6 +555,9 @@ type APIToken struct {
 
 	// Name The name of the API token.
 	Name string `json:"name"`
+
+	// ReadOnly Whether the token is limited to viewer access over REST and cannot use gRPC.
+	ReadOnly bool `json:"readOnly"`
 }
 
 // AcceptInviteRequest defines model for AcceptInviteRequest.
@@ -606,6 +609,9 @@ type CreateAPITokenRequest struct {
 
 	// Name A name for the API token.
 	Name string `json:"name"`
+
+	// ReadOnly Limit the token to viewer access over REST and deny all gRPC calls. Defaults to false.
+	ReadOnly *bool `json:"readOnly,omitempty"`
 }
 
 // CreateAPITokenResponse defines model for CreateAPITokenResponse.

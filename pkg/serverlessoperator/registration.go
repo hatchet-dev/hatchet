@@ -187,7 +187,7 @@ func (r *runner) openRegistration(ctx context.Context, ts *tenantState) error {
 	if prev := ts.setRegistration(reg); prev != nil {
 		// A stale registration for the tenant is closed without draining; its deliveries
 		// report through the closed session and the engine retries them.
-		go prev.close()
+		go prev.close() // #nosec G118 -- the stale registration must close even after this open's context ends, bounded by sessionOpTimeout
 	}
 
 	r.superviseRegistration(ts, reg)
