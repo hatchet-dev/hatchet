@@ -104,10 +104,7 @@ func (m *MiddlewareHandler) Use(mw MiddlewareFunc) {
 	m.mws = append(m.mws, mw)
 }
 
-// Middleware must be registered as group or route middleware, which runs after echo has routed the
-// request, because routes are looked up by the template echo matched (c.Path()). Matching on the
-// request path instead lets an escaped separator in a path parameter resolve to a different route
-// than the one echo dispatches to.
+// Middleware must be registered as group or route middleware: c.Path() is only set after echo routes.
 func (m *MiddlewareHandler) Middleware() (echo.MiddlewareFunc, error) {
 	routes, err := buildRouteInfos(m.swagger)
 	if err != nil {
@@ -118,9 +115,6 @@ func (m *MiddlewareHandler) Middleware() (echo.MiddlewareFunc, error) {
 		return func(c echo.Context) error {
 			routeInfo, ok := routes[routeKey(c.Request().Method, c.Path())]
 
-			// echo routed the request to something the spec does not describe (an unmatched path, or a
-			// path with a different method). Such a request has no security requirements to enforce, so
-			// it must not reach a handler.
 			if !ok {
 				return echo.ErrNotFound
 			}

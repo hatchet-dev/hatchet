@@ -43,8 +43,7 @@ func (g *SlackAppService) UserUpdateSlackOauthCallback(ctx echo.Context, _ gen.U
 		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Could not link Slack account. Please try again and make sure cookies are enabled.")
 	}
 
-	// The callback route has no tenant path parameter, so the RBAC middleware cannot check the
-	// role; the tenant comes from the session and must be authorized here.
+	// RBAC can't check this route: the tenant comes from the session, not a path param.
 	user, ok := ctx.Get("user").(*sqlcv1.User)
 
 	if !ok {
