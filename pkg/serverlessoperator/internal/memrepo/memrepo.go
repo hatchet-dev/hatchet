@@ -68,6 +68,7 @@ type Repo struct {
 	listVersions  int
 	byIds         int
 	readRows      int
+	events        []repository.ServerlessEndpointEventOpts
 
 	mu sync.Mutex
 }
@@ -304,10 +305,37 @@ func (r *Repo) SetProcess(id uuid.UUID, unitCount, endpointCount int32, expired 
 	}
 }
 
-func (r *Repo) Endpoints() repository.ServerlessEndpointRepository { return &endpoints{r: r} }
-func (r *Repo) Tenants() repository.ServerlessTenantRepository     { return &tenants{} }
-func (r *Repo) Processes() repository.ServerlessProcessRepository  { return &processes{r: r} }
-func (r *Repo) Leases() repository.ServerlessLeaseRepository       { return &leases{r: r} }
+func (r *Repo) Endpoints() repository.ServerlessEndpointRepository   { return &endpoints{r: r} }
+func (r *Repo) Tenants() repository.ServerlessTenantRepository       { return &tenants{} }
+func (r *Repo) Processes() repository.ServerlessProcessRepository    { return &processes{r: r} }
+func (r *Repo) Leases() repository.ServerlessLeaseRepository         { return &leases{r: r} }
+func (r *Repo) Events() repository.ServerlessEndpointEventRepository { return &events{r: r} }
+
+// EventRows returns every event inserted so far, in insertion order.
+func (r *Repo) EventRows() []repository.ServerlessEndpointEventOpts {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return append([]repository.ServerlessEndpointEventOpts{}, r.events...)
+}
+
+type events struct {
+	repository.ServerlessEndpointEventRepository
+	r *Repo
+}
+
+func (e *events) Insert(_ context.Context, rows []repository.ServerlessEndpointEventOpts) error {
+	e.r.mu.Lock()
+	defer e.r.mu.Unlock()
+
+	if e.r.failWrites != nil {
+		return e.r.failWrites
+	}
+
+	e.r.events = append(e.r.events, rows...)
+
+	return nil
+}
 
 type endpoints struct {
 	repository.ServerlessEndpointRepository

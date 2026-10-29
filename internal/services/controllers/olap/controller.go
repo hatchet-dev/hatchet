@@ -436,15 +436,19 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not run analyze: %w", err)
 	}
 
+	stopAggregates := o.repo.OLAP().Aggregates().Start()
+
 	cleanupBuffer, err := mqBuffer.Start()
 
 	if err != nil {
 		cancel()
+		stopAggregates()
 		return nil, fmt.Errorf("could not start message queue buffer: %w", err)
 	}
 
 	cleanup := func() error {
 		cancel()
+		stopAggregates()
 
 		// Stop prometheus workers if running
 		if o.taskPrometheusWorkerCancel != nil {

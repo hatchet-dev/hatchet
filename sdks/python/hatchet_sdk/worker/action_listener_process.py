@@ -119,6 +119,7 @@ class WorkerActionListenerProcess:
         self.listener: ActionListener | None = None
         self.killing = False
         self.action_loop_task: asyncio.Task[None] | None = None
+        self.blocked_main_loop: asyncio.Task[None] | None = None
         self.event_send_loop_task: asyncio.Task[None] | None = None
         self._stop_event_task: asyncio.Task[None] | None = None
         self.running_step_runs: dict[str, float] = {}
@@ -361,8 +362,7 @@ class WorkerActionListenerProcess:
 
     async def start(self, retry_attempt: int = 0) -> None:
         if retry_attempt > 5:
-            logger.error("could not start action listener")
-            return
+            raise RuntimeError("could not start action listener")
 
         logger.debug(f"starting action listener: {self.name}")
 
@@ -383,7 +383,7 @@ class WorkerActionListenerProcess:
             self.worker_id_queue.put(self.listener.worker_id)
         except grpc.RpcError:
             logger.exception("could not start action listener")
-            return
+            raise
 
         # Start both loops as background tasks
         self.action_loop_task = asyncio.create_task(self.start_action_loop())
@@ -662,7 +662,11 @@ def worker_action_listener_process(
             shared_slot_usage_by_pool=shared_slot_usage_by_pool,
         )
         await process.start_health_server()
-        await process.start()
+        try:
+            await process.start()
+        except BaseException:
+            await process.stop_health_server()
+            raise
 
         # Stay alive until the parent worker puts STOP_LOOP in the event_queue.
         # That happens only after all active task runs have finished and their

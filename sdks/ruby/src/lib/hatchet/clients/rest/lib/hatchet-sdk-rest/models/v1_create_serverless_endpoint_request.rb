@@ -29,7 +29,7 @@ module HatchetSdkRest
 
     attr_accessor :kind
 
-    # The per-request timeout backstop for trigger requests, in seconds. Defaults to 60.
+    # The per-request timeout backstop for trigger requests, in seconds. Defaults to 300.
     attr_accessor :request_timeout_seconds
 
     # How often the healthcheck URL is polled, in seconds. Defaults to 30.

@@ -29,6 +29,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/pkg/config/limits"
 	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
+	"github.com/hatchet-dev/hatchet/pkg/repository/olapagg"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -130,12 +131,6 @@ type ReadTaskRunMetricsOpts struct {
 	CreatedBefore *time.Time
 
 	WorkflowIds []uuid.UUID
-
-	ParentTaskExternalID *uuid.UUID
-
-	TriggeringEventExternalId *uuid.UUID
-
-	AdditionalMetadata map[string]interface{}
 }
 
 type WorkflowRunData struct {
@@ -276,6 +271,7 @@ type TaskEventWithPayloads struct {
 type OLAPRepository interface {
 	UpdateTablePartitions(ctx context.Context) error
 	SetReadReplicaPool(pool *fairpool.Pool)
+	Aggregates() *olapagg.Aggregator
 	SetPayloadStoreOnSeparateDatabase(store PayloadStoreRepository)
 
 	ReadTaskRun(ctx context.Context, taskExternalId uuid.UUID) (*sqlcv1.V1TasksOlap, error)
@@ -356,6 +352,8 @@ type OLAPRepositoryImpl struct {
 	shouldPartitionOtelTables           bool
 
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits
+
+	aggregates *olapagg.Aggregator
 }
 
 func NewOLAPRepositoryFromPool(
@@ -383,6 +381,9 @@ func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Durati
 		log.Fatal(err)
 	}
 
+	aggOpts := olapagg.DefaultOpts()
+	aggOpts.Partitions = NUM_PARTITIONS
+
 	return &OLAPRepositoryImpl{
 		sharedRepository:                    shared,
 		readPool:                            shared.pool,
@@ -391,7 +392,32 @@ func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Durati
 		shouldManageOptionalTablePartitions: shouldManageOptionalTablePartitions,
 		shouldPartitionOtelTables:           shouldPartitionOtelTables,
 		statusUpdateBatchSizeLimits:         statusUpdateBatchSizeLimits,
+		aggregates:                          olapagg.New(shared.pool.ForShared(), shared.l, aggOpts),
 	}
+}
+
+func (r *OLAPRepositoryImpl) Aggregates() *olapagg.Aggregator {
+	return r.aggregates
+}
+
+// aggregatesCompleteFrom returns the first bucket the aggregates count completely. It is the epoch
+// when they are complete for all time.
+func (r *OLAPRepositoryImpl) aggregatesCompleteFrom(ctx context.Context, db sqlcv1.DBTX) (pgtype.Timestamptz, error) {
+	// only the cloud Timescale database leaves partition management to Timescale, and it is also the
+	// only database whose aggregates were backfilled
+	if !r.shouldManageOptionalTablePartitions {
+		return sqlchelpers.TimestamptzFromTime(time.Unix(0, 0).UTC()), nil
+	}
+
+	return r.queries.GetOLAPAggregatesCompleteFrom(ctx, db)
+}
+
+func roundDownToMinute(t time.Time) time.Time {
+	return t.Truncate(time.Minute)
+}
+
+func roundUpToMinute(t time.Time) time.Time {
+	return t.Add(time.Minute - time.Nanosecond).Truncate(time.Minute)
 }
 
 // runPartitionDDLWithLockTimeout runs fn in one transaction that waits at most a minute for
@@ -1714,26 +1740,21 @@ func (r *OLAPRepositoryImpl) ReadTaskRunMetrics(ctx context.Context, tenantId uu
 		workflowIds = append(workflowIds, opts.WorkflowIds...)
 	}
 
-	var additionalMetaKeys []string
-	var additionalMetaValues []string
+	aggregatesCompleteFrom, err := r.aggregatesCompleteFrom(ctx, readDB)
 
-	for key, value := range opts.AdditionalMetadata {
-		additionalMetaKeys = append(additionalMetaKeys, key)
-		additionalMetaValues = append(additionalMetaValues, value.(string))
+	if err != nil {
+		return nil, fmt.Errorf("could not read when the OLAP aggregates became complete: %w", err)
 	}
 
 	params := sqlcv1.GetTenantStatusMetricsParams{
-		Tenantid:                  tenantId,
-		Createdafter:              sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
-		WorkflowIds:               workflowIds,
-		ParentTaskExternalId:      opts.ParentTaskExternalID,
-		TriggeringEventExternalId: opts.TriggeringEventExternalId,
-		AdditionalMetaKeys:        additionalMetaKeys,
-		AdditionalMetaValues:      additionalMetaValues,
+		Tenantid:               tenantId,
+		Createdafter:           sqlchelpers.TimestamptzFromTime(roundDownToMinute(opts.CreatedAfter)),
+		WorkflowIds:            workflowIds,
+		Aggregatescompletefrom: aggregatesCompleteFrom,
 	}
 
 	if opts.CreatedBefore != nil {
-		params.CreatedBefore = sqlchelpers.TimestamptzFromTime(*opts.CreatedBefore)
+		params.CreatedBefore = sqlchelpers.TimestamptzFromTime(roundUpToMinute(*opts.CreatedBefore))
 	}
 
 	res, err := r.queries.GetTenantStatusMetrics(ctx, readDB, params)
@@ -2736,11 +2757,18 @@ func (r *OLAPRepositoryImpl) applyOrchestratorEventsToDAGs(ctx context.Context, 
 func (r *OLAPRepositoryImpl) GetTaskPointMetrics(ctx context.Context, tenantId uuid.UUID, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration) ([]*sqlcv1.GetTaskPointMetricsRow, error) {
 	readDB := r.readPool.ForTenant(tenantId)
 
+	aggregatesCompleteFrom, err := r.aggregatesCompleteFrom(ctx, readDB)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not read when the OLAP aggregates became complete: %w", err)
+	}
+
 	rows, err := r.queries.GetTaskPointMetrics(ctx, readDB, sqlcv1.GetTaskPointMetricsParams{
-		Interval:      durationToPgInterval(bucketInterval),
-		Tenantid:      tenantId,
-		Createdafter:  sqlchelpers.TimestamptzFromTime(*startTimestamp),
-		Createdbefore: sqlchelpers.TimestamptzFromTime(*endTimestamp),
+		Interval:               durationToPgInterval(bucketInterval),
+		Tenantid:               tenantId,
+		Createdafter:           sqlchelpers.TimestamptzFromTime(roundDownToMinute(*startTimestamp)),
+		Createdbefore:          sqlchelpers.TimestamptzFromTime(roundUpToMinute(*endTimestamp)),
+		Aggregatescompletefrom: aggregatesCompleteFrom,
 	})
 
 	if err != nil {

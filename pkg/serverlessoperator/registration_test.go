@@ -205,7 +205,7 @@ func TestShutdownPausesEveryRegistrationBeforeClosing(t *testing.T) {
 	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a), env.unit(b)})
 	require.Equal(t, 2, env.host.openCount())
 
-	env.r.Shutdown()
+	env.r.Shutdown(context.Background())
 
 	for i := 0; i < 2; i++ {
 		assert.Equal(t, []string{"pause", "close"}, env.host.session(i).lifecycle())

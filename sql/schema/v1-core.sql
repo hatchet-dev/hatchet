@@ -3231,7 +3231,7 @@ CREATE TABLE v1_operator (
 
 CREATE UNIQUE INDEX v1_operator_tenant_name_kind_key ON v1_operator (tenant_id, name, kind);
 
-CREATE TYPE v1_serverless_endpoint_kind AS ENUM ('GENERIC_HTTP', 'CLOUDFLARE_WORKERS');
+CREATE TYPE v1_serverless_endpoint_kind AS ENUM ('GENERIC_HTTP', 'CLOUDFLARE_WORKERS', 'VERCEL');
 
 -- Customer configuration. Written by the API server; the operator writes only the status
 -- columns, and only on state transitions (never per poll).
@@ -3244,7 +3244,7 @@ CREATE TABLE v1_serverless_endpoint (
     trigger_url TEXT NOT NULL,
     -- enc.EncryptString(secret, SigningSecretEncryptionDataID)
     signing_secret_enc TEXT NOT NULL,
-    request_timeout_seconds INT NOT NULL DEFAULT 60,
+    request_timeout_seconds INT NOT NULL DEFAULT 300,
     poll_interval_seconds INT NOT NULL DEFAULT 30,
     inline_wait_budget_ms INT NOT NULL DEFAULT 5000,
     labels JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -3283,6 +3283,31 @@ CREATE INDEX v1_serverless_endpoint_unit_idx ON v1_serverless_endpoint (tenant_i
 -- incremental refresh of the routing cache, keyed by row version: the later of updated_at
 -- (configuration and registered_actions writes) and status_changed_at (health transitions)
 CREATE INDEX v1_serverless_endpoint_version_idx ON v1_serverless_endpoint (tenant_id, GREATEST(updated_at, COALESCE(status_changed_at, updated_at)), id);
+
+CREATE TYPE v1_serverless_endpoint_event_kind AS ENUM (
+    'HEALTHCHECK_FAILED',
+    'UNHEALTHY',
+    'HEALTHY',
+    'CATALOG_REGISTERED',
+    'CATALOG_REJECTED',
+    'DELIVERY_FAILED'
+);
+
+-- What the serverless operator observed about an endpoint, for the dashboard. Written by the
+-- owning process on failure-streak starts, status transitions, catalog changes and rate-limited
+-- delivery failures, never once per poll. Partitioned by day like the other core tables, and
+-- dropped with them after the core retention period; reads also stop at the tenant's retention.
+CREATE TABLE v1_serverless_endpoint_event (
+    id BIGINT GENERATED ALWAYS AS IDENTITY,
+    tenant_id UUID NOT NULL,
+    endpoint_id UUID NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    kind v1_serverless_endpoint_event_kind NOT NULL,
+    message TEXT NOT NULL,
+    details JSONB NOT NULL DEFAULT '{}'::jsonb,
+    -- also serves an endpoint's events newest first, scanned backward
+    CONSTRAINT v1_serverless_endpoint_event_pkey PRIMARY KEY (tenant_id, endpoint_id, created_at, id)
+) PARTITION BY RANGE(created_at);
 
 CREATE TABLE v1_serverless_tenant (
     tenant_id UUID NOT NULL,

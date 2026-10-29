@@ -99,6 +99,9 @@ import {
   V1CELDebugResponse,
   V1CancelTaskRequest,
   V1CancelledTasks,
+  V1ConcurrencyKeyList,
+  V1ConcurrencyScope,
+  V1ConcurrencyStrategyList,
   V1CreateFilterRequest,
   V1CreateServerlessEndpointRequest,
   V1CreateWebhookRequest,
@@ -117,6 +120,7 @@ import {
   V1RestoreTaskResponse,
   V1RunningFilter,
   V1ServerlessEndpoint,
+  V1ServerlessEndpointEventList,
   V1ServerlessEndpointList,
   V1StreamPayloadRef,
   V1StreamTopicList,
@@ -1152,6 +1156,62 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Lists the concurrency strategies on the latest version of each workflow in a tenant, and the shared strategies their tasks use, with live slot counts.
+   *
+   * @tags Concurrency
+   * @name V1ConcurrencyStrategyList
+   * @summary List concurrency strategies
+   * @request GET:/api/v1/stable/tenants/{tenant}/concurrency/strategies
+   * @secure
+   */
+  v1ConcurrencyStrategyList = (tenant: string, params: RequestParams = {}) =>
+    this.request<V1ConcurrencyStrategyList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/concurrency/strategies`,
+      method: 'GET',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Lists the keys of a concurrency strategy that have running or queued runs, sorted by queued count, then oldest queued run.
+   *
+   * @tags Concurrency
+   * @name V1ConcurrencyKeyList
+   * @summary List concurrency keys
+   * @request GET:/api/v1/stable/tenants/{tenant}/concurrency/strategies/{scope}/{strategy}/keys
+   * @secure
+   */
+  v1ConcurrencyKeyList = (
+    tenant: string,
+    scope: V1ConcurrencyScope,
+    strategy: number,
+    query?: {
+      /** Only return keys containing this string (case-insensitive) */
+      search?: string;
+      /** Only return keys with at least one queued run */
+      onlyQueued?: boolean;
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+    },
+    params: RequestParams = {}
+  ) =>
+    this.request<V1ConcurrencyKeyList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/concurrency/strategies/${scope}/${strategy}/keys`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
    * @description Lists all filters for a tenant.
    *
    * @tags Filter
@@ -1504,6 +1564,39 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     this.request<V1ServerlessEndpoint, APIErrors>({
       path: `/api/v1/stable/serverless/endpoints/${v1ServerlessEndpoint}`,
       method: 'DELETE',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Lists the most recent events the serverless operator recorded for an endpoint, newest first.
+   *
+   * @tags Serverless
+   * @name V1ServerlessEndpointEventList
+   * @summary List serverless endpoint events
+   * @request GET:/api/v1/stable/serverless/endpoints/{v1-serverless-endpoint}/events
+   * @secure
+   */
+  v1ServerlessEndpointEventList = (
+    v1ServerlessEndpoint: string,
+    query?: {
+      /**
+       * The number of events to return, at most 500. Defaults to 100.
+       * @format int64
+       */
+      limit?: number;
+      /**
+       * Only return events created after this time
+       * @format date-time
+       */
+      since?: string;
+    },
+    params: RequestParams = {}
+  ) =>
+    this.request<V1ServerlessEndpointEventList, APIErrors>({
+      path: `/api/v1/stable/serverless/endpoints/${v1ServerlessEndpoint}/events`,
+      method: 'GET',
+      query: query,
       secure: true,
       format: 'json',
       ...params,

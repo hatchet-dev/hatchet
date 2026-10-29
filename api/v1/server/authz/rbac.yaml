@@ -86,6 +86,7 @@ roles:
       - V1WebhookGet
       - V1ServerlessEndpointList
       - V1ServerlessEndpointGet
+      - V1ServerlessEndpointEventList
       - V1WebhookReceive
       - V1WorkflowRunList
       - V1EventKeyList
@@ -136,6 +137,8 @@ roles:
       - UserUpdateGithubOauthStart
       - V1WebhookList
       - V1FilterList
+      - V1ConcurrencyStrategyList
+      - V1ConcurrencyKeyList
       - TenantGetStepRunQueueMetrics
       - UserUpdateLogin
       - V1FilterGet

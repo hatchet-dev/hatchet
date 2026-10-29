@@ -11,6 +11,7 @@ hatchet-sdk-rest.gemspec
 lib/hatchet-sdk-rest.rb
 lib/hatchet-sdk-rest/api/api_token_api.rb
 lib/hatchet-sdk-rest/api/cel_api.rb
+lib/hatchet-sdk-rest/api/concurrency_api.rb
 lib/hatchet-sdk-rest/api/default_api.rb
 lib/hatchet-sdk-rest/api/durable_tasks_api.rb
 lib/hatchet-sdk-rest/api/event_api.rb
@@ -182,6 +183,13 @@ lib/hatchet-sdk-rest/models/v1_cancelled_tasks.rb
 lib/hatchet-sdk-rest/models/v1_cel_debug_request.rb
 lib/hatchet-sdk-rest/models/v1_cel_debug_response.rb
 lib/hatchet-sdk-rest/models/v1_cel_debug_response_status.rb
+lib/hatchet-sdk-rest/models/v1_concurrency_key.rb
+lib/hatchet-sdk-rest/models/v1_concurrency_key_list.rb
+lib/hatchet-sdk-rest/models/v1_concurrency_limit_strategy.rb
+lib/hatchet-sdk-rest/models/v1_concurrency_scope.rb
+lib/hatchet-sdk-rest/models/v1_concurrency_strategy.rb
+lib/hatchet-sdk-rest/models/v1_concurrency_strategy_list.rb
+lib/hatchet-sdk-rest/models/v1_concurrency_strategy_usage.rb
 lib/hatchet-sdk-rest/models/v1_create_filter_request.rb
 lib/hatchet-sdk-rest/models/v1_create_serverless_endpoint_request.rb
 lib/hatchet-sdk-rest/models/v1_create_webhook_request.rb
@@ -212,6 +220,11 @@ lib/hatchet-sdk-rest/models/v1_restore_task_response.rb
 lib/hatchet-sdk-rest/models/v1_running_detail_count.rb
 lib/hatchet-sdk-rest/models/v1_running_filter.rb
 lib/hatchet-sdk-rest/models/v1_serverless_endpoint.rb
+lib/hatchet-sdk-rest/models/v1_serverless_endpoint_check_stage.rb
+lib/hatchet-sdk-rest/models/v1_serverless_endpoint_event.rb
+lib/hatchet-sdk-rest/models/v1_serverless_endpoint_event_details.rb
+lib/hatchet-sdk-rest/models/v1_serverless_endpoint_event_kind.rb
+lib/hatchet-sdk-rest/models/v1_serverless_endpoint_event_list.rb
 lib/hatchet-sdk-rest/models/v1_serverless_endpoint_kind.rb
 lib/hatchet-sdk-rest/models/v1_serverless_endpoint_list.rb
 lib/hatchet-sdk-rest/models/v1_serverless_endpoint_status.rb

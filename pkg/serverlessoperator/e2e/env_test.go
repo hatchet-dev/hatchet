@@ -272,7 +272,7 @@ func (e *testEnv) newTenantEntitled(entitlements repository.TenantEntitlements) 
 
 	expires := time.Now().Add(24 * time.Hour)
 
-	tok, err := jwt.GenerateTenantToken(e.ctx, row.ID, "e2e", false, &expires)
+	tok, err := jwt.GenerateTenantToken(e.ctx, row.ID, "e2e", false, false, &expires)
 	require.NoError(e.t, err)
 
 	tokens.add(row.ID, tok.Token)

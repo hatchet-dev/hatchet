@@ -261,6 +261,21 @@ from hatchet_sdk.clients.rest.models.v1_cel_debug_response_status import (
 )
 from hatchet_sdk.clients.rest.models.v1_cancel_task_request import V1CancelTaskRequest
 from hatchet_sdk.clients.rest.models.v1_cancelled_tasks import V1CancelledTasks
+from hatchet_sdk.clients.rest.models.v1_concurrency_key import V1ConcurrencyKey
+from hatchet_sdk.clients.rest.models.v1_concurrency_key_list import V1ConcurrencyKeyList
+from hatchet_sdk.clients.rest.models.v1_concurrency_limit_strategy import (
+    V1ConcurrencyLimitStrategy,
+)
+from hatchet_sdk.clients.rest.models.v1_concurrency_scope import V1ConcurrencyScope
+from hatchet_sdk.clients.rest.models.v1_concurrency_strategy import (
+    V1ConcurrencyStrategy,
+)
+from hatchet_sdk.clients.rest.models.v1_concurrency_strategy_list import (
+    V1ConcurrencyStrategyList,
+)
+from hatchet_sdk.clients.rest.models.v1_concurrency_strategy_usage import (
+    V1ConcurrencyStrategyUsage,
+)
 from hatchet_sdk.clients.rest.models.v1_create_filter_request import (
     V1CreateFilterRequest,
 )
@@ -319,6 +334,21 @@ from hatchet_sdk.clients.rest.models.v1_restore_task_response import (
 from hatchet_sdk.clients.rest.models.v1_running_detail_count import V1RunningDetailCount
 from hatchet_sdk.clients.rest.models.v1_running_filter import V1RunningFilter
 from hatchet_sdk.clients.rest.models.v1_serverless_endpoint import V1ServerlessEndpoint
+from hatchet_sdk.clients.rest.models.v1_serverless_endpoint_check_stage import (
+    V1ServerlessEndpointCheckStage,
+)
+from hatchet_sdk.clients.rest.models.v1_serverless_endpoint_event import (
+    V1ServerlessEndpointEvent,
+)
+from hatchet_sdk.clients.rest.models.v1_serverless_endpoint_event_details import (
+    V1ServerlessEndpointEventDetails,
+)
+from hatchet_sdk.clients.rest.models.v1_serverless_endpoint_event_kind import (
+    V1ServerlessEndpointEventKind,
+)
+from hatchet_sdk.clients.rest.models.v1_serverless_endpoint_event_list import (
+    V1ServerlessEndpointEventList,
+)
 from hatchet_sdk.clients.rest.models.v1_serverless_endpoint_kind import (
     V1ServerlessEndpointKind,
 )
