@@ -51,6 +51,7 @@ export function MainShell({ children }: { children?: ReactNode }) {
 
   const { entitlements } = useTenantEntitlements();
   const hasDurableStreams = !!entitlements?.durableStreams;
+  const hasServerlessEndpoints = !!entitlements?.serverlessOperator;
 
   const { isEnabled: isConcurrencyEnabled } = useIsFeatureEnabled(
     FeatureFlagId.ConcurrencyPageEnabled,
@@ -64,6 +65,7 @@ export function MainShell({ children }: { children?: ReactNode }) {
         isControlPlaneEnabled,
         orgId,
         hasManagedWorkers,
+        hasServerlessEndpoints,
         hasDurableStreams,
         isConcurrencyEnabled,
       }),
@@ -72,6 +74,7 @@ export function MainShell({ children }: { children?: ReactNode }) {
       isControlPlaneEnabled,
       orgId,
       hasManagedWorkers,
+      hasServerlessEndpoints,
       hasDurableStreams,
       isConcurrencyEnabled,
     ],

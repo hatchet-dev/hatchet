@@ -605,7 +605,7 @@ func newTestEnv(t *testing.T) *testEnv {
 		ProcessId:  uuid.New(),
 	}, cfg, newMetrics("test"))
 
-	t.Cleanup(r.Shutdown)
+	t.Cleanup(func() { r.Shutdown(context.Background()) })
 
 	return &testEnv{repo: repo, host: host, sender: sender, r: r}
 }

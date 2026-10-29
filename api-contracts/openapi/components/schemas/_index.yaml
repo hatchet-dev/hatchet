@@ -160,6 +160,16 @@ V1CreateServerlessEndpointRequest:
   $ref: "./v1/serverless_endpoint.yaml#/V1CreateServerlessEndpointRequest"
 V1UpdateServerlessEndpointRequest:
   $ref: "./v1/serverless_endpoint.yaml#/V1UpdateServerlessEndpointRequest"
+V1ServerlessEndpointCheckStage:
+  $ref: "./v1/serverless_endpoint.yaml#/V1ServerlessEndpointCheckStage"
+V1ServerlessEndpointEventKind:
+  $ref: "./v1/serverless_endpoint.yaml#/V1ServerlessEndpointEventKind"
+V1ServerlessEndpointEventDetails:
+  $ref: "./v1/serverless_endpoint.yaml#/V1ServerlessEndpointEventDetails"
+V1ServerlessEndpointEvent:
+  $ref: "./v1/serverless_endpoint.yaml#/V1ServerlessEndpointEvent"
+V1ServerlessEndpointEventList:
+  $ref: "./v1/serverless_endpoint.yaml#/V1ServerlessEndpointEventList"
 RateLimit:
   $ref: "./rate_limits.yaml#/RateLimit"
 RateLimitList:

@@ -295,10 +295,29 @@ const (
 	ONWORKER V1RunningFilter = "ON_WORKER"
 )
 
+// Defines values for V1ServerlessEndpointCheckStage.
+const (
+	CATALOG V1ServerlessEndpointCheckStage = "CATALOG"
+	PARSE   V1ServerlessEndpointCheckStage = "PARSE"
+	REQUEST V1ServerlessEndpointCheckStage = "REQUEST"
+	STATUS  V1ServerlessEndpointCheckStage = "STATUS"
+)
+
+// Defines values for V1ServerlessEndpointEventKind.
+const (
+	CATALOGREGISTERED V1ServerlessEndpointEventKind = "CATALOG_REGISTERED"
+	CATALOGREJECTED   V1ServerlessEndpointEventKind = "CATALOG_REJECTED"
+	DELIVERYFAILED    V1ServerlessEndpointEventKind = "DELIVERY_FAILED"
+	HEALTHCHECKFAILED V1ServerlessEndpointEventKind = "HEALTHCHECK_FAILED"
+	HEALTHY           V1ServerlessEndpointEventKind = "HEALTHY"
+	UNHEALTHY         V1ServerlessEndpointEventKind = "UNHEALTHY"
+)
+
 // Defines values for V1ServerlessEndpointKind.
 const (
 	CLOUDFLAREWORKERS V1ServerlessEndpointKind = "CLOUDFLARE_WORKERS"
 	GENERICHTTP       V1ServerlessEndpointKind = "GENERIC_HTTP"
+	VERCEL            V1ServerlessEndpointKind = "VERCEL"
 )
 
 // Defines values for V1TaskEventType.
@@ -536,6 +555,9 @@ type APIToken struct {
 
 	// Name The name of the API token.
 	Name string `json:"name"`
+
+	// ReadOnly Whether the token is limited to viewer access over REST and cannot use gRPC.
+	ReadOnly bool `json:"readOnly"`
 }
 
 // AcceptInviteRequest defines model for AcceptInviteRequest.
@@ -587,6 +609,9 @@ type CreateAPITokenRequest struct {
 
 	// Name A name for the API token.
 	Name string `json:"name"`
+
+	// ReadOnly Limit the token to viewer access over REST and deny all gRPC calls. Defaults to false.
+	ReadOnly *bool `json:"readOnly,omitempty"`
 }
 
 // CreateAPITokenResponse defines model for CreateAPITokenResponse.
@@ -1758,7 +1783,7 @@ type V1CreateServerlessEndpointRequest struct {
 	// InlineWaitBudgetMs The inline wait budget for durable results, in milliseconds. Defaults to 5000.
 	InlineWaitBudgetMs *int32 `json:"inlineWaitBudgetMs,omitempty"`
 
-	// Kind The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS applies the Cloudflare Workers runtime constraints on top of it.
+	// Kind The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS and VERCEL name the platform the endpoint is deployed on, which the dashboard uses to guide setup and diagnose failures.
 	Kind *V1ServerlessEndpointKind `json:"kind,omitempty"`
 
 	// Labels Worker labels applied to the worker the operator creates for this endpoint.
@@ -1770,7 +1795,7 @@ type V1CreateServerlessEndpointRequest struct {
 	// PollIntervalSeconds How often the healthcheck URL is polled, in seconds. Defaults to 30.
 	PollIntervalSeconds *int32 `json:"pollIntervalSeconds,omitempty"`
 
-	// RequestTimeoutSeconds The per-request timeout backstop for trigger requests, in seconds. Defaults to 60.
+	// RequestTimeoutSeconds The per-request timeout backstop for trigger requests, in seconds. Defaults to 300.
 	RequestTimeoutSeconds *int32 `json:"requestTimeoutSeconds,omitempty"`
 
 	// SigningSecret The secret used to HMAC-sign requests delivered to the endpoint. At least 32 characters. Write-only: it is stored encrypted and never returned in responses.
@@ -2123,7 +2148,7 @@ type V1ServerlessEndpoint struct {
 	// InlineWaitBudgetMs How long a trigger request may block waiting for a durable result before the operator falls back to the websocket durable protocol, in milliseconds.
 	InlineWaitBudgetMs int32 `json:"inlineWaitBudgetMs"`
 
-	// Kind The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS applies the Cloudflare Workers runtime constraints on top of it.
+	// Kind The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS and VERCEL name the platform the endpoint is deployed on, which the dashboard uses to guide setup and diagnose failures.
 	Kind V1ServerlessEndpointKind `json:"kind"`
 
 	// Labels Worker labels applied to the connection-backed worker the operator creates for this endpoint.
@@ -2149,7 +2174,56 @@ type V1ServerlessEndpoint struct {
 	TriggerUrl string `json:"triggerUrl"`
 }
 
-// V1ServerlessEndpointKind The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS applies the Cloudflare Workers runtime constraints on top of it.
+// V1ServerlessEndpointCheckStage How far a failed healthcheck got. REQUEST: no HTTP response (DNS, TLS, connection, timeout or a blocked destination). STATUS: the endpoint answered with a non-2xx status. PARSE: the body is not a healthcheck response. CATALOG: the response parsed but the workflows or actions it declares were refused.
+type V1ServerlessEndpointCheckStage string
+
+// V1ServerlessEndpointEvent defines model for V1ServerlessEndpointEvent.
+type V1ServerlessEndpointEvent struct {
+	CreatedAt time.Time                        `json:"createdAt"`
+	Details   V1ServerlessEndpointEventDetails `json:"details"`
+	Id        int64                            `json:"id"`
+
+	// Kind HEALTHCHECK_FAILED: a healthcheck failed; recorded at the start of a failure streak and whenever the error changes. UNHEALTHY: the endpoint's health flipped to unhealthy. HEALTHY: the endpoint's health flipped to healthy, or its healthchecks succeed again after a streak of failures too short to flip it. CATALOG_REGISTERED: a changed set of workflows and actions was registered. CATALOG_REJECTED: the engine refused the declared workflows. DELIVERY_FAILED: a task delivered to the endpoint failed. HEALTHCHECK_FAILED, CATALOG_REJECTED, DELIVERY_FAILED and HEALTHY are each recorded at most once per endpoint every 30 seconds, and an endpoint records at most 120 events an hour; what is held back is counted in details.suppressed of the next event of the same kind.
+	Kind    V1ServerlessEndpointEventKind `json:"kind"`
+	Message string                        `json:"message"`
+}
+
+// V1ServerlessEndpointEventDetails defines model for V1ServerlessEndpointEventDetails.
+type V1ServerlessEndpointEventDetails struct {
+	ActionId   *string   `json:"actionId,omitempty"`
+	Actions    *[]string `json:"actions,omitempty"`
+	DurationMs *int32    `json:"durationMs,omitempty"`
+
+	// ResponseExcerpt The start of the response body, at most 1 KiB. Omitted for members who cannot view payloads.
+	ResponseExcerpt *string `json:"responseExcerpt,omitempty"`
+	RetryCount      *int32  `json:"retryCount,omitempty"`
+
+	// Retryable Whether the engine will retry the failed delivery.
+	Retryable *bool `json:"retryable,omitempty"`
+
+	// Stage How far a failed healthcheck got. REQUEST: no HTTP response (DNS, TLS, connection, timeout or a blocked destination). STATUS: the endpoint answered with a non-2xx status. PARSE: the body is not a healthcheck response. CATALOG: the response parsed but the workflows or actions it declares were refused.
+	Stage      *V1ServerlessEndpointCheckStage `json:"stage,omitempty"`
+	StatusCode *int32                          `json:"statusCode,omitempty"`
+
+	// Suppressed Events of this kind since the previous one that were not recorded on their own, because they came too soon after it or past the endpoint's event budget.
+	Suppressed        *int32              `json:"suppressed,omitempty"`
+	TaskRunExternalId *openapi_types.UUID `json:"taskRunExternalId,omitempty"`
+
+	// Truncated Whether the details were cut to bound the event's size: the workflows and actions lists keep their first 50 entries, and long names are shortened.
+	Truncated *bool     `json:"truncated,omitempty"`
+	Url       *string   `json:"url,omitempty"`
+	Workflows *[]string `json:"workflows,omitempty"`
+}
+
+// V1ServerlessEndpointEventKind HEALTHCHECK_FAILED: a healthcheck failed; recorded at the start of a failure streak and whenever the error changes. UNHEALTHY: the endpoint's health flipped to unhealthy. HEALTHY: the endpoint's health flipped to healthy, or its healthchecks succeed again after a streak of failures too short to flip it. CATALOG_REGISTERED: a changed set of workflows and actions was registered. CATALOG_REJECTED: the engine refused the declared workflows. DELIVERY_FAILED: a task delivered to the endpoint failed. HEALTHCHECK_FAILED, CATALOG_REJECTED, DELIVERY_FAILED and HEALTHY are each recorded at most once per endpoint every 30 seconds, and an endpoint records at most 120 events an hour; what is held back is counted in details.suppressed of the next event of the same kind.
+type V1ServerlessEndpointEventKind string
+
+// V1ServerlessEndpointEventList defines model for V1ServerlessEndpointEventList.
+type V1ServerlessEndpointEventList struct {
+	Rows []V1ServerlessEndpointEvent `json:"rows"`
+}
+
+// V1ServerlessEndpointKind The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS and VERCEL name the platform the endpoint is deployed on, which the dashboard uses to guide setup and diagnose failures.
 type V1ServerlessEndpointKind string
 
 // V1ServerlessEndpointList defines model for V1ServerlessEndpointList.
@@ -2450,7 +2524,7 @@ type V1UpdateServerlessEndpointRequest struct {
 	// InlineWaitBudgetMs The inline wait budget for durable results, in milliseconds.
 	InlineWaitBudgetMs *int32 `json:"inlineWaitBudgetMs,omitempty"`
 
-	// Kind The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS applies the Cloudflare Workers runtime constraints on top of it.
+	// Kind The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS and VERCEL name the platform the endpoint is deployed on, which the dashboard uses to guide setup and diagnose failures.
 	Kind *V1ServerlessEndpointKind `json:"kind,omitempty"`
 
 	// Labels Worker labels applied to the worker the operator creates for this endpoint. Replaces the existing labels.
@@ -3067,6 +3141,15 @@ type V1DagListTasksParams struct {
 
 	// Tenant The tenant id
 	Tenant openapi_types.UUID `form:"tenant" json:"tenant"`
+}
+
+// V1ServerlessEndpointEventListParams defines parameters for V1ServerlessEndpointEventList.
+type V1ServerlessEndpointEventListParams struct {
+	// Limit The number of events to return, at most 500. Defaults to 100.
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Since Only return events created after this time
+	Since *time.Time `form:"since,omitempty" json:"since,omitempty"`
 }
 
 // V1TaskGetParams defines parameters for V1TaskGet.
@@ -4159,6 +4242,9 @@ type ClientInterface interface {
 
 	V1ServerlessEndpointUpdate(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, body V1ServerlessEndpointUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// V1ServerlessEndpointEventList request
+	V1ServerlessEndpointEventList(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, params *V1ServerlessEndpointEventListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// V1TaskGet request
 	V1TaskGet(ctx context.Context, task openapi_types.UUID, params *V1TaskGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -4881,6 +4967,18 @@ func (c *Client) V1ServerlessEndpointUpdateWithBody(ctx context.Context, v1Serve
 
 func (c *Client) V1ServerlessEndpointUpdate(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, body V1ServerlessEndpointUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1ServerlessEndpointUpdateRequest(c.Server, v1ServerlessEndpoint, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1ServerlessEndpointEventList(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, params *V1ServerlessEndpointEventListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1ServerlessEndpointEventListRequest(c.Server, v1ServerlessEndpoint, params)
 	if err != nil {
 		return nil, err
 	}
@@ -7644,6 +7742,78 @@ func NewV1ServerlessEndpointUpdateRequestWithBody(server string, v1ServerlessEnd
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV1ServerlessEndpointEventListRequest generates requests for V1ServerlessEndpointEventList
+func NewV1ServerlessEndpointEventListRequest(server string, v1ServerlessEndpoint openapi_types.UUID, params *V1ServerlessEndpointEventListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "v1-serverless-endpoint", runtime.ParamLocationPath, v1ServerlessEndpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/serverless/endpoints/%s/events", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Since != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "since", runtime.ParamLocationQuery, *params.Since); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -16206,6 +16376,9 @@ type ClientWithResponsesInterface interface {
 
 	V1ServerlessEndpointUpdateWithResponse(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, body V1ServerlessEndpointUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointUpdateResponse, error)
 
+	// V1ServerlessEndpointEventListWithResponse request
+	V1ServerlessEndpointEventListWithResponse(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, params *V1ServerlessEndpointEventListParams, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointEventListResponse, error)
+
 	// V1TaskGetWithResponse request
 	V1TaskGetWithResponse(ctx context.Context, task openapi_types.UUID, params *V1TaskGetParams, reqEditors ...RequestEditorFn) (*V1TaskGetResponse, error)
 
@@ -17130,6 +17303,32 @@ func (r V1ServerlessEndpointUpdateResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r V1ServerlessEndpointUpdateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1ServerlessEndpointEventListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1ServerlessEndpointEventList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+	JSON429      *TooManyRequests
+}
+
+// Status returns HTTPResponse.Status
+func (r V1ServerlessEndpointEventListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1ServerlessEndpointEventListResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -20778,6 +20977,15 @@ func (c *ClientWithResponses) V1ServerlessEndpointUpdateWithResponse(ctx context
 	return ParseV1ServerlessEndpointUpdateResponse(rsp)
 }
 
+// V1ServerlessEndpointEventListWithResponse request returning *V1ServerlessEndpointEventListResponse
+func (c *ClientWithResponses) V1ServerlessEndpointEventListWithResponse(ctx context.Context, v1ServerlessEndpoint openapi_types.UUID, params *V1ServerlessEndpointEventListParams, reqEditors ...RequestEditorFn) (*V1ServerlessEndpointEventListResponse, error) {
+	rsp, err := c.V1ServerlessEndpointEventList(ctx, v1ServerlessEndpoint, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1ServerlessEndpointEventListResponse(rsp)
+}
+
 // V1TaskGetWithResponse request returning *V1TaskGetResponse
 func (c *ClientWithResponses) V1TaskGetWithResponse(ctx context.Context, task openapi_types.UUID, params *V1TaskGetParams, reqEditors ...RequestEditorFn) (*V1TaskGetResponse, error) {
 	rsp, err := c.V1TaskGet(ctx, task, params, reqEditors...)
@@ -23055,6 +23263,60 @@ func ParseV1ServerlessEndpointUpdateResponse(rsp *http.Response) (*V1ServerlessE
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest V1ServerlessEndpoint
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1ServerlessEndpointEventListResponse parses an HTTP response from a V1ServerlessEndpointEventListWithResponse call
+func ParseV1ServerlessEndpointEventListResponse(rsp *http.Response) (*V1ServerlessEndpointEventListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1ServerlessEndpointEventListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1ServerlessEndpointEventList
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

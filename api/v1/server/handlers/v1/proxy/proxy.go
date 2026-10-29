@@ -28,7 +28,7 @@ func (p *Proxy[in, out]) Do(ctx context.Context, tenant *sqlcv1.Tenant, input *i
 	expiresAt := time.Now().Add(5 * time.Minute).UTC()
 
 	// generate the API token for the proxy request
-	tok, err := p.config.Auth.JWTManager.GenerateTenantToken(ctx, tenantId, "proxy", true, &expiresAt)
+	tok, err := p.config.Auth.JWTManager.GenerateTenantToken(ctx, tenantId, "proxy", true, false, &expiresAt)
 
 	if err != nil {
 		return nil, err
