@@ -148,6 +148,7 @@ type Scheduler struct {
 
 	tasksWithNoWorkerCache *expirable.LRU[string, struct{}]
 	rateLimitedTasksCache  *expirable.LRU[string, struct{}]
+	dispatcherIds          *dispatcherIdCache
 
 	promGate *prometheus.Gate
 
@@ -214,6 +215,7 @@ func New(
 		pool:                   opts.pool,
 		tasksWithNoWorkerCache: tasksWithNoWorkerCache,
 		rateLimitedTasksCache:  rateLimitedTasksCache,
+		dispatcherIds:          newDispatcherIdCache(opts.repov1.Workers().GetDispatcherIdsForWorkers),
 		signaler:               signaler,
 		promGate:               opts.promGate,
 		queueMetrics:           newQueueMetricsPoller(opts.repov1.Tasks(), opts.l),
@@ -382,6 +384,8 @@ func (s *Scheduler) handleTask(ctx context.Context, task *msgqueue.Message) (err
 		return s.handleCheckQueue(ctx, task)
 	case msgqueue.MsgIDNewWorker:
 		return s.handleNewWorker(ctx, task)
+	case msgqueue.MsgIDWorkerDispatcherChanged:
+		return s.handleWorkerDispatcherChanged(ctx, task)
 	case msgqueue.MsgIDNewQueue:
 		return s.handleNewQueue(ctx, task)
 	case msgqueue.MsgIDNewConcurrencyStrategy:
@@ -424,6 +428,25 @@ func (s *Scheduler) handleNewWorker(ctx context.Context, msg *msgqueue.Message) 
 
 	for _, payload := range payloads {
 		s.pool.NotifyNewWorker(ctx, msg.TenantID, payload.WorkerId)
+	}
+
+	return nil
+}
+
+// handleWorkerDispatcherChanged writes the dispatcher id a worker connected to into the dispatcher id
+// cache, so the next assignment routes to it without waiting for the cached entry to expire.
+func (s *Scheduler) handleWorkerDispatcherChanged(ctx context.Context, msg *msgqueue.Message) error {
+	_, span := telemetry.NewSpanWithCarrier(ctx, "handle-worker-dispatcher-changed", msg.OtelCarrier)
+	defer span.End()
+
+	payloads := msgqueue.JSONConvert[tasktypes.WorkerDispatcherChangedPayload](msg.Payloads)
+
+	for _, payload := range payloads {
+		if payload.WorkerId == uuid.Nil || payload.DispatcherId == uuid.Nil {
+			continue
+		}
+
+		s.dispatcherIds.set(payload.WorkerId, payload.DispatcherId)
 	}
 
 	return nil
@@ -508,7 +531,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 
 	// bulk assign step runs
 	if len(res.Assigned) > 0 {
-		dispatcherIdToWorkerIdsToStepRuns := make(map[uuid.UUID]map[uuid.UUID][]int64)
+		dispatcherIdToAssignments := make(map[uuid.UUID]*workerAssignments)
 
 		workerIds := make([]uuid.UUID, 0)
 
@@ -516,7 +539,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 			workerIds = append(workerIds, assigned.WorkerId)
 		}
 
-		workerIdToDispatcherId, workersWithoutDispatchers, err := s.repov1.Workers().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
+		workerIdToDispatcherId, workersWithoutDispatchers, err := s.dispatcherIds.get(ctx, tenantId, workerIds)
 
 		if err != nil {
 			s.internalRetry(ctx, tenantId, res.Assigned...)
@@ -555,33 +578,30 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 				continue
 			}
 
-			hasNoDispatcher := enumerables.HasKey(workersWithoutDispatchers, bulkAssigned.WorkerId)
-			dispatcherId, ok := workerIdToDispatcherId[bulkAssigned.WorkerId]
-
-			if hasNoDispatcher || !ok {
-				s.l.Error().Ctx(ctx).Str("worker_id", bulkAssigned.WorkerId.String()).Msg("could not assign step run to worker: no dispatcher id. removing worker from the scheduler and attempting internal retry.")
-
-				s.pool.RemoveWorker(ctx, tenantId, bulkAssigned.WorkerId)
-				s.internalRetry(ctx, tenantId, bulkAssigned)
-
-				continue
-			}
-
-			if _, ok := dispatcherIdToWorkerIdsToStepRuns[dispatcherId]; !ok {
-				dispatcherIdToWorkerIdsToStepRuns[dispatcherId] = make(map[uuid.UUID][]int64)
-			}
-
 			workerId := bulkAssigned.WorkerId
-
-			if _, ok := dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId]; !ok {
-				dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = make([]int64, 0)
-			}
-
-			if !bulkAssigned.IsAssignedLocally {
-				dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = append(dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId], bulkAssigned.QueueItem.TaskID)
-			}
-
 			taskId := bulkAssigned.QueueItem.TaskID
+
+			// items the optimistic path already delivered only need the ASSIGNED event below: no dispatcher
+			// lookup and no task-assigned-bulk message
+			if !bulkAssigned.IsAssignedLocally {
+				hasNoDispatcher := enumerables.HasKey(workersWithoutDispatchers, workerId)
+				dispatcherId, ok := workerIdToDispatcherId[workerId]
+
+				if hasNoDispatcher || !ok {
+					s.l.Error().Ctx(ctx).Str("worker_id", workerId.String()).Msg("could not assign step run to worker: no dispatcher id. removing worker from the scheduler and attempting internal retry.")
+
+					s.pool.RemoveWorker(ctx, tenantId, workerId)
+					s.internalRetry(ctx, tenantId, bulkAssigned)
+
+					continue
+				}
+
+				if _, ok := dispatcherIdToAssignments[dispatcherId]; !ok {
+					dispatcherIdToAssignments[dispatcherId] = newWorkerAssignments()
+				}
+
+				dispatcherIdToAssignments[dispatcherId].add(workerId, taskId, bulkAssigned.QueueItem.RetryCount)
+			}
 
 			var durableInvCount int32
 			if count, ok := invocationCounts[repov1.IdInsertedAt{
@@ -618,8 +638,8 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 		}
 
 		// for each dispatcher, send a bulk assigned task
-		for dispatcherId, workerIdsToStepRuns := range dispatcherIdToWorkerIdsToStepRuns {
-			msg, err := taskBulkAssignedTask(tenantId, workerIdsToStepRuns)
+		for dispatcherId, assignments := range dispatcherIdToAssignments {
+			msg, err := taskBulkAssignedTask(tenantId, assignments)
 
 			if err != nil {
 				outerErr = multierror.Append(outerErr, fmt.Errorf("could not create bulk assigned task: %w", err))
@@ -1330,14 +1350,39 @@ func describeBatchFlushReason(reason repov1.BatchFlushReason, batchSize int, int
 	}
 }
 
-func taskBulkAssignedTask(tenantId uuid.UUID, workerIdsToTaskIds map[uuid.UUID][]int64) (*msgqueue.Message, error) {
+// workerAssignments collects the tasks assigned to each worker of one dispatcher, with the retry count of
+// the attempt each task was assigned for.
+type workerAssignments struct {
+	taskIds     map[uuid.UUID][]int64
+	retryCounts map[uuid.UUID]map[int64]int32
+}
+
+func newWorkerAssignments() *workerAssignments {
+	return &workerAssignments{
+		taskIds:     make(map[uuid.UUID][]int64),
+		retryCounts: make(map[uuid.UUID]map[int64]int32),
+	}
+}
+
+func (a *workerAssignments) add(workerId uuid.UUID, taskId int64, retryCount int32) {
+	a.taskIds[workerId] = append(a.taskIds[workerId], taskId)
+
+	if _, ok := a.retryCounts[workerId]; !ok {
+		a.retryCounts[workerId] = make(map[int64]int32)
+	}
+
+	a.retryCounts[workerId][taskId] = retryCount
+}
+
+func taskBulkAssignedTask(tenantId uuid.UUID, assignments *workerAssignments) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDTaskAssignedBulk,
 		false,
 		true,
 		tasktypes.TaskAssignedBulkTaskPayload{
-			WorkerIdToTaskIds: workerIdsToTaskIds,
+			WorkerIdToTaskIds:         assignments.taskIds,
+			WorkerIdToTaskRetryCounts: assignments.retryCounts,
 		},
 	)
 }
