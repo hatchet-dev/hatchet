@@ -10,6 +10,25 @@
  * ---------------------------------------------------------------
  */
 
+export enum SandboxProviderEventKind {
+  HEALTHCHECK_FAILED = "HEALTHCHECK_FAILED",
+  UNHEALTHY = "UNHEALTHY",
+  HEALTHY = "HEALTHY",
+  SANDBOX_CREATED = "SANDBOX_CREATED",
+  SANDBOX_CREATE_FAILED = "SANDBOX_CREATE_FAILED",
+  TURN_FAILED = "TURN_FAILED",
+  SNAPSHOT_FAILED = "SNAPSHOT_FAILED",
+  SANDBOX_DESTROYED = "SANDBOX_DESTROYED",
+}
+
+/** The sandbox vendor a provider connects to. */
+export enum SandboxProviderKind {
+  E2B = "E2B",
+  SUPABASE = "SUPABASE",
+  ARCHIL = "ARCHIL",
+  FREESTYLE = "FREESTYLE",
+}
+
 export enum UserOfferType {
   YCAlumni = "YC Alumni",
   YCCurrentBatch = "YC Current Batch",
@@ -883,8 +902,6 @@ export interface OrganizationInvite {
    * @format uuid
    */
   organizationId: string;
-  /** The name of the organization */
-  organizationName?: string;
   /**
    * The email of the inviter
    * @format email
@@ -1171,4 +1188,110 @@ export interface AutumnProductItemDisplay {
 export interface AddOrganizationMembersToTenantRequest {
   /** IDs of org members to add to the tenant. */
   memberIds: string[];
+}
+
+/** The health of the provider as last observed by the sandbox operator: whether the vendor accepted the provider's credentials. Written on transitions only. */
+export interface SandboxProviderStatus {
+  /** Whether the last credential check succeeded. Absent until the operator has checked the provider. */
+  healthy?: boolean;
+  /** The error from the last failed check, if the provider is unhealthy. */
+  error?: string;
+  /**
+   * When the healthy flag last changed.
+   * @format date-time
+   */
+  changedAt?: string;
+}
+
+export interface SandboxProvider {
+  metadata: APIResourceMeta;
+  /** @format uuid */
+  tenantId: string;
+  /** The name of the provider. Unique within the tenant; the SDK selects it with metadata.provider. */
+  name: string;
+  /** The sandbox vendor a provider connects to. */
+  kind: SandboxProviderKind;
+  /** Vendor-specific settings, such as a base URL or a snapshot policy. The API key is never included. */
+  config: Record<string, any>;
+  /** The template or image a sandbox is created from when the SDK names none. */
+  defaultTemplate?: string;
+  /**
+   * The longest idle time a sandbox may ask for before the vendor removes it, in seconds.
+   * @format int32
+   */
+  maxIdleTtlSeconds: number;
+  labels: Record<string, any>;
+  /** Whether the operator serves sandboxes on this provider. */
+  enabled: boolean;
+  /** The health of the provider as last observed by the sandbox operator: whether the vendor accepted the provider's credentials. Written on transitions only. */
+  status: SandboxProviderStatus;
+}
+
+export interface SandboxProviderList {
+  pagination?: PaginationResponse;
+  rows?: SandboxProvider[];
+}
+
+export interface CreateSandboxProviderRequest {
+  /**
+   * The name of the provider. Unique within the tenant.
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  /** The sandbox vendor a provider connects to. */
+  kind: SandboxProviderKind;
+  /**
+   * The vendor API key. Write-only; it is stored encrypted and never returned.
+   * @minLength 1
+   */
+  apiKey: string;
+  /** Vendor-specific settings. For E2B, apiUrl, sandboxUrl, template, workdir and snapshotEveryTurn. */
+  config?: Record<string, any>;
+  defaultTemplate?: string;
+  /**
+   * Defaults to 86400.
+   * @format int32
+   */
+  maxIdleTtlSeconds?: number;
+  labels?: Record<string, any>;
+  /** Defaults to true. */
+  enabled?: boolean;
+}
+
+/** Fields to update on a sandbox provider. Omitted fields are left unchanged. */
+export interface UpdateSandboxProviderRequest {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name?: string;
+  /**
+   * A new vendor API key. Provide a value to rotate the key; it is never returned.
+   * @minLength 1
+   */
+  apiKey?: string;
+  /** Replaces the existing config. */
+  config?: Record<string, any>;
+  defaultTemplate?: string;
+  /** @format int32 */
+  maxIdleTtlSeconds?: number;
+  /** Replaces the existing labels. */
+  labels?: Record<string, any>;
+  enabled?: boolean;
+}
+
+export interface SandboxProviderEvent {
+  /** @format int64 */
+  id: number;
+  /** @format date-time */
+  createdAt: string;
+  kind: SandboxProviderEventKind;
+  sandboxId?: string;
+  message: string;
+  details: Record<string, any>;
+}
+
+export interface SandboxProviderEventList {
+  rows: SandboxProviderEvent[];
 }
