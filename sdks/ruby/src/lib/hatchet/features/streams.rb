@@ -186,7 +186,7 @@ module Hatchet
           tenant_id: res.tenant_id,
           message_count: res.message_count,
           latest_cursor: res.has_latest_cursor? ? res.latest_cursor : nil,
-          last_published_at: res.last_published_at&.to_time,
+          last_published_at: to_time(res.last_published_at),
         )
       end
 
@@ -253,7 +253,7 @@ module Hatchet
                 # reset only on delivery, so a payload fetch failing on every reconnect still backs off
                 failures = 0
                 delivering = true
-                block.call(StreamEvent.new(payload: payload, cursor: entry.cursor, created_at: entry.created_at&.to_time))
+                block.call(StreamEvent.new(payload: payload, cursor: entry.cursor, created_at: to_time(entry.created_at)))
                 delivering = false
               end
             end
@@ -271,6 +271,10 @@ module Hatchet
       end
 
       private
+
+      def to_time(timestamp)
+        timestamp && Time.at(timestamp.seconds, timestamp.nanos, :nsec).utc
+      end
 
       def monotonic_now
         Process.clock_gettime(Process::CLOCK_MONOTONIC)
