@@ -172,6 +172,24 @@ ANALYZE v1_otel_trace_olap;
 -- name: AnalyzeV1OtelTraceLookupOLAP :exec
 ANALYZE v1_otel_trace_lookup_olap;
 
+-- name: AnalyzeV1AggTaskStatusesMinuteOLAP :exec
+ANALYZE v1_agg_task_statuses_minute_olap;
+
+-- name: AnalyzeV1AggTaskEventsMinuteOLAP :exec
+ANALYZE v1_agg_task_events_minute_olap;
+
+-- name: AnalyzeV1AggEventsMinuteOLAP :exec
+ANALYZE v1_agg_events_minute_olap;
+
+-- name: AnalyzeV1AggTaskStatusesMinuteDeltaOLAP :exec
+ANALYZE v1_agg_task_statuses_minute_delta_olap;
+
+-- name: AnalyzeV1AggTaskEventsMinuteDeltaOLAP :exec
+ANALYZE v1_agg_task_events_minute_delta_olap;
+
+-- name: AnalyzeV1AggEventsMinuteDeltaOLAP :exec
+ANALYZE v1_agg_events_minute_delta_olap;
+
 -- name: ListOLAPPartitionsBeforeDate :many
 WITH task_partitions AS (
     SELECT 'v1_tasks_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_tasks_olap'::text, @date::date) AS p

@@ -12,6 +12,60 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const analyzeV1AggEventsMinuteDeltaOLAP = `-- name: AnalyzeV1AggEventsMinuteDeltaOLAP :exec
+ANALYZE v1_agg_events_minute_delta_olap
+`
+
+func (q *Queries) AnalyzeV1AggEventsMinuteDeltaOLAP(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1AggEventsMinuteDeltaOLAP)
+	return err
+}
+
+const analyzeV1AggEventsMinuteOLAP = `-- name: AnalyzeV1AggEventsMinuteOLAP :exec
+ANALYZE v1_agg_events_minute_olap
+`
+
+func (q *Queries) AnalyzeV1AggEventsMinuteOLAP(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1AggEventsMinuteOLAP)
+	return err
+}
+
+const analyzeV1AggTaskEventsMinuteDeltaOLAP = `-- name: AnalyzeV1AggTaskEventsMinuteDeltaOLAP :exec
+ANALYZE v1_agg_task_events_minute_delta_olap
+`
+
+func (q *Queries) AnalyzeV1AggTaskEventsMinuteDeltaOLAP(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1AggTaskEventsMinuteDeltaOLAP)
+	return err
+}
+
+const analyzeV1AggTaskEventsMinuteOLAP = `-- name: AnalyzeV1AggTaskEventsMinuteOLAP :exec
+ANALYZE v1_agg_task_events_minute_olap
+`
+
+func (q *Queries) AnalyzeV1AggTaskEventsMinuteOLAP(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1AggTaskEventsMinuteOLAP)
+	return err
+}
+
+const analyzeV1AggTaskStatusesMinuteDeltaOLAP = `-- name: AnalyzeV1AggTaskStatusesMinuteDeltaOLAP :exec
+ANALYZE v1_agg_task_statuses_minute_delta_olap
+`
+
+func (q *Queries) AnalyzeV1AggTaskStatusesMinuteDeltaOLAP(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1AggTaskStatusesMinuteDeltaOLAP)
+	return err
+}
+
+const analyzeV1AggTaskStatusesMinuteOLAP = `-- name: AnalyzeV1AggTaskStatusesMinuteOLAP :exec
+ANALYZE v1_agg_task_statuses_minute_olap
+`
+
+func (q *Queries) AnalyzeV1AggTaskStatusesMinuteOLAP(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1AggTaskStatusesMinuteOLAP)
+	return err
+}
+
 const analyzeV1DAGToTaskOLAP = `-- name: AnalyzeV1DAGToTaskOLAP :exec
 ANALYZE v1_dag_to_task_olap
 `
