@@ -121,19 +121,6 @@ WHERE
 ORDER BY v1_operator.id
 FOR UPDATE OF v1_operator SKIP LOCKED;
 
--- name: ReleaseOperatorWorkers :many
-UPDATE "Worker" w
-SET
-    "dispatcherId" = NULL,
-    "isPaused" = TRUE,
-    "updatedAt" = CURRENT_TIMESTAMP
-FROM v1_operator o
-WHERE
-    o.worker_id = w."id"
-    AND o.leasing_manager = 'DISPATCHER'
-    AND w."dispatcherId" = @dispatcherId::UUID
-RETURNING w."id";
-
 -- name: UpsertOperator :one
 -- Registers an operator by (tenant, name, kind), the row a session registers under by name. The
 -- row carries no config. A repeat registration takes the leasing manager it names: a row a

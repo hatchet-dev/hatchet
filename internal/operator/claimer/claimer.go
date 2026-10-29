@@ -36,7 +36,7 @@ import (
 
 const (
 	// defaultPollInterval is how often the claim query runs. It bounds how long a tenant's
-	// operators stay unhosted after their dispatcher releases them at shutdown.
+	// operators stay unhosted after their dispatcher marks itself inactive at shutdown.
 	defaultPollInterval = 1 * time.Second
 
 	// defaultTeardownTimeout bounds one operator's pause, drain and close. DAG runs abort as
@@ -44,11 +44,9 @@ const (
 	defaultTeardownTimeout = 30 * time.Second
 )
 
-// Claims is the claim query: the operator rows this dispatcher should run, and the release
-// that hands them to another dispatcher at shutdown.
+// Claims is the claim query: the operator rows this dispatcher should run.
 type Claims interface {
 	ClaimOperators(ctx context.Context, dispatcherId uuid.UUID) ([]*sqlcv1.V1Operator, error)
-	ReleaseOperators(ctx context.Context, dispatcherId uuid.UUID) ([]uuid.UUID, error)
 }
 
 // Factory builds the operator for a claimed row and the options its session is opened with.
@@ -397,10 +395,8 @@ func (c *Claimer) Running() int {
 	return len(c.running)
 }
 
-// Stop ends polling, releases every claimed operator so another dispatcher can host it while
-// this one drains, then tears every hosted operator down, concurrently, and waits for the
-// teardowns already in flight. Polling ends before the release so this dispatcher cannot
-// reclaim what it just released. It runs once.
+// Stop ends polling and tears every hosted operator down, concurrently, then waits for the
+// teardowns already in flight. It runs once.
 func (c *Claimer) Stop(ctx context.Context) {
 	c.stopOnce.Do(func() {
 		if c.cancel != nil {
@@ -412,16 +408,6 @@ func (c *Claimer) Stop(ctx context.Context) {
 		all := c.running
 		c.running = map[uuid.UUID]*hosted{}
 		c.mu.Unlock()
-
-		if len(all) > 0 {
-			released, err := c.claims.ReleaseOperators(ctx, c.dispatcherId)
-
-			if err != nil {
-				c.l.Error().Ctx(ctx).Err(err).Msg("could not release claimed operators before draining; they will be reclaimed once this dispatcher's row is deleted")
-			} else {
-				c.l.Info().Ctx(ctx).Int("workers", len(released)).Msg("released claimed operators for another dispatcher to host")
-			}
-		}
 
 		for _, h := range all {
 			c.teardowns.Go(func() { c.teardown(h) })

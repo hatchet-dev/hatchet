@@ -19,7 +19,7 @@ import (
 
 // A dispatcher that marks itself inactive at the start of its shutdown claims nothing more,
 // and its operators become claimable by a live dispatcher at once, before its row is deleted
-// at the end of the shutdown. Releasing then detaches and pauses the operator's worker.
+// at the end of the shutdown.
 func TestClaimOperators_InactiveDispatcherHandsOverAndClaimsNothing(t *testing.T) {
 	pool := workerActionsPool(t)
 	logger := zerolog.New(io.Discard)
@@ -74,15 +74,4 @@ func TestClaimOperators_InactiveDispatcherHandsOverAndClaimsNothing(t *testing.T
 
 	require.Empty(t, claimedIds(leavingDispatcherId), "an inactive dispatcher claims nothing")
 	require.Contains(t, claimedIds(liveDispatcherId), operator.ID, "an operator on an inactive dispatcher is claimable before the dispatcher row is deleted")
-
-	released, err := operators.ReleaseOperators(ctx, leavingDispatcherId)
-	require.NoError(t, err)
-	require.Equal(t, []uuid.UUID{worker.ID}, released)
-
-	releasedWorker, err := workers.GetWorkerById(ctx, worker.ID)
-	require.NoError(t, err)
-	require.Nil(t, releasedWorker.Worker.DispatcherId)
-	require.True(t, releasedWorker.Worker.IsPaused)
-
-	require.Contains(t, claimedIds(liveDispatcherId), operator.ID, "a released operator stays claimable by a live dispatcher")
 }

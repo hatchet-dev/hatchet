@@ -3789,6 +3789,42 @@ func (r *OLAPRepositoryImpl) AnalyzeOLAPTables(ctx context.Context) error {
 		return fmt.Errorf("error analyzing v1_otel_trace_lookup_olap: %v", err)
 	}
 
+	err = r.queries.AnalyzeV1AggTaskStatusesMinuteOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_agg_task_statuses_minute_olap: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1AggTaskEventsMinuteOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_agg_task_events_minute_olap: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1AggEventsMinuteOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_agg_events_minute_olap: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1AggTaskStatusesMinuteDeltaOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_agg_task_statuses_minute_delta_olap: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1AggTaskEventsMinuteDeltaOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_agg_task_events_minute_delta_olap: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1AggEventsMinuteDeltaOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_agg_events_minute_delta_olap: %v", err)
+	}
+
 	if err := commit(ctx); err != nil {
 		return fmt.Errorf("error committing transaction: %v", err)
 	}

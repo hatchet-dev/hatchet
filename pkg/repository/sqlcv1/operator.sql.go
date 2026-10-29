@@ -347,40 +347,6 @@ func (q *Queries) LockOperator(ctx context.Context, db DBTX, arg LockOperatorPar
 	return id, err
 }
 
-const releaseOperatorWorkers = `-- name: ReleaseOperatorWorkers :many
-UPDATE "Worker" w
-SET
-    "dispatcherId" = NULL,
-    "isPaused" = TRUE,
-    "updatedAt" = CURRENT_TIMESTAMP
-FROM v1_operator o
-WHERE
-    o.worker_id = w."id"
-    AND o.leasing_manager = 'DISPATCHER'
-    AND w."dispatcherId" = $1::UUID
-RETURNING w."id"
-`
-
-func (q *Queries) ReleaseOperatorWorkers(ctx context.Context, db DBTX, dispatcherid uuid.UUID) ([]uuid.UUID, error) {
-	rows, err := db.Query(ctx, releaseOperatorWorkers, dispatcherid)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []uuid.UUID
-	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const updateOperator = `-- name: UpdateOperator :one
 UPDATE v1_operator
 SET
