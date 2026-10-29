@@ -20,7 +20,8 @@ INSERT INTO "APIToken" (
     "tenantId",
     "name",
     "expiresAt",
-    "internal"
+    "internal",
+    "readOnly"
 ) VALUES (
     coalesce($1::uuid, gen_random_uuid()),
     CURRENT_TIMESTAMP,
@@ -28,8 +29,9 @@ INSERT INTO "APIToken" (
     $2::uuid,
     $3::text,
     $4::timestamp,
-    COALESCE($5::boolean, FALSE)
-) RETURNING id, "createdAt", "updatedAt", "expiresAt", revoked, name, "tenantId", "nextAlertAt", internal
+    COALESCE($5::boolean, FALSE),
+    $6::boolean
+) RETURNING id, "createdAt", "updatedAt", "expiresAt", revoked, name, "tenantId", "nextAlertAt", internal, "readOnly"
 `
 
 type CreateAPITokenParams struct {
@@ -38,6 +40,7 @@ type CreateAPITokenParams struct {
 	Name      pgtype.Text      `json:"name"`
 	Expiresat pgtype.Timestamp `json:"expiresat"`
 	Internal  pgtype.Bool      `json:"internal"`
+	Readonly  bool             `json:"readonly"`
 }
 
 func (q *Queries) CreateAPIToken(ctx context.Context, db DBTX, arg CreateAPITokenParams) (*APIToken, error) {
@@ -47,6 +50,7 @@ func (q *Queries) CreateAPIToken(ctx context.Context, db DBTX, arg CreateAPIToke
 		arg.Name,
 		arg.Expiresat,
 		arg.Internal,
+		arg.Readonly,
 	)
 	var i APIToken
 	err := row.Scan(
@@ -59,6 +63,7 @@ func (q *Queries) CreateAPIToken(ctx context.Context, db DBTX, arg CreateAPIToke
 		&i.TenantId,
 		&i.NextAlertAt,
 		&i.Internal,
+		&i.ReadOnly,
 	)
 	return &i, err
 }
@@ -83,7 +88,7 @@ func (q *Queries) DeleteAPIToken(ctx context.Context, db DBTX, arg DeleteAPIToke
 
 const getAPITokenById = `-- name: GetAPITokenById :one
 SELECT
-    id, "createdAt", "updatedAt", "expiresAt", revoked, name, "tenantId", "nextAlertAt", internal
+    id, "createdAt", "updatedAt", "expiresAt", revoked, name, "tenantId", "nextAlertAt", internal, "readOnly"
 FROM
     "APIToken"
 WHERE
@@ -103,13 +108,14 @@ func (q *Queries) GetAPITokenById(ctx context.Context, db DBTX, id uuid.UUID) (*
 		&i.TenantId,
 		&i.NextAlertAt,
 		&i.Internal,
+		&i.ReadOnly,
 	)
 	return &i, err
 }
 
 const listAPITokensByTenant = `-- name: ListAPITokensByTenant :many
 SELECT
-    id, "createdAt", "updatedAt", "expiresAt", revoked, name, "tenantId", "nextAlertAt", internal
+    id, "createdAt", "updatedAt", "expiresAt", revoked, name, "tenantId", "nextAlertAt", internal, "readOnly"
 FROM
     "APIToken"
 WHERE
@@ -137,6 +143,7 @@ func (q *Queries) ListAPITokensByTenant(ctx context.Context, db DBTX, tenantid u
 			&i.TenantId,
 			&i.NextAlertAt,
 			&i.Internal,
+			&i.ReadOnly,
 		); err != nil {
 			return nil, err
 		}

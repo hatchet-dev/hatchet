@@ -2683,6 +2683,7 @@ type APIToken struct {
 	TenantId    *uuid.UUID       `json:"tenantId"`
 	NextAlertAt pgtype.Timestamp `json:"nextAlertAt"`
 	Internal    bool             `json:"internal"`
+	ReadOnly    bool             `json:"readOnly"`
 }
 
 type Action struct {
