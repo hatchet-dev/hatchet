@@ -2756,6 +2756,13 @@ type GetGroupKeyRun struct {
 	ScheduleTimeoutAt pgtype.Timestamp `json:"scheduleTimeoutAt"`
 }
 
+type GooseDbVersion struct {
+	ID        pgtype.Int4      `json:"id"`
+	VersionID pgtype.Int8      `json:"version_id"`
+	IsApplied pgtype.Bool      `json:"is_applied"`
+	Tstamp    pgtype.Timestamp `json:"tstamp"`
+}
+
 type InternalQueueItem struct {
 	ID        int64         `json:"id"`
 	Queue     InternalQueue `json:"queue"`
