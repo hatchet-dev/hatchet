@@ -4,25 +4,24 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/docker/docker/api/types/filters"
-	"github.com/docker/docker/api/types/network"
+	"github.com/moby/moby/client"
 )
 
 // initNetwork atomically creates the docker network if it does not already exist
 func (d *DockerDriver) initNetwork(ctx context.Context, name, projectName string) (string, error) {
 	// check if network already exists
-	networks, err := d.apiClient.NetworkList(ctx, network.ListOptions{
-		Filters: filters.NewArgs(filters.Arg("name", name)),
+	networks, err := d.apiClient.NetworkList(ctx, client.NetworkListOptions{
+		Filters: client.Filters{}.Add("name", name),
 	})
 	if err != nil {
 		return "", fmt.Errorf("could not list docker networks: %w", err)
 	}
 	var networkId string
 
-	if len(networks) > 0 {
-		networkId = networks[0].ID
+	if len(networks.Items) > 0 {
+		networkId = networks.Items[0].ID
 	} else {
-		networkResp, err := d.apiClient.NetworkCreate(ctx, name, network.CreateOptions{
+		networkResp, err := d.apiClient.NetworkCreate(ctx, name, client.NetworkCreateOptions{
 			Driver: "bridge",
 			Labels: map[string]string{
 				"com.docker.compose.project": projectName,

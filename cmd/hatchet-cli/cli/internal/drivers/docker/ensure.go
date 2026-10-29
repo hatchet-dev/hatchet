@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/filters"
-	"github.com/docker/docker/api/types/network"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/network"
+	"github.com/moby/moby/client"
 	"github.com/opencontainers/go-digest"
 
 	cerrdefs "github.com/containerd/errdefs"
@@ -30,7 +30,8 @@ func (d *DockerDriver) ensureContainer(
 	containerConfig.Labels[hatchetHashLabel] = newHash
 
 	// Check if container already exists
-	existing, err := d.apiClient.ContainerInspect(ctx, containerName)
+	inspect, err := d.apiClient.ContainerInspect(ctx, containerName, client.ContainerInspectOptions{})
+	existing := inspect.Container
 
 	if err == nil {
 		// Container exists - check if it needs to be recreated
@@ -46,17 +47,17 @@ func (d *DockerDriver) ensureContainer(
 		if needsRecreate {
 			// Stop and remove existing container
 			timeout := 10
-			if err := d.apiClient.ContainerStop(ctx, existing.ID, container.StopOptions{Timeout: &timeout}); err != nil && !cerrdefs.IsNotFound(err) {
+			if _, err := d.apiClient.ContainerStop(ctx, existing.ID, client.ContainerStopOptions{Timeout: &timeout}); err != nil && !cerrdefs.IsNotFound(err) {
 				return "", fmt.Errorf("could not stop existing container: %w", err)
 			}
 
-			if err := d.apiClient.ContainerRemove(ctx, existing.ID, container.RemoveOptions{Force: true}); err != nil && !cerrdefs.IsNotFound(err) {
+			if _, err := d.apiClient.ContainerRemove(ctx, existing.ID, client.ContainerRemoveOptions{Force: true}); err != nil && !cerrdefs.IsNotFound(err) {
 				return "", fmt.Errorf("could not remove existing container: %w", err)
 			}
 		} else {
 			// Container exists and doesn't need recreation - just ensure it's running
 			if !existing.State.Running {
-				if err := d.apiClient.ContainerStart(ctx, existing.ID, container.StartOptions{}); err != nil {
+				if _, err := d.apiClient.ContainerStart(ctx, existing.ID, client.ContainerStartOptions{}); err != nil {
 					return "", fmt.Errorf("could not start existing container: %w", err)
 				}
 			}
@@ -67,18 +68,17 @@ func (d *DockerDriver) ensureContainer(
 	}
 
 	// Create new container
-	resp, err := d.apiClient.ContainerCreate(ctx,
-		containerConfig,
-		hostConfig,
-		networkConfig,
-		nil,
-		containerName,
-	)
+	resp, err := d.apiClient.ContainerCreate(ctx, client.ContainerCreateOptions{
+		Config:           containerConfig,
+		HostConfig:       hostConfig,
+		NetworkingConfig: networkConfig,
+		Name:             containerName,
+	})
 	if err != nil {
 		return "", fmt.Errorf("could not create container: %w", err)
 	}
 
-	if err := d.apiClient.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
+	if _, err := d.apiClient.ContainerStart(ctx, resp.ID, client.ContainerStartOptions{}); err != nil {
 		return "", fmt.Errorf("could not start container: %w", err)
 	}
 
@@ -86,23 +86,23 @@ func (d *DockerDriver) ensureContainer(
 }
 
 func (d *DockerDriver) stopContainer(ctx context.Context, containerName string) error {
-	containers, err := d.apiClient.ContainerList(ctx, container.ListOptions{
-		Filters: filters.NewArgs(filters.Arg("name", containerName)),
+	containers, err := d.apiClient.ContainerList(ctx, client.ContainerListOptions{
+		Filters: client.Filters{}.Add("name", containerName),
 	})
 
 	if err != nil {
 		return fmt.Errorf("could not get container ID: %w", err)
 	}
 
-	if len(containers) == 0 {
+	if len(containers.Items) == 0 {
 		// Container doesn't exist
 		return nil
 	}
 
-	containerId := containers[0].ID
+	containerId := containers.Items[0].ID
 
 	timeout := 10
-	if err := d.apiClient.ContainerStop(ctx, containerId, container.StopOptions{Timeout: &timeout}); err != nil && !cerrdefs.IsNotFound(err) {
+	if _, err := d.apiClient.ContainerStop(ctx, containerId, client.ContainerStopOptions{Timeout: &timeout}); err != nil && !cerrdefs.IsNotFound(err) {
 		return fmt.Errorf("could not stop container: %w", err)
 	}
 
@@ -110,12 +110,12 @@ func (d *DockerDriver) stopContainer(ctx context.Context, containerName string) 
 }
 
 func (d *DockerDriver) ensureContainerIsHealthy(ctx context.Context, containerId string) error {
-	inspect, err := d.apiClient.ContainerInspect(ctx, containerId)
+	inspect, err := d.apiClient.ContainerInspect(ctx, containerId, client.ContainerInspectOptions{})
 	if err != nil {
 		return fmt.Errorf("could not inspect container: %w", err)
 	}
 
-	if inspect.State.Health == nil {
+	if inspect.Container.State.Health == nil {
 		// no healthcheck defined
 		return nil
 	}
@@ -125,12 +125,12 @@ func (d *DockerDriver) ensureContainerIsHealthy(ctx context.Context, containerId
 			return ctx.Err()
 		}
 
-		inspect, err = d.apiClient.ContainerInspect(ctx, containerId)
+		inspect, err = d.apiClient.ContainerInspect(ctx, containerId, client.ContainerInspectOptions{})
 		if err != nil {
 			return fmt.Errorf("could not inspect container: %w", err)
 		}
 
-		if inspect.State.Health.Status == "healthy" {
+		if inspect.Container.State.Health.Status == "healthy" {
 			return nil
 		}
 
