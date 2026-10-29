@@ -448,11 +448,20 @@ func runPartitionDDLWithLockTimeout(ctx context.Context, pool *pgxpool.Pool, log
 	return commit(ctx)
 }
 
-func (r *OLAPRepositoryImpl) createOptionalTablePartitions(ctx context.Context, tx pgx.Tx, date time.Time) error {
-	creations, err := r.queries.CreateOLAPOptionalTablePartitions(ctx, tx, pgtype.Date{Time: date, Valid: true})
+func (r *OLAPRepositoryImpl) createPartitionsForDate(ctx context.Context, tx pgx.Tx, date time.Time) error {
+	creations, err := r.queries.CreateOLAPPartitions(ctx, tx, sqlcv1.CreateOLAPPartitionsParams{
+		Date:       pgtype.Date{Time: date, Valid: true},
+		Partitions: NUM_PARTITIONS,
+	})
 
 	if err != nil {
 		return err
+	}
+
+	if creations.V1PayloadsOlap > 0 {
+		if err := createExternalIdUniqueConstraintsOnDailyPartitions(ctx, tx, "v1_payloads_olap", date); err != nil {
+			return err
+		}
 	}
 
 	if creations.V1LookupTableOlap > 0 {
@@ -491,66 +500,16 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	// and not all can run inside of a transaction (e.g. DETACH PARTITION CONCURRENTLY),
 	// so they cannot go through pgbouncer when it's configured.
 	//
-	// Each CreateXxx call runs in its own short-lock_timeout transaction so we fail fast
+	// Each day's partitions are created in their own short-lock_timeout transaction so we fail fast
 	// (ErrPartitionLockConflict) if ANALYZE is holding a conflicting lock.
 	if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
-		todayCreations, err := r.queries.CreateOLAPPartitions(ctx, tx, sqlcv1.CreateOLAPPartitionsParams{
-			Date:       pgtype.Date{Time: today, Valid: true},
-			Partitions: NUM_PARTITIONS,
-		})
-
-		if err != nil {
-			return err
-		}
-
-		if todayCreations.V1PayloadsOlap > 0 {
-			return createExternalIdUniqueConstraintsOnDailyPartitions(ctx, tx, "v1_payloads_olap", today)
-		}
-
-		return nil
+		return r.createPartitionsForDate(ctx, tx, today)
 	}); err != nil {
 		return err
 	}
 
 	if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
-		return r.createOptionalTablePartitions(ctx, tx, today)
-	}); err != nil {
-		return err
-	}
-
-	if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
-		return r.queries.CreateOLAPOtelPartitions(ctx, tx, pgtype.Date{Time: today, Valid: true})
-	}); err != nil {
-		return err
-	}
-
-	if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
-		tomorrowCreations, err := r.queries.CreateOLAPPartitions(ctx, tx, sqlcv1.CreateOLAPPartitionsParams{
-			Date:       pgtype.Date{Time: tomorrow, Valid: true},
-			Partitions: NUM_PARTITIONS,
-		})
-
-		if err != nil {
-			return err
-		}
-
-		if tomorrowCreations.V1PayloadsOlap > 0 {
-			return createExternalIdUniqueConstraintsOnDailyPartitions(ctx, tx, "v1_payloads_olap", tomorrow)
-		}
-
-		return nil
-	}); err != nil {
-		return err
-	}
-
-	if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
-		return r.createOptionalTablePartitions(ctx, tx, tomorrow)
-	}); err != nil {
-		return err
-	}
-
-	if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
-		return r.queries.CreateOLAPOtelPartitions(ctx, tx, pgtype.Date{Time: tomorrow, Valid: true})
+		return r.createPartitionsForDate(ctx, tx, tomorrow)
 	}); err != nil {
 		return err
 	}
