@@ -1652,203 +1652,175 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 
 const listOLAPPartitionsBeforeDate = `-- name: ListOLAPPartitionsBeforeDate :many
 WITH task_partitions AS (
-    SELECT 'v1_tasks_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_tasks_olap'::text, $3::date) AS p
+    SELECT 'v1_tasks_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_tasks_olap'::text, $1::date) AS p
 ), dag_partitions AS (
-    SELECT 'v1_dags_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dags_olap', $3::date) AS p
+    SELECT 'v1_dags_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dags_olap', $1::date) AS p
 ), runs_partitions AS (
-    SELECT 'v1_runs_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_runs_olap', $3::date) AS p
+    SELECT 'v1_runs_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_runs_olap', $1::date) AS p
 ), events_partitions AS (
-    SELECT 'v1_events_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_events_olap', $3::date) AS p
+    SELECT 'v1_events_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_events_olap', $1::date) AS p
 ), event_trigger_partitions AS (
-    SELECT 'v1_event_to_run_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_to_run_olap', $3::date) AS p
+    SELECT 'v1_event_to_run_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_event_to_run_olap', $1::date) AS p
 ), events_lookup_table_partitions AS (
-    SELECT 'v1_event_lookup_table_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_weekly_partitions_before_date('v1_event_lookup_table_olap', $3::date) AS p
+    SELECT 'v1_event_lookup_table_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_weekly_partitions_before_date('v1_event_lookup_table_olap', $1::date) AS p
 ), incoming_webhook_validation_failure_partitions AS (
-    SELECT 'v1_incoming_webhook_validation_failures_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_incoming_webhook_validation_failures_olap', $3::date) AS p
+    SELECT 'v1_incoming_webhook_validation_failures_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_incoming_webhook_validation_failures_olap', $1::date) AS p
 ), cel_evaluation_failures_partitions AS (
-    SELECT 'v1_cel_evaluation_failures_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_cel_evaluation_failures_olap', $3::date) AS p
+    SELECT 'v1_cel_evaluation_failures_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_cel_evaluation_failures_olap', $1::date) AS p
 ), payloads_partitions AS (
-    SELECT 'v1_payloads_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_payloads_olap', $3::date) AS p
+    SELECT 'v1_payloads_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_payloads_olap', $1::date) AS p
 ), otel_trace_partitions AS (
-    SELECT 'v1_otel_trace_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_otel_trace_olap', $3::date) AS p
+    SELECT 'v1_otel_trace_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_otel_trace_olap', $1::date) AS p
 ), otel_trace_lookup_partitions AS (
-    SELECT 'v1_otel_trace_lookup_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_otel_trace_lookup_olap', $3::date) AS p
+    SELECT 'v1_otel_trace_lookup_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_otel_trace_lookup_olap', $1::date) AS p
 ), task_events_partitions AS (
-    SELECT 'v1_task_events_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_task_events_olap', $3::date) AS p
+    SELECT 'v1_task_events_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_task_events_olap', $1::date) AS p
 ), dag_to_task_partitions AS (
-    SELECT 'v1_dag_to_task_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_dag_to_task_olap', $3::date) AS p
+    SELECT 'v1_dag_to_task_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_dag_to_task_olap', $1::date) AS p
 ), lookup_table_partitions AS (
-    SELECT 'v1_lookup_table_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_monthly_partitions_before_date('v1_lookup_table_olap', $3::date) AS p
+    SELECT 'v1_lookup_table_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_monthly_partitions_before_date('v1_lookup_table_olap', $1::date) AS p
 ), statuses_partitions AS (
-    SELECT 'v1_statuses_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_monthly_partitions_before_date('v1_statuses_olap', $3::date) AS p
+    SELECT 'v1_statuses_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_monthly_partitions_before_date('v1_statuses_olap', $1::date) AS p
 ), agg_task_statuses_partitions AS (
-    SELECT 'v1_agg_task_statuses_minute_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_agg_task_statuses_minute_olap', $3::date) AS p
+    SELECT 'v1_agg_task_statuses_minute_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_agg_task_statuses_minute_olap', $1::date) AS p
 ), agg_task_events_partitions AS (
-    SELECT 'v1_agg_task_events_minute_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_agg_task_events_minute_olap', $3::date) AS p
+    SELECT 'v1_agg_task_events_minute_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_agg_task_events_minute_olap', $1::date) AS p
 ), agg_events_partitions AS (
-    SELECT 'v1_agg_events_minute_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_agg_events_minute_olap', $3::date) AS p
-), candidates AS (
-    SELECT
-        parent_table, partition_name
-    FROM
-        task_partitions
-
-    UNION ALL
-
-    SELECT
-        parent_table, partition_name
-    FROM
-        dag_partitions
-
-    UNION ALL
-
-    SELECT
-        parent_table, partition_name
-    FROM
-        runs_partitions
-
-    UNION ALL
-
-    SELECT
-        parent_table, partition_name
-    FROM
-        events_partitions
-
-    UNION ALL
-
-    SELECT
-        parent_table, partition_name
-    FROM
-        event_trigger_partitions
-
-    UNION ALL
-
-    SELECT
-        parent_table, partition_name
-    FROM
-        events_lookup_table_partitions
-
-    UNION ALL
-
-    SELECT
-        parent_table, partition_name
-    FROM
-        incoming_webhook_validation_failure_partitions
-
-    UNION ALL
-
-    SELECT
-        parent_table, partition_name
-    FROM
-        cel_evaluation_failures_partitions
-
-    UNION ALL
-
-    SELECT
-        parent_table, partition_name
-    FROM
-        payloads_partitions
-
-    UNION ALL
-
-    SELECT
-        parent_table, partition_name
-    FROM
-        otel_trace_partitions
-
-    UNION ALL
-
-    SELECT
-        parent_table, partition_name
-    FROM
-        otel_trace_lookup_partitions
-
-    UNION ALL
-
-    SELECT
-        parent_table, partition_name
-    FROM
-        task_events_partitions
-
-    UNION ALL
-
-    SELECT
-        parent_table, partition_name
-    FROM
-        dag_to_task_partitions
-
-    UNION ALL
-
-    SELECT
-        parent_table, partition_name
-    FROM
-        lookup_table_partitions
-
-    UNION ALL
-
-    SELECT
-        parent_table, partition_name
-    FROM
-        statuses_partitions
-
-    UNION ALL
-
-    SELECT
-        parent_table, partition_name
-    FROM
-        agg_task_statuses_partitions
-
-    UNION ALL
-
-    SELECT
-        parent_table, partition_name
-    FROM
-        agg_task_events_partitions
-
-    UNION ALL
-
-    SELECT
-        parent_table, partition_name
-    FROM
-        agg_events_partitions
+    SELECT 'v1_agg_events_minute_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_agg_events_minute_olap', $1::date) AS p
 )
 
-SELECT parent_table, partition_name
-FROM candidates
-WHERE
-    CASE
-        WHEN $1::BOOLEAN THEN TRUE
-        ELSE parent_table NOT IN (
-            'v1_events_olap',
-            'v1_event_to_run_olap',
-            'v1_event_lookup_table_olap',
-            'v1_cel_evaluation_failures_olap',
-            'v1_incoming_webhook_validation_failures_olap',
-            'v1_task_events_olap',
-            'v1_dag_to_task_olap',
-            'v1_lookup_table_olap',
-            'v1_statuses_olap'
-        )
-    END
-    AND CASE
-        WHEN $2::BOOLEAN THEN TRUE
-        ELSE parent_table NOT IN ('v1_otel_trace_olap', 'v1_otel_trace_lookup_olap')
-    END
-`
+SELECT
+    parent_table, partition_name
+FROM
+    task_partitions
 
-type ListOLAPPartitionsBeforeDateParams struct {
-	Shouldmanageoptionaltablepartitions bool        `json:"shouldmanageoptionaltablepartitions"`
-	Shouldpartitionoteltables           bool        `json:"shouldpartitionoteltables"`
-	Date                                pgtype.Date `json:"date"`
-}
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    dag_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    runs_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    events_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    event_trigger_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    events_lookup_table_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    incoming_webhook_validation_failure_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    cel_evaluation_failures_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    payloads_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    otel_trace_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    otel_trace_lookup_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    task_events_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    dag_to_task_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    lookup_table_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    statuses_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    agg_task_statuses_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    agg_task_events_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    agg_events_partitions
+`
 
 type ListOLAPPartitionsBeforeDateRow struct {
 	ParentTable   string `json:"parent_table"`
 	PartitionName string `json:"partition_name"`
 }
 
-func (q *Queries) ListOLAPPartitionsBeforeDate(ctx context.Context, db DBTX, arg ListOLAPPartitionsBeforeDateParams) ([]*ListOLAPPartitionsBeforeDateRow, error) {
-	rows, err := db.Query(ctx, listOLAPPartitionsBeforeDate, arg.Shouldmanageoptionaltablepartitions, arg.Shouldpartitionoteltables, arg.Date)
+func (q *Queries) ListOLAPPartitionsBeforeDate(ctx context.Context, db DBTX, date pgtype.Date) ([]*ListOLAPPartitionsBeforeDateRow, error) {
+	rows, err := db.Query(ctx, listOLAPPartitionsBeforeDate, date)
 	if err != nil {
 		return nil, err
 	}

@@ -35,11 +35,9 @@ func createOLAPRepository(pool *pgxpool.Pool) *OLAPRepositoryImpl {
 		panic(err)
 	}
 	return &OLAPRepositoryImpl{
-		sharedRepository:                    shared,
-		eventCache:                          eventCache,
-		olapRetentionPeriod:                 24 * time.Hour,
-		shouldManageOptionalTablePartitions: false,
-		shouldPartitionOtelTables:           false,
+		sharedRepository:    shared,
+		eventCache:          eventCache,
+		olapRetentionPeriod: 24 * time.Hour,
 	}
 }
 

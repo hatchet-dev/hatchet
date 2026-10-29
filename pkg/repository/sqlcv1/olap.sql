@@ -227,153 +227,131 @@ WITH task_partitions AS (
     SELECT 'v1_agg_task_events_minute_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_agg_task_events_minute_olap', @date::date) AS p
 ), agg_events_partitions AS (
     SELECT 'v1_agg_events_minute_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_agg_events_minute_olap', @date::date) AS p
-), candidates AS (
-    SELECT
-        *
-    FROM
-        task_partitions
-
-    UNION ALL
-
-    SELECT
-        *
-    FROM
-        dag_partitions
-
-    UNION ALL
-
-    SELECT
-        *
-    FROM
-        runs_partitions
-
-    UNION ALL
-
-    SELECT
-        *
-    FROM
-        events_partitions
-
-    UNION ALL
-
-    SELECT
-        *
-    FROM
-        event_trigger_partitions
-
-    UNION ALL
-
-    SELECT
-        *
-    FROM
-        events_lookup_table_partitions
-
-    UNION ALL
-
-    SELECT
-        *
-    FROM
-        incoming_webhook_validation_failure_partitions
-
-    UNION ALL
-
-    SELECT
-        *
-    FROM
-        cel_evaluation_failures_partitions
-
-    UNION ALL
-
-    SELECT
-        *
-    FROM
-        payloads_partitions
-
-    UNION ALL
-
-    SELECT
-        *
-    FROM
-        otel_trace_partitions
-
-    UNION ALL
-
-    SELECT
-        *
-    FROM
-        otel_trace_lookup_partitions
-
-    UNION ALL
-
-    SELECT
-        *
-    FROM
-        task_events_partitions
-
-    UNION ALL
-
-    SELECT
-        *
-    FROM
-        dag_to_task_partitions
-
-    UNION ALL
-
-    SELECT
-        *
-    FROM
-        lookup_table_partitions
-
-    UNION ALL
-
-    SELECT
-        *
-    FROM
-        statuses_partitions
-
-    UNION ALL
-
-    SELECT
-        *
-    FROM
-        agg_task_statuses_partitions
-
-    UNION ALL
-
-    SELECT
-        *
-    FROM
-        agg_task_events_partitions
-
-    UNION ALL
-
-    SELECT
-        *
-    FROM
-        agg_events_partitions
 )
 
-SELECT *
-FROM candidates
-WHERE
-    CASE
-        WHEN @shouldManageOptionalTablePartitions::BOOLEAN THEN TRUE
-        ELSE parent_table NOT IN (
-            'v1_events_olap',
-            'v1_event_to_run_olap',
-            'v1_event_lookup_table_olap',
-            'v1_cel_evaluation_failures_olap',
-            'v1_incoming_webhook_validation_failures_olap',
-            'v1_task_events_olap',
-            'v1_dag_to_task_olap',
-            'v1_lookup_table_olap',
-            'v1_statuses_olap'
-        )
-    END
-    AND CASE
-        WHEN @shouldPartitionOtelTables::BOOLEAN THEN TRUE
-        ELSE parent_table NOT IN ('v1_otel_trace_olap', 'v1_otel_trace_lookup_olap')
-    END
+SELECT
+    *
+FROM
+    task_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    dag_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    runs_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    events_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    event_trigger_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    events_lookup_table_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    incoming_webhook_validation_failure_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    cel_evaluation_failures_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    payloads_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    otel_trace_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    otel_trace_lookup_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    task_events_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    dag_to_task_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    lookup_table_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    statuses_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    agg_task_statuses_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    agg_task_events_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    agg_events_partitions
 ;
 
 -- name: CreateTaskEventsOLAP :copyfrom
