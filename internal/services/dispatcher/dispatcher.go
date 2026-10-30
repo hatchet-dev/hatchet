@@ -589,17 +589,14 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 			taskIds = append(taskIds, tasks...)
 		}
 
-		attempts := assignedAttemptsFromPayload(innerMsg)
-
 		dispatchData, err := d.repov1.Tasks().ListTasksForDispatch(ctx, msg.TenantID, taskIds)
 
 		if err != nil {
 			d.l.Error().Ctx(ctx).Err(err).Msgf("could not bulk list step run data:")
-			d.requeueTasksAfterFailedDispatchRead(ctx, requeue, msg.TenantID, attempts)
 			continue
 		}
 
-		taskIdToData, err := d.populateTaskData(ctx, requeue, msg.TenantID, onlyAssignedAttempts(dispatchData, attempts))
+		taskIdToData, err := d.populateTaskData(ctx, requeue, msg.TenantID, dispatchData)
 
 		if err != nil {
 			// we've already handled the requeue in populateTaskData, and we've logged the error, so we just continue
@@ -1003,7 +1000,9 @@ func (d *DispatcherImpl) sendTasksToWorker(
 	for _, taskId := range taskIds {
 		task, ok := tasks[taskId]
 
-		if !ok {
+		// a task reassigned since the message was published (the reassign keeps the retry count) must not
+		// also be sent to the worker it was taken away from
+		if !ok || !isAssignedToWorker(task.Runtime, workerId) {
 			d.l.Debug().Ctx(ctx).Msgf("task %d is no longer assigned to worker %s, skipping", taskId, workerId)
 			continue
 		}
@@ -1073,91 +1072,8 @@ func (d *DispatcherImpl) sendTasksToWorker(
 	return innerEg.Wait()
 }
 
-type assignedAttempt struct {
-	WorkerId      uuid.UUID
-	RetryCount    int32
-	HasRetryCount bool
-}
-
-func assignedAttemptsFromPayload(payload *tasktypesv1.TaskAssignedBulkTaskPayload) map[int64]assignedAttempt {
-	attempts := make(map[int64]assignedAttempt)
-
-	for workerId, taskIds := range payload.WorkerIdToTaskIds {
-		retryCounts := payload.WorkerIdToTaskRetryCounts[workerId]
-
-		for _, taskId := range taskIds {
-			retryCount, hasRetryCount := retryCounts[taskId]
-
-			attempts[taskId] = assignedAttempt{
-				WorkerId:      workerId,
-				RetryCount:    retryCount,
-				HasRetryCount: hasRetryCount,
-			}
-		}
-	}
-
-	return attempts
-}
-
-// isCurrentAttempt only checks the worker for messages from schedulers that predate retry counts in
-// the payload.
-func (a assignedAttempt) isCurrentAttempt(runtime *sqlcv1.V1TaskRuntime) bool {
-	return runtime != nil &&
-		runtime.WorkerID != nil &&
-		*runtime.WorkerID == a.WorkerId &&
-		(!a.HasRetryCount || runtime.RetryCount == a.RetryCount)
-}
-
-// onlyAssignedAttempts drops tasks reassigned since the message was published (the reassign keeps the
-// retry count), so a delayed message can't send a task to a worker it was taken away from.
-func onlyAssignedAttempts(dispatchData *v1.TasksForDispatch, attempts map[int64]assignedAttempt) *v1.TasksForDispatch {
-	return &v1.TasksForDispatch{
-		Tasks: enumerables.Filter(dispatchData.Tasks, func(task *sqlcv1.V1Task) bool {
-			return attempts[task.ID].isCurrentAttempt(dispatchData.Runtimes[task.ID])
-		}),
-		Runtimes:    dispatchData.Runtimes,
-		PayloadRows: dispatchData.PayloadRows,
-	}
-}
-
-// requeueTasksAfterFailedDispatchRead retries the read under a fresh context, since the first read may
-// have failed because the handler's deadline expired, and requeues only tasks still on the attempt the
-// message named. Anything else is left to the timeout path.
-func (d *DispatcherImpl) requeueTasksAfterFailedDispatchRead(
-	ctx context.Context,
-	requeue func(task *sqlcv1.V1Task),
-	tenantId uuid.UUID,
-	attempts map[int64]assignedAttempt,
-) {
-	recoveryCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-	defer cancel()
-
-	taskIds := make([]int64, 0, len(attempts))
-
-	for taskId, attempt := range attempts {
-		if attempt.HasRetryCount {
-			taskIds = append(taskIds, taskId)
-		}
-	}
-
-	if len(taskIds) == 0 {
-		return
-	}
-
-	dispatchData, err := d.repov1.Tasks().ListTasksForDispatch(recoveryCtx, tenantId, taskIds)
-
-	if err != nil {
-		d.l.Error().Ctx(ctx).Err(err).Msgf("could not list %d tasks to requeue after a failed dispatch read", len(taskIds))
-		return
-	}
-
-	for _, task := range dispatchData.Tasks {
-		if !attempts[task.ID].isCurrentAttempt(dispatchData.Runtimes[task.ID]) {
-			continue
-		}
-
-		requeue(task)
-	}
+func isAssignedToWorker(runtime *sqlcv1.V1TaskRuntime, workerId uuid.UUID) bool {
+	return runtime != nil && runtime.WorkerID != nil && *runtime.WorkerID == workerId
 }
 
 // requeueBatchItems skips items no longer on this batch and worker, so a late batch start can't fail
@@ -1185,12 +1101,10 @@ func (d *DispatcherImpl) requeueBatchItems(ctx context.Context, payload *tasktyp
 		return fmt.Errorf("could not list tasks to requeue batch %s: %w", payload.BatchId, err)
 	}
 
-	attempt := assignedAttempt{WorkerId: payload.WorkerId}
-
 	toRetry := enumerables.Filter(dispatchData.Tasks, func(task *sqlcv1.V1Task) bool {
 		runtime := dispatchData.Runtimes[task.ID]
 
-		return attempt.isCurrentAttempt(runtime) && runtime.BatchID != nil && *runtime.BatchID == batchId
+		return isAssignedToWorker(runtime, payload.WorkerId) && runtime.BatchID != nil && *runtime.BatchID == batchId
 	})
 
 	d.l.Warn().Ctx(ctx).Str("batch_id", payload.BatchId).Str("worker_id", payload.WorkerId.String()).Int("tasks", len(toRetry)).Msg("worker for batch is not connected to this dispatcher, requeueing its tasks")
