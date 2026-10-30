@@ -448,8 +448,9 @@ func (s *Server) startGRPC() (func() error, error) {
 		HTTP2: &http.HTTP2Config{
 			// gRPC clients multiplex every call and stream of a worker over one connection
 			MaxConcurrentStreams: math.MaxInt32,
-			// unread stream data holds connection window, so the connection window leaves room
-			// for the worker's other calls while one stream is not being read
+			// connection window is freed only as handlers read request bodies, so a stream that
+			// isn't being read (e.g. a DurableTask stream waiting for budget) ties up to one stream
+			// window of it; twice the stream window leaves the worker's other calls a full window
 			MaxReceiveBufferPerStream:     int(s.config.Runtime.GRPCStaticStreamWindowSize),
 			MaxReceiveBufferPerConnection: min(2*int(s.config.Runtime.GRPCStaticStreamWindowSize), math.MaxInt32),
 			SendPingTimeout:               serverPingInterval,

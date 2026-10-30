@@ -17,7 +17,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/semaphore"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -829,8 +828,10 @@ func (d *DispatcherServiceImpl) durableTask(
 				continue
 			}
 
-			// acquire here, not in the handler goroutine, so a full budget stops receiving and flow control pushes back
-			weight := min(int64(proto.Size(r.req))+durableTaskRequestOverheadBytes, d.durableBudgets.streamBytes)
+			// Wait for budget on this loop, not in the handler goroutine: while it waits the stream isn't
+			// read, so HTTP/2 flow control stops the worker from sending more instead of requests piling
+			// up in memory.
+			weight := d.durableBudgets.cost(r.req)
 
 			if err := d.durableBudgets.acquire(ctx, tenantId, "stream", streamSem, weight); err != nil {
 				return nil

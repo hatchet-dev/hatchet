@@ -8,15 +8,19 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/semaphore"
+	"google.golang.org/protobuf/proto"
 
+	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 )
 
 const (
-	minDurableTaskStreamBudgetBytes int64 = 16 << 20
+	// keeps room for about a thousand small requests per stream when the max message size is set low
+	minStreamBudgetBytes int64 = 16 << 20
 
-	// approximate cost of a handler goroutine, so small requests are bounded by count too
-	durableTaskRequestOverheadBytes int64 = 16 << 10
+	// Added to every request's size, roughly what one running handler holds, so small requests
+	// still use up budget: a 16 MiB budget runs at most about 1,000 handlers at once.
+	handlerCostBytes int64 = 16 << 10
 )
 
 type tenantBudget struct {
@@ -24,6 +28,9 @@ type tenantBudget struct {
 	refs int
 }
 
+// durableTaskBudgets caps the bytes of DurableTask requests being handled at once. Each stream
+// may hold 4× the max gRPC message size (at least minStreamBudgetBytes). Each tenant may hold 8×
+// that, shared by all of its streams on this engine.
 type durableTaskBudgets struct {
 	l           *zerolog.Logger
 	streamBytes int64
@@ -32,13 +39,12 @@ type durableTaskBudgets struct {
 	tenants map[uuid.UUID]*tenantBudget
 }
 
-// A stream fits four of the largest requests the server accepts, and a tenant eight streams.
 func newDurableTaskBudgets(l *zerolog.Logger, maxMsgSize int) *durableTaskBudgets {
 	sampled := l.Sample(&zerolog.BurstSampler{Burst: 20, Period: time.Minute})
 
 	return &durableTaskBudgets{
 		l:           &sampled,
-		streamBytes: max(minDurableTaskStreamBudgetBytes, 4*int64(maxMsgSize)),
+		streamBytes: max(minStreamBudgetBytes, 4*int64(maxMsgSize)),
 		tenants:     make(map[uuid.UUID]*tenantBudget),
 	}
 }
@@ -64,6 +70,12 @@ func (b *durableTaskBudgets) tenant(tenantId uuid.UUID) (*semaphore.Weighted, fu
 			delete(b.tenants, tenantId)
 		}
 	}
+}
+
+// cost is capped at the stream budget so a request larger than the whole budget runs alone
+// instead of waiting forever.
+func (b *durableTaskBudgets) cost(req *contracts.DurableTaskRequest) int64 {
+	return min(int64(proto.Size(req))+handlerCostBytes, b.streamBytes)
 }
 
 func (b *durableTaskBudgets) acquire(ctx context.Context, tenantId uuid.UUID, budget string, sem *semaphore.Weighted, n int64) error {

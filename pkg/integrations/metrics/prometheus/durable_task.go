@@ -5,9 +5,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-// DurableTaskBudgetWait records how long a DurableTask stream stopped reading because its in-flight
-// budget was full. It is observed only when the budget was not immediately available. budget is
-// "stream" or "tenant"; the series is not labeled by tenant id, which the wait log carries instead.
+// DurableTaskBudgetWait records how long a DurableTask stream paused reading to wait for in-flight
+// budget. Requests that get budget straight away are not observed. budget is "stream" or "tenant";
+// outcome is "acquired", or "canceled" if the stream ended while waiting. There is no tenant id
+// label, to bound the series count; the sampled warning logged when a wait starts carries it.
 var DurableTaskBudgetWait = promauto.NewHistogramVec(prometheus.HistogramOpts{
 	Name:    "hatchet_durable_task_budget_wait_seconds",
 	Help:    "Time a DurableTask stream waited for its in-flight request budget",
