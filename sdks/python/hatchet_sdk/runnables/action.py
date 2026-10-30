@@ -13,7 +13,6 @@ from pydantic import (
     model_validator,
 )
 
-from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.runnables.types import BatchMemberId
 from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.utils.opentelemetry import OTelAttribute

@@ -127,6 +127,7 @@ A type checker will not flag these, so check them by hand:
 
 - **Tasks with no input validator receive `None`**, not an `EmptyModel()` instance. Code that reads attributes off `input` in such a task, or checks `isinstance(input, EmptyModel)`, needs updating.
 - **Running a task that returns nothing gives `None`**, not an `EmptyModel()` instance.
+- **`ctx.task_output(parent)` returns a `dict` for a parent task with no return annotation**, and so does running a `hatchet.stubs.task` with no `output_validator`, not an `EmptyModel`. Replace attribute access such as `output.field` with `output["field"]`, or annotate the parent's return type.
 - **A positional `options` argument is no longer rejected at runtime.** `options` was the second positional parameter of `run` and `aio_run`, and the third of `schedule` and `aio_schedule`. A call such as `task.run(input, TriggerWorkflowOptions(...))` now passes the options object as `wait_for_result`, and its contents are ignored. A type checker reports this, but nothing fails at runtime, so search for positional uses as well as `options=`.
 - **Passing an input to a task or workflow with no `input_validator` raises a `TypeError`.** V1 dropped the input silently. Declare `input_validator=dict[str, Any]` if you need to pass untyped input.
 - **`runs.list` and `runs.aio_list` with no `limit` return every matching run** instead of the first 50. See [the section on `runs.list`](#runslist_with_pagination-and-aio_list_with_pagination-removed).

@@ -110,13 +110,13 @@ class _ConditionMeta:
     or_group_ids: set[str]
 
 
-def _build_condition_meta(flat_conditions: list[Condition]) -> _ConditionMeta:
-    key_to_condition = {c.base.readable_data_key: c for c in flat_conditions}
-    group_counts: dict[str, int] = {}
-    for c in flat_conditions:
-        group_counts[c.base.or_group_id] = group_counts.get(c.base.or_group_id, 0) + 1
-    or_group_ids = {gid for gid, count in group_counts.items() if count > 1}
-    return _ConditionMeta(key_to_condition=key_to_condition, or_group_ids=or_group_ids)
+def _build_condition_meta(
+    conditions: list[Condition | OrGroup], flat_conditions: list[Condition]
+) -> _ConditionMeta:
+    return _ConditionMeta(
+        key_to_condition={c.base.readable_data_key: c for c in flat_conditions},
+        or_group_ids={c.or_group_id for c in conditions if isinstance(c, OrGroup)},
+    )
 
 
 def _parse_single_result(
@@ -763,7 +763,7 @@ class DurableContext(Context):
             raise ValueError("Durable task client is not available")
 
         flat_conditions = flatten_conditions(list(conditions))
-        meta = _build_condition_meta(flat_conditions)
+        meta = _build_condition_meta(list(conditions), flat_conditions)
 
         if not self._supports_durable_eviction:
             raw = await aio_wait_for_pre_eviction(self, signal_key, *conditions)

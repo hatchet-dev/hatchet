@@ -52,7 +52,7 @@ class StubsClient:
         input_validator: None = None,
         output_validator: None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
-    ) -> Standalone[None, None]: ...
+    ) -> Standalone[None, dict[str, Any]]: ...
 
     @overload
     def task(
@@ -72,7 +72,7 @@ class StubsClient:
         input_validator: type[TWorkflowInput],
         output_validator: None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
-    ) -> Standalone[TWorkflowInput, None]: ...
+    ) -> Standalone[TWorkflowInput, dict[str, Any]]: ...
 
     @overload
     def task(
@@ -94,19 +94,18 @@ class StubsClient:
     ) -> (
         Standalone[None, R]
         | Standalone[TWorkflowInput, R]
-        | Standalone[None, None]
-        | Standalone[TWorkflowInput, None]
+        | Standalone[None, dict[str, Any]]
+        | Standalone[TWorkflowInput, dict[str, Any]]
     ):
         def mock_func(input: Any, ctx: Context) -> Any:  # noqa: ANN401
             raise NotImplementedError(
                 "This is a stub function and should not be called directly."
             )
 
-        return_type = output_validator if output_validator is not None else None
         mock_func.__annotations__ = {
             "input": Any,
             "ctx": Context,
-            "return": return_type,
+            "return": output_validator or dict[str, Any],
         }
 
         return self.client.task(

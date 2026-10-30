@@ -81,6 +81,7 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - Scheduling a run with a timezone-aware, non-UTC datetime no longer logs a warning. The datetime was already converted correctly.
 - `result` and `aio_result` on `WorkflowRunRef` and `TaskRunRef` raise `RuntimeError` instead of `ValueError` when fetching the run's status fails repeatedly. A cancelled run still raises `ValueError`.
 - `ctx.aio_wait_for_event` raises a `ValueError` if the wait completes without a matching event.
+- `ctx.task_output(parent)` returns a `dict` for a parent task with no return annotation, and running a `hatchet.stubs.task` with no `output_validator` returns the remote task's output as a `dict`, both instead of an `EmptyModel` with attribute access.
 - `hatchet_sdk.types.idempotency.BaseIdemotencyConfig` has been renamed to `BaseIdempotencyConfig`.
 - `hatchet_sdk.runnables.contextvars.ctx_step_run_id` has been renamed to `ctx_task_run_external_id`.
 - The generated REST client packages import their models and APIs on first use, which makes `import hatchet_sdk` faster.
