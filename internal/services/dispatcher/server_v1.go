@@ -16,6 +16,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
+	"golang.org/x/sync/semaphore"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -696,6 +698,11 @@ func (d *DispatcherServiceImpl) durableTask(
 
 	registeredTasks := make(map[uuid.UUID]struct{})
 
+	tenantSem, releaseTenantBudget := d.tenantBudgets.acquire(tenantId)
+	defer releaseTenantBudget()
+
+	streamSem := semaphore.NewWeighted(durableTaskStreamBudgetBytes)
+
 	var reqWg sync.WaitGroup
 
 	statuses := newWorkerStatusCoalescer()
@@ -822,9 +829,23 @@ func (d *DispatcherServiceImpl) durableTask(
 				continue
 			}
 
+			// acquire here, not in the handler goroutine, so a full budget stops receiving and flow control pushes back
+			weight := min(int64(proto.Size(r.req))+durableTaskRequestOverheadBytes, durableTaskStreamBudgetBytes)
+
+			if err := streamSem.Acquire(ctx, weight); err != nil {
+				return nil
+			}
+
+			if err := tenantSem.Acquire(ctx, weight); err != nil {
+				streamSem.Release(weight)
+				return nil
+			}
+
 			reqWg.Add(1)
 			go func(req *contracts.DurableTaskRequest) {
 				defer reqWg.Done()
+				defer streamSem.Release(weight)
+				defer tenantSem.Release(weight)
 
 				if err := d.handleDurableTaskRequest(ctx, invocation, req); err != nil {
 					d.logDurableTaskRequestError(err)

@@ -33,6 +33,7 @@ type DispatcherServiceImpl struct {
 	triggerWriter      *trigger.TriggerWriter
 	pubBuffer          *msgqueue.MQPubBuffer
 	streamSessions     *streams.Registry
+	tenantBudgets      tenantBudgets
 	l                  *zerolog.Logger
 	durableInvocations syncx.Map[durableInvocationsKey, *durableTaskInvocation]
 	workerInvocations  syncx.Map[uuid.UUID, *durableTaskInvocation]
