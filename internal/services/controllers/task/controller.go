@@ -669,7 +669,7 @@ func (tc *TasksControllerImpl) publishChildCancellations(
 	childrenToCancel := enumerables.Map(children, func(child v1.TaskIdInsertedAtRetryCount) tasktypes.TaskToCancel {
 		return tasktypes.TaskToCancel{
 			TaskIdInsertedAtRetryCount: child,
-			CancellationReason:         v1.TaskCancellationReasonDurableParentReleased,
+			CancellationReason:         v1.TaskCancellationReasonWorkflowRunCancelled,
 		}
 	})
 

@@ -2083,7 +2083,7 @@ func (d *DispatcherServiceImpl) CancelDAGChildren(ctx context.Context, tenantId 
 				InsertedAt: task.InsertedAt,
 				RetryCount: task.RetryCount,
 			},
-			CancellationReason: v1.TaskCancellationReasonDagChildCancelledByOperator,
+			CancellationReason: v1.TaskCancellationReasonWorkflowRunCancelled,
 		})
 	}
 

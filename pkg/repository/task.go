@@ -3158,7 +3158,7 @@ func (r *sharedRepository) insertTasks(
 			case sqlcv1.V1TaskInitialStateCANCELLED:
 				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
 				eventTaskExternalIds = append(eventTaskExternalIds, withPayload.ExternalID)
-				eventDatas = append(eventDatas, NewCancelledTaskOutputEventFromTask(&withPayload, TaskCancellationReasonParentConditionNotMet).Bytes())
+				eventDatas = append(eventDatas, NewCancelledTaskOutputEventFromTask(&withPayload, TaskCancellationReasonUpstreamTaskFailedOrCancelled).Bytes())
 				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeCANCELLED)
 			case sqlcv1.V1TaskInitialStateSKIPPED:
 				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
@@ -3546,7 +3546,7 @@ func (r *sharedRepository) replayTasks(
 			case sqlcv1.V1TaskInitialStateCANCELLED:
 				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
 				eventTaskExternalIds = append(eventTaskExternalIds, withPayload.ExternalID)
-				eventDatas = append(eventDatas, NewCancelledTaskOutputEventFromTask(&withPayload, TaskCancellationReasonParentConditionNotMet).Bytes())
+				eventDatas = append(eventDatas, NewCancelledTaskOutputEventFromTask(&withPayload, TaskCancellationReasonUpstreamTaskFailedOrCancelled).Bytes())
 				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeCANCELLED)
 			case sqlcv1.V1TaskInitialStateSKIPPED:
 				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)

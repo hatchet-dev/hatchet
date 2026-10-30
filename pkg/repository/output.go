@@ -13,14 +13,13 @@ import (
 type TaskCancellationReason string
 
 const (
-	TaskCancellationReasonCancelledByUser             TaskCancellationReason = "CANCELLED_BY_USER"
-	TaskCancellationReasonCancelledByWorker           TaskCancellationReason = "CANCELLED_BY_WORKER"
-	TaskCancellationReasonConcurrencyLimit            TaskCancellationReason = "CONCURRENCY_LIMIT"
-	TaskCancellationReasonSchedulingTimedOut          TaskCancellationReason = "SCHEDULING_TIMED_OUT"
-	TaskCancellationReasonParentConditionNotMet       TaskCancellationReason = "PARENT_CONDITION_NOT_MET"
-	TaskCancellationReasonDagChildCancelledByOperator TaskCancellationReason = "DAG_CHILD_CANCELLED_BY_OPERATOR"
-	TaskCancellationReasonDurableParentReleased       TaskCancellationReason = "DURABLE_PARENT_RELEASED"
-	TaskCancellationReasonPausedQueueItemExpired      TaskCancellationReason = "PAUSED_QUEUE_ITEM_EXPIRED"
+	TaskCancellationReasonCancelledByUser               TaskCancellationReason = "CANCELLED_BY_USER"
+	TaskCancellationReasonCancelledByWorker             TaskCancellationReason = "CANCELLED_BY_WORKER"
+	TaskCancellationReasonConcurrencyLimit              TaskCancellationReason = "CONCURRENCY_LIMIT"
+	TaskCancellationReasonSchedulingTimedOut            TaskCancellationReason = "SCHEDULING_TIMED_OUT"
+	TaskCancellationReasonUpstreamTaskFailedOrCancelled TaskCancellationReason = "UPSTREAM_TASK_FAILED_OR_CANCELLED"
+	TaskCancellationReasonWorkflowRunCancelled          TaskCancellationReason = "WORKFLOW_RUN_CANCELLED"
+	TaskCancellationReasonPausedQueueItemExpired        TaskCancellationReason = "PAUSED_QUEUE_ITEM_EXPIRED"
 )
 
 func (reason TaskCancellationReason) ToProto() contracts.TaskCancellationReason {
@@ -33,12 +32,10 @@ func (reason TaskCancellationReason) ToProto() contracts.TaskCancellationReason 
 		return contracts.TaskCancellationReason_TASK_CANCELLATION_REASON_CONCURRENCY_LIMIT
 	case TaskCancellationReasonSchedulingTimedOut:
 		return contracts.TaskCancellationReason_TASK_CANCELLATION_REASON_SCHEDULING_TIMED_OUT
-	case TaskCancellationReasonParentConditionNotMet:
-		return contracts.TaskCancellationReason_TASK_CANCELLATION_REASON_PARENT_CONDITION_NOT_MET
-	case TaskCancellationReasonDagChildCancelledByOperator:
-		return contracts.TaskCancellationReason_TASK_CANCELLATION_REASON_DAG_CHILD_CANCELLED_BY_OPERATOR
-	case TaskCancellationReasonDurableParentReleased:
-		return contracts.TaskCancellationReason_TASK_CANCELLATION_REASON_DURABLE_PARENT_RELEASED
+	case TaskCancellationReasonUpstreamTaskFailedOrCancelled:
+		return contracts.TaskCancellationReason_TASK_CANCELLATION_REASON_UPSTREAM_TASK_FAILED_OR_CANCELLED
+	case TaskCancellationReasonWorkflowRunCancelled:
+		return contracts.TaskCancellationReason_TASK_CANCELLATION_REASON_WORKFLOW_RUN_CANCELLED
 	case TaskCancellationReasonPausedQueueItemExpired:
 		return contracts.TaskCancellationReason_TASK_CANCELLATION_REASON_PAUSED_QUEUE_ITEM_EXPIRED
 	}
