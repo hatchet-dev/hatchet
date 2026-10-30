@@ -19,16 +19,20 @@ runs:
         SBOM: ${{ inputs.sbom }}
       run: |
         set -euo pipefail
+        identity=(--certificate-oidc-issuer https://token.actions.githubusercontent.com
+                  --certificate-identity-regexp "^https://github.com/$GITHUB_REPOSITORY/\.github/workflows/[^@]+@$GITHUB_REF\$")
         while read -r image; do
           [ -n "$image" ] || continue
           repo=${image%%@*}; repo=${repo%:*}
           manifest=$(docker buildx imagetools inspect "$image" --format '{{json .Manifest}}')
           digest=$(jq -r .digest <<<"$manifest")
           cosign sign --yes --recursive "$repo@$digest"
+          cosign verify "${identity[@]}" "$repo@$digest" >/dev/null
           [ "$SBOM" = true ] || continue
           jq -r 'if .manifests then .manifests[] | select(.platform.os != "unknown") | .digest else .digest end' <<<"$manifest" |
           while read -r d; do
             syft "registry:$repo@$d" -o "spdx-json=$RUNNER_TEMP/sbom.spdx.json"
             cosign attest --yes --type spdxjson --predicate "$RUNNER_TEMP/sbom.spdx.json" "$repo@$d"
+            cosign verify-attestation --type spdxjson "${identity[@]}" "$repo@$d" >/dev/null
           done
         done <<<"$IMAGES"
