@@ -18,6 +18,13 @@ MAX_FETCH_RETRIES = 10
 MINIMUM_SYNC_RESULT_POLL_INTERVAL = timedelta(seconds=1)
 
 
+def _seconds_until_next_poll(interval_seconds: float, deadline: float | None) -> float:
+    if deadline is None:
+        return interval_seconds
+
+    return max(0.0, min(interval_seconds, deadline - time.monotonic()))
+
+
 class WorkflowRunRef:
     def __init__(
         self,
@@ -113,14 +120,14 @@ class WorkflowRunRef:
                         f"Failed to fetch workflow run {self.workflow_run_id} after {MAX_FETCH_RETRIES} attempts."
                     ) from e
 
-                time.sleep(interval_seconds)
+                time.sleep(_seconds_until_next_poll(interval_seconds, deadline))
                 continue
 
             if (
                 details.status in [RunStatus.QUEUED, RunStatus.RUNNING]
                 or details.done is False
             ):
-                time.sleep(interval_seconds)
+                time.sleep(_seconds_until_next_poll(interval_seconds, deadline))
                 continue
 
             if details.status == RunStatus.FAILED:
