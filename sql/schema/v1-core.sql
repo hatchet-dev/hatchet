@@ -3347,7 +3347,7 @@ CREATE INDEX v1_serverless_lease_owner_idx ON v1_serverless_lease (process_id, t
 -- claimable count is index only. Empty units are never claimed, so they are not in the index.
 CREATE INDEX v1_serverless_lease_claimable_idx ON v1_serverless_lease (tenant_id, endpoint_partition) INCLUDE (endpoint_count) WHERE process_id IS NULL AND endpoint_count > 0;
 
-CREATE TYPE v1_sandbox_provider_kind AS ENUM ('E2B', 'SUPABASE', 'ARCHIL', 'FREESTYLE');
+CREATE TYPE v1_sandbox_provider_kind AS ENUM ('DAYTONA', 'SUPABASE', 'ARCHIL', 'FREESTYLE');
 
 CREATE TABLE v1_sandbox_provider (
     id UUID NOT NULL DEFAULT gen_random_uuid(),

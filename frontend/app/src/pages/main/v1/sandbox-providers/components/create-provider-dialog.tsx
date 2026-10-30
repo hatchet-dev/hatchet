@@ -58,7 +58,7 @@ export const CreateProviderDialog = ({
     formState: { errors },
   } = useForm<ProviderCreateFormData>({
     resolver: zodResolver(providerCreateFormSchema),
-    defaultValues: defaultCreateValues(SandboxProviderKind.E2B),
+    defaultValues: defaultCreateValues(SandboxProviderKind.DAYTONA),
   });
 
   const values = watch();

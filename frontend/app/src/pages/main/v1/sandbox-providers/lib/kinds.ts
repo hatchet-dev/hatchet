@@ -1,7 +1,7 @@
 import { SandboxProviderKind } from '@/lib/api/generated/cloud/data-contracts';
 
 export const KIND_ORDER: SandboxProviderKind[] = [
-  SandboxProviderKind.E2B,
+  SandboxProviderKind.DAYTONA,
   SandboxProviderKind.SUPABASE,
   SandboxProviderKind.ARCHIL,
   SandboxProviderKind.FREESTYLE,
@@ -17,12 +17,12 @@ export const KINDS: Record<
     available: boolean;
   }
 > = {
-  [SandboxProviderKind.E2B]: {
-    label: 'E2B',
-    description: 'Firecracker microVMs with snapshots.',
+  [SandboxProviderKind.DAYTONA]: {
+    label: 'Daytona',
+    description: 'Daytona sandboxes with snapshots.',
     keyHint:
-      'An API key from the E2B dashboard (Team → API Keys). The default template is "base".',
-    templatePlaceholder: 'base',
+      'An API key from the Daytona dashboard (Settings → API Keys). Leave the template empty for the default Daytona snapshot.',
+    templatePlaceholder: 'daytonaio/sandbox:latest',
     available: true,
   },
   [SandboxProviderKind.SUPABASE]: {

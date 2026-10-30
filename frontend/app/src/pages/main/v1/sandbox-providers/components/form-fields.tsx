@@ -180,8 +180,8 @@ export const ProviderFields = ({
             />
             <FieldErrorText error={errors.configJson} />
             <p className="text-xs text-muted-foreground">
-              Vendor settings as JSON. For E2B: apiUrl, sandboxUrl, template,
-              workdir and snapshotEveryTurn.
+              Vendor settings as JSON. For Daytona: apiUrl, template, workdir
+              and snapshotEveryTurn.
             </p>
           </div>
           <div className="space-y-2">

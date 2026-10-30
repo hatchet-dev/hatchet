@@ -23,7 +23,7 @@ export enum SandboxProviderEventKind {
 
 /** The sandbox vendor a provider connects to. */
 export enum SandboxProviderKind {
-  E2B = "E2B",
+  DAYTONA = "DAYTONA",
   SUPABASE = "SUPABASE",
   ARCHIL = "ARCHIL",
   FREESTYLE = "FREESTYLE",
@@ -1246,7 +1246,7 @@ export interface CreateSandboxProviderRequest {
    * @minLength 1
    */
   apiKey: string;
-  /** Vendor-specific settings. For E2B, apiUrl, sandboxUrl, template, workdir and snapshotEveryTurn. */
+  /** Vendor-specific settings. For Daytona, apiUrl, template, workdir and snapshotEveryTurn. */
   config?: Record<string, any>;
   defaultTemplate?: string;
   /**
