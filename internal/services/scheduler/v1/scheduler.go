@@ -529,7 +529,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 
 	// bulk assign step runs
 	if len(res.Assigned) > 0 {
-		dispatcherIdToWorkerIdsToStepRuns := make(map[uuid.UUID]map[uuid.UUID][]int64)
+		dispatcherIdToAssignments := make(map[uuid.UUID]*tasktypes.TaskAssignedBulkTaskPayload)
 
 		workerIds := make([]uuid.UUID, 0)
 
@@ -593,11 +593,11 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 					continue
 				}
 
-				if _, ok := dispatcherIdToWorkerIdsToStepRuns[dispatcherId]; !ok {
-					dispatcherIdToWorkerIdsToStepRuns[dispatcherId] = make(map[uuid.UUID][]int64)
+				if _, ok := dispatcherIdToAssignments[dispatcherId]; !ok {
+					dispatcherIdToAssignments[dispatcherId] = &tasktypes.TaskAssignedBulkTaskPayload{}
 				}
 
-				dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = append(dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId], taskId)
+				dispatcherIdToAssignments[dispatcherId].Add(workerId, taskId, bulkAssigned.QueueItem.RetryCount)
 			}
 
 			var durableInvCount int32
@@ -635,8 +635,8 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 		}
 
 		// for each dispatcher, send a bulk assigned task
-		for dispatcherId, workerIdsToStepRuns := range dispatcherIdToWorkerIdsToStepRuns {
-			msg, err := taskBulkAssignedTask(tenantId, workerIdsToStepRuns)
+		for dispatcherId, assignments := range dispatcherIdToAssignments {
+			msg, err := taskBulkAssignedTask(tenantId, assignments)
 
 			if err != nil {
 				outerErr = multierror.Append(outerErr, fmt.Errorf("could not create bulk assigned task: %w", err))
@@ -1347,15 +1347,13 @@ func describeBatchFlushReason(reason repov1.BatchFlushReason, batchSize int, int
 	}
 }
 
-func taskBulkAssignedTask(tenantId uuid.UUID, workerIdsToTaskIds map[uuid.UUID][]int64) (*msgqueue.Message, error) {
+func taskBulkAssignedTask(tenantId uuid.UUID, assignments *tasktypes.TaskAssignedBulkTaskPayload) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDTaskAssignedBulk,
 		false,
 		true,
-		tasktypes.TaskAssignedBulkTaskPayload{
-			WorkerIdToTaskIds: workerIdsToTaskIds,
-		},
+		*assignments,
 	)
 }
 
