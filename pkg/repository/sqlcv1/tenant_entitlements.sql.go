@@ -29,7 +29,7 @@ func (q *Queries) AnyTenantHasAuditLogs(ctx context.Context, db DBTX, tenantids 
 }
 
 const getTenantEntitlement = `-- name: GetTenantEntitlement :one
-SELECT tenant_id, audit_logs, prometheus_metrics, strict_additional_metadata_filters, dag_operator, durable_streams, serverless_operator, created_at, updated_at
+SELECT tenant_id, audit_logs, prometheus_metrics, strict_additional_metadata_filters, dag_operator, durable_streams, serverless_operator, sandbox_operator, created_at, updated_at
 FROM tenant_entitlement
 WHERE tenant_id = $1::uuid
 `
@@ -45,6 +45,7 @@ func (q *Queries) GetTenantEntitlement(ctx context.Context, db DBTX, tenantid uu
 		&i.DagOperator,
 		&i.DurableStreams,
 		&i.ServerlessOperator,
+		&i.SandboxOperator,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -63,7 +64,7 @@ SET
     durable_streams = EXCLUDED.durable_streams,
     serverless_operator = EXCLUDED.serverless_operator,
     updated_at = NOW()
-RETURNING tenant_id, audit_logs, prometheus_metrics, strict_additional_metadata_filters, dag_operator, durable_streams, serverless_operator, created_at, updated_at
+RETURNING tenant_id, audit_logs, prometheus_metrics, strict_additional_metadata_filters, dag_operator, durable_streams, serverless_operator, sandbox_operator, created_at, updated_at
 `
 
 type UpsertTenantEntitlementParams struct {
@@ -95,6 +96,7 @@ func (q *Queries) UpsertTenantEntitlement(ctx context.Context, db DBTX, arg Upse
 		&i.DagOperator,
 		&i.DurableStreams,
 		&i.ServerlessOperator,
+		&i.SandboxOperator,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

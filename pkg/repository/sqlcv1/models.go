@@ -1889,6 +1889,143 @@ func (ns NullV1RunKind) Value() (driver.Value, error) {
 	return string(ns.V1RunKind), nil
 }
 
+type V1SandboxEventKind string
+
+const (
+	V1SandboxEventKindHEALTHCHECKFAILED   V1SandboxEventKind = "HEALTHCHECK_FAILED"
+	V1SandboxEventKindUNHEALTHY           V1SandboxEventKind = "UNHEALTHY"
+	V1SandboxEventKindHEALTHY             V1SandboxEventKind = "HEALTHY"
+	V1SandboxEventKindSANDBOXCREATED      V1SandboxEventKind = "SANDBOX_CREATED"
+	V1SandboxEventKindSANDBOXCREATEFAILED V1SandboxEventKind = "SANDBOX_CREATE_FAILED"
+	V1SandboxEventKindTURNFAILED          V1SandboxEventKind = "TURN_FAILED"
+	V1SandboxEventKindSNAPSHOTFAILED      V1SandboxEventKind = "SNAPSHOT_FAILED"
+	V1SandboxEventKindSANDBOXDESTROYED    V1SandboxEventKind = "SANDBOX_DESTROYED"
+)
+
+func (e *V1SandboxEventKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1SandboxEventKind(s)
+	case string:
+		*e = V1SandboxEventKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1SandboxEventKind: %T", src)
+	}
+	return nil
+}
+
+type NullV1SandboxEventKind struct {
+	V1SandboxEventKind V1SandboxEventKind `json:"v1_sandbox_event_kind"`
+	Valid              bool               `json:"valid"` // Valid is true if V1SandboxEventKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1SandboxEventKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1SandboxEventKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1SandboxEventKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1SandboxEventKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1SandboxEventKind), nil
+}
+
+type V1SandboxProviderKind string
+
+const (
+	V1SandboxProviderKindDAYTONA   V1SandboxProviderKind = "DAYTONA"
+	V1SandboxProviderKindSUPABASE  V1SandboxProviderKind = "SUPABASE"
+	V1SandboxProviderKindARCHIL    V1SandboxProviderKind = "ARCHIL"
+	V1SandboxProviderKindFREESTYLE V1SandboxProviderKind = "FREESTYLE"
+)
+
+func (e *V1SandboxProviderKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1SandboxProviderKind(s)
+	case string:
+		*e = V1SandboxProviderKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1SandboxProviderKind: %T", src)
+	}
+	return nil
+}
+
+type NullV1SandboxProviderKind struct {
+	V1SandboxProviderKind V1SandboxProviderKind `json:"v1_sandbox_provider_kind"`
+	Valid                 bool                  `json:"valid"` // Valid is true if V1SandboxProviderKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1SandboxProviderKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1SandboxProviderKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1SandboxProviderKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1SandboxProviderKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1SandboxProviderKind), nil
+}
+
+type V1SandboxStatus string
+
+const (
+	V1SandboxStatusCREATING  V1SandboxStatus = "CREATING"
+	V1SandboxStatusRUNNING   V1SandboxStatus = "RUNNING"
+	V1SandboxStatusPAUSED    V1SandboxStatus = "PAUSED"
+	V1SandboxStatusDESTROYED V1SandboxStatus = "DESTROYED"
+	V1SandboxStatusFAILED    V1SandboxStatus = "FAILED"
+)
+
+func (e *V1SandboxStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1SandboxStatus(s)
+	case string:
+		*e = V1SandboxStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1SandboxStatus: %T", src)
+	}
+	return nil
+}
+
+type NullV1SandboxStatus struct {
+	V1SandboxStatus V1SandboxStatus `json:"v1_sandbox_status"`
+	Valid           bool            `json:"valid"` // Valid is true if V1SandboxStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1SandboxStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1SandboxStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1SandboxStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1SandboxStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1SandboxStatus), nil
+}
+
 type V1ServerlessEndpointEventKind string
 
 const (
@@ -3231,6 +3368,7 @@ type TenantEntitlement struct {
 	DagOperator                     bool               `json:"dag_operator"`
 	DurableStreams                  bool               `json:"durable_streams"`
 	ServerlessOperator              bool               `json:"serverless_operator"`
+	SandboxOperator                 bool               `json:"sandbox_operator"`
 	CreatedAt                       pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                       pgtype.Timestamptz `json:"updated_at"`
 }
@@ -3964,6 +4102,95 @@ type V1RunsOlap struct {
 	AdditionalMetadata   []byte               `json:"additional_metadata"`
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
 	IdempotencyKey       pgtype.Text          `json:"idempotency_key"`
+}
+
+type V1Sandbox struct {
+	ID               string             `json:"id"`
+	TenantID         uuid.UUID          `json:"tenant_id"`
+	ProviderID       uuid.UUID          `json:"provider_id"`
+	ExternalID       pgtype.Text        `json:"external_id"`
+	Template         pgtype.Text        `json:"template"`
+	Status           V1SandboxStatus    `json:"status"`
+	StatusError      pgtype.Text        `json:"status_error"`
+	Metadata         []byte             `json:"metadata"`
+	IdleTtlMs        int64              `json:"idle_ttl_ms"`
+	LatestSnapshotID pgtype.Text        `json:"latest_snapshot_id"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	LastUsedAt       pgtype.Timestamptz `json:"last_used_at"`
+	DeletedAt        pgtype.Timestamptz `json:"deleted_at"`
+}
+
+type V1SandboxEvent struct {
+	ID         int64              `json:"id"`
+	TenantID   uuid.UUID          `json:"tenant_id"`
+	ProviderID uuid.UUID          `json:"provider_id"`
+	SandboxID  pgtype.Text        `json:"sandbox_id"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	Kind       V1SandboxEventKind `json:"kind"`
+	Message    string             `json:"message"`
+	Details    []byte             `json:"details"`
+}
+
+type V1SandboxLease struct {
+	TenantID          uuid.UUID          `json:"tenant_id"`
+	ProviderPartition int32              `json:"provider_partition"`
+	ProcessID         *uuid.UUID         `json:"process_id"`
+	ClaimedAt         pgtype.Timestamptz `json:"claimed_at"`
+	ProviderCount     int32              `json:"provider_count"`
+}
+
+type V1SandboxProcess struct {
+	ProcessID     uuid.UUID          `json:"process_id"`
+	ExpiresAt     pgtype.Timestamptz `json:"expires_at"`
+	UnitCount     int32              `json:"unit_count"`
+	ProviderCount int32              `json:"provider_count"`
+	Hostname      pgtype.Text        `json:"hostname"`
+	Version       pgtype.Text        `json:"version"`
+	StartedAt     pgtype.Timestamptz `json:"started_at"`
+}
+
+type V1SandboxProvider struct {
+	ID                uuid.UUID             `json:"id"`
+	TenantID          uuid.UUID             `json:"tenant_id"`
+	Name              string                `json:"name"`
+	Kind              V1SandboxProviderKind `json:"kind"`
+	ApiKeyEnc         string                `json:"api_key_enc"`
+	Config            []byte                `json:"config"`
+	DefaultTemplate   pgtype.Text           `json:"default_template"`
+	MaxIdleTtlSeconds int32                 `json:"max_idle_ttl_seconds"`
+	Labels            []byte                `json:"labels"`
+	Enabled           bool                  `json:"enabled"`
+	ProviderPartition int32                 `json:"provider_partition"`
+	Healthy           pgtype.Bool           `json:"healthy"`
+	StatusError       pgtype.Text           `json:"status_error"`
+	StatusChangedAt   pgtype.Timestamptz    `json:"status_changed_at"`
+	CreatedAt         pgtype.Timestamptz    `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz    `json:"updated_at"`
+	DeletedAt         pgtype.Timestamptz    `json:"deleted_at"`
+}
+
+type V1SandboxSnapshot struct {
+	ID         string             `json:"id"`
+	TenantID   uuid.UUID          `json:"tenant_id"`
+	SandboxID  string             `json:"sandbox_id"`
+	ParentID   pgtype.Text        `json:"parent_id"`
+	ExternalID string             `json:"external_id"`
+	SizeBytes  pgtype.Int8        `json:"size_bytes"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
+type V1SandboxTenant struct {
+	TenantID               uuid.UUID `json:"tenant_id"`
+	ProviderPartitionCount int32     `json:"provider_partition_count"`
+}
+
+type V1SandboxTurn struct {
+	RunID          string             `json:"run_id"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	SandboxID      string             `json:"sandbox_id"`
+	PrevSnapshotID pgtype.Text        `json:"prev_snapshot_id"`
+	Result         []byte             `json:"result"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
 type V1ServerlessEndpoint struct {

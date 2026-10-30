@@ -43,6 +43,7 @@ const (
 	EntitlementDAGOperator                     Entitlement = "dag_operator"
 	EntitlementDurableStreams                  Entitlement = "durable_streams"
 	EntitlementServerlessOperator              Entitlement = "serverless_operator"
+	EntitlementSandboxOperator                 Entitlement = "sandbox_operator"
 )
 
 // Entitlements only change on plan changes fanned out from the control plane,
@@ -60,6 +61,7 @@ type TenantEntitlements struct {
 	DAGOperator                     bool
 	DurableStreams                  bool
 	ServerlessOperator              bool
+	SandboxOperator                 bool
 }
 
 // Has reports whether this set includes the named entitlement.
@@ -77,6 +79,8 @@ func (e TenantEntitlements) Has(entitlement Entitlement) (bool, error) {
 		return e.DurableStreams, nil
 	case EntitlementServerlessOperator:
 		return e.ServerlessOperator, nil
+	case EntitlementSandboxOperator:
+		return e.SandboxOperator, nil
 	default:
 		return false, fmt.Errorf("unknown entitlement %q", entitlement)
 	}
@@ -152,6 +156,7 @@ func (t *tenantEntitlementRepository) GetEntitlements(ctx context.Context, tenan
 		DAGOperator:                     entitlement.DagOperator,
 		DurableStreams:                  entitlement.DurableStreams,
 		ServerlessOperator:              entitlement.ServerlessOperator,
+		SandboxOperator:                 entitlement.SandboxOperator,
 	}, nil
 }
 

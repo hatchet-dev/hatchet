@@ -24,5 +24,6 @@ func (t *TenantService) TenantEntitlementsGet(ctx echo.Context, request gen.Tena
 		DagOperator:                     entitlements.DAGOperator,
 		DurableStreams:                  entitlements.DurableStreams,
 		ServerlessOperator:              entitlements.ServerlessOperator,
+		SandboxOperator:                 entitlements.SandboxOperator,
 	}, nil
 }
