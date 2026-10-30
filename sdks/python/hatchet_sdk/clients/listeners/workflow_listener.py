@@ -43,7 +43,7 @@ class PooledWorkflowRunListener(
 
             raise FailedTaskRunExceptionGroup(
                 f"Workflow run {workflow_run_id} failed.",
-                [TaskRunError.deserialize(e) for e in errors],
+                [TaskRunError._deserialize(e) for e in errors],
             )
 
         return {

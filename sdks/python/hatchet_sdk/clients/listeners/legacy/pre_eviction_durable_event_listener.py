@@ -37,12 +37,12 @@ class RegisterDurableEventRequest(BaseModel):
             signal_key=self.signal_key,
             conditions=DurableEventListenerConditions(
                 sleep_conditions=[
-                    c.to_proto(self.config)
+                    c._to_proto(self.config)
                     for c in self.conditions
                     if isinstance(c, SleepCondition)
                 ],
                 user_event_conditions=[
-                    c.to_proto(self.config)
+                    c._to_proto(self.config)
                     for c in self.conditions
                     if isinstance(c, UserEventCondition)
                 ],

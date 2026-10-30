@@ -286,6 +286,7 @@ class Hatchet:
     def worker(
         self,
         name: str,
+        *,
         slots: int | None = None,
         durable_slots: int | None = None,
         labels: list[WorkerLabel] | None = None,
@@ -479,7 +480,7 @@ class Hatchet:
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
-        backoff_max_seconds: int | None = None,
+        backoff_max: timedelta | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
         slot_cost: int | None = None,
@@ -513,7 +514,7 @@ class Hatchet:
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
-        backoff_max_seconds: int | None = None,
+        backoff_max: timedelta | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
         slot_cost: int | None = None,
@@ -546,7 +547,7 @@ class Hatchet:
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
-        backoff_max_seconds: int | None = None,
+        backoff_max: timedelta | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
         slot_cost: int | None = None,
@@ -598,7 +599,7 @@ class Hatchet:
 
         :param backoff_factor: The backoff factor for controlling exponential backoff in retries.
 
-        :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue.
+        :param backoff_max: The maximum delay between retries when using exponential backoff.
 
         :param default_filters: A list of filters to create with the task is created. Note that this is a helper to allow you to create filters "declaratively" without needing to make a separate API call once the task is created to create them.
 
@@ -651,7 +652,7 @@ class Hatchet:
                 rate_limits=rate_limits or [],
                 desired_worker_labels=desired_worker_labels or None,
                 backoff_factor=backoff_factor,
-                backoff_max_seconds=backoff_max_seconds,
+                backoff_max=backoff_max,
                 concurrency=_concurrency,
                 slot_cost=slot_cost,
             )
@@ -683,7 +684,7 @@ class Hatchet:
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
-        backoff_max_seconds: int | None = None,
+        backoff_max: timedelta | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
         batch_max_size: int = ...,
@@ -719,7 +720,7 @@ class Hatchet:
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
-        backoff_max_seconds: int | None = None,
+        backoff_max: timedelta | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
         batch_max_size: int = ...,
@@ -755,7 +756,7 @@ class Hatchet:
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
-        backoff_max_seconds: int | None = None,
+        backoff_max: timedelta | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
         batch_max_size: int = ...,
@@ -791,7 +792,7 @@ class Hatchet:
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
-        backoff_max_seconds: int | None = None,
+        backoff_max: timedelta | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
         batch_max_size: int = ...,
@@ -829,7 +830,7 @@ class Hatchet:
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
-        backoff_max_seconds: int | None = None,
+        backoff_max: timedelta | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
         batch_max_size: int = 1,
@@ -905,7 +906,7 @@ class Hatchet:
                     rate_limits=rate_limits or [],
                     desired_worker_labels=desired_worker_labels or None,
                     backoff_factor=backoff_factor,
-                    backoff_max_seconds=backoff_max_seconds,
+                    backoff_max=backoff_max,
                     batch_max_size=batch_max_size,
                     batch_max_interval=batch_max_interval,
                     batch_group_key=batch_group_key,
@@ -927,7 +928,7 @@ class Hatchet:
                     rate_limits=rate_limits or [],
                     desired_worker_labels=desired_worker_labels or None,
                     backoff_factor=backoff_factor,
-                    backoff_max_seconds=backoff_max_seconds,
+                    backoff_max=backoff_max,
                     batch_max_size=batch_max_size,
                     batch_max_interval=batch_max_interval,
                     batch_group_key=batch_group_key,
@@ -970,7 +971,7 @@ class Hatchet:
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
-        backoff_max_seconds: int | None = None,
+        backoff_max: timedelta | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
         slot_cost: int | None = None,
@@ -1005,7 +1006,7 @@ class Hatchet:
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
-        backoff_max_seconds: int | None = None,
+        backoff_max: timedelta | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
         slot_cost: int | None = None,
@@ -1043,7 +1044,7 @@ class Hatchet:
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
-        backoff_max_seconds: int | None = None,
+        backoff_max: timedelta | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
         slot_cost: int | None = None,
@@ -1100,7 +1101,7 @@ class Hatchet:
 
         :param backoff_factor: The backoff factor for controlling exponential backoff in retries.
 
-        :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue.
+        :param backoff_max: The maximum delay between retries when using exponential backoff.
 
         :param default_filters: A list of filters to create with the task is created. Note that this is a helper to allow you to create filters "declaratively" without needing to make a separate API call once the task is created to create them.
 
@@ -1154,7 +1155,7 @@ class Hatchet:
                 rate_limits=rate_limits or [],
                 desired_worker_labels=desired_worker_labels or None,
                 backoff_factor=backoff_factor,
-                backoff_max_seconds=backoff_max_seconds,
+                backoff_max=backoff_max,
                 concurrency=_concurrency,
                 eviction_policy=eviction_policy,
                 slot_cost=slot_cost,

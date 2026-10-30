@@ -1,7 +1,8 @@
 import json
 import traceback
+from collections.abc import Sequence
 from datetime import timedelta
-from typing import cast
+from typing import Self, cast
 
 from hatchet_sdk.engine_version import MinEngineVersion
 
@@ -89,18 +90,20 @@ class TaskRunError(Exception):
         trace: str,
         task_run_external_id: str | None,
     ) -> None:
+        super().__init__(exc, exc_type, trace, task_run_external_id)
+
         self.exc = exc
         self.exc_type = exc_type
         self.trace = trace
         self.task_run_external_id = task_run_external_id
 
     def __str__(self) -> str:
-        return self.serialize(include_metadata=False)
+        return self._serialize(include_metadata=False)
 
     def __repr__(self) -> str:
         return str(self)
 
-    def serialize(self, include_metadata: bool) -> str:
+    def _serialize(self, *, include_metadata: bool) -> str:
         exc_type = self.exc_type.replace(": ", ":::")
         exc = self.exc.replace("\n", "\\\n")
         header = f"{exc_type}: {exc}" if exc_type and exc else f"{exc_type}{exc}"
@@ -155,7 +158,7 @@ class TaskRunError(Exception):
         return external_id, header, trace
 
     @classmethod
-    def deserialize(cls, serialized: str) -> "TaskRunError":
+    def _deserialize(cls, serialized: str) -> "TaskRunError":
         if not serialized:
             return cls(
                 exc="",
@@ -193,7 +196,7 @@ class TaskRunError(Exception):
         )
 
     @classmethod
-    def from_exception(
+    def _from_exception(
         cls, exc: Exception, task_run_external_id: str | None
     ) -> "TaskRunError":
         return cls(
@@ -206,12 +209,30 @@ class TaskRunError(Exception):
         )
 
 
-class FailedTaskRunExceptionGroup(ValueError):  # noqa: N818
-    def __init__(self, message: str, exceptions: list[TaskRunError]) -> None:
-        self.message = message
-        self.exceptions = exceptions
+class FailedTaskRunExceptionGroup(ExceptionGroup[TaskRunError]):
+    def __new__(cls, message: str, exceptions: Sequence[TaskRunError]) -> Self:
+        ## `ExceptionGroup` rejects an empty sequence, but a run can fail without
+        ## reporting any task errors, so fall back to an error carrying the message.
+        exceptions_or_fallback = list(exceptions) or [
+            TaskRunError(
+                exc=message,
+                exc_type="HatchetError",
+                trace="",
+                task_run_external_id=None,
+            )
+        ]
 
-        super().__init__(message)
+        return super().__new__(cls, message, exceptions_or_fallback)
+
+    def __init__(
+        self, message: str, exceptions: Sequence[TaskRunError]  # noqa: ARG002
+    ) -> None:
+        super().__init__(message, cast("Sequence[TaskRunError]", self.exceptions))
+
+    def derive(  # type: ignore[override]
+        self, excs: Sequence[TaskRunError]
+    ) -> "FailedTaskRunExceptionGroup":
+        return FailedTaskRunExceptionGroup(self.message, excs)
 
     def __str__(self) -> str:
         result = [self.message.strip()]

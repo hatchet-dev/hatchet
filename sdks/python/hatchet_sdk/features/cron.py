@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field, field_validator
@@ -12,6 +13,7 @@ from hatchet_sdk.clients.rest.models.create_cron_workflow_trigger_request import
     CreateCronWorkflowTriggerRequest,
 )
 from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
+from hatchet_sdk.clients.rest.models.cron_workflows_method import CronWorkflowsMethod
 from hatchet_sdk.clients.rest.models.cron_workflows_order_by_field import (
     CronWorkflowsOrderByField,
 )
@@ -71,6 +73,46 @@ class CreateCronTriggerConfig(BaseModel):
         return v
 
 
+class CronTrigger(BaseModel):
+    id: str
+    created_at: datetime
+    updated_at: datetime
+    tenant_id: str
+    workflow_id: str
+    workflow_version_id: str
+    workflow_name: str
+    name: str | None = None
+    expression: str
+    input: JSONSerializableMapping
+    additional_metadata: JSONSerializableMapping
+    enabled: bool
+    method: CronWorkflowsMethod = Field(
+        description="`DEFAULT` for a cron declared on the workflow with `on_crons`, `API` for one created with `hatchet.crons.create`."
+    )
+    priority: Priority | None = None
+
+    @classmethod
+    def from_rest_model(cls, rest_cron: CronWorkflows) -> "CronTrigger":
+        return cls(
+            id=rest_cron.metadata.id,
+            created_at=rest_cron.metadata.created_at,
+            updated_at=rest_cron.metadata.updated_at,
+            tenant_id=rest_cron.tenant_id,
+            workflow_id=rest_cron.workflow_id,
+            workflow_version_id=rest_cron.workflow_version_id,
+            workflow_name=rest_cron.workflow_name,
+            name=rest_cron.name,
+            expression=rest_cron.cron,
+            input=rest_cron.input or {},
+            additional_metadata=rest_cron.additional_metadata or {},
+            enabled=rest_cron.enabled,
+            method=rest_cron.method,
+            priority=(
+                Priority(rest_cron.priority) if rest_cron.priority is not None else None
+            ),
+        )
+
+
 class CronClient(BaseRestClient):
     """
     The cron client is a client for managing cron workflows within Hatchet.
@@ -91,10 +133,11 @@ class CronClient(BaseRestClient):
         workflow_name: str,
         cron_name: str,
         expression: str,
+        *,
         input: JSONSerializableMapping,
         additional_metadata: JSONSerializableMapping,
         priority: Priority | None = None,
-    ) -> CronWorkflows:
+    ) -> CronTrigger:
         """
         Create a new workflow cron trigger.
 
@@ -105,7 +148,7 @@ class CronClient(BaseRestClient):
         :param additional_metadata: Additional metadata associated with the cron trigger.
         :param priority: The priority of the cron workflow trigger.
 
-        :return: The created cron workflow instance.
+        :return: The created cron trigger.
         """
 
         validated_input = CreateCronTriggerConfig(
@@ -113,7 +156,7 @@ class CronClient(BaseRestClient):
         )
 
         with self.client() as client:
-            return self._wra(client).cron_workflow_trigger_create(
+            rest_cron = self._wra(client).cron_workflow_trigger_create(
                 tenant=self.client_config.tenant_id,
                 workflow=self.client_config.apply_namespace(workflow_name),
                 create_cron_workflow_trigger_request=CreateCronWorkflowTriggerRequest(
@@ -125,15 +168,18 @@ class CronClient(BaseRestClient):
                 ),
             )
 
+        return CronTrigger.from_rest_model(rest_cron)
+
     async def aio_create(
         self,
         workflow_name: str,
         cron_name: str,
         expression: str,
+        *,
         input: JSONSerializableMapping,
         additional_metadata: JSONSerializableMapping,
         priority: Priority | None = None,
-    ) -> CronWorkflows:
+    ) -> CronTrigger:
         """
         Create a new workflow cron trigger.
 
@@ -144,16 +190,16 @@ class CronClient(BaseRestClient):
         :param additional_metadata: Additional metadata associated with the cron trigger.
         :param priority: The priority of the cron workflow trigger.
 
-        :return: The created cron workflow instance.
+        :return: The created cron trigger.
         """
         return await asyncio.to_thread(
             self.create,
             workflow_name,
             cron_name,
             expression,
-            input,
-            additional_metadata,
-            priority,
+            input=input,
+            additional_metadata=additional_metadata,
+            priority=priority,
         )
 
     def delete(self, cron_id: str) -> None:
@@ -179,6 +225,7 @@ class CronClient(BaseRestClient):
 
     async def aio_list(
         self,
+        *,
         offset: int | None = None,
         limit: int | None = None,
         workflow_id: str | None = None,
@@ -187,7 +234,7 @@ class CronClient(BaseRestClient):
         order_by_direction: WorkflowRunOrderByDirection | None = None,
         workflow_name: str | None = None,
         cron_name: str | None = None,
-    ) -> list[CronWorkflows]:
+    ) -> list[CronTrigger]:
         """
         Retrieve a list of all workflow cron triggers matching the criteria.
 
@@ -200,7 +247,7 @@ class CronClient(BaseRestClient):
         :param workflow_name: The name of the workflow to filter by.
         :param cron_name: The name of the cron trigger to filter by.
 
-        :return: A list of cron workflows.
+        :return: A list of cron triggers.
         """
         return await asyncio.to_thread(
             self.list,
@@ -216,6 +263,7 @@ class CronClient(BaseRestClient):
 
     def list(
         self,
+        *,
         offset: int | None = None,
         limit: int | None = None,
         workflow_id: str | None = None,
@@ -224,7 +272,7 @@ class CronClient(BaseRestClient):
         order_by_direction: WorkflowRunOrderByDirection | None = None,
         workflow_name: str | None = None,
         cron_name: str | None = None,
-    ) -> list[CronWorkflows]:
+    ) -> list[CronTrigger]:
         """
         Retrieve a list of all workflow cron triggers matching the criteria.
 
@@ -237,7 +285,7 @@ class CronClient(BaseRestClient):
         :param workflow_name: The name of the workflow to filter by.
         :param cron_name: The name of the cron trigger to filter by.
 
-        :return: A list of cron workflows.
+        :return: A list of cron triggers.
         """
         with self.client() as client:
             cron_workflow_list = tenacity_retry(
@@ -258,28 +306,30 @@ class CronClient(BaseRestClient):
                 cron_name=cron_name,
             )
 
-            return cwl.rows or []
+            return [CronTrigger.from_rest_model(cron) for cron in cwl.rows or []]
 
-    def get(self, cron_id: str) -> CronWorkflows:
+    def get(self, cron_id: str) -> CronTrigger:
         """
         Retrieve a specific workflow cron trigger by ID.
 
-        :param cron_id: The cron trigger ID or CronWorkflows instance to retrieve.
-        :return: The requested cron workflow instance.
+        :param cron_id: The ID of the cron trigger to retrieve.
+        :return: The requested cron trigger.
         """
         with self.client() as client:
             workflow_cron_get = tenacity_retry(
                 self._wa(client).workflow_cron_get, self.client_config.tenacity
             )
-            return workflow_cron_get(
-                tenant=self.client_config.tenant_id, cron_workflow=str(cron_id)
+            return CronTrigger.from_rest_model(
+                workflow_cron_get(
+                    tenant=self.client_config.tenant_id, cron_workflow=str(cron_id)
+                )
             )
 
-    async def aio_get(self, cron_id: str) -> CronWorkflows:
+    async def aio_get(self, cron_id: str) -> CronTrigger:
         """
         Retrieve a specific workflow cron trigger by ID.
 
-        :param cron_id: The cron trigger ID or CronWorkflows instance to retrieve.
-        :return: The requested cron workflow instance.
+        :param cron_id: The ID of the cron trigger to retrieve.
+        :return: The requested cron trigger.
         """
         return await asyncio.to_thread(self.get, cron_id)

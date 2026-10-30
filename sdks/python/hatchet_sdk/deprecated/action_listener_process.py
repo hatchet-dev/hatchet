@@ -60,7 +60,6 @@ class LegacyWorkerActionListenerProcess:
         config: ClientConfig,
         action_queue: "Queue[Action]",
         event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
-        handle_kill: bool,
         labels: list[WorkerLabel],
         worker_id_queue: "Queue[str]",
         stop_event: "multiprocessing.synchronize.Event",
@@ -72,7 +71,6 @@ class LegacyWorkerActionListenerProcess:
         self.action_queue = action_queue
         self.event_queue = event_queue
         self.labels = labels
-        self.handle_kill = handle_kill
         self.worker_id_queue = worker_id_queue
         self._stop_event = stop_event
 
@@ -483,7 +481,6 @@ def legacy_worker_action_listener_process(
     config: ClientConfig,
     action_queue: "Queue[Action]",
     event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
-    handle_kill: bool,
     labels: list[WorkerLabel],
     worker_id_queue: "Queue[str]",
     stop_event: "multiprocessing.synchronize.Event",
@@ -496,7 +493,6 @@ def legacy_worker_action_listener_process(
             config=config,
             action_queue=action_queue,
             event_queue=event_queue,
-            handle_kill=handle_kill,
             labels=labels,
             worker_id_queue=worker_id_queue,
             stop_event=stop_event,

@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import asyncio
 import os
-import sys
 from typing import TYPE_CHECKING, Any
 
 from hatchet_sdk.deprecated.action_listener_process import (
@@ -177,7 +176,6 @@ def _legacy_start_action_listener(
                 worker._config,
                 action_queue,
                 event_queue,
-                worker._handle_kill,
                 worker._labels,
                 worker._worker_id_queue,
                 worker._stop_listener_event,
@@ -190,7 +188,7 @@ def _legacy_start_action_listener(
         return process
     except Exception:
         logger.exception("failed to start legacy action listener")
-        sys.exit(1)
+        raise
 
 
 def _legacy_run_action_runner(
@@ -212,7 +210,6 @@ def _legacy_run_action_runner(
             action_queue,
             event_queue,
             worker._loop,
-            worker._handle_kill,
             worker._labels,
             lifespan_context,
         )
@@ -241,7 +238,7 @@ async def _legacy_check_listener_health(
                 logger.debug("child action listener process killed...")
                 worker._status = WorkerStatus.UNHEALTHY
                 if worker._loop:
-                    worker._loop.create_task(worker.exit_gracefully())
+                    worker._loop.create_task(worker._exit_gracefully())
                 break
 
             if (
@@ -249,7 +246,7 @@ async def _legacy_check_listener_health(
                 and task_count.value >= worker._config.terminate_worker_after_num_tasks
             ):
                 if worker._loop:
-                    worker._loop.create_task(worker.exit_gracefully())
+                    worker._loop.create_task(worker._exit_gracefully())
                 break
 
             worker._status = WorkerStatus.HEALTHY

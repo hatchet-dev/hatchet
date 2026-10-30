@@ -44,6 +44,7 @@ class CELClient(BaseRestClient):
         self,
         expression: str,
         input: JSONSerializableMapping,
+        *,
         additional_metadata: JSONSerializableMapping | None = None,
         filter_payload: JSONSerializableMapping | None = None,
     ) -> CELEvaluationResult:
@@ -88,6 +89,7 @@ class CELClient(BaseRestClient):
         self,
         expression: str,
         input: JSONSerializableMapping,
+        *,
         additional_metadata: JSONSerializableMapping | None = None,
         filter_payload: JSONSerializableMapping | None = None,
     ) -> CELEvaluationResult:
@@ -102,5 +104,9 @@ class CELClient(BaseRestClient):
         :return: A V1CELDebugErrorResponse or V1CELDebugSuccessResponse containing the result of the debug operation.
         """
         return await asyncio.to_thread(
-            self.debug, expression, input, additional_metadata, filter_payload
+            self.debug,
+            expression,
+            input,
+            additional_metadata=additional_metadata,
+            filter_payload=filter_payload,
         )

@@ -145,7 +145,7 @@ A type checker will not flag these, so check them by hand:
 - **The `HATCHET_CLIENT_WORKER_HEALTHCHECK_EVENT_LOOP_BLOCK_THRESHOLD_SECONDS` environment variable is no longer read.** Rename it to `HATCHET_CLIENT_WORKER_HEALTHCHECK_EVENT_LOOP_BLOCK_THRESHOLD`.
 - **`grpcio-tools` is no longer installed with the SDK.** Add it to your own dependencies if you import it.
 - **`ref.result()` and `ref.aio_result()` raise `RuntimeError` instead of `ValueError` when fetching the run's status fails repeatedly.** A cancelled run still raises `ValueError`.
-- **`parent_id`, `parent_step_run_id`, and `child_index` are no longer valid in `OpenTelemetryConfig.excluded_attributes`** or `HATCHET_CLIENT_OTEL_EXCLUDED_ATTRIBUTES`. Remove them, or building the `ClientConfig` fails.
+- **`parent_id`, `parent_step_run_id`, and `child_index` are no longer valid in `OpenTelemetryConfig.excluded_attributes`** or `HATCHET_CLIENT_OPENTELEMETRY_EXCLUDED_ATTRIBUTES`. Remove them, or building the `ClientConfig` fails.
 - **`from hatchet_sdk.types.rate_limit import RateLimitDuration` and similar imports still succeed.** The names remain as `Literal` type aliases, so the import works but member access such as `RateLimitDuration.MINUTE` raises `AttributeError`.
 
 The rest of this page covers each change in detail.
@@ -659,7 +659,7 @@ workflow.run(input, additional_metadata={"key": "value"})
 
 The `hatchet_sdk.labels`, `hatchet_sdk.rate_limit`, and `hatchet_sdk.utils.priority` modules (aliases for `hatchet_sdk.types.labels`, `hatchet_sdk.types.rate_limit`, and `hatchet_sdk.types.priority`) have been removed. Import `DesiredWorkerLabel`, `WorkerLabel`, `RateLimit`, and `Priority` from `hatchet_sdk` directly. (`RateLimitDuration` is no longer exported from `hatchet_sdk`; pass the duration as a plain string, as described above.)
 
-The `PARENT_ID`, `PARENT_STEP_RUN_ID`, and `CHILD_INDEX` members of `OTelAttribute` have been removed, since the SDK no longer sets those span attributes. Remove `parent_id`, `parent_step_run_id`, and `child_index` from `OpenTelemetryConfig.excluded_attributes` (or `HATCHET_CLIENT_OTEL_EXCLUDED_ATTRIBUTES`) if you set them, since they now fail validation. The run, bulk run, and schedule spans also no longer set `hatchet.namespace` or `hatchet.key`. The child key is still reported as `hatchet.child_key`.
+The `PARENT_ID`, `PARENT_STEP_RUN_ID`, and `CHILD_INDEX` members of `OTelAttribute` have been removed, since the SDK no longer sets those span attributes. Remove `parent_id`, `parent_step_run_id`, and `child_index` from `OpenTelemetryConfig.excluded_attributes` (or `HATCHET_CLIENT_OPENTELEMETRY_EXCLUDED_ATTRIBUTES`) if you set them, since they now fail validation. The run, bulk run, and schedule spans also no longer set `hatchet.namespace` or `hatchet.key`. The child key is still reported as `hatchet.child_key`.
 
 `TriggerWorkflowOptions`, `ScheduleTriggerWorkflowOptions`, `RunEventListener`, and `WorkflowConfig` are no longer exported from `hatchet_sdk`. No public method accepts them now that the `options` parameters are gone. `WorkflowRunTriggerConfig` still holds a `TriggerWorkflowOptions`, so build one with `workflow.create_bulk_run_item(...)` rather than by hand.
 

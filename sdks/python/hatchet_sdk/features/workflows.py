@@ -1,12 +1,14 @@
 import asyncio
 from datetime import timedelta
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
     from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
+    from hatchet_sdk.runnables.workflow import BaseWorkflow
 
 from hatchet_sdk.clients.rest.api_client import ApiClient
+from hatchet_sdk.clients.rest.exceptions import NotFoundException
 from hatchet_sdk.clients.rest.models.pause_workflow_request import PauseWorkflowRequest
 from hatchet_sdk.clients.rest.models.pause_workflow_request_pause import (
     PauseWorkflowRequestPause,
@@ -46,22 +48,48 @@ class WorkflowsClient(BaseRestClient):
 
         return WorkflowApi(client)
 
-    async def aio_get(self, workflow_id: str) -> Workflow:
-        """
-        Get a workflow by its ID.
+    def _get_workflow_by_name(self, workflow: "str | BaseWorkflow[Any]") -> Workflow:
+        workflow_name = self.client_config.apply_namespace(
+            workflow if isinstance(workflow, str) else workflow.name
+        )
 
-        :param workflow_id: The ID of the workflow to retrieve.
+        matching_workflow = next(
+            (
+                candidate
+                for candidate in self.list(workflow_name=workflow_name)
+                if candidate.name == workflow_name
+            ),
+            None,
+        )
+
+        if matching_workflow is None:
+            raise NotFoundException(
+                status=404, reason=f"No workflow named {workflow_name} was found"
+            )
+
+        return matching_workflow
+
+    def _get_workflow_id(self, workflow: "str | BaseWorkflow[Any]") -> str:
+        return self._get_workflow_by_name(workflow).metadata.id
+
+    async def aio_get(self, workflow: "str | BaseWorkflow[Any]") -> Workflow:
+        """
+        Get a workflow by its name.
+
+        :param workflow: The name of the workflow to retrieve, or the workflow itself. Raises `NotFoundException` if no workflow has that name.
         :return: The workflow.
         """
-        return await asyncio.to_thread(self.get, workflow_id)
+        return await asyncio.to_thread(self.get, workflow)
 
-    def get(self, workflow_id: str) -> Workflow:
+    def get(self, workflow: "str | BaseWorkflow[Any]") -> Workflow:
         """
-        Get a workflow by its ID.
+        Get a workflow by its name.
 
-        :param workflow_id: The ID of the workflow to retrieve.
+        :param workflow: The name of the workflow to retrieve, or the workflow itself. Raises `NotFoundException` if no workflow has that name.
         :return: The workflow.
         """
+        workflow_id = self._get_workflow_id(workflow)
+
         with self.client() as client:
             workflow_get = tenacity_retry(
                 self._wa(client).workflow_get, self.client_config.tenacity
@@ -70,6 +98,7 @@ class WorkflowsClient(BaseRestClient):
 
     async def aio_list(
         self,
+        *,
         workflow_name: str | None = None,
         limit: int | None = None,
         offset: int | None = None,
@@ -83,10 +112,13 @@ class WorkflowsClient(BaseRestClient):
 
         :return: A list of workflows.
         """
-        return await asyncio.to_thread(self.list, workflow_name, limit, offset)
+        return await asyncio.to_thread(
+            self.list, workflow_name=workflow_name, limit=limit, offset=offset
+        )
 
     def list(
         self,
+        *,
         workflow_name: str | None = None,
         limit: int | None = None,
         offset: int | None = None,
@@ -114,15 +146,17 @@ class WorkflowsClient(BaseRestClient):
             return wl.rows or []
 
     def get_version(
-        self, workflow_id: str, version: str | None = None
+        self, workflow: "str | BaseWorkflow[Any]", *, version: str | None = None
     ) -> WorkflowVersion:
         """
-        Get a workflow version by the workflow ID and an optional version.
+        Get a version of a workflow.
 
-        :param workflow_id: The ID of the workflow to retrieve the version for.
+        :param workflow: The name of the workflow to retrieve the version for, or the workflow itself. Raises `NotFoundException` if no workflow has that name.
         :param version: The version of the workflow to retrieve. If None, the latest version is returned.
         :return: The workflow version.
         """
+        workflow_id = self._get_workflow_id(workflow)
+
         with self.client() as client:
             workflow_get_version = tenacity_retry(
                 self._wa(client).workflow_version_get, self.client_config.tenacity
@@ -130,46 +164,48 @@ class WorkflowsClient(BaseRestClient):
             return workflow_get_version(workflow_id, version)
 
     async def aio_get_version(
-        self, workflow_id: str, version: str | None = None
+        self, workflow: "str | BaseWorkflow[Any]", *, version: str | None = None
     ) -> WorkflowVersion:
         """
-        Get a workflow version by the workflow ID and an optional version.
+        Get a version of a workflow.
 
-        :param workflow_id: The ID of the workflow to retrieve the version for.
+        :param workflow: The name of the workflow to retrieve the version for, or the workflow itself. Raises `NotFoundException` if no workflow has that name.
         :param version: The version of the workflow to retrieve. If None, the latest version is returned.
         :return: The workflow version.
         """
-        return await asyncio.to_thread(self.get_version, workflow_id, version)
+        return await asyncio.to_thread(self.get_version, workflow, version=version)
 
-    def delete(self, workflow_id: str) -> None:
+    def delete(self, workflow: "str | BaseWorkflow[Any]") -> None:
         """
         Permanently delete a workflow.
 
         **DANGEROUS: This will delete a workflow and all of its data**
 
-        :param workflow_id: The ID of the workflow to delete.
+        :param workflow: The name of the workflow to delete, or the workflow itself. Raises `NotFoundException` if no workflow has that name.
         :return: None
         """
+        workflow_id = self._get_workflow_id(workflow)
 
         with self.client() as client:
             return self._wa(client).workflow_delete(workflow_id)
 
-    async def aio_delete(self, workflow_id: str) -> None:
+    async def aio_delete(self, workflow: "str | BaseWorkflow[Any]") -> None:
         """
         Permanently delete a workflow.
 
         **DANGEROUS: This will delete a workflow and all of its data**
 
-        :param workflow_id: The ID of the workflow to delete.
+        :param workflow: The name of the workflow to delete, or the workflow itself. Raises `NotFoundException` if no workflow has that name.
         :return: None
         """
 
-        return await asyncio.to_thread(self.delete, workflow_id)
+        return await asyncio.to_thread(self.delete, workflow)
 
     def pause(
         self,
-        workflow_id: str,
+        workflow: "str | BaseWorkflow[Any]",
         queue_ttl: timedelta,
+        *,
         paused_workflow_cron_run_queue_behavior: Literal["DROP", "QUEUE"] = "QUEUE",
         paused_workflow_scheduled_run_queue_behavior: Literal[
             "DROP", "QUEUE"
@@ -178,13 +214,14 @@ class WorkflowsClient(BaseRestClient):
         """
         Pause a workflow.
 
-        :param workflow_id: The ID of the workflow to pause.
+        :param workflow: The name of the workflow to pause, or the workflow itself. Raises `NotFoundException` if no workflow has that name.
         :param queue_ttl: The TTL for queued runs while the workflow is paused before they get dropped.
         :param paused_workflow_cron_run_queue_behavior: The behavior of cron runs triggered while the workflow is paused.
         :param paused_workflow_scheduled_run_queue_behavior: The behavior of scheduled runs triggered while the workflow is paused.
         :return: The updated workflow.
         """
         ttl_expr = timedelta_to_expr(queue_ttl)
+        workflow_id = self._get_workflow_id(workflow)
 
         with self.client() as client:
             workflow_update_pause = tenacity_retry(
@@ -210,8 +247,9 @@ class WorkflowsClient(BaseRestClient):
 
     async def aio_pause(
         self,
-        workflow_id: str,
+        workflow: "str | BaseWorkflow[Any]",
         queue_ttl: timedelta,
+        *,
         paused_workflow_cron_run_queue_behavior: Literal["DROP", "QUEUE"] = "QUEUE",
         paused_workflow_scheduled_run_queue_behavior: Literal[
             "DROP", "QUEUE"
@@ -220,7 +258,7 @@ class WorkflowsClient(BaseRestClient):
         """
         Pause a workflow.
 
-        :param workflow_id: The ID of the workflow to pause.
+        :param workflow: The name of the workflow to pause, or the workflow itself. Raises `NotFoundException` if no workflow has that name.
         :param queue_ttl: The TTL for queued runs while the workflow is paused before they get dropped.
         :param paused_workflow_cron_run_queue_behavior: The behavior of cron runs triggered while the workflow is paused.
         :param paused_workflow_scheduled_run_queue_behavior: The behavior of scheduled runs triggered while the workflow is paused.
@@ -229,19 +267,21 @@ class WorkflowsClient(BaseRestClient):
 
         return await asyncio.to_thread(
             self.pause,
-            workflow_id,
+            workflow,
             queue_ttl,
-            paused_workflow_cron_run_queue_behavior,
-            paused_workflow_scheduled_run_queue_behavior,
+            paused_workflow_cron_run_queue_behavior=paused_workflow_cron_run_queue_behavior,
+            paused_workflow_scheduled_run_queue_behavior=paused_workflow_scheduled_run_queue_behavior,
         )
 
-    def unpause(self, workflow_id: str) -> Workflow:
+    def unpause(self, workflow: "str | BaseWorkflow[Any]") -> Workflow:
         """
         Unpause a workflow.
 
-        :param workflow_id: The ID of the workflow to unpause.
+        :param workflow: The name of the workflow to unpause, or the workflow itself. Raises `NotFoundException` if no workflow has that name.
         :return: The updated workflow.
         """
+        workflow_id = self._get_workflow_id(workflow)
+
         with self.client() as client:
             workflow_update_pause = tenacity_retry(
                 self._wa(client).workflow_update, self.client_config.tenacity
@@ -255,12 +295,12 @@ class WorkflowsClient(BaseRestClient):
                 ),
             )
 
-    async def aio_unpause(self, workflow_id: str) -> Workflow:
+    async def aio_unpause(self, workflow: "str | BaseWorkflow[Any]") -> Workflow:
         """
         Unpause a workflow.
 
-        :param workflow_id: The ID of the workflow to unpause.
+        :param workflow: The name of the workflow to unpause, or the workflow itself. Raises `NotFoundException` if no workflow has that name.
         :return: The updated workflow.
         """
 
-        return await asyncio.to_thread(self.unpause, workflow_id)
+        return await asyncio.to_thread(self.unpause, workflow)

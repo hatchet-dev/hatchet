@@ -39,6 +39,7 @@ class RateLimitsClient(BaseRestClient):
         self,
         key: str,
         limit: int,
+        *,
         duration: RateLimitDuration = "SECOND",
     ) -> None:
         """
@@ -74,6 +75,7 @@ class RateLimitsClient(BaseRestClient):
         self,
         key: str,
         limit: int,
+        *,
         duration: RateLimitDuration = "SECOND",
     ) -> None:
         """
@@ -86,7 +88,7 @@ class RateLimitsClient(BaseRestClient):
         :return: None
         """
 
-        await asyncio.to_thread(self.put, key, limit, duration)
+        await asyncio.to_thread(self.put, key, limit, duration=duration)
 
     def pause(self, key: str, until: datetime) -> datetime:
         """
@@ -138,6 +140,7 @@ class RateLimitsClient(BaseRestClient):
 
     async def aio_list(
         self,
+        *,
         offset: int | None = None,
         limit: int | None = None,
         search: str | None = None,
@@ -166,6 +169,7 @@ class RateLimitsClient(BaseRestClient):
 
     def list(
         self,
+        *,
         offset: int | None = None,
         limit: int | None = None,
         search: str | None = None,

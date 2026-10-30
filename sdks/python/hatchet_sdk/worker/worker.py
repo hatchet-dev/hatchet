@@ -76,10 +76,10 @@ class Worker:
     def __init__(
         self,
         name: str,
+        *,
         config: ClientConfig,
         slot_config: dict[str, int],
         labels: list[WorkerLabel] | None = None,
-        handle_kill: bool = True,
         workflows: list[BaseWorkflow[Any]] | None = None,
         lifespan: LifespanFn | None = None,
     ) -> None:
@@ -90,8 +90,6 @@ class Worker:
         self._durable_slots = slot_config.get("durable", 0)
 
         self._labels = labels or []
-
-        self._handle_kill = handle_kill
 
         self._action_registry: dict[str, Task[Any, Any]] = {}
 
@@ -161,13 +159,13 @@ class Worker:
             raise ValueError(msg)
 
         try:
-            self._admin_client.put_workflow(workflow.to_proto())
+            self._admin_client.put_workflow(workflow._to_proto())
         except Exception:
             logger.exception(f"failed to register workflow: {workflow.name}")
             raise
 
         for task in workflow.tasks:
-            action_name = workflow.create_action_name(task)
+            action_name = workflow._create_action_name(task)
 
             self._action_registry[action_name] = task
 
@@ -213,9 +211,6 @@ class Worker:
         if self._aio_start_exception is not None:
             raise self._aio_start_exception
 
-        if self._handle_kill:
-            sys.exit(0)
-
     def _handle_aio_start_done(self, future: Future[None]) -> None:
         if future.cancelled():
             return
@@ -250,7 +245,7 @@ class Worker:
         tasks_with_eviction = [
             task
             for task in self._action_registry.values()
-            if task.eviction_policy is not None
+            if task._eviction_policy is not None
         ]
         if not tasks_with_eviction:
             return
@@ -284,7 +279,9 @@ class Worker:
         return version
 
     def _raise_for_duped_action_ids(self) -> None:
-        action_ids = [w.create_action_name(t) for w in self._workflows for t in w.tasks]
+        action_ids = [
+            w._create_action_name(t) for w in self._workflows for t in w.tasks
+        ]
         duped_action_ids = {a for a in action_ids if action_ids.count(a) > 1}
 
         if duped_action_ids:
@@ -367,7 +364,6 @@ class Worker:
                 self._action_queue,
                 self._event_queue,
                 self._loop,
-                self._handle_kill,
                 self._labels,
                 lifespan_context,
                 engine_version=self._engine_version,
@@ -415,7 +411,6 @@ class Worker:
                     self._config,
                     self._action_queue,
                     self._event_queue,
-                    self._handle_kill,
                     self._labels,
                     self._worker_id_queue,
                     self._stop_listener_event,
@@ -428,7 +423,7 @@ class Worker:
             return process
         except Exception:
             logger.exception("failed to start action listener")
-            sys.exit(1)
+            raise
 
     async def _check_listener_health(self) -> None:
         logger.debug("starting action listener health check...")
@@ -449,7 +444,7 @@ class Worker:
                     logger.error(str(self._aio_start_exception))
                     self._status = WorkerStatus.UNHEALTHY
                     if self._loop:
-                        self._loop.create_task(self.exit_gracefully())
+                        self._loop.create_task(self._exit_gracefully())
                     break
 
                 if (
@@ -458,7 +453,7 @@ class Worker:
                     >= self._config.terminate_worker_after_num_tasks
                 ):
                     if self._loop:
-                        self._loop.create_task(self.exit_gracefully())
+                        self._loop.create_task(self._exit_gracefully())
                     break
 
                 self._status = WorkerStatus.HEALTHY
@@ -489,7 +484,7 @@ class Worker:
         sig_name = "SIGTERM" if signum == signal.SIGTERM else "SIGINT"
         logger.info(f"received signal {sig_name}...")
         if self._loop:
-            self._loop.create_task(self.exit_gracefully())
+            self._loop.create_task(self._exit_gracefully())
 
     def _handle_force_quit_signal(self, signum: int, _frame: FrameType | None) -> None:
         signal_received = signal.Signals(signum).name
@@ -584,7 +579,7 @@ class Worker:
         """
         self._stop_listener_event.set()
 
-    async def exit_gracefully(self) -> None:
+    async def _exit_gracefully(self) -> None:
         logger.debug(f"gracefully stopping worker: {self.name}")
 
         if self._killing:

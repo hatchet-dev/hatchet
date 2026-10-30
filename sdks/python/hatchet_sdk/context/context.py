@@ -114,7 +114,7 @@ def _build_condition_meta(
     conditions: list[Condition | OrGroup], flat_conditions: list[Condition]
 ) -> _ConditionMeta:
     return _ConditionMeta(
-        key_to_condition={c.base.readable_data_key: c for c in flat_conditions},
+        key_to_condition={c._base.readable_data_key: c for c in flat_conditions},
         or_group_ids={c.or_group_id for c in conditions if isinstance(c, OrGroup)},
     )
 
@@ -143,7 +143,7 @@ def _parse_wait_for_payload(
 
         for match_data in matches:
             inner = _parse_single_result(key, condition, match_data)
-            group_id = condition.base.or_group_id
+            group_id = condition._base.or_group_id
 
             if group_id in meta.or_group_ids:
                 if group_id not in seen_or_groups:
@@ -224,11 +224,7 @@ class Context:
             self.worker_id, [WorkerLabel(key=k, value=v) for k, v in labels.items()]
         )
 
-        prior_label_dict = {
-            label.key: label.value
-            for label in self._worker_labels
-            if label.key is not None
-        }
+        prior_label_dict = {label.key: label.value for label in self._worker_labels}
 
         prior_label_dict.update(labels)
 
@@ -257,10 +253,6 @@ class Context:
         :return: True if the task was skipped, False otherwise.
         """
         return self._data.parents.get(task.name, {}).get("skipped", False) is True
-
-    @property
-    def trigger_data(self) -> JSONSerializableMapping:
-        return self._data.triggers
 
     def task_output(self, task: Task[TWorkflowInput, R]) -> R:
         """
@@ -472,16 +464,11 @@ class Context:
         :param data: The data to send to the Hatchet API. Can be a string or bytes.
         :return: None
         """
-        try:
-            ix = self._increment_stream_index()
-
-            self._event_client._stream(
-                data=data,
-                task_run_external_id=self._task_run_external_id,
-                index=ix,
-            )
-        except Exception:
-            logger.exception("error putting stream event")
+        self._event_client._stream(
+            data=data,
+            task_run_external_id=self._task_run_external_id,
+            index=self._increment_stream_index(),
+        )
 
     async def aio_put_stream(self, data: str | bytes) -> None:
         """
@@ -490,38 +477,30 @@ class Context:
         :param data: The data to send to the Hatchet API. Can be a string or bytes.
         :return: None
         """
-        try:
-            ix = self._increment_stream_index()
-
-            await self._event_client._aio_stream(
-                data=data,
-                task_run_external_id=self._task_run_external_id,
-                index=ix,
-            )
-        except Exception:
-            logger.exception("error putting stream event")
+        await self._event_client._aio_stream(
+            data=data,
+            task_run_external_id=self._task_run_external_id,
+            index=self._increment_stream_index(),
+        )
 
     def refresh_timeout(self, increment_by: timedelta) -> None:
         """
         Refresh the timeout for the current task run. You can read about refreshing timeouts in [the docs](https://docs.hatchet.run/v1/timeouts#refreshing-timeouts).
 
-        :param increment_by: The amount of time to increment the timeout by. Can be a string (e.g. "5m") or a timedelta object.
+        :param increment_by: The amount of time to increment the timeout by.
         :return: None
         """
 
-        try:
-            return self._dispatcher_client.refresh_timeout(
-                task_run_external_id=self._task_run_external_id,
-                increment_by=timedelta_to_expr(increment_by),
-            )
-        except Exception:
-            logger.exception("error refreshing timeout")
+        self._dispatcher_client.refresh_timeout(
+            task_run_external_id=self._task_run_external_id,
+            increment_by=timedelta_to_expr(increment_by),
+        )
 
     async def aio_refresh_timeout(self, increment_by: timedelta) -> None:
         """
         Refresh the timeout for the current task run. You can read about refreshing timeouts in [the docs](https://docs.hatchet.run/v1/timeouts#refreshing-timeouts).
 
-        :param increment_by: The amount of time to increment the timeout by. Can be a string (e.g. "5m") or a timedelta object.
+        :param increment_by: The amount of time to increment the timeout by.
         :return: None
         """
 
@@ -627,7 +606,7 @@ class Context:
         :return: A dictionary mapping the name of each failed upstream task to its error. Empty if no upstream task failed.
         """
         return {
-            task_name: TaskRunError.deserialize(serialized_error)
+            task_name: TaskRunError._deserialize(serialized_error)
             for task_name, serialized_error in self._data.task_run_errors.items()
             if serialized_error
         }
@@ -729,10 +708,6 @@ class DurableContext(Context):
             self._engine_version, MinEngineVersion.DURABLE_EVICTION
         )
 
-    @property
-    def wait_index(self) -> int:
-        return self._wait_index
-
     def _increment_wait_index(self) -> int:
         index = self._wait_index
         self._wait_index += 1
@@ -743,24 +718,26 @@ class DurableContext(Context):
     ## Keep the signature in sync with the instrumentor wrapper.
     async def aio_wait_for(
         self,
-        signal_key: str,
         *conditions: SleepCondition | UserEventCondition | OrGroup,
         label: str | None = None,
+        signal_key: str | None = None,
     ) -> list[SleepResult | EventWaitResult[Any] | OrGroupResult]:
         """
         Durably wait for either a sleep or an event.
 
-        :param signal_key: The key to use for the durable event. This is used to identify the event in the Hatchet API.
-        :param *conditions: The conditions to wait for. Can be a SleepCondition or UserEventCondition.
-        :param label: An optional label to attach to the wait. This is useful for debugging and observability purposes, and will be propagated to the event log on the  dashboard.
+        :param *conditions: The conditions to wait for. Can be a SleepCondition, UserEventCondition, or OrGroup.
+        :param label: An optional label to attach to the wait. This is useful for debugging and observability purposes, and will be propagated to the event log on the dashboard.
+        :param signal_key: An optional key identifying the wait. If not provided, one is generated from the order of the wait within the task run, which is stable across replays.
 
-        :return: A dictionary containing the results of the wait.
+        :return: A list with one result for each condition (or or-group) that was satisfied.
 
         :raises ValueError: If the durable task client is not available.
         :raises TypeError: If the durable event listener is not of type DurableEventListener or PreEvictionDurableEventListener.
         """
         if self._durable_event_listener is None:
             raise ValueError("Durable task client is not available")
+
+        signal_key = signal_key or f"wait_for-{self._increment_wait_index()}"
 
         flat_conditions = flatten_conditions(list(conditions))
         meta = _build_condition_meta(list(conditions), flat_conditions)
@@ -805,7 +782,7 @@ class DurableContext(Context):
         return _parse_wait_for_payload(callback_result.payload or {}, meta)
 
     async def aio_sleep_for(
-        self, duration: timedelta, label: str | None = None
+        self, duration: timedelta, *, label: str | None = None
     ) -> SleepResult:
         """
         Lightweight wrapper for durable sleep. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a sleep condition.
@@ -820,9 +797,9 @@ class DurableContext(Context):
         wait_index = self._increment_wait_index()
 
         res = await self.aio_wait_for(
-            f"sleep:{timedelta_to_expr(duration)}-{wait_index}",
             SleepCondition(duration=duration),
             label=label,
+            signal_key=f"sleep:{timedelta_to_expr(duration)}-{wait_index}",
         )
 
         sleep_result = next((r for r in res if isinstance(r, SleepResult)), None)
@@ -889,7 +866,6 @@ class DurableContext(Context):
         )
 
         result = await self.aio_wait_for(
-            f"event:{key}-{wait_index}",
             UserEventCondition(
                 event_key=key,
                 expression=expression,
@@ -897,6 +873,7 @@ class DurableContext(Context):
                 consider_events_since=consider_events_since,
             ),
             label=label,
+            signal_key=f"event:{key}-{wait_index}",
         )
 
         event_result = next((r for r in result if isinstance(r, EventWaitResult)), None)
@@ -973,7 +950,7 @@ class DurableContext(Context):
             )
 
         if result.is_failure:
-            raise TaskRunError.deserialize(result.error_message or "child task failed")
+            raise TaskRunError._deserialize(result.error_message or "child task failed")
 
         return result.payload or {}
 
@@ -1091,16 +1068,16 @@ class DurableContext(Context):
         return now.ts
 
     async def aio_sleep_until(
-        self, wake_at: datetime, label: str | None = None
+        self, wake_at: datetime, *, label: str | None = None
     ) -> SleepResult:
         """
         Durably sleep until a specific timestamp.
 
-        :param wake_at: The timestamp to sleep until.
+        :param wake_at: The timestamp to sleep until. If it is in the past, the sleep completes immediately.
         :param label: An optional label to attach to the sleep. This is useful for debugging and observability purposes, and will be propagated to the event log on the dashboard.
 
         :return: A SleepResult containing the actual duration slept, which may be different from the intended duration if the workflow was evicted and resumed.
         """
         now = await self.aio_now()
 
-        return await self.aio_sleep_for(wake_at - now, label=label)
+        return await self.aio_sleep_for(max(wake_at - now, timedelta(0)), label=label)

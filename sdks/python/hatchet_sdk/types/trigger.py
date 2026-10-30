@@ -12,7 +12,6 @@ class ScheduleTriggerWorkflowOptions(BaseModel):
 
 
 class TriggerWorkflowOptions(ScheduleTriggerWorkflowOptions):
-    desired_worker_id: str | None = None
     sticky: bool = False
     desired_worker_labels: list[DesiredWorkerLabel] | None = None
 

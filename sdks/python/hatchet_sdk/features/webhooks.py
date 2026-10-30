@@ -82,6 +82,7 @@ class WebhooksClient(BaseRestClient):
 
     async def aio_list(
         self,
+        *,
         limit: int | None = None,
         offset: int | None = None,
         webhook_names: list[str] | None = None,
@@ -98,11 +99,16 @@ class WebhooksClient(BaseRestClient):
         :return: A list of webhooks matching the specified criteria.
         """
         return await asyncio.to_thread(
-            self.list, limit, offset, webhook_names, source_names
+            self.list,
+            limit=limit,
+            offset=offset,
+            webhook_names=webhook_names,
+            source_names=source_names,
         )
 
     def list(
         self,
+        *,
         limit: int | None = None,
         offset: int | None = None,
         webhook_names: list[str] | None = None,
@@ -163,6 +169,7 @@ class WebhooksClient(BaseRestClient):
         self,
         source_name: V1WebhookSourceName,
         name: str,
+        *,
         event_key_expression: str,
         auth: V1WebhookBasicAuth | V1WebhookAPIKeyAuth | V1WebhookHMACAuth,
         scope_expression: str | None = None,
@@ -201,6 +208,7 @@ class WebhooksClient(BaseRestClient):
         self,
         source_name: V1WebhookSourceName,
         name: str,
+        *,
         event_key_expression: str,
         auth: V1WebhookBasicAuth | V1WebhookAPIKeyAuth | V1WebhookHMACAuth,
         scope_expression: str | None = None,
@@ -224,16 +232,17 @@ class WebhooksClient(BaseRestClient):
             self.create,
             source_name,
             name,
-            event_key_expression,
-            auth,
-            scope_expression,
-            static_payload,
-            return_event_as_response_payload,
+            event_key_expression=event_key_expression,
+            auth=auth,
+            scope_expression=scope_expression,
+            static_payload=static_payload,
+            return_event_as_response_payload=return_event_as_response_payload,
         )
 
     def update(
         self,
         webhook_name: str,
+        *,
         event_key_expression: str | None = None,
         scope_expression: str | None = None,
         static_payload: dict[str, Any] | None = None,
@@ -265,6 +274,7 @@ class WebhooksClient(BaseRestClient):
     async def aio_update(
         self,
         webhook_name: str,
+        *,
         event_key_expression: str | None = None,
         scope_expression: str | None = None,
         static_payload: dict[str, Any] | None = None,
@@ -284,10 +294,10 @@ class WebhooksClient(BaseRestClient):
         return await asyncio.to_thread(
             self.update,
             webhook_name,
-            event_key_expression,
-            scope_expression,
-            static_payload,
-            return_event_as_response_payload,
+            event_key_expression=event_key_expression,
+            scope_expression=scope_expression,
+            static_payload=static_payload,
+            return_event_as_response_payload=return_event_as_response_payload,
         )
 
     def delete(self, webhook_name: str) -> V1Webhook:

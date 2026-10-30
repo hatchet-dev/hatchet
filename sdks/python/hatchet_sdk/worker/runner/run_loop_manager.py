@@ -35,7 +35,6 @@ class WorkerActionRunLoopManager:
         action_queue: "Queue[Action | STOP_LOOP_TYPE]",
         event_queue: "Queue[ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE]",
         loop: asyncio.AbstractEventLoop,
-        handle_kill: bool,
         labels: list[WorkerLabel],
         lifespan_context: Any | None,  # noqa: ANN401
         engine_version: str | None = None,
@@ -50,7 +49,6 @@ class WorkerActionRunLoopManager:
         self.action_queue = action_queue
         self.event_queue = event_queue
         self.loop = loop
-        self.handle_kill = handle_kill
         self.labels = labels
         self.lifespan_context = lifespan_context
         self.engine_version = engine_version
@@ -109,7 +107,6 @@ class WorkerActionRunLoopManager:
             self.config,
             self.slots,
             self.durable_slots,
-            self.handle_kill,
             self.action_registry,
             self.labels,
             self.lifespan_context,

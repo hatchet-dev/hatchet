@@ -119,11 +119,12 @@ class MetricsClient(BaseRestClient):
 
     def get_task_metrics(
         self,
+        *,
         since: datetime | None = None,
         until: datetime | None = None,
         workflow_ids: list[str] | None = None,
-        parent_task_external_id: str | None = None,
-        triggering_event_external_id: str | None = None,
+        parent_task_run_id: str | None = None,
+        triggering_event_id: str | None = None,
     ) -> TaskMetrics:
         """
         Retrieve task metrics, grouped by status (queued, running, completed, failed, cancelled).
@@ -131,8 +132,8 @@ class MetricsClient(BaseRestClient):
         :param since: Start time for the metrics query (defaults to the past day if unset)
         :param until: End time for the metrics query
         :param workflow_ids: List of workflow IDs to filter the metrics by
-        :param parent_task_external_id: ID of the parent task to filter by (note that parent task here refers to the task that spawned this task as a child)
-        :param triggering_event_external_id: ID of the triggering event to filter by
+        :param parent_task_run_id: ID of the parent task run to filter by (note that parent task here refers to the task that spawned this task as a child)
+        :param triggering_event_id: ID of the triggering event to filter by
         :return: Task metrics
         """
 
@@ -150,8 +151,8 @@ class MetricsClient(BaseRestClient):
                     since=since,
                     until=until,
                     workflow_ids=workflow_ids,
-                    parent_task_external_id=parent_task_external_id,
-                    triggering_event_external_id=triggering_event_external_id,
+                    parent_task_external_id=parent_task_run_id,
+                    triggering_event_external_id=triggering_event_id,
                 )
             }
 
@@ -159,11 +160,12 @@ class MetricsClient(BaseRestClient):
 
     async def aio_get_task_metrics(
         self,
+        *,
         since: datetime | None = None,
         until: datetime | None = None,
         workflow_ids: list[str] | None = None,
-        parent_task_external_id: str | None = None,
-        triggering_event_external_id: str | None = None,
+        parent_task_run_id: str | None = None,
+        triggering_event_id: str | None = None,
     ) -> TaskMetrics:
         """
         Retrieve task metrics, grouped by status (queued, running, completed, failed, cancelled).
@@ -171,15 +173,15 @@ class MetricsClient(BaseRestClient):
         :param since: Start time for the metrics query (defaults to the past day if unset)
         :param until: End time for the metrics query
         :param workflow_ids: List of workflow IDs to filter the metrics by
-        :param parent_task_external_id: ID of the parent task to filter by (note that parent task here refers to the task that spawned this task as a child)
-        :param triggering_event_external_id: ID of the triggering event to filter by
+        :param parent_task_run_id: ID of the parent task run to filter by (note that parent task here refers to the task that spawned this task as a child)
+        :param triggering_event_id: ID of the triggering event to filter by
         :return: Task metrics
         """
         return await asyncio.to_thread(
             self.get_task_metrics,
-            since,
-            until,
-            workflow_ids,
-            parent_task_external_id,
-            triggering_event_external_id,
+            since=since,
+            until=until,
+            workflow_ids=workflow_ids,
+            parent_task_run_id=parent_task_run_id,
+            triggering_event_id=triggering_event_id,
         )

@@ -201,6 +201,7 @@ class EventClient(BaseRestClient):
         self,
         event_key: str,
         payload: JSONSerializableMapping,
+        *,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: Priority | None = None,
         scope: str | None = None,
@@ -244,6 +245,7 @@ class EventClient(BaseRestClient):
         self,
         event_key: str,
         payload: JSONSerializableMapping,
+        *,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: Priority | None = None,
         scope: str | None = None,
@@ -439,6 +441,7 @@ class EventClient(BaseRestClient):
 
     async def aio_list(
         self,
+        *,
         offset: int | None = None,
         limit: int | None = None,
         keys: list[str] | None = None,
@@ -481,6 +484,7 @@ class EventClient(BaseRestClient):
 
     def list(
         self,
+        *,
         offset: int | None = None,
         limit: int | None = None,
         keys: list[str] | None = None,

@@ -38,7 +38,7 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - The `event_timestamp` field on `Event` and its `eventTimestamp` and `additionalMetadata` aliases. Use `seen_at` and `additional_metadata`.
 - The `hatchet_sdk.labels`, `hatchet_sdk.rate_limit`, and `hatchet_sdk.utils.priority` module aliases.
 - Top-level `hatchet_sdk` exports of the V0 REST models, the pagination wrapper types, and `CreateWorkflowVersionOpts`. Import REST models from `hatchet_sdk.clients.rest.models`.
-- The `PARENT_ID`, `PARENT_STEP_RUN_ID`, and `CHILD_INDEX` members of `OTelAttribute`. Their values (`parent_id`, `parent_step_run_id`, `child_index`) are no longer valid entries in `OpenTelemetryConfig.excluded_attributes` or `HATCHET_CLIENT_OTEL_EXCLUDED_ATTRIBUTES`.
+- The `PARENT_ID`, `PARENT_STEP_RUN_ID`, and `CHILD_INDEX` members of `OTelAttribute`. Their values (`parent_id`, `parent_step_run_id`, `child_index`) are no longer valid entries in `OpenTelemetryConfig.excluded_attributes` or `HATCHET_CLIENT_OPENTELEMETRY_EXCLUDED_ATTRIBUTES`.
 - The `hatchet.namespace` and `hatchet.key` attributes on the run, bulk run, and schedule spans. The child key is still reported as `hatchet.child_key`.
 - The `V1TaskStatus` export from `hatchet_sdk`. Use `RunStatus` instead.
 - `RunStatus.from_proto`, `RunStatus.from_v1_task_status`, and `RunStatus.to_v1_task_status`.

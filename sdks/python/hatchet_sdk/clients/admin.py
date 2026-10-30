@@ -138,6 +138,7 @@ class AdminClient:
         input: str | None,
         options: TriggerWorkflowOptions,
         child_index: int,
+        desired_worker_id: str | None,
     ) -> trigger_protos.TriggerWorkflowRequest:
         workflow_run_id = ctx_workflow_run_id.get()
         task_run_external_id = ctx_task_run_external_id.get()
@@ -146,12 +147,11 @@ class AdminClient:
         _options.child_index = child_index
         _options.parent_id = workflow_run_id
         _options.parent_task_run_external_id = task_run_external_id
+        _options.desired_worker_id = desired_worker_id
 
         desired_worker_labels = None
         if _options.desired_worker_labels:
-            labels_dict = {
-                d.key: d for d in _options.desired_worker_labels if d.key is not None
-            }
+            labels_dict = {d.key: d for d in _options.desired_worker_labels}
             desired_worker_labels = {
                 key: trigger_protos.DesiredWorkerLabels(
                     str_value=d.value if not isinstance(d.value, int) else None,
@@ -315,14 +315,9 @@ class AdminClient:
         if action_key:
             workflow_spawn_indices[action_key] += 1
 
-        desired_worker_id = (
-            (options.desired_worker_id or worker_id) if options.sticky else None
-        )
-
         trigger_options = TriggerWorkflowOptions(
             child_key=options.child_key,
             additional_metadata={**additional_metadata, **options.additional_metadata},
-            desired_worker_id=desired_worker_id,
             priority=options.priority,
             sticky=options.sticky,
             desired_worker_labels=options.desired_worker_labels,
@@ -331,7 +326,11 @@ class AdminClient:
         workflow_name = self.config.apply_namespace(workflow_name, self.namespace)
 
         return self._prepare_workflow_request(
-            workflow_name, input, trigger_options, child_index
+            workflow_name,
+            input,
+            trigger_options,
+            child_index,
+            desired_worker_id=worker_id if options.sticky else None,
         )
 
     def run_workflow(

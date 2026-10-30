@@ -24,6 +24,7 @@ class LogsClient(BaseRestClient):
     async def aio_list(
         self,
         task_run_id: str,
+        *,
         limit: int = 1000,
         since: datetime | None = None,
         until: datetime | None = None,
@@ -37,11 +38,14 @@ class LogsClient(BaseRestClient):
         :param until: The end time to get logs for.
         :return: A list of log lines for the specified task run.
         """
-        return await asyncio.to_thread(self.list, task_run_id, limit, since, until)
+        return await asyncio.to_thread(
+            self.list, task_run_id, limit=limit, since=since, until=until
+        )
 
     def list(
         self,
         task_run_id: str,
+        *,
         limit: int = 1000,
         since: datetime | None = None,
         until: datetime | None = None,

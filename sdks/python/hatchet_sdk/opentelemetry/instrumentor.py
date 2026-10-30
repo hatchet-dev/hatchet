@@ -284,6 +284,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
     def __init__(
         self,
+        *,
         tracer_provider: TracerProvider | None = None,
         meter_provider: MeterProvider | None = None,
         config: ClientConfig | None = None,
@@ -292,7 +293,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         max_export_batch_size: int | None = None,
         max_queue_size: int | None = None,
     ) -> None:
-        self.config = config or ClientConfig()
+        self._config = config or ClientConfig()
 
         self._bsp_kwargs: dict[str, Any] = {}
         if schedule_delay_millis is not None:
@@ -303,26 +304,26 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             self._bsp_kwargs["max_queue_size"] = max_queue_size
 
         if tracer_provider is not None:
-            self.tracer_provider = tracer_provider
+            self._tracer_provider = tracer_provider
         else:
             existing = get_tracer_provider()
             if isinstance(existing, SDKTracerProvider):
-                self.tracer_provider = existing
+                self._tracer_provider = existing
             elif enable_hatchet_otel_collector:
-                self.tracer_provider = SDKTracerProvider()
-                set_tracer_provider(self.tracer_provider)
+                self._tracer_provider = SDKTracerProvider()
+                set_tracer_provider(self._tracer_provider)
             else:
-                self.tracer_provider = existing
+                self._tracer_provider = existing
 
         if enable_hatchet_otel_collector:
             self._add_hatchet_exporter()
 
-        self.meter_provider = meter_provider or NoOpMeterProvider()
+        self._meter_provider = meter_provider or NoOpMeterProvider()
 
         super().__init__()
 
     def _add_hatchet_exporter(self) -> None:
-        if not isinstance(self.tracer_provider, SDKTracerProvider):
+        if not isinstance(self._tracer_provider, SDKTracerProvider):
             logger.warning(
                 "enable_hatchet_otel_collector requires an opentelemetry.sdk.trace.TracerProvider. "
                 "The provided tracer_provider does not support adding span processors. "
@@ -330,10 +331,10 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             )
             return
 
-        endpoint = self.config.host_port
-        insecure = self.config.tls_config.strategy == "none"
-        headers = (("authorization", f"Bearer {self.config.token}"),)
-        credentials = load_channel_credentials(self.config)
+        endpoint = self._config.host_port
+        insecure = self._config.tls_config.strategy == "none"
+        headers = (("authorization", f"Bearer {self._config.token}"),)
+        credentials = load_channel_credentials(self._config)
 
         otlp_exporter = OTLPSpanExporter(
             endpoint=endpoint,
@@ -342,7 +343,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             credentials=credentials,
         )
 
-        self.tracer_provider.add_span_processor(
+        self._tracer_provider.add_span_processor(
             _HatchetAttributeSpanProcessor(
                 _HatchetSpanExporter(otlp_exporter), **self._bsp_kwargs
             )
@@ -352,8 +353,8 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         return ()
 
     def _instrument(self, **_kwargs: InstrumentKwargs) -> None:
-        self._tracer = get_tracer(__name__, hatchet_sdk_version, self.tracer_provider)
-        self._meter = get_meter(__name__, hatchet_sdk_version, self.meter_provider)
+        self._tracer = get_tracer(__name__, hatchet_sdk_version, self._tracer_provider)
+        self._meter = get_meter(__name__, hatchet_sdk_version, self._meter_provider)
 
         wrap_function_wrapper(
             hatchet_sdk,
@@ -435,7 +436,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             self._wrap_spawn_children_no_wait,
         )
 
-    def extract_bound_args(
+    def _extract_bound_args(
         self,
         wrapped_func: Callable[..., Any],
         args: tuple[Any, ...],
@@ -466,17 +467,17 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         args: tuple[Action],
         kwargs: Any,  # noqa: ANN401
     ) -> Exception | None:
-        params = self.extract_bound_args(wrapped, args, kwargs)
+        params = self._extract_bound_args(wrapped, args, kwargs)
 
         action = cast("Action", params[0])
 
         traceparent = _parse_carrier_from_metadata(action.additional_metadata)
         span_name = "hatchet.start_step_run"
 
-        if self.config.otel.include_task_name_in_start_step_run_span_name:
+        if self._config.otel.include_task_name_in_span_name:
             span_name += f".{action.action_id}"
 
-        hatchet_attrs = action.get_otel_attributes(self.config)
+        hatchet_attrs = action.get_otel_attributes(self._config)
         token = ctx_hatchet_span_attributes.set(hatchet_attrs)
 
         try:
@@ -531,7 +532,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             str | JSONSerializableMapping | Priority | None,
         ],
     ) -> Event:
-        params = self.extract_bound_args(wrapped, args, kwargs)
+        params = self._extract_bound_args(wrapped, args, kwargs)
 
         event_key = cast("str", params[0])
         payload = cast("JSONSerializableMapping", params[1])
@@ -557,7 +558,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                     f"hatchet.{k.value}": v
                     for k, v in attributes.items()
                     if v
-                    and k not in self.config.otel.excluded_attributes
+                    and k not in self._config.otel.excluded_attributes
                     and v != "{}"
                     and v != "[]"
                 },
@@ -567,11 +568,11 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             return wrapped(
                 event_key,
                 payload,
-                _inject_source_info(
+                additional_metadata=_inject_source_info(
                     _inject_traceparent_into_metadata(additional_metadata or {}),
                 ),
-                priority,
-                scope,
+                priority=priority,
+                scope=scope,
             )
 
     def _wrap_bulk_push_event(
@@ -581,7 +582,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         args: tuple[list[BulkPushEventWithMetadata],],
         kwargs: dict[str, list[BulkPushEventWithMetadata]],
     ) -> list[Event]:
-        params = self.extract_bound_args(wrapped, args, kwargs)
+        params = self._extract_bound_args(wrapped, args, kwargs)
 
         bulk_events = cast("list[BulkPushEventWithMetadata]", params[0])
 
@@ -629,7 +630,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             str | JSONSerializableMapping | Priority | None,
         ],
     ) -> Event:
-        params = self.extract_bound_args(wrapped, args, kwargs)
+        params = self._extract_bound_args(wrapped, args, kwargs)
 
         event_key = cast("str", params[0])
         payload = cast("JSONSerializableMapping", params[1])
@@ -655,7 +656,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                     f"hatchet.{k.value}": v
                     for k, v in attributes.items()
                     if v
-                    and k not in self.config.otel.excluded_attributes
+                    and k not in self._config.otel.excluded_attributes
                     and v != "{}"
                     and v != "[]"
                 },
@@ -665,11 +666,11 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             return await wrapped(
                 event_key,
                 payload,
-                _inject_source_info(
+                additional_metadata=_inject_source_info(
                     _inject_traceparent_into_metadata(additional_metadata or {}),
                 ),
-                priority,
-                scope,
+                priority=priority,
+                scope=scope,
             )
 
     async def _wrap_aio_bulk_push_event(
@@ -682,7 +683,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         args: tuple[list[BulkPushEventWithMetadata],],
         kwargs: dict[str, list[BulkPushEventWithMetadata] | None],
     ) -> list[Event]:
-        params = self.extract_bound_args(wrapped, args, kwargs)
+        params = self._extract_bound_args(wrapped, args, kwargs)
 
         bulk_events = cast("list[BulkPushEventWithMetadata]", params[0])
 
@@ -725,7 +726,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 config.options.additional_metadata, default=str
             ),
             OTelAttribute.PRIORITY: config.options.priority,
-            OTelAttribute.DESIRED_WORKER_ID: config.options.desired_worker_id,
             OTelAttribute.STICKY: config.options.sticky,
         }
         return {
@@ -734,7 +734,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 f"hatchet.{k.value}": v
                 for k, v in attributes.items()
                 if v
-                and k not in self.config.otel.excluded_attributes
+                and k not in self._config.otel.excluded_attributes
                 and v != "{}"
                 and v != "[]"
             },
@@ -758,7 +758,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         raised inside the context (e.g. by the wrapped bulk-run call) is
         recorded on every item span before being re-raised.
         """
-        individual_spans = self.config.otel.individual_run_spans_for_bulk_run
+        individual_spans = self._config.otel.individual_run_spans_for_bulk_run
         configs_with_meta: list[WorkflowRunTriggerConfig] = []
         item_spans: list[ApiSpan] = []
 
@@ -809,7 +809,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         args: tuple[str, str | None, TriggerWorkflowOptions],
         kwargs: dict[str, str | None | TriggerWorkflowOptions],
     ) -> WorkflowRunRef:
-        params = self.extract_bound_args(wrapped, args, kwargs)
+        params = self._extract_bound_args(wrapped, args, kwargs)
 
         workflow_name = cast("str", params[0])
         payload = cast("str | None", params[1])
@@ -826,7 +826,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 options.additional_metadata, default=str
             ),
             OTelAttribute.PRIORITY: options.priority,
-            OTelAttribute.DESIRED_WORKER_ID: options.desired_worker_id,
             OTelAttribute.STICKY: options.sticky,
         }
 
@@ -838,7 +837,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                     f"hatchet.{k.value}": v
                     for k, v in attributes.items()
                     if v
-                    and k not in self.config.otel.excluded_attributes
+                    and k not in self._config.otel.excluded_attributes
                     and v != "{}"
                     and v != "[]"
                 },
@@ -864,7 +863,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         args: tuple[str, str | None, TriggerWorkflowOptions],
         kwargs: dict[str, str | None | TriggerWorkflowOptions],
     ) -> WorkflowRunRef:
-        params = self.extract_bound_args(wrapped, args, kwargs)
+        params = self._extract_bound_args(wrapped, args, kwargs)
 
         workflow_name = cast("str", params[0])
         payload = cast("str | None", params[1])
@@ -881,7 +880,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 options.additional_metadata, default=str
             ),
             OTelAttribute.PRIORITY: options.priority,
-            OTelAttribute.DESIRED_WORKER_ID: options.desired_worker_id,
             OTelAttribute.STICKY: options.sticky,
         }
 
@@ -893,7 +891,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                     f"hatchet.{k.value}": v
                     for k, v in attributes.items()
                     if v
-                    and k not in self.config.otel.excluded_attributes
+                    and k not in self._config.otel.excluded_attributes
                     and v != "{}"
                     and v != "[]"
                 },
@@ -932,7 +930,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             str | None | list[datetime] | ScheduleTriggerWorkflowOptions,
         ],
     ) -> v0_workflow_protos.WorkflowVersion:
-        params = self.extract_bound_args(wrapped, args, kwargs)
+        params = self._extract_bound_args(wrapped, args, kwargs)
 
         workflow_name = cast("str", params[0])
         schedules = cast("list[datetime]", params[1])
@@ -963,7 +961,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                     f"hatchet.{k.value}": v
                     for k, v in attributes.items()
                     if v
-                    and k not in self.config.otel.excluded_attributes
+                    and k not in self._config.otel.excluded_attributes
                     and v != "{}"
                     and v != "[]"
                 },
@@ -989,7 +987,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         args: tuple[list[WorkflowRunTriggerConfig],],
         kwargs: dict[str, list[WorkflowRunTriggerConfig]],
     ) -> list[WorkflowRunRef]:
-        params = self.extract_bound_args(wrapped, args, kwargs)
+        params = self._extract_bound_args(wrapped, args, kwargs)
         workflow_run_configs = cast("list[WorkflowRunTriggerConfig]", params[0])
 
         num_workflows = len(workflow_run_configs)
@@ -1025,7 +1023,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         args: tuple[list[WorkflowRunTriggerConfig],],
         kwargs: dict[str, list[WorkflowRunTriggerConfig]],
     ) -> list[WorkflowRunRef]:
-        params = self.extract_bound_args(wrapped, args, kwargs)
+        params = self._extract_bound_args(wrapped, args, kwargs)
         workflow_run_configs = cast("list[WorkflowRunTriggerConfig]", params[0])
         num_workflows = len(workflow_run_configs)
         unique_workflow_names = {
@@ -1057,10 +1055,10 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
     ) -> dict[str, Any]:
-        params = self.extract_bound_args(wrapped, args, kwargs)
+        params = self._extract_bound_args(wrapped, args, kwargs)
 
-        signal_key = cast("str", params[0])
-        conditions = params[1:]
+        conditions = cast("tuple[Any, ...]", params[0])
+        signal_key = cast("str | None", params[2])
 
         traceparent = _parse_carrier_from_metadata(instance._action.additional_metadata)
 
@@ -1077,7 +1075,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 **{
                     f"hatchet.{k.value}": v
                     for k, v in attributes.items()
-                    if v is not None and k not in self.config.otel.excluded_attributes
+                    if v is not None and k not in self._config.otel.excluded_attributes
                 },
             },
             context=traceparent,
@@ -1096,7 +1094,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
     ) -> list[DurableSpawnResult]:
-        params = self.extract_bound_args(wrapped, args, kwargs)
+        params = self._extract_bound_args(wrapped, args, kwargs)
 
         configs = cast("list[WorkflowRunTriggerConfig]", params[0])
 
@@ -1117,11 +1115,10 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                             config.options.additional_metadata, default=str
                         ),
                         OTelAttribute.PRIORITY: config.options.priority,
-                        OTelAttribute.DESIRED_WORKER_ID: config.options.desired_worker_id,
                         OTelAttribute.STICKY: config.options.sticky,
                     }.items()
                     if v
-                    and k not in self.config.otel.excluded_attributes
+                    and k not in self._config.otel.excluded_attributes
                     and v != "{}"
                     and v != "[]"
                 },
@@ -1150,13 +1147,15 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 raise
 
     def _uninstrument(self, **_kwargs: InstrumentKwargs) -> None:
-        self.tracer_provider = NoOpTracerProvider()
-        self.meter_provider = NoOpMeterProvider()
+        self._tracer_provider = NoOpTracerProvider()
+        self._meter_provider = NoOpMeterProvider()
 
         unwrap(hatchet_sdk, "worker.runner.runner.Runner.handle_start_task_run")
         unwrap(hatchet_sdk, "worker.runner.runner.Runner.handle_cancel_action")
         unwrap(hatchet_sdk, "features.events.EventClient.push")
         unwrap(hatchet_sdk, "features.events.EventClient.bulk_push")
+        unwrap(hatchet_sdk, "features.events.EventClient.aio_push")
+        unwrap(hatchet_sdk, "features.events.EventClient.aio_bulk_push")
         unwrap(hatchet_sdk, "clients.admin.AdminClient.run_workflow")
         unwrap(hatchet_sdk, "clients.admin.AdminClient.aio_run_workflow")
         unwrap(hatchet_sdk, "clients.admin.AdminClient.schedule_workflow")

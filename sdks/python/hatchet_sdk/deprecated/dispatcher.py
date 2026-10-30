@@ -35,7 +35,7 @@ async def legacy_get_action_listener(
     aio_client = DispatcherStub(aio_conn)
 
     proto_labels: dict[str, WorkerLabels] = {
-        label.key: label.to_proto() for label in labels if label.key is not None
+        label.key: label.to_proto() for label in labels
     }
     for key, value in config.worker_preset_labels.items():
         proto_labels[key] = WorkerLabels(str_value=str(value))

@@ -80,7 +80,7 @@ class StreamEvent(BaseModel):
     """The message payload."""
 
     cursor: str
-    """Resumes `subscribe` right after this event."""
+    """Resumes `aio_subscribe` right after this event."""
 
     created_at: datetime | None = None
     """When the message was stored."""
@@ -95,7 +95,7 @@ class StreamTopicMetadata(BaseModel):
     message_count: int
 
     latest_cursor: str | None = None
-    """Resumes `subscribe` after the newest retained message; None when none is retained."""
+    """Resumes `aio_subscribe` after the newest retained message; None when none is retained."""
 
     last_published_at: datetime | None = None
     """When the newest retained message was stored; None when none is retained."""
@@ -549,15 +549,16 @@ class StreamsClient(BaseRestClient):
                 )
             )
 
-    async def publish(
+    async def aio_publish(
         self,
         topic: str,
         message: bytes | str,
+        *,
         namespace: str = "",
         batch_timeout: timedelta | None = None,
     ) -> None:
         """
-        Publish a message to a topic, returning once it is stored. A client's messages to a topic are delivered in the order `publish` was called. Publishes to a topic share requests: everything queued while one is in flight goes out in the next, and `batch_timeout` holds a message up to that long for more to join it. Cancelling a publish before its request goes out drops the message; once the request is sent, it may still be stored.
+        Publish a message to a topic, returning once it is stored. A client's messages to a topic are delivered in the order `aio_publish` was called. Publishes to a topic share requests: everything queued while one is in flight goes out in the next, and `batch_timeout` holds a message up to that long for more to join it. Cancelling a publish before its request goes out drops the message; once the request is sent, it may still be stored.
 
         :param topic: The topic to publish to.
         :param message: The message payload. A string is encoded as UTF-8.
@@ -608,7 +609,7 @@ class StreamsClient(BaseRestClient):
             )
         )
 
-    def topic_metadata(self, topic: str, namespace: str = "") -> StreamTopicMetadata:
+    def topic_metadata(self, topic: str, *, namespace: str = "") -> StreamTopicMetadata:
         """
         Describe a topic's retained messages. Raises a `NOT_FOUND` gRPC error for a topic nothing was published to.
 
@@ -643,7 +644,7 @@ class StreamsClient(BaseRestClient):
         )
 
     async def aio_topic_metadata(
-        self, topic: str, namespace: str = ""
+        self, topic: str, *, namespace: str = ""
     ) -> StreamTopicMetadata:
         """
         Describe a topic's retained messages. Raises a `NOT_FOUND` gRPC error for a topic nothing was published to.
@@ -653,11 +654,13 @@ class StreamsClient(BaseRestClient):
 
         :return: The topic's metadata.
         """
-        return await asyncio.to_thread(self.topic_metadata, topic, namespace)
+        return await asyncio.to_thread(self.topic_metadata, topic, namespace=namespace)
 
-    def reset(self, topic: str, namespace: str = "", cursor: str | None = None) -> None:
+    def reset(
+        self, topic: str, *, namespace: str = "", cursor: str | None = None
+    ) -> None:
         """
-        Make `subscribe` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.
+        Make `aio_subscribe` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.
 
         :param topic: The topic to reset.
         :param namespace: The topic's namespace; the empty namespace by default.
@@ -672,10 +675,10 @@ class StreamsClient(BaseRestClient):
         self._get_or_create_client().Reset(request, metadata=self._metadata())
 
     async def aio_reset(
-        self, topic: str, namespace: str = "", cursor: str | None = None
+        self, topic: str, *, namespace: str = "", cursor: str | None = None
     ) -> None:
         """
-        Make `subscribe` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.
+        Make `aio_subscribe` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.
 
         :param topic: The topic to reset.
         :param namespace: The topic's namespace; the empty namespace by default.
@@ -683,10 +686,10 @@ class StreamsClient(BaseRestClient):
 
         :return: None
         """
-        await asyncio.to_thread(self.reset, topic, namespace, cursor)
+        await asyncio.to_thread(self.reset, topic, namespace=namespace, cursor=cursor)
 
-    async def subscribe(
-        self, topic: str, namespace: str = "", cursor: str | None = None
+    async def aio_subscribe(
+        self, topic: str, *, namespace: str = "", cursor: str | None = None
     ) -> AsyncGenerator[StreamEvent, None]:
         """
         Yield a topic's messages after `cursor`, or from the oldest retained (or, once the topic is reset, after the reset). If the connection drops, it resubscribes from the last message yielded, so nothing is skipped or repeated. Ends when the server hangs up an idle subscription or the caller stops iterating; raises on errors a retry can't fix, such as an expired cursor.

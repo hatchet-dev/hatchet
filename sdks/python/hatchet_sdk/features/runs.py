@@ -5,7 +5,7 @@ import time
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Literal, overload
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 from hatchet_sdk.clients.listeners.run_event_listener import (
     RunEventListenerClient,
@@ -20,6 +20,9 @@ from hatchet_sdk.clients.rest.models.v1_task_filter import V1TaskFilter
 from hatchet_sdk.clients.rest.models.v1_trigger_workflow_run_request import (
     V1TriggerWorkflowRunRequest,
 )
+from hatchet_sdk.clients.rest.models.v1_workflow_type import (
+    V1WorkflowType,  # noqa: TC001
+)
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.clients.v1.api_client import (
     BaseRestClient,
@@ -29,6 +32,7 @@ from hatchet_sdk.types.run_status import RunStatus
 from hatchet_sdk.utils.aio import gather_max_concurrency
 from hatchet_sdk.utils.datetimes import partition_date_range
 from hatchet_sdk.utils.iterables import create_chunks
+from hatchet_sdk.utils.typing import JSONSerializableMapping  # noqa: TC001
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -49,8 +53,87 @@ if TYPE_CHECKING:
     )
     from hatchet_sdk.config import ClientConfig
     from hatchet_sdk.types.priority import Priority
-    from hatchet_sdk.utils.typing import JSONSerializableMapping
     from hatchet_sdk.workflow_run import WorkflowRunRef
+
+
+class TaskRunSummary(BaseModel):
+    id: str
+    created_at: datetime
+    updated_at: datetime
+    tenant_id: str
+    task_run_id: str
+    workflow_run_id: str
+    parent_task_run_id: str | None = None
+    workflow_id: str
+    workflow_name: str | None = None
+    workflow_version_id: str | None = None
+    type: V1WorkflowType = Field(
+        description="`TASK` for a task run, `DAG` for a run of a workflow with several tasks."
+    )
+    display_name: str
+    status: RunStatus
+    input: JSONSerializableMapping
+    output: JSONSerializableMapping
+    additional_metadata: JSONSerializableMapping
+    error_message: str | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    duration: timedelta | None = None
+    attempt: int | None = None
+    retry_count: int | None = None
+    is_durable: bool = False
+    is_evicted: bool = Field(
+        default=False,
+        description="True when a durable task has been evicted from its worker. An evicted task still has the RUNNING status.",
+    )
+    idempotency_key: str | None = None
+    num_spawned_children: int
+    children: list[TaskRunSummary] | None = None
+    payloads_restricted: bool = Field(
+        default=False,
+        description="True when the input and output were omitted because the caller cannot view payloads.",
+    )
+
+    @classmethod
+    def from_rest_model(cls, rest_summary: V1TaskSummary) -> TaskRunSummary:
+        return cls(
+            id=rest_summary.metadata.id,
+            created_at=rest_summary.created_at,
+            updated_at=rest_summary.metadata.updated_at,
+            tenant_id=rest_summary.tenant_id,
+            task_run_id=rest_summary.task_external_id,
+            workflow_run_id=rest_summary.workflow_run_external_id,
+            parent_task_run_id=rest_summary.parent_task_external_id,
+            workflow_id=rest_summary.workflow_id,
+            workflow_name=rest_summary.workflow_name,
+            workflow_version_id=rest_summary.workflow_version_id,
+            type=rest_summary.type,
+            display_name=rest_summary.display_name,
+            status=rest_summary.status,
+            input=rest_summary.input,
+            output=rest_summary.output,
+            additional_metadata=rest_summary.additional_metadata or {},
+            error_message=rest_summary.error_message,
+            started_at=rest_summary.started_at,
+            finished_at=rest_summary.finished_at,
+            duration=(
+                timedelta(milliseconds=rest_summary.duration)
+                if rest_summary.duration is not None
+                else None
+            ),
+            attempt=rest_summary.attempt,
+            retry_count=rest_summary.retry_count,
+            is_durable=rest_summary.is_durable is True,
+            is_evicted=rest_summary.is_evicted is True,
+            idempotency_key=rest_summary.idempotency_key,
+            num_spawned_children=rest_summary.num_spawned_children,
+            children=(
+                [cls.from_rest_model(child) for child in rest_summary.children]
+                if rest_summary.children is not None
+                else None
+            ),
+            payloads_restricted=rest_summary.payloads_restricted is True,
+        )
 
 
 class RunFilter(BaseModel):
@@ -125,14 +208,12 @@ def _max_rows_needed_per_date_range(
 
 
 def _merge_runs_across_date_ranges(
-    runs_per_date_range: list[list[V1TaskSummary]],
+    runs_per_date_range: list[list[TaskRunSummary]],
     offset: int | None,
     limit: int | None,
-) -> list[V1TaskSummary]:
+) -> list[TaskRunSummary]:
     ## a run can be returned for two adjacent date ranges
-    run_id_to_run = {
-        run.metadata.id: run for runs in runs_per_date_range for run in runs
-    }
+    run_id_to_run = {run.id: run for runs in runs_per_date_range for run in runs}
 
     newest_first = sorted(
         run_id_to_run.values(),
@@ -174,7 +255,7 @@ class RunsClient(BaseRestClient):
 
         return TaskApi(client)
 
-    def get_task_run(self, task_run_id: str) -> V1TaskSummary:
+    def get_task_run(self, task_run_id: str) -> TaskRunSummary:
         """
         Get task run details for a given task run ID.
 
@@ -185,9 +266,9 @@ class RunsClient(BaseRestClient):
             v1_task_get = tenacity_retry(
                 self._ta(client).v1_task_get, self.client_config.tenacity
             )
-            return v1_task_get(task_run_id)
+            return TaskRunSummary.from_rest_model(v1_task_get(task_run_id))
 
-    async def aio_get_task_run(self, task_run_id: str) -> V1TaskSummary:
+    async def aio_get_task_run(self, task_run_id: str) -> TaskRunSummary:
         """
         Get task run details for a given task run ID.
 
@@ -237,12 +318,12 @@ class RunsClient(BaseRestClient):
         """
         return await asyncio.to_thread(self.get_status, workflow_run_id)
 
-    def _perform_action_with_pagination(
+    def _perform_action_in_chunks(
         self,
         action: Literal["cancel", "replay"],
         statuses: list[RunStatus],
-        sleep_time: int = 3,
-        chunk_size: int = 500,
+        delay_between_chunks: timedelta,
+        chunk_size: int,
         since: datetime | None = None,
         until: datetime | None = None,
         additional_metadata: dict[str, str] | None = None,
@@ -258,7 +339,7 @@ class RunsClient(BaseRestClient):
 
         :param action: The action to perform, either "cancel" or "replay".
         :param statuses: The statuses to filter runs by.
-        :param sleep_time: The time to sleep between processing chunks, in seconds.
+        :param delay_between_chunks: How long to wait after processing each chunk.
         :param chunk_size: The maximum number of run IDs to process in each chunk.
         :param since: The start time for filtering runs.
         :param until: The end time for filtering runs.
@@ -291,11 +372,12 @@ class RunsClient(BaseRestClient):
             options = BulkCancelReplayOptions(ids=chunk)
             func(options=options)
 
-            time.sleep(sleep_time)
+            time.sleep(delay_between_chunks.total_seconds())
 
-    def bulk_replay_by_filters_with_pagination(
+    def bulk_replay_by_filters_in_chunks(
         self,
-        sleep_time: int = 3,
+        *,
+        delay_between_chunks: timedelta = timedelta(seconds=3),
         chunk_size: int = 500,
         since: datetime | None = None,
         until: datetime | None = None,
@@ -311,7 +393,7 @@ class RunsClient(BaseRestClient):
 
         This method first pulls the IDs of the runs from the API, and then feeds them back to the API in chunks.
 
-        :param sleep_time: The time to sleep between processing chunks, in seconds.
+        :param delay_between_chunks: How long to wait after processing each chunk.
         :param chunk_size: The maximum number of run IDs to process in each chunk.
         :param since: The start time for filtering runs.
         :param until: The end time for filtering runs.
@@ -320,10 +402,10 @@ class RunsClient(BaseRestClient):
         :param workflow_ids: The workflow IDs to filter runs by.
         """
 
-        self._perform_action_with_pagination(
+        self._perform_action_in_chunks(
             since=since,
             action="replay",
-            sleep_time=sleep_time,
+            delay_between_chunks=delay_between_chunks,
             chunk_size=chunk_size,
             until=until,
             statuses=statuses or [RunStatus.FAILED, RunStatus.CANCELLED],
@@ -331,9 +413,10 @@ class RunsClient(BaseRestClient):
             workflow_ids=workflow_ids,
         )
 
-    def bulk_cancel_by_filters_with_pagination(
+    def bulk_cancel_by_filters_in_chunks(
         self,
-        sleep_time: int = 3,
+        *,
+        delay_between_chunks: timedelta = timedelta(seconds=3),
         chunk_size: int = 500,
         since: datetime | None = None,
         until: datetime | None = None,
@@ -349,7 +432,7 @@ class RunsClient(BaseRestClient):
 
         This method first pulls the IDs of the runs from the API, and then feeds them back to the API in chunks.
 
-        :param sleep_time: The time to sleep between processing chunks, in seconds.
+        :param delay_between_chunks: How long to wait after processing each chunk.
         :param chunk_size: The maximum number of run IDs to process in each chunk.
         :param since: The start time for filtering runs.
         :param until: The end time for filtering runs.
@@ -358,10 +441,10 @@ class RunsClient(BaseRestClient):
         :param workflow_ids: The workflow IDs to filter runs by.
         """
 
-        self._perform_action_with_pagination(
+        self._perform_action_in_chunks(
             since=since,
             action="cancel",
-            sleep_time=sleep_time,
+            delay_between_chunks=delay_between_chunks,
             chunk_size=chunk_size,
             until=until,
             statuses=statuses or [RunStatus.RUNNING, RunStatus.QUEUED],
@@ -369,9 +452,10 @@ class RunsClient(BaseRestClient):
             workflow_ids=workflow_ids,
         )
 
-    async def aio_bulk_replay_by_filters_with_pagination(
+    async def aio_bulk_replay_by_filters_in_chunks(
         self,
-        sleep_time: int = 3,
+        *,
+        delay_between_chunks: timedelta = timedelta(seconds=3),
         chunk_size: int = 500,
         since: datetime | None = None,
         until: datetime | None = None,
@@ -387,7 +471,7 @@ class RunsClient(BaseRestClient):
 
         This method first pulls the IDs of the runs from the API, and then feeds them back to the API in chunks.
 
-        :param sleep_time: The time to sleep between processing chunks, in seconds.
+        :param delay_between_chunks: How long to wait after processing each chunk.
         :param chunk_size: The maximum number of run IDs to process in each chunk.
         :param since: The start time for filtering runs.
         :param until: The end time for filtering runs.
@@ -397,10 +481,10 @@ class RunsClient(BaseRestClient):
         """
 
         await asyncio.to_thread(
-            self._perform_action_with_pagination,
+            self._perform_action_in_chunks,
             since=since,
             action="replay",
-            sleep_time=sleep_time,
+            delay_between_chunks=delay_between_chunks,
             chunk_size=chunk_size,
             until=until,
             statuses=statuses or [RunStatus.FAILED, RunStatus.CANCELLED],
@@ -408,9 +492,10 @@ class RunsClient(BaseRestClient):
             workflow_ids=workflow_ids,
         )
 
-    async def aio_bulk_cancel_by_filters_with_pagination(
+    async def aio_bulk_cancel_by_filters_in_chunks(
         self,
-        sleep_time: int = 3,
+        *,
+        delay_between_chunks: timedelta = timedelta(seconds=3),
         chunk_size: int = 500,
         since: datetime | None = None,
         until: datetime | None = None,
@@ -426,7 +511,7 @@ class RunsClient(BaseRestClient):
 
         This method first pulls the IDs of the runs from the API, and then feeds them back to the API in chunks.
 
-        :param sleep_time: The time to sleep between processing chunks, in seconds.
+        :param delay_between_chunks: How long to wait after processing each chunk.
         :param chunk_size: The maximum number of run IDs to process in each chunk.
         :param since: The start time for filtering runs.
         :param until: The end time for filtering runs.
@@ -436,10 +521,10 @@ class RunsClient(BaseRestClient):
         """
 
         await asyncio.to_thread(
-            self._perform_action_with_pagination,
+            self._perform_action_in_chunks,
             since=since,
             action="cancel",
-            sleep_time=sleep_time,
+            delay_between_chunks=delay_between_chunks,
             chunk_size=chunk_size,
             until=until,
             statuses=statuses or [RunStatus.RUNNING, RunStatus.QUEUED],
@@ -457,16 +542,16 @@ class RunsClient(BaseRestClient):
         additional_metadata: dict[str, str] | None,
         workflow_ids: list[str] | None,
         worker_id: str | None,
-        parent_task_external_id: str | None,
-        triggering_event_external_id: str | None,
+        parent_task_run_id: str | None,
+        triggering_event_id: str | None,
         include_payloads: bool,
-    ) -> list[V1TaskSummary]:
+    ) -> list[TaskRunSummary]:
         with self.client() as client:
             v1_workflow_run_list = tenacity_retry(
                 self._wra(client).v1_workflow_run_list, self.client_config.tenacity
             )
 
-            runs: list[V1TaskSummary] = []
+            runs: list[TaskRunSummary] = []
 
             while max_rows is None or len(runs) < max_rows:
                 page = v1_workflow_run_list(
@@ -482,12 +567,12 @@ class RunsClient(BaseRestClient):
                     ),
                     workflow_ids=workflow_ids,
                     worker_id=worker_id,
-                    parent_task_external_id=parent_task_external_id,
-                    triggering_event_external_id=triggering_event_external_id,
+                    parent_task_external_id=parent_task_run_id,
+                    triggering_event_external_id=triggering_event_id,
                     include_payloads=include_payloads,
                 ).rows
 
-                runs.extend(page)
+                runs.extend(TaskRunSummary.from_rest_model(run) for run in page)
 
                 if len(page) < LIST_RUNS_PAGE_SIZE:
                     break
@@ -496,6 +581,7 @@ class RunsClient(BaseRestClient):
 
     async def aio_list(
         self,
+        *,
         since: datetime | None = None,
         only_tasks: bool = False,
         offset: int | None = None,
@@ -505,10 +591,10 @@ class RunsClient(BaseRestClient):
         additional_metadata: dict[str, str] | None = None,
         workflow_ids: list[str] | None = None,
         worker_id: str | None = None,
-        parent_task_external_id: str | None = None,
-        triggering_event_external_id: str | None = None,
+        parent_task_run_id: str | None = None,
+        triggering_event_id: str | None = None,
         include_payloads: bool = True,
-    ) -> list[V1TaskSummary]:
+    ) -> list[TaskRunSummary]:
         """
         List task runs according to a set of filters, newest first.
 
@@ -521,8 +607,8 @@ class RunsClient(BaseRestClient):
         :param additional_metadata: Additional metadata to filter task runs by.
         :param workflow_ids: The workflow IDs to filter task runs by.
         :param worker_id: The worker ID to filter task runs by.
-        :param parent_task_external_id: The parent task external ID to filter task runs by.
-        :param triggering_event_external_id: The event id that triggered the task run.
+        :param parent_task_run_id: The ID of the parent task run to filter task runs by.
+        :param triggering_event_id: The ID of the event that triggered the task run.
         :param include_payloads: Whether to include payloads in the response.
 
         :return: A list of task runs matching the specified filters.
@@ -545,8 +631,8 @@ class RunsClient(BaseRestClient):
                     additional_metadata=additional_metadata,
                     workflow_ids=workflow_ids,
                     worker_id=worker_id,
-                    parent_task_external_id=parent_task_external_id,
-                    triggering_event_external_id=triggering_event_external_id,
+                    parent_task_run_id=parent_task_run_id,
+                    triggering_event_id=triggering_event_id,
                     include_payloads=include_payloads,
                 )
                 for s, u in date_ranges
@@ -558,6 +644,7 @@ class RunsClient(BaseRestClient):
 
     def list(
         self,
+        *,
         since: datetime | None = None,
         only_tasks: bool = False,
         offset: int | None = None,
@@ -567,10 +654,10 @@ class RunsClient(BaseRestClient):
         additional_metadata: dict[str, str] | None = None,
         workflow_ids: list[str] | None = None,
         worker_id: str | None = None,
-        parent_task_external_id: str | None = None,
-        triggering_event_external_id: str | None = None,
+        parent_task_run_id: str | None = None,
+        triggering_event_id: str | None = None,
         include_payloads: bool = True,
-    ) -> list[V1TaskSummary]:
+    ) -> list[TaskRunSummary]:
         """
         List task runs according to a set of filters, newest first.
 
@@ -583,8 +670,8 @@ class RunsClient(BaseRestClient):
         :param additional_metadata: Additional metadata to filter task runs by.
         :param workflow_ids: The workflow IDs to filter task runs by.
         :param worker_id: The worker ID to filter task runs by.
-        :param parent_task_external_id: The parent task external ID to filter task runs by.
-        :param triggering_event_external_id: The event id that triggered the task run.
+        :param parent_task_run_id: The ID of the parent task run to filter task runs by.
+        :param triggering_event_id: The ID of the event that triggered the task run.
         :param include_payloads: Whether to include payloads in the response.
 
         :return: A list of task runs matching the specified filters.
@@ -605,8 +692,8 @@ class RunsClient(BaseRestClient):
                 additional_metadata=additional_metadata,
                 workflow_ids=workflow_ids,
                 worker_id=worker_id,
-                parent_task_external_id=parent_task_external_id,
-                triggering_event_external_id=triggering_event_external_id,
+                parent_task_run_id=parent_task_run_id,
+                triggering_event_id=triggering_event_id,
                 include_payloads=include_payloads,
             )
             for s, u in date_ranges
@@ -618,6 +705,7 @@ class RunsClient(BaseRestClient):
         self,
         workflow_name: str,
         input: JSONSerializableMapping,
+        *,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: Priority | None = None,
     ) -> V1WorkflowRunDetails:
@@ -648,6 +736,7 @@ class RunsClient(BaseRestClient):
         self,
         workflow_name: str,
         input: JSONSerializableMapping,
+        *,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: Priority | None = None,
     ) -> V1WorkflowRunDetails:
@@ -664,7 +753,11 @@ class RunsClient(BaseRestClient):
         :return: The details of the triggered workflow run.
         """
         return await asyncio.to_thread(
-            self.create, workflow_name, input, additional_metadata, priority
+            self.create,
+            workflow_name,
+            input,
+            additional_metadata=additional_metadata,
+            priority=priority,
         )
 
     def replay(self, run_id: str) -> None:
@@ -803,7 +896,7 @@ class RunsClient(BaseRestClient):
                 yield chunk.payload
 
     def reset_durable_task(
-        self, task_run_id: str, node_id: int, branch_id: int
+        self, task_run_id: str, *, node_id: int, branch_id: int
     ) -> V1BranchDurableTaskResponse:
         """
         Reset a durable task from a specific node id, creating a new branch.
@@ -822,7 +915,7 @@ class RunsClient(BaseRestClient):
             )
 
     async def aio_reset_durable_task(
-        self, task_run_id: str, node_id: int, branch_id: int
+        self, task_run_id: str, *, node_id: int, branch_id: int
     ) -> V1BranchDurableTaskResponse:
         """
         Reset a durable task from a specific node id, creating a new branch.
@@ -833,7 +926,7 @@ class RunsClient(BaseRestClient):
         :return: The reset response containing the new node_id and branch_id.
         """
         return await asyncio.to_thread(
-            self.reset_durable_task, task_run_id, node_id, branch_id
+            self.reset_durable_task, task_run_id, node_id=node_id, branch_id=branch_id
         )
 
     def get_details(self, workflow_run_id: str) -> WorkflowRunDetail:

@@ -71,30 +71,6 @@ class WorkersClient(BaseRestClient):
 
             return wl.rows or []
 
-    def update(self, worker_id: str, options: UpdateWorkerRequest) -> Worker:
-        """
-        Update a worker by its ID.
-
-        :param worker_id: The ID of the worker to update.
-        :param options: The update options.
-        :return: The updated worker.
-        """
-        with self.client() as client:
-            return self._wa(client).worker_update(
-                worker=worker_id,
-                update_worker_request=options,
-            )
-
-    async def aio_update(self, worker_id: str, options: UpdateWorkerRequest) -> Worker:
-        """
-        Update a worker by its ID.
-
-        :param worker_id: The ID of the worker to update.
-        :param options: The update options.
-        :return: The updated worker.
-        """
-        return await asyncio.to_thread(self.update, worker_id, options)
-
     def pause(self, worker_id: str) -> Worker:
         """
         Pause a worker by its ID.

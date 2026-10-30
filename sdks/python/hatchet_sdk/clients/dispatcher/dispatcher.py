@@ -76,7 +76,7 @@ class DispatcherClient:
         aio_client = self._get_or_create_aio_client()
 
         proto_labels: dict[str, WorkerLabels] = {
-            label.key: label.to_proto() for label in labels if label.key is not None
+            label.key: label.to_proto() for label in labels
         }
         for key, value in self.config.worker_preset_labels.items():
             proto_labels[key] = WorkerLabels(str_value=str(value))
@@ -371,11 +371,7 @@ class DispatcherClient:
         client.UpsertWorkerLabels(
             UpsertWorkerLabelsRequest(
                 worker_id=worker_id,
-                labels={
-                    label.key: label.to_proto()
-                    for label in labels
-                    if label.key is not None
-                },
+                labels={label.key: label.to_proto() for label in labels},
             ),
             timeout=DEFAULT_REGISTER_TIMEOUT,
             metadata=create_authorization_header(self.token),

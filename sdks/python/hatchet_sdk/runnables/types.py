@@ -53,12 +53,13 @@ TWorkflowInput_contra = TypeVar(
 
 
 class TaskDefaults(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     schedule_timeout: timedelta | None = None
     execution_timeout: timedelta | None = None
-    priority: Priority | None = None
     retries: int | None = None
     backoff_factor: float | None = None
-    backoff_max_seconds: int | None = None
+    backoff_max: timedelta | None = None
 
 
 class DefaultFilter(BaseModel):
@@ -102,7 +103,7 @@ class WorkflowConfig(BaseModel):
     # An instance of the workflow's input model, passed to runs triggered by the
     # workflow's `on_crons` schedules. Typed as `Any` because the concrete input
     # type is generic per-workflow; it is serialized via `input_validator` in
-    # `BaseWorkflow.to_proto`.
+    # `BaseWorkflow._to_proto`.
     cron_input: Any = None
     sticky: StickyStrategy | None = None
     concurrency: int | ConcurrencyStrategy | Sequence[ConcurrencyStrategy] | None = None

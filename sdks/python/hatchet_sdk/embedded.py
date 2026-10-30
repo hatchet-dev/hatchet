@@ -13,6 +13,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Iterator
 from dataclasses import dataclass, field
+from datetime import timedelta
 from pathlib import Path
 
 from pydantic import BaseModel, ValidationError
@@ -386,9 +387,7 @@ def start_embedded_sidecar(options: EmbeddedHatchetConfig) -> EmbeddedSidecar:
     )
 
     try:
-        handshake = _wait_for_handshake(
-            process, handshake_path, options.ready_timeout_seconds
-        )
+        handshake = _wait_for_handshake(process, handshake_path, options.ready_timeout)
     finally:
         handshake_path.unlink(missing_ok=True)
         handshake_path.parent.rmdir()
@@ -399,10 +398,10 @@ def start_embedded_sidecar(options: EmbeddedHatchetConfig) -> EmbeddedSidecar:
 
 
 def _wait_for_handshake(
-    process: subprocess.Popen[bytes], handshake_path: Path, timeout_seconds: float
+    process: subprocess.Popen[bytes], handshake_path: Path, timeout: timedelta
 ) -> Handshake:
     start = time.monotonic()
-    deadline = start + timeout_seconds
+    deadline = start + timeout.total_seconds()
     next_heartbeat = start + _HEARTBEAT_INTERVAL_SECONDS
 
     while time.monotonic() < deadline:
@@ -427,7 +426,7 @@ def _wait_for_handshake(
 
     process.kill()
     raise TimeoutError(
-        f"hatchet embedded sidecar did not become ready within {timeout_seconds}s"
+        f"hatchet embedded sidecar did not become ready within {timeout}"
     )
 
 

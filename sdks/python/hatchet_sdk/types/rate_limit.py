@@ -37,7 +37,7 @@ class RateLimit(BaseModel):
     Usage:
         1. Static rate limit:
            rate_limit = RateLimit(static_key="external-api", units=100)
-           > NOTE: if you want to use a static key, you must first put the rate limit: hatchet.rate_limits.put("external-api", 200, "SECOND")
+           > NOTE: if you want to use a static key, you must first put the rate limit: hatchet.rate_limits.put("external-api", 200, duration="SECOND")
 
         2. Dynamic rate limit with CEL expressions:
            rate_limit = RateLimit(

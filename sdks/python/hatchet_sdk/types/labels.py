@@ -16,7 +16,7 @@ class WorkerLabelComparator(int, Enum):
 
 
 class WorkerLabel(BaseModel):
-    key: str | None = None
+    key: str
     value: str | int
 
     def to_proto(self) -> WorkerLabels:
@@ -25,12 +25,14 @@ class WorkerLabel(BaseModel):
         return WorkerLabels(str_value=str(self.value))
 
 
-class DesiredWorkerLabel(WorkerLabel):
+class DesiredWorkerLabel(BaseModel):
+    key: str
+    value: str | int
     required: bool = False
     weight: int | None = None
     comparator: WorkerLabelComparator | None = None
 
-    def to_proto(self) -> DesiredWorkerLabels:  # type: ignore[override]
+    def to_proto(self) -> DesiredWorkerLabels:
         return DesiredWorkerLabels(
             str_value=self.value if not isinstance(self.value, int) else None,
             int_value=self.value if isinstance(self.value, int) else None,

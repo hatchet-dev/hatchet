@@ -29,6 +29,7 @@ class FiltersClient(BaseRestClient):
 
     async def aio_list(
         self,
+        *,
         limit: int | None = None,
         offset: int | None = None,
         workflow_ids: list[str] | None = None,
@@ -44,10 +45,17 @@ class FiltersClient(BaseRestClient):
 
         :return: A list of filters matching the specified criteria.
         """
-        return await asyncio.to_thread(self.list, limit, offset, workflow_ids, scopes)
+        return await asyncio.to_thread(
+            self.list,
+            limit=limit,
+            offset=offset,
+            workflow_ids=workflow_ids,
+            scopes=scopes,
+        )
 
     def list(
         self,
+        *,
         limit: int | None = None,
         offset: int | None = None,
         workflow_ids: list[str] | None = None,
@@ -115,6 +123,7 @@ class FiltersClient(BaseRestClient):
         workflow_id: str,
         expression: str,
         scope: str,
+        *,
         payload: JSONSerializableMapping | None = None,
     ) -> V1Filter:
         """
@@ -143,6 +152,7 @@ class FiltersClient(BaseRestClient):
         workflow_id: str,
         expression: str,
         scope: str,
+        *,
         payload: JSONSerializableMapping | None = None,
     ) -> V1Filter:
         """
@@ -156,7 +166,7 @@ class FiltersClient(BaseRestClient):
         :return: The created filter.
         """
         return await asyncio.to_thread(
-            self.create, workflow_id, expression, scope, payload
+            self.create, workflow_id, expression, scope, payload=payload
         )
 
     def delete(
@@ -190,32 +200,50 @@ class FiltersClient(BaseRestClient):
     def update(
         self,
         filter_id: str,
-        updates: V1UpdateFilterRequest,
+        *,
+        expression: str | None = None,
+        scope: str | None = None,
+        payload: JSONSerializableMapping | None = None,
     ) -> V1Filter:
         """
-        Update a filter by its ID.
+        Update a filter by its ID. Fields left as `None` are not changed.
 
-        :param filter_id: The ID of the filter to delete.
-        :param updates: The updates to apply to the filter.
+        :param filter_id: The ID of the filter to update.
+        :param expression: The new expression to evaluate for the filter.
+        :param scope: The new scope for the filter.
+        :param payload: The new payload to send with the filter.
         :return: The updated filter.
         """
         with self.client() as client:
             return self._fa(client).v1_filter_update(
                 tenant=self.tenant_id,
                 v1_filter=filter_id,
-                v1_update_filter_request=updates,
+                v1_update_filter_request=V1UpdateFilterRequest(
+                    expression=expression, scope=scope, payload=payload
+                ),
             )
 
     async def aio_update(
         self,
         filter_id: str,
-        updates: V1UpdateFilterRequest,
+        *,
+        expression: str | None = None,
+        scope: str | None = None,
+        payload: JSONSerializableMapping | None = None,
     ) -> V1Filter:
         """
-        Update a filter by its ID.
+        Update a filter by its ID. Fields left as `None` are not changed.
 
-        :param filter_id: The ID of the filter to delete.
-        :param updates: The updates to apply to the filter.
+        :param filter_id: The ID of the filter to update.
+        :param expression: The new expression to evaluate for the filter.
+        :param scope: The new scope for the filter.
+        :param payload: The new payload to send with the filter.
         :return: The updated filter.
         """
-        return await asyncio.to_thread(self.update, filter_id, updates)
+        return await asyncio.to_thread(
+            self.update,
+            filter_id,
+            expression=expression,
+            scope=scope,
+            payload=payload,
+        )

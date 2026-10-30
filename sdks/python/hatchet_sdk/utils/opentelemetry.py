@@ -36,7 +36,6 @@ class OTelAttribute(StrEnum):
 
     ## Trigger Workflow
     CHILD_KEY = "child_key"
-    DESIRED_WORKER_ID = "desired_worker_id"
     STICKY = "sticky"
     KEY = "key"
 

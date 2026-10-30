@@ -328,7 +328,11 @@ class ActionListener:
 
         listener = self.aio_client.ListenV2(
             WorkerListenRequest(worker_id=self.worker_id),
-            timeout=self.config.listener_v2_timeout,
+            timeout=(
+                self.config.action_listener_timeout.total_seconds()
+                if self.config.action_listener_timeout is not None
+                else None
+            ),
             metadata=create_authorization_header(self.token),
         )
 
