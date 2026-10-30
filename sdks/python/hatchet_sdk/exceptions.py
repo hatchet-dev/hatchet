@@ -209,7 +209,18 @@ class TaskRunError(Exception):
         )
 
 
+def _describe_failed_task_runs(summary: str, exceptions: Sequence[TaskRunError]) -> str:
+    sections = [
+        f"\n--- Exception {index} ---\n{exception}"
+        for index, exception in enumerate(exceptions, 1)
+    ]
+
+    return "\n".join([summary.strip(), *sections])
+
+
 class FailedTaskRunExceptionGroup(ExceptionGroup[TaskRunError]):
+    _summary: str
+
     def __new__(cls, message: str, exceptions: Sequence[TaskRunError]) -> Self:
         ## `ExceptionGroup` rejects an empty sequence, but a run can fail without
         ## reporting any task errors, so fall back to an error carrying the message.
@@ -222,12 +233,21 @@ class FailedTaskRunExceptionGroup(ExceptionGroup[TaskRunError]):
             )
         ]
 
-        return super().__new__(cls, message, exceptions_or_fallback)
+        ## pytest's `match=` and the default traceback only read the group's message,
+        ## so the task errors go into it rather than only into `__str__`.
+        group = super().__new__(
+            cls,
+            _describe_failed_task_runs(message, exceptions_or_fallback),
+            exceptions_or_fallback,
+        )
+        group._summary = message
+
+        return group
 
     def __init__(
         self, message: str, exceptions: Sequence[TaskRunError]  # noqa: ARG002
     ) -> None:
-        super().__init__(message, cast("Sequence[TaskRunError]", self.exceptions))
+        super().__init__(self.message, cast("Sequence[TaskRunError]", self.exceptions))
 
     @property
     def exceptions(self) -> tuple[TaskRunError, ...]:
@@ -237,16 +257,13 @@ class FailedTaskRunExceptionGroup(ExceptionGroup[TaskRunError]):
     def derive(  # type: ignore[override]
         self, excs: Sequence[TaskRunError]
     ) -> "FailedTaskRunExceptionGroup":
-        return FailedTaskRunExceptionGroup(self.message, excs)
+        return FailedTaskRunExceptionGroup(self._summary, excs)
+
+    def __reduce__(self) -> tuple[type[Self], tuple[str, list[TaskRunError]]]:
+        return type(self), (self._summary, list(self.exceptions))
 
     def __str__(self) -> str:
-        result = [self.message.strip()]
-
-        for i, exc in enumerate(self.exceptions, 1):
-            result.append(f"\n--- Exception {i} ---")
-            result.append(str(exc))
-
-        return "\n".join(result)
+        return self.message
 
 
 class LoopAlreadyRunningError(Exception):

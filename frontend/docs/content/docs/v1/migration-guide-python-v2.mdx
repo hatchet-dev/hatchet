@@ -1064,7 +1064,7 @@ except* TaskRunError as group:
         print(error.exc_type, error.exc)
 ```
 
-`.exceptions` is a tuple instead of a list. When a run fails without reporting any task errors, it holds a single `TaskRunError` carrying the failure message instead of being empty. `.message` and `str()` are unchanged. `TaskRunError` now sets `args`, so both can be pickled.
+`.exceptions` is a tuple instead of a list. When a run fails without reporting any task errors, it holds a single `TaskRunError` carrying the failure message instead of being empty. `str()` is unchanged. `.message` now holds the same text as `str()`, the run's failure message followed by each task error, so `pytest.raises(FailedTaskRunExceptionGroup, match=...)` still matches on a task's error message. `TaskRunError` now sets `args`, so both can be pickled.
 
 #### `ctx.refresh_timeout` and `ctx.put_stream` raise on failure
 
