@@ -299,6 +299,110 @@ func TestEngineRejectedWorkflowMarksEndpoint(t *testing.T) {
 	assert.Empty(t, env.repo.ActionWrites(), "a refused catalog waits for its backoff")
 }
 
+// A catalog change that fails after its workflows and actions were saved is retried with
+// nothing left to save; the retry that completes it still records CATALOG_REGISTERED.
+func TestCatalogRegisteredEventSurvivesAFailedSync(t *testing.T) {
+	env := newTestEnv(t)
+	tenant := uuid.New()
+
+	a := healthyRow(endpointSpec{tenantId: tenant, name: "a", actions: []string{"svc:a"}})
+	env.addEndpoint(a)
+
+	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
+	require.Eventually(t, func() bool { return len(env.sender.callsTo(a.HealthcheckUrl)) == 1 }, eventually, 10*time.Millisecond)
+
+	poller := env.poller(a)
+	poller.stop()
+
+	registered := func() []repository.ServerlessEndpointEventOpts {
+		return eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindCATALOGREGISTERED)
+	}
+
+	// The new action is saved on the row, then the owner's registration refuses the delta.
+	reg := env.host.session(0)
+	reg.mu.Lock()
+	reg.deltaErr = errors.New("engine unavailable")
+	reg.mu.Unlock()
+
+	env.sender.respond(a.HealthcheckUrl, http.StatusOK, healthcheckBody("svc:a", "svc:b"))
+	poller.pollOnce(context.Background())
+
+	require.Len(t, env.repo.ActionWrites(), 1, "the actions were saved before the sync failed")
+	time.Sleep(50 * time.Millisecond)
+	assert.Empty(t, registered(), "an incomplete change is not recorded")
+
+	// The retry has nothing left to save and completes the change.
+	reg.mu.Lock()
+	reg.deltaErr = nil
+	reg.mu.Unlock()
+	poller.pollOnce(context.Background())
+
+	require.Eventually(t, func() bool { return len(registered()) == 1 }, eventually, 10*time.Millisecond)
+	assert.Len(t, env.repo.ActionWrites(), 1, "the retry saved nothing again")
+
+	// An unchanged catalog afterwards records nothing more.
+	poller.pollOnce(context.Background())
+	time.Sleep(50 * time.Millisecond)
+	assert.Len(t, registered(), 1)
+}
+
+// A refused catalog held back by the recorder's window is still recorded on a later retry,
+// so a catalog that changed and is refused again is not missing from the event log.
+func TestRejectedCatalogEventStaysPendingUntilRecorded(t *testing.T) {
+	env := newTestEnv(t)
+	tenant := uuid.New()
+
+	a := healthyRow(endpointSpec{tenantId: tenant, name: "a", actions: []string{"svc:a"}})
+	env.addEndpoint(a)
+
+	clock := newTestClock()
+	env.r.events.now = clock.now
+
+	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
+	require.Eventually(t, func() bool { return len(env.sender.callsTo(a.HealthcheckUrl)) == 1 }, eventually, 10*time.Millisecond)
+
+	poller := env.poller(a)
+	poller.stop()
+
+	reg := env.host.session(0)
+	reg.mu.Lock()
+	reg.putErr = connect.NewError(connect.CodeInvalidArgument, errors.New("bad action id"))
+	reg.mu.Unlock()
+
+	rejectedEvents := func() []repository.ServerlessEndpointEventOpts {
+		return eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindCATALOGREJECTED)
+	}
+
+	first := &v1.CreateWorkflowVersionRequest{Name: "first", Tasks: []*v1.CreateTaskOpts{{ReadableId: "t", Action: "svc:first"}}}
+	env.sender.respond(a.HealthcheckUrl, http.StatusOK, healthcheckWithWorkflows(t, first))
+	poller.pollOnce(context.Background())
+
+	require.Eventually(t, func() bool { return len(rejectedEvents()) == 1 }, eventually, 10*time.Millisecond)
+
+	// A changed catalog refused within the window is held back, and stays pending.
+	second := &v1.CreateWorkflowVersionRequest{Name: "second", Tasks: []*v1.CreateTaskOpts{{ReadableId: "t", Action: "svc:second"}}}
+	env.sender.respond(a.HealthcheckUrl, http.StatusOK, healthcheckWithWorkflows(t, second))
+	poller.pollOnce(context.Background())
+
+	time.Sleep(50 * time.Millisecond)
+	assert.Len(t, rejectedEvents(), 1)
+
+	// Past the window, the next retry of the same refused catalog records it.
+	clock.advance(failureEventWindow)
+	poller.rejectedRetryAt = time.Now().Add(-time.Second)
+	poller.pollOnce(context.Background())
+
+	require.Eventually(t, func() bool { return len(rejectedEvents()) == 2 }, eventually, 10*time.Millisecond)
+	assert.Contains(t, rejectedEvents()[1].Message, "engine rejected workflow second")
+
+	// Once written, a further retry of it records nothing more.
+	poller.rejectedRetryAt = time.Now().Add(-time.Second)
+	poller.pollOnce(context.Background())
+
+	time.Sleep(50 * time.Millisecond)
+	assert.Len(t, rejectedEvents(), 2)
+}
+
 // A PutWorkflow call that fails for a reason other than the engine refusing the workflow
 // (here an error carrying no code, like a transient database error) marks the endpoint
 // unhealthy but enters no backoff: the next poll puts the same catalog again.

@@ -5,6 +5,63 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.46.0] - 2026-10-28
+
+### Added
+
+- `streams.subscribe(topic, options)` reads a durable stream topic. `streams.events()` is now an alias of it and will be removed in a future release.
+
+## [1.45.0] - 2026-10-28
+
+### Fixed
+
+- A Node worker no longer freezes at 100% CPU on the first unary call (for example `putLog`) after its engine connection has been idle for about a minute. `@connectrpc/connect-node` 2.1.2 could spin forever in `Http2SessionManager.gotoReady()` when a reconnect found the session already closed; 2.3.0 reconnects or fails the call instead. The `@connectrpc/connect`, `connect-node` and `connect-web` dependencies move from `~2.1.2` to `~2.3.0`.
+
+### Changed
+
+- The SDK now requires Node.js 22 or later (`engines.node` is `>=22`), matching `@connectrpc/connect-node` 2.3.0. Node.js 20 is no longer supported.
+
+## [1.44.2] - 2026-10-27
+
+### Fixed
+
+- Worker shutdown now waits for [durable tasks](https://docs.hatchet.run/v1/durable-tasks) that were already waiting (for example in `sleepFor` or on a child) when shutdown began. Evicting such a task removed it from the worker's in-flight list before the drain list was built, so the worker stopped its durable stream and unregistered while the task was still winding down.
+
+## [1.44.1] - 2026-10-27
+
+### Changed
+
+- The REST client types the Slack OAuth start and callback responses as `void | APIErrors`, since the API now declares a `429 Too Many Requests` response on every authenticated operation.
+
+## [1.44.0] - 2026-10-26
+
+### Added
+
+- `streams.reset` (Node client and `/core`) takes a `cursor` option: `events()` calls without a cursor then start after that message instead of the topic's latest.
+
+## [1.43.1] - 2026-10-26
+
+### Fixed
+
+- [Durable tasks](https://docs.hatchet.run/v1/durable-tasks) no longer stall after the worker's durable stream reconnects in the middle of a wait. The worker now reports the last completion it received in its status requests, so the engine resumes delivery from there instead of holding later completions until the task is evicted and replayed.
+
+## [1.43.0] - 2026-10-23
+
+### Fixed
+
+- `streams.publish` works against engines that predate `V1Streams/PublishBatch` again; 1.42.0 rejected every publish to them as unimplemented. On the first `UNIMPLEMENTED` from `PublishBatch` the client sends that request's messages, and every later one, as one `Publish` per message, settling each publish on its own; `batchTimeoutMs` still groups messages there, but each goes out in its own request.
+
+## [1.42.0] - 2026-10-23
+
+### Added
+
+- `streams.publish` takes a `batchTimeoutMs` option: how long a message may wait for later publishes to the same topic to share its request, bounding the latency batching adds. It defaults to 0.
+
+### Changed
+
+- `streams.publish` (Node client and `/core`) now sends the publishes queued behind an in-flight request to the same topic as one `PublishBatch` request, up to 500 messages or about 4 MiB, instead of one round trip per message. Ordering and delivery guarantees are unchanged. Requires an engine that serves `V1Streams/PublishBatch`; older engines reject it as unimplemented.
+- `streams.publish` rejects an empty payload, and a `batchTimeoutMs` that is negative or not finite, before sending anything, since the engine would otherwise reject every publish sharing that request.
+
 ## [1.41.1] - 2026-10-23
 
 ### Fixed

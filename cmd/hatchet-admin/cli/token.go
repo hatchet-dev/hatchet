@@ -100,7 +100,7 @@ func runCreateAPIToken(expiresIn time.Duration) error {
 		return err
 	}
 
-	defaultTok, err := srv.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, tokenName, false, &expiresAt)
+	defaultTok, err := srv.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, tokenName, false, false, &expiresAt)
 
 	if err != nil {
 		return err

@@ -10,7 +10,7 @@ describeBenchmark('durable-streams-e2e latency', () => {
     const topic = makeTestScope('durable_streams_latency');
     const messageCount = 400;
 
-    const events = hatchet.streams.events(topic);
+    const events = hatchet.streams.subscribe(topic);
 
     // publishes run in the background while we consume below, so this
     // measures real publish -> receive latency per message rather than

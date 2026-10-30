@@ -59,6 +59,10 @@ The scheduled client is a client for managing scheduled workflows within Hatchet
 
 The tenant client is a client for interacting with your Tenant.
 
+#### `streams`
+
+The streams client publishes to and reads from durable topics. Unlike `runs.aio_subscribe_to_stream`, topics are stored, independent of any run, and readers can resume from a cursor.
+
 #### `workers`
 
 The workers client is a client for managing workers programmatically within Hatchet.

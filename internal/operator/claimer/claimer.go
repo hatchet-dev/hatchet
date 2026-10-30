@@ -26,6 +26,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/operator/dagoperator"
@@ -34,8 +35,9 @@ import (
 )
 
 const (
-	// defaultPollInterval is how often the claim query runs.
-	defaultPollInterval = 5 * time.Second
+	// defaultPollInterval is how often the claim query runs. It bounds how long a tenant's
+	// operators stay unhosted after their dispatcher marks itself inactive at shutdown.
+	defaultPollInterval = 1 * time.Second
 
 	// defaultTeardownTimeout bounds one operator's pause, drain and close. DAG runs abort as
 	// soon as they are interrupted, so the bound only matters for a stuck engine call.
@@ -263,7 +265,7 @@ func (c *Claimer) Reconcile(ctx context.Context, claimed []*sqlcv1.V1Operator) {
 		claimedIds[op.ID] = struct{}{}
 
 		c.mu.Lock()
-		_, running := c.running[op.ID]
+		running := enumerables.HasKey(c.running, op.ID)
 		c.mu.Unlock()
 
 		if running {
@@ -323,7 +325,7 @@ func (c *Claimer) open(ctx context.Context, op *sqlcv1.V1Operator) *hosted {
 
 	if !ok {
 		c.mu.Lock()
-		_, logged := c.unhostable[op.ID]
+		logged := enumerables.HasKey(c.unhostable, op.ID)
 		c.unhostable[op.ID] = struct{}{}
 		c.mu.Unlock()
 

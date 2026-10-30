@@ -305,7 +305,8 @@ SELECT
     create_v1_range_partition('v1_dag_data', $1::date) AS v1_dag_data,
     create_v1_range_partition('v1_task_expression_eval', $1::date) AS v1_task_expression_eval,
     create_v1_monthly_range_partition('v1_lookup_table', $1::date) AS v1_lookup_table,
-    create_v1_range_partition('v1_stream_producer_cursor', $1::date, 80) AS v1_stream_producer_cursor
+    create_v1_range_partition('v1_stream_producer_cursor', $1::date, 80) AS v1_stream_producer_cursor,
+    create_v1_range_partition('v1_serverless_endpoint_event', $1::date) AS v1_serverless_endpoint_event
 `
 
 type CreatePartitionsRow struct {
@@ -323,6 +324,7 @@ type CreatePartitionsRow struct {
 	V1TaskExpressionEval         int32 `json:"v1_task_expression_eval"`
 	V1LookupTable                int32 `json:"v1_lookup_table"`
 	V1StreamProducerCursor       int32 `json:"v1_stream_producer_cursor"`
+	V1ServerlessEndpointEvent    int32 `json:"v1_serverless_endpoint_event"`
 }
 
 func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Date) (*CreatePartitionsRow, error) {
@@ -343,6 +345,7 @@ func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Dat
 		&i.V1TaskExpressionEval,
 		&i.V1LookupTable,
 		&i.V1StreamProducerCursor,
+		&i.V1ServerlessEndpointEvent,
 	)
 	return &i, err
 }
@@ -1960,6 +1963,8 @@ WITH task_partitions AS (
     SELECT 'v1_task_expression_eval' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task_expression_eval', $1::date) AS p
 ), lookup_table_partitions AS (
     SELECT 'v1_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_monthly_partitions_before_date('v1_lookup_table', $1::date) AS p
+), serverless_endpoint_event_partitions AS (
+    SELECT 'v1_serverless_endpoint_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_serverless_endpoint_event', $1::date) AS p
 )
 
 SELECT
@@ -2050,6 +2055,13 @@ SELECT
     parent_table, partition_name
 FROM
     lookup_table_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    serverless_endpoint_event_partitions
 `
 
 type ListPartitionsBeforeDateRow struct {
@@ -2478,79 +2490,6 @@ func (q *Queries) ListTaskRunningStatuses(ctx context.Context, db DBTX, arg List
 	return items, nil
 }
 
-const listTaskRuntimes = `-- name: ListTaskRuntimes :many
-WITH inputs AS (
-    SELECT
-        UNNEST($2::bigint[]) AS task_id,
-        UNNEST($3::timestamptz[]) AS task_inserted_at,
-        UNNEST($4::integer[]) AS retry_count
-)
-SELECT
-    tr.task_id,
-    tr.task_inserted_at,
-    tr.retry_count,
-    tr.worker_id,
-    tr.batch_id,
-    tr.batch_size,
-    tr.batch_index,
-    tr.batch_key,
-    tr.tenant_id,
-    tr.timeout_at,
-    tr.evicted_at
-FROM
-    v1_task_runtime tr
-JOIN
-    inputs i ON tr.task_id = i.task_id
-    AND tr.task_inserted_at = i.task_inserted_at
-    AND tr.retry_count = i.retry_count
-WHERE
-    tr.tenant_id = $1::uuid
-`
-
-type ListTaskRuntimesParams struct {
-	Tenantid        uuid.UUID            `json:"tenantid"`
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Taskretrycounts []int32              `json:"taskretrycounts"`
-}
-
-func (q *Queries) ListTaskRuntimes(ctx context.Context, db DBTX, arg ListTaskRuntimesParams) ([]*V1TaskRuntime, error) {
-	rows, err := db.Query(ctx, listTaskRuntimes,
-		arg.Tenantid,
-		arg.Taskids,
-		arg.Taskinsertedats,
-		arg.Taskretrycounts,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*V1TaskRuntime
-	for rows.Next() {
-		var i V1TaskRuntime
-		if err := rows.Scan(
-			&i.TaskID,
-			&i.TaskInsertedAt,
-			&i.RetryCount,
-			&i.WorkerID,
-			&i.BatchID,
-			&i.BatchSize,
-			&i.BatchIndex,
-			&i.BatchKey,
-			&i.TenantID,
-			&i.TimeoutAt,
-			&i.EvictedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listTasks = `-- name: ListTasks :many
 SELECT id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, batch_key, retry_backoff_factor, retry_max_backoff, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, is_dag_orchestrator, concurrency_max_runs, payload_reference_id, triggers, dag_parent_task_run_ids, child_task_desired_worker_labels, task_input_payload_version
 FROM
@@ -2928,7 +2867,8 @@ WITH tasks_on_inactive_workers AS (
     SELECT
         runtime.task_id,
         runtime.task_inserted_at,
-        runtime.retry_count
+        runtime.retry_count,
+        'Worker did not send a heartbeat for 30 seconds'::text AS reason
     FROM
         "Worker" w
     JOIN
@@ -2939,18 +2879,60 @@ WITH tasks_on_inactive_workers AS (
         AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
         -- evicted tasks are not eligible for re-assignment
         AND runtime.evicted_at IS NULL
+    -- NOTE: without this ORDER BY, the planner assumes most runtimes belong to the tenant's many stale workers and
+    -- seq scans v1_task_runtime expecting to hit the LIMIT early. Ordering by a "Worker" column makes it walk the
+    -- stale workers on ("tenantId", "lastHeartbeatAt") and look up each one's runtimes on the (tenant_id, worker_id) index.
+    ORDER BY
+        w."lastHeartbeatAt"
     LIMIT
         COALESCE($2::integer, 1000)
     FOR UPDATE OF runtime SKIP LOCKED
+), tasks_never_acked AS (
+    -- the assignment was written but the worker never acknowledged the task, for example
+    -- because the message to the dispatcher was lost
+    SELECT
+        runtime.task_id,
+        runtime.task_inserted_at,
+        runtime.retry_count,
+        'Worker never acknowledged the task' AS reason
+    FROM
+        v1_task_runtime runtime
+    WHERE
+        runtime.tenant_id = $1::uuid
+        AND runtime.worker_id IS NOT NULL
+        AND runtime.evicted_at IS NULL
+        AND runtime.acked_at IS NULL
+        AND runtime.assigned_at < NOW() - INTERVAL '1 minute'
+    -- NOTE: this ORDER BY keeps the planner on the unacked index; without it, a stale estimate of unacked rows makes it seq scan
+    ORDER BY
+        runtime.assigned_at
+    LIMIT
+        COALESCE($2::integer, 1000)
+    FOR UPDATE SKIP LOCKED
+), tasks_to_reassign AS (
+    SELECT task_id, task_inserted_at, retry_count, reason FROM tasks_on_inactive_workers
+    UNION ALL
+    -- NOTE: the overlap with tasks_on_inactive_workers is removed here, after both LIMITs, rather than with a NOT EXISTS
+    -- inside tasks_never_acked. Under a LIMIT the planner runs that NOT EXISTS as a nested loop over the CTE, comparing
+    -- every unacked candidate against all 1000 inactive-worker rows (~1M comparisons, >100ms). Out here it hashes instead.
+    SELECT never_acked.task_id, never_acked.task_inserted_at, never_acked.retry_count, never_acked.reason
+    FROM tasks_never_acked never_acked
+    WHERE NOT EXISTS (
+        SELECT 1 FROM tasks_on_inactive_workers inactive
+        WHERE inactive.task_id = never_acked.task_id
+            AND inactive.task_inserted_at = never_acked.task_inserted_at
+            AND inactive.retry_count = never_acked.retry_count
+    )
 )
 SELECT
     v1_task.id,
     v1_task.inserted_at,
-    v1_task.retry_count
+    v1_task.retry_count,
+    lrs.reason
 FROM
     v1_task
 JOIN
-    tasks_on_inactive_workers lrs ON lrs.task_id = v1_task.id AND lrs.task_inserted_at = v1_task.inserted_at
+    tasks_to_reassign lrs ON lrs.task_id = v1_task.id AND lrs.task_inserted_at = v1_task.inserted_at
 `
 
 type ListTasksToReassignParams struct {
@@ -2962,6 +2944,7 @@ type ListTasksToReassignRow struct {
 	ID         int64              `json:"id"`
 	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
 	RetryCount int32              `json:"retry_count"`
+	Reason     string             `json:"reason"`
 }
 
 func (q *Queries) ListTasksToReassign(ctx context.Context, db DBTX, arg ListTasksToReassignParams) ([]*ListTasksToReassignRow, error) {
@@ -2973,7 +2956,12 @@ func (q *Queries) ListTasksToReassign(ctx context.Context, db DBTX, arg ListTask
 	var items []*ListTasksToReassignRow
 	for rows.Next() {
 		var i ListTasksToReassignRow
-		if err := rows.Scan(&i.ID, &i.InsertedAt, &i.RetryCount); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.InsertedAt,
+			&i.RetryCount,
+			&i.Reason,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -3369,7 +3357,7 @@ FROM
 WHERE
     (v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count) IN (SELECT id, inserted_at, retry_count FROM task)
 RETURNING
-    v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count, v1_task_runtime.worker_id, v1_task_runtime.batch_id, v1_task_runtime.batch_size, v1_task_runtime.batch_index, v1_task_runtime.batch_key, v1_task_runtime.tenant_id, v1_task_runtime.timeout_at, v1_task_runtime.evicted_at
+    v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count, v1_task_runtime.worker_id, v1_task_runtime.batch_id, v1_task_runtime.batch_size, v1_task_runtime.batch_index, v1_task_runtime.batch_key, v1_task_runtime.tenant_id, v1_task_runtime.timeout_at, v1_task_runtime.evicted_at, v1_task_runtime.assigned_at, v1_task_runtime.acked_at
 `
 
 type ManualSlotReleaseParams struct {
@@ -3392,8 +3380,54 @@ func (q *Queries) ManualSlotRelease(ctx context.Context, db DBTX, arg ManualSlot
 		&i.TenantID,
 		&i.TimeoutAt,
 		&i.EvictedAt,
+		&i.AssignedAt,
+		&i.AckedAt,
 	)
 	return &i, err
+}
+
+const markTaskRuntimesAcked = `-- name: MarkTaskRuntimesAcked :exec
+WITH input AS (
+    SELECT
+        unnest($1::bigint[]) AS task_id,
+        unnest($2::timestamptz[]) AS task_inserted_at,
+        unnest($3::integer[]) AS retry_count
+), locked_runtimes AS (
+    SELECT task_id, task_inserted_at, retry_count
+    FROM v1_task_runtime
+    WHERE
+        tenant_id = $4::uuid
+        AND acked_at IS NULL
+        AND (task_id, task_inserted_at, retry_count) IN (
+            SELECT task_id, task_inserted_at, retry_count
+            FROM input
+        )
+    ORDER BY task_id, task_inserted_at, retry_count
+    FOR UPDATE
+)
+UPDATE v1_task_runtime
+SET acked_at = NOW()
+WHERE (task_id, task_inserted_at, retry_count) IN (
+    SELECT task_id, task_inserted_at, retry_count
+    FROM locked_runtimes
+)
+`
+
+type MarkTaskRuntimesAckedParams struct {
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Retrycounts     []int32              `json:"retrycounts"`
+	Tenantid        uuid.UUID            `json:"tenantid"`
+}
+
+func (q *Queries) MarkTaskRuntimesAcked(ctx context.Context, db DBTX, arg MarkTaskRuntimesAckedParams) error {
+	_, err := db.Exec(ctx, markTaskRuntimesAcked,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Retrycounts,
+		arg.Tenantid,
+	)
+	return err
 }
 
 const preflightCheckDAGsForReplay = `-- name: PreflightCheckDAGsForReplay :many
@@ -3678,7 +3712,7 @@ FROM
 WHERE
     (v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count) IN (SELECT id, inserted_at, retry_count FROM task)
 RETURNING
-    v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count, v1_task_runtime.worker_id, v1_task_runtime.batch_id, v1_task_runtime.batch_size, v1_task_runtime.batch_index, v1_task_runtime.batch_key, v1_task_runtime.tenant_id, v1_task_runtime.timeout_at, v1_task_runtime.evicted_at
+    v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count, v1_task_runtime.worker_id, v1_task_runtime.batch_id, v1_task_runtime.batch_size, v1_task_runtime.batch_index, v1_task_runtime.batch_key, v1_task_runtime.tenant_id, v1_task_runtime.timeout_at, v1_task_runtime.evicted_at, v1_task_runtime.assigned_at, v1_task_runtime.acked_at
 `
 
 type RefreshTimeoutByParams struct {
@@ -3702,6 +3736,8 @@ func (q *Queries) RefreshTimeoutBy(ctx context.Context, db DBTX, arg RefreshTime
 		&i.TenantID,
 		&i.TimeoutAt,
 		&i.EvictedAt,
+		&i.AssignedAt,
+		&i.AckedAt,
 	)
 	return &i, err
 }
@@ -3773,9 +3809,9 @@ func (q *Queries) ReserveTaskBatchRun(ctx context.Context, db DBTX, arg ReserveT
 const updateTaskBatchMetadata = `-- name: UpdateTaskBatchMetadata :exec
 WITH input AS (
     SELECT
-        unnest($6::bigint[]) AS task_id,
-        unnest($7::timestamptz[]) AS task_inserted_at,
-        unnest($8::integer[]) AS batch_index
+        unnest($7::bigint[]) AS task_id,
+        unnest($8::timestamptz[]) AS task_inserted_at,
+        unnest($9::integer[]) AS batch_index
 )
 UPDATE
     v1_task_runtime AS tr
@@ -3784,24 +3820,27 @@ SET
     batch_size = $2::integer,
     batch_index = input.batch_index,
     worker_id = $3::uuid,
-    batch_key = COALESCE(NULLIF($4::text, ''), tr.batch_key)
+    batch_key = COALESCE(NULLIF($4::text, ''), tr.batch_key),
+    assigned_at = CASE WHEN $5::boolean THEN NOW() END,
+    acked_at = NULL
 FROM
     input
 WHERE
-    tr.tenant_id = $5::uuid
+    tr.tenant_id = $6::uuid
     AND tr.task_id = input.task_id
     AND tr.task_inserted_at = input.task_inserted_at
 `
 
 type UpdateTaskBatchMetadataParams struct {
-	Batchid         uuid.UUID            `json:"batchid"`
-	Batchsize       int32                `json:"batchsize"`
-	Workerid        uuid.UUID            `json:"workerid"`
-	Batchkey        string               `json:"batchkey"`
-	Tenantid        uuid.UUID            `json:"tenantid"`
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Batchindexes    []int32              `json:"batchindexes"`
+	Batchid              uuid.UUID            `json:"batchid"`
+	Batchsize            int32                `json:"batchsize"`
+	Workerid             uuid.UUID            `json:"workerid"`
+	Batchkey             string               `json:"batchkey"`
+	Reassignunackedtasks bool                 `json:"reassignunackedtasks"`
+	Tenantid             uuid.UUID            `json:"tenantid"`
+	Taskids              []int64              `json:"taskids"`
+	Taskinsertedats      []pgtype.Timestamptz `json:"taskinsertedats"`
+	Batchindexes         []int32              `json:"batchindexes"`
 }
 
 func (q *Queries) UpdateTaskBatchMetadata(ctx context.Context, db DBTX, arg UpdateTaskBatchMetadataParams) error {
@@ -3810,6 +3849,7 @@ func (q *Queries) UpdateTaskBatchMetadata(ctx context.Context, db DBTX, arg Upda
 		arg.Batchsize,
 		arg.Workerid,
 		arg.Batchkey,
+		arg.Reassignunackedtasks,
 		arg.Tenantid,
 		arg.Taskids,
 		arg.Taskinsertedats,

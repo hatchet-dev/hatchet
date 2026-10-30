@@ -50,6 +50,7 @@ Python SDK reference (overview: https://docs.hatchet.run/reference/python.md):
 - Rate Limits: https://docs.hatchet.run/reference/python/feature-clients/rate_limits.md (guide: https://docs.hatchet.run/v1/rate-limits.md)
 - Runs: https://docs.hatchet.run/reference/python/feature-clients/runs.md (guide: https://docs.hatchet.run/v1/running-your-task.md)
 - Scheduled Runs: https://docs.hatchet.run/reference/python/feature-clients/scheduled.md (guide: https://docs.hatchet.run/v1/scheduled-runs.md)
+- Streams: https://docs.hatchet.run/reference/python/feature-clients/streams.md
 - Stubs: https://docs.hatchet.run/reference/python/feature-clients/stubs.md (guide: https://docs.hatchet.run/v1/inter-service-triggering.md)
 - Tenant: https://docs.hatchet.run/reference/python/feature-clients/tenant.md
 - Webhooks: https://docs.hatchet.run/reference/python/feature-clients/webhooks.md (guide: https://docs.hatchet.run/v1/webhooks.md)

@@ -221,6 +221,7 @@ if TYPE_CHECKING:
     from hatchet_sdk.clients.rest.models.tenant_alerting_settings import (
         TenantAlertingSettings,
     )
+    from hatchet_sdk.clients.rest.models.tenant_entitlements import TenantEntitlements
     from hatchet_sdk.clients.rest.models.tenant_environment import TenantEnvironment
     from hatchet_sdk.clients.rest.models.tenant_invite import TenantInvite
     from hatchet_sdk.clients.rest.models.tenant_invite_list import TenantInviteList
@@ -295,6 +296,23 @@ if TYPE_CHECKING:
         V1CancelTaskRequest,
     )
     from hatchet_sdk.clients.rest.models.v1_cancelled_tasks import V1CancelledTasks
+    from hatchet_sdk.clients.rest.models.v1_concurrency_key import V1ConcurrencyKey
+    from hatchet_sdk.clients.rest.models.v1_concurrency_key_list import (
+        V1ConcurrencyKeyList,
+    )
+    from hatchet_sdk.clients.rest.models.v1_concurrency_limit_strategy import (
+        V1ConcurrencyLimitStrategy,
+    )
+    from hatchet_sdk.clients.rest.models.v1_concurrency_scope import V1ConcurrencyScope
+    from hatchet_sdk.clients.rest.models.v1_concurrency_strategy import (
+        V1ConcurrencyStrategy,
+    )
+    from hatchet_sdk.clients.rest.models.v1_concurrency_strategy_list import (
+        V1ConcurrencyStrategyList,
+    )
+    from hatchet_sdk.clients.rest.models.v1_concurrency_strategy_usage import (
+        V1ConcurrencyStrategyUsage,
+    )
     from hatchet_sdk.clients.rest.models.v1_create_filter_request import (
         V1CreateFilterRequest,
     )
@@ -361,6 +379,21 @@ if TYPE_CHECKING:
     from hatchet_sdk.clients.rest.models.v1_serverless_endpoint import (
         V1ServerlessEndpoint,
     )
+    from hatchet_sdk.clients.rest.models.v1_serverless_endpoint_check_stage import (
+        V1ServerlessEndpointCheckStage,
+    )
+    from hatchet_sdk.clients.rest.models.v1_serverless_endpoint_event import (
+        V1ServerlessEndpointEvent,
+    )
+    from hatchet_sdk.clients.rest.models.v1_serverless_endpoint_event_details import (
+        V1ServerlessEndpointEventDetails,
+    )
+    from hatchet_sdk.clients.rest.models.v1_serverless_endpoint_event_kind import (
+        V1ServerlessEndpointEventKind,
+    )
+    from hatchet_sdk.clients.rest.models.v1_serverless_endpoint_event_list import (
+        V1ServerlessEndpointEventList,
+    )
     from hatchet_sdk.clients.rest.models.v1_serverless_endpoint_kind import (
         V1ServerlessEndpointKind,
     )
@@ -371,6 +404,8 @@ if TYPE_CHECKING:
         V1ServerlessEndpointStatus,
     )
     from hatchet_sdk.clients.rest.models.v1_stream_payload_ref import V1StreamPayloadRef
+    from hatchet_sdk.clients.rest.models.v1_stream_topic import V1StreamTopic
+    from hatchet_sdk.clients.rest.models.v1_stream_topic_list import V1StreamTopicList
     from hatchet_sdk.clients.rest.models.v1_task_event import V1TaskEvent
     from hatchet_sdk.clients.rest.models.v1_task_event_list import V1TaskEventList
     from hatchet_sdk.clients.rest.models.v1_task_event_type import V1TaskEventType
@@ -620,6 +655,7 @@ _LAZY_IMPORTS: dict[str, str] = {
     "TenantAlertEmailGroup": "hatchet_sdk.clients.rest.models.tenant_alert_email_group",
     "TenantAlertEmailGroupList": "hatchet_sdk.clients.rest.models.tenant_alert_email_group_list",
     "TenantAlertingSettings": "hatchet_sdk.clients.rest.models.tenant_alerting_settings",
+    "TenantEntitlements": "hatchet_sdk.clients.rest.models.tenant_entitlements",
     "TenantEnvironment": "hatchet_sdk.clients.rest.models.tenant_environment",
     "TenantInvite": "hatchet_sdk.clients.rest.models.tenant_invite",
     "TenantInviteList": "hatchet_sdk.clients.rest.models.tenant_invite_list",
@@ -656,6 +692,13 @@ _LAZY_IMPORTS: dict[str, str] = {
     "V1CELDebugResponseStatus": "hatchet_sdk.clients.rest.models.v1_cel_debug_response_status",
     "V1CancelTaskRequest": "hatchet_sdk.clients.rest.models.v1_cancel_task_request",
     "V1CancelledTasks": "hatchet_sdk.clients.rest.models.v1_cancelled_tasks",
+    "V1ConcurrencyKey": "hatchet_sdk.clients.rest.models.v1_concurrency_key",
+    "V1ConcurrencyKeyList": "hatchet_sdk.clients.rest.models.v1_concurrency_key_list",
+    "V1ConcurrencyLimitStrategy": "hatchet_sdk.clients.rest.models.v1_concurrency_limit_strategy",
+    "V1ConcurrencyScope": "hatchet_sdk.clients.rest.models.v1_concurrency_scope",
+    "V1ConcurrencyStrategy": "hatchet_sdk.clients.rest.models.v1_concurrency_strategy",
+    "V1ConcurrencyStrategyList": "hatchet_sdk.clients.rest.models.v1_concurrency_strategy_list",
+    "V1ConcurrencyStrategyUsage": "hatchet_sdk.clients.rest.models.v1_concurrency_strategy_usage",
     "V1CreateFilterRequest": "hatchet_sdk.clients.rest.models.v1_create_filter_request",
     "V1CreateServerlessEndpointRequest": "hatchet_sdk.clients.rest.models.v1_create_serverless_endpoint_request",
     "V1CreateWebhookRequest": "hatchet_sdk.clients.rest.models.v1_create_webhook_request",
@@ -686,10 +729,17 @@ _LAZY_IMPORTS: dict[str, str] = {
     "V1RunningDetailCount": "hatchet_sdk.clients.rest.models.v1_running_detail_count",
     "V1RunningFilter": "hatchet_sdk.clients.rest.models.v1_running_filter",
     "V1ServerlessEndpoint": "hatchet_sdk.clients.rest.models.v1_serverless_endpoint",
+    "V1ServerlessEndpointCheckStage": "hatchet_sdk.clients.rest.models.v1_serverless_endpoint_check_stage",
+    "V1ServerlessEndpointEvent": "hatchet_sdk.clients.rest.models.v1_serverless_endpoint_event",
+    "V1ServerlessEndpointEventDetails": "hatchet_sdk.clients.rest.models.v1_serverless_endpoint_event_details",
+    "V1ServerlessEndpointEventKind": "hatchet_sdk.clients.rest.models.v1_serverless_endpoint_event_kind",
+    "V1ServerlessEndpointEventList": "hatchet_sdk.clients.rest.models.v1_serverless_endpoint_event_list",
     "V1ServerlessEndpointKind": "hatchet_sdk.clients.rest.models.v1_serverless_endpoint_kind",
     "V1ServerlessEndpointList": "hatchet_sdk.clients.rest.models.v1_serverless_endpoint_list",
     "V1ServerlessEndpointStatus": "hatchet_sdk.clients.rest.models.v1_serverless_endpoint_status",
     "V1StreamPayloadRef": "hatchet_sdk.clients.rest.models.v1_stream_payload_ref",
+    "V1StreamTopic": "hatchet_sdk.clients.rest.models.v1_stream_topic",
+    "V1StreamTopicList": "hatchet_sdk.clients.rest.models.v1_stream_topic_list",
     "V1TaskEvent": "hatchet_sdk.clients.rest.models.v1_task_event",
     "V1TaskEventList": "hatchet_sdk.clients.rest.models.v1_task_event_list",
     "V1TaskEventType": "hatchet_sdk.clients.rest.models.v1_task_event_type",

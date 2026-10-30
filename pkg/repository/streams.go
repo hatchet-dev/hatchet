@@ -141,6 +141,25 @@ type ListStreamMessagesOpts struct {
 	Limit int32 `validate:"omitempty,min=1,max=1000"`
 }
 
+// ListStreamTopicsOpts selects a page of a tenant's stream topics.
+type ListStreamTopicsOpts struct {
+	// (optional) matches topics or namespaces containing it
+	Search *string
+
+	Limit int32 `validate:"min=1,max=1000"`
+
+	Offset int32 `validate:"min=0"`
+}
+
+// ListStreamTopicsResult is a page of topics with the total matching count and the tenant's retention.
+type ListStreamTopicsResult struct {
+	Rows []*sqlcv1.ListStreamTopicsRow
+
+	Total int64
+
+	Retention time.Duration
+}
+
 type StreamsRepository interface {
 	// EnsureTopic registers a topic on first publish, enforcing the tenant's
 	// topic limit. Topics this process saw recently skip the query.
@@ -169,6 +188,9 @@ type StreamsRepository interface {
 	// GetStreamPayload returns ErrStreamPayloadNotFound once it's past the tenant's retention.
 	GetStreamPayload(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) ([]byte, error)
 
+	// ListTopics returns a page of the tenant's topics, with counts of their retained messages.
+	ListTopics(ctx context.Context, tenantId uuid.UUID, opts ListStreamTopicsOpts) (*ListStreamTopicsResult, error)
+
 	// GetTopicMetadata returns ErrStreamTopicNotFound for a topic that doesn't exist.
 	GetTopicMetadata(ctx context.Context, tenantId uuid.UUID, namespace, topic string) (*StreamTopicMetadata, error)
 
@@ -176,9 +198,10 @@ type StreamsRepository interface {
 	// older than the tenant's retention or the oldest partition.
 	CheckCursorRetained(ctx context.Context, tenantId uuid.UUID, cursor StreamCursor) error
 
-	// ResetTopic moves where subscribers without a cursor start to after the
-	// topic's latest stored message. A topic never published to is left as is.
-	ResetTopic(ctx context.Context, tenantId uuid.UUID, namespace, topic string) error
+	// ResetTopic moves where subscribers without a cursor start to after cursor,
+	// or the topic's latest stored message if it's nil. A topic never published
+	// to is left as is.
+	ResetTopic(ctx context.Context, tenantId uuid.UUID, namespace, topic string, cursor *StreamCursor) error
 
 	// TopicStartCursor is where a subscriber without a cursor starts: after the
 	// last reset, else the topic's beginning.
@@ -215,7 +238,7 @@ func (r *streamsRepositoryImpl) EnsureTopic(ctx context.Context, tenantId uuid.U
 		return nil
 	}
 
-	row, err := r.queries.UpsertStreamTopic(ctx, r.pool, sqlcv1.UpsertStreamTopicParams{
+	row, err := r.queries.UpsertStreamTopic(ctx, r.pool.ForTenant(tenantId), sqlcv1.UpsertStreamTopicParams{
 		Tenantid:  tenantId,
 		Namespace: namespace,
 		Topic:     topic,
@@ -235,7 +258,7 @@ func (r *streamsRepositoryImpl) EnsureTopic(ctx context.Context, tenantId uuid.U
 
 		if !canCreate {
 			// or the rejected topic would count against the limit
-			if delErr := r.queries.DeleteStreamTopic(ctx, r.pool, sqlcv1.DeleteStreamTopicParams{Tenantid: tenantId, Namespace: namespace, Topic: topic}); delErr != nil {
+			if delErr := r.queries.DeleteStreamTopic(ctx, r.pool.ForTenant(tenantId), sqlcv1.DeleteStreamTopicParams{Tenantid: tenantId, Namespace: namespace, Topic: topic}); delErr != nil {
 				r.l.Error().Ctx(ctx).Err(delErr).Msg("failed to roll back stream topic after topic limit exceeded")
 			}
 
@@ -342,7 +365,7 @@ func (r *streamsRepositoryImpl) insertOrderedStreamMessages(ctx context.Context,
 	results := make([]OrderedStreamMessageResult, len(msgs))
 
 	err := func() error {
-		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool.ForShared(), r.l)
 
 		if err != nil {
 			return err
@@ -458,7 +481,7 @@ func (r *streamsRepositoryImpl) ListMessagesAfterCursor(ctx context.Context, ten
 		return nil, err
 	}
 
-	return r.queries.ListStreamMessagesAfterCursor(ctx, r.pool, sqlcv1.ListStreamMessagesAfterCursorParams{
+	return r.queries.ListStreamMessagesAfterCursor(ctx, r.pool.ForTenant(tenantId), sqlcv1.ListStreamMessagesAfterCursorParams{
 		Tenantid:  tenantId,
 		Namespace: opts.Namespace,
 		Topic:     opts.Topic,
@@ -483,7 +506,7 @@ func (r *streamsRepositoryImpl) InsertStreamPayload(ctx context.Context, tenantI
 
 	id := uuid.New()
 
-	insertedAt, err := r.queries.InsertStreamPayload(ctx, r.pool, sqlcv1.InsertStreamPayloadParams{
+	insertedAt, err := r.queries.InsertStreamPayload(ctx, r.pool.ForTenant(tenantId), sqlcv1.InsertStreamPayloadParams{
 		ID:       id,
 		Tenantid: tenantId,
 		Payload:  payload,
@@ -497,7 +520,7 @@ func (r *streamsRepositoryImpl) InsertStreamPayload(ctx context.Context, tenantI
 }
 
 func (r *streamsRepositoryImpl) CheckStreamPayloadExists(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) error {
-	exists, err := r.queries.StreamPayloadExists(ctx, r.pool, sqlcv1.StreamPayloadExistsParams{
+	exists, err := r.queries.StreamPayloadExists(ctx, r.pool.ForTenant(tenantId), sqlcv1.StreamPayloadExistsParams{
 		Tenantid:   tenantId,
 		ID:         ref.ID,
 		Insertedat: pgtype.Timestamptz{Time: ref.CreatedAt, Valid: true},
@@ -521,7 +544,7 @@ func (r *streamsRepositoryImpl) GetStreamPayload(ctx context.Context, tenantId u
 		return nil, err
 	}
 
-	payload, err := r.queries.GetStreamPayload(ctx, r.pool, sqlcv1.GetStreamPayloadParams{
+	payload, err := r.queries.GetStreamPayload(ctx, r.pool.ForTenant(tenantId), sqlcv1.GetStreamPayloadParams{
 		Tenantid:   tenantId,
 		ID:         ref.ID,
 		Insertedat: pgtype.Timestamptz{Time: ref.CreatedAt, Valid: true},
@@ -536,6 +559,48 @@ func (r *streamsRepositoryImpl) GetStreamPayload(ctx context.Context, tenantId u
 	return payload, err
 }
 
+// ListTopics orders topics by namespace, then topic; counts exclude messages past retention.
+func (r *streamsRepositoryImpl) ListTopics(ctx context.Context, tenantId uuid.UUID, opts ListStreamTopicsOpts) (*ListStreamTopicsResult, error) {
+	if err := r.v.Validate(&opts); err != nil {
+		return nil, err
+	}
+
+	retention, err := r.m.StreamRetention(ctx, tenantId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	search := pgtype.Text{}
+
+	if opts.Search != nil && *opts.Search != "" {
+		search = pgtype.Text{String: *opts.Search, Valid: true}
+	}
+
+	rows, err := r.queries.ListStreamTopics(ctx, r.pool.ForTenant(tenantId), sqlcv1.ListStreamTopicsParams{
+		Tenantid:      tenantId,
+		Search:        search,
+		Retainedsince: pgtype.Timestamptz{Time: time.Now().Add(-retention), Valid: true},
+		Topiclimit:    opts.Limit,
+		Topicoffset:   opts.Offset,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	total, err := r.queries.CountStreamTopicsMatching(ctx, r.pool.ForTenant(tenantId), sqlcv1.CountStreamTopicsMatchingParams{
+		Tenantid: tenantId,
+		Search:   search,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &ListStreamTopicsResult{Rows: rows, Total: total, Retention: retention}, nil
+}
+
 func (r *streamsRepositoryImpl) GetTopicMetadata(ctx context.Context, tenantId uuid.UUID, namespace, topic string) (*StreamTopicMetadata, error) {
 	retention, err := r.m.StreamRetention(ctx, tenantId)
 
@@ -543,7 +608,7 @@ func (r *streamsRepositoryImpl) GetTopicMetadata(ctx context.Context, tenantId u
 		return nil, err
 	}
 
-	row, err := r.queries.GetStreamTopicMetadata(ctx, r.pool, sqlcv1.GetStreamTopicMetadataParams{
+	row, err := r.queries.GetStreamTopicMetadata(ctx, r.pool.ForTenant(tenantId), sqlcv1.GetStreamTopicMetadataParams{
 		Tenantid:      tenantId,
 		Namespace:     namespace,
 		Topic:         topic,
@@ -582,7 +647,7 @@ func (r *streamsRepositoryImpl) CheckCursorRetained(ctx context.Context, tenantI
 
 	retainedSince := time.Now().Add(-retention)
 
-	partitionStart, err := r.queries.GetStreamMessageRetentionStart(ctx, r.pool)
+	partitionStart, err := r.queries.GetStreamMessageRetentionStart(ctx, r.pool.ForTenant(tenantId))
 
 	if err != nil {
 		return err
@@ -599,20 +664,26 @@ func (r *streamsRepositoryImpl) CheckCursorRetained(ctx context.Context, tenantI
 	return nil
 }
 
-// ResetTopic sets the topic's starting offset to its last reserved offset. It waits
-// on in-flight publishes' row lock, so every message up to that offset is stored.
-func (r *streamsRepositoryImpl) ResetTopic(ctx context.Context, tenantId uuid.UUID, namespace, topic string) error {
-	return r.queries.ResetStreamTopic(ctx, r.pool, sqlcv1.ResetStreamTopicParams{
+// ResetTopic sets the topic's starting offset to cursor's, or its last reserved offset.
+// It waits on in-flight publishes' row lock, so every message up to that offset is stored.
+func (r *streamsRepositoryImpl) ResetTopic(ctx context.Context, tenantId uuid.UUID, namespace, topic string, cursor *StreamCursor) error {
+	params := sqlcv1.ResetStreamTopicParams{
 		Tenantid:  tenantId,
 		Namespace: namespace,
 		Topic:     topic,
-	})
+	}
+
+	if cursor != nil {
+		params.StartingOffset = pgtype.Int8{Int64: cursor.ID, Valid: true}
+	}
+
+	return r.queries.ResetStreamTopic(ctx, r.pool.ForTenant(tenantId), params)
 }
 
 // TopicStartCursor returns a cursor at the topic's starting offset, 0 until it's
 // reset. It has no time, so it never expires.
 func (r *streamsRepositoryImpl) TopicStartCursor(ctx context.Context, tenantId uuid.UUID, namespace, topic string) (StreamCursor, error) {
-	startingOffset, err := r.queries.GetStreamTopicStartingOffset(ctx, r.pool, sqlcv1.GetStreamTopicStartingOffsetParams{
+	startingOffset, err := r.queries.GetStreamTopicStartingOffset(ctx, r.pool.ForTenant(tenantId), sqlcv1.GetStreamTopicStartingOffsetParams{
 		Tenantid:  tenantId,
 		Namespace: namespace,
 		Topic:     topic,

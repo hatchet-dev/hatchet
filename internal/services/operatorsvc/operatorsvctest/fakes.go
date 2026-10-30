@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/operatorsvc"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -348,7 +349,7 @@ func (f *WorkerStore) BulkHeartbeats() [][]uuid.UUID {
 	return append([][]uuid.UUID(nil), f.bulkHeartbeats...)
 }
 
-func (f *WorkerStore) UpsertWorkerLabels(_ context.Context, workerId uuid.UUID, opts []repository.UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error) {
+func (f *WorkerStore) UpsertWorkerLabels(_ context.Context, _ uuid.UUID, workerId uuid.UUID, opts []repository.UpsertWorkerLabelOpts) ([]*sqlcv1.WorkerLabel, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -372,21 +373,13 @@ func (f *WorkerStore) ApplyWorkerActionsDelta(_ context.Context, tenantId uuid.U
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	var fresh []string
+	fresh := enumerables.Filter(add, func(id string) bool {
+		return !enumerables.HasKey(f.actions[workerId], id)
+	})
 
-	for _, id := range add {
-		if _, ok := f.actions[workerId][id]; !ok {
-			fresh = append(fresh, id)
-		}
-	}
-
-	var gone []string
-
-	for _, id := range remove {
-		if _, ok := f.actions[workerId][id]; ok {
-			gone = append(gone, id)
-		}
-	}
+	gone := enumerables.Filter(remove, func(id string) bool {
+		return enumerables.HasKey(f.actions[workerId], id)
+	})
 
 	if len(fresh) == 0 && len(gone) == 0 {
 		return 0, 0, nil

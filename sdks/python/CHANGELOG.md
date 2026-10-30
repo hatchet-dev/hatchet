@@ -96,6 +96,30 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - `mock_run` and `aio_mock_run` now pass a `dict` input through to the task instead of replacing it with `{}`.
 - Cron expressions that use day or month names, or ranges with steps, such as `0 9 * * MON-FRI`, are no longer rejected before they reach the engine.
 
+## [1.44.0] - 2026-10-26
+
+### Added
+
+- Adds `hatchet.streams`, a client for durable streams: topics that store messages independent of any run, which readers can resume from a cursor. `publish` (async) returns once a message is stored, keeps a client's messages to a topic in call order, and batches publishes queued behind an in-flight request (`batch_timeout` holds a message to gather more). Payloads over 4 MiB are uploaded over REST, up to 64 MiB. `subscribe` (an async iterator) reads a topic from the oldest retained message or a `cursor`, resubscribing from the last event read when the connection drops. `reset` / `aio_reset` start new readers after the latest message or a given cursor, and `topic_metadata` / `aio_topic_metadata` describe a topic's retained messages.
+
+## [1.43.3] - 2026-10-27
+
+### Fixed
+
+- Propagate worker registration failures without a secondary cleanup error, and fail the worker when its action listener exits unexpectedly so supervisors can restart it.
+
+## [1.43.2] - 2026-10-27
+
+### Changed
+
+- The REST client deserializes a `429 Too Many Requests` response body as `APIErrors`, which the API now declares on every authenticated operation.
+
+## [1.43.1] - 2026-10-23
+
+### Fixed
+
+- [Durable tasks](https://docs.hatchet.run/v1/durable-tasks) no longer stall after the worker's durable stream reconnects in the middle of a wait. The worker now reports the last completion it received in its status requests, so the engine resumes delivery from there instead of holding later completions until the task is evicted and replayed.
+
 ## [1.43.0] - 2026-10-14
 
 ### Added

@@ -131,13 +131,24 @@ WHERE
     workers."tenantId" = @tenantId
     AND (
         COALESCE(sqlc.narg('includeOperators')::boolean, FALSE)
-        OR NOT EXISTS (
-            -- hide dag operators
-            SELECT 1
-            FROM v1_operator op
-            WHERE
-                op.id = workers."operatorId"
-                AND op.kind = 'DAG'
+        OR (
+            NOT EXISTS (
+                -- hide dag operators
+                SELECT 1
+                FROM v1_operator op
+                WHERE
+                    op.id = workers."operatorId"
+                    AND op.kind = 'DAG'
+            )
+            AND NOT EXISTS (
+                -- hide the serverless operator's workers, which carry its process label
+                -- (workerLabelProcess in pkg/serverlessoperator)
+                SELECT 1
+                FROM "WorkerLabel" wl
+                WHERE
+                    wl."workerId" = workers."id"
+                    AND wl."key" = 'hatchet-serverless-process'
+            )
         )
     )
     AND (
@@ -211,13 +222,24 @@ WHERE
     workers."tenantId" = @tenantId
     AND (
         COALESCE(sqlc.narg('includeOperators')::boolean, FALSE)
-        OR NOT EXISTS (
-            -- hide dag operators
-            SELECT 1
-            FROM v1_operator op
-            WHERE
-                op.id = workers."operatorId"
-                AND op.kind = 'DAG'
+        OR (
+            NOT EXISTS (
+                -- hide dag operators
+                SELECT 1
+                FROM v1_operator op
+                WHERE
+                    op.id = workers."operatorId"
+                    AND op.kind = 'DAG'
+            )
+            AND NOT EXISTS (
+                -- hide the serverless operator's workers, which carry its process label
+                -- (workerLabelProcess in pkg/serverlessoperator)
+                SELECT 1
+                FROM "WorkerLabel" wl
+                WHERE
+                    wl."workerId" = workers."id"
+                    AND wl."key" = 'hatchet-serverless-process'
+            )
         )
     )
     AND (
@@ -346,6 +368,20 @@ WHERE
     -- CreateWorkerOpts.IsExemptFromLimits in worker.go)
     AND NOT w."isExemptFromLimits"
 GROUP BY wc.tenant_id
+;
+
+-- name: GetTotalActiveSlotsForTenant :one
+SELECT
+    COALESCE(SUM(wc.max_units), 0)::bigint AS "totalActiveSlots"
+FROM v1_worker_slot_config wc
+JOIN "Worker" w ON w."id" = wc.worker_id AND w."tenantId" = wc.tenant_id
+WHERE
+    wc.tenant_id = @tenantId::uuid
+    AND w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false
+    AND NOT w."isExemptFromLimits"
 ;
 
 -- name: ListActiveSlotsPerTenantAndSlotType :many

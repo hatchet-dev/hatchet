@@ -57,6 +57,8 @@ var memberOnlyOps = []string{
 	"V1FilterDelete",
 	"V1FilterUpdate",
 	"SlackWebhookDelete",
+	"UserUpdateSlackOauthStart",
+	"UserUpdateSlackOauthCallback",
 	"TenantMemberDelete",
 	"WorkflowScheduledDelete",
 	"WorkflowScheduledUpdate",

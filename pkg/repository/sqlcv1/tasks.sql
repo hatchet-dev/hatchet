@@ -13,7 +13,8 @@ SELECT
     create_v1_range_partition('v1_dag_data', @date::date) AS v1_dag_data,
     create_v1_range_partition('v1_task_expression_eval', @date::date) AS v1_task_expression_eval,
     create_v1_monthly_range_partition('v1_lookup_table', @date::date) AS v1_lookup_table,
-    create_v1_range_partition('v1_stream_producer_cursor', @date::date, 80) AS v1_stream_producer_cursor
+    create_v1_range_partition('v1_stream_producer_cursor', @date::date, 80) AS v1_stream_producer_cursor,
+    create_v1_range_partition('v1_serverless_endpoint_event', @date::date) AS v1_serverless_endpoint_event
 ;
 
 -- name: EnsureTablePartitionsExist :one
@@ -79,6 +80,8 @@ WITH task_partitions AS (
     SELECT 'v1_task_expression_eval' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task_expression_eval', @date::date) AS p
 ), lookup_table_partitions AS (
     SELECT 'v1_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_monthly_partitions_before_date('v1_lookup_table', @date::date) AS p
+), serverless_endpoint_event_partitions AS (
+    SELECT 'v1_serverless_endpoint_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_serverless_endpoint_event', @date::date) AS p
 )
 
 SELECT
@@ -169,6 +172,13 @@ SELECT
     *
 FROM
     lookup_table_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    serverless_endpoint_event_partitions
 ;
 
 -- name: DefaultTaskActivityGauge :one
@@ -310,13 +320,41 @@ SET
     batch_size = @batchSize::integer,
     batch_index = input.batch_index,
     worker_id = @workerId::uuid,
-    batch_key = COALESCE(NULLIF(@batchKey::text, ''), tr.batch_key)
+    batch_key = COALESCE(NULLIF(@batchKey::text, ''), tr.batch_key),
+    assigned_at = CASE WHEN @reassignUnackedTasks::boolean THEN NOW() END,
+    acked_at = NULL
 FROM
     input
 WHERE
     tr.tenant_id = @tenantId::uuid
     AND tr.task_id = input.task_id
     AND tr.task_inserted_at = input.task_inserted_at;
+
+-- name: MarkTaskRuntimesAcked :exec
+WITH input AS (
+    SELECT
+        unnest(@taskIds::bigint[]) AS task_id,
+        unnest(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
+        unnest(@retryCounts::integer[]) AS retry_count
+), locked_runtimes AS (
+    SELECT task_id, task_inserted_at, retry_count
+    FROM v1_task_runtime
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND acked_at IS NULL
+        AND (task_id, task_inserted_at, retry_count) IN (
+            SELECT task_id, task_inserted_at, retry_count
+            FROM input
+        )
+    ORDER BY task_id, task_inserted_at, retry_count
+    FOR UPDATE
+)
+UPDATE v1_task_runtime
+SET acked_at = NOW()
+WHERE (task_id, task_inserted_at, retry_count) IN (
+    SELECT task_id, task_inserted_at, retry_count
+    FROM locked_runtimes
+);
 
 -- name: ListTaskMetas :many
 SELECT
@@ -616,7 +654,8 @@ WITH tasks_on_inactive_workers AS (
     SELECT
         runtime.task_id,
         runtime.task_inserted_at,
-        runtime.retry_count
+        runtime.retry_count,
+        'Worker did not send a heartbeat for 30 seconds'::text AS reason
     FROM
         "Worker" w
     JOIN
@@ -627,18 +666,60 @@ WITH tasks_on_inactive_workers AS (
         AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
         -- evicted tasks are not eligible for re-assignment
         AND runtime.evicted_at IS NULL
+    -- NOTE: without this ORDER BY, the planner assumes most runtimes belong to the tenant's many stale workers and
+    -- seq scans v1_task_runtime expecting to hit the LIMIT early. Ordering by a "Worker" column makes it walk the
+    -- stale workers on ("tenantId", "lastHeartbeatAt") and look up each one's runtimes on the (tenant_id, worker_id) index.
+    ORDER BY
+        w."lastHeartbeatAt"
     LIMIT
         COALESCE(sqlc.narg('limit')::integer, 1000)
     FOR UPDATE OF runtime SKIP LOCKED
+), tasks_never_acked AS (
+    -- the assignment was written but the worker never acknowledged the task, for example
+    -- because the message to the dispatcher was lost
+    SELECT
+        runtime.task_id,
+        runtime.task_inserted_at,
+        runtime.retry_count,
+        'Worker never acknowledged the task' AS reason
+    FROM
+        v1_task_runtime runtime
+    WHERE
+        runtime.tenant_id = @tenantId::uuid
+        AND runtime.worker_id IS NOT NULL
+        AND runtime.evicted_at IS NULL
+        AND runtime.acked_at IS NULL
+        AND runtime.assigned_at < NOW() - INTERVAL '1 minute'
+    -- NOTE: this ORDER BY keeps the planner on the unacked index; without it, a stale estimate of unacked rows makes it seq scan
+    ORDER BY
+        runtime.assigned_at
+    LIMIT
+        COALESCE(sqlc.narg('limit')::integer, 1000)
+    FOR UPDATE SKIP LOCKED
+), tasks_to_reassign AS (
+    SELECT * FROM tasks_on_inactive_workers
+    UNION ALL
+    -- NOTE: the overlap with tasks_on_inactive_workers is removed here, after both LIMITs, rather than with a NOT EXISTS
+    -- inside tasks_never_acked. Under a LIMIT the planner runs that NOT EXISTS as a nested loop over the CTE, comparing
+    -- every unacked candidate against all 1000 inactive-worker rows (~1M comparisons, >100ms). Out here it hashes instead.
+    SELECT never_acked.*
+    FROM tasks_never_acked never_acked
+    WHERE NOT EXISTS (
+        SELECT 1 FROM tasks_on_inactive_workers inactive
+        WHERE inactive.task_id = never_acked.task_id
+            AND inactive.task_inserted_at = never_acked.task_inserted_at
+            AND inactive.retry_count = never_acked.retry_count
+    )
 )
 SELECT
     v1_task.id,
     v1_task.inserted_at,
-    v1_task.retry_count
+    v1_task.retry_count,
+    lrs.reason
 FROM
     v1_task
 JOIN
-    tasks_on_inactive_workers lrs ON lrs.task_id = v1_task.id AND lrs.task_inserted_at = v1_task.inserted_at;
+    tasks_to_reassign lrs ON lrs.task_id = v1_task.id AND lrs.task_inserted_at = v1_task.inserted_at;
 
 -- name: ProcessRetryQueueItems :many
 WITH rqis_to_delete AS (
@@ -1908,35 +1989,6 @@ WHERE
         SELECT task_id, task_inserted_at, task_retry_count
         FROM inputs
     )
-;
-
--- name: ListTaskRuntimes :many
-WITH inputs AS (
-    SELECT
-        UNNEST(@taskIds::bigint[]) AS task_id,
-        UNNEST(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
-        UNNEST(@taskRetryCounts::integer[]) AS retry_count
-)
-SELECT
-    tr.task_id,
-    tr.task_inserted_at,
-    tr.retry_count,
-    tr.worker_id,
-    tr.batch_id,
-    tr.batch_size,
-    tr.batch_index,
-    tr.batch_key,
-    tr.tenant_id,
-    tr.timeout_at,
-    tr.evicted_at
-FROM
-    v1_task_runtime tr
-JOIN
-    inputs i ON tr.task_id = i.task_id
-    AND tr.task_inserted_at = i.task_inserted_at
-    AND tr.retry_count = i.retry_count
-WHERE
-    tr.tenant_id = @tenantId::uuid
 ;
 
 -- name: FilterValidTasks :many

@@ -45,7 +45,7 @@ func TestCreateTenantToken(t *testing.T) { // make sure no cache is used for tes
 			t.Fatal(err.Error())
 		}
 
-		token, err := jwtManager.GenerateTenantToken(context.Background(), tenantId, "test token", false, nil)
+		token, err := jwtManager.GenerateTenantToken(context.Background(), tenantId, "test token", false, false, nil)
 
 		if err != nil {
 			t.Fatal(err.Error())
@@ -86,7 +86,7 @@ func TestRevokeTenantToken(t *testing.T) {
 			t.Fatal(err.Error())
 		}
 
-		token, err := jwtManager.GenerateTenantToken(context.Background(), tenantId, "test token", false, nil)
+		token, err := jwtManager.GenerateTenantToken(context.Background(), tenantId, "test token", false, false, nil)
 
 		if err != nil {
 			t.Fatal(err.Error())
@@ -105,7 +105,7 @@ func TestRevokeTenantToken(t *testing.T) {
 		}
 
 		assert.Len(t, apiTokens, 1)
-		err = conf.V1.APIToken().RevokeAPIToken(context.Background(), apiTokens[0].ID)
+		err = conf.V1.APIToken().RevokeAPIToken(context.Background(), tenantId, apiTokens[0].ID)
 
 		if err != nil {
 			t.Fatal(err.Error())
@@ -150,7 +150,7 @@ func TestRevokeTenantTokenCache(t *testing.T) {
 			t.Fatal(err.Error())
 		}
 
-		token, err := jwtManager.GenerateTenantToken(context.Background(), tenantId, "test token", false, nil)
+		token, err := jwtManager.GenerateTenantToken(context.Background(), tenantId, "test token", false, false, nil)
 
 		if err != nil {
 			t.Fatal(err.Error())
@@ -169,7 +169,7 @@ func TestRevokeTenantTokenCache(t *testing.T) {
 		}
 
 		assert.Len(t, apiTokens, 1)
-		err = conf.V1.APIToken().RevokeAPIToken(context.Background(), apiTokens[0].ID)
+		err = conf.V1.APIToken().RevokeAPIToken(context.Background(), tenantId, apiTokens[0].ID)
 
 		if err != nil {
 			t.Fatal(err.Error())

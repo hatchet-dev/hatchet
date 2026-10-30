@@ -49,6 +49,7 @@ Ruby SDK reference (overview: https://docs.hatchet.run/reference/ruby.md):
 - Rate Limits: https://docs.hatchet.run/reference/ruby/feature-clients/rate_limits.md (guide: https://docs.hatchet.run/v1/rate-limits.md)
 - Runs: https://docs.hatchet.run/reference/ruby/feature-clients/runs.md (guide: https://docs.hatchet.run/v1/running-your-task.md)
 - Scheduled Runs: https://docs.hatchet.run/reference/ruby/feature-clients/scheduled.md (guide: https://docs.hatchet.run/v1/scheduled-runs.md)
+- Streams: https://docs.hatchet.run/reference/ruby/feature-clients/streams.md
 - Tenant: https://docs.hatchet.run/reference/ruby/feature-clients/tenant.md
 - Workers: https://docs.hatchet.run/reference/ruby/feature-clients/workers.md (guide: https://docs.hatchet.run/v1/workers.md)
 - Workflows: https://docs.hatchet.run/reference/ruby/feature-clients/workflows.md (guide: https://docs.hatchet.run/v1/tasks.md)

@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	defaultServerlessRequestTimeoutSeconds int32 = 60
+	defaultServerlessRequestTimeoutSeconds int32 = 300
 	defaultServerlessPollIntervalSeconds   int32 = 30
 	defaultServerlessInlineWaitBudgetMs    int32 = 5000
 )
@@ -23,7 +23,7 @@ type CreateServerlessEndpointOpts struct {
 	Name string `validate:"required,hatchetName"`
 
 	// Kind defaults to CLOUDFLARE_WORKERS.
-	Kind *sqlcv1.V1ServerlessEndpointKind `validate:"omitnil,oneof=GENERIC_HTTP CLOUDFLARE_WORKERS"`
+	Kind *sqlcv1.V1ServerlessEndpointKind `validate:"omitnil,oneof=GENERIC_HTTP CLOUDFLARE_WORKERS VERCEL"`
 
 	HealthcheckUrl string `validate:"required,url"`
 	TriggerUrl     string `validate:"required,url"`
@@ -50,7 +50,7 @@ type CreateServerlessEndpointOpts struct {
 
 type UpdateServerlessEndpointOpts struct {
 	Name                  *string                          `validate:"omitnil,hatchetName"`
-	Kind                  *sqlcv1.V1ServerlessEndpointKind `validate:"omitnil,oneof=GENERIC_HTTP CLOUDFLARE_WORKERS"`
+	Kind                  *sqlcv1.V1ServerlessEndpointKind `validate:"omitnil,oneof=GENERIC_HTTP CLOUDFLARE_WORKERS VERCEL"`
 	HealthcheckUrl        *string                          `validate:"omitnil,url"`
 	TriggerUrl            *string                          `validate:"omitnil,url"`
 	SigningSecretEnc      *string                          `validate:"omitnil,min=1"`
@@ -117,7 +117,7 @@ func (r *serverlessEndpointRepository) Create(ctx context.Context, tenantId uuid
 		enabled = *opts.Enabled
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool.ForTenant(tenantId), r.l)
 
 	if err != nil {
 		return nil, err
@@ -180,14 +180,14 @@ func (r *serverlessEndpointRepository) Create(ctx context.Context, tenantId uuid
 }
 
 func (r *serverlessEndpointRepository) Get(ctx context.Context, tenantId, endpointId uuid.UUID) (*sqlcv1.V1ServerlessEndpoint, error) {
-	return r.queries.GetServerlessEndpoint(ctx, r.pool, sqlcv1.GetServerlessEndpointParams{
+	return r.queries.GetServerlessEndpoint(ctx, r.pool.ForTenant(tenantId), sqlcv1.GetServerlessEndpointParams{
 		Tenantid: tenantId,
 		ID:       endpointId,
 	})
 }
 
 func (r *serverlessEndpointRepository) GetById(ctx context.Context, endpointId uuid.UUID) (*sqlcv1.V1ServerlessEndpoint, error) {
-	return r.queries.GetServerlessEndpointById(ctx, r.pool, endpointId)
+	return r.queries.GetServerlessEndpointById(ctx, r.pool.ForShared(), endpointId)
 }
 
 func (r *serverlessEndpointRepository) List(ctx context.Context, tenantId uuid.UUID, opts ListServerlessEndpointsOpts) ([]*sqlcv1.V1ServerlessEndpoint, int64, error) {
@@ -195,7 +195,7 @@ func (r *serverlessEndpointRepository) List(ctx context.Context, tenantId uuid.U
 		return nil, 0, err
 	}
 
-	endpoints, err := r.queries.ListServerlessEndpoints(ctx, r.pool, sqlcv1.ListServerlessEndpointsParams{
+	endpoints, err := r.queries.ListServerlessEndpoints(ctx, r.pool.ForTenant(tenantId), sqlcv1.ListServerlessEndpointsParams{
 		Tenantid:       tenantId,
 		Endpointlimit:  opts.Limit,
 		Endpointoffset: opts.Offset,
@@ -205,7 +205,7 @@ func (r *serverlessEndpointRepository) List(ctx context.Context, tenantId uuid.U
 		return nil, 0, err
 	}
 
-	count, err := r.queries.CountServerlessEndpoints(ctx, r.pool, tenantId)
+	count, err := r.queries.CountServerlessEndpoints(ctx, r.pool.ForTenant(tenantId), tenantId)
 
 	if err != nil {
 		return nil, 0, err
@@ -252,11 +252,11 @@ func (r *serverlessEndpointRepository) Update(ctx context.Context, tenantId, end
 		params.Enabled = pgtype.Bool{Bool: *opts.Enabled, Valid: true}
 	}
 
-	return r.queries.UpdateServerlessEndpoint(ctx, r.pool, params)
+	return r.queries.UpdateServerlessEndpoint(ctx, r.pool.ForTenant(tenantId), params)
 }
 
 func (r *serverlessEndpointRepository) Delete(ctx context.Context, tenantId, endpointId uuid.UUID) (*sqlcv1.V1ServerlessEndpoint, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool.ForTenant(tenantId), r.l)
 
 	if err != nil {
 		return nil, err
@@ -291,7 +291,7 @@ func (r *serverlessEndpointRepository) Delete(ctx context.Context, tenantId, end
 }
 
 func (r *serverlessEndpointRepository) PurgeDeleted(ctx context.Context, cutoff time.Time) (int64, error) {
-	return r.queries.PurgeDeletedServerlessEndpoints(ctx, r.pool, pgtype.Timestamptz{Time: cutoff, Valid: true})
+	return r.queries.PurgeDeletedServerlessEndpoints(ctx, r.pool.ForShared(), pgtype.Timestamptz{Time: cutoff, Valid: true})
 }
 
 func (r *serverlessEndpointRepository) ListForUnits(ctx context.Context, units []ServerlessUnit, afterId uuid.UUID, limit int64) ([]*sqlcv1.V1ServerlessEndpoint, error) {
@@ -301,7 +301,7 @@ func (r *serverlessEndpointRepository) ListForUnits(ctx context.Context, units [
 
 	tenantIds, partitions := unitArrays(units)
 
-	return r.queries.ListServerlessEndpointsForUnits(ctx, r.pool, sqlcv1.ListServerlessEndpointsForUnitsParams{
+	return r.queries.ListServerlessEndpointsForUnits(ctx, r.pool.ForShared(), sqlcv1.ListServerlessEndpointsForUnitsParams{
 		Tenantids:     tenantIds,
 		Partitions:    partitions,
 		Afterid:       afterId,
@@ -310,7 +310,7 @@ func (r *serverlessEndpointRepository) ListForUnits(ctx context.Context, units [
 }
 
 func (r *serverlessEndpointRepository) ListForTenant(ctx context.Context, tenantId uuid.UUID, afterId uuid.UUID, limit int64) ([]*sqlcv1.V1ServerlessEndpoint, error) {
-	return r.queries.ListServerlessEndpointsForTenant(ctx, r.pool, sqlcv1.ListServerlessEndpointsForTenantParams{
+	return r.queries.ListServerlessEndpointsForTenant(ctx, r.pool.ForTenant(tenantId), sqlcv1.ListServerlessEndpointsForTenantParams{
 		Tenantid:      tenantId,
 		Afterid:       afterId,
 		Endpointlimit: limit,
@@ -318,7 +318,7 @@ func (r *serverlessEndpointRepository) ListForTenant(ctx context.Context, tenant
 }
 
 func (r *serverlessEndpointRepository) ListUpdatedSince(ctx context.Context, tenantId uuid.UUID, since time.Time, sinceId uuid.UUID) ([]*sqlcv1.V1ServerlessEndpoint, error) {
-	return r.queries.ListServerlessEndpointsUpdatedSince(ctx, r.pool, sqlcv1.ListServerlessEndpointsUpdatedSinceParams{
+	return r.queries.ListServerlessEndpointsUpdatedSince(ctx, r.pool.ForTenant(tenantId), sqlcv1.ListServerlessEndpointsUpdatedSinceParams{
 		Tenantid: tenantId,
 		// A zero watermark is a real time, not NULL: a NULL would make the keyset comparison
 		// NULL and the query return nothing for a tenant the cache has never seen a row of.
@@ -328,7 +328,7 @@ func (r *serverlessEndpointRepository) ListUpdatedSince(ctx context.Context, ten
 }
 
 func (r *serverlessEndpointRepository) ListVersions(ctx context.Context, tenantId uuid.UUID, after ServerlessEndpointVersion, limit int64) ([]ServerlessEndpointVersion, error) {
-	rows, err := r.queries.ListServerlessEndpointVersions(ctx, r.pool, sqlcv1.ListServerlessEndpointVersionsParams{
+	rows, err := r.queries.ListServerlessEndpointVersions(ctx, r.pool.ForTenant(tenantId), sqlcv1.ListServerlessEndpointVersionsParams{
 		Tenantid: tenantId,
 		// The first page's zero version is a real time, not NULL; see ListUpdatedSince.
 		Afterversion: pgtype.Timestamptz{Time: after.Version, Valid: true},
@@ -354,11 +354,11 @@ func (r *serverlessEndpointRepository) ListByIds(ctx context.Context, ids []uuid
 		return nil, nil
 	}
 
-	return r.queries.ListServerlessEndpointsByIds(ctx, r.pool, ids)
+	return r.queries.ListServerlessEndpointsByIds(ctx, r.pool.ForShared(), ids)
 }
 
 func (r *serverlessEndpointRepository) UpdateStatus(ctx context.Context, endpointId uuid.UUID, healthy bool, statusError *string) (time.Time, error) {
-	changedAt, err := r.queries.UpdateServerlessEndpointStatus(ctx, r.pool, sqlcv1.UpdateServerlessEndpointStatusParams{
+	changedAt, err := r.queries.UpdateServerlessEndpointStatus(ctx, r.pool.ForShared(), sqlcv1.UpdateServerlessEndpointStatusParams{
 		ID:          endpointId,
 		Healthy:     healthy,
 		StatusError: sqlchelpers.TextFromMaybeStr(statusError),
@@ -380,7 +380,7 @@ func (r *serverlessEndpointRepository) UpdateRegisteredActions(ctx context.Conte
 		streamActions = []string{}
 	}
 
-	updatedAt, err := r.queries.UpdateServerlessEndpointRegisteredActions(ctx, r.pool, sqlcv1.UpdateServerlessEndpointRegisteredActionsParams{
+	updatedAt, err := r.queries.UpdateServerlessEndpointRegisteredActions(ctx, r.pool.ForShared(), sqlcv1.UpdateServerlessEndpointRegisteredActionsParams{
 		ID:                endpointId,
 		Registeredactions: actions,
 		Streamactions:     streamActions,

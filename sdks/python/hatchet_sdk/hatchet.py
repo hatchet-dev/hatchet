@@ -22,6 +22,7 @@ from hatchet_sdk.features.metrics import MetricsClient
 from hatchet_sdk.features.rate_limits import RateLimitsClient
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.features.scheduled import ScheduledClient
+from hatchet_sdk.features.streams import StreamsClient
 from hatchet_sdk.features.stubs import StubsClient
 from hatchet_sdk.features.tenant import TenantClient
 from hatchet_sdk.features.webhooks import WebhooksClient
@@ -98,6 +99,7 @@ class Hatchet:
             admin_client=self._admin_client,
         )
         self._scheduled_client = ScheduledClient(self._config)
+        self._streams_client = StreamsClient(self._config)
         self._tenant_client = TenantClient(self._config)
         self._webhooks_client = WebhooksClient(self._config)
         self._workers_client = WorkersClient(self._config)
@@ -213,6 +215,13 @@ class Hatchet:
         The tenant client is a client for interacting with your Tenant.
         """
         return self._tenant_client
+
+    @property
+    def streams(self) -> StreamsClient:
+        """
+        The streams client publishes to and reads from durable topics. Unlike `runs.aio_subscribe_to_stream`, topics are stored, independent of any run, and readers can resume from a cursor.
+        """
+        return self._streams_client
 
     @property
     def webhooks(self) -> WebhooksClient:

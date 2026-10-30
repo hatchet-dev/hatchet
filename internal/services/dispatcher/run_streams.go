@@ -44,6 +44,8 @@ func (d *DispatcherImpl) RegisterRunStream(ctx context.Context, kind operator.Ru
 		return rpcstream.ServeServer(ctx, func(ctx context.Context, sender *rpcstream.Sender[contracts.WorkflowEvent]) error {
 			return d.subscribeToWorkflowEventsV1(ctx, req, sender)
 		}), nil
+	case operator.RunStreamDurableStreams:
+		return nil, connect.NewError(connect.CodeUnimplemented, fmt.Errorf("%s is served by the streams service, not the dispatcher", kind))
 	default:
 		return nil, connect.NewError(connect.CodeUnimplemented, fmt.Errorf("run stream kind %d is not served by the dispatcher", int(kind)))
 	}

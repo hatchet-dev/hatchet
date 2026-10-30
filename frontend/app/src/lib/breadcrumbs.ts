@@ -3,6 +3,7 @@ type TenantedPath =
   | '/tenants/:tenant/filters'
   | '/tenants/:tenant/webhooks'
   | '/tenants/:tenant/rate-limits'
+  | '/tenants/:tenant/concurrency'
   | '/tenants/:tenant/scheduled'
   | '/tenants/:tenant/cron-jobs'
   | '/tenants/:tenant/tasks'
@@ -64,6 +65,8 @@ const createRouteLabel = (
       return 'Webhooks';
     case '/tenants/:tenant/rate-limits':
       return 'Rate Limits';
+    case '/tenants/:tenant/concurrency':
+      return 'Concurrency';
     case '/tenants/:tenant/scheduled':
       return 'Scheduled Runs';
     case '/tenants/:tenant/cron-jobs':

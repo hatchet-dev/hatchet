@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/pkg/randomticker"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
@@ -375,6 +376,27 @@ func (s *Scheduler) addWorker(newWorker *v1.ListActiveWorkersResult) {
 		s.workers[newWorker.ID] = &worker{
 			ListActiveWorkersResult: newWorker,
 		}
+	})
+}
+
+// removeWorker drops a worker and its slot pools from the in-memory view so no
+// further assignments land on it before the next worker lease refresh. The
+// worker's unacked assignments are left alone: their acks and nacks still
+// resolve through unackedSlots. Action worker lists are rebuilt on the next
+// replenish; until then, a lookup of the removed worker finds no pools and is
+// skipped by assignment.
+func (s *Scheduler) removeWorker(workerId uuid.UUID) {
+	s.mustDo(func() {
+		delete(s.workers, workerId)
+
+		for slotType := range s.poolsByWorker[workerId] {
+			delete(s.pools, poolKey{workerId: workerId, slotType: slotType})
+		}
+
+		delete(s.poolsByWorker, workerId)
+		delete(s.warmedSlotTypes, workerId)
+
+		s.markWorkerCapacityUpdated()
 	})
 }
 
@@ -1701,11 +1723,7 @@ func (s *Scheduler) tryAssign(
 }
 
 func (s *Scheduler) getExtensionInput(results []*assignResults) *PostAssignInput {
-	unassigned := make([]*sqlcv1.V1QueueItem, 0)
-
-	for _, res := range results {
-		unassigned = append(unassigned, res.unassigned...)
-	}
+	unassigned := enumerables.FlatMap(results, func(res *assignResults) []*sqlcv1.V1QueueItem { return res.unassigned })
 
 	return &PostAssignInput{
 		HasUnassignedStepRuns: len(unassigned) > 0,

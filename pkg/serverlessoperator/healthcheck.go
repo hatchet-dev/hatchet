@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"math/rand/v2"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/operator/safeclient"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/contract"
@@ -107,11 +109,40 @@ type advertisedActions struct {
 	Actions []string `validate:"dive,actionId"`
 }
 
+// healthcheckError is a failed healthcheck with how far it got. Its message is the wrapped
+// error's alone: it becomes the endpoint's status error, which is compared to decide status
+// writes, so the response it carries (whose body may change on every poll) never enters it.
+type healthcheckError struct {
+	err        error
+	stage      string
+	body       []byte
+	statusCode int
+}
+
+func (e *healthcheckError) Error() string { return e.err.Error() }
+func (e *healthcheckError) Unwrap() error { return e.err }
+
+func stageError(stage string, err error) *healthcheckError {
+	return &healthcheckError{stage: stage, err: err}
+}
+
+// healthcheckStage is the stage err failed at; an error that is not a healthcheckError
+// failed before any response.
+func healthcheckStage(err error) *healthcheckError {
+	var hcErr *healthcheckError
+
+	if errors.As(err, &hcErr) {
+		return hcErr
+	}
+
+	return stageError(stageRequest, err)
+}
+
 // pollHealthcheck issues one signed healthcheck and parses the response. The caller owns the
-// deadline and the concurrency limits.
+// deadline and the concurrency limits. A failure is a *healthcheckError.
 func pollHealthcheck(ctx context.Context, sender RequestSender, ep *cachedEndpoint, cfg *endpointConfig, limits catalogLimits) (*healthcheckResult, error) {
 	if cfg.secretErr != nil {
-		return nil, cfg.secretErr
+		return nil, stageError(stageRequest, cfg.secretErr)
 	}
 
 	now := time.Now().Unix()
@@ -122,26 +153,41 @@ func pollHealthcheck(ctx context.Context, sender RequestSender, ep *cachedEndpoi
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("could not build healthcheck request: %w", err)
+		return nil, stageError(stageRequest, fmt.Errorf("could not build healthcheck request: %w", err))
 	}
 
 	headers, err := signedHeaders(cfg.secret, ep.id, now, body)
 
 	if err != nil {
-		return nil, err
+		return nil, stageError(stageRequest, err)
 	}
 
 	res, err := sender.Deliver(ctx, http.MethodPost, cfg.healthcheckUrl, body, headers)
 
 	if err != nil {
-		return nil, fmt.Errorf("healthcheck request failed: %w", err)
+		return nil, stageError(stageRequest, fmt.Errorf("healthcheck request failed: %w", err))
 	}
 
 	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
-		return nil, fmt.Errorf("healthcheck returned status %d", res.StatusCode)
+		return nil, &healthcheckError{
+			stage:      stageStatus,
+			statusCode: res.StatusCode,
+			body:       res.BodyPrefix,
+			err:        fmt.Errorf("healthcheck returned status %d", res.StatusCode),
+		}
 	}
 
-	return parseHealthcheckResponse(res.BodyPrefix, limits)
+	parsed, err := parseHealthcheckResponse(res.BodyPrefix, limits)
+
+	if err != nil {
+		hcErr := healthcheckStage(err)
+		hcErr.statusCode = res.StatusCode
+		hcErr.body = res.BodyPrefix
+
+		return nil, hcErr
+	}
+
+	return parsed, nil
 }
 
 // parseHealthcheckResponse canonicalizes the advertised workflows, settles the served action
@@ -154,8 +200,21 @@ func parseHealthcheckResponse(body []byte, limits catalogLimits) (*healthcheckRe
 	resp := &v1.ServerlessHealthcheckResponse{}
 
 	if err := contract.Unmarshal(body, resp); err != nil {
-		return nil, fmt.Errorf("could not parse healthcheck response: %w", err)
+		return nil, stageError(stageParse, fmt.Errorf("could not parse healthcheck response: %w", err))
 	}
+
+	res, err := parseCatalog(resp, limits)
+
+	if err != nil {
+		return nil, stageError(stageCatalog, err)
+	}
+
+	return res, nil
+}
+
+// parseCatalog is the part of parseHealthcheckResponse after decoding: every error it returns
+// is the catalog being refused.
+func parseCatalog(resp *v1.ServerlessHealthcheckResponse, limits catalogLimits) (*healthcheckResult, error) {
 
 	if limits.maxWorkflows > 0 && len(resp.Workflows) > limits.maxWorkflows {
 		return nil, fmt.Errorf("healthcheck advertises %d workflows, more than the limit of %d", len(resp.Workflows), limits.maxWorkflows)
@@ -232,15 +291,9 @@ func parseHealthcheckResponse(body []byte, limits catalogLimits) (*healthcheckRe
 	durable := resp.GetDurable().GetSupported()
 
 	if !durable && len(durableActions) > 0 {
-		served := make([]string, 0, len(actions))
-
-		for _, action := range actions {
-			if _, ok := durableActions[action]; !ok {
-				served = append(served, action)
-			}
-		}
-
-		actions = served
+		actions = enumerables.Filter(actions, func(action string) bool {
+			return !enumerables.HasKey(durableActions, action)
+		})
 	}
 
 	if limits.maxActions > 0 && len(actions) > limits.maxActions {
@@ -348,11 +401,7 @@ func byteSlices(values []string) [][]byte {
 // one against the catalog's action set: an option for an action the endpoint does not serve
 // is a catalog error, so a misspelt id surfaces on the endpoint instead of being ignored.
 func streamActionsOf(tasks []*v1.ServerlessTaskOptions, actions []string) ([]string, error) {
-	served := make(map[string]struct{}, len(actions))
-
-	for _, action := range actions {
-		served[action] = struct{}{}
-	}
+	served := enumerables.ToSet(actions, func(action string) string { return action })
 
 	flagged := make([]string, 0)
 

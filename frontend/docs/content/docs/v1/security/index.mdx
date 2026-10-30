@@ -21,7 +21,7 @@ Hatchet Cloud is Hatchet's managed service:
 - **Encryption in transit**: all API and worker traffic is encrypted with TLS. gRPC connections between workers and the engine use TLS by default.
 - **Encryption at rest**: data stored in Hatchet Cloud is encrypted at rest.
 - **Tenant isolation**: each tenant's data is logically isolated. Requests are authenticated and scoped to a single tenant.
-- **Authentication**: API tokens are scoped per-tenant with configurable expiration. The dashboard supports SSO via Google, GitHub, and more coming soon.
+- **Authentication**: [API tokens](/v1/api-tokens) are scoped per-tenant with configurable expiration and optional read-only REST access. Workers require unrestricted tokens. The dashboard supports SSO via Google, GitHub, and more coming soon.
 - **Penetration testing**: Hatchet Cloud is regularly tested by independent security firms. Findings are tracked and remediated on a defined timeline.
 - **Infrastructure**: Hatchet Cloud runs on AWS with private networking, automated patching, and centralized logging.
 

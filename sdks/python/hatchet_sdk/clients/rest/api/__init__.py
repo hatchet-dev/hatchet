@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from hatchet_sdk.clients.rest.api.api_token_api import APITokenApi
     from hatchet_sdk.clients.rest.api.cel_api import CELApi
+    from hatchet_sdk.clients.rest.api.concurrency_api import ConcurrencyApi
     from hatchet_sdk.clients.rest.api.default_api import DefaultApi
     from hatchet_sdk.clients.rest.api.durable_tasks_api import DurableTasksApi
     from hatchet_sdk.clients.rest.api.event_api import EventApi
@@ -36,6 +37,7 @@ if TYPE_CHECKING:
 _LAZY_IMPORTS: dict[str, str] = {
     "APITokenApi": "hatchet_sdk.clients.rest.api.api_token_api",
     "CELApi": "hatchet_sdk.clients.rest.api.cel_api",
+    "ConcurrencyApi": "hatchet_sdk.clients.rest.api.concurrency_api",
     "DefaultApi": "hatchet_sdk.clients.rest.api.default_api",
     "DurableTasksApi": "hatchet_sdk.clients.rest.api.durable_tasks_api",
     "EventApi": "hatchet_sdk.clients.rest.api.event_api",

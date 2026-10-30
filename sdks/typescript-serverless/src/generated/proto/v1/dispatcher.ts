@@ -6,7 +6,6 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
-import type { CallContext, CallOptions } from "nice-grpc-common";
 import { DurableEventListenerConditions } from "./shared/condition";
 import { TriggerWorkflowRequest } from "./shared/trigger";
 
@@ -86,7 +85,14 @@ export interface DurableTaskEventLogEntryCompletedResponse {
   ref: DurableEventLogEntryRef | undefined;
   payload: Uint8Array;
   isFailure: boolean;
-  errorMessage?: string | undefined;
+  errorMessage?:
+    | string
+    | undefined;
+  /**
+   * The position of this completion in the order the server releases completions for this
+   * invocation. Unset for completions that are not ordered.
+   */
+  satisfiedOrder?: number | undefined;
 }
 
 export interface DurableTaskEvictInvocationRequest {
@@ -115,9 +121,20 @@ export interface DurableTaskServerEvictNotice {
   reason: string;
 }
 
+/**
+ * The highest satisfied_order the worker has received for an invocation. When a worker
+ * reconnects, the server resumes ordered delivery after this value.
+ */
+export interface DurableTaskReceivedSatisfiedOrder {
+  durableTaskExternalId: string;
+  invocationCount: number;
+  highestReceivedSatisfiedOrder: number;
+}
+
 export interface DurableTaskWorkerStatusRequest {
   workerId: string;
   waitingEntries: DurableTaskAwaitedCompletedEntry[];
+  receivedSatisfiedOrders: DurableTaskReceivedSatisfiedOrder[];
 }
 
 export interface DurableTaskCompleteMemoRequest {
@@ -851,7 +868,13 @@ export const DurableTaskEventWaitForAckResponse: MessageFns<DurableTaskEventWait
 };
 
 function createBaseDurableTaskEventLogEntryCompletedResponse(): DurableTaskEventLogEntryCompletedResponse {
-  return { ref: undefined, payload: new Uint8Array(0), isFailure: false, errorMessage: undefined };
+  return {
+    ref: undefined,
+    payload: new Uint8Array(0),
+    isFailure: false,
+    errorMessage: undefined,
+    satisfiedOrder: undefined,
+  };
 }
 
 export const DurableTaskEventLogEntryCompletedResponse: MessageFns<DurableTaskEventLogEntryCompletedResponse> = {
@@ -867,6 +890,9 @@ export const DurableTaskEventLogEntryCompletedResponse: MessageFns<DurableTaskEv
     }
     if (message.errorMessage !== undefined) {
       writer.uint32(34).string(message.errorMessage);
+    }
+    if (message.satisfiedOrder !== undefined) {
+      writer.uint32(40).int64(message.satisfiedOrder);
     }
     return writer;
   },
@@ -910,6 +936,14 @@ export const DurableTaskEventLogEntryCompletedResponse: MessageFns<DurableTaskEv
           message.errorMessage = reader.string();
           continue;
         }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.satisfiedOrder = longToNumber(reader.int64());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -933,6 +967,11 @@ export const DurableTaskEventLogEntryCompletedResponse: MessageFns<DurableTaskEv
         : isSet(object.error_message)
         ? globalThis.String(object.error_message)
         : undefined,
+      satisfiedOrder: isSet(object.satisfiedOrder)
+        ? globalThis.Number(object.satisfiedOrder)
+        : isSet(object.satisfied_order)
+        ? globalThis.Number(object.satisfied_order)
+        : undefined,
     };
   },
 
@@ -950,6 +989,9 @@ export const DurableTaskEventLogEntryCompletedResponse: MessageFns<DurableTaskEv
     if (message.errorMessage !== undefined) {
       obj.errorMessage = message.errorMessage;
     }
+    if (message.satisfiedOrder !== undefined) {
+      obj.satisfiedOrder = Math.round(message.satisfiedOrder);
+    }
     return obj;
   },
 
@@ -966,6 +1008,7 @@ export const DurableTaskEventLogEntryCompletedResponse: MessageFns<DurableTaskEv
     message.payload = object.payload ?? new Uint8Array(0);
     message.isFailure = object.isFailure ?? false;
     message.errorMessage = object.errorMessage ?? undefined;
+    message.satisfiedOrder = object.satisfiedOrder ?? undefined;
     return message;
   },
 };
@@ -1378,8 +1421,112 @@ export const DurableTaskServerEvictNotice: MessageFns<DurableTaskServerEvictNoti
   },
 };
 
+function createBaseDurableTaskReceivedSatisfiedOrder(): DurableTaskReceivedSatisfiedOrder {
+  return { durableTaskExternalId: "", invocationCount: 0, highestReceivedSatisfiedOrder: 0 };
+}
+
+export const DurableTaskReceivedSatisfiedOrder: MessageFns<DurableTaskReceivedSatisfiedOrder> = {
+  encode(message: DurableTaskReceivedSatisfiedOrder, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.durableTaskExternalId !== "") {
+      writer.uint32(10).string(message.durableTaskExternalId);
+    }
+    if (message.invocationCount !== 0) {
+      writer.uint32(16).int32(message.invocationCount);
+    }
+    if (message.highestReceivedSatisfiedOrder !== 0) {
+      writer.uint32(24).int64(message.highestReceivedSatisfiedOrder);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DurableTaskReceivedSatisfiedOrder {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDurableTaskReceivedSatisfiedOrder();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.durableTaskExternalId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.invocationCount = reader.int32();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.highestReceivedSatisfiedOrder = longToNumber(reader.int64());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): DurableTaskReceivedSatisfiedOrder {
+    return {
+      durableTaskExternalId: isSet(object.durableTaskExternalId)
+        ? globalThis.String(object.durableTaskExternalId)
+        : isSet(object.durable_task_external_id)
+        ? globalThis.String(object.durable_task_external_id)
+        : "",
+      invocationCount: isSet(object.invocationCount)
+        ? globalThis.Number(object.invocationCount)
+        : isSet(object.invocation_count)
+        ? globalThis.Number(object.invocation_count)
+        : 0,
+      highestReceivedSatisfiedOrder: isSet(object.highestReceivedSatisfiedOrder)
+        ? globalThis.Number(object.highestReceivedSatisfiedOrder)
+        : isSet(object.highest_received_satisfied_order)
+        ? globalThis.Number(object.highest_received_satisfied_order)
+        : 0,
+    };
+  },
+
+  toJSON(message: DurableTaskReceivedSatisfiedOrder): unknown {
+    const obj: any = {};
+    if (message.durableTaskExternalId !== "") {
+      obj.durableTaskExternalId = message.durableTaskExternalId;
+    }
+    if (message.invocationCount !== 0) {
+      obj.invocationCount = Math.round(message.invocationCount);
+    }
+    if (message.highestReceivedSatisfiedOrder !== 0) {
+      obj.highestReceivedSatisfiedOrder = Math.round(message.highestReceivedSatisfiedOrder);
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<DurableTaskReceivedSatisfiedOrder>): DurableTaskReceivedSatisfiedOrder {
+    return DurableTaskReceivedSatisfiedOrder.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<DurableTaskReceivedSatisfiedOrder>): DurableTaskReceivedSatisfiedOrder {
+    const message = createBaseDurableTaskReceivedSatisfiedOrder();
+    message.durableTaskExternalId = object.durableTaskExternalId ?? "";
+    message.invocationCount = object.invocationCount ?? 0;
+    message.highestReceivedSatisfiedOrder = object.highestReceivedSatisfiedOrder ?? 0;
+    return message;
+  },
+};
+
 function createBaseDurableTaskWorkerStatusRequest(): DurableTaskWorkerStatusRequest {
-  return { workerId: "", waitingEntries: [] };
+  return { workerId: "", waitingEntries: [], receivedSatisfiedOrders: [] };
 }
 
 export const DurableTaskWorkerStatusRequest: MessageFns<DurableTaskWorkerStatusRequest> = {
@@ -1389,6 +1536,9 @@ export const DurableTaskWorkerStatusRequest: MessageFns<DurableTaskWorkerStatusR
     }
     for (const v of message.waitingEntries) {
       DurableTaskAwaitedCompletedEntry.encode(v!, writer.uint32(18).fork()).join();
+    }
+    for (const v of message.receivedSatisfiedOrders) {
+      DurableTaskReceivedSatisfiedOrder.encode(v!, writer.uint32(26).fork()).join();
     }
     return writer;
   },
@@ -1416,6 +1566,14 @@ export const DurableTaskWorkerStatusRequest: MessageFns<DurableTaskWorkerStatusR
           message.waitingEntries.push(DurableTaskAwaitedCompletedEntry.decode(reader, reader.uint32()));
           continue;
         }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.receivedSatisfiedOrders.push(DurableTaskReceivedSatisfiedOrder.decode(reader, reader.uint32()));
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1437,6 +1595,11 @@ export const DurableTaskWorkerStatusRequest: MessageFns<DurableTaskWorkerStatusR
         : globalThis.Array.isArray(object?.waiting_entries)
         ? object.waiting_entries.map((e: any) => DurableTaskAwaitedCompletedEntry.fromJSON(e))
         : [],
+      receivedSatisfiedOrders: globalThis.Array.isArray(object?.receivedSatisfiedOrders)
+        ? object.receivedSatisfiedOrders.map((e: any) => DurableTaskReceivedSatisfiedOrder.fromJSON(e))
+        : globalThis.Array.isArray(object?.received_satisfied_orders)
+        ? object.received_satisfied_orders.map((e: any) => DurableTaskReceivedSatisfiedOrder.fromJSON(e))
+        : [],
     };
   },
 
@@ -1448,6 +1611,11 @@ export const DurableTaskWorkerStatusRequest: MessageFns<DurableTaskWorkerStatusR
     if (message.waitingEntries?.length) {
       obj.waitingEntries = message.waitingEntries.map((e) => DurableTaskAwaitedCompletedEntry.toJSON(e));
     }
+    if (message.receivedSatisfiedOrders?.length) {
+      obj.receivedSatisfiedOrders = message.receivedSatisfiedOrders.map((e) =>
+        DurableTaskReceivedSatisfiedOrder.toJSON(e)
+      );
+    }
     return obj;
   },
 
@@ -1458,6 +1626,8 @@ export const DurableTaskWorkerStatusRequest: MessageFns<DurableTaskWorkerStatusR
     const message = createBaseDurableTaskWorkerStatusRequest();
     message.workerId = object.workerId ?? "";
     message.waitingEntries = object.waitingEntries?.map((e) => DurableTaskAwaitedCompletedEntry.fromPartial(e)) || [];
+    message.receivedSatisfiedOrders =
+      object.receivedSatisfiedOrders?.map((e) => DurableTaskReceivedSatisfiedOrder.fromPartial(e)) || [];
     return message;
   },
 };
@@ -2760,71 +2930,6 @@ export const DurableEvent: MessageFns<DurableEvent> = {
   },
 };
 
-export type V1DispatcherDefinition = typeof V1DispatcherDefinition;
-export const V1DispatcherDefinition = {
-  name: "V1Dispatcher",
-  fullName: "v1.V1Dispatcher",
-  methods: {
-    durableTask: {
-      name: "DurableTask",
-      requestType: DurableTaskRequest as typeof DurableTaskRequest,
-      requestStream: true,
-      responseType: DurableTaskResponse as typeof DurableTaskResponse,
-      responseStream: true,
-      options: {},
-    },
-    /** NOTE: deprecated after DurableEventLog is implemented */
-    registerDurableEvent: {
-      name: "RegisterDurableEvent",
-      requestType: RegisterDurableEventRequest as typeof RegisterDurableEventRequest,
-      requestStream: false,
-      responseType: RegisterDurableEventResponse as typeof RegisterDurableEventResponse,
-      responseStream: false,
-      options: {},
-    },
-    listenForDurableEvent: {
-      name: "ListenForDurableEvent",
-      requestType: ListenForDurableEventRequest as typeof ListenForDurableEventRequest,
-      requestStream: true,
-      responseType: DurableEvent as typeof DurableEvent,
-      responseStream: true,
-      options: {},
-    },
-  },
-} as const;
-
-export interface V1DispatcherServiceImplementation<CallContextExt = {}> {
-  durableTask(
-    request: AsyncIterable<DurableTaskRequest>,
-    context: CallContext & CallContextExt,
-  ): ServerStreamingMethodResult<DeepPartial<DurableTaskResponse>>;
-  /** NOTE: deprecated after DurableEventLog is implemented */
-  registerDurableEvent(
-    request: RegisterDurableEventRequest,
-    context: CallContext & CallContextExt,
-  ): Promise<DeepPartial<RegisterDurableEventResponse>>;
-  listenForDurableEvent(
-    request: AsyncIterable<ListenForDurableEventRequest>,
-    context: CallContext & CallContextExt,
-  ): ServerStreamingMethodResult<DeepPartial<DurableEvent>>;
-}
-
-export interface V1DispatcherClient<CallOptionsExt = {}> {
-  durableTask(
-    request: AsyncIterable<DeepPartial<DurableTaskRequest>>,
-    options?: CallOptions & CallOptionsExt,
-  ): AsyncIterable<DurableTaskResponse>;
-  /** NOTE: deprecated after DurableEventLog is implemented */
-  registerDurableEvent(
-    request: DeepPartial<RegisterDurableEventRequest>,
-    options?: CallOptions & CallOptionsExt,
-  ): Promise<RegisterDurableEventResponse>;
-  listenForDurableEvent(
-    request: AsyncIterable<DeepPartial<ListenForDurableEventRequest>>,
-    options?: CallOptions & CallOptionsExt,
-  ): AsyncIterable<DurableEvent>;
-}
-
 function bytesFromBase64(b64: string): Uint8Array {
   if ((globalThis as any).Buffer) {
     return Uint8Array.from((globalThis as any).Buffer.from(b64, "base64"));
@@ -2872,8 +2977,6 @@ function longToNumber(int64: { toString(): string }): number {
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;
 }
-
-export type ServerStreamingMethodResult<Response> = { [Symbol.asyncIterator](): AsyncIterator<Response, void> };
 
 export interface MessageFns<T> {
   encode(message: T, writer?: BinaryWriter): BinaryWriter;
