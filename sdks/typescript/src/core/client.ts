@@ -199,7 +199,18 @@ export class HatchetCore {
     });
     this.rateLimits = new RateLimitsClient({ rpc: this.workflowsRpc, ...shared });
     this.logs = new LogsClient(this.eventsRpc);
-    this.streams = new StreamsClient({ events: this.eventsRpc, streams: this.streamsRpc });
+    this.streams = new StreamsClient({
+      events: this.eventsRpc,
+      streams: this.streamsRpc,
+      fetchPayload: async (ref, signal) => {
+        const res = await this.api.v1StreamPayloadGet(
+          tenantId,
+          { ref },
+          { format: 'arrayBuffer', signal }
+        );
+        return new Uint8Array(res.data as unknown as ArrayBuffer);
+      },
+    });
     this.tasks = new TasksClient(this.dispatcherRpc);
     this.crons = new CronClient(this);
     this.schedules = new ScheduleClient(this);
