@@ -18,8 +18,9 @@ const (
 	// keeps room for about a thousand small requests per stream when the max message size is set low
 	minStreamBudgetBytes int64 = 16 << 20
 
-	// Added to every request's size, roughly what one running handler holds, so small requests
-	// still use up budget: a 16 MiB budget runs at most about 1,000 handlers at once.
+	// Added to every request's size so small requests still use up budget: a 16 MiB budget runs at
+	// most about 1,000 handlers at once. A handler parked on a send holds about 6 KiB besides its
+	// request, so this is conservative.
 	handlerCostBytes int64 = 16 << 10
 )
 
