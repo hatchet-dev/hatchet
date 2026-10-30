@@ -3,23 +3,12 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast, overload
-from warnings import warn
+from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING, Any, Generic, ParamSpec, TypeVar, cast, overload
 
 from pydantic import BaseModel, TypeAdapter
 
-from hatchet_sdk.clients.admin import (
-    AdminClient,
-    WorkflowRunTriggerConfig,
-)
-from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-defined]
-    Action,
-    DispatcherClient,
-)
-from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.durable_event_listener import (
     DurableEventListener,
     DurableTaskEventMemoAck,
@@ -30,10 +19,8 @@ from hatchet_sdk.clients.listeners.durable_event_listener import (
     RunChildrenEvent,
     WaitForEvent,
 )
-from hatchet_sdk.clients.listeners.legacy.pre_eviction_durable_event_listener import (
-    PreEvictionDurableEventListener,
-)
 from hatchet_sdk.conditions import (
+    Condition,
     OrGroup,
     SleepCondition,
     UserEventCondition,
@@ -41,14 +28,12 @@ from hatchet_sdk.conditions import (
     flatten_conditions,
 )
 from hatchet_sdk.context.pre_eviction import aio_wait_for_pre_eviction
-from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.dispatcher_pb2 import STEP_EVENT_TYPE_CANCELLED
 from hatchet_sdk.deprecated.deprecation import semver_less_than
 from hatchet_sdk.engine_version import MinEngineVersion
 from hatchet_sdk.exceptions import TaskRunError
-from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
-from hatchet_sdk.runnables.action import ActionPayload, BatchEventItem
+from hatchet_sdk.runnables.action import BatchEventItem
 from hatchet_sdk.runnables.types import (
     R,
     TWorkflowInput,
@@ -56,9 +41,8 @@ from hatchet_sdk.runnables.types import (
 )
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.types.labels import WorkerLabel
+from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.utils.timedelta_to_expression import (
-    Duration,
-    _warn_if_str_duration,
     expr_to_timedelta,
     timedelta_to_expr,
 )
@@ -70,14 +54,31 @@ from hatchet_sdk.utils.typing import (
 from hatchet_sdk.worker.durable_eviction.instrumentation import (
     aio_durable_eviction_wait,
 )
-from hatchet_sdk.worker.durable_eviction.manager import DurableEvictionManager
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogRecord
 
 PMemo = ParamSpec("PMemo")
 TMemo = TypeVar("TMemo", bound=ValidTaskReturnType)
 
+TEvent = TypeVar("TEvent")
+
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
+    from hatchet_sdk.clients.admin import (
+        AdminClient,
+        WorkflowRunTriggerConfig,
+    )
+    from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-defined]
+        Action,
+        DispatcherClient,
+    )
+    from hatchet_sdk.clients.listeners.legacy.pre_eviction_durable_event_listener import (
+        PreEvictionDurableEventListener,
+    )
+    from hatchet_sdk.features.events import EventClient
+    from hatchet_sdk.features.runs import RunsClient
     from hatchet_sdk.runnables.task import Task
+    from hatchet_sdk.worker.durable_eviction.manager import DurableEvictionManager
 
 
 TPayload = TypeVar("TPayload", bound=BaseModel | DataclassInstance | dict[str, Any])
@@ -87,11 +88,78 @@ class SleepResult(BaseModel):
     duration: timedelta
 
 
+class EventWaitResult(BaseModel, Generic[TEvent]):
+    key: str
+    payload: TEvent
+
+
 class MemoNowResult(BaseModel):
     ts: datetime
 
 
-def _compute_memo_key(task_run_external_id: str, *args: Any, **kwargs: Any) -> bytes:
+class OrGroupResult(BaseModel):
+    result: SleepResult | EventWaitResult[Any] | OrGroupResult
+
+
+OrGroupResult.model_rebuild()
+
+
+@dataclass
+class _ConditionMeta:
+    key_to_condition: dict[str, Condition]
+    or_group_ids: set[str]
+
+
+def _build_condition_meta(
+    conditions: list[Condition | OrGroup], flat_conditions: list[Condition]
+) -> _ConditionMeta:
+    return _ConditionMeta(
+        key_to_condition={c._base.readable_data_key: c for c in flat_conditions},
+        or_group_ids={c.or_group_id for c in conditions if isinstance(c, OrGroup)},
+    )
+
+
+def _parse_single_result(
+    key: str, condition: Condition, match_data: dict[str, Any]
+) -> SleepResult | EventWaitResult[Any]:
+    if isinstance(condition, SleepCondition):
+        return SleepResult(
+            duration=expr_to_timedelta(match_data.get("sleep_duration", ""))
+        )
+    return EventWaitResult(key=key, payload=match_data)
+
+
+def _parse_wait_for_payload(
+    payload: dict[str, Any],
+    meta: _ConditionMeta,
+) -> list[SleepResult | EventWaitResult[Any] | OrGroupResult]:
+    results: list[SleepResult | EventWaitResult[Any] | OrGroupResult] = []
+    seen_or_groups: set[str] = set()
+
+    for key, matches in payload.get("CREATE", {}).items():
+        condition = meta.key_to_condition.get(key)
+        if condition is None:
+            continue
+
+        for match_data in matches:
+            inner = _parse_single_result(key, condition, match_data)
+            group_id = condition._base.or_group_id
+
+            if group_id in meta.or_group_ids:
+                if group_id not in seen_or_groups:
+                    seen_or_groups.add(group_id)
+                    results.append(OrGroupResult(result=inner))
+            else:
+                results.append(inner)
+
+    return results
+
+
+def _compute_memo_key(
+    task_run_external_id: str,
+    *args: Any,  # noqa: ANN401
+    **kwargs: Any,  # noqa: ANN401
+) -> bytes:
     h = hashlib.sha256()
     h.update(task_run_external_id.encode())
     h.update(json.dumps(args, default=str, sort_keys=True).encode())
@@ -109,22 +177,20 @@ class Context:
         durable_event_listener: (
             DurableEventListener | PreEvictionDurableEventListener | None
         ),
-        worker: WorkerContext,
         runs_client: RunsClient,
-        lifespan_context: Any | None,
+        lifespan_context: Any | None,  # noqa: ANN401
         log_sender: AsyncLogSender,
         max_attempts: int,
         task_name: str,
         workflow_name: str,
         worker_labels: list[WorkerLabel],
-    ):
-        self._worker = worker
+    ) -> None:
 
         self._data = action.action_payload
 
         self._action = action
 
-        self._step_run_id = action.step_run_id
+        self._task_run_external_id = action.task_run_external_id
         self._exit_flag = False
         self._dispatcher_client = dispatcher_client
         self._admin_client = admin_client
@@ -146,15 +212,6 @@ class Context:
         self._on_slot_released: Callable[[], object] = lambda: None
 
     @property
-    def worker(self) -> WorkerContext:
-        warn(
-            "The worker property is internal and should not be used directly. It will be removed in v2.0.0. Use corresponding properties such as `ctx.worker_id` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._worker
-
-    @property
     def worker_id(self) -> str:
         return self._action.worker_id
 
@@ -167,11 +224,7 @@ class Context:
             self.worker_id, [WorkerLabel(key=k, value=v) for k, v in labels.items()]
         )
 
-        prior_label_dict = {
-            label.key: label.value
-            for label in self._worker_labels
-            if label.key is not None
-        }
+        prior_label_dict = {label.key: label.value for label in self._worker_labels}
 
         prior_label_dict.update(labels)
 
@@ -183,112 +236,8 @@ class Context:
         await asyncio.to_thread(self.upsert_worker_labels, labels)
 
     @property
-    def data(self) -> ActionPayload:
-        warn(
-            "The data property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._data
-
-    @property
-    def action(self) -> Action:
-        warn(
-            "The action property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._action
-
-    @property
-    def step_run_id(self) -> str:
-        warn(
-            "The step_run_id property is deprecated. It will be removed in v2.0.0. Use `task_run_id` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        return self._step_run_id
-
-    @property
-    def exit_flag(self) -> bool:
-        warn(
-            "The exit_flag property is internal and should not be used directly. It will be removed in v2.0.0. Use `is_cancelled` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._exit_flag
-
-    @property
-    def dispatcher_client(self) -> DispatcherClient:
-        warn(
-            "The dispatcher_client property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._dispatcher_client
-
-    @property
-    def admin_client(self) -> AdminClient:
-        warn(
-            "The admin_client property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._admin_client
-
-    @property
-    def event_client(self) -> EventClient:
-        warn(
-            "The event_client property is internal and should not be used directly. It will be removed in v2.0.0. Use `hatchet.events` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._event_client
-
-    @property
-    def runs_client(self) -> RunsClient:
-        warn(
-            "The runs_client property is internal and should not be used directly. It will be removed in v2.0.0. Use `hatchet.runs` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._runs_client
-
-    @property
-    def durable_event_listener(
-        self,
-    ) -> DurableEventListener | PreEvictionDurableEventListener | None:
-        warn(
-            "The durable_event_listener property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._durable_event_listener
-
-    @property
-    def input(self) -> JSONSerializableMapping:
-        warn(
-            "The input property is deprecated. It will be removed in v2.0.0. Use the input passed to the task instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        return self._input
-
-    @property
     def filter_payload(self) -> JSONSerializableMapping:
         return self._filter_payload
-
-    @property
-    def log_sender(self) -> AsyncLogSender:
-        warn(
-            "The log_sender property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        return self._log_sender
 
     def _increment_stream_index(self) -> int:
         index = self._stream_index
@@ -305,48 +254,29 @@ class Context:
         """
         return self._data.parents.get(task.name, {}).get("skipped", False) is True
 
-    @property
-    def trigger_data(self) -> JSONSerializableMapping:
-        return self._data.triggers
-
     def task_output(self, task: Task[TWorkflowInput, R]) -> R:
         """
         Get the output of a parent task in a DAG.
 
         :param task: The task whose output you want to retrieve.
         :return: The output of the parent task, validated against the task's validators.
-        :raises ValueError: If the task was skipped or if the step output for the task is not found.
+        :raises ValueError: If the task was skipped or if the task output for the task is not found.
         """
-        from hatchet_sdk.runnables.types import R
         from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 
         if self.was_skipped(task):
             raise ValueError(f"{task.name} was skipped")
 
         try:
-            parent_step_data = cast(R, self._data.parents[task.name])
+            parent_task_output = cast("R", self._data.parents[task.name])
         except KeyError as e:
-            raise ValueError(f"Step output for '{task.name}' not found") from e
+            raise ValueError(f"Task output for '{task.name}' not found") from e
 
         return cast(
-            R,
-            task._validators.step_output.validate_python(
-                parent_step_data, context=HATCHET_PYDANTIC_SENTINEL
+            "R",
+            task._validators.task_output.validate_python(
+                parent_task_output, context=HATCHET_PYDANTIC_SENTINEL
             ),
-        )
-
-    def aio_task_output(self, task: Task[TWorkflowInput, R]) -> R:
-        warn(
-            "`aio_task_output` is deprecated and will be removed in v2.0.0. Use `task_output` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        if task._is_async_function:
-            return self.task_output(task)
-
-        raise ValueError(
-            f"Task '{task.name}' is not an async function. Use `task_output` instead."
         )
 
     @property
@@ -362,22 +292,6 @@ class Context:
         return self._data.triggered_by == "event"
 
     @property
-    def workflow_input(self) -> JSONSerializableMapping:
-        """
-        The input to the workflow, as a dictionary. It's recommended to use the `input` parameter to the task (the first argument passed into the task at runtime) instead of this property.
-
-        :return: The input to the workflow.
-        """
-
-        warn(
-            "`workflow_input` is deprecated and will be removed in v2.0.0. Use the input passed to the task instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        return self._input
-
-    @property
     def _workflow_input(self) -> JSONSerializableMapping:
         """
         The input to the workflow, as a dictionary. It's recommended to use the `input` parameter to the task (the first argument passed into the task at runtime) instead of this property.
@@ -388,7 +302,7 @@ class Context:
         return self._input
 
     @property
-    def lifespan(self) -> Any:
+    def lifespan(self) -> Any:  # noqa: ANN401
         """
         The worker lifespan, if it exists. You can read about lifespans in [the docs](https://docs.hatchet.run/reference/python/lifespans).
 
@@ -412,18 +326,18 @@ class Context:
 
         :return: The id of the current task run.
         """
-        return self._action.step_run_id
+        return self._action.task_run_external_id
 
     def _set_cancellation_flag(self) -> None:
         self._exit_flag = True
 
     def cancel(self) -> None:
         """
-        Cancel the current task run. This will call the Hatchet API to cancel the step run and set the exit flag to True.
+        Cancel the current task run. This will call the Hatchet API to cancel the task run and set the exit flag to True.
 
         :return: None
         """
-        logger.debug("cancelling step...")
+        logger.debug("cancelling task...")
         if self._action.batch_items:
             self._dispatcher_client.send_batch_action_event(
                 self._action,
@@ -434,16 +348,16 @@ class Context:
                 ],
             )
         else:
-            self._runs_client.cancel(self._step_run_id)
+            self._runs_client.cancel(self._task_run_external_id)
         self._set_cancellation_flag()
 
     async def aio_cancel(self) -> None:
         """
-        Cancel the current task run. This will call the Hatchet API to cancel the step run and set the exit flag to True.
+        Cancel the current task run. This will call the Hatchet API to cancel the task run and set the exit flag to True.
 
         :return: None
         """
-        logger.debug("cancelling step...")
+        logger.debug("cancelling task...")
         if self._action.batch_items:
             await self._dispatcher_client._try_aio_send_batch_action_event(
                 self._action,
@@ -454,22 +368,8 @@ class Context:
                 ],
             )
         else:
-            await self._runs_client.aio_cancel(self._step_run_id)
+            await self._runs_client.aio_cancel(self._task_run_external_id)
         self._set_cancellation_flag()
-
-    def done(self) -> bool:
-        """
-        Check if the current task run has been cancelled.
-
-        :return: True if the task run has been cancelled, False otherwise.
-        """
-        warn(
-            "`done` is deprecated and will be removed in v2.0.0. Use `is_cancelled` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        return self.is_cancelled
 
     @property
     def is_cancelled(self) -> bool:
@@ -480,18 +380,15 @@ class Context:
         """
         return self._exit_flag
 
-    def log(
-        self, line: str | JSONSerializableMapping, raise_on_error: bool = False
-    ) -> None:
+    def log(self, line: str | JSONSerializableMapping) -> None:
         """
         Log a line to the Hatchet API. This will send the log line to the Hatchet API and return immediately.
 
         :param line: The line to log. Can be a string or a JSON serializable mapping.
-        :param raise_on_error: If True, will raise an exception if the log fails. Defaults to False.
         :return: None
         """
 
-        if self._step_run_id == "":
+        if self._task_run_external_id == "":
             return
 
         if not isinstance(line, str):
@@ -504,37 +401,34 @@ class Context:
         self._log_sender.publish(
             LogRecord(
                 message=line,
-                step_run_id=self._step_run_id,
+                task_run_external_id=self._task_run_external_id,
                 level=LogLevel.INFO,
                 task_retry_count=self.retry_count,
             )
         )
 
-    async def aio_log(
-        self, line: str | JSONSerializableMapping, raise_on_error: bool = False
-    ) -> None:
+    async def aio_log(self, line: str | JSONSerializableMapping) -> None:
         """
         Log a line to the Hatchet API. This will send the log line to the Hatchet API and return immediately.
 
         :param line: The line to log. Can be a string or a JSON serializable mapping.
-        :param raise_on_error: If True, will raise an exception if the log fails. Defaults to False.
         :return: None
         """
 
-        await asyncio.to_thread(self.log, line, raise_on_error)
+        await asyncio.to_thread(self.log, line)
 
     def release_slot(self) -> None:
         """
-        Manually release the slot for the current step run to free up a slot on the worker. Note that this is an advanced feature and should be used with caution.
+        Manually release the slot for the current task run to free up a slot on the worker. Note that this is an advanced feature and should be used with caution.
 
         :return: None
         """
-        self._dispatcher_client.release_slot(self._step_run_id)
+        self._dispatcher_client.release_slot(self._task_run_external_id)
         self._on_slot_released()
 
     async def aio_release_slot(self) -> None:
         """
-        Manually release the slot for the current step run to free up a slot on the worker. Note that this is an advanced feature and should be used with caution.
+        Manually release the slot for the current task run to free up a slot on the worker. Note that this is an advanced feature and should be used with caution.
 
         :return: None
         """
@@ -570,16 +464,11 @@ class Context:
         :param data: The data to send to the Hatchet API. Can be a string or bytes.
         :return: None
         """
-        try:
-            ix = self._increment_stream_index()
-
-            self._event_client.stream(
-                data=data,
-                step_run_id=self._step_run_id,
-                index=ix,
-            )
-        except Exception:
-            logger.exception("error putting stream event")
+        self._event_client._stream(
+            data=data,
+            task_run_external_id=self._task_run_external_id,
+            index=self._increment_stream_index(),
+        )
 
     async def aio_put_stream(self, data: str | bytes) -> None:
         """
@@ -588,42 +477,30 @@ class Context:
         :param data: The data to send to the Hatchet API. Can be a string or bytes.
         :return: None
         """
-        try:
-            ix = self._increment_stream_index()
+        await self._event_client._aio_stream(
+            data=data,
+            task_run_external_id=self._task_run_external_id,
+            index=self._increment_stream_index(),
+        )
 
-            await self._event_client.aio_stream(
-                data=data,
-                step_run_id=self._step_run_id,
-                index=ix,
-            )
-        except Exception:
-            logger.exception("error putting stream event")
-
-    def refresh_timeout(self, increment_by: Duration) -> None:
+    def refresh_timeout(self, increment_by: timedelta) -> None:
         """
         Refresh the timeout for the current task run. You can read about refreshing timeouts in [the docs](https://docs.hatchet.run/v1/timeouts#refreshing-timeouts).
 
-        :param increment_by: The amount of time to increment the timeout by. Can be a string (e.g. "5m") or a timedelta object.
+        :param increment_by: The amount of time to increment the timeout by.
         :return: None
         """
 
-        _warn_if_str_duration(increment_by, stacklevel=2)
+        self._dispatcher_client.refresh_timeout(
+            task_run_external_id=self._task_run_external_id,
+            increment_by=timedelta_to_expr(increment_by),
+        )
 
-        if isinstance(increment_by, timedelta):
-            increment_by = timedelta_to_expr(increment_by)
-
-        try:
-            return self._dispatcher_client.refresh_timeout(
-                step_run_id=self._step_run_id, increment_by=increment_by
-            )
-        except Exception:
-            logger.exception("error refreshing timeout")
-
-    async def aio_refresh_timeout(self, increment_by: Duration) -> None:
+    async def aio_refresh_timeout(self, increment_by: timedelta) -> None:
         """
         Refresh the timeout for the current task run. You can read about refreshing timeouts in [the docs](https://docs.hatchet.run/v1/timeouts#refreshing-timeouts).
 
-        :param increment_by: The amount of time to increment the timeout by. Can be a string (e.g. "5m") or a timedelta object.
+        :param increment_by: The amount of time to increment the timeout by.
         :return: None
         """
 
@@ -685,13 +562,21 @@ class Context:
         return self._action.parent_workflow_run_id
 
     @property
-    def priority(self) -> int | None:
+    def priority(self) -> Priority | None:
         """
         The priority that the current task was run with.
 
         :return: The priority of the current task run, or None if no priority was set.
         """
-        return self._action.priority
+        raw_priority = self._action.priority
+
+        if raw_priority is None:
+            return None
+
+        try:
+            return Priority(raw_priority)
+        except ValueError:
+            return None
 
     @property
     def workflow_id(self) -> str | None:
@@ -714,20 +599,17 @@ class Context:
         return self._action.workflow_version_id
 
     @property
-    def task_run_errors(self) -> dict[str, str]:
+    def task_run_errors(self) -> dict[str, TaskRunError]:
         """
-        A helper intended to be used in an on-failure step to retrieve the errors that occurred in upstream task runs.
+        A helper intended to be used in an on-failure task to retrieve the errors that occurred in upstream task runs.
 
-        :return: A dictionary mapping task names to their error messages.
+        :return: A dictionary mapping the name of each failed upstream task to its error. Empty if no upstream task failed.
         """
-        errors = self._data.step_run_errors
-
-        if not errors:
-            logger.error(
-                "no step run errors found. `context.task_run_errors` is intended to be run in an on-failure step, and will only work on engine versions more recent than v0.53.10"
-            )
-
-        return errors
+        return {
+            task_name: TaskRunError._deserialize(serialized_error)
+            for task_name, serialized_error in self._data.task_run_errors.items()
+            if serialized_error
+        }
 
     @property
     def workflow_name(self) -> str:
@@ -745,45 +627,17 @@ class Context:
     def triggering_event_key(self) -> str | None:
         return self._action.triggering_event_key
 
-    def fetch_task_run_error(
-        self,
-        task: Task[TWorkflowInput, R],
-    ) -> str | None:
-        """
-        **DEPRECATED**: Use `get_task_run_error` instead.
-
-        A helper intended to be used in an on-failure step to retrieve the error that occurred in a specific upstream task run.
-
-        :param task: The task whose error you want to retrieve.
-        :return: The error message of the task run, or None if no error occurred.
-        """
-        warn(
-            "`fetch_task_run_error` is deprecated and will be removed in v2.0.0. Use `get_task_run_error` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        errors = self._data.step_run_errors
-
-        return errors.get(task.name)
-
     def get_task_run_error(
         self,
         task: Task[TWorkflowInput, R],
     ) -> TaskRunError | None:
         """
-        A helper intended to be used in an on-failure step to retrieve the error that occurred in a specific upstream task run.
+        A helper intended to be used in an on-failure task to retrieve the error that occurred in a specific upstream task run.
 
         :param task: The task whose error you want to retrieve.
-        :return: The error message of the task run, or None if no error occurred.
+        :return: The error of the task run, or None if no error occurred.
         """
-        errors = self._data.step_run_errors
-
-        error = errors.get(task.name)
-
-        if not error:
-            return None
-
-        return TaskRunError.deserialize(error)
+        return self.task_run_errors.get(task.name)
 
 
 @dataclass
@@ -804,9 +658,8 @@ class DurableContext(Context):
         durable_event_listener: (
             DurableEventListener | PreEvictionDurableEventListener | None
         ),
-        worker: WorkerContext,
         runs_client: RunsClient,
-        lifespan_context: Any | None,
+        lifespan_context: Any | None,  # noqa: ANN401
         log_sender: AsyncLogSender,
         max_attempts: int,
         task_name: str,
@@ -814,14 +667,13 @@ class DurableContext(Context):
         worker_labels: list[WorkerLabel],
         durable_eviction_manager: DurableEvictionManager | None = None,
         engine_version: str | None = None,
-    ):
+    ) -> None:
         super().__init__(
             action,
             dispatcher_client,
             admin_client,
             event_client,
             durable_event_listener,
-            worker,
             runs_client,
             lifespan_context,
             log_sender,
@@ -838,15 +690,15 @@ class DurableContext(Context):
 
     @property
     def _durable_listener(self) -> DurableEventListener:
-        if self.durable_event_listener is None:
+        if self._durable_event_listener is None:
             raise ValueError("Durable task client is not available")
 
-        if not isinstance(self.durable_event_listener, DurableEventListener):
+        if not isinstance(self._durable_event_listener, DurableEventListener):
             raise TypeError(
                 "Expected DurableEventListener, got "
-                f"{type(self.durable_event_listener).__name__}"
+                f"{type(self._durable_event_listener).__name__}"
             )
-        return self.durable_event_listener
+        return self._durable_event_listener
 
     @property
     def _supports_durable_eviction(self) -> bool:
@@ -855,10 +707,6 @@ class DurableContext(Context):
         return not semver_less_than(
             self._engine_version, MinEngineVersion.DURABLE_EVICTION
         )
-
-    @property
-    def wait_index(self) -> int:
-        return self._wait_index
 
     def _increment_wait_index(self) -> int:
         index = self._wait_index
@@ -870,39 +718,44 @@ class DurableContext(Context):
     ## Keep the signature in sync with the instrumentor wrapper.
     async def aio_wait_for(
         self,
-        signal_key: str,
         *conditions: SleepCondition | UserEventCondition | OrGroup,
         label: str | None = None,
-    ) -> dict[str, Any]:
+        signal_key: str | None = None,
+    ) -> list[SleepResult | EventWaitResult[Any] | OrGroupResult]:
         """
         Durably wait for either a sleep or an event.
 
-        :param signal_key: The key to use for the durable event. This is used to identify the event in the Hatchet API.
-        :param *conditions: The conditions to wait for. Can be a SleepCondition or UserEventCondition.
-        :param label: An optional label to attach to the wait. This is useful for debugging and observability purposes, and will be propagated to the event log on the  dashboard.
+        :param *conditions: The conditions to wait for. Can be a SleepCondition, UserEventCondition, or OrGroup.
+        :param label: An optional label to attach to the wait. This is useful for debugging and observability purposes, and will be propagated to the event log on the dashboard.
+        :param signal_key: An optional key identifying the wait. If not provided, one is generated from the order of the wait within the task run, which is stable across replays.
 
-        :return: A dictionary containing the results of the wait.
+        :return: A list with one result for each condition (or or-group) that was satisfied.
 
         :raises ValueError: If the durable task client is not available.
         :raises TypeError: If the durable event listener is not of type DurableEventListener or PreEvictionDurableEventListener.
         """
-        if self.durable_event_listener is None:
+        if self._durable_event_listener is None:
             raise ValueError("Durable task client is not available")
 
+        signal_key = signal_key or f"wait_for-{self._increment_wait_index()}"
+
+        flat_conditions = flatten_conditions(list(conditions))
+        meta = _build_condition_meta(list(conditions), flat_conditions)
+
         if not self._supports_durable_eviction:
-            return await aio_wait_for_pre_eviction(self, signal_key, *conditions)
+            raw = await aio_wait_for_pre_eviction(self, signal_key, *conditions)
+            return _parse_wait_for_payload(raw, meta)
 
         listener = self._durable_listener
 
         await self._ensure_stream_started()
 
-        flat_conditions = flatten_conditions(list(conditions))
         conditions_proto = build_conditions_proto(
-            flat_conditions, self.runs_client.client_config
+            flat_conditions, self._runs_client.client_config
         )
         async with self._send_event_lock:
             ack = await listener.send_event(
-                durable_task_external_id=self.step_run_id,
+                durable_task_external_id=self._task_run_external_id,
                 invocation_count=self.invocation_count,
                 event=WaitForEvent(wait_for_conditions=conditions_proto, label=label),
             )
@@ -916,20 +769,20 @@ class DurableContext(Context):
         async with aio_durable_eviction_wait(
             wait_kind="wait_for",
             resource_id=signal_key,
-            action_key=self.action.key,
+            action_key=self._action.key,
             eviction_manager=self._durable_eviction_manager,
         ):
-            result = await listener.wait_for_callback(
-                durable_task_external_id=self.step_run_id,
+            callback_result = await listener.wait_for_callback(
+                durable_task_external_id=self._task_run_external_id,
                 node_id=node_id,
                 branch_id=branch_id,
                 invocation_count=self.invocation_count,
             )
 
-        return result.payload or {}
+        return _parse_wait_for_payload(callback_result.payload or {}, meta)
 
     async def aio_sleep_for(
-        self, duration: Duration, label: str | None = None
+        self, duration: timedelta, *, label: str | None = None
     ) -> SleepResult:
         """
         Lightweight wrapper for durable sleep. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a sleep condition.
@@ -941,30 +794,16 @@ class DurableContext(Context):
 
         :return: A SleepResult object containing the actual duration slept, which may be different from the requested duration in cases of durable eviction and resumption.
         """
-        _warn_if_str_duration(duration, stacklevel=2)
-
         wait_index = self._increment_wait_index()
 
         res = await self.aio_wait_for(
-            f"sleep:{timedelta_to_expr(duration)}-{wait_index}",
             SleepCondition(duration=duration),
             label=label,
+            signal_key=f"sleep:{timedelta_to_expr(duration)}-{wait_index}",
         )
 
-        ## lots of implicit use of engine semantics / internal logic here.
-        ## the engine returns an object like this:
-        ## {"CREATE": {"signal_key_1": [{"id": ...}]}}
-        ## since we have a single match we're looking for, we know that
-        ## the list of matches will only have one item, so we can extract and parse it
-        matches: dict[str, list[dict[str, Any]]] = res.get("CREATE", {})
-        _, raw_matches = next(iter(matches.items()))
-        sleep = raw_matches[0]
-
-        return SleepResult(
-            duration=expr_to_timedelta(
-                sleep.get("sleep_duration", timedelta_to_expr(duration))
-            )
-        )
+        sleep_result = next((r for r in res if isinstance(r, SleepResult)), None)
+        return sleep_result or SleepResult(duration=duration)
 
     @overload
     async def aio_wait_for_event(
@@ -976,7 +815,7 @@ class DurableContext(Context):
         scope: str | None = None,
         lookback_window: timedelta | None = None,
         label: str | None = None,
-    ) -> TPayload: ...
+    ) -> EventWaitResult[TPayload]: ...
 
     @overload
     async def aio_wait_for_event(
@@ -988,7 +827,7 @@ class DurableContext(Context):
         scope: str | None = None,
         lookback_window: timedelta | None = None,
         label: str | None = None,
-    ) -> dict[str, Any]: ...
+    ) -> EventWaitResult[dict[str, Any]]: ...
 
     async def aio_wait_for_event(
         self,
@@ -999,7 +838,7 @@ class DurableContext(Context):
         scope: str | None = None,
         lookback_window: timedelta | None = None,
         label: str | None = None,
-    ) -> Any:
+    ) -> EventWaitResult[Any]:
         """
         Lightweight wrapper for waiting for a user event. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a user event condition.
 
@@ -1027,7 +866,6 @@ class DurableContext(Context):
         )
 
         result = await self.aio_wait_for(
-            f"event:{key}-{wait_index}",
             UserEventCondition(
                 event_key=key,
                 expression=expression,
@@ -1035,24 +873,21 @@ class DurableContext(Context):
                 consider_events_since=consider_events_since,
             ),
             label=label,
+            signal_key=f"event:{key}-{wait_index}",
         )
 
-        ## lots of implicit use of engine semantics / internal logic here.
-        ## the engine returns an object like this:
-        ## {"CREATE": {"signal_key_1": [{"id": ...}]}}
-        ## since we have a single match we're looking for, we know that
-        ## the list of matches will only have one item, so we can extract and parse it
-        matches: dict[str, list[dict[str, Any]]] = result.get("CREATE", {})
-        _, raw_matches = next(iter(matches.items()))
-        raw_payload = raw_matches[0]
+        event_result = next((r for r in result if isinstance(r, EventWaitResult)), None)
+        if event_result is None:
+            raise ValueError(f"No matching event result found for key '{key}'")
 
         if payload_validator is not None:
             adapter = TypeAdapter(payload_validator)
-            return adapter.validate_python(
-                raw_payload, context=HATCHET_PYDANTIC_SENTINEL
+            validated = adapter.validate_python(
+                event_result.payload, context=HATCHET_PYDANTIC_SENTINEL
             )
+            return EventWaitResult(key=event_result.key, payload=validated)
 
-        return raw_payload
+        return cast("EventWaitResult[dict[str, Any]]", event_result)
 
     ## IMPORTANT: This method is instrumented by HatchetInstrumentor._wrap_spawn_children_no_wait.
     ## Keep the signature in sync with the instrumentor wrapper.
@@ -1066,7 +901,7 @@ class DurableContext(Context):
 
         async with self._send_event_lock:
             ack = await listener.send_event(
-                durable_task_external_id=self.step_run_id,
+                durable_task_external_id=self._task_run_external_id,
                 invocation_count=self.invocation_count,
                 event=RunChildrenEvent(
                     children=[
@@ -1104,30 +939,30 @@ class DurableContext(Context):
         async with aio_durable_eviction_wait(
             wait_kind="spawn_child",
             resource_id=workflow_name,
-            action_key=self.action.key,
+            action_key=self._action.key,
             eviction_manager=self._durable_eviction_manager,
         ):
             result = await listener.wait_for_callback(
-                durable_task_external_id=self.step_run_id,
+                durable_task_external_id=self._task_run_external_id,
                 node_id=node_id,
                 branch_id=branch_id,
                 invocation_count=self.invocation_count,
             )
 
         if result.is_failure:
-            raise TaskRunError.deserialize(result.error_message or "child task failed")
+            raise TaskRunError._deserialize(result.error_message or "child task failed")
 
         return result.payload or {}
 
     async def _ensure_stream_started(self) -> None:
-        if not isinstance(self.durable_event_listener, DurableEventListener):
+        if not isinstance(self._durable_event_listener, DurableEventListener):
             raise ValueError("Durable task client is not available")
 
-        await self.durable_event_listener.ensure_started(self.action.worker_id)
+        await self._durable_event_listener.ensure_started(self._action.worker_id)
 
     @property
     def invocation_count(self) -> int:
-        return self.action.durable_task_invocation_count or 1
+        return self._action.durable_task_invocation_count or 1
 
     ## IMPORTANT: This method is instrumented by HatchetInstrumentor._wrap_aio_memo.
     ## Keep the signature in sync with the instrumentor wrapper.
@@ -1164,10 +999,10 @@ class DurableContext(Context):
 
         listener = self._durable_listener
 
-        run_external_id = self.step_run_id
+        run_external_id = self._task_run_external_id
         adapter = TypeAdapter(result_validator)
 
-        key = _compute_memo_key(self.step_run_id, *args, **kwargs)
+        key = _compute_memo_key(self._task_run_external_id, *args, **kwargs)
 
         async with self._send_event_lock:
             ack = await listener.send_event(
@@ -1216,7 +1051,7 @@ class DurableContext(Context):
         return result
 
     async def _now(self) -> MemoNowResult:
-        ts = await asyncio.to_thread(datetime.now, timezone.utc)
+        ts = await asyncio.to_thread(datetime.now, UTC)
         return MemoNowResult(ts=ts)
 
     async def aio_now(self) -> datetime:
@@ -1233,16 +1068,16 @@ class DurableContext(Context):
         return now.ts
 
     async def aio_sleep_until(
-        self, wake_at: datetime, label: str | None = None
+        self, wake_at: datetime, *, label: str | None = None
     ) -> SleepResult:
         """
         Durably sleep until a specific timestamp.
 
-        :param wake_at: The timestamp to sleep until.
+        :param wake_at: The timestamp to sleep until. If it is in the past, the sleep completes immediately.
         :param label: An optional label to attach to the sleep. This is useful for debugging and observability purposes, and will be propagated to the event log on the dashboard.
 
         :return: A SleepResult containing the actual duration slept, which may be different from the intended duration if the workflow was evicted and resumed.
         """
         now = await self.aio_now()
 
-        return await self.aio_sleep_for(wake_at - now, label=label)
+        return await self.aio_sleep_for(max(wake_at - now, timedelta(0)), label=label)

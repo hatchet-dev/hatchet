@@ -5,7 +5,9 @@ from pydantic import BaseModel
 from hatchet_sdk import (
     DurableContext,
     Hatchet,
+    OrGroupResult,
     SleepCondition,
+    SleepResult,
     UserEventCondition,
     or_,
 )
@@ -48,7 +50,6 @@ async def welcome_email(input: SignupInput, ctx: DurableContext) -> WelcomeEmail
     consider_events_since = now - timedelta(minutes=LOOKBACK_MINUTES)
 
     wait_result = await ctx.aio_wait_for(
-        "onboarding-or-timeout",
         or_(
             SleepCondition(timedelta(seconds=TIMEOUT_SECONDS)),
             # Scope the event condition to this user so that another user's
@@ -61,10 +62,10 @@ async def welcome_email(input: SignupInput, ctx: DurableContext) -> WelcomeEmail
         ),
     )
 
-    # The or-group result is {"CREATE": {"<condition_key>": ...}}.
-    # Check whether the onboarding event was the one that resolved.
-    resolved_key = list(wait_result["CREATE"].keys())[0]
-    onboarding_completed = resolved_key == ONBOARDING_EVENT_KEY
+    or_result = next((r for r in wait_result if isinstance(r, OrGroupResult)), None)
+    onboarding_completed = or_result is not None and not isinstance(
+        or_result.result, SleepResult
+    )
 
     if onboarding_completed:
         # Step 3a: User completed onboarding -> skip follow-up

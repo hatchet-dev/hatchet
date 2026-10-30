@@ -7,7 +7,7 @@ from examples.concurrency_cancel_in_progress_task_level.worker import (
     WorkflowInput,
     concurrency_cancel_in_progress_task_level_workflow,
 )
-from hatchet_sdk import Hatchet, V1TaskStatus, WorkflowRunRef
+from hatchet_sdk import Hatchet, RunStatus, WorkflowRunRef
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -38,16 +38,12 @@ async def test_run(hatchet: Hatchet) -> None:
     await asyncio.sleep(5)
 
     runs = sorted(
-        (
-            await hatchet.runs.aio_list(
-                additional_metadata={"test_run_id": test_run_id}
-            )
-        ).rows,
+        (await hatchet.runs.aio_list(additional_metadata={"test_run_id": test_run_id})),
         key=lambda r: int((r.additional_metadata or {}).get("i", "0")),
     )
 
     assert len(runs) == 10
     # the newest run (i == "9") wins and completes; every older run is cancelled.
     assert (runs[-1].additional_metadata or {}).get("i") == "9"
-    assert runs[-1].status == V1TaskStatus.COMPLETED
-    assert all(r.status == V1TaskStatus.CANCELLED for r in runs[:-1])
+    assert runs[-1].status == RunStatus.COMPLETED
+    assert all(r.status == RunStatus.CANCELLED for r in runs[:-1])

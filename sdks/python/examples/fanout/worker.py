@@ -30,7 +30,7 @@ async def spawn(input: ParentInput, ctx: Context) -> dict[str, Any]:
             child_wf.create_bulk_run_item(
                 input=ChildInput(a=str(i)),
                 additional_metadata={"hello": "earth"},
-                key=f"child{i}",
+                child_key=f"child{i}",
             )
             for i in range(input.n)
         ],

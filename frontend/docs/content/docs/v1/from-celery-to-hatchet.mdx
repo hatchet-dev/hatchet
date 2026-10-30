@@ -31,9 +31,9 @@ Use this table to find the Celery pattern you have in your project and jump to t
 | [3](#step-3-convert-task-definitions)                      | `def my_task(arg1, arg2)`                | `def my_task(input: MyInput, ctx: Context)`                                      | Small rewrite       |
 | [4](#step-4-invoke-tasks-with-input-models)                | `task.delay(...)` / `.apply_async(...)`  | `.run(..., wait_for_result=False)` / `.aio_run(..., wait_for_result=False)`      | Small rewrite       |
 | [5](#step-5-run-a-hatchet-worker)                          | `celery -A app worker`                   | `hatchet worker dev` or worker script                                            | Small rewrite       |
-| [6](#step-6-migrate-retries-and-timeouts)                  | `autoretry_for` / `self.retry()`         | `retries` + `backoff_factor` + `NonRetryableException`                           | Small rewrite       |
+| [6](#step-6-migrate-retries-and-timeouts)                  | `autoretry_for` / `self.retry()`         | `retries` + `backoff_factor` + `NonRetryableError`                               | Small rewrite       |
 | [6](#step-6-migrate-retries-and-timeouts)                  | `time_limit` / `soft_time_limit`         | `execution_timeout` / `schedule_timeout`                                         | Direct API swap     |
-| [7](#step-7-migrate-delayed-and-periodic-tasks)            | `apply_async(countdown=...)` / `eta=...` | `task.aio_schedule(run_at, input)`                                               | Small rewrite       |
+| [7](#step-7-migrate-delayed-and-periodic-tasks)            | `apply_async(countdown=...)` / `eta=...` | `task.aio_schedule(trigger_at, input)`                                           | Small rewrite       |
 | [7](#step-7-migrate-delayed-and-periodic-tasks)            | `beat_schedule` + `celery beat` process  | `on_crons=["..."]` in task definition                                            | Small rewrite       |
 | [8](#step-8-migrate-chains-groups-and-chords)              | `chain(a.s(), b.s())`                    | DAG workflow with `parents=[a]`                                                  | Conceptual redesign |
 | [8](#step-8-migrate-chains-groups-and-chords)              | `group(a.s(), b.s())`                    | Parallel DAG tasks (no `parents`)                                                | Conceptual redesign |
@@ -144,9 +144,10 @@ What changed:
 
 <Callout type="warning">
   If your Celery tasks use positional arguments, `*args`, or `**kwargs`, you
-  will need to define a Pydantic model that captures the expected fields. For
-  tasks that take no meaningful input, use `EmptyModel` from `hatchet_sdk`. This
-  input-model conversion is the main mechanical cost of the migration.
+  will need to define a Pydantic model that captures the expected fields. Tasks
+  that take no meaningful input can omit the `input_validator` and declare their
+  input as `None`. This input-model conversion is the main mechanical cost of
+  the migration.
 </Callout>
 
 ### Serialization
@@ -250,22 +251,22 @@ To migrate automatic retries, move the retry policy onto the Hatchet task decora
 
 <Snippet src={snippets.python.migration_guides.celery.hatchet_retries} />
 
-To prevent retries for known permanent failures, raise `NonRetryableException` from the task body:
+To prevent retries for known permanent failures, raise `NonRetryableError` from the task body:
 
 ```python
-from hatchet_sdk.exceptions import NonRetryableException
+from hatchet_sdk.exceptions import NonRetryableError
 
 # Inside a task: skip retry for a permanent failure
 if response.status_code == 400:
-    raise NonRetryableException("Bad request: do not retry")
+    raise NonRetryableError("Bad request: do not retry")
 ```
 
 See [retry policies](/v1/retry-policies) for the full set of retry options and behavior.
 
 What changed:
 
-- **Retry policy moves onto the task decorator.** Replace Celery retry options such as `max_retries`, `retry_backoff`, and `retry_backoff_max` with Hatchet's `retries`, `backoff_factor`, and `backoff_max_seconds`.
-- **Review retry exception rules.** Celery's `autoretry_for=(...)` lists the exceptions that should trigger retries. In Hatchet, task failures are retryable when `retries > 0`; raise `NonRetryableException` for failures that should not retry.
+- **Retry policy moves onto the task decorator.** Replace Celery retry options such as `max_retries`, `retry_backoff`, and `retry_backoff_max` with Hatchet's `retries`, `backoff_factor`, and `backoff_max` (a `timedelta`).
+- **Review retry exception rules.** Celery's `autoretry_for=(...)` lists the exceptions that should trigger retries. In Hatchet, task failures are retryable when `retries > 0`; raise `NonRetryableError` for failures that should not retry.
 - **Manual `self.retry()` logic needs redesign.** Hatchet does not provide a direct `self.retry()` equivalent inside the task body; task-level retry behavior is managed by the Hatchet engine.
 
 ### Timeouts
@@ -329,7 +330,7 @@ When migrating those call sites to Hatchet, delayed execution moves to the sched
 
 What changed:
 
-- **`countdown` / `eta` becomes scheduled runs.** Replace `apply_async(..., countdown=...)` or `apply_async(..., eta=...)` with `task.aio_schedule(run_at, input)`.
+- **`countdown` / `eta` becomes scheduled runs.** Replace `apply_async(..., countdown=...)` or `apply_async(..., eta=...)` with `task.aio_schedule(trigger_at, input)`.
 - **The task input shape stays the same.** Scheduled runs use the same `ImageInput(...)` model as immediate `.aio_run(...)` calls.
 - **The worker no longer holds the delay.** Hatchet persists the scheduled run in the engine until it is ready to execute.
 
@@ -365,7 +366,7 @@ What changed:
 - **The schedule moves onto the task.** Replace the `beat_schedule` entry with `on_crons=["0 9 * * *"]`.
 - **Celery `crontab(...)` becomes a cron expression.** Use standard 5-field or 6-field cron syntax.
 - **Non-crontab schedules need review.** Interval, solar, or custom Beat schedules may not convert directly to a cron expression.
-- **Runtime schedule management moves to the cron client.** If your application creates, lists, or deletes schedules dynamically, use the [`hatchet.cron` client](/reference/python/feature-clients/cron).
+- **Runtime schedule management moves to the cron client.** If your application creates, lists, or deletes schedules dynamically, use the [`hatchet.crons` client](/reference/python/feature-clients/crons).
 
 ## Step 8: Migrate chains, groups, and chords
 
@@ -710,7 +711,7 @@ Before finishing the migration, review these areas that require design decisions
 
 - **Task function signatures.** Every Hatchet task receives `(input, ctx)` instead of positional args. Creating Pydantic input models for tasks with varied argument signatures is typically the largest mechanical effort.
 - **Canvas -> DAGs and child spawning.** Celery Canvas composition must be restructured into Hatchet DAG workflows or child spawning. This is a design change, not a rename.
-- **Manual retries.** Celery's `self.retry()` has no Hatchet equivalent. Restructure around `NonRetryableException` or handle retries within the task for specific calls.
+- **Manual retries.** Celery's `self.retry()` has no Hatchet equivalent. Restructure around `NonRetryableError` or handle retries within the task for specific calls.
 - **Lifecycle hooks.** Celery signals like `task_prerun` and `task_postrun` require workflow-level hooks, dependency injection, or restructuring in Hatchet.
 - **Queue routing.** Celery's `task_routes` and named queues become explicit worker registration and optionally worker affinity (a different routing model).
 

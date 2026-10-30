@@ -16,12 +16,13 @@ from examples.events.worker import (
     EventWorkflowInput,
     event_workflow,
 )
-from hatchet_sdk.clients.events import (
+from examples.test_utils import poll_for_runs
+from hatchet_sdk.features.events import (
     BulkPushEventWithMetadata,
     Event,
 )
-from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
-from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
+from hatchet_sdk.types.run_status import RunStatus
+from hatchet_sdk import TaskRunSummary
 from hatchet_sdk import Hatchet, Priority
 
 
@@ -50,7 +51,7 @@ async def event_filter(
     )
 
     f = await hatchet.filters.aio_create(
-        workflow_id=event_workflow.id,
+        workflow_id=await event_workflow.aio_get_id(),
         expression=expression,
         scope=scope or test_run_id,
         payload={"test_run_id": test_run_id, **payload},
@@ -64,20 +65,14 @@ async def event_filter(
 
 async def fetch_runs_for_event(
     hatchet: Hatchet, event: Event
-) -> tuple[ProcessedEvent, list[V1TaskSummary]]:
-    runs = await hatchet.runs.aio_list(triggering_event_external_id=event.event_id)
+) -> tuple[ProcessedEvent, list[TaskRunSummary]]:
+    runs = await hatchet.runs.aio_list(triggering_event_id=event.id)
 
-    meta = (
-        cast(dict[str, str | int | bool], json.loads(event.additional_metadata))
-        if event.additional_metadata
-        else {}
-    )
-    payload = (
-        cast(dict[str, str | bool], json.loads(event.payload)) if event.payload else {}
-    )
+    meta = cast(dict[str, str | int | bool], event.additional_metadata)
+    payload = cast(dict[str, str | bool], event.payload)
 
     processed_event = ProcessedEvent(
-        id=event.event_id,
+        id=event.id,
         payload=payload,
         meta=meta,
         should_have_runs=meta.get("should_have_runs", False) is True,
@@ -86,37 +81,36 @@ async def fetch_runs_for_event(
 
     if not all(
         [
-            r.status
-            in [V1TaskStatus.COMPLETED, V1TaskStatus.FAILED, V1TaskStatus.CANCELLED]
-            for r in runs.rows
+            r.status in [RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.CANCELLED]
+            for r in runs
         ]
     ):
         return (processed_event, [])
 
     return (
         processed_event,
-        runs.rows or [],
+        runs or [],
     )
 
 
 async def wait_for_result(
     hatchet: Hatchet, events: list[Event]
-) -> dict[ProcessedEvent, list[V1TaskSummary]]:
-    await asyncio.sleep(3)
-
+) -> dict[ProcessedEvent, list[TaskRunSummary]]:
     since = datetime.now(tz=timezone.utc) - timedelta(minutes=2)
-
-    persisted = (await hatchet.event.aio_list(limit=100, since=since)).rows or []
-
-    assert {e.event_id for e in events}.issubset({e.metadata.id for e in persisted})
+    event_ids = {e.id for e in events}
 
     iters = 0
     while True:
         print("waiting for event runs to complete - iteration", iters)
-        if iters > 10:
+        if iters > 20:
             raise TimeoutError("Timed out waiting for event runs to complete.")
 
         iters += 1
+
+        persisted = (await hatchet.events.aio_list(limit=100, since=since)) or []
+        if not event_ids.issubset({e.id for e in persisted}):
+            await asyncio.sleep(1)
+            continue
 
         event_runs = await asyncio.gather(
             *[fetch_runs_for_event(hatchet, event) for event in events]
@@ -127,9 +121,9 @@ async def wait_for_result(
             or any(
                 e.status
                 not in [
-                    V1TaskStatus.COMPLETED,
-                    V1TaskStatus.FAILED,
-                    V1TaskStatus.CANCELLED,
+                    RunStatus.COMPLETED,
+                    RunStatus.FAILED,
+                    RunStatus.CANCELLED,
                 ]
                 for e in event_run
             )
@@ -143,7 +137,7 @@ async def wait_for_result(
         event_id_to_runs = {event_id: runs for (event_id, runs) in event_runs}
 
         any_queued_or_running = any(
-            run.status in [V1TaskStatus.QUEUED, V1TaskStatus.RUNNING]
+            run.status in [RunStatus.QUEUED, RunStatus.RUNNING]
             for runs in event_id_to_runs.values()
             for run in runs
         )
@@ -161,14 +155,9 @@ async def wait_for_result_and_assert(hatchet: Hatchet, events: list[Event]) -> N
     event_to_runs = await wait_for_result(hatchet, events)
 
     unique_events_with_runs = {
-        event.event_id
+        event.id
         for event in events
-        if (
-            json.loads(event.additional_metadata)
-            if isinstance(event.additional_metadata, str)
-            else {}
-        ).get("should_have_runs", False)
-        is True
+        if event.additional_metadata.get("should_have_runs", False) is True
     }
 
     unique_events_with_runs_in_results = {
@@ -183,7 +172,7 @@ async def wait_for_result_and_assert(hatchet: Hatchet, events: list[Event]) -> N
 
 async def assert_event_runs_processed(
     event: ProcessedEvent,
-    runs: list[V1TaskSummary],
+    runs: list[TaskRunSummary],
 ) -> None:
     runs = [
         run
@@ -195,7 +184,7 @@ async def assert_event_runs_processed(
         assert len(runs) > 0
 
         for run in runs:
-            assert run.status == V1TaskStatus.COMPLETED
+            assert run.status == RunStatus.COMPLETED
 
             meta = run.additional_metadata or {}
             assert meta.get("test_run_id") == event.test_run_id
@@ -233,16 +222,16 @@ def cp(should_skip: bool) -> dict[str, bool]:
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_event_push(hatchet: Hatchet) -> None:
-    e = hatchet.event.push(EVENT_KEY, cp(False))
+    e = hatchet.events.push(EVENT_KEY, cp(False))
 
-    assert e.event_id is not None
+    assert e.id is not None
 
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_async_event_push(hatchet: Hatchet) -> None:
-    e = await hatchet.event.aio_push(EVENT_KEY, cp(False))
+    e = await hatchet.events.aio_push(EVENT_KEY, cp(False))
 
-    assert e.event_id is not None
+    assert e.id is not None
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -265,7 +254,7 @@ async def test_async_event_bulk_push(hatchet: Hatchet) -> None:
         ),
     ]
 
-    e = await hatchet.event.aio_bulk_push(events)
+    e = await hatchet.events.aio_bulk_push(events)
 
     assert len(e) == 3
 
@@ -300,7 +289,7 @@ async def test_event_bulk_push(hatchet: Hatchet) -> None:
         ),
     ]
 
-    e = hatchet.event.bulk_push(events)
+    e = hatchet.events.bulk_push(events)
 
     assert len(e) == 3
 
@@ -321,8 +310,7 @@ def test_run_id() -> str:
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_event_engine_behavior(hatchet: Hatchet) -> None:
-    test_run_id = str(uuid4())
+async def test_event_engine_behavior(hatchet: Hatchet, test_run_id: str) -> None:
     events = [
         bpi(
             test_run_id=test_run_id,
@@ -334,7 +322,7 @@ async def test_event_engine_behavior(hatchet: Hatchet) -> None:
         ),
     ]
 
-    result = await hatchet.event.aio_bulk_push(events)
+    result = await hatchet.events.aio_bulk_push(events)
 
     await wait_for_result_and_assert(hatchet, result)
 
@@ -397,7 +385,7 @@ async def test_event_skipping_filtering(hatchet: Hatchet, test_run_id: str) -> N
     async with event_filter(hatchet, test_run_id):
         events = gen_bulk_events(test_run_id)
 
-        result = await hatchet.event.aio_bulk_push(events)
+        result = await hatchet.events.aio_bulk_push(events)
 
         await wait_for_result_and_assert(hatchet, result)
 
@@ -406,7 +394,7 @@ async def bulk_to_single(hatchet: Hatchet, event: BulkPushEventWithMetadata) -> 
     priority = (
         Priority(event.priority) if isinstance(event.priority, int) else event.priority
     )
-    return await hatchet.event.aio_push(
+    return await hatchet.events.aio_push(
         event_key=event.key,
         payload=event.payload,
         scope=event.scope,
@@ -436,7 +424,7 @@ async def test_event_payload_filtering(hatchet: Hatchet, test_run_id: str) -> No
         "input.should_skip == false && payload.foobar == 'baz'",
         {"foobar": "qux"},
     ):
-        event = await hatchet.event.aio_push(
+        event = await hatchet.events.aio_push(
             event_key=EVENT_KEY,
             payload={"message": "This is event 1", "should_skip": False},
             scope=test_run_id,
@@ -460,7 +448,7 @@ async def test_event_payload_filtering_with_payload_match(
         "input.should_skip == false && payload.foobar == 'baz'",
         {"foobar": "baz"},
     ):
-        event = await hatchet.event.aio_push(
+        event = await hatchet.events.aio_push(
             event_key=EVENT_KEY,
             payload={"message": "This is event 1", "should_skip": False},
             scope=test_run_id,
@@ -481,7 +469,7 @@ async def test_filtering_by_event_key(hatchet: Hatchet, test_run_id: str) -> Non
         test_run_id,
         f"event_key == '{hatchet.config.apply_namespace(SECONDARY_KEY)}'",
     ):
-        event_1 = await hatchet.event.aio_push(
+        event_1 = await hatchet.events.aio_push(
             event_key=SECONDARY_KEY,
             payload={
                 "message": "Should run because filter matches",
@@ -493,7 +481,7 @@ async def test_filtering_by_event_key(hatchet: Hatchet, test_run_id: str) -> Non
                 "test_run_id": test_run_id,
             },
         )
-        event_2 = await hatchet.event.aio_push(
+        event_2 = await hatchet.events.aio_push(
             event_key=EVENT_KEY,
             payload={
                 "message": "Should skip because filter does not match",
@@ -523,7 +511,7 @@ async def test_key_wildcards(hatchet: Hatchet, test_run_id: str) -> None:
         test_run_id,
     ):
         events = [
-            await hatchet.event.aio_push(
+            await hatchet.events.aio_push(
                 event_key=key,
                 payload={
                     "should_skip": False,
@@ -550,7 +538,7 @@ async def test_multiple_runs_for_multiple_scope_matches(
         async with event_filter(
             hatchet, test_run_id, payload={"filter_id": "2"}, expression="2 == 2"
         ):
-            event = await hatchet.event.aio_push(
+            event = await hatchet.events.aio_push(
                 event_key=EVENT_KEY,
                 payload={
                     "should_skip": False,
@@ -582,7 +570,7 @@ async def test_multi_scope_bug(hatchet: Hatchet, test_run_id: str) -> None:
             expression="2 == 2",
             scope="b",
         ):
-            events = await hatchet.event.aio_bulk_push(
+            events = await hatchet.events.aio_bulk_push(
                 [
                     BulkPushEventWithMetadata(
                         key=EVENT_KEY,
@@ -599,13 +587,19 @@ async def test_multi_scope_bug(hatchet: Hatchet, test_run_id: str) -> None:
                 ],
             )
 
-            await asyncio.sleep(15)
+            await poll_for_runs(
+                hatchet,
+                expected_count=100,
+                additional_metadata={"test_run_id": test_run_id},
+                workflow_ids=[await event_workflow.aio_get_id()],
+                timeout=60.0,
+            )
 
             for event in events:
                 runs = await hatchet.runs.aio_list(
-                    triggering_event_external_id=event.event_id,
+                    triggering_event_id=event.id,
                     additional_metadata={"test_run_id": test_run_id},
-                    workflow_ids=[event_workflow.id],
+                    workflow_ids=[await event_workflow.aio_get_id()],
                 )
 
-                assert len(runs.rows) == 1
+                assert len(runs) == 1

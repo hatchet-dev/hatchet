@@ -3,11 +3,10 @@
 import asyncio
 import contextlib
 import logging
-import multiprocessing.synchronize
 import signal
 import time
 from datetime import timedelta
-from multiprocessing import Queue
+from typing import TYPE_CHECKING
 
 import grpc
 from aiohttp import web
@@ -15,20 +14,19 @@ from aiohttp.web_request import Request
 from aiohttp.web_response import Response
 from prometheus_client import Gauge, generate_latest
 
-from hatchet_sdk.client import Client
-from hatchet_sdk.clients.dispatcher.action_listener import ActionListener
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     STEP_EVENT_TYPE_STARTED,
     ActionEventResponse,
 )
 from hatchet_sdk.deprecated.dispatcher import legacy_get_action_listener
+from hatchet_sdk.features.workers import WorkersClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action, ActionType
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
-    ctx_step_run_id,
     ctx_task_retry_count,
+    ctx_task_run_external_id,
     ctx_worker_id,
     ctx_workflow_run_id,
 )
@@ -41,6 +39,12 @@ from hatchet_sdk.worker.action_listener_process import (
     ActionEvent,
     HealthStatus,
 )
+
+if TYPE_CHECKING:
+    import multiprocessing.synchronize
+    from multiprocessing import Queue
+
+    from hatchet_sdk.clients.dispatcher.action_listener import ActionListener
 
 ACTION_EVENT_RETRY_COUNT = 5
 
@@ -56,8 +60,6 @@ class LegacyWorkerActionListenerProcess:
         config: ClientConfig,
         action_queue: "Queue[Action]",
         event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
-        handle_kill: bool,
-        debug: bool,
         labels: list[WorkerLabel],
         worker_id_queue: "Queue[str]",
         stop_event: "multiprocessing.synchronize.Event",
@@ -68,9 +70,7 @@ class LegacyWorkerActionListenerProcess:
         self.config = config
         self.action_queue = action_queue
         self.event_queue = event_queue
-        self.debug = debug
         self.labels = labels
-        self.handle_kill = handle_kill
         self.worker_id_queue = worker_id_queue
         self._stop_event = stop_event
 
@@ -80,7 +80,7 @@ class LegacyWorkerActionListenerProcess:
         self._event_loop_monitor_task: asyncio.Task[None] | None = None
         self._event_loop_last_lag_seconds: float = 0.0
         self._event_loop_blocked_since: float | None = None
-        self._waiting_steps_blocked_since: float | None = None
+        self._waiting_tasks_blocked_since: float | None = None
         self._starting_since: float = time.time()
 
         self.listener: ActionListener | None = None
@@ -88,14 +88,13 @@ class LegacyWorkerActionListenerProcess:
         self.action_loop_task: asyncio.Task[None] | None = None
         self.event_send_loop_task: asyncio.Task[None] | None = None
         self._stop_event_task: asyncio.Task[None] | None = None
-        self.running_step_runs: dict[str, float] = {}
-        self.step_action_events: set[asyncio.Task[ActionEventResponse | None]] = set()
+        self.running_task_runs: dict[str, float] = {}
+        self.task_action_events: set[asyncio.Task[ActionEventResponse | None]] = set()
 
-        if self.debug:
+        if self.config.debug:
             logger.setLevel(logging.DEBUG)
 
-        self.client = Client(config=self.config, debug=self.debug)
-
+        self._workers_client = WorkersClient(self.config)
         loop = asyncio.get_event_loop()
         loop.add_signal_handler(signal.SIGINT, lambda: None)
         loop.add_signal_handler(signal.SIGTERM, lambda: None)
@@ -119,7 +118,7 @@ class LegacyWorkerActionListenerProcess:
             lag = max(0.0, elapsed - interval)
             if (
                 timedelta(seconds=lag)
-                >= self.config.healthcheck.event_loop_block_threshold_seconds
+                >= self.config.healthcheck.event_loop_block_threshold
             ):
                 if self._event_loop_blocked_since is None:
                     self._event_loop_blocked_since = start + interval
@@ -131,7 +130,7 @@ class LegacyWorkerActionListenerProcess:
 
             if (
                 timedelta(seconds=lag)
-                < self.config.healthcheck.event_loop_block_threshold_seconds
+                < self.config.healthcheck.event_loop_block_threshold
             ):
                 self._event_loop_blocked_since = None
 
@@ -145,14 +144,14 @@ class LegacyWorkerActionListenerProcess:
         if (
             self._event_loop_blocked_since is not None
             and timedelta(seconds=(time.time() - self._event_loop_blocked_since))
-            > self.config.healthcheck.event_loop_block_threshold_seconds
+            > self.config.healthcheck.event_loop_block_threshold
         ):
             return HealthStatus.UNHEALTHY
 
         if (
-            self._waiting_steps_blocked_since is not None
-            and timedelta(seconds=(time.time() - self._waiting_steps_blocked_since))
-            > self.config.healthcheck.event_loop_block_threshold_seconds
+            self._waiting_tasks_blocked_since is not None
+            and timedelta(seconds=(time.time() - self._waiting_tasks_blocked_since))
+            > self.config.healthcheck.event_loop_block_threshold
         ):
             return HealthStatus.UNHEALTHY
 
@@ -180,13 +179,13 @@ class LegacyWorkerActionListenerProcess:
 
         return HealthStatus.HEALTHY if ok else HealthStatus.UNHEALTHY
 
-    async def _health_handler(self, request: Request) -> Response:
+    async def _health_handler(self, _request: Request) -> Response:
         status = self._compute_health()
         ok = status == HealthStatus.HEALTHY
         response = {"status": status.value}
         return web.json_response(response, status=200 if ok else 503)
 
-    async def _metrics_handler(self, request: Request) -> Response:
+    async def _metrics_handler(self, _request: Request) -> Response:
         status = self._compute_health()
         ok = status == HealthStatus.HEALTHY
 
@@ -322,27 +321,27 @@ class LegacyWorkerActionListenerProcess:
 
             logger.debug(f"tx: event: {event.action.action_id}/{event.type}")
             t = asyncio.create_task(self.send_event(event))
-            self.step_action_events.add(t)
-            t.add_done_callback(lambda t: self.step_action_events.discard(t))
+            self.task_action_events.add(t)
+            t.add_done_callback(lambda t: self.task_action_events.discard(t))
 
     async def start_blocked_main_loop(self) -> None:
         threshold = 1
         while not self.killing:
             count = 0
-            for start_time in self.running_step_runs.values():
+            for start_time in self.running_task_runs.values():
                 diff = self.now() - start_time
                 if diff > threshold:
                     count += 1
 
             if count > 0:
-                if self._waiting_steps_blocked_since is None:
-                    self._waiting_steps_blocked_since = time.time()
-                blocked_for = time.time() - self._waiting_steps_blocked_since
+                if self._waiting_tasks_blocked_since is None:
+                    self._waiting_tasks_blocked_since = time.time()
+                blocked_for = time.time() - self._waiting_tasks_blocked_since
                 logger.warning(
-                    f"{BLOCKED_THREAD_WARNING} Waiting Steps {count} blocked_for={blocked_for:.1f}s"
+                    f"{BLOCKED_THREAD_WARNING} Waiting Tasks {count} blocked_for={blocked_for:.1f}s"
                 )
             else:
-                self._waiting_steps_blocked_since = None
+                self._waiting_tasks_blocked_since = None
             await asyncio.sleep(1)
 
     async def send_event(self, event: ActionEvent, retry_attempt: int = 1) -> None:
@@ -350,10 +349,12 @@ class LegacyWorkerActionListenerProcess:
             match event.action.action_type:
                 case ActionType.START_STEP_RUN:
                     if event.type == STEP_EVENT_TYPE_STARTED:
-                        if event.action.step_run_id in self.running_step_runs:
+                        if event.action.task_run_external_id in self.running_task_runs:
                             diff = (
                                 self.now()
-                                - self.running_step_runs[event.action.step_run_id]
+                                - self.running_task_runs[
+                                    event.action.task_run_external_id
+                                ]
                             )
                             if diff > 0.1:
                                 logger.warning(
@@ -361,14 +362,16 @@ class LegacyWorkerActionListenerProcess:
                                 )
                             else:
                                 logger.debug(f"start time: {diff}")
-                            del self.running_step_runs[event.action.step_run_id]
+                            del self.running_task_runs[
+                                event.action.task_run_external_id
+                            ]
                         else:
-                            self.running_step_runs[event.action.step_run_id] = (
-                                self.now()
-                            )
+                            self.running_task_runs[
+                                event.action.task_run_external_id
+                            ] = self.now()
 
                     send_started_event_task = asyncio.create_task(
-                        self.dispatcher_client.send_step_action_event(
+                        self.dispatcher_client.send_task_action_event(
                             event.action,
                             event.type,
                             event.payload,
@@ -376,9 +379,9 @@ class LegacyWorkerActionListenerProcess:
                         )
                     )
 
-                    self.step_action_events.add(send_started_event_task)
+                    self.task_action_events.add(send_started_event_task)
                     send_started_event_task.add_done_callback(
-                        lambda t: self.step_action_events.discard(t)
+                        lambda t: self.task_action_events.discard(t)
                     )
                 case ActionType.CANCEL_STEP_RUN:
                     logger.debug("unimplemented event send")
@@ -404,7 +407,7 @@ class LegacyWorkerActionListenerProcess:
                 if action is None:
                     break
 
-                ctx_step_run_id.set(action.step_run_id)
+                ctx_task_run_external_id.set(action.task_run_external_id)
                 ctx_workflow_run_id.set(action.workflow_run_id)
                 ctx_worker_id.set(action.worker_id)
                 ctx_action_key.set(action.key)
@@ -421,16 +424,18 @@ class LegacyWorkerActionListenerProcess:
                             )
                         )
                         logger.info(
-                            f"rx: start step run: {action.step_run_id}/{action.action_id}"
+                            f"rx: start task run: {action.task_run_external_id}/{action.action_id}"
                         )
 
-                        if action.step_run_id in self.running_step_runs:
+                        if action.task_run_external_id in self.running_task_runs:
                             logger.warning(
-                                f"step run already running: {action.step_run_id}"
+                                f"task run already running: {action.task_run_external_id}"
                             )
 
                     case ActionType.CANCEL_STEP_RUN:
-                        logger.info(f"rx: cancel step run: {action.step_run_id}")
+                        logger.info(
+                            f"rx: cancel task run: {action.task_run_external_id}"
+                        )
                     case ActionType.START_BATCH:
                         logger.info(
                             f"rx: start batch: {action.action_id}/{action.batch_id} expected={action.batch_start.expected_size if action.batch_start else None}"
@@ -476,8 +481,6 @@ def legacy_worker_action_listener_process(
     config: ClientConfig,
     action_queue: "Queue[Action]",
     event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
-    handle_kill: bool,
-    debug: bool,
     labels: list[WorkerLabel],
     worker_id_queue: "Queue[str]",
     stop_event: "multiprocessing.synchronize.Event",
@@ -490,8 +493,6 @@ def legacy_worker_action_listener_process(
             config=config,
             action_queue=action_queue,
             event_queue=event_queue,
-            handle_kill=handle_kill,
-            debug=debug,
             labels=labels,
             worker_id_queue=worker_id_queue,
             stop_event=stop_event,
@@ -504,9 +505,9 @@ def legacy_worker_action_listener_process(
             await process.event_send_loop_task
 
         # Drain any in-flight send_event tasks before exiting.
-        if process.step_action_events:
+        if process.task_action_events:
             await asyncio.gather(
-                *list(process.step_action_events), return_exceptions=True
+                *list(process.task_action_events), return_exceptions=True
             )
 
         for task in [process.action_loop_task, process.blocked_main_loop]:

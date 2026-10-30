@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class OTelAttribute(str, Enum):
+class OTelAttribute(StrEnum):
     ## Shared
     NAMESPACE = "namespace"
     ADDITIONAL_METADATA = "additional_metadata"
@@ -13,14 +13,15 @@ class OTelAttribute(str, Enum):
     ACTION_PAYLOAD = "payload"
 
     ## Action
+    ## The `step_*` values are the attribute names the Hatchet dashboard reads, so they cannot be renamed here
     ACTION_NAME = "action_name"
-    STEP_NAME = "step_name"
+    TASK_NAME = "step_name"
     CHILD_WORKFLOW_INDEX = "child_workflow_index"
     CHILD_WORKFLOW_KEY = "child_workflow_key"
     PARENT_WORKFLOW_RUN_ID = "parent_workflow_run_id"
     RETRY_COUNT = "retry_count"
-    STEP_ID = "step_id"
-    STEP_RUN_ID = "step_run_id"
+    TASK_ID = "step_id"
+    TASK_RUN_ID = "step_run_id"
     TENANT_ID = "tenant_id"
     WORKER_ID = "worker_id"
     WORKFLOW_ID = "workflow_id"
@@ -34,11 +35,7 @@ class OTelAttribute(str, Enum):
     FILTER_SCOPE = "scope"
 
     ## Trigger Workflow
-    PARENT_ID = "parent_id"
-    PARENT_STEP_RUN_ID = "parent_step_run_id"
-    CHILD_INDEX = "child_index"
     CHILD_KEY = "child_key"
-    DESIRED_WORKER_ID = "desired_worker_id"
     STICKY = "sticky"
     KEY = "key"
 

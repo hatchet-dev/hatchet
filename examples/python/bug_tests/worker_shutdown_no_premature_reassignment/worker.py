@@ -2,7 +2,7 @@ import os
 import time
 from datetime import timedelta
 
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import Context, Hatchet
 
 hatchet = Hatchet()
 
@@ -17,7 +17,7 @@ SLEEP_SECONDS = 40
 
 
 @hatchet.task(name=TASK_NAME, execution_timeout=timedelta(seconds=60))
-def drain_task(input: EmptyModel, ctx: Context) -> dict[str, str]:
+def drain_task(input: None, ctx: Context) -> dict[str, str]:
     log_path = os.environ["SHUTDOWN_TEST_LOG_PATH"]
     worker_name = os.environ["HATCHET_TEST_WORKER_NAME"]
 

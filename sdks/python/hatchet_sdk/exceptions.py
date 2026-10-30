@@ -1,7 +1,8 @@
 import json
 import traceback
+from collections.abc import Sequence
 from datetime import timedelta
-from typing import cast
+from typing import Self, cast
 
 from hatchet_sdk.engine_version import MinEngineVersion
 
@@ -30,11 +31,11 @@ class InvalidDependencyError(Exception):
     pass
 
 
-class NonRetryableException(Exception):  # noqa: N818
+class NonRetryableError(Exception):
     pass
 
 
-class RetryAfterException(Exception):  # noqa: N818
+class RetryAfterError(Exception):
     """
     Raise from a task to retry it after a delay of its choosing. The retry counts against the task's `retries`.
 
@@ -57,7 +58,9 @@ class DedupeViolationError(Exception):
 
 class IdempotencyCollisionError(Exception):
     def __init__(self, existing_run_external_id: str) -> None:
-        super().__init__()
+        super().__init__(
+            f"A run with this idempotency key already exists: {existing_run_external_id}"
+        )
         self.existing_run_external_id = existing_run_external_id
 
 
@@ -67,7 +70,11 @@ class BulkTriggerIdempotencyCollisionError(Exception):
         successful_workflow_run_external_ids: list[str],
         collisions: list[IdempotencyCollisionError],
     ) -> None:
-        super().__init__()
+        super().__init__(
+            f"{len(collisions)} of {len(collisions) + len(successful_workflow_run_external_ids)} "
+            "runs collided with an existing idempotency key: "
+            + ", ".join(collision.existing_run_external_id for collision in collisions)
+        )
         self.successful_workflow_run_external_ids = successful_workflow_run_external_ids
         self.collisions = collisions
 
@@ -83,18 +90,20 @@ class TaskRunError(Exception):
         trace: str,
         task_run_external_id: str | None,
     ) -> None:
+        super().__init__(exc, exc_type, trace, task_run_external_id)
+
         self.exc = exc
         self.exc_type = exc_type
         self.trace = trace
         self.task_run_external_id = task_run_external_id
 
     def __str__(self) -> str:
-        return self.serialize(include_metadata=False)
+        return self._serialize(include_metadata=False)
 
     def __repr__(self) -> str:
         return str(self)
 
-    def serialize(self, include_metadata: bool) -> str:
+    def _serialize(self, *, include_metadata: bool) -> str:
         exc_type = self.exc_type.replace(": ", ":::")
         exc = self.exc.replace("\n", "\\\n")
         header = f"{exc_type}: {exc}" if exc_type and exc else f"{exc_type}{exc}"
@@ -132,7 +141,7 @@ class TaskRunError(Exception):
             ):
                 serialized = serialized.replace(metadata, "").strip()
                 return serialized, cast(
-                    dict[str, str | None], parsed[TASK_RUN_ERROR_METADATA_KEY]
+                    "dict[str, str | None]", parsed[TASK_RUN_ERROR_METADATA_KEY]
                 )
 
             return serialized, {}
@@ -149,7 +158,7 @@ class TaskRunError(Exception):
         return external_id, header, trace
 
     @classmethod
-    def deserialize(cls, serialized: str) -> "TaskRunError":
+    def _deserialize(cls, serialized: str) -> "TaskRunError":
         if not serialized:
             return cls(
                 exc="",
@@ -187,7 +196,7 @@ class TaskRunError(Exception):
         )
 
     @classmethod
-    def from_exception(
+    def _from_exception(
         cls, exc: Exception, task_run_external_id: str | None
     ) -> "TaskRunError":
         return cls(
@@ -200,21 +209,61 @@ class TaskRunError(Exception):
         )
 
 
-class FailedTaskRunExceptionGroup(ValueError):  # noqa: N818
-    def __init__(self, message: str, exceptions: list[TaskRunError]):
-        self.message = message
-        self.exceptions = exceptions
+def _describe_failed_task_runs(summary: str, exceptions: Sequence[TaskRunError]) -> str:
+    sections = [
+        f"\n--- Exception {index} ---\n{exception}"
+        for index, exception in enumerate(exceptions, 1)
+    ]
 
-        super().__init__(message)
+    return "\n".join([summary.strip(), *sections])
+
+
+class FailedTaskRunExceptionGroup(ExceptionGroup[TaskRunError]):
+    _summary: str
+
+    def __new__(cls, message: str, exceptions: Sequence[TaskRunError]) -> Self:
+        ## `ExceptionGroup` rejects an empty sequence, but a run can fail without
+        ## reporting any task errors, so fall back to an error carrying the message.
+        exceptions_or_fallback = list(exceptions) or [
+            TaskRunError(
+                exc=message,
+                exc_type="HatchetError",
+                trace="",
+                task_run_external_id=None,
+            )
+        ]
+
+        ## pytest's `match=` and the default traceback only read the group's message,
+        ## so the task errors go into it rather than only into `__str__`.
+        group = super().__new__(
+            cls,
+            _describe_failed_task_runs(message, exceptions_or_fallback),
+            exceptions_or_fallback,
+        )
+        group._summary = message
+
+        return group
+
+    def __init__(
+        self, message: str, exceptions: Sequence[TaskRunError]  # noqa: ARG002
+    ) -> None:
+        super().__init__(self.message, cast("Sequence[TaskRunError]", self.exceptions))
+
+    @property
+    def exceptions(self) -> tuple[TaskRunError, ...]:
+        ## never nested: every constructor and `derive` passes a flat list of `TaskRunError`s
+        return cast("tuple[TaskRunError, ...]", super().exceptions)
+
+    def derive(  # type: ignore[override]
+        self, excs: Sequence[TaskRunError]
+    ) -> "FailedTaskRunExceptionGroup":
+        return FailedTaskRunExceptionGroup(self._summary, excs)
+
+    def __reduce__(self) -> tuple[type[Self], tuple[str, list[TaskRunError]]]:
+        return type(self), (self._summary, list(self.exceptions))
 
     def __str__(self) -> str:
-        result = [self.message.strip()]
-
-        for i, exc in enumerate(self.exceptions, 1):
-            result.append(f"\n--- Exception {i} ---")
-            result.append(str(exc))
-
-        return "\n".join(result)
+        return self.message
 
 
 class LoopAlreadyRunningError(Exception):
@@ -229,7 +278,7 @@ class LifespanSetupError(Exception):
     pass
 
 
-class EvictionNotSupportedError(NonRetryableException):
+class EvictionNotSupportedError(NonRetryableError):
     """Raised when an eviction policy is configured against an engine version
     that does not support durable-task eviction."""
 

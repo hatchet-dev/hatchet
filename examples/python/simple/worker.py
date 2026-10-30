@@ -1,16 +1,16 @@
 # > Simple
-from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet
+from hatchet_sdk import Context, DurableContext, Hatchet
 
 hatchet = Hatchet()
 
 
 @hatchet.task()
-def simple(input: EmptyModel, ctx: Context) -> dict[str, str]:
+def simple(input: None, ctx: Context) -> dict[str, str]:
     return {"result": "Hello, world!"}
 
 
 @hatchet.durable_task()
-async def simple_durable(input: EmptyModel, ctx: DurableContext) -> dict[str, str]:
+async def simple_durable(input: None, ctx: DurableContext) -> dict[str, str]:
     # durable tasks should be async
     return {"result": "Hello, world!"}
 

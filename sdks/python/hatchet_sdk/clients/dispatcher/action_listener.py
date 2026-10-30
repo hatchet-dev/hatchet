@@ -2,7 +2,7 @@ import asyncio
 import json
 import time
 from collections.abc import AsyncGenerator
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import grpc
 import grpc.aio
@@ -12,11 +12,9 @@ from hatchet_sdk.clients.event_ts import (
     UnexpectedEOF,
     read_with_interrupt,
 )
-from hatchet_sdk.clients.events import proto_timestamp_now
 from hatchet_sdk.clients.listeners.run_event_listener import (
     DEFAULT_ACTION_LISTENER_RETRY_INTERVAL,
 )
-from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.dispatcher_pb2 import ActionType as ActionTypeProto
 from hatchet_sdk.contracts.dispatcher_pb2 import (
@@ -34,11 +32,15 @@ from hatchet_sdk.runnables.action import (
     BatchItemData,
     BatchStartPayload,
 )
-from hatchet_sdk.runnables.types import BatchMemberId
 from hatchet_sdk.utils.api_auth import create_authorization_header
 from hatchet_sdk.utils.backoff import exp_backoff_sleep
+from hatchet_sdk.utils.datetimes import proto_timestamp_now
 from hatchet_sdk.utils.proto_enums import convert_proto_enum_to_python
 from hatchet_sdk.utils.typing import JSONSerializableMapping
+
+if TYPE_CHECKING:
+    from hatchet_sdk.config import ClientConfig
+    from hatchet_sdk.runnables.types import BatchMemberId
 
 DEFAULT_ACTION_TIMEOUT = 600  # seconds
 DEFAULT_ACTION_LISTENER_RETRY_COUNT = 15
@@ -47,7 +49,7 @@ DEFAULT_ACTION_LISTENER_RETRY_COUNT = 15
 def parse_additional_metadata(additional_metadata: str) -> JSONSerializableMapping:
     try:
         return cast(
-            JSONSerializableMapping,
+            "JSONSerializableMapping",
             json.loads(additional_metadata),
         )
     except json.JSONDecodeError:
@@ -242,10 +244,10 @@ class ActionListener:
                         job_id=assigned_action.job_id,
                         job_name=assigned_action.job_name,
                         job_run_id=assigned_action.job_run_id,
-                        step_id=assigned_action.task_id,
-                        step_run_id=assigned_action.task_run_external_id,
+                        task_id=assigned_action.task_id,
+                        task_run_external_id=assigned_action.task_run_external_id,
                         action_id=assigned_action.action_id,
-                        step_name=assigned_action.task_name,
+                        task_name=assigned_action.task_name,
                         action_payload=action_payload,
                         action_type=action_type,
                         retry_count=assigned_action.retry_count,
@@ -326,7 +328,11 @@ class ActionListener:
 
         listener = self.aio_client.ListenV2(
             WorkerListenRequest(worker_id=self.worker_id),
-            timeout=self.config.listener_v2_timeout,
+            timeout=(
+                self.config.action_listener_timeout.total_seconds()
+                if self.config.action_listener_timeout is not None
+                else None
+            ),
             metadata=create_authorization_header(self.token),
         )
 
@@ -335,7 +341,7 @@ class ActionListener:
         self.last_connection_attempt = current_time
 
         return cast(
-            grpc.aio.UnaryStreamCall[WorkerListenRequest, AssignedAction], listener
+            "grpc.aio.UnaryStreamCall[WorkerListenRequest, AssignedAction]", listener
         )
 
     def stop_stream(self) -> None:
@@ -370,6 +376,6 @@ class ActionListener:
             if self.interrupt is not None:
                 self.interrupt.set()
 
-            return cast(WorkerUnsubscribeRequest, req)
+            return cast("WorkerUnsubscribeRequest", req)
         except grpc.RpcError as e:
             raise Exception("Failed to unsubscribe") from e

@@ -1,19 +1,20 @@
 import asyncio
 import datetime
 import json
-import warnings
-from datetime import timezone
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
-from google.protobuf import timestamp_pb2
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, Field
 
-from hatchet_sdk.clients.rest.api.event_api import EventApi
-from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
+if TYPE_CHECKING:
+    from hatchet_sdk.clients.rest.api.event_api import EventApi
+    from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
+
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.v1_event import V1Event
-from hatchet_sdk.clients.rest.models.v1_event_list import V1EventList
-from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
+from hatchet_sdk.clients.rest.models.v1_event_triggered_run import V1EventTriggeredRun
+from hatchet_sdk.clients.rest.models.v1_event_workflow_run_summary import (
+    V1EventWorkflowRunSummary,
+)
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.clients.v1.api_client import (
     BaseRestClient,
@@ -32,18 +33,17 @@ from hatchet_sdk.contracts.events_pb2 import Event as EventProto
 from hatchet_sdk.contracts.events_pb2 import Events as EventsProto
 from hatchet_sdk.contracts.events_pb2_grpc import EventsServiceStub
 from hatchet_sdk.logger import logger
-from hatchet_sdk.runnables.contextvars import ctx_step_run_id, ctx_workflow_run_id
-from hatchet_sdk.types.priority import Priority
-from hatchet_sdk.types.trigger import (
-    BulkPushEventOptions as BulkPushEventOptions,
+from hatchet_sdk.runnables.contextvars import (
+    ctx_task_run_external_id,
+    ctx_workflow_run_id,
 )
+from hatchet_sdk.types.priority import Priority
+from hatchet_sdk.types.run_status import RunStatus
 from hatchet_sdk.types.trigger import (
     BulkPushEventWithMetadata as BulkPushEventWithMetadata,
 )
-from hatchet_sdk.types.trigger import (
-    PushEventOptions as PushEventOptions,
-)
 from hatchet_sdk.utils.api_auth import create_authorization_header
+from hatchet_sdk.utils.datetimes import proto_timestamp_now
 from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
 
 
@@ -51,76 +51,89 @@ def _inject_source_info(
     metadata: JSONSerializableMapping,
 ) -> JSONSerializableMapping:
     """Injects hatchet__source_workflow_run_id and hatchet__source_step_run_id
-    into metadata when called from within a step execution context."""
+    into metadata when called from within a task execution context. The engine reads
+    these exact keys, so the `step` in the second one cannot be renamed here."""
     wf_run_id = ctx_workflow_run_id.get()
-    step_run_id = ctx_step_run_id.get()
+    task_run_external_id = ctx_task_run_external_id.get()
 
-    if not wf_run_id or not step_run_id:
+    if not wf_run_id or not task_run_external_id:
         return metadata
 
     return {
         **metadata,
         "hatchet__source_workflow_run_id": wf_run_id,
-        "hatchet__source_step_run_id": step_run_id,
+        "hatchet__source_step_run_id": task_run_external_id,
     }
 
 
-def proto_timestamp_now() -> timestamp_pb2.Timestamp:
-    t = datetime.datetime.now(tz=datetime.timezone.utc).timestamp()
-    seconds = int(t)
-    nanos = int(t % 1 * 1e9)
-
-    return timestamp_pb2.Timestamp(seconds=seconds, nanos=nanos)
-
-
 class Event(BaseModel):
+    id: str
     tenant_id: str
-    event_id: str
     key: str
-    payload: str
-    event_timestamp: timestamp_pb2.Timestamp
-    additional_metadata: str | None = None
+    payload: JSONSerializableMapping
+    additional_metadata: JSONSerializableMapping
     scope: str | None = None
     seen_at: datetime.datetime
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    @property
-    def eventTimestamp(self) -> timestamp_pb2.Timestamp:  # noqa: N802
-        return self.event_timestamp
-
-    @property
-    def additionalMetadata(self) -> str | None:  # noqa: N802
-        return self.additional_metadata
+    triggering_webhook_name: str | None = None
+    workflow_run_summary: V1EventWorkflowRunSummary | None = Field(
+        default=None,
+        description="Counts of the runs this event triggered, by status. Only set on events read back from Hatchet, not on the result of a push.",
+    )
+    triggered_runs: list[V1EventTriggeredRun] | None = Field(
+        default=None,
+        description="The runs this event triggered. Only set on events read back from Hatchet, not on the result of a push.",
+    )
+    payloads_restricted: bool = Field(
+        default=False,
+        description="True when the payload was omitted because the caller cannot view payloads.",
+    )
 
     @classmethod
     def from_proto(cls, proto: EventProto) -> "Event":
-        additional_metadata = (
-            proto.additional_metadata if proto.HasField("additional_metadata") else None
-        )
-        scope = proto.scope if proto.HasField("scope") else None
-
         return cls(
+            id=proto.event_id,
             tenant_id=proto.tenant_id,
-            event_id=proto.event_id,
             key=proto.key,
-            payload=proto.payload,
-            event_timestamp=proto.event_timestamp,
-            additional_metadata=additional_metadata,
-            scope=scope,
-            seen_at=proto.event_timestamp.ToDatetime(tzinfo=timezone.utc),
+            payload=json.loads(proto.payload) if proto.payload else {},
+            additional_metadata=(
+                json.loads(proto.additional_metadata)
+                if proto.HasField("additional_metadata") and proto.additional_metadata
+                else {}
+            ),
+            scope=proto.scope if proto.HasField("scope") else None,
+            seen_at=proto.event_timestamp.ToDatetime(tzinfo=datetime.UTC),
+        )
+
+    @classmethod
+    def from_rest_model(cls, rest_event: V1Event) -> "Event":
+        return cls(
+            id=rest_event.metadata.id,
+            tenant_id=rest_event.tenant_id,
+            key=rest_event.key,
+            payload=rest_event.payload or {},
+            additional_metadata=rest_event.additional_metadata or {},
+            scope=rest_event.scope,
+            seen_at=rest_event.seen_at or rest_event.metadata.created_at,
+            triggering_webhook_name=rest_event.triggering_webhook_name,
+            workflow_run_summary=rest_event.workflow_run_summary,
+            triggered_runs=rest_event.triggered_runs,
+            payloads_restricted=rest_event.payloads_restricted is True,
         )
 
 
 class EventClient(BaseRestClient):
-    def __init__(self, config: ClientConfig):
+    """
+    The events client is a client for pushing events to Hatchet and reading the events that were pushed.
+    """
+
+    def __init__(self, config: ClientConfig) -> None:
         super().__init__(config)
 
         self._client: EventsServiceStub | None = None
         self._aio_client: EventsServiceStub | None = None
 
-        self.token = config.token
-        self.namespace = config.namespace
+        self._token = config.token
+        self._namespace = config.namespace
         self._retrying_aio_put_stream_event = tenacity_retry(
             self._put_stream_event, self.client_config.tenacity
         )
@@ -131,10 +144,14 @@ class EventClient(BaseRestClient):
             self._bulk_push_event, self.client_config.tenacity
         )
 
-    def _wra(self, client: ApiClient) -> WorkflowRunsApi:
+    def _wra(self, client: ApiClient) -> "WorkflowRunsApi":
+        from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
+
         return WorkflowRunsApi(client)
 
-    def _ea(self, client: ApiClient) -> EventApi:
+    def _ea(self, client: ApiClient) -> "EventApi":
+        from hatchet_sdk.clients.rest.api.event_api import EventApi
+
         return EventApi(client)
 
     def _get_or_create_aio_client(self) -> EventsServiceStub:
@@ -153,19 +170,15 @@ class EventClient(BaseRestClient):
         self,
         key: str,
         payload: JSONSerializableMapping,
-        options: PushEventOptions,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: Priority | None = None,
         scope: str | None = None,
-        namespace_override: str | None = None,
     ) -> PushEventRequest:
-        namespace = namespace_override or options.namespace or self.namespace
+        namespace = self._namespace
         namespaced_key = self.client_config.apply_namespace(key, namespace)
 
         try:
-            meta = _inject_source_info(
-                additional_metadata or options.additional_metadata
-            )
+            meta = _inject_source_info(additional_metadata or {})
             meta_bytes = json.dumps(meta)
         except Exception as e:
             raise ValueError("Error encoding meta") from e
@@ -180,39 +193,39 @@ class EventClient(BaseRestClient):
             payload=payload_str,
             event_timestamp=proto_timestamp_now(),
             additional_metadata=meta_bytes,
-            priority=priority or options.priority,
-            scope=scope or options.scope,
+            priority=priority,
+            scope=scope,
         )
 
     async def aio_push(
         self,
         event_key: str,
         payload: JSONSerializableMapping,
-        options: PushEventOptions | None = None,
+        *,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: Priority | None = None,
         scope: str | None = None,
     ) -> Event:
-        if options is not None:
-            warnings.warn(
-                "The `options` parameter is deprecated and will be removed in v2.0.0. The namespace should be set on the `ClientConfig`",
-                stacklevel=2,
-                category=DeprecationWarning,
-            )
-        else:
-            options = PushEventOptions()
+        """
+        Push an event to Hatchet, triggering any workflows that listen for its key.
 
+        :param event_key: The key of the event. Workflows declared with this key in `on_events` are triggered.
+        :param payload: The payload of the event, which becomes the input of the triggered runs.
+        :param additional_metadata: Additional metadata to attach to the event and to the runs it triggers.
+        :param priority: The priority to give the runs triggered by the event.
+        :param scope: The scope of the event, used to match it against event filters.
+        :return: The event that was pushed.
+        """
         request = self._prepare_push_event_request(
             key=event_key,
             payload=payload,
-            options=options,
             additional_metadata=additional_metadata,
             priority=priority,
             scope=scope,
         )
 
         response = await self._retrying_aio_push_event(
-            request, create_authorization_header(self.token)
+            request, create_authorization_header(self._token)
         )
 
         return Event.from_proto(response)
@@ -224,7 +237,7 @@ class EventClient(BaseRestClient):
     ) -> EventProto:
         aio_client = self._get_or_create_aio_client()
         return cast(
-            EventProto,
+            "EventProto",
             await aio_client.Push(request, metadata=metadata),  # type: ignore[misc]
         )
 
@@ -232,19 +245,21 @@ class EventClient(BaseRestClient):
         self,
         event_key: str,
         payload: JSONSerializableMapping,
-        options: PushEventOptions | None = None,
+        *,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: Priority | None = None,
         scope: str | None = None,
     ) -> Event:
-        if options is not None:
-            warnings.warn(
-                "The `options` parameter is deprecated and will be removed in v2.0.0. The namespace should be set on the `ClientConfig`",
-                stacklevel=2,
-                category=DeprecationWarning,
-            )
-        else:
-            options = PushEventOptions()
+        """
+        Push an event to Hatchet, triggering any workflows that listen for its key.
+
+        :param event_key: The key of the event. Workflows declared with this key in `on_events` are triggered.
+        :param payload: The payload of the event, which becomes the input of the triggered runs.
+        :param additional_metadata: Additional metadata to attach to the event and to the runs it triggers.
+        :param priority: The priority to give the runs triggered by the event.
+        :param scope: The scope of the event, used to match it against event filters.
+        :return: The event that was pushed.
+        """
 
         client = self._get_or_create_client()
         push_event = tenacity_retry(client.Push, self.client_config.tenacity)
@@ -252,15 +267,14 @@ class EventClient(BaseRestClient):
         request = self._prepare_push_event_request(
             key=event_key,
             payload=payload,
-            options=options,
             additional_metadata=additional_metadata,
             priority=priority,
             scope=scope,
         )
 
         response = cast(
-            EventProto,
-            push_event(request, metadata=create_authorization_header(self.token)),
+            "EventProto",
+            push_event(request, metadata=create_authorization_header(self._token)),
         )
 
         return Event.from_proto(response)
@@ -268,40 +282,32 @@ class EventClient(BaseRestClient):
     async def aio_bulk_push(
         self,
         events: list[BulkPushEventWithMetadata],
-        options: BulkPushEventOptions | None = None,
     ) -> list[Event]:
-        if options:
-            warnings.warn(
-                "The `options` parameter is deprecated and will be removed in v2.0.0. The namespace should be set on the `ClientConfig`",
-                stacklevel=2,
-                category=DeprecationWarning,
-            )
-        else:
-            options = BulkPushEventOptions()
+        """
+        Push many events to Hatchet in a single request.
 
-        namespace = options.namespace or self.namespace
-
+        :param events: The events to push.
+        :return: The events that were pushed.
+        """
         bulk_request = BulkPushEventRequest(
             events=[
                 self._prepare_push_event_request(
                     key=event.key,
                     payload=event.payload,
                     additional_metadata=event.additional_metadata,
-                    options=PushEventOptions(),
                     priority=(
                         Priority(event.priority)
                         if isinstance(event.priority, int)
                         else event.priority
                     ),
                     scope=event.scope,
-                    namespace_override=namespace,
                 )
                 for event in events
             ]
         )
 
         response = await self._retrying_aio_bulk_push_event(
-            bulk_request, create_authorization_header(self.token)
+            bulk_request, create_authorization_header(self._token)
         )
 
         return [Event.from_proto(event) for event in response.events]
@@ -313,40 +319,32 @@ class EventClient(BaseRestClient):
     ) -> EventsProto:
         aio_client = self._get_or_create_aio_client()
         return cast(
-            EventsProto,
+            "EventsProto",
             await aio_client.BulkPush(request, metadata=metadata),  # type: ignore[misc]
         )
 
     def bulk_push(
         self,
         events: list[BulkPushEventWithMetadata],
-        options: BulkPushEventOptions | None = None,
     ) -> list[Event]:
-        if options:
-            warnings.warn(
-                "The `options` parameter is deprecated and will be removed in v2.0.0. The namespace should be set on the `ClientConfig`",
-                stacklevel=2,
-                category=DeprecationWarning,
-            )
-        else:
-            options = BulkPushEventOptions()
+        """
+        Push many events to Hatchet in a single request.
 
-        namespace = options.namespace or self.namespace
-
+        :param events: The events to push.
+        :return: The events that were pushed.
+        """
         bulk_request = BulkPushEventRequest(
             events=[
                 self._prepare_push_event_request(
                     key=event.key,
                     payload=event.payload,
                     additional_metadata=event.additional_metadata,
-                    options=PushEventOptions(),
                     priority=(
                         Priority(event.priority)
                         if isinstance(event.priority, int)
                         else event.priority
                     ),
                     scope=event.scope,
-                    namespace_override=namespace,
                 )
                 for event in events
             ]
@@ -357,16 +355,16 @@ class EventClient(BaseRestClient):
         bulk_push = tenacity_retry(client.BulkPush, self.client_config.tenacity)
 
         response = cast(
-            EventsProto,
-            bulk_push(bulk_request, metadata=create_authorization_header(self.token)),
+            "EventsProto",
+            bulk_push(bulk_request, metadata=create_authorization_header(self._token)),
         )
 
         return [Event.from_proto(event) for event in response.events]
 
-    def log(
+    def _log(
         self,
         message: str,
-        step_run_id: str,
+        task_run_external_id: str,
         level: LogLevel | None = None,
         task_retry_count: int | None = None,
     ) -> None:
@@ -377,17 +375,17 @@ class EventClient(BaseRestClient):
         client = self._get_or_create_client()
         put_log = tenacity_retry(client.PutLog, self.client_config.tenacity)
         request = PutLogRequest(
-            task_run_external_id=step_run_id,
+            task_run_external_id=task_run_external_id,
             created_at=proto_timestamp_now(),
             message=message,
             level=level.value if level else None,
             task_retry_count=task_retry_count,
         )
 
-        put_log(request, metadata=create_authorization_header(self.token))
+        put_log(request, metadata=create_authorization_header(self._token))
 
     def _create_put_stream_event_request(
-        self, data: str | bytes, step_run_id: str, index: int
+        self, data: str | bytes, task_run_external_id: str, index: int
     ) -> PutStreamEventRequest:
         if isinstance(data, str):
             data_bytes = data.encode("utf-8")
@@ -397,21 +395,23 @@ class EventClient(BaseRestClient):
             raise ValueError("Invalid data type. Expected str, bytes, or file.")
 
         return PutStreamEventRequest(
-            task_run_external_id=step_run_id,
+            task_run_external_id=task_run_external_id,
             created_at=proto_timestamp_now(),
             message=data_bytes,
             event_index=index,
         )
 
-    def stream(self, data: str | bytes, step_run_id: str, index: int) -> None:
+    def _stream(self, data: str | bytes, task_run_external_id: str, index: int) -> None:
         client = self._get_or_create_client()
         put_stream_event = tenacity_retry(
             client.PutStreamEvent, self.client_config.tenacity
         )
-        request = self._create_put_stream_event_request(data, step_run_id, index)
+        request = self._create_put_stream_event_request(
+            data, task_run_external_id, index
+        )
 
         try:
-            put_stream_event(request, metadata=create_authorization_header(self.token))
+            put_stream_event(request, metadata=create_authorization_header(self._token))
         except Exception:
             raise
 
@@ -422,32 +422,52 @@ class EventClient(BaseRestClient):
     ) -> PutStreamEventResponse:
         client = self._get_or_create_aio_client()
         return cast(
-            PutStreamEventResponse,
+            "PutStreamEventResponse",
             await client.PutStreamEvent(  # type: ignore[misc]
                 request, metadata=metadata
             ),
         )
 
-    async def aio_stream(self, data: str | bytes, step_run_id: str, index: int) -> None:
-        request = self._create_put_stream_event_request(data, step_run_id, index)
+    async def _aio_stream(
+        self, data: str | bytes, task_run_external_id: str, index: int
+    ) -> None:
+        request = self._create_put_stream_event_request(
+            data, task_run_external_id, index
+        )
 
         await self._retrying_aio_put_stream_event(
-            request, create_authorization_header(self.token)
+            request, create_authorization_header(self._token)
         )
 
     async def aio_list(
         self,
+        *,
         offset: int | None = None,
         limit: int | None = None,
         keys: list[str] | None = None,
         since: datetime.datetime | None = None,
         until: datetime.datetime | None = None,
         workflow_ids: list[str] | None = None,
-        workflow_run_statuses: list[V1TaskStatus] | None = None,
+        workflow_run_statuses: list[RunStatus] | None = None,
         event_ids: list[str] | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         scopes: list[str] | None = None,
-    ) -> V1EventList:
+    ) -> list[Event]:
+        """
+        List events that were pushed to the tenant.
+
+        :param offset: The number of events to skip.
+        :param limit: The maximum number of events to return.
+        :param keys: Only return events with one of these keys.
+        :param since: Only return events seen at or after this time.
+        :param until: Only return events seen at or before this time.
+        :param workflow_ids: Only return events that triggered one of these workflows.
+        :param workflow_run_statuses: Only return events that triggered a run in one of these statuses.
+        :param event_ids: Only return events with one of these IDs.
+        :param additional_metadata: Only return events whose additional metadata contains these key-value pairs.
+        :param scopes: Only return events with one of these scopes.
+        :return: The matching events.
+        """
         return await asyncio.to_thread(
             self.list,
             offset=offset,
@@ -464,19 +484,35 @@ class EventClient(BaseRestClient):
 
     def list(
         self,
+        *,
         offset: int | None = None,
         limit: int | None = None,
         keys: list[str] | None = None,
         since: datetime.datetime | None = None,
         until: datetime.datetime | None = None,
         workflow_ids: list[str] | None = None,
-        workflow_run_statuses: list[V1TaskStatus] | None = None,
+        workflow_run_statuses: list[RunStatus] | None = None,
         event_ids: list[str] | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         scopes: list[str] | None = None,
-    ) -> V1EventList:
+    ) -> list[Event]:
+        """
+        List events that were pushed to the tenant.
+
+        :param offset: The number of events to skip.
+        :param limit: The maximum number of events to return.
+        :param keys: Only return events with one of these keys.
+        :param since: Only return events seen at or after this time.
+        :param until: Only return events seen at or before this time.
+        :param workflow_ids: Only return events that triggered one of these workflows.
+        :param workflow_run_statuses: Only return events that triggered a run in one of these statuses.
+        :param event_ids: Only return events with one of these IDs.
+        :param additional_metadata: Only return events whose additional metadata contains these key-value pairs.
+        :param scopes: Only return events with one of these scopes.
+        :return: The matching events.
+        """
         with self.client() as client:
-            return self._ea(client).v1_event_list(
+            el = self._ea(client).v1_event_list(
                 tenant=self.client_config.tenant_id,
                 offset=offset,
                 limit=limit,
@@ -492,20 +528,36 @@ class EventClient(BaseRestClient):
                 scopes=scopes,
             )
 
+            return [Event.from_rest_model(rest_event) for rest_event in el.rows or []]
+
     def get(
         self,
         event_id: str,
-    ) -> V1Event:
+    ) -> Event:
+        """
+        Retrieve an event by its ID.
+
+        :param event_id: The ID of the event to retrieve.
+        :return: The requested event.
+        """
         with self.client() as client:
-            return self._ea(client).v1_event_get(
-                tenant=self.client_config.tenant_id,
-                v1_event=event_id,
+            return Event.from_rest_model(
+                self._ea(client).v1_event_get(
+                    tenant=self.client_config.tenant_id,
+                    v1_event=event_id,
+                )
             )
 
     async def aio_get(
         self,
         event_id: str,
-    ) -> V1Event:
+    ) -> Event:
+        """
+        Retrieve an event by its ID.
+
+        :param event_id: The ID of the event to retrieve.
+        :return: The requested event.
+        """
         return await asyncio.to_thread(
             self.get,
             event_id=event_id,

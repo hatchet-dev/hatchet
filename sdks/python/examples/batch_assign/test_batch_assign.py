@@ -22,7 +22,6 @@ from examples.batch_assign.worker import (
     batch_single,
 )
 from hatchet_sdk.exceptions import FailedTaskRunExceptionGroup
-from hatchet_sdk.runnables.types import EmptyModel
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -170,7 +169,7 @@ async def test_cancel_semantics() -> None:
     results = await asyncio.gather(
         *[batch_cancel.aio_run(SimpleInput(message="hello")) for i in range(count)]
     )
-    assert all(isinstance(i, EmptyModel) for i in results)
+    assert all(i is None for i in results)
 
 
 @pytest.mark.asyncio(loop_scope="session")

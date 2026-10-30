@@ -10,55 +10,20 @@ The streams client publishes to and reads from durable topics. Unlike `runs.subs
 
 Methods:
 
-| Name                 | Description                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `aio_reset`          | Make `subscribe` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.                                                                                                                                                                                                                                                                           |
-| `aio_topic_metadata` | Describe a topic's retained messages. Raises a `NOT_FOUND` gRPC error for a topic nothing was published to.                                                                                                                                                                                                                                                                                                                                   |
-| `publish`            | Publish a message to a topic, returning once it is stored. A client's messages to a topic are delivered in the order `publish` was called. Publishes to a topic share requests: everything queued while one is in flight goes out in the next, and `batch_timeout` holds a message up to that long for more to join it. Cancelling a publish before its request goes out drops the message; once the request is sent, it may still be stored. |
-| `reset`              | Make `subscribe` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.                                                                                                                                                                                                                                                                           |
-| `subscribe`          | Yield a topic's messages after `cursor`, or from the oldest retained (or, once the topic is reset, after the reset). If the connection drops, it resubscribes from the last message yielded, so nothing is skipped or repeated. Ends when the server hangs up an idle subscription or the caller stops iterating; raises on errors a retry can't fix, such as an expired cursor.                                                              |
-| `topic_metadata`     | Describe a topic's retained messages. Raises a `NOT_FOUND` gRPC error for a topic nothing was published to.                                                                                                                                                                                                                                                                                                                                   |
+| Name                 | Description                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `aio_publish`        | Publish a message to a topic, returning once it is stored. A client's messages to a topic are delivered in the order `aio_publish` was called. Publishes to a topic share requests: everything queued while one is in flight goes out in the next, and `batch_timeout` holds a message up to that long for more to join it. Cancelling a publish before its request goes out drops the message; once the request is sent, it may still be stored. |
+| `aio_reset`          | Make `aio_subscribe` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.                                                                                                                                                                                                                                                                           |
+| `aio_subscribe`      | Yield a topic's messages after `cursor`, or from the oldest retained (or, once the topic is reset, after the reset). If the connection drops, it resubscribes from the last message yielded, so nothing is skipped or repeated. Ends when the server hangs up an idle subscription or the caller stops iterating; raises on errors a retry can't fix, such as an expired cursor.                                                                  |
+| `aio_topic_metadata` | Describe a topic's retained messages. Raises a `NOT_FOUND` gRPC error for a topic nothing was published to.                                                                                                                                                                                                                                                                                                                                       |
+| `reset`              | Make `aio_subscribe` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.                                                                                                                                                                                                                                                                           |
+| `topic_metadata`     | Describe a topic's retained messages. Raises a `NOT_FOUND` gRPC error for a topic nothing was published to.                                                                                                                                                                                                                                                                                                                                       |
 
 ### Functions
 
-#### `aio_reset`
+#### `aio_publish`
 
-Make `subscribe` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.
-
-Parameters:
-
-| Name        | Type          | Description                                                                             | Default    |
-| ----------- | ------------- | --------------------------------------------------------------------------------------- | ---------- |
-| `topic`     | `str`         | The topic to reset.                                                                     | _required_ |
-| `namespace` | `str`         | The topic's namespace; the empty namespace by default.                                  | `''`       |
-| `cursor`    | `str \| None` | A cursor read off one of the topic's events to reset to, instead of its latest message. | `None`     |
-
-Returns:
-
-| Type   | Description |
-| ------ | ----------- |
-| `None` | None        |
-
-#### `aio_topic_metadata`
-
-Describe a topic's retained messages. Raises a `NOT_FOUND` gRPC error for a topic nothing was published to.
-
-Parameters:
-
-| Name        | Type  | Description                                            | Default    |
-| ----------- | ----- | ------------------------------------------------------ | ---------- |
-| `topic`     | `str` | The topic to describe.                                 | _required_ |
-| `namespace` | `str` | The topic's namespace; the empty namespace by default. | `''`       |
-
-Returns:
-
-| Type                  | Description           |
-| --------------------- | --------------------- |
-| `StreamTopicMetadata` | The topic's metadata. |
-
-#### `publish`
-
-Publish a message to a topic, returning once it is stored. A client's messages to a topic are delivered in the order `publish` was called. Publishes to a topic share requests: everything queued while one is in flight goes out in the next, and `batch_timeout` holds a message up to that long for more to join it. Cancelling a publish before its request goes out drops the message; once the request is sent, it may still be stored.
+Publish a message to a topic, returning once it is stored. A client's messages to a topic are delivered in the order `aio_publish` was called. Publishes to a topic share requests: everything queued while one is in flight goes out in the next, and `batch_timeout` holds a message up to that long for more to join it. Cancelling a publish before its request goes out drops the message; once the request is sent, it may still be stored.
 
 Parameters:
 
@@ -81,9 +46,9 @@ Raises:
 | ------------ | -------------------------------------------------------------------- |
 | `ValueError` | The payload is empty or over 64 MiB, or `batch_timeout` is negative. |
 
-#### `reset`
+#### `aio_reset`
 
-Make `subscribe` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.
+Make `aio_subscribe` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.
 
 Parameters:
 
@@ -99,7 +64,7 @@ Returns:
 | ------ | ----------- |
 | `None` | None        |
 
-#### `subscribe`
+#### `aio_subscribe`
 
 Yield a topic's messages after `cursor`, or from the oldest retained (or, once the topic is reset, after the reset). If the connection drops, it resubscribes from the last message yielded, so nothing is skipped or repeated. Ends when the server hangs up an idle subscription or the caller stops iterating; raises on errors a retry can't fix, such as an expired cursor.
 
@@ -122,6 +87,41 @@ Raises:
 | Type        | Description                                                                                                                             |
 | ----------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `Exception` | An error a resubscribe can't fix, such as an expired cursor (`OUT_OF_RANGE`) or a tenant without durable streams (`PERMISSION_DENIED`). |
+
+#### `aio_topic_metadata`
+
+Describe a topic's retained messages. Raises a `NOT_FOUND` gRPC error for a topic nothing was published to.
+
+Parameters:
+
+| Name        | Type  | Description                                            | Default    |
+| ----------- | ----- | ------------------------------------------------------ | ---------- |
+| `topic`     | `str` | The topic to describe.                                 | _required_ |
+| `namespace` | `str` | The topic's namespace; the empty namespace by default. | `''`       |
+
+Returns:
+
+| Type                  | Description           |
+| --------------------- | --------------------- |
+| `StreamTopicMetadata` | The topic's metadata. |
+
+#### `reset`
+
+Make `aio_subscribe` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.
+
+Parameters:
+
+| Name        | Type          | Description                                                                             | Default    |
+| ----------- | ------------- | --------------------------------------------------------------------------------------- | ---------- |
+| `topic`     | `str`         | The topic to reset.                                                                     | _required_ |
+| `namespace` | `str`         | The topic's namespace; the empty namespace by default.                                  | `''`       |
+| `cursor`    | `str \| None` | A cursor read off one of the topic's events to reset to, instead of its latest message. | `None`     |
+
+Returns:
+
+| Type   | Description |
+| ------ | ----------- |
+| `None` | None        |
 
 #### `topic_metadata`
 

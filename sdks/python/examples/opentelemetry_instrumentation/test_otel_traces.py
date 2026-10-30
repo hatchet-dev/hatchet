@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from hatchet_sdk.clients.rest.api.observability_api import ObservabilityApi
 from hatchet_sdk.clients.rest.models.otel_span import OtelSpan
-from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
+from hatchet_sdk.types.run_status import RunStatus
 from hatchet_sdk import Hatchet
 from examples.opentelemetry_instrumentation.worker import (
     otel_simple_task,
@@ -44,8 +44,9 @@ def poll_for_trace(hatchet: Hatchet, run_id: str, min_spans: int = 1) -> list[Ot
 
 @requires_observability
 @pytest.mark.asyncio(loop_scope="session")
-async def test_otel_spans_created_on_task_run(hatchet: Hatchet) -> None:
-    test_run_id = str(uuid4())
+async def test_otel_spans_created_on_task_run(
+    hatchet: Hatchet, test_run_id: str
+) -> None:
     message = "Hello, OpenTelemetry!"
     HatchetInstrumentor().instrument()
 
@@ -139,11 +140,12 @@ async def test_otel_spans_created_on_task_run(hatchet: Hatchet) -> None:
 
 @requires_observability
 @pytest.mark.asyncio(loop_scope="session")
-async def test_otel_spans_on_event_triggered_run(hatchet: Hatchet) -> None:
+async def test_otel_spans_on_event_triggered_run(
+    hatchet: Hatchet, test_run_id: str
+) -> None:
     HatchetInstrumentor().instrument()
-    test_run_id = str(uuid4())
 
-    event = await hatchet.event.aio_push(
+    event = await hatchet.events.aio_push(
         "otel:test-event",
         {"message": "event-triggered"},
         additional_metadata={"test_run_id": test_run_id},
@@ -151,11 +153,10 @@ async def test_otel_spans_on_event_triggered_run(hatchet: Hatchet) -> None:
 
     run_id = None
     for _ in range(15):
-        runs = await hatchet.runs.aio_list(triggering_event_external_id=event.event_id)
-        rows = runs.rows or []
-        completed = [r for r in rows if r.status == V1TaskStatus.COMPLETED]
+        runs = await hatchet.runs.aio_list(triggering_event_id=event.id)
+        completed = [r for r in runs if r.status == RunStatus.COMPLETED]
         if completed:
-            run_id = completed[0].task_external_id
+            run_id = completed[0].task_run_id
             break
         await asyncio.sleep(1)
 
@@ -335,10 +336,9 @@ async def test_otel_spans_on_dag_run(hatchet: Hatchet) -> None:
 
 @requires_observability
 @pytest.mark.asyncio(loop_scope="session")
-async def test_otel_spans_on_child_spawn(hatchet: Hatchet) -> None:
+async def test_otel_spans_on_child_spawn(hatchet: Hatchet, test_run_id: str) -> None:
     HatchetInstrumentor().instrument()
     message = "spawn-test"
-    test_run_id = str(uuid4())
 
     ref = await otel_spawn_parent.aio_run(
         input=SimpleOtelTaskInput(message=message),

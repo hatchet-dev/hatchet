@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
+from datetime import datetime, timedelta
 from enum import Enum
 from typing import TYPE_CHECKING
 from uuid import uuid4
@@ -17,8 +17,6 @@ from hatchet_sdk.contracts.v1.shared.condition_pb2 import (
 )
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
 from hatchet_sdk.utils.timedelta_to_expression import (
-    Duration,
-    _warn_if_str_duration,
     timedelta_to_expr,
 )
 
@@ -31,7 +29,7 @@ def generate_or_group_id() -> str:
     return str(uuid4())
 
 
-class Action(Enum):
+class _Action(Enum):
     CREATE = 0
     QUEUE = 1
     CANCEL = 2
@@ -40,25 +38,25 @@ class Action(Enum):
 
 class BaseCondition(BaseModel):
     readable_data_key: str
-    action: Action | None = None
+    action: _Action | None = None
     or_group_id: str = Field(default_factory=generate_or_group_id)
     expression: str | None = None
 
-    def to_proto(self) -> BaseMatchCondition:
+    def _to_proto(self) -> BaseMatchCondition:
         return BaseMatchCondition(
             readable_data_key=self.readable_data_key,
-            action=convert_python_enum_to_proto(self.action, ProtoAction),  # type: ignore[arg-type]
+            action=convert_python_enum_to_proto(self.action, ProtoAction),
             or_group_id=self.or_group_id,
             expression=self.expression,
         )
 
 
 class Condition(ABC):
-    def __init__(self, base: BaseCondition):
-        self.base = base
+    def __init__(self, base: BaseCondition) -> None:
+        self._base = base
 
     @abstractmethod
-    def to_proto(
+    def _to_proto(
         self, config: ClientConfig
     ) -> UserEventMatchCondition | ParentOverrideMatchCondition | SleepMatchCondition:
         pass
@@ -66,9 +64,8 @@ class Condition(ABC):
 
 class SleepCondition(Condition):
     def __init__(
-        self, duration: Duration, readable_data_key: str | None = None
+        self, duration: timedelta, *, readable_data_key: str | None = None
     ) -> None:
-        _warn_if_str_duration(duration, stacklevel=2)
         super().__init__(
             BaseCondition(
                 readable_data_key=readable_data_key
@@ -78,9 +75,9 @@ class SleepCondition(Condition):
 
         self.duration = duration
 
-    def to_proto(self, config: ClientConfig) -> SleepMatchCondition:
+    def _to_proto(self, _config: ClientConfig) -> SleepMatchCondition:
         return SleepMatchCondition(
-            base=self.base.to_proto(),
+            base=self._base._to_proto(),
             sleep_for=timedelta_to_expr(self.duration),
         )
 
@@ -89,6 +86,7 @@ class UserEventCondition(Condition):
     def __init__(
         self,
         event_key: str,
+        *,
         expression: str | None = None,
         readable_data_key: str | None = None,
         scope: str | None = None,
@@ -106,9 +104,9 @@ class UserEventCondition(Condition):
         self.scope = scope
         self.consider_events_since = consider_events_since
 
-    def to_proto(self, config: ClientConfig) -> UserEventMatchCondition:
+    def _to_proto(self, config: ClientConfig) -> UserEventMatchCondition:
         return UserEventMatchCondition(
-            base=self.base.to_proto(),
+            base=self._base._to_proto(),
             user_event_key=config.apply_namespace(self.event_key),
             event_scope=self.scope,
             consider_events_since=self.consider_events_since,
@@ -119,27 +117,23 @@ class ParentCondition(Condition):
     def __init__(
         self,
         parent: "Task[TWorkflowInput, R]",
+        *,
         expression: str | None = None,
         readable_data_key: str | None = None,
     ) -> None:
         super().__init__(
             BaseCondition(
                 readable_data_key=readable_data_key
-                or (
-                    parent.name
-                    + (f":{expression}" if expression else "")
-                    + ":"
-                    + datetime.now(tz=timezone.utc).isoformat()
-                ),
+                or parent.name + (f":{expression}" if expression else ""),
                 expression=expression,
             )
         )
 
         self.parent = parent
 
-    def to_proto(self, config: ClientConfig) -> ParentOverrideMatchCondition:
+    def _to_proto(self, _config: ClientConfig) -> ParentOverrideMatchCondition:
         return ParentOverrideMatchCondition(
-            base=self.base.to_proto(),
+            base=self._base._to_proto(),
             parent_readable_id=self.parent.name,
         )
 
@@ -160,7 +154,7 @@ def flatten_conditions(conditions: list[Condition | OrGroup]) -> list[Condition]
     for condition in conditions:
         if isinstance(condition, OrGroup):
             for or_condition in condition.conditions:
-                or_condition.base.or_group_id = condition.or_group_id
+                or_condition._base.or_group_id = condition.or_group_id
 
             flattened.extend(condition.conditions)
         else:
@@ -174,9 +168,9 @@ def build_conditions_proto(
 ) -> DurableEventListenerConditions:
     return DurableEventListenerConditions(
         sleep_conditions=[
-            c.to_proto(config) for c in conditions if isinstance(c, SleepCondition)
+            c._to_proto(config) for c in conditions if isinstance(c, SleepCondition)
         ],
         user_event_conditions=[
-            c.to_proto(config) for c in conditions if isinstance(c, UserEventCondition)
+            c._to_proto(config) for c in conditions if isinstance(c, UserEventCondition)
         ],
     )

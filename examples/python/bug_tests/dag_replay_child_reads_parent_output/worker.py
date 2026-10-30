@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import Context, Hatchet
 
 hatchet = Hatchet()
 
@@ -20,9 +20,7 @@ dag_replay_child_reads_parent_output = hatchet.workflow(
 
 
 @dag_replay_child_reads_parent_output.task()
-async def parent_failing_on_first_attempt(
-    input: EmptyModel, ctx: Context
-) -> ParentOutput:
+async def parent_failing_on_first_attempt(input: None, ctx: Context) -> ParentOutput:
     if ctx.retry_count == 0:
         raise ValueError("fails on the first attempt and succeeds when replayed")
 
@@ -30,7 +28,7 @@ async def parent_failing_on_first_attempt(
 
 
 @dag_replay_child_reads_parent_output.task(parents=[parent_failing_on_first_attempt])
-async def child_reading_parent_output(input: EmptyModel, ctx: Context) -> ChildOutput:
+async def child_reading_parent_output(input: None, ctx: Context) -> ChildOutput:
     parent_output = ParentOutput.model_validate(
         ctx.task_output(parent_failing_on_first_attempt)
     )

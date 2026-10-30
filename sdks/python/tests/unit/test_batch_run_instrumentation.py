@@ -51,16 +51,16 @@ def exporter() -> Iterator[InMemorySpanExporter]:
 @pytest.fixture
 def instrumentor(exporter: InMemorySpanExporter) -> HatchetInstrumentor:
     # ClientConfig requires a JWT token. Bypass __init__ since we only need
-    # the tracer and config.otel.{excluded_attributes,individual_run_spans_for_bulk_run}
+    # the tracer and _config.otel.{excluded_attributes,individual_run_spans_for_bulk_run}
     # for the wrappers.
     inst = object.__new__(HatchetInstrumentor)
     provider = TracerProvider()
     provider.add_span_processor(SimpleSpanProcessor(exporter))
     inst._tracer = get_tracer(__name__, "test", provider)
-    inst.config = MagicMock()
-    inst.config.otel.excluded_attributes = []
+    inst._config = MagicMock()
+    inst._config.otel.excluded_attributes = []
     # Per-item spans are opt-in; the per-item assertions below require the flag.
-    inst.config.otel.individual_run_spans_for_bulk_run = True
+    inst._config.otel.individual_run_spans_for_bulk_run = True
     return inst
 
 
@@ -70,7 +70,7 @@ def test_run_workflows_creates_no_item_spans_when_flag_disabled(
     # Default behaviour: no per-item spans, and every item carries the batch
     # span's traceparent so the span structure for downstream collectors is
     # unchanged.
-    instrumentor.config.otel.individual_run_spans_for_bulk_run = False
+    instrumentor._config.otel.individual_run_spans_for_bulk_run = False
     captured: list[WorkflowRunTriggerConfig] = []
 
     def wrapped(configs: list[WorkflowRunTriggerConfig]) -> list[WorkflowRunRef]:
