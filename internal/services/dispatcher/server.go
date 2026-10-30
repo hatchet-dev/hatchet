@@ -1382,7 +1382,7 @@ func (s *DispatcherImpl) taskEventsToWorkflowRunEvent(ctx context.Context, tenan
 				TaskName:           event.StepReadableID,
 				JobRunId:           event.TaskExternalId.String(),
 				Error:              &event.ErrorMessage,
-				CancellationReason: event.CancellationReason,
+				CancellationReason: new(event.CancellationReason.ToProto()),
 			}
 		case sqlcv1.V1TaskEventTypeSIGNALCREATED, sqlcv1.V1TaskEventTypeSIGNALCOMPLETED:
 			return nil
@@ -1531,14 +1531,14 @@ func (s *DispatcherImpl) handleTaskCancelledEvent(inputCtx context.Context, task
 		false,
 		true,
 		tasktypes.CancelTasksPayload{
-			Tasks: []tasktypes.CancelTaskPayloadSingleton{
+			Tasks: []tasktypes.TaskToCancel{
 				{
-					TaskIdInsertedAtRetryCount: &v1.TaskIdInsertedAtRetryCount{
+					TaskIdInsertedAtRetryCount: v1.TaskIdInsertedAtRetryCount{
 						Id:         task.ID,
 						InsertedAt: task.InsertedAt,
 						RetryCount: retryCount,
 					},
-					CancellationReason: "cancelled by user request",
+					CancellationReason: v1.TaskCancellationReasonCancelledByWorker,
 				},
 			},
 		},
@@ -1740,6 +1740,7 @@ func (d *DispatcherImpl) CancelTaskWithReason(ctx context.Context, tenantId uuid
 		retryCount,
 		sqlcv1.V1EventTypeOlapCANCELLED,
 		request.EventPayload,
+		v1.TaskCancellationReasonCancelledByWorker,
 		false,
 	)
 	if err != nil {
@@ -2171,16 +2172,16 @@ func (s *DispatcherImpl) handleBatchTaskCancelled(
 		WorkerId: request.WorkerId,
 	}
 
-	tasksToCancel := make([]tasktypes.CancelTaskPayloadSingleton, 0, len(tasks))
+	tasksToCancel := make([]tasktypes.TaskToCancel, 0, len(tasks))
 
 	for _, task := range tasks {
-		tasksToCancel = append(tasksToCancel, tasktypes.CancelTaskPayloadSingleton{
-			TaskIdInsertedAtRetryCount: &v1.TaskIdInsertedAtRetryCount{
+		tasksToCancel = append(tasksToCancel, tasktypes.TaskToCancel{
+			TaskIdInsertedAtRetryCount: v1.TaskIdInsertedAtRetryCount{
 				Id:         task.ID,
 				InsertedAt: task.InsertedAt,
 				RetryCount: task.RetryCount,
 			},
-			CancellationReason: "batch task cancelled", // fixme - correct this
+			CancellationReason: v1.TaskCancellationReasonCancelledByWorker,
 		})
 	}
 

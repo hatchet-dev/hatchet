@@ -60,6 +60,18 @@ class ResourceEventType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
 class WorkflowRunEventType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     WORKFLOW_RUN_EVENT_TYPE_FINISHED: _ClassVar[WorkflowRunEventType]
+
+class TaskCancellationReason(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    TASK_CANCELLATION_REASON_UNSPECIFIED: _ClassVar[TaskCancellationReason]
+    TASK_CANCELLATION_REASON_CANCELLED_BY_USER: _ClassVar[TaskCancellationReason]
+    TASK_CANCELLATION_REASON_CANCELLED_BY_WORKER: _ClassVar[TaskCancellationReason]
+    TASK_CANCELLATION_REASON_CONCURRENCY_LIMIT: _ClassVar[TaskCancellationReason]
+    TASK_CANCELLATION_REASON_SCHEDULING_TIMED_OUT: _ClassVar[TaskCancellationReason]
+    TASK_CANCELLATION_REASON_PARENT_CONDITION_NOT_MET: _ClassVar[TaskCancellationReason]
+    TASK_CANCELLATION_REASON_DAG_CHILD_CANCELLED_BY_OPERATOR: _ClassVar[TaskCancellationReason]
+    TASK_CANCELLATION_REASON_DURABLE_PARENT_RELEASED: _ClassVar[TaskCancellationReason]
+    TASK_CANCELLATION_REASON_PAUSED_QUEUE_ITEM_EXPIRED: _ClassVar[TaskCancellationReason]
 UNKNOWN: SDKS
 GO: SDKS
 PYTHON: SDKS
@@ -90,6 +102,15 @@ RESOURCE_EVENT_TYPE_CANCELLED: ResourceEventType
 RESOURCE_EVENT_TYPE_TIMED_OUT: ResourceEventType
 RESOURCE_EVENT_TYPE_STREAM: ResourceEventType
 WORKFLOW_RUN_EVENT_TYPE_FINISHED: WorkflowRunEventType
+TASK_CANCELLATION_REASON_UNSPECIFIED: TaskCancellationReason
+TASK_CANCELLATION_REASON_CANCELLED_BY_USER: TaskCancellationReason
+TASK_CANCELLATION_REASON_CANCELLED_BY_WORKER: TaskCancellationReason
+TASK_CANCELLATION_REASON_CONCURRENCY_LIMIT: TaskCancellationReason
+TASK_CANCELLATION_REASON_SCHEDULING_TIMED_OUT: TaskCancellationReason
+TASK_CANCELLATION_REASON_PARENT_CONDITION_NOT_MET: TaskCancellationReason
+TASK_CANCELLATION_REASON_DAG_CHILD_CANCELLED_BY_OPERATOR: TaskCancellationReason
+TASK_CANCELLATION_REASON_DURABLE_PARENT_RELEASED: TaskCancellationReason
+TASK_CANCELLATION_REASON_PAUSED_QUEUE_ITEM_EXPIRED: TaskCancellationReason
 
 class WorkerLabels(_message.Message):
     __slots__ = ("str_value", "int_value")
@@ -423,8 +444,8 @@ class StepRunResult(_message.Message):
     job_run_id: str
     error: str
     output: str
-    cancellation_reason: str
-    def __init__(self, task_run_external_id: _Optional[str] = ..., task_name: _Optional[str] = ..., job_run_id: _Optional[str] = ..., error: _Optional[str] = ..., output: _Optional[str] = ..., cancellation_reason: _Optional[str] = ...) -> None: ...
+    cancellation_reason: TaskCancellationReason
+    def __init__(self, task_run_external_id: _Optional[str] = ..., task_name: _Optional[str] = ..., job_run_id: _Optional[str] = ..., error: _Optional[str] = ..., output: _Optional[str] = ..., cancellation_reason: _Optional[_Union[TaskCancellationReason, str]] = ...) -> None: ...
 
 class OverridesData(_message.Message):
     __slots__ = ("task_run_external_id", "path", "value", "caller_filename")

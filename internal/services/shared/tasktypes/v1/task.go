@@ -194,6 +194,8 @@ type CancelledTaskPayload struct {
 	// (required) the reason for cancellation
 	EventType sqlcv1.V1EventTypeOlap
 
+	CancellationReason v1.TaskCancellationReason
+
 	// (optional) whether the task should notify the worker
 	ShouldNotify bool
 }
@@ -207,6 +209,7 @@ func CancelledTaskMessage(
 	retryCount int32,
 	eventType sqlcv1.V1EventTypeOlap,
 	eventMessage string,
+	cancellationReason v1.TaskCancellationReason,
 	shouldNotify bool,
 ) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
@@ -215,14 +218,15 @@ func CancelledTaskMessage(
 		false,
 		true,
 		CancelledTaskPayload{
-			TaskId:        taskId,
-			InsertedAt:    taskInsertedAt,
-			ExternalId:    taskExternalId,
-			WorkflowRunId: workflowRunId,
-			RetryCount:    retryCount,
-			EventType:     eventType,
-			EventMessage:  eventMessage,
-			ShouldNotify:  shouldNotify,
+			TaskId:             taskId,
+			InsertedAt:         taskInsertedAt,
+			ExternalId:         taskExternalId,
+			WorkflowRunId:      workflowRunId,
+			RetryCount:         retryCount,
+			EventType:          eventType,
+			EventMessage:       eventMessage,
+			CancellationReason: cancellationReason,
+			ShouldNotify:       shouldNotify,
 		},
 	)
 }
@@ -241,13 +245,13 @@ type SignalTaskCancelledPayload struct {
 	RetryCount int32
 }
 
-type CancelTaskPayloadSingleton struct {
-	*v1.TaskIdInsertedAtRetryCount
-	CancellationReason string
+type TaskToCancel struct {
+	v1.TaskIdInsertedAtRetryCount
+	CancellationReason v1.TaskCancellationReason
 }
 
 type CancelTasksPayload struct {
-	Tasks []CancelTaskPayloadSingleton `json:"tasks"`
+	Tasks []TaskToCancel `json:"tasks"`
 }
 
 type TaskIdInsertedAtRetryCountWithExternalId struct {

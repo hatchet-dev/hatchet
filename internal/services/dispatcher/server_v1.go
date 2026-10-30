@@ -2074,16 +2074,16 @@ func (d *DispatcherServiceImpl) CancelDAGChildren(ctx context.Context, tenantId 
 		return nil
 	}
 
-	tasksToCancel := make([]tasktypes.CancelTaskPayloadSingleton, 0, len(tasks))
+	tasksToCancel := make([]tasktypes.TaskToCancel, 0, len(tasks))
 
 	for _, task := range tasks {
-		tasksToCancel = append(tasksToCancel, tasktypes.CancelTaskPayloadSingleton{
-			TaskIdInsertedAtRetryCount: &v1.TaskIdInsertedAtRetryCount{
+		tasksToCancel = append(tasksToCancel, tasktypes.TaskToCancel{
+			TaskIdInsertedAtRetryCount: v1.TaskIdInsertedAtRetryCount{
 				Id:         task.ID,
 				InsertedAt: task.InsertedAt,
 				RetryCount: task.RetryCount,
 			},
-			CancellationReason: "cancelled by DAG operator", // fixme: better message
+			CancellationReason: v1.TaskCancellationReasonDagChildCancelledByOperator,
 		})
 	}
 

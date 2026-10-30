@@ -306,7 +306,7 @@ type TaskRepository interface {
 
 	FailTasks(ctx context.Context, tenantId uuid.UUID, tasks []FailTaskOpts) (*FailTasksResponse, error)
 
-	CancelTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount, taskIdToCancelMessage map[int64]string) (*FinalizedTaskResponse, error)
+	CancelTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount, taskIdToCancellationReason map[int64]TaskCancellationReason) (*FinalizedTaskResponse, error)
 
 	ListTasks(ctx context.Context, tenantId uuid.UUID, tasks []int64) ([]*sqlcv1.V1Task, error)
 
@@ -1384,7 +1384,7 @@ func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tena
 	return res, nil
 }
 
-func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount, taskIdToCancelMessage map[int64]string) (*FinalizedTaskResponse, error) {
+func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount, taskIdToCancellationReason map[int64]TaskCancellationReason) (*FinalizedTaskResponse, error) {
 	db := r.pool.ForTenant(tenantId)
 
 	ctx, span := telemetry.NewSpan(ctx, "TaskRepositoryImpl.CancelTasks")
@@ -1409,7 +1409,7 @@ func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId uuid.UUID
 	defer rollback()
 
 	// release queue items
-	res, err := r.cancelTasks(ctx, tx, tenantId, tasks, taskIdToCancelMessage)
+	res, err := r.cancelTasks(ctx, tx, tenantId, tasks, taskIdToCancellationReason)
 
 	if err != nil {
 		err = fmt.Errorf("failed to cancel tasks: %w", err)
@@ -1429,7 +1429,7 @@ func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId uuid.UUID
 	return res, nil
 }
 
-func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount, taskIdToCancelMessage map[int64]string) (*FinalizedTaskResponse, error) {
+func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount, taskIdToCancellationReason map[int64]TaskCancellationReason) (*FinalizedTaskResponse, error) {
 	// get a unique set of task ids and retry counts
 	tasks = enumerables.UniqBy(tasks, createTaskUniqueKey)
 
@@ -1443,13 +1443,7 @@ func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, te
 	outputs := make([][]byte, len(releasedTasks))
 
 	for i, releasedTask := range releasedTasks {
-		var cancellationReason *string
-
-		if cancelMessage, ok := taskIdToCancelMessage[releasedTask.ID]; ok {
-			cancellationReason = &cancelMessage
-		}
-
-		out := NewCancelledTaskOutputEvent(releasedTask, cancellationReason).Bytes()
+		out := NewCancelledTaskOutputEvent(releasedTask, taskIdToCancellationReason[releasedTask.ID]).Bytes()
 
 		outputs[i] = out
 	}
@@ -1944,7 +1938,7 @@ func (r *TaskRepositoryImpl) ExpirePausedWorkflowQueueItems(ctx context.Context,
 	}
 
 	tasks := make([]TaskIdInsertedAtRetryCount, 0, len(expiredItems))
-	taskIdToCancelMessage := make(map[int64]string)
+	taskIdToCancellationReason := make(map[int64]TaskCancellationReason, len(expiredItems))
 
 	for _, item := range expiredItems {
 		tasks = append(tasks, TaskIdInsertedAtRetryCount{
@@ -1952,10 +1946,10 @@ func (r *TaskRepositoryImpl) ExpirePausedWorkflowQueueItems(ctx context.Context,
 			InsertedAt: item.TaskInsertedAt,
 			RetryCount: item.RetryCount,
 		})
-		taskIdToCancelMessage[item.TaskID] = "cancelled due to expired paused workflow queue item"
+		taskIdToCancellationReason[item.TaskID] = TaskCancellationReasonPausedQueueItemExpired
 	}
 
-	res, err := r.cancelTasks(ctx, tx, tenantId, tasks, taskIdToCancelMessage)
+	res, err := r.cancelTasks(ctx, tx, tenantId, tasks, taskIdToCancellationReason)
 
 	if err != nil {
 		return nil, false, fmt.Errorf("error cancelling expired paused workflow queue items: %w", err)
@@ -3164,7 +3158,7 @@ func (r *sharedRepository) insertTasks(
 			case sqlcv1.V1TaskInitialStateCANCELLED:
 				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
 				eventTaskExternalIds = append(eventTaskExternalIds, withPayload.ExternalID)
-				eventDatas = append(eventDatas, NewCancelledTaskOutputEventFromTask(&withPayload, new("cancelled on write")).Bytes())
+				eventDatas = append(eventDatas, NewCancelledTaskOutputEventFromTask(&withPayload, TaskCancellationReasonParentConditionNotMet).Bytes())
 				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeCANCELLED)
 			case sqlcv1.V1TaskInitialStateSKIPPED:
 				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
@@ -3552,7 +3546,7 @@ func (r *sharedRepository) replayTasks(
 			case sqlcv1.V1TaskInitialStateCANCELLED:
 				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)
 				eventTaskExternalIds = append(eventTaskExternalIds, withPayload.ExternalID)
-				eventDatas = append(eventDatas, NewCancelledTaskOutputEventFromTask(&withPayload, new("cancelled on write")).Bytes())
+				eventDatas = append(eventDatas, NewCancelledTaskOutputEventFromTask(&withPayload, TaskCancellationReasonParentConditionNotMet).Bytes())
 				eventTypes = append(eventTypes, sqlcv1.V1TaskEventTypeCANCELLED)
 			case sqlcv1.V1TaskInitialStateSKIPPED:
 				eventTaskIdRetryCounts = append(eventTaskIdRetryCounts, idRetryCount)

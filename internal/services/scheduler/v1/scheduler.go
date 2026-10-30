@@ -732,6 +732,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 				schedulingTimedOut.RetryCount,
 				sqlcv1.V1EventTypeOlapSCHEDULINGTIMEDOUT,
 				"",
+				repov1.TaskCancellationReasonSchedulingTimedOut,
 				false,
 			)
 
@@ -963,7 +964,7 @@ func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId uuid.UU
 		eventMessage := ""
 		shouldNotify := true
 
-		if cancelled.CancelledReason == "SCHEDULING_TIMED_OUT" {
+		if cancelled.CancelledReason == repov1.TaskCancellationReasonSchedulingTimedOut {
 			eventType = sqlcv1.V1EventTypeOlapSCHEDULINGTIMEDOUT
 			shouldNotify = false
 		} else {
@@ -979,6 +980,7 @@ func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId uuid.UU
 			cancelled.RetryCount,
 			eventType,
 			eventMessage,
+			cancelled.CancelledReason,
 			shouldNotify,
 		)
 

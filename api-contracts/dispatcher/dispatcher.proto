@@ -440,6 +440,18 @@ message WorkflowRunEvent {
     repeated StepRunResult results = 4;
 }
 
+enum TaskCancellationReason {
+    TASK_CANCELLATION_REASON_UNSPECIFIED = 0;
+    TASK_CANCELLATION_REASON_CANCELLED_BY_USER = 1;
+    TASK_CANCELLATION_REASON_CANCELLED_BY_WORKER = 2;
+    TASK_CANCELLATION_REASON_CONCURRENCY_LIMIT = 3;
+    TASK_CANCELLATION_REASON_SCHEDULING_TIMED_OUT = 4;
+    TASK_CANCELLATION_REASON_PARENT_CONDITION_NOT_MET = 5;
+    TASK_CANCELLATION_REASON_DAG_CHILD_CANCELLED_BY_OPERATOR = 6;
+    TASK_CANCELLATION_REASON_DURABLE_PARENT_RELEASED = 7;
+    TASK_CANCELLATION_REASON_PAUSED_QUEUE_ITEM_EXPIRED = 8;
+}
+
 message StepRunResult {
     string task_run_external_id = 1;
 
@@ -451,7 +463,7 @@ message StepRunResult {
 
     optional string output = 5;
 
-    optional string cancellation_reason = 6;
+    optional TaskCancellationReason cancellation_reason = 6;
 }
 
 message OverridesData {

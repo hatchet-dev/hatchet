@@ -6,8 +6,46 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
+
+type TaskCancellationReason string
+
+const (
+	TaskCancellationReasonCancelledByUser             TaskCancellationReason = "CANCELLED_BY_USER"
+	TaskCancellationReasonCancelledByWorker           TaskCancellationReason = "CANCELLED_BY_WORKER"
+	TaskCancellationReasonConcurrencyLimit            TaskCancellationReason = "CONCURRENCY_LIMIT"
+	TaskCancellationReasonSchedulingTimedOut          TaskCancellationReason = "SCHEDULING_TIMED_OUT"
+	TaskCancellationReasonParentConditionNotMet       TaskCancellationReason = "PARENT_CONDITION_NOT_MET"
+	TaskCancellationReasonDagChildCancelledByOperator TaskCancellationReason = "DAG_CHILD_CANCELLED_BY_OPERATOR"
+	TaskCancellationReasonDurableParentReleased       TaskCancellationReason = "DURABLE_PARENT_RELEASED"
+	TaskCancellationReasonPausedQueueItemExpired      TaskCancellationReason = "PAUSED_QUEUE_ITEM_EXPIRED"
+)
+
+func (reason TaskCancellationReason) ToProto() contracts.TaskCancellationReason {
+	switch reason {
+	case TaskCancellationReasonCancelledByUser:
+		return contracts.TaskCancellationReason_TASK_CANCELLATION_REASON_CANCELLED_BY_USER
+	case TaskCancellationReasonCancelledByWorker:
+		return contracts.TaskCancellationReason_TASK_CANCELLATION_REASON_CANCELLED_BY_WORKER
+	case TaskCancellationReasonConcurrencyLimit:
+		return contracts.TaskCancellationReason_TASK_CANCELLATION_REASON_CONCURRENCY_LIMIT
+	case TaskCancellationReasonSchedulingTimedOut:
+		return contracts.TaskCancellationReason_TASK_CANCELLATION_REASON_SCHEDULING_TIMED_OUT
+	case TaskCancellationReasonParentConditionNotMet:
+		return contracts.TaskCancellationReason_TASK_CANCELLATION_REASON_PARENT_CONDITION_NOT_MET
+	case TaskCancellationReasonDagChildCancelledByOperator:
+		return contracts.TaskCancellationReason_TASK_CANCELLATION_REASON_DAG_CHILD_CANCELLED_BY_OPERATOR
+	case TaskCancellationReasonDurableParentReleased:
+		return contracts.TaskCancellationReason_TASK_CANCELLATION_REASON_DURABLE_PARENT_RELEASED
+	case TaskCancellationReasonPausedQueueItemExpired:
+		return contracts.TaskCancellationReason_TASK_CANCELLATION_REASON_PAUSED_QUEUE_ITEM_EXPIRED
+	}
+
+	// events written before cancellation reasons existed have no reason
+	return contracts.TaskCancellationReason_TASK_CANCELLATION_REASON_UNSPECIFIED
+}
 
 type TaskOutputEvent struct {
 	IsFailure bool `json:"is_failure"`
@@ -30,7 +68,7 @@ type TaskOutputEvent struct {
 
 	IsDagOrchestrator bool `json:"is_dag_orchestrator"`
 
-	CancellationReason *string `json:"cancellation_reason,omitempty"`
+	CancellationReason TaskCancellationReason `json:"cancellation_reason,omitempty"`
 }
 
 func (e *TaskOutputEvent) IsCompleted() bool {
@@ -76,12 +114,10 @@ func NewFailedTaskOutputEventFromTask(task *V1TaskWithPayload) *TaskOutputEvent 
 	return e
 }
 
-func NewCancelledTaskOutputEventFromTask(task *V1TaskWithPayload, cancelMessage *string) *TaskOutputEvent {
+func NewCancelledTaskOutputEventFromTask(task *V1TaskWithPayload, cancellationReason TaskCancellationReason) *TaskOutputEvent {
 	e := baseFromTasksRow(task)
-
 	e.EventType = sqlcv1.V1TaskEventTypeCANCELLED
-	e.CancellationReason = cancelMessage
-
+	e.CancellationReason = cancellationReason
 	return e
 }
 
@@ -114,10 +150,10 @@ func NewFailedTaskOutputEvent(row *sqlcv1.ReleaseTasksRow, errorMsg string) *Tas
 	return e
 }
 
-func NewCancelledTaskOutputEvent(row *sqlcv1.ReleaseTasksRow, cancelMessage *string) *TaskOutputEvent {
+func NewCancelledTaskOutputEvent(row *sqlcv1.ReleaseTasksRow, cancellationReason TaskCancellationReason) *TaskOutputEvent {
 	e := baseFromReleaseTasksRow(row)
 	e.EventType = sqlcv1.V1TaskEventTypeCANCELLED
-	e.CancellationReason = cancelMessage
+	e.CancellationReason = cancellationReason
 	return e
 }
 

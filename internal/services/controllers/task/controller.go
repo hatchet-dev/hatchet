@@ -666,7 +666,14 @@ func (tc *TasksControllerImpl) publishChildCancellations(
 	tenantId uuid.UUID,
 	children []v1.TaskIdInsertedAtRetryCount,
 ) error {
-	return queueutils.BatchLinear(BULK_MSG_BATCH_SIZE, children, func(batch []v1.TaskIdInsertedAtRetryCount) error {
+	childrenToCancel := enumerables.Map(children, func(child v1.TaskIdInsertedAtRetryCount) tasktypes.TaskToCancel {
+		return tasktypes.TaskToCancel{
+			TaskIdInsertedAtRetryCount: child,
+			CancellationReason:         v1.TaskCancellationReasonDurableParentReleased,
+		}
+	})
+
+	return queueutils.BatchLinear(BULK_MSG_BATCH_SIZE, childrenToCancel, func(batch []tasktypes.TaskToCancel) error {
 		msg, err := msgqueue.NewTenantMessage(
 			tenantId,
 			msgqueue.MsgIDCancelTasks,
@@ -945,6 +952,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 	msgs := msgqueue.JSONConvert[tasktypes.CancelledTaskPayload](payloads)
 	shouldTasksNotify := make(map[int64]bool)
 	cancelMsgByTaskId := make(map[int64]string)
+	cancellationReasonByTaskId := make(map[int64]v1.TaskCancellationReason)
 
 	for _, msg := range msgs {
 		opts = append(opts, v1.TaskIdInsertedAtRetryCount{
@@ -955,9 +963,10 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 
 		shouldTasksNotify[msg.TaskId] = msg.ShouldNotify
 		cancelMsgByTaskId[msg.TaskId] = msg.EventMessage
+		cancellationReasonByTaskId[msg.TaskId] = msg.CancellationReason
 	}
 
-	res, err := tc.repov1.Tasks().CancelTasks(ctx, tenantId, opts, cancelMsgByTaskId)
+	res, err := tc.repov1.Tasks().CancelTasks(ctx, tenantId, opts, cancellationReasonByTaskId)
 
 	if err != nil {
 		err = fmt.Errorf("could not cancel tasks: %w", err)
@@ -1080,12 +1089,12 @@ func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId u
 	for _, msg := range msgs {
 		for _, task := range msg.Tasks {
 			pubPayloads = append(pubPayloads, tasktypes.CancelledTaskPayload{
-				TaskId:       task.Id,
-				InsertedAt:   task.InsertedAt,
-				RetryCount:   task.RetryCount,
-				EventType:    sqlcv1.V1EventTypeOlapCANCELLED,
-				ShouldNotify: true,
-				EventMessage: task.CancellationReason,
+				TaskId:             task.Id,
+				InsertedAt:         task.InsertedAt,
+				RetryCount:         task.RetryCount,
+				EventType:          sqlcv1.V1EventTypeOlapCANCELLED,
+				ShouldNotify:       true,
+				CancellationReason: task.CancellationReason,
 			})
 		}
 	}

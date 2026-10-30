@@ -54,7 +54,7 @@ func TestGroupRoundRobin_FillsFreeCapacityByPriority(t *testing.T) {
 	}
 
 	// nothing is cancelled: the backlog that didn't fit stays queued.
-	if got := cancelledByReason(repo.lastCancelled, repository.CancelledReasonConcurrencyLimit); len(got) != 0 {
+	if got := cancelledByReason(repo.lastCancelled, repository.TaskCancellationReasonConcurrencyLimit); len(got) != 0 {
 		t.Fatalf("unexpected CONCURRENCY_LIMIT cancellations: %v", got)
 	}
 
@@ -85,7 +85,7 @@ func TestGroupRoundRobin_TimedOutExcludedFromFill(t *testing.T) {
 	}
 
 	// 201 timed out: cancelled with SCHEDULING_TIMED_OUT, never filled.
-	timedOut := cancelledByReason(repo.lastCancelled, repository.CancelledReasonSchedulingTimedOut)
+	timedOut := cancelledByReason(repo.lastCancelled, repository.TaskCancellationReasonSchedulingTimedOut)
 	if !containsID(timedOut, 201) {
 		t.Fatalf("task 201 not cancelled as timed out: %v", timedOut)
 	}
