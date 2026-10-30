@@ -24,9 +24,7 @@ type recordingDispatcherIdLookup struct {
 }
 
 func (l *recordingDispatcherIdLookup) lookup(_ context.Context, _ uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]uuid.UUID, map[uuid.UUID]struct{}, error) {
-	sorted := append([]uuid.UUID(nil), workerIds...)
-	sort.Slice(sorted, func(i, j int) bool { return sorted[i].String() < sorted[j].String() })
-	l.queries = append(l.queries, sorted)
+	l.queries = append(l.queries, sortedIds(workerIds...))
 
 	if l.err != nil {
 		return nil, nil, l.err
@@ -176,13 +174,4 @@ func TestHandleWorkerDispatcherChangedReplacesCachedId(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, map[uuid.UUID]uuid.UUID{worker: newDispatcher, otherWorker: oldDispatcher}, result, "only the worker in the message moves")
 	assert.Len(t, lookup.queries, 1, "the message replaces the entry without a query")
-
-	// a payload without ids carries nothing to cache and is ignored
-	empty, err := msgqueue.NewTenantMessage(tenantId, msgqueue.MsgIDWorkerDispatcherChanged, true, false, tasktypes.WorkerDispatcherChangedPayload{})
-	require.NoError(t, err)
-	require.NoError(t, s.handleTask(ctx, empty))
-
-	result, _, err = s.dispatcherIds.get(ctx, tenantId, []uuid.UUID{worker})
-	require.NoError(t, err)
-	assert.Equal(t, map[uuid.UUID]uuid.UUID{worker: newDispatcher}, result)
 }

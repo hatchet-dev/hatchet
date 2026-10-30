@@ -87,9 +87,23 @@ func NotifyTaskCreated(tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload) (*msgq
 
 type TaskAssignedBulkTaskPayload struct {
 	WorkerIdToTaskIds map[uuid.UUID][]int64 `json:"worker_id_to_task_ids" validate:"required"`
-	// WorkerIdToTaskRetryCounts names the retry count of each task in WorkerIdToTaskIds, keyed by worker and
-	// then task id, so the dispatcher can tell the assigned attempt from a later one on the same worker.
+	// lets the dispatcher tell the assigned attempt from a later one on the same worker
 	WorkerIdToTaskRetryCounts map[uuid.UUID]map[int64]int32 `json:"worker_id_to_task_retry_counts,omitempty"`
+}
+
+func (p *TaskAssignedBulkTaskPayload) Add(workerId uuid.UUID, taskId int64, retryCount int32) {
+	if p.WorkerIdToTaskIds == nil {
+		p.WorkerIdToTaskIds = make(map[uuid.UUID][]int64)
+		p.WorkerIdToTaskRetryCounts = make(map[uuid.UUID]map[int64]int32)
+	}
+
+	p.WorkerIdToTaskIds[workerId] = append(p.WorkerIdToTaskIds[workerId], taskId)
+
+	if p.WorkerIdToTaskRetryCounts[workerId] == nil {
+		p.WorkerIdToTaskRetryCounts[workerId] = make(map[int64]int32)
+	}
+
+	p.WorkerIdToTaskRetryCounts[workerId][taskId] = retryCount
 }
 
 type BatchTaskItem struct {
@@ -140,15 +154,11 @@ func NotifyNewWorker(tenantId uuid.UUID, workerId uuid.UUID) (*msgqueue.Message,
 	)
 }
 
-// WorkerDispatcherChangedPayload tells a scheduler partition which dispatcher a worker is now
-// connected to, so the scheduler replaces its cached dispatcher id for the worker without a query.
 type WorkerDispatcherChangedPayload struct {
 	WorkerId     uuid.UUID `json:"worker_id"`
 	DispatcherId uuid.UUID `json:"dispatcher_id"`
 }
 
-// NotifyWorkerDispatcherChanged builds the scheduler notification a dispatcher sends when it claims a
-// worker that another dispatcher served before, carrying the worker's new dispatcher id.
 func NotifyWorkerDispatcherChanged(tenantId, workerId, dispatcherId uuid.UUID) (*msgqueue.Message, error) {
 	payload := WorkerDispatcherChangedPayload{
 		WorkerId:     workerId,

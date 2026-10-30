@@ -211,13 +211,24 @@ func (s *DispatcherImpl) Listen(ctx context.Context, request *contracts.WorkerLi
 		return err
 	}
 
-	if err := s.claimWorker(ctx, tenant, workerId, worker.DispatcherId); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil
+	shouldUpdateDispatcherId := worker.DispatcherId == nil || (worker.DispatcherId != nil && *worker.DispatcherId != s.dispatcherId)
+
+	// check the worker's dispatcher against the current dispatcher. if they don't match, then update the worker
+	if shouldUpdateDispatcherId {
+		_, err = s.repov1.Workers().UpdateWorker(ctx, tenantId, workerId, &v1.UpdateWorkerOpts{
+			DispatcherId: &s.dispatcherId,
+		})
+
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil
+			}
+
+			s.l.Error().Ctx(ctx).Err(err).Msgf("could not update worker %s dispatcher", request.WorkerId)
+			return err
 		}
 
-		s.l.Error().Ctx(ctx).Err(err).Msgf("could not update worker %s dispatcher", request.WorkerId)
-		return err
+		s.NotifyWorkerDispatcherChanged(ctx, tenant, workerId)
 	}
 
 	// Activation records this session's id on the worker; deactivation below only succeeds
@@ -300,27 +311,6 @@ func (s *DispatcherImpl) Listen(ctx context.Context, request *contracts.WorkerLi
 	}
 }
 
-// claimWorker records this dispatcher on the worker row when the row names another dispatcher, or
-// none, and then tells the tenant's scheduler partition about the change. A worker already on this
-// dispatcher is left alone, and nothing is published for it.
-func (s *DispatcherImpl) claimWorker(ctx context.Context, tenant *sqlcv1.Tenant, workerId uuid.UUID, currentDispatcherId *uuid.UUID) error {
-	if currentDispatcherId != nil && *currentDispatcherId == s.dispatcherId {
-		return nil
-	}
-
-	_, err := s.repov1.Workers().UpdateWorker(ctx, tenant.ID, workerId, &v1.UpdateWorkerOpts{
-		DispatcherId: &s.dispatcherId,
-	})
-
-	if err != nil {
-		return err
-	}
-
-	s.NotifyWorkerDispatcherChanged(ctx, tenant, workerId)
-
-	return nil
-}
-
 // ListenV2 is like Listen, but implementation does not include heartbeats. This should only used by SDKs
 // against engine version v0.18.1+
 func (s *DispatcherImpl) ListenV2(ctx context.Context, request *contracts.WorkerListenRequest, connectStream *connect.ServerStream[contracts.AssignedAction]) error {
@@ -349,13 +339,24 @@ func (s *DispatcherImpl) ListenV2(ctx context.Context, request *contracts.Worker
 		return err
 	}
 
-	if err := s.claimWorker(ctx, tenant, workerId, worker.DispatcherId); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil
+	shouldUpdateDispatcherId := worker.DispatcherId == nil || (worker.DispatcherId != nil && *worker.DispatcherId != s.dispatcherId)
+
+	// check the worker's dispatcher against the current dispatcher. if they don't match, then update the worker
+	if shouldUpdateDispatcherId {
+		_, err = s.repov1.Workers().UpdateWorker(ctx, tenantId, workerId, &v1.UpdateWorkerOpts{
+			DispatcherId: &s.dispatcherId,
+		})
+
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil
+			}
+
+			s.l.Error().Ctx(ctx).Err(err).Msgf("could not update worker %s dispatcher", request.WorkerId)
+			return err
 		}
 
-		s.l.Error().Ctx(ctx).Err(err).Msgf("could not update worker %s dispatcher", request.WorkerId)
-		return err
+		s.NotifyWorkerDispatcherChanged(ctx, tenant, workerId)
 	}
 
 	// Activation records this session's id on the worker; deactivation below only succeeds

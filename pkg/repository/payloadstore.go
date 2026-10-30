@@ -180,8 +180,7 @@ func (s TypedPayloadStore[S]) Retrieve(ctx context.Context, tx sqlcv1.DBTX, refs
 	return typedPayloadsFromBytes[S](refs, optsToBytes), nil
 }
 
-// Resolve turns v1_payload rows the caller already read for refs into payloads, fetching external and
-// offloaded content the way Retrieve does but without re-reading the rows.
+// Resolve is Retrieve for callers that already read the v1_payload rows.
 func (s TypedPayloadStore[S]) Resolve(ctx context.Context, tx sqlcv1.DBTX, rows []*sqlcv1.V1Payload, refs ...PayloadRef[S]) (map[PayloadRef[S]]Payload[S], error) {
 	opts := enumerables.Map(refs, func(ref PayloadRef[S]) RetrievePayloadOpts {
 		return ref.retrieveOpts()
@@ -286,9 +285,6 @@ type PayloadStoreRepository interface {
 	Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
 	OverwriteExisting(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
 	Retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
-	// Resolve is the second half of Retrieve for callers that already hold the v1_payload rows for opts
-	// (read by a statement of their own): inline content is returned as is, external and offloaded
-	// payloads are fetched exactly as Retrieve fetches them.
 	Resolve(ctx context.Context, tx sqlcv1.DBTX, rows []*sqlcv1.V1Payload, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
 	TaskInputs() TypedPayloadStore[TaskInputShape]
 	DAGInputs() TypedPayloadStore[DAGInputShape]
@@ -595,9 +591,6 @@ func (p *payloadStoreRepositoryImpl) Resolve(ctx context.Context, tx sqlcv1.DBTX
 	return p.resolve(ctx, tx, rows, opts...)
 }
 
-// resolve maps the v1_payload rows read for opts back onto opts and fetches whatever is not inline:
-// opts without a row are looked up in the external store's index blocks when the external store is
-// enabled.
 func (p *payloadStoreRepositoryImpl) resolve(ctx context.Context, tx sqlcv1.DBTX, payloads []*sqlcv1.V1Payload, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
 	if len(opts) == 0 {
 		return make(map[RetrievePayloadOpts][]byte), nil

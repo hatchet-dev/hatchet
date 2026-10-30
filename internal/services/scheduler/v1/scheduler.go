@@ -433,8 +433,6 @@ func (s *Scheduler) handleNewWorker(ctx context.Context, msg *msgqueue.Message) 
 	return nil
 }
 
-// handleWorkerDispatcherChanged writes the dispatcher id a worker connected to into the dispatcher id
-// cache, so the next assignment routes to it without waiting for the cached entry to expire.
 func (s *Scheduler) handleWorkerDispatcherChanged(ctx context.Context, msg *msgqueue.Message) error {
 	_, span := telemetry.NewSpanWithCarrier(ctx, "handle-worker-dispatcher-changed", msg.OtelCarrier)
 	defer span.End()
@@ -531,7 +529,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 
 	// bulk assign step runs
 	if len(res.Assigned) > 0 {
-		dispatcherIdToAssignments := make(map[uuid.UUID]*workerAssignments)
+		dispatcherIdToAssignments := make(map[uuid.UUID]*tasktypes.TaskAssignedBulkTaskPayload)
 
 		workerIds := make([]uuid.UUID, 0)
 
@@ -581,8 +579,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 			workerId := bulkAssigned.WorkerId
 			taskId := bulkAssigned.QueueItem.TaskID
 
-			// items the optimistic path already delivered only need the ASSIGNED event below: no dispatcher
-			// lookup and no task-assigned-bulk message
+			// locally assigned items were already sent to the worker
 			if !bulkAssigned.IsAssignedLocally {
 				hasNoDispatcher := enumerables.HasKey(workersWithoutDispatchers, workerId)
 				dispatcherId, ok := workerIdToDispatcherId[workerId]
@@ -597,10 +594,10 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 				}
 
 				if _, ok := dispatcherIdToAssignments[dispatcherId]; !ok {
-					dispatcherIdToAssignments[dispatcherId] = newWorkerAssignments()
+					dispatcherIdToAssignments[dispatcherId] = &tasktypes.TaskAssignedBulkTaskPayload{}
 				}
 
-				dispatcherIdToAssignments[dispatcherId].add(workerId, taskId, bulkAssigned.QueueItem.RetryCount)
+				dispatcherIdToAssignments[dispatcherId].Add(workerId, taskId, bulkAssigned.QueueItem.RetryCount)
 			}
 
 			var durableInvCount int32
@@ -1350,40 +1347,13 @@ func describeBatchFlushReason(reason repov1.BatchFlushReason, batchSize int, int
 	}
 }
 
-// workerAssignments collects the tasks assigned to each worker of one dispatcher, with the retry count of
-// the attempt each task was assigned for.
-type workerAssignments struct {
-	taskIds     map[uuid.UUID][]int64
-	retryCounts map[uuid.UUID]map[int64]int32
-}
-
-func newWorkerAssignments() *workerAssignments {
-	return &workerAssignments{
-		taskIds:     make(map[uuid.UUID][]int64),
-		retryCounts: make(map[uuid.UUID]map[int64]int32),
-	}
-}
-
-func (a *workerAssignments) add(workerId uuid.UUID, taskId int64, retryCount int32) {
-	a.taskIds[workerId] = append(a.taskIds[workerId], taskId)
-
-	if _, ok := a.retryCounts[workerId]; !ok {
-		a.retryCounts[workerId] = make(map[int64]int32)
-	}
-
-	a.retryCounts[workerId][taskId] = retryCount
-}
-
-func taskBulkAssignedTask(tenantId uuid.UUID, assignments *workerAssignments) (*msgqueue.Message, error) {
+func taskBulkAssignedTask(tenantId uuid.UUID, assignments *tasktypes.TaskAssignedBulkTaskPayload) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDTaskAssignedBulk,
 		false,
 		true,
-		tasktypes.TaskAssignedBulkTaskPayload{
-			WorkerIdToTaskIds:         assignments.taskIds,
-			WorkerIdToTaskRetryCounts: assignments.retryCounts,
-		},
+		*assignments,
 	)
 }
 
