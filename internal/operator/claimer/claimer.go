@@ -35,8 +35,9 @@ import (
 )
 
 const (
-	// defaultPollInterval is how often the claim query runs.
-	defaultPollInterval = 5 * time.Second
+	// defaultPollInterval is how often the claim query runs. It bounds how long a tenant's
+	// operators stay unhosted after their dispatcher marks itself inactive at shutdown.
+	defaultPollInterval = 1 * time.Second
 
 	// defaultTeardownTimeout bounds one operator's pause, drain and close. DAG runs abort as
 	// soon as they are interrupted, so the bound only matters for a stuck engine call.
