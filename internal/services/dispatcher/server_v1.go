@@ -698,10 +698,10 @@ func (d *DispatcherServiceImpl) durableTask(
 
 	registeredTasks := make(map[uuid.UUID]struct{})
 
-	tenantSem, releaseTenantBudget := d.tenantBudgets.acquire(tenantId)
+	tenantSem, releaseTenantBudget := d.durableBudgets.tenant(tenantId)
 	defer releaseTenantBudget()
 
-	streamSem := semaphore.NewWeighted(durableTaskStreamBudgetBytes)
+	streamSem := semaphore.NewWeighted(d.durableBudgets.streamBytes)
 
 	var reqWg sync.WaitGroup
 
@@ -830,13 +830,13 @@ func (d *DispatcherServiceImpl) durableTask(
 			}
 
 			// acquire here, not in the handler goroutine, so a full budget stops receiving and flow control pushes back
-			weight := min(int64(proto.Size(r.req))+durableTaskRequestOverheadBytes, durableTaskStreamBudgetBytes)
+			weight := min(int64(proto.Size(r.req))+durableTaskRequestOverheadBytes, d.durableBudgets.streamBytes)
 
-			if err := streamSem.Acquire(ctx, weight); err != nil {
+			if err := d.durableBudgets.acquire(ctx, tenantId, "stream", streamSem, weight); err != nil {
 				return nil
 			}
 
-			if err := tenantSem.Acquire(ctx, weight); err != nil {
+			if err := d.durableBudgets.acquire(ctx, tenantId, "tenant", tenantSem, weight); err != nil {
 				streamSem.Release(weight)
 				return nil
 			}

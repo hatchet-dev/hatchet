@@ -35,6 +35,7 @@ func newTestDispatcher() *DispatcherServiceImpl {
 	return &DispatcherServiceImpl{
 		l:              &l,
 		streamSessions: streams.NewRegistry(),
+		durableBudgets: newDurableTaskBudgets(&l, 0),
 		analytics:      analytics.NoOpAnalytics{},
 	}
 }
@@ -300,7 +301,7 @@ func TestDurableTaskStopsStartingHandlersWhenStreamBudgetIsHeld(t *testing.T) {
 	repo := gatedRepo{started: make(chan struct{}, 3), release: make(chan struct{})}
 	d.repo = repo
 
-	payload := make([]byte, durableTaskStreamBudgetBytes*6/10)
+	payload := make([]byte, d.durableBudgets.streamBytes*6/10)
 	memo := &contracts.DurableTaskRequest{Message: &contracts.DurableTaskRequest_Memo{
 		Memo: &contracts.DurableTaskMemoRequest{DurableTaskExternalId: uuid.NewString(), Payload: payload},
 	}}
