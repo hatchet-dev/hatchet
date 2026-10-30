@@ -1,4 +1,8 @@
 name: e2e-image
+permissions:
+  contents: read
+  packages: write
+  id-token: write
 on:
   push:
     branches:
@@ -37,6 +41,9 @@ jobs:
             .
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-e2e-go:${{ github.sha }}
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-e2e-go:main
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-e2e-go:main
 
   build-push-e2e-python:
     name: hatchet-e2e-python
@@ -56,6 +63,9 @@ jobs:
             .
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-e2e-python:${{ github.sha }}
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-e2e-python:main
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-e2e-python:main
 
   build-push-e2e-typescript:
     name: hatchet-e2e-typescript
@@ -75,6 +85,9 @@ jobs:
             .
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-e2e-typescript:${{ github.sha }}
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-e2e-typescript:main
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-e2e-typescript:main
 
   build-push-e2e-ruby:
     name: hatchet-e2e-ruby
@@ -94,3 +107,6 @@ jobs:
             .
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-e2e-ruby:${{ github.sha }}
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-e2e-ruby:main
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-e2e-ruby:main
