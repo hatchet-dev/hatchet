@@ -25,8 +25,8 @@ type tenantBudget struct {
 }
 
 type durableTaskBudgets struct {
+	l           *zerolog.Logger
 	streamBytes int64
-	waitLog     zerolog.Logger
 
 	mu      sync.Mutex
 	tenants map[uuid.UUID]*tenantBudget
@@ -34,9 +34,11 @@ type durableTaskBudgets struct {
 
 // A stream fits four of the largest requests the server accepts, and a tenant eight streams.
 func newDurableTaskBudgets(l *zerolog.Logger, maxMsgSize int) *durableTaskBudgets {
+	sampled := l.Sample(&zerolog.BurstSampler{Burst: 20, Period: time.Minute})
+
 	return &durableTaskBudgets{
+		l:           &sampled,
 		streamBytes: max(minDurableTaskStreamBudgetBytes, 4*int64(maxMsgSize)),
-		waitLog:     l.Sample(&zerolog.BurstSampler{Burst: 20, Period: time.Minute}),
 		tenants:     make(map[uuid.UUID]*tenantBudget),
 	}
 }
@@ -69,7 +71,7 @@ func (b *durableTaskBudgets) acquire(ctx context.Context, tenantId uuid.UUID, bu
 		return nil
 	}
 
-	b.waitLog.Warn().Str("tenant_id", tenantId.String()).Str("budget", budget).Msg("durable task stream paused reading until its in-flight budget frees up")
+	b.l.Warn().Str("tenant_id", tenantId.String()).Str("budget", budget).Msg("durable task stream paused reading until its in-flight budget frees up")
 
 	start := time.Now()
 	err := sem.Acquire(ctx, n)
