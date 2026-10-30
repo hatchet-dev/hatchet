@@ -137,14 +137,13 @@ class AdminClient:
         workflow_name: str,
         input: str | None,
         options: TriggerWorkflowOptions,
+        child_index: int,
     ) -> trigger_protos.TriggerWorkflowRequest:
         workflow_run_id = ctx_workflow_run_id.get()
         task_run_external_id = ctx_task_run_external_id.get()
-        action_key = ctx_action_key.get()
-        spawn_index = workflow_spawn_indices[action_key] if action_key else 0
 
         _options = self.TriggerWorkflowRequest.model_validate(options.model_dump())
-        _options.child_index = spawn_index
+        _options.child_index = child_index
         _options.parent_id = workflow_run_id
         _options.parent_task_run_external_id = task_run_external_id
 
@@ -311,8 +310,8 @@ class AdminClient:
         worker_id = ctx_worker_id.get()
         action_key = ctx_action_key.get()
         additional_metadata = ctx_additional_metadata.get() or {}
+        child_index = workflow_spawn_indices[action_key] if action_key else 0
 
-        ## Increment the spawn_index for the parent workflow
         if action_key:
             workflow_spawn_indices[action_key] += 1
 
@@ -331,7 +330,9 @@ class AdminClient:
 
         workflow_name = self.config.apply_namespace(workflow_name, self.namespace)
 
-        return self._prepare_workflow_request(workflow_name, input, trigger_options)
+        return self._prepare_workflow_request(
+            workflow_name, input, trigger_options, child_index
+        )
 
     def run_workflow(
         self,
