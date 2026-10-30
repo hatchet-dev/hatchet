@@ -38,6 +38,26 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION get_v1_monthly_partitions_before_date(
+    targetTableName text,
+    targetDate date
+) RETURNS TABLE(partition_name text)
+    LANGUAGE plpgsql AS
+$$
+BEGIN
+    RETURN QUERY
+    SELECT
+        inhrelid::regclass::text AS partition_name
+    FROM
+        pg_inherits
+    WHERE
+        inhparent = targetTableName::regclass
+        AND substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName)) ~ '^\d{8}'
+        AND (substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName))::date + INTERVAL '1 month') <= targetDate
+    ;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION create_v1_range_partition(
     targetTableName text,
     targetDate date,
@@ -76,6 +96,55 @@ BEGIN
 END;
 $$;
 
+-- create_v1_hourly_range_partition attaches a partition covering the UTC hour
+-- containing targetTime, named <table>_YYYYMMDDHH.
+-- Partitions keep default autovacuum settings: v1_stream_message is insert-only
+-- apart from retention deletes.
+CREATE OR REPLACE FUNCTION create_v1_hourly_range_partition(
+    targetTableName text,
+    targetTime timestamptz
+) RETURNS integer
+    LANGUAGE plpgsql AS
+$$
+DECLARE
+    hourStart timestamptz;
+    newTableName varchar;
+BEGIN
+    hourStart := date_trunc('hour', targetTime AT TIME ZONE 'UTC') AT TIME ZONE 'UTC';
+    newTableName := lower(format('%s_%s', targetTableName, to_char(hourStart AT TIME ZONE 'UTC', 'YYYYMMDDHH24')));
+
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = newTableName) THEN
+        RETURN 0;
+    END IF;
+
+    EXECUTE
+        format('CREATE TABLE %s (LIKE %s INCLUDING INDEXES INCLUDING CONSTRAINTS)', newTableName, targetTableName);
+    EXECUTE
+        format('ALTER TABLE %s ATTACH PARTITION %s FOR VALUES FROM (%L) TO (%L)', targetTableName, newTableName, hourStart, hourStart + INTERVAL '1 hour');
+    RETURN 1;
+END;
+$$;
+
+-- get_v1_hourly_partitions_before lists hourly partitions ending at or before targetTime.
+CREATE OR REPLACE FUNCTION get_v1_hourly_partitions_before(
+    targetTableName text,
+    targetTime timestamptz
+) RETURNS TABLE(partition_name text)
+    LANGUAGE plpgsql AS
+$$
+BEGIN
+    RETURN QUERY
+    SELECT
+        inhrelid::regclass::text AS partition_name
+    FROM
+        pg_inherits
+    WHERE
+        inhparent = targetTableName::regclass
+        AND substring(inhrelid::regclass::text, format('%s_(\d{10})$', targetTableName)) ~ '^\d{10}$'
+        AND (to_timestamp(substring(inhrelid::regclass::text, format('%s_(\d{10})$', targetTableName)), 'YYYYMMDDHH24')::timestamp AT TIME ZONE 'UTC') + INTERVAL '1 hour' <= targetTime;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION create_v1_weekly_range_partition(
     targetTableName text,
     targetDate date
@@ -108,6 +177,42 @@ BEGIN
         )', newTableName);
     EXECUTE
         format('ALTER TABLE %s ATTACH PARTITION %s FOR VALUES FROM (''%s'') TO (''%s'')', targetTableName, newTableName, targetDateStr, targetDatePlusOneWeekStr);
+    RETURN 1;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION create_v1_monthly_range_partition(
+    targetTableName text,
+    targetDate date
+) RETURNS integer
+    LANGUAGE plpgsql AS
+$$
+DECLARE
+    monthStartStr varchar;
+    nextMonthStartStr varchar;
+    newTableName varchar;
+BEGIN
+    SELECT to_char(date_trunc('month', targetDate), 'YYYYMMDD') INTO monthStartStr;
+    SELECT to_char(date_trunc('month', targetDate) + INTERVAL '1 month', 'YYYYMMDD') INTO nextMonthStartStr;
+    SELECT lower(format('%s_%s', targetTableName, monthStartStr)) INTO newTableName;
+    -- exit if the table exists
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = newTableName) THEN
+        RETURN 0;
+    END IF;
+
+    EXECUTE
+        format('CREATE TABLE %s (LIKE %s INCLUDING INDEXES)', newTableName, targetTableName);
+    EXECUTE
+        format('ALTER TABLE %s SET (
+            autovacuum_vacuum_scale_factor = ''0.1'',
+            autovacuum_analyze_scale_factor=''0.05'',
+            autovacuum_vacuum_threshold=''25'',
+            autovacuum_analyze_threshold=''25'',
+            autovacuum_vacuum_cost_delay=''10'',
+            autovacuum_vacuum_cost_limit=''1000''
+        )', newTableName);
+    EXECUTE
+        format('ALTER TABLE %s ATTACH PARTITION %s FOR VALUES FROM (''%s'') TO (''%s'')', targetTableName, newTableName, monthStartStr, nextMonthStartStr);
     RETURN 1;
 END;
 $$;
@@ -471,18 +576,27 @@ CREATE TABLE v1_task (
     -- parallel to concurrency_strategy_ids. A NULL element means that strategy's static
     -- max_concurrency applies.
     concurrency_max_runs INTEGER[],
+    payload_reference_id UUID,
+    -- The filter payload and wait-condition data the worker receives as `triggers`. NULL when there is none.
+    triggers JSONB,
+    -- Only set on children of a DAG operator run: the task runs whose outputs this task receives as its parents.
+    dag_parent_task_run_ids UUID[],
+    -- Only set on DAG orchestrator tasks: the run's desired worker labels, which the orchestrator passes to the
+    -- child tasks it triggers. Unlike desired_worker_label, this does not affect where the task itself runs.
+    child_task_desired_worker_labels JSONB,
+    task_input_payload_version SMALLINT NOT NULL DEFAULT 1,
     CONSTRAINT v1_task_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
 CREATE TABLE v1_lookup_table (
     tenant_id UUID NOT NULL,
-    external_id UUID NOT NULL,
+    external_id UUID NOT NULL, -- IMPORTANT: Each _partition_ of this table has a `UNIQUE` constraint on this column, but the parent does not
     task_id BIGINT,
     dag_id BIGINT,
     inserted_at TIMESTAMPTZ NOT NULL,
 
-    PRIMARY KEY (external_id)
-);
+    PRIMARY KEY (external_id, inserted_at)
+) PARTITION BY RANGE (inserted_at);
 
 CREATE TYPE v1_task_event_type AS ENUM (
     'COMPLETED',
@@ -508,6 +622,7 @@ CREATE TABLE v1_task_event (
     data JSONB,
     external_id UUID NOT NULL DEFAULT gen_random_uuid(),
     child_external_id UUID,
+    payload_reference_id UUID,
     CONSTRAINT v1_task_event_pkey PRIMARY KEY (task_id, task_inserted_at, id)
 ) PARTITION BY RANGE(task_inserted_at);
 
@@ -530,7 +645,7 @@ CREATE TABLE v1_task_expression_eval (
     kind "StepExpressionKind" NOT NULL,
 
     CONSTRAINT v1_task_expression_eval_pkey PRIMARY KEY (task_id, task_inserted_at, kind, key)
-);
+) PARTITION BY RANGE(task_inserted_at);
 
 -- CreateTable
 -- NOTE: changes to v1_queue_item should be reflected in v1_rate_limited_queue_items
@@ -591,6 +706,8 @@ CREATE TABLE v1_task_runtime (
     tenant_id UUID NOT NULL,
     timeout_at TIMESTAMP(3) NOT NULL,
     evicted_at TIMESTAMPTZ DEFAULT NULL,
+    assigned_at TIMESTAMPTZ,
+    acked_at TIMESTAMPTZ,
 
     CONSTRAINT v1_task_runtime_pkey PRIMARY KEY (task_id, task_inserted_at, retry_count)
 );
@@ -601,7 +718,11 @@ CREATE INDEX v1_task_runtime_tenantId_timeoutAt_idx ON v1_task_runtime (tenant_i
 
 CREATE INDEX v1_task_runtime_tenant_worker_not_evicted_idx ON v1_task_runtime (tenant_id, worker_id) WHERE evicted_at IS NULL;
 
+CREATE INDEX v1_task_runtime_tenant_evicted_at_idx ON v1_task_runtime (tenant_id, evicted_at, task_id, task_inserted_at, retry_count) WHERE evicted_at IS NOT NULL;
+
 CREATE INDEX v1_task_runtime_batch_id_idx ON v1_task_runtime (batch_id) WHERE batch_id IS NOT NULL;
+
+CREATE INDEX v1_task_runtime_tenant_unacked_assigned_at_idx ON v1_task_runtime (tenant_id, assigned_at) WHERE assigned_at IS NOT NULL AND acked_at IS NULL;
 
 -- Cleanup v1_batch_runtime reservations when the last v1_task_runtime row for a batch_id is deleted.
 CREATE OR REPLACE FUNCTION after_v1_task_runtime_delete_cleanup_batch_runtime_fn()
@@ -662,6 +783,15 @@ CREATE TABLE v1_batch_runtime (
 
 CREATE INDEX v1_batch_runtime_key_idx
     ON v1_batch_runtime (tenant_id, step_id, batch_key);
+
+ALTER TABLE v1_batch_runtime SET (
+    autovacuum_vacuum_scale_factor = '0.1',
+    autovacuum_analyze_scale_factor = '0.05',
+    autovacuum_vacuum_threshold = '25',
+    autovacuum_analyze_threshold = '25',
+    autovacuum_vacuum_cost_delay = '10',
+    autovacuum_vacuum_cost_limit = '1000'
+);
 
 -- Per-step batching configuration
 CREATE TABLE v1_step_batch_config (
@@ -727,6 +857,15 @@ CREATE TABLE v1_task_runtime_slot (
 CREATE INDEX v1_task_runtime_slot_tenant_worker_type_idx
     ON v1_task_runtime_slot (tenant_id ASC, worker_id ASC, slot_type ASC);
 
+ALTER TABLE v1_task_runtime_slot SET (
+    autovacuum_vacuum_scale_factor = '0.1',
+    autovacuum_analyze_scale_factor = '0.05',
+    autovacuum_vacuum_threshold = '25',
+    autovacuum_analyze_threshold = '25',
+    autovacuum_vacuum_cost_delay = '10',
+    autovacuum_vacuum_cost_limit = '1000'
+);
+
 -- v1_rate_limited_queue_items represents a queue item that has been rate limited and removed from the v1_queue_item table.
 CREATE TABLE v1_rate_limited_queue_items (
     requeue_after TIMESTAMPTZ NOT NULL,
@@ -766,6 +905,46 @@ alter table v1_rate_limited_queue_items set (
     autovacuum_vacuum_cost_delay='10',
     autovacuum_vacuum_cost_limit='1000'
 );
+
+-- kept apart from "RateLimit" so a key can be paused before its first run and upserts can't clear a pause
+CREATE TABLE v1_rate_limit_pause (
+    tenant_id UUID NOT NULL,
+    key TEXT NOT NULL,
+    -- the key's window is frozen from paused_at until paused_until, and shifted by that span once the pause ends
+    paused_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    paused_until TIMESTAMPTZ NOT NULL,
+    CONSTRAINT v1_rate_limit_pause_pkey PRIMARY KEY (tenant_id, key)
+);
+
+-- returns when the latest active pause on any of the task's static or dynamic rate limit keys ends, or NULL if none is paused
+CREATE OR REPLACE FUNCTION v1_task_rate_limit_paused_until(
+    _tenant_id UUID,
+    _task_id BIGINT,
+    _task_inserted_at TIMESTAMPTZ,
+    _step_id UUID
+) RETURNS TIMESTAMPTZ AS $$
+    SELECT MAX(p.paused_until)
+    FROM v1_rate_limit_pause p
+    WHERE
+        p.tenant_id = _tenant_id
+        AND p.paused_until > NOW()
+        AND (
+            EXISTS (
+                SELECT 1
+                FROM "StepRateLimit" srl
+                WHERE srl."stepId" = _step_id AND srl."rateLimitKey" = p.key
+            )
+            OR EXISTS (
+                SELECT 1
+                FROM v1_task_expression_eval ee
+                WHERE
+                    ee.task_id = _task_id
+                    AND ee.task_inserted_at = _task_inserted_at
+                    AND ee.kind = 'DYNAMIC_RATE_LIMIT_KEY'
+                    AND ee.value_str = p.key
+            )
+        );
+$$ LANGUAGE sql STABLE;
 
 CREATE TABLE v1_batched_queue_item (
     id BIGINT GENERATED ALWAYS AS IDENTITY,
@@ -837,6 +1016,8 @@ CREATE TABLE v1_paused_workflow_queue_item (
     retry_count INTEGER NOT NULL DEFAULT 0,
     desired_worker_label JSONB,
     batch_key TEXT,
+    -- set when the item is held by a paused rate limit key rather than (only) a paused workflow
+    rate_limit_paused_until TIMESTAMPTZ,
 
     -- important: inserted at first so we can use it to filter for expired queue items
     CONSTRAINT v1_paused_workflow_queue_itemm_pkey PRIMARY KEY (task_inserted_at, task_id, retry_count)
@@ -844,6 +1025,10 @@ CREATE TABLE v1_paused_workflow_queue_item (
 
 CREATE INDEX v1_paused_workflow_queue_item_workflow_idx
     ON v1_paused_workflow_queue_item (workflow_id, tenant_id);
+
+CREATE INDEX v1_paused_workflow_queue_item_rate_limit_idx
+    ON v1_paused_workflow_queue_item (tenant_id, rate_limit_paused_until)
+    WHERE rate_limit_paused_until IS NOT NULL;
 
 ALTER TABLE v1_paused_workflow_queue_item SET (
     autovacuum_vacuum_scale_factor = '0.1',
@@ -896,6 +1081,15 @@ CREATE TABLE v1_match (
     durable_event_log_entry_node_id bigint,
     durable_event_log_entry_branch_id bigint,
     CONSTRAINT v1_match_pkey PRIMARY KEY (id)
+);
+
+ALTER TABLE v1_match SET (
+    autovacuum_vacuum_scale_factor = '0.1',
+    autovacuum_analyze_scale_factor = '0.05',
+    autovacuum_vacuum_threshold = '25',
+    autovacuum_analyze_threshold = '25',
+    autovacuum_vacuum_cost_delay = '10',
+    autovacuum_vacuum_cost_limit = '1000'
 );
 
 CREATE TYPE v1_event_type AS ENUM ('USER', 'INTERNAL');
@@ -1030,6 +1224,15 @@ CREATE INDEX v1_match_condition_filter_idx ON v1_match_condition (
     event_resource_hint ASC
 );
 
+ALTER TABLE v1_match_condition SET (
+    autovacuum_vacuum_scale_factor = '0.1',
+    autovacuum_analyze_scale_factor = '0.05',
+    autovacuum_vacuum_threshold = '25',
+    autovacuum_analyze_threshold = '25',
+    autovacuum_vacuum_cost_delay = '10',
+    autovacuum_vacuum_cost_limit = '1000'
+);
+
 CREATE TABLE v1_dag (
     id bigint GENERATED ALWAYS AS IDENTITY,
     inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1041,6 +1244,7 @@ CREATE TABLE v1_dag (
     parent_task_external_id UUID,
     desired_worker_labels JSONB,
     idempotency_key TEXT,
+    payload_reference_id UUID,
     CONSTRAINT v1_dag_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -1050,15 +1254,15 @@ CREATE TABLE v1_dag_to_task (
     task_id BIGINT NOT NULL,
     task_inserted_at TIMESTAMPTZ NOT NULL,
     CONSTRAINT v1_dag_to_task_pkey PRIMARY KEY (dag_id, dag_inserted_at, task_id, task_inserted_at)
-);
+) PARTITION BY RANGE(dag_inserted_at);
 
 CREATE TABLE v1_dag_data (
     dag_id BIGINT NOT NULL,
     dag_inserted_at TIMESTAMPTZ NOT NULL,
     input JSONB NOT NULL,
     additional_metadata JSONB,
-    CONSTRAINT v1_dag_input_pkey PRIMARY KEY (dag_id, dag_inserted_at)
-);
+    PRIMARY KEY (dag_id, dag_inserted_at)
+) PARTITION BY RANGE(dag_inserted_at);
 
 -- CreateTable
 CREATE TABLE v1_workflow_concurrency_slot (
@@ -1081,6 +1285,15 @@ CREATE INDEX v1_workflow_concurrency_slot_query_idx ON v1_workflow_concurrency_s
 
 CREATE INDEX v1_workflow_concurrency_slot_filled_idx ON v1_workflow_concurrency_slot (tenant_id, strategy_id, workflow_version_id, workflow_run_id)
     WHERE is_filled = TRUE;
+
+ALTER TABLE v1_workflow_concurrency_slot SET (
+    autovacuum_vacuum_scale_factor = '0.1',
+    autovacuum_analyze_scale_factor = '0.05',
+    autovacuum_vacuum_threshold = '25',
+    autovacuum_analyze_threshold = '25',
+    autovacuum_vacuum_cost_delay = '10',
+    autovacuum_vacuum_cost_limit = '1000'
+);
 
 -- CreateTable
 CREATE TABLE v1_concurrency_slot (
@@ -1115,6 +1328,15 @@ CREATE INDEX v1_concurrency_slot_query_idx ON v1_concurrency_slot (tenant_id, st
 
 CREATE INDEX v1_concurrency_slot_timeout_idx ON v1_concurrency_slot (tenant_id, strategy_id, task_id, task_inserted_at)
     WHERE is_filled = FALSE;
+
+ALTER TABLE v1_concurrency_slot SET (
+    autovacuum_vacuum_scale_factor = '0.1',
+    autovacuum_analyze_scale_factor = '0.05',
+    autovacuum_vacuum_threshold = '25',
+    autovacuum_analyze_threshold = '25',
+    autovacuum_vacuum_cost_delay = '10',
+    autovacuum_vacuum_cost_limit = '1000'
+);
 
 -- When concurrency slot is CREATED, we should check whether the parent concurrency slot exists; if not, we should create
 -- the parent concurrency slot as well.
@@ -1390,6 +1612,15 @@ CREATE TABLE v1_retry_queue_item (
 
 CREATE INDEX v1_retry_queue_item_tenant_id_retry_after_idx ON v1_retry_queue_item (tenant_id ASC, retry_after ASC);
 
+ALTER TABLE v1_retry_queue_item SET (
+    autovacuum_vacuum_scale_factor = '0.1',
+    autovacuum_analyze_scale_factor = '0.05',
+    autovacuum_vacuum_threshold = '25',
+    autovacuum_analyze_threshold = '25',
+    autovacuum_vacuum_cost_delay = '10',
+    autovacuum_vacuum_cost_limit = '1000'
+);
+
 CREATE OR REPLACE FUNCTION v1_task_insert_function()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -1548,7 +1779,7 @@ BEGIN
         id,
         inserted_at
     FROM new_table
-    ON CONFLICT (external_id) DO NOTHING;
+    ON CONFLICT (external_id, inserted_at) DO NOTHING;
 
     RETURN NULL;
 END;
@@ -1596,6 +1827,14 @@ BEGIN
             AND nt.retry_backoff_factor IS NOT NULL
             AND ot.app_retry_count IS DISTINCT FROM nt.app_retry_count
             AND nt.app_retry_count != 0
+            -- retry-after failures insert their own retry queue item
+            AND NOT EXISTS (
+                SELECT 1
+                FROM v1_retry_queue_item rqi
+                WHERE rqi.task_id = nt.id
+                    AND rqi.task_inserted_at = nt.inserted_at
+                    AND rqi.task_retry_count = nt.retry_count
+            )
     )
     INSERT INTO v1_retry_queue_item (
         task_id,
@@ -1651,6 +1890,14 @@ BEGIN
             AND nt.concurrency_strategy_ids[1] IS NOT NULL
             AND (nt.retry_backoff_factor IS NULL OR ot.app_retry_count IS NOT DISTINCT FROM nt.app_retry_count OR nt.app_retry_count = 0)
             AND ot.retry_count IS DISTINCT FROM nt.retry_count
+            -- retry-after failures get a slot when their retry queue item is processed
+            AND NOT EXISTS (
+                SELECT 1
+                FROM v1_retry_queue_item rqi
+                WHERE rqi.task_id = nt.id
+                    AND rqi.task_inserted_at = nt.inserted_at
+                    AND rqi.task_retry_count = nt.retry_count
+            )
     ), updated_slot AS (
         UPDATE
             v1_concurrency_slot cs
@@ -1763,6 +2010,14 @@ BEGIN
         AND nt.concurrency_strategy_ids[1] IS NULL
         AND (nt.retry_backoff_factor IS NULL OR ot.app_retry_count IS NOT DISTINCT FROM nt.app_retry_count OR nt.app_retry_count = 0)
         AND ot.retry_count IS DISTINCT FROM nt.retry_count
+        -- retry-after failures are queued when their retry queue item is processed
+        AND NOT EXISTS (
+            SELECT 1
+            FROM v1_retry_queue_item rqi
+            WHERE rqi.task_id = nt.id
+                AND rqi.task_inserted_at = nt.inserted_at
+                AND rqi.task_retry_count = nt.retry_count
+        )
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
     ;
 
@@ -1819,8 +2074,8 @@ BEGIN
         WHERE
             dr.retry_after <= NOW()
             AND t.initial_state = 'QUEUED'
-            -- Check to see if the task has a concurrency strategy
             AND t.concurrency_strategy_ids[1] IS NOT NULL
+            AND dr.task_retry_count = t.retry_count
     )
     INSERT INTO v1_concurrency_slot (
         task_id,
@@ -1863,7 +2118,8 @@ BEGIN
         next_max_runs,
         queue,
         schedule_timeout_at
-    FROM new_slot_rows;
+    FROM new_slot_rows
+    ON CONFLICT (task_id, task_inserted_at, task_retry_count, strategy_id) DO NOTHING;
 
     WITH tasks AS (
         SELECT
@@ -1875,6 +2131,7 @@ BEGIN
             dr.retry_after <= NOW()
             AND t.initial_state = 'QUEUED'
             AND t.concurrency_strategy_ids[1] IS NULL
+            AND dr.task_retry_count = t.retry_count
     )
     INSERT INTO v1_queue_item (
         tenant_id,
@@ -2098,7 +2355,7 @@ BEGIN
         id,
         inserted_at
     FROM new_table
-    ON CONFLICT (external_id) DO NOTHING;
+    ON CONFLICT (external_id, inserted_at) DO NOTHING;
 
     RETURN NULL;
 END;
@@ -2131,6 +2388,79 @@ CREATE TABLE v1_log_line (
 
 CREATE INDEX v1_log_line_tenant_id_level_idx ON v1_log_line (tenant_id ASC, created_at DESC, level ASC);
 
+-- fillfactor leaves room for every publish batch's last_offset update to stay HOT
+CREATE TABLE v1_stream_topic (
+    tenant_id UUID NOT NULL,
+    namespace TEXT NOT NULL DEFAULT '',
+    topic TEXT NOT NULL,
+    inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_published_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- the last offset reserved (see v1_stream_message)
+    last_offset BIGINT NOT NULL DEFAULT 0,
+    -- subscribers without a cursor start after this offset (see ResetStreamTopic)
+    starting_offset BIGINT NOT NULL DEFAULT 0,
+
+    CONSTRAINT v1_stream_topic_pkey PRIMARY KEY (tenant_id, namespace, topic)
+) WITH (fillfactor = 80);
+
+ALTER TABLE v1_stream_topic SET (
+    autovacuum_vacuum_scale_factor = '0.1',
+    autovacuum_analyze_scale_factor = '0.05',
+    autovacuum_vacuum_threshold = '25',
+    autovacuum_analyze_threshold = '25',
+    autovacuum_vacuum_cost_delay = '10',
+    autovacuum_vacuum_cost_limit = '1000'
+);
+
+-- id is the message's offset in its topic, reserved from last_offset under a
+-- row lock held until commit, so offsets become visible in order and readers
+-- page on id alone.
+CREATE TABLE v1_stream_message (
+    id BIGINT NOT NULL,
+    inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    tenant_id UUID NOT NULL,
+    namespace TEXT NOT NULL DEFAULT '',
+    topic TEXT NOT NULL,
+    payload BYTEA NOT NULL,
+    producer_id TEXT NOT NULL,
+    producer_seq BIGINT NOT NULL,
+    -- set when the payload was uploaded ahead of the publish (see v1_stream_payload)
+    payload_id UUID,
+    payload_inserted_at TIMESTAMPTZ,
+
+    -- id first so reads seek by offset; inserted_at is required as the partition key
+    CONSTRAINT v1_stream_message_pkey PRIMARY KEY (tenant_id, namespace, topic, id, inserted_at),
+    -- the pair together is the ref; one without the other can't be resolved
+    CONSTRAINT v1_stream_message_payload_ref_check CHECK ((payload_id IS NULL) = (payload_inserted_at IS NULL))
+) PARTITION BY RANGE(inserted_at);
+
+-- Payloads too large for a gRPC publish. Insert-only; partitions are dropped
+-- StreamPayloadRetentionGrace after v1_stream_message's, since a payload is
+-- uploaded before the message referencing it, so an upload no publish
+-- references needs no cleanup of its own.
+CREATE TABLE v1_stream_payload (
+    id UUID NOT NULL,
+    inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    tenant_id UUID NOT NULL,
+    payload BYTEA NOT NULL,
+
+    CONSTRAINT v1_stream_payload_pkey PRIMARY KEY (tenant_id, id, inserted_at)
+) PARTITION BY RANGE(inserted_at);
+
+-- v1_stream_producer_cursor holds each producer's last stored producer_seq.
+-- Day buckets let idle producers age out; an active producer's watermark is
+-- copied into each new day's bucket.
+CREATE TABLE v1_stream_producer_cursor (
+    tenant_id UUID NOT NULL,
+    namespace TEXT NOT NULL DEFAULT '',
+    topic TEXT NOT NULL,
+    producer_id TEXT NOT NULL,
+    bucket DATE NOT NULL,
+    last_seq BIGINT NOT NULL,
+
+    CONSTRAINT v1_stream_producer_cursor_pkey PRIMARY KEY (tenant_id, namespace, topic, producer_id, bucket)
+) PARTITION BY RANGE(bucket);
+
 CREATE TYPE v1_step_match_condition_kind AS ENUM ('PARENT_OVERRIDE', 'USER_EVENT', 'SLEEP');
 
 CREATE TABLE v1_step_match_condition (
@@ -2159,6 +2489,15 @@ CREATE TABLE v1_durable_sleep (
     PRIMARY KEY (tenant_id, sleep_until, id)
 );
 
+ALTER TABLE v1_durable_sleep SET (
+    autovacuum_vacuum_scale_factor = '0.1',
+    autovacuum_analyze_scale_factor = '0.05',
+    autovacuum_vacuum_threshold = '25',
+    autovacuum_analyze_threshold = '25',
+    autovacuum_vacuum_cost_delay = '10',
+    autovacuum_vacuum_cost_limit = '1000'
+);
+
 CREATE TYPE v1_payload_type AS ENUM ('TASK_INPUT', 'DAG_INPUT', 'TASK_OUTPUT', 'TASK_EVENT_DATA', 'USER_EVENT_INPUT', 'DURABLE_EVENT_LOG_ENTRY_DATA', 'DURABLE_EVENT_LOG_ENTRY_RESULT_DATA');
 
 -- IMPORTANT: Keep these values in sync with `v1_payload_type_olap` in the OLAP db
@@ -2168,7 +2507,7 @@ CREATE TABLE v1_payload (
     tenant_id UUID NOT NULL,
     id BIGINT NOT NULL,
     inserted_at TIMESTAMPTZ NOT NULL,
-    external_id UUID NOT NULL DEFAULT gen_random_uuid(),
+    external_id UUID NOT NULL DEFAULT gen_random_uuid(), -- IMPORTANT: Each _partition_ of this table has a `UNIQUE` constraint on this column, but the parent does not
     type v1_payload_type NOT NULL,
     location v1_payload_location NOT NULL,
     external_location_key TEXT,
@@ -2184,6 +2523,83 @@ CREATE TABLE v1_payload (
 ) PARTITION BY RANGE(inserted_at);
 
 CREATE INDEX v1_payload_external_id_idx ON v1_payload (external_id ASC);
+
+-- can't use the built-in version of this since it was only introduced in pg 18
+CREATE OR REPLACE FUNCTION extract_uuid7_timestamp(
+    id UUID
+) RETURNS TIMESTAMPTZ
+    LANGUAGE sql
+    IMMUTABLE
+    PARALLEL SAFE
+AS $$
+    SELECT 'epoch'::TIMESTAMPTZ + ('x' || REPLACE(LEFT(id::TEXT, 13), '-', ''))::BIT(48)::BIGINT * INTERVAL '1 millisecond';
+$$;
+
+-- v1_payload_inserted_at is the inserted_at a payload row is stored under and located by on every
+-- path: the write, the inline read, and the offloaded block index lookup. A row shared through a
+-- version 7 reference id takes the millisecond timestamp carried in the id, so the id alone locates
+-- the row however much later the referrer is created or the row itself is written after a queue hop.
+-- Any other id (NULL after the caller maps the zero uuid to NULL, or a row's own external id, which
+-- the OLAP repository passes to read a row it knows only by external id) takes the given inserted_at.
+CREATE OR REPLACE FUNCTION v1_payload_inserted_at(
+    payload_reference_id UUID,
+    inserted_at TIMESTAMPTZ
+) RETURNS TIMESTAMPTZ
+    LANGUAGE sql
+    IMMUTABLE
+    PARALLEL SAFE
+AS $$
+    SELECT CASE
+        WHEN payload_reference_id IS NOT NULL AND get_byte(uuid_send(payload_reference_id), 6) >> 4 = 7
+        THEN extract_uuid7_timestamp(payload_reference_id)
+        ELSE inserted_at
+    END;
+$$;
+
+-- read_payloads is the one place that knows how an inline payload row is located: an own row by its
+-- primary key (tenant_id, id, inserted_at, type) when the input carries no reference id, a shared row
+-- by (tenant_id, external_id) under v1_payload_inserted_at(payload_reference_id, inserted_at) when it
+-- does. A zero uuid in payload_reference_ids means no reference. ReadPayloads and any CTE that needs
+-- an inline payload row call this function rather than restating these rules. Rows already offloaded
+-- to the external store are located through v1_payload_offloaded_block_index under the date of the
+-- same v1_payload_inserted_at, so a row written, offloaded, and read is keyed by one rule throughout.
+CREATE OR REPLACE FUNCTION read_payloads(
+    tenant_ids UUID[],
+    ids BIGINT[],
+    inserted_ats TIMESTAMPTZ[],
+    types v1_payload_type[],
+    payload_reference_ids UUID[]
+) RETURNS SETOF v1_payload
+    LANGUAGE sql
+    STABLE
+AS $$
+    WITH inputs AS (
+        SELECT
+            UNNEST(tenant_ids) AS tenant_id,
+            UNNEST(ids) AS id,
+            UNNEST(inserted_ats) AS inserted_at,
+            UNNEST(types) AS type,
+            NULLIF(UNNEST(payload_reference_ids), '00000000-0000-0000-0000-000000000000'::UUID) AS payload_reference_id
+    )
+
+    SELECT *
+    FROM v1_payload
+    WHERE (tenant_id, id, inserted_at, type) IN (
+        SELECT tenant_id, id, inserted_at, type
+        FROM inputs
+        WHERE payload_reference_id IS NULL
+    )
+
+    UNION ALL
+
+    SELECT *
+    FROM v1_payload
+    WHERE (tenant_id, external_id, inserted_at) IN (
+        SELECT tenant_id, payload_reference_id, v1_payload_inserted_at(payload_reference_id, inserted_at)
+        FROM inputs
+        WHERE payload_reference_id IS NOT NULL
+    );
+$$;
 
 CREATE TABLE v1_payload_cutover_job_offset (
     key DATE PRIMARY KEY,
@@ -2670,6 +3086,7 @@ CREATE TABLE v1_event (
     additional_metadata JSONB,
     scope TEXT,
     triggering_webhook_name TEXT,
+    payload_reference_id UUID,
 
     PRIMARY KEY (tenant_id, seen_at, id)
 ) PARTITION BY RANGE(seen_at);
@@ -2786,19 +3203,152 @@ CREATE TABLE v1_durable_event_log_branch_point (
     CONSTRAINT v1_durable_event_log_branch_point_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, parent_branch_id, first_node_id_in_new_branch, next_branch_id)
 ) PARTITION BY RANGE(durable_task_inserted_at);
 
-CREATE TYPE v1_operator_kind AS ENUM ('HTTP_API', 'DAG');
+-- What an operator is: DAG is the engine-internal DAG operator, GRPC a contract operator
+-- written against pkg/operator, hostable in process or out of process. HTTP_API is retained
+-- only because Postgres cannot drop enum values; the engine never instantiates operators of
+-- that kind.
+CREATE TYPE v1_operator_kind AS ENUM ('HTTP_API', 'DAG', 'GRPC');
+
+-- Who keeps an operator alive: for a DISPATCHER row the dispatcher claims the row through
+-- ClaimOperators and builds the operator from a factory inside the engine; SELF rows keep
+-- themselves alive, through a Listen stream out of process or their own leaser in process, and
+-- are never claimed. Wire registration requires SELF.
+CREATE TYPE v1_operator_leasing_manager AS ENUM ('SELF', 'DISPATCHER');
 
 CREATE TABLE v1_operator (
     id UUID NOT NULL DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL,
     name TEXT NOT NULL,
     kind v1_operator_kind NOT NULL,
+    leasing_manager v1_operator_leasing_manager NOT NULL DEFAULT 'SELF',
     config JSONB NOT NULL,
     worker_id UUID,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT v1_operator_pkey PRIMARY KEY (id)
+    CONSTRAINT v1_operator_pkey PRIMARY KEY (id),
+    CONSTRAINT v1_operator_dag_leasing_manager_check CHECK (kind <> 'DAG' OR leasing_manager = 'DISPATCHER')
 );
+
+CREATE UNIQUE INDEX v1_operator_tenant_name_kind_key ON v1_operator (tenant_id, name, kind);
+
+CREATE TYPE v1_serverless_endpoint_kind AS ENUM ('GENERIC_HTTP', 'CLOUDFLARE_WORKERS', 'VERCEL');
+
+-- Customer configuration. Written by the API server; the operator writes only the status
+-- columns, and only on state transitions (never per poll).
+CREATE TABLE v1_serverless_endpoint (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL,
+    name TEXT NOT NULL,
+    kind v1_serverless_endpoint_kind NOT NULL DEFAULT 'CLOUDFLARE_WORKERS',
+    healthcheck_url TEXT NOT NULL,
+    trigger_url TEXT NOT NULL,
+    -- enc.EncryptString(secret, SigningSecretEncryptionDataID)
+    signing_secret_enc TEXT NOT NULL,
+    request_timeout_seconds INT NOT NULL DEFAULT 300,
+    poll_interval_seconds INT NOT NULL DEFAULT 30,
+    inline_wait_budget_ms INT NOT NULL DEFAULT 5000,
+    labels JSONB NOT NULL DEFAULT '{}'::jsonb,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    -- hashtext(id::text) % endpoint_partition_count, set on insert
+    endpoint_partition INT NOT NULL DEFAULT 0,
+    -- status, written on transitions only
+    healthy BOOLEAN,
+    status_error TEXT,
+    status_changed_at TIMESTAMPTZ,
+    -- the action ids the endpoint's last accepted healthcheck declared, as registered with the
+    -- engine; written by the owner on healthcheck change. Several endpoints of a tenant may
+    -- declare the same action; each then serves it, like several workers would.
+    registered_actions TEXT[] NOT NULL DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- the subset of registered_actions whose task asked for an invocation websocket
+    stream_actions TEXT[] NOT NULL DEFAULT '{}',
+    -- whether the endpoint's last accepted healthcheck said it accepts the durable websocket
+    -- protocol; durable tasks are left out of registered_actions when it did not, and a
+    -- durable assignment that still reaches the endpoint is refused before it is dialed
+    durable_supported BOOLEAN NOT NULL DEFAULT FALSE,
+    -- Set by the delete API together with updated_at, so the routing caches' incremental
+    -- refresh sees the deletion through the version index and drops the endpoint; every other
+    -- read filters deleted rows out. The operator purges the rows after a grace period.
+    deleted_at TIMESTAMPTZ,
+    CONSTRAINT v1_serverless_endpoint_pkey PRIMARY KEY (id)
+);
+
+-- Names are unique among the live endpoints of a tenant; a deleted endpoint's name is free.
+CREATE UNIQUE INDEX v1_serverless_endpoint_tenant_name_key ON v1_serverless_endpoint (tenant_id, name) WHERE deleted_at IS NULL;
+
+-- endpoints of an owned unit (owner: polling) and of a served tenant (routing cache)
+CREATE INDEX v1_serverless_endpoint_unit_idx ON v1_serverless_endpoint (tenant_id, endpoint_partition, id);
+
+-- incremental refresh of the routing cache, keyed by row version: the later of updated_at
+-- (configuration and registered_actions writes) and status_changed_at (health transitions)
+CREATE INDEX v1_serverless_endpoint_version_idx ON v1_serverless_endpoint (tenant_id, GREATEST(updated_at, COALESCE(status_changed_at, updated_at)), id);
+
+CREATE TYPE v1_serverless_endpoint_event_kind AS ENUM (
+    'HEALTHCHECK_FAILED',
+    'UNHEALTHY',
+    'HEALTHY',
+    'CATALOG_REGISTERED',
+    'CATALOG_REJECTED',
+    'DELIVERY_FAILED'
+);
+
+-- What the serverless operator observed about an endpoint, for the dashboard. Written by the
+-- owning process on failure-streak starts, status transitions, catalog changes and rate-limited
+-- delivery failures, never once per poll. Partitioned by day like the other core tables, and
+-- dropped with them after the core retention period; reads also stop at the tenant's retention.
+CREATE TABLE v1_serverless_endpoint_event (
+    id BIGINT GENERATED ALWAYS AS IDENTITY,
+    tenant_id UUID NOT NULL,
+    endpoint_id UUID NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    kind v1_serverless_endpoint_event_kind NOT NULL,
+    message TEXT NOT NULL,
+    details JSONB NOT NULL DEFAULT '{}'::jsonb,
+    -- also serves an endpoint's events newest first, scanned backward
+    CONSTRAINT v1_serverless_endpoint_event_pkey PRIMARY KEY (tenant_id, endpoint_id, created_at, id)
+) PARTITION BY RANGE(created_at);
+
+CREATE TABLE v1_serverless_tenant (
+    tenant_id UUID NOT NULL,
+    -- > 1 splits a hot tenant across processes
+    endpoint_partition_count INT NOT NULL DEFAULT 1,
+    CONSTRAINT v1_serverless_tenant_pkey PRIMARY KEY (tenant_id)
+);
+
+-- One row per live serverless operator process (the shape of pgoutbox's consumer_sessions): the
+-- only steady-state write. Liveness is expires_at, refreshed by the process heartbeat.
+CREATE TABLE v1_serverless_process (
+    -- out of process: random per start; in-engine: dispatcher id
+    process_id UUID NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    unit_count INT NOT NULL DEFAULT 0,
+    endpoint_count INT NOT NULL DEFAULT 0,
+    hostname TEXT,
+    version TEXT,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT v1_serverless_process_pkey PRIMARY KEY (process_id)
+);
+
+-- Lease unit (tenant, partition). One row per unit, created by the API with the tenant's first
+-- endpoint (and per partition when endpoint_partition_count grows). process_id NULL = unowned.
+-- Owner liveness is resolved through v1_serverless_process (pgoutbox's "NULL expiry defers to the
+-- session"), so holding a unit costs zero writes.
+CREATE TABLE v1_serverless_lease (
+    tenant_id UUID NOT NULL,
+    endpoint_partition INT NOT NULL DEFAULT 0,
+    process_id UUID,
+    claimed_at TIMESTAMPTZ,
+    -- maintained by the API on endpoint create/delete; fair-share weight
+    endpoint_count INT NOT NULL DEFAULT 0,
+    CONSTRAINT v1_serverless_lease_pkey PRIMARY KEY (tenant_id, endpoint_partition)
+);
+
+CREATE INDEX v1_serverless_lease_owner_idx ON v1_serverless_lease (process_id, tenant_id, endpoint_partition);
+
+-- claims walk unowned units with endpoints in key order from a random start; covering so the
+-- claimable count is index only. Empty units are never claimed, so they are not in the index.
+CREATE INDEX v1_serverless_lease_claimable_idx ON v1_serverless_lease (tenant_id, endpoint_partition) INCLUDE (endpoint_count) WHERE process_id IS NULL AND endpoint_count > 0;
 
 CREATE TABLE tenant_entitlement (
     tenant_id UUID NOT NULL,
@@ -2812,6 +3362,12 @@ CREATE TABLE tenant_entitlement (
     strict_additional_metadata_filters BOOLEAN NOT NULL DEFAULT FALSE,
 
     dag_operator BOOLEAN NOT NULL DEFAULT FALSE,
+
+    durable_streams BOOLEAN NOT NULL DEFAULT FALSE,
+
+    -- Gates the serverless operator: endpoint creation over the API and the operator's lease
+    -- claims both require it.
+    serverless_operator BOOLEAN NOT NULL DEFAULT FALSE,
 
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

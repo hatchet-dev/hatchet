@@ -25,6 +25,7 @@ import (
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-admin/cli/seed"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-engine/engine"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-migrate/migrate"
+	"github.com/hatchet-dev/hatchet/pkg/cleanup"
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
@@ -74,6 +75,11 @@ func RunTestWithEngine(m *testing.M) {
 			goleak.IgnoreTopFunction("github.com/hashicorp/golang-lru/v2/expirable.NewLRU[...].func1"),
 			goleak.IgnoreTopFunction("github.com/hatchet-dev/hatchet/internal/cache.NewTTL[...].func1"),
 			goleak.IgnoreTopFunction("google.golang.org/grpc/internal/resolver/dns.(*dnsResolver).watcher"),
+			// a CPU profile requested over net/http/pprof is usually still being
+			// collected when the tests finish; its handler and profile writer
+			// belong to the sampler, not to the code under test
+			goleak.IgnoreTopFunction("net/http/pprof.sleep"),
+			goleak.IgnoreTopFunction("runtime/pprof.readProfile"),
 			goleak.IgnoreTopFunction("github.com/testcontainers/testcontainers-go.(*Reaper).connect.func1"),
 			goleak.IgnoreTopFunction("go.opencensus.io/stats/view.(*worker).start"),
 			goleak.IgnoreTopFunction("google.golang.org/grpc/internal/grpcsync.(*CallbackSerializer).run"),
@@ -216,16 +222,32 @@ func startEngine() func() {
 	engineCh := make(chan error)
 
 	go func() {
-		engineCh <- engine.Run(ctx, cf, "testing")
+		engineCh <- engine.Run(ctx, cf, engine.DefaultVersion)
 	}()
 
 	// Return a cleanup function that properly handles shutdown
 	return func() {
+		// a result already waiting here was produced before this cleanup
+		// asked the engine to stop, so the engine did not shut down, it
+		// failed, whatever error it carries
+		select {
+		case err := <-engineCh:
+			log.Fatalf("engine exited before shutdown was requested: %v", err)
+		default:
+		}
+
 		cancel()
 
 		err := <-engineCh
 
-		if err != nil {
+		// The readiness probe answers as soon as the queue and database are
+		// healthy, which is before every controller has started. A test that
+		// finishes right after the probe cancels the engine while it is still
+		// starting, and a start step that observes the cancellation returns it
+		// as its error. That is the shutdown this cleanup asked for, not a
+		// failure to run. A cleanup fn that failed on the way out is still a
+		// failure; engine.Run joins that error to the cancellation.
+		if !cleanup.OnlyCancelled(err) {
 			log.Fatalf("failed to run engine: %v", err)
 		}
 
@@ -267,6 +289,9 @@ func startPostgres(ctx context.Context, pgVersion string) (string, func() error)
 		postgres.WithUsername("user"),
 		postgres.WithPassword("password"),
 		testcontainers.WithHostPortAccess(pgPort),
+		// preloaded so CI can snapshot pg_stat_statements while the tests run;
+		// the extension itself is created by whoever reads it
+		testcontainers.WithCmdArgs("-c", "shared_preload_libraries=pg_stat_statements", "-c", "pg_stat_statements.track=all"),
 	)
 
 	if err != nil {
@@ -387,19 +412,41 @@ func extractPort(connStr string) (int, error) {
 	return port, nil
 }
 
+// pgBouncerConfig is the PgBouncer config for the test harness. track_extra_parameters lets the
+// connection string carry the statement timeouts to every server connection.
+const pgBouncerConfig = `[databases]
+test = host=host.testcontainers.internal port=%d auth_user=user
+
+[pgbouncer]
+listen_addr = 0.0.0.0
+listen_port = 5432
+auth_type = scram-sha-256
+auth_file = /etc/pgbouncer/userlist.txt
+pool_mode = transaction
+max_client_conn = 500
+default_pool_size = 50
+max_prepared_statements = 256
+ignore_startup_parameters = extra_float_digits
+track_extra_parameters = statement_timeout, idle_in_transaction_session_timeout
+`
+
 func startPgBouncer(ctx context.Context, pgPort int) (string, func() error) {
 	pgBouncerContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
-			Image:           "edoburu/pgbouncer:v1.25.1-p0",
+			Image:           "edoburu/pgbouncer:v1.26.0-p0",
 			ExposedPorts:    []string{"5432/tcp"},
 			HostAccessPorts: []int{pgPort},
+			// The image writes userlist.txt from DATABASE_URL; the config comes from Files.
 			Env: map[string]string{
-				"DATABASE_URL":            fmt.Sprintf("postgres://user:password@host.testcontainers.internal:%d/test", pgPort),
-				"POOL_MODE":               "transaction",
-				"MAX_CLIENT_CONN":         "500",
-				"DEFAULT_POOL_SIZE":       "50",
-				"AUTH_TYPE":               "scram-sha-256",
-				"MAX_PREPARED_STATEMENTS": "256",
+				"DATABASE_URL": fmt.Sprintf("postgres://user:password@host.testcontainers.internal:%d/test", pgPort),
+				"AUTH_TYPE":    "scram-sha-256",
+			},
+			Files: []testcontainers.ContainerFile{
+				{
+					Reader:            strings.NewReader(fmt.Sprintf(pgBouncerConfig, pgPort)),
+					ContainerFilePath: "/etc/pgbouncer/pgbouncer.ini",
+					FileMode:          0o644,
+				},
 			},
 		},
 		Started: true,
@@ -420,7 +467,7 @@ func startPgBouncer(ctx context.Context, pgPort int) (string, func() error) {
 	}
 
 	connStr := fmt.Sprintf(
-		"postgresql://user:password@%s:%s/test?sslmode=disable",
+		"postgresql://user:password@%s:%s/test?sslmode=disable&statement_timeout=30000&idle_in_transaction_session_timeout=30000",
 		host, mappedPort.Port(),
 	)
 
@@ -492,6 +539,7 @@ func setAPIToken(ctx context.Context, cf *loader.ConfigLoader, tenantID uuid.UUI
 		ctx,
 		tenantID,
 		"testing",
+		false,
 		false,
 		&expiresAt,
 	)

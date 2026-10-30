@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/codes"
-	"google.golang.org/grpc"
 
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
@@ -20,7 +20,11 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
-var errFlowControlActive = errors.New("could not acquire worker send mutex, flow control is active")
+var (
+	errFlowControlActive = errors.New("could not acquire worker send mutex, flow control is active")
+	errSessionReleased   = errors.New("worker session has been released")
+	errWorkerPaused      = errors.New("worker session is paused, the task is returned to the queue")
+)
 
 func (worker *subscribedWorker) StartTaskFromBulk(
 	ctx context.Context,
@@ -42,6 +46,7 @@ func (worker *subscribedWorker) StartTaskFromBulk(
 	}
 
 	action := populateAssignedAction(tenantId, task.V1Task, task.Runtime, task.RetryCount, durableInvocationCount)
+	worker.setOperatorTaskInsertedAt(action, task.V1Task)
 
 	action.ActionType = contracts.ActionType_START_STEP_RUN
 	action.ActionPayload = string(inputBytes)
@@ -74,7 +79,13 @@ func (worker *subscribedWorker) sendToWorker(
 	ctx context.Context,
 	action *contracts.AssignedAction,
 ) error {
-	if worker.operator != nil {
+	// a paused operator session refuses starts the way a failed send does, so the caller
+	// requeues the task; see subscribedWorker.paused
+	if action.ActionType != contracts.ActionType_CANCEL_STEP_RUN && worker.paused.Load() {
+		return errWorkerPaused
+	}
+
+	if worker.handler != nil {
 		return worker.sendToWorkerWithOperator(ctx, action)
 	}
 
@@ -96,7 +107,7 @@ func (worker *subscribedWorker) sendToWorkerWithOperator(
 		},
 	)
 
-	return worker.operator.HandleAction(ctx, action)
+	return worker.handler.HandleAction(ctx, action)
 }
 
 func (worker *subscribedWorker) sendToWorkerWithStream(
@@ -122,17 +133,11 @@ func (worker *subscribedWorker) sendToWorkerWithStream(
 		},
 	)
 
-	_, encodeSpan := telemetry.NewSpan(ctx, "encode-action")
-
-	msg := &grpc.PreparedMsg{}
-	err := msg.Encode(worker.stream, action)
-	if err != nil {
-		encodeSpan.RecordError(err)
-		encodeSpan.End()
-		return fmt.Errorf("could not encode action: %w", err)
+	select {
+	case <-worker.done:
+		return errSessionReleased
+	default:
 	}
-
-	encodeSpan.End()
 
 	if !worker.sendLock.Acquire() {
 		span.RecordError(errFlowControlActive)
@@ -161,7 +166,7 @@ func (worker *subscribedWorker) sendToWorkerWithStream(
 
 	go func() {
 		defer close(sentCh)
-		err = worker.stream.SendMsg(msg)
+		err := worker.stream.Send(action)
 
 		if err != nil {
 			span.RecordError(err)
@@ -178,7 +183,7 @@ func (worker *subscribedWorker) sendToWorkerWithStream(
 	select {
 	case <-ctx.Done():
 		return fmt.Errorf("context done before send could complete: %w", ctx.Err())
-	case err = <-sentCh:
+	case err := <-sentCh:
 		return err
 	}
 }
@@ -198,6 +203,7 @@ func (worker *subscribedWorker) CancelTask(
 	defer span.End()
 
 	action := populateAssignedAction(tenantId, task, nil, retryCount, durableTaskInvocationCount)
+	worker.setOperatorTaskInsertedAt(action, task)
 
 	action.ActionType = contracts.ActionType_CANCEL_STEP_RUN
 
@@ -319,4 +325,12 @@ func populateAssignedAction(tenantID uuid.UUID, task *sqlcv1.V1Task, runtime *sq
 	}
 
 	return action
+}
+
+func (worker *subscribedWorker) setOperatorTaskInsertedAt(action *contracts.AssignedAction, task *sqlcv1.V1Task) {
+	if worker.handler == nil || task == nil || !task.InsertedAt.Valid {
+		return
+	}
+
+	action.TaskInsertedAt = timestamppb.New(task.InsertedAt.Time)
 }

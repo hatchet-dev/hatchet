@@ -1,6 +1,12 @@
-import { resolveSubscriptionPlanCode } from './subscription-plan-code';
+import {
+  canSelfServePayAsYouGoUpgrade,
+  isPayAsYouGoPlanCode,
+  payAsYouGoPlan,
+  resolveSubscriptionPlanCode,
+} from './subscription-plan-code';
 import {
   OrganizationBillingStateSubscription,
+  SubscriptionPlan,
   SubscriptionPlanCode,
 } from '@/lib/api/generated/control-plane/data-contracts';
 import assert from 'node:assert/strict';
@@ -39,5 +45,45 @@ describe('resolveSubscriptionPlanCode', () => {
   it('uses the fallback when there is no subscription plan', () => {
     assert.equal(resolveSubscriptionPlanCode(undefined, 'free'), 'free');
     assert.equal(resolveSubscriptionPlanCode(undefined, null), null);
+  });
+});
+
+describe('isPayAsYouGoPlanCode', () => {
+  it('matches the pay-as-you-go plan code', () => {
+    assert.equal(isPayAsYouGoPlanCode('pay-as-you-go'), true);
+    assert.equal(isPayAsYouGoPlanCode('pay-as-you-go_monthly'), true);
+    assert.equal(isPayAsYouGoPlanCode('developer'), false);
+  });
+});
+
+describe('canSelfServePayAsYouGoUpgrade', () => {
+  it('allows free and developer to self-serve to pay-as-you-go', () => {
+    assert.equal(canSelfServePayAsYouGoUpgrade('free'), true);
+    assert.equal(canSelfServePayAsYouGoUpgrade('developer'), true);
+  });
+
+  it('keeps paid legacy plans sales-gated', () => {
+    assert.equal(canSelfServePayAsYouGoUpgrade('starter_monthly'), false);
+    assert.equal(canSelfServePayAsYouGoUpgrade('growth_yearly'), false);
+    assert.equal(canSelfServePayAsYouGoUpgrade('team_monthly'), false);
+    assert.equal(canSelfServePayAsYouGoUpgrade('scale_monthly'), false);
+    assert.equal(canSelfServePayAsYouGoUpgrade('migration'), false);
+    assert.equal(canSelfServePayAsYouGoUpgrade('pay-as-you-go'), false);
+  });
+});
+
+describe('payAsYouGoPlan', () => {
+  it('finds the pay-as-you-go plan in a catalog', () => {
+    const plans = [
+      { planCode: 'free', name: 'Free', description: '', amountCents: 0 },
+      {
+        planCode: 'pay-as-you-go',
+        name: 'Pay as you Go',
+        description: '',
+        amountCents: 0,
+      },
+    ] as SubscriptionPlan[];
+
+    assert.equal(payAsYouGoPlan(plans)?.name, 'Pay as you Go');
   });
 });

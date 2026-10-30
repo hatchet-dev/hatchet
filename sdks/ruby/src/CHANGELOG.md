@@ -5,6 +5,49 @@ All notable changes to Hatchet's Ruby SDK will be documented in this changelog.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-10-26
+
+### Added
+
+- Adds `hatchet.streams`, a client for durable streams: topics that store messages independent of any run, which readers can resume from a cursor. `publish` returns once a message is stored, keeps a client's messages to a topic in call order, and batches publishes queued behind an in-flight request (`batch_timeout:` holds a message to gather more). Payloads over 4 MiB are uploaded over REST, up to 64 MiB. `subscribe` reads a topic from the oldest retained message or a `cursor:`, yielding to a block or returning an `Enumerator`, and resubscribes from the last event read when the connection drops. `reset` starts new readers after the latest message or a given cursor, and `topic_metadata` describes a topic's retained messages.
+
+## [0.11.2] - 2026-10-27
+
+### Changed
+
+- The REST client sends `Accept: application/json` on the Slack OAuth start and callback calls, since the API now declares a `429 Too Many Requests` response on every authenticated operation.
+
+## [0.11.1] - 2026-10-23
+
+### Fixed
+
+- [Durable tasks](https://docs.hatchet.run/v1/durable-tasks) no longer stall after the worker's durable stream reconnects in the middle of a wait. The worker now reports the last completion it received in its status requests, so the engine resumes delivery from there instead of holding later completions until the task is evicted and replayed.
+
+## [0.11.0] - 2026-10-14
+
+### Added
+
+- Adds `hatchet.rate_limits.pause(key:, until_time:)` and `Context#pause_rate_limit(key, until_time:)`, which keep queued runs that consume a rate limit key from starting until a given time.
+
+## [0.10.0] - 2026-10-08
+
+### Added
+
+- Adds `RetryAfterError`, which allows for custom retry strategies.
+
+## [0.9.0] - 2026-09-23
+
+### Added
+
+- Added `pause` and `unpause` methods to the workflows client (`hatchet.workflows.pause(workflow_id, queue_ttl:)`) and to workflows (`workflow.pause(queue_ttl:)`). `queue_ttl` is how long runs stay queued while the workflow is paused, in seconds or as a duration string, and the behavior (`QUEUE` or `DROP`) for cron and scheduled runs triggered while paused can optionally be set, both defaulting to `QUEUE`.
+
+## [0.8.1] - 2026-10-05
+
+### Fixed
+
+- [Durable tasks](https://docs.hatchet.run/v1/durable-tasks) with many concurrent waits no longer flood the engine with worker status requests. The durable listener sent one worker status request per wait, each listing every pending wait, which was quadratic in the number of waits; each request now lists only the waits registered since the previous one.
+- The periodic worker status request lists only waits that have been pending for more than two seconds, is sent every five seconds instead of every second, and is split into requests of at most 10,000 entries so it stays under the gRPC message size limit.
+
 ## [0.8.0] - 2026-09-02
 
 ### Added

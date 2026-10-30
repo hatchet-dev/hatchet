@@ -3,6 +3,7 @@ getTrace:
     x-resources: ["tenant"]
     description: Get OTel trace for a workflow run
     operationId: v1-observability:get-trace
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -61,6 +62,8 @@ getTrace:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Trace not found
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get OTel trace
     tags:
       - Observability

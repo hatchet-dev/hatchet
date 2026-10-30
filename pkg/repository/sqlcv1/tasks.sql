@@ -1,14 +1,20 @@
--- name: CreatePartitions :exec
+-- name: CreatePartitions :one
 SELECT
-    create_v1_range_partition('v1_task', @date::date),
-    create_v1_range_partition('v1_dag', @date::date),
-    create_v1_range_partition('v1_task_event', @date::date),
-    create_v1_range_partition('v1_log_line', @date::date),
-    create_v1_range_partition('v1_payload', @date::date),
-    create_v1_range_partition('v1_event', @date::date),
-    create_v1_range_partition('v1_durable_event_log_file', @date::date),
-    create_v1_range_partition('v1_durable_event_log_entry', @date::date, 80),
-    create_v1_range_partition('v1_durable_event_log_branch_point', @date::date, 80)
+    create_v1_range_partition('v1_task', @date::date) AS v1_task,
+    create_v1_range_partition('v1_dag', @date::date) AS v1_dag,
+    create_v1_range_partition('v1_task_event', @date::date) AS v1_task_event,
+    create_v1_range_partition('v1_log_line', @date::date) AS v1_log_line,
+    create_v1_range_partition('v1_payload', @date::date) AS v1_payload,
+    create_v1_range_partition('v1_event', @date::date) AS v1_event,
+    create_v1_range_partition('v1_durable_event_log_file', @date::date) AS v1_durable_event_log_file,
+    create_v1_range_partition('v1_durable_event_log_entry', @date::date, 80) AS v1_durable_event_log_entry,
+    create_v1_range_partition('v1_durable_event_log_branch_point', @date::date, 80) AS v1_durable_event_log_branch_point,
+    create_v1_range_partition('v1_dag_to_task', @date::date) AS v1_dag_to_task,
+    create_v1_range_partition('v1_dag_data', @date::date) AS v1_dag_data,
+    create_v1_range_partition('v1_task_expression_eval', @date::date) AS v1_task_expression_eval,
+    create_v1_monthly_range_partition('v1_lookup_table', @date::date) AS v1_lookup_table,
+    create_v1_range_partition('v1_stream_producer_cursor', @date::date, 80) AS v1_stream_producer_cursor,
+    create_v1_range_partition('v1_serverless_endpoint_event', @date::date) AS v1_serverless_endpoint_event
 ;
 
 -- name: EnsureTablePartitionsExist :one
@@ -66,6 +72,16 @@ WITH task_partitions AS (
     SELECT 'v1_durable_event_log_entry' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_entry', @date::date) AS p
 ), durable_event_log_branch_point_partitions AS (
     SELECT 'v1_durable_event_log_branch_point' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_branch_point', @date::date) AS p
+), dag_to_task_partitions AS (
+    SELECT 'v1_dag_to_task' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag_to_task', @date::date) AS p
+), dag_data_partitions AS (
+    SELECT 'v1_dag_data' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag_data', @date::date) AS p
+), task_expression_eval_partitions AS (
+    SELECT 'v1_task_expression_eval' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task_expression_eval', @date::date) AS p
+), lookup_table_partitions AS (
+    SELECT 'v1_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_monthly_partitions_before_date('v1_lookup_table', @date::date) AS p
+), serverless_endpoint_event_partitions AS (
+    SELECT 'v1_serverless_endpoint_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_serverless_endpoint_event', @date::date) AS p
 )
 
 SELECT
@@ -128,6 +144,41 @@ SELECT
     *
 FROM
     durable_event_log_branch_point_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    dag_to_task_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    dag_data_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    task_expression_eval_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    lookup_table_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    serverless_endpoint_event_partitions
 ;
 
 -- name: DefaultTaskActivityGauge :one
@@ -140,7 +191,7 @@ WHERE
     AND last_active > @activeSince::timestamptz;
 
 -- name: FlattenExternalIds :many
-WITH lookup_rows AS (
+WITH lookup_rows AS MATERIALIZED (
     SELECT
         *
     FROM
@@ -168,15 +219,23 @@ WITH lookup_rows AS (
         t.is_dag_orchestrator,
         t.workflow_version_id,
         t.parent_task_external_id,
-        t.is_durable
+        t.is_durable,
+        t.task_input_payload_version,
+        t.payload_reference_id,
+        d.payload_reference_id AS dag_payload_reference_id
     FROM
         lookup_rows l
+    JOIN
+        v1_dag d ON d.id = l.dag_id AND d.inserted_at = l.inserted_at
     JOIN
         v1_dag_to_task dt ON dt.dag_id = l.dag_id AND dt.dag_inserted_at = l.inserted_at
     JOIN
         v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
     WHERE
         l.dag_id IS NOT NULL
+        AND d.inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE dag_id IS NOT NULL)
+        AND dt.dag_inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE dag_id IS NOT NULL)
+        AND t.inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE dag_id IS NOT NULL)
 )
 -- Union the tasks from the lookup table with the tasks from the DAGs
 SELECT
@@ -198,13 +257,17 @@ SELECT
     t.is_dag_orchestrator,
     t.workflow_version_id,
     t.parent_task_external_id,
-    t.is_durable
+    t.is_durable,
+    t.task_input_payload_version,
+    t.payload_reference_id,
+    NULL::uuid AS dag_payload_reference_id
 FROM
     lookup_rows l
 JOIN
     v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
 WHERE
     l.task_id IS NOT NULL
+    AND t.inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE task_id IS NOT NULL)
 
 UNION ALL
 
@@ -214,13 +277,17 @@ FROM
     tasks_from_dags;
 
 -- name: GetTaskByExternalId :one
+-- Resolve the task key before reading v1_task. Joining the lookup row directly
+-- is planned as a merge across every daily partition.
 SELECT t.*
-FROM v1_lookup_table l
-JOIN v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
-WHERE
-    l.external_id = @externalId::uuid
-    AND l.tenant_id = @tenantId::uuid
-;
+FROM v1_task t
+WHERE (t.id, t.inserted_at) = (
+    SELECT l.task_id, l.inserted_at
+    FROM v1_lookup_table l
+    WHERE
+        l.external_id = @externalId::uuid
+        AND l.tenant_id = @tenantId::uuid
+);
 
 -- name: LookupExternalIds :many
 SELECT
@@ -253,13 +320,41 @@ SET
     batch_size = @batchSize::integer,
     batch_index = input.batch_index,
     worker_id = @workerId::uuid,
-    batch_key = COALESCE(NULLIF(@batchKey::text, ''), tr.batch_key)
+    batch_key = COALESCE(NULLIF(@batchKey::text, ''), tr.batch_key),
+    assigned_at = CASE WHEN @reassignUnackedTasks::boolean THEN NOW() END,
+    acked_at = NULL
 FROM
     input
 WHERE
     tr.tenant_id = @tenantId::uuid
     AND tr.task_id = input.task_id
     AND tr.task_inserted_at = input.task_inserted_at;
+
+-- name: MarkTaskRuntimesAcked :exec
+WITH input AS (
+    SELECT
+        unnest(@taskIds::bigint[]) AS task_id,
+        unnest(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
+        unnest(@retryCounts::integer[]) AS retry_count
+), locked_runtimes AS (
+    SELECT task_id, task_inserted_at, retry_count
+    FROM v1_task_runtime
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND acked_at IS NULL
+        AND (task_id, task_inserted_at, retry_count) IN (
+            SELECT task_id, task_inserted_at, retry_count
+            FROM input
+        )
+    ORDER BY task_id, task_inserted_at, retry_count
+    FOR UPDATE
+)
+UPDATE v1_task_runtime
+SET acked_at = NOW()
+WHERE (task_id, task_inserted_at, retry_count) IN (
+    SELECT task_id, task_inserted_at, retry_count
+    FROM locked_runtimes
+);
 
 -- name: ListTaskMetas :many
 SELECT
@@ -307,7 +402,8 @@ WITH input AS (
     SELECT
         t.id,
         t.inserted_at,
-        t.step_id
+        t.step_id,
+        i.is_non_retryable
     FROM
         v1_task t
     JOIN
@@ -327,7 +423,9 @@ WITH input AS (
 ), tasks_to_steps AS (
     SELECT
         t.id,
+        t.inserted_at,
         t.step_id,
+        t.is_non_retryable,
         s."retries"
     FROM
         locked_tasks t
@@ -342,11 +440,9 @@ SET
 FROM
     tasks_to_steps
 WHERE
-    (v1_task.id, v1_task.inserted_at, v1_task.retry_count) IN (
-        SELECT task_id, task_inserted_at, task_retry_count
-        FROM input
-        WHERE is_non_retryable = FALSE
-    )
+    v1_task.id = tasks_to_steps.id
+    AND v1_task.inserted_at = tasks_to_steps.inserted_at
+    AND NOT tasks_to_steps.is_non_retryable
     AND tasks_to_steps."retries" > v1_task.app_retry_count
 RETURNING
     v1_task.id,
@@ -355,6 +451,99 @@ RETURNING
     v1_task.app_retry_count,
     v1_task.retry_backoff_factor,
     v1_task.retry_max_backoff;
+
+-- name: FailTaskRetryAfter :many
+-- Fails a task due to an application-level error, retrying it after a task-requested delay
+WITH input AS (
+    -- a re-sent failure report can duplicate an attempt in the batch
+    SELECT DISTINCT ON (task_id, task_inserted_at, task_retry_count)
+        *
+    FROM
+        (
+            SELECT
+                unnest(@taskIds::bigint[]) AS task_id,
+                unnest(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
+                unnest(@taskRetryCounts::integer[]) AS task_retry_count,
+                unnest(@retryAfterMs::bigint[]) AS retry_after_ms
+        ) AS subquery
+    ORDER BY
+        task_id, task_inserted_at, task_retry_count
+), locked_tasks AS (
+    SELECT
+        t.id,
+        t.inserted_at,
+        t.step_id
+    FROM
+        v1_task t
+    JOIN
+        input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at AND i.task_retry_count = t.retry_count
+    WHERE
+        t.tenant_id = @tenantId::uuid
+        -- only fail tasks which still have a v1_task_runtime for the current retry count.
+        -- a cancellation deletes the v1_task_runtime, so a late failure event should not trigger a retry.
+        AND EXISTS (
+            SELECT 1 FROM v1_task_runtime tr
+            WHERE tr.task_id = t.id AND tr.task_inserted_at = t.inserted_at AND tr.retry_count = t.retry_count
+        )
+    -- order by the task id to get a stable lock order
+    ORDER BY
+        id
+    FOR UPDATE
+), updated_tasks AS (
+    UPDATE
+        v1_task
+    SET
+        retry_count = v1_task.retry_count + 1,
+        app_retry_count = v1_task.app_retry_count + 1
+    FROM
+        locked_tasks lt
+    JOIN
+        "Step" s ON s."id" = lt.step_id
+    WHERE
+        v1_task.id = lt.id
+        AND v1_task.inserted_at = lt.inserted_at
+        AND s."retries" > v1_task.app_retry_count
+    RETURNING
+        v1_task.id,
+        v1_task.inserted_at,
+        v1_task.retry_count,
+        v1_task.app_retry_count,
+        v1_task.tenant_id
+), retry_queue_items AS (
+    -- v1_task_update_trigger runs at the end of this statement and skips tasks that have this row
+    INSERT INTO v1_retry_queue_item (
+        task_id,
+        task_inserted_at,
+        task_retry_count,
+        retry_after,
+        tenant_id
+    )
+    SELECT
+        ut.id,
+        ut.inserted_at,
+        ut.retry_count,
+        NOW() + i.retry_after_ms * interval '1 millisecond',
+        ut.tenant_id
+    FROM
+        updated_tasks ut
+    JOIN
+        input i ON i.task_id = ut.id AND i.task_inserted_at = ut.inserted_at
+    RETURNING
+        task_id,
+        task_inserted_at,
+        task_retry_count,
+        retry_after
+)
+SELECT
+    ut.id,
+    ut.inserted_at,
+    ut.retry_count,
+    ut.app_retry_count,
+    rqi.retry_after::timestamptz AS retry_after
+FROM
+    updated_tasks ut
+JOIN
+    retry_queue_items rqi ON rqi.task_id = ut.id AND rqi.task_inserted_at = ut.inserted_at;
 
 -- name: FailTaskInternalFailure :many
 -- Fails a task due to an internal error
@@ -370,7 +559,8 @@ WITH input AS (
         ) AS subquery
 ), locked_tasks AS (
     SELECT
-        t.id
+        t.id,
+        t.inserted_at
     FROM
         v1_task t
     JOIN
@@ -396,10 +586,8 @@ SET
 FROM
     locked_tasks
 WHERE
-    (v1_task.id, v1_task.inserted_at, v1_task.retry_count) IN (
-        SELECT task_id, task_inserted_at, task_retry_count
-        FROM input
-    )
+    v1_task.id = locked_tasks.id
+    AND v1_task.inserted_at = locked_tasks.inserted_at
     AND @maxInternalRetries::int > v1_task.internal_retry_count
 RETURNING
     v1_task.id,
@@ -466,7 +654,8 @@ WITH tasks_on_inactive_workers AS (
     SELECT
         runtime.task_id,
         runtime.task_inserted_at,
-        runtime.retry_count
+        runtime.retry_count,
+        'Worker did not send a heartbeat for 30 seconds'::text AS reason
     FROM
         "Worker" w
     JOIN
@@ -477,18 +666,60 @@ WITH tasks_on_inactive_workers AS (
         AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
         -- evicted tasks are not eligible for re-assignment
         AND runtime.evicted_at IS NULL
+    -- NOTE: without this ORDER BY, the planner assumes most runtimes belong to the tenant's many stale workers and
+    -- seq scans v1_task_runtime expecting to hit the LIMIT early. Ordering by a "Worker" column makes it walk the
+    -- stale workers on ("tenantId", "lastHeartbeatAt") and look up each one's runtimes on the (tenant_id, worker_id) index.
+    ORDER BY
+        w."lastHeartbeatAt"
     LIMIT
         COALESCE(sqlc.narg('limit')::integer, 1000)
     FOR UPDATE OF runtime SKIP LOCKED
+), tasks_never_acked AS (
+    -- the assignment was written but the worker never acknowledged the task, for example
+    -- because the message to the dispatcher was lost
+    SELECT
+        runtime.task_id,
+        runtime.task_inserted_at,
+        runtime.retry_count,
+        'Worker never acknowledged the task' AS reason
+    FROM
+        v1_task_runtime runtime
+    WHERE
+        runtime.tenant_id = @tenantId::uuid
+        AND runtime.worker_id IS NOT NULL
+        AND runtime.evicted_at IS NULL
+        AND runtime.acked_at IS NULL
+        AND runtime.assigned_at < NOW() - INTERVAL '1 minute'
+    -- NOTE: this ORDER BY keeps the planner on the unacked index; without it, a stale estimate of unacked rows makes it seq scan
+    ORDER BY
+        runtime.assigned_at
+    LIMIT
+        COALESCE(sqlc.narg('limit')::integer, 1000)
+    FOR UPDATE SKIP LOCKED
+), tasks_to_reassign AS (
+    SELECT * FROM tasks_on_inactive_workers
+    UNION ALL
+    -- NOTE: the overlap with tasks_on_inactive_workers is removed here, after both LIMITs, rather than with a NOT EXISTS
+    -- inside tasks_never_acked. Under a LIMIT the planner runs that NOT EXISTS as a nested loop over the CTE, comparing
+    -- every unacked candidate against all 1000 inactive-worker rows (~1M comparisons, >100ms). Out here it hashes instead.
+    SELECT never_acked.*
+    FROM tasks_never_acked never_acked
+    WHERE NOT EXISTS (
+        SELECT 1 FROM tasks_on_inactive_workers inactive
+        WHERE inactive.task_id = never_acked.task_id
+            AND inactive.task_inserted_at = never_acked.task_inserted_at
+            AND inactive.retry_count = never_acked.retry_count
+    )
 )
 SELECT
     v1_task.id,
     v1_task.inserted_at,
-    v1_task.retry_count
+    v1_task.retry_count,
+    lrs.reason
 FROM
     v1_task
 JOIN
-    tasks_on_inactive_workers lrs ON lrs.task_id = v1_task.id AND lrs.task_inserted_at = v1_task.inserted_at;
+    tasks_to_reassign lrs ON lrs.task_id = v1_task.id AND lrs.task_inserted_at = v1_task.inserted_at;
 
 -- name: ProcessRetryQueueItems :many
 WITH rqis_to_delete AS (
@@ -524,12 +755,24 @@ WITH input AS (
                 -- can match any of the event types
                 unnest_nd_1d(@eventTypes::text[][]) AS event_types
         ) AS subquery
+), looked_up AS MATERIALIZED (
+    -- Resolve keys before joining v1_task. Joining v1_lookup_table directly
+    -- is planned as a merge across every daily partition.
+    SELECT
+        l.external_id,
+        l.task_id,
+        l.inserted_at
+    FROM
+        v1_lookup_table l
+    WHERE
+        l.tenant_id = @tenantId::uuid
+        AND l.external_id = ANY(@taskExternalIds::uuid[])
 )
 SELECT
     t.external_id as task_external_id,
     e.*
 FROM
-    v1_lookup_table l
+    looked_up l
 JOIN
     v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
 JOIN
@@ -537,9 +780,9 @@ JOIN
 JOIN
     input i ON i.task_external_id = l.external_id AND e.event_type::text = ANY(i.event_types)
 WHERE
-    l.tenant_id = @tenantId::uuid
-    AND l.external_id = ANY(@taskExternalIds::uuid[])
-    AND (e.retry_count = -1 OR e.retry_count = t.retry_count);
+    (e.retry_count = -1 OR e.retry_count = t.retry_count)
+    AND t.inserted_at >= (SELECT MIN(inserted_at) FROM looked_up)
+    AND e.task_inserted_at >= (SELECT MIN(inserted_at) FROM looked_up);
 
 -- name: LockSignalCreatedEvents :many
 -- Places a lock on the SIGNAL_CREATED events to make sure concurrent operations don't
@@ -573,6 +816,9 @@ WITH input AS (
     WHERE
         e.tenant_id = @tenantId::uuid
         AND e.event_type = 'SIGNAL_CREATED'
+        -- filtering by key here keeps it in the index probe; a durable parent can have tens of
+        -- thousands of signal events, and matching keys afterwards rescanned the input per event
+        AND e.event_key = ANY(@eventKeys::TEXT[])
 )
 SELECT
 	e.id,
@@ -582,9 +828,7 @@ SELECT
     e.external_id,
     e.child_external_id
 FROM
-	events_to_lock e
-WHERE
-	e.event_key = ANY(SELECT event_key FROM input);
+	events_to_lock e;
 
 -- name: ListMatchingSignalEvents :many
 WITH input AS (
@@ -641,8 +885,7 @@ WHERE
 -- name: ListTasksForReplay :many
 -- Lists tasks for replay by recursively selecting all tasks that are children of the input tasks,
 -- then locks the tasks for replay.
-WITH RECURSIVE augmented_tasks AS (
-    -- First, select the tasks from the input
+WITH RECURSIVE input_tasks AS MATERIALIZED (
     SELECT
         id,
         inserted_at,
@@ -659,6 +902,18 @@ WITH RECURSIVE augmented_tasks AS (
                 unnest(@taskInsertedAts::timestamptz[])
         )
         AND tenant_id = @tenantId::uuid
+        AND inserted_at >= @minTaskInsertedAt::timestamptz
+), augmented_tasks AS (
+    -- First, select the tasks from the input
+    SELECT
+        id,
+        inserted_at,
+        tenant_id,
+        dag_id,
+        dag_inserted_at,
+        step_id
+    FROM
+        input_tasks
 
     UNION
 
@@ -682,6 +937,9 @@ WITH RECURSIVE augmented_tasks AS (
         "Step" s2 ON s2."id" = t.step_id
     JOIN
         "_StepOrder" so ON so."B" = s2."id" AND so."A" = s1."id"
+    WHERE
+        dt.dag_inserted_at >= (SELECT MIN(dag_inserted_at) FROM input_tasks)
+        AND t.inserted_at >= (SELECT MIN(dag_inserted_at) FROM input_tasks)
 ), locked_tasks AS (
     SELECT
         t.id,
@@ -703,7 +961,9 @@ WITH RECURSIVE augmented_tasks AS (
         t.child_key,
         t.desired_worker_label,
         t.triggering_event_external_id,
-        t.triggering_event_key
+        t.triggering_event_key,
+        t.payload_reference_id,
+        t.task_input_payload_version
     FROM
         v1_task t
     WHERE
@@ -714,6 +974,7 @@ WITH RECURSIVE augmented_tasks AS (
                 augmented_tasks
         )
         AND t.tenant_id = @tenantId::uuid
+        AND t.inserted_at >= (SELECT MIN(inserted_at) FROM augmented_tasks)
     -- order by the task id to get a stable lock order
     ORDER BY
         id
@@ -752,6 +1013,8 @@ SELECT
     t.desired_worker_label,
     t.triggering_event_external_id,
     t.triggering_event_key,
+    t.payload_reference_id,
+    t.task_input_payload_version,
     j."kind" as "jobKind",
     COALESCE(so."parents", '{}'::uuid[]) as "parents"
 FROM
@@ -765,16 +1028,18 @@ LEFT JOIN
 
 -- name: ListTaskParentOutputs :many
 -- Lists the outputs of parent steps for a list of tasks. This is recursive because it looks at all grandparents
--- of the tasks as well.
+-- of the tasks as well. Only each task's most recent terminal event is returned, so a task that failed and then
+-- succeeded on a retry is reported with its output, and a task that was cancelled is not reported at all.
 WITH input AS (
     SELECT
         UNNEST(@taskIds::BIGINT[]) AS task_id,
         UNNEST(@taskInsertedAts::TIMESTAMPTZ[]) AS task_inserted_at
-), task_outputs AS (
+), task_terminal_events AS (
     SELECT
         t.id,
         t.inserted_at,
         e.retry_count,
+        e.event_type,
         t.tenant_id,
         t.dag_id,
         t.dag_inserted_at,
@@ -785,7 +1050,8 @@ WITH input AS (
         e.id AS task_event_id,
         e.inserted_at AS task_event_inserted_at,
         e.data AS output,
-        e.external_id AS output_event_external_id
+        e.external_id AS output_event_external_id,
+        e.payload_reference_id AS output_event_payload_reference_id
     FROM
         v1_task t1
     JOIN
@@ -793,7 +1059,7 @@ WITH input AS (
     JOIN
         v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
     JOIN
-        v1_task_event e ON e.task_id = t.id AND e.task_inserted_at = t.inserted_at AND e.event_type = 'COMPLETED'
+        v1_task_event e ON e.task_id = t.id AND e.task_inserted_at = t.inserted_at AND e.event_type IN ('COMPLETED', 'FAILED', 'CANCELLED')
     WHERE
         (t1.id, t1.inserted_at) IN (
             SELECT
@@ -804,33 +1070,38 @@ WITH input AS (
         )
         AND t1.tenant_id = @tenantId::uuid
         AND t1.dag_id IS NOT NULL
-), max_retry_counts AS (
-    SELECT
+        AND t1.inserted_at >= @minTaskInsertedAt::timestamptz
+        AND dt.dag_inserted_at >= @minDagInsertedAt::timestamptz
+        AND t.inserted_at >= @minDagInsertedAt::timestamptz
+        AND e.task_inserted_at >= @minDagInsertedAt::timestamptz
+), latest_terminal_events AS (
+    SELECT DISTINCT ON (id, inserted_at)
+        task_event_id,
+        task_event_inserted_at,
+        workflow_run_id,
+        output,
+        output_event_external_id,
+        output_event_payload_reference_id,
+        event_type
+    FROM
+        task_terminal_events
+    ORDER BY
         id,
         inserted_at,
-        MAX(retry_count) AS max_retry_count
-    FROM
-        task_outputs
-    GROUP BY
-        id, inserted_at
+        retry_count DESC,
+        task_event_id DESC
 )
 SELECT
-    DISTINCT ON (task_outputs.id, task_outputs.inserted_at, task_outputs.retry_count)
-    task_outputs.task_event_id,
-    task_outputs.task_event_inserted_at,
-    task_outputs.workflow_run_id,
-    task_outputs.output,
-    task_outputs.output_event_external_id
+    task_event_id,
+    task_event_inserted_at,
+    workflow_run_id,
+    output,
+    output_event_external_id,
+    output_event_payload_reference_id
 FROM
-    task_outputs
-JOIN
-    max_retry_counts mrc ON task_outputs.id = mrc.id
-        AND task_outputs.inserted_at = mrc.inserted_at
-        AND task_outputs.retry_count = mrc.max_retry_count
-ORDER BY
-    task_outputs.id,
-    task_outputs.inserted_at,
-    task_outputs.retry_count DESC;
+    latest_terminal_events
+WHERE
+    event_type IN ('COMPLETED', 'FAILED');
 
 -- name: ListTaskOutputEventIdsByTaskRunExternalIds :many
 WITH task_outputs AS (
@@ -839,12 +1110,13 @@ WITH task_outputs AS (
         e.id AS task_event_id,
         e.inserted_at AS task_event_inserted_at,
         e.external_id AS output_event_external_id,
+        e.payload_reference_id AS output_event_payload_reference_id,
         e.retry_count
     FROM v1_lookup_table lt
     JOIN v1_task_event e ON (lt.task_id, lt.inserted_at) = (e.task_id, e.task_inserted_at)
     WHERE
         lt.external_id = ANY(@taskExternalIds::uuid[])
-        AND e.event_type = 'COMPLETED'
+        AND e.event_type IN ('COMPLETED', 'FAILED')
 ), max_retry_counts AS (
     SELECT
         task_run_external_id,
@@ -857,6 +1129,7 @@ WITH task_outputs AS (
 SELECT
     o.task_run_external_id,
     o.output_event_external_id,
+    o.output_event_payload_reference_id,
     o.task_event_id,
     o.task_event_inserted_at
 FROM task_outputs o
@@ -913,6 +1186,8 @@ WITH input AS (
         "Step" s ON s."jobId" = j."id"
     WHERE
         d.tenant_id = @tenantId::uuid
+        AND d.inserted_at >= @minDagInsertedAt::timestamptz
+        AND dt.dag_inserted_at >= @minDagInsertedAt::timestamptz
     GROUP BY
         d.id,
         d.inserted_at
@@ -983,6 +1258,11 @@ WHERE
 ;
 
 -- name: ListAllTasksInDags :many
+WITH input AS (
+    SELECT
+        UNNEST(@dagIds::bigint[]) AS dag_id,
+        UNNEST(@dagInsertedAts::timestamptz[]) AS dag_inserted_at
+)
 SELECT
     t.id,
     t.inserted_at,
@@ -994,12 +1274,14 @@ SELECT
     t.workflow_id,
     t.external_id
 FROM
-    v1_task t
+    input i
 JOIN
-    v1_dag_to_task dt ON dt.task_id = t.id
+    v1_dag_to_task dt ON dt.dag_id = i.dag_id AND dt.dag_inserted_at = i.dag_inserted_at
+JOIN
+    v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
 WHERE
     t.tenant_id = @tenantId::uuid
-    AND dt.dag_id = ANY(@dagIds::bigint[]);
+    AND dt.dag_inserted_at >= @minDagInsertedAt::timestamptz;
 
 -- name: ListTaskExpressionEvals :many
 WITH input AS (
@@ -1023,22 +1305,30 @@ WHERE
             task_inserted_at
         FROM
             input
-    );
+    )
+    AND te.task_inserted_at >= @minTaskInsertedAt::timestamptz;
 
 -- name: RefreshTimeoutBy :one
-WITH task AS (
+WITH task AS MATERIALIZED (
+    -- Resolve the task key before reading v1_task. Joining the lookup row directly
+    -- is planned as a merge across every daily partition.
     SELECT
         t.id,
         t.inserted_at,
         t.retry_count,
         t.tenant_id
     FROM
-        v1_lookup_table lt
-    JOIN
-        v1_task t ON t.id = lt.task_id AND t.inserted_at = lt.inserted_at
-    WHERE
-        lt.external_id = @externalId::uuid AND
-        lt.tenant_id = @tenantId::uuid
+        v1_task t
+    WHERE (t.id, t.inserted_at) = (
+        SELECT
+            lt.task_id,
+            lt.inserted_at
+        FROM
+            v1_lookup_table lt
+        WHERE
+            lt.external_id = @externalId::uuid AND
+            lt.tenant_id = @tenantId::uuid
+    )
 ), locked_runtime AS (
     SELECT
         tr.task_id,
@@ -1065,19 +1355,26 @@ RETURNING
     v1_task_runtime.*;
 
 -- name: ManualSlotRelease :one
-WITH task AS (
+WITH task AS MATERIALIZED (
+    -- Resolve the task key before reading v1_task. Joining the lookup row directly
+    -- is planned as a merge across every daily partition.
     SELECT
         t.id,
         t.inserted_at,
         t.retry_count,
         t.tenant_id
     FROM
-        v1_lookup_table lt
-    JOIN
-        v1_task t ON t.id = lt.task_id AND t.inserted_at = lt.inserted_at
-    WHERE
-        lt.external_id = @externalId::uuid AND
-        lt.tenant_id = @tenantId::uuid
+        v1_task t
+    WHERE (t.id, t.inserted_at) = (
+        SELECT
+            lt.task_id,
+            lt.inserted_at
+        FROM
+            v1_lookup_table lt
+        WHERE
+            lt.external_id = @externalId::uuid AND
+            lt.tenant_id = @tenantId::uuid
+    )
 ), locked_runtime AS (
     SELECT
         tr.task_id,
@@ -1153,34 +1450,74 @@ SELECT
           AND NOT is_satisfied
     ) AS has_unsatisfied_durable_events;
 
--- name: ListStuckEvictedDurableOrchestrators :many
+-- name: ListEvictedTaskRuntimeWindow :many
 -- DAG-orchestrator tasks whose runtime has been evicted past the grace period and whose durable
 -- event log entries are ALL satisfied -- the orchestrator is ready to resume but the
 -- edge-triggered restore (a child callback arriving while evicted -> DurableRestoreTask) never
 -- fired: the callback was lost on an engine roll, or every entry was satisfied before the
 -- eviction so there was no later callback. The caller re-queues these via DurableRestoreTask.
+WITH evicted_runtime_window AS (
+    SELECT
+        rt.task_id,
+        rt.task_inserted_at,
+        rt.retry_count,
+        rt.evicted_at
+    FROM v1_task_runtime rt
+    WHERE
+        rt.tenant_id = @tenantId::UUID
+        AND rt.evicted_at < NOW() - @gracePeriod::INTERVAL
+        AND (rt.evicted_at, rt.task_id, rt.task_inserted_at, rt.retry_count) > (
+            @minEvictedAst::TIMESTAMPTZ,
+            @minTaskId::BIGINT,
+            @minTaskInsertedAt::TIMESTAMPTZ,
+            @minRetryCount::INTEGER
+        )
+    ORDER BY rt.evicted_at, rt.task_id, rt.task_inserted_at, rt.retry_count
+    LIMIT @windowSize::INTEGER
+)
 SELECT
-    t.id,
-    t.inserted_at,
+    w.task_id,
+    w.task_inserted_at,
+    w.retry_count,
+    w.evicted_at,
     t.external_id,
-    rt.retry_count
-FROM v1_task_runtime rt
-JOIN v1_task t ON (t.id, t.inserted_at) = (rt.task_id, rt.task_inserted_at)
-WHERE rt.tenant_id = @tenantId::uuid
-    AND rt.evicted_at < NOW() - @gracePeriod::interval
-    AND t.is_dag_orchestrator
-    AND EXISTS (
-        SELECT 1 FROM v1_durable_event_log_entry e
-        WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
-    )
-    AND NOT EXISTS (
-        SELECT 1 FROM v1_durable_event_log_entry e
-        WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
-          AND NOT e.is_satisfied
-    )
-ORDER BY rt.evicted_at
-LIMIT @maxTasks::int;
+    COALESCE(
+        t.is_dag_orchestrator
+        AND EXISTS (
+            SELECT 1 FROM v1_durable_event_log_entry e
+            WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM v1_durable_event_log_entry e
+            WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
+              AND NOT e.is_satisfied
+        ),
+        FALSE
+    )::BOOLEAN AS is_stuck_durable_orchestrator
+FROM evicted_runtime_window w
+LEFT JOIN v1_task t ON (t.id, t.inserted_at) = (w.task_id, w.task_inserted_at)
+ORDER BY w.evicted_at, w.task_id, w.task_inserted_at, w.retry_count;
 
+-- name: ListUnfinishedDurableOrchestratorChildren :many
+SELECT DISTINCT
+    child.id,
+    child.inserted_at,
+    child.retry_count
+FROM v1_lookup_table orch_lookup
+JOIN v1_task orch ON (orch.id, orch.inserted_at, orch.is_dag_orchestrator) = (orch_lookup.task_id, orch_lookup.inserted_at, TRUE)
+JOIN v1_durable_event_log_entry e ON (e.durable_task_id, e.durable_task_inserted_at) = (orch.id, orch.inserted_at)
+JOIN v1_lookup_table child_lookup ON child_lookup.external_id = e.child_task_external_id
+JOIN v1_task child ON (child.id, child.inserted_at) = (child_lookup.task_id, child_lookup.inserted_at)
+WHERE
+    orch_lookup.tenant_id = @tenantId::uuid
+    AND orch_lookup.external_id = ANY(@orchestratorExternalIds::uuid[])
+    AND e.kind = 'RUN'
+    AND NOT EXISTS (
+        SELECT 1
+        FROM v1_task_event ev
+        WHERE (ev.task_id, ev.task_inserted_at, ev.retry_count) = (child.id, child.inserted_at, child.retry_count)
+          AND ev.event_type IN ('COMPLETED', 'FAILED', 'CANCELLED')
+    );
 
 -- name: CleanupWorkflowConcurrencySlotsAfterInsert :exec
 -- Cleans up workflow concurrency slots when tasks have been inserted in a non-QUEUED state.
@@ -1277,6 +1614,33 @@ ANALYZE v1_task_event;
 -- name: AnalyzeV1Dag :exec
 ANALYZE v1_dag;
 
+-- name: AnalyzeV1DurableEventLogFile :exec
+ANALYZE v1_durable_event_log_file;
+
+-- name: AnalyzeV1DurableEventLogEntry :exec
+ANALYZE v1_durable_event_log_entry;
+
+-- name: AnalyzeV1DurableEventLogBranchPoint :exec
+ANALYZE v1_durable_event_log_branch_point;
+
+-- name: AnalyzeV1LogLine :exec
+ANALYZE v1_log_line;
+
+-- name: AnalyzeV1Event :exec
+ANALYZE v1_event;
+
+-- name: AnalyzeV1DAGToTask :exec
+ANALYZE v1_dag_to_task;
+
+-- name: AnalyzeV1DagData :exec
+ANALYZE v1_dag_data;
+
+-- name: AnalyzeV1TaskExpressionEval :exec
+ANALYZE v1_task_expression_eval;
+
+-- name: AnalyzeV1LookupTable :exec
+ANALYZE v1_lookup_table;
+
 -- name: CleanupV1TaskRuntime :execresult
 WITH locked_trs AS (
     SELECT vtr.task_id, vtr.task_inserted_at, vtr.retry_count
@@ -1290,13 +1654,13 @@ WITH locked_trs AS (
     ORDER BY vtr.task_id ASC
     LIMIT @batchSize::int
     FOR UPDATE SKIP LOCKED
+), deleted_slots AS (
+    DELETE FROM v1_task_runtime_slot
+    WHERE (task_id, task_inserted_at, retry_count) IN (
+        SELECT task_id, task_inserted_at, retry_count
+        FROM locked_trs
+    )
 )
-DELETE FROM v1_task_runtime_slot
-WHERE (task_id, task_inserted_at, retry_count) IN (
-    SELECT task_id, task_inserted_at, retry_count
-    FROM locked_trs
-);
-
 DELETE FROM v1_task_runtime
 WHERE (task_id, task_inserted_at, retry_count) IN (
     SELECT task_id, task_inserted_at, retry_count
@@ -1333,20 +1697,20 @@ WHERE (task_id, task_inserted_at, task_retry_count) IN (
 -- name: GetTenantTaskStats :many
 WITH queued_tasks AS (
     SELECT
-        t.step_readable_id,
-        t.queue,
+        s."readableId" AS step_readable_id,
+        qi.queue,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest,
-        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
+        MIN(qi.task_inserted_at) AS oldest,
+        MIN(qi.task_inserted_at) FILTER (WHERE qi.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_queue_item qi
     JOIN
-        v1_task t ON qi.task_id = t.id AND qi.task_inserted_at = t.inserted_at AND qi.retry_count = t.retry_count
+        "Step" s ON s."id" = qi.step_id
     WHERE
         qi.tenant_id = @tenantId::uuid
     GROUP BY
-        t.step_readable_id,
-        t.queue
+        s."readableId",
+        qi.queue
 ), retry_queued_tasks AS (
     SELECT
         t.step_readable_id,
@@ -1365,36 +1729,36 @@ WITH queued_tasks AS (
         t.queue
 ), rate_limited_queued_tasks AS (
     SELECT
-        t.step_readable_id,
-        t.queue,
+        s."readableId" AS step_readable_id,
+        rqi.queue,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest,
-        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
+        MIN(rqi.task_inserted_at) AS oldest,
+        MIN(rqi.task_inserted_at) FILTER (WHERE rqi.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_rate_limited_queue_items rqi
     JOIN
-        v1_task t ON rqi.task_id = t.id AND rqi.task_inserted_at = t.inserted_at
+        "Step" s ON s."id" = rqi.step_id
     WHERE
         rqi.tenant_id = @tenantId::uuid
     GROUP BY
-        t.step_readable_id,
-        t.queue
+        s."readableId",
+        rqi.queue
 ), paused_workflow_queued_tasks AS (
     SELECT
-        t.step_readable_id,
-        t.queue,
+        s."readableId" AS step_readable_id,
+        pqi.queue,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest,
-        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
+        MIN(pqi.task_inserted_at) AS oldest,
+        MIN(pqi.task_inserted_at) FILTER (WHERE pqi.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_paused_workflow_queue_item pqi
     JOIN
-        v1_task t ON pqi.task_inserted_at = t.inserted_at AND pqi.task_id = t.id AND pqi.retry_count = t.retry_count
+        "Step" s ON s."id" = pqi.step_id
     WHERE
         pqi.tenant_id = @tenantId::uuid
     GROUP BY
-        t.step_readable_id,
-        t.queue
+        s."readableId",
+        pqi.queue
 ), concurrency_queued_tasks AS (
     SELECT
         t.step_readable_id,
@@ -1625,35 +1989,6 @@ WHERE
         SELECT task_id, task_inserted_at, task_retry_count
         FROM inputs
     )
-;
-
--- name: ListTaskRuntimes :many
-WITH inputs AS (
-    SELECT
-        UNNEST(@taskIds::bigint[]) AS task_id,
-        UNNEST(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
-        UNNEST(@taskRetryCounts::integer[]) AS retry_count
-)
-SELECT
-    tr.task_id,
-    tr.task_inserted_at,
-    tr.retry_count,
-    tr.worker_id,
-    tr.batch_id,
-    tr.batch_size,
-    tr.batch_index,
-    tr.batch_key,
-    tr.tenant_id,
-    tr.timeout_at,
-    tr.evicted_at
-FROM
-    v1_task_runtime tr
-JOIN
-    inputs i ON tr.task_id = i.task_id
-    AND tr.task_inserted_at = i.task_inserted_at
-    AND tr.retry_count = i.retry_count
-WHERE
-    tr.tenant_id = @tenantId::uuid
 ;
 
 -- name: FilterValidTasks :many

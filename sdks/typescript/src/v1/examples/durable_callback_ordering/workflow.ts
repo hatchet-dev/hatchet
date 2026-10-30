@@ -104,11 +104,15 @@ export const callbackOrderingMid = hatchet.durableTask<MidInput, MidOutput>({
   },
 });
 
+// The root is never evicted. The ordering property under test lives in the
+// mids, and the worker evicts one waiting run per server round trip, oldest
+// wait first: evictable roots register before every mid and would consume the
+// sweep for as long as it takes to ack all of them before any mid is reached.
 export const callbackOrderingRoot = hatchet.durableTask<RootInput, RootOutput>({
   name: `${WORKFLOW_PREFIX}-root`,
   executionTimeout: '10m',
   retries: 0,
-  evictionPolicy: EVICTION_POLICY,
+  evictionPolicy: { ttl: undefined, allowCapacityEviction: false, priority: 0 },
   fn: async (input, ctx) => {
     const durables = input.durables ?? ROOT_DEFAULTS.durables;
     const results = await Promise.all(

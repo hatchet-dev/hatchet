@@ -70,6 +70,7 @@ import {
   TenantAlertEmailGroup,
   TenantAlertEmailGroupList,
   TenantAlertingSettings,
+  TenantEntitlements,
   TenantInvite,
   TenantInviteList,
   TenantMember,
@@ -98,8 +99,11 @@ import {
   V1CELDebugResponse,
   V1CancelTaskRequest,
   V1CancelledTasks,
+  V1ConcurrencyKeyList,
+  V1ConcurrencyScope,
+  V1ConcurrencyStrategyList,
   V1CreateFilterRequest,
-  V1CreateHTTPOperatorRequest,
+  V1CreateServerlessEndpointRequest,
   V1CreateWebhookRequest,
   V1DagChildren,
   V1DurableEventLogList,
@@ -107,8 +111,6 @@ import {
   V1EventList,
   V1Filter,
   V1FilterList,
-  V1HTTPOperator,
-  V1HTTPOperatorList,
   V1LogLineLevel,
   V1LogLineList,
   V1LogLineOrderByDirection,
@@ -117,6 +119,11 @@ import {
   V1ReplayedTasks,
   V1RestoreTaskResponse,
   V1RunningFilter,
+  V1ServerlessEndpoint,
+  V1ServerlessEndpointEventList,
+  V1ServerlessEndpointList,
+  V1StreamPayloadRef,
+  V1StreamTopicList,
   V1TaskEventList,
   V1TaskPointMetrics,
   V1TaskRunMetrics,
@@ -126,12 +133,13 @@ import {
   V1TaskTimingList,
   V1TriggerWorkflowRunRequest,
   V1UpdateFilterRequest,
-  V1UpdateHTTPOperatorRequest,
+  V1UpdateServerlessEndpointRequest,
   V1UpdateWebhookRequest,
   V1Webhook,
   V1WebhookList,
   V1WebhookResponse,
   V1WebhookSourceName,
+  V1WorkflowRunCount,
   V1WorkflowRunDetails,
   V1WorkflowRunDisplayNameList,
   V1WorkflowRunExternalIdList,
@@ -517,11 +525,81 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       running_filter?: V1RunningFilter;
       /** The idempotency key(s) to filter for */
       idempotency_keys?: string[];
+      /** A flag for whether or not to count the matching runs in order to populate `pagination.num_pages`. Defaults to `true` if unset. When `false`, `pagination.num_pages` is `0`, and the count can be fetched separately from the count endpoint. */
+      include_num_pages?: boolean;
     },
     params: RequestParams = {}
   ) =>
     this.request<V1TaskSummaryList, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/workflow-runs`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Counts the workflow runs for a tenant matching the provided filters. The count is capped, so it is a lower bound when it reaches the cap.
+   *
+   * @tags Workflow Runs
+   * @name V1WorkflowRunCountGet
+   * @summary Count workflow runs
+   * @request GET:/api/v1/stable/tenants/{tenant}/workflow-runs/count
+   * @secure
+   */
+  v1WorkflowRunCountGet = (
+    tenant: string,
+    query: {
+      /** A list of statuses to filter by */
+      statuses?: V1TaskStatus[];
+      /**
+       * The earliest date to filter by
+       * @format date-time
+       */
+      since: string;
+      /**
+       * The latest date to filter by
+       * @format date-time
+       */
+      until?: string;
+      /** Additional metadata k-v pairs to filter by */
+      additional_metadata?: string[];
+      /** How to combine multiple additional_metadata pairs. OR matches runs containing any pair, AND matches runs containing all pairs. Defaults to OR. */
+      additional_metadata_operator?: V1AdditionalMetadataOperator;
+      /** The workflow ids to find runs for */
+      workflow_ids?: string[];
+      /**
+       * The worker id to filter by
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      worker_id?: string;
+      /** Whether to include DAGs or only to include tasks */
+      only_tasks: boolean;
+      /**
+       * The parent task external id to filter by
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      parent_task_external_id?: string;
+      /**
+       * The external id of the event that triggered the workflow run
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      triggering_event_external_id?: string;
+      /** Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL. */
+      running_filter?: V1RunningFilter;
+      /** The idempotency key(s) to filter for */
+      idempotency_keys?: string[];
+    },
+    params: RequestParams = {}
+  ) =>
+    this.request<V1WorkflowRunCount, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/workflow-runs/count`,
       method: 'GET',
       query: query,
       secure: true,
@@ -668,6 +746,91 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<V1DurableEventLogList, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/durable-tasks/${durableTask}`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get a durable stream payload uploaded ahead of its publish, by the payload_ref of the message that references it.
+   *
+   * @tags Streams
+   * @name V1StreamPayloadGet
+   * @summary Get stream payload
+   * @request GET:/api/v1/stable/tenants/{tenant}/streams/payloads
+   * @secure
+   */
+  v1StreamPayloadGet = (
+    tenant: string,
+    query: {
+      /** The payload_ref of the stream message */
+      ref: string;
+    },
+    params: RequestParams = {}
+  ) =>
+    this.request<File, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/streams/payloads`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      ...params,
+    });
+  /**
+   * @description Upload a payload too large for a gRPC publish, then publish the message with the returned ref as its payload_ref.
+   *
+   * @tags Streams
+   * @name V1StreamPayloadUpload
+   * @summary Upload stream payload
+   * @request POST:/api/v1/stable/tenants/{tenant}/streams/payloads
+   * @secure
+   */
+  v1StreamPayloadUpload = (
+    tenant: string,
+    data: {
+      /** @format binary */
+      payload: File;
+    },
+    params: RequestParams = {}
+  ) =>
+    this.request<V1StreamPayloadRef, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/streams/payloads`,
+      method: 'POST',
+      body: data,
+      secure: true,
+      type: ContentType.FormData,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description List the tenant's durable stream topics, with the number of messages each has within the tenant's retention.
+   *
+   * @tags Streams
+   * @name V1StreamTopicList
+   * @summary List stream topics
+   * @request GET:/api/v1/stable/tenants/{tenant}/streams/topics
+   * @secure
+   */
+  v1StreamTopicList = (
+    tenant: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /** Matches topics or namespaces containing it */
+      search?: string;
+    },
+    params: RequestParams = {}
+  ) =>
+    this.request<V1StreamTopicList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/streams/topics`,
       method: 'GET',
       query: query,
       secure: true,
@@ -993,6 +1156,62 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Lists the concurrency strategies on the latest version of each workflow in a tenant, and the shared strategies their tasks use, with live slot counts.
+   *
+   * @tags Concurrency
+   * @name V1ConcurrencyStrategyList
+   * @summary List concurrency strategies
+   * @request GET:/api/v1/stable/tenants/{tenant}/concurrency/strategies
+   * @secure
+   */
+  v1ConcurrencyStrategyList = (tenant: string, params: RequestParams = {}) =>
+    this.request<V1ConcurrencyStrategyList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/concurrency/strategies`,
+      method: 'GET',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Lists the keys of a concurrency strategy that have running or queued runs, sorted by queued count, then oldest queued run.
+   *
+   * @tags Concurrency
+   * @name V1ConcurrencyKeyList
+   * @summary List concurrency keys
+   * @request GET:/api/v1/stable/tenants/{tenant}/concurrency/strategies/{scope}/{strategy}/keys
+   * @secure
+   */
+  v1ConcurrencyKeyList = (
+    tenant: string,
+    scope: V1ConcurrencyScope,
+    strategy: number,
+    query?: {
+      /** Only return keys containing this string (case-insensitive) */
+      search?: string;
+      /** Only return keys with at least one queued run */
+      onlyQueued?: boolean;
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+    },
+    params: RequestParams = {}
+  ) =>
+    this.request<V1ConcurrencyKeyList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/concurrency/strategies/${scope}/${strategy}/keys`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
    * @description Lists all filters for a tenant.
    *
    * @tags Filter
@@ -1237,15 +1456,15 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
-   * @description Lists all HTTP operators for a tenant.
+   * @description Lists the serverless endpoints of a tenant.
    *
-   * @tags Operator
-   * @name V1HttpOperatorList
-   * @summary List HTTP operators
-   * @request GET:/api/v1/stable/tenants/{tenant}/operators/http
+   * @tags Serverless
+   * @name V1ServerlessEndpointList
+   * @summary List serverless endpoints
+   * @request GET:/api/v1/stable/tenants/{tenant}/serverless/endpoints
    * @secure
    */
-  v1HttpOperatorList = (
+  v1ServerlessEndpointList = (
     tenant: string,
     query?: {
       /**
@@ -1261,8 +1480,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     },
     params: RequestParams = {}
   ) =>
-    this.request<V1HTTPOperatorList, APIErrors>({
-      path: `/api/v1/stable/tenants/${tenant}/operators/http`,
+    this.request<V1ServerlessEndpointList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/serverless/endpoints`,
       method: 'GET',
       query: query,
       secure: true,
@@ -1270,21 +1489,21 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
-   * @description Create a new HTTP operator
+   * @description Create a serverless endpoint
    *
-   * @tags Operator
-   * @name V1HttpOperatorCreate
-   * @summary Create an HTTP operator
-   * @request POST:/api/v1/stable/tenants/{tenant}/operators/http
+   * @tags Serverless
+   * @name V1ServerlessEndpointCreate
+   * @summary Create a serverless endpoint
+   * @request POST:/api/v1/stable/tenants/{tenant}/serverless/endpoints
    * @secure
    */
-  v1HttpOperatorCreate = (
+  v1ServerlessEndpointCreate = (
     tenant: string,
-    data: V1CreateHTTPOperatorRequest,
+    data: V1CreateServerlessEndpointRequest,
     params: RequestParams = {}
   ) =>
-    this.request<V1HTTPOperator, APIErrors>({
-      path: `/api/v1/stable/tenants/${tenant}/operators/http`,
+    this.request<V1ServerlessEndpoint, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/serverless/endpoints`,
       method: 'POST',
       body: data,
       secure: true,
@@ -1293,38 +1512,38 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
-   * @description Get an HTTP operator by its id
+   * @description Get a serverless endpoint by its id
    *
-   * @tags Operator
-   * @name V1HttpOperatorGet
-   * @summary Get an HTTP operator
-   * @request GET:/api/v1/stable/operators/http/{v1-http-operator}
+   * @tags Serverless
+   * @name V1ServerlessEndpointGet
+   * @summary Get a serverless endpoint
+   * @request GET:/api/v1/stable/serverless/endpoints/{v1-serverless-endpoint}
    * @secure
    */
-  v1HttpOperatorGet = (v1HttpOperator: string, params: RequestParams = {}) =>
-    this.request<V1HTTPOperator, APIErrors>({
-      path: `/api/v1/stable/operators/http/${v1HttpOperator}`,
+  v1ServerlessEndpointGet = (v1ServerlessEndpoint: string, params: RequestParams = {}) =>
+    this.request<V1ServerlessEndpoint, APIErrors>({
+      path: `/api/v1/stable/serverless/endpoints/${v1ServerlessEndpoint}`,
       method: 'GET',
       secure: true,
       format: 'json',
       ...params,
     });
   /**
-   * @description Update an HTTP operator
+   * @description Update a serverless endpoint
    *
-   * @tags Operator
-   * @name V1HttpOperatorUpdate
-   * @summary Update an HTTP operator
-   * @request PATCH:/api/v1/stable/operators/http/{v1-http-operator}
+   * @tags Serverless
+   * @name V1ServerlessEndpointUpdate
+   * @summary Update a serverless endpoint
+   * @request PATCH:/api/v1/stable/serverless/endpoints/{v1-serverless-endpoint}
    * @secure
    */
-  v1HttpOperatorUpdate = (
-    v1HttpOperator: string,
-    data: V1UpdateHTTPOperatorRequest,
+  v1ServerlessEndpointUpdate = (
+    v1ServerlessEndpoint: string,
+    data: V1UpdateServerlessEndpointRequest,
     params: RequestParams = {}
   ) =>
-    this.request<V1HTTPOperator, APIErrors>({
-      path: `/api/v1/stable/operators/http/${v1HttpOperator}`,
+    this.request<V1ServerlessEndpoint, APIErrors>({
+      path: `/api/v1/stable/serverless/endpoints/${v1ServerlessEndpoint}`,
       method: 'PATCH',
       body: data,
       secure: true,
@@ -1333,18 +1552,51 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
-   * @description Delete an HTTP operator
+   * @description Delete a serverless endpoint
    *
-   * @tags Operator
-   * @name V1HttpOperatorDelete
-   * @summary Delete an HTTP operator
-   * @request DELETE:/api/v1/stable/operators/http/{v1-http-operator}
+   * @tags Serverless
+   * @name V1ServerlessEndpointDelete
+   * @summary Delete a serverless endpoint
+   * @request DELETE:/api/v1/stable/serverless/endpoints/{v1-serverless-endpoint}
    * @secure
    */
-  v1HttpOperatorDelete = (v1HttpOperator: string, params: RequestParams = {}) =>
-    this.request<V1HTTPOperator, APIErrors>({
-      path: `/api/v1/stable/operators/http/${v1HttpOperator}`,
+  v1ServerlessEndpointDelete = (v1ServerlessEndpoint: string, params: RequestParams = {}) =>
+    this.request<V1ServerlessEndpoint, APIErrors>({
+      path: `/api/v1/stable/serverless/endpoints/${v1ServerlessEndpoint}`,
       method: 'DELETE',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Lists the most recent events the serverless operator recorded for an endpoint, newest first.
+   *
+   * @tags Serverless
+   * @name V1ServerlessEndpointEventList
+   * @summary List serverless endpoint events
+   * @request GET:/api/v1/stable/serverless/endpoints/{v1-serverless-endpoint}/events
+   * @secure
+   */
+  v1ServerlessEndpointEventList = (
+    v1ServerlessEndpoint: string,
+    query?: {
+      /**
+       * The number of events to return, at most 500. Defaults to 100.
+       * @format int64
+       */
+      limit?: number;
+      /**
+       * Only return events created after this time
+       * @format date-time
+       */
+      since?: string;
+    },
+    params: RequestParams = {}
+  ) =>
+    this.request<V1ServerlessEndpointEventList, APIErrors>({
+      path: `/api/v1/stable/serverless/endpoints/${v1ServerlessEndpoint}/events`,
+      method: 'GET',
+      query: query,
       secure: true,
       format: 'json',
       ...params,
@@ -1526,7 +1778,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @secure
    */
   userUpdateSlackOauthStart = (tenant: string, params: RequestParams = {}) =>
-    this.request<any, void>({
+    this.request<any, void | APIErrors>({
       path: `/api/v1/tenants/${tenant}/slack/start`,
       method: 'GET',
       secure: true,
@@ -1542,7 +1794,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @secure
    */
   userUpdateSlackOauthCallback = (params: RequestParams = {}) =>
-    this.request<any, void>({
+    this.request<any, void | APIErrors>({
       path: `/api/v1/users/slack/callback`,
       method: 'GET',
       secure: true,
@@ -1650,6 +1902,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   tenantResourcePolicyGet = (tenant: string, params: RequestParams = {}) =>
     this.request<TenantResourcePolicy, APIErrors | APIError>({
       path: `/api/v1/tenants/${tenant}/resource-policy`,
+      method: 'GET',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Gets the features the tenant is entitled to
+   *
+   * @tags Tenant
+   * @name TenantEntitlementsGet
+   * @summary Get tenant entitlements
+   * @request GET:/api/v1/tenants/{tenant}/entitlements
+   * @secure
+   */
+  tenantEntitlementsGet = (tenant: string, params: RequestParams = {}) =>
+    this.request<TenantEntitlements, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}/entitlements`,
       method: 'GET',
       secure: true,
       format: 'json',

@@ -14,6 +14,7 @@ This is the Python SDK reference, documenting methods available for interacting 
         - rate_limits
         - runs
         - scheduled
+        - streams
         - workers
         - workflows
         - tenant_id

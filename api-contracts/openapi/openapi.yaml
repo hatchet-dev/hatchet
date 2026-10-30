@@ -22,6 +22,8 @@ components:
       scheme: bearer
   schemas:
     $ref: "./components/schemas/_index.yaml"
+  responses:
+    $ref: "./components/responses/_index.yaml"
 paths:
   /api/v1/stable/tasks/{task}:
     $ref: "./paths/v1/tasks/tasks.yaml#/getTask"
@@ -43,6 +45,8 @@ paths:
     $ref: "./paths/v1/tasks/tasks.yaml#/listTasksByDAGIds"
   /api/v1/stable/tenants/{tenant}/workflow-runs:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/listWorkflowRuns"
+  /api/v1/stable/tenants/{tenant}/workflow-runs/count:
+    $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/countWorkflowRuns"
   /api/v1/stable/tenants/{tenant}/workflow-runs/display-names:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/listWorkflowRunDisplayNames"
   /api/v1/stable/tenants/{tenant}/workflow-runs/external-ids:
@@ -53,6 +57,10 @@ paths:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/branchDurableTask"
   /api/v1/stable/tenants/{tenant}/durable-tasks/{durable-task}:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/listDurableEventLog"
+  /api/v1/stable/tenants/{tenant}/streams/payloads:
+    $ref: "./paths/v1/streams/streams.yaml#/streamPayload"
+  /api/v1/stable/tenants/{tenant}/streams/topics:
+    $ref: "./paths/v1/streams/streams.yaml#/streamTopics"
   /api/v1/stable/workflow-runs/{v1-workflow-run}:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/getWorkflowRunDetails"
   /api/v1/stable/workflow-runs/{v1-workflow-run}/status:
@@ -73,6 +81,10 @@ paths:
     $ref: "./paths/v1/events/event.yaml#/V1EventGet"
   /api/v1/stable/tenants/{tenant}/events/keys:
     $ref: "./paths/v1/events/event.yaml#/keys"
+  /api/v1/stable/tenants/{tenant}/concurrency/strategies:
+    $ref: "./paths/v1/concurrency/concurrency.yaml#/V1ConcurrencyStrategyList"
+  /api/v1/stable/tenants/{tenant}/concurrency/strategies/{scope}/{strategy}/keys:
+    $ref: "./paths/v1/concurrency/concurrency.yaml#/V1ConcurrencyKeyList"
   /api/v1/stable/tenants/{tenant}/filters:
     $ref: "./paths/v1/filters/filter.yaml#/V1FilterListCreate"
   /api/v1/stable/tenants/{tenant}/filters/{v1-filter}:
@@ -81,10 +93,12 @@ paths:
     $ref: "./paths/v1/webhooks/webhook.yaml#/V1WebhookListCreate"
   /api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}:
     $ref: "./paths/v1/webhooks/webhook.yaml#/V1WebhookGetDeleteReceiveUpdate"
-  /api/v1/stable/tenants/{tenant}/operators/http:
-    $ref: "./paths/v1/operators/http.yaml#/V1HTTPOperatorListCreate"
-  /api/v1/stable/operators/http/{v1-http-operator}:
-    $ref: "./paths/v1/operators/http.yaml#/V1HTTPOperatorGetUpdateDelete"
+  /api/v1/stable/tenants/{tenant}/serverless/endpoints:
+    $ref: "./paths/v1/serverless/endpoints.yaml#/V1ServerlessEndpointListCreate"
+  /api/v1/stable/serverless/endpoints/{v1-serverless-endpoint}:
+    $ref: "./paths/v1/serverless/endpoints.yaml#/V1ServerlessEndpointGetUpdateDelete"
+  /api/v1/stable/serverless/endpoints/{v1-serverless-endpoint}/events:
+    $ref: "./paths/v1/serverless/endpoints.yaml#/V1ServerlessEndpointEventList"
   /api/v1/stable/tenants/{tenant}/cel/debug:
     $ref: "./paths/v1/cel/cel.yaml#/V1CELDebug"
   /api/ready:
@@ -119,6 +133,8 @@ paths:
     $ref: "./paths/tenant/tenant.yaml#/tenantAlertEmailGroups"
   /api/v1/tenants/{tenant}/resource-policy:
     $ref: "./paths/tenant/tenant.yaml#/tenantResourcePolicy"
+  /api/v1/tenants/{tenant}/entitlements:
+    $ref: "./paths/tenant/tenant.yaml#/tenantEntitlements"
   /api/v1/alerting-email-groups/{alert-email-group}:
     $ref: "./paths/tenant/tenant.yaml#/alertEmailGroup"
   /api/v1/sns/{sns}:

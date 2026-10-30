@@ -13,12 +13,84 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const analyzeV1DAGToTask = `-- name: AnalyzeV1DAGToTask :exec
+ANALYZE v1_dag_to_task
+`
+
+func (q *Queries) AnalyzeV1DAGToTask(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1DAGToTask)
+	return err
+}
+
 const analyzeV1Dag = `-- name: AnalyzeV1Dag :exec
 ANALYZE v1_dag
 `
 
 func (q *Queries) AnalyzeV1Dag(ctx context.Context, db DBTX) error {
 	_, err := db.Exec(ctx, analyzeV1Dag)
+	return err
+}
+
+const analyzeV1DagData = `-- name: AnalyzeV1DagData :exec
+ANALYZE v1_dag_data
+`
+
+func (q *Queries) AnalyzeV1DagData(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1DagData)
+	return err
+}
+
+const analyzeV1DurableEventLogBranchPoint = `-- name: AnalyzeV1DurableEventLogBranchPoint :exec
+ANALYZE v1_durable_event_log_branch_point
+`
+
+func (q *Queries) AnalyzeV1DurableEventLogBranchPoint(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1DurableEventLogBranchPoint)
+	return err
+}
+
+const analyzeV1DurableEventLogEntry = `-- name: AnalyzeV1DurableEventLogEntry :exec
+ANALYZE v1_durable_event_log_entry
+`
+
+func (q *Queries) AnalyzeV1DurableEventLogEntry(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1DurableEventLogEntry)
+	return err
+}
+
+const analyzeV1DurableEventLogFile = `-- name: AnalyzeV1DurableEventLogFile :exec
+ANALYZE v1_durable_event_log_file
+`
+
+func (q *Queries) AnalyzeV1DurableEventLogFile(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1DurableEventLogFile)
+	return err
+}
+
+const analyzeV1Event = `-- name: AnalyzeV1Event :exec
+ANALYZE v1_event
+`
+
+func (q *Queries) AnalyzeV1Event(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1Event)
+	return err
+}
+
+const analyzeV1LogLine = `-- name: AnalyzeV1LogLine :exec
+ANALYZE v1_log_line
+`
+
+func (q *Queries) AnalyzeV1LogLine(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1LogLine)
+	return err
+}
+
+const analyzeV1LookupTable = `-- name: AnalyzeV1LookupTable :exec
+ANALYZE v1_lookup_table
+`
+
+func (q *Queries) AnalyzeV1LookupTable(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1LookupTable)
 	return err
 }
 
@@ -37,6 +109,15 @@ ANALYZE v1_task_event
 
 func (q *Queries) AnalyzeV1TaskEvent(ctx context.Context, db DBTX) error {
 	_, err := db.Exec(ctx, analyzeV1TaskEvent)
+	return err
+}
+
+const analyzeV1TaskExpressionEval = `-- name: AnalyzeV1TaskExpressionEval :exec
+ANALYZE v1_task_expression_eval
+`
+
+func (q *Queries) AnalyzeV1TaskExpressionEval(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1TaskExpressionEval)
 	return err
 }
 
@@ -131,8 +212,14 @@ WITH locked_trs AS (
     ORDER BY vtr.task_id ASC
     LIMIT $1::int
     FOR UPDATE SKIP LOCKED
+), deleted_slots AS (
+    DELETE FROM v1_task_runtime_slot
+    WHERE (task_id, task_inserted_at, retry_count) IN (
+        SELECT task_id, task_inserted_at, retry_count
+        FROM locked_trs
+    )
 )
-DELETE FROM v1_task_runtime_slot
+DELETE FROM v1_task_runtime
 WHERE (task_id, task_inserted_at, retry_count) IN (
     SELECT task_id, task_inserted_at, retry_count
     FROM locked_trs
@@ -203,22 +290,64 @@ func (q *Queries) CountActiveTaskBatchRuns(ctx context.Context, db DBTX, arg Cou
 	return active_count, err
 }
 
-const createPartitions = `-- name: CreatePartitions :exec
+const createPartitions = `-- name: CreatePartitions :one
 SELECT
-    create_v1_range_partition('v1_task', $1::date),
-    create_v1_range_partition('v1_dag', $1::date),
-    create_v1_range_partition('v1_task_event', $1::date),
-    create_v1_range_partition('v1_log_line', $1::date),
-    create_v1_range_partition('v1_payload', $1::date),
-    create_v1_range_partition('v1_event', $1::date),
-    create_v1_range_partition('v1_durable_event_log_file', $1::date),
-    create_v1_range_partition('v1_durable_event_log_entry', $1::date, 80),
-    create_v1_range_partition('v1_durable_event_log_branch_point', $1::date, 80)
+    create_v1_range_partition('v1_task', $1::date) AS v1_task,
+    create_v1_range_partition('v1_dag', $1::date) AS v1_dag,
+    create_v1_range_partition('v1_task_event', $1::date) AS v1_task_event,
+    create_v1_range_partition('v1_log_line', $1::date) AS v1_log_line,
+    create_v1_range_partition('v1_payload', $1::date) AS v1_payload,
+    create_v1_range_partition('v1_event', $1::date) AS v1_event,
+    create_v1_range_partition('v1_durable_event_log_file', $1::date) AS v1_durable_event_log_file,
+    create_v1_range_partition('v1_durable_event_log_entry', $1::date, 80) AS v1_durable_event_log_entry,
+    create_v1_range_partition('v1_durable_event_log_branch_point', $1::date, 80) AS v1_durable_event_log_branch_point,
+    create_v1_range_partition('v1_dag_to_task', $1::date) AS v1_dag_to_task,
+    create_v1_range_partition('v1_dag_data', $1::date) AS v1_dag_data,
+    create_v1_range_partition('v1_task_expression_eval', $1::date) AS v1_task_expression_eval,
+    create_v1_monthly_range_partition('v1_lookup_table', $1::date) AS v1_lookup_table,
+    create_v1_range_partition('v1_stream_producer_cursor', $1::date, 80) AS v1_stream_producer_cursor,
+    create_v1_range_partition('v1_serverless_endpoint_event', $1::date) AS v1_serverless_endpoint_event
 `
 
-func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Date) error {
-	_, err := db.Exec(ctx, createPartitions, date)
-	return err
+type CreatePartitionsRow struct {
+	V1Task                       int32 `json:"v1_task"`
+	V1Dag                        int32 `json:"v1_dag"`
+	V1TaskEvent                  int32 `json:"v1_task_event"`
+	V1LogLine                    int32 `json:"v1_log_line"`
+	V1Payload                    int32 `json:"v1_payload"`
+	V1Event                      int32 `json:"v1_event"`
+	V1DurableEventLogFile        int32 `json:"v1_durable_event_log_file"`
+	V1DurableEventLogEntry       int32 `json:"v1_durable_event_log_entry"`
+	V1DurableEventLogBranchPoint int32 `json:"v1_durable_event_log_branch_point"`
+	V1DagToTask                  int32 `json:"v1_dag_to_task"`
+	V1DagData                    int32 `json:"v1_dag_data"`
+	V1TaskExpressionEval         int32 `json:"v1_task_expression_eval"`
+	V1LookupTable                int32 `json:"v1_lookup_table"`
+	V1StreamProducerCursor       int32 `json:"v1_stream_producer_cursor"`
+	V1ServerlessEndpointEvent    int32 `json:"v1_serverless_endpoint_event"`
+}
+
+func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Date) (*CreatePartitionsRow, error) {
+	row := db.QueryRow(ctx, createPartitions, date)
+	var i CreatePartitionsRow
+	err := row.Scan(
+		&i.V1Task,
+		&i.V1Dag,
+		&i.V1TaskEvent,
+		&i.V1LogLine,
+		&i.V1Payload,
+		&i.V1Event,
+		&i.V1DurableEventLogFile,
+		&i.V1DurableEventLogEntry,
+		&i.V1DurableEventLogBranchPoint,
+		&i.V1DagToTask,
+		&i.V1DagData,
+		&i.V1TaskExpressionEval,
+		&i.V1LookupTable,
+		&i.V1StreamProducerCursor,
+		&i.V1ServerlessEndpointEvent,
+	)
+	return &i, err
 }
 
 const defaultTaskActivityGauge = `-- name: DefaultTaskActivityGauge :one
@@ -441,7 +570,8 @@ WITH input AS (
     SELECT
         t.id,
         t.inserted_at,
-        t.step_id
+        t.step_id,
+        i.is_non_retryable
     FROM
         v1_task t
     JOIN
@@ -461,7 +591,9 @@ WITH input AS (
 ), tasks_to_steps AS (
     SELECT
         t.id,
+        t.inserted_at,
         t.step_id,
+        t.is_non_retryable,
         s."retries"
     FROM
         locked_tasks t
@@ -476,11 +608,9 @@ SET
 FROM
     tasks_to_steps
 WHERE
-    (v1_task.id, v1_task.inserted_at, v1_task.retry_count) IN (
-        SELECT task_id, task_inserted_at, task_retry_count
-        FROM input
-        WHERE is_non_retryable = FALSE
-    )
+    v1_task.id = tasks_to_steps.id
+    AND v1_task.inserted_at = tasks_to_steps.inserted_at
+    AND NOT tasks_to_steps.is_non_retryable
     AND tasks_to_steps."retries" > v1_task.app_retry_count
 RETURNING
     v1_task.id,
@@ -555,7 +685,8 @@ WITH input AS (
         ) AS subquery
 ), locked_tasks AS (
     SELECT
-        t.id
+        t.id,
+        t.inserted_at
     FROM
         v1_task t
     JOIN
@@ -581,10 +712,8 @@ SET
 FROM
     locked_tasks
 WHERE
-    (v1_task.id, v1_task.inserted_at, v1_task.retry_count) IN (
-        SELECT task_id, task_inserted_at, task_retry_count
-        FROM input
-    )
+    v1_task.id = locked_tasks.id
+    AND v1_task.inserted_at = locked_tasks.inserted_at
     AND $1::int > v1_task.internal_retry_count
 RETURNING
     v1_task.id,
@@ -623,6 +752,148 @@ func (q *Queries) FailTaskInternalFailure(ctx context.Context, db DBTX, arg Fail
 	for rows.Next() {
 		var i FailTaskInternalFailureRow
 		if err := rows.Scan(&i.ID, &i.InsertedAt, &i.RetryCount); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const failTaskRetryAfter = `-- name: FailTaskRetryAfter :many
+WITH input AS (
+    -- a re-sent failure report can duplicate an attempt in the batch
+    SELECT DISTINCT ON (task_id, task_inserted_at, task_retry_count)
+        task_id, task_inserted_at, task_retry_count, retry_after_ms
+    FROM
+        (
+            SELECT
+                unnest($1::bigint[]) AS task_id,
+                unnest($2::timestamptz[]) AS task_inserted_at,
+                unnest($3::integer[]) AS task_retry_count,
+                unnest($4::bigint[]) AS retry_after_ms
+        ) AS subquery
+    ORDER BY
+        task_id, task_inserted_at, task_retry_count
+), locked_tasks AS (
+    SELECT
+        t.id,
+        t.inserted_at,
+        t.step_id
+    FROM
+        v1_task t
+    JOIN
+        input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at AND i.task_retry_count = t.retry_count
+    WHERE
+        t.tenant_id = $5::uuid
+        -- only fail tasks which still have a v1_task_runtime for the current retry count.
+        -- a cancellation deletes the v1_task_runtime, so a late failure event should not trigger a retry.
+        AND EXISTS (
+            SELECT 1 FROM v1_task_runtime tr
+            WHERE tr.task_id = t.id AND tr.task_inserted_at = t.inserted_at AND tr.retry_count = t.retry_count
+        )
+    -- order by the task id to get a stable lock order
+    ORDER BY
+        id
+    FOR UPDATE
+), updated_tasks AS (
+    UPDATE
+        v1_task
+    SET
+        retry_count = v1_task.retry_count + 1,
+        app_retry_count = v1_task.app_retry_count + 1
+    FROM
+        locked_tasks lt
+    JOIN
+        "Step" s ON s."id" = lt.step_id
+    WHERE
+        v1_task.id = lt.id
+        AND v1_task.inserted_at = lt.inserted_at
+        AND s."retries" > v1_task.app_retry_count
+    RETURNING
+        v1_task.id,
+        v1_task.inserted_at,
+        v1_task.retry_count,
+        v1_task.app_retry_count,
+        v1_task.tenant_id
+), retry_queue_items AS (
+    -- v1_task_update_trigger runs at the end of this statement and skips tasks that have this row
+    INSERT INTO v1_retry_queue_item (
+        task_id,
+        task_inserted_at,
+        task_retry_count,
+        retry_after,
+        tenant_id
+    )
+    SELECT
+        ut.id,
+        ut.inserted_at,
+        ut.retry_count,
+        NOW() + i.retry_after_ms * interval '1 millisecond',
+        ut.tenant_id
+    FROM
+        updated_tasks ut
+    JOIN
+        input i ON i.task_id = ut.id AND i.task_inserted_at = ut.inserted_at
+    RETURNING
+        task_id,
+        task_inserted_at,
+        task_retry_count,
+        retry_after
+)
+SELECT
+    ut.id,
+    ut.inserted_at,
+    ut.retry_count,
+    ut.app_retry_count,
+    rqi.retry_after::timestamptz AS retry_after
+FROM
+    updated_tasks ut
+JOIN
+    retry_queue_items rqi ON rqi.task_id = ut.id AND rqi.task_inserted_at = ut.inserted_at
+`
+
+type FailTaskRetryAfterParams struct {
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Taskretrycounts []int32              `json:"taskretrycounts"`
+	Retryafterms    []int64              `json:"retryafterms"`
+	Tenantid        uuid.UUID            `json:"tenantid"`
+}
+
+type FailTaskRetryAfterRow struct {
+	ID            int64              `json:"id"`
+	InsertedAt    pgtype.Timestamptz `json:"inserted_at"`
+	RetryCount    int32              `json:"retry_count"`
+	AppRetryCount int32              `json:"app_retry_count"`
+	RetryAfter    pgtype.Timestamptz `json:"retry_after"`
+}
+
+// Fails a task due to an application-level error, retrying it after a task-requested delay
+func (q *Queries) FailTaskRetryAfter(ctx context.Context, db DBTX, arg FailTaskRetryAfterParams) ([]*FailTaskRetryAfterRow, error) {
+	rows, err := db.Query(ctx, failTaskRetryAfter,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Taskretrycounts,
+		arg.Retryafterms,
+		arg.Tenantid,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*FailTaskRetryAfterRow
+	for rows.Next() {
+		var i FailTaskRetryAfterRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.InsertedAt,
+			&i.RetryCount,
+			&i.AppRetryCount,
+			&i.RetryAfter,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -722,7 +993,7 @@ func (q *Queries) FindOldestRunningTask(ctx context.Context, db DBTX) (*FindOlde
 }
 
 const findOldestTask = `-- name: FindOldestTask :one
-SELECT id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, batch_key, retry_backoff_factor, retry_max_backoff, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, is_dag_orchestrator, concurrency_max_runs
+SELECT id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, batch_key, retry_backoff_factor, retry_max_backoff, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, is_dag_orchestrator, concurrency_max_runs, payload_reference_id, triggers, dag_parent_task_run_ids, child_task_desired_worker_labels, task_input_payload_version
 FROM v1_task
 ORDER BY id, inserted_at
 LIMIT 1
@@ -777,12 +1048,17 @@ func (q *Queries) FindOldestTask(ctx context.Context, db DBTX) (*V1Task, error) 
 		&i.IdempotencyKey,
 		&i.IsDagOrchestrator,
 		&i.ConcurrencyMaxRuns,
+		&i.PayloadReferenceID,
+		&i.Triggers,
+		&i.DagParentTaskRunIds,
+		&i.ChildTaskDesiredWorkerLabels,
+		&i.TaskInputPayloadVersion,
 	)
 	return &i, err
 }
 
 const flattenExternalIds = `-- name: FlattenExternalIds :many
-WITH lookup_rows AS (
+WITH lookup_rows AS MATERIALIZED (
     SELECT
         tenant_id, external_id, task_id, dag_id, inserted_at
     FROM
@@ -810,15 +1086,23 @@ WITH lookup_rows AS (
         t.is_dag_orchestrator,
         t.workflow_version_id,
         t.parent_task_external_id,
-        t.is_durable
+        t.is_durable,
+        t.task_input_payload_version,
+        t.payload_reference_id,
+        d.payload_reference_id AS dag_payload_reference_id
     FROM
         lookup_rows l
+    JOIN
+        v1_dag d ON d.id = l.dag_id AND d.inserted_at = l.inserted_at
     JOIN
         v1_dag_to_task dt ON dt.dag_id = l.dag_id AND dt.dag_inserted_at = l.inserted_at
     JOIN
         v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
     WHERE
         l.dag_id IS NOT NULL
+        AND d.inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE dag_id IS NOT NULL)
+        AND dt.dag_inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE dag_id IS NOT NULL)
+        AND t.inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE dag_id IS NOT NULL)
 )
 SELECT
     t.id,
@@ -839,18 +1123,22 @@ SELECT
     t.is_dag_orchestrator,
     t.workflow_version_id,
     t.parent_task_external_id,
-    t.is_durable
+    t.is_durable,
+    t.task_input_payload_version,
+    t.payload_reference_id,
+    NULL::uuid AS dag_payload_reference_id
 FROM
     lookup_rows l
 JOIN
     v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
 WHERE
     l.task_id IS NOT NULL
+    AND t.inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE task_id IS NOT NULL)
 
 UNION ALL
 
 SELECT
-    id, inserted_at, retry_count, external_id, workflow_run_id, additional_metadata, dag_id, dag_inserted_at, parent_task_id, child_index, child_key, step_readable_id, workflow_run_external_id, workflow_id, step_id, is_dag_orchestrator, workflow_version_id, parent_task_external_id, is_durable
+    id, inserted_at, retry_count, external_id, workflow_run_id, additional_metadata, dag_id, dag_inserted_at, parent_task_id, child_index, child_key, step_readable_id, workflow_run_external_id, workflow_id, step_id, is_dag_orchestrator, workflow_version_id, parent_task_external_id, is_durable, task_input_payload_version, payload_reference_id, dag_payload_reference_id
 FROM
     tasks_from_dags
 `
@@ -861,25 +1149,28 @@ type FlattenExternalIdsParams struct {
 }
 
 type FlattenExternalIdsRow struct {
-	ID                    int64              `json:"id"`
-	InsertedAt            pgtype.Timestamptz `json:"inserted_at"`
-	RetryCount            int32              `json:"retry_count"`
-	ExternalID            uuid.UUID          `json:"external_id"`
-	WorkflowRunID         uuid.UUID          `json:"workflow_run_id"`
-	AdditionalMetadata    []byte             `json:"additional_metadata"`
-	DagID                 pgtype.Int8        `json:"dag_id"`
-	DagInsertedAt         pgtype.Timestamptz `json:"dag_inserted_at"`
-	ParentTaskID          pgtype.Int8        `json:"parent_task_id"`
-	ChildIndex            pgtype.Int8        `json:"child_index"`
-	ChildKey              pgtype.Text        `json:"child_key"`
-	StepReadableID        string             `json:"step_readable_id"`
-	WorkflowRunExternalID uuid.UUID          `json:"workflow_run_external_id"`
-	WorkflowID            uuid.UUID          `json:"workflow_id"`
-	StepID                uuid.UUID          `json:"step_id"`
-	IsDagOrchestrator     bool               `json:"is_dag_orchestrator"`
-	WorkflowVersionID     uuid.UUID          `json:"workflow_version_id"`
-	ParentTaskExternalID  *uuid.UUID         `json:"parent_task_external_id"`
-	IsDurable             pgtype.Bool        `json:"is_durable"`
+	ID                      int64              `json:"id"`
+	InsertedAt              pgtype.Timestamptz `json:"inserted_at"`
+	RetryCount              int32              `json:"retry_count"`
+	ExternalID              uuid.UUID          `json:"external_id"`
+	WorkflowRunID           uuid.UUID          `json:"workflow_run_id"`
+	AdditionalMetadata      []byte             `json:"additional_metadata"`
+	DagID                   pgtype.Int8        `json:"dag_id"`
+	DagInsertedAt           pgtype.Timestamptz `json:"dag_inserted_at"`
+	ParentTaskID            pgtype.Int8        `json:"parent_task_id"`
+	ChildIndex              pgtype.Int8        `json:"child_index"`
+	ChildKey                pgtype.Text        `json:"child_key"`
+	StepReadableID          string             `json:"step_readable_id"`
+	WorkflowRunExternalID   uuid.UUID          `json:"workflow_run_external_id"`
+	WorkflowID              uuid.UUID          `json:"workflow_id"`
+	StepID                  uuid.UUID          `json:"step_id"`
+	IsDagOrchestrator       bool               `json:"is_dag_orchestrator"`
+	WorkflowVersionID       uuid.UUID          `json:"workflow_version_id"`
+	ParentTaskExternalID    *uuid.UUID         `json:"parent_task_external_id"`
+	IsDurable               pgtype.Bool        `json:"is_durable"`
+	TaskInputPayloadVersion int16              `json:"task_input_payload_version"`
+	PayloadReferenceID      *uuid.UUID         `json:"payload_reference_id"`
+	DagPayloadReferenceID   *uuid.UUID         `json:"dag_payload_reference_id"`
 }
 
 // Union the tasks from the lookup table with the tasks from the DAGs
@@ -912,6 +1203,9 @@ func (q *Queries) FlattenExternalIds(ctx context.Context, db DBTX, arg FlattenEx
 			&i.WorkflowVersionID,
 			&i.ParentTaskExternalID,
 			&i.IsDurable,
+			&i.TaskInputPayloadVersion,
+			&i.PayloadReferenceID,
+			&i.DagPayloadReferenceID,
 		); err != nil {
 			return nil, err
 		}
@@ -924,12 +1218,15 @@ func (q *Queries) FlattenExternalIds(ctx context.Context, db DBTX, arg FlattenEx
 }
 
 const getTaskByExternalId = `-- name: GetTaskByExternalId :one
-SELECT t.id, t.inserted_at, t.tenant_id, t.queue, t.action_id, t.step_id, t.step_readable_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.external_id, t.display_name, t.input, t.retry_count, t.internal_retry_count, t.app_retry_count, t.step_index, t.additional_metadata, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.parent_task_id, t.parent_task_inserted_at, t.child_index, t.child_key, t.initial_state, t.initial_state_reason, t.concurrency_parent_strategy_ids, t.concurrency_strategy_ids, t.concurrency_keys, t.batch_key, t.retry_backoff_factor, t.retry_max_backoff, t.is_durable, t.desired_worker_label, t.triggering_event_external_id, t.triggering_event_key, t.idempotency_key, t.is_dag_orchestrator, t.concurrency_max_runs
-FROM v1_lookup_table l
-JOIN v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
-WHERE
-    l.external_id = $1::uuid
-    AND l.tenant_id = $2::uuid
+SELECT t.id, t.inserted_at, t.tenant_id, t.queue, t.action_id, t.step_id, t.step_readable_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.external_id, t.display_name, t.input, t.retry_count, t.internal_retry_count, t.app_retry_count, t.step_index, t.additional_metadata, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.parent_task_id, t.parent_task_inserted_at, t.child_index, t.child_key, t.initial_state, t.initial_state_reason, t.concurrency_parent_strategy_ids, t.concurrency_strategy_ids, t.concurrency_keys, t.batch_key, t.retry_backoff_factor, t.retry_max_backoff, t.is_durable, t.desired_worker_label, t.triggering_event_external_id, t.triggering_event_key, t.idempotency_key, t.is_dag_orchestrator, t.concurrency_max_runs, t.payload_reference_id, t.triggers, t.dag_parent_task_run_ids, t.child_task_desired_worker_labels, t.task_input_payload_version
+FROM v1_task t
+WHERE (t.id, t.inserted_at) = (
+    SELECT l.task_id, l.inserted_at
+    FROM v1_lookup_table l
+    WHERE
+        l.external_id = $1::uuid
+        AND l.tenant_id = $2::uuid
+)
 `
 
 type GetTaskByExternalIdParams struct {
@@ -937,6 +1234,8 @@ type GetTaskByExternalIdParams struct {
 	Tenantid   uuid.UUID `json:"tenantid"`
 }
 
+// Resolve the task key before reading v1_task. Joining the lookup row directly
+// is planned as a merge across every daily partition.
 func (q *Queries) GetTaskByExternalId(ctx context.Context, db DBTX, arg GetTaskByExternalIdParams) (*V1Task, error) {
 	row := db.QueryRow(ctx, getTaskByExternalId, arg.Externalid, arg.Tenantid)
 	var i V1Task
@@ -986,6 +1285,11 @@ func (q *Queries) GetTaskByExternalId(ctx context.Context, db DBTX, arg GetTaskB
 		&i.IdempotencyKey,
 		&i.IsDagOrchestrator,
 		&i.ConcurrencyMaxRuns,
+		&i.PayloadReferenceID,
+		&i.Triggers,
+		&i.DagParentTaskRunIds,
+		&i.ChildTaskDesiredWorkerLabels,
+		&i.TaskInputPayloadVersion,
 	)
 	return &i, err
 }
@@ -993,20 +1297,20 @@ func (q *Queries) GetTaskByExternalId(ctx context.Context, db DBTX, arg GetTaskB
 const getTenantTaskStats = `-- name: GetTenantTaskStats :many
 WITH queued_tasks AS (
     SELECT
-        t.step_readable_id,
-        t.queue,
+        s."readableId" AS step_readable_id,
+        qi.queue,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest,
-        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
+        MIN(qi.task_inserted_at) AS oldest,
+        MIN(qi.task_inserted_at) FILTER (WHERE qi.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_queue_item qi
     JOIN
-        v1_task t ON qi.task_id = t.id AND qi.task_inserted_at = t.inserted_at AND qi.retry_count = t.retry_count
+        "Step" s ON s."id" = qi.step_id
     WHERE
         qi.tenant_id = $1::uuid
     GROUP BY
-        t.step_readable_id,
-        t.queue
+        s."readableId",
+        qi.queue
 ), retry_queued_tasks AS (
     SELECT
         t.step_readable_id,
@@ -1025,36 +1329,36 @@ WITH queued_tasks AS (
         t.queue
 ), rate_limited_queued_tasks AS (
     SELECT
-        t.step_readable_id,
-        t.queue,
+        s."readableId" AS step_readable_id,
+        rqi.queue,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest,
-        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
+        MIN(rqi.task_inserted_at) AS oldest,
+        MIN(rqi.task_inserted_at) FILTER (WHERE rqi.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_rate_limited_queue_items rqi
     JOIN
-        v1_task t ON rqi.task_id = t.id AND rqi.task_inserted_at = t.inserted_at
+        "Step" s ON s."id" = rqi.step_id
     WHERE
         rqi.tenant_id = $1::uuid
     GROUP BY
-        t.step_readable_id,
-        t.queue
+        s."readableId",
+        rqi.queue
 ), paused_workflow_queued_tasks AS (
     SELECT
-        t.step_readable_id,
-        t.queue,
+        s."readableId" AS step_readable_id,
+        pqi.queue,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest,
-        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
+        MIN(pqi.task_inserted_at) AS oldest,
+        MIN(pqi.task_inserted_at) FILTER (WHERE pqi.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_paused_workflow_queue_item pqi
     JOIN
-        v1_task t ON pqi.task_inserted_at = t.inserted_at AND pqi.task_id = t.id AND pqi.retry_count = t.retry_count
+        "Step" s ON s."id" = pqi.step_id
     WHERE
         pqi.tenant_id = $1::uuid
     GROUP BY
-        t.step_readable_id,
-        t.queue
+        s."readableId",
+        pqi.queue
 ), concurrency_queued_tasks AS (
     SELECT
         t.step_readable_id,
@@ -1236,7 +1540,7 @@ FROM running_concurrency
 
 type GetTenantTaskStatsRow struct {
 	RowKind                string             `json:"row_kind"`
-	StepReadableID         string             `json:"step_readable_id"`
+	StepReadableID         pgtype.Text        `json:"step_readable_id"`
 	Queue                  string             `json:"queue"`
 	Expression             pgtype.Text        `json:"expression"`
 	Strategy               pgtype.Text        `json:"strategy"`
@@ -1277,6 +1581,11 @@ func (q *Queries) GetTenantTaskStats(ctx context.Context, db DBTX, tenantid uuid
 }
 
 const listAllTasksInDags = `-- name: ListAllTasksInDags :many
+WITH input AS (
+    SELECT
+        UNNEST($3::bigint[]) AS dag_id,
+        UNNEST($4::timestamptz[]) AS dag_inserted_at
+)
 SELECT
     t.id,
     t.inserted_at,
@@ -1288,17 +1597,21 @@ SELECT
     t.workflow_id,
     t.external_id
 FROM
-    v1_task t
+    input i
 JOIN
-    v1_dag_to_task dt ON dt.task_id = t.id
+    v1_dag_to_task dt ON dt.dag_id = i.dag_id AND dt.dag_inserted_at = i.dag_inserted_at
+JOIN
+    v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
 WHERE
     t.tenant_id = $1::uuid
-    AND dt.dag_id = ANY($2::bigint[])
+    AND dt.dag_inserted_at >= $2::timestamptz
 `
 
 type ListAllTasksInDagsParams struct {
-	Tenantid uuid.UUID `json:"tenantid"`
-	Dagids   []int64   `json:"dagids"`
+	Tenantid         uuid.UUID            `json:"tenantid"`
+	Mindaginsertedat pgtype.Timestamptz   `json:"mindaginsertedat"`
+	Dagids           []int64              `json:"dagids"`
+	Daginsertedats   []pgtype.Timestamptz `json:"daginsertedats"`
 }
 
 type ListAllTasksInDagsRow struct {
@@ -1314,7 +1627,12 @@ type ListAllTasksInDagsRow struct {
 }
 
 func (q *Queries) ListAllTasksInDags(ctx context.Context, db DBTX, arg ListAllTasksInDagsParams) ([]*ListAllTasksInDagsRow, error) {
-	rows, err := db.Query(ctx, listAllTasksInDags, arg.Tenantid, arg.Dagids)
+	rows, err := db.Query(ctx, listAllTasksInDags,
+		arg.Tenantid,
+		arg.Mindaginsertedat,
+		arg.Dagids,
+		arg.Daginsertedats,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1343,6 +1661,109 @@ func (q *Queries) ListAllTasksInDags(ctx context.Context, db DBTX, arg ListAllTa
 	return items, nil
 }
 
+const listEvictedTaskRuntimeWindow = `-- name: ListEvictedTaskRuntimeWindow :many
+WITH evicted_runtime_window AS (
+    SELECT
+        rt.task_id,
+        rt.task_inserted_at,
+        rt.retry_count,
+        rt.evicted_at
+    FROM v1_task_runtime rt
+    WHERE
+        rt.tenant_id = $1::UUID
+        AND rt.evicted_at < NOW() - $2::INTERVAL
+        AND (rt.evicted_at, rt.task_id, rt.task_inserted_at, rt.retry_count) > (
+            $3::TIMESTAMPTZ,
+            $4::BIGINT,
+            $5::TIMESTAMPTZ,
+            $6::INTEGER
+        )
+    ORDER BY rt.evicted_at, rt.task_id, rt.task_inserted_at, rt.retry_count
+    LIMIT $7::INTEGER
+)
+SELECT
+    w.task_id,
+    w.task_inserted_at,
+    w.retry_count,
+    w.evicted_at,
+    t.external_id,
+    COALESCE(
+        t.is_dag_orchestrator
+        AND EXISTS (
+            SELECT 1 FROM v1_durable_event_log_entry e
+            WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM v1_durable_event_log_entry e
+            WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
+              AND NOT e.is_satisfied
+        ),
+        FALSE
+    )::BOOLEAN AS is_stuck_durable_orchestrator
+FROM evicted_runtime_window w
+LEFT JOIN v1_task t ON (t.id, t.inserted_at) = (w.task_id, w.task_inserted_at)
+ORDER BY w.evicted_at, w.task_id, w.task_inserted_at, w.retry_count
+`
+
+type ListEvictedTaskRuntimeWindowParams struct {
+	Tenantid          uuid.UUID          `json:"tenantid"`
+	Graceperiod       pgtype.Interval    `json:"graceperiod"`
+	Minevictedast     pgtype.Timestamptz `json:"minevictedast"`
+	Mintaskid         int64              `json:"mintaskid"`
+	Mintaskinsertedat pgtype.Timestamptz `json:"mintaskinsertedat"`
+	Minretrycount     int32              `json:"minretrycount"`
+	Windowsize        int32              `json:"windowsize"`
+}
+
+type ListEvictedTaskRuntimeWindowRow struct {
+	TaskID                     int64              `json:"task_id"`
+	TaskInsertedAt             pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount                 int32              `json:"retry_count"`
+	EvictedAt                  pgtype.Timestamptz `json:"evicted_at"`
+	ExternalID                 *uuid.UUID         `json:"external_id"`
+	IsStuckDurableOrchestrator bool               `json:"is_stuck_durable_orchestrator"`
+}
+
+// DAG-orchestrator tasks whose runtime has been evicted past the grace period and whose durable
+// event log entries are ALL satisfied -- the orchestrator is ready to resume but the
+// edge-triggered restore (a child callback arriving while evicted -> DurableRestoreTask) never
+// fired: the callback was lost on an engine roll, or every entry was satisfied before the
+// eviction so there was no later callback. The caller re-queues these via DurableRestoreTask.
+func (q *Queries) ListEvictedTaskRuntimeWindow(ctx context.Context, db DBTX, arg ListEvictedTaskRuntimeWindowParams) ([]*ListEvictedTaskRuntimeWindowRow, error) {
+	rows, err := db.Query(ctx, listEvictedTaskRuntimeWindow,
+		arg.Tenantid,
+		arg.Graceperiod,
+		arg.Minevictedast,
+		arg.Mintaskid,
+		arg.Mintaskinsertedat,
+		arg.Minretrycount,
+		arg.Windowsize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListEvictedTaskRuntimeWindowRow
+	for rows.Next() {
+		var i ListEvictedTaskRuntimeWindowRow
+		if err := rows.Scan(
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.RetryCount,
+			&i.EvictedAt,
+			&i.ExternalID,
+			&i.IsStuckDurableOrchestrator,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMatchingSignalEvents = `-- name: ListMatchingSignalEvents :many
 WITH input AS (
     SELECT
@@ -1356,7 +1777,7 @@ WITH input AS (
         ) AS subquery
 )
 SELECT
-    e.id, e.inserted_at, e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count, e.event_type, e.event_key, e.created_at, e.data, e.external_id, e.child_external_id
+    e.id, e.inserted_at, e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count, e.event_type, e.event_key, e.created_at, e.data, e.external_id, e.child_external_id, e.payload_reference_id
 FROM
     v1_task_event e
 JOIN
@@ -1402,6 +1823,7 @@ func (q *Queries) ListMatchingSignalEvents(ctx context.Context, db DBTX, arg Lis
 			&i.Data,
 			&i.ExternalID,
 			&i.ChildExternalID,
+			&i.PayloadReferenceID,
 		); err != nil {
 			return nil, err
 		}
@@ -1424,12 +1846,24 @@ WITH input AS (
                 -- can match any of the event types
                 unnest_nd_1d($3::text[][]) AS event_types
         ) AS subquery
+), looked_up AS MATERIALIZED (
+    -- Resolve keys before joining v1_task. Joining v1_lookup_table directly
+    -- is planned as a merge across every daily partition.
+    SELECT
+        l.external_id,
+        l.task_id,
+        l.inserted_at
+    FROM
+        v1_lookup_table l
+    WHERE
+        l.tenant_id = $1::uuid
+        AND l.external_id = ANY($2::uuid[])
 )
 SELECT
     t.external_id as task_external_id,
-    e.id, e.inserted_at, e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count, e.event_type, e.event_key, e.created_at, e.data, e.external_id, e.child_external_id
+    e.id, e.inserted_at, e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count, e.event_type, e.event_key, e.created_at, e.data, e.external_id, e.child_external_id, e.payload_reference_id
 FROM
-    v1_lookup_table l
+    looked_up l
 JOIN
     v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
 JOIN
@@ -1437,9 +1871,9 @@ JOIN
 JOIN
     input i ON i.task_external_id = l.external_id AND e.event_type::text = ANY(i.event_types)
 WHERE
-    l.tenant_id = $1::uuid
-    AND l.external_id = ANY($2::uuid[])
-    AND (e.retry_count = -1 OR e.retry_count = t.retry_count)
+    (e.retry_count = -1 OR e.retry_count = t.retry_count)
+    AND t.inserted_at >= (SELECT MIN(inserted_at) FROM looked_up)
+    AND e.task_inserted_at >= (SELECT MIN(inserted_at) FROM looked_up)
 `
 
 type ListMatchingTaskEventsParams struct {
@@ -1449,19 +1883,20 @@ type ListMatchingTaskEventsParams struct {
 }
 
 type ListMatchingTaskEventsRow struct {
-	TaskExternalID  uuid.UUID          `json:"task_external_id"`
-	ID              int64              `json:"id"`
-	InsertedAt      pgtype.Timestamptz `json:"inserted_at"`
-	TenantID        uuid.UUID          `json:"tenant_id"`
-	TaskID          int64              `json:"task_id"`
-	TaskInsertedAt  pgtype.Timestamptz `json:"task_inserted_at"`
-	RetryCount      int32              `json:"retry_count"`
-	EventType       V1TaskEventType    `json:"event_type"`
-	EventKey        pgtype.Text        `json:"event_key"`
-	CreatedAt       pgtype.Timestamp   `json:"created_at"`
-	Data            []byte             `json:"data"`
-	ExternalID      uuid.UUID          `json:"external_id"`
-	ChildExternalID *uuid.UUID         `json:"child_external_id"`
+	TaskExternalID     uuid.UUID          `json:"task_external_id"`
+	ID                 int64              `json:"id"`
+	InsertedAt         pgtype.Timestamptz `json:"inserted_at"`
+	TenantID           uuid.UUID          `json:"tenant_id"`
+	TaskID             int64              `json:"task_id"`
+	TaskInsertedAt     pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount         int32              `json:"retry_count"`
+	EventType          V1TaskEventType    `json:"event_type"`
+	EventKey           pgtype.Text        `json:"event_key"`
+	CreatedAt          pgtype.Timestamp   `json:"created_at"`
+	Data               []byte             `json:"data"`
+	ExternalID         uuid.UUID          `json:"external_id"`
+	ChildExternalID    *uuid.UUID         `json:"child_external_id"`
+	PayloadReferenceID *uuid.UUID         `json:"payload_reference_id"`
 }
 
 // Lists the task events for the **latest** retry of a task, or task events which intentionally
@@ -1489,6 +1924,7 @@ func (q *Queries) ListMatchingTaskEvents(ctx context.Context, db DBTX, arg ListM
 			&i.Data,
 			&i.ExternalID,
 			&i.ChildExternalID,
+			&i.PayloadReferenceID,
 		); err != nil {
 			return nil, err
 		}
@@ -1519,6 +1955,16 @@ WITH task_partitions AS (
     SELECT 'v1_durable_event_log_entry' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_entry', $1::date) AS p
 ), durable_event_log_branch_point_partitions AS (
     SELECT 'v1_durable_event_log_branch_point' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_branch_point', $1::date) AS p
+), dag_to_task_partitions AS (
+    SELECT 'v1_dag_to_task' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag_to_task', $1::date) AS p
+), dag_data_partitions AS (
+    SELECT 'v1_dag_data' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag_data', $1::date) AS p
+), task_expression_eval_partitions AS (
+    SELECT 'v1_task_expression_eval' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task_expression_eval', $1::date) AS p
+), lookup_table_partitions AS (
+    SELECT 'v1_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_monthly_partitions_before_date('v1_lookup_table', $1::date) AS p
+), serverless_endpoint_event_partitions AS (
+    SELECT 'v1_serverless_endpoint_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_serverless_endpoint_event', $1::date) AS p
 )
 
 SELECT
@@ -1581,6 +2027,41 @@ SELECT
     parent_table, partition_name
 FROM
     durable_event_log_branch_point_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    dag_to_task_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    dag_data_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    task_expression_eval_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    lookup_table_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    serverless_endpoint_event_partitions
 `
 
 type ListPartitionsBeforeDateRow struct {
@@ -1608,73 +2089,6 @@ func (q *Queries) ListPartitionsBeforeDate(ctx context.Context, db DBTX, date pg
 	return items, nil
 }
 
-const listStuckEvictedDurableOrchestrators = `-- name: ListStuckEvictedDurableOrchestrators :many
-SELECT
-    t.id,
-    t.inserted_at,
-    t.external_id,
-    rt.retry_count
-FROM v1_task_runtime rt
-JOIN v1_task t ON (t.id, t.inserted_at) = (rt.task_id, rt.task_inserted_at)
-WHERE rt.tenant_id = $1::uuid
-    AND rt.evicted_at < NOW() - $2::interval
-    AND t.is_dag_orchestrator
-    AND EXISTS (
-        SELECT 1 FROM v1_durable_event_log_entry e
-        WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
-    )
-    AND NOT EXISTS (
-        SELECT 1 FROM v1_durable_event_log_entry e
-        WHERE (e.durable_task_id, e.durable_task_inserted_at) = (t.id, t.inserted_at)
-          AND NOT e.is_satisfied
-    )
-ORDER BY rt.evicted_at
-LIMIT $3::int
-`
-
-type ListStuckEvictedDurableOrchestratorsParams struct {
-	Tenantid    uuid.UUID       `json:"tenantid"`
-	Graceperiod pgtype.Interval `json:"graceperiod"`
-	Maxtasks    int32           `json:"maxtasks"`
-}
-
-type ListStuckEvictedDurableOrchestratorsRow struct {
-	ID         int64              `json:"id"`
-	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
-	ExternalID uuid.UUID          `json:"external_id"`
-	RetryCount int32              `json:"retry_count"`
-}
-
-// DAG-orchestrator tasks whose runtime has been evicted past the grace period and whose durable
-// event log entries are ALL satisfied -- the orchestrator is ready to resume but the
-// edge-triggered restore (a child callback arriving while evicted -> DurableRestoreTask) never
-// fired: the callback was lost on an engine roll, or every entry was satisfied before the
-// eviction so there was no later callback. The caller re-queues these via DurableRestoreTask.
-func (q *Queries) ListStuckEvictedDurableOrchestrators(ctx context.Context, db DBTX, arg ListStuckEvictedDurableOrchestratorsParams) ([]*ListStuckEvictedDurableOrchestratorsRow, error) {
-	rows, err := db.Query(ctx, listStuckEvictedDurableOrchestrators, arg.Tenantid, arg.Graceperiod, arg.Maxtasks)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*ListStuckEvictedDurableOrchestratorsRow
-	for rows.Next() {
-		var i ListStuckEvictedDurableOrchestratorsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.InsertedAt,
-			&i.ExternalID,
-			&i.RetryCount,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listTaskExpressionEvals = `-- name: ListTaskExpressionEvals :many
 WITH input AS (
     SELECT
@@ -1682,8 +2096,8 @@ WITH input AS (
     FROM
         (
             SELECT
-                unnest($1::bigint[]) AS task_id,
-                unnest($2::timestamptz[]) AS task_inserted_at
+                unnest($2::bigint[]) AS task_id,
+                unnest($3::timestamptz[]) AS task_inserted_at
         ) AS subquery
 )
 SELECT
@@ -1698,15 +2112,17 @@ WHERE
         FROM
             input
     )
+    AND te.task_inserted_at >= $1::timestamptz
 `
 
 type ListTaskExpressionEvalsParams struct {
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Mintaskinsertedat pgtype.Timestamptz   `json:"mintaskinsertedat"`
+	Taskids           []int64              `json:"taskids"`
+	Taskinsertedats   []pgtype.Timestamptz `json:"taskinsertedats"`
 }
 
 func (q *Queries) ListTaskExpressionEvals(ctx context.Context, db DBTX, arg ListTaskExpressionEvalsParams) ([]*V1TaskExpressionEval, error) {
-	rows, err := db.Query(ctx, listTaskExpressionEvals, arg.Taskids, arg.Taskinsertedats)
+	rows, err := db.Query(ctx, listTaskExpressionEvals, arg.Mintaskinsertedat, arg.Taskids, arg.Taskinsertedats)
 	if err != nil {
 		return nil, err
 	}
@@ -1826,12 +2242,13 @@ WITH task_outputs AS (
         e.id AS task_event_id,
         e.inserted_at AS task_event_inserted_at,
         e.external_id AS output_event_external_id,
+        e.payload_reference_id AS output_event_payload_reference_id,
         e.retry_count
     FROM v1_lookup_table lt
     JOIN v1_task_event e ON (lt.task_id, lt.inserted_at) = (e.task_id, e.task_inserted_at)
     WHERE
         lt.external_id = ANY($1::uuid[])
-        AND e.event_type = 'COMPLETED'
+        AND e.event_type IN ('COMPLETED', 'FAILED')
 ), max_retry_counts AS (
     SELECT
         task_run_external_id,
@@ -1844,6 +2261,7 @@ WITH task_outputs AS (
 SELECT
     o.task_run_external_id,
     o.output_event_external_id,
+    o.output_event_payload_reference_id,
     o.task_event_id,
     o.task_event_inserted_at
 FROM task_outputs o
@@ -1851,10 +2269,11 @@ JOIN max_retry_counts mrc ON (o.task_run_external_id, o.retry_count) = (mrc.task
 `
 
 type ListTaskOutputEventIdsByTaskRunExternalIdsRow struct {
-	TaskRunExternalID     uuid.UUID          `json:"task_run_external_id"`
-	OutputEventExternalID uuid.UUID          `json:"output_event_external_id"`
-	TaskEventID           int64              `json:"task_event_id"`
-	TaskEventInsertedAt   pgtype.Timestamptz `json:"task_event_inserted_at"`
+	TaskRunExternalID             uuid.UUID          `json:"task_run_external_id"`
+	OutputEventExternalID         uuid.UUID          `json:"output_event_external_id"`
+	OutputEventPayloadReferenceID *uuid.UUID         `json:"output_event_payload_reference_id"`
+	TaskEventID                   int64              `json:"task_event_id"`
+	TaskEventInsertedAt           pgtype.Timestamptz `json:"task_event_inserted_at"`
 }
 
 func (q *Queries) ListTaskOutputEventIdsByTaskRunExternalIds(ctx context.Context, db DBTX, taskexternalids []uuid.UUID) ([]*ListTaskOutputEventIdsByTaskRunExternalIdsRow, error) {
@@ -1869,6 +2288,7 @@ func (q *Queries) ListTaskOutputEventIdsByTaskRunExternalIds(ctx context.Context
 		if err := rows.Scan(
 			&i.TaskRunExternalID,
 			&i.OutputEventExternalID,
+			&i.OutputEventPayloadReferenceID,
 			&i.TaskEventID,
 			&i.TaskEventInsertedAt,
 		); err != nil {
@@ -1887,11 +2307,12 @@ WITH input AS (
     SELECT
         UNNEST($1::BIGINT[]) AS task_id,
         UNNEST($2::TIMESTAMPTZ[]) AS task_inserted_at
-), task_outputs AS (
+), task_terminal_events AS (
     SELECT
         t.id,
         t.inserted_at,
         e.retry_count,
+        e.event_type,
         t.tenant_id,
         t.dag_id,
         t.dag_inserted_at,
@@ -1902,7 +2323,8 @@ WITH input AS (
         e.id AS task_event_id,
         e.inserted_at AS task_event_inserted_at,
         e.data AS output,
-        e.external_id AS output_event_external_id
+        e.external_id AS output_event_external_id,
+        e.payload_reference_id AS output_event_payload_reference_id
     FROM
         v1_task t1
     JOIN
@@ -1910,7 +2332,7 @@ WITH input AS (
     JOIN
         v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
     JOIN
-        v1_task_event e ON e.task_id = t.id AND e.task_inserted_at = t.inserted_at AND e.event_type = 'COMPLETED'
+        v1_task_event e ON e.task_id = t.id AND e.task_inserted_at = t.inserted_at AND e.event_type IN ('COMPLETED', 'FAILED', 'CANCELLED')
     WHERE
         (t1.id, t1.inserted_at) IN (
             SELECT
@@ -1921,53 +2343,68 @@ WITH input AS (
         )
         AND t1.tenant_id = $3::uuid
         AND t1.dag_id IS NOT NULL
-), max_retry_counts AS (
-    SELECT
+        AND t1.inserted_at >= $4::timestamptz
+        AND dt.dag_inserted_at >= $5::timestamptz
+        AND t.inserted_at >= $5::timestamptz
+        AND e.task_inserted_at >= $5::timestamptz
+), latest_terminal_events AS (
+    SELECT DISTINCT ON (id, inserted_at)
+        task_event_id,
+        task_event_inserted_at,
+        workflow_run_id,
+        output,
+        output_event_external_id,
+        output_event_payload_reference_id,
+        event_type
+    FROM
+        task_terminal_events
+    ORDER BY
         id,
         inserted_at,
-        MAX(retry_count) AS max_retry_count
-    FROM
-        task_outputs
-    GROUP BY
-        id, inserted_at
+        retry_count DESC,
+        task_event_id DESC
 )
 SELECT
-    DISTINCT ON (task_outputs.id, task_outputs.inserted_at, task_outputs.retry_count)
-    task_outputs.task_event_id,
-    task_outputs.task_event_inserted_at,
-    task_outputs.workflow_run_id,
-    task_outputs.output,
-    task_outputs.output_event_external_id
+    task_event_id,
+    task_event_inserted_at,
+    workflow_run_id,
+    output,
+    output_event_external_id,
+    output_event_payload_reference_id
 FROM
-    task_outputs
-JOIN
-    max_retry_counts mrc ON task_outputs.id = mrc.id
-        AND task_outputs.inserted_at = mrc.inserted_at
-        AND task_outputs.retry_count = mrc.max_retry_count
-ORDER BY
-    task_outputs.id,
-    task_outputs.inserted_at,
-    task_outputs.retry_count DESC
+    latest_terminal_events
+WHERE
+    event_type IN ('COMPLETED', 'FAILED')
 `
 
 type ListTaskParentOutputsParams struct {
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Tenantid        uuid.UUID            `json:"tenantid"`
+	Taskids           []int64              `json:"taskids"`
+	Taskinsertedats   []pgtype.Timestamptz `json:"taskinsertedats"`
+	Tenantid          uuid.UUID            `json:"tenantid"`
+	Mintaskinsertedat pgtype.Timestamptz   `json:"mintaskinsertedat"`
+	Mindaginsertedat  pgtype.Timestamptz   `json:"mindaginsertedat"`
 }
 
 type ListTaskParentOutputsRow struct {
-	TaskEventID           int64              `json:"task_event_id"`
-	TaskEventInsertedAt   pgtype.Timestamptz `json:"task_event_inserted_at"`
-	WorkflowRunID         uuid.UUID          `json:"workflow_run_id"`
-	Output                []byte             `json:"output"`
-	OutputEventExternalID uuid.UUID          `json:"output_event_external_id"`
+	TaskEventID                   int64              `json:"task_event_id"`
+	TaskEventInsertedAt           pgtype.Timestamptz `json:"task_event_inserted_at"`
+	WorkflowRunID                 uuid.UUID          `json:"workflow_run_id"`
+	Output                        []byte             `json:"output"`
+	OutputEventExternalID         uuid.UUID          `json:"output_event_external_id"`
+	OutputEventPayloadReferenceID *uuid.UUID         `json:"output_event_payload_reference_id"`
 }
 
 // Lists the outputs of parent steps for a list of tasks. This is recursive because it looks at all grandparents
-// of the tasks as well.
+// of the tasks as well. Only each task's most recent terminal event is returned, so a task that failed and then
+// succeeded on a retry is reported with its output, and a task that was cancelled is not reported at all.
 func (q *Queries) ListTaskParentOutputs(ctx context.Context, db DBTX, arg ListTaskParentOutputsParams) ([]*ListTaskParentOutputsRow, error) {
-	rows, err := db.Query(ctx, listTaskParentOutputs, arg.Taskids, arg.Taskinsertedats, arg.Tenantid)
+	rows, err := db.Query(ctx, listTaskParentOutputs,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Tenantid,
+		arg.Mintaskinsertedat,
+		arg.Mindaginsertedat,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1981,6 +2418,7 @@ func (q *Queries) ListTaskParentOutputs(ctx context.Context, db DBTX, arg ListTa
 			&i.WorkflowRunID,
 			&i.Output,
 			&i.OutputEventExternalID,
+			&i.OutputEventPayloadReferenceID,
 		); err != nil {
 			return nil, err
 		}
@@ -2052,81 +2490,8 @@ func (q *Queries) ListTaskRunningStatuses(ctx context.Context, db DBTX, arg List
 	return items, nil
 }
 
-const listTaskRuntimes = `-- name: ListTaskRuntimes :many
-WITH inputs AS (
-    SELECT
-        UNNEST($2::bigint[]) AS task_id,
-        UNNEST($3::timestamptz[]) AS task_inserted_at,
-        UNNEST($4::integer[]) AS retry_count
-)
-SELECT
-    tr.task_id,
-    tr.task_inserted_at,
-    tr.retry_count,
-    tr.worker_id,
-    tr.batch_id,
-    tr.batch_size,
-    tr.batch_index,
-    tr.batch_key,
-    tr.tenant_id,
-    tr.timeout_at,
-    tr.evicted_at
-FROM
-    v1_task_runtime tr
-JOIN
-    inputs i ON tr.task_id = i.task_id
-    AND tr.task_inserted_at = i.task_inserted_at
-    AND tr.retry_count = i.retry_count
-WHERE
-    tr.tenant_id = $1::uuid
-`
-
-type ListTaskRuntimesParams struct {
-	Tenantid        uuid.UUID            `json:"tenantid"`
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Taskretrycounts []int32              `json:"taskretrycounts"`
-}
-
-func (q *Queries) ListTaskRuntimes(ctx context.Context, db DBTX, arg ListTaskRuntimesParams) ([]*V1TaskRuntime, error) {
-	rows, err := db.Query(ctx, listTaskRuntimes,
-		arg.Tenantid,
-		arg.Taskids,
-		arg.Taskinsertedats,
-		arg.Taskretrycounts,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*V1TaskRuntime
-	for rows.Next() {
-		var i V1TaskRuntime
-		if err := rows.Scan(
-			&i.TaskID,
-			&i.TaskInsertedAt,
-			&i.RetryCount,
-			&i.WorkerID,
-			&i.BatchID,
-			&i.BatchSize,
-			&i.BatchIndex,
-			&i.BatchKey,
-			&i.TenantID,
-			&i.TimeoutAt,
-			&i.EvictedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listTasks = `-- name: ListTasks :many
-SELECT id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, batch_key, retry_backoff_factor, retry_max_backoff, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, is_dag_orchestrator, concurrency_max_runs
+SELECT id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, batch_key, retry_backoff_factor, retry_max_backoff, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, is_dag_orchestrator, concurrency_max_runs, payload_reference_id, triggers, dag_parent_task_run_ids, child_task_desired_worker_labels, task_input_payload_version
 FROM
     v1_task
 WHERE
@@ -2194,6 +2559,11 @@ func (q *Queries) ListTasks(ctx context.Context, db DBTX, arg ListTasksParams) (
 			&i.IdempotencyKey,
 			&i.IsDagOrchestrator,
 			&i.ConcurrencyMaxRuns,
+			&i.PayloadReferenceID,
+			&i.Triggers,
+			&i.DagParentTaskRunIds,
+			&i.ChildTaskDesiredWorkerLabels,
+			&i.TaskInputPayloadVersion,
 		); err != nil {
 			return nil, err
 		}
@@ -2206,8 +2576,7 @@ func (q *Queries) ListTasks(ctx context.Context, db DBTX, arg ListTasksParams) (
 }
 
 const listTasksForReplay = `-- name: ListTasksForReplay :many
-WITH RECURSIVE augmented_tasks AS (
-    -- First, select the tasks from the input
+WITH RECURSIVE input_tasks AS MATERIALIZED (
     SELECT
         id,
         inserted_at,
@@ -2224,6 +2593,18 @@ WITH RECURSIVE augmented_tasks AS (
                 unnest($2::timestamptz[])
         )
         AND tenant_id = $3::uuid
+        AND inserted_at >= $4::timestamptz
+), augmented_tasks AS (
+    -- First, select the tasks from the input
+    SELECT
+        id,
+        inserted_at,
+        tenant_id,
+        dag_id,
+        dag_inserted_at,
+        step_id
+    FROM
+        input_tasks
 
     UNION
 
@@ -2247,6 +2628,9 @@ WITH RECURSIVE augmented_tasks AS (
         "Step" s2 ON s2."id" = t.step_id
     JOIN
         "_StepOrder" so ON so."B" = s2."id" AND so."A" = s1."id"
+    WHERE
+        dt.dag_inserted_at >= (SELECT MIN(dag_inserted_at) FROM input_tasks)
+        AND t.inserted_at >= (SELECT MIN(dag_inserted_at) FROM input_tasks)
 ), locked_tasks AS (
     SELECT
         t.id,
@@ -2268,7 +2652,9 @@ WITH RECURSIVE augmented_tasks AS (
         t.child_key,
         t.desired_worker_label,
         t.triggering_event_external_id,
-        t.triggering_event_key
+        t.triggering_event_key,
+        t.payload_reference_id,
+        t.task_input_payload_version
     FROM
         v1_task t
     WHERE
@@ -2279,6 +2665,7 @@ WITH RECURSIVE augmented_tasks AS (
                 augmented_tasks
         )
         AND t.tenant_id = $3::uuid
+        AND t.inserted_at >= (SELECT MIN(inserted_at) FROM augmented_tasks)
     -- order by the task id to get a stable lock order
     ORDER BY
         id
@@ -2317,6 +2704,8 @@ SELECT
     t.desired_worker_label,
     t.triggering_event_external_id,
     t.triggering_event_key,
+    t.payload_reference_id,
+    t.task_input_payload_version,
     j."kind" as "jobKind",
     COALESCE(so."parents", '{}'::uuid[]) as "parents"
 FROM
@@ -2330,9 +2719,10 @@ LEFT JOIN
 `
 
 type ListTasksForReplayParams struct {
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Tenantid        uuid.UUID            `json:"tenantid"`
+	Taskids           []int64              `json:"taskids"`
+	Taskinsertedats   []pgtype.Timestamptz `json:"taskinsertedats"`
+	Tenantid          uuid.UUID            `json:"tenantid"`
+	Mintaskinsertedat pgtype.Timestamptz   `json:"mintaskinsertedat"`
 }
 
 type ListTasksForReplayRow struct {
@@ -2356,6 +2746,8 @@ type ListTasksForReplayRow struct {
 	DesiredWorkerLabel        []byte             `json:"desired_worker_label"`
 	TriggeringEventExternalID *uuid.UUID         `json:"triggering_event_external_id"`
 	TriggeringEventKey        pgtype.Text        `json:"triggering_event_key"`
+	PayloadReferenceID        *uuid.UUID         `json:"payload_reference_id"`
+	TaskInputPayloadVersion   int16              `json:"task_input_payload_version"`
 	JobKind                   JobKind            `json:"jobKind"`
 	Parents                   []uuid.UUID        `json:"parents"`
 }
@@ -2363,7 +2755,12 @@ type ListTasksForReplayRow struct {
 // Lists tasks for replay by recursively selecting all tasks that are children of the input tasks,
 // then locks the tasks for replay.
 func (q *Queries) ListTasksForReplay(ctx context.Context, db DBTX, arg ListTasksForReplayParams) ([]*ListTasksForReplayRow, error) {
-	rows, err := db.Query(ctx, listTasksForReplay, arg.Taskids, arg.Taskinsertedats, arg.Tenantid)
+	rows, err := db.Query(ctx, listTasksForReplay,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Tenantid,
+		arg.Mintaskinsertedat,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -2392,6 +2789,8 @@ func (q *Queries) ListTasksForReplay(ctx context.Context, db DBTX, arg ListTasks
 			&i.DesiredWorkerLabel,
 			&i.TriggeringEventExternalID,
 			&i.TriggeringEventKey,
+			&i.PayloadReferenceID,
+			&i.TaskInputPayloadVersion,
 			&i.JobKind,
 			&i.Parents,
 		); err != nil {
@@ -2468,7 +2867,8 @@ WITH tasks_on_inactive_workers AS (
     SELECT
         runtime.task_id,
         runtime.task_inserted_at,
-        runtime.retry_count
+        runtime.retry_count,
+        'Worker did not send a heartbeat for 30 seconds'::text AS reason
     FROM
         "Worker" w
     JOIN
@@ -2479,18 +2879,60 @@ WITH tasks_on_inactive_workers AS (
         AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
         -- evicted tasks are not eligible for re-assignment
         AND runtime.evicted_at IS NULL
+    -- NOTE: without this ORDER BY, the planner assumes most runtimes belong to the tenant's many stale workers and
+    -- seq scans v1_task_runtime expecting to hit the LIMIT early. Ordering by a "Worker" column makes it walk the
+    -- stale workers on ("tenantId", "lastHeartbeatAt") and look up each one's runtimes on the (tenant_id, worker_id) index.
+    ORDER BY
+        w."lastHeartbeatAt"
     LIMIT
         COALESCE($2::integer, 1000)
     FOR UPDATE OF runtime SKIP LOCKED
+), tasks_never_acked AS (
+    -- the assignment was written but the worker never acknowledged the task, for example
+    -- because the message to the dispatcher was lost
+    SELECT
+        runtime.task_id,
+        runtime.task_inserted_at,
+        runtime.retry_count,
+        'Worker never acknowledged the task' AS reason
+    FROM
+        v1_task_runtime runtime
+    WHERE
+        runtime.tenant_id = $1::uuid
+        AND runtime.worker_id IS NOT NULL
+        AND runtime.evicted_at IS NULL
+        AND runtime.acked_at IS NULL
+        AND runtime.assigned_at < NOW() - INTERVAL '1 minute'
+    -- NOTE: this ORDER BY keeps the planner on the unacked index; without it, a stale estimate of unacked rows makes it seq scan
+    ORDER BY
+        runtime.assigned_at
+    LIMIT
+        COALESCE($2::integer, 1000)
+    FOR UPDATE SKIP LOCKED
+), tasks_to_reassign AS (
+    SELECT task_id, task_inserted_at, retry_count, reason FROM tasks_on_inactive_workers
+    UNION ALL
+    -- NOTE: the overlap with tasks_on_inactive_workers is removed here, after both LIMITs, rather than with a NOT EXISTS
+    -- inside tasks_never_acked. Under a LIMIT the planner runs that NOT EXISTS as a nested loop over the CTE, comparing
+    -- every unacked candidate against all 1000 inactive-worker rows (~1M comparisons, >100ms). Out here it hashes instead.
+    SELECT never_acked.task_id, never_acked.task_inserted_at, never_acked.retry_count, never_acked.reason
+    FROM tasks_never_acked never_acked
+    WHERE NOT EXISTS (
+        SELECT 1 FROM tasks_on_inactive_workers inactive
+        WHERE inactive.task_id = never_acked.task_id
+            AND inactive.task_inserted_at = never_acked.task_inserted_at
+            AND inactive.retry_count = never_acked.retry_count
+    )
 )
 SELECT
     v1_task.id,
     v1_task.inserted_at,
-    v1_task.retry_count
+    v1_task.retry_count,
+    lrs.reason
 FROM
     v1_task
 JOIN
-    tasks_on_inactive_workers lrs ON lrs.task_id = v1_task.id AND lrs.task_inserted_at = v1_task.inserted_at
+    tasks_to_reassign lrs ON lrs.task_id = v1_task.id AND lrs.task_inserted_at = v1_task.inserted_at
 `
 
 type ListTasksToReassignParams struct {
@@ -2502,6 +2944,7 @@ type ListTasksToReassignRow struct {
 	ID         int64              `json:"id"`
 	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
 	RetryCount int32              `json:"retry_count"`
+	Reason     string             `json:"reason"`
 }
 
 func (q *Queries) ListTasksToReassign(ctx context.Context, db DBTX, arg ListTasksToReassignParams) ([]*ListTasksToReassignRow, error) {
@@ -2513,7 +2956,12 @@ func (q *Queries) ListTasksToReassign(ctx context.Context, db DBTX, arg ListTask
 	var items []*ListTasksToReassignRow
 	for rows.Next() {
 		var i ListTasksToReassignRow
-		if err := rows.Scan(&i.ID, &i.InsertedAt, &i.RetryCount); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.InsertedAt,
+			&i.RetryCount,
+			&i.Reason,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -2619,6 +3067,59 @@ func (q *Queries) ListTasksToTimeout(ctx context.Context, db DBTX, arg ListTasks
 	return items, nil
 }
 
+const listUnfinishedDurableOrchestratorChildren = `-- name: ListUnfinishedDurableOrchestratorChildren :many
+SELECT DISTINCT
+    child.id,
+    child.inserted_at,
+    child.retry_count
+FROM v1_lookup_table orch_lookup
+JOIN v1_task orch ON (orch.id, orch.inserted_at, orch.is_dag_orchestrator) = (orch_lookup.task_id, orch_lookup.inserted_at, TRUE)
+JOIN v1_durable_event_log_entry e ON (e.durable_task_id, e.durable_task_inserted_at) = (orch.id, orch.inserted_at)
+JOIN v1_lookup_table child_lookup ON child_lookup.external_id = e.child_task_external_id
+JOIN v1_task child ON (child.id, child.inserted_at) = (child_lookup.task_id, child_lookup.inserted_at)
+WHERE
+    orch_lookup.tenant_id = $1::uuid
+    AND orch_lookup.external_id = ANY($2::uuid[])
+    AND e.kind = 'RUN'
+    AND NOT EXISTS (
+        SELECT 1
+        FROM v1_task_event ev
+        WHERE (ev.task_id, ev.task_inserted_at, ev.retry_count) = (child.id, child.inserted_at, child.retry_count)
+          AND ev.event_type IN ('COMPLETED', 'FAILED', 'CANCELLED')
+    )
+`
+
+type ListUnfinishedDurableOrchestratorChildrenParams struct {
+	Tenantid                uuid.UUID   `json:"tenantid"`
+	Orchestratorexternalids []uuid.UUID `json:"orchestratorexternalids"`
+}
+
+type ListUnfinishedDurableOrchestratorChildrenRow struct {
+	ID         int64              `json:"id"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+	RetryCount int32              `json:"retry_count"`
+}
+
+func (q *Queries) ListUnfinishedDurableOrchestratorChildren(ctx context.Context, db DBTX, arg ListUnfinishedDurableOrchestratorChildrenParams) ([]*ListUnfinishedDurableOrchestratorChildrenRow, error) {
+	rows, err := db.Query(ctx, listUnfinishedDurableOrchestratorChildren, arg.Tenantid, arg.Orchestratorexternalids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListUnfinishedDurableOrchestratorChildrenRow
+	for rows.Next() {
+		var i ListUnfinishedDurableOrchestratorChildrenRow
+		if err := rows.Scan(&i.ID, &i.InsertedAt, &i.RetryCount); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockDAGsForReplay = `-- name: LockDAGsForReplay :many
 WITH input AS (
     SELECT
@@ -2701,6 +3202,9 @@ WITH input AS (
     WHERE
         e.tenant_id = $4::uuid
         AND e.event_type = 'SIGNAL_CREATED'
+        -- filtering by key here keeps it in the index probe; a durable parent can have tens of
+        -- thousands of signal events, and matching keys afterwards rescanned the input per event
+        AND e.event_key = ANY($3::TEXT[])
 )
 SELECT
 	e.id,
@@ -2711,8 +3215,6 @@ SELECT
     e.child_external_id
 FROM
 	events_to_lock e
-WHERE
-	e.event_key = ANY(SELECT event_key FROM input)
 `
 
 type LockSignalCreatedEventsParams struct {
@@ -2807,19 +3309,26 @@ func (q *Queries) LookupExternalIds(ctx context.Context, db DBTX, arg LookupExte
 }
 
 const manualSlotRelease = `-- name: ManualSlotRelease :one
-WITH task AS (
+WITH task AS MATERIALIZED (
+    -- Resolve the task key before reading v1_task. Joining the lookup row directly
+    -- is planned as a merge across every daily partition.
     SELECT
         t.id,
         t.inserted_at,
         t.retry_count,
         t.tenant_id
     FROM
-        v1_lookup_table lt
-    JOIN
-        v1_task t ON t.id = lt.task_id AND t.inserted_at = lt.inserted_at
-    WHERE
-        lt.external_id = $1::uuid AND
-        lt.tenant_id = $2::uuid
+        v1_task t
+    WHERE (t.id, t.inserted_at) = (
+        SELECT
+            lt.task_id,
+            lt.inserted_at
+        FROM
+            v1_lookup_table lt
+        WHERE
+            lt.external_id = $1::uuid AND
+            lt.tenant_id = $2::uuid
+    )
 ), locked_runtime AS (
     SELECT
         tr.task_id,
@@ -2848,7 +3357,7 @@ FROM
 WHERE
     (v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count) IN (SELECT id, inserted_at, retry_count FROM task)
 RETURNING
-    v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count, v1_task_runtime.worker_id, v1_task_runtime.batch_id, v1_task_runtime.batch_size, v1_task_runtime.batch_index, v1_task_runtime.batch_key, v1_task_runtime.tenant_id, v1_task_runtime.timeout_at, v1_task_runtime.evicted_at
+    v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count, v1_task_runtime.worker_id, v1_task_runtime.batch_id, v1_task_runtime.batch_size, v1_task_runtime.batch_index, v1_task_runtime.batch_key, v1_task_runtime.tenant_id, v1_task_runtime.timeout_at, v1_task_runtime.evicted_at, v1_task_runtime.assigned_at, v1_task_runtime.acked_at
 `
 
 type ManualSlotReleaseParams struct {
@@ -2871,8 +3380,54 @@ func (q *Queries) ManualSlotRelease(ctx context.Context, db DBTX, arg ManualSlot
 		&i.TenantID,
 		&i.TimeoutAt,
 		&i.EvictedAt,
+		&i.AssignedAt,
+		&i.AckedAt,
 	)
 	return &i, err
+}
+
+const markTaskRuntimesAcked = `-- name: MarkTaskRuntimesAcked :exec
+WITH input AS (
+    SELECT
+        unnest($1::bigint[]) AS task_id,
+        unnest($2::timestamptz[]) AS task_inserted_at,
+        unnest($3::integer[]) AS retry_count
+), locked_runtimes AS (
+    SELECT task_id, task_inserted_at, retry_count
+    FROM v1_task_runtime
+    WHERE
+        tenant_id = $4::uuid
+        AND acked_at IS NULL
+        AND (task_id, task_inserted_at, retry_count) IN (
+            SELECT task_id, task_inserted_at, retry_count
+            FROM input
+        )
+    ORDER BY task_id, task_inserted_at, retry_count
+    FOR UPDATE
+)
+UPDATE v1_task_runtime
+SET acked_at = NOW()
+WHERE (task_id, task_inserted_at, retry_count) IN (
+    SELECT task_id, task_inserted_at, retry_count
+    FROM locked_runtimes
+)
+`
+
+type MarkTaskRuntimesAckedParams struct {
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Retrycounts     []int32              `json:"retrycounts"`
+	Tenantid        uuid.UUID            `json:"tenantid"`
+}
+
+func (q *Queries) MarkTaskRuntimesAcked(ctx context.Context, db DBTX, arg MarkTaskRuntimesAckedParams) error {
+	_, err := db.Exec(ctx, markTaskRuntimesAcked,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Retrycounts,
+		arg.Tenantid,
+	)
+	return err
 }
 
 const preflightCheckDAGsForReplay = `-- name: PreflightCheckDAGsForReplay :many
@@ -2901,6 +3456,8 @@ WITH input AS (
         "Step" s ON s."jobId" = j."id"
     WHERE
         d.tenant_id = $3::uuid
+        AND d.inserted_at >= $4::timestamptz
+        AND dt.dag_inserted_at >= $4::timestamptz
     GROUP BY
         d.id,
         d.inserted_at
@@ -2916,9 +3473,10 @@ FROM
 `
 
 type PreflightCheckDAGsForReplayParams struct {
-	Dagids         []int64              `json:"dagids"`
-	Daginsertedats []pgtype.Timestamptz `json:"daginsertedats"`
-	Tenantid       uuid.UUID            `json:"tenantid"`
+	Dagids           []int64              `json:"dagids"`
+	Daginsertedats   []pgtype.Timestamptz `json:"daginsertedats"`
+	Tenantid         uuid.UUID            `json:"tenantid"`
+	Mindaginsertedat pgtype.Timestamptz   `json:"mindaginsertedat"`
 }
 
 type PreflightCheckDAGsForReplayRow struct {
@@ -2934,7 +3492,12 @@ type PreflightCheckDAGsForReplayRow struct {
 // don't interfere with each other. It also does not check for whether the tasks are running, as that's
 // checked in a different query. It returns DAGs which cannot be replayed.
 func (q *Queries) PreflightCheckDAGsForReplay(ctx context.Context, db DBTX, arg PreflightCheckDAGsForReplayParams) ([]*PreflightCheckDAGsForReplayRow, error) {
-	rows, err := db.Query(ctx, preflightCheckDAGsForReplay, arg.Dagids, arg.Daginsertedats, arg.Tenantid)
+	rows, err := db.Query(ctx, preflightCheckDAGsForReplay,
+		arg.Dagids,
+		arg.Daginsertedats,
+		arg.Tenantid,
+		arg.Mindaginsertedat,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -2965,7 +3528,7 @@ WITH input AS (
         UNNEST($3::bigint[]) AS task_id,
         UNNEST($4::timestamptz[]) AS task_inserted_at
 ), relevant_tasks AS (
-    SELECT id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, batch_key, retry_backoff_factor, retry_max_backoff, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, is_dag_orchestrator, concurrency_max_runs, task_id, task_inserted_at
+    SELECT id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, batch_key, retry_backoff_factor, retry_max_backoff, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, is_dag_orchestrator, concurrency_max_runs, payload_reference_id, triggers, dag_parent_task_run_ids, child_task_desired_worker_labels, task_input_payload_version, task_id, task_inserted_at
     FROM
         v1_task t
     JOIN
@@ -3106,19 +3669,26 @@ func (q *Queries) ProcessRetryQueueItems(ctx context.Context, db DBTX, arg Proce
 }
 
 const refreshTimeoutBy = `-- name: RefreshTimeoutBy :one
-WITH task AS (
+WITH task AS MATERIALIZED (
+    -- Resolve the task key before reading v1_task. Joining the lookup row directly
+    -- is planned as a merge across every daily partition.
     SELECT
         t.id,
         t.inserted_at,
         t.retry_count,
         t.tenant_id
     FROM
-        v1_lookup_table lt
-    JOIN
-        v1_task t ON t.id = lt.task_id AND t.inserted_at = lt.inserted_at
-    WHERE
-        lt.external_id = $2::uuid AND
-        lt.tenant_id = $3::uuid
+        v1_task t
+    WHERE (t.id, t.inserted_at) = (
+        SELECT
+            lt.task_id,
+            lt.inserted_at
+        FROM
+            v1_lookup_table lt
+        WHERE
+            lt.external_id = $2::uuid AND
+            lt.tenant_id = $3::uuid
+    )
 ), locked_runtime AS (
     SELECT
         tr.task_id,
@@ -3142,7 +3712,7 @@ FROM
 WHERE
     (v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count) IN (SELECT id, inserted_at, retry_count FROM task)
 RETURNING
-    v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count, v1_task_runtime.worker_id, v1_task_runtime.batch_id, v1_task_runtime.batch_size, v1_task_runtime.batch_index, v1_task_runtime.batch_key, v1_task_runtime.tenant_id, v1_task_runtime.timeout_at, v1_task_runtime.evicted_at
+    v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count, v1_task_runtime.worker_id, v1_task_runtime.batch_id, v1_task_runtime.batch_size, v1_task_runtime.batch_index, v1_task_runtime.batch_key, v1_task_runtime.tenant_id, v1_task_runtime.timeout_at, v1_task_runtime.evicted_at, v1_task_runtime.assigned_at, v1_task_runtime.acked_at
 `
 
 type RefreshTimeoutByParams struct {
@@ -3166,6 +3736,8 @@ func (q *Queries) RefreshTimeoutBy(ctx context.Context, db DBTX, arg RefreshTime
 		&i.TenantID,
 		&i.TimeoutAt,
 		&i.EvictedAt,
+		&i.AssignedAt,
+		&i.AckedAt,
 	)
 	return &i, err
 }
@@ -3237,9 +3809,9 @@ func (q *Queries) ReserveTaskBatchRun(ctx context.Context, db DBTX, arg ReserveT
 const updateTaskBatchMetadata = `-- name: UpdateTaskBatchMetadata :exec
 WITH input AS (
     SELECT
-        unnest($6::bigint[]) AS task_id,
-        unnest($7::timestamptz[]) AS task_inserted_at,
-        unnest($8::integer[]) AS batch_index
+        unnest($7::bigint[]) AS task_id,
+        unnest($8::timestamptz[]) AS task_inserted_at,
+        unnest($9::integer[]) AS batch_index
 )
 UPDATE
     v1_task_runtime AS tr
@@ -3248,24 +3820,27 @@ SET
     batch_size = $2::integer,
     batch_index = input.batch_index,
     worker_id = $3::uuid,
-    batch_key = COALESCE(NULLIF($4::text, ''), tr.batch_key)
+    batch_key = COALESCE(NULLIF($4::text, ''), tr.batch_key),
+    assigned_at = CASE WHEN $5::boolean THEN NOW() END,
+    acked_at = NULL
 FROM
     input
 WHERE
-    tr.tenant_id = $5::uuid
+    tr.tenant_id = $6::uuid
     AND tr.task_id = input.task_id
     AND tr.task_inserted_at = input.task_inserted_at
 `
 
 type UpdateTaskBatchMetadataParams struct {
-	Batchid         uuid.UUID            `json:"batchid"`
-	Batchsize       int32                `json:"batchsize"`
-	Workerid        uuid.UUID            `json:"workerid"`
-	Batchkey        string               `json:"batchkey"`
-	Tenantid        uuid.UUID            `json:"tenantid"`
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Batchindexes    []int32              `json:"batchindexes"`
+	Batchid              uuid.UUID            `json:"batchid"`
+	Batchsize            int32                `json:"batchsize"`
+	Workerid             uuid.UUID            `json:"workerid"`
+	Batchkey             string               `json:"batchkey"`
+	Reassignunackedtasks bool                 `json:"reassignunackedtasks"`
+	Tenantid             uuid.UUID            `json:"tenantid"`
+	Taskids              []int64              `json:"taskids"`
+	Taskinsertedats      []pgtype.Timestamptz `json:"taskinsertedats"`
+	Batchindexes         []int32              `json:"batchindexes"`
 }
 
 func (q *Queries) UpdateTaskBatchMetadata(ctx context.Context, db DBTX, arg UpdateTaskBatchMetadataParams) error {
@@ -3274,6 +3849,7 @@ func (q *Queries) UpdateTaskBatchMetadata(ctx context.Context, db DBTX, arg Upda
 		arg.Batchsize,
 		arg.Workerid,
 		arg.Batchkey,
+		arg.Reassignunackedtasks,
 		arg.Tenantid,
 		arg.Taskids,
 		arg.Taskinsertedats,

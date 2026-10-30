@@ -3,6 +3,7 @@ withTenant:
     x-resources: ["tenant"]
     description: Get all workers for a tenant
     operationId: worker:list
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -70,6 +71,8 @@ withTenant:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get workers
     tags:
       - Worker
@@ -79,6 +82,7 @@ withWorker:
     x-resources: ["tenant", "worker"]
     description: Update a worker
     operationId: worker:update
+    x-payloads: false
     parameters:
       - description: The worker id
         in: path
@@ -115,6 +119,8 @@ withWorker:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Update worker
     tags:
       - Worker
@@ -122,6 +128,7 @@ withWorker:
     x-resources: ["tenant", "worker"]
     description: Get a worker
     operationId: worker:get
+    x-payloads: false
     parameters:
       - description: The worker id
         in: path
@@ -151,6 +158,8 @@ withWorker:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get worker
     tags:
       - Worker

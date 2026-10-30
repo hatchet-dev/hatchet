@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 	"go.opentelemetry.io/otel/attribute"
 
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -48,7 +50,7 @@ func isDagChildFailedErr(err error) bool {
 }
 
 type dagEngineError struct {
-	errorType    string
+	errorType    v1contracts.DurableTaskErrorType
 	errorMessage string
 }
 
@@ -61,6 +63,41 @@ func isDagEngineErr(err error) bool {
 	return errors.As(err, &e)
 }
 
+func clientErrorMessageForDagErr(err error) (message string, ok bool) {
+	var childFailedErr *dagChildFailedError
+	var cancelledErr *dagCancelledError
+	var celFailureErr *operator.DAGStepCELFailureError
+	var nonDeterminismErr *repository.NonDeterminismError
+	var engineErr *dagEngineError
+
+	switch {
+	case errors.As(err, &childFailedErr):
+		return childFailedErr.errorMessage, true
+	case errors.As(err, &cancelledErr):
+		return repository.TaskCancelledErrorMessage, true
+	case errors.As(err, &celFailureErr):
+		return celFailureErr.Error(), true
+	case errors.As(err, &nonDeterminismErr):
+		return nonDeterminismErr.Error(), true
+	case errors.As(err, &engineErr) && engineErr.errorType == v1contracts.DurableTaskErrorType_DURABLE_TASK_ERROR_TYPE_NONDETERMINISM:
+		return engineErr.errorMessage, true
+	default:
+		return "", false
+	}
+}
+
+func isDagNonRetryablePgErr(err error) bool {
+	var pgErr *pgconn.PgError
+
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+
+	return pgerrcode.IsIntegrityConstraintViolation(pgErr.Code) ||
+		pgerrcode.IsDataException(pgErr.Code) ||
+		pgerrcode.IsProgramLimitExceeded(pgErr.Code)
+}
+
 type dagEvictedError struct {
 	reason string
 }
@@ -70,13 +107,14 @@ func (e *dagEvictedError) Error() string {
 }
 
 func isDagEvictedErr(err error) bool {
-	var e *dagEvictedError
-	return errors.As(err, &e)
+	var evicted *dagEvictedError
+	var staleInvocation *repository.StaleInvocationError
+	return errors.As(err, &evicted) || errors.As(err, &staleInvocation)
 }
 
 type dag struct {
-	requestCh    chan<- *v1contracts.DurableTaskRequest
-	responseCh   <-chan *v1contracts.DurableTaskResponse
+	// ch is the invocation's pipe to the engine, opened by the host with the handshake done.
+	ch           operator.DurableChannel
 	evalBoolExpr func(ctx context.Context, expr string, vars map[string]interface{}) (bool, error)
 	triggerStep  func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error)
 
@@ -98,10 +136,6 @@ type dag struct {
 	// pendingEntryCompletions buffers EntryCompleted refs that raced ahead of their WaitForAck
 	// (its condition is committed to the DB before the ack is sent); rechecked on each ack.
 	pendingEntryCompletions []pendingEntryCompletion
-
-	// responses received while blocked sending on requestCh (see dag.send); drained by the
-	// main loop before it blocks on responseCh
-	queuedResponses []*v1contracts.DurableTaskResponse
 
 	// cache of the result of each parent override condition, evaluated once when the
 	// referenced parent completes instead of repeatedly on every readiness check
@@ -132,7 +166,6 @@ type pendingWaitAck struct {
 }
 
 type task struct {
-	id           uuid.UUID
 	actionId     string
 	workflowName string
 	readableId   string
@@ -146,8 +179,8 @@ type task struct {
 	errorMessage string
 	output       map[string]interface{}
 
-	// reExecuted is true when the task actually ran this invocation rather than being satisfied
-	// from the log; children of a re-executed parent must re-run during a replay
+	// reExecuted is true when the task ran as part of the current replay rather than being a
+	// cached result from an earlier branch; children of a re-executed parent must re-run too
 	reExecuted bool
 
 	isWaiting       bool
@@ -180,8 +213,7 @@ func dagDurableTask(
 	workerId uuid.UUID,
 	invocationCount int32,
 	input string,
-	requestCh chan<- *v1contracts.DurableTaskRequest,
-	responseCh <-chan *v1contracts.DurableTaskResponse,
+	ch operator.DurableChannel,
 	evalBoolExpr func(ctx context.Context, expr string, vars map[string]interface{}) (bool, error),
 	triggerStep func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error),
 ) error {
@@ -199,8 +231,7 @@ func dagDurableTask(
 		tasks:            tasks,
 		onFailureTask:    onFailureTask,
 		pendingTasks:     append([]*task{}, tasks...),
-		requestCh:        requestCh,
-		responseCh:       responseCh,
+		ch:               ch,
 		evalBoolExpr:     evalBoolExpr,
 		externalId:       externalId,
 		workerId:         workerId,
@@ -221,18 +252,11 @@ func dagDurableTask(
 			continue
 		}
 
-		if len(d.queuedResponses) > 0 {
-			resp := d.queuedResponses[0]
-			d.queuedResponses = d.queuedResponses[1:]
-			d.taskConsumer(ctx, resp)
-			continue
-		}
-
 		if d.isDone() {
 			break
 		}
 
-		resp, err := d.awaitResponse(ctx, responseCh)
+		resp, err := d.awaitResponse(ctx)
 
 		if err != nil {
 			return err
@@ -262,8 +286,11 @@ func dagDurableTask(
 
 var blockedStatusReportInterval = 10 * time.Second
 
-// blocks until the child task returns - this is basically here to just reveal bottlenecks, especially on child spawning, in the traces
-func (d *dag) awaitResponse(ctx context.Context, responseCh <-chan *v1contracts.DurableTaskResponse) (*v1contracts.DurableTaskResponse, error) {
+// awaitResponse blocks until the engine sends the next response; while nothing arrives it
+// reports the entries the run is blocked on every blockedStatusReportInterval so the engine can
+// evict an idle invocation. The span is here to reveal bottlenecks, especially on child
+// spawning, in the traces.
+func (d *dag) awaitResponse(ctx context.Context) (*v1contracts.DurableTaskResponse, error) {
 	_, span := telemetry.NewSpan(ctx, "dag.awaitResponse")
 	defer span.End()
 
@@ -284,31 +311,25 @@ func (d *dag) awaitResponse(ctx context.Context, responseCh <-chan *v1contracts.
 		attribute.Int("dag.pending_task_count", len(d.pendingTasks)),
 	)
 
-	timer := time.NewTimer(blockedStatusReportInterval)
-	defer timer.Stop()
-
 	for {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case resp, ok := <-responseCh:
-			if !ok {
-				return nil, fmt.Errorf("durable task session closed")
-			}
+		recvCtx, cancel := context.WithTimeout(ctx, blockedStatusReportInterval)
+		resp, err := d.ch.Recv(recvCtx)
+		cancel()
 
+		if err == nil {
 			return resp, nil
-		case <-timer.C:
-			if err := d.reportBlockedOnDurableEvents(ctx); err != nil {
-				return nil, err
-			}
+		}
 
-			if len(d.queuedResponses) > 0 {
-				resp := d.queuedResponses[0]
-				d.queuedResponses = d.queuedResponses[1:]
-				return resp, nil
-			}
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 
-			timer.Reset(blockedStatusReportInterval)
+		if !errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("durable task session closed: %w", err)
+		}
+
+		if err := d.reportBlockedOnDurableEvents(ctx); err != nil {
+			return nil, err
 		}
 	}
 }
@@ -439,7 +460,16 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 			}
 
 			if !skip && !cancelled {
+				// One registration is in flight at a time: the channel admits one ack-bearing
+				// request until its ack arrives, and the ack is what gives the registration its
+				// node id (see taskConsumer). A task whose registration has to wait for a
+				// pending ack stays pending and is picked up again once the ack is consumed.
 				if d.hasEventOrSleepConditions(t, conditionKindSkip) && !t.skipWatchRegistered {
+					if len(d.pendingWaitAcks) > 0 {
+						stillPending = append(stillPending, t)
+						continue
+					}
+
 					if err := d.registerCondition(ctx, t, conditionKindSkip); err != nil {
 						d.err = err
 						return progressed, d.err
@@ -448,6 +478,11 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 				}
 
 				if d.hasEventOrSleepConditions(t, conditionKindCancel) && !t.cancelWatchRegistered {
+					if len(d.pendingWaitAcks) > 0 {
+						stillPending = append(stillPending, t)
+						continue
+					}
+
 					if err := d.registerCondition(ctx, t, conditionKindCancel); err != nil {
 						d.err = err
 						return progressed, d.err
@@ -468,6 +503,11 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 						if d.allWaitGroupsSatisfied(t, satisfiedGroups) {
 							t.isWaitSatisfied = true
 						} else {
+							if len(d.pendingWaitAcks) > 0 {
+								stillPending = append(stillPending, t)
+								continue
+							}
+
 							if err := d.registerCondition(ctx, t, conditionKindWait, satisfiedGroups); err != nil {
 								d.err = err
 								return progressed, d.err
@@ -493,12 +533,7 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 			continue
 		}
 
-		var parentTaskRunIds []uuid.UUID
-		for _, p := range d.tasks {
-			if p.isCompleted && !p.isFailed && p.workflowRunExternalId != nil {
-				parentTaskRunIds = append(parentTaskRunIds, *p.workflowRunExternalId)
-			}
-		}
+		parentTaskRunIds := d.finishedTaskRunIds()
 
 		parentReExecuted := false
 		for _, p := range t.parents {
@@ -535,21 +570,30 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 		t.isTriggered = true
 		progressed = true
 
-		if result.IsSatisfied {
-			errorMessage := ""
-			if result.ErrorMessage != nil {
-				errorMessage = *result.ErrorMessage
-			}
-			if err := d.applyCompletion(ctx, t, result.IsFailure, errorMessage, result.ResultPayload); err != nil {
-				d.err = err
-				return progressed, d.err
-			}
+		// A satisfied entry (a replayed, skipped or cancelled step) is delivered on the channel
+		// like any other completion, so every triggered step is awaited there.
+		if err := d.expectChild(t); err != nil {
+			d.err = err
+			return progressed, d.err
 		}
 	}
 
 	d.pendingTasks = stillPending
 
 	return progressed, nil
+}
+
+// expectChild tells the channel a child's completion is awaited. The child was created by the
+// direct trigger callback, not by a trigger_runs request on the channel, so no ack names its
+// entry; the channel holds an entry completion until the ack naming it, and this registration
+// is what stands in for that ack. It runs as soon as the ref is known: the child may already
+// have finished, in which case the channel delivers the held completion at once.
+func (d *dag) expectChild(t *task) error {
+	if err := d.ch.ExpectEntry(t.branchId, t.nodeId); err != nil {
+		return fmt.Errorf("could not await the completion of step %q: %w", t.actionId, err)
+	}
+
+	return nil
 }
 
 func (d *dag) taskConsumer(ctx context.Context, resp *v1contracts.DurableTaskResponse) {
@@ -568,7 +612,7 @@ func (d *dag) taskConsumer(ctx context.Context, resp *v1contracts.DurableTaskRes
 		if ref == nil || len(d.pendingWaitAcks) == 0 {
 			return
 		}
-		// Correlate in FIFO order: the dispatcher processes requestCh sequentially,
+		// Correlate in FIFO order: the dispatcher processes requests sequentially,
 		// so acks arrive in the same order we sent the WAITFOR requests.
 		ack := d.pendingWaitAcks[0]
 		d.pendingWaitAcks = d.pendingWaitAcks[1:]
@@ -579,7 +623,7 @@ func (d *dag) taskConsumer(ctx context.Context, resp *v1contracts.DurableTaskRes
 		case conditionKindCancel:
 			ack.task.cancelWatchNodeId = ref.GetNodeId()
 			ack.task.cancelWatchBranchId = ref.GetBranchId()
-		default:
+		case conditionKindWait:
 			ack.task.waitNodeId = ref.GetNodeId()
 			ack.task.waitBranchId = ref.GetBranchId()
 		}
@@ -621,7 +665,7 @@ func (d *dag) taskConsumer(ctx context.Context, resp *v1contracts.DurableTaskRes
 
 		// Dropping this would leave the run waiting forever for an ack or completion that
 		// will never arrive (e.g. a nondeterminism error means the wait was never committed).
-		d.err = &dagEngineError{errorType: m.Error.GetErrorType().String(), errorMessage: m.Error.GetErrorMessage()}
+		d.err = &dagEngineError{errorType: m.Error.GetErrorType(), errorMessage: m.Error.GetErrorMessage()}
 	}
 }
 
@@ -677,6 +721,22 @@ func (d *dag) drainPendingEntryCompletions(ctx context.Context) {
 	d.pendingEntryCompletions = remaining
 }
 
+// finishedTaskRunIds lists every task that has reached a terminal state, including failed ones. The
+// dispatcher resolves each id to the task's latest COMPLETED or FAILED event at dispatch time, so a
+// step created cancelled because its parent failed still receives the parent's output once the parent
+// is replayed and succeeds, and a failed parent lands in step_run_errors rather than being omitted.
+func (d *dag) finishedTaskRunIds() []uuid.UUID {
+	var taskRunIds []uuid.UUID
+
+	for _, t := range d.tasks {
+		if t.isCompleted && t.workflowRunExternalId != nil {
+			taskRunIds = append(taskRunIds, *t.workflowRunExternalId)
+		}
+	}
+
+	return taskRunIds
+}
+
 func (d *dag) applyCompletion(ctx context.Context, t *task, isFailure bool, errorMessage string, payload []byte) error {
 	t.isCompleted = true
 
@@ -690,6 +750,9 @@ func (d *dag) applyCompletion(ctx context.Context, t *task, isFailure bool, erro
 	} else if len(payload) > 0 {
 		outputData := make(map[string]interface{})
 		if err := json.Unmarshal(payload, &outputData); err == nil {
+			if outputData == nil {
+				outputData = map[string]interface{}{}
+			}
 			t.output = outputData
 			if skipped, ok := outputData["skipped"].(bool); ok && skipped {
 				t.isSkipped = true
@@ -698,6 +761,8 @@ func (d *dag) applyCompletion(ctx context.Context, t *task, isFailure bool, erro
 				t.isCancelled = true
 			}
 		}
+	} else if !isFailure && !t.isCancelled {
+		t.output = map[string]interface{}{}
 	}
 
 	return d.evaluateConditionsForParent(ctx, t)
@@ -732,7 +797,10 @@ func (d *dag) evaluateConditionsForParent(ctx context.Context, parent *task) err
 
 			matched, err := d.evalBoolExpr(ctx, expr, map[string]interface{}{"output": parent.output})
 			if err != nil {
-				return fmt.Errorf("CEL eval error for task %q condition %q: %w", t.actionId, expr, err)
+				// A condition that cannot be evaluated (e.g. a key missing from the parent output)
+				// counts as not matched instead of failing the DAG.
+				span.RecordError(fmt.Errorf("condition %q on task %q could not be evaluated: %w", expr, t.actionId, err))
+				matched = false
 			}
 
 			d.conditionMatches[cond] = matched
@@ -815,14 +883,7 @@ func (d *dag) evaluateOnFailure(ctx context.Context) (bool, error) {
 		attribute.Bool("dag.on_failure_skipped", skip),
 	)
 
-	var parentTaskRunIds []uuid.UUID
-	for _, p := range d.tasks {
-		if p.isCompleted && !p.isFailed && p.workflowRunExternalId != nil {
-			parentTaskRunIds = append(parentTaskRunIds, *p.workflowRunExternalId)
-		}
-	}
-
-	result, err := d.triggerStep(ctx, d.onFailureTask.actionId, d.onFailureTask.workflowName, d.onFailureTask.index, parentTaskRunIds, skip, false, false)
+	result, err := d.triggerStep(ctx, d.onFailureTask.actionId, d.onFailureTask.workflowName, d.onFailureTask.index, d.finishedTaskRunIds(), skip, false, false)
 	if err != nil {
 		d.err = fmt.Errorf("failed to trigger on-failure step %q: %w", d.onFailureTask.actionId, err)
 		return false, d.err
@@ -842,15 +903,9 @@ func (d *dag) evaluateOnFailure(ctx context.Context) (bool, error) {
 
 	d.tasks = append(d.tasks, d.onFailureTask)
 
-	if result.IsSatisfied {
-		errorMessage := ""
-		if result.ErrorMessage != nil {
-			errorMessage = *result.ErrorMessage
-		}
-		if err := d.applyCompletion(ctx, d.onFailureTask, result.IsFailure, errorMessage, result.ResultPayload); err != nil {
-			d.err = err
-			return true, d.err
-		}
+	if err := d.expectChild(d.onFailureTask); err != nil {
+		d.err = err
+		return true, d.err
 	}
 
 	return true, nil
@@ -905,6 +960,7 @@ func (d *dag) evaluateParentConditions(ctx context.Context, t *task) (skip bool,
 			if satisfied {
 				cancelGroups[key.orGroupId] = true
 			}
+		case sqlcv1.V1MatchConditionActionCREATE, sqlcv1.V1MatchConditionActionQUEUE, sqlcv1.V1MatchConditionActionCREATEMATCH:
 		}
 	}
 
@@ -924,9 +980,11 @@ func getMatchConditionActionForWatchKind(kind conditionKind) sqlcv1.V1MatchCondi
 		return sqlcv1.V1MatchConditionActionSKIP
 	case conditionKindCancel:
 		return sqlcv1.V1MatchConditionActionCANCEL
-	default:
+	case conditionKindWait:
 		return sqlcv1.V1MatchConditionActionQUEUE
 	}
+
+	return sqlcv1.V1MatchConditionActionQUEUE
 }
 
 func (d *dag) hasEventOrSleepConditions(t *task, kind conditionKind) bool {
@@ -987,24 +1045,11 @@ func (d *dag) allWaitGroupsSatisfied(t *task, satisfiedGroups map[uuid.UUID]bool
 	return true
 }
 
-// send writes req to the durable-task session without deadlocking: the dispatcher side is a
-// single goroutine that blocks delivering each response on responseCh before reading the next
-// request, so a plain channel send here while responses are undelivered would leave both sides
-// blocked sending to each other. Responses received while waiting are queued for the main loop.
+// send writes req to the invocation's channel. The channel reads the engine's responses on
+// its own, so a send while responses are undelivered cannot deadlock against the engine's
+// sequential delivery.
 func (d *dag) send(ctx context.Context, req *v1contracts.DurableTaskRequest) error {
-	for {
-		select {
-		case d.requestCh <- req:
-			return nil
-		case resp, ok := <-d.responseCh:
-			if !ok {
-				return fmt.Errorf("durable task session closed")
-			}
-			d.queuedResponses = append(d.queuedResponses, resp)
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
+	return d.ch.Send(ctx, req)
 }
 
 func (d *dag) registerCondition(ctx context.Context, t *task, kind conditionKind, satisfiedGroups ...map[uuid.UUID]bool) error {
@@ -1049,6 +1094,7 @@ func (d *dag) registerCondition(ctx context.Context, t *task, kind conditionKind
 				},
 				UserEventKey: c.EventKey.String,
 			})
+		case sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE:
 		}
 	}
 

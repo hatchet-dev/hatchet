@@ -3,6 +3,7 @@ withTenant:
     x-resources: ["tenant"]
     description: Create an API token for a tenant
     operationId: api-token:create
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -37,6 +38,8 @@ withTenant:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Create API Token
     tags:
       - API Token
@@ -44,6 +47,7 @@ withTenant:
     x-resources: ["tenant"]
     description: List API tokens for a tenant
     operationId: api-token:list
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -73,6 +77,8 @@ withTenant:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: List API Tokens
     tags:
       - API Token
@@ -81,6 +87,7 @@ revoke:
     x-resources: ["tenant", "api-token"]
     description: Revoke an API token for a tenant
     operationId: api-token:update:revoke
+    x-payloads: false
     parameters:
       - description: The API token
         in: path
@@ -106,6 +113,8 @@ revoke:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Revoke API Token
     tags:
       - API Token

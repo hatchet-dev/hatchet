@@ -67,7 +67,7 @@ const WorkerStatusConfigs: Record<string, StatusConfig> = {
   },
 };
 
-function WorkerStatusBadge({
+export function WorkerStatusBadge({
   status,
   count,
   variant,

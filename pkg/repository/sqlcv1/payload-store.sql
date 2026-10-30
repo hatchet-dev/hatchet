@@ -1,29 +1,23 @@
 -- name: ReadPayloads :many
-WITH inputs AS (
-    SELECT
-        UNNEST(@ids::BIGINT[]) AS id,
-        UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
-        UNNEST(@tenantIds::UUID[]) AS tenant_id,
-        UNNEST(CAST(@types::TEXT[] AS v1_payload_type[])) AS type
-)
-
 SELECT *
-FROM v1_payload
-WHERE (tenant_id, id, inserted_at, type) IN (
-        SELECT tenant_id, id, inserted_at, type
-        FROM inputs
-    )
-;
+FROM read_payloads(
+    @tenantIds::UUID[],
+    @ids::BIGINT[],
+    @insertedAts::TIMESTAMPTZ[],
+    CAST(@types::TEXT[] AS v1_payload_type[]),
+    @payloadReferenceIds::UUID[]
+);
 
 -- name: WritePayloads :exec
 WITH inputs AS (
     SELECT DISTINCT
         UNNEST(@ids::BIGINT[]) AS id,
-        UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
+        v1_payload_inserted_at(
+            NULLIF(UNNEST(@payloadReferenceIds::UUID[]), '00000000-0000-0000-0000-000000000000'::UUID),
+            UNNEST(@insertedAts::TIMESTAMPTZ[])
+        ) AS inserted_at,
         UNNEST(@externalIds::UUID[]) AS external_id,
         UNNEST(CAST(@types::TEXT[] AS v1_payload_type[])) AS type,
-        UNNEST(CAST(@locations::TEXT[] AS v1_payload_location[])) AS location,
-        UNNEST(@externalLocationKeys::TEXT[]) AS external_location_key,
         UNNEST(@inlineContents::JSONB[]) AS inline_content,
         UNNEST(@tenantIds::UUID[]) AS tenant_id
 )
@@ -44,16 +38,59 @@ SELECT
     i.inserted_at,
     i.external_id,
     i.type,
-    i.location,
-    CASE WHEN i.external_location_key = '' OR i.location != 'EXTERNAL' THEN NULL ELSE i.external_location_key END,
+    'INLINE',
+    NULL,
     i.inline_content
 FROM
     inputs i
 ORDER BY i.tenant_id, i.inserted_at, i.id, i.type
-ON CONFLICT (tenant_id, id, inserted_at, type)
-DO UPDATE SET
-    location = EXCLUDED.location,
-    external_location_key = CASE WHEN EXCLUDED.external_location_key = '' OR EXCLUDED.location != 'EXTERNAL' THEN NULL ELSE EXCLUDED.external_location_key END,
+ON CONFLICT DO NOTHING
+;
+
+-- name: OverwritePayloads :exec
+-- NOTE: this is an upsert rather than an UPDATE because the row being overwritten may have
+-- already been offloaded out of v1_payload (e.g. a task replayed after its partition was cut over
+-- to external storage). A plain UPDATE would silently no-op and readers would keep resolving the
+-- stale offloaded copy via the block index instead of the new content.
+WITH inputs AS (
+    SELECT DISTINCT
+        UNNEST(@ids::BIGINT[]) AS id,
+        v1_payload_inserted_at(
+            NULLIF(UNNEST(@payloadReferenceIds::UUID[]), '00000000-0000-0000-0000-000000000000'::UUID),
+            UNNEST(@insertedAts::TIMESTAMPTZ[])
+        ) AS inserted_at,
+        UNNEST(@externalIds::UUID[]) AS external_id,
+        UNNEST(CAST(@types::TEXT[] AS v1_payload_type[])) AS type,
+        UNNEST(@inlineContents::JSONB[]) AS inline_content,
+        UNNEST(@tenantIds::UUID[]) AS tenant_id
+)
+
+INSERT INTO v1_payload (
+    tenant_id,
+    id,
+    inserted_at,
+    external_id,
+    type,
+    location,
+    external_location_key,
+    inline_content
+)
+SELECT
+    i.tenant_id,
+    i.id,
+    i.inserted_at,
+    i.external_id,
+    i.type,
+    'INLINE',
+    NULL,
+    i.inline_content
+FROM
+    inputs i
+ORDER BY i.tenant_id, i.inserted_at, i.id, i.type
+ON CONFLICT (tenant_id, inserted_at, id, type) DO UPDATE
+SET
+    location = 'INLINE',
+    external_location_key = NULL,
     inline_content = EXCLUDED.inline_content,
     updated_at = NOW()
 ;
@@ -167,11 +204,14 @@ SELECT compute_payload_batch_size(
 -- name: GetOffloadedPayloadIndexBlocks :many
 WITH inputs AS (
     SELECT
-        UNNEST(@insertedAts::DATE[]) AS inserted_at_date,
+        (v1_payload_inserted_at(
+            NULLIF(UNNEST(@payloadReferenceIds::UUID[]), '00000000-0000-0000-0000-000000000000'::UUID),
+            UNNEST(@insertedAts::TIMESTAMPTZ[])
+        ) AT TIME ZONE 'UTC')::DATE AS inserted_at_date,
         UNNEST(@externalIds::UUID[]) AS external_id
 )
 
-SELECT i.external_id::UUID AS external_id, index_file_key
+SELECT i.external_id::UUID AS external_id, index_file_key, p.payload_inserted_at_date
 FROM v1_payload_offloaded_block_index p
 JOIN inputs i ON
     p.payload_inserted_at_date = i.inserted_at_date

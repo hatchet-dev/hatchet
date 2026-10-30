@@ -64,6 +64,10 @@ Runs returns a client for managing workflow runs. See the [Runs client](/referen
 
 Schedules returns a client for managing scheduled workflow runs. See the [Schedules client](/reference/go/feature-clients/schedules).
 
+#### `Streams()`
+
+Streams returns a client for publishing to and reading from durable, topic-based streams. See the [Streams client](/reference/go/feature-clients/streams).
+
 #### `Webhooks()`
 
 Webhooks returns a client for managing webhooks. See the [Webhooks client](/reference/go/feature-clients/webhooks).
@@ -304,7 +308,7 @@ Returns:
 
 #### `Run`
 
-Run executes a workflow with the provided input and waits for completion.
+Run executes a workflow with the provided input and waits for completion. If ctx ends before the run reaches a terminal state, the wait stops and the returned error wraps ctx.Err(); the run itself keeps executing on the engine.
 
 ```go
 func (c *Client) Run(ctx context.Context, workflowName string, input any, opts ...RunOptFunc) (*WorkflowResult, error)
@@ -328,7 +332,7 @@ Returns:
 
 #### `RunMany`
 
-RunMany executes multiple workflow instances with different inputs. Returns workflow run IDs that can be used to track the run statuses.
+RunMany executes multiple workflow instances with different inputs. The returned results are in the same order as the inputs. Returns workflow run IDs that can be used to track the run statuses.
 
 ```go
 func (c *Client) RunMany(ctx context.Context, workflowName string, inputs []RunManyOpt) ([]WorkflowRunRef, error)

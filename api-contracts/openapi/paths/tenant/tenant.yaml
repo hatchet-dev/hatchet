@@ -3,6 +3,7 @@ tenants:
     x-resources: []
     description: Creates a new tenant
     operationId: tenant:create
+    x-payloads: false
     requestBody:
       content:
         application/json:
@@ -29,6 +30,8 @@ tenants:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIError"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Create tenant
     tags:
       - Tenant
@@ -37,6 +40,7 @@ updateTenants:
     x-resources: ["tenant"]
     description: Update an existing tenant
     operationId: tenant:update
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -73,6 +77,8 @@ updateTenants:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIError"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Update tenant
     tags:
       - Tenant
@@ -80,6 +86,7 @@ updateTenants:
     x-resources: ["tenant"]
     description: Get the details of a tenant
     operationId: tenant:get
+    x-payloads: false
     parameters:
       - description: The tenant id to get details for
         in: path
@@ -115,6 +122,8 @@ updateTenants:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Tenant does not exist
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get tenant
     tags:
       - Tenant
@@ -124,6 +133,7 @@ tenantAlertingSettings:
     x-resources: ["tenant"]
     description: Gets the alerting settings for a tenant
     operationId: tenant-alerting-settings:get
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -153,6 +163,8 @@ tenantAlertingSettings:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIError"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get tenant alerting settings
     tags:
       - Tenant
@@ -161,6 +173,7 @@ alertEmailGroup:
     x-resources: ["tenant", "alert-email-group"]
     description: Updates a tenant alert email group
     operationId: alert-email-group:update
+    x-payloads: false
     parameters:
       - description: The tenant alert email group id
         in: path
@@ -197,6 +210,8 @@ alertEmailGroup:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIError"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Update tenant alert email group
     tags:
       - Tenant
@@ -204,6 +219,7 @@ alertEmailGroup:
     x-resources: ["tenant", "alert-email-group"]
     description: Deletes a tenant alert email group
     operationId: alert-email-group:delete
+    x-payloads: false
     parameters:
       - description: The tenant alert email group id
         in: path
@@ -229,6 +245,8 @@ alertEmailGroup:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIError"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Delete tenant alert email group
     tags:
       - Tenant
@@ -237,6 +255,7 @@ tenantAlertEmailGroups:
     x-resources: ["tenant"]
     description: Creates a new tenant alert email group
     operationId: alert-email-group:create
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -273,6 +292,8 @@ tenantAlertEmailGroups:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIError"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Create tenant alert email group
     tags:
       - Tenant
@@ -280,6 +301,7 @@ tenantAlertEmailGroups:
     x-resources: ["tenant"]
     description: Gets a list of tenant alert email groups
     operationId: alert-email-group:list
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -309,6 +331,8 @@ tenantAlertEmailGroups:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIError"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: List tenant alert email groups
     tags:
       - Tenant
@@ -318,6 +342,7 @@ tenantResourcePolicy:
     x-resources: ["tenant"]
     description: Gets the resource policy for a tenant
     operationId: tenant-resource-policy:get
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -347,7 +372,48 @@ tenantResourcePolicy:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIError"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Create tenant alert email group
+    tags:
+      - Tenant
+
+tenantEntitlements:
+  get:
+    x-resources: ["tenant"]
+    description: Gets the features the tenant is entitled to
+    operationId: tenant-entitlements:get
+    x-payloads: false
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/TenantEntitlements"
+        description: Successfully retrieved the tenant entitlements
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIError"
+        description: Forbidden
+    summary: Get tenant entitlements
     tags:
       - Tenant
 
@@ -357,6 +423,7 @@ invites:
     x-enable-rate-limiting: true
     description: Creates a new tenant invite
     operationId: tenant-invite:create
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -399,6 +466,8 @@ invites:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Rate limit exceeded
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Create tenant invite
     tags:
       - Tenant
@@ -406,6 +475,7 @@ invites:
     x-resources: ["tenant"]
     description: Gets a list of tenant invites
     operationId: tenant-invite:list
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -435,6 +505,8 @@ invites:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIError"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: List tenant invites
     tags:
       - Tenant
@@ -443,6 +515,7 @@ inviteScoped:
     x-resources: ["tenant", "tenant-invite"]
     description: Updates a tenant invite
     operationId: tenant-invite:update
+    x-payloads: false
     summary: Update invite
     parameters:
       - description: The tenant id
@@ -483,10 +556,13 @@ inviteScoped:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: A malformed or bad request
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
   delete:
     x-resources: ["tenant", "tenant-invite"]
     description: Deletes a tenant invite
     operationId: tenant-invite:delete
+    x-payloads: false
     summary: Delete invite
     parameters:
       - description: The tenant id
@@ -520,11 +596,14 @@ inviteScoped:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: A malformed or bad request
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
 members:
   get:
     x-resources: ["tenant"]
     description: Gets a list of tenant members
     operationId: tenant-member:list
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -554,6 +633,8 @@ members:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIError"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: List tenant members
     tags:
       - Tenant
@@ -562,6 +643,7 @@ member:
     x-resources: ["tenant", "member"]
     description: Update a tenant member
     operationId: tenant-member:update
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -613,6 +695,8 @@ member:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Update a tenant member
     tags:
       - Tenant
@@ -620,6 +704,7 @@ member:
     x-resources: ["tenant", "member"]
     description: Delete a member from a tenant
     operationId: tenant-member:delete
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -664,6 +749,8 @@ member:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Delete a tenant member
     tags:
       - Tenant
@@ -672,6 +759,7 @@ getQueueMetrics:
     x-resources: ["tenant"]
     description: Get the queue metrics for the tenant
     operationId: tenant:get:queue-metrics
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -724,6 +812,8 @@ getQueueMetrics:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get workflow metrics
     tags:
       - Workflow
@@ -733,6 +823,7 @@ getStepRunQueueMetrics:
     x-resources: ["tenant"]
     description: Get the queue metrics for the tenant
     operationId: tenant:get:step-run-queue-metrics
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -768,6 +859,8 @@ getStepRunQueueMetrics:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get step run metrics
     tags:
       - Tenant
@@ -777,6 +870,7 @@ getPrometheusMetrics:
     x-resources: ["tenant"]
     description: Get the prometheus metrics for the tenant
     operationId: tenant:get:prometheus-metrics
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -812,6 +906,8 @@ getPrometheusMetrics:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get prometheus metrics
     tags:
       - Tenant
@@ -822,6 +918,7 @@ getTaskStats:
     x-enable-rate-limiting: true
     description: Get task stats for tenant
     operationId: tenant:get:task-stats
+    x-payloads: false
     parameters:
       - description: The tenant ID
         in: path
@@ -865,6 +962,8 @@ getTaskStats:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get task stats for tenant
     tags:
       - Tenant

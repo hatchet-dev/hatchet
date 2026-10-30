@@ -1,18 +1,13 @@
 /**
- * v0 SDK root-import deprecation warnings.
+ * The v0 SDK deprecation warning, emitted when a v0 workflow is actually used (registered on a
+ * worker or put to the engine), never when a module is merely imported: the root entry still
+ * re-exports the v0 `workflow` and `step` modules for consumers that only use v1 APIs, and
+ * loading them must stay silent.
  *
- * The legacy `workflow` and `step` re-exports under the root specifier need
- * to keep nagging consumers to migrate to v1, but the original implementation
- * used `console.warn` at module evaluation time, which:
- *   - cannot be silenced by Node's standard `--no-deprecation`,
- *     `--no-warnings`, or `--no-warnings=DeprecationWarning` flags;
- *   - has no stable `code` for `process.on('warning', ...)` handlers; and
- *   - is duplicated when both submodules are loaded (which happens for
- *     anyone importing from the root, since `index.ts` re-exports both).
- *
- * Switching to `process.emitWarning` with a fixed code makes the warnings
- * filterable, dedupable, and consistent with the rest of Node's deprecation
- * surface, while still being visible by default.
+ * `process.emitWarning` with a fixed code keeps the warning filterable with Node's standard
+ * `--no-deprecation` and `--no-warnings` flags and addressable from `process.on('warning')`.
+ * The global is read through `globalThis`, since this module is bundled into the core entry
+ * and must load where there is no `process` at all.
  */
 
 export const V0_DEPRECATION_CODE = 'HATCHET_V0_REMOVED';
@@ -63,17 +58,17 @@ export function emitV0RemovedWarning(submodule: string, detail?: string): void {
     `The v0 SDK, including the ${submodule} module, has been deprecated and was removed in v1.14.0. ` +
     `Please migrate to the v1 SDK: ${MIGRATION_URL}`;
 
-  const hasProcess = typeof process !== 'undefined';
-  const hasEmitWarning = hasProcess && typeof process.emitWarning === 'function';
-  const willThrowAsync = hasProcess && process.throwDeprecation === true;
+  const proc = (globalThis as { process?: NodeJS.Process }).process;
+  const hasEmitWarning = typeof proc?.emitWarning === 'function';
+  const willThrowAsync = proc?.throwDeprecation === true;
 
-  if (!hasEmitWarning || willThrowAsync) {
+  if (!proc || !hasEmitWarning || willThrowAsync) {
     fallbackConsoleWarn(message, detail);
     return;
   }
 
   try {
-    process.emitWarning(message, {
+    proc.emitWarning(message, {
       type: 'DeprecationWarning',
       code: V0_DEPRECATION_CODE,
       detail,

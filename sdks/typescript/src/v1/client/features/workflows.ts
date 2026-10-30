@@ -1,8 +1,25 @@
 import { BaseWorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1';
 import type { LegacyWorkflow } from '@hatchet/legacy/legacy-transformer';
-import { isLegacyWorkflow, warnLegacyWorkflow } from '@hatchet/legacy/legacy-transformer';
+import { isLegacyWorkflow, warnLegacyWorkflow } from '@hatchet/legacy/legacy-workflow';
+import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { isValidUUID } from '@util/uuid';
-import { HatchetClient } from '../client';
+import {
+  WorkflowPauseScheduledCronRunQueueBehavior,
+  WorkflowUpdateRequest,
+} from '@hatchet/clients/rest/generated/data-contracts';
+import type { RestApi, RestClientDeps } from '@hatchet/clients/rest/rest-api';
+import { Duration, durationToString } from '../duration';
+
+export { WorkflowPauseScheduledCronRunQueueBehavior };
+
+export type PauseWorkflowOpts = {
+  /** How long runs stay queued while the workflow is paused before they are dropped. */
+  queueTTL: Duration;
+  /** The behavior of cron runs triggered while the workflow is paused. Defaults to QUEUE. */
+  pausedWorkflowCronRunQueueBehavior?: WorkflowPauseScheduledCronRunQueueBehavior;
+  /** The behavior of scheduled runs triggered while the workflow is paused. Defaults to QUEUE. */
+  pausedWorkflowScheduledRunQueueBehavior?: WorkflowPauseScheduledCronRunQueueBehavior;
+};
 
 export const workflowNameString = (
   workflow: string | WorkflowDefinition | BaseWorkflowDeclaration<any, any> | LegacyWorkflow
@@ -29,16 +46,19 @@ export const workflowNameString = (
  *
  */
 export class WorkflowsClient {
-  api: HatchetClient['api'];
+  api: RestApi;
   tenantId: string;
+  /** Prefixed onto workflow names the way registration prefixes them; a name already carrying it is left as is. */
+  namespace: string | undefined;
   // Add a cache for workflows
   private workflowCache: Map<string, { workflow: any; expiry: number }> = new Map();
   // Default cache TTL: 5 minutes (in ms)
   private cacheTTL: number = 5 * 60 * 1000;
 
-  constructor(client: HatchetClient, cacheTTL?: number) {
+  constructor(client: RestClientDeps, cacheTTL?: number) {
     this.api = client.api;
     this.tenantId = client.tenantId;
+    this.namespace = client.config?.namespace;
     // Allow custom cache TTL if provided
     if (cacheTTL !== undefined) {
       this.cacheTTL = cacheTTL;
@@ -85,8 +105,8 @@ export class WorkflowsClient {
    * @returns A promise that resolves to the workflow.
    */
   async get(workflow: string | BaseWorkflowDeclaration<any, any> | LegacyWorkflow) {
-    // Get workflow name string
-    const name = workflowNameString(workflow);
+    // the name as registered: the client's namespace in front, unless it is already there
+    const name = applyNamespace(workflowNameString(workflow), this.namespace);
 
     // Check cache first
     const cached = this.workflowCache.get(name);
@@ -139,7 +159,8 @@ export class WorkflowsClient {
    * @returns A promise that resolves to the deleted workflow.
    */
   async delete(workflow: string | BaseWorkflowDeclaration<any, any> | LegacyWorkflow) {
-    const name = workflowNameString(workflow);
+    // the cache is keyed by the registered name, so the namespace applies here as in get()
+    const name = applyNamespace(workflowNameString(workflow), this.namespace);
 
     try {
       // Get the workflow first to find its ID
@@ -162,70 +183,54 @@ export class WorkflowsClient {
     }
   }
 
-  // async isPaused(workflow: string | WorkflowDeclaration<any, any> | Workflow) {
-  //   const wf = await this.get(workflow);
-  //   return wf.isPaused;
-  // }
+  /**
+   * Pause a workflow. While paused, new runs of the workflow are queued but not started.
+   * @param workflow - The workflow name, ID, or object.
+   * @param opts - The options for the pause operation.
+   * @returns A promise that resolves to the updated workflow.
+   */
+  async pause(
+    workflow: string | BaseWorkflowDeclaration<any, any> | LegacyWorkflow,
+    opts: PauseWorkflowOpts
+  ) {
+    return this.update(workflow, {
+      pause: {
+        action: 'pause',
+        pausedWorkflowQueueTTL: durationToString(opts.queueTTL),
+        pausedWorkflowCronRunQueueBehavior:
+          opts.pausedWorkflowCronRunQueueBehavior ??
+          WorkflowPauseScheduledCronRunQueueBehavior.QUEUE,
+        pausedWorkflowScheduledRunQueueBehavior:
+          opts.pausedWorkflowScheduledRunQueueBehavior ??
+          WorkflowPauseScheduledCronRunQueueBehavior.QUEUE,
+      },
+    });
+  }
 
-  // async pause(workflow: string | WorkflowDeclaration<any, any> | Workflow) {
-  //   const name = workflowNameString(workflow);
+  /**
+   * Unpause a workflow.
+   * @param workflow - The workflow name, ID, or object.
+   * @returns A promise that resolves to the updated workflow.
+   */
+  async unpause(workflow: string | BaseWorkflowDeclaration<any, any> | LegacyWorkflow) {
+    return this.update(workflow, { pause: { action: 'unpause' } });
+  }
 
-  //   try {
-  //     // Get the workflow first to find its ID
-  //     const workflowObj = await this.get(name);
+  private async update(
+    workflow: string | BaseWorkflowDeclaration<any, any> | LegacyWorkflow,
+    request: WorkflowUpdateRequest
+  ) {
+    const name = workflowNameString(workflow);
+    const workflowId = await this.getWorkflowIdFromName(name);
 
-  //     if (!workflowObj || !workflowObj.metadata || !workflowObj.metadata.id) {
-  //       throw new Error(`Could not find workflow with name ${name}`);
-  //     }
-
-  //     const { data } = await this.api.workflowUpdate(workflowObj.metadata.id, {
-  //       isPaused: true,
-  //     });
-
-  //     // Update cache
-  //     if (data) {
-  //       this.workflowCache.set(name, {
-  //         workflow: data,
-  //         expiry: Date.now() + this.cacheTTL,
-  //       });
-  //     }
-
-  //     return data;
-  //   } catch (error) {
-  //     // Clear cache on error
-  //     this.workflowCache.delete(name);
-  //     throw error;
-  //   }
-  // }
-
-  // async unpause(workflow: string | WorkflowDeclaration<any, any> | Workflow) {
-  //   const name = workflowNameString(workflow);
-
-  //   try {
-  //     // Get the workflow first to find its ID
-  //     const workflowObj = await this.get(name);
-
-  //     if (!workflowObj || !workflowObj.metadata || !workflowObj.metadata.id) {
-  //       throw new Error(`Could not find workflow with name ${name}`);
-  //     }
-
-  //     const { data } = await this.api.workflowUpdate(workflowObj.metadata.id, {
-  //       isPaused: false,
-  //     });
-
-  //     // Update cache
-  //     if (data) {
-  //       this.workflowCache.set(name, {
-  //         workflow: data,
-  //         expiry: Date.now() + this.cacheTTL,
-  //       });
-  //     }
-
-  //     return data;
-  //   } catch (error) {
-  //     // Clear cache on error
-  //     this.workflowCache.delete(name);
-  //     throw error;
-  //   }
-  // }
+    try {
+      const { data } = await this.api.workflowUpdate(workflowId, request);
+      this.workflowCache.delete(name);
+      this.workflowCache.delete(data.name);
+      return data;
+    } catch (error) {
+      this.workflowCache.delete(name);
+      throw error;
+    }
+  }
 }

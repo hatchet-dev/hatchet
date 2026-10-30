@@ -3,7 +3,8 @@ import {
   TaskRunTerminatedError,
   isTaskRunTerminatedError,
 } from '@util/errors/task-run-terminated-error';
-import { Action, ActionKey, ActionListener } from '@clients/dispatcher/action-listener';
+import { ActionListener } from '@clients/dispatcher/action-listener';
+import { Action, ActionKey, createActionId } from '@clients/dispatcher/action';
 import {
   StepActionEvent,
   StepActionEventType,
@@ -14,35 +15,39 @@ import {
   actionTypeFromJSON,
 } from '@hatchet/protoc/dispatcher';
 import HatchetPromise, { CancellationReason } from '@util/hatchet-promise/hatchet-promise';
-import { CreateStepRateLimit, StickyStrategy } from '@hatchet/protoc/workflows';
 import { actionMap, Logger, taskRunLog } from '@hatchet/util/logger';
 import { BaseWorkflowDeclaration, WorkflowDefinition, HatchetClient } from '@hatchet/v1';
-import { CreateTaskOpts, IdempotencyMethod, TaskBatchConfig } from '@hatchet/protoc/v1/workflows';
-import {
-  Concurrency,
-  CreateOnFailureTaskOpts,
-  CreateOnSuccessTaskOpts,
-  CreateWorkflowDurableTaskOpts,
-  CreateWorkflowTaskOpts,
-  NonRetryableError,
-} from '@hatchet/v1/task';
-import { taskConditionsToPb } from '@hatchet/v1/conditions/transformer';
-import * as z from 'zod/v4';
+import { NonRetryableError, RetryAfterError } from '@hatchet/v1/task';
 
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import sleep from '@hatchet/util/sleep';
 import { throwIfAborted } from '@hatchet/util/abort-error';
-import { DesiredWorkerLabels } from '@hatchet-dev/typescript-sdk/protoc/v1/shared/trigger';
-import { Duration, durationToString, durationToMs } from '../duration';
 import { Context, DurableContext } from './context';
 import { parentRunContextManager } from '../../parent-run-context-vars';
+import { installAsyncLocalParentRunContext } from '../../parent-run-context-storage';
+import { normalizeWorkflowDefinition, onFailureTaskName, workflowToProto } from './workflow-proto';
 import { HealthServer, workerStatus, type WorkerStatus } from './health-server';
 import { SlotConfig } from '../../slot-types';
 import { DurableEvictionManager } from './eviction/eviction-manager';
 import { EvictionPolicy, DEFAULT_DURABLE_TASK_EVICTION_POLICY } from './eviction/eviction-policy';
 import { DurableRunRecord } from './eviction/eviction-cache';
-import { supportsEviction } from './engine-version';
+import { MinEngineVersion, supportsEviction, supportsRetryAfter } from './engine-version';
+
+export {
+  assertValidConcurrencyArr,
+  mapBatchConfigPb,
+  mapConcurrencyPb,
+  mapRateLimitPb,
+  mapSlotRequestsPb,
+  resolveExecutionTimeout,
+  resolveScheduleTimeout,
+  taskConcurrencyArr,
+} from './workflow-proto';
+
+// Tasks read the parent run context across awaits; the worker is the only place that
+// enters it, so it installs the AsyncLocalStorage store before any task can run.
+installAsyncLocalParentRunContext();
 
 // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
 export type ActionRegistry = Record<Action['actionId'], Function>;
@@ -88,6 +93,7 @@ export class InternalWorker {
 
   private healthServer: HealthServer | undefined;
   private status: WorkerStatus = workerStatus.INITIALIZED;
+  private shutdownPromise: Promise<void> | undefined;
 
   constructor(
     client: HatchetClient,
@@ -172,10 +178,10 @@ export class InternalWorker {
     const newActions = workflow._durableTasks
       .filter((task) => !!task.fn)
       .reduce<ActionRegistry>((acc, task) => {
-        const actionId = `${applyNamespace(
-          workflow.name,
-          this.client.config.namespace
-        ).toLowerCase()}:${task.name.toLowerCase()}`;
+        const actionId = createActionId(
+          applyNamespace(workflow.name, this.client.config.namespace),
+          task.name
+        );
         acc[actionId] = (ctx: Context<any, any>) =>
           task.fn!(ctx.input, ctx as DurableContext<any, any>);
         this.durable_action_set.add(actionId);
@@ -198,7 +204,7 @@ export class InternalWorker {
     const newActions = workflow._tasks
       .filter((task) => !!task.fn)
       .reduce<ActionRegistry>((acc, task) => {
-        const actionId = `${workflow.name}:${task.name.toLowerCase()}`;
+        const actionId = createActionId(workflow.name, task.name);
 
         if (task.batch) {
           acc[actionId] = (ctx: Context<any, any>) =>
@@ -233,218 +239,13 @@ export class InternalWorker {
     initWorkflow: BaseWorkflowDeclaration<any, any>,
     durable: boolean = false
   ) {
-    // patch the namespace
-    const workflow: WorkflowDefinition = {
-      ...initWorkflow.definition,
-      name: applyNamespace(
-        initWorkflow.definition.name,
-        this.client.config.namespace
-      ).toLowerCase(),
-    };
+    const { namespace } = this.client.config;
+    const workflow = normalizeWorkflowDefinition(initWorkflow, { namespace, durable });
 
     try {
-      const { concurrency } = workflow;
-
-      let onFailureTask: CreateTaskOpts | undefined;
-
-      if (workflow.onFailure && typeof workflow.onFailure === 'function') {
-        onFailureTask = {
-          readableId: 'on-failure-task',
-          action: onFailureTaskName(workflow),
-          timeout: '60s',
-          inputs: '{}',
-          parents: [],
-          retries: 0,
-          rateLimits: [],
-          workerLabels: {},
-          concurrency: [],
-          isDurable: false,
-          slotRequests: { default: 1 },
-        };
-      }
-
-      if (workflow.onFailure && typeof workflow.onFailure === 'object') {
-        const onFailure = workflow.onFailure as CreateOnFailureTaskOpts<any, any>;
-        const scheduleTimeout = onFailure.scheduleTimeout ?? workflow.taskDefaults?.scheduleTimeout;
-
-        onFailureTask = {
-          readableId: 'on-failure-task',
-          action: onFailureTaskName(workflow),
-          timeout: durationToString(
-            onFailure.executionTimeout || workflow.taskDefaults?.executionTimeout || '60s'
-          ),
-          scheduleTimeout: scheduleTimeout ? durationToString(scheduleTimeout) : undefined,
-          inputs: '{}',
-          parents: [],
-          retries: onFailure.retries || workflow.taskDefaults?.retries || 0,
-          rateLimits: mapRateLimitPb(onFailure.rateLimits || workflow.taskDefaults?.rateLimits),
-          workerLabels: mapWorkerLabelPb(
-            onFailure.desiredWorkerLabels || workflow.taskDefaults?.workerLabels
-          ),
-          concurrency: [],
-          backoffFactor: onFailure.backoff?.factor || workflow.taskDefaults?.backoff?.factor,
-          backoffMaxSeconds:
-            onFailure.backoff?.maxSeconds || workflow.taskDefaults?.backoff?.maxSeconds,
-          isDurable: false,
-          slotRequests: mapSlotRequestsPb(onFailure, false),
-        };
-      }
-
-      let onSuccessTask: CreateWorkflowTaskOpts<any, any> | undefined;
-
-      if (!durable && workflow.onSuccess && typeof workflow.onSuccess === 'function') {
-        const parents = getLeaves([...workflow._tasks, ...workflow._durableTasks]);
-
-        onSuccessTask = {
-          name: 'on-success-task',
-          fn: workflow.onSuccess,
-          executionTimeout: '60s',
-          parents,
-          retries: 0,
-          rateLimits: [],
-          desiredWorkerLabels: undefined,
-          concurrency: [],
-        };
-      }
-
-      if (!durable && workflow.onSuccess && typeof workflow.onSuccess === 'object') {
-        const onSuccess = workflow.onSuccess as CreateOnSuccessTaskOpts<any, any>;
-        const parents = getLeaves([...workflow._tasks, ...workflow._durableTasks]);
-
-        onSuccessTask = {
-          name: 'on-success-task',
-          fn: onSuccess.fn,
-          executionTimeout:
-            onSuccess.executionTimeout || workflow.taskDefaults?.executionTimeout || '60s',
-          scheduleTimeout: onSuccess.scheduleTimeout || workflow.taskDefaults?.scheduleTimeout,
-          parents,
-          retries: onSuccess.retries || workflow.taskDefaults?.retries || 0,
-          rateLimits: onSuccess.rateLimits || workflow.taskDefaults?.rateLimits,
-          desiredWorkerLabels: onSuccess.desiredWorkerLabels || workflow.taskDefaults?.workerLabels,
-          concurrency: onSuccess.concurrency || workflow.taskDefaults?.concurrency,
-          backoff: onSuccess.backoff || workflow.taskDefaults?.backoff,
-        };
-      }
-
-      if (onSuccessTask) {
-        workflow._tasks.push(onSuccessTask);
-      }
-
-      const eventTriggers = [
-        ...(workflow.onEvents || []).map((event) =>
-          applyNamespace(event, this.client.config.namespace)
-        ),
-        ...(workflow.on && 'event' in workflow.on && workflow.on.event
-          ? Array.isArray(workflow.on.event)
-            ? workflow.on.event.map((event) => applyNamespace(event, this.client.config.namespace))
-            : [applyNamespace(workflow.on.event, this.client.config.namespace)]
-          : []),
-      ];
-      const cronTriggers: string[] = [
-        ...(workflow.onCrons || []),
-        ...(workflow.on && 'cron' in workflow.on && workflow.on.cron
-          ? Array.isArray(workflow.on.cron)
-            ? workflow.on.cron
-            : [workflow.on.cron]
-          : []),
-      ];
-
-      const concurrencyArr = Array.isArray(concurrency) ? concurrency : [];
-      const concurrencySolo = !Array.isArray(concurrency) ? concurrency : undefined;
-
-      assertValidConcurrencyArr(concurrencyArr);
-      assertValidConcurrencyArr(concurrencySolo ? [concurrencySolo] : undefined);
-
-      // Convert Zod schema to JSON Schema if provided
-      let inputJsonSchema: Uint8Array | undefined;
-      if (workflow.inputValidator) {
-        const jsonSchema = z.toJSONSchema(workflow.inputValidator as any);
-        inputJsonSchema = new TextEncoder().encode(JSON.stringify(jsonSchema));
-      }
-
-      const durableTaskSet = new Set(workflow._durableTasks);
-
-      let stickyStrategy: StickyStrategy | undefined;
-      // `workflow.sticky` is optional. When omitted, we don't set any sticky strategy.
-      //
-      // When provided, `workflow.sticky` is a v1 (non-protobuf) config which may also include
-      // legacy protobuf enum values for backwards compatibility.
-      if (workflow.sticky != null) {
-        switch (workflow.sticky) {
-          case 'soft':
-          case 'SOFT':
-          case 0:
-            stickyStrategy = StickyStrategy.SOFT;
-            break;
-          case 'hard':
-          case 'HARD':
-          case 1:
-            stickyStrategy = StickyStrategy.HARD;
-            break;
-          default:
-            throw new HatchetError(`Invalid sticky strategy: ${workflow.sticky}`);
-        }
-      }
-
-      const registeredWorkflow = this.client.admin.putWorkflow({
-        name: workflow.name,
-        description: workflow.description || '',
-        version: workflow.version || '',
-        eventTriggers,
-        cronTriggers,
-        sticky: stickyStrategy,
-        concurrencyArr: mapConcurrencyPb(concurrencyArr),
-        onFailureTask,
-        defaultPriority: workflow.defaultPriority,
-        inputJsonSchema,
-        tasks: [...workflow._tasks, ...workflow._durableTasks].map<CreateTaskOpts>((task) => ({
-          readableId: task.name,
-          action: `${workflow.name}:${task.name}`,
-          timeout: resolveExecutionTimeout(task, workflow.taskDefaults),
-          scheduleTimeout: resolveScheduleTimeout(task, workflow.taskDefaults),
-          inputs: '{}',
-          parents: task.parents?.map((p) => p.name) ?? [],
-          userData: '{}',
-          // Batch tasks buffer many concurrent runs into a single execution; per-item retry
-          // semantics don't apply, so retries is always forced to 0.
-          retries: batchOf(task) ? 0 : task.retries || workflow.taskDefaults?.retries || 0,
-          rateLimits: mapRateLimitPb(task.rateLimits || workflow.taskDefaults?.rateLimits),
-          workerLabels: mapWorkerLabelPb(
-            task.desiredWorkerLabels || workflow.taskDefaults?.workerLabels
-          ),
-          backoffFactor: task.backoff?.factor || workflow.taskDefaults?.backoff?.factor,
-          backoffMaxSeconds: task.backoff?.maxSeconds || workflow.taskDefaults?.backoff?.maxSeconds,
-          conditions: taskConditionsToPb(task, this.client.config.namespace),
-          isDurable: durableTaskSet.has(task),
-          slotRequests: mapSlotRequestsPb(task, durableTaskSet.has(task)),
-          batch: mapBatchConfigPb(batchOf(task)),
-          concurrency: (() => {
-            const taskConcurrency = taskConcurrencyArr(task, workflow);
-            assertValidConcurrencyArr(taskConcurrency);
-            return mapConcurrencyPb(taskConcurrency);
-          })(),
-        })),
-        concurrency: concurrencySolo ? mapConcurrencyPb([concurrencySolo])[0] : undefined,
-        defaultFilters:
-          workflow.defaultFilters?.map((f) => ({
-            scope: f.scope,
-            expression: f.expression,
-            payload: f.payload ? new TextEncoder().encode(JSON.stringify(f.payload)) : undefined,
-          })) ?? [],
-        idempotency: workflow.idempotency
-          ? {
-              expression: workflow.idempotency.expression,
-              ttlMs:
-                workflow.idempotency.strategy === 'status'
-                  ? workflow.idempotency.fallbackTtlMs
-                  : workflow.idempotency.ttlMs,
-              method:
-                workflow.idempotency.strategy === 'status'
-                  ? IdempotencyMethod.STATUS
-                  : IdempotencyMethod.TTL,
-            }
-          : undefined,
-      });
+      const registeredWorkflow = this.client.admin.putWorkflow(
+        workflowToProto(workflow, { namespace, durable })
+      );
       this.registeredWorkflowPromises.push(registeredWorkflow);
       await registeredWorkflow;
       this.workflow_registry.push(workflow);
@@ -487,11 +288,11 @@ export class InternalWorker {
           future.cancel(CancellationReason.EVICTED_BY_WORKER);
         }
       },
-      requestEvictionWithAck: async (key: ActionKey, rec: DurableRunRecord) => {
+      requestEvictionWithAck: async (key: ActionKey, rec: DurableRunRecord, reason: string) => {
         await this.client.durableListener.sendEvictInvocation(
           rec.taskRunExternalId,
           rec.invocationCount,
-          rec.evictionReason
+          reason
         );
       },
       logger: this.logger,
@@ -664,6 +465,7 @@ export class InternalWorker {
 
       const failure = async (error: any) => {
         const shouldNotRetry = error instanceof NonRetryableError;
+        const retryAfterMs = this.retryAfterMs(error, actionId);
 
         try {
           if (context.cancelled) {
@@ -692,6 +494,7 @@ export class InternalWorker {
             },
             action.retryCount
           );
+          event.retryAfterMs = retryAfterMs;
           await this.client.dispatcher.sendStepActionEvent(event);
         } catch (e: any) {
           this.logger.error(`Could not send action event: ${e.message}`);
@@ -759,6 +562,22 @@ export class InternalWorker {
       this.logger.error('Could not send action event (outer): ', e);
       return e instanceof Error ? e : new Error(String(e));
     }
+  }
+
+  private retryAfterMs(error: unknown, actionId: string): number | undefined {
+    if (!(error instanceof RetryAfterError)) {
+      return undefined;
+    }
+
+    if (!supportsRetryAfter(this.engineVersion)) {
+      this.logger.warn(
+        `RetryAfterError requires engine >= ${MinEngineVersion.RETRY_AFTER} ` +
+          `(connected: ${this.engineVersion ?? 'unknown'}). Task ${actionId} threw it, so the engine ` +
+          `will handle the failure with the task's retry policy instead of the requested delay.`
+      );
+    }
+
+    return error.afterMs;
   }
 
   getStepActionEvent(
@@ -891,7 +710,12 @@ export class InternalWorker {
     error: any
   ): Promise<void> {
     const payload = JSON.stringify({ message: error?.message, stack: error?.stack });
-    const items = memberIds.map((id) => ({ taskRunExternalId: id, eventPayload: payload }));
+    const retryAfterMs = this.retryAfterMs(error, action.actionId);
+    const items = memberIds.map((id) => ({
+      taskRunExternalId: id,
+      eventPayload: payload,
+      retryAfterMs,
+    }));
 
     try {
       await this.client.dispatcher.sendBatchActionEvent(
@@ -905,7 +729,7 @@ export class InternalWorker {
   getBatchActionEvent(
     action: Action,
     eventType: StepActionEventType,
-    items: { taskRunExternalId: string; eventPayload: string }[]
+    items: { taskRunExternalId: string; eventPayload: string; retryAfterMs?: number }[]
   ): BatchActionEvent {
     return {
       workerId: this.name,
@@ -1021,6 +845,17 @@ export class InternalWorker {
   }
 
   async exitGracefully(handleKill: boolean) {
+    // Signals and an explicit stop must await the same eviction and listener teardown.
+    this.shutdownPromise ??= this.shutdown();
+    await this.shutdownPromise;
+
+    if (handleKill) {
+      this.logger.info('Exiting hatchet worker...');
+      process.exit(0);
+    }
+  }
+
+  private async shutdown(): Promise<void> {
     this.killing = true;
     this.setStatus(workerStatus.UNHEALTHY);
 
@@ -1036,6 +871,12 @@ export class InternalWorker {
       }
     }
 
+    // Snapshot before evicting: eviction cancels a waiting task's cancelable wrapper, and
+    // handleStartStepRun's `finally` removes it from `futures` while its underlying work is still
+    // winding down. Building the drain list afterwards would skip every task that was already
+    // waiting when shutdown began.
+    const inFlightWork = Object.values(this.futures).map(({ inner }) => inner);
+
     if (this.evictionManager) {
       try {
         const evicted = await this.evictionManager.evictAllWaiting();
@@ -1047,24 +888,36 @@ export class InternalWorker {
       }
     }
 
+    this.logger.info('Gracefully exiting hatchet worker, running tasks will attempt to finish...');
+
+    // Awaits the underlying work rather than the cancelable wrapper, which rejects as soon as a
+    // cancellation arrives while the task is still winding down. Tasks assigned between the
+    // snapshot and the pause taking effect are picked up from the live map.
+    await Promise.allSettled([
+      ...inFlightWork,
+      ...Object.values(this.futures).map(({ inner }) => inner),
+    ]);
+
+    this.logger.info('Successfully finished pending tasks.');
+
+    // The durable listener stays up while tasks drain: stopping it earlier rejects every pending
+    // wait registration with "DurableListener stopped", which surfaces as a task failure instead
+    // of the eviction those tasks get above.
     try {
       await this.client.durableListener.stop();
     } catch (e: any) {
       this.logger.error(`Could not stop durable listener: ${e.message}`);
     }
 
+    // Unregistering closes the action stream and stops the heartbeat, so it has to wait until
+    // the running tasks are done. Stopping the heartbeat earlier lets the engine treat the worker
+    // as dead and reassign tasks that are about to complete, and closing the stream earlier makes
+    // the engine reject every heartbeat sent while those tasks finish.
     try {
       await this.listener?.unregister();
     } catch (e: any) {
       this.logger.error(`Could not unregister listener: ${e.message}`);
     }
-
-    this.logger.info('Gracefully exiting hatchet worker, running tasks will attempt to finish...');
-
-    // attempt to wait for futures to finish
-    await Promise.all(Object.values(this.futures).map(({ promise }) => promise));
-
-    this.logger.info('Successfully finished pending tasks.');
 
     if (this.healthServer) {
       try {
@@ -1072,11 +925,6 @@ export class InternalWorker {
       } catch (e: any) {
         this.logger.error(`Could not stop health server: ${e.message}`);
       }
-    }
-
-    if (handleKill) {
-      this.logger.info('Exiting hatchet worker...');
-      process.exit(0);
     }
   }
 
@@ -1095,11 +943,19 @@ export class InternalWorker {
   }
 
   async start() {
+    if (this.killing) {
+      return;
+    }
     this.setStatus(workerStatus.STARTING);
 
     if (this.healthServer) {
       try {
         await this.healthServer.start();
+        if (this.killing) {
+          await this.shutdownPromise;
+          await this.healthServer.stop();
+          return;
+        }
       } catch (e: any) {
         this.logger.error(`Could not start health server: ${e.message}`);
         this.setStatus(workerStatus.UNHEALTHY);
@@ -1110,12 +966,18 @@ export class InternalWorker {
     // ensure all workflows are registered
     await Promise.all(this.registeredWorkflowPromises);
 
-    if (Object.keys(this.action_registry).length === 0) {
+    if (this.killing || Object.keys(this.action_registry).length === 0) {
       return;
     }
 
     try {
-      this.listener = await this.createListener();
+      const listener = await this.createListener();
+      if (this.killing) {
+        // Shutdown cannot clean up a listener that registration has not returned yet.
+        await listener.unregister();
+        return;
+      }
+      this.listener = listener;
 
       this.workerId = this.listener.workerId;
       this.setStatus(workerStatus.HEALTHY);
@@ -1182,173 +1044,6 @@ export class InternalWorker {
   }
 }
 
-function mapWorkerLabelPb(
-  in_: CreateWorkflowTaskOpts<any, any>['desiredWorkerLabels']
-): Record<string, DesiredWorkerLabels> {
-  if (!in_) {
-    return {};
-  }
-
-  return Object.entries(in_).reduce<Record<string, DesiredWorkerLabels>>(
-    (acc, [key, label]) => {
-      if (!label) {
-        return {
-          ...acc,
-          [key]: {
-            strValue: undefined,
-            intValue: undefined,
-          },
-        };
-      }
-
-      if (typeof label === 'string') {
-        return {
-          ...acc,
-          [key]: {
-            strValue: label,
-            intValue: undefined,
-          },
-        };
-      }
-
-      if (typeof label === 'number') {
-        return {
-          ...acc,
-          [key]: {
-            strValue: undefined,
-            intValue: label,
-          },
-        };
-      }
-
-      return {
-        ...acc,
-        [key]: {
-          strValue: typeof label.value === 'string' ? label.value : undefined,
-          intValue: typeof label.value === 'number' ? label.value : undefined,
-          required: label.required,
-          weight: label.weight,
-          comparator: label.comparator,
-        },
-      };
-    },
-    {} as Record<string, DesiredWorkerLabels>
-  );
-}
-
-function onFailureTaskName(workflow: WorkflowDefinition) {
-  return `${workflow.name}:on-failure-task`;
-}
-
-type LeafableTask = CreateWorkflowTaskOpts<any, any> | CreateWorkflowDurableTaskOpts<any, any>;
-
-function getLeaves(tasks: LeafableTask[]): LeafableTask[] {
-  return tasks.filter((task) => isLeafTask(task, tasks));
-}
-
-function isLeafTask(task: LeafableTask, allTasks: LeafableTask[]): boolean {
-  return !allTasks.some((t) => t.parents?.some((p) => p.name === task.name));
-}
-
-/** Durable tasks stay on the durable pool; slotCost applies only to the default pool. */
-export function mapSlotRequestsPb(
-  task: { slotRequests?: Record<string, number>; slotCost?: number },
-  isDurable: boolean
-): Record<string, number> {
-  if (task.slotRequests) {
-    return task.slotRequests;
-  }
-
-  if (isDurable) {
-    return { durable: 1 };
-  }
-
-  if (task.slotCost !== undefined) {
-    if (!Number.isInteger(task.slotCost) || task.slotCost <= 0) {
-      throw new Error(`slotCost must be a positive integer, got: ${task.slotCost}`);
-    }
-
-    return { default: task.slotCost };
-  }
-
-  return { default: 1 };
-}
-
-export function mapRateLimitPb(
-  limits: CreateWorkflowTaskOpts<any, any>['rateLimits']
-): CreateStepRateLimit[] {
-  if (!limits) {
-    return [];
-  }
-
-  return limits.map((l) => {
-    let key = l.staticKey;
-    const keyExpression = l.dynamicKey;
-
-    if (l.key !== undefined) {
-      console.warn(
-        'key is deprecated and will be removed in a future release, please use staticKey instead'
-      );
-      ({ key } = l);
-    }
-
-    if (keyExpression !== undefined) {
-      if (key !== undefined) {
-        throw new Error('Cannot have both static key and dynamic key set');
-      }
-      key = keyExpression;
-      if (!validateCelExpression(keyExpression)) {
-        throw new Error(`Invalid CEL expression: ${keyExpression}`);
-      }
-    }
-
-    if (key === undefined) {
-      throw new Error(`Invalid key`);
-    }
-
-    let units: number | undefined;
-    let unitsExpression: string | undefined;
-    if (typeof l.units === 'number') {
-      ({ units } = l);
-    } else {
-      if (!validateCelExpression(l.units)) {
-        throw new Error(`Invalid CEL expression: ${l.units}`);
-      }
-      unitsExpression = l.units;
-    }
-
-    let limitExpression: string | undefined;
-    if (l.limit !== undefined) {
-      if (typeof l.limit === 'number') {
-        limitExpression = `${l.limit}`;
-      } else {
-        if (!validateCelExpression(l.limit)) {
-          throw new Error(`Invalid CEL expression: ${l.limit}`);
-        }
-
-        limitExpression = l.limit;
-      }
-    }
-
-    if (keyExpression !== undefined && limitExpression === undefined) {
-      throw new Error('CEL based keys requires limit to be set');
-    }
-
-    if (limitExpression === undefined) {
-      limitExpression = `-1`;
-    }
-
-    return {
-      key,
-      keyExpr: keyExpression,
-      units,
-      unitsExpr: unitsExpression,
-      limitValuesExpr: limitExpression,
-      duration: l.duration,
-    };
-  });
-}
-
 /**
  * Decodes the buffered items of a batch task's START_BATCH action into a Record keyed by
  * each buffered item's task-run external id, mapping to that item's input. The wire shape
@@ -1379,121 +1074,4 @@ function parseBatchPayload(actionPayload: string): Record<string, any> {
   } catch {
     return {};
   }
-}
-
-/** Batch tasks are only available on non-durable tasks; durable tasks never carry `batch`. */
-function batchOf(
-  task: CreateWorkflowTaskOpts<any, any> | CreateWorkflowDurableTaskOpts<any, any>
-): CreateWorkflowTaskOpts<any, any>['batch'] {
-  return 'batch' in task ? task.batch : undefined;
-}
-
-// mapConcurrencyPb maps SDK concurrency entries onto the proto shape; entries keep their
-// declared order, which is the chain order.
-export function mapConcurrencyPb(entries: Concurrency[]) {
-  return entries.map((c) => ({
-    expression: c.expression,
-    // a string maxRuns is a CEL expression; the static field then carries the default
-    // of 1, which only governs slots created before the expression existed
-    maxRuns: typeof c.maxRuns === 'string' ? 1 : c.maxRuns,
-    limitStrategy: c.limitStrategy,
-    name: c.name,
-    isTenantScoped: c.isTenantScoped,
-    maxRunsExpression: typeof c.maxRuns === 'string' ? c.maxRuns : undefined,
-  }));
-}
-
-export function taskConcurrencyArr(
-  task: { concurrency?: Concurrency | Concurrency[] },
-  workflow: { taskDefaults?: { concurrency?: Concurrency | Concurrency[] } }
-): Concurrency[] {
-  if (task.concurrency) {
-    return Array.isArray(task.concurrency) ? task.concurrency : [task.concurrency];
-  }
-
-  if (workflow.taskDefaults?.concurrency) {
-    return Array.isArray(workflow.taskDefaults.concurrency)
-      ? workflow.taskDefaults.concurrency
-      : [workflow.taskDefaults.concurrency];
-  }
-
-  return [];
-}
-
-export function assertValidConcurrencyArr(concurrency: Concurrency[] | undefined): void {
-  concurrency?.forEach((c) => {
-    if (typeof c.maxRuns === 'string') {
-      if (!c.maxRuns.trim()) {
-        throw new Error('concurrency.maxRuns expression must be non-empty');
-      }
-      return;
-    }
-
-    if (c.maxRuns !== undefined && (!Number.isInteger(c.maxRuns) || c.maxRuns <= 0)) {
-      throw new Error(
-        `concurrency.maxRuns must be a positive integer or a CEL expression, got: ${c.maxRuns}`
-      );
-    }
-  });
-}
-
-export function mapBatchConfigPb(
-  batch: CreateWorkflowTaskOpts<any, any>['batch']
-): TaskBatchConfig | undefined {
-  if (!batch) {
-    return undefined;
-  }
-
-  if (!Number.isInteger(batch.maxSize) || batch.maxSize <= 0) {
-    throw new Error(`batch.maxSize must be a positive integer, got: ${batch.maxSize}`);
-  }
-
-  const batchMaxIntervalMs =
-    batch.maxInterval !== undefined ? durationToMs(batch.maxInterval) : undefined;
-
-  if (batchMaxIntervalMs !== undefined && batchMaxIntervalMs <= 0) {
-    throw new Error('batch.maxInterval must be positive when provided');
-  }
-
-  if (
-    batch.groupMaxRuns !== undefined &&
-    (!Number.isInteger(batch.groupMaxRuns) || batch.groupMaxRuns <= 0)
-  ) {
-    throw new Error(
-      `batch.groupMaxRuns must be a positive integer when provided, got: ${batch.groupMaxRuns}`
-    );
-  }
-
-  return {
-    batchMaxSize: batch.maxSize,
-    batchMaxIntervalMs,
-    batchGroupKey: batch.groupKey,
-    batchGroupMaxRuns: batch.groupMaxRuns,
-    broadcastOutput: batch.broadcastOutput,
-  };
-}
-
-// Helper function to validate CEL expressions
-
-function validateCelExpression(_expr: string): boolean {
-  // FIXME: this is a placeholder. In a real implementation, you'd need to use a CEL parser or validator.
-  // For now, we'll just return true to mimic the behavior.
-  return true;
-}
-
-export function resolveExecutionTimeout(
-  task: { executionTimeout?: Duration; timeout?: Duration },
-  workflowDefaults?: { executionTimeout?: Duration }
-): string {
-  return durationToString(
-    task.executionTimeout || task.timeout || workflowDefaults?.executionTimeout || '60s'
-  );
-}
-
-export function resolveScheduleTimeout(
-  task: { scheduleTimeout?: Duration },
-  workflowDefaults?: { scheduleTimeout?: Duration }
-): string | undefined {
-  const value = task.scheduleTimeout || workflowDefaults?.scheduleTimeout;
-  return value ? durationToString(value) : undefined;
 }

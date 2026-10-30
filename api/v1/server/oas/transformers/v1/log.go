@@ -7,7 +7,8 @@ import (
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
-func ToV1LogLine(log *v1.ListLogLineRow) *gen.V1LogLine {
+func ToV1LogLine(log *v1.ListLogLineRow, opts ...PayloadOption) *gen.V1LogLine {
+	o := applyPayloadOptions(opts)
 
 	retryCount := int(log.RetryCount)
 	attempt := retryCount + 1
@@ -41,6 +42,11 @@ func ToV1LogLine(log *v1.ListLogLineRow) *gen.V1LogLine {
 		if err == nil {
 			res.Metadata = meta
 		}
+	}
+
+	if !o.includePayloads {
+		res.Message = ""
+		res.Metadata = emptyJSON()
 	}
 
 	return res

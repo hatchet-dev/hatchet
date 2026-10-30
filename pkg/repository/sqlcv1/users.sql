@@ -55,6 +55,15 @@ FROM
 WHERE
     "id" = @id::uuid;
 
+-- name: GetUserEmailVerifiedForUpdate :one
+SELECT
+    "emailVerified"
+FROM
+    "User"
+WHERE
+    "id" = @id::uuid
+FOR UPDATE;
+
 -- name: GetUserPassword :one
 SELECT
     *
@@ -81,6 +90,12 @@ SET
 WHERE
     "userId" = @userId::uuid
 RETURNING *;
+
+-- name: DeleteUserPassword :exec
+DELETE FROM
+    "UserPassword"
+WHERE
+    "userId" = @userId::uuid;
 
 -- name: UpsertUserOAuth :one
 INSERT INTO "UserOAuth" (
@@ -153,6 +168,17 @@ DELETE FROM
     "UserSession"
 WHERE
     "id" = @id::uuid
+RETURNING *;
+
+-- name: DeleteUserSessionsByUserId :many
+DELETE FROM
+    "UserSession"
+WHERE
+    "userId" = @userId::uuid
+    AND (
+        sqlc.narg('exceptId')::uuid IS NULL
+        OR "id" != sqlc.narg('exceptId')::uuid
+    )
 RETURNING *;
 
 -- name: CleanupUserSessions :execresult

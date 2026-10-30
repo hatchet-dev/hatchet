@@ -36,7 +36,9 @@ type CreateFilterOpts struct {
 }
 
 func (r *filterRepository) CreateFilter(ctx context.Context, tenantId uuid.UUID, opts CreateFilterOpts) (*sqlcv1.V1Filter, error) {
-	return r.queries.CreateFilter(ctx, r.pool, sqlcv1.CreateFilterParams{
+	db := r.pool.ForTenant(tenantId)
+
+	return r.queries.CreateFilter(ctx, db, sqlcv1.CreateFilterParams{
 		Tenantid:   tenantId,
 		Workflowid: opts.Workflowid,
 		Scope:      opts.Scope,
@@ -59,11 +61,13 @@ type UpdateFilterOpts struct {
 }
 
 func (r *filterRepository) ListFilters(ctx context.Context, tenantId uuid.UUID, opts ListFiltersOpts) ([]*sqlcv1.V1Filter, int64, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	if err := r.v.Validate(opts); err != nil {
 		return nil, 0, err
 	}
 
-	filters, err := r.queries.ListFilters(ctx, r.pool, sqlcv1.ListFiltersParams{
+	filters, err := r.queries.ListFilters(ctx, db, sqlcv1.ListFiltersParams{
 		Tenantid:     tenantId,
 		WorkflowIds:  opts.WorkflowIds,
 		Scopes:       opts.Scopes,
@@ -75,7 +79,7 @@ func (r *filterRepository) ListFilters(ctx context.Context, tenantId uuid.UUID, 
 		return nil, 0, err
 	}
 
-	filterCount, err := r.queries.CountFilters(ctx, r.pool, sqlcv1.CountFiltersParams{
+	filterCount, err := r.queries.CountFilters(ctx, db, sqlcv1.CountFiltersParams{
 		Tenantid:    tenantId,
 		WorkflowIds: opts.WorkflowIds,
 		Scopes:      opts.Scopes,
@@ -89,20 +93,26 @@ func (r *filterRepository) ListFilters(ctx context.Context, tenantId uuid.UUID, 
 }
 
 func (r *filterRepository) DeleteFilter(ctx context.Context, tenantId, filterId uuid.UUID) (*sqlcv1.V1Filter, error) {
-	return r.queries.DeleteFilter(ctx, r.pool, sqlcv1.DeleteFilterParams{
+	db := r.pool.ForTenant(tenantId)
+
+	return r.queries.DeleteFilter(ctx, db, sqlcv1.DeleteFilterParams{
 		Tenantid: tenantId,
 		ID:       filterId,
 	})
 }
 
 func (r *filterRepository) GetFilter(ctx context.Context, tenantId, filterId uuid.UUID) (*sqlcv1.V1Filter, error) {
-	return r.queries.GetFilter(ctx, r.pool, sqlcv1.GetFilterParams{
+	db := r.pool.ForTenant(tenantId)
+
+	return r.queries.GetFilter(ctx, db, sqlcv1.GetFilterParams{
 		Tenantid: tenantId,
 		ID:       filterId,
 	})
 }
 
 func (r *filterRepository) UpdateFilter(ctx context.Context, tenantId, filterId uuid.UUID, opts UpdateFilterOpts) (*sqlcv1.V1Filter, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -127,5 +137,5 @@ func (r *filterRepository) UpdateFilter(ctx context.Context, tenantId, filterId 
 		}
 	}
 
-	return r.queries.UpdateFilter(ctx, r.pool, params)
+	return r.queries.UpdateFilter(ctx, db, params)
 }

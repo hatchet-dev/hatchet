@@ -2,6 +2,7 @@ package analytics
 
 import (
 	"hash/fnv"
+	"math"
 	"sort"
 	"strconv"
 	"sync"
@@ -25,11 +26,15 @@ type counterEntry struct {
 	props   Properties
 	tokenID *uuid.UUID
 	// First and last event times since the last flush. Zero means unset.
+	// The markers are written separately from the count and from each
+	// other, so they are approximate bounds, see the note in flush.
 	firstEventAtNanos atomic.Int64
 	lastEventAtNanos  atomic.Int64
 }
 
-// The first marker is set once and the last marker only advances
+// The first marker is set by the first writer to reach it, which is not
+// always the writer holding the earliest time, and the last marker only
+// advances.
 func (e *counterEntry) observe(nanos int64) {
 	e.firstEventAtNanos.CompareAndSwap(0, nanos)
 
@@ -44,10 +49,28 @@ func (e *counterEntry) observe(nanos int64) {
 	}
 }
 
+// evictedCount marks an entry that flush removed from the map. Count can hold
+// a reference to such an entry, loaded just before the removal. An Add that
+// lands on it returns a negative number, which tells the writer that its
+// increment was not counted and that it must count into a fresh entry.
+const evictedCount = math.MinInt64 / 2
+
+// add reports whether the increment was counted. It returns false when flush
+// evicted the entry before the increment landed.
+func (e *counterEntry) add(n int64, nanos int64) bool {
+	if e.count.Add(n) < 0 {
+		return false
+	}
+	e.observe(nanos)
+	return true
+}
+
 // FlushFunc receives one bucket's totals for the interval since the previous
-// flush: the number of events counted, and the times of the first and last
-// events. The times are zero when unknown and can disagree with the count by
-// one event at the interval boundary.
+// flush: the number of events counted, and approximate times of the first
+// and last events. The times are sampled independently of the count and of
+// each other: they are zero when unknown, events that arrive during a flush
+// can have their count and their times attributed to different intervals,
+// and lastEventAt can precede firstEventAt when writers interleave.
 type FlushFunc func(resource Resource, action Action, tenantID uuid.UUID, tokenID *uuid.UUID, count int64, firstEventAt, lastEventAt time.Time, properties Properties)
 
 // Aggregator batches Count calls into periodic flushes. It is intended to be
@@ -92,7 +115,7 @@ func NewAggregator(l *zerolog.Logger, enabled bool, interval time.Duration, maxK
 // separately. This is the non-blocking hot path: sync.Map.Load + atomic.Add +
 // the marker update on the common case.
 func (a *Aggregator) Count(resource Resource, action Action, tenantID uuid.UUID, tokenID *uuid.UUID, n int64, props ...Properties) {
-	if a.disabled {
+	if a.disabled || n <= 0 {
 		return
 	}
 
@@ -114,30 +137,61 @@ func (a *Aggregator) Count(resource Resource, action Action, tenantID uuid.UUID,
 		PropsHash: hashProps(p),
 	}
 
-	nanos := a.now().UnixNano()
+	// Each pass retries only when flush evicted the entry between the lookup
+	// and the increment, which is rare, so the common case is one pass. The
+	// event time is taken right before each increment so that it stays
+	// close to the count it describes; it is still sampled separately from
+	// the count, so it can be stale relative to other writers.
+	//
+	// evicted records that this writer's increment landed on an entry that
+	// flush had already removed. Such a writer may republish its key even
+	// when the cap is reached, because dropping it would reintroduce the
+	// lost counts this retry exists to prevent. keyCount stays balanced:
+	// the eviction subtracted one and the republish adds one. The cap is
+	// therefore exceeded by up to one entry per Count that was between its
+	// lookup and its increment on an entry a flush evicted, on top of the
+	// admission race that already makes the cap approximate (keyCount is
+	// read separately from the map). That surplus is bounded by writer
+	// concurrency at eviction time, not by anything configured, and it is
+	// not necessarily temporary: republished entries stay until a flush
+	// finds them idle, and while they stay active further evictions can
+	// add to them. Each entry is small against the default cap of 500.
+	evicted := false
+	for {
+		if v, ok := a.counters.Load(key); ok {
+			if v.(*counterEntry).add(n, a.now().UnixNano()) {
+				return
+			}
+			// Another writer can already have published a replacement
+			// for this key, so look it up again before republishing.
+			evicted = true
+			continue
+		}
 
-	if v, ok := a.counters.Load(key); ok {
-		e := v.(*counterEntry)
-		e.count.Add(n)
-		e.observe(nanos)
-		return
-	}
+		if !evicted && a.keyCount.Load() >= a.maxKeys {
+			// The key can have been republished since the lookup above,
+			// in which case the event is not a new key and must not be
+			// dropped.
+			if _, ok := a.counters.Load(key); ok {
+				continue
+			}
+			a.l.Error().Int64("max_keys", a.maxKeys).Str("resource", string(resource)).Str("action", string(action)).Str("tenant_id", tenantID.String()).Msg("aggregator at max keys, dropping event")
+			return
+		}
 
-	if a.keyCount.Load() >= a.maxKeys {
-		a.l.Error().Int64("max_keys", a.maxKeys).Str("resource", string(resource)).Str("action", string(action)).Str("tenant_id", tenantID.String()).Msg("aggregator at max keys, dropping event")
-		return
-	}
-
-	c := &atomic.Int64{}
-	c.Add(n)
-	entry := &counterEntry{count: c, props: p, tokenID: tokenID}
-	entry.observe(nanos)
-	if existing, loaded := a.counters.LoadOrStore(key, entry); loaded {
-		e := existing.(*counterEntry)
-		e.count.Add(n)
-		e.observe(nanos)
-	} else {
-		a.keyCount.Add(1)
+		c := &atomic.Int64{}
+		c.Add(n)
+		entry := &counterEntry{count: c, props: p, tokenID: tokenID}
+		entry.observe(a.now().UnixNano())
+		existing, loaded := a.counters.LoadOrStore(key, entry)
+		if !loaded {
+			a.keyCount.Add(1)
+			return
+		}
+		if existing.(*counterEntry).add(n, a.now().UnixNano()) {
+			return
+		}
+		evicted = true
 	}
 }
 
@@ -186,34 +240,45 @@ func (a *Aggregator) flush() {
 		k := key.(counterKey)
 		e := val.(*counterEntry)
 		count := e.count.Swap(0)
-		if count > 0 {
-			// The count swap and the marker swaps are separate operations,
-			// so an event arriving during this flush can have its count
-			// taken by this flush and its time left for the next one, or
-			// the reverse. Each flush can misplace at most one event's time
-			// in each bucket. A flushed bucket can therefore carry a count
-			// with zero markers, and the delete branch below can discard a
-			// marker whose count was already flushed. A bucket's first
-			// event is never misplaced, because Count fills the markers
-			// before publishing a new bucket, so the earliest
-			// firstEventAt in a bucket's lifetime is exact. Preventing
-			// the misplacement would require Count to take a lock.
-			firstNanos := e.firstEventAtNanos.Swap(0)
-			lastNanos := e.lastEventAtNanos.Swap(0)
-
-			var firstEventAt, lastEventAt time.Time
-			if firstNanos != 0 {
-				firstEventAt = time.Unix(0, firstNanos).UTC()
-			}
-			if lastNanos != 0 {
-				lastEventAt = time.Unix(0, lastNanos).UTC()
-			}
-
-			a.flushFn(k.Resource, k.Action, k.TenantID, e.tokenID, count, firstEventAt, lastEventAt, e.props)
-		} else {
+		if count <= 0 {
 			a.counters.Delete(key)
 			a.keyCount.Add(-1)
+			// A Count that loaded this entry before the delete can still
+			// add to it. Sealing the entry turns every later add into a
+			// retry against a fresh entry, and the seal returns whatever
+			// landed between the swap above and now, which would otherwise
+			// be lost with the entry.
+			count = e.count.Swap(evictedCount)
+			if count <= 0 {
+				return true
+			}
 		}
+
+		// The count swap and the marker swaps are separate operations,
+		// and Count writes the count and each marker separately too, so
+		// the markers are approximate bounds rather than exact ones.
+		// Events arriving during this flush can have their counts taken
+		// by this flush and their times left for the next one, or the
+		// reverse, with no bound on how many. A flushed bucket can
+		// therefore carry a count with zero markers, and an evicted
+		// entry can discard markers whose counts were already flushed.
+		// Writers that interleave between the two marker writes can
+		// also leave lastEventAt before firstEventAt. A new bucket's
+		// markers are filled before it is published, so a flush never
+		// sees a fresh bucket without them. Exact bounds would require
+		// Count to take a lock.
+		firstNanos := e.firstEventAtNanos.Swap(0)
+		lastNanos := e.lastEventAtNanos.Swap(0)
+
+		var firstEventAt, lastEventAt time.Time
+		if firstNanos != 0 {
+			firstEventAt = time.Unix(0, firstNanos).UTC()
+		}
+		if lastNanos != 0 {
+			lastEventAt = time.Unix(0, lastNanos).UTC()
+		}
+
+		a.flushFn(k.Resource, k.Action, k.TenantID, e.tokenID, count, firstEventAt, lastEventAt, e.props)
 		return true
 	})
 }

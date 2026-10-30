@@ -61,6 +61,11 @@ class WorkflowServiceStub(object):
                 request_serializer=workflows__pb2.PutRateLimitRequest.SerializeToString,
                 response_deserializer=workflows__pb2.PutRateLimitResponse.FromString,
                 _registered_method=True)
+        self.PauseRateLimit = channel.unary_unary(
+                '/WorkflowService/PauseRateLimit',
+                request_serializer=workflows__pb2.PauseRateLimitRequest.SerializeToString,
+                response_deserializer=workflows__pb2.PauseRateLimitResponse.FromString,
+                _registered_method=True)
 
 
 class WorkflowServiceServicer(object):
@@ -97,6 +102,12 @@ class WorkflowServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def PauseRateLimit(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_WorkflowServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -124,6 +135,11 @@ def add_WorkflowServiceServicer_to_server(servicer, server):
                     servicer.PutRateLimit,
                     request_deserializer=workflows__pb2.PutRateLimitRequest.FromString,
                     response_serializer=workflows__pb2.PutRateLimitResponse.SerializeToString,
+            ),
+            'PauseRateLimit': grpc.unary_unary_rpc_method_handler(
+                    servicer.PauseRateLimit,
+                    request_deserializer=workflows__pb2.PauseRateLimitRequest.FromString,
+                    response_serializer=workflows__pb2.PauseRateLimitResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -262,6 +278,33 @@ class WorkflowService(object):
             '/WorkflowService/PutRateLimit',
             workflows__pb2.PutRateLimitRequest.SerializeToString,
             workflows__pb2.PutRateLimitResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def PauseRateLimit(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/WorkflowService/PauseRateLimit',
+            workflows__pb2.PauseRateLimitRequest.SerializeToString,
+            workflows__pb2.PauseRateLimitResponse.FromString,
             options,
             channel_credentials,
             insecure,

@@ -20,6 +20,8 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/credentials"
+
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 )
 
 type TracerOpts struct {
@@ -194,6 +196,13 @@ func NewSpanWithLinks(ctx context.Context, name string, links []trace.Link) (con
 	return ctx, span
 }
 
+// NewSpanAt starts a span that began at start, for work only worth recording
+// once it's known what it did.
+func NewSpanAt(ctx context.Context, name string, start time.Time) (context.Context, trace.Span) {
+	ctx, span := otel.Tracer("").Start(ctx, prefixSpanKey(name), trace.WithTimestamp(start))
+	return ctx, span
+}
+
 func NewRootSpan(ctx context.Context, name string) (context.Context, trace.Span) {
 	ctx = trace.ContextWithSpanContext(ctx, trace.SpanContext{})
 	ctx, span := otel.Tracer("").Start(ctx, prefixSpanKey(name))
@@ -295,19 +304,5 @@ func firstNonEmpty(vals ...string) string {
 // CollectUniqueTenantIDs extracts unique tenant IDs from a slice of items.
 // The extractFn should return the tenant ID string for each item.
 func CollectUniqueTenantIDs[T any](items []T, extractFn func(T) string) []string {
-	if len(items) == 0 {
-		return nil
-	}
-
-	tenantIds := make(map[string]bool)
-	for _, item := range items {
-		tenantIds[extractFn(item)] = true
-	}
-
-	uniqueTenantIds := make([]string, 0, len(tenantIds))
-	for tid := range tenantIds {
-		uniqueTenantIds = append(uniqueTenantIds, tid)
-	}
-
-	return uniqueTenantIds
+	return enumerables.Uniq(enumerables.Map(items, extractFn))
 }

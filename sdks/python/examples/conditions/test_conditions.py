@@ -8,21 +8,20 @@ from examples.conditions.worker import (
     cancel_if_or_workflow,
     cancel_if_sleep_workflow,
     cancel_if_workflow,
+    sio_target,
+    sis_start,
+    sis_target,
     skip_if_or_workflow,
     skip_if_sleep_workflow,
     task_condition_workflow,
     wait_for_event_only_workflow,
-    sis_target,
-    sio_target,
 )
 from examples.test_utils import wait_for_running_status
-from hatchet_sdk import Hatchet, RunStatus
-from examples.conditions.worker import task_condition_workflow
-from hatchet_sdk import Hatchet, V1TaskStatus
+from hatchet_sdk import Hatchet, RunStatus, V1TaskStatus
 
 
-async def _wait_for_start_to_complete(
-    hatchet: Hatchet, workflow_run_id: str, timeout: float = 60.0
+async def _wait_for_task_to_complete(
+    hatchet: Hatchet, workflow_run_id: str, task_name: str, timeout: float = 60.0
 ) -> None:
     interval = 0.5
     deadline = time.monotonic() + timeout
@@ -32,7 +31,8 @@ async def _wait_for_start_to_complete(
 
         # a task's display name is "<step readable id>-<unix timestamp>"
         if any(
-            t.status == V1TaskStatus.COMPLETED and t.display_name.startswith("start-")
+            t.status == V1TaskStatus.COMPLETED
+            and t.display_name.startswith(f"{task_name}-")
             for t in details.tasks
         ):
             return
@@ -40,7 +40,7 @@ async def _wait_for_start_to_complete(
         await asyncio.sleep(interval)
 
     raise TimeoutError(
-        f"start did not complete within {timeout}s for run {workflow_run_id}"
+        f"{task_name} did not complete within {timeout}s for run {workflow_run_id}"
     )
 
 
@@ -50,7 +50,7 @@ async def test_waits(hatchet: Hatchet) -> None:
 
     # skip_on_event's skip match and its 30s sleep are both registered when start
     # completes, so the skip event only counts during the 30s after that.
-    await _wait_for_start_to_complete(hatchet, ref.workflow_run_id)
+    await _wait_for_task_to_complete(hatchet, ref.workflow_run_id, "start")
 
     # Push twice: the read model can show start COMPLETED just before the engine
     # registers the match, and an unmatched event is dropped silently.
@@ -113,11 +113,16 @@ async def test_skip_if_sleep_skips_when_sleep_wins(hatchet: Hatchet) -> None:
 async def test_skip_if_sleep_runs_when_event_wins(hatchet: Hatchet) -> None:
     ref = skip_if_sleep_workflow.run(wait_for_result=False)
 
-    await wait_for_running_status(hatchet, ref.workflow_run_id)
+    # sis_target's wait_for match and its 12s skip_if sleep are both registered
+    # when sis_start completes, so the event only counts during the 12s after
+    # that instant. The run reads RUNNING only while sis_start holds a runtime
+    # row, which is a few milliseconds, so waiting on RUNNING can miss it and
+    # return late enough for the sleep to win. Anchor on sis_start completing.
+    await _wait_for_task_to_complete(hatchet, ref.workflow_run_id, sis_start.name)
 
-    # Push twice: the run can show RUNNING just before the engine registers
-    # sis_target's wait_for match condition, and an unmatched event is dropped
-    # silently. Both pushes land well inside the 12s skip_if sleep.
+    # Push twice: the read model can show sis_start COMPLETED just before the
+    # engine registers sis_target's match condition, and an unmatched event is
+    # dropped silently. Both pushes land well inside the 12s skip_if sleep.
     for _ in range(2):
         await hatchet.event.aio_push("skip_if_sleep:proceed", {})
         await asyncio.sleep(2)

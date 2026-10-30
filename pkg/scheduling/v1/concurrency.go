@@ -12,6 +12,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/services/shared/timeout_lock"
 
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/randomticker"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -260,18 +261,18 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 		}
 		c.releaseStrategyLocks()
 		if err != nil {
-			span.End()
-			c.l.Error().Ctx(ctx).Err(err).Msg("error running concurrency strategy")
-			continue
-		}
-
-		if time.Since(start) > 100*time.Millisecond {
+			logger.ShutdownAware(ctx, c.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error running concurrency strategy")
+		} else if time.Since(start) > 100*time.Millisecond {
 			c.l.Warn().Ctx(ctx).
 				Msgf("concurrency strategy %d took longer than 100ms (%s) to process %d items", c.strategy.ID, time.Since(start), len(results.Queued))
 		}
-		c.resultsCh <- &ConcurrencyResults{
-			RunConcurrencyResult: results,
-			TenantId:             c.tenantId,
+
+		// a failed run can still return results for the batches it committed before the error
+		if results != nil {
+			c.resultsCh <- &ConcurrencyResults{
+				RunConcurrencyResult: results,
+				TenantId:             c.tenantId,
+			}
 		}
 
 		span.End()

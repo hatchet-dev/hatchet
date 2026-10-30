@@ -26,6 +26,8 @@ Methods:
 | `list`        | List all workflows in the tenant matching optional filters.        |
 | `get_version` | Get a workflow version by the workflow ID and an optional version. |
 | `delete`      | Permanently delete a workflow.                                     |
+| `pause`       | Pause a workflow.                                                  |
+| `unpause`     | Unpause a workflow.                                                |
 
 ### Functions
 
@@ -125,6 +127,61 @@ Parameters:
 | Name          | Type     | Description                       | Default    |
 | ------------- | -------- | --------------------------------- | ---------- |
 | `workflow_id` | `String` | The ID of the workflow to delete. | _required_ |
+
+Raises:
+
+| Type                       | Description               |
+| -------------------------- | ------------------------- |
+| `HatchetSdkRest::ApiError` | If the API request fails. |
+
+#### `pause`
+
+Pause a workflow. While paused, new runs of the workflow are queued but not started.
+
+```ruby
+hatchet.workflows.pause("workflow-123", queue_ttl: 3600)
+```
+
+Parameters:
+
+| Name                                           | Type                | Description                                                                                                                       | Default                                                             |
+| ---------------------------------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `workflow_id`                                  | `String`            | The ID of the workflow to pause.                                                                                                  | _required_                                                          |
+| `queue_ttl`                                    | `Integer \| String` | How long runs stay queued while the workflow is paused before they are dropped, in seconds or as a duration string (e.g. "1h30m") | _required_                                                          |
+| `paused_workflow_cron_run_queue_behavior`      | `String`            | The behavior of cron runs triggered while the workflow is paused ("QUEUE" or "DROP")                                              | `HatchetSdkRest::WorkflowPauseScheduledCronRunQueueBehavior::QUEUE` |
+| `paused_workflow_scheduled_run_queue_behavior` | `String`            | The behavior of scheduled runs triggered while the workflow is paused ("QUEUE" or "DROP")                                         | `HatchetSdkRest::WorkflowPauseScheduledCronRunQueueBehavior::QUEUE` |
+
+Returns:
+
+| Type                       | Description           |
+| -------------------------- | --------------------- |
+| `HatchetSdkRest::Workflow` | The updated workflow. |
+
+Raises:
+
+| Type                       | Description               |
+| -------------------------- | ------------------------- |
+| `HatchetSdkRest::ApiError` | If the API request fails. |
+
+#### `unpause`
+
+Unpause a workflow.
+
+```ruby
+hatchet.workflows.unpause("workflow-123")
+```
+
+Parameters:
+
+| Name          | Type     | Description                        | Default    |
+| ------------- | -------- | ---------------------------------- | ---------- |
+| `workflow_id` | `String` | The ID of the workflow to unpause. | _required_ |
+
+Returns:
+
+| Type                       | Description           |
+| -------------------------- | --------------------- |
+| `HatchetSdkRest::Workflow` | The updated workflow. |
 
 Raises:
 

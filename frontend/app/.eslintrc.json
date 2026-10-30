@@ -11,9 +11,10 @@
     "plugin:react/recommended",
     "plugin:@typescript-eslint/recommended",
     "plugin:react-hooks/recommended",
+    "plugin:storybook/recommended",
     "prettier"
   ],
-  "ignorePatterns": ["dist", "**/generated/**/*"],
+  "ignorePatterns": ["dist", "**/generated/**/*", "!.storybook"],
   "parser": "@typescript-eslint/parser",
   "parserOptions": {
     "project": ["./tsconfig.json", "./tsconfig.node.json", "./tsconfig.cypress.json"],
@@ -51,7 +52,9 @@
         "devDependencies": [
           "vite.config.ts",
           "cypress.config.ts",
-          "cypress/**/*.{ts,tsx}"
+          "cypress/**/*.{ts,tsx}",
+          ".storybook/**/*.{ts,tsx}",
+          "src/**/*.stories.{ts,tsx}"
         ]
       }
     ],

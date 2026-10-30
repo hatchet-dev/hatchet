@@ -2,17 +2,18 @@ package middleware
 
 import (
 	"context"
+	"errors"
+	"net/http"
+	"strings"
 
-	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
+	"connectrpc.com/connect"
+	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog"
-	"go.opentelemetry.io/otel/trace"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/status"
 
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	authtoken "github.com/hatchet-dev/hatchet/pkg/auth/token"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
-	"github.com/hatchet-dev/hatchet/pkg/telemetry"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 )
 
 type GRPCAuthN struct {
@@ -28,9 +29,11 @@ func NewAuthN(config *server.ServerConfig) *GRPCAuthN {
 	}
 }
 
-func (a *GRPCAuthN) Middleware(ctx context.Context) (context.Context, error) {
-	forbidden := status.Errorf(codes.Unauthenticated, "invalid auth token")
-	token, err := auth.AuthFromMD(ctx, "bearer")
+// Middleware validates the bearer token in header and returns ctx carrying the tenant, the
+// token id and the call source. It runs from the request gate, before any message is read.
+func (a *GRPCAuthN) Middleware(ctx context.Context, header http.Header) (context.Context, error) {
+	forbidden := connect.NewError(connect.CodeUnauthenticated, errors.New("invalid auth token"))
+	token, err := bearerToken(header)
 
 	if err != nil {
 		a.l.Debug().Ctx(ctx).Err(err).Msgf("error getting bearer token from request: %s", err)
@@ -39,29 +42,38 @@ func (a *GRPCAuthN) Middleware(ctx context.Context) (context.Context, error) {
 
 	tenantId, tokenUUID, err := a.config.Auth.JWTManager.ValidateTenantToken(ctx, token)
 
+	if errors.Is(err, authtoken.ErrCouldNotReadTokenFromDatabase) {
+		return nil, a.couldNotCheckToken(ctx, err)
+	}
+
 	if err != nil {
 		a.l.Debug().Ctx(ctx).Err(err).Msgf("error validating tenant token: %s", err)
 
 		return nil, forbidden
 	}
 
+	dbToken, err := a.config.V1.APIToken().GetAPITokenById(ctx, tokenUUID)
+	if err != nil {
+		return nil, forbidden
+	}
+	if dbToken.ReadOnly {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("read-only tokens cannot use gRPC"))
+	}
+
 	ctx = context.WithValue(ctx, analytics.APITokenIDKey, tokenUUID)
 	ctx = context.WithValue(ctx, analytics.TenantIDKey, tenantId)
 
-	span := trace.SpanFromContext(ctx)
-	telemetry.WithAttributes(span,
-		telemetry.AttributeKV{Key: "tenant.id", Value: tenantId},
-	)
-
 	source := analytics.SourceGRPC
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		if vals := md.Get(analytics.SourceMetadataKey); len(vals) > 0 {
-			source = analytics.Source(vals[0])
-		}
+	if vals := header.Values(analytics.SourceMetadataKey); len(vals) > 0 {
+		source = analytics.Source(vals[0])
 	}
 	ctx = context.WithValue(ctx, analytics.SourceKey, source)
 
 	queriedTenant, err := a.config.V1.Tenant().GetTenantByID(ctx, tenantId)
+
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, a.couldNotCheckToken(ctx, err)
+	}
 
 	if err != nil {
 		a.l.Debug().Ctx(ctx).Err(err).Msgf("error getting tenant by id: %s", err)
@@ -69,4 +81,35 @@ func (a *GRPCAuthN) Middleware(ctx context.Context) (context.Context, error) {
 	}
 
 	return context.WithValue(ctx, "tenant", queriedTenant), nil
+}
+
+func (a *GRPCAuthN) couldNotCheckToken(ctx context.Context, err error) error {
+	var limitErr *fairpool.LimitError
+	if ctx.Err() != nil || errors.As(err, &limitErr) {
+		return expectedStatus(ctx, err)
+	}
+
+	a.l.Error().Ctx(ctx).Err(err).Msg("could not check auth token against the database")
+
+	return connect.NewError(connect.CodeInternal, errors.New("An internal error occurred."))
+}
+
+// bearerToken extracts the token from the first authorization header value. The scheme is
+// matched case-insensitively.
+func bearerToken(header http.Header) (string, error) {
+	vals := header.Values("Authorization")
+	if len(vals) == 0 {
+		return "", errors.New("request unauthenticated with bearer")
+	}
+
+	scheme, token, found := strings.Cut(vals[0], " ")
+	if !found {
+		return "", errors.New("bad authorization string")
+	}
+
+	if !strings.EqualFold(scheme, "bearer") {
+		return "", errors.New("request unauthenticated with bearer")
+	}
+
+	return token, nil
 }

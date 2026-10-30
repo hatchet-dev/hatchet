@@ -57,6 +57,9 @@ message DurableTaskEventLogEntryCompletedResponse {
     bytes payload = 2;
     bool is_failure = 3;
     optional string error_message = 4;
+    // The position of this completion in the order the server releases completions for this
+    // invocation. Unset for completions that are not ordered.
+    optional int64 satisfied_order = 5;
 }
 
 message DurableTaskEvictInvocationRequest {
@@ -85,9 +88,18 @@ message DurableTaskServerEvictNotice {
     string reason = 3;
 }
 
+// The highest satisfied_order the worker has received for an invocation. When a worker
+// reconnects, the server resumes ordered delivery after this value.
+message DurableTaskReceivedSatisfiedOrder {
+    string durable_task_external_id = 1;
+    int32 invocation_count = 2;
+    int64 highest_received_satisfied_order = 3;
+}
+
 message DurableTaskWorkerStatusRequest {
     string worker_id = 1;
     repeated DurableTaskAwaitedCompletedEntry waiting_entries = 2;
+    repeated DurableTaskReceivedSatisfiedOrder received_satisfied_orders = 3;
 }
 
 message DurableTaskCompleteMemoRequest {

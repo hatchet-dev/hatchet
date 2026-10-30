@@ -18,19 +18,19 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts/contractsconnect"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/streams"
 	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
-	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
-	"github.com/hatchet-dev/hatchet/pkg/operator/manager"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -42,12 +42,14 @@ import (
 )
 
 type Dispatcher interface {
-	contracts.DispatcherServer
+	contractsconnect.DispatcherHandler
 	Start() (func() error, error)
 }
 
+var _ contractsconnect.DispatcherHandler = (*DispatcherImpl)(nil)
+
 type DispatcherImpl struct {
-	contracts.UnimplementedDispatcherServer
+	contractsconnect.UnimplementedDispatcherHandler
 	v                                   validator.Validator
 	s                                   gocron.Scheduler
 	mqv1                                msgqueue.MessageQueue
@@ -67,7 +69,6 @@ type DispatcherImpl struct {
 	version                             string
 	defaultMaxWorkerLockAcquisitionTime time.Duration
 	streamEventBufferTimeout            time.Duration
-	om                                  *manager.OperatorManager
 	workflowRunBufferSize               int
 	payloadSizeThreshold                int
 	dispatcherId                        uuid.UUID
@@ -100,20 +101,20 @@ func (d *DispatcherImpl) CancelDAGChildren(ctx context.Context, tenantId uuid.UU
 var ErrWorkerNotFound = fmt.Errorf("worker not found")
 
 type workers struct {
-	innerMap syncx.Map[uuid.UUID, *syncx.Map[string, *subscribedWorker]]
+	innerMap syncx.Map[uuid.UUID, *syncx.Map[uuid.UUID, *subscribedWorker]]
 }
 
-func (w *workers) Range(f func(key uuid.UUID, value *syncx.Map[string, *subscribedWorker]) bool) {
+func (w *workers) Range(f func(key uuid.UUID, value *syncx.Map[uuid.UUID, *subscribedWorker]) bool) {
 	w.innerMap.Range(f)
 }
 
-func (w *workers) Add(workerId uuid.UUID, sessionId string, worker *subscribedWorker) {
-	actual, _ := w.innerMap.LoadOrStore(workerId, &syncx.Map[string, *subscribedWorker]{})
+func (w *workers) Add(workerId uuid.UUID, sessionId uuid.UUID, worker *subscribedWorker) {
+	actual, _ := w.innerMap.LoadOrStore(workerId, &syncx.Map[uuid.UUID, *subscribedWorker]{})
 
 	actual.Store(sessionId, worker)
 }
 
-func (w *workers) GetForSession(workerId uuid.UUID, sessionId string) (*subscribedWorker, error) {
+func (w *workers) GetForSession(workerId uuid.UUID, sessionId uuid.UUID) (*subscribedWorker, error) {
 	actual, ok := w.innerMap.Load(workerId)
 	if !ok {
 		return nil, ErrWorkerNotFound
@@ -136,7 +137,7 @@ func (w *workers) Get(workerId uuid.UUID) ([]*subscribedWorker, error) {
 
 	workers := []*subscribedWorker{}
 
-	actual.Range(func(key string, value *subscribedWorker) bool {
+	actual.Range(func(key uuid.UUID, value *subscribedWorker) bool {
 		workers = append(workers, value)
 		return true
 	})
@@ -144,7 +145,7 @@ func (w *workers) Get(workerId uuid.UUID) ([]*subscribedWorker, error) {
 	return workers, nil
 }
 
-func (w *workers) DeleteForSession(workerId uuid.UUID, sessionId string) {
+func (w *workers) DeleteForSession(workerId uuid.UUID, sessionId uuid.UUID) {
 	actual, ok := w.innerMap.Load(workerId)
 
 	if !ok {
@@ -174,9 +175,6 @@ type DispatcherOpts struct {
 	defaultMaxWorkerLockAcquisitionTime time.Duration
 	workflowRunBufferSize               int
 	streamEventBufferTimeout            time.Duration
-	enc                                 encryption.EncryptionService
-	infraBlockedCIDRs                   []string
-	dagOperatorDefaultSlots             int
 	dispatcherId                        uuid.UUID
 	promGate                            *prometheus.Gate
 }
@@ -243,24 +241,6 @@ func WithDispatcherId(dispatcherId uuid.UUID) DispatcherOpt {
 func WithCache(cache cache.Cacheable) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.cache = cache
-	}
-}
-
-func WithEncryption(enc encryption.EncryptionService) DispatcherOpt {
-	return func(opts *DispatcherOpts) {
-		opts.enc = enc
-	}
-}
-
-func WithInfraBlockedCIDRs(cidrs []string) DispatcherOpt {
-	return func(opts *DispatcherOpts) {
-		opts.infraBlockedCIDRs = cidrs
-	}
-}
-
-func WithDAGOperatorDefaultSlots(slots int) DispatcherOpt {
-	return func(opts *DispatcherOpts) {
-		opts.dagOperatorDefaultSlots = slots
 	}
 }
 
@@ -344,7 +324,6 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 
 	pubBuffer := msgqueue.NewMQPubBuffer(opts.mqv1)
 
-	om := manager.NewOperatorManager(opts.dispatcherId, opts.l, opts.repov1, opts.enc, opts.infraBlockedCIDRs, opts.dagOperatorDefaultSlots)
 	v := validator.NewDefaultValidator()
 
 	return &DispatcherImpl{
@@ -367,9 +346,8 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		analytics:                           opts.analytics,
 		streamEventBufferTimeout:            opts.streamEventBufferTimeout,
 		version:                             opts.version,
-		om:                                  om,
 		refreshTimeoutBuf:                   newRefreshTimeoutBuffer(),
-		serviceV1:                           newDispatcherService(opts.repov1, opts.mqv1, opts.pubsub, v, opts.l, opts.dispatcherId, opts.analytics, opts.promGate),
+		serviceV1:                           newDispatcherService(opts.repov1, opts.mqv1, opts.pubsub, v, opts.l, opts.dispatcherId, opts.analytics, a, opts.promGate),
 	}, nil
 }
 
@@ -402,10 +380,6 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 
 	d.s.Start()
 
-	operatorCh := d.om.Start(ctx, d)
-
-	go d.listenForOperators(operatorCh)
-
 	wg := sync.WaitGroup{}
 
 	// subscribe to a task queue with the dispatcher id
@@ -416,14 +390,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 		defer wg.Done()
 
 		if taskErr := d.handleV1Task(ctx, task); taskErr != nil {
-			// ErrNoActiveDurableInvocation is an expected, self-healing condition (worker
-			// reconnecting after a roll); it's returned so the callback dead-letters and is
-			// re-routed, not because anything is wrong here.
-			if errors.Is(taskErr, ErrNoActiveDurableInvocation) {
-				d.l.Warn().Ctx(ctx).Err(taskErr).Msgf("deferring dispatcher task %s to dead-letter retry", task.ID)
-			} else {
-				d.l.Error().Ctx(ctx).Err(taskErr).Msgf("could not handle dispatcher task %s", task.ID)
-			}
+			d.l.Error().Ctx(ctx).Err(taskErr).Msgf("could not handle dispatcher task %s", task.ID)
 			return taskErr
 		}
 
@@ -448,11 +415,6 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 
 		wg.Wait()
 
-		// drain the operators (waits for their in-flight tasks and stops their heartbeats);
-		// this runs after wg.Wait so in-flight queue tasks can still reach their operators,
-		// and before pubBuffer.Stop so draining operators can still flush result events
-		d.om.Cleanup()
-
 		d.pubBuffer.Stop()
 		d.serviceV1.pubBuffer.Stop()
 		d.refreshTimeoutBuf.stop()
@@ -460,17 +422,19 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 		// drain the existing connections
 		d.l.Debug().Ctx(ctx).Msg("draining existing connections")
 
-		d.workers.Range(func(key uuid.UUID, value *syncx.Map[string, *subscribedWorker]) bool {
-			value.Range(func(key string, value *subscribedWorker) bool {
+		d.workers.Range(func(key uuid.UUID, value *syncx.Map[uuid.UUID, *subscribedWorker]) bool {
+			value.Range(func(key uuid.UUID, value *subscribedWorker) bool {
 				w := value
 
-				// operator-backed workers have no stream goroutine reading `finished`; the
-				// operator manager has already drained them above
-				if w.operator != nil {
+				// operator-backed workers have no stream goroutine reading `finished`: the
+				// host that opened the session owns their teardown, the in-process host for
+				// the operators the claimer runs and the operator service for the sessions
+				// it opens
+				if w.handler != nil {
 					return true
 				}
 
-				w.finished <- true
+				w.requestFin()
 
 				return true
 			})
@@ -497,54 +461,6 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	}
 
 	return cleanup, nil
-}
-
-// listenForOperators mirrors the manager's reported operator set into the workers map. Each
-// message carries the full set of active operators (resent every poll), so entries that
-// disappear from the set are removed — the dispatcher never accumulates routing entries for
-// operators that are no longer claimed by it.
-func (d *DispatcherImpl) listenForOperators(ch <-chan []operator.Operator) {
-	// workerId -> sessionId for the operator-backed entries this loop has added; only this
-	// goroutine touches it. operator workers are exclusive to their operator instance, so a
-	// stable session per worker is sufficient.
-	sessions := make(map[uuid.UUID]string)
-
-	for operators := range ch {
-		current := make(map[uuid.UUID]struct{}, len(operators))
-
-		for _, o := range operators {
-			workerId := o.WorkerId()
-			current[workerId] = struct{}{}
-
-			if _, ok := sessions[workerId]; ok {
-				continue
-			}
-
-			sessionId := uuid.NewString()
-			sessions[workerId] = sessionId
-
-			d.workers.Add(
-				workerId,
-				sessionId,
-				// nil finished channel: operator workers have no stream goroutine to signal,
-				// and the shutdown drain skips them (the operator manager owns their teardown)
-				newOperatorSubscribedWorker(
-					workerId,
-					d.pubBuffer,
-					o,
-				),
-			)
-		}
-
-		for workerId := range sessions {
-			if _, ok := current[workerId]; ok {
-				continue
-			}
-
-			delete(sessions, workerId)
-			d.workers.Delete(workerId)
-		}
-	}
 }
 
 func (d *DispatcherImpl) handleV1Task(ctx context.Context, task *msgqueue.Message) (err error) {
@@ -581,9 +497,7 @@ func (d *DispatcherImpl) DispatcherId() uuid.UUID {
 func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, task *msgqueue.Message) error {
 	payloads := msgqueue.JSONConvert[tasktypesv1.DurableCallbackCompletedPayload](task.Payloads)
 
-	// We need to return no active invocation errors because otherwise they will get stuck on engine failure, never go to DLQ,
-	// and then the next engine that stands up will have no idea about it, leading to runs stuck in RUNNING
-	var retryErr error
+	undelivered := make([]tasktypesv1.DurableCallbackCompletedPayload, 0)
 
 	for _, payload := range payloads {
 		err := d.serviceV1.DeliverDurableEventLogEntryCompletion(
@@ -598,20 +512,27 @@ func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, tas
 			payload.ChildTaskErrorMessage,
 		)
 
-		if err == nil {
-			continue
+		if err != nil {
+			d.l.Warn().Err(err).Msgf("could not deliver callback completion for task %s; redelivering via the dead-letter queue", payload.TaskExternalId)
+			undelivered = append(undelivered, *payload)
 		}
-
-		if errors.Is(err, ErrNoActiveDurableInvocation) {
-			d.l.Warn().Err(err).Msgf("deferring callback completion for task %s (worker reconnecting); will redeliver", payload.TaskExternalId)
-			retryErr = err
-			continue
-		}
-
-		d.l.Warn().Err(err).Msgf("failed to deliver callback completion for task %s", payload.TaskExternalId)
 	}
 
-	return retryErr
+	if len(undelivered) == 0 {
+		return nil
+	}
+
+	msg, err := msgqueue.NewTenantMessage(task.TenantID, msgqueue.MsgIDDurableCallbackCompleted, false, true, undelivered...)
+
+	if err != nil {
+		return fmt.Errorf("could not create dead-letter message for undelivered durable callbacks: %w", err)
+	}
+
+	if err := d.mqv1.SendMessage(ctx, msgqueue.DISPATCHER_DEAD_LETTER_QUEUE, msg); err != nil {
+		return fmt.Errorf("could not publish undelivered durable callbacks to the dead-letter queue: %w", err)
+	}
+
+	return nil
 }
 
 func (d *DispatcherImpl) runUpdateHeartbeat(ctx context.Context) func() {
@@ -652,14 +573,23 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 	}
 
 	for _, innerMsg := range msgs {
-		// load the step runs from the database
 		taskIds := make([]int64, 0)
 
 		for _, tasks := range innerMsg.WorkerIdToTaskIds {
 			taskIds = append(taskIds, tasks...)
 		}
 
-		taskIdToData, err := d.populateTaskData(ctx, requeue, msg.TenantID, taskIds)
+		attempts := assignedAttemptsFromPayload(innerMsg)
+
+		dispatchData, err := d.repov1.Tasks().ListTasksForDispatch(ctx, msg.TenantID, taskIds)
+
+		if err != nil {
+			d.l.Error().Ctx(ctx).Err(err).Msgf("could not bulk list step run data:")
+			d.requeueTasksAfterFailedDispatchRead(ctx, requeue, msg.TenantID, attempts)
+			continue
+		}
+
+		taskIdToData, err := d.populateTaskData(ctx, requeue, msg.TenantID, onlyAssignedAttempts(dispatchData, attempts))
 
 		if err != nil {
 			// we've already handled the requeue in populateTaskData, and we've logged the error, so we just continue
@@ -697,7 +627,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 func (d *DispatcherImpl) GetLocalWorkerIds() map[uuid.UUID]struct{} {
 	workerIds := make(map[uuid.UUID]struct{})
 
-	d.workers.Range(func(workerId uuid.UUID, value *syncx.Map[string, *subscribedWorker]) bool {
+	d.workers.Range(func(workerId uuid.UUID, value *syncx.Map[uuid.UUID, *subscribedWorker]) bool {
 		workerIds[workerId] = struct{}{}
 
 		return true
@@ -785,18 +715,11 @@ func (d *DispatcherImpl) populateTaskData(
 	ctx context.Context,
 	requeue func(task *sqlcv1.V1Task),
 	tenantId uuid.UUID,
-	taskIds []int64,
+	dispatchData *v1.TasksForDispatch,
 ) (map[int64]*V1TaskWithPayloadAndInvocationCount, error) {
-	bulkDatas, err := d.repov1.Tasks().ListTasks(ctx, tenantId, taskIds)
+	bulkDatas := dispatchData.Tasks
 
-	if err != nil {
-		for _, task := range bulkDatas {
-			requeue(task)
-		}
-
-		d.l.Error().Ctx(ctx).Err(err).Msgf("could not bulk list step run data:")
-		return nil, err
-	}
+	var err error
 
 	getInvocationCountOpts := make([]v1.IdInsertedAt, 0)
 
@@ -835,19 +758,19 @@ func (d *DispatcherImpl) populateTaskData(
 		return nil, err
 	}
 
-	retrievePayloadOpts := make([]v1.RetrievePayloadOpts, len(bulkDatas))
+	retrievePayloadOpts := make([]v1.PayloadRef[v1.TaskInputShape], len(bulkDatas))
 
 	for i, task := range bulkDatas {
-		retrievePayloadOpts[i] = v1.RetrievePayloadOpts{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-			TenantId:   task.TenantID,
-			ExternalId: task.ExternalID,
+		retrievePayloadOpts[i] = v1.PayloadRef[v1.TaskInputShape]{
+			Id:                 task.ID,
+			InsertedAt:         task.InsertedAt,
+			TenantId:           task.TenantID,
+			ExternalId:         task.ExternalID,
+			PayloadReferenceId: task.PayloadReferenceID,
 		}
 	}
 
-	inputs, err := d.repov1.Payloads().Retrieve(ctx, nil, retrievePayloadOpts...)
+	inputs, err := d.repov1.Payloads().TaskInputs().Resolve(ctx, nil, dispatchData.PayloadRows, retrievePayloadOpts...)
 
 	// FIXME: we should differentiate between a retryable error and a non-retryable error here;
 	// for example, if we're hitting an S3 rate limit for payloads that exist in S3, we should retry;
@@ -862,71 +785,39 @@ func (d *DispatcherImpl) populateTaskData(
 		return nil, err
 	}
 
-	// this is to avoid a nil pointer dereference in the code below
-	if inputs == nil {
-		inputs = make(map[v1.RetrievePayloadOpts][]byte)
-	}
+	taskIdToStepRunData := make(map[int64]*v1.V1StepRunData, len(bulkDatas))
 
-	// dagChildInputs holds the tasks whose parents need to be resolved via GetDagParentOutputs
+	// dagChildStepRunData holds the tasks whose parents need to be resolved via GetDagParentOutputs
 	// (durable DAG-operator children); we resolve all of them with a single batched lookup below
 	// instead of one DB round trip per task.
-	dagChildInputs := make([]*dagChildTaskInput, 0)
+	dagChildStepRunData := make([]*v1.V1StepRunData, 0)
 	dagParentExternalIdSet := make(map[uuid.UUID]struct{})
 
 	for _, task := range bulkDatas {
-		payloadKey := v1.RetrievePayloadOpts{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-			TenantId:   task.TenantID,
-			ExternalId: task.ExternalID,
+		stepRunData, err := v1.NewV1StepRunDataFromTaskAndInputPayload(task, taskInputPayloadOrFallback(inputs, task).Bytes())
+
+		if err != nil {
+			d.l.Warn().Ctx(ctx).Err(err).Msg("failed to unmarshal input")
+			continue
 		}
 
-		input, ok := inputs[payloadKey]
+		taskIdToStepRunData[task.ID] = stepRunData
 
-		if !ok {
-			// If the input wasn't found in the payload store,
-			// fall back to the input stored on the task itself.
-			input = task.Input
-		}
+		if len(stepRunData.DagParentTaskRunIds) > 0 {
+			dagChildStepRunData = append(dagChildStepRunData, stepRunData)
 
-		currInput := &v1.V1StepRunData{}
-
-		if input != nil {
-			if err := json.Unmarshal(input, currInput); err != nil {
-				d.l.Warn().Ctx(ctx).Err(err).Msg("failed to unmarshal input")
-				continue
-			}
-		}
-
-		if len(currInput.DagParentTaskRunIds) > 0 {
-			dagChildInputs = append(dagChildInputs, &dagChildTaskInput{payloadKey: payloadKey, currInput: currInput})
-
-			for _, parentExternalId := range currInput.DagParentTaskRunIds {
+			for _, parentExternalId := range stepRunData.DagParentTaskRunIds {
 				dagParentExternalIdSet[parentExternalId] = struct{}{}
 			}
 		} else if parentData, ok := parentDataMap[task.ID]; ok {
-			readableIdToData := make(map[string]map[string]interface{})
+			parentOutputs, stepRunErrors := splitParentOutputsAndStepRunErrors(ctx, d.l, task.ID, parentData)
 
-			for _, outputEvent := range parentData {
-				outputMap := make(map[string]interface{})
-
-				if len(outputEvent.Output) > 0 {
-					if err := json.Unmarshal(outputEvent.Output, &outputMap); err != nil {
-						d.l.Warn().Ctx(ctx).Err(err).Msg("failed to unmarshal output")
-						continue
-					}
-				}
-
-				readableIdToData[outputEvent.StepReadableID] = outputMap
-			}
-
-			currInput.Parents = readableIdToData
-			inputs[payloadKey] = currInput.Bytes()
+			stepRunData.Parents = parentOutputs
+			stepRunData.StepRunErrors = stepRunErrors
 		}
 	}
 
-	if len(dagChildInputs) > 0 {
+	if len(dagChildStepRunData) > 0 {
 		dagParentExternalIds := make([]uuid.UUID, 0, len(dagParentExternalIdSet))
 
 		for parentExternalId := range dagParentExternalIdSet {
@@ -938,12 +829,12 @@ func (d *DispatcherImpl) populateTaskData(
 		if err != nil {
 			// if we failed to get all of them at once in a batch, do it 1 by 1. Unfortunately results in an N+1 query pattern,
 			// but not much we can do.
-			d.l.Warn().Ctx(ctx).Err(err).Msgf("failed to batch look up dag parent outputs for %d tasks, falling back to per-task lookups", len(dagChildInputs))
+			d.l.Warn().Ctx(ctx).Err(err).Msgf("failed to batch look up dag parent outputs for %d tasks, falling back to per-task lookups", len(dagChildStepRunData))
 
 			dagParentOutputs = make(map[uuid.UUID]*v1.TaskOutputEvent)
 
-			for _, entry := range dagChildInputs {
-				perTaskOutputs, perTaskErr := d.repov1.Tasks().GetDagParentOutputs(ctx, tenantId, entry.currInput.DagParentTaskRunIds)
+			for _, stepRunData := range dagChildStepRunData {
+				perTaskOutputs, perTaskErr := d.repov1.Tasks().GetDagParentOutputs(ctx, tenantId, stepRunData.DagParentTaskRunIds)
 
 				if perTaskErr != nil {
 					d.l.Warn().Ctx(ctx).Err(perTaskErr).Msg("failed to look up dag parent outputs")
@@ -956,31 +847,20 @@ func (d *DispatcherImpl) populateTaskData(
 			}
 		}
 
-		resolveDagParentOutputs(ctx, d.l, dagChildInputs, dagParentOutputs, inputs)
+		resolveDagParentOutputs(ctx, d.l, dagChildStepRunData, dagParentOutputs)
 	}
 
-	runtimes, err := d.repov1.Tasks().ListTaskRuntimes(ctx, tenantId, bulkDatas)
-
-	if err != nil {
-		d.l.Warn().Ctx(ctx).Err(err).Msgf("could not bulk fetch runtimes for %d tasks", len(bulkDatas))
-		runtimes = make(map[int64]*sqlcv1.V1TaskRuntime)
-	}
+	runtimes := dispatchData.Runtimes
 
 	taskIdToData := make(map[int64]*V1TaskWithPayloadAndInvocationCount)
 
 	for _, task := range bulkDatas {
-		input, ok := inputs[v1.RetrievePayloadOpts{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-			TenantId:   task.TenantID,
-			ExternalId: task.ExternalID,
-		}]
+		var dispatchedPayload []byte
 
-		if !ok {
-			// If the input wasn't found in the payload store,
-			// fall back to the input stored on the task itself.
-			input = task.Input
+		if stepRunData, ok := taskIdToStepRunData[task.ID]; ok {
+			dispatchedPayload = stepRunData.Bytes()
+		} else {
+			dispatchedPayload = taskInputPayloadOrFallback(inputs, task).Bytes()
 		}
 
 		invocationCount := invocationCounts[v1.IdInsertedAt{
@@ -992,7 +872,7 @@ func (d *DispatcherImpl) populateTaskData(
 			&v1.V1TaskWithPayload{
 				V1Task:  task,
 				Runtime: runtimes[task.ID],
-				Payload: input,
+				Payload: dispatchedPayload,
 			},
 			invocationCount,
 		}
@@ -1001,34 +881,87 @@ func (d *DispatcherImpl) populateTaskData(
 	return taskIdToData, nil
 }
 
-// dagChildTaskInput is a durable DAG-operator child task awaiting parent output resolution:
-// its own payload key (to write the resolved input back into `inputs`) plus its unmarshaled
-// input (which carries the list of parent external IDs it needs outputs for).
-type dagChildTaskInput struct {
-	payloadKey v1.RetrievePayloadOpts
-	currInput  *v1.V1StepRunData
+func taskInputPayloadOrFallback(inputs map[v1.PayloadRef[v1.TaskInputShape]]v1.Payload[v1.TaskInputShape], task *sqlcv1.V1Task) v1.Payload[v1.TaskInputShape] {
+	return v1.RetrievePayloadOrFallback(inputs, v1.PayloadRef[v1.TaskInputShape]{
+		Id:                 task.ID,
+		InsertedAt:         task.InsertedAt,
+		TenantId:           task.TenantID,
+		ExternalId:         task.ExternalID,
+		PayloadReferenceId: task.PayloadReferenceID,
+	}, task.Input)
+}
+
+func splitParentOutputsAndStepRunErrors(
+	ctx context.Context,
+	l *zerolog.Logger,
+	taskId int64,
+	terminalEvents []*v1.TaskOutputEvent,
+) (map[string]map[string]interface{}, map[string]string) {
+	parentOutputs := make(map[string]map[string]interface{})
+	stepRunErrors := make(map[string]string)
+
+	for _, event := range terminalEvents {
+		if event.IsFailed() {
+			if event.TaskId != taskId {
+				stepRunErrors[event.StepReadableID] = event.ErrorMessage
+			}
+
+			continue
+		}
+
+		outputMap, err := parentOutputMapFromEvent(event)
+
+		if err != nil {
+			l.Warn().Ctx(ctx).Err(err).Msg("failed to unmarshal output")
+			continue
+		}
+
+		parentOutputs[event.StepReadableID] = outputMap
+	}
+
+	return parentOutputs, stepRunErrors
+}
+
+// A task that returns nothing has an empty output, which the child must still see as an empty object.
+func parentOutputMapFromEvent(event *v1.TaskOutputEvent) (map[string]interface{}, error) {
+	outputMap := make(map[string]interface{})
+
+	if len(event.Output) == 0 {
+		return outputMap, nil
+	}
+
+	if err := json.Unmarshal(event.Output, &outputMap); err != nil {
+		return nil, err
+	}
+
+	return outputMap, nil
 }
 
 func resolveDagParentOutputs(
 	ctx context.Context,
 	l *zerolog.Logger,
-	dagChildInputs []*dagChildTaskInput,
+	dagChildStepRunData []*v1.V1StepRunData,
 	dagParentOutputs map[uuid.UUID]*v1.TaskOutputEvent,
-	inputs map[v1.RetrievePayloadOpts][]byte,
 ) {
-	for _, entry := range dagChildInputs {
+	for _, stepRunData := range dagChildStepRunData {
 		parents := make(map[string]map[string]interface{})
+		stepRunErrors := make(map[string]string)
 
-		for _, parentExternalId := range entry.currInput.DagParentTaskRunIds {
+		for _, parentExternalId := range stepRunData.DagParentTaskRunIds {
 			parentOutput, ok := dagParentOutputs[parentExternalId]
 
 			if !ok {
 				continue
 			}
 
-			outputMap := make(map[string]interface{})
+			if parentOutput.IsFailed() {
+				stepRunErrors[parentOutput.StepReadableID] = parentOutput.ErrorMessage
+				continue
+			}
 
-			if err := json.Unmarshal(parentOutput.Output, &outputMap); err != nil {
+			outputMap, err := parentOutputMapFromEvent(parentOutput)
+
+			if err != nil {
 				l.Warn().Ctx(ctx).Err(err).Msgf("failed to unmarshal dag parent output for %s", parentOutput.StepReadableID)
 				continue
 			}
@@ -1036,8 +969,8 @@ func resolveDagParentOutputs(
 			parents[parentOutput.StepReadableID] = outputMap
 		}
 
-		entry.currInput.Parents = parents
-		inputs[entry.payloadKey] = entry.currInput.Bytes()
+		stepRunData.Parents = parents
+		stepRunData.StepRunErrors = stepRunErrors
 	}
 }
 
@@ -1061,7 +994,7 @@ func (d *DispatcherImpl) sendTasksToWorker(
 		task, ok := tasks[taskId]
 
 		if !ok {
-			d.l.Error().Ctx(ctx).Msgf("task %d not found in task data map", taskId)
+			d.l.Debug().Ctx(ctx).Msgf("task %d is no longer assigned to worker %s, skipping", taskId, workerId)
 			continue
 		}
 
@@ -1130,6 +1063,138 @@ func (d *DispatcherImpl) sendTasksToWorker(
 	return innerEg.Wait()
 }
 
+type assignedAttempt struct {
+	WorkerId      uuid.UUID
+	RetryCount    int32
+	HasRetryCount bool
+}
+
+func assignedAttemptsFromPayload(payload *tasktypesv1.TaskAssignedBulkTaskPayload) map[int64]assignedAttempt {
+	attempts := make(map[int64]assignedAttempt)
+
+	for workerId, taskIds := range payload.WorkerIdToTaskIds {
+		retryCounts := payload.WorkerIdToTaskRetryCounts[workerId]
+
+		for _, taskId := range taskIds {
+			retryCount, hasRetryCount := retryCounts[taskId]
+
+			attempts[taskId] = assignedAttempt{
+				WorkerId:      workerId,
+				RetryCount:    retryCount,
+				HasRetryCount: hasRetryCount,
+			}
+		}
+	}
+
+	return attempts
+}
+
+// isCurrentAttempt only checks the worker for messages from schedulers that predate retry counts in
+// the payload.
+func (a assignedAttempt) isCurrentAttempt(runtime *sqlcv1.V1TaskRuntime) bool {
+	return runtime != nil &&
+		runtime.WorkerID != nil &&
+		*runtime.WorkerID == a.WorkerId &&
+		(!a.HasRetryCount || runtime.RetryCount == a.RetryCount)
+}
+
+// onlyAssignedAttempts drops tasks reassigned since the message was published (the reassign keeps the
+// retry count), so a delayed message can't send a task to a worker it was taken away from.
+func onlyAssignedAttempts(dispatchData *v1.TasksForDispatch, attempts map[int64]assignedAttempt) *v1.TasksForDispatch {
+	return &v1.TasksForDispatch{
+		Tasks: enumerables.Filter(dispatchData.Tasks, func(task *sqlcv1.V1Task) bool {
+			return attempts[task.ID].isCurrentAttempt(dispatchData.Runtimes[task.ID])
+		}),
+		Runtimes:    dispatchData.Runtimes,
+		PayloadRows: dispatchData.PayloadRows,
+	}
+}
+
+// requeueTasksAfterFailedDispatchRead retries the read under a fresh context, since the first read may
+// have failed because the handler's deadline expired, and requeues only tasks still on the attempt the
+// message named. Anything else is left to the timeout path.
+func (d *DispatcherImpl) requeueTasksAfterFailedDispatchRead(
+	ctx context.Context,
+	requeue func(task *sqlcv1.V1Task),
+	tenantId uuid.UUID,
+	attempts map[int64]assignedAttempt,
+) {
+	recoveryCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+
+	taskIds := make([]int64, 0, len(attempts))
+
+	for taskId, attempt := range attempts {
+		if attempt.HasRetryCount {
+			taskIds = append(taskIds, taskId)
+		}
+	}
+
+	if len(taskIds) == 0 {
+		return
+	}
+
+	dispatchData, err := d.repov1.Tasks().ListTasksForDispatch(recoveryCtx, tenantId, taskIds)
+
+	if err != nil {
+		d.l.Error().Ctx(ctx).Err(err).Msgf("could not list %d tasks to requeue after a failed dispatch read", len(taskIds))
+		return
+	}
+
+	for _, task := range dispatchData.Tasks {
+		if !attempts[task.ID].isCurrentAttempt(dispatchData.Runtimes[task.ID]) {
+			continue
+		}
+
+		requeue(task)
+	}
+}
+
+// requeueBatchItems skips items no longer on this batch and worker, so a late batch start can't fail
+// an attempt that has since been assigned elsewhere.
+func (d *DispatcherImpl) requeueBatchItems(ctx context.Context, payload *tasktypesv1.StartBatchTaskPayload) error {
+	if len(payload.Items) == 0 {
+		return nil
+	}
+
+	batchId, err := uuid.Parse(payload.BatchId)
+
+	if err != nil {
+		return fmt.Errorf("could not parse batch id %s: %w", payload.BatchId, err)
+	}
+
+	taskIds := make([]int64, 0, len(payload.Items))
+
+	for _, item := range payload.Items {
+		taskIds = append(taskIds, item.TaskID)
+	}
+
+	dispatchData, err := d.repov1.Tasks().ListTasksForDispatch(ctx, payload.TenantId, taskIds)
+
+	if err != nil {
+		return fmt.Errorf("could not list tasks to requeue batch %s: %w", payload.BatchId, err)
+	}
+
+	attempt := assignedAttempt{WorkerId: payload.WorkerId}
+
+	toRetry := enumerables.Filter(dispatchData.Tasks, func(task *sqlcv1.V1Task) bool {
+		runtime := dispatchData.Runtimes[task.ID]
+
+		return attempt.isCurrentAttempt(runtime) && runtime.BatchID != nil && *runtime.BatchID == batchId
+	})
+
+	d.l.Warn().Ctx(ctx).Str("batch_id", payload.BatchId).Str("worker_id", payload.WorkerId.String()).Int("tasks", len(toRetry)).Msg("worker for batch is not connected to this dispatcher, requeueing its tasks")
+
+	// handleRetries sleeps with backoff before publishing, so it must not hold up the message handler
+	go func() {
+		if err := d.handleRetries(ctx, payload.TenantId, toRetry); err != nil {
+			d.l.Error().Ctx(ctx).Err(err).Str("batch_id", payload.BatchId).Msg("could not requeue batch items")
+		}
+	}()
+
+	return nil
+}
+
 func (d *DispatcherImpl) handleRetries(
 	ctx context.Context,
 	tenantId uuid.UUID,
@@ -1161,6 +1226,7 @@ func (d *DispatcherImpl) handleRetries(
 					"This likely means that too many slots have been configured for the number of workers "+
 					"or the network latency between engine and worker is unusually high.",
 				false,
+				nil,
 			)
 
 			if err != nil {
@@ -1203,8 +1269,7 @@ func (d *DispatcherImpl) sendBatchStartFromPayload(ctx context.Context, payload 
 	workers, err := d.workers.Get(payload.WorkerId)
 	if err != nil {
 		if errors.Is(err, ErrWorkerNotFound) {
-			// If the worker isn't connected, ignore (the tasks will be retried separately).
-			return nil
+			return d.requeueBatchItems(ctx, payload)
 		}
 		return fmt.Errorf("could not get worker for batch %s: %w", payload.BatchId, err)
 	}
@@ -1222,7 +1287,12 @@ func (d *DispatcherImpl) sendBatchStartFromPayload(ctx context.Context, payload 
 			workflowRunIDByTaskID[item.TaskID] = item.WorkflowRunID
 		}
 
-		taskIdToData, populateErr := d.populateTaskData(ctx, func(_ *sqlcv1.V1Task) {}, payload.TenantId, taskIds)
+		dispatchData, err := d.repov1.Tasks().ListTasksForDispatch(ctx, payload.TenantId, taskIds)
+		if err != nil {
+			return fmt.Errorf("could not list tasks for batch %s: %w", payload.BatchId, err)
+		}
+
+		taskIdToData, populateErr := d.populateTaskData(ctx, func(_ *sqlcv1.V1Task) {}, payload.TenantId, dispatchData)
 		if populateErr != nil {
 			return fmt.Errorf("could not populate task data for batch %s: %w", payload.BatchId, populateErr)
 		}

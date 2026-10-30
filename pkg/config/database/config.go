@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
@@ -35,6 +36,19 @@ type ConfigFile struct {
 
 	MaxConnLifetime time.Duration `mapstructure:"maxConnLifetime" json:"maxConnLifetime,omitempty" default:"15m"`
 	MaxConnIdleTime time.Duration `mapstructure:"maxConnIdleTime" json:"maxConnIdleTime,omitempty" default:"1m"`
+
+	// FairpoolTenantMaxPercent is the share of the pool one tenant may hold.
+	// 100 (the default) installs no cap. Values from 1 to 99 cap each tenant at that percent of MaxConns.
+	FairpoolTenantMaxPercent int `mapstructure:"fairpoolTenantMaxPercent" json:"fairpoolTenantMaxPercent,omitempty" default:"100"`
+
+	// FairpoolSharedMaxPercent is the share of the pool the shared bucket may hold. The shared bucket
+	// carries engine work that is not tied to a tenant, such as the message queue, heartbeats and auth lookups.
+	// 100 (the default) installs no cap. Values from 1 to 99 cap it at that percent of MaxConns.
+	FairpoolSharedMaxPercent int `mapstructure:"fairpoolSharedMaxPercent" json:"fairpoolSharedMaxPercent,omitempty" default:"100"`
+
+	// FairpoolTenantMaxWait is how long an acquire waits for a slot before it fails.
+	// The wait is not applied to the query.
+	FairpoolTenantMaxWait time.Duration `mapstructure:"fairpoolTenantMaxWait" json:"fairpoolTenantMaxWait,omitempty" default:"5s"`
 
 	// ApplicationNamePrefix is prepended to the pgx application_name as "<prefix>:<otel service name>"
 	// so connections in pg_stat_activity can be attributed to a deployment. In Kubernetes this is
@@ -84,6 +98,27 @@ type Layer struct {
 	V1 v1.Repository
 
 	Seed SeedConfigFile
+
+	DefaultTenantEntitlements v1.TenantEntitlements
+
+	// Logger is the configured database logger. Consumers should read it via
+	// GetLogger, which falls back to a disabled logger when the layer was
+	// constructed without one.
+	Logger *zerolog.Logger
+}
+
+// GetLogger returns the layer's configured logger, or a disabled logger if the
+// layer was constructed without one. Library code writing diagnostics should
+// use this rather than printing to stdout/stderr directly, so that embedders
+// keep control over the output.
+func (l *Layer) GetLogger() *zerolog.Logger {
+	if l == nil || l.Logger == nil {
+		nop := zerolog.Nop()
+
+		return &nop
+	}
+
+	return l.Logger
 }
 
 func BindAllEnv(v *viper.Viper) {
@@ -98,6 +133,9 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("minConns", "DATABASE_MIN_CONNS")
 	_ = v.BindEnv("maxConnLifetime", "DATABASE_MAX_CONN_LIFETIME")
 	_ = v.BindEnv("maxConnIdleTime", "DATABASE_MAX_CONN_IDLE_TIME")
+	_ = v.BindEnv("fairpoolTenantMaxPercent", "DATABASE_FAIRPOOL_TENANT_MAX_PERCENT")
+	_ = v.BindEnv("fairpoolSharedMaxPercent", "DATABASE_FAIRPOOL_SHARED_MAX_PERCENT")
+	_ = v.BindEnv("fairpoolTenantMaxWait", "DATABASE_FAIRPOOL_TENANT_MAX_WAIT")
 	_ = v.BindEnv("applicationNamePrefix", "K8S_POD_NAMESPACE")
 
 	_ = v.BindEnv("pgbouncerUrl", "DATABASE_PGBOUNCER_URL")

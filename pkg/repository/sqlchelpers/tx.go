@@ -8,11 +8,20 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 )
 
-func PrepareTx(ctx context.Context, pool *pgxpool.Pool, l *zerolog.Logger) (pgx.Tx, func(context.Context) error, func(), error) {
+// Pool is the subset of a pgx pool used to start a transaction. *pgxpool.Pool
+// and a fairpool.Handle (ForTenant or ForShared) both satisfy it.
+type Pool interface {
+	Begin(context.Context) (pgx.Tx, error)
+	BeginTx(context.Context, pgx.TxOptions) (pgx.Tx, error)
+	Stat() *pgxpool.Stat
+}
+
+func PrepareTx(ctx context.Context, pool Pool, l *zerolog.Logger) (pgx.Tx, func(context.Context) error, func(), error) {
 	start := time.Now()
 
 	tx, err := pool.Begin(ctx)
@@ -44,7 +53,7 @@ func PrepareTx(ctx context.Context, pool *pgxpool.Pool, l *zerolog.Logger) (pgx.
 	return tx, tx.Commit, rollback, nil
 }
 
-func PrepareTxWithStatementTimeout(ctx context.Context, pool *pgxpool.Pool, l *zerolog.Logger, timeoutMs int, opts ...pgx.TxOptions) (pgx.Tx, func(context.Context) error, func(), error) {
+func PrepareTxWithStatementTimeout(ctx context.Context, pool Pool, l *zerolog.Logger, timeoutMs int, opts ...pgx.TxOptions) (pgx.Tx, func(context.Context) error, func(), error) {
 	start := time.Now()
 
 	txOpts := pgx.TxOptions{}
@@ -112,9 +121,16 @@ func PrepareTxWithStatementTimeout(ctx context.Context, pool *pgxpool.Pool, l *z
 	return tx, commit, rollback, nil
 }
 
+// rawAcquirer is implemented by *pgxpool.Pool. The DDL pool stays on that concrete
+// pool, so statement-timeout acquires are not counted against a tenant.
+type rawAcquirer interface {
+	Acquire(context.Context) (*pgxpool.Conn, error)
+	Stat() *pgxpool.Stat
+}
+
 // AcquireConnectionWithStatementTimeout acquires a connection from the pool and overwrites the default statement timeout on it.
 // It does not support timeout values lower than the default timeout (if called with such a value, it will just use the default timeout).
-func AcquireConnectionWithStatementTimeout(ctx context.Context, pool *pgxpool.Pool, l *zerolog.Logger, timeoutMs int) (*pgx.Conn, func(), error) {
+func AcquireConnectionWithStatementTimeout(ctx context.Context, pool rawAcquirer, l *zerolog.Logger, timeoutMs int) (*pgx.Conn, func(), error) {
 	start := time.Now()
 
 	conn, err := pool.Acquire(ctx)
@@ -194,4 +210,16 @@ func DeferRollback(ctx context.Context, l *zerolog.Logger, rollback func(context
 			l.Error().Str("stack_trace", string(trace)).Msg("Stack trace for rollback failure")
 		}
 	}
+}
+
+type execer interface {
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
+
+func DisableJITForTransaction(ctx context.Context, tx execer) error {
+	if _, err := tx.Exec(ctx, "SET LOCAL jit = off"); err != nil {
+		return fmt.Errorf("failed to disable jit for transaction: %w", err)
+	}
+
+	return nil
 }

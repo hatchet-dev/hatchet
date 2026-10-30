@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,13 +33,16 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/tenants"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/users"
 	celv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/cel"
+	concurrencyv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/concurrency"
 	durabletasksv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/durable-tasks"
 	eventsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/events"
 	featureflagsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/feature-flags"
 	filtersv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/filters"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/logs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/observability"
-	operatorsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/operators"
+	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/proxy"
+	serverlessv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/serverless"
+	streamsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/streams"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/tasks"
 	webhooksv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/webhooks"
 	workflowrunsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/workflow-runs"
@@ -51,9 +56,11 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/ratelimit"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/telemetry"
+	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -78,12 +85,14 @@ type apiService struct {
 	*workflowrunsv1.V1WorkflowRunsService
 	*eventsv1.V1EventsService
 	*filtersv1.V1FiltersService
-	*operatorsv1.V1OperatorsService
+	*serverlessv1.V1ServerlessService
+	*concurrencyv1.V1ConcurrencyService
 	*webhooksv1.V1WebhooksService
 	*celv1.V1CELService
 	*observability.V1ObservabilityService
 	*featureflagsv1.V1FeatureFlagsService
 	*durabletasksv1.DurableTasksService
+	*streamsv1.V1StreamsService
 }
 
 func newAPIService(config *server.ServerConfig) *apiService {
@@ -108,12 +117,14 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		V1WorkflowRunsService:  workflowrunsv1.NewV1WorkflowRunsService(config),
 		V1EventsService:        eventsv1.NewV1EventsService(config),
 		V1FiltersService:       filtersv1.NewV1FiltersService(config),
-		V1OperatorsService:     operatorsv1.NewV1OperatorsService(config),
+		V1ServerlessService:    serverlessv1.NewV1ServerlessService(config),
+		V1ConcurrencyService:   concurrencyv1.NewV1ConcurrencyService(config),
 		V1WebhooksService:      webhooksv1.NewV1WebhooksService(config),
 		V1CELService:           celv1.NewV1CELService(config),
 		V1ObservabilityService: observability.NewV1ObservabilityService(config),
 		V1FeatureFlagsService:  featureflagsv1.NewV1FeatureFlagsService(config),
 		DurableTasksService:    durabletasksv1.NewDurableTasksService(config),
+		V1StreamsService:       streamsv1.NewV1StreamsService(config),
 	}
 }
 
@@ -231,6 +242,46 @@ func hatchetIPExtractor(trustPrivateProxies bool, trustedProxies []string, logge
 	}
 }
 
+// retryableLimitErrorHandler answers 429 with a Retry-After header and an APIErrors body when a
+// request was throttled by the connection cap, and defers to next for everything else. Handlers
+// that proxy to the engine see the engine's cap as a ResourceExhausted status carrying RetryInfo;
+// a ResourceExhausted status without it is a tenant quota and keeps the default handling.
+func retryableLimitErrorHandler(next echo.HTTPErrorHandler) echo.HTTPErrorHandler {
+	return func(err error, c echo.Context) {
+		var limitErr *fairpool.LimitError
+
+		if errors.As(err, &limitErr) {
+			writeThrottled(fairpool.RetryAfter, c)
+		} else if retryAfter, ok := proxy.ThrottleRetryAfter(err); ok {
+			writeThrottled(retryAfter, c)
+		} else {
+			next(err, c)
+		}
+	}
+}
+
+// writeThrottled writes the 429 response. The cause stays with the caller: the access logger
+// records the error returned by the handler chain, not what is written here.
+func writeThrottled(retryAfter time.Duration, c echo.Context) {
+	if c.Response().Committed {
+		return
+	}
+
+	c.Response().Header().Set(echo.HeaderRetryAfter, strconv.Itoa(max(1, int(math.Ceil(retryAfter.Seconds())))))
+
+	var err error
+
+	if c.Request().Method == http.MethodHead {
+		err = c.NoContent(http.StatusTooManyRequests)
+	} else {
+		err = c.JSON(http.StatusTooManyRequests, apierrors.NewAPIErrors("too many concurrent database operations, retry shortly"))
+	}
+
+	if err != nil {
+		c.Logger().Error(err)
+	}
+}
+
 func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 	oaspec, err := gen.GetSwagger()
 
@@ -244,6 +295,9 @@ func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 
 	e.HideBanner = true
 	e.HidePort = true
+
+	e.HTTPErrorHandler = retryableLimitErrorHandler(e.DefaultHTTPErrorHandler)
+
 	e.IPExtractor = hatchetIPExtractor(t.config.Runtime.APITrustPrivateProxies, t.config.Runtime.APITrustedProxies, t.config.Logger)
 
 	g := e.Group("")
@@ -496,8 +550,10 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		}
 
 		payload, err := t.config.V1.OLAP().ReadPayload(timeoutCtx, v1Event.TenantID, repository.ReadOLAPPayloadOpts{
-			ExternalId: v1Event.ExternalID,
-			InsertedAt: v1Event.SeenAt,
+			ExternalId:         v1Event.ExternalID,
+			InsertedAt:         v1Event.SeenAt,
+			PayloadReferenceId: v1Event.PayloadReferenceID,
+			Kind:               repository.PayloadKindUserEventInput,
 		})
 
 		if err != nil {
@@ -730,14 +786,16 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		return webhook, webhook.TenantID.String(), nil
 	})
 
-	populatorMW.RegisterGetter("v1-http-operator", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+	// The endpoint route carries no tenant id, so the endpoint is resolved by id alone and its
+	// tenant is returned as the parent for the populator to load and authz to check.
+	populatorMW.RegisterGetter("v1-serverless-endpoint", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
 		idUuid, err := uuid.Parse(id)
 
 		if err != nil {
-			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid operator id")
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid serverless endpoint id")
 		}
 
-		operator, err := t.config.V1.Operators().GetOperatorById(
+		endpoint, err := t.config.V1.Serverless().Endpoints().GetById(
 			context.Background(),
 			idUuid,
 		)
@@ -746,7 +804,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", err
 		}
 
-		return operator, operator.TenantID.String(), nil
+		return endpoint, endpoint.TenantID.String(), nil
 	})
 
 	authnMW := authn.NewAuthN(t.config)
@@ -775,6 +833,9 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	}
 
 	loggerMiddleware := middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
+		// The error handler runs inside the logger so the logged status is the one actually
+		// written (e.g. 429), not the 200 a not-yet-handled error would show.
+		HandleError:  true,
 		LogStatus:    true,
 		LogError:     true,
 		LogLatency:   true,

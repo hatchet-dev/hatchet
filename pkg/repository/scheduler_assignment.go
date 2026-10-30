@@ -12,9 +12,11 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
-// A worker's action set is immutable after registration (the actionHash is a
-// sha256 of the registered action names), so cache entries never go stale.
-// The TTL only bounds memory for tenants whose workers have churned away.
+// The actionHash is the canonical digest of a worker's linked action set, so a cache entry
+// keyed by it never goes stale: a worker whose set changes gets a new hash, and while the
+// refresh that follows a delta is pending its hash is NULL and its actions are read through
+// the join (ListActionsForWorkersLegacyFallback) instead. The TTL only bounds memory for
+// tenants whose workers have churned away.
 const workerActionCacheTTL = 30 * time.Minute
 
 type workerActionCacheKey struct {
@@ -36,10 +38,12 @@ func newAssignmentRepository(shared *sharedRepository) *assignmentRepository {
 }
 
 func (d *assignmentRepository) ListActionsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
+	db := d.pool.ForTenant(tenantId)
+
 	ctx, span := telemetry.NewSpan(ctx, "list-actions-for-workers")
 	defer span.End()
 
-	liveWorkers, err := d.queries.ListLiveWorkerActionHashes(ctx, d.pool, sqlcv1.ListLiveWorkerActionHashesParams{
+	liveWorkers, err := d.queries.ListLiveWorkerActionHashes(ctx, db, sqlcv1.ListLiveWorkerActionHashesParams{
 		Tenantid:  tenantId,
 		Workerids: workerIds,
 	})
@@ -84,7 +88,7 @@ func (d *assignmentRepository) ListActionsForWorkers(ctx context.Context, tenant
 			representativeIds = append(representativeIds, workerId)
 		}
 
-		records, err := d.queries.ListWorkerActionSets(ctx, d.pool, sqlcv1.ListWorkerActionSetsParams{
+		records, err := d.queries.ListWorkerActionSets(ctx, db, sqlcv1.ListWorkerActionSetsParams{
 			Tenantid:  tenantId,
 			Workerids: representativeIds,
 		})
@@ -157,9 +161,10 @@ func (d *assignmentRepository) ListActionsForWorkers(ctx context.Context, tenant
 		telemetry.AttributeKV{Key: "list_actions.workers_without_hash", Value: len(workersWithoutHash)},
 	)
 
-	// fallback for workers registered before actionHash existed
+	// workers registered before actionHash existed, and workers whose hash is NULL because
+	// the refresh that follows a delta has not run yet, are read through the join
 	if len(workersWithoutHash) > 0 {
-		fallbackRows, err := d.queries.ListActionsForWorkersLegacyFallback(ctx, d.pool, sqlcv1.ListActionsForWorkersLegacyFallbackParams{
+		fallbackRows, err := d.queries.ListActionsForWorkersLegacyFallback(ctx, db, sqlcv1.ListActionsForWorkersLegacyFallbackParams{
 			Tenantid:  tenantId,
 			Workerids: workersWithoutHash,
 		})
@@ -175,24 +180,30 @@ func (d *assignmentRepository) ListActionsForWorkers(ctx context.Context, tenant
 }
 
 func (d *assignmentRepository) ListAvailableSlotsForWorkers(ctx context.Context, tenantId uuid.UUID, params sqlcv1.ListAvailableSlotsForWorkersParams) ([]*sqlcv1.ListAvailableSlotsForWorkersRow, error) {
+	db := d.pool.ForTenant(tenantId)
+
 	ctx, span := telemetry.NewSpan(ctx, "list-available-slots-for-workers")
 	defer span.End()
 
-	return d.queries.ListAvailableSlotsForWorkers(ctx, d.pool, params)
+	return d.queries.ListAvailableSlotsForWorkers(ctx, db, params)
 }
 
 func (d *assignmentRepository) ListAvailableSlotsForWorkersAndTypes(ctx context.Context, tenantId uuid.UUID, params sqlcv1.ListAvailableSlotsForWorkersAndTypesParams) ([]*sqlcv1.ListAvailableSlotsForWorkersAndTypesRow, error) {
+	db := d.pool.ForTenant(tenantId)
+
 	ctx, span := telemetry.NewSpan(ctx, "list-available-slots-for-workers-and-types")
 	defer span.End()
 
-	return d.queries.ListAvailableSlotsForWorkersAndTypes(ctx, d.pool, params)
+	return d.queries.ListAvailableSlotsForWorkersAndTypes(ctx, db, params)
 }
 
 func (d *assignmentRepository) ListWorkerSlotConfigs(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListWorkerSlotConfigsRow, error) {
+	db := d.pool.ForTenant(tenantId)
+
 	ctx, span := telemetry.NewSpan(ctx, "list-worker-slot-configs")
 	defer span.End()
 
-	return d.queries.ListWorkerSlotConfigs(ctx, d.pool, sqlcv1.ListWorkerSlotConfigsParams{
+	return d.queries.ListWorkerSlotConfigs(ctx, db, sqlcv1.ListWorkerSlotConfigsParams{
 		Tenantid:  tenantId,
 		Workerids: workerIds,
 	})

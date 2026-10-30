@@ -1,8 +1,10 @@
 package cel
 
 import (
+	"context"
 	"crypto/sha256"
 	"fmt"
+	"time"
 
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/checker/decls"
@@ -22,6 +24,43 @@ type CELParser struct {
 	idempotencyKeyEnv  *cel.Env
 	eventEnv           *cel.Env
 	incomingWebhookEnv *cel.Env
+}
+
+const (
+	// MaxEvalCost bounds the runtime cost of a single evaluation. Expressions are
+	// tenant-supplied and evaluated in the shared API and engine processes, so a
+	// nested comprehension over literal or attacker-sized lists must fail instead
+	// of consuming unbounded CPU and memory. Ordinary expressions cost a few units
+	// per operation; string traversal costs about 0.1 per byte, which leaves room
+	// for multi-megabyte payloads.
+	MaxEvalCost uint64 = 1_000_000
+
+	// MaxEvalDuration bounds wall-clock time per evaluation as a backstop for work
+	// the cost model underestimates.
+	MaxEvalDuration = 5 * time.Second
+
+	// evalInterruptCheckFrequency is how many comprehension iterations run between
+	// context checks. ContextEval does not honor cancellation at all unless this is
+	// non-zero.
+	evalInterruptCheckFrequency uint = 100
+)
+
+// programOptions are applied to every compiled program so the limits hold no
+// matter which entry point evaluates it.
+var programOptions = []cel.ProgramOption{
+	cel.CostLimit(MaxEvalCost),
+	cel.InterruptCheckFrequency(evalInterruptCheckFrequency),
+}
+
+func evalProgram(prg cel.Program, in Input) (ref.Val, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), MaxEvalDuration)
+	defer cancel()
+
+	var inMap map[string]interface{} = in
+
+	out, _, err := prg.ContextEval(ctx, inMap)
+
+	return out, err
 }
 
 var checksumDecl = decls.NewFunction("checksum",
@@ -187,7 +226,7 @@ func (p *CELParser) ParseWorkflowString(workflowExp string) (cel.Program, error)
 		return nil, issues.Err()
 	}
 
-	return p.workflowStrEnv.Program(ast)
+	return p.workflowStrEnv.Program(ast, programOptions...)
 }
 
 // ValidateWorkflowStringAsInt compiles like ParseWorkflowString but additionally rejects
@@ -206,7 +245,7 @@ func (p *CELParser) ValidateWorkflowStringAsInt(workflowExp string) error {
 		return fmt.Errorf("expression must evaluate to an integer, got %s", ast.OutputType().TypeName())
 	}
 
-	_, err := p.workflowStrEnv.Program(ast)
+	_, err := p.workflowStrEnv.Program(ast, programOptions...)
 
 	return err
 }
@@ -217,9 +256,7 @@ func (p *CELParser) ParseAndEvalWorkflowString(workflowExp string, in Input) (st
 		return "", err
 	}
 
-	var inMap map[string]interface{} = in
-
-	out, _, err := prg.Eval(inMap)
+	out, err := evalProgram(prg, in)
 	if err != nil {
 		return "", err
 	}
@@ -240,7 +277,7 @@ func (p *CELParser) ParseIdempotencyKey(idempotencyKeyExpr string) (cel.Program,
 		return nil, issues.Err()
 	}
 
-	return p.idempotencyKeyEnv.Program(ast)
+	return p.idempotencyKeyEnv.Program(ast, programOptions...)
 }
 
 func (p *CELParser) ParseAndEvalIdempotencyKey(idempotencyKeyExpr string, in Input) (string, error) {
@@ -249,9 +286,7 @@ func (p *CELParser) ParseAndEvalIdempotencyKey(idempotencyKeyExpr string, in Inp
 		return "", err
 	}
 
-	var inMap map[string]interface{} = in
-
-	out, _, err := prg.Eval(inMap)
+	out, err := evalProgram(prg, in)
 	if err != nil {
 		return "", err
 	}
@@ -285,7 +320,7 @@ func (p *CELParser) ParseStepRun(stepRunExpr string) (cel.Program, error) {
 		return nil, issues.Err()
 	}
 
-	return p.stepRunEnv.Program(ast)
+	return p.stepRunEnv.Program(ast, programOptions...)
 }
 
 func (p *CELParser) ParseAndEvalStepRun(stepRunExpr string, in Input) (*StepRunOut, error) {
@@ -294,9 +329,7 @@ func (p *CELParser) ParseAndEvalStepRun(stepRunExpr string, in Input) (*StepRunO
 		return nil, err
 	}
 
-	var inMap map[string]interface{} = in
-
-	out, _, err := prg.Eval(inMap)
+	out, err := evalProgram(prg, in)
 	if err != nil {
 		return nil, err
 	}
@@ -424,14 +457,12 @@ func (p *CELParser) EvaluateEventExpression(expr string, input Input) (bool, err
 		return false, fmt.Errorf("failed to compile expression: %w", issues.Err())
 	}
 
-	program, err := p.eventEnv.Program(ast)
+	program, err := p.eventEnv.Program(ast, programOptions...)
 	if err != nil {
 		return false, fmt.Errorf("failed to create program: %w", err)
 	}
 
-	var inMap map[string]interface{} = input
-
-	out, _, err := program.Eval(inMap)
+	out, err := evalProgram(program, input)
 	if err != nil {
 		return false, fmt.Errorf("failed to evaluate expression: %w", err)
 	}
@@ -450,14 +481,12 @@ func (p *CELParser) EvaluateIncomingWebhookExpression(expr string, input Input) 
 		return "", fmt.Errorf("failed to compile expression: %w", issues.Err())
 	}
 
-	program, err := p.incomingWebhookEnv.Program(ast)
+	program, err := p.incomingWebhookEnv.Program(ast, programOptions...)
 	if err != nil {
 		return "", fmt.Errorf("failed to create program: %w", err)
 	}
 
-	var inMap map[string]interface{} = input
-
-	out, _, err := program.Eval(inMap)
+	out, err := evalProgram(program, input)
 	if err != nil {
 		return "", fmt.Errorf("failed to evaluate expression: %w", err)
 	}

@@ -131,13 +131,24 @@ WHERE
     workers."tenantId" = @tenantId
     AND (
         COALESCE(sqlc.narg('includeOperators')::boolean, FALSE)
-        OR NOT EXISTS (
-            -- hide dag operators
-            SELECT 1
-            FROM v1_operator op
-            WHERE
-                op.id = workers."operatorId"
-                AND op.kind = 'DAG'
+        OR (
+            NOT EXISTS (
+                -- hide dag operators
+                SELECT 1
+                FROM v1_operator op
+                WHERE
+                    op.id = workers."operatorId"
+                    AND op.kind = 'DAG'
+            )
+            AND NOT EXISTS (
+                -- hide the serverless operator's workers, which carry its process label
+                -- (workerLabelProcess in pkg/serverlessoperator)
+                SELECT 1
+                FROM "WorkerLabel" wl
+                WHERE
+                    wl."workerId" = workers."id"
+                    AND wl."key" = 'hatchet-serverless-process'
+            )
         )
     )
     AND (
@@ -211,13 +222,24 @@ WHERE
     workers."tenantId" = @tenantId
     AND (
         COALESCE(sqlc.narg('includeOperators')::boolean, FALSE)
-        OR NOT EXISTS (
-            -- hide dag operators
-            SELECT 1
-            FROM v1_operator op
-            WHERE
-                op.id = workers."operatorId"
-                AND op.kind = 'DAG'
+        OR (
+            NOT EXISTS (
+                -- hide dag operators
+                SELECT 1
+                FROM v1_operator op
+                WHERE
+                    op.id = workers."operatorId"
+                    AND op.kind = 'DAG'
+            )
+            AND NOT EXISTS (
+                -- hide the serverless operator's workers, which carry its process label
+                -- (workerLabelProcess in pkg/serverlessoperator)
+                SELECT 1
+                FROM "WorkerLabel" wl
+                WHERE
+                    wl."workerId" = workers."id"
+                    AND wl."key" = 'hatchet-serverless-process'
+            )
         )
     )
     AND (
@@ -341,9 +363,25 @@ WHERE
     AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false
-    -- exclude operators from active slot counts for metering
-    AND w."operatorId" IS NULL
+    -- a worker the in-process operator host created is engine infrastructure and is not
+    -- metered; every other worker, an operator's or an SDK's, counts (see
+    -- CreateWorkerOpts.IsExemptFromLimits in worker.go)
+    AND NOT w."isExemptFromLimits"
 GROUP BY wc.tenant_id
+;
+
+-- name: GetTotalActiveSlotsForTenant :one
+SELECT
+    COALESCE(SUM(wc.max_units), 0)::bigint AS "totalActiveSlots"
+FROM v1_worker_slot_config wc
+JOIN "Worker" w ON w."id" = wc.worker_id AND w."tenantId" = wc.tenant_id
+WHERE
+    wc.tenant_id = @tenantId::uuid
+    AND w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false
+    AND NOT w."isExemptFromLimits"
 ;
 
 -- name: ListActiveSlotsPerTenantAndSlotType :many
@@ -358,8 +396,10 @@ WHERE
     AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false
-    -- exclude operators from active slot counts for metering
-    AND w."operatorId" IS NULL
+    -- a worker the in-process operator host created is engine infrastructure and is not
+    -- metered; every other worker, an operator's or an SDK's, counts (see
+    -- CreateWorkerOpts.IsExemptFromLimits in worker.go)
+    AND NOT w."isExemptFromLimits"
 GROUP BY wc.tenant_id, wc.slot_type
 ;
 
@@ -443,6 +483,8 @@ WHERE
 ;
 
 -- name: GetWorkerForEngine :one
+-- "actionHash" is NULL while the hash refresh that follows a delta is pending; a session that
+-- opens on such a worker refreshes it first.
 SELECT
     w."id" AS "id",
     w."tenantId" AS "tenantId",
@@ -450,7 +492,9 @@ SELECT
     w."lastHeartbeatAt" AS "lastHeartbeatAt",
     d."lastHeartbeatAt" AS "dispatcherLastHeartbeatAt",
     w."isActive" AS "isActive",
-    w."lastListenerEstablished" AS "lastListenerEstablished"
+    w."lastListenerEstablished" AS "lastListenerEstablished",
+    w."operatorId" AS "operatorId",
+    w."actionHash" AS "actionHash"
 FROM
     "Worker" w
 LEFT JOIN
@@ -478,10 +522,11 @@ SET
     "updatedAt" = CURRENT_TIMESTAMP,
     "dispatcherId" = coalesce(sqlc.narg('dispatcherId')::uuid, "dispatcherId"),
     "lastHeartbeatAt" = coalesce(sqlc.narg('lastHeartbeatAt')::timestamp, "lastHeartbeatAt"),
-    "isActive" = coalesce(sqlc.narg('isActive')::boolean, "isActive"),
     "isPaused" = coalesce(sqlc.narg('isPaused')::boolean, "isPaused")
 WHERE
     "id" = @id::uuid
+    AND "tenantId" = @tenantId::uuid
+    AND (sqlc.narg('listenerSessionId')::uuid IS NULL OR "lastListenerSessionId" = sqlc.narg('listenerSessionId')::uuid)
 RETURNING *;
 
 -- name: LinkActionsToWorker :exec
@@ -492,6 +537,134 @@ INSERT INTO "_ActionToWorker" (
     unnest(@actionIds::uuid[]),
     @workerId::uuid
 ON CONFLICT DO NOTHING;
+
+-- name: LockWorkerActionHash :one
+-- Serializes concurrent action set changes on one worker: the caller holds the row lock for the
+-- rest of its transaction. The tenant is part of the predicate so a caller that pairs a tenant
+-- with another tenant's worker finds no row and mutates nothing.
+SELECT "actionHash"
+FROM "Worker"
+WHERE
+    "id" = @workerId::uuid
+    AND "tenantId" = @tenantId::uuid
+FOR UPDATE;
+
+-- name: InsertMissingActions :many
+-- @actions must be lower-cased, deduplicated and sorted so concurrent callers lock in one order.
+INSERT INTO "Action" (
+    "id",
+    "actionId",
+    "tenantId"
+)
+SELECT
+    gen_random_uuid(),
+    a.action,
+    @tenantId::uuid
+FROM unnest(@actions::text[]) AS a(action)
+ON CONFLICT ("tenantId", "actionId") DO NOTHING
+RETURNING "id", "actionId";
+
+-- name: LinkNewActionsToWorker :many
+-- Links the worker to the given action rows and returns the action row ids that were newly
+-- linked, so the caller knows whether the set changed. The Worker and Action rows are joined
+-- on the tenant: an action of another tenant, or a worker of another tenant, is never linked.
+INSERT INTO "_ActionToWorker" (
+    "A",
+    "B"
+) SELECT
+    a."id",
+    w."id"
+FROM "Worker" w
+JOIN "Action" a ON a."tenantId" = w."tenantId"
+WHERE
+    w."id" = @workerId::uuid
+    AND w."tenantId" = @tenantId::uuid
+    AND a."id" = ANY(@actionIds::uuid[])
+ORDER BY a."id"
+ON CONFLICT DO NOTHING
+RETURNING "A";
+
+-- name: ListActionsByActionIds :many
+-- Resolves action ids to their rows. @actionIds are compared as stored (lower-cased).
+SELECT "id", "actionId"
+FROM "Action"
+WHERE
+    "tenantId" = @tenantId::uuid
+    AND "actionId" = ANY(@actionIds::text[]);
+
+-- name: UnlinkActionsFromWorker :many
+-- Unlinks the given action rows from the worker and returns the action row ids that were
+-- actually unlinked. The Worker and Action rows are joined on the tenant, as in
+-- LinkNewActionsToWorker.
+DELETE FROM "_ActionToWorker" aw
+USING "Worker" w, "Action" a
+WHERE
+    aw."B" = w."id"
+    AND aw."A" = a."id"
+    AND w."id" = @workerId::uuid
+    AND w."tenantId" = @tenantId::uuid
+    AND a."tenantId" = w."tenantId"
+    AND a."id" = ANY(@actionIds::uuid[])
+RETURNING aw."A";
+
+-- name: RefreshWorkerActionHash :exec
+-- sha256 over the linked action ids sorted by byte order, each followed by ";", the same digest
+-- hashActions computes in Go.
+UPDATE "Worker" w
+SET "actionHash" = (
+    SELECT sha256(coalesce(
+        string_agg(
+            convert_to(a."actionId", 'UTF8') || ';'::bytea,
+            ''::bytea
+            ORDER BY a."actionId" COLLATE "C"
+        ),
+        ''::bytea
+    ))
+    FROM "_ActionToWorker" aw
+    JOIN "Action" a ON a."id" = aw."A"
+    WHERE aw."B" = w."id"
+)
+WHERE w."id" = @workerId::uuid;
+
+-- name: RecountWorkerActions :exec
+-- Sets "operatorActionCount" to the worker's real link count, for the paths that link
+-- without returning what they linked.
+UPDATE "Worker" w
+SET "operatorActionCount" = (SELECT count(*) FROM "_ActionToWorker" aw WHERE aw."B" = w."id")
+WHERE w."id" = @workerId::uuid;
+
+-- name: SettleWorkerActionsDelta :one
+-- Records a delta's effect on the worker row under the caller's row lock:
+-- "operatorActionCount" moves by the links the delta created minus the links it removed, and
+-- "actionHash" is cleared
+-- until the session refreshes it at the end of the delta sequence. Returns the operator the
+-- worker belongs to, NULL for an SDK worker, so the caller knows whose budget to check.
+UPDATE "Worker" w
+SET
+    "operatorActionCount" = "operatorActionCount" + sqlc.arg('added')::integer - sqlc.arg('removed')::integer,
+    "actionHash" = NULL
+WHERE w."id" = @workerId::uuid
+RETURNING w."operatorId";
+
+-- name: SumOperatorWorkerActionCounts :one
+-- The action links held by every worker of the operator, from the per-worker counts. The
+-- caller holds the operator's row lock (LockOperator), so the sum is consistent with the
+-- delta it is checking.
+SELECT coalesce(sum(w."operatorActionCount"), 0)::bigint
+FROM "Worker" w
+WHERE
+    w."tenantId" = @tenantId::uuid
+    AND w."operatorId" = @operatorId::uuid;
+
+-- name: CountOperatorWorkerActions :one
+-- The action links held by every worker of the operator, from the per-worker counts. It is
+-- the unlocked reading of SumOperatorWorkerActionCounts, for reporting; the budget check
+-- inside a delta uses the locked one.
+SELECT coalesce(sum(w."operatorActionCount"), 0)::bigint
+FROM "Worker" w
+WHERE
+    w."tenantId" = @tenantId::uuid
+    AND w."operatorId" = @operatorId::uuid;
 
 -- name: UpdateWorkerHeartbeat :one
 UPDATE
@@ -528,17 +701,31 @@ WHERE
   "id" = @id::uuid
 RETURNING *;
 
--- name: UpdateWorkerActiveStatus :one
+-- name: ActivateWorkerListener :one
+-- Marks the worker active for the given listener session. lastListenerEstablished is
+-- stamped alongside the session id because Heartbeat uses it to tell a worker that never
+-- opened a listener from one whose listener has gone away.
 UPDATE "Worker"
 SET
-    "isActive" = @isActive::boolean,
-    "lastListenerEstablished" = sqlc.narg('lastListenerEstablished')::timestamp
+    "isActive" = TRUE,
+    "lastListenerSessionId" = @sessionId::uuid,
+    "lastListenerEstablished" = CURRENT_TIMESTAMP
 WHERE
     "id" = @id::uuid
-    AND (
-        "lastListenerEstablished" IS NULL
-        OR "lastListenerEstablished" <= sqlc.narg('lastListenerEstablished')::timestamp
-        )
+    AND "tenantId" = @tenantId::uuid
+RETURNING *;
+
+-- name: DeactivateWorkerListener :one
+-- Marks the worker inactive only while the given session is still the one recorded on the
+-- row. A session whose id is no longer on the row was superseded by a newer session and
+-- must not touch it, so this returns no rows in that case.
+UPDATE "Worker"
+SET
+    "isActive" = FALSE
+WHERE
+    "id" = @id::uuid
+    AND "tenantId" = @tenantId::uuid
+    AND "lastListenerSessionId" = @sessionId::uuid
 RETURNING *;
 
 -- name: UpsertWorkerLabel :one
@@ -623,7 +810,10 @@ INSERT INTO "Worker" (
     "languageVersion",
     "os",
     "runtimeExtra",
-    "actionHash"
+    "actionHash",
+    "operatorActionCount",
+    "operatorId",
+    "isExemptFromLimits"
 ) VALUES (
     gen_random_uuid(),
     CURRENT_TIMESTAMP,
@@ -637,7 +827,13 @@ INSERT INTO "Worker" (
     sqlc.narg('languageVersion')::text,
     sqlc.narg('os')::text,
     sqlc.narg('runtimeExtra')::text,
-    @actionHash::bytea
+    @actionHash::bytea,
+    -- the size of the initial action set the caller links right after
+    @operatorActionCount::integer,
+    -- set for workers backing an operator connection; NULL for SDK workers
+    sqlc.narg('operatorId')::uuid,
+    -- true only for workers the in-process operator host creates; the limit queries skip them
+    @isExemptFromLimits::boolean
 ) RETURNING *;
 
 -- name: LinkServicesToWorker :exec

@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	"github.com/hatchet-dev/hatchet/pkg/client/streaming"
 )
 
 func TestWorkerActionsSurvivesMoreThanFiveTransientFailures(t *testing.T) {
@@ -94,7 +95,7 @@ func TestWorkerActionsNoProgressConnectFailuresSurfaceOnErrCh(t *testing.T) {
 		t.Fatal("expected terminal error on errCh after no-progress cap")
 	}
 
-	assert.GreaterOrEqual(t, constructorCalls.Load(), int32(maxConsecutiveStreamNoProgress-2))
+	assert.GreaterOrEqual(t, constructorCalls.Load(), int32(streaming.MaxConsecutiveNoProgress-2))
 }
 
 func TestWorkerActionsFallsBackFromV2ToV1(t *testing.T) {

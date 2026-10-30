@@ -7,7 +7,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	"github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
-	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1/v1connect"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
@@ -18,12 +18,12 @@ import (
 )
 
 type AdminService interface {
-	contracts.AdminServiceServer
+	v1connect.AdminServiceHandler
 	Cleanup() error
 }
 
 type AdminServiceImpl struct {
-	contracts.UnimplementedAdminServiceServer
+	v1connect.UnimplementedAdminServiceHandler
 
 	repo      v1.Repository
 	mq        msgqueue.MessageQueue

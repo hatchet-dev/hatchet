@@ -2,18 +2,22 @@ package token
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/tink-crypto/tink-go/jwt"
 
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
+var ErrCouldNotReadTokenFromDatabase = errors.New("could not read token from database")
+
 type JWTManager interface {
-	GenerateTenantToken(ctx context.Context, tenantId uuid.UUID, name string, internal bool, expires *time.Time) (*Token, error)
+	GenerateTenantToken(ctx context.Context, tenantId uuid.UUID, name string, internal bool, readOnly bool, expires *time.Time) (*Token, error)
 	ValidateTenantToken(ctx context.Context, token string) (uuid.UUID, uuid.UUID, error)
 }
 
@@ -81,7 +85,7 @@ func (j *jwtManagerImpl) createToken(ctx context.Context, tenantId uuid.UUID, na
 	}, nil
 }
 
-func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId uuid.UUID, name string, internal bool, expires *time.Time) (*Token, error) {
+func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId uuid.UUID, name string, internal bool, readOnly bool, expires *time.Time) (*Token, error) {
 	token, err := j.createToken(ctx, tenantId, name, nil, expires)
 	if err != nil {
 		return nil, err
@@ -94,6 +98,7 @@ func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId uuid.
 		TenantId:  &tenantId,
 		Name:      &name,
 		Internal:  internal,
+		ReadOnly:  readOnly,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to write token to database: %v", err)
@@ -156,8 +161,12 @@ func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) 
 	// read the token from the database
 	dbToken, err := j.tokenRepo.GetAPITokenById(ctx, tokenIdUuid)
 
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, uuid.Nil, fmt.Errorf("token does not exist: %w", err)
+	}
+
 	if err != nil {
-		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to read token from database: %v", err)
+		return uuid.Nil, uuid.Nil, fmt.Errorf("%w: %w", ErrCouldNotReadTokenFromDatabase, err)
 	}
 
 	if dbToken.Revoked {
@@ -183,6 +192,10 @@ func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) 
 
 	if err != nil {
 		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to parse subject claim: %v", err)
+	}
+
+	if dbToken.TenantId == nil || *dbToken.TenantId != parsedSubject {
+		return uuid.Nil, uuid.Nil, fmt.Errorf("subject claim does not match token tenant_id")
 	}
 
 	return parsedSubject, dbToken.ID, nil

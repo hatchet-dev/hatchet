@@ -6,6 +6,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
+	v1handlers "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
@@ -45,6 +47,12 @@ func (t *LogsService) V1TenantLogLineList(ctx echo.Context, request gen.V1Tenant
 
 	if request.Params.Since != nil {
 		since = request.Params.Since
+	}
+
+	if since != nil && v1handlers.IsBeforeRetention(*since, tenant.DataRetentionPeriod) {
+		t.config.Analytics.Count(ctx.Request().Context(), analytics.Log, analytics.List, analytics.Properties{
+			"outside_retention": true,
+		})
 	}
 
 	if request.Params.Until != nil {
@@ -119,8 +127,10 @@ func (t *LogsService) V1TenantLogLineList(ctx echo.Context, request gen.V1Tenant
 
 	rows := make([]gen.V1LogLine, len(logLines))
 
+	canViewPayloads := transformers.WithPayloads(authz.CanViewPayloads(ctx))
+
 	for i, log := range logLines {
-		rows[i] = *transformers.ToV1LogLine(log)
+		rows[i] = *transformers.ToV1LogLine(log, canViewPayloads)
 	}
 
 	totalPages := int64(0)

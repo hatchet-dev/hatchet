@@ -10,6 +10,12 @@ The workflows client is a client for managing workflows programmatically within 
 
 NOTE: that workflows are the declaration, not the individual runs. If you're looking for runs, use the RunsClient instead.
 
+Properties
+
+| Property                                    | Type                    | Description                                                                                                |
+| ------------------------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------- |
+| <a id="property-namespace"></a> `namespace` | `string` \| `undefined` | Prefixed onto workflow names the way registration prefixes them; a name already carrying it is left as is. |
+
 #### Methods
 
 <a id="delete"></a>
@@ -87,3 +93,40 @@ Returns
 `Promise`\<`WorkflowList`\>
 
 A promise that resolves to the list of workflows.
+
+<a id="pause"></a>
+
+##### `pause()`
+
+Pause a workflow. While paused, new runs of the workflow are queued but not started.
+
+Parameters
+
+| Parameter  | Type                                                                | Description                          |
+| ---------- | ------------------------------------------------------------------- | ------------------------------------ |
+| `workflow` | `string` \| `BaseWorkflowDeclaration`\<`any`, `any`\> \| `Workflow` | The workflow name, ID, or object.    |
+| `opts`     | `PauseWorkflowOpts`                                                 | The options for the pause operation. |
+
+Returns
+
+`Promise`\<`Workflow`\>
+
+A promise that resolves to the updated workflow.
+
+<a id="unpause"></a>
+
+##### `unpause()`
+
+Unpause a workflow.
+
+Parameters
+
+| Parameter  | Type                                                                | Description                       |
+| ---------- | ------------------------------------------------------------------- | --------------------------------- |
+| `workflow` | `string` \| `BaseWorkflowDeclaration`\<`any`, `any`\> \| `Workflow` | The workflow name, ID, or object. |
+
+Returns
+
+`Promise`\<`Workflow`\>
+
+A promise that resolves to the updated workflow.

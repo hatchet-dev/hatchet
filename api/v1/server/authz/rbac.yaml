@@ -24,6 +24,7 @@ roles:
       - WorkflowScheduledBulkUpdate
       - SnsCreate
       - V1TaskCancel
+      - V1StreamPayloadUpload
       - V1WebhookDelete
       - V1WebhookUpdate
       - CronWorkflowTriggerCreate
@@ -47,6 +48,8 @@ roles:
       - V1FilterDelete
       - V1FilterUpdate
       - SlackWebhookDelete
+      - UserUpdateSlackOauthStart
+      - UserUpdateSlackOauthCallback
       - TenantMemberDelete
       - WorkflowScheduledDelete
       - WorkflowScheduledUpdate
@@ -65,11 +68,9 @@ roles:
       - WorkflowCronTrigger
       - WorkflowScheduledTrigger
       - V1FilterUpdate
-      - V1HttpOperatorList
-      - V1HttpOperatorCreate
-      - V1HttpOperatorGet
-      - V1HttpOperatorUpdate
-      - V1HttpOperatorDelete
+      - V1ServerlessEndpointCreate
+      - V1ServerlessEndpointUpdate
+      - V1ServerlessEndpointDelete
   VIEWER:
     permissions:
       - TenantAlertingSettingsGet
@@ -82,11 +83,17 @@ roles:
       - ReadinessGet
       - TenantInviteReject
       - V1LogLineList
+      - V1StreamPayloadGet
+      - V1StreamTopicList
       - V1WebhookGet
+      - V1ServerlessEndpointList
+      - V1ServerlessEndpointGet
+      - V1ServerlessEndpointEventList
       - V1WebhookReceive
       - V1WorkflowRunList
       - V1EventKeyList
       - V1WorkflowRunExternalIdsList
+      - V1WorkflowRunCountGet
       - V1WorkflowRunTaskEventsList
       - WebhookRequestsList
       - UserCreate
@@ -118,7 +125,6 @@ roles:
       - WebhookList
       - CloudMetadataGet
       - UserUpdateGoogleOauthCallback
-      - UserUpdateSlackOauthCallback
       - V1WorkflowRunDisplayNamesList
       - SlackWebhookList
       - V1TaskGet
@@ -132,11 +138,13 @@ roles:
       - UserUpdateGithubOauthStart
       - V1WebhookList
       - V1FilterList
+      - V1ConcurrencyStrategyList
+      - V1ConcurrencyKeyList
       - TenantGetStepRunQueueMetrics
       - UserUpdateLogin
       - V1FilterGet
       - TenantResourcePolicyGet
-      - UserUpdateSlackOauthStart
+      - TenantEntitlementsGet
       - UserUpdateGoogleOauthStart
       - V1CelDebug
       - V1WorkflowRunGetTimings

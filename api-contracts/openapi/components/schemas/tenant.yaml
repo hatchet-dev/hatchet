@@ -26,6 +26,9 @@ Tenant:
     region:
       type: string
       description: Control-plane shard region for the tenant (e.g. aws:us-west-2).
+    dataRetentionPeriod:
+      type: string
+      description: The data retention period for the tenant, e.g. 720h.
   required:
     - metadata
     - name
@@ -189,6 +192,29 @@ TenantResourcePolicy:
       description: A list of resource limits for the tenant.
   required:
     - limits
+  type: object
+
+TenantEntitlements:
+  properties:
+    auditLogs:
+      type: boolean
+    prometheusMetrics:
+      type: boolean
+    strictAdditionalMetadataFilters:
+      type: boolean
+    dagOperator:
+      type: boolean
+    durableStreams:
+      type: boolean
+    serverlessOperator:
+      type: boolean
+  required:
+    - auditLogs
+    - prometheusMetrics
+    - strictAdditionalMetadataFilters
+    - dagOperator
+    - durableStreams
+    - serverlessOperator
   type: object
 
 TenantMember:

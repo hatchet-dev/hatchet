@@ -1,13 +1,13 @@
-import { HatchetClient } from '../client';
+import type { RestApi, RestClientDeps } from '@hatchet/clients/rest/rest-api';
 
 /**
  * The workers client is a client for managing workers programmatically within Hatchet.
  */
 export class WorkersClient {
-  api: HatchetClient['api'];
+  api: RestApi;
   tenantId: string;
 
-  constructor(client: HatchetClient) {
+  constructor(client: RestClientDeps) {
     this.api = client.api;
     this.tenantId = client.tenantId;
   }

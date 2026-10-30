@@ -2,6 +2,7 @@ listTasksByDAGIds:
   get:
     description: Lists all tasks that belong a specific list of dags
     operationId: v1-dag:list:tasks
+    x-payloads: true
     parameters:
       - description: The external id of the DAG
         in: query
@@ -51,6 +52,8 @@ listTasksByDAGIds:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not implemented
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: List tasks
     tags:
       - Task
@@ -60,6 +63,7 @@ getTask:
     x-resources: ["tenant", "task"]
     description: Get a task by id
     operationId: v1-task:get
+    x-payloads: true
     parameters:
       - description: The task id
         in: path
@@ -107,6 +111,8 @@ getTask:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not implemented
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get a task
     tags:
       - Task
@@ -116,6 +122,7 @@ listTaskEvents:
     x-resources: ["tenant", "task"]
     description: List events for a task
     operationId: v1-task-event:list
+    x-payloads: false
     parameters:
       - description: The task id
         in: path
@@ -171,6 +178,8 @@ listTaskEvents:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not implemented
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: List events for a task
     tags:
       - Task
@@ -180,6 +189,7 @@ getTaskStatusMetrics:
     x-resources: ["tenant"]
     description: Get a summary of task run metrics for a tenant
     operationId: v1-task:list:status-metrics
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -265,6 +275,8 @@ getTaskStatusMetrics:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not implemented
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get task metrics
     tags:
       - Task
@@ -274,6 +286,7 @@ getTaskPointMetrics:
     x-resources: ["tenant"]
     description: Get a minute by minute breakdown of task metrics for a tenant
     operationId: v1-task:get:point-metrics
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -325,6 +338,8 @@ getTaskPointMetrics:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not implemented
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get task point metrics
     tags:
       - Task
@@ -333,6 +348,7 @@ cancelTasks:
     x-resources: ["tenant"]
     description: Cancel tasks
     operationId: v1-task:cancel
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -381,6 +397,8 @@ cancelTasks:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not implemented
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: Cancel tasks
     tags:
       - Task
@@ -389,6 +407,7 @@ replayTasks:
     x-resources: ["tenant"]
     description: Replay tasks
     operationId: v1-task:replay
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -437,6 +456,8 @@ replayTasks:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not implemented
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: Replay tasks
     tags:
       - Task
@@ -446,6 +467,7 @@ restoreTask:
     x-resources: ["tenant", "task"]
     description: Restore an evicted durable task
     operationId: v1-task:restore
+    x-payloads: false
     parameters:
       - description: The task id
         in: path
@@ -481,6 +503,8 @@ restoreTask:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: The task was not found
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: Restore a task
     tags:
       - Task
@@ -490,6 +514,7 @@ listLogs:
     x-resources: ["tenant", "task"]
     description: Lists log lines for a task
     operationId: v1-log-line:list
+    x-payloads: true
     parameters:
       - description: The task id
         in: path
@@ -566,6 +591,8 @@ listLogs:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: List log lines
     tags:
       - Log

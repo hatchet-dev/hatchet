@@ -437,3 +437,30 @@ func TestCELParserEventExpression(t *testing.T) {
 		})
 	}
 }
+
+// Nested comprehensions over literal lists let a tenant-supplied expression do
+// unbounded work from a tiny request body. Every entry point must reject them
+// via the runtime cost limit instead of running to exhaustion.
+func TestCELParserRejectsUnboundedEvaluation(t *testing.T) {
+	parser := cel.NewCELParser()
+
+	// ~10 elements per level, 8 levels deep: 10^8 iterations if left unchecked.
+	list := `[1,2,3,4,5,6,7,8,9,10]`
+	expr := list + `.all(a, ` + list + `.all(b, ` + list + `.all(c, ` + list + `.all(d, ` +
+		list + `.all(e, ` + list + `.all(f, ` + list + `.all(g, ` + list + `.all(h, a + b + c + d + e + f + g + h > 0))))))))`
+
+	_, err := parser.EvaluateEventExpression(expr, cel.NewInput())
+	assert.ErrorContains(t, err, "cost limit exceeded")
+
+	_, err = parser.EvaluateIncomingWebhookExpression(`string(`+expr+`)`, cel.NewInput())
+	assert.ErrorContains(t, err, "cost limit exceeded")
+
+	_, err = parser.ParseAndEvalWorkflowString(`string(`+expr+`)`, cel.NewInput())
+	assert.ErrorContains(t, err, "cost limit exceeded")
+
+	_, err = parser.ParseAndEvalIdempotencyKey(`string(`+expr+`)`, cel.NewInput())
+	assert.ErrorContains(t, err, "cost limit exceeded")
+
+	_, err = parser.ParseAndEvalStepRun(`string(`+expr+`)`, cel.NewInput())
+	assert.ErrorContains(t, err, "cost limit exceeded")
+}

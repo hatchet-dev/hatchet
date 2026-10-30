@@ -86,13 +86,18 @@ const (
 	CLICommandMetadataKey = "x-hatchet-cli-command"
 )
 
+type FeatureFlagUser struct {
+	ID    uuid.UUID
+	Email string
+}
+
 type Analytics interface {
 	Enqueue(ctx context.Context, resource Resource, action Action, resourceId string, properties Properties)
 	Count(ctx context.Context, resource Resource, action Action, props ...Properties)
 	Identify(userId uuid.UUID, properties Properties)
 	Tenant(tenantId uuid.UUID, data Properties)
 	Group(groupType string, groupKey string, data Properties)
-	IsFeatureEnabled(ctx context.Context, flagKey string, tenantID uuid.UUID, isEnabledIfNoPosthog bool) (bool, error)
+	IsFeatureEnabled(ctx context.Context, flagKey string, tenantID uuid.UUID, user *FeatureFlagUser, isEnabledIfNoPosthog bool) (bool, error)
 	Close() error
 }
 
@@ -195,7 +200,7 @@ func (a NoOpAnalytics) Tenant(tenantId uuid.UUID, data Properties) {}
 
 func (a NoOpAnalytics) Group(groupType string, groupKey string, data Properties) {}
 
-func (a NoOpAnalytics) IsFeatureEnabled(_ context.Context, _ string, _ uuid.UUID, isEnabledIfNoPosthog bool) (bool, error) {
+func (a NoOpAnalytics) IsFeatureEnabled(_ context.Context, _ string, _ uuid.UUID, _ *FeatureFlagUser, isEnabledIfNoPosthog bool) (bool, error) {
 	return isEnabledIfNoPosthog, nil
 }
 

@@ -22,8 +22,8 @@ func newOptimisticSchedulingRepository(shared *sharedRepository) *optimisticSche
 	}
 }
 
-func (r *optimisticSchedulingRepositoryImpl) StartTx(ctx context.Context) (*OptimisticTx, error) {
-	return r.PrepareOptimisticTx(ctx)
+func (r *optimisticSchedulingRepositoryImpl) StartTx(ctx context.Context, tenantId uuid.UUID) (*OptimisticTx, error) {
+	return r.PrepareOptimisticTx(ctx, tenantId)
 }
 
 func (r *optimisticSchedulingRepositoryImpl) TriggerFromEvents(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, opts []EventTriggerOpts) ([]*sqlcv1.V1QueueItem, *TriggerFromEventsResult, error) {
@@ -115,5 +115,5 @@ func (r *optimisticSchedulingRepositoryImpl) TriggerFromNames(ctx context.Contex
 }
 
 func (r *optimisticSchedulingRepositoryImpl) MarkQueueItemsProcessed(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, r2 *AssignResults) (succeeded []*AssignedItem, failed []*AssignedItem, err error) {
-	return r.markQueueItemsProcessed(ctx, tenantId, r2, tx.tx, true)
+	return r.markQueueItemsProcessed(ctx, tenantId, r2, tx.tx)
 }

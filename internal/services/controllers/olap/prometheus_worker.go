@@ -5,10 +5,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -46,11 +49,9 @@ func (o *OLAPControllerImpl) runTaskPrometheusUpdateWorker() {
 			return
 		}
 
-		// Group by tenant
-		tenantToUpdates := make(map[uuid.UUID][]taskPrometheusUpdate)
-		for _, update := range updates {
-			tenantToUpdates[update.tenantId] = append(tenantToUpdates[update.tenantId], update)
-		}
+		tenantToUpdates := enumerables.GroupBy(updates, func(update taskPrometheusUpdate) uuid.UUID {
+			return update.tenantId
+		})
 
 		eg := errgroup.Group{}
 
@@ -83,6 +84,9 @@ func (o *OLAPControllerImpl) runTaskPrometheusUpdateWorker() {
 
 				tenantMetricsEnabled := o.promGate.Enabled(o.taskPrometheusWorkerCtx, tenantId)
 
+				// TODO: remove once the task duration undercount is diagnosed
+				var standalone, observed, noWorkflowName, noRow, nullStarted, nullFinished int
+
 				for _, update := range tenantUpdates {
 					if update.isDAGTask {
 						continue
@@ -92,18 +96,48 @@ func (o *OLAPControllerImpl) runTaskPrometheusUpdateWorker() {
 						continue
 					}
 
+					standalone++
+
 					workflowName := workflowNames[update.workflowId]
 					if workflowName == "" {
+						noWorkflowName++
 						continue
 					}
 
 					taskDuration := taskDurations[update.taskId]
-					if taskDuration == nil || !taskDuration.StartedAt.Valid || !taskDuration.FinishedAt.Valid {
+					if taskDuration == nil {
+						noRow++
 						continue
 					}
 
+					if !taskDuration.StartedAt.Valid || !taskDuration.FinishedAt.Valid {
+						if !taskDuration.StartedAt.Valid {
+							nullStarted++
+						}
+						if !taskDuration.FinishedAt.Valid {
+							nullFinished++
+						}
+						continue
+					}
+
+					observed++
+
 					duration := int(taskDuration.FinishedAt.Time.Sub(taskDuration.StartedAt.Time).Milliseconds())
 					prometheus.TenantWorkflowDurationBuckets.WithLabelValues(tenantId.String(), workflowName, string(update.readableStatus)).Observe(float64(duration))
+				}
+
+				if observed < standalone {
+					o.l.Warn().
+						Str("tenant_id", tenantId.String()).
+						Int("updates", len(tenantUpdates)).
+						Int("standalone_updates", standalone).
+						Int("duration_rows", len(taskDurations)).
+						Int("observed", observed).
+						Int("no_workflow_name", noWorkflowName).
+						Int("no_row", noRow).
+						Int("null_started", nullStarted).
+						Int("null_finished", nullFinished).
+						Msg("task prometheus batch skipped observations")
 				}
 
 				return nil
@@ -113,7 +147,7 @@ func (o *OLAPControllerImpl) runTaskPrometheusUpdateWorker() {
 		err := eg.Wait()
 
 		if err != nil {
-			o.l.Error().Err(err).Msg("failed to process task prometheus updates")
+			logger.ShutdownAware(o.taskPrometheusWorkerCtx, o.l, err, zerolog.ErrorLevel).Err(err).Msg("failed to process task prometheus updates")
 		}
 	}
 
@@ -159,11 +193,9 @@ func (o *OLAPControllerImpl) runDAGPrometheusUpdateWorker() {
 			return
 		}
 
-		// Group by tenant
-		tenantToUpdates := make(map[uuid.UUID][]dagPrometheusUpdate)
-		for _, update := range updates {
-			tenantToUpdates[update.tenantId] = append(tenantToUpdates[update.tenantId], update)
-		}
+		tenantToUpdates := enumerables.GroupBy(updates, func(update dagPrometheusUpdate) uuid.UUID {
+			return update.tenantId
+		})
 
 		eg := errgroup.Group{}
 
@@ -223,7 +255,7 @@ func (o *OLAPControllerImpl) runDAGPrometheusUpdateWorker() {
 		err := eg.Wait()
 
 		if err != nil {
-			o.l.Error().Err(err).Msg("failed to process dag prometheus updates")
+			logger.ShutdownAware(o.dagPrometheusWorkerCtx, o.l, err, zerolog.ErrorLevel).Err(err).Msg("failed to process dag prometheus updates")
 		}
 	}
 

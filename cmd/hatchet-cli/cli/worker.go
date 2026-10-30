@@ -217,7 +217,7 @@ func startWorker(cmd *cobra.Command, devConfig *worker.WorkerDevConfig, profileF
 		}
 	}
 
-	profile, err := cli.GetProfile(selectedProfile)
+	profile, err := cli.Profiles.GetProfile(selectedProfile)
 
 	if err != nil {
 		cli.Logger.Fatalf("could not get profile '%s': %v", selectedProfile, err)

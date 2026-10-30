@@ -228,15 +228,15 @@ func (f *fakeQueueRepository) MarkQueueItemsProcessed(context.Context, *v1repo.A
 	return nil, nil, nil
 }
 
-func (f *fakeQueueRepository) GetTaskRateLimits(context.Context, *v1repo.OptimisticTx, []*sqlcv1.V1QueueItem) (map[int64]map[string]int32, error) {
-	return nil, nil
+func (f *fakeQueueRepository) GetTaskRateLimits(context.Context, *v1repo.OptimisticTx, []*sqlcv1.V1QueueItem) (map[int64]map[string]int32, map[string]v1repo.RateLimitDefinition, error) {
+	return nil, nil, nil
 }
 
 func (f *fakeQueueRepository) GetStepBatchConfigs(context.Context, *v1repo.OptimisticTx, []uuid.UUID) (map[string]bool, error) {
 	return map[string]bool{}, nil
 }
 
-func (f *fakeQueueRepository) RequeueRateLimitedItems(context.Context, uuid.UUID, string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error) {
+func (f *fakeQueueRepository) RequeueRateLimitedItems(context.Context, uuid.UUID, string) (*time.Time, error) {
 	return nil, nil
 }
 

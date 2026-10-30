@@ -33,6 +33,7 @@ var memberOnlyOps = []string{
 	"WorkflowScheduledBulkUpdate",
 	"SnsCreate",
 	"V1TaskCancel",
+	"V1StreamPayloadUpload",
 	"V1WebhookDelete",
 	"V1WebhookUpdate",
 	"CronWorkflowTriggerCreate",
@@ -56,6 +57,8 @@ var memberOnlyOps = []string{
 	"V1FilterDelete",
 	"V1FilterUpdate",
 	"SlackWebhookDelete",
+	"UserUpdateSlackOauthStart",
+	"UserUpdateSlackOauthCallback",
 	"TenantMemberDelete",
 	"WorkflowScheduledDelete",
 	"WorkflowScheduledUpdate",
@@ -73,11 +76,9 @@ var memberOnlyOps = []string{
 	"WorkflowCronUpdate",
 	"WorkflowCronTrigger",
 	"WorkflowScheduledTrigger",
-	"V1HttpOperatorGet",
-	"V1HttpOperatorUpdate",
-	"V1HttpOperatorDelete",
-	"V1HttpOperatorList",
-	"V1HttpOperatorCreate",
+	"V1ServerlessEndpointCreate",
+	"V1ServerlessEndpointUpdate",
+	"V1ServerlessEndpointDelete",
 }
 
 func operationIdsFromSpec() []string {

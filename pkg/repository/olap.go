@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"hash/fnv"
 	"log"
+	"maps"
 	"math/rand"
 	"slices"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -26,7 +26,10 @@ import (
 	tracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/pkg/config/limits"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
+	"github.com/hatchet-dev/hatchet/pkg/repository/olapagg"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -42,6 +45,25 @@ const (
 	AdditionalMetadataOperatorOr  AdditionalMetadataOperator = "OR"
 	AdditionalMetadataOperatorAnd AdditionalMetadataOperator = "AND"
 )
+
+// MaxTasksWithPayloads caps how many runs, and separately how many DAG child tasks, a list read
+// loads payloads for. Payloads for a whole page are held in memory and serialized at once. The
+// check runs on the rows a query returned rather than on the requested limit, so a large limit
+// over a sparse window still works.
+const MaxTasksWithPayloads = 1000
+
+var ErrTooManyTasksWithPayloads = fmt.Errorf(
+	"cannot include payloads for a page with more than %d runs, or whose DAG runs have more than %d tasks in total; lower the limit or set include_payloads=false",
+	MaxTasksWithPayloads, MaxTasksWithPayloads,
+)
+
+func checkTasksWithPayloads(includePayloads bool, numTasks int) error {
+	if includePayloads && numTasks > MaxTasksWithPayloads {
+		return ErrTooManyTasksWithPayloads
+	}
+
+	return nil
+}
 
 type ListTaskRunOpts struct {
 	CreatedAfter time.Time
@@ -67,6 +89,8 @@ type ListTaskRunOpts struct {
 	Offset int64
 
 	IncludePayloads bool
+
+	IncludeTotalCount bool
 
 	IdempotencyKeys *[]string
 }
@@ -96,6 +120,8 @@ type ListWorkflowRunOpts struct {
 
 	IncludePayloads bool
 
+	IncludeTotalCount bool
+
 	IdempotencyKeys *[]string
 }
 
@@ -105,12 +131,6 @@ type ReadTaskRunMetricsOpts struct {
 	CreatedBefore *time.Time
 
 	WorkflowIds []uuid.UUID
-
-	ParentTaskExternalID *uuid.UUID
-
-	TriggeringEventExternalId *uuid.UUID
-
-	AdditionalMetadata map[string]interface{}
 }
 
 type WorkflowRunData struct {
@@ -250,7 +270,9 @@ type TaskEventWithPayloads struct {
 
 type OLAPRepository interface {
 	UpdateTablePartitions(ctx context.Context) error
-	SetReadReplicaPool(pool *pgxpool.Pool)
+	SetReadReplicaPool(pool *fairpool.Pool)
+	Aggregates() *olapagg.Aggregator
+	SetPayloadStoreOnSeparateDatabase(store PayloadStoreRepository)
 
 	ReadTaskRun(ctx context.Context, taskExternalId uuid.UUID) (*sqlcv1.V1TasksOlap, error)
 	ReadWorkflowRun(ctx context.Context, workflowRunExternalId uuid.UUID) (*V1WorkflowRunPopulator, error)
@@ -258,12 +280,14 @@ type OLAPRepository interface {
 
 	ListTasks(ctx context.Context, tenantId uuid.UUID, opts ListTaskRunOpts) ([]*TaskWithPayloads, int, error)
 	ListWorkflowRuns(ctx context.Context, tenantId uuid.UUID, opts ListWorkflowRunOpts) ([]*WorkflowRunData, int, error)
+	CountTasks(ctx context.Context, tenantId uuid.UUID, opts ListTaskRunOpts) (int, error)
+	CountWorkflowRuns(ctx context.Context, tenantId uuid.UUID, opts ListWorkflowRunOpts) (int, error)
 	ListTaskRunEvents(ctx context.Context, tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, limit, offset *int64) ([]*sqlcv1.ListTaskEventsRow, error)
 	ListTaskRunEventsByWorkflowRunId(ctx context.Context, tenantId uuid.UUID, workflowRunId uuid.UUID, includeOrchestratorEvents bool) ([]*TaskEventWithPayloads, error)
 	ListWorkflowRunDisplayNames(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.ListWorkflowRunDisplayNamesRow, error)
 	ReadTaskRunMetrics(ctx context.Context, tenantId uuid.UUID, opts ReadTaskRunMetricsOpts) ([]TaskRunMetric, error)
 	CreateTasks(ctx context.Context, tenantId uuid.UUID, tasks []*V1TaskWithPayload) (*StatusUpdateResult, map[uuid.UUID]struct{}, error)
-	CreateTaskEvents(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams, eventExternalIdToWorkflowRunId map[uuid.UUID]uuid.UUID, orchestratorUpdates []OrchestratorDAGStatusUpdateOpt, operatorRunIds map[uuid.UUID]struct{}) (*StatusUpdateResult, map[uuid.UUID]struct{}, error)
+	CreateTaskEvents(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams, eventExternalIdToWorkflowRunId map[uuid.UUID]uuid.UUID, retriedEventIds map[uuid.UUID]struct{}, orchestratorUpdates []OrchestratorDAGStatusUpdateOpt, operatorRunIds map[uuid.UUID]struct{}) (*StatusUpdateResult, map[uuid.UUID]struct{}, error)
 	CreateDAGs(ctx context.Context, tenantId uuid.UUID, dags []*DAGWithData) (map[uuid.UUID]struct{}, error)
 	GetTaskPointMetrics(ctx context.Context, tenantId uuid.UUID, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration) ([]*sqlcv1.GetTaskPointMetricsRow, error)
 	UpdateTaskStatuses(ctx context.Context, tenantIds []uuid.UUID) (bool, []UpdateTaskStatusRow, error)
@@ -279,7 +303,7 @@ type OLAPRepository interface {
 	GetTaskTimings(ctx context.Context, tenantId, workflowRunId uuid.UUID, depth int32) ([]*sqlcv1.PopulateTaskRunDataRow, map[uuid.UUID]int32, error)
 
 	// Events queries
-	BulkCreateEventsAndTriggers(ctx context.Context, events BulkCreateEventsAndTriggersParams, triggers []EventTriggersFromExternalId) error
+	BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsOLAPParams, eventPayloadCopies []StoreOLAPPayloadOpts, triggers []EventTriggersFromExternalId) error
 	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*EventWithPayload, *int64, error)
 	GetEvent(ctx context.Context, externalId uuid.UUID) (*sqlcv1.V1EventsOlap, error)
 	GetEventWithPayload(ctx context.Context, externalId, tenantId uuid.UUID) (*EventWithPayload, error)
@@ -295,14 +319,11 @@ type OLAPRepository interface {
 	ReadPayload(ctx context.Context, tenantId uuid.UUID, opt ReadOLAPPayloadOpts) ([]byte, error)
 
 	AnalyzeOLAPTables(ctx context.Context) error
-	OffloadPayloads(ctx context.Context, tenantId uuid.UUID, payloads []OffloadPayloadOpts) error
 
 	PayloadStore() PayloadStoreRepository
 	StatusUpdateBatchSizeLimits() StatusUpdateBatchSizeLimits
 
 	ListWorkflowRunExternalIds(ctx context.Context, tenantId uuid.UUID, opts ListWorkflowRunOpts) ([]uuid.UUID, error)
-
-	ProcessOLAPPayloadCutovers(ctx context.Context, externalStoreEnabled bool, inlineStoreTTL *time.Duration, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32, enableWindowSizeOptimization bool) error
 
 	CountOLAPTempTableSizeForDAGStatusUpdates(ctx context.Context) (int64, error)
 	CountOLAPTempTableSizeForTaskStatusUpdates(ctx context.Context) (int64, error)
@@ -321,16 +342,18 @@ type StatusUpdateBatchSizeLimits struct {
 type OLAPRepositoryImpl struct {
 	*sharedRepository
 
-	readPool *pgxpool.Pool
+	readPool *fairpool.Pool
 
 	eventCache *lru.Cache[string, bool]
 
 	olapRetentionPeriod time.Duration
 
-	shouldPartitionEventsTables bool
-	shouldPartitionOtelTables   bool
+	shouldManageOptionalTablePartitions bool
+	shouldPartitionOtelTables           bool
 
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits
+
+	aggregates *olapagg.Aggregator
 }
 
 func NewOLAPRepositoryFromPool(
@@ -338,7 +361,7 @@ func NewOLAPRepositoryFromPool(
 	l *zerolog.Logger,
 	olapRetentionPeriod time.Duration,
 	tenantLimitConfig limits.LimitConfigFile, enforceLimits bool,
-	shouldPartitionEventsTables bool,
+	shouldManageOptionalTablePartitions bool,
 	payloadStoreOpts PayloadStoreRepositoryOpts,
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits,
 	cacheDuration time.Duration,
@@ -346,31 +369,63 @@ func NewOLAPRepositoryFromPool(
 ) (OLAPRepository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration)
+	shared, cleanupShared := newSharedRepository(fairpool.Ungated(pool), pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration, false)
 
-	return newOLAPRepository(shared, olapRetentionPeriod, shouldPartitionEventsTables, shouldPartitionOtelTables, statusUpdateBatchSizeLimits), cleanupShared
+	return newOLAPRepository(shared, olapRetentionPeriod, shouldManageOptionalTablePartitions, shouldPartitionOtelTables, statusUpdateBatchSizeLimits), cleanupShared
 }
 
-func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Duration, shouldPartitionEventsTables bool, shouldPartitionOtelTables bool, statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits) OLAPRepository {
+func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Duration, shouldManageOptionalTablePartitions bool, shouldPartitionOtelTables bool, statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits) OLAPRepository {
 	eventCache, err := lru.New[string, bool](100000)
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	aggOpts := olapagg.DefaultOpts()
+	aggOpts.Partitions = NUM_PARTITIONS
+
 	return &OLAPRepositoryImpl{
-		sharedRepository:            shared,
-		readPool:                    shared.pool,
-		eventCache:                  eventCache,
-		olapRetentionPeriod:         olapRetentionPeriod,
-		shouldPartitionEventsTables: shouldPartitionEventsTables,
-		shouldPartitionOtelTables:   shouldPartitionOtelTables,
-		statusUpdateBatchSizeLimits: statusUpdateBatchSizeLimits,
+		sharedRepository:                    shared,
+		readPool:                            shared.pool,
+		eventCache:                          eventCache,
+		olapRetentionPeriod:                 olapRetentionPeriod,
+		shouldManageOptionalTablePartitions: shouldManageOptionalTablePartitions,
+		shouldPartitionOtelTables:           shouldPartitionOtelTables,
+		statusUpdateBatchSizeLimits:         statusUpdateBatchSizeLimits,
+		aggregates:                          olapagg.New(shared.pool.ForShared(), shared.l, aggOpts),
 	}
 }
 
-// Only CREATE TABLE / ALTER TABLE ATTACH PARTITION may be passed in fn. DETACH PARTITION
-// CONCURRENTLY cannot run inside a transaction and must use a raw connection instead.
+func (r *OLAPRepositoryImpl) Aggregates() *olapagg.Aggregator {
+	return r.aggregates
+}
+
+// aggregatesCompleteFrom returns the first bucket the aggregates count completely. It is the epoch
+// when they are complete for all time.
+func (r *OLAPRepositoryImpl) aggregatesCompleteFrom(ctx context.Context, db sqlcv1.DBTX) (pgtype.Timestamptz, error) {
+	// only the cloud Timescale database leaves partition management to Timescale, and it is also the
+	// only database whose aggregates were backfilled
+	if !r.shouldManageOptionalTablePartitions {
+		return sqlchelpers.TimestamptzFromTime(time.Unix(0, 0).UTC()), nil
+	}
+
+	return r.queries.GetOLAPAggregatesCompleteFrom(ctx, db)
+}
+
+func roundDownToMinute(t time.Time) time.Time {
+	return t.Truncate(time.Minute)
+}
+
+func roundUpToMinute(t time.Time) time.Time {
+	return t.Add(time.Minute - time.Nanosecond).Truncate(time.Minute)
+}
+
+// runPartitionDDLWithLockTimeout runs fn in one transaction that waits at most a minute for
+// each lock. While we wait, other queries on the same tables queue up behind us, so if the wait
+// runs out we give up and try again on the next scheduled run rather than waiting forever.
+//
+// fn may only run statements that Postgres allows inside a transaction. DETACH PARTITION
+// CONCURRENTLY is not one of them, so it uses a plain connection instead.
 func runPartitionDDLWithLockTimeout(ctx context.Context, pool *pgxpool.Pool, logger *zerolog.Logger, fn func(tx pgx.Tx) error) error {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, pool, logger)
 
@@ -386,13 +441,27 @@ func runPartitionDDLWithLockTimeout(ctx context.Context, pool *pgxpool.Pool, log
 
 	err = fn(tx)
 
-	if err != nil && isLockNotAvailable(err) {
+	if err != nil && isPartitionLockConflict(err) {
 		return ErrPartitionLockConflict
 	} else if err != nil {
 		return err
 	}
 
 	return commit(ctx)
+}
+
+func (r *OLAPRepositoryImpl) createOptionalTablePartitions(ctx context.Context, tx pgx.Tx, date time.Time) error {
+	creations, err := r.queries.CreateOLAPOptionalTablePartitions(ctx, tx, pgtype.Date{Time: date, Valid: true})
+
+	if err != nil {
+		return err
+	}
+
+	if creations.V1LookupTableOlap > 0 {
+		return createExternalIdUniqueConstraintsOnMonthlyPartitions(ctx, tx, "v1_lookup_table_olap", date)
+	}
+
+	return nil
 }
 
 func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
@@ -427,17 +496,27 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	// Each CreateXxx call runs in its own short-lock_timeout transaction so we fail fast
 	// (ErrPartitionLockConflict) if ANALYZE is holding a conflicting lock.
 	if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
-		return r.queries.CreateOLAPPartitions(ctx, tx, sqlcv1.CreateOLAPPartitionsParams{
+		todayCreations, err := r.queries.CreateOLAPPartitions(ctx, tx, sqlcv1.CreateOLAPPartitionsParams{
 			Date:       pgtype.Date{Time: today, Valid: true},
 			Partitions: NUM_PARTITIONS,
 		})
+
+		if err != nil {
+			return err
+		}
+
+		if todayCreations.V1PayloadsOlap > 0 {
+			return createExternalIdUniqueConstraintsOnDailyPartitions(ctx, tx, "v1_payloads_olap", today)
+		}
+
+		return nil
 	}); err != nil {
 		return err
 	}
 
-	if r.shouldPartitionEventsTables {
+	if r.shouldManageOptionalTablePartitions {
 		if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
-			return r.queries.CreateOLAPEventPartitions(ctx, tx, pgtype.Date{Time: today, Valid: true})
+			return r.createOptionalTablePartitions(ctx, tx, today)
 		}); err != nil {
 			return err
 		}
@@ -452,17 +531,27 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	}
 
 	if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
-		return r.queries.CreateOLAPPartitions(ctx, tx, sqlcv1.CreateOLAPPartitionsParams{
+		tomorrowCreations, err := r.queries.CreateOLAPPartitions(ctx, tx, sqlcv1.CreateOLAPPartitionsParams{
 			Date:       pgtype.Date{Time: tomorrow, Valid: true},
 			Partitions: NUM_PARTITIONS,
 		})
+
+		if err != nil {
+			return err
+		}
+
+		if tomorrowCreations.V1PayloadsOlap > 0 {
+			return createExternalIdUniqueConstraintsOnDailyPartitions(ctx, tx, "v1_payloads_olap", tomorrow)
+		}
+
+		return nil
 	}); err != nil {
 		return err
 	}
 
-	if r.shouldPartitionEventsTables {
+	if r.shouldManageOptionalTablePartitions {
 		if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
-			return r.queries.CreateOLAPEventPartitions(ctx, tx, pgtype.Date{Time: tomorrow, Valid: true})
+			return r.createOptionalTablePartitions(ctx, tx, tomorrow)
 		}); err != nil {
 			return err
 		}
@@ -477,8 +566,8 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	}
 
 	params := sqlcv1.ListOLAPPartitionsBeforeDateParams{
-		Shouldpartitioneventstables: r.shouldPartitionEventsTables,
-		Shouldpartitionoteltables:   r.shouldPartitionOtelTables,
+		Shouldmanageoptionaltablepartitions: r.shouldManageOptionalTablePartitions,
+		Shouldpartitionoteltables:           r.shouldPartitionOtelTables,
 		Date: pgtype.Date{
 			Time:  removeBefore,
 			Valid: true,
@@ -564,18 +653,20 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		releaseConn()
 	}
 
-	if err = r.queries.DeleteOldOLAPPayloadOffloadedBlockIndexRows(ctx, r.ddlPool, pgtype.Date{
-		Time:  removeBefore,
-		Valid: true,
-	}); err != nil {
-		return fmt.Errorf("failed to delete old OLAP payload offloaded block index rows: %w", err)
-	}
-
-	return nil
+	// Runs last so that if it gives up on a lock, partition creation and cleanup above have
+	// already finished.
+	return runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
+		return reattachIndicesToParents(ctx, r.queries, tx, true)
+	})
 }
 
-func (r *OLAPRepositoryImpl) SetReadReplicaPool(pool *pgxpool.Pool) {
+func (r *OLAPRepositoryImpl) SetReadReplicaPool(pool *fairpool.Pool) {
 	r.readPool = pool
+}
+
+// When OLAP runs on its own database, shared payloads must be read through a payload store backed by the core pool.
+func (r *OLAPRepositoryImpl) SetPayloadStoreOnSeparateDatabase(store PayloadStoreRepository) {
+	r.payloadStore = store
 }
 
 func (r *OLAPRepositoryImpl) PayloadStore() PayloadStoreRepository {
@@ -600,7 +691,7 @@ func StringToReadableStatus(status string) ReadableTaskStatus {
 }
 
 func (r *OLAPRepositoryImpl) ReadTaskRun(ctx context.Context, taskExternalId uuid.UUID) (*sqlcv1.V1TasksOlap, error) {
-	row, err := r.queries.ReadTaskByExternalID(ctx, r.readPool, taskExternalId)
+	row, err := r.queries.ReadTaskByExternalID(ctx, r.readPool.ForShared(), taskExternalId)
 
 	if err != nil {
 		return nil, err
@@ -652,7 +743,7 @@ func ParseTaskMetadata(jsonData []byte) ([]TaskMetadata, error) {
 }
 
 func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExternalId uuid.UUID) (*V1WorkflowRunPopulator, error) {
-	row, err := r.queries.ReadWorkflowRunByExternalId(ctx, r.readPool, workflowRunExternalId)
+	row, err := r.queries.ReadWorkflowRunByExternalId(ctx, r.readPool.ForShared(), workflowRunExternalId)
 
 	if err != nil {
 		return nil, err
@@ -664,10 +755,23 @@ func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExt
 		return nil, err
 	}
 
-	inputPayload, err := r.ReadPayload(ctx, row.TenantID, ReadOLAPPayloadOpts{
-		ExternalId: row.ExternalID,
-		InsertedAt: row.InsertedAt,
-	})
+	inputOpts := ReadOLAPPayloadOpts{
+		ExternalId:         row.ExternalID,
+		InsertedAt:         row.InsertedAt,
+		PayloadReferenceId: row.PayloadReferenceID,
+		Kind:               PayloadKindTaskInput,
+	}
+
+	if row.Kind == sqlcv1.V1RunKindDAG {
+		inputOpts = ReadOLAPPayloadOpts{
+			ExternalId:         row.ExternalID,
+			InsertedAt:         row.InsertedAt,
+			PayloadReferenceId: row.PayloadReferenceID,
+			Kind:               PayloadKindDAGInput,
+		}
+	}
+
+	inputPayload, err := r.ReadPayload(ctx, row.TenantID, inputOpts)
 
 	if err != nil {
 		return nil, err
@@ -677,8 +781,10 @@ func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExt
 
 	if row.OutputEventExternalID != nil {
 		outputPayload, err = r.ReadPayload(ctx, row.TenantID, ReadOLAPPayloadOpts{
-			ExternalId: *row.OutputEventExternalID,
-			InsertedAt: row.OutputEventInsertedAt,
+			ExternalId:         *row.OutputEventExternalID,
+			InsertedAt:         row.OutputEventInsertedAt,
+			PayloadReferenceId: row.OutputEventPayloadReferenceID,
+			Kind:               PayloadKindTaskOutput,
 		})
 
 		if err != nil {
@@ -710,6 +816,8 @@ func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExt
 }
 
 func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, retryCount *int) (*TaskWithPayloads, uuid.UUID, error) {
+	readDB := r.readPool.ForTenant(tenantId)
+
 	emptyUUID := uuid.UUID{}
 
 	params := sqlcv1.PopulateSingleTaskRunDataParams{
@@ -722,53 +830,61 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId uuid.
 		params.RetryCount = pgtype.Int4{Int32: int32(*retryCount), Valid: true} // #nosec G115 -- retry count is engine-bounded, never near int32 range
 	}
 
-	taskRun, err := r.queries.PopulateSingleTaskRunData(ctx, r.readPool, params)
+	taskRun, err := r.queries.PopulateSingleTaskRunData(ctx, readDB, params)
 
 	if err != nil {
 		return nil, emptyUUID, err
 	}
 
 	var workflowRunId uuid.UUID
-	var workflowRunInsertedAt pgtype.Timestamptz
+
+	inputOpts := ReadOLAPPayloadOpts{
+		ExternalId:         taskRun.ExternalID,
+		InsertedAt:         taskRun.InsertedAt,
+		PayloadReferenceId: taskRun.PayloadReferenceID,
+		Kind:               PayloadKindTaskInput,
+	}
 
 	if taskRun.DagID.Valid {
-		dagId := taskRun.DagID.Int64
-		dagInsertedAt := taskRun.DagInsertedAt
-
-		workflowRunId, err = r.queries.GetWorkflowRunIdFromDagIdInsertedAt(ctx, r.readPool, sqlcv1.GetWorkflowRunIdFromDagIdInsertedAtParams{
-			Dagid:         dagId,
-			Daginsertedat: dagInsertedAt,
+		dag, err := r.queries.GetWorkflowRunIdFromDagIdInsertedAt(ctx, readDB, sqlcv1.GetWorkflowRunIdFromDagIdInsertedAtParams{
+			Dagid:         taskRun.DagID.Int64,
+			Daginsertedat: taskRun.DagInsertedAt,
 		})
 
 		if err != nil {
 			return nil, emptyUUID, err
 		}
 
-		workflowRunInsertedAt = dagInsertedAt
+		workflowRunId = dag.ExternalID
+
+		inputOpts = ReadOLAPPayloadOpts{
+			ExternalId:         dag.ExternalID,
+			InsertedAt:         taskRun.DagInsertedAt,
+			PayloadReferenceId: dag.PayloadReferenceID,
+			Kind:               PayloadKindDAGInput,
+		}
 	} else {
 		workflowRunId = taskRun.ExternalID
-		workflowRunInsertedAt = taskRun.InsertedAt
 	}
 
-	retrievePayloadOpts := []ReadOLAPPayloadOpts{{
-		ExternalId: workflowRunId,
-		InsertedAt: workflowRunInsertedAt,
-	}}
+	retrievePayloadOpts := []ReadOLAPPayloadOpts{inputOpts}
 
 	if taskRun.OutputEventExternalID != nil {
 		retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
-			ExternalId: *taskRun.OutputEventExternalID,
-			InsertedAt: taskRun.OutputEventInsertedAt,
+			ExternalId:         *taskRun.OutputEventExternalID,
+			InsertedAt:         taskRun.OutputEventInsertedAt,
+			PayloadReferenceId: taskRun.OutputEventPayloadReferenceID,
+			Kind:               PayloadKindTaskOutput,
 		})
 	}
 
-	payloads, err := r.readPayloads(ctx, r.readPool, tenantId, retrievePayloadOpts...)
+	payloads, err := r.readPayloads(ctx, tenantId, retrievePayloadOpts...)
 
 	if err != nil {
 		return nil, emptyUUID, err
 	}
 
-	input, exists := payloads[workflowRunId]
+	input, exists := payloads[inputOpts.ExternalId]
 
 	if !exists {
 		input = taskRun.Input
@@ -822,86 +938,15 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId uuid.
 }
 
 func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, opts ListTaskRunOpts) ([]*TaskWithPayloads, int, error) {
+	readDB := r.readPool.ForTenant(tenantId)
+
 	ctx, span := telemetry.NewSpan(ctx, "list-tasks-olap")
 	defer span.End()
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.readPool, r.l)
+	params, err := listTasksParamsFromOpts(tenantId, opts)
 
 	if err != nil {
 		return nil, 0, err
-	}
-
-	defer rollback()
-
-	params := sqlcv1.ListTasksOlapParams{
-		Tenantid:                  tenantId,
-		Since:                     sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
-		Tasklimit:                 int32(opts.Limit),  // #nosec G115 -- pagination param, worst case is a bounded/wrong page size, not exploitable
-		Taskoffset:                int32(opts.Offset), // #nosec G115 -- pagination param, worst case is a bounded/wrong page offset, not exploitable
-		TriggeringEventExternalId: opts.TriggeringEventExternalId,
-		WorkerId:                  opts.WorkerId,
-		IdempotencyKeys:           opts.IdempotencyKeys,
-	}
-
-	countParams := sqlcv1.CountTasksParams{
-		Tenantid:                  tenantId,
-		Since:                     sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
-		TriggeringEventExternalId: opts.TriggeringEventExternalId,
-		WorkerId:                  opts.WorkerId,
-		IdempotencyKeys:           opts.IdempotencyKeys,
-	}
-
-	statuses := make([]string, 0)
-
-	for _, status := range opts.Statuses {
-		statuses = append(statuses, string(status))
-	}
-
-	if len(statuses) == 0 {
-		statuses = []string{
-			string(sqlcv1.V1ReadableStatusOlapQUEUED),
-			string(sqlcv1.V1ReadableStatusOlapRUNNING),
-			string(sqlcv1.V1ReadableStatusOlapCOMPLETED),
-			string(sqlcv1.V1ReadableStatusOlapCANCELLED),
-			string(sqlcv1.V1ReadableStatusOlapFAILED),
-		}
-	}
-
-	params.Statuses = statuses
-	countParams.Statuses = statuses
-
-	if len(opts.WorkflowIds) > 0 {
-		workflowIdParams := make([]uuid.UUID, 0)
-
-		workflowIdParams = append(workflowIdParams, opts.WorkflowIds...)
-
-		params.WorkflowIds = workflowIdParams
-		countParams.WorkflowIds = workflowIdParams
-	}
-
-	until := opts.FinishedBefore
-
-	if until != nil {
-		params.Until = sqlchelpers.TimestamptzFromTime(*until)
-		countParams.Until = sqlchelpers.TimestamptzFromTime(*until)
-	}
-
-	if opts.AdditionalMetadataOperator == AdditionalMetadataOperatorAnd && len(opts.AdditionalMetadata) > 0 {
-		containsAll, marshalErr := json.Marshal(opts.AdditionalMetadata)
-
-		if marshalErr != nil {
-			return nil, 0, marshalErr
-		}
-
-		params.AdditionalMetadataContainsAll = containsAll
-		countParams.AdditionalMetadataContainsAll = containsAll
-	} else {
-		for key, value := range opts.AdditionalMetadata {
-			params.Keys = append(params.Keys, key)
-			params.Values = append(params.Values, value.(string))
-			countParams.Keys = append(countParams.Keys, key)
-			countParams.Values = append(countParams.Values, value.(string))
-		}
 	}
 
 	var (
@@ -909,16 +954,22 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 		count int64
 	)
 
-	rows, err = r.queries.ListTasksOlap(ctx, tx, params)
+	rows, err = r.queries.ListTasksOlap(ctx, readDB, params)
 
 	if err != nil {
 		return nil, 0, err
 	}
 
-	count, err = r.queries.CountTasks(ctx, tx, countParams)
-
-	if err != nil {
+	if err := checkTasksWithPayloads(opts.IncludePayloads, len(rows)); err != nil {
 		return nil, 0, err
+	}
+
+	if opts.IncludeTotalCount {
+		count, err = r.queries.CountTasks(ctx, readDB, countTasksParamsFromListTasksParams(params))
+
+		if err != nil {
+			return nil, 0, err
+		}
 	}
 
 	idsInsertedAts := make([]IdInsertedAt, 0, len(rows))
@@ -930,7 +981,7 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 		})
 	}
 
-	tasksWithData, err := r.populateTaskRunData(ctx, tx, tenantId, idsInsertedAts, opts.IncludePayloads)
+	tasksWithData, err := r.populateTaskRunData(ctx, readDB, tenantId, idsInsertedAts, opts.IncludePayloads)
 
 	if err != nil {
 		return nil, 0, err
@@ -939,22 +990,9 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 	payloads := make(map[uuid.UUID][]byte)
 
 	if opts.IncludePayloads {
-		retrievePayloadOpts := make([]ReadOLAPPayloadOpts, 0)
-		for _, task := range tasksWithData {
-			retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
-				ExternalId: task.ExternalID,
-				InsertedAt: task.InsertedAt,
-			})
+		retrievePayloadOpts := enumerables.FlatMap(tasksWithData, taskRunPayloadReadOpts)
 
-			if task.OutputEventExternalID != nil {
-				retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
-					ExternalId: *task.OutputEventExternalID,
-					InsertedAt: task.OutputEventInsertedAt,
-				})
-			}
-		}
-
-		payloads, err = r.readPayloads(ctx, tx, tenantId, retrievePayloadOpts...)
+		payloads, err = r.readPayloads(ctx, tenantId, retrievePayloadOpts...)
 
 		if err != nil {
 			return nil, 0, err
@@ -990,32 +1028,28 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 		})
 	}
 
-	if err := commit(ctx); err != nil {
-		return nil, 0, err
-	}
-
 	return result, int(count), nil
 }
 
 func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId uuid.UUID, dagids []uuid.UUID, includePayloads bool) ([]*TaskWithPayloads, map[int64]uuid.UUID, error) {
+	readDB := r.readPool.ForTenant(tenantId)
+
 	ctx, span := telemetry.NewSpan(ctx, "list-tasks-by-dag-id-olap")
 	defer span.End()
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.readPool, r.l)
 	taskIdToDagExternalId := make(map[int64]uuid.UUID)
 
-	if err != nil {
-		return nil, taskIdToDagExternalId, err
-	}
-
-	defer rollback()
-
-	tasks, err := r.queries.ListTasksByDAGIds(ctx, tx, sqlcv1.ListTasksByDAGIdsParams{
+	tasks, err := r.queries.ListTasksByDAGIds(ctx, readDB, sqlcv1.ListTasksByDAGIdsParams{
 		Dagids:   dagids,
 		Tenantid: tenantId,
 	})
 
 	if err != nil {
+		return nil, taskIdToDagExternalId, err
+	}
+
+	// The page limit bounds the DAG runs, not their child tasks.
+	if err := checkTasksWithPayloads(includePayloads, len(tasks)); err != nil {
 		return nil, taskIdToDagExternalId, err
 	}
 
@@ -1029,7 +1063,7 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId uuid
 		})
 	}
 
-	tasksWithData, err := r.populateTaskRunData(ctx, tx, tenantId, idsInsertedAts, includePayloads)
+	tasksWithData, err := r.populateTaskRunData(ctx, readDB, tenantId, idsInsertedAts, includePayloads)
 
 	if err != nil {
 		return nil, taskIdToDagExternalId, err
@@ -1038,22 +1072,9 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId uuid
 	payloads := make(map[uuid.UUID][]byte)
 
 	if includePayloads {
-		retrievePayloadOpts := make([]ReadOLAPPayloadOpts, 0)
-		for _, task := range tasksWithData {
-			retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
-				ExternalId: task.ExternalID,
-				InsertedAt: task.InsertedAt,
-			})
+		retrievePayloadOpts := enumerables.FlatMap(tasksWithData, taskRunPayloadReadOpts)
 
-			if task.OutputEventExternalID != nil {
-				retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
-					ExternalId: *task.OutputEventExternalID,
-					InsertedAt: task.OutputEventInsertedAt,
-				})
-			}
-		}
-
-		payloads, err = r.readPayloads(ctx, tx, tenantId, retrievePayloadOpts...)
+		payloads, err = r.readPayloads(ctx, tenantId, retrievePayloadOpts...)
 
 		if err != nil {
 			return nil, taskIdToDagExternalId, err
@@ -1089,24 +1110,14 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId uuid
 		})
 	}
 
-	if err := commit(ctx); err != nil {
-		return nil, taskIdToDagExternalId, err
-	}
-
 	return result, taskIdToDagExternalId, nil
 }
 
 func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, tenantId uuid.UUID, taskMetadata []TaskMetadata, includePayloads bool) ([]*TaskWithPayloads, error) {
+	readDB := r.readPool.ForTenant(tenantId)
+
 	ctx, span := telemetry.NewSpan(ctx, "list-tasks-by-id-and-inserted-at-olap")
 	defer span.End()
-
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.readPool, r.l)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer rollback()
 
 	idsInsertedAts := make([]IdInsertedAt, 0, len(taskMetadata))
 
@@ -1117,7 +1128,7 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 		})
 	}
 
-	tasksWithData, err := r.populateTaskRunData(ctx, tx, tenantId, idsInsertedAts, includePayloads)
+	tasksWithData, err := r.populateTaskRunData(ctx, readDB, tenantId, idsInsertedAts, includePayloads)
 
 	if err != nil {
 		return nil, err
@@ -1126,22 +1137,9 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 	payloads := make(map[uuid.UUID][]byte)
 
 	if includePayloads {
-		retrievePayloadOpts := make([]ReadOLAPPayloadOpts, 0)
-		for _, task := range tasksWithData {
-			retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
-				ExternalId: task.ExternalID,
-				InsertedAt: task.InsertedAt,
-			})
+		retrievePayloadOpts := enumerables.FlatMap(tasksWithData, taskRunPayloadReadOpts)
 
-			if task.OutputEventExternalID != nil {
-				retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
-					ExternalId: *task.OutputEventExternalID,
-					InsertedAt: task.OutputEventInsertedAt,
-				})
-			}
-		}
-
-		payloads, err = r.readPayloads(ctx, tx, tenantId, retrievePayloadOpts...)
+		payloads, err = r.readPayloads(ctx, tenantId, retrievePayloadOpts...)
 
 		if err != nil {
 			return nil, err
@@ -1176,51 +1174,12 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 		})
 	}
 
-	if err := commit(ctx); err != nil {
-		return nil, err
-	}
-
 	return result, nil
 }
 
-func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid.UUID, opts ListWorkflowRunOpts) ([]*WorkflowRunData, int, error) {
-	ctx, span := telemetry.NewSpan(ctx, "list-workflow-runs-olap")
-	defer span.End()
-
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.readPool, r.l)
-
-	if err != nil {
-		return nil, 0, err
-	}
-
-	defer rollback()
-
-	params := sqlcv1.FetchWorkflowRunIdsParams{
-		Tenantid:                  tenantId,
-		Since:                     sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
-		Listworkflowrunslimit:     int32(opts.Limit),  // #nosec G115 -- pagination param, worst case is a bounded/wrong page size, not exploitable
-		Listworkflowrunsoffset:    int32(opts.Offset), // #nosec G115 -- pagination param, worst case is a bounded/wrong page offset, not exploitable
-		ParentTaskExternalId:      opts.ParentTaskExternalId,
-		TriggeringEventExternalId: opts.TriggeringEventExternalId,
-		IdempotencyKeys:           opts.IdempotencyKeys,
-	}
-
-	countParams := sqlcv1.CountWorkflowRunsParams{
-		Tenantid:                  tenantId,
-		Since:                     sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
-		ParentTaskExternalId:      opts.ParentTaskExternalId,
-		TriggeringEventExternalId: opts.TriggeringEventExternalId,
-		IdempotencyKeys:           opts.IdempotencyKeys,
-	}
-
-	statuses := make([]string, 0)
-
-	for _, status := range opts.Statuses {
-		statuses = append(statuses, string(status))
-	}
-
+func readableStatusesOrDefault(statuses []sqlcv1.V1ReadableStatusOlap) []string {
 	if len(statuses) == 0 {
-		statuses = []string{
+		return []string{
 			string(sqlcv1.V1ReadableStatusOlapQUEUED),
 			string(sqlcv1.V1ReadableStatusOlapRUNNING),
 			string(sqlcv1.V1ReadableStatusOlapCOMPLETED),
@@ -1229,41 +1188,185 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		}
 	}
 
-	params.Statuses = statuses
-	countParams.Statuses = statuses
+	return enumerables.Map(statuses, func(status sqlcv1.V1ReadableStatusOlap) string {
+		return string(status)
+	})
+}
+
+type additionalMetadataFilterParams struct {
+	ContainsAll []byte
+	Keys        []string
+	Values      []string
+}
+
+func additionalMetadataFilterParamsFromOpts(additionalMetadata map[string]interface{}, operator AdditionalMetadataOperator) (additionalMetadataFilterParams, error) {
+	if operator == AdditionalMetadataOperatorAnd && len(additionalMetadata) > 0 {
+		containsAll, err := json.Marshal(additionalMetadata)
+
+		if err != nil {
+			return additionalMetadataFilterParams{}, err
+		}
+
+		return additionalMetadataFilterParams{ContainsAll: containsAll}, nil
+	}
+
+	// Keys and Values must stay nil when there are no filters, since the queries skip the filter on `IS NULL`
+	var keys, values []string
+
+	for key, value := range additionalMetadata {
+		keys = append(keys, key)
+		values = append(values, value.(string))
+	}
+
+	return additionalMetadataFilterParams{Keys: keys, Values: values}, nil
+}
+
+func listTasksParamsFromOpts(tenantId uuid.UUID, opts ListTaskRunOpts) (sqlcv1.ListTasksOlapParams, error) {
+	metadataFilters, err := additionalMetadataFilterParamsFromOpts(opts.AdditionalMetadata, opts.AdditionalMetadataOperator)
+
+	if err != nil {
+		return sqlcv1.ListTasksOlapParams{}, err
+	}
+
+	params := sqlcv1.ListTasksOlapParams{
+		Tenantid:                      tenantId,
+		Since:                         sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
+		Statuses:                      readableStatusesOrDefault(opts.Statuses),
+		Tasklimit:                     int32(opts.Limit),  // #nosec G115 -- pagination param, worst case is a bounded/wrong page size, not exploitable
+		Taskoffset:                    int32(opts.Offset), // #nosec G115 -- pagination param, worst case is a bounded/wrong page offset, not exploitable
+		TriggeringEventExternalId:     opts.TriggeringEventExternalId,
+		WorkerId:                      opts.WorkerId,
+		IdempotencyKeys:               opts.IdempotencyKeys,
+		AdditionalMetadataContainsAll: metadataFilters.ContainsAll,
+		Keys:                          metadataFilters.Keys,
+		Values:                        metadataFilters.Values,
+	}
 
 	if len(opts.WorkflowIds) > 0 {
-		workflowIdParams := make([]uuid.UUID, 0)
-
-		workflowIdParams = append(workflowIdParams, opts.WorkflowIds...)
-
-		params.WorkflowIds = workflowIdParams
-		countParams.WorkflowIds = workflowIdParams
+		params.WorkflowIds = opts.WorkflowIds
 	}
 
-	until := opts.FinishedBefore
-
-	if until != nil {
-		params.Until = sqlchelpers.TimestamptzFromTime(*until)
-		countParams.Until = sqlchelpers.TimestamptzFromTime(*until)
+	if opts.FinishedBefore != nil {
+		params.Until = sqlchelpers.TimestamptzFromTime(*opts.FinishedBefore)
 	}
 
-	if opts.AdditionalMetadataOperator == AdditionalMetadataOperatorAnd && len(opts.AdditionalMetadata) > 0 {
-		containsAll, marshalErr := json.Marshal(opts.AdditionalMetadata)
+	return params, nil
+}
 
-		if marshalErr != nil {
-			return nil, 0, marshalErr
-		}
+func countTasksParamsFromListTasksParams(listTasksParams sqlcv1.ListTasksOlapParams) sqlcv1.CountTasksParams {
+	return sqlcv1.CountTasksParams{
+		Tenantid:                      listTasksParams.Tenantid,
+		Since:                         listTasksParams.Since,
+		Statuses:                      listTasksParams.Statuses,
+		Until:                         listTasksParams.Until,
+		WorkflowIds:                   listTasksParams.WorkflowIds,
+		WorkerId:                      listTasksParams.WorkerId,
+		Keys:                          listTasksParams.Keys,
+		Values:                        listTasksParams.Values,
+		TriggeringEventExternalId:     listTasksParams.TriggeringEventExternalId,
+		AdditionalMetadataContainsAny: listTasksParams.AdditionalMetadataContainsAny,
+		AdditionalMetadataContainsAll: listTasksParams.AdditionalMetadataContainsAll,
+		IdempotencyKeys:               listTasksParams.IdempotencyKeys,
+	}
+}
 
-		params.AdditionalMetadataContainsAll = containsAll
-		countParams.AdditionalMetadataContainsAll = containsAll
-	} else {
-		for key, value := range opts.AdditionalMetadata {
-			params.Keys = append(params.Keys, key)
-			params.Values = append(params.Values, value.(string))
-			countParams.Keys = append(countParams.Keys, key)
-			countParams.Values = append(countParams.Values, value.(string))
-		}
+func fetchWorkflowRunIdsParamsFromOpts(tenantId uuid.UUID, opts ListWorkflowRunOpts) (sqlcv1.FetchWorkflowRunIdsParams, error) {
+	metadataFilters, err := additionalMetadataFilterParamsFromOpts(opts.AdditionalMetadata, opts.AdditionalMetadataOperator)
+
+	if err != nil {
+		return sqlcv1.FetchWorkflowRunIdsParams{}, err
+	}
+
+	params := sqlcv1.FetchWorkflowRunIdsParams{
+		Tenantid:                      tenantId,
+		Since:                         sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
+		Statuses:                      readableStatusesOrDefault(opts.Statuses),
+		Listworkflowrunslimit:         int32(opts.Limit),  // #nosec G115 -- pagination param, worst case is a bounded/wrong page size, not exploitable
+		Listworkflowrunsoffset:        int32(opts.Offset), // #nosec G115 -- pagination param, worst case is a bounded/wrong page offset, not exploitable
+		ParentTaskExternalId:          opts.ParentTaskExternalId,
+		TriggeringEventExternalId:     opts.TriggeringEventExternalId,
+		IdempotencyKeys:               opts.IdempotencyKeys,
+		AdditionalMetadataContainsAll: metadataFilters.ContainsAll,
+		Keys:                          metadataFilters.Keys,
+		Values:                        metadataFilters.Values,
+	}
+
+	if len(opts.WorkflowIds) > 0 {
+		params.WorkflowIds = opts.WorkflowIds
+	}
+
+	if opts.FinishedBefore != nil {
+		params.Until = sqlchelpers.TimestamptzFromTime(*opts.FinishedBefore)
+	}
+
+	return params, nil
+}
+
+func countWorkflowRunsParamsFromFetchWorkflowRunIdsParams(fetchWorkflowRunIdsParams sqlcv1.FetchWorkflowRunIdsParams) sqlcv1.CountWorkflowRunsParams {
+	return sqlcv1.CountWorkflowRunsParams{
+		Tenantid:                      fetchWorkflowRunIdsParams.Tenantid,
+		Statuses:                      fetchWorkflowRunIdsParams.Statuses,
+		WorkflowIds:                   fetchWorkflowRunIdsParams.WorkflowIds,
+		Since:                         fetchWorkflowRunIdsParams.Since,
+		Until:                         fetchWorkflowRunIdsParams.Until,
+		Keys:                          fetchWorkflowRunIdsParams.Keys,
+		Values:                        fetchWorkflowRunIdsParams.Values,
+		ParentTaskExternalId:          fetchWorkflowRunIdsParams.ParentTaskExternalId,
+		TriggeringEventExternalId:     fetchWorkflowRunIdsParams.TriggeringEventExternalId,
+		AdditionalMetadataContainsAny: fetchWorkflowRunIdsParams.AdditionalMetadataContainsAny,
+		AdditionalMetadataContainsAll: fetchWorkflowRunIdsParams.AdditionalMetadataContainsAll,
+		IdempotencyKeys:               fetchWorkflowRunIdsParams.IdempotencyKeys,
+	}
+}
+
+func (r *OLAPRepositoryImpl) CountTasks(ctx context.Context, tenantId uuid.UUID, opts ListTaskRunOpts) (int, error) {
+	ctx, span := telemetry.NewSpan(ctx, "count-tasks-olap")
+	defer span.End()
+
+	listTasksParams, err := listTasksParamsFromOpts(tenantId, opts)
+
+	if err != nil {
+		return 0, err
+	}
+
+	count, err := r.queries.CountTasks(ctx, r.readPool.ForTenant(tenantId), countTasksParamsFromListTasksParams(listTasksParams))
+
+	if err != nil {
+		return 0, err
+	}
+
+	return int(count), nil
+}
+
+func (r *OLAPRepositoryImpl) CountWorkflowRuns(ctx context.Context, tenantId uuid.UUID, opts ListWorkflowRunOpts) (int, error) {
+	ctx, span := telemetry.NewSpan(ctx, "count-workflow-runs-olap")
+	defer span.End()
+
+	fetchWorkflowRunIdsParams, err := fetchWorkflowRunIdsParamsFromOpts(tenantId, opts)
+
+	if err != nil {
+		return 0, err
+	}
+
+	count, err := r.queries.CountWorkflowRuns(ctx, r.readPool.ForTenant(tenantId), countWorkflowRunsParamsFromFetchWorkflowRunIdsParams(fetchWorkflowRunIdsParams))
+
+	if err != nil {
+		return 0, err
+	}
+
+	return int(count), nil
+}
+
+func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid.UUID, opts ListWorkflowRunOpts) ([]*WorkflowRunData, int, error) {
+	readDB := r.readPool.ForTenant(tenantId)
+
+	ctx, span := telemetry.NewSpan(ctx, "list-workflow-runs-olap")
+	defer span.End()
+
+	params, err := fetchWorkflowRunIdsParamsFromOpts(tenantId, opts)
+
+	if err != nil {
+		return nil, 0, err
 	}
 
 	var (
@@ -1271,14 +1374,21 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		count          int64
 	)
 
-	workflowRunIds, err = r.queries.FetchWorkflowRunIds(ctx, tx, params)
+	workflowRunIds, err = r.queries.FetchWorkflowRunIds(ctx, readDB, params)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	count, err = r.queries.CountWorkflowRuns(ctx, tx, countParams)
-	if err != nil {
+	if err := checkTasksWithPayloads(opts.IncludePayloads, len(workflowRunIds)); err != nil {
 		return nil, 0, err
+	}
+
+	if opts.IncludeTotalCount {
+		count, err = r.queries.CountWorkflowRuns(ctx, readDB, countWorkflowRunsParamsFromFetchWorkflowRunIdsParams(params))
+
+		if err != nil {
+			return nil, 0, err
+		}
 	}
 
 	runIdsWithDAGs := make([]int64, 0)
@@ -1298,7 +1408,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		}
 	}
 
-	populatedDAGs, err := r.queries.PopulateDAGMetadata(ctx, tx, sqlcv1.PopulateDAGMetadataParams{
+	populatedDAGs, err := r.queries.PopulateDAGMetadata(ctx, readDB, sqlcv1.PopulateDAGMetadataParams{
 		Ids:             runIdsWithDAGs,
 		Insertedats:     runInsertedAtsWithDAGs,
 		Tenantid:        tenantId,
@@ -1314,21 +1424,25 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 	for _, dag := range populatedDAGs {
 		dagsToPopulated[dag.ExternalID] = dag
 		retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
-			ExternalId: dag.ExternalID,
-			InsertedAt: dag.InsertedAt,
+			ExternalId:         dag.ExternalID,
+			InsertedAt:         dag.InsertedAt,
+			PayloadReferenceId: dag.PayloadReferenceID,
+			Kind:               PayloadKindDAGInput,
 		})
 
 		if dag.OutputEventExternalID != nil {
 			retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
-				ExternalId: *dag.OutputEventExternalID,
-				InsertedAt: dag.OutputEventInsertedAt,
+				ExternalId:         *dag.OutputEventExternalID,
+				InsertedAt:         dag.OutputEventInsertedAt,
+				PayloadReferenceId: dag.OutputEventPayloadReferenceID,
+				Kind:               PayloadKindTaskOutput,
 			})
 		}
 	}
 
 	tasksToPopulated := make(map[uuid.UUID]*sqlcv1.PopulateTaskRunDataRow)
 
-	populatedTasks, err := r.populateTaskRunData(ctx, tx, tenantId, taskIdsInsertedAts, opts.IncludePayloads)
+	populatedTasks, err := r.populateTaskRunData(ctx, readDB, tenantId, taskIdsInsertedAts, opts.IncludePayloads)
 
 	if err != nil {
 		return nil, 0, err
@@ -1336,28 +1450,13 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 
 	for _, task := range populatedTasks {
 		tasksToPopulated[task.ExternalID] = task
-
-		retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
-			ExternalId: task.ExternalID,
-			InsertedAt: task.InsertedAt,
-		})
-
-		if task.OutputEventExternalID != nil {
-			retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
-				ExternalId: *task.OutputEventExternalID,
-				InsertedAt: task.OutputEventInsertedAt,
-			})
-		}
-	}
-
-	if err := commit(ctx); err != nil {
-		return nil, 0, err
+		retrievePayloadOpts = append(retrievePayloadOpts, taskRunPayloadReadOpts(task)...)
 	}
 
 	externalIdToPayload := make(map[uuid.UUID][]byte)
 
 	if opts.IncludePayloads {
-		externalIdToPayload, err = r.readPayloads(ctx, r.readPool, tenantId, retrievePayloadOpts...)
+		externalIdToPayload, err = r.readPayloads(ctx, tenantId, retrievePayloadOpts...)
 
 		if err != nil {
 			return nil, 0, err
@@ -1382,9 +1481,6 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 				outputPayload, exists = externalIdToPayload[*dag.OutputEventExternalID]
 
 				if !exists {
-					if opts.IncludePayloads && dag.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED {
-						r.l.Error().Ctx(ctx).Msgf("ListWorkflowRuns-1: dag with external_id %s and inserted_at %s has empty payload, falling back to output", dag.ExternalID, dag.InsertedAt.Time)
-					}
 					outputPayload = dag.Output
 				}
 			} else {
@@ -1393,9 +1489,6 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 
 			inputPayload, exists := externalIdToPayload[dag.ExternalID]
 			if !exists {
-				if opts.IncludePayloads && dag.ExternalID != uuid.Nil {
-					r.l.Error().Ctx(ctx).Msgf("ListWorkflowRuns-2: dag with external_id %s and inserted_at %s has empty payload, falling back to input", dag.ExternalID, dag.InsertedAt.Time)
-				}
 				inputPayload = dag.Input
 			}
 
@@ -1454,9 +1547,6 @@ func (r *OLAPRepositoryImpl) taskToWorkflowRunData(ctx context.Context, task *sq
 	if task.OutputEventExternalID != nil {
 		outputPayload, exists = payloads[*task.OutputEventExternalID]
 		if !exists {
-			if includePayloads && task.Status == sqlcv1.V1ReadableStatusOlapCOMPLETED {
-				r.l.Error().Ctx(ctx).Msgf("ListWorkflowRuns: task with external_id %s has empty output payload", task.ExternalID)
-			}
 			outputPayload = task.Output
 		}
 	} else {
@@ -1465,9 +1555,6 @@ func (r *OLAPRepositoryImpl) taskToWorkflowRunData(ctx context.Context, task *sq
 
 	inputPayload, exists := payloads[task.ExternalID]
 	if !exists {
-		if includePayloads && task.ExternalID != uuid.Nil {
-			r.l.Error().Ctx(ctx).Msgf("ListWorkflowRuns: task with external_id %s has empty input payload", task.ExternalID)
-		}
 		inputPayload = task.Input
 	}
 
@@ -1501,10 +1588,12 @@ func (r *OLAPRepositoryImpl) taskToWorkflowRunData(ctx context.Context, task *sq
 }
 
 func (r *OLAPRepositoryImpl) ListWorkflowRunExternalIds(ctx context.Context, tenantId uuid.UUID, opts ListWorkflowRunOpts) ([]uuid.UUID, error) {
+	readDB := r.readPool.ForTenant(tenantId)
+
 	ctx, span := telemetry.NewSpan(ctx, "list-workflow-run-external-ids-olap")
 	defer span.End()
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.readPool, r.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, readDB, r.l)
 
 	if err != nil {
 		return nil, err
@@ -1568,6 +1657,8 @@ func (r *OLAPRepositoryImpl) ListWorkflowRunExternalIds(ctx context.Context, ten
 }
 
 func (r *OLAPRepositoryImpl) ListTaskRunEvents(ctx context.Context, tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, limit *int64, offset *int64) ([]*sqlcv1.ListTaskEventsRow, error) {
+	readDB := r.readPool.ForTenant(tenantId)
+
 	args := sqlcv1.ListTaskEventsParams{
 		Tenantid:       tenantId,
 		Taskid:         taskId,
@@ -1579,7 +1670,7 @@ func (r *OLAPRepositoryImpl) ListTaskRunEvents(ctx context.Context, tenantId uui
 	if offset != nil {
 		args.Eventoffset = *offset
 	}
-	rows, err := r.queries.ListTaskEvents(ctx, r.readPool, args)
+	rows, err := r.queries.ListTaskEvents(ctx, readDB, args)
 
 	if err != nil {
 		return nil, err
@@ -1588,11 +1679,16 @@ func (r *OLAPRepositoryImpl) ListTaskRunEvents(ctx context.Context, tenantId uui
 	return rows, nil
 }
 
+const maxTaskEventsPerWorkflowRun = 1000
+
 func (r *OLAPRepositoryImpl) ListTaskRunEventsByWorkflowRunId(ctx context.Context, tenantId uuid.UUID, workflowRunId uuid.UUID, includeOrchestratorEvents bool) ([]*TaskEventWithPayloads, error) {
-	rows, err := r.queries.ListTaskEventsForWorkflowRun(ctx, r.readPool, sqlcv1.ListTaskEventsForWorkflowRunParams{
+	readDB := r.readPool.ForTenant(tenantId)
+
+	rows, err := r.queries.ListTaskEventsForWorkflowRun(ctx, readDB, sqlcv1.ListTaskEventsForWorkflowRunParams{
 		Tenantid:                  tenantId,
 		Workflowrunid:             workflowRunId,
 		IncludeOrchestratorEvents: sqlchelpers.BoolFromBoolean(includeOrchestratorEvents),
+		Eventlimit:                maxTaskEventsPerWorkflowRun,
 	})
 
 	if err != nil {
@@ -1603,12 +1699,14 @@ func (r *OLAPRepositoryImpl) ListTaskRunEventsByWorkflowRunId(ctx context.Contex
 
 	for i, row := range rows {
 		retrievePayloadOpts[i] = ReadOLAPPayloadOpts{
-			ExternalId: row.EventExternalID,
-			InsertedAt: row.EventTimestamp,
+			ExternalId:         row.EventExternalID,
+			InsertedAt:         row.EventTimestamp,
+			PayloadReferenceId: row.PayloadReferenceID,
+			Kind:               PayloadKindTaskOutput,
 		}
 	}
 
-	payloads, err := r.readPayloads(ctx, r.readPool, tenantId, retrievePayloadOpts...)
+	payloads, err := r.readPayloads(ctx, tenantId, retrievePayloadOpts...)
 
 	if err != nil {
 		return nil, err
@@ -1619,7 +1717,6 @@ func (r *OLAPRepositoryImpl) ListTaskRunEventsByWorkflowRunId(ctx context.Contex
 	for _, row := range rows {
 		payload, exists := payloads[row.EventExternalID]
 		if !exists {
-			r.l.Error().Ctx(ctx).Msgf("ListTaskRunEventsByWorkflowRunId: event with external_id %s and task_inserted_at %s has empty payload, falling back to payload", row.EventExternalID, row.TaskInsertedAt.Time)
 			payload = row.Output
 		}
 
@@ -1633,6 +1730,8 @@ func (r *OLAPRepositoryImpl) ListTaskRunEventsByWorkflowRunId(ctx context.Contex
 }
 
 func (r *OLAPRepositoryImpl) ReadTaskRunMetrics(ctx context.Context, tenantId uuid.UUID, opts ReadTaskRunMetricsOpts) ([]TaskRunMetric, error) {
+	readDB := r.readPool.ForTenant(tenantId)
+
 	var workflowIds []uuid.UUID
 
 	if len(opts.WorkflowIds) > 0 {
@@ -1641,29 +1740,24 @@ func (r *OLAPRepositoryImpl) ReadTaskRunMetrics(ctx context.Context, tenantId uu
 		workflowIds = append(workflowIds, opts.WorkflowIds...)
 	}
 
-	var additionalMetaKeys []string
-	var additionalMetaValues []string
+	aggregatesCompleteFrom, err := r.aggregatesCompleteFrom(ctx, readDB)
 
-	for key, value := range opts.AdditionalMetadata {
-		additionalMetaKeys = append(additionalMetaKeys, key)
-		additionalMetaValues = append(additionalMetaValues, value.(string))
+	if err != nil {
+		return nil, fmt.Errorf("could not read when the OLAP aggregates became complete: %w", err)
 	}
 
 	params := sqlcv1.GetTenantStatusMetricsParams{
-		Tenantid:                  tenantId,
-		Createdafter:              sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
-		WorkflowIds:               workflowIds,
-		ParentTaskExternalId:      opts.ParentTaskExternalID,
-		TriggeringEventExternalId: opts.TriggeringEventExternalId,
-		AdditionalMetaKeys:        additionalMetaKeys,
-		AdditionalMetaValues:      additionalMetaValues,
+		Tenantid:               tenantId,
+		Createdafter:           sqlchelpers.TimestamptzFromTime(roundDownToMinute(opts.CreatedAfter)),
+		WorkflowIds:            workflowIds,
+		Aggregatescompletefrom: aggregatesCompleteFrom,
 	}
 
 	if opts.CreatedBefore != nil {
-		params.CreatedBefore = sqlchelpers.TimestamptzFromTime(*opts.CreatedBefore)
+		params.CreatedBefore = sqlchelpers.TimestamptzFromTime(roundUpToMinute(*opts.CreatedBefore))
 	}
 
-	res, err := r.queries.GetTenantStatusMetrics(ctx, r.readPool, params)
+	res, err := r.queries.GetTenantStatusMetrics(ctx, readDB, params)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return []TaskRunMetric{}, nil
@@ -1769,6 +1863,7 @@ func (r *OLAPRepositoryImpl) prepareStatusUpdateBatch(ctx context.Context, tenan
 		Statuses:        statuses,
 		Workerids:       workerIds,
 		Retrycounts:     retryCounts,
+		Mininsertedat:   sqlchelpers.MinTimestamptz(taskInsertedAts),
 	}
 }
 
@@ -1794,9 +1889,10 @@ func (r *OLAPRepositoryImpl) prepareDAGStatusUpdateBatch(taskRows []*sqlcv1.Upda
 	}
 
 	return sqlcv1.UpdateDAGStatusesFromMQParams{
-		Tenantids:      tenantIds,
-		Dagids:         dagIds,
-		Daginsertedats: dagInsertedAts,
+		Tenantids:        tenantIds,
+		Dagids:           dagIds,
+		Daginsertedats:   dagInsertedAts,
+		Mindaginsertedat: sqlchelpers.MinTimestamptz(dagInsertedAts),
 	}
 }
 
@@ -1822,9 +1918,10 @@ func (r *OLAPRepositoryImpl) prepareDAGStatusUpdateBatchFromStatusRows(taskRows 
 	}
 
 	return sqlcv1.UpdateDAGStatusesFromMQParams{
-		Tenantids:      tenantIds,
-		Dagids:         dagIds,
-		Daginsertedats: dagInsertedAts,
+		Tenantids:        tenantIds,
+		Dagids:           dagIds,
+		Daginsertedats:   dagInsertedAts,
+		Mindaginsertedat: sqlchelpers.MinTimestamptz(dagInsertedAts),
 	}
 }
 
@@ -1840,6 +1937,8 @@ func initialStateToReadableStatus(initialState sqlcv1.V1TaskInitialState) sqlcv1
 		return sqlcv1.V1ReadableStatusOlapCANCELLED
 	case sqlcv1.V1TaskInitialStateSKIPPED:
 		return sqlcv1.V1ReadableStatusOlapCOMPLETED
+	case sqlcv1.V1TaskInitialStateQUEUED:
+		return sqlcv1.V1ReadableStatusOlapQUEUED
 	default:
 		return sqlcv1.V1ReadableStatusOlapQUEUED
 	}
@@ -1893,8 +1992,8 @@ func (r *OLAPRepositoryImpl) tryAcquireAdvisoryLocksForWorkflowRuns(ctx context.
 	return locksNotAcquired, nil
 }
 
-func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams, eventExternalIdToWorkflowRunId map[uuid.UUID]uuid.UUID, orchestratorUpdates []OrchestratorDAGStatusUpdateOpt, operatorRunIds map[uuid.UUID]struct{}) (*StatusUpdateResult, map[uuid.UUID]struct{}, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams, eventExternalIdToWorkflowRunId map[uuid.UUID]uuid.UUID, retriedEventIds map[uuid.UUID]struct{}, orchestratorUpdates []OrchestratorDAGStatusUpdateOpt, operatorRunIds map[uuid.UUID]struct{}) (*StatusUpdateResult, map[uuid.UUID]struct{}, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool.ForTenant(tenantId), r.l)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1918,6 +2017,7 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 	eventsToWrite := make([]sqlcv1.CreateTaskEventsOLAPParams, 0)
 	eventsForStatusUpdate := make([]sqlcv1.CreateTaskEventsOLAPParams, 0, len(events))
 	payloadsToWrite := make([]StoreOLAPPayloadOpts, 0)
+	oldestRetainedPartitionStart := r.oldestRetainedPartitionStart()
 
 	for _, event := range events {
 		workflowRunId, ok := eventExternalIdToWorkflowRunId[event.ExternalID]
@@ -1934,26 +2034,35 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 		key := getCacheKey(event)
 		output := event.Output
 
-		if _, ok := r.eventCache.Get(key); !ok {
-			if event.Output != nil {
+		isTaskPartitionDropped := event.TaskInsertedAt.Time.Before(oldestRetainedPartitionStart)
+
+		if _, ok := r.eventCache.Get(key); !ok && !isTaskPartitionDropped {
+			if event.Output != nil || event.PayloadReferenceID != nil {
 				event.Output = []byte("{}")
 			}
 
 			eventsToWrite = append(eventsToWrite, event)
 		}
 
-		eventsForStatusUpdate = append(eventsForStatusUpdate, event)
+		// a retried attempt's failure must not make the task, or its DAG, terminal
+		if _, retried := retriedEventIds[event.ExternalID]; !retried {
+			eventsForStatusUpdate = append(eventsForStatusUpdate, event)
+		}
+
+		if event.PayloadReferenceID != nil {
+			continue
+		}
 
 		dummyInsertedAt := time.Now().Add(time.Duration(rand.Intn(2*300+1)-300) * time.Millisecond) // #nosec G404 -- non-cryptographic jitter, not security-sensitive
 
 		payloadsToWrite = append(payloadsToWrite, StoreOLAPPayloadOpts{
 			ExternalId: event.ExternalID,
 			InsertedAt: sqlchelpers.TimestamptzFromTime(dummyInsertedAt),
-			Payload:    output,
+			Payload:    NewPayload[TaskOutputShape](output),
 		})
 	}
 
-	if len(eventsForStatusUpdate) == 0 && len(orchestratorUpdates) == 0 {
+	if len(eventsToWrite) == 0 && len(eventsForStatusUpdate) == 0 && len(orchestratorUpdates) == 0 {
 		return nil, workflowRunIdsOfLocksNotAcquired, nil
 	}
 
@@ -2067,7 +2176,7 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 
 		eg.Go(func() error {
 			ctx := innerCtx
-			tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+			tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool.ForShared(), r.l)
 
 			if err != nil {
 				return err
@@ -2197,7 +2306,7 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 
 		eg.Go(func() error {
 			ctx := innerCtx
-			tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+			tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool.ForShared(), r.l)
 
 			if err != nil {
 				return fmt.Errorf("failed to prepare transaction: %w", err)
@@ -2275,6 +2384,8 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 }
 
 func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.UUID, tasks []*V1TaskWithPayload) (*StatusUpdateResult, map[uuid.UUID]struct{}, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	workflowRunIds := make([]uuid.UUID, 0, len(tasks))
 	for _, task := range tasks {
 		if task.IsOperatorRun {
@@ -2286,7 +2397,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 		workflowRunIds = append(workflowRunIds, task.WorkflowRunID)
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, r.l)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -2298,7 +2409,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 	}
 
 	params := sqlcv1.CreateTasksOLAPParams{}
-	putPayloadOpts := make([]StoreOLAPPayloadOpts, 0)
+	inputCopiesToStore := make([]StoreOLAPPayloadOpts, 0)
 	minInsertedAt := pgtype.Timestamptz{}
 
 	var initiallyWrittenAsTerminalRows []UpdateTaskStatusRow
@@ -2308,13 +2419,12 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 			continue
 		}
 
-		payload := task.Payload
-
-		// fall back to input if payload is empty
-		// for backwards compatibility
-		if len(payload) == 0 {
-			r.l.Error().Ctx(ctx).Msgf("writeTaskBatch: task %s with ID %d and inserted_at %s has empty payload, falling back to input", task.ExternalID.String(), task.ID, task.InsertedAt.Time)
-			payload = task.Input
+		if len(task.Payload) > 0 {
+			inputCopiesToStore = append(inputCopiesToStore, StoreOLAPPayloadOpts{
+				ExternalId: task.ExternalID,
+				InsertedAt: task.InsertedAt,
+				Payload:    NewPayload[TaskInputShape](task.Payload),
+			})
 		}
 
 		params.Tenantids = append(params.Tenantids, task.TenantID)
@@ -2339,6 +2449,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 		params.Workflowrunids = append(params.Workflowrunids, task.WorkflowRunID)
 		params.Isdurables = append(params.Isdurables, task.IsDurable.Bool)
 		params.IdempotencyKeys = append(params.IdempotencyKeys, task.IdempotencyKey)
+		params.PayloadReferenceIds = append(params.PayloadReferenceIds, task.PayloadReferenceID)
 
 		initialStatus := initialStateToReadableStatus(task.InitialState)
 		params.ReadableStatuses = append(params.ReadableStatuses, string(initialStatus))
@@ -2364,12 +2475,6 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 		if !minInsertedAt.Valid || task.InsertedAt.Time.Before(minInsertedAt.Time) {
 			minInsertedAt = task.InsertedAt
 		}
-
-		putPayloadOpts = append(putPayloadOpts, StoreOLAPPayloadOpts{
-			ExternalId: task.ExternalID,
-			InsertedAt: task.InsertedAt,
-			Payload:    payload,
-		})
 	}
 
 	if len(params.Ids) == 0 {
@@ -2378,6 +2483,10 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 
 	err = r.queries.CreateTasksOLAP(ctx, tx, params)
 	if err != nil {
+		return nil, nil, err
+	}
+
+	if err := r.PutPayloads(ctx, tx, tenantId, inputCopiesToStore...); err != nil {
 		return nil, nil, err
 	}
 
@@ -2421,11 +2530,6 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 		}
 	}
 
-	err = r.PutPayloads(ctx, tx, tenantId, putPayloadOpts...)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	if err := commit(ctx); err != nil {
 		return nil, nil, err
 	}
@@ -2449,6 +2553,8 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 }
 
 func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UUID, dags []*DAGWithData) (map[uuid.UUID]struct{}, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	dagIds := make([]uuid.UUID, 0, len(dags))
 	for _, dag := range dags {
 		// we don't need to acquire any locks for workflow runs (and their DAGs)
@@ -2460,7 +2566,7 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 		dagIds = append(dagIds, dag.ExternalID)
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, r.l)
 	if err != nil {
 		return nil, err
 	}
@@ -2472,12 +2578,20 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 	}
 
 	params := sqlcv1.CreateDAGsOLAPOverwriteParams{}
-	putPayloadOpts := make([]StoreOLAPPayloadOpts, 0)
+	inputCopiesToStore := make([]StoreOLAPPayloadOpts, 0)
 	selfMappingParams := sqlcv1.CreateDagToTaskOLAPSelfMappingsParams{}
 
 	for _, dag := range dags {
 		if _, notAcquired := workflowRunIdsOfLocksNotAcquired[dag.ExternalID]; notAcquired {
 			continue
+		}
+
+		if len(dag.Input) > 0 {
+			inputCopiesToStore = append(inputCopiesToStore, StoreOLAPPayloadOpts{
+				ExternalId: dag.ExternalID,
+				InsertedAt: dag.InsertedAt,
+				Payload:    NewPayload[DAGInputShape](dag.Input),
+			})
 		}
 
 		if dag.IsOperatorRun {
@@ -2496,12 +2610,8 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 		params.Parenttaskexternalids = append(params.Parenttaskexternalids, dag.ParentTaskExternalID)
 		params.Totaltasks = append(params.Totaltasks, int32(dag.TotalTasks)) // nolint: gosec
 		params.IdempotencyKeys = append(params.IdempotencyKeys, dag.IdempotencyKey)
-
-		putPayloadOpts = append(putPayloadOpts, StoreOLAPPayloadOpts{
-			ExternalId: dag.ExternalID,
-			InsertedAt: dag.InsertedAt,
-			Payload:    dag.Input,
-		})
+		params.IsDagOperators = append(params.IsDagOperators, dag.IsOperatorRun)
+		params.PayloadReferenceIds = append(params.PayloadReferenceIds, dag.PayloadReferenceID)
 	}
 
 	if len(params.Ids) == 0 {
@@ -2510,6 +2620,10 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 
 	err = r.queries.CreateDAGsOLAP(ctx, tx, params)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := r.PutPayloads(ctx, tx, tenantId, inputCopiesToStore...); err != nil {
 		return nil, err
 	}
 
@@ -2525,11 +2639,6 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 		}
 	}
 
-	err = r.PutPayloads(ctx, tx, tenantId, putPayloadOpts...)
-	if err != nil {
-		return nil, err
-	}
-
 	if err := commit(ctx); err != nil {
 		return nil, err
 	}
@@ -2537,8 +2646,8 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 	return workflowRunIdsOfLocksNotAcquired, nil
 }
 
-func (r *OLAPRepositoryImpl) CreateTaskEvents(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams, eventExternalIdToWorkflowRunId map[uuid.UUID]uuid.UUID, orchestratorUpdates []OrchestratorDAGStatusUpdateOpt, operatorRunIds map[uuid.UUID]struct{}) (*StatusUpdateResult, map[uuid.UUID]struct{}, error) {
-	return r.writeTaskEventBatch(ctx, tenantId, events, eventExternalIdToWorkflowRunId, orchestratorUpdates, operatorRunIds)
+func (r *OLAPRepositoryImpl) CreateTaskEvents(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams, eventExternalIdToWorkflowRunId map[uuid.UUID]uuid.UUID, retriedEventIds map[uuid.UUID]struct{}, orchestratorUpdates []OrchestratorDAGStatusUpdateOpt, operatorRunIds map[uuid.UUID]struct{}) (*StatusUpdateResult, map[uuid.UUID]struct{}, error) {
+	return r.writeTaskEventBatch(ctx, tenantId, events, eventExternalIdToWorkflowRunId, retriedEventIds, orchestratorUpdates, operatorRunIds)
 }
 
 func (r *OLAPRepositoryImpl) CreateTasks(ctx context.Context, tenantId uuid.UUID, tasks []*V1TaskWithPayload) (*StatusUpdateResult, map[uuid.UUID]struct{}, error) {
@@ -2550,10 +2659,15 @@ func (r *OLAPRepositoryImpl) CreateDAGs(ctx context.Context, tenantId uuid.UUID,
 }
 
 type OrchestratorDAGStatusUpdateOpt struct {
-	DagInsertedAt  pgtype.Timestamptz
-	ReadableStatus sqlcv1.V1ReadableStatusOlap
-	DagId          int64
-	RetryCount     int32
+	DagInsertedAt      pgtype.Timestamptz
+	ReadableStatus     sqlcv1.V1ReadableStatusOlap
+	ExternalId         uuid.UUID
+	DisplayName        string
+	WorkflowId         uuid.UUID
+	WorkflowVersionId  uuid.UUID
+	AdditionalMetadata []byte
+	DagId              int64
+	RetryCount         int32
 }
 
 // Picks one update per DAG like prepareStatusUpdateBatch does for tasks: highest retry count wins, then
@@ -2587,6 +2701,10 @@ func dedupeOrchestratorUpdates(updates []OrchestratorDAGStatusUpdateOpt) []Orche
 	return deduped
 }
 
+func (r *OLAPRepositoryImpl) oldestRetainedPartitionStart() time.Time {
+	return time.Now().UTC().Add(-1 * r.olapRetentionPeriod).Truncate(24 * time.Hour)
+}
+
 func (r *OLAPRepositoryImpl) applyOrchestratorEventsToDAGs(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, updates []OrchestratorDAGStatusUpdateOpt) ([]UpdateDAGStatusRow, error) {
 	if len(updates) == 0 {
 		return nil, nil
@@ -2596,11 +2714,22 @@ func (r *OLAPRepositoryImpl) applyOrchestratorEventsToDAGs(ctx context.Context, 
 		Tenantid: tenantId,
 	}
 
+	oldestRetainedPartitionStart := r.oldestRetainedPartitionStart()
+
 	for _, update := range dedupeOrchestratorUpdates(updates) {
+		if update.DagInsertedAt.Time.Before(oldestRetainedPartitionStart) {
+			continue
+		}
+
 		params.Dagids = append(params.Dagids, update.DagId)
 		params.Daginsertedats = append(params.Daginsertedats, update.DagInsertedAt)
 		params.Statuses = append(params.Statuses, update.ReadableStatus)
 		params.Retrycounts = append(params.Retrycounts, update.RetryCount)
+		params.Externalids = append(params.Externalids, update.ExternalId)
+		params.Displaynames = append(params.Displaynames, update.DisplayName)
+		params.Workflowids = append(params.Workflowids, update.WorkflowId)
+		params.Workflowversionids = append(params.Workflowversionids, update.WorkflowVersionId)
+		params.Additionalmetadatas = append(params.Additionalmetadatas, update.AdditionalMetadata)
 	}
 
 	rows, err := r.queries.UpdateDAGStatusesFromOrchestratorEvents(ctx, tx, params)
@@ -2626,11 +2755,20 @@ func (r *OLAPRepositoryImpl) applyOrchestratorEventsToDAGs(ctx context.Context, 
 }
 
 func (r *OLAPRepositoryImpl) GetTaskPointMetrics(ctx context.Context, tenantId uuid.UUID, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration) ([]*sqlcv1.GetTaskPointMetricsRow, error) {
-	rows, err := r.queries.GetTaskPointMetrics(ctx, r.readPool, sqlcv1.GetTaskPointMetricsParams{
-		Interval:      durationToPgInterval(bucketInterval),
-		Tenantid:      tenantId,
-		Createdafter:  sqlchelpers.TimestamptzFromTime(*startTimestamp),
-		Createdbefore: sqlchelpers.TimestamptzFromTime(*endTimestamp),
+	readDB := r.readPool.ForTenant(tenantId)
+
+	aggregatesCompleteFrom, err := r.aggregatesCompleteFrom(ctx, readDB)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not read when the OLAP aggregates became complete: %w", err)
+	}
+
+	rows, err := r.queries.GetTaskPointMetrics(ctx, readDB, sqlcv1.GetTaskPointMetricsParams{
+		Interval:               durationToPgInterval(bucketInterval),
+		Tenantid:               tenantId,
+		Createdafter:           sqlchelpers.TimestamptzFromTime(roundDownToMinute(*startTimestamp)),
+		Createdbefore:          sqlchelpers.TimestamptzFromTime(roundUpToMinute(*endTimestamp)),
+		Aggregatescompletefrom: aggregatesCompleteFrom,
 	})
 
 	if err != nil {
@@ -2645,11 +2783,13 @@ func (r *OLAPRepositoryImpl) GetTaskPointMetrics(ctx context.Context, tenantId u
 }
 
 func (r *OLAPRepositoryImpl) ReadDAG(ctx context.Context, dagExternalId uuid.UUID) (*sqlcv1.V1DagsOlap, error) {
-	return r.queries.ReadDAGByExternalID(ctx, r.readPool, dagExternalId)
+	return r.queries.ReadDAGByExternalID(ctx, r.readPool.ForShared(), dagExternalId)
 }
 
 func (r *OLAPRepositoryImpl) ListTasksByExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.FlattenTasksByExternalIdsRow, error) {
-	return r.queries.FlattenTasksByExternalIds(ctx, r.readPool, sqlcv1.FlattenTasksByExternalIdsParams{
+	readDB := r.readPool.ForTenant(tenantId)
+
+	return r.queries.FlattenTasksByExternalIds(ctx, readDB, sqlcv1.FlattenTasksByExternalIdsParams{
 		Tenantid:    tenantId,
 		Externalids: externalIds,
 	})
@@ -2666,13 +2806,17 @@ func durationToPgInterval(d time.Duration) pgtype.Interval {
 }
 
 func (r *OLAPRepositoryImpl) ListWorkflowRunDisplayNames(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.ListWorkflowRunDisplayNamesRow, error) {
-	return r.queries.ListWorkflowRunDisplayNames(ctx, r.readPool, sqlcv1.ListWorkflowRunDisplayNamesParams{
+	readDB := r.readPool.ForTenant(tenantId)
+
+	return r.queries.ListWorkflowRunDisplayNames(ctx, readDB, sqlcv1.ListWorkflowRunDisplayNamesParams{
 		Tenantid:    tenantId,
 		Externalids: externalIds,
 	})
 }
 
 func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId uuid.UUID, workflowRunId uuid.UUID, depth int32) ([]*sqlcv1.PopulateTaskRunDataRow, map[uuid.UUID]int32, error) {
+	readDB := r.readPool.ForTenant(tenantId)
+
 	ctx, span := telemetry.NewSpan(ctx, "get-task-timings-olap")
 	defer span.End()
 
@@ -2685,7 +2829,7 @@ func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId uuid.U
 	sevenDaysAgo := time.Now().Add(-time.Hour * 24 * 7)
 	minInsertedAt := time.Now()
 
-	rootTasks, err := r.queries.FlattenTasksByExternalIds(ctx, r.readPool, sqlcv1.FlattenTasksByExternalIdsParams{
+	rootTasks, err := r.queries.FlattenTasksByExternalIds(ctx, readDB, sqlcv1.FlattenTasksByExternalIdsParams{
 		Externalids: []uuid.UUID{workflowRunId},
 		Tenantid:    tenantId,
 	})
@@ -2709,7 +2853,7 @@ func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId uuid.U
 		minInsertedAt = sevenDaysAgo
 	}
 
-	runsList, err := r.queries.GetRunsListRecursive(ctx, r.readPool, sqlcv1.GetRunsListRecursiveParams{
+	runsList, err := r.queries.GetRunsListRecursive(ctx, readDB, sqlcv1.GetRunsListRecursiveParams{
 		Taskexternalids: rootTaskExternalIds,
 		Tenantid:        tenantId,
 		Depth:           depth,
@@ -2732,12 +2876,13 @@ func (r *OLAPRepositoryImpl) GetTaskTimings(ctx context.Context, tenantId uuid.U
 		})
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.readPool, r.l)
-	defer rollback()
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, readDB, r.l)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("error beginning transaction: %v", err)
 	}
+
+	defer rollback()
 
 	tasksWithData, err := r.populateTaskRunData(ctx, tx, tenantId, idsInsertedAts, false)
 
@@ -2760,13 +2905,8 @@ type EventTriggersFromExternalId struct {
 	FilterId        *uuid.UUID         `json:"filter_id"`
 }
 
-type BulkCreateEventsAndTriggersParams struct {
-	*sqlcv1.BulkCreateEventsOLAPParams
-	Payloads [][]byte
-}
-
-func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, events BulkCreateEventsAndTriggersParams, triggers []EventTriggersFromExternalId) error {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsOLAPParams, eventPayloadCopies []StoreOLAPPayloadOpts, triggers []EventTriggersFromExternalId) error {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool.ForShared(), r.l)
 
 	if err != nil {
 		return fmt.Errorf("error beginning transaction: %v", err)
@@ -2774,24 +2914,17 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 
 	defer rollback()
 
-	eventsToInsert := events
-	eventExternalIdToPayload := make(map[uuid.UUID][]byte)
-
-	for i, payload := range eventsToInsert.Payloads {
-		eventExternalIdToPayload[eventsToInsert.Externalids[i]] = payload
-	}
-
-	insertedEvents, err := r.queries.BulkCreateEventsOLAP(ctx, tx, *eventsToInsert.BulkCreateEventsOLAPParams)
+	insertedEvents, err := r.queries.BulkCreateEventsOLAP(ctx, tx, events)
 
 	if err != nil {
 		return fmt.Errorf("error creating events: %v", err)
 	}
 
-	eventExternalIdToId := make(map[uuid.UUID]int64)
-
-	for _, event := range insertedEvents {
-		eventExternalIdToId[event.ExternalID] = event.ID
-	}
+	eventExternalIdToId := enumerables.ToMap(
+		insertedEvents,
+		func(event *sqlcv1.V1EventsOlap) uuid.UUID { return event.ExternalID },
+		func(event *sqlcv1.V1EventsOlap) int64 { return event.ID },
+	)
 
 	bulkCreateTriggersParams := sqlcv1.BulkCreateEventTriggersParams{
 		Runids:         make([]int64, 0, len(triggers)),
@@ -2827,27 +2960,29 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 		return fmt.Errorf("error creating event triggers: %v", err)
 	}
 
-	tenantIdToPutPayloadOpts := make(map[uuid.UUID][]StoreOLAPPayloadOpts)
+	eventPayloadCopiesByExternalId := make(map[uuid.UUID]StoreOLAPPayloadOpts, len(eventPayloadCopies))
+
+	for _, payloadCopy := range eventPayloadCopies {
+		if payloadCopy.Payload != nil {
+			eventPayloadCopiesByExternalId[payloadCopy.ExternalId] = payloadCopy
+		}
+	}
+
+	eventPayloadCopiesByTenant := make(map[uuid.UUID][]StoreOLAPPayloadOpts)
 
 	for _, event := range insertedEvents {
 		if event == nil {
 			continue
 		}
 
-		payload := eventExternalIdToPayload[event.ExternalID]
-
-		tenantIdToPutPayloadOpts[event.TenantID] = append(tenantIdToPutPayloadOpts[event.TenantID], StoreOLAPPayloadOpts{
-			ExternalId: event.ExternalID,
-			InsertedAt: event.SeenAt,
-			Payload:    payload,
-		})
+		if payloadCopy, ok := eventPayloadCopiesByExternalId[event.ExternalID]; ok {
+			eventPayloadCopiesByTenant[event.TenantID] = append(eventPayloadCopiesByTenant[event.TenantID], payloadCopy)
+		}
 	}
 
-	for tenantId, putPayloadOpts := range tenantIdToPutPayloadOpts {
-		err = r.PutPayloads(ctx, tx, tenantId, putPayloadOpts...)
-
-		if err != nil {
-			return fmt.Errorf("error putting event payloads: %v", err)
+	for tenantId, copies := range eventPayloadCopiesByTenant {
+		if err := r.PutPayloads(ctx, tx, tenantId, copies...); err != nil {
+			return fmt.Errorf("error storing event payload copies: %v", err)
 		}
 	}
 
@@ -2859,11 +2994,13 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 }
 
 func (r *OLAPRepositoryImpl) GetEvent(ctx context.Context, externalId uuid.UUID) (*sqlcv1.V1EventsOlap, error) {
-	return r.queries.GetEventByExternalId(ctx, r.readPool, externalId)
+	return r.queries.GetEventByExternalId(ctx, r.readPool.ForShared(), externalId)
 }
 
 func (r *OLAPRepositoryImpl) PopulateEventData(ctx context.Context, tenantId uuid.UUID, eventExternalIds []uuid.UUID, minSeenAt pgtype.Timestamptz) (map[uuid.UUID]sqlcv1.PopulateEventDataRow, error) {
-	eventData, err := r.queries.PopulateEventData(ctx, r.readPool, sqlcv1.PopulateEventDataParams{
+	readDB := r.readPool.ForTenant(tenantId)
+
+	eventData, err := r.queries.PopulateEventData(ctx, readDB, sqlcv1.PopulateEventDataParams{
 		Eventexternalids: eventExternalIds,
 		Tenantid:         tenantId,
 		Minseenat:        minSeenAt,
@@ -2873,17 +3010,17 @@ func (r *OLAPRepositoryImpl) PopulateEventData(ctx context.Context, tenantId uui
 		return nil, fmt.Errorf("error populating event data: %v", err)
 	}
 
-	externalIdToEventData := make(map[uuid.UUID]sqlcv1.PopulateEventDataRow)
-
-	for _, data := range eventData {
-		externalIdToEventData[data.ExternalID] = *data
-	}
-
-	return externalIdToEventData, nil
+	return enumerables.ToMap(
+		eventData,
+		func(data *sqlcv1.PopulateEventDataRow) uuid.UUID { return data.ExternalID },
+		func(data *sqlcv1.PopulateEventDataRow) sqlcv1.PopulateEventDataRow { return *data },
+	), nil
 }
 
 func (r *OLAPRepositoryImpl) GetEventWithPayload(ctx context.Context, externalId, tenantId uuid.UUID) (*EventWithPayload, error) {
-	event, err := r.queries.GetEventByExternalIdUsingTenantId(ctx, r.readPool, sqlcv1.GetEventByExternalIdUsingTenantIdParams{
+	readDB := r.readPool.ForTenant(tenantId)
+
+	event, err := r.queries.GetEventByExternalIdUsingTenantId(ctx, readDB, sqlcv1.GetEventByExternalIdUsingTenantIdParams{
 		Tenantid:        tenantId,
 		Eventexternalid: externalId,
 	})
@@ -2893,8 +3030,10 @@ func (r *OLAPRepositoryImpl) GetEventWithPayload(ctx context.Context, externalId
 	}
 
 	payload, err := r.ReadPayload(ctx, tenantId, ReadOLAPPayloadOpts{
-		ExternalId: event.ExternalID,
-		InsertedAt: event.SeenAt,
+		ExternalId:         event.ExternalID,
+		InsertedAt:         event.SeenAt,
+		PayloadReferenceId: event.PayloadReferenceID,
+		Kind:               PayloadKindUserEventInput,
 	})
 
 	if err != nil {
@@ -2977,10 +3116,12 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 		eventCount int64
 	)
 
+	db := r.readPool.ForTenant(opts.Tenantid)
+
 	g, gctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		c, err := r.queries.CountEvents(gctx, r.readPool, sqlcv1.CountEventsParams{
+		c, err := r.queries.CountEvents(gctx, db, sqlcv1.CountEventsParams{
 			Tenantid:           opts.Tenantid,
 			Keys:               opts.Keys,
 			Since:              opts.Since,
@@ -3002,7 +3143,7 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 
 	// We need the events list to proceed; keep it in-line while the count runs in the background.
 	var err error
-	events, err = r.queries.ListEvents(gctx, r.readPool, opts)
+	events, err = r.queries.ListEvents(gctx, db, opts)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -3013,8 +3154,10 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 	for i, event := range events {
 		eventExternalIds[i] = event.ExternalID
 		readPayloadOpts[i] = ReadOLAPPayloadOpts{
-			ExternalId: event.ExternalID,
-			InsertedAt: event.SeenAt,
+			ExternalId:         event.ExternalID,
+			InsertedAt:         event.SeenAt,
+			PayloadReferenceId: event.PayloadReferenceID,
+			Kind:               PayloadKindUserEventInput,
 		}
 	}
 
@@ -3029,7 +3172,7 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 		return nil, nil, fmt.Errorf("error populating event data: %v", err)
 	}
 
-	externalIdToPayload, err := r.readPayloads(ctx, r.readPool, opts.Tenantid, readPayloadOpts...)
+	externalIdToPayload, err := r.readPayloads(ctx, opts.Tenantid, readPayloadOpts...)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("error reading event payloads: %v", err)
@@ -3041,7 +3184,6 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 		payload, exists := externalIdToPayload[event.ExternalID]
 
 		if !exists {
-			r.l.Error().Ctx(ctx).Msgf("ListEvents: payload for event %s not found", event.ExternalID.String())
 			payload = event.Payload
 		}
 
@@ -3102,7 +3244,9 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 }
 
 func (r *OLAPRepositoryImpl) ListEventKeys(ctx context.Context, tenantId uuid.UUID) ([]string, error) {
-	keys, err := r.queries.ListEventKeys(ctx, r.pool, tenantId)
+	db := r.pool.ForTenant(tenantId)
+
+	keys, err := r.queries.ListEventKeys(ctx, db, tenantId)
 
 	if err != nil {
 		return nil, err
@@ -3112,6 +3256,8 @@ func (r *OLAPRepositoryImpl) ListEventKeys(ctx context.Context, tenantId uuid.UU
 }
 
 func (r *OLAPRepositoryImpl) GetDAGDurations(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID, minInsertedAt pgtype.Timestamptz) (map[string]*sqlcv1.GetDagDurationsRow, error) {
+	readDB := r.readPool.ForTenant(tenantId)
+
 	ctx, span := telemetry.NewSpan(ctx, "olap_repository.get_dag_durations")
 	defer span.End()
 
@@ -3120,7 +3266,7 @@ func (r *OLAPRepositoryImpl) GetDAGDurations(ctx context.Context, tenantId uuid.
 		Value: attribute.IntValue(len(externalIds)),
 	})
 
-	rows, err := r.queries.GetDagDurations(ctx, r.readPool, sqlcv1.GetDagDurationsParams{
+	rows, err := r.queries.GetDagDurations(ctx, readDB, sqlcv1.GetDagDurationsParams{
 		Externalids:   externalIds,
 		Tenantid:      tenantId,
 		Mininsertedat: minInsertedAt,
@@ -3130,17 +3276,13 @@ func (r *OLAPRepositoryImpl) GetDAGDurations(ctx context.Context, tenantId uuid.
 		return nil, err
 	}
 
-	dagDurations := make(map[string]*sqlcv1.GetDagDurationsRow)
-
-	for _, row := range rows {
-		dagDurations[row.ExternalID.String()] = row
-	}
-
-	return dagDurations, nil
+	return enumerables.KeyBy(rows, func(row *sqlcv1.GetDagDurationsRow) string { return row.ExternalID.String() }), nil
 }
 
 func (r *OLAPRepositoryImpl) GetTaskDurationsByTaskIds(ctx context.Context, tenantId uuid.UUID, taskIds []int64, taskInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) (map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow, error) {
-	rows, err := r.queries.GetTaskDurationsByTaskIds(ctx, r.readPool, sqlcv1.GetTaskDurationsByTaskIdsParams{
+	readDB := r.readPool.ForTenant(tenantId)
+
+	rows, err := r.queries.GetTaskDurationsByTaskIds(ctx, readDB, sqlcv1.GetTaskDurationsByTaskIdsParams{
 		Taskids:          taskIds,
 		Taskinsertedats:  taskInsertedAts,
 		Tenantid:         tenantId,
@@ -3150,26 +3292,24 @@ func (r *OLAPRepositoryImpl) GetTaskDurationsByTaskIds(ctx context.Context, tena
 		return nil, err
 	}
 
-	taskDurations := make(map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow)
-
-	for i, row := range rows {
-		taskDurations[taskIds[i]] = row
-	}
-
-	return taskDurations, nil
+	// rows come back sorted and drop tasks whose status changed, so they can't be matched to taskIds by index
+	return enumerables.KeyBy(rows, func(row *sqlcv1.GetTaskDurationsByTaskIdsRow) int64 { return row.TaskID }), nil
 }
 
 func (r *OLAPRepositoryImpl) GetTaskStartedTimestamps(ctx context.Context, tenantId uuid.UUID, taskIds []int64, taskInsertedAts []time.Time, retryCounts []int32) ([]*sqlcv1.GetTaskStartedTimestampsRow, error) {
+	readDB := r.readPool.ForTenant(tenantId)
+
 	pgInsertedAts := make([]pgtype.Timestamptz, len(taskInsertedAts))
 	for i, t := range taskInsertedAts {
 		pgInsertedAts[i] = sqlchelpers.TimestamptzFromTime(t)
 	}
 
-	return r.queries.GetTaskStartedTimestamps(ctx, r.readPool, sqlcv1.GetTaskStartedTimestampsParams{
-		Tenantid:       tenantId,
-		Taskids:        taskIds,
-		Taskinsertedat: pgInsertedAts,
-		Retrycounts:    retryCounts,
+	return r.queries.GetTaskStartedTimestamps(ctx, readDB, sqlcv1.GetTaskStartedTimestampsParams{
+		Tenantid:          tenantId,
+		Taskids:           taskIds,
+		Taskinsertedat:    pgInsertedAts,
+		Mintaskinsertedat: sqlchelpers.MinTimestamptz(pgInsertedAts),
+		Retrycounts:       retryCounts,
 	})
 }
 
@@ -3179,6 +3319,8 @@ type CreateIncomingWebhookFailureLogOpts struct {
 }
 
 func (r *OLAPRepositoryImpl) CreateIncomingWebhookValidationFailureLogs(ctx context.Context, tenantId uuid.UUID, opts []CreateIncomingWebhookFailureLogOpts) error {
+	db := r.pool.ForTenant(tenantId)
+
 	incomingWebhookNames := make([]string, len(opts))
 	errors := make([]string, len(opts))
 
@@ -3193,7 +3335,7 @@ func (r *OLAPRepositoryImpl) CreateIncomingWebhookValidationFailureLogs(ctx cont
 		Errors:               errors,
 	}
 
-	return r.queries.CreateIncomingWebhookValidationFailureLogs(ctx, r.pool, params)
+	return r.queries.CreateIncomingWebhookValidationFailureLogs(ctx, db, params)
 }
 
 type CELEvaluationFailure struct {
@@ -3202,6 +3344,8 @@ type CELEvaluationFailure struct {
 }
 
 func (r *OLAPRepositoryImpl) StoreCELEvaluationFailures(ctx context.Context, tenantId uuid.UUID, failures []CELEvaluationFailure) error {
+	db := r.pool.ForTenant(tenantId)
+
 	errorMessages := make([]string, len(failures))
 	sources := make([]string, len(failures))
 
@@ -3210,19 +3354,16 @@ func (r *OLAPRepositoryImpl) StoreCELEvaluationFailures(ctx context.Context, ten
 		sources[i] = string(failure.Source)
 	}
 
-	return r.queries.StoreCELEvaluationFailures(ctx, r.pool, sqlcv1.StoreCELEvaluationFailuresParams{
+	return r.queries.StoreCELEvaluationFailures(ctx, db, sqlcv1.StoreCELEvaluationFailuresParams{
 		Tenantid: tenantId,
 		Sources:  sources,
 		Errors:   errorMessages,
 	})
 }
 
-type OffloadPayloadOpts struct {
-	ExternalId          uuid.UUID
-	ExternalLocationKey string
-}
-
 func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, putPayloadOpts ...StoreOLAPPayloadOpts) error {
+	db := r.pool.ForTenant(tenantId)
+
 	ctx, span := telemetry.NewSpan(ctx, "OLAPRepository.PutPayloads")
 	defer span.End()
 
@@ -3237,7 +3378,7 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 
 	if tx == nil {
 		localTx = true
-		tx, commit, rollback, err = sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+		tx, commit, rollback, err = sqlchelpers.PrepareTx(ctx, db, r.l)
 
 		if err != nil {
 			return fmt.Errorf("error beginning transaction in `PutPayload`: %v", err)
@@ -3250,25 +3391,27 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 	tenantIds := make([]uuid.UUID, 0, len(putPayloadOpts))
 	externalIds := make([]uuid.UUID, 0, len(putPayloadOpts))
 	payloads := make([][]byte, 0, len(putPayloadOpts))
-	locations := make([]string, 0, len(putPayloadOpts))
-	externalKeys := make([]string, 0, len(putPayloadOpts))
 
 	for _, opt := range putPayloadOpts {
+		if opt.Payload.IsEmpty() {
+			continue
+		}
+
 		externalIds = append(externalIds, opt.ExternalId)
 		insertedAts = append(insertedAts, opt.InsertedAt)
 		tenantIds = append(tenantIds, tenantId)
-		payloads = append(payloads, opt.Payload)
-		locations = append(locations, string(sqlcv1.V1PayloadLocationOlapINLINE))
-		externalKeys = append(externalKeys, "")
+		payloads = append(payloads, opt.Payload.Bytes())
+	}
+
+	if len(externalIds) == 0 {
+		return nil
 	}
 
 	err = r.queries.PutPayloads(ctx, tx, sqlcv1.PutPayloadsParams{
-		Externalids:          externalIds,
-		Insertedats:          insertedAts,
-		Tenantids:            tenantIds,
-		Payloads:             payloads,
-		Locations:            locations,
-		Externallocationkeys: externalKeys,
+		Externalids: externalIds,
+		Insertedats: insertedAts,
+		Tenantids:   tenantIds,
+		Payloads:    payloads,
 	})
 
 	if err != nil {
@@ -3287,10 +3430,73 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 type ReadOLAPPayloadOpts struct {
 	ExternalId uuid.UUID
 	InsertedAt pgtype.Timestamptz
+
+	// the shared core payload row to read when the row behind ExternalId references one
+	PayloadReferenceId *uuid.UUID
+
+	// which payload row shape backs ExternalId. A task output without a reference only exists in
+	// v1_payloads_olap; every other kind also has a row in the core payload store.
+	Kind PayloadKind
+}
+
+func (o ReadOLAPPayloadOpts) corePayloadExternalId() uuid.UUID {
+	if o.PayloadReferenceId != nil {
+		return *o.PayloadReferenceId
+	}
+
+	return o.ExternalId
+}
+
+func (o ReadOLAPPayloadOpts) isStoredOnlyInOLAPStore() bool {
+	return o.Kind == PayloadKindTaskOutput && o.PayloadReferenceId == nil
+}
+
+// A referenced task output is the core completion event payload, which wraps the output the
+// worker returned together with the event metadata.
+func (o ReadOLAPPayloadOpts) corePayloadType() sqlcv1.V1PayloadType {
+	if o.Kind == PayloadKindTaskOutput {
+		return PayloadKindTaskCompletionEvent.V1PayloadType()
+	}
+
+	return o.Kind.V1PayloadType()
+}
+
+func (o ReadOLAPPayloadOpts) payloadFromCoreRow(raw []byte) ([]byte, error) {
+	if o.Kind != PayloadKindTaskOutput {
+		return raw, nil
+	}
+
+	completionEvent, err := DecodeTaskCompletionEventPayload(NewPayload[TaskCompletionEventShape](raw))
+
+	if err != nil {
+		return nil, fmt.Errorf("error decoding referenced completion event payload %s: %w", o.corePayloadExternalId(), err)
+	}
+
+	return completionEvent.Output, nil
+}
+
+func taskRunPayloadReadOpts(task *sqlcv1.PopulateTaskRunDataRow) []ReadOLAPPayloadOpts {
+	opts := []ReadOLAPPayloadOpts{{
+		ExternalId:         task.ExternalID,
+		InsertedAt:         task.InsertedAt,
+		PayloadReferenceId: task.PayloadReferenceID,
+		Kind:               PayloadKindTaskInput,
+	}}
+
+	if task.OutputEventExternalID != nil {
+		opts = append(opts, ReadOLAPPayloadOpts{
+			ExternalId:         *task.OutputEventExternalID,
+			InsertedAt:         task.OutputEventInsertedAt,
+			PayloadReferenceId: task.OutputEventPayloadReferenceID,
+			Kind:               PayloadKindTaskOutput,
+		})
+	}
+
+	return opts
 }
 
 func (r *OLAPRepositoryImpl) ReadPayload(ctx context.Context, tenantId uuid.UUID, opt ReadOLAPPayloadOpts) ([]byte, error) {
-	payloads, err := r.readPayloads(ctx, r.readPool, tenantId, opt)
+	payloads, err := r.readPayloads(ctx, tenantId, opt)
 
 	if err != nil {
 		return nil, err
@@ -3305,7 +3511,109 @@ func (r *OLAPRepositoryImpl) ReadPayload(ctx context.Context, tenantId uuid.UUID
 	return payload, nil
 }
 
-func (r *OLAPRepositoryImpl) readPayloads(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, opts ...ReadOLAPPayloadOpts) (map[uuid.UUID][]byte, error) {
+// Referenced payloads are read from the core payload store, since OLAP keeps no copy of them. Every other payload
+// is read from OLAP's own copy first, because the core rows of older task inputs may still be wrapped in step run
+// data. Only payloads with no OLAP copy fall back to the core payload store: engines skip the copy only while
+// payload consolidation is on, which always writes task inputs unwrapped, so every core row read here holds just
+// the user's input.
+func (r *OLAPRepositoryImpl) readPayloads(ctx context.Context, tenantId uuid.UUID, opts ...ReadOLAPPayloadOpts) (map[uuid.UUID][]byte, error) {
+	referencedOpts := make([]ReadOLAPPayloadOpts, 0)
+	unreferencedOpts := make([]ReadOLAPPayloadOpts, 0)
+
+	for _, opt := range opts {
+		if opt.PayloadReferenceId != nil {
+			referencedOpts = append(referencedOpts, opt)
+		} else {
+			unreferencedOpts = append(unreferencedOpts, opt)
+		}
+	}
+
+	externalIdToPayload := make(map[uuid.UUID][]byte, len(opts))
+
+	if len(unreferencedOpts) > 0 {
+		olapPayloads, err := r.readPayloadsFromOLAPStore(ctx, r.readPool.ForTenant(tenantId), tenantId, unreferencedOpts...)
+
+		if err != nil {
+			return nil, err
+		}
+
+		maps.Copy(externalIdToPayload, olapPayloads)
+	}
+
+	coreStoreOpts := referencedOpts
+
+	for _, opt := range unreferencedOpts {
+		if _, found := externalIdToPayload[opt.ExternalId]; !found && !opt.isStoredOnlyInOLAPStore() {
+			coreStoreOpts = append(coreStoreOpts, opt)
+		}
+	}
+
+	corePayloads, err := r.readPayloadsFromCoreStore(ctx, tenantId, coreStoreOpts...)
+
+	if err != nil {
+		return nil, err
+	}
+
+	maps.Copy(externalIdToPayload, corePayloads)
+
+	return externalIdToPayload, nil
+}
+
+func (r *OLAPRepositoryImpl) readPayloadsFromCoreStore(ctx context.Context, tenantId uuid.UUID, opts ...ReadOLAPPayloadOpts) (map[uuid.UUID][]byte, error) {
+	externalIdToPayload := make(map[uuid.UUID][]byte, len(opts))
+
+	if len(opts) == 0 {
+		return externalIdToPayload, nil
+	}
+
+	coreOpts := make(map[uuid.UUID]RetrievePayloadOpts, len(opts))
+
+	for _, opt := range opts {
+		corePayloadExternalId := opt.corePayloadExternalId()
+
+		coreOpts[opt.ExternalId] = RetrievePayloadOpts{
+			TenantId:           tenantId,
+			InsertedAt:         opt.InsertedAt,
+			Type:               opt.corePayloadType(),
+			ExternalId:         corePayloadExternalId,
+			PayloadReferenceId: &corePayloadExternalId,
+		}
+	}
+
+	corePayloads, err := r.payloadStore.Retrieve(ctx, nil, slices.Collect(maps.Values(coreOpts))...)
+
+	if err != nil {
+		return nil, fmt.Errorf("error reading payloads from the core payload store: %w", err)
+	}
+
+	for _, opt := range opts {
+		raw, found := corePayloads[coreOpts[opt.ExternalId]]
+
+		if !found {
+			if opt.PayloadReferenceId != nil {
+				r.l.Warn().Ctx(ctx).
+					Str("tenant_id", tenantId.String()).
+					Str("external_id", opt.ExternalId.String()).
+					Str("payload_reference_id", opt.PayloadReferenceId.String()).
+					Msg("referenced payload not found in core payload store")
+			}
+
+			continue
+		}
+
+		payload, err := opt.payloadFromCoreRow(raw)
+
+		if err != nil {
+			return nil, err
+		}
+
+		externalIdToPayload[opt.ExternalId] = payload
+	}
+
+	return externalIdToPayload, nil
+}
+
+func (r *OLAPRepositoryImpl) readPayloadsFromOLAPStore(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, opts ...ReadOLAPPayloadOpts) (map[uuid.UUID][]byte, error) {
 	externalIds := make([]uuid.UUID, len(opts))
 
 	for i, opt := range opts {
@@ -3321,24 +3629,13 @@ func (r *OLAPRepositoryImpl) readPayloads(ctx context.Context, tx sqlcv1.DBTX, t
 		return nil, err
 	}
 
-	externalIdToPayload := make(map[uuid.UUID][]byte)
+	externalIdToPayload := enumerables.ToMap(
+		payloads,
+		func(payload *sqlcv1.V1PayloadsOlap) uuid.UUID { return payload.ExternalID },
+		func(payload *sqlcv1.V1PayloadsOlap) []byte { return payload.InlineContent },
+	)
 	externalIdToRetrieveFromExternalOpt := make(map[uuid.UUID]RetrieveFromExternalOpts)
 	retrieveFromExternalOpts := make([]RetrieveFromExternalOpts, 0)
-
-	for _, payload := range payloads {
-		if payload.Location == sqlcv1.V1PayloadLocationOlapINLINE {
-			externalIdToPayload[payload.ExternalID] = payload.InlineContent
-		} else {
-			key := ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
-			retrieveFromExternalOpt := RetrieveFromExternalOpts{
-				Method: RetrieveFromExternalByKey,
-				ByKey:  &RetrieveFromExternalByKeyOpt{Key: key},
-			}
-
-			externalIdToRetrieveFromExternalOpt[payload.ExternalID] = retrieveFromExternalOpt
-			retrieveFromExternalOpts = append(retrieveFromExternalOpts, retrieveFromExternalOpt)
-		}
-	}
 
 	if r.payloadStore.ExternalStoreEnabled() {
 		retrieveIndexBlockExternalIds := make([]uuid.UUID, 0)
@@ -3368,11 +3665,8 @@ func (r *OLAPRepositoryImpl) readPayloads(ctx context.Context, tx sqlcv1.DBTX, t
 
 			for _, k := range indexFileKeys {
 				retrieveFromExternalOpt := RetrieveFromExternalOpts{
-					Method: RetrieveFromExternalByIndexFile,
-					ByIndexFile: &RetrieveFromExternalByIndexFileOpt{
-						IndexFileKey: ExternalIndexFileLocationKey(k.IndexFileKey),
-						ExternalId:   k.ExternalID,
-					},
+					IndexFileKey: ExternalIndexFileLocationKey(k.IndexFileKey),
+					ExternalId:   k.ExternalID,
 				}
 
 				externalIdToRetrieveFromExternalOpt[k.ExternalID] = retrieveFromExternalOpt
@@ -3396,45 +3690,9 @@ func (r *OLAPRepositoryImpl) readPayloads(ctx context.Context, tx sqlcv1.DBTX, t
 	return externalIdToPayload, nil
 }
 
-func (r *OLAPRepositoryImpl) OffloadPayloads(ctx context.Context, tenantId uuid.UUID, payloads []OffloadPayloadOpts) error {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
-
-	if err != nil {
-		return fmt.Errorf("error beginning transaction: %v", err)
-	}
-
-	defer rollback()
-
-	tenantIds := make([]uuid.UUID, len(payloads))
-	externalIds := make([]uuid.UUID, len(payloads))
-	externalLocationKeys := make([]string, len(payloads))
-
-	for i, opt := range payloads {
-		externalIds[i] = opt.ExternalId
-		tenantIds[i] = tenantId
-		externalLocationKeys[i] = opt.ExternalLocationKey
-	}
-
-	err = r.queries.OffloadPayloads(ctx, tx, sqlcv1.OffloadPayloadsParams{
-		Externalids:          externalIds,
-		Tenantids:            tenantIds,
-		Externallocationkeys: externalLocationKeys,
-	})
-
-	if err != nil {
-		return fmt.Errorf("error offloading payloads: %v", err)
-	}
-
-	if err := commit(ctx); err != nil {
-		return fmt.Errorf("error committing transaction: %v", err)
-	}
-
-	return nil
-}
-
 func (r *OLAPRepositoryImpl) AnalyzeOLAPTables(ctx context.Context) error {
 	const timeout = 1000 * 60 * 60 // 60 minute timeout
-	tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, r.pool, r.l, timeout)
+	tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, r.pool.ForShared(), r.l, timeout)
 
 	if err != nil {
 		return fmt.Errorf("error beginning transaction: %v", err)
@@ -3489,6 +3747,84 @@ func (r *OLAPRepositoryImpl) AnalyzeOLAPTables(ctx context.Context) error {
 		return fmt.Errorf("error analyzing v1_lookup_table_olap: %v", err)
 	}
 
+	err = r.queries.AnalyzeV1TaskEventsOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_task_events_olap: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1StatusesOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_statuses_olap: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1EventsOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_events_olap: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1EventLookupTableOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_event_lookup_table_olap: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1EventToRunOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_event_to_run_olap: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1OtelTraceOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_otel_trace_olap: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1OtelTraceLookupOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_otel_trace_lookup_olap: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1AggTaskStatusesMinuteOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_agg_task_statuses_minute_olap: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1AggTaskEventsMinuteOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_agg_task_events_minute_olap: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1AggEventsMinuteOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_agg_events_minute_olap: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1AggTaskStatusesMinuteDeltaOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_agg_task_statuses_minute_delta_olap: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1AggTaskEventsMinuteDeltaOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_agg_task_events_minute_delta_olap: %v", err)
+	}
+
+	err = r.queries.AnalyzeV1AggEventsMinuteDeltaOLAP(ctx, tx)
+
+	if err != nil {
+		return fmt.Errorf("error analyzing v1_agg_events_minute_delta_olap: %v", err)
+	}
+
 	if err := commit(ctx); err != nil {
 		return fmt.Errorf("error committing transaction: %v", err)
 	}
@@ -3501,7 +3837,7 @@ type IdInsertedAt struct {
 	InsertedAtUnixMicros int64 // using microseconds because it matches the max precision allowed by `TIMESTAMPTZ` in PG
 }
 
-func (r *OLAPRepositoryImpl) populateTaskRunData(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, opts []IdInsertedAt, includePayloads bool) ([]*sqlcv1.PopulateTaskRunDataRow, error) {
+func (r *OLAPRepositoryImpl) populateTaskRunData(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, opts []IdInsertedAt, includePayloads bool) ([]*sqlcv1.PopulateTaskRunDataRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "populate-task-run-data-olap")
 	defer span.End()
 
@@ -3560,528 +3896,27 @@ func (r *OLAPRepositoryImpl) StatusUpdateBatchSizeLimits() StatusUpdateBatchSize
 }
 
 func (r *OLAPRepositoryImpl) CountOLAPTempTableSizeForDAGStatusUpdates(ctx context.Context) (int64, error) {
-	return r.queries.CountOLAPTempTableSizeForDAGStatusUpdates(ctx, r.readPool)
+	return r.queries.CountOLAPTempTableSizeForDAGStatusUpdates(ctx, r.readPool.ForShared())
 }
 
 func (r *OLAPRepositoryImpl) CountOLAPTempTableSizeForTaskStatusUpdates(ctx context.Context) (int64, error) {
-	return r.queries.CountOLAPTempTableSizeForTaskStatusUpdates(ctx, r.readPool)
+	return r.queries.CountOLAPTempTableSizeForTaskStatusUpdates(ctx, r.readPool.ForShared())
 }
 
 func (r *OLAPRepositoryImpl) ListYesterdayRunCountsByStatus(ctx context.Context) (map[sqlcv1.V1ReadableStatusOlap]int64, error) {
-	rows, err := r.queries.ListYesterdayRunCountsByStatus(ctx, r.readPool)
+	rows, err := r.queries.ListYesterdayRunCountsByStatus(ctx, r.readPool.ForShared())
 
 	if err != nil {
 		return nil, err
 	}
 
-	statusToCount := make(map[sqlcv1.V1ReadableStatusOlap]int64)
-
-	for _, row := range rows {
-		statusToCount[row.ReadableStatus] = row.Count
-	}
-
-	return statusToCount, nil
-}
-
-type BulkCutOverOLAPPayload struct {
-	TenantID            uuid.UUID
-	InsertedAt          pgtype.Timestamptz
-	ExternalId          uuid.UUID
-	ExternalLocationKey ExternalPayloadLocationKey
-}
-
-type OLAPCutoverJobRunMetadata struct {
-	ShouldRun      bool
-	LastExternalId uuid.UUID
-	PartitionDate  PartitionDate
-	LeaseProcessId uuid.UUID
-}
-
-type OLAPCutoverBatchOutcome struct {
-	ShouldContinue bool
-	NextExternalId uuid.UUID
-}
-
-func (p *OLAPRepositoryImpl) ValidateNoDuplicateOLAPExternalIds(ctx context.Context, tx sqlcv1.DBTX, partitionDate PartitionDate) ([]*DuplicatedExternalIdRow, error) {
-	tableName := fmt.Sprintf("v1_payloads_olap_%s", partitionDate.String())
-	rows, err := tx.Query(
-		ctx,
-		fmt.Sprintf(
-			`
-			SELECT external_id, COUNT(*)
-			FROM %s
-			GROUP BY external_id
-			HAVING COUNT(*) > 1
-			LIMIT 100
-			`,
-			tableName,
-		),
-	)
-
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*DuplicatedExternalIdRow
-	for rows.Next() {
-		var i DuplicatedExternalIdRow
-		if err := rows.Scan(
-			&i.ExternalId,
-			&i.Count,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-func (p *OLAPRepositoryImpl) OptimizeOLAPPayloadWindowSize(ctx context.Context, tx sqlcv1.DBTX, partitionDate PartitionDate, candidateBatchNumRows int32, lastExternalId uuid.UUID) (*int32, error) {
-	if candidateBatchNumRows <= 0 {
-		// trivial case that we'll never hit, but to prevent infinite recursion
-		zero := int32(0)
-		return &zero, nil
-	}
-
-	proposedBatchSizeBytes, err := p.queries.ComputeOLAPPayloadBatchSize(ctx, tx, sqlcv1.ComputeOLAPPayloadBatchSizeParams{
-		Partitiondate:  pgtype.Date(partitionDate),
-		Lastexternalid: lastExternalId,
-		Batchsize:      candidateBatchNumRows,
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to compute olap payload batch size: %w", err)
-	}
-
-	if proposedBatchSizeBytes < MAX_BATCH_SIZE_BYTES {
-		return &candidateBatchNumRows, nil
-	}
-
-	// if the proposed batch size is too large, then
-	// cut it in half and try again
-	return p.OptimizeOLAPPayloadWindowSize(
-		ctx,
-		tx,
-		partitionDate,
-		candidateBatchNumRows/2,
-		lastExternalId,
-	)
-}
-
-func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context, processId uuid.UUID, partitionDate PartitionDate, lastExternalId uuid.UUID, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32, enableWindowSizeOptimization bool) (*OLAPCutoverBatchOutcome, error) {
-	ctx, span := telemetry.NewSpan(ctx, "OLAPRepository.processOLAPPayloadCutoverBatch")
-	defer span.End()
-
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to prepare transaction for copying offloaded payloads: %w", err)
-	}
-
-	defer rollback()
-
-	windowSize := externalCutoverBatchSize * externalCutoverNumConcurrentOffloads
-
-	if enableWindowSizeOptimization {
-		windowSizePtr, err := p.OptimizeOLAPPayloadWindowSize(
-			ctx,
-			tx,
-			partitionDate,
-			windowSize,
-			lastExternalId,
-		)
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to optimize olap payload window size: %w", err)
-		}
-
-		windowSize = *windowSizePtr
-	}
-
-	payloadRanges, err := p.queries.CreateOLAPPayloadRangeChunks(ctx, tx, sqlcv1.CreateOLAPPayloadRangeChunksParams{
-		Chunksize:      externalCutoverBatchSize,
-		Partitiondate:  pgtype.Date(partitionDate),
-		Windowsize:     windowSize,
-		Lastexternalid: lastExternalId,
-	})
-
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return nil, fmt.Errorf("failed to create payload range chunks: %w", err)
-	}
-
-	if errors.Is(err, pgx.ErrNoRows) || len(payloadRanges) == 0 {
-		return &OLAPCutoverBatchOutcome{
-			ShouldContinue: false,
-			NextExternalId: lastExternalId,
-		}, nil
-	}
-
-	if err = commit(ctx); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction for creating payload range chunks: %w", err)
-	}
-
-	mu := sync.Mutex{}
-	eg := errgroup.Group{}
-
-	offloadToExternalStoreOpts := make([]OffloadToExternalStoreOpts, 0)
-	maxExternalId := payloadRanges[len(payloadRanges)-1].UpperExternalID
-
-	numPayloads := 0
-
-	for _, payloadRange := range payloadRanges {
-		pr := payloadRange
-		eg.Go(func() error {
-			payloads, err := p.queries.ListPaginatedOLAPPayloadsForOffload(ctx, p.pool, sqlcv1.ListPaginatedOLAPPayloadsForOffloadParams{
-				Partitiondate:  pgtype.Date(partitionDate),
-				Lastexternalid: pr.LowerExternalID,
-				Nextexternalid: pr.UpperExternalID,
-				Batchsize:      externalCutoverBatchSize,
-			})
-
-			if err != nil {
-				return fmt.Errorf("failed to list paginated payloads for offload: %w", err)
-			}
-
-			offloadToExternalStoreOptsInner := make([]OffloadToExternalStoreOpts, 0)
-
-			for _, payload := range payloads {
-				externalId := payload.ExternalID
-
-				if payload.Location == sqlcv1.V1PayloadLocationOlapINLINE {
-					offloadToExternalStoreOptsInner = append(offloadToExternalStoreOptsInner, OffloadToExternalStoreOpts{
-						TenantId:   payload.TenantID,
-						ExternalID: externalId,
-						InsertedAt: payload.InsertedAt,
-						Payload:    payload.InlineContent,
-					})
-				}
-			}
-
-			mu.Lock()
-			offloadToExternalStoreOpts = append(offloadToExternalStoreOpts, offloadToExternalStoreOptsInner...)
-			numPayloads += len(payloads)
-			mu.Unlock()
-
-			return nil
-		})
-	}
-
-	err = eg.Wait()
-
-	if err != nil {
-		return nil, err
-	}
-
-	blockIndexKey, err := p.PayloadStore().ExternalStore().Store(ctx, offloadToExternalStoreOpts...)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to offload payloads to external store: %w", err)
-	}
-
-	span.SetAttributes(attribute.Int("num_payloads_read", numPayloads))
-
-	leaseTx, leaseCommit, leaseRollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to prepare transaction for inserting cutover payloads: %w", err)
-	}
-
-	defer leaseRollback()
-
-	extendedLease, err := p.acquireOrExtendJobLease(ctx, leaseTx, processId, partitionDate, maxExternalId)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to extend cutover job lease: %w", err)
-	}
-
-	if !extendedLease.ShouldRun {
-		return nil, fmt.Errorf("lease for partition %s was taken by another process during batch processing", partitionDate.String())
-	}
-
-	if blockIndexKey != nil {
-		if err := p.createOLAPIndexBlock(ctx, leaseTx, CreateIndexBlockOpts{
-			PartitionDate:             partitionDate,
-			BlockLowerExternalIdBound: lastExternalId,
-			BlockUpperExternalIdBound: maxExternalId,
-			IndexFileKey:              string(*blockIndexKey),
-		}); err != nil {
-			return nil, fmt.Errorf("failed to create index block: %w", err)
-		}
-	}
-
-	if err := leaseCommit(ctx); err != nil {
-		return nil, fmt.Errorf("failed to commit copy offloaded payloads transaction: %w", err)
-	}
-
-	if numPayloads < int(windowSize) {
-		return &OLAPCutoverBatchOutcome{
-			ShouldContinue: false,
-			NextExternalId: extendedLease.LastExternalId,
-		}, nil
-	}
-
-	return &OLAPCutoverBatchOutcome{
-		ShouldContinue: true,
-		NextExternalId: extendedLease.LastExternalId,
-	}, nil
-}
-
-func (p *OLAPRepositoryImpl) acquireOrExtendJobLease(ctx context.Context, tx pgx.Tx, processId uuid.UUID, partitionDate PartitionDate, lastExternalId uuid.UUID) (*OLAPCutoverJobRunMetadata, error) {
-	leaseInterval := 2 * time.Minute
-	leaseExpiresAt := sqlchelpers.TimestamptzFromTime(time.Now().Add(leaseInterval))
-
-	lease, err := p.queries.AcquireOrExtendOLAPCutoverJobLease(ctx, tx, sqlcv1.AcquireOrExtendOLAPCutoverJobLeaseParams{
-		Key:            pgtype.Date(partitionDate),
-		Lastexternalid: lastExternalId,
-		Leaseprocessid: processId,
-		Leaseexpiresat: leaseExpiresAt,
-	})
-
-	if err != nil {
-		// ErrNoRows here means that something else is holding the lease
-		// since we did not insert a new record, and the `UPDATE` returned an empty set
-		if errors.Is(err, pgx.ErrNoRows) {
-			return &OLAPCutoverJobRunMetadata{
-				ShouldRun:      false,
-				PartitionDate:  partitionDate,
-				LeaseProcessId: processId,
-			}, nil
-		}
-		return nil, fmt.Errorf("failed to create initial cutover job lease: %w", err)
-	}
-
-	if lease.LeaseProcessID != processId || lease.IsCompleted {
-		return &OLAPCutoverJobRunMetadata{
-			ShouldRun:      false,
-			LastExternalId: lease.LastExternalID,
-			PartitionDate:  partitionDate,
-			LeaseProcessId: lease.LeaseProcessID,
-		}, nil
-	}
-
-	return &OLAPCutoverJobRunMetadata{
-		ShouldRun:      true,
-		LastExternalId: lease.LastExternalID,
-		PartitionDate:  partitionDate,
-		LeaseProcessId: processId,
-	}, nil
-}
-
-func (p *OLAPRepositoryImpl) prepareCutoverTableJob(ctx context.Context, processId uuid.UUID, partitionDate PartitionDate, inlineStoreTTL *time.Duration) (*OLAPCutoverJobRunMetadata, error) {
-	if inlineStoreTTL == nil {
-		return nil, fmt.Errorf("inline store TTL is not set")
-	}
-
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer rollback()
-
-	var zeroUuid uuid.UUID
-
-	lease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, zeroUuid)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to acquire or extend cutover job lease: %w", err)
-	}
-
-	if !lease.ShouldRun {
-		return lease, nil
-	}
-
-	err = p.queries.CreateV1PayloadOLAPCutoverTemporaryTable(ctx, tx, pgtype.Date(partitionDate))
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to create payload cutover temporary table: %w", err)
-	}
-
-	if err := commit(ctx); err != nil {
-		return nil, fmt.Errorf("failed to commit copy offloaded payloads transaction: %w", err)
-	}
-
-	return &OLAPCutoverJobRunMetadata{
-		ShouldRun:      true,
-		LastExternalId: lease.LastExternalId,
-		PartitionDate:  partitionDate,
-		LeaseProcessId: processId,
-	}, nil
-}
-
-func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, processId uuid.UUID, partitionDate PartitionDate, inlineStoreTTL *time.Duration, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32, enableWindowSizeOptimization bool) error {
-	ctx, span := telemetry.NewSpan(ctx, "olap_repository.processSinglePartition")
-	defer span.End()
-
-	jobMeta, err := p.prepareCutoverTableJob(ctx, processId, partitionDate, inlineStoreTTL)
-
-	if err != nil {
-		return fmt.Errorf("failed to prepare cutover table job: %w", err)
-	}
-
-	if !jobMeta.ShouldRun {
-		return nil
-	}
-
-	// if the job is running for the first time, check that there aren't any duplicate external ids before proceeding
-	if jobMeta.LastExternalId == uuid.Nil {
-		connStatementTimeout := 15 * 60 * 1000 // 15 minutes
-
-		conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, p.pool, p.l, connStatementTimeout)
-
-		if err != nil {
-			return fmt.Errorf("failed to acquire connection with statement timeout: %w", err)
-		}
-
-		defer release()
-
-		stopLeaseExtension := make(chan struct{})
-		leaseExtensionDone := make(chan struct{})
-
-		go func() {
-			defer close(leaseExtensionDone)
-
-			ticker := time.NewTicker(30 * time.Second)
-			defer ticker.Stop()
-
-			for {
-				select {
-				case <-stopLeaseExtension:
-					return
-				case <-ticker.C:
-					leaseTx, leaseCommit, leaseRollback, txErr := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
-
-					if txErr != nil {
-						p.l.Error().Err(txErr).Msg("failed to prepare transaction for lease extension during duplicate check")
-						continue
-					}
-
-					_, txErr = p.acquireOrExtendJobLease(ctx, leaseTx, processId, partitionDate, jobMeta.LastExternalId)
-
-					if txErr != nil {
-						leaseRollback()
-						p.l.Error().Err(txErr).Msg("failed to extend lease during duplicate check")
-						continue
-					}
-
-					if txErr = leaseCommit(ctx); txErr != nil {
-						leaseRollback()
-						p.l.Error().Err(txErr).Msg("failed to commit lease extension during duplicate check")
-					}
-				}
-			}
-		}()
-
-		duplicatedExternalIds, err := p.ValidateNoDuplicateOLAPExternalIds(ctx, conn, partitionDate)
-		close(stopLeaseExtension)
-		<-leaseExtensionDone
-
-		if err != nil {
-			return fmt.Errorf("failed to validate no duplicate external ids: %w", err)
-		}
-
-		if len(duplicatedExternalIds) > 0 {
-			var duplicatedIds []string
-
-			for _, row := range duplicatedExternalIds {
-				duplicatedIds = append(duplicatedIds, row.ExternalId.String())
-			}
-
-			return fmt.Errorf("found duplicate external ids in partition %s. Sampled ids: %s", partitionDate.String(), strings.Join(duplicatedIds, ", "))
-		}
-	}
-
-	lastExternalId := jobMeta.LastExternalId
-
-	for {
-		outcome, err := p.processOLAPPayloadCutoverBatch(ctx, processId, partitionDate, lastExternalId, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads, enableWindowSizeOptimization)
-
-		if err != nil {
-			return fmt.Errorf("failed to process payload cutover batch: %w", err)
-		}
-
-		if !outcome.ShouldContinue {
-			break
-		}
-
-		lastExternalId = outcome.NextExternalId
-	}
-
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
-
-	if err != nil {
-		return fmt.Errorf("failed to prepare transaction for swapping payload cutover temp table: %w", err)
-	}
-
-	defer rollback()
-
-	err = p.queries.SwapV1PayloadOLAPPartitionWithTemp(ctx, tx, pgtype.Date(partitionDate))
-
-	if err != nil {
-		return fmt.Errorf("failed to swap payload cutover temp table: %w", err)
-	}
-
-	err = p.queries.MarkOLAPCutoverJobAsCompleted(ctx, tx, pgtype.Date(partitionDate))
-
-	if err != nil {
-		return fmt.Errorf("failed to mark cutover job as completed: %w", err)
-	}
-
-	if err := commit(ctx); err != nil {
-		return fmt.Errorf("failed to commit swap payload cutover temp table transaction: %w", err)
-	}
-
-	return nil
-}
-
-func (p *OLAPRepositoryImpl) createOLAPIndexBlock(ctx context.Context, tx pgx.Tx, opts CreateIndexBlockOpts) error {
-	return p.queries.CreateOLAPOffloadedPayloadIndexBlock(ctx, tx, sqlcv1.CreateOLAPOffloadedPayloadIndexBlockParams{
-		Payloadinsertedatdate:     pgtype.Date(opts.PartitionDate),
-		Blocklowerexternalidbound: opts.BlockLowerExternalIdBound,
-		Blockupperexternalidbound: opts.BlockUpperExternalIdBound,
-		Indexfilekey:              opts.IndexFileKey,
-	})
-}
-
-func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, externalStoreEnabled bool, inlineStoreTTL *time.Duration, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32, enableWindowSizeOptimization bool) error {
-	if !externalStoreEnabled {
-		return nil
-	}
-
-	ctx, span := telemetry.NewSpan(ctx, "olap_repository.ProcessOLAPPayloadCutovers")
-	defer span.End()
-
-	if inlineStoreTTL == nil {
-		return fmt.Errorf("inline store TTL is not set")
-	}
-
-	mostRecentPartitionToOffload := pgtype.Date{
-		Time:  time.Now().Add(-1 * (*inlineStoreTTL + 2*time.Hour)), // 2 hour offset to limit race conditions and hot-path i/o
-		Valid: true,
-	}
-
-	partitions, err := p.queries.FindV1OLAPPayloadPartitionsBeforeDate(ctx, p.pool, MAX_PARTITIONS_TO_OFFLOAD, mostRecentPartitionToOffload)
-
-	if err != nil {
-		return fmt.Errorf("failed to find payload partitions before date %s: %w", mostRecentPartitionToOffload.Time.String(), err)
-	}
-
-	processId := uuid.New()
-
-	for _, partition := range partitions {
-		p.l.Info().Ctx(ctx).Str("partition", partition.PartitionName).Msg("processing payload cutover for partition")
-		err = p.processSinglePartition(ctx, processId, PartitionDate(partition.PartitionDate), inlineStoreTTL, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads, enableWindowSizeOptimization)
-
-		if err != nil {
-			return fmt.Errorf("failed to process partition %s: %w", partition.PartitionName, err)
-		}
-	}
-
-	return nil
+	return enumerables.ToMap(
+		rows,
+		func(row *sqlcv1.ListYesterdayRunCountsByStatusRow) sqlcv1.V1ReadableStatusOlap {
+			return row.ReadableStatus
+		},
+		func(row *sqlcv1.ListYesterdayRunCountsByStatusRow) int64 { return row.Count },
+	), nil
 }
 
 func DeriveIDBytes(size int, parts ...[]byte) []byte {
@@ -4150,6 +3985,8 @@ type ListSpansResult struct {
 }
 
 func (o *OLAPRepositoryImpl) CreateSpans(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error {
+	db := o.pool.ForTenant(tenantId)
+
 	if opts == nil {
 		return fmt.Errorf("opts cannot be nil")
 	}
@@ -4162,7 +3999,7 @@ func (o *OLAPRepositoryImpl) CreateSpans(ctx context.Context, tenantId uuid.UUID
 		return nil
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, o.pool, o.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, o.l)
 
 	if err != nil {
 		return err
@@ -4270,6 +4107,8 @@ func (o *OLAPRepositoryImpl) CreateSpans(ctx context.Context, tenantId uuid.UUID
 }
 
 func (o *OLAPRepositoryImpl) CreateSpanLookupTableEntries(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error {
+	db := o.pool.ForTenant(tenantId)
+
 	if opts == nil {
 		return fmt.Errorf("opts cannot be nil")
 	}
@@ -4324,7 +4163,7 @@ func (o *OLAPRepositoryImpl) CreateSpanLookupTableEntries(ctx context.Context, t
 		}
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, o.pool, o.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, o.l)
 
 	if err != nil {
 		return err
@@ -4352,14 +4191,18 @@ func (o *OLAPRepositoryImpl) CreateSpanLookupTableEntries(ctx context.Context, t
 }
 
 func (o *OLAPRepositoryImpl) LookUpTraceId(ctx context.Context, tenantId uuid.UUID, runExternalId uuid.UUID) ([]byte, error) {
-	return o.queries.LookUpTraceId(ctx, o.pool, sqlcv1.LookUpTraceIdParams{
+	db := o.pool.ForTenant(tenantId)
+
+	return o.queries.LookUpTraceId(ctx, db, sqlcv1.LookUpTraceIdParams{
 		Tenantid:   tenantId,
 		Externalid: runExternalId,
 	})
 }
 
 func (o *OLAPRepositoryImpl) ListSpansByTraceId(ctx context.Context, tenantId uuid.UUID, traceId []byte, offset, limit int64) (*ListSpansResult, error) {
-	rows, err := o.queries.ListSpansByTraceId(ctx, o.pool, sqlcv1.ListSpansByTraceIdParams{
+	db := o.pool.ForTenant(tenantId)
+
+	rows, err := o.queries.ListSpansByTraceId(ctx, db, sqlcv1.ListSpansByTraceIdParams{
 		Tenantid:   tenantId,
 		Traceid:    traceId,
 		Spanoffset: offset,
@@ -4413,6 +4256,7 @@ func extractServiceName(resourceAttrsJSON json.RawMessage) string {
 }
 
 func protoSpanKindToDB(kind tracev1.Span_SpanKind) sqlcv1.V1OtelSpanKind {
+	//exhaustive:ignore
 	switch kind {
 	case tracev1.Span_SPAN_KIND_INTERNAL:
 		return sqlcv1.V1OtelSpanKindINTERNAL
@@ -4430,6 +4274,7 @@ func protoSpanKindToDB(kind tracev1.Span_SpanKind) sqlcv1.V1OtelSpanKind {
 }
 
 func protoStatusCodeToDB(code tracev1.Status_StatusCode) sqlcv1.V1OtelStatusCode {
+	//exhaustive:ignore
 	switch code {
 	case tracev1.Status_STATUS_CODE_OK:
 		return sqlcv1.V1OtelStatusCodeOK

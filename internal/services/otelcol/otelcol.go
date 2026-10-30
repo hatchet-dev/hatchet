@@ -1,6 +1,7 @@
 package otelcol
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/rs/zerolog"
@@ -11,8 +12,10 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
+// OTelCollector is the standard OTLP TraceService, which the engine serves for OTel SDK
+// compatibility.
 type OTelCollector interface {
-	collectortracev1.TraceServiceServer
+	Export(ctx context.Context, req *collectortracev1.ExportTraceServiceRequest) (*collectortracev1.ExportTraceServiceResponse, error)
 }
 
 type OTelCollectorOpt func(*OTelCollectorOpts)

@@ -2020,8 +2020,16 @@ class TaskRunRef(Generic[TWorkflowInput, R]):
         )
         return self._s._extract_result(result)
 
-    def result(self) -> R:
-        result = self._wrr.result()
+    def result(self, poll_interval: float | None = None) -> R:
+        """
+        Poll until the task run reaches a terminal state and return its output.
+
+        :param poll_interval: Seconds between GetRunDetails polls. Defaults to the
+            client ``sync_result_poll_interval`` (1 second). Values below 1 second are
+            raised to 1 second.
+        :returns: The extracted task output.
+        """
+        result = self._wrr.result(poll_interval=poll_interval)
 
         return self._s._extract_result(result)
 

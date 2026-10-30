@@ -568,7 +568,9 @@ INSERT INTO "Workflow" (
     $5::uuid,
     $6::text,
     $7::text
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description, "isPaused", "pausedWorkflowCronRunQueueBehavior", "pausedWorkflowScheduledRunQueueBehavior", "pausedWorkflowQueueTTL"
+)
+ON CONFLICT ("tenantId", "name") DO NOTHING
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description, "isPaused", "pausedWorkflowCronRunQueueBehavior", "pausedWorkflowScheduledRunQueueBehavior", "pausedWorkflowQueueTTL"
 `
 
 type CreateWorkflowParams struct {
@@ -1357,17 +1359,23 @@ FROM
 JOIN "Workflow" as w on w."id" = wv."workflowId"
 WHERE
     wv."id" = $1::uuid AND
+    w."tenantId" = $2::uuid AND
     wv."deletedAt" IS NULL
 LIMIT 1
 `
+
+type GetWorkflowVersionByIdParams struct {
+	ID       uuid.UUID `json:"id"`
+	Tenantid uuid.UUID `json:"tenantid"`
+}
 
 type GetWorkflowVersionByIdRow struct {
 	WorkflowVersion WorkflowVersion `json:"workflow_version"`
 	Workflow        Workflow        `json:"workflow"`
 }
 
-func (q *Queries) GetWorkflowVersionById(ctx context.Context, db DBTX, id uuid.UUID) (*GetWorkflowVersionByIdRow, error) {
-	row := db.QueryRow(ctx, getWorkflowVersionById, id)
+func (q *Queries) GetWorkflowVersionById(ctx context.Context, db DBTX, arg GetWorkflowVersionByIdParams) (*GetWorkflowVersionByIdRow, error) {
+	row := db.QueryRow(ctx, getWorkflowVersionById, arg.ID, arg.Tenantid)
 	var i GetWorkflowVersionByIdRow
 	err := row.Scan(
 		&i.WorkflowVersion.ID,
@@ -2091,43 +2099,102 @@ func (q *Queries) ListWorkflowVersionsByIds(ctx context.Context, db DBTX, ids []
 }
 
 const listWorkflows = `-- name: ListWorkflows :many
+WITH page AS (
+    SELECT w."id"
+    FROM "Workflow" w
+    WHERE
+        w."tenantId" = $2::uuid AND
+        w."deletedAt" IS NULL AND
+        (
+            $3::text IS NULL OR
+            w.name iLIKE concat('%', $3::TEXT, '%')
+        )
+    ORDER BY
+        case when $1 = 'createdAt ASC' THEN w."createdAt" END ASC ,
+        case when $1 = 'createdAt DESC' then w."createdAt" END DESC,
+        w."id"
+    OFFSET
+        COALESCE($4, 0)
+    LIMIT
+        COALESCE($5, 50)
+), latest_versions AS (
+    SELECT DISTINCT ON (wv."workflowId")
+        wv."workflowId",
+        wv."id",
+        wv."version",
+        wv."order",
+        wv."createdAt"
+    FROM "WorkflowVersion" wv
+    WHERE
+        -- an array instead of a join to page: a join lets the planner hash-join a full scan of
+        -- "WorkflowVersion" once the page holds ~100 rows; the array keeps it on the index
+        wv."workflowId" = ANY(ARRAY(SELECT page."id" FROM page))
+        AND wv."deletedAt" IS NULL
+    ORDER BY wv."workflowId", wv."order" DESC
+), event_triggers AS (
+    SELECT
+        lv."id" AS "workflowVersionId",
+        ARRAY_AGG(DISTINCT er."eventKey" ORDER BY er."eventKey")::text[] AS event_keys
+    FROM latest_versions lv
+    JOIN "WorkflowTriggers" wt ON wt."workflowVersionId" = lv."id"
+    JOIN "WorkflowTriggerEventRef" er ON er."parentId" = wt."id"
+    GROUP BY lv."id"
+), cron_triggers AS (
+    SELECT
+        lv."id" AS "workflowVersionId",
+        ARRAY_AGG(DISTINCT cr."cron" ORDER BY cr."cron")::text[] AS crons
+    FROM latest_versions lv
+    JOIN "WorkflowTriggers" wt ON wt."workflowVersionId" = lv."id"
+    JOIN "WorkflowTriggerCronRef" cr ON cr."parentId" = wt."id"
+    WHERE
+        cr."deletedAt" IS NULL
+        AND cr."method" = 'DEFAULT'
+    GROUP BY lv."id"
+)
 SELECT
-    workflows.id, workflows."createdAt", workflows."updatedAt", workflows."deletedAt", workflows."tenantId", workflows.name, workflows.description, workflows."isPaused", workflows."pausedWorkflowCronRunQueueBehavior", workflows."pausedWorkflowScheduledRunQueueBehavior", workflows."pausedWorkflowQueueTTL"
-FROM
-    "Workflow" as workflows
-WHERE
-    workflows."tenantId" = $1::uuid AND
-    workflows."deletedAt" IS NULL AND
-    (
-        $2::text IS NULL OR
-        workflows.name iLIKE concat('%', $2::TEXT, '%')
-    )
+    workflows.id, workflows."createdAt", workflows."updatedAt", workflows."deletedAt", workflows."tenantId", workflows.name, workflows.description, workflows."isPaused", workflows."pausedWorkflowCronRunQueueBehavior", workflows."pausedWorkflowScheduledRunQueueBehavior", workflows."pausedWorkflowQueueTTL",
+    lv."id" AS latest_version_id,
+    lv."version" AS latest_version,
+    lv."order" AS latest_version_order,
+    lv."createdAt" AS latest_version_created_at,
+    COALESCE(et.event_keys, '{}')::text[] AS event_keys,
+    COALESCE(ct.crons, '{}')::text[] AS crons
+FROM "Workflow" as workflows
+JOIN latest_versions lv ON lv."workflowId" = workflows."id"
+LEFT JOIN event_triggers et ON et."workflowVersionId" = lv."id"
+LEFT JOIN cron_triggers ct ON ct."workflowVersionId" = lv."id"
 ORDER BY
-    case when $3 = 'createdAt ASC' THEN workflows."createdAt" END ASC ,
-    case when $3 = 'createdAt DESC' then workflows."createdAt" END DESC
-OFFSET
-    COALESCE($4, 0)
-LIMIT
-    COALESCE($5, 50)
+    case when $1 = 'createdAt ASC' THEN workflows."createdAt" END ASC ,
+    case when $1 = 'createdAt DESC' then workflows."createdAt" END DESC,
+    workflows."id"
 `
 
 type ListWorkflowsParams struct {
+	Orderby  interface{} `json:"orderby"`
 	Tenantid uuid.UUID   `json:"tenantid"`
 	Search   pgtype.Text `json:"search"`
-	Orderby  interface{} `json:"orderby"`
 	Offset   interface{} `json:"offset"`
 	Limit    interface{} `json:"limit"`
 }
 
 type ListWorkflowsRow struct {
-	Workflow Workflow `json:"workflow"`
+	Workflow               Workflow         `json:"workflow"`
+	LatestVersionID        uuid.UUID        `json:"latest_version_id"`
+	LatestVersion          pgtype.Text      `json:"latest_version"`
+	LatestVersionOrder     int64            `json:"latest_version_order"`
+	LatestVersionCreatedAt pgtype.Timestamp `json:"latest_version_created_at"`
+	EventKeys              []string         `json:"event_keys"`
+	Crons                  []string         `json:"crons"`
 }
 
+// Pages over "Workflow" first so the latest-version lookup and trigger aggregates only run for the
+// returned rows. Triggers only include those declared on the latest version; crons created through
+// the API are listed on the crons page.
 func (q *Queries) ListWorkflows(ctx context.Context, db DBTX, arg ListWorkflowsParams) ([]*ListWorkflowsRow, error) {
 	rows, err := db.Query(ctx, listWorkflows,
+		arg.Orderby,
 		arg.Tenantid,
 		arg.Search,
-		arg.Orderby,
 		arg.Offset,
 		arg.Limit,
 	)
@@ -2150,6 +2217,12 @@ func (q *Queries) ListWorkflows(ctx context.Context, db DBTX, arg ListWorkflowsP
 			&i.Workflow.PausedWorkflowCronRunQueueBehavior,
 			&i.Workflow.PausedWorkflowScheduledRunQueueBehavior,
 			&i.Workflow.PausedWorkflowQueueTTL,
+			&i.LatestVersionID,
+			&i.LatestVersion,
+			&i.LatestVersionOrder,
+			&i.LatestVersionCreatedAt,
+			&i.EventKeys,
+			&i.Crons,
 		); err != nil {
 			return nil, err
 		}

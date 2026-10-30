@@ -38,6 +38,9 @@ type CreateTenantOpts struct {
 
 	// (optional) additional onboarding data
 	OnboardingData map[string]interface{}
+
+	// (optional) the entitlements to create the tenant with; all disabled if unset
+	Entitlements *TenantEntitlements
 }
 
 type UpdateTenantOpts struct {
@@ -48,6 +51,8 @@ type UpdateTenantOpts struct {
 	AlertMemberEmails *bool `validate:"omitempty"`
 
 	Version *sqlcv1.NullTenantMajorEngineVersion `validate:"omitempty"`
+
+	DataRetentionPeriod *string `validate:"omitempty,duration"`
 }
 
 type CreateTenantMemberOpts struct {
@@ -123,10 +128,10 @@ type TenantRepository interface {
 	ListTenantMembers(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.PopulateTenantMembersRow, error)
 
 	// UpdateTenantMember updates the tenant member with the given id
-	UpdateTenantMember(ctx context.Context, memberId uuid.UUID, opts *UpdateTenantMemberOpts) (*sqlcv1.PopulateTenantMembersRow, error)
+	UpdateTenantMember(ctx context.Context, tenantId uuid.UUID, memberId uuid.UUID, opts *UpdateTenantMemberOpts) (*sqlcv1.PopulateTenantMembersRow, error)
 
 	// DeleteTenantMember deletes the tenant member with the given id
-	DeleteTenantMember(ctx context.Context, memberId uuid.UUID) error
+	DeleteTenantMember(ctx context.Context, tenantId uuid.UUID, memberId uuid.UUID) error
 
 	// GetQueueMetrics returns the queue metrics for the given tenant
 	GetQueueMetrics(ctx context.Context, tenantId uuid.UUID, opts *GetQueueMetricsOpts) (*GetQueueMetricsResponse, error)
@@ -275,7 +280,7 @@ func (r *tenantRepository) CreateTenant(ctx context.Context, opts *CreateTenantO
 		engineVersion = *opts.EngineVersion
 	}
 
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.pool.ForShared().Begin(ctx)
 
 	if err != nil {
 		return nil, err
@@ -328,6 +333,26 @@ func (r *tenantRepository) CreateTenant(ctx context.Context, opts *CreateTenantO
 		return nil, err
 	}
 
+	entitlements := TenantEntitlements{}
+
+	if opts.Entitlements != nil {
+		entitlements = *opts.Entitlements
+	}
+
+	_, err = r.queries.UpsertTenantEntitlement(ctx, tx, sqlcv1.UpsertTenantEntitlementParams{
+		Tenantid:                        tenantId,
+		Auditlogs:                       entitlements.AuditLogs,
+		Prometheusmetrics:               entitlements.PrometheusMetrics,
+		Strictadditionalmetadatafilters: entitlements.StrictAdditionalMetadataFilters,
+		Dagoperator:                     entitlements.DAGOperator,
+		Durablestreams:                  entitlements.DurableStreams,
+		Serverlessoperator:              entitlements.ServerlessOperator,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
@@ -364,9 +389,13 @@ func (r *tenantRepository) UpdateTenant(ctx context.Context, id uuid.UUID, opts 
 		params.Version = *opts.Version
 	}
 
+	if opts.DataRetentionPeriod != nil {
+		params.DataRetentionPeriod = sqlchelpers.TextFromStr(*opts.DataRetentionPeriod)
+	}
+
 	updated, err := r.queries.UpdateTenant(
 		ctx,
-		r.pool,
+		r.pool.ForTenant(id),
 		params,
 	)
 
@@ -383,26 +412,28 @@ func (r *tenantRepository) UpdateTenant(ctx context.Context, id uuid.UUID, opts 
 
 func (r *tenantRepository) GetTenantByID(ctx context.Context, id uuid.UUID) (*sqlcv1.Tenant, error) {
 	return cache.MakeCacheable(r.cache, "api"+id.String(), func() (*sqlcv1.Tenant, error) {
-		return r.queries.GetTenantByID(ctx, r.pool, id)
+		return r.queries.GetTenantByID(ctx, r.pool.ForTenant(id), id)
 	})
 }
 
 func (r *tenantRepository) GetTenantBySlug(ctx context.Context, slug string) (*sqlcv1.Tenant, error) {
 	return r.queries.GetTenantBySlug(
 		ctx,
-		r.pool,
+		r.pool.ForShared(),
 		slug,
 	)
 }
 
 func (r *tenantRepository) CreateTenantMember(ctx context.Context, tenantId uuid.UUID, opts *CreateTenantMemberOpts) (*sqlcv1.PopulateTenantMembersRow, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
 	createdMember, err := r.queries.CreateTenantMember(
 		ctx,
-		r.pool,
+		db,
 		sqlcv1.CreateTenantMemberParams{
 			Tenantid:        tenantId,
 			Userid:          opts.UserId,
@@ -415,7 +446,7 @@ func (r *tenantRepository) CreateTenantMember(ctx context.Context, tenantId uuid
 		return nil, err
 	}
 
-	populated, err := r.populateSingleTenantMember(ctx, createdMember.ID)
+	populated, err := r.populateSingleTenantMember(ctx, db, createdMember.ID)
 
 	if err != nil {
 		return nil, err
@@ -431,7 +462,7 @@ func (r *tenantRepository) CreateTenantMember(ctx context.Context, tenantId uuid
 func (r *tenantRepository) GetTenantMemberByID(ctx context.Context, memberId uuid.UUID) (*sqlcv1.PopulateTenantMembersRow, error) {
 	member, err := r.queries.GetTenantMemberByID(
 		ctx,
-		r.pool,
+		r.pool.ForShared(),
 		memberId,
 	)
 
@@ -439,13 +470,15 @@ func (r *tenantRepository) GetTenantMemberByID(ctx context.Context, memberId uui
 		return nil, err
 	}
 
-	return r.populateSingleTenantMember(ctx, member.ID)
+	return r.populateSingleTenantMember(ctx, r.pool.ForShared(), member.ID)
 }
 
 func (r *tenantRepository) GetTenantMemberByUserID(ctx context.Context, tenantId uuid.UUID, userId uuid.UUID) (*sqlcv1.PopulateTenantMembersRow, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	member, err := r.queries.GetTenantMemberByUserID(
 		ctx,
-		r.pool,
+		db,
 		sqlcv1.GetTenantMemberByUserIDParams{
 			Tenantid: tenantId,
 			Userid:   userId,
@@ -456,13 +489,15 @@ func (r *tenantRepository) GetTenantMemberByUserID(ctx context.Context, tenantId
 		return nil, err
 	}
 
-	return r.populateSingleTenantMember(ctx, member.ID)
+	return r.populateSingleTenantMember(ctx, db, member.ID)
 }
 
 func (r *tenantRepository) ListTenantMembers(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.PopulateTenantMembersRow, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	members, err := r.queries.ListTenantMembers(
 		ctx,
-		r.pool,
+		db,
 		tenantId,
 	)
 
@@ -476,13 +511,15 @@ func (r *tenantRepository) ListTenantMembers(ctx context.Context, tenantId uuid.
 		ids[i] = member.ID
 	}
 
-	return r.populateTenantMembers(ctx, ids)
+	return r.populateTenantMembers(ctx, db, ids)
 }
 
 func (r *tenantRepository) GetTenantMemberByEmail(ctx context.Context, tenantId uuid.UUID, email string) (*sqlcv1.PopulateTenantMembersRow, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	member, err := r.queries.GetTenantMemberByEmail(
 		ctx,
-		r.pool,
+		db,
 		sqlcv1.GetTenantMemberByEmailParams{
 			Tenantid: tenantId,
 			Email:    email,
@@ -493,10 +530,12 @@ func (r *tenantRepository) GetTenantMemberByEmail(ctx context.Context, tenantId 
 		return nil, err
 	}
 
-	return r.populateSingleTenantMember(ctx, member.ID)
+	return r.populateSingleTenantMember(ctx, db, member.ID)
 }
 
-func (r *tenantRepository) UpdateTenantMember(ctx context.Context, memberId uuid.UUID, opts *UpdateTenantMemberOpts) (*sqlcv1.PopulateTenantMembersRow, error) {
+func (r *tenantRepository) UpdateTenantMember(ctx context.Context, tenantId uuid.UUID, memberId uuid.UUID, opts *UpdateTenantMemberOpts) (*sqlcv1.PopulateTenantMembersRow, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -518,7 +557,7 @@ func (r *tenantRepository) UpdateTenantMember(ctx context.Context, memberId uuid
 
 	updatedMember, err := r.queries.UpdateTenantMember(
 		ctx,
-		r.pool,
+		db,
 		params,
 	)
 
@@ -526,7 +565,7 @@ func (r *tenantRepository) UpdateTenantMember(ctx context.Context, memberId uuid
 		return nil, err
 	}
 
-	populated, err := r.populateSingleTenantMember(ctx, updatedMember.ID)
+	populated, err := r.populateSingleTenantMember(ctx, db, updatedMember.ID)
 
 	if err != nil {
 		return nil, err
@@ -539,8 +578,8 @@ func (r *tenantRepository) UpdateTenantMember(ctx context.Context, memberId uuid
 	return populated, nil
 }
 
-func (r *sharedRepository) populateSingleTenantMember(ctx context.Context, ids uuid.UUID) (*sqlcv1.PopulateTenantMembersRow, error) {
-	res, err := r.populateTenantMembers(ctx, []uuid.UUID{ids})
+func (r *sharedRepository) populateSingleTenantMember(ctx context.Context, db sqlcv1.DBTX, id uuid.UUID) (*sqlcv1.PopulateTenantMembersRow, error) {
+	res, err := r.populateTenantMembers(ctx, db, []uuid.UUID{id})
 
 	if err != nil {
 		return nil, err
@@ -553,27 +592,29 @@ func (r *sharedRepository) populateSingleTenantMember(ctx context.Context, ids u
 	return res[0], nil
 }
 
-func (r *sharedRepository) populateTenantMembers(ctx context.Context, ids []uuid.UUID) ([]*sqlcv1.PopulateTenantMembersRow, error) {
+func (r *sharedRepository) populateTenantMembers(ctx context.Context, db sqlcv1.DBTX, ids []uuid.UUID) ([]*sqlcv1.PopulateTenantMembersRow, error) {
 	return r.queries.PopulateTenantMembers(
 		ctx,
-		r.pool,
+		db,
 		ids,
 	)
 }
 
-func (r *tenantRepository) DeleteTenantMember(ctx context.Context, memberId uuid.UUID) error {
+func (r *tenantRepository) DeleteTenantMember(ctx context.Context, tenantId uuid.UUID, memberId uuid.UUID) error {
+	db := r.pool.ForTenant(tenantId)
+
 	var populated *sqlcv1.PopulateTenantMembersRow
 
 	if len(r.deleteMemberCallbacks) > 0 {
 		var err error
-		populated, err = r.populateSingleTenantMember(ctx, memberId)
+		populated, err = r.populateSingleTenantMember(ctx, db, memberId)
 
 		if err != nil {
 			return err
 		}
 	}
 
-	if err := r.queries.DeleteTenantMember(ctx, r.pool, memberId); err != nil {
+	if err := r.queries.DeleteTenantMember(ctx, db, memberId); err != nil {
 		return err
 	}
 
@@ -585,6 +626,8 @@ func (r *tenantRepository) DeleteTenantMember(ctx context.Context, memberId uuid
 }
 
 func (r *tenantRepository) GetQueueMetrics(ctx context.Context, tenantId uuid.UUID, opts *GetQueueMetricsOpts) (*GetQueueMetricsResponse, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -612,7 +655,7 @@ func (r *tenantRepository) GetQueueMetrics(ctx context.Context, tenantId uuid.UU
 		totalParams.WorkflowIds = opts.WorkflowIds
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, r.l)
 
 	if err != nil {
 		return nil, err
@@ -659,11 +702,11 @@ func (r *tenantRepository) GetQueueMetrics(ctx context.Context, tenantId uuid.UU
 }
 
 func (r *tenantRepository) ListTenants(ctx context.Context) ([]*sqlcv1.Tenant, error) {
-	return r.queries.ListTenants(ctx, r.pool)
+	return r.queries.ListTenants(ctx, r.pool.ForShared())
 }
 
 func (r *tenantRepository) UpdateControllerPartitionHeartbeat(ctx context.Context, partitionId string) (string, error) {
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.pool.ForShared().Begin(ctx)
 
 	if err != nil {
 		return "", err
@@ -707,7 +750,7 @@ func (r *tenantRepository) UpdateControllerPartitionHeartbeat(ctx context.Contex
 }
 
 func (r *tenantRepository) UpdateWorkerPartitionHeartbeat(ctx context.Context, partitionId string) (string, error) {
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.pool.ForShared().Begin(ctx)
 
 	if err != nil {
 		return "", err
@@ -751,7 +794,7 @@ func (r *tenantRepository) UpdateWorkerPartitionHeartbeat(ctx context.Context, p
 }
 
 func (r *tenantRepository) GetInternalTenantForController(ctx context.Context, controllerPartitionId string) (*sqlcv1.Tenant, error) {
-	tenant, err := r.queries.GetInternalTenantForController(ctx, r.pool, controllerPartitionId)
+	tenant, err := r.queries.GetInternalTenantForController(ctx, r.pool.ForShared(), controllerPartitionId)
 
 	if err != nil && errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
@@ -767,7 +810,7 @@ func (r *tenantRepository) ListTenantsByControllerPartition(ctx context.Context,
 		return nil, fmt.Errorf("partitionId is required")
 	}
 
-	return r.queries.ListTenantsByControllerPartitionId(ctx, r.pool, controllerPartitionId)
+	return r.queries.ListTenantsByControllerPartitionId(ctx, r.pool.ForShared(), controllerPartitionId)
 }
 
 func (r *tenantRepository) ListTenantsByWorkerPartition(ctx context.Context, workerPartitionId string) ([]*sqlcv1.Tenant, error) {
@@ -775,12 +818,12 @@ func (r *tenantRepository) ListTenantsByWorkerPartition(ctx context.Context, wor
 		return nil, fmt.Errorf("partitionId is required")
 	}
 
-	return r.queries.ListTenantsByTenantWorkerPartitionId(ctx, r.pool, workerPartitionId)
+	return r.queries.ListTenantsByTenantWorkerPartitionId(ctx, r.pool.ForShared(), workerPartitionId)
 }
 
 func (r *tenantRepository) CreateControllerPartition(ctx context.Context) (string, error) {
 
-	partition, err := r.queries.CreateControllerPartition(ctx, r.pool, getPartitionName())
+	partition, err := r.queries.CreateControllerPartition(ctx, r.pool.ForShared(), getPartitionName())
 
 	if err != nil {
 		return "", err
@@ -790,20 +833,20 @@ func (r *tenantRepository) CreateControllerPartition(ctx context.Context) (strin
 }
 
 func (r *tenantRepository) DeleteControllerPartition(ctx context.Context, id string) error {
-	_, err := r.queries.DeleteControllerPartition(ctx, r.pool, id)
+	_, err := r.queries.DeleteControllerPartition(ctx, r.pool.ForShared(), id)
 	return err
 }
 
 func (r *tenantRepository) RebalanceAllControllerPartitions(ctx context.Context) error {
-	return r.queries.RebalanceAllControllerPartitions(ctx, r.pool)
+	return r.queries.RebalanceAllControllerPartitions(ctx, r.pool.ForShared())
 }
 
 func (r *tenantRepository) RebalanceInactiveControllerPartitions(ctx context.Context) error {
-	return r.queries.RebalanceInactiveControllerPartitions(ctx, r.pool)
+	return r.queries.RebalanceInactiveControllerPartitions(ctx, r.pool.ForShared())
 }
 
 func (r *tenantRepository) CreateTenantWorkerPartition(ctx context.Context) (string, error) {
-	partition, err := r.queries.CreateTenantWorkerPartition(ctx, r.pool, getPartitionName())
+	partition, err := r.queries.CreateTenantWorkerPartition(ctx, r.pool.ForShared(), getPartitionName())
 
 	if err != nil {
 		return "", err
@@ -813,20 +856,20 @@ func (r *tenantRepository) CreateTenantWorkerPartition(ctx context.Context) (str
 }
 
 func (r *tenantRepository) DeleteTenantWorkerPartition(ctx context.Context, id string) error {
-	_, err := r.queries.DeleteTenantWorkerPartition(ctx, r.pool, id)
+	_, err := r.queries.DeleteTenantWorkerPartition(ctx, r.pool.ForShared(), id)
 	return err
 }
 
 func (r *tenantRepository) RebalanceAllTenantWorkerPartitions(ctx context.Context) error {
-	return r.queries.RebalanceAllTenantWorkerPartitions(ctx, r.pool)
+	return r.queries.RebalanceAllTenantWorkerPartitions(ctx, r.pool.ForShared())
 }
 
 func (r *tenantRepository) RebalanceInactiveTenantWorkerPartitions(ctx context.Context) error {
-	return r.queries.RebalanceInactiveTenantWorkerPartitions(ctx, r.pool)
+	return r.queries.RebalanceInactiveTenantWorkerPartitions(ctx, r.pool.ForShared())
 }
 
 func (r *tenantRepository) UpdateSchedulerPartitionHeartbeat(ctx context.Context, partitionId string) (string, error) {
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.pool.ForShared().Begin(ctx)
 
 	if err != nil {
 		return "", err
@@ -874,12 +917,12 @@ func (r *tenantRepository) ListTenantsBySchedulerPartition(ctx context.Context, 
 		return nil, fmt.Errorf("partitionId is required")
 	}
 
-	return r.queries.ListTenantsBySchedulerPartitionId(ctx, r.pool, schedulerPartitionId)
+	return r.queries.ListTenantsBySchedulerPartitionId(ctx, r.pool.ForShared(), schedulerPartitionId)
 }
 
 func (r *tenantRepository) CreateSchedulerPartition(ctx context.Context) (string, error) {
 
-	partition, err := r.queries.CreateSchedulerPartition(ctx, r.pool, getPartitionName())
+	partition, err := r.queries.CreateSchedulerPartition(ctx, r.pool.ForShared(), getPartitionName())
 
 	if err != nil {
 		return "", err
@@ -889,20 +932,20 @@ func (r *tenantRepository) CreateSchedulerPartition(ctx context.Context) (string
 }
 
 func (r *tenantRepository) DeleteSchedulerPartition(ctx context.Context, id string) error {
-	_, err := r.queries.DeleteSchedulerPartition(ctx, r.pool, id)
+	_, err := r.queries.DeleteSchedulerPartition(ctx, r.pool.ForShared(), id)
 	return err
 }
 
 func (r *tenantRepository) RebalanceAllSchedulerPartitions(ctx context.Context) error {
-	return r.queries.RebalanceAllSchedulerPartitions(ctx, r.pool)
+	return r.queries.RebalanceAllSchedulerPartitions(ctx, r.pool.ForShared())
 }
 
 func (r *tenantRepository) RebalanceInactiveSchedulerPartitions(ctx context.Context) error {
-	return r.queries.RebalanceInactiveSchedulerPartitions(ctx, r.pool)
+	return r.queries.RebalanceInactiveSchedulerPartitions(ctx, r.pool.ForShared())
 }
 
 func (r *tenantRepository) DeleteTenant(ctx context.Context, id uuid.UUID) error {
-	tenant, err := r.queries.DeleteTenant(ctx, r.pool, id)
+	tenant, err := r.queries.DeleteTenant(ctx, r.pool.ForTenant(id), id)
 
 	if err != nil {
 		return err
@@ -916,7 +959,9 @@ func (r *tenantRepository) DeleteTenant(ctx context.Context, id uuid.UUID) error
 }
 
 func (r *tenantRepository) GetTenantUsageData(ctx context.Context, tenantId uuid.UUID) (*sqlcv1.GetTenantUsageDataRow, error) {
-	return r.queries.GetTenantUsageData(ctx, r.pool, tenantId)
+	db := r.pool.ForTenant(tenantId)
+
+	return r.queries.GetTenantUsageData(ctx, db, tenantId)
 }
 
 func getPartitionName() pgtype.Text {

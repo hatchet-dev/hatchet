@@ -6,18 +6,21 @@ import (
 
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
+const maxDurableEventLogEntriesPerRequest = int64(1000)
+
 func (t *DurableTasksService) V1DurableTaskEventLogList(ctx echo.Context, request gen.V1DurableTaskEventLogListRequestObject) (gen.V1DurableTaskEventLogListResponseObject, error) {
 	task := ctx.Get("durable-task").(*sqlcv1.V1TasksOlap)
 
-	limit := int64(1000)
+	limit := maxDurableEventLogEntriesPerRequest
 	offset := int64(0)
 
-	if request.Params.Limit != nil {
+	if request.Params.Limit != nil && *request.Params.Limit < maxDurableEventLogEntriesPerRequest {
 		limit = *request.Params.Limit
 	}
 
@@ -37,10 +40,10 @@ func (t *DurableTasksService) V1DurableTaskEventLogList(ctx echo.Context, reques
 		return nil, err
 	}
 
-	return gen.V1DurableTaskEventLogList200JSONResponse(toDurableEventLogEntries(entries)), nil
+	return gen.V1DurableTaskEventLogList200JSONResponse(toDurableEventLogEntries(entries, authz.CanViewPayloads(ctx))), nil
 }
 
-func toDurableEventLogEntries(entries []*sqlcv1.ListDurableEventLogForTaskRow) []gen.V1DurableEventLogEntry {
+func toDurableEventLogEntries(entries []*sqlcv1.ListDurableEventLogForTaskRow, canViewPayloads bool) []gen.V1DurableEventLogEntry {
 	result := make([]gen.V1DurableEventLogEntry, 0, len(entries))
 
 	for _, e := range entries {
@@ -59,7 +62,7 @@ func toDurableEventLogEntries(entries []*sqlcv1.ListDurableEventLogForTaskRow) [
 			TaskDisplayName: e.DurableTaskDisplayName,
 		}
 
-		if e.UserMessage.Valid {
+		if canViewPayloads && e.UserMessage.Valid {
 			entry.UserMessage = &e.UserMessage.String
 		}
 

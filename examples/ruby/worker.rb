@@ -14,6 +14,7 @@ require_relative "on_success/worker"
 require_relative "timeout/worker"
 require_relative "retries/worker"
 require_relative "non_retryable/worker"
+require_relative "retry_after/worker"
 require_relative "logger/worker"
 require_relative "delayed/worker"
 require_relative "priority/worker"
@@ -36,6 +37,7 @@ require_relative "durable_sleep/worker"
 require_relative "conditions/worker"
 require_relative "dependency_injection/worker"
 require_relative "streaming/worker"
+require_relative "durable_streams/worker"
 require_relative "serde/worker"
 require_relative "dataclasses/worker"
 require_relative "dedupe/worker"
@@ -63,6 +65,7 @@ ALL_WORKFLOWS = [
   TIMEOUT_WF, REFRESH_TIMEOUT_WF,
   SIMPLE_RETRY_WORKFLOW, BACKOFF_WORKFLOW,
   NON_RETRYABLE_WORKFLOW,
+  RETRY_AFTER_UPSTREAM_DELAY, RETRY_AFTER_EXPONENTIAL_BACKOFF,
   LOGGING_WORKFLOW,
   PRINT_SCHEDULE_WF, PRINT_PRINTER_WF,
   PRIORITY_WORKFLOW,
@@ -93,6 +96,7 @@ ALL_WORKFLOWS = [
 
   # Tier 4-5
   STREAM_TASK,
+  DURABLE_STREAMS_PROGRESS_TASK, DURABLE_STREAMS_RETRYING_PROGRESS_TASK,
   SERDE_WORKFLOW,
   SAY_HELLO,
   DEDUPE_PARENT_WF, DEDUPE_CHILD_WF,

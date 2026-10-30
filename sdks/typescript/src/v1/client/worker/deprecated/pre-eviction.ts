@@ -7,10 +7,20 @@
 import { Conditions, Render } from '@hatchet/v1/conditions';
 import { conditionsToPb } from '@hatchet/v1/conditions/transformer';
 import { Action as ConditionAction } from '@hatchet/protoc/v1/shared/condition';
-import { DurableListenerClient } from '@hatchet/clients/listeners/durable-listener/durable-listener-client';
+import type { DurableListenerClient } from '@hatchet/clients/listeners/durable-listener/durable-listener-client';
+
+/** The unary and streaming RPCs the pre-eviction fallback needs from the listener. */
+export type LegacyDurableTransport = Pick<DurableListenerClient, 'registerDurableEvent' | 'result'>;
+
+export function isLegacyDurableTransport(value: unknown): value is LegacyDurableTransport {
+  const candidate = value as Partial<LegacyDurableTransport> | null | undefined;
+  return (
+    typeof candidate?.registerDurableEvent === 'function' && typeof candidate?.result === 'function'
+  );
+}
 
 export async function waitForPreEviction(
-  durableListener: DurableListenerClient,
+  durableListener: LegacyDurableTransport,
   taskRunExternalId: string,
   waitKey: number,
   conditions: Conditions | Conditions[],

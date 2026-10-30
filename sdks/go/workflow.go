@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"math"
 	"reflect"
-	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -930,14 +929,15 @@ func (w *Workflow) OnFailure(fn any) {
 // Workflow execution methods
 
 // Run executes the workflow with the provided input and waits for completion.
+// If ctx ends before the run reaches a terminal state, the wait stops and the
+// returned error wraps ctx.Err(); the run itself keeps executing on the engine.
 func (w *Workflow) Run(ctx context.Context, input any, opts ...RunOptFunc) (*WorkflowResult, error) {
 	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/sdks/go")
 	otelCtx := ctx
-	var resultWaitContext context.Context
 	if hCtx, ok := ctx.(Context); ok {
 		otelCtx = hCtx.GetContext()
-		resultWaitContext = otelCtx
 	}
+	resultWaitContext := otelCtx
 	otelCtx, span := tracer.Start(otelCtx, hatchetotel.SpanRunWorkflow,
 		trace.WithSpanKind(trace.SpanKindProducer),
 		trace.WithAttributes(
@@ -1060,7 +1060,7 @@ func (w *Workflow) runWorkflowInternal(ctx context.Context, otelCtx context.Cont
 	return &WorkflowRunRef{RunId: v0Workflow.RunId(), v0Workflow: v0Workflow}, nil
 }
 
-// RunMany executes multiple workflow instances with different inputs.
+// RunMany executes multiple workflow instances with different inputs. The returned results are in the same order as the inputs.
 func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]WorkflowRunRef, error) {
 	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/sdks/go")
 	originalCtx := ctx
@@ -1088,56 +1088,99 @@ func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]Workflow
 		return durableRefs, nil
 	}
 
-	var workflowRefs []WorkflowRunRef
-
-	var wg sync.WaitGroup
-	var otherErrs []error
-	var collisions []*IdempotencyCollisionError
-	var errsMutex sync.Mutex
-	var workflowRefsMutex sync.Mutex
-	wg.Add(len(inputs))
-
-	for _, input := range inputs {
-		go func() {
-			defer wg.Done()
-
-			workflowRef, err := w.RunNoWait(originalCtx, input.Input, input.Opts...)
-			if err != nil {
-				errsMutex.Lock()
-				if collision, ok := IsIdempotencyCollisionError(err); ok {
-					collisions = append(collisions, collision)
-				} else {
-					otherErrs = append(otherErrs, err)
-				}
-				errsMutex.Unlock()
-				return
-			}
-			workflowRefsMutex.Lock()
-			workflowRefs = append(workflowRefs, *workflowRef)
-			workflowRefsMutex.Unlock()
-		}()
-	}
-
-	wg.Wait()
-
-	if err := errors.Join(otherErrs...); err != nil {
+	workflowRefs, err := runManyBulk(originalCtx, otelCtx, w.v0Client, w.declaration.Name(), inputs)
+	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return workflowRefs, err
 	}
 
-	if len(collisions) > 0 {
-		successfulIds := make([]string, 0, len(workflowRefs))
-		for _, ref := range workflowRefs {
+	span.SetStatus(codes.Ok, "")
+	return workflowRefs, nil
+}
+
+func runManyBulk(ctx context.Context, otelCtx context.Context, v0 v0Client.Client, workflowName string, inputs []RunManyOpt) ([]WorkflowRunRef, error) {
+	runs, err := triggerRunMany(ctx, otelCtx, v0, workflowName, inputs)
+
+	refs := make([]WorkflowRunRef, len(runs))
+	for i, run := range runs {
+		refs[i] = WorkflowRunRef{RunId: run.RunId(), v0Workflow: run}
+	}
+
+	if err != nil {
+		var bulkErr *v0Client.BulkIdempotencyViolationErr
+		if !errors.As(err, &bulkErr) {
+			return refs, err
+		}
+
+		successfulIds := make([]string, 0, len(refs)+len(bulkErr.SuccessfulRunExternalIds))
+		for _, ref := range refs {
 			successfulIds = append(successfulIds, ref.RunId)
 		}
-		bulkErr := &BulkTriggerIdempotencyCollisionError{
+		successfulIds = append(successfulIds, bulkErr.SuccessfulRunExternalIds...)
+
+		collisions := make([]*IdempotencyCollisionError, len(bulkErr.Collisions))
+		for i, c := range bulkErr.Collisions {
+			collisions[i] = &IdempotencyCollisionError{ExistingRunExternalId: c.ExistingRunExternalId}
+		}
+
+		return refs, &BulkTriggerIdempotencyCollisionError{
 			SuccessfulRunExternalIds: successfulIds,
 			Collisions:               collisions,
 		}
-		span.SetStatus(codes.Error, bulkErr.Error())
-		return workflowRefs, bulkErr
 	}
 
-	span.SetStatus(codes.Ok, "")
-	return workflowRefs, nil
+	return refs, nil
+}
+
+func triggerRunMany(ctx context.Context, otelCtx context.Context, v0 v0Client.Client, workflowName string, inputs []RunManyOpt) ([]*v0Client.Workflow, error) {
+	hCtx, inTask := ctx.(Context)
+
+	spawnOpts := make([]*worker.SpawnWorkflowsOpts, len(inputs))
+	bulkRuns := make([]*v0Client.WorkflowRun, len(inputs))
+
+	for i, input := range inputs {
+		runOpts := &runOpts{}
+		for _, opt := range input.Opts {
+			opt(runOpts)
+		}
+
+		var priority *int32
+		if runOpts.Priority != nil {
+			priority = &[]int32{int32(*runOpts.Priority)}[0]
+		}
+
+		runOpts.AdditionalMetadata = injectTraceparentToMap(otelCtx, runOpts.AdditionalMetadata)
+
+		if inTask {
+			spawnOpts[i] = &worker.SpawnWorkflowsOpts{
+				WorkflowName:        workflowName,
+				Input:               input.Input,
+				Key:                 runOpts.Key,
+				Sticky:              runOpts.Sticky,
+				Priority:            priority,
+				AdditionalMetadata:  runOpts.AdditionalMetadata,
+				DesiredWorkerLabels: runOpts.DesiredWorkerLabels,
+			}
+			continue
+		}
+
+		var v0Opts []v0Client.RunOptFunc
+		if runOpts.AdditionalMetadata != nil {
+			v0Opts = append(v0Opts, v0Client.WithRunMetadata(*runOpts.AdditionalMetadata))
+		}
+		if priority != nil {
+			v0Opts = append(v0Opts, v0Client.WithPriority(*priority))
+		}
+		if runOpts.DesiredWorkerLabels != nil {
+			v0Opts = append(v0Opts, v0Client.WithDesiredWorkerLabels(runOpts.DesiredWorkerLabels))
+		}
+
+		bulkRuns[i] = &v0Client.WorkflowRun{Name: workflowName, Input: input.Input, Options: v0Opts}
+	}
+
+	if inTask {
+		return hCtx.SpawnWorkflows(spawnOpts)
+	}
+
+	return v0.Admin().BulkRunWorkflows(bulkRuns)
 }

@@ -40,6 +40,11 @@ type UserSessionRepository interface {
 	Delete(ctx context.Context, sessionId uuid.UUID) (*sqlcv1.UserSession, error)
 	GetById(ctx context.Context, sessionId uuid.UUID) (*sqlcv1.UserSession, error)
 
+	// DeleteByUserId revokes every session belonging to the user. When exceptSessionId is
+	// set, that session is left intact so the caller (for example a password change) stays
+	// signed in while all other sessions are invalidated.
+	DeleteByUserId(ctx context.Context, userId uuid.UUID, exceptSessionId *uuid.UUID) ([]*sqlcv1.UserSession, error)
+
 	CleanupUserSessions(ctx context.Context) error
 }
 
@@ -98,7 +103,7 @@ func (r *userSessionRepository) Create(ctx context.Context, opts *CreateSessionO
 
 	session, err := r.queries.CreateUserSession(
 		ctx,
-		r.pool,
+		r.pool.ForShared(),
 		params,
 	)
 
@@ -129,7 +134,7 @@ func (r *userSessionRepository) Update(ctx context.Context, sessionId uuid.UUID,
 
 	session, err := r.queries.UpdateUserSession(
 		ctx,
-		r.pool,
+		r.pool.ForShared(),
 		params,
 	)
 
@@ -147,7 +152,7 @@ func (r *userSessionRepository) Update(ctx context.Context, sessionId uuid.UUID,
 func (r *userSessionRepository) Delete(ctx context.Context, sessionId uuid.UUID) (*sqlcv1.UserSession, error) {
 	session, err := r.queries.DeleteUserSession(
 		ctx,
-		r.pool,
+		r.pool.ForShared(),
 		sessionId,
 	)
 
@@ -162,10 +167,33 @@ func (r *userSessionRepository) Delete(ctx context.Context, sessionId uuid.UUID)
 	return session, nil
 }
 
+func (r *userSessionRepository) DeleteByUserId(ctx context.Context, userId uuid.UUID, exceptSessionId *uuid.UUID) ([]*sqlcv1.UserSession, error) {
+	sessions, err := r.queries.DeleteUserSessionsByUserId(
+		ctx,
+		r.pool.ForShared(),
+		sqlcv1.DeleteUserSessionsByUserIdParams{
+			Userid:   userId,
+			ExceptId: exceptSessionId,
+		},
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, session := range sessions {
+		for _, cb := range r.deleteCallbacks {
+			cb.Do(r.l, session)
+		}
+	}
+
+	return sessions, nil
+}
+
 func (r *userSessionRepository) GetById(ctx context.Context, sessionId uuid.UUID) (*sqlcv1.UserSession, error) {
 	return r.queries.GetUserSession(
 		ctx,
-		r.pool,
+		r.pool.ForShared(),
 		sessionId,
 	)
 }
@@ -174,7 +202,7 @@ func (r *userSessionRepository) CleanupUserSessions(ctx context.Context) error {
 	const batchSize int32 = 1000
 
 	for {
-		result, err := r.queries.CleanupUserSessions(ctx, r.pool, batchSize)
+		result, err := r.queries.CleanupUserSessions(ctx, r.pool.ForShared(), batchSize)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return nil

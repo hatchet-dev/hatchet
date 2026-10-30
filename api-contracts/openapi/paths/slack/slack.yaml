@@ -2,6 +2,7 @@ slackWebhook:
   get:
     description: List Slack webhooks
     operationId: slack-webhook:list
+    x-payloads: false
     x-resources: ["tenant"]
     parameters:
       - description: The tenant id
@@ -38,6 +39,8 @@ slackWebhook:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Method not allowed
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: List Slack integrations
     tags:
       - Slack
@@ -45,6 +48,7 @@ deleteSlack:
   delete:
     description: Delete Slack webhook
     operationId: slack-webhook:delete
+    x-payloads: false
     x-resources: ["tenant", "slack"]
     parameters:
       - description: The Slack webhook id
@@ -77,6 +81,8 @@ deleteSlack:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Method not allowed
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Delete Slack webhook
     tags:
       - Slack
