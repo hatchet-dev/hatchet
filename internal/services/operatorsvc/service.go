@@ -124,7 +124,6 @@ type DispatcherBackend interface {
 	AddOperatorStreamSession(ctx context.Context, workerId uuid.UUID, sessionId uuid.UUID, stream *rpcstream.Sender[v1contracts.OperatorListenResponse]) StreamSession
 	AddOperatorSession(workerId uuid.UUID, sessionId uuid.UUID, handler ActionHandler) HandlerSession
 	NotifyNewWorker(ctx context.Context, tenant *sqlcv1.Tenant, workerId uuid.UUID)
-	NotifyWorkerDispatcherChanged(ctx context.Context, tenant *sqlcv1.Tenant, workerId uuid.UUID)
 	SendStepActionEvent(ctx context.Context, req *contracts.StepActionEvent) (*contracts.ActionEventResponse, error)
 	RegisterDurableTask(ctx context.Context, externalId uuid.UUID) (chan<- *v1contracts.DurableTaskRequest, <-chan *v1contracts.DurableTaskResponse, error)
 	// RegisterRunStream serves one of the dispatcher's run observation streams over channels;

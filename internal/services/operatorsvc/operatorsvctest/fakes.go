@@ -790,8 +790,6 @@ func (f *Dispatcher) NotifyNewWorker(_ context.Context, _ *sqlcv1.Tenant, worker
 	f.notifies = append(f.notifies, workerId)
 }
 
-func (f *Dispatcher) NotifyWorkerDispatcherChanged(context.Context, *sqlcv1.Tenant, uuid.UUID) {}
-
 func (f *Dispatcher) SendStepActionEvent(_ context.Context, req *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

@@ -181,8 +181,7 @@ func (ss *Session) refreshActionHash(ctx context.Context) error {
 
 // pinWorker points the worker at this dispatcher when it is not there already: the session that
 // delivers actions lives here, so a worker resumed after a reconnect to another engine replica
-// is re-pinned, and the scheduler's cached dispatcher id for it is replaced. It returns the
-// worker row it read, or was given.
+// is re-pinned. It returns the worker row it read, or was given.
 func (s *Service) pinWorker(ctx context.Context, l *zerolog.Logger, tenant *sqlcv1.Tenant, workerId uuid.UUID, known *sqlcv1.GetWorkerForEngineRow) (*sqlcv1.GetWorkerForEngineRow, error) {
 	worker := known
 
@@ -207,8 +206,6 @@ func (s *Service) pinWorker(ctx context.Context, l *zerolog.Logger, tenant *sqlc
 		l.Error().Ctx(ctx).Err(err).Msg("could not update worker dispatcher")
 		return nil, err
 	}
-
-	s.dispatcher.NotifyWorkerDispatcherChanged(ctx, tenant, workerId)
 
 	return worker, nil
 }
