@@ -721,7 +721,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         **DANGEROUS: This will delete a workflow and all of its data**
         """
-        self._client.workflows.delete(self)
+        self._client.workflows.delete(self.get_id())
 
     async def aio_delete(self) -> None:
         """
@@ -729,7 +729,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         **DANGEROUS: This will delete a workflow and all of its data**
         """
-        await self._client.workflows.aio_delete(self)
+        await self._client.workflows.aio_delete(await self.aio_get_id())
 
     def pause(
         self,
@@ -750,7 +750,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         """
 
         return self._client.workflows.pause(
-            self,
+            self.get_id(),
             queue_ttl,
             paused_workflow_cron_run_queue_behavior=paused_workflow_cron_run_queue_behavior,
             paused_workflow_scheduled_run_queue_behavior=paused_workflow_scheduled_run_queue_behavior,
@@ -775,7 +775,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         """
 
         return await self._client.workflows.aio_pause(
-            self,
+            await self.aio_get_id(),
             queue_ttl,
             paused_workflow_cron_run_queue_behavior=paused_workflow_cron_run_queue_behavior,
             paused_workflow_scheduled_run_queue_behavior=paused_workflow_scheduled_run_queue_behavior,
@@ -788,7 +788,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         :return: The updated workflow.
         """
 
-        return self._client.workflows.unpause(self)
+        return self._client.workflows.unpause(self.get_id())
 
     async def aio_unpause(self) -> WorkflowModel:
         """
@@ -797,7 +797,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         :return: The updated workflow.
         """
 
-        return await self._client.workflows.aio_unpause(self)
+        return await self._client.workflows.aio_unpause(await self.aio_get_id())
 
     @overload
     def mcp_tool(
@@ -1244,8 +1244,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
     def task(
         self,
-        *,
         name: str | None = None,
+        *,
         schedule_timeout: timedelta | None = None,
         execution_timeout: timedelta | None = None,
         parents: list[Task[TWorkflowInput, Any]] | None = None,
@@ -1351,8 +1351,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     @overload
     def batch_task(
         self,
-        *,
         name: str | None = None,
+        *,
         batch_max_size: int,
         batch_max_interval: timedelta | None = None,
         batch_group_key: str | None = None,
@@ -1378,8 +1378,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     @overload
     def batch_task(
         self,
-        *,
         name: str | None = None,
+        *,
         batch_max_size: int,
         batch_max_interval: timedelta | None = None,
         batch_group_key: str | None = None,
@@ -1404,8 +1404,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
     def batch_task(
         self,
-        *,
         name: str | None = None,
+        *,
         batch_max_size: int,
         batch_max_interval: timedelta | None = None,
         batch_group_key: str | None = None,
@@ -1509,8 +1509,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
     def durable_task(
         self,
-        *,
         name: str | None = None,
+        *,
         schedule_timeout: timedelta | None = None,
         execution_timeout: timedelta | None = None,
         parents: list[Task[TWorkflowInput, Any]] | None = None,
@@ -1627,8 +1627,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
     def on_failure_task(
         self,
-        *,
         name: str | None = None,
+        *,
         schedule_timeout: timedelta | None = None,
         execution_timeout: timedelta | None = None,
         retries: int | None = None,
@@ -1709,8 +1709,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
     def on_success_task(
         self,
-        *,
         name: str | None = None,
+        *,
         schedule_timeout: timedelta | None = None,
         execution_timeout: timedelta | None = None,
         retries: int | None = None,

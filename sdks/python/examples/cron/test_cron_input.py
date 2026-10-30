@@ -35,4 +35,6 @@ async def test_cron_input_workflow_running_options(hatchet: Hatchet) -> None:
 
         assert res == {"message": "Hello, Hatchet!"}
 
-    await hatchet.workflows.aio_delete(cron_input_example_send_greeting)
+    await hatchet.workflows.aio_delete(
+        await cron_input_example_send_greeting.aio_get_id()
+    )

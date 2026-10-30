@@ -15,13 +15,13 @@ Methods:
 | Name              | Description                                                                                   |
 | ----------------- | --------------------------------------------------------------------------------------------- |
 | `aio_delete`      | Permanently delete a workflow.                                                                |
-| `aio_get`         | Get a workflow by its name.                                                                   |
+| `aio_get`         | Get a workflow by its ID.                                                                     |
 | `aio_get_version` | Get a version of a workflow.                                                                  |
 | `aio_list`        | List all workflows in the tenant determined by the client config that match optional filters. |
 | `aio_pause`       | Pause a workflow.                                                                             |
 | `aio_unpause`     | Unpause a workflow.                                                                           |
 | `delete`          | Permanently delete a workflow.                                                                |
-| `get`             | Get a workflow by its name.                                                                   |
+| `get`             | Get a workflow by its ID.                                                                     |
 | `get_version`     | Get a version of a workflow.                                                                  |
 | `list`            | List all workflows in the tenant determined by the client config that match optional filters. |
 | `pause`           | Pause a workflow.                                                                             |
@@ -37,9 +37,9 @@ Permanently delete a workflow.
 
 Parameters:
 
-| Name       | Type                       | Description                                                                                                          | Default    |
-| ---------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------- | ---------- |
-| `workflow` | `str \| BaseWorkflow[Any]` | The name of the workflow to delete, or the workflow itself. Raises `NotFoundException` if no workflow has that name. | _required_ |
+| Name          | Type  | Description                       | Default    |
+| ------------- | ----- | --------------------------------- | ---------- |
+| `workflow_id` | `str` | The ID of the workflow to delete. | _required_ |
 
 Returns:
 
@@ -49,13 +49,13 @@ Returns:
 
 #### `aio_get`
 
-Get a workflow by its name.
+Get a workflow by its ID.
 
 Parameters:
 
-| Name       | Type                       | Description                                                                                                            | Default    |
-| ---------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ---------- |
-| `workflow` | `str \| BaseWorkflow[Any]` | The name of the workflow to retrieve, or the workflow itself. Raises `NotFoundException` if no workflow has that name. | _required_ |
+| Name          | Type  | Description                         | Default    |
+| ------------- | ----- | ----------------------------------- | ---------- |
+| `workflow_id` | `str` | The ID of the workflow to retrieve. | _required_ |
 
 Returns:
 
@@ -69,10 +69,10 @@ Get a version of a workflow.
 
 Parameters:
 
-| Name       | Type                       | Description                                                                                                                            | Default    |
-| ---------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| `workflow` | `str \| BaseWorkflow[Any]` | The name of the workflow to retrieve the version for, or the workflow itself. Raises `NotFoundException` if no workflow has that name. | _required_ |
-| `version`  | `str \| None`              | The version of the workflow to retrieve. If None, the latest version is returned.                                                      | `None`     |
+| Name          | Type          | Description                                                                       | Default    |
+| ------------- | ------------- | --------------------------------------------------------------------------------- | ---------- |
+| `workflow_id` | `str`         | The ID of the workflow to retrieve the version for.                               | _required_ |
+| `version`     | `str \| None` | The version of the workflow to retrieve. If None, the latest version is returned. | `None`     |
 
 Returns:
 
@@ -104,12 +104,12 @@ Pause a workflow.
 
 Parameters:
 
-| Name                                           | Type                       | Description                                                                                                         | Default    |
-| ---------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------- |
-| `workflow`                                     | `str \| BaseWorkflow[Any]` | The name of the workflow to pause, or the workflow itself. Raises `NotFoundException` if no workflow has that name. | _required_ |
-| `queue_ttl`                                    | `timedelta`                | The TTL for queued runs while the workflow is paused before they get dropped.                                       | _required_ |
-| `paused_workflow_cron_run_queue_behavior`      | `Literal['DROP', 'QUEUE']` | The behavior of cron runs triggered while the workflow is paused.                                                   | `'QUEUE'`  |
-| `paused_workflow_scheduled_run_queue_behavior` | `Literal['DROP', 'QUEUE']` | The behavior of scheduled runs triggered while the workflow is paused.                                              | `'QUEUE'`  |
+| Name                                           | Type                       | Description                                                                   | Default    |
+| ---------------------------------------------- | -------------------------- | ----------------------------------------------------------------------------- | ---------- |
+| `workflow_id`                                  | `str`                      | The ID of the workflow to pause.                                              | _required_ |
+| `queue_ttl`                                    | `timedelta`                | The TTL for queued runs while the workflow is paused before they get dropped. | _required_ |
+| `paused_workflow_cron_run_queue_behavior`      | `Literal['DROP', 'QUEUE']` | The behavior of cron runs triggered while the workflow is paused.             | `'QUEUE'`  |
+| `paused_workflow_scheduled_run_queue_behavior` | `Literal['DROP', 'QUEUE']` | The behavior of scheduled runs triggered while the workflow is paused.        | `'QUEUE'`  |
 
 Returns:
 
@@ -123,9 +123,9 @@ Unpause a workflow.
 
 Parameters:
 
-| Name       | Type                       | Description                                                                                                           | Default    |
-| ---------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------- |
-| `workflow` | `str \| BaseWorkflow[Any]` | The name of the workflow to unpause, or the workflow itself. Raises `NotFoundException` if no workflow has that name. | _required_ |
+| Name          | Type  | Description                        | Default    |
+| ------------- | ----- | ---------------------------------- | ---------- |
+| `workflow_id` | `str` | The ID of the workflow to unpause. | _required_ |
 
 Returns:
 
@@ -141,9 +141,9 @@ Permanently delete a workflow.
 
 Parameters:
 
-| Name       | Type                       | Description                                                                                                          | Default    |
-| ---------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------- | ---------- |
-| `workflow` | `str \| BaseWorkflow[Any]` | The name of the workflow to delete, or the workflow itself. Raises `NotFoundException` if no workflow has that name. | _required_ |
+| Name          | Type  | Description                       | Default    |
+| ------------- | ----- | --------------------------------- | ---------- |
+| `workflow_id` | `str` | The ID of the workflow to delete. | _required_ |
 
 Returns:
 
@@ -153,13 +153,13 @@ Returns:
 
 #### `get`
 
-Get a workflow by its name.
+Get a workflow by its ID.
 
 Parameters:
 
-| Name       | Type                       | Description                                                                                                            | Default    |
-| ---------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ---------- |
-| `workflow` | `str \| BaseWorkflow[Any]` | The name of the workflow to retrieve, or the workflow itself. Raises `NotFoundException` if no workflow has that name. | _required_ |
+| Name          | Type  | Description                         | Default    |
+| ------------- | ----- | ----------------------------------- | ---------- |
+| `workflow_id` | `str` | The ID of the workflow to retrieve. | _required_ |
 
 Returns:
 
@@ -173,10 +173,10 @@ Get a version of a workflow.
 
 Parameters:
 
-| Name       | Type                       | Description                                                                                                                            | Default    |
-| ---------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| `workflow` | `str \| BaseWorkflow[Any]` | The name of the workflow to retrieve the version for, or the workflow itself. Raises `NotFoundException` if no workflow has that name. | _required_ |
-| `version`  | `str \| None`              | The version of the workflow to retrieve. If None, the latest version is returned.                                                      | `None`     |
+| Name          | Type          | Description                                                                       | Default    |
+| ------------- | ------------- | --------------------------------------------------------------------------------- | ---------- |
+| `workflow_id` | `str`         | The ID of the workflow to retrieve the version for.                               | _required_ |
+| `version`     | `str \| None` | The version of the workflow to retrieve. If None, the latest version is returned. | `None`     |
 
 Returns:
 
@@ -208,12 +208,12 @@ Pause a workflow.
 
 Parameters:
 
-| Name                                           | Type                       | Description                                                                                                         | Default    |
-| ---------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------- |
-| `workflow`                                     | `str \| BaseWorkflow[Any]` | The name of the workflow to pause, or the workflow itself. Raises `NotFoundException` if no workflow has that name. | _required_ |
-| `queue_ttl`                                    | `timedelta`                | The TTL for queued runs while the workflow is paused before they get dropped.                                       | _required_ |
-| `paused_workflow_cron_run_queue_behavior`      | `Literal['DROP', 'QUEUE']` | The behavior of cron runs triggered while the workflow is paused.                                                   | `'QUEUE'`  |
-| `paused_workflow_scheduled_run_queue_behavior` | `Literal['DROP', 'QUEUE']` | The behavior of scheduled runs triggered while the workflow is paused.                                              | `'QUEUE'`  |
+| Name                                           | Type                       | Description                                                                   | Default    |
+| ---------------------------------------------- | -------------------------- | ----------------------------------------------------------------------------- | ---------- |
+| `workflow_id`                                  | `str`                      | The ID of the workflow to pause.                                              | _required_ |
+| `queue_ttl`                                    | `timedelta`                | The TTL for queued runs while the workflow is paused before they get dropped. | _required_ |
+| `paused_workflow_cron_run_queue_behavior`      | `Literal['DROP', 'QUEUE']` | The behavior of cron runs triggered while the workflow is paused.             | `'QUEUE'`  |
+| `paused_workflow_scheduled_run_queue_behavior` | `Literal['DROP', 'QUEUE']` | The behavior of scheduled runs triggered while the workflow is paused.        | `'QUEUE'`  |
 
 Returns:
 
@@ -227,9 +227,9 @@ Unpause a workflow.
 
 Parameters:
 
-| Name       | Type                       | Description                                                                                                           | Default    |
-| ---------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------- |
-| `workflow` | `str \| BaseWorkflow[Any]` | The name of the workflow to unpause, or the workflow itself. Raises `NotFoundException` if no workflow has that name. | _required_ |
+| Name          | Type  | Description                        | Default    |
+| ------------- | ----- | ---------------------------------- | ---------- |
+| `workflow_id` | `str` | The ID of the workflow to unpause. | _required_ |
 
 Returns:
 

@@ -117,49 +117,47 @@ These are one-to-one renames. The left column is safe to search for directly.
 | `workflow.schedule(...).scheduled_workflows[0].id`                                                                     | `workflow.schedule(...).id`                                                                                                               |
 | `error.serialize(include_metadata=False)` on a `TaskRunError`                                                          | `str(error)`                                                                                                                              |
 | `from hatchet_sdk.types import ...`                                                                                    | `from hatchet_sdk import ...`                                                                                                             |
-| `@workflow.task("my-task")` and other positional decorator names                                                       | `@workflow.task(name="my-task")`                                                                                                          |
 | `ctx.aio_sleep_for(duration, "label")`, `ctx.aio_sleep_until(wake_at, "label")`                                        | `ctx.aio_sleep_for(duration, label="label")`, `ctx.aio_sleep_until(wake_at, label="label")`                                               |
 
 ### Removed APIs and their replacements
 
 These have no one-to-one rename. Each row links to the section that explains the change.
 
-| Removed in V2                                                                                    | What to do instead                                                                                                                                                         |
-| ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `options=TriggerWorkflowOptions(...)` on `run`, `run_many` items, and related methods            | Pass the fields as keyword arguments. See [options objects](#options-objects-removed-in-favor-of-inline-parameters).                                                       |
-| `options=ScheduleTriggerWorkflowOptions(...)` on `schedule` and `aio_schedule`                   | Pass the fields as keyword arguments.                                                                                                                                      |
-| `PushEventOptions`, `BulkPushEventOptions`                                                       | Keyword arguments on `events.push`, and `BulkPushEventWithMetadata` for bulk pushes.                                                                                       |
-| `EmptyModel`                                                                                     | `None`. See [tasks with no input](#tasks-with-no-input-validator-now-receive-none).                                                                                        |
-| `ctx.workflow_input`, `ctx.input`                                                                | The `input` argument to the task function.                                                                                                                                 |
-| `ctx.worker`, `WorkerContext`                                                                    | `ctx.worker_id`, `ctx.worker_labels`, `ctx.upsert_worker_labels`.                                                                                                          |
-| `ctx.log(..., raise_on_error=True)`                                                              | Drop the argument. `ctx.log` never raises.                                                                                                                                 |
-| `Hatchet(debug=True)`, `Worker(debug=True)`                                                      | Set `HATCHET_CLIENT_DEBUG=true`.                                                                                                                                           |
-| `Hatchet(client=...)`, `hatchet_sdk.client.Client`                                               | Pass `config=ClientConfig(...)`.                                                                                                                                           |
-| `worker.start(options=WorkerStartOptions(...))`                                                  | `worker.start()`.                                                                                                                                                          |
-| `worker.register_workflow_from_opts(...)`                                                        | `worker.register_workflow(workflow)`.                                                                                                                                      |
-| `hatchet.listener`, `hatchet.dispatcher`                                                         | `hatchet.runs.aio_subscribe_to_stream(run_id)`.                                                                                                                            |
-| `ref.stream()` on `WorkflowRunRef` and `TaskRunRef`                                              | `hatchet.runs.aio_subscribe_to_stream(ref.workflow_run_id)`. See [streaming](#refstream-and-the-streaming-event-types-removed).                                            |
-| `StepRunEvent`, `StepRunEventType`, `WorkflowRunEventType`                                       | Nothing. `aio_subscribe_to_stream` yields plain `str` chunks.                                                                                                              |
-| Sync `durable_task` functions                                                                    | Make the function `async def`.                                                                                                                                             |
-| `desired_worker_labels={...}` as a `dict`                                                        | A `list[DesiredWorkerLabel]` with `key` set. See [worker labels](#worker-labels-must-use-typed-objects).                                                                   |
-| `hatchet.worker(labels={...})`, `Worker(labels={...})` as a `dict`                               | A `list[WorkerLabel]`. See [worker labels](#worker-labels-must-use-typed-objects).                                                                                         |
-| `result["key"]` on the return value of `ctx.aio_wait_for`                                        | Typed results. See [durable wait results](#durable-wait-results-are-now-typed).                                                                                            |
-| `.rows` on the return value of any `list` or `aio_list` method                                   | The return value is already the list.                                                                                                                                      |
-| `from hatchet_sdk.labels import ...`, `from hatchet_sdk.rate_limit import ...`                   | `from hatchet_sdk import DesiredWorkerLabel, WorkerLabel, RateLimit`.                                                                                                      |
-| V0 REST models imported from `hatchet_sdk` (`StepRun`, `WorkflowRun`, `Tenant`, ...)             | Import from `hatchet_sdk.clients.rest.models`.                                                                                                                             |
-| `desired_worker_id=...` on `run`, `aio_run`, and `create_bulk_run_item`                          | `sticky=True` to run on the same worker as the triggering task, or `desired_worker_labels`. See [options objects](#options-objects-removed-in-favor-of-inline-parameters). |
-| Positional optional arguments, such as `workflow.run(input, False)`                              | Keyword arguments. See [keyword-only arguments](#optional-arguments-are-keyword-only).                                                                                     |
-| `await ctx.aio_wait_for("my-signal", condition)`                                                 | `await ctx.aio_wait_for(condition)`, or `signal_key="my-signal"` by keyword. See [durable wait results](#durable-wait-results-are-now-typed).                              |
-| `hatchet.workflows.get(workflow_id)` and the other `hatchet.workflows` methods called with an ID | Pass the workflow's name or the workflow object. See [the workflows client](#hatchetworkflows-methods-take-a-name-or-a-workflow).                                          |
-| `hatchet.workers.update(worker_id, opts=UpdateWorkerRequest(is_paused=True))`                    | `hatchet.workers.pause(worker_id)` and `hatchet.workers.unpause(worker_id)`.                                                                                               |
-| `hatchet.filters.update(filter_id, V1UpdateFilterRequest(...))`                                  | `hatchet.filters.update(filter_id, expression=..., scope=..., payload=...)`.                                                                                               |
-| `hatchet.scheduled.bulk_delete(statuses=...)`                                                    | Drop the argument. It was ignored.                                                                                                                                         |
-| `TaskDefaults(priority=...)`                                                                     | `default_priority=...` on the workflow.                                                                                                                                    |
-| `Worker(..., handle_kill=False)`                                                                 | Drop the argument. `worker.start()` now always returns after a graceful shutdown.                                                                                          |
-| `ctx.trigger_data`                                                                               | `ctx.filter_payload`, which holds its `filter_payload` entry.                                                                                                              |
-| `TaskRunError.serialize`, `TaskRunError.deserialize`, `TaskRunError.from_exception`              | `str(error)`, or the `exc`, `exc_type`, and `trace` attributes.                                                                                                            |
-| `task.retries`, `task.execution_timeout`, `task.parents`, and the other task settings            | Nothing. These are internal. See [internal properties](#internal-worker-properties-removed).                                                                               |
-| `OTelAttribute.DESIRED_WORKER_ID`, `desired_worker_id` in `excluded_attributes`                  | Remove it. The span attribute is no longer set.                                                                                                                            |
+| Removed in V2                                                                         | What to do instead                                                                                                                                                         |
+| ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `options=TriggerWorkflowOptions(...)` on `run`, `run_many` items, and related methods | Pass the fields as keyword arguments. See [options objects](#options-objects-removed-in-favor-of-inline-parameters).                                                       |
+| `options=ScheduleTriggerWorkflowOptions(...)` on `schedule` and `aio_schedule`        | Pass the fields as keyword arguments.                                                                                                                                      |
+| `PushEventOptions`, `BulkPushEventOptions`                                            | Keyword arguments on `events.push`, and `BulkPushEventWithMetadata` for bulk pushes.                                                                                       |
+| `EmptyModel`                                                                          | `None`. See [tasks with no input](#tasks-with-no-input-validator-now-receive-none).                                                                                        |
+| `ctx.workflow_input`, `ctx.input`                                                     | The `input` argument to the task function.                                                                                                                                 |
+| `ctx.worker`, `WorkerContext`                                                         | `ctx.worker_id`, `ctx.worker_labels`, `ctx.upsert_worker_labels`.                                                                                                          |
+| `ctx.log(..., raise_on_error=True)`                                                   | Drop the argument. `ctx.log` never raises.                                                                                                                                 |
+| `Hatchet(debug=True)`, `Worker(debug=True)`                                           | Set `HATCHET_CLIENT_DEBUG=true`.                                                                                                                                           |
+| `Hatchet(client=...)`, `hatchet_sdk.client.Client`                                    | Pass `config=ClientConfig(...)`.                                                                                                                                           |
+| `worker.start(options=WorkerStartOptions(...))`                                       | `worker.start()`.                                                                                                                                                          |
+| `worker.register_workflow_from_opts(...)`                                             | `worker.register_workflow(workflow)`.                                                                                                                                      |
+| `hatchet.listener`, `hatchet.dispatcher`                                              | `hatchet.runs.aio_subscribe_to_stream(run_id)`.                                                                                                                            |
+| `ref.stream()` on `WorkflowRunRef` and `TaskRunRef`                                   | `hatchet.runs.aio_subscribe_to_stream(ref.workflow_run_id)`. See [streaming](#refstream-and-the-streaming-event-types-removed).                                            |
+| `StepRunEvent`, `StepRunEventType`, `WorkflowRunEventType`                            | Nothing. `aio_subscribe_to_stream` yields plain `str` chunks.                                                                                                              |
+| Sync `durable_task` functions                                                         | Make the function `async def`.                                                                                                                                             |
+| `desired_worker_labels={...}` as a `dict`                                             | A `list[DesiredWorkerLabel]` with `key` set. See [worker labels](#worker-labels-must-use-typed-objects).                                                                   |
+| `hatchet.worker(labels={...})`, `Worker(labels={...})` as a `dict`                    | A `list[WorkerLabel]`. See [worker labels](#worker-labels-must-use-typed-objects).                                                                                         |
+| `result["key"]` on the return value of `ctx.aio_wait_for`                             | Typed results. See [durable wait results](#durable-wait-results-are-now-typed).                                                                                            |
+| `.rows` on the return value of any `list` or `aio_list` method                        | The return value is already the list.                                                                                                                                      |
+| `from hatchet_sdk.labels import ...`, `from hatchet_sdk.rate_limit import ...`        | `from hatchet_sdk import DesiredWorkerLabel, WorkerLabel, RateLimit`.                                                                                                      |
+| V0 REST models imported from `hatchet_sdk` (`StepRun`, `WorkflowRun`, `Tenant`, ...)  | Import from `hatchet_sdk.clients.rest.models`.                                                                                                                             |
+| `desired_worker_id=...` on `run`, `aio_run`, and `create_bulk_run_item`               | `sticky=True` to run on the same worker as the triggering task, or `desired_worker_labels`. See [options objects](#options-objects-removed-in-favor-of-inline-parameters). |
+| Positional optional arguments, such as `workflow.run(input, False)`                   | Keyword arguments. See [keyword-only arguments](#optional-arguments-are-keyword-only).                                                                                     |
+| `await ctx.aio_wait_for("my-signal", condition)`                                      | `await ctx.aio_wait_for(condition)`, or `signal_key="my-signal"` by keyword. See [durable wait results](#durable-wait-results-are-now-typed).                              |
+| `hatchet.workers.update(worker_id, opts=UpdateWorkerRequest(is_paused=True))`         | `hatchet.workers.pause(worker_id)` and `hatchet.workers.unpause(worker_id)`.                                                                                               |
+| `hatchet.filters.update(filter_id, V1UpdateFilterRequest(...))`                       | `hatchet.filters.update(filter_id, expression=..., scope=..., payload=...)`.                                                                                               |
+| `hatchet.scheduled.bulk_delete(statuses=...)`                                         | Drop the argument. It was ignored.                                                                                                                                         |
+| `TaskDefaults(priority=...)`                                                          | `default_priority=...` on the workflow.                                                                                                                                    |
+| `Worker(..., handle_kill=False)`                                                      | Drop the argument. `worker.start()` now always returns after a graceful shutdown.                                                                                          |
+| `ctx.trigger_data`                                                                    | `ctx.filter_payload`, which holds its `filter_payload` entry.                                                                                                              |
+| `TaskRunError.serialize`, `TaskRunError.deserialize`, `TaskRunError.from_exception`   | `str(error)`, or the `exc`, `exc_type`, and `trace` attributes.                                                                                                            |
+| `task.retries`, `task.execution_timeout`, `task.parents`, and the other task settings | Nothing. These are internal. See [internal properties](#internal-worker-properties-removed).                                                                               |
+| `OTelAttribute.DESIRED_WORKER_ID`, `desired_worker_id` in `excluded_attributes`       | Remove it. The span attribute is no longer set.                                                                                                                            |
 
 ### Behavior changes with no type error
 
@@ -193,7 +191,6 @@ A type checker will not flag these, so check them by hand:
 - **`on_failure_task` and `on_success_task` now inherit the workflow's `task_defaults`** for `schedule_timeout`, `execution_timeout`, `retries`, `backoff_factor`, and `backoff_max`. In V1 they always used 5 minutes, 60 seconds, and 0 retries. See [`on_failure_task` and `on_success_task`](#on_failure_task-and-on_success_task-use-the-workflows-task_defaults).
 - **A `ParentCondition`'s default `readable_data_key` changed** from the parent's name plus a timestamp to the parent's name plus the expression. Two identical `ParentCondition`s on one task now collide, and registering the workflow raises a `ValueError`. See [`ParentCondition`](#parentcondition-has-a-stable-default-key).
 - **`TaskDefaults` rejects unknown fields.** A leftover `priority` or `backoff_max_seconds`, including one passed by unpacking a `dict`, raises a `ValidationError` instead of being ignored.
-- **`hatchet.workflows.get`, `get_version`, `delete`, `pause`, and `unpause` treat a string as a workflow name.** Passing a workflow ID still type checks, but raises `NotFoundException`. See [the workflows client](#hatchetworkflows-methods-take-a-name-or-a-workflow).
 - **`ScheduledRun.workflow_run_status` is a `RunStatus`.** A comparison against the V0 strings `"SUCCEEDED"` or `"PENDING"` is silently `False`. Compare against `RunStatus.COMPLETED` and `RunStatus.QUEUED`. See [the new models](#cron-triggers-scheduled-runs-and-task-runs-use-sdk-models).
 - **`input` and `additional_metadata` on `CronTrigger` and `ScheduledRun`, and `additional_metadata` on `TaskRunSummary`, are `{}` when unset**, not `None`. A check such as `if cron.input is None` is never true.
 - **The renamed environment variables are no longer read.** Rename `HATCHET_CLIENT_LISTENER_V2_TIMEOUT` to `HATCHET_CLIENT_ACTION_LISTENER_TIMEOUT`, `HATCHET_CLIENT_EMBEDDED_READY_TIMEOUT_SECONDS` to `HATCHET_CLIENT_EMBEDDED_READY_TIMEOUT`, and `HATCHET_CLIENT_OPENTELEMETRY_INCLUDE_TASK_NAME_IN_START_STEP_RUN_SPAN_NAME` to `HATCHET_CLIENT_OPENTELEMETRY_INCLUDE_TASK_NAME_IN_SPAN_NAME`. Their values are unchanged.
@@ -318,7 +315,7 @@ await ctx.aio_sleep_for(timedelta(seconds=10), "wait-10s")
 
 ```python
 # V2
-@workflow.task(name="process", schedule_timeout=timedelta(minutes=5))
+@workflow.task("process", schedule_timeout=timedelta(minutes=5))
 def process(input: MyInput, ctx: Context) -> None: ...
 
 workflow.run(input, wait_for_result=False)
@@ -342,7 +339,7 @@ These are the parameters that can still be passed positionally. Everything after
 | `create_filter`, `aio_create_filter`                                                                                                                          | `expression`, `scope`                      |
 | `pause`, `aio_pause` on a workflow                                                                                                                            | `queue_ttl`                                |
 | `list_runs`, `aio_list_runs`                                                                                                                                  | None                                       |
-| The `task`, `durable_task`, `batch_task`, `on_failure_task`, and `on_success_task` decorators on a workflow                                                   | None, including `name`                     |
+| The `task`, `durable_task`, `batch_task`, `on_failure_task`, and `on_success_task` decorators on a workflow                                                   | `name`                                     |
 | `hatchet.worker`, `Worker`                                                                                                                                    | `name`                                     |
 | `WorkflowRunRef.result`, `TaskRunRef.result`                                                                                                                  | `timeout`                                  |
 | `SleepCondition`                                                                                                                                              | `duration`                                 |
@@ -1028,23 +1025,6 @@ The `handle_kill` parameter on the `Worker` constructor has been removed. `handl
 
 The old environment variable names are no longer read, so rename them along with the fields.
 
-#### `hatchet.workflows` methods take a name or a workflow
-
-`get`, `get_version`, `delete`, `pause`, and `unpause` on `hatchet.workflows`, and their `aio_` variants, take the workflow's name or the workflow object instead of the workflow's ID. The client's namespace is applied to the name. If no workflow has that name, they raise `NotFoundException`, which is exported from `hatchet_sdk`:
-
-```python
-# V1
-hatchet.workflows.get(workflow_id)
-hatchet.workflows.pause(workflow_id, timedelta(hours=1))
-
-# V2
-hatchet.workflows.get("my-workflow")
-hatchet.workflows.get(my_workflow)
-hatchet.workflows.pause(my_workflow, timedelta(hours=1))
-```
-
-A workflow ID passed as a string is now looked up as a name, so it raises `NotFoundException` rather than a type error.
-
 #### `workflow.id` replaced by `get_id()`
 
 The `workflow.id` property made an API call the first time it was read. It has been replaced by methods, so the call is explicit and has an async version:
@@ -1059,6 +1039,8 @@ workflow_id = await workflow.aio_get_id()
 ```
 
 Both fetch the ID on the first call and cache it. They raise `ValueError` if the workflow has not been registered.
+
+The `hatchet.workflows` methods still take the workflow's ID, so pass `workflow.get_id()` to them, for example `hatchet.workflows.get(workflow.get_id())`.
 
 #### `FailedTaskRunExceptionGroup` is an `ExceptionGroup`
 
