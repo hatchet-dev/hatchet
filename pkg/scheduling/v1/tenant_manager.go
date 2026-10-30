@@ -571,6 +571,11 @@ func (t *tenantManager) notifyNewWorker(ctx context.Context, workerId uuid.UUID)
 	}
 }
 
+func (t *tenantManager) removeWorker(ctx context.Context, workerId uuid.UUID) {
+	t.scheduler.removeWorker(workerId)
+	t.replenish(ctx)
+}
+
 func (t *tenantManager) notifyNewQueue(ctx context.Context, queueName string) {
 	t.l.Debug().Str("queue_name", queueName).Msg("notifying new queue")
 
