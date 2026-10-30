@@ -1991,25 +1991,6 @@ WHERE
     )
 ;
 
--- name: ListTaskRuntimes :many
-WITH inputs AS (
-    SELECT
-        UNNEST(@taskIds::bigint[]) AS task_id,
-        UNNEST(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
-        UNNEST(@taskRetryCounts::integer[]) AS retry_count
-)
-SELECT
-    tr.*
-FROM
-    v1_task_runtime tr
-JOIN
-    inputs i ON tr.task_id = i.task_id
-    AND tr.task_inserted_at = i.task_inserted_at
-    AND tr.retry_count = i.retry_count
-WHERE
-    tr.tenant_id = @tenantId::uuid
-;
-
 -- name: FilterValidTasks :many
 WITH inputs AS (
     SELECT

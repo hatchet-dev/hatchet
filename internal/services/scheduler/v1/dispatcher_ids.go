@@ -12,17 +12,12 @@ import (
 
 const (
 	dispatcherIdCacheSize = 10000
-	// The dispatcher publishes a worker's new dispatcher id when the worker connects to it, so an entry
-	// is replaced on the event. The TTL is the safety net for a lost publish and matches the worker
-	// liveness window, after which a worker that stopped heartbeating is no longer assigned to anyway.
+	// only a fallback for a lost worker-dispatcher-changed message
 	dispatcherIdCacheTTL = 5 * time.Second
 )
 
 type dispatcherIdLookup func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]uuid.UUID, map[uuid.UUID]struct{}, error)
 
-// dispatcherIdCache answers worker to dispatcher lookups from entries seen within the TTL and queries
-// only the workers it holds no entry for. A worker that moves to another dispatcher is written through
-// set when the dispatcher's change message arrives; otherwise its entry is replaced once it expires.
 type dispatcherIdCache struct {
 	ids    *expirable.LRU[uuid.UUID, uuid.UUID]
 	lookup dispatcherIdLookup

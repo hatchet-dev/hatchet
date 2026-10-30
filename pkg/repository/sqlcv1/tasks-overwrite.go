@@ -1250,32 +1250,20 @@ LEFT JOIN LATERAL read_payloads(
 ) p ON true
 `
 
-// ListTasksForDispatchRow is one task of the dispatcher's pre-send read with its runtime row and one
-// v1_payload row holding its input (nil V1Payload when the task has none). The row type is
-// hand-written because sqlc types the columns of a LEFT JOIN LATERAL function as NOT NULL.
+// ListTasksForDispatchRow is hand-written because sqlc types the columns of a LEFT JOIN LATERAL
+// function as NOT NULL.
 type ListTasksForDispatchRow struct {
 	V1Task        V1Task        `json:"v1_task"`
 	V1TaskRuntime V1TaskRuntime `json:"v1_task_runtime"`
 	V1Payload     *V1Payload    `json:"v1_payload"`
 }
 
-// ListTasksForDispatch is the dispatcher's pre-send read: for every id in ids, the task row, its
-// current runtime row and the v1_payload row holding its input, in one statement execution.
+// The ids go through unnest of a scalar subquery so the custom and generic plans are costed the same
+// (an initplan output is estimated at ten rows either way). With the array as a direct parameter, the
+// custom plan knows the real length and wins for short arrays, so every execution is planned again.
 //
-// The ids reach the statement through unnest of a scalar subquery on purpose. Under pgx prepared
-// statements and plan_cache_mode=auto, Postgres keeps a custom plan while it costs lower than the
-// generic plan; with the array as a direct parameter the custom plan knows its real length while the
-// generic plan assumes ten elements, so for short arrays the generic plan is never adopted and every
-// execution is planned again. The subquery turns the array into an initplan output, which both plans
-// estimate at ten rows, so their costs coincide, the generic plan is adopted on the sixth execution,
-// and later calls on the connection skip planning.
-//
-// The runtime match is inner on purpose: a task without a runtime row for its current retry has had
-// its assignment released or reassigned, so it returns no row and the dispatcher does not send it.
-// read_payloads stays the one place that knows where an inline payload row lives; it is inlined per
-// task with one-element arrays, and a zero uuid stands for a task without a payload_reference_id, so
-// every row it returns belongs to that task and the join needs no matching condition. A task appears
-// once per payload row returned for it, and once with a nil V1Payload when it has none.
+// A task appears once per payload row read_payloads returns for it, and once with a nil V1Payload
+// when it has none. A zero uuid stands in for a missing payload_reference_id.
 func (q *Queries) ListTasksForDispatch(ctx context.Context, db DBTX, tenantId uuid.UUID, ids []int64) ([]*ListTasksForDispatchRow, error) {
 	rows, err := db.Query(ctx, listTasksForDispatch, tenantId, ids)
 	if err != nil {

@@ -44,10 +44,8 @@ func (d *DispatcherImpl) NotifyNewWorker(ctx context.Context, tenant *sqlcv1.Ten
 	}()
 }
 
-// NotifyWorkerDispatcherChanged tells the tenant's scheduler partition that workerId is now connected
-// to this dispatcher, so the scheduler's cached dispatcher id for the worker is replaced before it
-// expires. The publish runs detached from ctx so it outlives the calling handler, and is a no-op for
-// tenants without a scheduler partition. A failed publish is logged: the cache TTL covers the loss.
+// NotifyWorkerDispatcherChanged only logs a failed publish: the scheduler's dispatcher id cache TTL
+// covers it.
 func (d *DispatcherImpl) NotifyWorkerDispatcherChanged(ctx context.Context, tenant *sqlcv1.Tenant, workerId uuid.UUID) {
 	if !tenant.SchedulerPartitionId.Valid {
 		return
