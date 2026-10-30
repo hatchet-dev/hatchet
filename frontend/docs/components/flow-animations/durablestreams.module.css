@@ -1,0 +1,222 @@
+.wrap {
+  display: grid;
+  justify-items: center;
+}
+
+.root {
+  width: 100%;
+}
+
+.stage {
+  width: 100%;
+}
+
+.chromeStroke {
+  stroke: var(--fg);
+}
+
+.chromeDash {
+  stroke: var(--fg-secondary);
+  stroke-dasharray: 2 3;
+}
+
+.chromeFill {
+  fill: var(--fg);
+}
+
+.chromeSlot {
+  stroke: var(--fg-border);
+}
+
+.stageLabel {
+  position: absolute;
+  transform: translate(-50%, 0);
+  font-family: var(--font-mono);
+  font-size: var(--micro);
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--fg);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.labelMuted {
+  color: var(--fg-secondary);
+}
+
+.labelCode {
+  text-transform: none;
+}
+
+.taskPill {
+  font-family: var(--font-mono);
+  font-size: var(--micro);
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding: 0.3em 0.55em;
+  border: 1px solid var(--fg);
+  background: var(--bg);
+  color: var(--fg);
+  white-space: nowrap;
+  transition:
+    border-color 300ms ease,
+    color 300ms ease;
+}
+
+[data-flow-state="running"] .taskPill {
+  border-color: var(--accent);
+  color: var(--accent);
+  animation: ds-pulse 900ms ease-in-out infinite;
+}
+
+[data-flow-state="done"] .taskPill {
+  border-color: var(--accent-3);
+  color: var(--accent-3);
+}
+
+.slot {
+  width: calc(var(--flow-u) * 8);
+  height: calc(var(--flow-u) * 8);
+  background: color-mix(in srgb, var(--fg) 72%, transparent);
+  transition: background-color 500ms ease;
+}
+
+[data-flow-state="fresh"] .slot {
+  background: var(--accent);
+  transition: none;
+}
+
+[data-flow-state="read"] .slot {
+  background: var(--accent-2);
+  transition: none;
+}
+
+.cursor {
+  width: calc(var(--flow-u) * 6);
+  height: calc(var(--flow-u) * 5);
+}
+
+.cursorDown {
+  background: var(--accent);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+
+.cursorUp {
+  background: var(--accent-2);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+.msg {
+  width: calc(var(--flow-u) * 4);
+  height: calc(var(--flow-u) * 4);
+  background: var(--accent);
+}
+
+[data-flow-state="replay"] .msg {
+  background: var(--accent-2);
+}
+
+.reader {
+  box-sizing: border-box;
+  width: calc(var(--flow-u) * 70);
+  height: calc(var(--flow-u) * 44);
+  border: 1px solid var(--fg);
+  background: var(--bg);
+  transition:
+    border-color 300ms ease,
+    opacity 300ms ease;
+}
+
+[data-flow-state="off"] .reader {
+  border-style: dashed;
+  border-color: var(--fg-tertiary);
+}
+
+.readerHeader {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--flow-u) * 3);
+  height: calc(var(--flow-u) * 18);
+  padding-inline: calc(var(--flow-u) * 5);
+  border-bottom: 1px solid var(--fg-border);
+  font-family: var(--font-mono);
+  font-size: var(--micro);
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--fg);
+  white-space: nowrap;
+}
+
+[data-flow-state="off"] .readerHeader {
+  color: var(--fg-tertiary);
+}
+
+.readerDot {
+  flex-shrink: 0;
+  width: calc(var(--flow-u) * 5);
+  height: calc(var(--flow-u) * 5);
+  border-radius: 50%;
+  background: var(--fg-tertiary);
+  transition: background-color 300ms ease;
+}
+
+[data-flow-state="catchup"] .readerDot {
+  background: var(--accent-2);
+  animation: ds-breathe 1100ms ease-in-out infinite;
+}
+
+[data-flow-state="live"] .readerDot {
+  background: var(--accent-3);
+}
+
+.bar {
+  width: calc(var(--flow-u) * 5);
+  height: calc(var(--flow-u) * 5);
+  background: color-mix(in srgb, var(--fg) 72%, transparent);
+  transition: background-color 500ms ease;
+}
+
+[data-flow-state="fresh"] .bar {
+  background: var(--accent);
+  transition: none;
+}
+
+[data-flow-state="replay"] .bar {
+  background: var(--accent-2);
+  transition: none;
+}
+
+@keyframes ds-pulse {
+  0%,
+  100% {
+    transform: none;
+  }
+  50% {
+    transform: scale(0.9);
+  }
+}
+
+@keyframes ds-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+[data-flow-static] .taskPill,
+[data-flow-static] .readerDot {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .taskPill,
+  .readerDot {
+    animation: none !important;
+  }
+}

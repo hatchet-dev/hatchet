@@ -78,6 +78,21 @@ async def reset_topic() -> None:
     # !!
 
 
+async def reset_to_cursor() -> None:
+    # > Reset to a cursor
+    cursor = None
+
+    async for event in hatchet.streams.subscribe("orders"):
+        cursor = event.cursor
+        break
+
+    await hatchet.streams.aio_reset("orders", cursor=cursor)
+
+    async for event in hatchet.streams.subscribe("orders"):
+        print(event.payload.decode())
+    # !!
+
+
 async def main() -> None:
     await consume()
     await publish_from_anywhere()

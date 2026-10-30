@@ -654,7 +654,9 @@ class StreamsClient(BaseRestClient):
         """
         return await asyncio.to_thread(self.topic_metadata, topic, namespace)
 
-    def reset(self, topic: str, namespace: str = "", cursor: str | None = None) -> None:
+    async def aio_reset(
+        self, topic: str, namespace: str = "", cursor: str | None = None
+    ) -> None:
         """
         Make `subscribe` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.
 
@@ -668,21 +670,8 @@ class StreamsClient(BaseRestClient):
             namespace=namespace, topic=topic, cursor=cursor
         )
 
-        self._get_or_create_client().Reset(request, metadata=self._metadata())
-
-    async def aio_reset(
-        self, topic: str, namespace: str = "", cursor: str | None = None
-    ) -> None:
-        """
-        Make `subscribe` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.
-
-        :param topic: The topic to reset.
-        :param namespace: The topic's namespace; the empty namespace by default.
-        :param cursor: A cursor read off one of the topic's events to reset to, instead of its latest message.
-
-        :return: None
-        """
-        await asyncio.to_thread(self.reset, topic, namespace, cursor)
+        async with self._open_aio_client() as stub:
+            await stub.Reset(request, metadata=self._metadata())  # type: ignore[misc]
 
     async def subscribe(
         self, topic: str, namespace: str = "", cursor: str | None = None

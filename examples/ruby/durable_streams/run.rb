@@ -65,6 +65,22 @@ def reset_topic
   end
 end
 
+def reset_to_cursor
+  # > Reset to a cursor
+  cursor = nil
+
+  HATCHET.streams.subscribe("orders") do |event|
+    cursor = event.cursor
+    break
+  end
+
+  HATCHET.streams.reset("orders", cursor: cursor)
+
+  HATCHET.streams.subscribe("orders") do |event|
+    puts event.payload
+  end
+end
+
 if __FILE__ == $PROGRAM_NAME
   consume
   publish_from_anywhere
