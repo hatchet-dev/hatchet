@@ -6,14 +6,14 @@ import { useTenantEntitlements } from '@/hooks/use-tenant-entitlements';
 import { ReactNode } from 'react';
 
 export const SandboxGate = ({ children }: { children: ReactNode }) => {
-  const { isControlPlaneEnabled, isControlPlaneLoading } = useControlPlane();
+  const { isSelfHosted } = useControlPlane();
   const { entitlements, isLoading } = useTenantEntitlements();
 
-  if (isLoading || isControlPlaneLoading) {
+  if (isLoading) {
     return <Loading />;
   }
 
-  if (isControlPlaneEnabled && entitlements?.sandboxOperator) {
+  if (entitlements?.sandboxOperator) {
     return <>{children}</>;
   }
 
@@ -22,11 +22,11 @@ export const SandboxGate = ({ children }: { children: ReactNode }) => {
       <div className="max-w-lg space-y-3 text-center">
         <h3 className="text-lg font-semibold">Sandboxes are not enabled</h3>
         <p className="text-sm text-muted-foreground">
-          {isControlPlaneEnabled
-            ? 'Hatchet sandboxes are not enabled for this tenant yet. Contact support to turn them on.'
-            : 'Hatchet sandboxes are only available in Hatchet Cloud.'}
+          {isSelfHosted
+            ? 'Hatchet sandboxes are only available in Hatchet Cloud.'
+            : 'Hatchet sandboxes are not enabled for this tenant yet. Contact support to turn them on.'}
         </p>
-        {isControlPlaneEnabled && (
+        {!isSelfHosted && (
           <Button asChild size="sm" variant="outline">
             <a href={SUPPORT_URL}>Contact support</a>
           </Button>
