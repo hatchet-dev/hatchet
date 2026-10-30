@@ -2074,13 +2074,16 @@ func (d *DispatcherServiceImpl) CancelDAGChildren(ctx context.Context, tenantId 
 		return nil
 	}
 
-	tasksToCancel := make([]v1.TaskIdInsertedAtRetryCount, 0, len(tasks))
+	tasksToCancel := make([]tasktypes.TaskToCancel, 0, len(tasks))
 
 	for _, task := range tasks {
-		tasksToCancel = append(tasksToCancel, v1.TaskIdInsertedAtRetryCount{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			RetryCount: task.RetryCount,
+		tasksToCancel = append(tasksToCancel, tasktypes.TaskToCancel{
+			TaskIdInsertedAtRetryCount: v1.TaskIdInsertedAtRetryCount{
+				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
+				RetryCount: task.RetryCount,
+			},
+			CancellationReason: v1.TaskCancellationReasonWorkflowRunCancelled,
 		})
 	}
 

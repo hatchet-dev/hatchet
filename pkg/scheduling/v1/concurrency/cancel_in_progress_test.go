@@ -42,7 +42,7 @@ func TestCancelInProgress_NewArrivalCancelsWorstRunning(t *testing.T) {
 	if got := filledIDs(repo.lastFilled); len(got) != 1 || got[0] != 3 {
 		t.Fatalf("filled = %v, want [3]", got)
 	}
-	cancelled := cancelledByReason(repo.lastCancelled, repository.CancelledReasonConcurrencyLimit)
+	cancelled := cancelledByReason(repo.lastCancelled, repository.TaskCancellationReasonConcurrencyLimit)
 	if len(cancelled) != 1 || !containsID(cancelled, 2) {
 		t.Fatalf("cancelled (CONCURRENCY_LIMIT) = %v, want [2]", cancelled)
 	}
@@ -83,7 +83,7 @@ func TestCancelInProgress_RanksByPriority(t *testing.T) {
 	if len(filled) != 2 || !containsID(filled, 12) || !containsID(filled, 11) {
 		t.Fatalf("filled = %v, want {11,12}", filled)
 	}
-	cancelled := cancelledByReason(repo.lastCancelled, repository.CancelledReasonConcurrencyLimit)
+	cancelled := cancelledByReason(repo.lastCancelled, repository.TaskCancellationReasonConcurrencyLimit)
 	if len(cancelled) != 1 || !containsID(cancelled, 10) {
 		t.Fatalf("cancelled = %v, want [10]", cancelled)
 	}
@@ -115,7 +115,7 @@ func TestCancelInProgress_KeepsNewestAmongEqualPriority(t *testing.T) {
 	if len(filled) != 2 || !containsID(filled, 12) || !containsID(filled, 11) {
 		t.Fatalf("filled = %v, want {11,12} (newest maxRuns)", filled)
 	}
-	cancelled := cancelledByReason(repo.lastCancelled, repository.CancelledReasonConcurrencyLimit)
+	cancelled := cancelledByReason(repo.lastCancelled, repository.TaskCancellationReasonConcurrencyLimit)
 	if len(cancelled) != 1 || !containsID(cancelled, 10) {
 		t.Fatalf("cancelled = %v, want [10] (oldest)", cancelled)
 	}
@@ -151,7 +151,7 @@ func TestCancelInProgress_NewerArrivalPreemptsOldestRunning(t *testing.T) {
 	if got := filledIDs(repo.lastFilled); len(got) != 1 || got[0] != 3 {
 		t.Fatalf("filled = %v, want [3]", got)
 	}
-	cancelled := cancelledByReason(repo.lastCancelled, repository.CancelledReasonConcurrencyLimit)
+	cancelled := cancelledByReason(repo.lastCancelled, repository.TaskCancellationReasonConcurrencyLimit)
 	if len(cancelled) != 1 || !containsID(cancelled, 1) {
 		t.Fatalf("cancelled = %v, want [1] (oldest running preempted)", cancelled)
 	}
@@ -186,7 +186,7 @@ func TestCancelInProgress_TimedOutExcludedFromRanking(t *testing.T) {
 	}
 
 	// 21 timed out, never ranked; the two valid slots both fit under maxRuns=2 and run
-	timedOut := cancelledByReason(repo.lastCancelled, repository.CancelledReasonSchedulingTimedOut)
+	timedOut := cancelledByReason(repo.lastCancelled, repository.TaskCancellationReasonSchedulingTimedOut)
 	if len(timedOut) != 1 || !containsID(timedOut, 21) {
 		t.Fatalf("timed out = %v, want [21]", timedOut)
 	}
@@ -194,7 +194,7 @@ func TestCancelInProgress_TimedOutExcludedFromRanking(t *testing.T) {
 	if len(filled) != 2 || !containsID(filled, 20) || !containsID(filled, 22) {
 		t.Fatalf("filled = %v, want {20,22}", filled)
 	}
-	if got := cancelledByReason(repo.lastCancelled, repository.CancelledReasonConcurrencyLimit); len(got) != 0 {
+	if got := cancelledByReason(repo.lastCancelled, repository.TaskCancellationReasonConcurrencyLimit); len(got) != 0 {
 		t.Fatalf("unexpected CONCURRENCY_LIMIT cancellations: %v", got)
 	}
 }
@@ -226,7 +226,7 @@ func TestCancelInProgress_RetrySupersedes(t *testing.T) {
 	}
 
 	// the superseded retry-0 slot is cancelled; the retry-1 slot runs
-	cancelled := cancelledByReason(repo.lastCancelled, repository.CancelledReasonConcurrencyLimit)
+	cancelled := cancelledByReason(repo.lastCancelled, repository.TaskCancellationReasonConcurrencyLimit)
 	if !containsID(cancelled, 30) {
 		t.Fatalf("superseded slot 30 not cancelled: %v", cancelled)
 	}
@@ -270,7 +270,7 @@ func TestCancelInProgress_MaxRunsZeroCancelsAll(t *testing.T) {
 	if got := filledIDs(repo.lastFilled); len(got) != 0 {
 		t.Fatalf("filled = %v, want none", got)
 	}
-	cancelled := cancelledByReason(repo.lastCancelled, repository.CancelledReasonConcurrencyLimit)
+	cancelled := cancelledByReason(repo.lastCancelled, repository.TaskCancellationReasonConcurrencyLimit)
 	for _, want := range []int64{40, 41, 42} {
 		if !containsID(cancelled, want) {
 			t.Fatalf("task %d not cancelled; cancelled = %v", want, cancelled)

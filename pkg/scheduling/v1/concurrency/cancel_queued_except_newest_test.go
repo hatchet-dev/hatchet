@@ -36,7 +36,7 @@ func TestCancelQueuedExceptNewest_SingleBatchKeepsOnlyNewestQueued(t *testing.T)
 	if len(filled) != 1 || !containsID(filled, 1) {
 		t.Fatalf("filled = %v, want [1]", filled)
 	}
-	cancelled := cancelledByReason(repo.lastCancelled, repository.CancelledReasonConcurrencyLimit)
+	cancelled := cancelledByReason(repo.lastCancelled, repository.TaskCancellationReasonConcurrencyLimit)
 	if len(cancelled) != 1 || !containsID(cancelled, 2) {
 		t.Fatalf("cancelled = %v, want [2]", cancelled)
 	}
@@ -85,7 +85,7 @@ func TestCancelQueuedExceptNewest_AcrossSuccessiveDecideCalls(t *testing.T) {
 			t.Fatalf("after inserting %d: filled = %v, want none (slot is occupied)", id, got)
 		}
 		if prev >= 0 {
-			cancelled := cancelledByReason(repo.lastCancelled, repository.CancelledReasonConcurrencyLimit)
+			cancelled := cancelledByReason(repo.lastCancelled, repository.TaskCancellationReasonConcurrencyLimit)
 			if len(cancelled) != 1 || !containsID(cancelled, prev) {
 				t.Fatalf("after inserting %d: cancelled = %v, want [%d]", id, cancelled, prev)
 			}
@@ -231,7 +231,7 @@ func TestCancelQueuedExceptNewest_KeepsNewestNWhenMaxRunsGreaterThanOne(t *testi
 	if len(filled) != 2 || !containsID(filled, 0) || !containsID(filled, 1) {
 		t.Fatalf("filled = %v, want {0,1}", filled)
 	}
-	cancelled := cancelledByReason(repo.lastCancelled, repository.CancelledReasonConcurrencyLimit)
+	cancelled := cancelledByReason(repo.lastCancelled, repository.TaskCancellationReasonConcurrencyLimit)
 	if len(cancelled) != 1 || !containsID(cancelled, 2) {
 		t.Fatalf("cancelled = %v, want [2]", cancelled)
 	}

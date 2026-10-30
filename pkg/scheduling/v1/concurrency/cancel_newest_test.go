@@ -37,7 +37,7 @@ func TestCancelNewest_FillsFreeCapacityByPriority(t *testing.T) {
 	if len(filled) != 2 || !containsID(filled, 12) || !containsID(filled, 11) {
 		t.Fatalf("filled = %v, want {11,12}", filled)
 	}
-	cancelled := cancelledByReason(repo.lastCancelled, repository.CancelledReasonConcurrencyLimit)
+	cancelled := cancelledByReason(repo.lastCancelled, repository.TaskCancellationReasonConcurrencyLimit)
 	if len(cancelled) != 1 || !containsID(cancelled, 10) {
 		t.Fatalf("cancelled = %v, want [10]", cancelled)
 	}
@@ -72,7 +72,7 @@ func TestCancelNewest_AtCapacityRejectsNewcomerProtectsRunning(t *testing.T) {
 	if got := filledIDs(repo.lastFilled); len(got) != 0 {
 		t.Fatalf("filled = %v, want none (running must not be preempted)", got)
 	}
-	cancelled := cancelledByReason(repo.lastCancelled, repository.CancelledReasonConcurrencyLimit)
+	cancelled := cancelledByReason(repo.lastCancelled, repository.TaskCancellationReasonConcurrencyLimit)
 	if len(cancelled) != 1 || !containsID(cancelled, 3) {
 		t.Fatalf("cancelled = %v, want [3]", cancelled)
 	}
@@ -112,7 +112,7 @@ func TestCancelNewest_TimedOutExcludedFromFill(t *testing.T) {
 		t.Fatalf("processWALMessages: %v", err)
 	}
 
-	timedOut := cancelledByReason(repo.lastCancelled, repository.CancelledReasonSchedulingTimedOut)
+	timedOut := cancelledByReason(repo.lastCancelled, repository.TaskCancellationReasonSchedulingTimedOut)
 	if len(timedOut) != 1 || !containsID(timedOut, 21) {
 		t.Fatalf("timed out = %v, want [21]", timedOut)
 	}
@@ -120,7 +120,7 @@ func TestCancelNewest_TimedOutExcludedFromFill(t *testing.T) {
 	if len(filled) != 2 || !containsID(filled, 20) || !containsID(filled, 22) {
 		t.Fatalf("filled = %v, want {20,22}", filled)
 	}
-	if got := cancelledByReason(repo.lastCancelled, repository.CancelledReasonConcurrencyLimit); len(got) != 0 {
+	if got := cancelledByReason(repo.lastCancelled, repository.TaskCancellationReasonConcurrencyLimit); len(got) != 0 {
 		t.Fatalf("unexpected CONCURRENCY_LIMIT cancellations: %v", got)
 	}
 }
@@ -150,7 +150,7 @@ func TestCancelNewest_RetrySupersedes(t *testing.T) {
 		t.Fatalf("processWALMessages: %v", err)
 	}
 
-	cancelled := cancelledByReason(repo.lastCancelled, repository.CancelledReasonConcurrencyLimit)
+	cancelled := cancelledByReason(repo.lastCancelled, repository.TaskCancellationReasonConcurrencyLimit)
 	if !containsID(cancelled, 30) {
 		t.Fatalf("superseded slot 30 not cancelled: %v", cancelled)
 	}
@@ -188,7 +188,7 @@ func TestCancelNewest_MaxRunsZeroCancelsAllQueued(t *testing.T) {
 	if got := filledIDs(repo.lastFilled); len(got) != 0 {
 		t.Fatalf("filled = %v, want none", got)
 	}
-	cancelled := cancelledByReason(repo.lastCancelled, repository.CancelledReasonConcurrencyLimit)
+	cancelled := cancelledByReason(repo.lastCancelled, repository.TaskCancellationReasonConcurrencyLimit)
 	for _, want := range []int64{40, 41} {
 		if !containsID(cancelled, want) {
 			t.Fatalf("task %d not cancelled; cancelled = %v", want, cancelled)

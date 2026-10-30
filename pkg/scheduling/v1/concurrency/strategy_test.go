@@ -131,7 +131,7 @@ func filledIDs(filled []repository.TaskIdInsertedAtRetryCount) []int64 {
 }
 
 // cancelledByReason returns the taskIds cancelled with the given reason.
-func cancelledByReason(cancelled []repository.CancelledSlotInput, reason string) []int64 {
+func cancelledByReason(cancelled []repository.CancelledSlotInput, reason repository.TaskCancellationReason) []int64 {
 	var ids []int64
 	for _, c := range cancelled {
 		if c.CancelledReason == reason {
