@@ -18,6 +18,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
@@ -572,14 +573,23 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 	}
 
 	for _, innerMsg := range msgs {
-		// load the step runs from the database
 		taskIds := make([]int64, 0)
 
 		for _, tasks := range innerMsg.WorkerIdToTaskIds {
 			taskIds = append(taskIds, tasks...)
 		}
 
-		taskIdToData, err := d.populateTaskData(ctx, requeue, msg.TenantID, taskIds)
+		attempts := assignedAttemptsFromPayload(innerMsg)
+
+		dispatchData, err := d.repov1.Tasks().ListTasksForDispatch(ctx, msg.TenantID, taskIds)
+
+		if err != nil {
+			d.l.Error().Ctx(ctx).Err(err).Msgf("could not bulk list step run data:")
+			d.requeueTasksAfterFailedDispatchRead(ctx, requeue, msg.TenantID, attempts)
+			continue
+		}
+
+		taskIdToData, err := d.populateTaskData(ctx, requeue, msg.TenantID, onlyAssignedAttempts(dispatchData, attempts))
 
 		if err != nil {
 			// we've already handled the requeue in populateTaskData, and we've logged the error, so we just continue
@@ -705,18 +715,11 @@ func (d *DispatcherImpl) populateTaskData(
 	ctx context.Context,
 	requeue func(task *sqlcv1.V1Task),
 	tenantId uuid.UUID,
-	taskIds []int64,
+	dispatchData *v1.TasksForDispatch,
 ) (map[int64]*V1TaskWithPayloadAndInvocationCount, error) {
-	bulkDatas, err := d.repov1.Tasks().ListTasks(ctx, tenantId, taskIds)
+	bulkDatas := dispatchData.Tasks
 
-	if err != nil {
-		for _, task := range bulkDatas {
-			requeue(task)
-		}
-
-		d.l.Error().Ctx(ctx).Err(err).Msgf("could not bulk list step run data:")
-		return nil, err
-	}
+	var err error
 
 	getInvocationCountOpts := make([]v1.IdInsertedAt, 0)
 
@@ -767,7 +770,7 @@ func (d *DispatcherImpl) populateTaskData(
 		}
 	}
 
-	inputs, err := d.repov1.Payloads().TaskInputs().Retrieve(ctx, nil, retrievePayloadOpts...)
+	inputs, err := d.repov1.Payloads().TaskInputs().Resolve(ctx, nil, dispatchData.PayloadRows, retrievePayloadOpts...)
 
 	// FIXME: we should differentiate between a retryable error and a non-retryable error here;
 	// for example, if we're hitting an S3 rate limit for payloads that exist in S3, we should retry;
@@ -847,12 +850,7 @@ func (d *DispatcherImpl) populateTaskData(
 		resolveDagParentOutputs(ctx, d.l, dagChildStepRunData, dagParentOutputs)
 	}
 
-	runtimes, err := d.repov1.Tasks().ListTaskRuntimes(ctx, tenantId, bulkDatas)
-
-	if err != nil {
-		d.l.Warn().Ctx(ctx).Err(err).Msgf("could not bulk fetch runtimes for %d tasks", len(bulkDatas))
-		runtimes = make(map[int64]*sqlcv1.V1TaskRuntime)
-	}
+	runtimes := dispatchData.Runtimes
 
 	taskIdToData := make(map[int64]*V1TaskWithPayloadAndInvocationCount)
 
@@ -996,7 +994,7 @@ func (d *DispatcherImpl) sendTasksToWorker(
 		task, ok := tasks[taskId]
 
 		if !ok {
-			d.l.Error().Ctx(ctx).Msgf("task %d not found in task data map", taskId)
+			d.l.Debug().Ctx(ctx).Msgf("task %d is no longer assigned to worker %s, skipping", taskId, workerId)
 			continue
 		}
 
@@ -1063,6 +1061,138 @@ func (d *DispatcherImpl) sendTasksToWorker(
 	}
 
 	return innerEg.Wait()
+}
+
+type assignedAttempt struct {
+	WorkerId      uuid.UUID
+	RetryCount    int32
+	HasRetryCount bool
+}
+
+func assignedAttemptsFromPayload(payload *tasktypesv1.TaskAssignedBulkTaskPayload) map[int64]assignedAttempt {
+	attempts := make(map[int64]assignedAttempt)
+
+	for workerId, taskIds := range payload.WorkerIdToTaskIds {
+		retryCounts := payload.WorkerIdToTaskRetryCounts[workerId]
+
+		for _, taskId := range taskIds {
+			retryCount, hasRetryCount := retryCounts[taskId]
+
+			attempts[taskId] = assignedAttempt{
+				WorkerId:      workerId,
+				RetryCount:    retryCount,
+				HasRetryCount: hasRetryCount,
+			}
+		}
+	}
+
+	return attempts
+}
+
+// isCurrentAttempt only checks the worker for messages from schedulers that predate retry counts in
+// the payload.
+func (a assignedAttempt) isCurrentAttempt(runtime *sqlcv1.V1TaskRuntime) bool {
+	return runtime != nil &&
+		runtime.WorkerID != nil &&
+		*runtime.WorkerID == a.WorkerId &&
+		(!a.HasRetryCount || runtime.RetryCount == a.RetryCount)
+}
+
+// onlyAssignedAttempts drops tasks reassigned since the message was published (the reassign keeps the
+// retry count), so a delayed message can't send a task to a worker it was taken away from.
+func onlyAssignedAttempts(dispatchData *v1.TasksForDispatch, attempts map[int64]assignedAttempt) *v1.TasksForDispatch {
+	return &v1.TasksForDispatch{
+		Tasks: enumerables.Filter(dispatchData.Tasks, func(task *sqlcv1.V1Task) bool {
+			return attempts[task.ID].isCurrentAttempt(dispatchData.Runtimes[task.ID])
+		}),
+		Runtimes:    dispatchData.Runtimes,
+		PayloadRows: dispatchData.PayloadRows,
+	}
+}
+
+// requeueTasksAfterFailedDispatchRead retries the read under a fresh context, since the first read may
+// have failed because the handler's deadline expired, and requeues only tasks still on the attempt the
+// message named. Anything else is left to the timeout path.
+func (d *DispatcherImpl) requeueTasksAfterFailedDispatchRead(
+	ctx context.Context,
+	requeue func(task *sqlcv1.V1Task),
+	tenantId uuid.UUID,
+	attempts map[int64]assignedAttempt,
+) {
+	recoveryCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+
+	taskIds := make([]int64, 0, len(attempts))
+
+	for taskId, attempt := range attempts {
+		if attempt.HasRetryCount {
+			taskIds = append(taskIds, taskId)
+		}
+	}
+
+	if len(taskIds) == 0 {
+		return
+	}
+
+	dispatchData, err := d.repov1.Tasks().ListTasksForDispatch(recoveryCtx, tenantId, taskIds)
+
+	if err != nil {
+		d.l.Error().Ctx(ctx).Err(err).Msgf("could not list %d tasks to requeue after a failed dispatch read", len(taskIds))
+		return
+	}
+
+	for _, task := range dispatchData.Tasks {
+		if !attempts[task.ID].isCurrentAttempt(dispatchData.Runtimes[task.ID]) {
+			continue
+		}
+
+		requeue(task)
+	}
+}
+
+// requeueBatchItems skips items no longer on this batch and worker, so a late batch start can't fail
+// an attempt that has since been assigned elsewhere.
+func (d *DispatcherImpl) requeueBatchItems(ctx context.Context, payload *tasktypesv1.StartBatchTaskPayload) error {
+	if len(payload.Items) == 0 {
+		return nil
+	}
+
+	batchId, err := uuid.Parse(payload.BatchId)
+
+	if err != nil {
+		return fmt.Errorf("could not parse batch id %s: %w", payload.BatchId, err)
+	}
+
+	taskIds := make([]int64, 0, len(payload.Items))
+
+	for _, item := range payload.Items {
+		taskIds = append(taskIds, item.TaskID)
+	}
+
+	dispatchData, err := d.repov1.Tasks().ListTasksForDispatch(ctx, payload.TenantId, taskIds)
+
+	if err != nil {
+		return fmt.Errorf("could not list tasks to requeue batch %s: %w", payload.BatchId, err)
+	}
+
+	attempt := assignedAttempt{WorkerId: payload.WorkerId}
+
+	toRetry := enumerables.Filter(dispatchData.Tasks, func(task *sqlcv1.V1Task) bool {
+		runtime := dispatchData.Runtimes[task.ID]
+
+		return attempt.isCurrentAttempt(runtime) && runtime.BatchID != nil && *runtime.BatchID == batchId
+	})
+
+	d.l.Warn().Ctx(ctx).Str("batch_id", payload.BatchId).Str("worker_id", payload.WorkerId.String()).Int("tasks", len(toRetry)).Msg("worker for batch is not connected to this dispatcher, requeueing its tasks")
+
+	// handleRetries sleeps with backoff before publishing, so it must not hold up the message handler
+	go func() {
+		if err := d.handleRetries(ctx, payload.TenantId, toRetry); err != nil {
+			d.l.Error().Ctx(ctx).Err(err).Str("batch_id", payload.BatchId).Msg("could not requeue batch items")
+		}
+	}()
+
+	return nil
 }
 
 func (d *DispatcherImpl) handleRetries(
@@ -1139,8 +1269,7 @@ func (d *DispatcherImpl) sendBatchStartFromPayload(ctx context.Context, payload 
 	workers, err := d.workers.Get(payload.WorkerId)
 	if err != nil {
 		if errors.Is(err, ErrWorkerNotFound) {
-			// If the worker isn't connected, ignore (the tasks will be retried separately).
-			return nil
+			return d.requeueBatchItems(ctx, payload)
 		}
 		return fmt.Errorf("could not get worker for batch %s: %w", payload.BatchId, err)
 	}
@@ -1158,7 +1287,12 @@ func (d *DispatcherImpl) sendBatchStartFromPayload(ctx context.Context, payload 
 			workflowRunIDByTaskID[item.TaskID] = item.WorkflowRunID
 		}
 
-		taskIdToData, populateErr := d.populateTaskData(ctx, func(_ *sqlcv1.V1Task) {}, payload.TenantId, taskIds)
+		dispatchData, err := d.repov1.Tasks().ListTasksForDispatch(ctx, payload.TenantId, taskIds)
+		if err != nil {
+			return fmt.Errorf("could not list tasks for batch %s: %w", payload.BatchId, err)
+		}
+
+		taskIdToData, populateErr := d.populateTaskData(ctx, func(_ *sqlcv1.V1Task) {}, payload.TenantId, dispatchData)
 		if populateErr != nil {
 			return fmt.Errorf("could not populate task data for batch %s: %w", payload.BatchId, populateErr)
 		}
