@@ -54,5 +54,5 @@ async def test_exceptions_parsing() -> None:
         assert isinstance(e, FailedTaskRunExceptionGroup)
         for exception in e.exceptions:
             # Test that we don't get empty error messages
-            assert exception.serialize(include_metadata=True)
-            assert exception.serialize(include_metadata=False)
+            assert exception.exc
+            assert str(exception)

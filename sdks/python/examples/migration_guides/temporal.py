@@ -89,7 +89,7 @@ async def trigger_process_order(order_id: str) -> FulfillOutput:
     input_validator=OrderInput,
     retries=10,
     backoff_factor=2.0,
-    backoff_max_seconds=10,
+    backoff_max=timedelta(seconds=10),
     execution_timeout=timedelta(seconds=30),
     schedule_timeout=timedelta(minutes=10),
 )
@@ -266,7 +266,7 @@ async def create_schedules(customer_id: str) -> tuple[str, str]:
         additional_metadata={"customer_id": customer_id},
     )
 
-    return cron.metadata.id, scheduled.metadata.id
+    return cron.id, scheduled.id
 
 
 # !!
@@ -379,7 +379,7 @@ def main() -> None:
 # it instead, which is what you want if you are trying them out.
 def run_all_examples() -> None:
     # `call_model` consumes this static key, so it has to exist before the task runs.
-    hatchet.rate_limits.put("openai", 1000, "MINUTE")
+    hatchet.rate_limits.put("openai", 1000, duration="MINUTE")
 
     worker = hatchet.worker(
         "temporal-migration-guide-worker",

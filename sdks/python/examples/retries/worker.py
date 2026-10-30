@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from hatchet_sdk import Context, Hatchet
 
 hatchet = Hatchet()
@@ -30,10 +32,10 @@ def fail_twice(input: None, ctx: Context) -> dict[str, str]:
 # > Retries with Backoff
 @backoff_workflow.task(
     retries=10,
-    # 👀 Maximum number of seconds to wait between retries
-    backoff_max_seconds=10,
+    # 👀 Maximum time to wait between retries
+    backoff_max=timedelta(seconds=10),
     # 👀 Factor to increase the wait time between retries.
-    # This sequence will be 2s, 4s, 8s, 10s, 10s, 10s... due to the maxSeconds limit
+    # This sequence will be 2s, 4s, 8s, 10s, 10s, 10s... due to the backoff_max limit
     backoff_factor=2.0,
 )
 def backoff_task(input: None, ctx: Context) -> dict[str, str]:

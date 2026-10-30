@@ -16,7 +16,7 @@ from examples.concurrency_multiple_keys.worker import (
 )
 from examples.test_utils import poll_for_runs
 from hatchet_sdk import Hatchet
-from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
+from hatchet_sdk import TaskRunSummary
 
 Character = Literal["Anna", "Vronsky", "Stiva", "Dolly", "Levin", "Karenin"]
 characters: list[Character] = [
@@ -38,12 +38,12 @@ class RunMetadata(BaseModel):
     finished_at: datetime
 
     @staticmethod
-    def parse(task: V1TaskSummary) -> "RunMetadata":
+    def parse(task: TaskRunSummary) -> "RunMetadata":
         return RunMetadata(
-            test_run_id=task.additional_metadata["test_run_id"],  # type: ignore
-            key=task.additional_metadata["key"],  # type: ignore
-            name=task.additional_metadata["name"],  # type: ignore
-            digit=task.additional_metadata["digit"],  # type: ignore
+            test_run_id=task.additional_metadata["test_run_id"],
+            key=task.additional_metadata["key"],
+            name=task.additional_metadata["name"],
+            digit=task.additional_metadata["digit"],
             started_at=task.started_at or datetime.max,
             finished_at=task.finished_at or datetime.min,
         )

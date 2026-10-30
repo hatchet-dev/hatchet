@@ -5,8 +5,7 @@ from typing import Any
 import tenacity
 from tenacity import stop_after_attempt, wait_exponential, wait_fixed
 
-from hatchet_sdk import Event, Hatchet, RunStatus
-from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
+from hatchet_sdk import Event, Hatchet, RunStatus, TaskRunSummary
 
 
 async def wait_for_running_status(
@@ -30,25 +29,25 @@ async def poll_for_runs(
     expected_count: int,
     additional_metadata: dict[str, str] | None = None,
     workflow_ids: list[str] | None = None,
-    parent_task_external_id: str | None = None,
-    triggering_event_external_id: str | None = None,
+    parent_task_run_id: str | None = None,
+    triggering_event_id: str | None = None,
     statuses: list[RunStatus] | None = None,
     timeout: float = 60.0,
     interval: float = 0.5,
-) -> list[V1TaskSummary]:
+) -> list[TaskRunSummary]:
     terminal = statuses or [
         RunStatus.COMPLETED,
         RunStatus.FAILED,
         RunStatus.CANCELLED,
     ]
     max_iters = int(timeout / interval)
-    runs: list[V1TaskSummary] = []
+    runs: list[TaskRunSummary] = []
     for _ in range(max_iters):
         runs = await hatchet.runs.aio_list(
             additional_metadata=additional_metadata,
             workflow_ids=workflow_ids,
-            parent_task_external_id=parent_task_external_id,
-            triggering_event_external_id=triggering_event_external_id,
+            parent_task_run_id=parent_task_run_id,
+            triggering_event_id=triggering_event_id,
             limit=1000,
         )
         if len(runs) >= expected_count and all(r.status in terminal for r in runs):
@@ -70,16 +69,16 @@ async def wait_for_replay(hatchet: Hatchet, run_id: str, timeout: float = 30.0) 
 
 async def wait_for_child_runs(
     hatchet: Hatchet,
-    parent_task_external_id: str,
+    parent_task_run_id: str,
     min_count: int = 1,
     timeout: float = 30.0,
     **list_kwargs: Any,
-) -> list[V1TaskSummary]:
+) -> list[TaskRunSummary]:
     interval = 0.5
     deadline = asyncio.get_running_loop().time() + timeout
     while True:
         runs = await hatchet.runs.aio_list(
-            parent_task_external_id=parent_task_external_id, **list_kwargs
+            parent_task_run_id=parent_task_run_id, **list_kwargs
         )
 
         if len(runs) >= min_count or asyncio.get_running_loop().time() >= deadline:
@@ -118,11 +117,11 @@ async def wait_for_event(
 
 async def wait_for_workflow_run(
     hatchet: Hatchet, event_id: str, test_start: datetime
-) -> V1TaskSummary | None:
+) -> TaskRunSummary | None:
     @tenacity.retry(
         stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=4, max=10)
     )
-    async def get_runs() -> V1TaskSummary:
+    async def get_runs() -> TaskRunSummary:
         runs = await hatchet.runs.aio_list(
             since=test_start,
             additional_metadata={

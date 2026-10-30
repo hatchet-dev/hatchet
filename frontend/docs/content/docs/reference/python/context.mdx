@@ -256,9 +256,9 @@ Refresh the timeout for the current task run. You can read about refreshing time
 
 Parameters:
 
-| Name           | Type        | Description                                                                                        | Default    |
-| -------------- | ----------- | -------------------------------------------------------------------------------------------------- | ---------- |
-| `increment_by` | `timedelta` | The amount of time to increment the timeout by. Can be a string (e.g. "5m") or a timedelta object. | _required_ |
+| Name           | Type        | Description                                     | Default    |
+| -------------- | ----------- | ----------------------------------------------- | ---------- |
+| `increment_by` | `timedelta` | The amount of time to increment the timeout by. | _required_ |
 
 Returns:
 
@@ -301,17 +301,17 @@ Durably wait for either a sleep or an event.
 
 Parameters:
 
-| Name          | Type                                              | Description                                                                                                                                                 | Default    |
-| ------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| `signal_key`  | `str`                                             | The key to use for the durable event. This is used to identify the event in the Hatchet API.                                                                | _required_ |
-| `*conditions` | `SleepCondition \| UserEventCondition \| OrGroup` | The conditions to wait for. Can be a SleepCondition or UserEventCondition.                                                                                  | `()`       |
-| `label`       | `str \| None`                                     | An optional label to attach to the wait. This is useful for debugging and observability purposes, and will be propagated to the event log on the dashboard. | `None`     |
+| Name          | Type                                              | Description                                                                                                                                                 | Default |
+| ------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `*conditions` | `SleepCondition \| UserEventCondition \| OrGroup` | The conditions to wait for. Can be a SleepCondition, UserEventCondition, or OrGroup.                                                                        | `()`    |
+| `label`       | `str \| None`                                     | An optional label to attach to the wait. This is useful for debugging and observability purposes, and will be propagated to the event log on the dashboard. | `None`  |
+| `signal_key`  | `str \| None`                                     | An optional key identifying the wait. If not provided, one is generated from the order of the wait within the task run, which is stable across replays.     | `None`  |
 
 Returns:
 
-| Type                                                         | Description                                      |
-| ------------------------------------------------------------ | ------------------------------------------------ |
-| `list[SleepResult \| EventWaitResult[Any] \| OrGroupResult]` | A dictionary containing the results of the wait. |
+| Type                                                         | Description                                                                 |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| `list[SleepResult \| EventWaitResult[Any] \| OrGroupResult]` | A list with one result for each condition (or or-group) that was satisfied. |
 
 Raises:
 

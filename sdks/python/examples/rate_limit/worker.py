@@ -53,7 +53,7 @@ def main() -> None:
     # > Create a rate limit
     RATE_LIMIT_KEY = "test-limit"
 
-    hatchet.rate_limits.put(RATE_LIMIT_KEY, 2, "SECOND")
+    hatchet.rate_limits.put(RATE_LIMIT_KEY, 2, duration="SECOND")
     # !!
 
     worker = hatchet.worker(

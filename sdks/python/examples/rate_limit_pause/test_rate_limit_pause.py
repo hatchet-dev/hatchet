@@ -18,7 +18,7 @@ async def test_rate_limit_pause(hatchet: Hatchet) -> None:
 
     try:
         # a held run never creates its dynamic rate limit, so the row has to exist up front to check its units
-        await hatchet.rate_limits.aio_put(paused_key, 10, "HOUR")
+        await hatchet.rate_limits.aio_put(paused_key, 10, duration="HOUR")
 
         paused_until = await hatchet.rate_limits.aio_pause(
             paused_key, datetime.now(timezone.utc) + timedelta(seconds=15)

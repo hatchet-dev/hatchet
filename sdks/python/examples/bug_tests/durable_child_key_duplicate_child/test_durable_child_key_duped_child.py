@@ -45,7 +45,7 @@ async def test_durable_child_key_duplicate_bug_second_unique(hatchet: Hatchet) -
     assert second.status == RunStatus.COMPLETED
 
     assert (
-        first.workflow_run_external_id != second.workflow_run_external_id
+        first.workflow_run_id != second.workflow_run_id
     ), "second should be different than first"
 
 
@@ -69,5 +69,5 @@ async def test_durable_child_key_duplicate_bug_third_unique(hatchet: Hatchet) ->
     assert second.status == RunStatus.COMPLETED
 
     assert (
-        first.workflow_run_external_id != second.workflow_run_external_id
+        first.workflow_run_id != second.workflow_run_id
     ), "second should be different than first"

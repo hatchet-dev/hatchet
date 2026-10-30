@@ -36,7 +36,7 @@ DEFAULT_SCHEDULE_TIMEOUT = timedelta(minutes=5)
 DEFAULT_EXECUTION_TIMEOUT = timedelta(seconds=60)
 DEFAULT_RETRIES = 0
 DEFAULT_BACKOFF_FACTOR = None
-DEFAULT_BACKOFF_MAX_SECONDS = None
+DEFAULT_BACKOFF_MAX = None
 
 
 def task(
@@ -71,7 +71,7 @@ def test_task_defaults_applied_correctly(hatchet: Hatchet, is_durable: bool) -> 
     execution_timeout = timedelta(seconds=1)
     retries = 4
     backoff_factor = 1
-    backoff_max_seconds = 5
+    backoff_max = timedelta(seconds=5)
 
     t = task(
         hatchet=hatchet,
@@ -81,15 +81,15 @@ def test_task_defaults_applied_correctly(hatchet: Hatchet, is_durable: bool) -> 
             execution_timeout=execution_timeout,
             retries=retries,
             backoff_factor=backoff_factor,
-            backoff_max_seconds=backoff_max_seconds,
+            backoff_max=backoff_max,
         ),
     )
 
-    assert t.schedule_timeout == schedule_timeout
-    assert t.execution_timeout == execution_timeout
-    assert t.retries == retries
-    assert t.backoff_factor == backoff_factor
-    assert t.backoff_max_seconds == backoff_max_seconds
+    assert t._schedule_timeout == schedule_timeout
+    assert t._execution_timeout == execution_timeout
+    assert t._retries == retries
+    assert t._backoff_factor == backoff_factor
+    assert t._backoff_max == backoff_max
 
 
 @pytest.mark.parametrize(
@@ -111,11 +111,11 @@ def test_fallbacking_ensure_default_unchanged(
     )
 
     """If this test fails, it means that you changed the default values for the params to one of the `task` or `durable_task` decorators"""
-    assert t.schedule_timeout == DEFAULT_SCHEDULE_TIMEOUT
-    assert t.execution_timeout == DEFAULT_EXECUTION_TIMEOUT
-    assert t.retries == DEFAULT_RETRIES
-    assert t.backoff_factor == DEFAULT_BACKOFF_FACTOR
-    assert t.backoff_max_seconds == DEFAULT_BACKOFF_MAX_SECONDS
+    assert t._schedule_timeout == DEFAULT_SCHEDULE_TIMEOUT
+    assert t._execution_timeout == DEFAULT_EXECUTION_TIMEOUT
+    assert t._retries == DEFAULT_RETRIES
+    assert t._backoff_factor == DEFAULT_BACKOFF_FACTOR
+    assert t._backoff_max == DEFAULT_BACKOFF_MAX
 
 
 @pytest.mark.parametrize(
@@ -138,20 +138,20 @@ def test_defaults_correctly_overridden_by_params_passed_in(
             execution_timeout=timedelta(seconds=1),
             retries=4,
             backoff_factor=1,
-            backoff_max_seconds=5,
+            backoff_max=timedelta(seconds=5),
         ),
         schedule_timeout=timedelta(seconds=9),
         execution_timeout=timedelta(seconds=2),
         retries=6,
         backoff_factor=3,
-        backoff_max_seconds=5,
+        backoff_max=timedelta(seconds=5),
     )
 
-    assert t.schedule_timeout == timedelta(seconds=9)
-    assert t.execution_timeout == timedelta(seconds=2)
-    assert t.retries == 6
-    assert t.backoff_factor == 3
-    assert t.backoff_max_seconds == 5
+    assert t._schedule_timeout == timedelta(seconds=9)
+    assert t._execution_timeout == timedelta(seconds=2)
+    assert t._retries == 6
+    assert t._backoff_factor == 3
+    assert t._backoff_max == timedelta(seconds=5)
 
 
 @pytest.mark.parametrize(
@@ -174,11 +174,11 @@ def test_params_correctly_set_with_no_defaults(
         execution_timeout=timedelta(seconds=2),
         retries=6,
         backoff_factor=3,
-        backoff_max_seconds=5,
+        backoff_max=timedelta(seconds=5),
     )
 
-    assert t.schedule_timeout == timedelta(seconds=9)
-    assert t.execution_timeout == timedelta(seconds=2)
-    assert t.retries == 6
-    assert t.backoff_factor == 3
-    assert t.backoff_max_seconds == 5
+    assert t._schedule_timeout == timedelta(seconds=9)
+    assert t._execution_timeout == timedelta(seconds=2)
+    assert t._retries == 6
+    assert t._backoff_factor == 3
+    assert t._backoff_max == timedelta(seconds=5)

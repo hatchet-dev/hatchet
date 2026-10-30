@@ -18,11 +18,11 @@ async def create_scheduled() -> None:
         },
     )
 
-    scheduled_run.metadata.id  # the id of the scheduled run trigger
+    scheduled_run.id  # the id of the scheduled run trigger
     # !!
 
     # > Delete
-    await hatchet.scheduled.aio_delete(scheduled_id=scheduled_run.metadata.id)
+    await hatchet.scheduled.aio_delete(scheduled_id=scheduled_run.id)
     # !!
 
     # > List
@@ -30,7 +30,5 @@ async def create_scheduled() -> None:
     # !!
 
     # > Get
-    scheduled_run = await hatchet.scheduled.aio_get(
-        scheduled_id=scheduled_run.metadata.id
-    )
+    scheduled_run = await hatchet.scheduled.aio_get(scheduled_id=scheduled_run.id)
     # !!

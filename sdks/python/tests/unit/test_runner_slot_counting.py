@@ -28,7 +28,6 @@ def _make_runner(hatchet: Hatchet, task: Any) -> Runner:
         config=hatchet.config,
         slots=10,
         durable_slots=0,
-        handle_kill=False,
         action_registry={task.name: task},
         labels=[],
         lifespan_context=None,

@@ -48,7 +48,6 @@ async def test_registration_failure_propagates_without_starting_tasks(
             config=config,
             action_queue=MagicMock(),
             event_queue=MagicMock(),
-            handle_kill=False,
             labels=[],
             worker_id_queue=MagicMock(),
             stop_event=MagicMock(),
@@ -87,7 +86,6 @@ def test_registration_failure_closes_health_server() -> None:
                 config=MagicMock(),
                 action_queue=MagicMock(),
                 event_queue=MagicMock(),
-                handle_kill=False,
                 labels=[],
                 worker_id_queue=MagicMock(),
                 stop_event=MagicMock(),
@@ -114,7 +112,6 @@ def _failed_registration_subprocess() -> None:
             config=config,
             action_queue=MagicMock(),
             event_queue=MagicMock(),
-            handle_kill=False,
             labels=[],
             worker_id_queue=MagicMock(),
             stop_event=MagicMock(),
@@ -141,12 +138,11 @@ def test_registration_failure_exits_subprocess_with_original_error(
         process.close()
 
 
-@pytest.mark.parametrize("handle_kill", [False, True])
 @pytest.mark.parametrize("listener_exitcode", [0, 1, -9])
 def test_worker_start_propagates_listener_death_after_cleanup(
-    handle_kill: bool, listener_exitcode: int
+    listener_exitcode: int,
 ) -> None:
-    worker = _make_worker(handle_kill)
+    worker = _make_worker()
     listener = MagicMock()
     listener.is_alive.return_value = False
     listener.exitcode = listener_exitcode
@@ -166,8 +162,8 @@ def test_worker_start_propagates_listener_death_after_cleanup(
         _cleanup_worker(worker)
 
 
-def test_task_limit_shutdown_exits_successfully() -> None:
-    worker = _make_worker(handle_kill=True)
+def test_task_limit_shutdown_returns_from_start() -> None:
+    worker = _make_worker()
     worker._config.terminate_worker_after_num_tasks = 1
     listener = MagicMock()
     listener.is_alive.return_value = True
@@ -177,16 +173,14 @@ def test_task_limit_shutdown_exits_successfully() -> None:
             patch.object(worker, "_aio_start", new=lambda: _monitor(worker)),
             patch(f"{WORKER_MODULE}.task_count", value=1),
         ):
-            with pytest.raises(SystemExit) as caught:
-                worker.start()
-        assert caught.value.code == 0
+            worker.start()
         assert worker._aio_start_exception is None
         cast(MagicMock, worker._action_runner).exit_gracefully.assert_awaited_once()
     finally:
         _cleanup_worker(worker)
 
 
-def _make_worker(handle_kill: bool) -> Worker:
+def _make_worker() -> Worker:
     config = MagicMock()
     config.apply_namespace.return_value = "test-worker"
     config.healthcheck.enabled = False
@@ -199,7 +193,7 @@ def _make_worker(handle_kill: bool) -> Worker:
         patch(f"{WORKER_MODULE}.WorkersClient"),
         patch.object(Worker, "_setup_signal_handlers"),
     ):
-        worker = Worker("test-worker", config, {"default": 1}, handle_kill=handle_kill)
+        worker = Worker("test-worker", config=config, slot_config={"default": 1})
     worker._pause_task_assignment = AsyncMock()  # type: ignore[method-assign]
     worker._cleanup_lifespan = AsyncMock()  # type: ignore[method-assign]
     runner = MagicMock()

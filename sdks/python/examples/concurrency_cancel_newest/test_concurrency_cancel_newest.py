@@ -55,5 +55,5 @@ async def test_run(hatchet: Hatchet, test_run_id: str) -> None:
     assert all(
         r.status == RunStatus.CANCELLED
         for r in hatchet.runs.list(additional_metadata={"test_run_id": test_run_id})
-        if r.metadata.id != to_run.workflow_run_id
+        if r.id != to_run.workflow_run_id
     )

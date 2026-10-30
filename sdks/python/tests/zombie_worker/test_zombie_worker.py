@@ -48,7 +48,7 @@ async def test_zombie_worker(hatchet: Hatchet, on_demand_worker: Popen[Any]) -> 
     worker_id = worker.metadata.id
 
     with pytest.raises(FailedTaskRunExceptionGroup):
-        await die.aio_run(desired_worker_id=worker.metadata.id)
+        await die.aio_run()
 
     @tenacity.retry(stop=tenacity.stop_after_delay(5), wait=wait_fixed(0.5))
     async def wait_for_worker_inactive() -> None:

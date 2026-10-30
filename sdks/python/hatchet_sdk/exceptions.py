@@ -229,6 +229,11 @@ class FailedTaskRunExceptionGroup(ExceptionGroup[TaskRunError]):
     ) -> None:
         super().__init__(message, cast("Sequence[TaskRunError]", self.exceptions))
 
+    @property
+    def exceptions(self) -> tuple[TaskRunError, ...]:
+        ## never nested: every constructor and `derive` passes a flat list of `TaskRunError`s
+        return cast("tuple[TaskRunError, ...]", super().exceptions)
+
     def derive(  # type: ignore[override]
         self, excs: Sequence[TaskRunError]
     ) -> "FailedTaskRunExceptionGroup":

@@ -24,7 +24,7 @@ cron_trigger = dynamic_cron_workflow.create_cron(
 )
 
 
-id = cron_trigger.metadata.id  # the id of the cron trigger
+id = cron_trigger.id  # the id of the cron trigger
 # !!
 
 # > List
@@ -32,9 +32,9 @@ cron_triggers = hatchet.crons.list()
 # !!
 
 # > Get
-cron_trigger = hatchet.crons.get(cron_id=cron_trigger.metadata.id)
+cron_trigger = hatchet.crons.get(cron_id=cron_trigger.id)
 # !!
 
 # > Delete
-hatchet.crons.delete(cron_id=cron_trigger.metadata.id)
+hatchet.crons.delete(cron_id=cron_trigger.id)
 # !!

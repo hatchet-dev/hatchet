@@ -39,7 +39,7 @@ Second, workers in Hatchet have a built-in notion of [slots](/v1/workers#slots),
 | [4](#step-4-convert-workflows-to-durable-tasks)      | `@workflow.defn` + `execute_activity`             | `@hatchet.durable_task()` that calls tasks                | Small rewrite       |
 | [5](#step-5-invoke-work)                             | `client.execute_workflow(...)`                    | `task.run()` / `await task.aio_run()`                     | Direct API swap     |
 | [5](#step-5-invoke-work)                             | `client.start_workflow(...)`                      | `task.run(wait_for_result=False)`                         | Direct API swap     |
-| [6](#step-6-retries-and-timeouts)                    | `RetryPolicy(...)`                                | `retries` / `backoff_factor` / `backoff_max_seconds`      | Small rewrite       |
+| [6](#step-6-retries-and-timeouts)                    | `RetryPolicy(...)`                                | `retries` / `backoff_factor` / `backoff_max`              | Small rewrite       |
 | [6](#step-6-retries-and-timeouts)                    | `ApplicationError(non_retryable=True)`            | `NonRetryableError`                                       | Direct API swap     |
 | [6](#step-6-retries-and-timeouts)                    | `start_to_close_timeout`                          | `execution_timeout`                                       | Direct API swap     |
 | [6](#step-6-retries-and-timeouts)                    | `schedule_to_start_timeout`                       | `schedule_timeout`                                        | Direct API swap     |
@@ -595,7 +595,7 @@ The concept mapping is the same in every SDK. Names below use the Python spellin
 | --------------------------------- | ---------------------------------------------------- |
 | `maximum_attempts=N`              | `retries=N-1` (Hatchet counts retries, not attempts) |
 | `backoff_coefficient`             | `backoff_factor`                                     |
-| `maximum_interval`                | `backoff_max_seconds`                                |
+| `maximum_interval`                | `backoff_max`                                        |
 | `non_retryable_error_types=[...]` | raise a non-retryable error                          |
 | `start_to_close_timeout`          | `execution_timeout`                                  |
 | `schedule_to_start_timeout`       | `schedule_timeout`                                   |

@@ -145,7 +145,6 @@ async def support_agent(
     consider_events_since = now - timedelta(minutes=LOOKBACK_MINUTES)
 
     wait_result = await ctx.aio_wait_for(
-        "await-customer-reply",
         or_(
             SleepCondition(timedelta(seconds=TIMEOUT_SECONDS)),
             UserEventCondition(

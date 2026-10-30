@@ -15,7 +15,7 @@ async def consume() -> None:
         ProgressInput(topic=topic), wait_for_result=False
     )
 
-    async for event in hatchet.streams.subscribe(topic):
+    async for event in hatchet.streams.aio_subscribe(topic):
         message = json.loads(event.payload)
         print(f"step {message['step']} of {message['total']}")
 
@@ -25,7 +25,7 @@ async def consume() -> None:
 
 async def publish_from_anywhere() -> None:
     # > Publish from anywhere
-    await hatchet.streams.publish(
+    await hatchet.streams.aio_publish(
         "orders", json.dumps({"order_id": "ord_123", "status": "shipped"})
     )
 
@@ -34,19 +34,19 @@ async def resume_from_cursor(topic: str) -> None:
     # > Resume from a cursor
     cursor = None
 
-    async for event in hatchet.streams.subscribe(topic):
+    async for event in hatchet.streams.aio_subscribe(topic):
         print(event.payload.decode())
         cursor = event.cursor
         break
 
-    async for event in hatchet.streams.subscribe(topic, cursor=cursor):
+    async for event in hatchet.streams.aio_subscribe(topic, cursor=cursor):
         print(event.payload.decode())
 
 
 async def stop_reading(topic: str) -> None:
     # > Stop reading
     async def read() -> None:
-        async for event in hatchet.streams.subscribe(topic):
+        async for event in hatchet.streams.aio_subscribe(topic):
             print(event.payload.decode())
 
     try:
@@ -57,9 +57,9 @@ async def stop_reading(topic: str) -> None:
 
 async def namespaces() -> None:
     # > Namespaces
-    await hatchet.streams.publish("updates", "hello", namespace="customer-a")
+    await hatchet.streams.aio_publish("updates", "hello", namespace="customer-a")
 
-    async for event in hatchet.streams.subscribe("updates", namespace="customer-a"):
+    async for event in hatchet.streams.aio_subscribe("updates", namespace="customer-a"):
         print(event.payload.decode())
         break
 
@@ -68,7 +68,7 @@ async def reset_topic() -> None:
     # > Reset a topic
     await hatchet.streams.aio_reset("orders")
 
-    async for event in hatchet.streams.subscribe("orders"):
+    async for event in hatchet.streams.aio_subscribe("orders"):
         print(event.payload.decode())
 
 

@@ -2,7 +2,6 @@ import asyncio
 import time
 from datetime import timedelta
 from typing import Any
-from uuid import uuid4
 
 from pydantic import BaseModel
 
@@ -162,7 +161,6 @@ async def wait_for_or_group_1(
 ) -> dict[str, str | int | float]:
     start = time.time()
     wait_result = await ctx.aio_wait_for(
-        uuid4().hex,
         or_(
             SleepCondition(timedelta(seconds=SLEEP_TIME)),
             UserEventCondition(event_key=EVENT_KEY),
@@ -194,7 +192,6 @@ async def wait_for_or_group_2(
 ) -> dict[str, str | int | float]:
     start = time.time()
     wait_result = await ctx.aio_wait_for(
-        uuid4().hex,
         or_(
             SleepCondition(timedelta(seconds=6 * SLEEP_TIME)),
             UserEventCondition(event_key=EVENT_KEY),
@@ -361,7 +358,6 @@ async def wait_for_or_event_lookback(
     consider_events_since = now - timedelta(minutes=1)
 
     await ctx.aio_wait_for(
-        "or-event-lookback",
         or_(
             SleepCondition(timedelta(seconds=SLEEP_TIME)),
             UserEventCondition(

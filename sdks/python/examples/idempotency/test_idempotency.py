@@ -15,7 +15,7 @@ from hatchet_sdk import (
     RunStatus,
     BulkTriggerIdempotencyCollisionError,
 )
-from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
+from hatchet_sdk import TaskRunSummary
 from uuid import uuid4
 from datetime import timedelta, datetime, timezone
 import asyncio
@@ -41,7 +41,7 @@ async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger(
 
     assert exc_info.value.existing_run_external_id == ref1.workflow_run_id
 
-    runs: list[V1TaskSummary] = []
+    runs: list[TaskRunSummary] = []
 
     for _ in range(15):
         runs = await hatchet.runs.aio_list(
@@ -57,7 +57,7 @@ async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger(
 
     assert runs is not None
     assert len(runs) == 1
-    assert runs[0].metadata.id == ref1.workflow_run_id
+    assert runs[0].id == ref1.workflow_run_id
 
     result = await ref1.aio_result()
     assert "hello" in result["result"].lower()
@@ -106,7 +106,7 @@ async def test_idempotency_status_based(
         time() - start < 10
     ), "The second run should have completed within the TTL window so we can test that the status-based idempotency is working."
 
-    runs: list[V1TaskSummary] | None = None
+    runs: list[TaskRunSummary] | None = None
 
     for _ in range(15):
         runs = await hatchet.runs.aio_list(
@@ -122,7 +122,7 @@ async def test_idempotency_status_based(
 
     assert runs is not None
     assert len(runs) == 2
-    assert {r.metadata.id for r in runs} == {
+    assert {r.id for r in runs} == {
         ref1.workflow_run_id,
         ref2.workflow_run_id,
     }
@@ -182,7 +182,7 @@ async def test_idempotency_status_based_failure(
         time() - start < 10
     ), "The second run should have completed within the TTL window so we can test that the status-based idempotency is working."
 
-    runs: list[V1TaskSummary] | None = None
+    runs: list[TaskRunSummary] | None = None
 
     for _ in range(15):
         runs = await hatchet.runs.aio_list(
@@ -198,7 +198,7 @@ async def test_idempotency_status_based_failure(
 
     assert runs is not None
     assert len(runs) == 2
-    assert {r.metadata.id for r in runs} == {
+    assert {r.id for r in runs} == {
         ref1.workflow_run_id,
         ref2.workflow_run_id,
     }
@@ -255,7 +255,7 @@ async def test_idempotency_status_based_cancel(
         time() - start < 10
     ), "The second run should have completed within the TTL window so we can test that the status-based idempotency is working."
 
-    runs: list[V1TaskSummary] | None = None
+    runs: list[TaskRunSummary] | None = None
 
     for _ in range(15):
         runs = await hatchet.runs.aio_list(
@@ -271,7 +271,7 @@ async def test_idempotency_status_based_cancel(
 
     assert runs is not None
     assert len(runs) == 2
-    assert {r.metadata.id for r in runs} == {
+    assert {r.id for r in runs} == {
         ref1.workflow_run_id,
         ref2.workflow_run_id,
     }
@@ -328,7 +328,7 @@ async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger_short_wind
         if i != 3:
             await asyncio.sleep(i + 1.5)
 
-    runs: list[V1TaskSummary] = []
+    runs: list[TaskRunSummary] = []
 
     for _ in range(15):
         runs = await hatchet.runs.aio_list(
@@ -347,7 +347,7 @@ async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger_short_wind
     assert runs
     assert len(runs) == 3
 
-    for id in [r.metadata.id for r in runs]:
+    for id in [r.id for r in runs]:
         ref = hatchet.runs.get_run_ref(id)
         res = await ref.aio_result()
 
@@ -370,7 +370,7 @@ async def test_idempotency_keys_prevent_duplicate_runs_event_trigger(
         additional_metadata={"test_run_id": test_run_id},
     )
 
-    runs: list[V1TaskSummary] = []
+    runs: list[TaskRunSummary] = []
 
     for _ in range(15):
         runs = await hatchet.runs.aio_list(

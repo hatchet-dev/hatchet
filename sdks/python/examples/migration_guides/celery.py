@@ -97,7 +97,7 @@ def start_worker() -> None:
     name="call-api",
     retries=5,
     backoff_factor=2.0,
-    backoff_max_seconds=60,
+    backoff_max=timedelta(seconds=60),
     execution_timeout=timedelta(seconds=30),
     input_validator=OrderInput,
 )

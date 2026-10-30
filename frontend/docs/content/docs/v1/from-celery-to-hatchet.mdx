@@ -265,7 +265,7 @@ See [retry policies](/v1/retry-policies) for the full set of retry options and b
 
 What changed:
 
-- **Retry policy moves onto the task decorator.** Replace Celery retry options such as `max_retries`, `retry_backoff`, and `retry_backoff_max` with Hatchet's `retries`, `backoff_factor`, and `backoff_max_seconds`.
+- **Retry policy moves onto the task decorator.** Replace Celery retry options such as `max_retries`, `retry_backoff`, and `retry_backoff_max` with Hatchet's `retries`, `backoff_factor`, and `backoff_max` (a `timedelta`).
 - **Review retry exception rules.** Celery's `autoretry_for=(...)` lists the exceptions that should trigger retries. In Hatchet, task failures are retryable when `retries > 0`; raise `NonRetryableError` for failures that should not retry.
 - **Manual `self.retry()` logic needs redesign.** Hatchet does not provide a direct `self.retry()` equivalent inside the task body; task-level retry behavior is managed by the Hatchet engine.
 

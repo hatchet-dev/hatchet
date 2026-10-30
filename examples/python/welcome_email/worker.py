@@ -50,7 +50,6 @@ async def welcome_email(input: SignupInput, ctx: DurableContext) -> WelcomeEmail
     consider_events_since = now - timedelta(minutes=LOOKBACK_MINUTES)
 
     wait_result = await ctx.aio_wait_for(
-        "onboarding-or-timeout",
         or_(
             SleepCondition(timedelta(seconds=TIMEOUT_SECONDS)),
             # Scope the event condition to this user so that another user's

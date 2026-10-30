@@ -15,7 +15,6 @@ hatchet = Hatchet()
 @hatchet.durable_task(name="DurableSleepTask")
 async def durable_sleep_task(input: None, ctx: DurableContext) -> None:
     res = await ctx.aio_wait_for(
-        "foo",
         SleepCondition(duration=timedelta(seconds=2)),
         UserEventCondition(event_key="my-event"),
         OrGroup(

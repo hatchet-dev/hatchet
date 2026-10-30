@@ -28,7 +28,7 @@ async def test_additional_metadata_propagation_sync(
     runs = await poll_for_runs(
         hatchet,
         expected_count=1,
-        parent_task_external_id=ref.workflow_run_id,
+        parent_task_run_id=ref.workflow_run_id,
         additional_metadata={"test_run_id": test_run_id},
     )
 

@@ -46,7 +46,7 @@ def retry_after_exponential_backoff(
     input_validator=UpstreamInput,
     retries=2,
     backoff_factor=10,
-    backoff_max_seconds=60,
+    backoff_max=timedelta(seconds=60),
 )
 def retry_after_overrides_backoff(input: UpstreamInput, ctx: Context) -> dict[str, int]:
     if ctx.retry_count < input.failing_attempts:

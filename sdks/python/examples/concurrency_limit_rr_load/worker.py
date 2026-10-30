@@ -1,5 +1,6 @@
 import random
 import time
+from datetime import timedelta
 
 from pydantic import BaseModel
 
@@ -45,7 +46,7 @@ def step1(input: LoadRRInput, context: Context) -> dict[str, str]:
 @load_rr_workflow.task(
     retries=3,
     backoff_factor=5,
-    backoff_max_seconds=60,
+    backoff_max=timedelta(seconds=60),
 )
 def step2(sinput: LoadRRInput, context: Context) -> dict[str, str]:
     print("starting step2")

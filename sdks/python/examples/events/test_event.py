@@ -22,7 +22,7 @@ from hatchet_sdk.features.events import (
     Event,
 )
 from hatchet_sdk.types.run_status import RunStatus
-from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
+from hatchet_sdk import TaskRunSummary
 from hatchet_sdk import Hatchet, Priority
 
 
@@ -51,7 +51,7 @@ async def event_filter(
     )
 
     f = await hatchet.filters.aio_create(
-        workflow_id=event_workflow.id,
+        workflow_id=await event_workflow.aio_get_id(),
         expression=expression,
         scope=scope or test_run_id,
         payload={"test_run_id": test_run_id, **payload},
@@ -65,8 +65,8 @@ async def event_filter(
 
 async def fetch_runs_for_event(
     hatchet: Hatchet, event: Event
-) -> tuple[ProcessedEvent, list[V1TaskSummary]]:
-    runs = await hatchet.runs.aio_list(triggering_event_external_id=event.id)
+) -> tuple[ProcessedEvent, list[TaskRunSummary]]:
+    runs = await hatchet.runs.aio_list(triggering_event_id=event.id)
 
     meta = cast(dict[str, str | int | bool], event.additional_metadata)
     payload = cast(dict[str, str | bool], event.payload)
@@ -95,7 +95,7 @@ async def fetch_runs_for_event(
 
 async def wait_for_result(
     hatchet: Hatchet, events: list[Event]
-) -> dict[ProcessedEvent, list[V1TaskSummary]]:
+) -> dict[ProcessedEvent, list[TaskRunSummary]]:
     since = datetime.now(tz=timezone.utc) - timedelta(minutes=2)
     event_ids = {e.id for e in events}
 
@@ -172,7 +172,7 @@ async def wait_for_result_and_assert(hatchet: Hatchet, events: list[Event]) -> N
 
 async def assert_event_runs_processed(
     event: ProcessedEvent,
-    runs: list[V1TaskSummary],
+    runs: list[TaskRunSummary],
 ) -> None:
     runs = [
         run
@@ -591,15 +591,15 @@ async def test_multi_scope_bug(hatchet: Hatchet, test_run_id: str) -> None:
                 hatchet,
                 expected_count=100,
                 additional_metadata={"test_run_id": test_run_id},
-                workflow_ids=[event_workflow.id],
+                workflow_ids=[await event_workflow.aio_get_id()],
                 timeout=60.0,
             )
 
             for event in events:
                 runs = await hatchet.runs.aio_list(
-                    triggering_event_external_id=event.id,
+                    triggering_event_id=event.id,
                     additional_metadata={"test_run_id": test_run_id},
-                    workflow_ids=[event_workflow.id],
+                    workflow_ids=[await event_workflow.aio_get_id()],
                 )
 
                 assert len(runs) == 1

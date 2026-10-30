@@ -17,7 +17,7 @@ workflow = workflows[0]
 workflow_runs = hatchet.runs.list(workflow_ids=[workflow.metadata.id])
 
 # > Replay by run ids
-workflow_run_ids = [workflow_run.metadata.id for workflow_run in workflow_runs]
+workflow_run_ids = [workflow_run.id for workflow_run in workflow_runs]
 
 bulk_replay_by_ids = BulkCancelReplayOptions(ids=workflow_run_ids)
 

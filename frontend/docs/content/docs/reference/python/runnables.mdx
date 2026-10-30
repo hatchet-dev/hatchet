@@ -29,7 +29,7 @@ class MyInput(BaseModel):
     name: str
 
 hatchet = Hatchet()
-workflow = hatchet.workflow("my-workflow", input_type=MyInput)
+workflow = hatchet.workflow(name="my-workflow", input_validator=MyInput)
 
 @workflow.task()
 def greet(input, ctx):
@@ -80,22 +80,6 @@ The (namespaced) name of the workflow.
 
 #### `tasks`
 
-#### `id` `cached`
-
-Get the ID of the workflow.
-
-Returns:
-
-| Type  | Description             |
-| ----- | ----------------------- |
-| `str` | The ID of the workflow. |
-
-Raises:
-
-| Type         | Description                                       |
-| ------------ | ------------------------------------------------- |
-| `ValueError` | If no workflow ID is found for the workflow name. |
-
 ### Functions
 
 #### `task`
@@ -104,22 +88,22 @@ A decorator to transform a function into a Hatchet task that runs as part of a w
 
 Parameters:
 
-| Name                    | Type                                           | Description                                                                                                                                                                                                                                  | Default |
-| ----------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| `name`                  | `str \| None`                                  | The name of the task. If not specified, defaults to the name of the function being wrapped by the `task` decorator.                                                                                                                          | `None`  |
-| `schedule_timeout`      | `timedelta \| None`                            | The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time.                                                                                                                 | `None`  |
-| `execution_timeout`     | `timedelta \| None`                            | The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time.                                                                                                                  | `None`  |
-| `parents`               | `list[Task[TWorkflowInput, Any]] \| None`      | A list of tasks that are parents of the task. Note: Parents must be defined before their children.                                                                                                                                           | `None`  |
-| `retries`               | `int \| None`                                  | The number of times to retry the task before failing.                                                                                                                                                                                        | `None`  |
-| `rate_limits`           | `list[RateLimit] \| None`                      | A list of rate limit configurations for the task.                                                                                                                                                                                            | `None`  |
-| `desired_worker_labels` | `list[DesiredWorkerLabel] \| None`             | A list of desired worker labels that determine to which worker the task should be assigned. See documentation and examples on affinity and worker labels for more details.                                                                   | `None`  |
-| `backoff_factor`        | `float \| None`                                | The backoff factor for controlling exponential backoff in retries.                                                                                                                                                                           | `None`  |
-| `backoff_max_seconds`   | `int \| None`                                  | The maximum number of seconds to allow retries with exponential backoff to continue.                                                                                                                                                         | `None`  |
-| `concurrency`           | `int \| Sequence[ConcurrencyStrategy] \| None` | A list of concurrency expressions for the task. If an integer is provided, it is treated as a constant concurrency limit with a `GROUP_ROUND_ROBIN` strategy, which means that only `N` runs of the task may execute at any given time.      | `None`  |
-| `wait_for`              | `list[Condition \| OrGroup] \| None`           | A list of conditions that must be met before the task can run.                                                                                                                                                                               | `None`  |
-| `skip_if`               | `list[Condition \| OrGroup] \| None`           | A list of conditions that, if met, will cause the task to be skipped.                                                                                                                                                                        | `None`  |
-| `cancel_if`             | `list[Condition \| OrGroup] \| None`           | A list of conditions that, if met, will cause the task to be canceled.                                                                                                                                                                       | `None`  |
-| `slot_cost`             | `int \| None`                                  | The number of default worker slots this task consumes. A normal task consumes one. Set it higher for a task that needs more memory or CPU, so a worker runs fewer of them at once. A single worker must have that many free slots to run it. | `None`  |
+| Name                    | Type                                                                  | Description                                                                                                                                                                                                                                  | Default |
+| ----------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `name`                  | `str \| None`                                                         | The name of the task. If not specified, defaults to the name of the function being wrapped by the `task` decorator.                                                                                                                          | `None`  |
+| `schedule_timeout`      | `timedelta \| None`                                                   | The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time.                                                                                                                 | `None`  |
+| `execution_timeout`     | `timedelta \| None`                                                   | The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time.                                                                                                                  | `None`  |
+| `parents`               | `list[Task[TWorkflowInput, Any]] \| None`                             | A list of tasks that are parents of the task. Note: Parents must be defined before their children.                                                                                                                                           | `None`  |
+| `retries`               | `int \| None`                                                         | The number of times to retry the task before failing.                                                                                                                                                                                        | `None`  |
+| `rate_limits`           | `list[RateLimit] \| None`                                             | A list of rate limit configurations for the task.                                                                                                                                                                                            | `None`  |
+| `desired_worker_labels` | `list[DesiredWorkerLabel] \| None`                                    | A list of desired worker labels that determine to which worker the task should be assigned. See documentation and examples on affinity and worker labels for more details.                                                                   | `None`  |
+| `backoff_factor`        | `float \| None`                                                       | The backoff factor for controlling exponential backoff in retries.                                                                                                                                                                           | `None`  |
+| `backoff_max`           | `timedelta \| None`                                                   | The maximum delay between retries when using exponential backoff.                                                                                                                                                                            | `None`  |
+| `concurrency`           | `int \| ConcurrencyStrategy \| Sequence[ConcurrencyStrategy] \| None` | A list of concurrency expressions for the task. If an integer is provided, it is treated as a constant concurrency limit with a `GROUP_ROUND_ROBIN` strategy, which means that only `N` runs of the task may execute at any given time.      | `None`  |
+| `wait_for`              | `list[Condition \| OrGroup] \| None`                                  | A list of conditions that must be met before the task can run.                                                                                                                                                                               | `None`  |
+| `skip_if`               | `list[Condition \| OrGroup] \| None`                                  | A list of conditions that, if met, will cause the task to be skipped.                                                                                                                                                                        | `None`  |
+| `cancel_if`             | `list[Condition \| OrGroup] \| None`                                  | A list of conditions that, if met, will cause the task to be canceled.                                                                                                                                                                       | `None`  |
+| `slot_cost`             | `int \| None`                                                         | The number of default worker slots this task consumes. A normal task consumes one. Set it higher for a task that needs more memory or CPU, so a worker runs fewer of them at once. A single worker must have that many free slots to run it. | `None`  |
 
 Returns:
 
@@ -155,23 +139,23 @@ See the Hatchet docs for more information on durable execution to decide if this
 
 Parameters:
 
-| Name                    | Type                                           | Description                                                                                                                                                                                                                                                  | Default                                |
-| ----------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------- |
-| `name`                  | `str \| None`                                  | The name of the task. If not specified, defaults to the name of the function being wrapped by the `task` decorator.                                                                                                                                          | `None`                                 |
-| `schedule_timeout`      | `timedelta \| None`                            | The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time.                                                                                                                                 | `None`                                 |
-| `execution_timeout`     | `timedelta \| None`                            | The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time.                                                                                                                                  | `None`                                 |
-| `parents`               | `list[Task[TWorkflowInput, Any]] \| None`      | A list of tasks that are parents of the task. Note: Parents must be defined before their children.                                                                                                                                                           | `None`                                 |
-| `retries`               | `int \| None`                                  | The number of times to retry the task before failing.                                                                                                                                                                                                        | `None`                                 |
-| `rate_limits`           | `list[RateLimit] \| None`                      | A list of rate limit configurations for the task.                                                                                                                                                                                                            | `None`                                 |
-| `desired_worker_labels` | `list[DesiredWorkerLabel] \| None`             | A list of desired worker labels that determine to which worker the task should be assigned. See documentation and examples on affinity and worker labels for more details.                                                                                   | `None`                                 |
-| `backoff_factor`        | `float \| None`                                | The backoff factor for controlling exponential backoff in retries.                                                                                                                                                                                           | `None`                                 |
-| `backoff_max_seconds`   | `int \| None`                                  | The maximum number of seconds to allow retries with exponential backoff to continue.                                                                                                                                                                         | `None`                                 |
-| `concurrency`           | `int \| Sequence[ConcurrencyStrategy] \| None` | A list of concurrency expressions for the task. If an integer is provided, it is treated as a constant concurrency limit with a `GROUP_ROUND_ROBIN` strategy, which means that only `N` runs of the task may execute at any given time.                      | `None`                                 |
-| `wait_for`              | `list[Condition \| OrGroup] \| None`           | A list of conditions that must be met before the task can run.                                                                                                                                                                                               | `None`                                 |
-| `skip_if`               | `list[Condition \| OrGroup] \| None`           | A list of conditions that, if met, will cause the task to be skipped.                                                                                                                                                                                        | `None`                                 |
-| `cancel_if`             | `list[Condition \| OrGroup] \| None`           | A list of conditions that, if met, will cause the task to be canceled.                                                                                                                                                                                       | `None`                                 |
-| `eviction_policy`       | `EvictionPolicy \| None`                       | An optional eviction policy controlling when this durable task can be evicted from a worker slot while waiting.                                                                                                                                              | `DEFAULT_DURABLE_TASK_EVICTION_POLICY` |
-| `slot_cost`             | `int \| None`                                  | The number of durable worker slots this task consumes. A normal durable task consumes one. Set it higher for a task that needs more memory or CPU, so a worker runs fewer of them at once. A single worker must have that many free durable slots to run it. | `None`                                 |
+| Name                    | Type                                                                  | Description                                                                                                                                                                                                                                                  | Default                                |
+| ----------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------- |
+| `name`                  | `str \| None`                                                         | The name of the task. If not specified, defaults to the name of the function being wrapped by the `task` decorator.                                                                                                                                          | `None`                                 |
+| `schedule_timeout`      | `timedelta \| None`                                                   | The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time.                                                                                                                                 | `None`                                 |
+| `execution_timeout`     | `timedelta \| None`                                                   | The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time.                                                                                                                                  | `None`                                 |
+| `parents`               | `list[Task[TWorkflowInput, Any]] \| None`                             | A list of tasks that are parents of the task. Note: Parents must be defined before their children.                                                                                                                                                           | `None`                                 |
+| `retries`               | `int \| None`                                                         | The number of times to retry the task before failing.                                                                                                                                                                                                        | `None`                                 |
+| `rate_limits`           | `list[RateLimit] \| None`                                             | A list of rate limit configurations for the task.                                                                                                                                                                                                            | `None`                                 |
+| `desired_worker_labels` | `list[DesiredWorkerLabel] \| None`                                    | A list of desired worker labels that determine to which worker the task should be assigned. See documentation and examples on affinity and worker labels for more details.                                                                                   | `None`                                 |
+| `backoff_factor`        | `float \| None`                                                       | The backoff factor for controlling exponential backoff in retries.                                                                                                                                                                                           | `None`                                 |
+| `backoff_max`           | `timedelta \| None`                                                   | The maximum delay between retries when using exponential backoff.                                                                                                                                                                                            | `None`                                 |
+| `concurrency`           | `int \| ConcurrencyStrategy \| Sequence[ConcurrencyStrategy] \| None` | A list of concurrency expressions for the task. If an integer is provided, it is treated as a constant concurrency limit with a `GROUP_ROUND_ROBIN` strategy, which means that only `N` runs of the task may execute at any given time.                      | `None`                                 |
+| `wait_for`              | `list[Condition \| OrGroup] \| None`                                  | A list of conditions that must be met before the task can run.                                                                                                                                                                                               | `None`                                 |
+| `skip_if`               | `list[Condition \| OrGroup] \| None`                                  | A list of conditions that, if met, will cause the task to be skipped.                                                                                                                                                                                        | `None`                                 |
+| `cancel_if`             | `list[Condition \| OrGroup] \| None`                                  | A list of conditions that, if met, will cause the task to be canceled.                                                                                                                                                                                       | `None`                                 |
+| `eviction_policy`       | `EvictionPolicy \| None`                                              | An optional eviction policy controlling when this durable task can be evicted from a worker slot while waiting.                                                                                                                                              | `DEFAULT_DURABLE_TASK_EVICTION_POLICY` |
+| `slot_cost`             | `int \| None`                                                         | The number of durable worker slots this task consumes. A normal durable task consumes one. Set it higher for a task that needs more memory or CPU, so a worker runs fewer of them at once. A single worker must have that many free durable slots to run it. | `None`                                 |
 
 Returns:
 
@@ -191,16 +175,16 @@ A decorator to transform a function into a Hatchet on-failure task that runs as 
 
 Parameters:
 
-| Name                  | Type                                           | Description                                                                                                                                                                                                                                        | Default                 |
-| --------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| `name`                | `str \| None`                                  | The name of the on-failure task. If not specified, defaults to the name of the function being wrapped by the `on_failure_task` decorator.                                                                                                          | `None`                  |
-| `schedule_timeout`    | `timedelta`                                    | The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time.                                                                                                                       | `timedelta(minutes=5)`  |
-| `execution_timeout`   | `timedelta`                                    | The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time.                                                                                                                        | `timedelta(seconds=60)` |
-| `retries`             | `int`                                          | The number of times to retry the on-failure task before failing.                                                                                                                                                                                   | `0`                     |
-| `rate_limits`         | `list[RateLimit] \| None`                      | A list of rate limit configurations for the on-failure task.                                                                                                                                                                                       | `None`                  |
-| `backoff_factor`      | `float \| None`                                | The backoff factor for controlling exponential backoff in retries.                                                                                                                                                                                 | `None`                  |
-| `backoff_max_seconds` | `int \| None`                                  | The maximum number of seconds to allow retries with exponential backoff to continue.                                                                                                                                                               | `None`                  |
-| `concurrency`         | `int \| Sequence[ConcurrencyStrategy] \| None` | A list of concurrency expressions for the on-failure task. If an integer is provided, it is treated as a constant concurrency limit with a `GROUP_ROUND_ROBIN` strategy, which means that only `N` runs of the task may execute at any given time. | `None`                  |
+| Name                | Type                                                                  | Description                                                                                                                                                                                                                                        | Default |
+| ------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `name`              | `str \| None`                                                         | The name of the on-failure task. If not specified, defaults to the name of the function being wrapped by the `on_failure_task` decorator.                                                                                                          | `None`  |
+| `schedule_timeout`  | `timedelta \| None`                                                   | The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time. Falls back to the workflow's `task_defaults`.                                                                         | `None`  |
+| `execution_timeout` | `timedelta \| None`                                                   | The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time. Falls back to the workflow's `task_defaults`.                                                                          | `None`  |
+| `retries`           | `int \| None`                                                         | The number of times to retry the on-failure task before failing. Falls back to the workflow's `task_defaults`.                                                                                                                                     | `None`  |
+| `rate_limits`       | `list[RateLimit] \| None`                                             | A list of rate limit configurations for the on-failure task.                                                                                                                                                                                       | `None`  |
+| `backoff_factor`    | `float \| None`                                                       | The backoff factor for controlling exponential backoff in retries.                                                                                                                                                                                 | `None`  |
+| `backoff_max`       | `timedelta \| None`                                                   | The maximum delay between retries when using exponential backoff.                                                                                                                                                                                  | `None`  |
+| `concurrency`       | `int \| ConcurrencyStrategy \| Sequence[ConcurrencyStrategy] \| None` | A list of concurrency expressions for the on-failure task. If an integer is provided, it is treated as a constant concurrency limit with a `GROUP_ROUND_ROBIN` strategy, which means that only `N` runs of the task may execute at any given time. | `None`  |
 
 Returns:
 
@@ -214,16 +198,16 @@ A decorator to transform a function into a Hatchet on-success task that runs as 
 
 Parameters:
 
-| Name                  | Type                                           | Description                                                                                                                                                                                                                                        | Default                 |
-| --------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| `name`                | `str \| None`                                  | The name of the on-success task. If not specified, defaults to the name of the function being wrapped by the `on_success_task` decorator.                                                                                                          | `None`                  |
-| `schedule_timeout`    | `timedelta`                                    | The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time.                                                                                                                       | `timedelta(minutes=5)`  |
-| `execution_timeout`   | `timedelta`                                    | The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time.                                                                                                                        | `timedelta(seconds=60)` |
-| `retries`             | `int`                                          | The number of times to retry the on-success task before failing                                                                                                                                                                                    | `0`                     |
-| `rate_limits`         | `list[RateLimit] \| None`                      | A list of rate limit configurations for the on-success task.                                                                                                                                                                                       | `None`                  |
-| `backoff_factor`      | `float \| None`                                | The backoff factor for controlling exponential backoff in retries.                                                                                                                                                                                 | `None`                  |
-| `backoff_max_seconds` | `int \| None`                                  | The maximum number of seconds to allow retries with exponential backoff to continue.                                                                                                                                                               | `None`                  |
-| `concurrency`         | `int \| Sequence[ConcurrencyStrategy] \| None` | A list of concurrency expressions for the on-success task. If an integer is provided, it is treated as a constant concurrency limit with a `GROUP_ROUND_ROBIN` strategy, which means that only `N` runs of the task may execute at any given time. | `None`                  |
+| Name                | Type                                                                  | Description                                                                                                                                                                                                                                        | Default |
+| ------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `name`              | `str \| None`                                                         | The name of the on-success task. If not specified, defaults to the name of the function being wrapped by the `on_success_task` decorator.                                                                                                          | `None`  |
+| `schedule_timeout`  | `timedelta \| None`                                                   | The maximum time to wait for the task to be scheduled. The run will be canceled if the task does not begin within this time. Falls back to the workflow's `task_defaults`.                                                                         | `None`  |
+| `execution_timeout` | `timedelta \| None`                                                   | The maximum time to wait for the task to complete. The run will be canceled if the task does not complete within this time. Falls back to the workflow's `task_defaults`.                                                                          | `None`  |
+| `retries`           | `int \| None`                                                         | The number of times to retry the on-success task before failing. Falls back to the workflow's `task_defaults`.                                                                                                                                     | `None`  |
+| `rate_limits`       | `list[RateLimit] \| None`                                             | A list of rate limit configurations for the on-success task.                                                                                                                                                                                       | `None`  |
+| `backoff_factor`    | `float \| None`                                                       | The backoff factor for controlling exponential backoff in retries.                                                                                                                                                                                 | `None`  |
+| `backoff_max`       | `timedelta \| None`                                                   | The maximum delay between retries when using exponential backoff.                                                                                                                                                                                  | `None`  |
+| `concurrency`       | `int \| ConcurrencyStrategy \| Sequence[ConcurrencyStrategy] \| None` | A list of concurrency expressions for the on-success task. If an integer is provided, it is treated as a constant concurrency limit with a `GROUP_ROUND_ROBIN` strategy, which means that only `N` runs of the task may execute at any given time. | `None`  |
 
 Returns:
 
@@ -246,8 +230,7 @@ Parameters:
 | `child_key`             | `str \| None`                      | An optional key for deduplicating child workflow runs.                                                | `None`                         |
 | `additional_metadata`   | `JSONSerializableMapping \| None`  | Additional metadata to attach to the workflow run.                                                    | `None`                         |
 | `priority`              | `Priority \| None`                 | The priority of the workflow run.                                                                     | `None`                         |
-| `sticky`                | `bool`                             | Whether to use sticky scheduling for the workflow run.                                                | `False`                        |
-| `desired_worker_id`     | `str \| None`                      | The ID of the desired worker to run the workflow on.                                                  | `None`                         |
+| `sticky`                | `bool`                             | Whether to run the workflow on the same worker as the task that triggers it.                          | `False`                        |
 | `desired_worker_labels` | `list[DesiredWorkerLabel] \| None` | A list of desired worker labels for worker affinity.                                                  | `None`                         |
 
 Returns:
@@ -271,8 +254,7 @@ Parameters:
 | `child_key`             | `str \| None`                      | An optional key for deduplicating child workflow runs.                                          | `None`                         |
 | `additional_metadata`   | `JSONSerializableMapping \| None`  | Additional metadata to attach to the workflow run.                                              | `None`                         |
 | `priority`              | `Priority \| None`                 | The priority of the workflow run.                                                               | `None`                         |
-| `sticky`                | `bool`                             | Whether to use sticky scheduling for the workflow run.                                          | `False`                        |
-| `desired_worker_id`     | `str \| None`                      | The ID of the desired worker to run the workflow on.                                            | `None`                         |
+| `sticky`                | `bool`                             | Whether to run the workflow on the same worker as the task that triggers it.                    | `False`                        |
 | `desired_worker_labels` | `list[DesiredWorkerLabel] \| None` | A list of desired worker labels for worker affinity.                                            | `None`                         |
 
 Returns:
@@ -339,9 +321,9 @@ Parameters:
 
 Returns:
 
-| Type              | Description                                                     |
-| ----------------- | --------------------------------------------------------------- |
-| `WorkflowVersion` | A `WorkflowVersion` object representing the scheduled workflow. |
+| Type           | Description        |
+| -------------- | ------------------ |
+| `ScheduledRun` | The scheduled run. |
 
 #### `aio_schedule`
 
@@ -359,9 +341,9 @@ Parameters:
 
 Returns:
 
-| Type              | Description                                                     |
-| ----------------- | --------------------------------------------------------------- |
-| `WorkflowVersion` | A `WorkflowVersion` object representing the scheduled workflow. |
+| Type           | Description        |
+| -------------- | ------------------ |
+| `ScheduledRun` | The scheduled run. |
 
 #### `create_cron`
 
@@ -379,9 +361,9 @@ Parameters:
 
 Returns:
 
-| Type            | Description                                                 |
-| --------------- | ----------------------------------------------------------- |
-| `CronWorkflows` | A `CronWorkflows` object representing the created cron job. |
+| Type          | Description               |
+| ------------- | ------------------------- |
+| `CronTrigger` | The created cron trigger. |
 
 #### `aio_create_cron`
 
@@ -399,9 +381,9 @@ Parameters:
 
 Returns:
 
-| Type            | Description                                                 |
-| --------------- | ----------------------------------------------------------- |
-| `CronWorkflows` | A `CronWorkflows` object representing the created cron job. |
+| Type          | Description               |
+| ------------- | ------------------------- |
+| `CronTrigger` | The created cron trigger. |
 
 #### `create_bulk_run_item`
 
@@ -409,15 +391,14 @@ Create a bulk run item for the workflow. This is intended to be used in conjunct
 
 Parameters:
 
-| Name                    | Type                               | Description                                            | Default                        |
-| ----------------------- | ---------------------------------- | ------------------------------------------------------ | ------------------------------ |
-| `input`                 | `TWorkflowInput`                   | The input data for the workflow.                       | `cast('TWorkflowInput', None)` |
-| `child_key`             | `str \| None`                      | An optional key for deduplicating child workflow runs. | `None`                         |
-| `additional_metadata`   | `JSONSerializableMapping \| None`  | Additional metadata to attach to the workflow run.     | `None`                         |
-| `priority`              | `Priority \| None`                 | The priority of the workflow run.                      | `None`                         |
-| `desired_worker_id`     | `str \| None`                      | The ID of the desired worker to run the workflow on.   | `None`                         |
-| `sticky`                | `bool`                             | Whether to use sticky scheduling for the workflow run. | `False`                        |
-| `desired_worker_labels` | `list[DesiredWorkerLabel] \| None` | A list of desired worker labels for worker affinity.   | `None`                         |
+| Name                    | Type                               | Description                                                                  | Default                        |
+| ----------------------- | ---------------------------------- | ---------------------------------------------------------------------------- | ------------------------------ |
+| `input`                 | `TWorkflowInput`                   | The input data for the workflow.                                             | `cast('TWorkflowInput', None)` |
+| `child_key`             | `str \| None`                      | An optional key for deduplicating child workflow runs.                       | `None`                         |
+| `additional_metadata`   | `JSONSerializableMapping \| None`  | Additional metadata to attach to the workflow run.                           | `None`                         |
+| `priority`              | `Priority \| None`                 | The priority of the workflow run.                                            | `None`                         |
+| `sticky`                | `bool`                             | Whether to run the workflow on the same worker as the task that triggers it. | `False`                        |
+| `desired_worker_labels` | `list[DesiredWorkerLabel] \| None` | A list of desired worker labels for worker affinity.                         | `None`                         |
 
 Returns:
 
@@ -431,24 +412,24 @@ List runs of the workflow.
 
 Parameters:
 
-| Name                           | Type                      | Description                                 | Default |
-| ------------------------------ | ------------------------- | ------------------------------------------- | ------- |
-| `since`                        | `datetime \| None`        | The start time for the runs to be listed.   | `None`  |
-| `until`                        | `datetime \| None`        | The end time for the runs to be listed.     | `None`  |
-| `limit`                        | `int`                     | The maximum number of runs to be listed.    | `100`   |
-| `offset`                       | `int \| None`             | The offset for pagination.                  | `None`  |
-| `statuses`                     | `list[RunStatus] \| None` | The statuses of the runs to be listed.      | `None`  |
-| `additional_metadata`          | `dict[str, str] \| None`  | Additional metadata for filtering the runs. | `None`  |
-| `worker_id`                    | `str \| None`             | The ID of the worker that ran the tasks.    | `None`  |
-| `parent_task_external_id`      | `str \| None`             | The external ID of the parent task.         | `None`  |
-| `only_tasks`                   | `bool`                    | Whether to list only task runs.             | `False` |
-| `triggering_event_external_id` | `str \| None`             | The event id that triggered the task run.   | `None`  |
+| Name                  | Type                      | Description                                                                     | Default |
+| --------------------- | ------------------------- | ------------------------------------------------------------------------------- | ------- |
+| `since`               | `datetime \| None`        | The start time for the runs to be listed.                                       | `None`  |
+| `until`               | `datetime \| None`        | The end time for the runs to be listed.                                         | `None`  |
+| `limit`               | `int \| None`             | The maximum number of runs to be listed. Returns every matching run if not set. | `None`  |
+| `offset`              | `int \| None`             | The offset for pagination.                                                      | `None`  |
+| `statuses`            | `list[RunStatus] \| None` | The statuses of the runs to be listed.                                          | `None`  |
+| `additional_metadata` | `dict[str, str] \| None`  | Additional metadata for filtering the runs.                                     | `None`  |
+| `worker_id`           | `str \| None`             | The ID of the worker that ran the tasks.                                        | `None`  |
+| `parent_task_run_id`  | `str \| None`             | The ID of the parent task run.                                                  | `None`  |
+| `only_tasks`          | `bool`                    | Whether to list only task runs.                                                 | `False` |
+| `triggering_event_id` | `str \| None`             | The ID of the event that triggered the task run.                                | `None`  |
 
 Returns:
 
-| Type                  | Description                                                              |
-| --------------------- | ------------------------------------------------------------------------ |
-| `list[V1TaskSummary]` | A list of `V1TaskSummary` objects representing the runs of the workflow. |
+| Type                   | Description                                            |
+| ---------------------- | ------------------------------------------------------ |
+| `list[TaskRunSummary]` | The runs of the workflow, as `TaskRunSummary` objects. |
 
 #### `aio_list_runs`
 
@@ -456,24 +437,24 @@ List runs of the workflow.
 
 Parameters:
 
-| Name                           | Type                      | Description                                 | Default |
-| ------------------------------ | ------------------------- | ------------------------------------------- | ------- |
-| `since`                        | `datetime \| None`        | The start time for the runs to be listed.   | `None`  |
-| `until`                        | `datetime \| None`        | The end time for the runs to be listed.     | `None`  |
-| `limit`                        | `int`                     | The maximum number of runs to be listed.    | `100`   |
-| `offset`                       | `int \| None`             | The offset for pagination.                  | `None`  |
-| `statuses`                     | `list[RunStatus] \| None` | The statuses of the runs to be listed.      | `None`  |
-| `additional_metadata`          | `dict[str, str] \| None`  | Additional metadata for filtering the runs. | `None`  |
-| `worker_id`                    | `str \| None`             | The ID of the worker that ran the tasks.    | `None`  |
-| `parent_task_external_id`      | `str \| None`             | The external ID of the parent task.         | `None`  |
-| `only_tasks`                   | `bool`                    | Whether to list only task runs.             | `False` |
-| `triggering_event_external_id` | `str \| None`             | The event id that triggered the task run.   | `None`  |
+| Name                  | Type                      | Description                                                                     | Default |
+| --------------------- | ------------------------- | ------------------------------------------------------------------------------- | ------- |
+| `since`               | `datetime \| None`        | The start time for the runs to be listed.                                       | `None`  |
+| `until`               | `datetime \| None`        | The end time for the runs to be listed.                                         | `None`  |
+| `limit`               | `int \| None`             | The maximum number of runs to be listed. Returns every matching run if not set. | `None`  |
+| `offset`              | `int \| None`             | The offset for pagination.                                                      | `None`  |
+| `statuses`            | `list[RunStatus] \| None` | The statuses of the runs to be listed.                                          | `None`  |
+| `additional_metadata` | `dict[str, str] \| None`  | Additional metadata for filtering the runs.                                     | `None`  |
+| `worker_id`           | `str \| None`             | The ID of the worker that ran the tasks.                                        | `None`  |
+| `parent_task_run_id`  | `str \| None`             | The ID of the parent task run.                                                  | `None`  |
+| `only_tasks`          | `bool`                    | Whether to list only task runs.                                                 | `False` |
+| `triggering_event_id` | `str \| None`             | The ID of the event that triggered the task run.                                | `None`  |
 
 Returns:
 
-| Type                  | Description                                                              |
-| --------------------- | ------------------------------------------------------------------------ |
-| `list[V1TaskSummary]` | A list of `V1TaskSummary` objects representing the runs of the workflow. |
+| Type                   | Description                                            |
+| ---------------------- | ------------------------------------------------------ |
+| `list[TaskRunSummary]` | The runs of the workflow, as `TaskRunSummary` objects. |
 
 #### `create_filter`
 
@@ -628,8 +609,7 @@ Parameters:
 | `child_key`             | `str \| None`                      | An optional key for deduplicating child workflow runs.                                            | `None`                         |
 | `additional_metadata`   | `JSONSerializableMapping \| None`  | Additional metadata to attach to the workflow run.                                                | `None`                         |
 | `priority`              | `Priority \| None`                 | The priority of the workflow run.                                                                 | `None`                         |
-| `sticky`                | `bool`                             | Whether to use sticky scheduling for the workflow run.                                            | `False`                        |
-| `desired_worker_id`     | `str \| None`                      | The ID of the desired worker to run the workflow on.                                              | `None`                         |
+| `sticky`                | `bool`                             | Whether to run the workflow on the same worker as the task that triggers it.                      | `False`                        |
 | `desired_worker_labels` | `list[DesiredWorkerLabel] \| None` | A list of desired worker labels for worker affinity.                                              | `None`                         |
 
 Returns:
@@ -653,8 +633,7 @@ Parameters:
 | `child_key`             | `str \| None`                      | An optional key for deduplicating child workflow runs.                                      | `None`                         |
 | `additional_metadata`   | `JSONSerializableMapping \| None`  | Additional metadata to attach to the workflow run.                                          | `None`                         |
 | `priority`              | `Priority \| None`                 | The priority of the workflow run.                                                           | `None`                         |
-| `sticky`                | `bool`                             | Whether to use sticky scheduling for the workflow run.                                      | `False`                        |
-| `desired_worker_id`     | `str \| None`                      | The ID of the desired worker to run the workflow on.                                        | `None`                         |
+| `sticky`                | `bool`                             | Whether to run the workflow on the same worker as the task that triggers it.                | `False`                        |
 | `desired_worker_labels` | `list[DesiredWorkerLabel] \| None` | A list of desired worker labels for worker affinity.                                        | `None`                         |
 
 Returns:
@@ -715,9 +694,9 @@ Parameters:
 
 Returns:
 
-| Type              | Description                                                     |
-| ----------------- | --------------------------------------------------------------- |
-| `WorkflowVersion` | A `WorkflowVersion` object representing the scheduled workflow. |
+| Type           | Description        |
+| -------------- | ------------------ |
+| `ScheduledRun` | The scheduled run. |
 
 #### `aio_schedule`
 
@@ -735,9 +714,9 @@ Parameters:
 
 Returns:
 
-| Type              | Description                                                     |
-| ----------------- | --------------------------------------------------------------- |
-| `WorkflowVersion` | A `WorkflowVersion` object representing the scheduled workflow. |
+| Type           | Description        |
+| -------------- | ------------------ |
+| `ScheduledRun` | The scheduled run. |
 
 #### `create_cron`
 
@@ -755,9 +734,9 @@ Parameters:
 
 Returns:
 
-| Type            | Description                                                 |
-| --------------- | ----------------------------------------------------------- |
-| `CronWorkflows` | A `CronWorkflows` object representing the created cron job. |
+| Type          | Description               |
+| ------------- | ------------------------- |
+| `CronTrigger` | The created cron trigger. |
 
 #### `aio_create_cron`
 
@@ -775,9 +754,9 @@ Parameters:
 
 Returns:
 
-| Type            | Description                                                 |
-| --------------- | ----------------------------------------------------------- |
-| `CronWorkflows` | A `CronWorkflows` object representing the created cron job. |
+| Type          | Description               |
+| ------------- | ------------------------- |
+| `CronTrigger` | The created cron trigger. |
 
 #### `create_bulk_run_item`
 
@@ -785,15 +764,14 @@ Create a bulk run item for the workflow. This is intended to be used in conjunct
 
 Parameters:
 
-| Name                    | Type                               | Description                                            | Default                        |
-| ----------------------- | ---------------------------------- | ------------------------------------------------------ | ------------------------------ |
-| `input`                 | `TWorkflowInput`                   | The input data for the workflow.                       | `cast('TWorkflowInput', None)` |
-| `child_key`             | `str \| None`                      | An optional key for deduplicating child workflow runs. | `None`                         |
-| `additional_metadata`   | `JSONSerializableMapping \| None`  | Additional metadata to attach to the workflow run.     | `None`                         |
-| `priority`              | `Priority \| None`                 | The priority of the workflow run.                      | `None`                         |
-| `desired_worker_id`     | `str \| None`                      | The ID of the desired worker to run the workflow on.   | `None`                         |
-| `sticky`                | `bool`                             | Whether to use sticky scheduling for the workflow run. | `False`                        |
-| `desired_worker_labels` | `list[DesiredWorkerLabel] \| None` | A list of desired worker labels for worker affinity.   | `None`                         |
+| Name                    | Type                               | Description                                                                  | Default                        |
+| ----------------------- | ---------------------------------- | ---------------------------------------------------------------------------- | ------------------------------ |
+| `input`                 | `TWorkflowInput`                   | The input data for the workflow.                                             | `cast('TWorkflowInput', None)` |
+| `child_key`             | `str \| None`                      | An optional key for deduplicating child workflow runs.                       | `None`                         |
+| `additional_metadata`   | `JSONSerializableMapping \| None`  | Additional metadata to attach to the workflow run.                           | `None`                         |
+| `priority`              | `Priority \| None`                 | The priority of the workflow run.                                            | `None`                         |
+| `sticky`                | `bool`                             | Whether to run the workflow on the same worker as the task that triggers it. | `False`                        |
+| `desired_worker_labels` | `list[DesiredWorkerLabel] \| None` | A list of desired worker labels for worker affinity.                         | `None`                         |
 
 Returns:
 
@@ -807,24 +785,24 @@ List runs of the workflow.
 
 Parameters:
 
-| Name                           | Type                      | Description                                 | Default |
-| ------------------------------ | ------------------------- | ------------------------------------------- | ------- |
-| `since`                        | `datetime \| None`        | The start time for the runs to be listed.   | `None`  |
-| `until`                        | `datetime \| None`        | The end time for the runs to be listed.     | `None`  |
-| `limit`                        | `int`                     | The maximum number of runs to be listed.    | `100`   |
-| `offset`                       | `int \| None`             | The offset for pagination.                  | `None`  |
-| `statuses`                     | `list[RunStatus] \| None` | The statuses of the runs to be listed.      | `None`  |
-| `additional_metadata`          | `dict[str, str] \| None`  | Additional metadata for filtering the runs. | `None`  |
-| `worker_id`                    | `str \| None`             | The ID of the worker that ran the tasks.    | `None`  |
-| `parent_task_external_id`      | `str \| None`             | The external ID of the parent task.         | `None`  |
-| `only_tasks`                   | `bool`                    | Whether to list only task runs.             | `False` |
-| `triggering_event_external_id` | `str \| None`             | The event id that triggered the task run.   | `None`  |
+| Name                  | Type                      | Description                                                                     | Default |
+| --------------------- | ------------------------- | ------------------------------------------------------------------------------- | ------- |
+| `since`               | `datetime \| None`        | The start time for the runs to be listed.                                       | `None`  |
+| `until`               | `datetime \| None`        | The end time for the runs to be listed.                                         | `None`  |
+| `limit`               | `int \| None`             | The maximum number of runs to be listed. Returns every matching run if not set. | `None`  |
+| `offset`              | `int \| None`             | The offset for pagination.                                                      | `None`  |
+| `statuses`            | `list[RunStatus] \| None` | The statuses of the runs to be listed.                                          | `None`  |
+| `additional_metadata` | `dict[str, str] \| None`  | Additional metadata for filtering the runs.                                     | `None`  |
+| `worker_id`           | `str \| None`             | The ID of the worker that ran the tasks.                                        | `None`  |
+| `parent_task_run_id`  | `str \| None`             | The ID of the parent task run.                                                  | `None`  |
+| `only_tasks`          | `bool`                    | Whether to list only task runs.                                                 | `False` |
+| `triggering_event_id` | `str \| None`             | The ID of the event that triggered the task run.                                | `None`  |
 
 Returns:
 
-| Type                  | Description                                                              |
-| --------------------- | ------------------------------------------------------------------------ |
-| `list[V1TaskSummary]` | A list of `V1TaskSummary` objects representing the runs of the workflow. |
+| Type                   | Description                                            |
+| ---------------------- | ------------------------------------------------------ |
+| `list[TaskRunSummary]` | The runs of the workflow, as `TaskRunSummary` objects. |
 
 #### `aio_list_runs`
 
@@ -832,24 +810,24 @@ List runs of the workflow.
 
 Parameters:
 
-| Name                           | Type                      | Description                                 | Default |
-| ------------------------------ | ------------------------- | ------------------------------------------- | ------- |
-| `since`                        | `datetime \| None`        | The start time for the runs to be listed.   | `None`  |
-| `until`                        | `datetime \| None`        | The end time for the runs to be listed.     | `None`  |
-| `limit`                        | `int`                     | The maximum number of runs to be listed.    | `100`   |
-| `offset`                       | `int \| None`             | The offset for pagination.                  | `None`  |
-| `statuses`                     | `list[RunStatus] \| None` | The statuses of the runs to be listed.      | `None`  |
-| `additional_metadata`          | `dict[str, str] \| None`  | Additional metadata for filtering the runs. | `None`  |
-| `worker_id`                    | `str \| None`             | The ID of the worker that ran the tasks.    | `None`  |
-| `parent_task_external_id`      | `str \| None`             | The external ID of the parent task.         | `None`  |
-| `only_tasks`                   | `bool`                    | Whether to list only task runs.             | `False` |
-| `triggering_event_external_id` | `str \| None`             | The event id that triggered the task run.   | `None`  |
+| Name                  | Type                      | Description                                                                     | Default |
+| --------------------- | ------------------------- | ------------------------------------------------------------------------------- | ------- |
+| `since`               | `datetime \| None`        | The start time for the runs to be listed.                                       | `None`  |
+| `until`               | `datetime \| None`        | The end time for the runs to be listed.                                         | `None`  |
+| `limit`               | `int \| None`             | The maximum number of runs to be listed. Returns every matching run if not set. | `None`  |
+| `offset`              | `int \| None`             | The offset for pagination.                                                      | `None`  |
+| `statuses`            | `list[RunStatus] \| None` | The statuses of the runs to be listed.                                          | `None`  |
+| `additional_metadata` | `dict[str, str] \| None`  | Additional metadata for filtering the runs.                                     | `None`  |
+| `worker_id`           | `str \| None`             | The ID of the worker that ran the tasks.                                        | `None`  |
+| `parent_task_run_id`  | `str \| None`             | The ID of the parent task run.                                                  | `None`  |
+| `only_tasks`          | `bool`                    | Whether to list only task runs.                                                 | `False` |
+| `triggering_event_id` | `str \| None`             | The ID of the event that triggered the task run.                                | `None`  |
 
 Returns:
 
-| Type                  | Description                                                              |
-| --------------------- | ------------------------------------------------------------------------ |
-| `list[V1TaskSummary]` | A list of `V1TaskSummary` objects representing the runs of the workflow. |
+| Type                   | Description                                            |
+| ---------------------- | ------------------------------------------------------ |
+| `list[TaskRunSummary]` | The runs of the workflow, as `TaskRunSummary` objects. |
 
 #### `create_filter`
 

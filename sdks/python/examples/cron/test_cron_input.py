@@ -7,7 +7,7 @@ from examples.cron.cron_input import cron_input_example_send_greeting
 
 
 async def test_cron_workflow_has_input_on_proto() -> None:
-    proto = cron_input_example_send_greeting.to_proto()
+    proto = cron_input_example_send_greeting._to_proto()
     assert proto.HasField("cron_input")
 
 
@@ -15,12 +15,12 @@ async def test_cron_workflow_has_input_on_proto() -> None:
 async def test_cron_input_workflow_running_options(hatchet: Hatchet) -> None:
     with hatchet.crons.client() as client:
         cron = await hatchet.crons.aio_list(
-            workflow_id=cron_input_example_send_greeting.id
+            workflow_id=await cron_input_example_send_greeting.aio_get_id()
         )
 
         assert cron is not None
         assert len(cron) == 1
-        cron_id = cron[0].metadata.id
+        cron_id = cron[0].id
 
         trigger_res = hatchet.crons._wa(client).workflow_cron_trigger(
             tenant=hatchet.tenant_id,
@@ -35,4 +35,4 @@ async def test_cron_input_workflow_running_options(hatchet: Hatchet) -> None:
 
         assert res == {"message": "Hello, Hatchet!"}
 
-    await hatchet.workflows.aio_delete(cron_input_example_send_greeting.id)
+    await hatchet.workflows.aio_delete(cron_input_example_send_greeting)

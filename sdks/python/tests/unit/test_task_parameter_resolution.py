@@ -17,7 +17,7 @@ TASK_DEFAULTS = TaskDefaults(
     execution_timeout=timedelta(minutes=10),
     retries=5,
     backoff_factor=2,
-    backoff_max_seconds=30,
+    backoff_max=timedelta(seconds=30),
 )
 
 CONCURRENCY_STRATEGY = ConcurrencyStrategy(
@@ -31,7 +31,7 @@ def test_explicit_values_equal_to_the_built_in_defaults_are_not_overridden() -> 
         execution_timeout=DEFAULT_EXECUTION_TIMEOUT,
         retries=DEFAULT_RETRIES,
         backoff_factor=None,
-        backoff_max_seconds=None,
+        backoff_max=None,
         task_defaults=TASK_DEFAULTS,
     )
 
@@ -46,7 +46,7 @@ def test_unset_values_fall_back_to_task_defaults() -> None:
         execution_timeout=None,
         retries=None,
         backoff_factor=None,
-        backoff_max_seconds=None,
+        backoff_max=None,
         task_defaults=TASK_DEFAULTS,
     )
 
@@ -54,7 +54,7 @@ def test_unset_values_fall_back_to_task_defaults() -> None:
     assert computed.execution_timeout == TASK_DEFAULTS.execution_timeout
     assert computed.retries == TASK_DEFAULTS.retries
     assert computed.backoff_factor == TASK_DEFAULTS.backoff_factor
-    assert computed.backoff_max_seconds == TASK_DEFAULTS.backoff_max_seconds
+    assert computed.backoff_max == TASK_DEFAULTS.backoff_max
 
 
 def test_unset_values_fall_back_to_built_in_defaults_without_task_defaults() -> None:
@@ -63,7 +63,7 @@ def test_unset_values_fall_back_to_built_in_defaults_without_task_defaults() -> 
         execution_timeout=None,
         retries=None,
         backoff_factor=None,
-        backoff_max_seconds=None,
+        backoff_max=None,
         task_defaults=TaskDefaults(),
     )
 
@@ -71,7 +71,7 @@ def test_unset_values_fall_back_to_built_in_defaults_without_task_defaults() -> 
     assert computed.execution_timeout == DEFAULT_EXECUTION_TIMEOUT
     assert computed.retries == DEFAULT_RETRIES
     assert computed.backoff_factor is None
-    assert computed.backoff_max_seconds is None
+    assert computed.backoff_max is None
 
 
 def test_workflow_task_keeps_an_explicit_zero_retries(hatchet: Hatchet) -> None:
@@ -87,10 +87,26 @@ def test_workflow_task_keeps_an_explicit_zero_retries(hatchet: Hatchet) -> None:
     def inherited(input: None, ctx: Context) -> None:
         return None
 
-    assert explicit.retries == 0
-    assert explicit.execution_timeout == timedelta(seconds=60)
-    assert inherited.retries == TASK_DEFAULTS.retries
-    assert inherited.execution_timeout == TASK_DEFAULTS.execution_timeout
+    assert explicit._retries == 0
+    assert explicit._execution_timeout == timedelta(seconds=60)
+    assert inherited._retries == TASK_DEFAULTS.retries
+    assert inherited._execution_timeout == TASK_DEFAULTS.execution_timeout
+
+
+def test_on_failure_task_falls_back_to_workflow_task_defaults(hatchet: Hatchet) -> None:
+    workflow = hatchet.workflow(
+        name="on-failure-task-defaults", task_defaults=TASK_DEFAULTS
+    )
+
+    @workflow.on_failure_task()
+    def on_failure(input: None, ctx: Context) -> None:
+        return None
+
+    assert on_failure._schedule_timeout == TASK_DEFAULTS.schedule_timeout
+    assert on_failure._execution_timeout == TASK_DEFAULTS.execution_timeout
+    assert on_failure._retries == TASK_DEFAULTS.retries
+    assert on_failure._backoff_factor == TASK_DEFAULTS.backoff_factor
+    assert on_failure._backoff_max == TASK_DEFAULTS.backoff_max
 
 
 @pytest.mark.parametrize(
@@ -117,4 +133,4 @@ def test_standalone_task_keeps_a_tuple_of_concurrency_strategies(
     def with_tuple_concurrency(input: None, ctx: Context) -> None:
         return None
 
-    assert with_tuple_concurrency._task.concurrency == [CONCURRENCY_STRATEGY]
+    assert with_tuple_concurrency._task._concurrency == [CONCURRENCY_STRATEGY]
