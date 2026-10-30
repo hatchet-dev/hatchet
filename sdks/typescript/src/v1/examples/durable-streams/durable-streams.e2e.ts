@@ -24,7 +24,7 @@ describe('durable-streams-e2e', () => {
     // publish returns once the message is committed
     await hatchet.streams.publish(topic, 'published-before-consume');
 
-    const events = hatchet.streams.events(topic);
+    const events = hatchet.streams.subscribe(topic);
 
     const publishedAfter = ['live-1', 'live-2'];
     setTimeout(() => {
@@ -48,9 +48,9 @@ describe('durable-streams-e2e', () => {
 
     // A cursor is purely a client-side construction -- publish() doesn't
     // return one; the only way to get one is to read it off a message
-    // actually received from events(). Open the consumer before publishing
+    // actually received from subscribe(). Open the consumer before publishing
     // (no cursor = start from now) so every message below is observed live.
-    const events = hatchet.streams.events(topic);
+    const events = hatchet.streams.subscribe(topic);
 
     messages.forEach((msg) => {
       void hatchet.streams.publish(topic, msg);
@@ -62,7 +62,7 @@ describe('durable-streams-e2e', () => {
     // resume from the 2nd received event's own cursor -- expect "three", "four"
     const checkpoint = firstTwo[firstTwo.length - 1].cursor;
 
-    const rest = await collect(hatchet.streams.events(topic, { cursor: checkpoint }), 2);
+    const rest = await collect(hatchet.streams.subscribe(topic, { cursor: checkpoint }), 2);
     expect(rest.map((e) => decode(e.payload))).toEqual(['three', 'four']);
   }, 30_000);
 
@@ -71,17 +71,43 @@ describe('durable-streams-e2e', () => {
 
     await hatchet.streams.publish(topic, 'before-reset');
 
-    const existing = hatchet.streams.events(topic)[Symbol.asyncIterator]();
+    const existing = hatchet.streams.subscribe(topic)[Symbol.asyncIterator]();
     expect(decode((await existing.next()).value.payload)).toEqual('before-reset');
 
     await hatchet.streams.reset(topic);
     await hatchet.streams.publish(topic, 'after-reset');
 
-    const [fresh] = await collect(hatchet.streams.events(topic), 1);
+    const [fresh] = await collect(hatchet.streams.subscribe(topic), 1);
     expect(decode(fresh.payload)).toEqual('after-reset');
 
     expect(decode((await existing.next()).value.payload)).toEqual('after-reset');
     await existing.return?.();
+  }, 30_000);
+
+  it('reset to a cursor starts new subscribers after that message', async () => {
+    const topic = makeTestScope('durable_streams_reset_cursor');
+
+    await hatchet.streams.publish(topic, 'one');
+    await hatchet.streams.publish(topic, 'two');
+    await hatchet.streams.publish(topic, 'three');
+
+    const [first] = await collect(hatchet.streams.subscribe(topic), 1);
+    await hatchet.streams.reset(topic, { cursor: first.cursor });
+
+    const fresh = await collect(hatchet.streams.subscribe(topic), 2);
+    expect(fresh.map((e) => decode(e.payload))).toEqual(['two', 'three']);
+  }, 30_000);
+
+  it('rejects a reset to a cursor from another topic', async () => {
+    const topic = makeTestScope('durable_streams_reset_foreign_cursor');
+    const other = makeTestScope('durable_streams_reset_foreign_cursor_other');
+
+    await hatchet.streams.publish(other, 'elsewhere');
+    const [foreign] = await collect(hatchet.streams.subscribe(other), 1);
+
+    await expect(hatchet.streams.reset(topic, { cursor: foreign.cursor })).rejects.toMatchObject({
+      code: Status.INVALID_ARGUMENT,
+    });
   }, 30_000);
 
   it('isolates messages by namespace', async () => {
@@ -92,7 +118,7 @@ describe('durable-streams-e2e', () => {
     // committed on return, so a consumer scoped to namespaceB could see it if scoping were broken
     await hatchet.streams.publish(topic, 'from-a', { namespace: namespaceA });
 
-    const events = hatchet.streams.events(topic, { namespace: namespaceB });
+    const events = hatchet.streams.subscribe(topic, { namespace: namespaceB });
 
     setTimeout(() => {
       void hatchet.streams.publish(topic, 'from-b', { namespace: namespaceB });
@@ -116,7 +142,7 @@ describe('durable-streams-e2e', () => {
     expect(md.tenantId).toEqual(hatchet.config.tenant_id);
     expect(md.lastPublishedAt).toBeInstanceOf(Date);
 
-    const events = await collect(hatchet.streams.events(topic), 3);
+    const events = await collect(hatchet.streams.subscribe(topic), 3);
     expect(md.latestCursor).toEqual(events[2].cursor);
 
     await expect(

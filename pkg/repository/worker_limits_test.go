@@ -5,6 +5,7 @@ package repository
 import (
 	"context"
 	"io"
+	"math"
 	"testing"
 
 	"github.com/google/uuid"
@@ -13,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
@@ -26,7 +28,7 @@ func createMeteredWorkerRepositoryForTest(t *testing.T, pool *pgxpool.Pool) (Wor
 	limits := createTenantLimitRepositoryForTest(t, pool, defaultLimitTestConfig())
 
 	return newWorkerRepository(&sharedRepository{
-		pool:    pool,
+		pool:    fairpool.Ungated(pool),
 		l:       &logger,
 		v:       validator.NewDefaultValidator(),
 		queries: sqlcv1.New(),
@@ -160,6 +162,19 @@ func TestCreateNewWorkerMetersOperatorWorkers(t *testing.T) {
 		assert.ErrorIs(t, err, ErrResourceExhausted, "the operator worker's slots are metered")
 	})
 
+	t.Run("units that cancel or wrap the sum do not skip the slot limit", func(t *testing.T) {
+		tenantId := createLimitTestTenant(t, pool)
+		require.NoError(t, limits.UpdateLimits(ctx, tenantId, []Limit{{Resource: sqlcv1.LimitResourceWORKERSLOT, Limit: 5}}))
+
+		for name, slotConfig := range map[string]map[string]int32{
+			"negative-offset": {SlotTypeDefault: 10, "offset": -10},
+			"int32-wrap":      {"a": math.MaxInt32, "b": math.MaxInt32, "c": 2},
+		} {
+			_, err := repo.CreateNewWorker(ctx, tenantId, &CreateWorkerOpts{DispatcherId: dispatcherId, Name: name, SlotConfig: slotConfig})
+			assert.Error(t, err, name)
+		}
+	})
+
 	t.Run("a worker of a DAG operator is metered unless exempted", func(t *testing.T) {
 		tenantId := createLimitTestTenant(t, pool)
 		require.NoError(t, limits.UpdateLimits(ctx, tenantId, []Limit{{Resource: sqlcv1.LimitResourceWORKER, Limit: 1}}))
@@ -174,4 +189,39 @@ func TestCreateNewWorkerMetersOperatorWorkers(t *testing.T) {
 		_, err = repo.CreateNewWorker(ctx, tenantId, operatorWorker("dag-op", dagOp, false, 1))
 		assert.ErrorIs(t, err, ErrResourceExhausted)
 	})
+}
+
+func TestGetLimitsCountsOnlyTheTenantsWorkerSlots(t *testing.T) {
+	pool := workerActionsPool(t)
+	ctx := context.Background()
+	repo, limits := createMeteredWorkerRepositoryForTest(t, pool)
+	dispatcherId := seedDispatcherForLimits(t, ctx, pool)
+
+	tenantId := createLimitTestTenant(t, pool)
+	otherTenantId := createLimitTestTenant(t, pool)
+
+	for id, slots := range map[uuid.UUID]int32{tenantId: 3, otherTenantId: 5} {
+		require.NoError(t, limits.UpdateLimits(ctx, id, []Limit{
+			{Resource: sqlcv1.LimitResourceWORKER, Limit: 10},
+			{Resource: sqlcv1.LimitResourceWORKERSLOT, Limit: 100},
+		}))
+
+		worker, err := repo.CreateNewWorker(ctx, id, &CreateWorkerOpts{DispatcherId: dispatcherId, Name: "sdk", SlotConfig: map[string]int32{SlotTypeDefault: slots}})
+		require.NoError(t, err)
+
+		_, err = pool.Exec(ctx, `UPDATE "Worker" SET "isActive" = true, "lastHeartbeatAt" = now() WHERE "id" = $1`, worker.ID)
+		require.NoError(t, err)
+	}
+
+	got, err := limits.GetLimits(ctx, tenantId)
+	require.NoError(t, err)
+
+	for _, l := range got {
+		if l.Resource == sqlcv1.LimitResourceWORKERSLOT {
+			assert.EqualValues(t, 3, l.Value)
+			return
+		}
+	}
+
+	t.Fatal("GetLimits returned no WORKER_SLOT limit")
 }

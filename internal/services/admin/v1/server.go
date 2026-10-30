@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -689,9 +689,9 @@ func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.Get
 		}
 	}
 
-	done := !listutils.Any(statuses, "QUEUED") && !listutils.Any(statuses, "RUNNING") && !listutils.Any(statuses, "EVICTED")
+	done := !enumerables.Any(statuses, "QUEUED") && !enumerables.Any(statuses, "RUNNING") && !enumerables.Any(statuses, "EVICTED")
 
-	anyEvicted := listutils.Any(statuses, "EVICTED")
+	anyEvicted := enumerables.Any(statuses, "EVICTED")
 
 	derivedStatusPtr, err := derivedWorkflowRunStatus.ToProto()
 
@@ -857,7 +857,9 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 	createOpts, err := getCreateWorkflowOpts(req)
 
 	if err != nil {
-		return nil, err
+		// the request could not be turned into workflow options: a malformed duration,
+		// expression or reference the caller supplied
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 
 	// validate createOpts
@@ -880,6 +882,14 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 
 		if errors.As(err, &tenantConcurrencyErr) {
 			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New(tenantConcurrencyErr.Error()))
+		}
+
+		// a cycle among the tasks is a property of the workflow as declared; only a changed
+		// declaration can fix it
+		var cycleErr *v1.JobRunHasCycleError
+
+		if errors.As(err, &cycleErr) {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New(cycleErr.Error()))
 		}
 
 		return nil, err

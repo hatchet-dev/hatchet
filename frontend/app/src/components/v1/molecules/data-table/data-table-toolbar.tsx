@@ -1,4 +1,5 @@
 import { DataTableOptions } from './data-table-options';
+import { ToolbarType } from './toolbar-type';
 import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
 import { Spinner } from '@/components/v1/ui/loading';
 import {
@@ -17,15 +18,7 @@ export interface FilterOption {
   subOptions?: FilterOption[];
 }
 
-export enum ToolbarType {
-  Checkbox = 'checkbox',
-  Radio = 'radio',
-  KeyValue = 'key-value',
-  Array = 'array',
-  Switch = 'switch',
-  TimeRange = 'time-range',
-  Search = 'search',
-}
+export { ToolbarType };
 
 export interface TimeRangeConfig {
   onTimeWindowChange?: (value: string) => void;

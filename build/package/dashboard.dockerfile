@@ -6,7 +6,7 @@ ARG HATCHET_API_IMAGE
 FROM $HATCHET_API_IMAGE AS api-binary-base
 
 # Stage 2: build the frontend
-FROM node:22-alpine AS frontend-build
+FROM node:24-alpine AS frontend-build
 
 WORKDIR /app
 
@@ -37,7 +37,7 @@ RUN if [ "$FIPS" = "true" ]; then export GOFIPS140=v1.0.0; fi && \
     fi
 
 # Stage 4: deployment image
-FROM alpine:3.21 AS deployment
+FROM alpine:3.24 AS deployment
 
 ARG FIPS=false
 LABEL run.hatchet.fips=${FIPS}

@@ -49,6 +49,9 @@ const (
 	// WorkflowServicePutRateLimitProcedure is the fully-qualified name of the WorkflowService's
 	// PutRateLimit RPC.
 	WorkflowServicePutRateLimitProcedure = "/WorkflowService/PutRateLimit"
+	// WorkflowServicePauseRateLimitProcedure is the fully-qualified name of the WorkflowService's
+	// PauseRateLimit RPC.
+	WorkflowServicePauseRateLimitProcedure = "/WorkflowService/PauseRateLimit"
 )
 
 // WorkflowServiceClient is a client for the WorkflowService service.
@@ -58,6 +61,7 @@ type WorkflowServiceClient interface {
 	TriggerWorkflow(context.Context, *v1.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error)
 	BulkTriggerWorkflow(context.Context, *contracts.BulkTriggerWorkflowRequest) (*contracts.BulkTriggerWorkflowResponse, error)
 	PutRateLimit(context.Context, *contracts.PutRateLimitRequest) (*contracts.PutRateLimitResponse, error)
+	PauseRateLimit(context.Context, *contracts.PauseRateLimitRequest) (*contracts.PauseRateLimitResponse, error)
 }
 
 // NewWorkflowServiceClient constructs a client for the WorkflowService service. By default, it uses
@@ -101,6 +105,12 @@ func NewWorkflowServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(workflowServiceMethods.ByName("PutRateLimit")),
 			connect.WithClientOptions(opts...),
 		),
+		pauseRateLimit: connect.NewClient[contracts.PauseRateLimitRequest, contracts.PauseRateLimitResponse](
+			httpClient,
+			baseURL+WorkflowServicePauseRateLimitProcedure,
+			connect.WithSchema(workflowServiceMethods.ByName("PauseRateLimit")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -111,6 +121,7 @@ type workflowServiceClient struct {
 	triggerWorkflow     *connect.Client[v1.TriggerWorkflowRequest, contracts.TriggerWorkflowResponse]
 	bulkTriggerWorkflow *connect.Client[contracts.BulkTriggerWorkflowRequest, contracts.BulkTriggerWorkflowResponse]
 	putRateLimit        *connect.Client[contracts.PutRateLimitRequest, contracts.PutRateLimitResponse]
+	pauseRateLimit      *connect.Client[contracts.PauseRateLimitRequest, contracts.PauseRateLimitResponse]
 }
 
 // PutWorkflow calls WorkflowService.PutWorkflow.
@@ -158,6 +169,15 @@ func (c *workflowServiceClient) PutRateLimit(ctx context.Context, req *contracts
 	return nil, err
 }
 
+// PauseRateLimit calls WorkflowService.PauseRateLimit.
+func (c *workflowServiceClient) PauseRateLimit(ctx context.Context, req *contracts.PauseRateLimitRequest) (*contracts.PauseRateLimitResponse, error) {
+	response, err := c.pauseRateLimit.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
 // WorkflowServiceHandler is an implementation of the WorkflowService service.
 type WorkflowServiceHandler interface {
 	PutWorkflow(context.Context, *contracts.PutWorkflowRequest) (*contracts.WorkflowVersion, error)
@@ -165,6 +185,7 @@ type WorkflowServiceHandler interface {
 	TriggerWorkflow(context.Context, *v1.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error)
 	BulkTriggerWorkflow(context.Context, *contracts.BulkTriggerWorkflowRequest) (*contracts.BulkTriggerWorkflowResponse, error)
 	PutRateLimit(context.Context, *contracts.PutRateLimitRequest) (*contracts.PutRateLimitResponse, error)
+	PauseRateLimit(context.Context, *contracts.PauseRateLimitRequest) (*contracts.PauseRateLimitResponse, error)
 }
 
 // NewWorkflowServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -204,6 +225,12 @@ func NewWorkflowServiceHandler(svc WorkflowServiceHandler, opts ...connect.Handl
 		connect.WithSchema(workflowServiceMethods.ByName("PutRateLimit")),
 		connect.WithHandlerOptions(opts...),
 	)
+	workflowServicePauseRateLimitHandler := connect.NewUnaryHandlerSimple(
+		WorkflowServicePauseRateLimitProcedure,
+		svc.PauseRateLimit,
+		connect.WithSchema(workflowServiceMethods.ByName("PauseRateLimit")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/WorkflowService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case WorkflowServicePutWorkflowProcedure:
@@ -216,6 +243,8 @@ func NewWorkflowServiceHandler(svc WorkflowServiceHandler, opts ...connect.Handl
 			workflowServiceBulkTriggerWorkflowHandler.ServeHTTP(w, r)
 		case WorkflowServicePutRateLimitProcedure:
 			workflowServicePutRateLimitHandler.ServeHTTP(w, r)
+		case WorkflowServicePauseRateLimitProcedure:
+			workflowServicePauseRateLimitHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -243,4 +272,8 @@ func (UnimplementedWorkflowServiceHandler) BulkTriggerWorkflow(context.Context, 
 
 func (UnimplementedWorkflowServiceHandler) PutRateLimit(context.Context, *contracts.PutRateLimitRequest) (*contracts.PutRateLimitResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("WorkflowService.PutRateLimit is not implemented"))
+}
+
+func (UnimplementedWorkflowServiceHandler) PauseRateLimit(context.Context, *contracts.PauseRateLimitRequest) (*contracts.PauseRateLimitResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("WorkflowService.PauseRateLimit is not implemented"))
 }

@@ -5,10 +5,12 @@ import { ClientConfig } from '@hatchet/clients/hatchet-client';
 import { createGrpcClient } from '@hatchet/util/grpc-helpers';
 import { getGrpcErrorCode } from '@hatchet/util/grpc-error';
 import sleep from '@hatchet/util/sleep';
+import { StreamPublishQueue, validateBatchTimeout } from '@hatchet/util/stream-publish-batch';
 import {
   V1StreamsClient as PbV1StreamsClient,
   V1StreamsDefinition,
 } from '@hatchet/protoc/v1/streams';
+import type { StreamCallOptions, StreamTopicMetadata } from '@hatchet/core/types';
 import { HatchetClient } from '../client';
 
 // the server stored nothing, so the seq is unused
@@ -18,9 +20,13 @@ function publishRejectedBeforeStoring(err: unknown): boolean {
     code === Status.INVALID_ARGUMENT ||
     code === Status.RESOURCE_EXHAUSTED ||
     code === Status.UNAUTHENTICATED ||
-    code === Status.PERMISSION_DENIED
+    code === Status.PERMISSION_DENIED ||
+    // an engine without the RPC
+    code === Status.UNIMPLEMENTED
   );
 }
+
+type PublishEntry = { payload: Uint8Array; payloadRef: string };
 
 // retrying a subscribe that failed with these can't succeed
 const permanentSubscribeErrors = new Set<number>([
@@ -42,6 +48,9 @@ const maxInlinePayloadBytes = 4 * 1024 * 1024 - 5 * 1024;
 const maxUploadedPayloadBytes = 64 * 1024 * 1024;
 
 const payloadRequestAttempts = 3;
+
+// an upload's ref, which a batch carries in place of its payload, rounded up
+const payloadRefBytes = 256;
 
 function httpStatus(err: unknown): number | undefined {
   return isAxiosError(err) ? err.response?.status : undefined;
@@ -74,30 +83,21 @@ function shouldResubscribe(err: unknown, attempt: number): boolean {
 export type StreamEvent = {
   /** the message payload */
   payload: Uint8Array;
-  /** resumes events() right after this event */
+  /** resumes subscribe() right after this event */
   cursor: string;
   /** when the message was stored */
   createdAt?: Date;
 };
 
-/** Covers only messages within the tenant's retention. */
-export type StreamTopicMetadata = {
-  namespace: string;
-  topic: string;
-  tenantId: string;
-  messageCount: number;
-  /** resumes events() after the newest retained message; undefined when none is retained */
-  latestCursor?: string;
-  /** when the newest retained message was stored; undefined when none is retained */
-  lastPublishedAt?: Date;
-};
+export type { StreamCallOptions, StreamTopicMetadata } from '@hatchet/core/types';
 
-export type StreamCallOptions = {
-  namespace?: string;
-  cursor?: string;
-  /** ends an events() iteration cleanly, without throwing */
-  signal?: AbortSignal;
-};
+interface QueuedPublish {
+  payload: Uint8Array;
+  // set instead of an inline payload for one too large for a gRPC message
+  uploaded: Promise<string> | undefined;
+  resolve: () => void;
+  reject: (err: unknown) => void;
+}
 
 /**
  * StreamsClient publishes to and reads from durable topics. Unlike
@@ -112,9 +112,12 @@ export class StreamsClient {
   // per (namespace, topic); seq only advances after a publish succeeds
   private producers = new Map<string, { producerId: string; seq: number }>();
 
-  // serializes publishes per (namespace, topic) so two never share a seq; the
-  // stored promise always resolves, so one failure doesn't block later calls
-  private publishChains = new Map<string, Promise<void>>();
+  // per (namespace, topic); one request per topic is in flight at a time so two
+  // never share a seq, and each carries everything queued behind the last
+  private publishQueues = new Map<string, StreamPublishQueue<QueuedPublish>>();
+
+  // set once the engine answers PublishBatch as unimplemented: it predates batching
+  private publishBatchUnsupported = false;
 
   constructor(client: HatchetClient) {
     this._config = client.config;
@@ -163,11 +166,81 @@ export class StreamsClient {
     return new Uint8Array(res.data as unknown as ArrayBuffer);
   }
 
+  private async drainPublishes(
+    key: string,
+    namespace: string,
+    topic: string,
+    queue: StreamPublishQueue<QueuedPublish>
+  ): Promise<void> {
+    while (queue.size > 0) {
+      const batch = await queue.next();
+      const refs = await Promise.allSettled(batch.map((p) => p.uploaded));
+      const sent: QueuedPublish[] = [];
+      const entries: PublishEntry[] = [];
+
+      // a failed upload fails only its own publish, as the rest never depended on it
+      batch.forEach((p, i) => {
+        const ref = refs[i];
+        if (ref.status === 'rejected') {
+          p.reject(ref.reason);
+          return;
+        }
+        sent.push(p);
+        entries.push(
+          ref.value === undefined
+            ? { payload: p.payload, payloadRef: '' }
+            : { payload: new Uint8Array(), payloadRef: ref.value }
+        );
+      });
+
+      if (entries.length > 0) {
+        await this.sendPublishes(key, namespace, topic, sent, entries);
+      }
+    }
+
+    this.publishQueues.delete(key);
+  }
+
+  // sends entries as one request, or one request per entry to an engine that
+  // predates PublishBatch, and settles each publish
+  private async sendPublishes(
+    key: string,
+    namespace: string,
+    topic: string,
+    sent: QueuedPublish[],
+    entries: PublishEntry[]
+  ): Promise<void> {
+    if (!this.publishBatchUnsupported) {
+      try {
+        await this.publishOrdered(key, namespace, topic, entries);
+        sent.forEach((p) => p.resolve());
+        return;
+      } catch (err) {
+        if (getGrpcErrorCode(err) !== Status.UNIMPLEMENTED) {
+          sent.forEach((p) => p.reject(err));
+          return;
+        }
+        // nothing was stored, so the batch goes out again below
+        this.publishBatchUnsupported = true;
+      }
+    }
+
+    // settled one by one: a failure partway leaves the publishes before it stored
+    for (const [i, p] of sent.entries()) {
+      try {
+        await this.publishOrdered(key, namespace, topic, [entries[i]]);
+        p.resolve();
+      } catch (err) {
+        p.reject(err);
+      }
+    }
+  }
+
   private async publishOrdered(
     key: string,
     namespace: string,
     topic: string,
-    body: { payload: Uint8Array } | { payloadRef: string },
+    entries: PublishEntry[],
     retryGap = true
   ): Promise<void> {
     let producer = this.producers.get(key);
@@ -177,13 +250,23 @@ export class StreamsClient {
     }
 
     try {
-      await this.grpc.publish({
-        namespace,
-        topic,
-        ...body,
-        producerId: producer.producerId,
-        producerSeq: producer.seq,
-      });
+      if (this.publishBatchUnsupported && entries.length === 1) {
+        await this.grpc.publish({
+          namespace,
+          topic,
+          ...entries[0],
+          producerId: producer.producerId,
+          producerSeq: producer.seq,
+        });
+      } else {
+        await this.grpc.publishBatch({
+          namespace,
+          topic,
+          producerId: producer.producerId,
+          firstProducerSeq: producer.seq,
+          entries,
+        });
+      }
     } catch (err) {
       // it may still land, and a different payload under its seq would be dropped as a duplicate
       if (!publishRejectedBeforeStoring(err)) {
@@ -191,20 +274,22 @@ export class StreamsClient {
       }
       // a gap stored nothing (e.g. the watermark passed cursor retention), so resend as the new producer
       if (retryGap && getGrpcErrorCode(err) === Status.FAILED_PRECONDITION) {
-        return this.publishOrdered(key, namespace, topic, body, false);
+        return this.publishOrdered(key, namespace, topic, entries, false);
       }
       throw err;
     }
 
-    producer.seq += 1;
+    producer.seq += entries.length;
   }
 
   /**
    * Resolves once the message is stored. A client's messages to a topic are
-   * delivered in the order publish() was called.
+   * delivered in the order publish() was called. Publishes to a topic share
+   * requests: everything queued while one is in flight goes out in the next,
+   * and `batchTimeoutMs` holds a message up to that long for more to join it.
    * @param topic - the topic to publish to
    * @param message - the message payload
-   * @param options - optional namespace override
+   * @param options - optional namespace override and batch timeout
    */
   async publish(
     topic: string,
@@ -215,32 +300,37 @@ export class StreamsClient {
     const namespace = options?.namespace ?? '';
     const key = `${namespace}\u0000${topic}`;
 
+    // the engine would reject the whole request it shares, failing other publishes too
+    if (payload.byteLength === 0) {
+      throw new Error('payload is empty; a message must carry at least one byte');
+    }
+
     if (payload.byteLength > maxUploadedPayloadBytes) {
       throw new Error(`payload exceeds maximum size of ${maxUploadedPayloadBytes} bytes`);
     }
 
+    validateBatchTimeout(options?.batchTimeoutMs);
+
     // uploaded before taking its place in the topic's order, so uploads overlap
     const uploaded =
       payload.byteLength > maxInlinePayloadBytes ? this.uploadPayload(payload) : undefined;
-    // awaited in order below; this only keeps an early failure from reporting as unhandled
+    // awaited when its batch is sent; this only keeps an early failure from reporting as unhandled
     uploaded?.catch(() => {});
 
-    const previous = this.publishChains.get(key) ?? Promise.resolve();
-    const publishPromise = previous.then(async () =>
-      this.publishOrdered(
-        key,
-        namespace,
-        topic,
-        uploaded ? { payloadRef: await uploaded } : { payload }
-      )
-    );
+    return new Promise<void>((resolve, reject) => {
+      const queue =
+        this.publishQueues.get(key) ??
+        new StreamPublishQueue<QueuedPublish>((p) =>
+          p.uploaded ? payloadRefBytes : p.payload.byteLength
+        );
+      queue.push({ payload, uploaded, resolve, reject }, options?.batchTimeoutMs);
 
-    this.publishChains.set(
-      key,
-      publishPromise.catch(() => {})
-    );
-
-    return publishPromise;
+      // pushed first, since the drain stops at an empty queue
+      if (!this.publishQueues.has(key)) {
+        this.publishQueues.set(key, queue);
+        void this.drainPublishes(key, namespace, topic, queue);
+      }
+    });
   }
 
   /**
@@ -266,14 +356,26 @@ export class StreamsClient {
   }
 
   /**
-   * Makes events() calls without a cursor start after the topic's latest
-   * message. Readers already iterating, and any call with a cursor, are
-   * unaffected.
+   * Makes subscribe() calls without a cursor start after options.cursor, or the
+   * topic's latest message. Readers already iterating, and any call with a
+   * cursor, are unaffected.
    * @param topic - the topic to reset
-   * @param options - optional namespace override
+   * @param options - optional namespace override and cursor to reset to
    */
-  async reset(topic: string, options?: Pick<StreamCallOptions, 'namespace'>): Promise<void> {
-    await this.grpc.reset({ namespace: options?.namespace ?? '', topic });
+  async reset(
+    topic: string,
+    options?: Pick<StreamCallOptions, 'namespace' | 'cursor'>
+  ): Promise<void> {
+    await this.grpc.reset({ namespace: options?.namespace ?? '', topic, cursor: options?.cursor });
+  }
+
+  /**
+   * An alias of subscribe(), which replaces it; events() will be removed in a future release.
+   * @param topic - the topic to read from
+   * @param options - optional namespace override, resume cursor, and abort signal
+   */
+  events(topic: string, options?: StreamCallOptions): AsyncIterable<StreamEvent> {
+    return this.subscribe(topic, options);
   }
 
   /**
@@ -286,7 +388,7 @@ export class StreamsClient {
    * @param topic - the topic to read from
    * @param options - optional namespace override, resume cursor, and abort signal
    */
-  async *events(topic: string, options?: StreamCallOptions): AsyncIterable<StreamEvent> {
+  async *subscribe(topic: string, options?: StreamCallOptions): AsyncIterable<StreamEvent> {
     const namespace = options?.namespace ?? '';
     const signal = options?.signal;
     let { cursor } = options ?? {};

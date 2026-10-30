@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -147,6 +148,13 @@ type Session interface {
 	// bounded, and delivered after the ack that names their entry. ctx bounds the handshake;
 	// the invocation itself ends on the channel's Close.
 	OpenDurable(ctx context.Context, taskExternalId uuid.UUID, invocation int32) (DurableChannel, error)
+
+	// OpenRunStream opens one of the engine's run observation streams on behalf of the
+	// session's tenant, with the host's own credentials. first is the opening message: the
+	// request of a server stream (required), or the first subscription of a bidi stream (may
+	// be nil, in which case nothing is sent before the caller's first Send). ctx bounds the
+	// open; the stream itself lives until Close, the engine ending it, or the session closing.
+	OpenRunStream(ctx context.Context, kind RunStreamKind, first proto.Message) (RunStream, error)
 
 	// Pause stops the scheduler assigning to the worker and returns once the pause is
 	// committed, so a caller that drains afterwards knows no further work will arrive.

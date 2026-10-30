@@ -271,12 +271,14 @@ func (r *sharedRepository) registerSignalMatchConditions(ctx context.Context, tx
 }
 
 func (m *MatchRepositoryImpl) RegisterSignalMatchConditions(ctx context.Context, tenantId uuid.UUID, signalMatches []ExternalCreateSignalMatchOpts) error {
+	db := m.pool.ForTenant(tenantId)
+
 	// TODO: ADD BACK VALIDATION
 	// if err := m.v.Validate(signalMatches); err != nil {
 	// 	return err
 	// }
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, m.pool, m.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, m.l)
 
 	if err != nil {
 		return err
@@ -295,9 +297,31 @@ func (m *MatchRepositoryImpl) RegisterSignalMatchConditions(ctx context.Context,
 	return nil
 }
 
+// ownedTaskInputStoreOpts skips tasks that read their input from their run's payload row.
+func ownedTaskInputStoreOpts(tasks []*V1TaskWithPayload) []StorePayloadOpts {
+	storePayloadOpts := make([]StorePayloadOpts, 0, len(tasks))
+
+	for _, task := range tasks {
+		if task.PayloadReferenceID != nil {
+			continue
+		}
+
+		storePayloadOpts = append(storePayloadOpts, PayloadRef[TaskInputShape]{
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt,
+			ExternalId: task.ExternalID,
+			TenantId:   task.TenantID,
+		}.StoreOpts(NewPayload[TaskInputShape](task.TaskInputPayload)))
+	}
+
+	return storePayloadOpts
+}
+
 // ProcessInternalEventMatches processes a list of internal events
 func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, tenantId uuid.UUID, events []CandidateEventMatch) (*EventMatchResults, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, m.pool, m.l)
+	db := m.pool.ForTenant(tenantId)
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, m.l)
 
 	if err != nil {
 		return nil, err
@@ -311,18 +335,7 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 		return nil, err
 	}
 
-	storePayloadOpts := make([]StorePayloadOpts, len(res.CreatedTasks))
-
-	for i, task := range res.CreatedTasks {
-		storePayloadOpts[i] = StorePayloadOpts{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			ExternalId: task.ExternalID,
-			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-			Payload:    task.Payload,
-			TenantId:   task.TenantID,
-		}
-	}
+	storePayloadOpts := ownedTaskInputStoreOpts(res.CreatedTasks)
 
 	if len(storePayloadOpts) > 0 {
 		err = m.payloadStore.Store(ctx, tx, storePayloadOpts...)
@@ -341,7 +354,9 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 
 // ProcessUserEventMatches processes a list of user events
 func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenantId uuid.UUID, events []CandidateEventMatch) (*EventMatchResults, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, m.pool, m.l)
+	db := m.pool.ForTenant(tenantId)
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, m.l)
 
 	if err != nil {
 		return nil, err
@@ -355,17 +370,7 @@ func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenan
 		return nil, err
 	}
 
-	storePayloadOpts := make([]StorePayloadOpts, len(res.CreatedTasks))
-	for i, task := range res.CreatedTasks {
-		storePayloadOpts[i] = StorePayloadOpts{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			ExternalId: task.ExternalID,
-			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-			Payload:    task.Payload,
-			TenantId:   task.TenantID,
-		}
-	}
+	storePayloadOpts := ownedTaskInputStoreOpts(res.CreatedTasks)
 
 	if len(storePayloadOpts) > 0 {
 		err = m.payloadStore.Store(ctx, tx, storePayloadOpts...)
@@ -594,18 +599,18 @@ func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx 
 			return nil, fmt.Errorf("failed to get DAG data: %w", err)
 		}
 
-		retrievePayloadOpts := make([]RetrievePayloadOpts, len(dagInputDatas))
+		retrievePayloadOpts := make([]PayloadRef[DAGInputShape], len(dagInputDatas))
 		for i, dagData := range dagInputDatas {
-			retrievePayloadOpts[i] = RetrievePayloadOpts{
-				Id:         dagData.DagID,
-				InsertedAt: dagData.DagInsertedAt,
-				Type:       sqlcv1.V1PayloadTypeDAGINPUT,
-				TenantId:   tenantId,
-				ExternalId: dagData.ExternalID,
+			retrievePayloadOpts[i] = PayloadRef[DAGInputShape]{
+				Id:                 dagData.DagID,
+				InsertedAt:         dagData.DagInsertedAt,
+				TenantId:           tenantId,
+				ExternalId:         dagData.ExternalID,
+				PayloadReferenceId: dagData.PayloadReferenceID,
 			}
 		}
 
-		payloads, err := m.payloadStore.Retrieve(ctx, tx, retrievePayloadOpts...)
+		payloads, err := m.payloadStore.DAGInputs().Retrieve(ctx, tx, retrievePayloadOpts...)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to retrieve dag input payloads: %w", err)
@@ -614,25 +619,21 @@ func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx 
 		dagIdsToInput := make(map[int64][]byte)
 		dagIdsToMetadata := make(map[int64][]byte)
 		dagIdsToDesiredWorkerLabels := make(map[int64][]byte)
+		dagIdsToPayloadReferenceId := make(map[int64]*uuid.UUID)
 
 		for _, dagData := range dagInputDatas {
-			retrieveOpts := RetrievePayloadOpts{
-				Id:         dagData.DagID,
-				InsertedAt: dagData.DagInsertedAt,
-				Type:       sqlcv1.V1PayloadTypeDAGINPUT,
-				TenantId:   tenantId,
-				ExternalId: dagData.ExternalID,
+			retrieveOpts := PayloadRef[DAGInputShape]{
+				Id:                 dagData.DagID,
+				InsertedAt:         dagData.DagInsertedAt,
+				TenantId:           tenantId,
+				ExternalId:         dagData.ExternalID,
+				PayloadReferenceId: dagData.PayloadReferenceID,
 			}
 
-			payload, ok := payloads[retrieveOpts]
-
-			if !ok {
-				payload = dagData.Input
-			}
-
-			dagIdsToInput[dagData.DagID] = payload
+			dagIdsToInput[dagData.DagID] = RetrievePayloadOrFallback(payloads, retrieveOpts, dagData.Input).Bytes()
 			dagIdsToMetadata[dagData.DagID] = dagData.AdditionalMetadata
 			dagIdsToDesiredWorkerLabels[dagData.DagID] = dagData.DesiredWorkerLabels
+			dagIdsToPayloadReferenceId[dagData.DagID] = dagData.PayloadReferenceID
 		}
 
 		// determine which tasks to create based on step ids
@@ -709,6 +710,7 @@ func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx 
 					if match.TriggerDagID.Valid && match.TriggerDagInsertedAt.Valid {
 						opt.DagId = &match.TriggerDagID.Int64
 						opt.DagInsertedAt = match.TriggerDagInsertedAt
+						opt.PayloadReferenceId = m.sharedRunInputPayloadReferenceId(dagIdsToPayloadReferenceId[match.TriggerDagID.Int64])
 
 						// Prefer labels stored on the match; fall back to the DAG for rows
 						// created before the migration added trigger_desired_worker_labels.
@@ -924,14 +926,12 @@ func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx 
 		initialEntry.SatisfiedOrder = satisfiedOrderPtr(cb.SatisfiedOrder)
 
 		if len(initialEntry.Data) > 0 {
-			payloadsToStore = append(payloadsToStore, StorePayloadOpts{
+			payloadsToStore = append(payloadsToStore, PayloadRef[DurableEventLogEntryResultDataShape]{
 				Id:         cb.ID,
 				InsertedAt: cb.InsertedAt,
-				Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
-				Payload:    initialEntry.Data,
 				ExternalId: cb.ResultPayloadExternalID,
 				TenantId:   tenantId,
-			})
+			}.StoreOpts(NewPayload[DurableEventLogEntryResultDataShape](initialEntry.Data)))
 		}
 
 		satisfiedEntries = append(satisfiedEntries, initialEntry)
@@ -981,6 +981,7 @@ func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx 
 			datas,
 			makeEventTypeArr(sqlcv1.V1TaskEventTypeSIGNALCOMPLETED, len(taskIds)),
 			eventKeys,
+			nil,
 			nil,
 			nil,
 		)

@@ -277,8 +277,9 @@ WHERE EXISTS (SELECT 1 FROM topic);
 -- name: ResetStreamTopic :exec
 -- Waits on the row lock a publish holds until commit (see
 -- ReserveStreamTopicOffsets), so every offset up to last_offset is stored.
+-- LEAST ignores a NULL startingOffset, and caps one past offsets yet reserved.
 UPDATE v1_stream_topic
-SET starting_offset = last_offset
+SET starting_offset = LEAST(sqlc.narg('startingOffset')::bigint, last_offset)
 WHERE tenant_id = @tenantId::uuid AND namespace = @namespace::text AND topic = @topic::text;
 
 -- name: GetStreamTopicStartingOffset :one
@@ -288,3 +289,31 @@ SELECT COALESCE((
     FROM v1_stream_topic
     WHERE tenant_id = @tenantId::uuid AND namespace = @namespace::text AND topic = @topic::text
 ), 0)::bigint AS starting_offset;
+
+-- name: ListStreamTopics :many
+-- message_count covers only messages within the tenant's retention.
+SELECT
+    t.namespace,
+    t.topic,
+    t.inserted_at,
+    t.last_published_at,
+    (
+        SELECT COUNT(*)
+        FROM v1_stream_message m
+        WHERE m.tenant_id = t.tenant_id
+            AND m.namespace = t.namespace
+            AND m.topic = t.topic
+            AND m.inserted_at >= @retainedSince::timestamptz
+    )::bigint AS message_count
+FROM v1_stream_topic t
+WHERE t.tenant_id = @tenantId::uuid
+    AND (sqlc.narg('search')::text IS NULL OR t.topic ILIKE '%' || sqlc.narg('search')::text || '%' OR t.namespace ILIKE '%' || sqlc.narg('search')::text || '%')
+ORDER BY t.namespace, t.topic
+LIMIT @topicLimit::integer
+OFFSET @topicOffset::integer;
+
+-- name: CountStreamTopicsMatching :one
+SELECT COUNT(*)
+FROM v1_stream_topic t
+WHERE t.tenant_id = @tenantId::uuid
+    AND (sqlc.narg('search')::text IS NULL OR t.topic ILIKE '%' || sqlc.narg('search')::text || '%' OR t.namespace ILIKE '%' || sqlc.narg('search')::text || '%');

@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -38,6 +38,7 @@ type RateLimitResult struct {
 	ExceededUnits  int32
 	ExceededVal    int32
 	NextRefillAt   *time.Time
+	PausedUntil    *time.Time
 	TaskId         int64
 	TaskInsertedAt pgtype.Timestamptz
 	RetryCount     int32
@@ -183,7 +184,7 @@ func (d *queueRepository) ListQueueItems(ctx context.Context, limit int) ([]*sql
 	start := time.Now()
 	checkpoint := start
 
-	qis, err := d.queries.ListQueueItemsForQueue(ctx, d.pool, sqlcv1.ListQueueItemsForQueueParams{
+	qis, err := d.queries.ListQueueItemsForQueue(ctx, d.pool.ForTenant(d.tenantId), sqlcv1.ListQueueItemsForQueueParams{
 		Tenantid: d.tenantId,
 		Queue:    d.queueName,
 		GtId:     d.getMinId(),
@@ -235,7 +236,7 @@ func (d *queueRepository) updateMinId() {
 	dbCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	minId, err := d.queries.GetMinUnprocessedQueueItemId(dbCtx, d.pool, sqlcv1.GetMinUnprocessedQueueItemIdParams{
+	minId, err := d.queries.GetMinUnprocessedQueueItemId(dbCtx, d.pool.ForTenant(d.tenantId), sqlcv1.GetMinUnprocessedQueueItemIdParams{
 		Tenantid: d.tenantId,
 		Queue:    d.queueName,
 	})
@@ -251,7 +252,7 @@ func (d *queueRepository) updateMinId() {
 }
 
 func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *AssignResults) (succeeded []*AssignedItem, failed []*AssignedItem, err error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool.ForTenant(d.tenantId), d.l)
 
 	if err != nil {
 		return nil, nil, err
@@ -406,6 +407,7 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 			Removeretrycounts:     removeRetryCounts,
 			Tenantid:              tenantId,
 			Mintaskinsertedat:     minTaskInsertedAt,
+			Reassignunackedtasks:  d.reassignUnackedTasks,
 		})
 
 		flushDuration = time.Since(flushStart)
@@ -475,8 +477,20 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 	// remove rate limited queue items from the queue and place them in the v1_rate_limited_queue_items table
 	qisToMoveToRateLimited := make([]int64, 0, len(r.RateLimited))
 	qisToMoveToRateLimitedRQAfter := make([]pgtype.Timestamptz, 0, len(r.RateLimited))
+	tasksToHold := make([]TaskIdInsertedAtRetryCount, 0)
 
 	for _, row := range r.RateLimitedToMove {
+		// a paused key holds the task until the pause ends, without its concurrency slot
+		if row.PausedUntil != nil {
+			tasksToHold = append(tasksToHold, TaskIdInsertedAtRetryCount{
+				Id:         row.TaskID,
+				InsertedAt: row.TaskInsertedAt,
+				RetryCount: row.RetryCount,
+			})
+
+			continue
+		}
+
 		qisToMoveToRateLimited = append(qisToMoveToRateLimited, row.ID)
 		qisToMoveToRateLimitedRQAfter = append(qisToMoveToRateLimitedRQAfter, sqlchelpers.TimestamptzFromTime(*row.NextRefillAt))
 	}
@@ -490,6 +504,10 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 		if err != nil {
 			return nil, nil, err
 		}
+	}
+
+	if err = d.holdPausedTasks(ctx, tx, tenantId, tasksToHold); err != nil {
+		return nil, nil, err
 	}
 
 	if len(tasksToRelease) > 0 {
@@ -582,7 +600,7 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 	if tx != nil {
 		queryTx = tx.tx
 	} else {
-		queryTx = d.pool
+		queryTx = d.pool.ForTenant(d.tenantId)
 	}
 
 	taskIds := make([]int64, 0, len(queueItems))
@@ -811,7 +829,7 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx
 	stepIdsToLookup := make([]uuid.UUID, 0, len(stepIds))
 	stepIdToLabels := make(map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow)
 
-	uniqueStepIds := listutils.Uniq(stepIds)
+	uniqueStepIds := enumerables.Uniq(stepIds)
 
 	for _, stepId := range uniqueStepIds {
 		if value, found := d.stepIdLabelsCache.Get(stepId); found {
@@ -830,7 +848,7 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx
 	if tx != nil {
 		queryTx = tx.tx
 	} else {
-		queryTx = d.pool
+		queryTx = d.pool.ForTenant(d.tenantId)
 	}
 
 	labels, err := d.queries.GetDesiredLabels(ctx, queryTx, stepIdsToLookup)
@@ -849,8 +867,12 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx
 		stepIdToLabels[stepId] = append(stepIdToLabels[stepId], label)
 	}
 
-	for stepId, labels := range stepIdToLabels {
-		d.stepIdLabelsCache.Add(stepId, labels)
+	for _, stepId := range stepIdsToLookup {
+		if _, ok := stepIdToLabels[stepId]; !ok {
+			stepIdToLabels[stepId] = []*sqlcv1.GetDesiredLabelsRow{}
+		}
+
+		d.stepIdLabelsCache.Add(stepId, stepIdToLabels[stepId])
 	}
 
 	return stepIdToLabels, nil
@@ -860,7 +882,7 @@ func (d *queueRepository) GetStepSlotRequests(ctx context.Context, tx *Optimisti
 	ctx, span := telemetry.NewSpan(ctx, "get-step-slot-requests")
 	defer span.End()
 
-	uniqueStepIds := listutils.Uniq(stepIds)
+	uniqueStepIds := enumerables.Uniq(stepIds)
 
 	stepIdsToLookup := make([]uuid.UUID, 0, len(uniqueStepIds))
 	stepIdToRequests := make(map[uuid.UUID]map[string]int32, len(uniqueStepIds))
@@ -882,7 +904,7 @@ func (d *queueRepository) GetStepSlotRequests(ctx context.Context, tx *Optimisti
 	if tx != nil {
 		queryTx = tx.tx
 	} else {
-		queryTx = d.pool
+		queryTx = d.pool.ForTenant(d.tenantId)
 	}
 
 	rows, err := d.queries.GetStepSlotRequests(ctx, queryTx, sqlcv1.GetStepSlotRequestsParams{
@@ -917,7 +939,7 @@ func (d *queueRepository) GetStepBatchConfigs(ctx context.Context, tx *Optimisti
 	ctx, span := telemetry.NewSpan(ctx, "get-step-batch-configs")
 	defer span.End()
 
-	uniqueStepIds := listutils.Uniq(stepIds)
+	uniqueStepIds := enumerables.Uniq(stepIds)
 	res := make(map[string]bool, len(uniqueStepIds))
 
 	stepIdsToLookup := make([]uuid.UUID, 0, len(uniqueStepIds))
@@ -940,7 +962,7 @@ func (d *queueRepository) GetStepBatchConfigs(ctx context.Context, tx *Optimisti
 	if tx != nil {
 		queryTx = tx.tx
 	} else {
-		queryTx = d.pool
+		queryTx = d.pool.ForTenant(d.tenantId)
 	}
 
 	steps, err := d.queries.ListStepsWithBatchConfig(ctx, queryTx, stepIdsToLookup)
@@ -980,7 +1002,7 @@ func (d *queueRepository) ListWorkflowNamesByIds(ctx context.Context, workflowId
 		return workflowIdToName, nil
 	}
 
-	rows, err := d.queries.ListWorkflowNamesByIds(ctx, d.pool, misses)
+	rows, err := d.queries.ListWorkflowNamesByIds(ctx, d.pool.ForTenant(d.tenantId), misses)
 
 	if err != nil {
 		return nil, err
@@ -994,11 +1016,14 @@ func (d *queueRepository) ListWorkflowNamesByIds(ctx context.Context, workflowId
 	return workflowIdToName, nil
 }
 
-func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId uuid.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error) {
-	// NOTE: this runs on every tick of every queue loop, and nearly always moves nothing. The
-	// statement is a single atomic CTE, so it runs without a transaction to keep the pooled
-	// connection for one round trip instead of BEGIN / statement / COMMIT.
-	rows, err := d.queries.RequeueRateLimitedQueueItems(ctx, d.pool, sqlcv1.RequeueRateLimitedQueueItemsParams{
+// RequeueRateLimitedItems moves the rate-limited items whose refill time has passed back into
+// the queue and returns the earliest refill time still parked for this queue, nil when none.
+func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId uuid.UUID, queueName string) (*time.Time, error) {
+	// The statement is a single atomic CTE, so it runs without a transaction to keep the pooled
+	// connection for one round trip instead of BEGIN / statement / COMMIT. Its next_requeue_after
+	// peek reads the statement's snapshot, so the rows it moved (requeue_after <= NOW()) are
+	// excluded by the filter and only still-parked rows count.
+	row, err := d.queries.RequeueRateLimitedQueueItems(ctx, d.pool.ForTenant(tenantId), sqlcv1.RequeueRateLimitedQueueItemsParams{
 		Tenantid: tenantId,
 		Queue:    queueName,
 	})
@@ -1007,21 +1032,27 @@ func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId 
 		return nil, err
 	}
 
-	// Runs on every queue-loop tick: refreshing last_active unconditionally would keep every
-	// polled queue active forever.
-	if len(rows) == 0 {
-		return rows, nil
+	var nextRequeueAfter *time.Time
+
+	if row.NextRequeueAfter.Valid {
+		nextRequeueAfter = &row.NextRequeueAfter.Time
 	}
 
-	saveQueues, err := d.upsertQueues(ctx, d.pool, tenantId, []string{queueName})
+	// Refreshing last_active only when something moved: doing it on every call would keep
+	// every polled queue active forever.
+	if row.MovedCount == 0 {
+		return nextRequeueAfter, nil
+	}
+
+	saveQueues, err := d.upsertQueues(ctx, d.pool.ForTenant(tenantId), tenantId, []string{queueName})
 
 	if err != nil {
-		return rows, err
+		return nextRequeueAfter, err
 	}
 
 	saveQueues()
 
-	return rows, nil
+	return nextRequeueAfter, nil
 }
 
 type batchQueueRepository struct {
@@ -1033,7 +1064,7 @@ func (b *batchQueueRepository) ListBatchResources(ctx context.Context) ([]*sqlcv
 	ctx, span := telemetry.NewSpan(ctx, "list-batch-resources")
 	defer span.End()
 
-	rows, err := b.queries.ListDistinctBatchResources(ctx, b.pool, b.tenantId)
+	rows, err := b.queries.ListDistinctBatchResources(ctx, b.pool.ForTenant(b.tenantId), b.tenantId)
 	if err != nil {
 		return nil, err
 	}
@@ -1062,7 +1093,7 @@ func (b *batchQueueRepository) ListBatchedQueueItems(ctx context.Context, stepId
 		}
 	}
 
-	rows, err := b.queries.ListBatchedQueueItemsForStep(ctx, b.pool, params)
+	rows, err := b.queries.ListBatchedQueueItemsForStep(ctx, b.pool.ForTenant(b.tenantId), params)
 	if err != nil {
 		return nil, err
 	}
@@ -1088,7 +1119,7 @@ func (b *batchQueueRepository) DeleteBatchedQueueItems(ctx context.Context, ids 
 		return nil
 	}
 
-	return b.queries.DeleteBatchedQueueItems(ctx, b.pool, ids)
+	return b.queries.DeleteBatchedQueueItems(ctx, b.pool.ForTenant(b.tenantId), ids)
 }
 
 func (b *batchQueueRepository) ListExistingBatchedQueueItemIds(ctx context.Context, ids []int64) (map[int64]struct{}, error) {
@@ -1096,7 +1127,7 @@ func (b *batchQueueRepository) ListExistingBatchedQueueItemIds(ctx context.Conte
 		return map[int64]struct{}{}, nil
 	}
 
-	rows, err := b.queries.ListExistingBatchedQueueItemIds(ctx, b.pool, sqlcv1.ListExistingBatchedQueueItemIdsParams{
+	rows, err := b.queries.ListExistingBatchedQueueItemIds(ctx, b.pool.ForTenant(b.tenantId), sqlcv1.ListExistingBatchedQueueItemIdsParams{
 		Tenantid: b.tenantId,
 		Ids:      ids,
 	})
@@ -1104,10 +1135,7 @@ func (b *batchQueueRepository) ListExistingBatchedQueueItemIds(ctx context.Conte
 		return nil, err
 	}
 
-	res := make(map[int64]struct{}, len(rows))
-	for _, id := range rows {
-		res[id] = struct{}{}
-	}
+	res := enumerables.ToSet(rows, func(id int64) int64 { return id })
 
 	return res, nil
 }
@@ -1120,7 +1148,7 @@ func (b *batchQueueRepository) GetBatchedQueueItemsByIds(ctx context.Context, id
 	ctx, span := telemetry.NewSpan(ctx, "get-batched-queue-items-by-ids")
 	defer span.End()
 
-	return b.queries.GetBatchedQueueItemsByIds(ctx, b.pool, sqlcv1.GetBatchedQueueItemsByIdsParams{
+	return b.queries.GetBatchedQueueItemsByIds(ctx, b.pool.ForTenant(b.tenantId), sqlcv1.GetBatchedQueueItemsByIdsParams{
 		Tenantid: b.tenantId,
 		Ids:      ids,
 	})
@@ -1131,7 +1159,7 @@ func (b *batchQueueRepository) MoveBatchedQueueItems(ctx context.Context, ids []
 		return nil, nil
 	}
 
-	return b.queries.MoveBatchedQueueItems(ctx, b.pool, ids)
+	return b.queries.MoveBatchedQueueItems(ctx, b.pool.ForTenant(b.tenantId), ids)
 }
 
 func (b *batchQueueRepository) CommitAssignments(ctx context.Context, assignments []*BatchAssignment) ([]*BatchAssignment, error) {
@@ -1142,7 +1170,7 @@ func (b *batchQueueRepository) CommitAssignments(ctx context.Context, assignment
 	ctx, span := telemetry.NewSpan(ctx, "commit-batch-assignments")
 	defer span.End()
 
-	tx, err := b.pool.BeginTx(ctx, pgx.TxOptions{})
+	tx, err := b.pool.ForTenant(b.tenantId).BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("could not begin transaction: %w", err)
 	}
@@ -1206,12 +1234,13 @@ func (b *batchQueueRepository) commitAssignmentsTx(ctx context.Context, tx pgx.T
 	}
 
 	updated, err := b.queries.UpdateTasksToAssigned(ctx, tx, sqlcv1.UpdateTasksToAssignedParams{
-		Taskids:           taskIds,
-		Taskinsertedats:   taskInsertedAts,
-		Taskretrycounts:   taskRetryCounts,
-		Workerids:         workerIds,
-		Mintaskinsertedat: minTaskInsertedAt,
-		Tenantid:          b.tenantId,
+		Taskids:              taskIds,
+		Taskinsertedats:      taskInsertedAts,
+		Taskretrycounts:      taskRetryCounts,
+		Workerids:            workerIds,
+		Mintaskinsertedat:    minTaskInsertedAt,
+		Tenantid:             b.tenantId,
+		Reassignunackedtasks: b.reassignUnackedTasks,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not update tasks to assigned: %w", err)
@@ -1273,14 +1302,15 @@ func (b *batchQueueRepository) applyBatchMetadataTx(ctx context.Context, tx pgx.
 		}
 
 		if err := b.queries.UpdateTaskBatchMetadata(ctx, tx, sqlcv1.UpdateTaskBatchMetadataParams{
-			Batchid:         uuid.MustParse(batchID),
-			Batchsize:       int32(len(group)), // nolint: gosec
-			Workerid:        group[0].WorkerID,
-			Batchkey:        group[0].BatchKey,
-			Tenantid:        b.tenantId,
-			Taskids:         taskIds,
-			Taskinsertedats: taskInsertedAts,
-			Batchindexes:    batchIndexes,
+			Batchid:              uuid.MustParse(batchID),
+			Batchsize:            int32(len(group)), // nolint: gosec
+			Workerid:             group[0].WorkerID,
+			Batchkey:             group[0].BatchKey,
+			Tenantid:             b.tenantId,
+			Taskids:              taskIds,
+			Taskinsertedats:      taskInsertedAts,
+			Batchindexes:         batchIndexes,
+			Reassignunackedtasks: b.reassignUnackedTasks,
 		}); err != nil {
 			return fmt.Errorf("could not update task batch metadata: %w", err)
 		}
@@ -1296,6 +1326,8 @@ func (b *batchQueueRepository) ReserveAndCommitBatchRun(
 	maxRuns int,
 	assignments []*BatchAssignment,
 ) (bool, []*BatchAssignment, error) {
+	db := b.pool.ForTenant(tenantId)
+
 	if maxRuns <= 0 || strings.TrimSpace(batchKey) == "" {
 		succeeded, err := b.CommitAssignments(ctx, assignments)
 		return true, succeeded, err
@@ -1304,7 +1336,7 @@ func (b *batchQueueRepository) ReserveAndCommitBatchRun(
 	ctx, span := telemetry.NewSpan(ctx, "reserve-and-commit-batch-run")
 	defer span.End()
 
-	tx, err := b.pool.BeginTx(ctx, pgx.TxOptions{})
+	tx, err := db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return false, nil, fmt.Errorf("could not begin transaction: %w", err)
 	}

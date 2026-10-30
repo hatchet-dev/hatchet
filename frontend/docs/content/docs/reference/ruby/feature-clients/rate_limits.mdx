@@ -16,9 +16,10 @@ It is available on the main client as `hatchet.rate_limits`.
 
 Methods:
 
-| Name  | Description                       |
-| ----- | --------------------------------- |
-| `put` | Put a rate limit for a given key. |
+| Name    | Description                       |
+| ------- | --------------------------------- |
+| `put`   | Put a rate limit for a given key. |
+| `pause` | Pause a rate limit key.           |
 
 ### Functions
 
@@ -37,6 +38,33 @@ Parameters:
 | `key`      | `String`  | The key to set the rate limit for.                       | _required_ |
 | `limit`    | `Integer` | The rate limit to set.                                   | _required_ |
 | `duration` | `Symbol`  | The duration of the rate limit (:SECOND, :MINUTE, :HOUR) | `:SECOND`  |
+
+Raises:
+
+| Type              | Description                |
+| ----------------- | -------------------------- |
+| `GRPC::BadStatus` | If the gRPC request fails. |
+
+#### `pause`
+
+Pause a rate limit key. Queued runs that consume it stay queued until the given time.
+
+```ruby
+hatchet.rate_limits.pause(key: "upstream-api:tenant-123", until_time: Time.now + 30)
+```
+
+Parameters:
+
+| Name         | Type     | Description                                                                        | Default    |
+| ------------ | -------- | ---------------------------------------------------------------------------------- | ---------- |
+| `key`        | `String` | The rendered rate limit key to pause.                                              | _required_ |
+| `until_time` | `Time`   | The time to pause the key until. An earlier time never shortens an existing pause. | _required_ |
+
+Returns:
+
+| Type   | Description                       |
+| ------ | --------------------------------- |
+| `Time` | The time the key is paused until. |
 
 Raises:
 

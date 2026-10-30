@@ -35,7 +35,7 @@ describe('durable-streams-e2e retries', () => {
     const topic = makeTestScope('durable_streams_retry');
 
     // reading the marker back proves the subscription is live before the run's resets
-    const live = hatchet.streams.events(topic)[Symbol.asyncIterator]();
+    const live = hatchet.streams.subscribe(topic)[Symbol.asyncIterator]();
     await hatchet.streams.publish(topic, JSON.stringify({ ready: true }));
     expect(decode((await live.next()).value.payload)).toEqual({ ready: true });
 
@@ -46,7 +46,7 @@ describe('durable-streams-e2e retries', () => {
     // a reset doesn't affect a reader already subscribed, so it sees both attempts
     expect(await liveReading).toEqual([...chunksOf(0), ...chunksOf(1)]);
 
-    const late = hatchet.streams.events(topic)[Symbol.asyncIterator]();
+    const late = hatchet.streams.subscribe(topic)[Symbol.asyncIterator]();
     expect(await readUntilDone(late)).toEqual(chunksOf(1));
   }, 60_000);
 });

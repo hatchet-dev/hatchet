@@ -33,7 +33,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26"
+          go-version-file: go.mod
 
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
@@ -51,7 +51,7 @@ jobs:
           version: 2.3.0
 
       - name: Setup Ruby
-        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1.327.0
         with:
           ruby-version: "3.2"
 
@@ -87,7 +87,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26"
+          go-version-file: go.mod
 
       - name: Go deps
         run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" go mod download
@@ -108,7 +108,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26"
+          go-version-file: go.mod
 
       - name: Go deps
         run: go mod download
@@ -134,7 +134,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26"
+          go-version-file: go.mod
 
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
@@ -177,7 +177,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26"
+          go-version-file: go.mod
 
       # pkg/testing/e2e/tscore builds the TypeScript SDK and runs its core client under Node.
       - name: Setup Node
@@ -248,6 +248,14 @@ jobs:
 
           go run ./cmd/hatchet-admin quickstart
 
+          # the durable streams e2e suites need the tenant entitled to durable streams
+          docker compose exec -T postgres psql -U hatchet -d hatchet -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO tenant_entitlement (tenant_id, durable_streams)
+          SELECT id, TRUE
+          FROM "Tenant"
+          ON CONFLICT (tenant_id) DO UPDATE SET durable_streams = TRUE;
+          SQL
+
           go run ./cmd/hatchet-engine --config ./generated/ > /tmp/hatchet-engine.log 2>&1 &
           ENGINE_PID=$!
           go run ./cmd/hatchet-api --config ./generated/ > /tmp/hatchet-api.log 2>&1 &
@@ -312,7 +320,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26"
+          go-version-file: go.mod
 
       # pkg/testing/e2e/tscore builds the TypeScript SDK and runs its core client under Node.
       - name: Setup Node
@@ -384,6 +392,14 @@ jobs:
           export SERVER_MSGQUEUE_RABBITMQ_URL=amqp://user:password@127.0.0.1:5672/
 
           go run ./cmd/hatchet-admin quickstart
+
+          # the durable streams e2e suites need the tenant entitled to durable streams
+          docker compose exec -T postgres psql -U hatchet -d hatchet -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO tenant_entitlement (tenant_id, durable_streams)
+          SELECT id, TRUE
+          FROM "Tenant"
+          ON CONFLICT (tenant_id) DO UPDATE SET durable_streams = TRUE;
+          SQL
 
           go run ./cmd/hatchet-engine --config ./generated/ > /tmp/hatchet-engine.log 2>&1 &
           ENGINE_PID=$!
@@ -459,7 +475,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26"
+          go-version-file: go.mod
 
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
@@ -613,7 +629,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26"
+          go-version-file: go.mod
 
       - name: Download load samples
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1

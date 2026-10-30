@@ -18,6 +18,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/redirect"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -74,8 +75,9 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 
 		c.Set("auth_strategy", "bearer")
 
-		if bearerErr == nil {
-			return nil
+		var limitErr *fairpool.LimitError
+		if bearerErr == nil || errors.As(bearerErr, &limitErr) {
+			return bearerErr
 		}
 	}
 
@@ -319,6 +321,11 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 
 	// Validate the token.
 	tenantId, tokenUUID, err := a.config.Auth.JWTManager.ValidateTenantToken(c.Request().Context(), token)
+
+	var limitErr *fairpool.LimitError
+	if errors.As(err, &limitErr) {
+		return err
+	}
 
 	if err != nil {
 		a.l.Debug().Ctx(ctx).Err(err).Msg("error validating tenant token")

@@ -17,8 +17,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
@@ -177,6 +179,18 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(ctx context.Context, serve
 	sender := rpcstream.NewSender[contracts.DurableEvent](ctx, server)
 	defer sender.Close()
 
+	return d.listenForDurableEvent(ctx, server.Receive, sender)
+}
+
+// listenForDurableEvent runs a ListenForDurableEvent session over the two halves of the
+// stream: receive yields the client's listeners (io.EOF or a Canceled code when the client is
+// done), sender takes the durable events. It is shared by the gRPC handler and the
+// channel-backed RegisterRunStream; sender is closed by the caller.
+func (d *DispatcherServiceImpl) listenForDurableEvent(
+	ctx context.Context,
+	receive func() (*contracts.ListenForDurableEventRequest, error),
+	sender *rpcstream.Sender[contracts.DurableEvent],
+) error {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 	d.analytics.Count(ctx, analytics.Worker, analytics.Listen)
@@ -271,7 +285,7 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(ctx context.Context, serve
 	// start a new goroutine to handle client-side streaming
 	go func() {
 		for {
-			req, err := server.Receive()
+			req, err := receive()
 
 			if err != nil {
 				cancel()
@@ -365,6 +379,26 @@ type orderedRelease struct {
 	bufferedCompletions          map[int64]*contracts.DurableTaskResponse
 	oldestBufferedAt             time.Time
 	lastActivityAt               time.Time
+}
+
+func (rel *orderedRelease) takeReleasable() []*contracts.DurableTaskResponse {
+	var toSend []*contracts.DurableTaskResponse
+
+	for {
+		next, ok := rel.bufferedCompletions[rel.maxSatisfiedOrderSentAlready+1]
+		if !ok {
+			break
+		}
+		delete(rel.bufferedCompletions, rel.maxSatisfiedOrderSentAlready+1)
+		toSend = append(toSend, next)
+		rel.maxSatisfiedOrderSentAlready++
+	}
+
+	if len(rel.bufferedCompletions) == 0 {
+		rel.oldestBufferedAt = time.Time{}
+	}
+
+	return toSend
 }
 
 func (s *durableTaskInvocation) send(resp *contracts.DurableTaskResponse) error {
@@ -506,22 +540,8 @@ func (s *durableTaskInvocation) deliverOrdered(taskExternalId uuid.UUID, invocat
 		// dedupes by node id, so send it through again.
 		toSend = []*contracts.DurableTaskResponse{resp}
 	case order == rel.maxSatisfiedOrderSentAlready+1:
-		toSend = append(toSend, resp)
 		rel.maxSatisfiedOrderSentAlready++
-
-		for {
-			next, ok := rel.bufferedCompletions[rel.maxSatisfiedOrderSentAlready+1]
-			if !ok {
-				break
-			}
-			delete(rel.bufferedCompletions, rel.maxSatisfiedOrderSentAlready+1)
-			toSend = append(toSend, next)
-			rel.maxSatisfiedOrderSentAlready++
-		}
-
-		if len(rel.bufferedCompletions) == 0 {
-			rel.oldestBufferedAt = time.Time{}
-		}
+		toSend = append([]*contracts.DurableTaskResponse{resp}, rel.takeReleasable()...)
 	default:
 		if buffered, exists := rel.bufferedCompletions[order]; exists {
 			if buffered == nil || resp == nil {
@@ -546,6 +566,50 @@ func (s *durableTaskInvocation) deliverOrdered(taskExternalId uuid.UUID, invocat
 	}
 
 	for _, r := range toSend {
+		if r == nil {
+			continue
+		}
+		if err := s.send(r); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// Completions for a durable task are delivered to the worker in the order they were satisfied
+// (1, 2, 3, ...), and this engine-side counter tracks the last one sent on this stream. The
+// counter is in memory, so when the worker reconnects (network drop, engine restart) the new
+// stream starts the counter at 0 even though the worker may already have received completions 1
+// through N on the old stream. The next completion, N+1, would then be held waiting for 1..N,
+// which are never sent again, until the gap timeout evicts the task.
+//
+// The worker reports the highest satisfied order it has received in its status requests, so the
+// counter can move up to that value and release anything held behind it.
+func (s *durableTaskInvocation) resumeOrderedRelease(key orderedReleaseKey, highestReceivedSatisfiedOrder int64) error {
+	s.releasesMu.Lock()
+	rel, wasReplacedByNewerInvocation := s.getRelease(key)
+	s.releasesMu.Unlock()
+
+	if wasReplacedByNewerInvocation {
+		return nil
+	}
+
+	rel.mu.Lock()
+	defer rel.mu.Unlock()
+
+	if highestReceivedSatisfiedOrder <= rel.maxSatisfiedOrderSentAlready {
+		return nil
+	}
+
+	rel.maxSatisfiedOrderSentAlready = highestReceivedSatisfiedOrder
+	for order := range rel.bufferedCompletions {
+		if order <= highestReceivedSatisfiedOrder {
+			delete(rel.bufferedCompletions, order)
+		}
+	}
+
+	for _, r := range rel.takeReleasable() {
 		if r == nil {
 			continue
 		}
@@ -873,7 +937,15 @@ func (d *DispatcherServiceImpl) handleDurableTaskRequest(
 	ctx context.Context,
 	invocation *durableTaskInvocation,
 	req *contracts.DurableTaskRequest,
-) error {
+) (err error) {
+	// recover per request, not per goroutine, so a panic doesn't stop the worker-status runner
+	defer func() {
+		if r := recover(); r != nil {
+			_ = recoveryutils.RecoverWithAlert(d.l, d.alerter, r)
+			err = fmt.Errorf("recovered from panic handling %T: %v", req.GetMessage(), r)
+		}
+	}()
+
 	ctx, span := telemetry.NewRootSpan(ctx, "dispatcher.handle-durable-task-request")
 	defer span.End()
 
@@ -1258,7 +1330,7 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 
 	if req.WaitForConditions != nil {
 		for _, condition := range req.WaitForConditions.SleepConditions {
-			orGroupId, parseErr := uuid.Parse(condition.Base.OrGroupId)
+			orGroupId, parseErr := uuid.Parse(condition.GetBase().GetOrGroupId())
 			if parseErr != nil {
 				return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("or group id is not a valid uuid: %v", parseErr))
 			}
@@ -1271,7 +1343,7 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 		}
 
 		for _, condition := range req.WaitForConditions.UserEventConditions {
-			orGroupId, parseErr := uuid.Parse(condition.Base.OrGroupId)
+			orGroupId, parseErr := uuid.Parse(condition.GetBase().GetOrGroupId())
 			if parseErr != nil {
 				return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("or group id is not a valid uuid: %v", parseErr))
 			}
@@ -1529,6 +1601,19 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 		telemetry.AttributeKV{Key: "waiting_entries_count", Value: len(req.WaitingEntries)},
 	)
 
+	for _, received := range req.ReceivedSatisfiedOrders {
+		taskExternalId, err := uuid.Parse(received.DurableTaskExternalId)
+		if err != nil {
+			d.l.Warn().Err(err).Msgf("invalid durable_task_external_id in worker_status received_satisfied_orders: %s", received.DurableTaskExternalId)
+			continue
+		}
+
+		key := orderedReleaseKey{taskExternalId: taskExternalId, invocationCount: received.InvocationCount}
+		if err := invocation.resumeOrderedRelease(key, received.HighestReceivedSatisfiedOrder); err != nil {
+			d.l.Error().Err(err).Msgf("failed to resume ordered release for task %s", taskExternalId)
+		}
+	}
+
 	if len(req.WaitingEntries) == 0 {
 		return nil
 	}
@@ -1649,10 +1734,9 @@ func (d *DispatcherServiceImpl) evictIdleOperatorTasks(
 	staleExternalIds map[uuid.UUID]struct{},
 	satisfiedCallbacks []*v1.SatisfiedEventWithPayload,
 ) {
-	tasksWithSatisfiedEntries := make(map[uuid.UUID]struct{}, len(satisfiedCallbacks))
-	for _, cb := range satisfiedCallbacks {
-		tasksWithSatisfiedEntries[cb.TaskExternalId] = struct{}{}
-	}
+	tasksWithSatisfiedEntries := enumerables.ToSet(satisfiedCallbacks, func(cb *v1.SatisfiedEventWithPayload) uuid.UUID {
+		return cb.TaskExternalId
+	})
 
 	for taskExternalId, invocationCount := range waitingInvocationCounts {
 		if _, isStale := staleExternalIds[taskExternalId]; isStale {
@@ -1739,8 +1823,9 @@ func (d *DispatcherServiceImpl) deliverEntryCompleted(invocation *durableTaskInv
 		NodeId:                cb.NodeID,
 	}
 	resp := &contracts.DurableTaskEventLogEntryCompletedResponse{
-		Ref:     ref,
-		Payload: cb.Result,
+		Ref:            ref,
+		Payload:        cb.Result,
+		SatisfiedOrder: cb.SatisfiedOrder,
 	}
 	if cb.ChildTaskIsFailure {
 		resp.Payload = nil
@@ -1777,8 +1862,9 @@ func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(tenantId u
 		NodeId:                nodeId,
 	}
 	resp := &contracts.DurableTaskEventLogEntryCompletedResponse{
-		Ref:     ref,
-		Payload: payload,
+		Ref:            ref,
+		Payload:        payload,
+		SatisfiedOrder: satisfiedOrder,
 	}
 	if isFailure {
 		resp.Payload = nil
@@ -1872,6 +1958,8 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 			WorkflowRunId:        &orchestratorWorkflowRunId,
 			OlapDagId:            &task.ID,
 			OlapDagInsertedAt:    &task.InsertedAt.Time,
+
+			OrchestratorPayloadReferenceId: task.PayloadReferenceID,
 		},
 	}}
 

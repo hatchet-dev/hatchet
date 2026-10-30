@@ -9,7 +9,7 @@ export async function consume() {
   const topic = `progress-${randomUUID()}`;
   await progressTask.runNoWait({ topic });
 
-  for await (const event of hatchet.streams.events(topic)) {
+  for await (const event of hatchet.streams.subscribe(topic)) {
     const { step, total } = JSON.parse(decode(event.payload));
     console.log(`step ${step} of ${total}`);
 
@@ -32,14 +32,14 @@ export async function resumeFromCursor(topic: string) {
   // > Resume from a cursor
   let cursor: string | undefined;
 
-  for await (const event of hatchet.streams.events(topic)) {
+  for await (const event of hatchet.streams.subscribe(topic)) {
     console.log(decode(event.payload));
     ({ cursor } = event);
     break;
   }
 
   // picks up right after the last event read, even from another process
-  for await (const event of hatchet.streams.events(topic, { cursor })) {
+  for await (const event of hatchet.streams.subscribe(topic, { cursor })) {
     console.log(decode(event.payload));
   }
 }
@@ -49,7 +49,7 @@ export async function stopWithSignal(topic: string) {
   const controller = new AbortController();
   setTimeout(() => controller.abort(), 10_000);
 
-  for await (const event of hatchet.streams.events(topic, { signal: controller.signal })) {
+  for await (const event of hatchet.streams.subscribe(topic, { signal: controller.signal })) {
     console.log(decode(event.payload));
   }
 }
@@ -58,7 +58,7 @@ export async function namespaces() {
   // > Namespaces
   await hatchet.streams.publish('updates', 'hello', { namespace: 'customer-a' });
 
-  for await (const event of hatchet.streams.events('updates', { namespace: 'customer-a' })) {
+  for await (const event of hatchet.streams.subscribe('updates', { namespace: 'customer-a' })) {
     console.log(decode(event.payload));
     break;
   }
@@ -69,7 +69,7 @@ export async function resetTopic() {
   await hatchet.streams.reset('orders');
 
   // starts after the reset; readers that were already iterating aren't affected
-  for await (const event of hatchet.streams.events('orders')) {
+  for await (const event of hatchet.streams.subscribe('orders')) {
     console.log(decode(event.payload));
   }
 }

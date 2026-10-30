@@ -1,14 +1,14 @@
 import { Tenant } from '@hatchet/clients/rest/generated/data-contracts';
-import { HatchetClient } from '../client';
+import type { RestApi, RestClientDeps } from '@hatchet/clients/rest/rest-api';
 
 /**
  * Client for managing Tenants
  */
 export class TenantClient {
-  api: HatchetClient['api'];
+  api: RestApi;
   tenantId: string;
 
-  constructor(client: HatchetClient) {
+  constructor(client: RestClientDeps) {
     this.api = client.api;
     this.tenantId = client.tenantId;
   }

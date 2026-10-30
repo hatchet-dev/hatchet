@@ -9,7 +9,7 @@ describe('durable-streams-e2e cancellation', () => {
   it('breaking a for-await loop stops consumption', async () => {
     const topic = makeTestScope('durable_streams_cancel_break');
 
-    const events = hatchet.streams.events(topic);
+    const events = hatchet.streams.subscribe(topic);
 
     void hatchet.streams.publish(topic, 'one');
     void hatchet.streams.publish(topic, 'two');
@@ -34,7 +34,7 @@ describe('durable-streams-e2e cancellation', () => {
     // fires (30 minutes, see subscribeIdleHangupTimeout), which is exactly
     // the problem a cancel signal exists to avoid
     const iterator = hatchet.streams
-      .events(topic, { signal: controller.signal })
+      .subscribe(topic, { signal: controller.signal })
       [Symbol.asyncIterator]();
     const nextPromise = iterator.next();
 
@@ -61,7 +61,7 @@ describe('durable-streams-e2e cancellation', () => {
 
     const received: string[] = [];
     const consumePromise = (async () => {
-      for await (const event of hatchet.streams.events(topic, { signal: controller.signal })) {
+      for await (const event of hatchet.streams.subscribe(topic, { signal: controller.signal })) {
         received.push(decode(event.payload));
       }
     })();

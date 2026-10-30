@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -106,7 +107,9 @@ func (c *ChildWorkflowSignalCreatedData) Bytes() []byte {
 // GenerateExternalIdsForWorkflow generates external ids and additional looks up child workflows and whether they
 // already exist.
 func (s *sharedRepository) PopulateExternalIdsForWorkflow(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l)
+	db := s.pool.ForTenant(tenantId)
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, s.l)
 
 	if err != nil {
 		return err
@@ -165,11 +168,9 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		return err
 	}
 
-	externalIdToLookupRow := make(map[uuid.UUID]*sqlcv1.V1LookupTable)
-
-	for _, task := range gotTasks {
-		externalIdToLookupRow[task.ExternalID] = task
-	}
+	externalIdToLookupRow := enumerables.KeyBy(gotTasks, func(task *sqlcv1.V1LookupTable) uuid.UUID {
+		return task.ExternalID
+	})
 
 	eventTaskIds := make([]int64, 0, len(gotTasks))
 	eventTaskInsertedAts := make([]pgtype.Timestamptz, 0, len(gotTasks))
@@ -199,26 +200,25 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 	}
 
 	// only need to hit the payload store for events created before the child_external_id column existed
-	retrievePayloadOpts := make([]RetrievePayloadOpts, 0, len(lockedEvents))
+	retrievePayloadOpts := make([]PayloadRef[ChildWorkflowSignalCreatedShape], 0, len(lockedEvents))
 
 	for _, lockedEvent := range lockedEvents {
 		if lockedEvent.ChildExternalID != nil {
 			continue
 		}
 
-		retrievePayloadOpts = append(retrievePayloadOpts, RetrievePayloadOpts{
+		retrievePayloadOpts = append(retrievePayloadOpts, PayloadRef[ChildWorkflowSignalCreatedShape]{
 			Id:         lockedEvent.ID,
 			InsertedAt: lockedEvent.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   tenantId,
 			ExternalId: lockedEvent.ExternalID,
 		})
 	}
 
-	var payloads map[RetrievePayloadOpts][]byte
+	var payloads map[PayloadRef[ChildWorkflowSignalCreatedShape]]Payload[ChildWorkflowSignalCreatedShape]
 
 	if len(retrievePayloadOpts) > 0 {
-		payloads, err = s.payloadStore.Retrieve(ctx, tx, retrievePayloadOpts...)
+		payloads, err = s.payloadStore.ChildWorkflowSignalCreatedEvents().Retrieve(ctx, tx, retrievePayloadOpts...)
 
 		if err != nil {
 			return err
@@ -234,19 +234,18 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		if lockedEvent.ChildExternalID != nil {
 			childExternalId = *lockedEvent.ChildExternalID
 		} else {
-			payload, ok := payloads[RetrievePayloadOpts{
-				Id:         lockedEvent.ID,
-				InsertedAt: lockedEvent.InsertedAt,
-				Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
-				TenantId:   tenantId,
-				ExternalId: lockedEvent.ExternalID,
-			}]
+			payload := RetrievePayloadOrFallback(
+				payloads,
+				PayloadRef[ChildWorkflowSignalCreatedShape]{
+					Id:         lockedEvent.ID,
+					InsertedAt: lockedEvent.InsertedAt,
+					TenantId:   tenantId,
+					ExternalId: lockedEvent.ExternalID,
+				},
+				lockedEvent.Data,
+			)
 
-			if !ok {
-				payload = lockedEvent.Data
-			}
-
-			c, err := newChildWorkflowSignalCreatedDataFromBytes(payload)
+			c, err := DecodeChildWorkflowSignalCreatedPayload(payload)
 
 			if err != nil {
 				return err
@@ -307,6 +306,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		newEventKeys,
 		nil,
 		childExternalIds,
+		nil,
 	)
 
 	if err != nil {

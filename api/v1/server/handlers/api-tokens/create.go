@@ -38,7 +38,7 @@ func (a *APITokenService) ApiTokenCreate(ctx echo.Context, request gen.ApiTokenC
 		expiresAt = &e
 	}
 
-	token, err := a.config.Auth.JWTManager.GenerateTenantToken(ctx.Request().Context(), tenantId, request.Body.Name, false, expiresAt)
+	token, err := a.config.Auth.JWTManager.GenerateTenantToken(ctx.Request().Context(), tenantId, request.Body.Name, false, request.Body.ReadOnly != nil && *request.Body.ReadOnly, expiresAt)
 
 	if err != nil {
 		return nil, err

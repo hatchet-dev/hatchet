@@ -27,7 +27,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1.327.0
         with:
           ruby-version: "3.2"
           bundler-cache: true
@@ -42,7 +42,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26"
+          go-version-file: go.mod
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -100,7 +100,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26"
+          go-version-file: go.mod
 
       - name: Start Docker dependencies
         working-directory: .
@@ -121,8 +121,18 @@ jobs:
           export SERVER_AUTH_COOKIE_INSECURE=true
           export SERVER_MSGQUEUE_RABBITMQ_URL="amqp://user:password@localhost:5672/"
           export SERVER_SECURITY_CHECK_ENABLED=false
+          export SERVER_PAYLOAD_STORE_WRAP_TASK_INPUT_IN_STEP_RUN_DATA=false
+          export SERVER_PAYLOAD_STORE_ENABLE_PAYLOAD_CONSOLIDATION=true
 
           go run ./cmd/hatchet-admin quickstart
+
+          # the durable streams e2e suites need the tenant entitled to durable streams
+          docker compose exec -T postgres psql -U hatchet -d hatchet -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO tenant_entitlement (tenant_id, durable_streams)
+          SELECT id, TRUE
+          FROM "Tenant"
+          ON CONFLICT (tenant_id) DO UPDATE SET durable_streams = TRUE;
+          SQL
 
           go run ./cmd/hatchet-engine --config ./generated/ > engine.log 2>&1 &
           go run ./cmd/hatchet-api --config ./generated/ > api.log 2>&1 &
@@ -130,7 +140,7 @@ jobs:
           sleep 30
 
       - name: Set up Ruby ${{ matrix.ruby-version }}
-        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1.327.0
         with:
           ruby-version: ${{ matrix.ruby-version }}
           bundler-cache: true
@@ -161,7 +171,7 @@ jobs:
         run: bundle exec rspec spec/integration/ --format documentation --tag integration
 
       - name: Set up Ruby for examples
-        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1.327.0
         with:
           ruby-version: ${{ matrix.ruby-version }}
           bundler-cache: true
@@ -268,13 +278,21 @@ jobs:
       contents: write
       id-token: write
     steps:
+      - name: Update CA certificates
+        # Runner images predate Ubuntu's ca-certificates fix for the compromised eMudhra CAs (USN-8944-1); drop this step once they ship 20260816ubuntu0.* or later.
+        working-directory: ${{ github.workspace }}
+        run: |
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 -o DPkg::Lock::Timeout=120 update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=120 install -y --only-upgrade ca-certificates
+          v=$(dpkg-query -W -f='${Version}' ca-certificates)
+          dpkg --compare-versions "$v" ge 20260816 || { echo "::error::ca-certificates $v predates USN-8944-1"; exit 1; }
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1.327.0
         with:
           ruby-version: "3.2"
           bundler-cache: true

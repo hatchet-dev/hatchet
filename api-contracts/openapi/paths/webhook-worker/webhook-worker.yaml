@@ -40,6 +40,8 @@ webhookworkers:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Method not allowed
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
   post:
     description: Creates a webhook
     summary: Create a webhook
@@ -86,6 +88,8 @@ webhookworkers:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Method not allowed
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
 webhookworker:
   delete:
     description: Deletes a webhook
@@ -124,6 +128,8 @@ webhookworker:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Method not allowed
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
 
 webhookworkerRequests:
   get:
@@ -167,3 +173,5 @@ webhookworkerRequests:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Method not allowed
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"

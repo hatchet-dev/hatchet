@@ -19,6 +19,7 @@ import (
 	telemetry_codes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
@@ -97,7 +98,7 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 	workerId := worker.ID.String()
 
 	if request.Labels != nil {
-		_, err = s.upsertLabels(ctx, worker.ID, request.Labels)
+		_, err = s.upsertLabels(ctx, tenantId, worker.ID, request.Labels)
 
 		if err != nil {
 			return nil, err
@@ -143,7 +144,7 @@ func (s *DispatcherImpl) UpsertWorkerLabels(ctx context.Context, request *contra
 		return nil, err
 	}
 
-	_, err = s.upsertLabels(ctx, workerId, request.Labels)
+	_, err = s.upsertLabels(ctx, tenant.ID, workerId, request.Labels)
 
 	if err != nil {
 		return nil, err
@@ -155,7 +156,7 @@ func (s *DispatcherImpl) UpsertWorkerLabels(ctx context.Context, request *contra
 	}, nil
 }
 
-func (s *DispatcherImpl) upsertLabels(ctx context.Context, workerId uuid.UUID, request map[string]*contracts.WorkerLabels) ([]*sqlcv1.WorkerLabel, error) {
+func (s *DispatcherImpl) upsertLabels(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, request map[string]*contracts.WorkerLabels) ([]*sqlcv1.WorkerLabel, error) {
 	affinities := make([]v1.UpsertWorkerLabelOpts, 0, len(request))
 
 	for key, config := range request {
@@ -173,7 +174,7 @@ func (s *DispatcherImpl) upsertLabels(ctx context.Context, workerId uuid.UUID, r
 		})
 	}
 
-	res, err := s.repov1.Workers().UpsertWorkerLabels(ctx, workerId, affinities)
+	res, err := s.repov1.Workers().UpsertWorkerLabels(ctx, tenantId, workerId, affinities)
 
 	if err != nil {
 		s.l.Error().Ctx(ctx).Err(err).Msgf("could not upsert worker affinities for worker %s", workerId.String())
@@ -556,8 +557,7 @@ func (w *workflowRunAcks) hasWorkflowRun(id uuid.UUID) bool {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
-	_, ok := w.acks[id]
-	return ok
+	return enumerables.HasKey(w.acks, id)
 }
 
 func (d *DispatcherImpl) cleanResults(results []*contracts.StepRunResult) []*contracts.StepRunResult {
@@ -620,7 +620,7 @@ func (s *DispatcherImpl) SubscribeToWorkflowRuns(ctx context.Context, connectStr
 	defer stream.Close()
 
 	s.analytics.Count(ctx, analytics.WorkflowRun, analytics.Subscribe)
-	return s.subscribeToWorkflowRunsV1(ctx, connectStream, stream)
+	return s.subscribeToWorkflowRunsV1(ctx, connectStream.Receive, stream)
 }
 
 func waitFor(wg *sync.WaitGroup, timeout time.Duration, l *zerolog.Logger) {
@@ -1136,10 +1136,13 @@ func (b *StreamEventBuffer) sendReadyEvents(stepRunId uuid.UUID) {
 	b.stepRunIdToExpectedIndex[stepRunId] = expectedIdx
 }
 
-// SubscribeToWorkflowEvents registers workflow events with the dispatcher
+// subscribeToWorkflowRunsV1 runs a SubscribeToWorkflowRuns session over the two halves of the
+// stream: receive yields the client's subscriptions (io.EOF or a Canceled code when the client
+// is done), sender takes the run events. It is shared by the gRPC handler and the channel-backed
+// RegisterRunStream.
 func (s *DispatcherImpl) subscribeToWorkflowRunsV1(
 	ctx context.Context,
-	receiver *connect.BidiStream[contracts.SubscribeToWorkflowRunsRequest, contracts.WorkflowRunEvent],
+	receive func() (*contracts.SubscribeToWorkflowRunsRequest, error),
 	sender *rpcstream.Sender[contracts.WorkflowRunEvent],
 ) error {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
@@ -1292,7 +1295,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(
 	// start a new goroutine to handle client-side streaming
 	go func() {
 		for {
-			req, err := receiver.Receive()
+			req, err := receive()
 
 			if err != nil {
 				cancel()
@@ -1551,12 +1554,25 @@ func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv
 	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
+	ackedMsg, err := tasktypes.AckedTaskMessage(tenantId, task.ID, task.InsertedAt, retryCount)
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = s.pubBuffer.Pub(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, ackedMsg, false)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not publish acked message for task %d: %w", task.ID, err)
+	}
+
 	msg, err := tasktypes.MonitoringEventMessageFromActionEvent(
 		tenantId,
 		task.ID,
 		retryCount,
 		durableInvocationCount,
 		request,
+		nil,
 	)
 
 	if err != nil {
@@ -1575,6 +1591,19 @@ func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv
 	}, nil
 }
 
+// newOutputPayloadReferenceId returns the id the task controller stores a completion's payload under
+// and the OLAP event points at. It is nil while OLAP still keeps its own copy of every task output,
+// and for an empty output, which the payload store never stores and so could never be found by reference.
+func (s *DispatcherImpl) newOutputPayloadReferenceId(output string) *uuid.UUID {
+	if !s.repov1.Payloads().PayloadConsolidationEnabled() || v1.NewPayload[v1.TaskOutputShape]([]byte(output)).IsEmpty() {
+		return nil
+	}
+
+	referenceId := v1.NewPayloadReferenceId()
+
+	return &referenceId
+}
+
 func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, durableInvocationCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	ctx := inputCtx
 	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
@@ -1584,6 +1613,8 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 	// 	return nil, fmt.Errorf("retry count is required in v2")
 	// }
 
+	outputPayloadReferenceId := s.newOutputPayloadReferenceId(request.EventPayload)
+
 	msg, err := tasktypes.CompletedTaskMessage(
 		tenantId,
 		task.ID,
@@ -1592,6 +1623,7 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 		task.WorkflowRunID,
 		retryCount,
 		[]byte(request.EventPayload),
+		outputPayloadReferenceId,
 	)
 
 	if err != nil {
@@ -1615,6 +1647,7 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 		retryCount,
 		durableInvocationCount,
 		request,
+		outputPayloadReferenceId,
 	)
 
 	if err != nil {
@@ -1782,13 +1815,19 @@ func (s *DispatcherImpl) handleBatchTaskStarted(
 	idInsertedAts := make([]v1.IdInsertedAt, 0, len(tasks))
 
 	for _, task := range tasks {
+		if !task.IsDurable.Valid || !task.IsDurable.Bool {
+			continue
+		}
+
 		idInsertedAts = append(idInsertedAts, v1.IdInsertedAt{ID: task.ID, InsertedAtUnixMicros: task.InsertedAt.Time.UnixMicro()})
 	}
 
-	durableInvocationCounts, err := s.repov1.DurableEvents().GetDurableTaskInvocationCounts(inputCtx, tenantId, idInsertedAts)
+	var durableInvocationCounts map[v1.IdInsertedAt]*int32
 
-	if err != nil {
-		durableInvocationCounts = nil
+	if len(idInsertedAts) > 0 {
+		durableInvocationCounts, _ = s.repov1.DurableEvents().GetDurableTaskInvocationCounts(inputCtx, tenantId, idInsertedAts)
+
+		// intentionally swallow the error and continue
 	}
 
 	var workerId *uuid.UUID
@@ -1798,6 +1837,7 @@ func (s *DispatcherImpl) handleBatchTaskStarted(
 	}
 
 	payloads := make([]tasktypes.CreateMonitoringEventPayload, 0, len(tasks))
+	ackedTasks := make([]v1.TaskIdInsertedAtRetryCount, 0, len(tasks))
 
 	for _, task := range tasks {
 		item, ok := itemsByExternalId[task.ExternalID]
@@ -1818,6 +1858,12 @@ func (s *DispatcherImpl) handleBatchTaskStarted(
 			durableInvocationCount = *count
 		}
 
+		ackedTasks = append(ackedTasks, v1.TaskIdInsertedAtRetryCount{
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt,
+			RetryCount: retryCount,
+		})
+
 		payloads = append(payloads, tasktypes.CreateMonitoringEventPayload{
 			TaskId:                 task.ID,
 			RetryCount:             retryCount,
@@ -1831,6 +1877,22 @@ func (s *DispatcherImpl) handleBatchTaskStarted(
 
 	if len(payloads) == 0 {
 		return resp, nil
+	}
+
+	ackedMsg, err := msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDTaskAcked,
+		false,
+		true,
+		ackedTasks...,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.pubBuffer.Pub(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, ackedMsg, false); err != nil {
+		return nil, fmt.Errorf("could not publish acked message for batch tasks: %w", err)
 	}
 
 	msg, err := msgqueue.NewTenantMessage(
@@ -1872,13 +1934,19 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 	idInsertedAts := make([]v1.IdInsertedAt, 0, len(tasks))
 
 	for _, task := range tasks {
+		if !task.IsDurable.Valid || !task.IsDurable.Bool {
+			continue
+		}
+
 		idInsertedAts = append(idInsertedAts, v1.IdInsertedAt{ID: task.ID, InsertedAtUnixMicros: task.InsertedAt.Time.UnixMicro()})
 	}
 
-	durableInvocationCounts, err := s.repov1.DurableEvents().GetDurableTaskInvocationCounts(inputCtx, tenantId, idInsertedAts)
+	var durableInvocationCounts map[v1.IdInsertedAt]*int32
 
-	if err != nil {
-		durableInvocationCounts = nil
+	if len(idInsertedAts) > 0 {
+		durableInvocationCounts, _ = s.repov1.DurableEvents().GetDurableTaskInvocationCounts(inputCtx, tenantId, idInsertedAts)
+
+		// intentionally swallow the error and continue
 	}
 
 	var workerId *uuid.UUID
@@ -1907,6 +1975,8 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 		eventPayload := item.EventPayload
 		olapEventType := sqlcv1.V1EventTypeOlapFINISHED
 
+		var outputPayloadReferenceId *uuid.UUID
+
 		if validationErr := v1.ValidateJSONB([]byte(eventPayload), "taskOutput"); validationErr != nil {
 			eventPayload = validationErr.Error()
 			olapEventType = sqlcv1.V1EventTypeOlapFAILED
@@ -1921,13 +1991,20 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 				ErrorMsg:      eventPayload,
 			})
 		} else {
+			outputPayloadReferenceId = s.newOutputPayloadReferenceId(item.EventPayload)
+
+			if outputPayloadReferenceId != nil {
+				eventPayload = ""
+			}
+
 			completedPayloads = append(completedPayloads, tasktypes.CompletedTaskPayload{
-				TaskId:        task.ID,
-				InsertedAt:    task.InsertedAt,
-				ExternalId:    task.ExternalID,
-				WorkflowRunId: task.WorkflowRunID,
-				RetryCount:    retryCount,
-				Output:        []byte(item.EventPayload),
+				TaskId:             task.ID,
+				InsertedAt:         task.InsertedAt,
+				ExternalId:         task.ExternalID,
+				WorkflowRunId:      task.WorkflowRunID,
+				RetryCount:         retryCount,
+				Output:             []byte(item.EventPayload),
+				PayloadReferenceId: outputPayloadReferenceId,
 			})
 		}
 
@@ -1945,6 +2022,7 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 			EventType:              olapEventType,
 			EventTimestamp:         request.EventTimestamp.AsTime(),
 			EventPayload:           eventPayload,
+			PayloadReferenceId:     outputPayloadReferenceId,
 		})
 	}
 
@@ -2571,11 +2649,9 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMetaV1(ctx context
 					return nil, err
 				}
 
-				workflowRunIdsToRow := make(map[uuid.UUID]*listWorkflowRunsResult)
-
-				for _, wr := range workflowRuns {
-					workflowRunIdsToRow[wr.WorkflowRunId] = wr
-				}
+				workflowRunIdsToRow := enumerables.KeyBy(workflowRuns, func(wr *listWorkflowRunsResult) uuid.UUID {
+					return wr.WorkflowRunId
+				})
 
 				res := make([]*contracts.WorkflowEvent, 0)
 

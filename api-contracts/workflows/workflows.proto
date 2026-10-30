@@ -12,6 +12,7 @@ service WorkflowService {
     rpc TriggerWorkflow(v1.TriggerWorkflowRequest) returns (TriggerWorkflowResponse);
     rpc BulkTriggerWorkflow(BulkTriggerWorkflowRequest) returns (BulkTriggerWorkflowResponse);
     rpc PutRateLimit(PutRateLimitRequest) returns (PutRateLimitResponse);
+    rpc PauseRateLimit(PauseRateLimitRequest) returns (PauseRateLimitResponse);
 }
 
 message PutWorkflowRequest {
@@ -191,3 +192,16 @@ message PutRateLimitRequest {
 }
 
 message PutRateLimitResponse {}
+
+message PauseRateLimitRequest {
+    // (required) the rendered key for the rate limit
+    string key = 1;
+
+    // (required) runs that consume the key stay queued until this time; an earlier time never shortens an active pause
+    google.protobuf.Timestamp paused_until = 2;
+}
+
+message PauseRateLimitResponse {
+    // the time the key is paused until, which can be later than the requested time if it was already paused
+    google.protobuf.Timestamp paused_until = 1;
+}

@@ -10,7 +10,7 @@ FROM $HATCHET_ADMIN_IMAGE as admin-binary-base
 FROM $HATCHET_MIGRATE_IMAGE as migrate-binary-base
 
 # Stage 2: build the frontend
-FROM node:22-alpine as frontend-build
+FROM node:24-alpine as frontend-build
 
 WORKDIR /app
 
@@ -22,7 +22,7 @@ COPY ./frontend/app ./
 RUN npm run build
 
 # Stage 3: deployment image from alpine
-FROM alpine:3.21 AS deployment
+FROM alpine:3.24 AS deployment
 
 ARG FIPS=false
 LABEL run.hatchet.fips=${FIPS}

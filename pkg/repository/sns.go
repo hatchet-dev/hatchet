@@ -35,9 +35,11 @@ func newSNSRepository(shared *sharedRepository) SNSRepository {
 }
 
 func (r *snsRepository) GetSNSIntegration(ctx context.Context, tenantId uuid.UUID, topicArn string) (*sqlcv1.SNSIntegration, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	return r.queries.GetSNSIntegration(
 		ctx,
-		r.pool,
+		db,
 		sqlcv1.GetSNSIntegrationParams{
 			Tenantid: tenantId,
 			Topicarn: topicArn,
@@ -48,15 +50,17 @@ func (r *snsRepository) GetSNSIntegration(ctx context.Context, tenantId uuid.UUI
 func (r *snsRepository) GetSNSIntegrationById(ctx context.Context, id uuid.UUID) (*sqlcv1.SNSIntegration, error) {
 	return r.queries.GetSNSIntegrationById(
 		ctx,
-		r.pool,
+		r.pool.ForShared(),
 		id,
 	)
 }
 
 func (r *snsRepository) CreateSNSIntegration(ctx context.Context, tenantId uuid.UUID, opts *CreateSNSIntegrationOpts) (*sqlcv1.SNSIntegration, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	return r.queries.CreateSNSIntegration(
 		ctx,
-		r.pool,
+		db,
 		sqlcv1.CreateSNSIntegrationParams{
 			Tenantid: tenantId,
 			Topicarn: opts.TopicArn,
@@ -65,17 +69,21 @@ func (r *snsRepository) CreateSNSIntegration(ctx context.Context, tenantId uuid.
 }
 
 func (r *snsRepository) ListSNSIntegrations(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.SNSIntegration, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	return r.queries.ListSNSIntegrations(
 		ctx,
-		r.pool,
+		db,
 		tenantId,
 	)
 }
 
 func (r *snsRepository) DeleteSNSIntegration(ctx context.Context, tenantId uuid.UUID, id uuid.UUID) error {
+	db := r.pool.ForTenant(tenantId)
+
 	return r.queries.DeleteSNSIntegration(
 		ctx,
-		r.pool,
+		db,
 		sqlcv1.DeleteSNSIntegrationParams{
 			Tenantid: tenantId,
 			ID:       id,

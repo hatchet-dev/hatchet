@@ -23,7 +23,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26"
+          go-version-file: go.mod
 
       - name: Start Docker dependencies
         working-directory: .
@@ -65,6 +65,14 @@ jobs:
       - name: Start engine and API
         working-directory: .
         run: |
+          # the durable streams e2e suites need the tenant entitled to durable streams
+          docker compose exec -T postgres psql -U hatchet -d hatchet -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO tenant_entitlement (tenant_id, durable_streams)
+          SELECT id, TRUE
+          FROM "Tenant"
+          ON CONFLICT (tenant_id) DO UPDATE SET durable_streams = TRUE;
+          SQL
+
           docker compose -f docker-compose.yml -f docker-compose.release.yml up -d hatchet-engine hatchet-api
           sleep 30
 

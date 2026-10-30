@@ -372,17 +372,13 @@ func newTopicPollerRegistry(streams v1.StreamsRepository, pubsub msgqueue.PubSub
 }
 
 // Join sends listener every message after startCursor, then attaches it to
-// key's poller.
+// key's poller. The caller checks startCursor is retained.
 func (r *topicPollerRegistry) Join(ctx context.Context, key topicPollerKey, startCursor v1.StreamCursor, listener *topicListener) (unregister func(), err error) {
 	ctx, span := telemetry.NewSpan(ctx, "streams.topic-poller.join")
 	defer func() {
 		recordSpanError(span, err)
 		span.End()
 	}()
-
-	if err := r.streams.CheckCursorRetained(ctx, key.tenantId, startCursor); err != nil {
-		return nil, err
-	}
 
 	var replayed sendStats
 

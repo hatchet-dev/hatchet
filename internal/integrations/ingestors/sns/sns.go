@@ -15,11 +15,12 @@ import (
 	"net/url"
 	"reflect"
 	"regexp"
+	"strings"
 	"time"
 )
 
-// https://github.com/robbiet480/go.sns/issues/2
-var hostPattern = regexp.MustCompile(`^sns\.[a-zA-Z0-9\-]{3,}\.amazonaws\.com(\.cn)?$`)
+// regional SNS endpoints, e.g. sns.us-east-1.amazonaws.com or sns.cn-north-1.amazonaws.com.cn
+var hostPattern = regexp.MustCompile(`^sns\.[a-z]{2,}(-[a-z]+)+-[0-9]+\.amazonaws\.com(\.cn)?$`)
 
 const (
 	maxResponseBytes = 1 << 20
@@ -58,7 +59,7 @@ type UnsubscribeResponse struct {
 }
 
 // BuildSignature returns a byte array containing a signature usable for SNS verification
-func (payload *Payload) BuildSignature() []byte {
+func (payload *Payload) BuildSignature() ([]byte, error) {
 	var builtSignature bytes.Buffer
 	signableKeys := []string{"Message", "MessageId", "Subject", "SubscribeURL", "Timestamp", "Token", "TopicArn", "Type"}
 	for _, key := range signableKeys {
@@ -66,11 +67,14 @@ func (payload *Payload) BuildSignature() []byte {
 		field := reflect.Indirect(reflectedStruct).FieldByName(key)
 		value := field.String()
 		if field.IsValid() && value != "" {
+			if key != "Message" && strings.Contains(value, "\n") {
+				return nil, fmt.Errorf("SNS field %s contains a newline", key)
+			}
 			builtSignature.WriteString(key + "\n")
 			builtSignature.WriteString(value + "\n")
 		}
 	}
-	return builtSignature.Bytes()
+	return builtSignature.Bytes(), nil
 }
 
 // validateSNSURL ensures that a URL provided in an SNS payload points to a
@@ -132,6 +136,11 @@ func (payload *Payload) VerifyPayload() error {
 		return err
 	}
 
+	signed, err := payload.BuildSignature()
+	if err != nil {
+		return err
+	}
+
 	payloadSignature, err := base64.StdEncoding.DecodeString(payload.Signature)
 	if err != nil {
 		return err
@@ -148,6 +157,13 @@ func (payload *Payload) VerifyPayload() error {
 
 	if !hostPattern.Match([]byte(certURL.Host)) {
 		return fmt.Errorf("certificate is located on an invalid domain")
+	}
+
+	// SNS error responses echo query parameters, and pem.Decode returns the first PEM
+	// block anywhere in the body, so a certificate passed in the query of an SNS URL
+	// would be accepted. Only static .pem files are fetched.
+	if certURL.RawQuery != "" || !strings.HasSuffix(certURL.Path, ".pem") {
+		return errors.New("certificate URL must be a .pem path without a query")
 	}
 
 	resp, err := httpClient.Get(payload.SigningCertURL)
@@ -172,7 +188,7 @@ func (payload *Payload) VerifyPayload() error {
 		return err
 	}
 
-	return parsedCertificate.CheckSignature(payload.SignatureAlgorithm(), payload.BuildSignature(), payloadSignature)
+	return parsedCertificate.CheckSignature(payload.SignatureAlgorithm(), signed, payloadSignature)
 }
 
 // Subscribe will use the SubscribeURL in a payload to confirm a subscription and return a ConfirmSubscriptionResponse

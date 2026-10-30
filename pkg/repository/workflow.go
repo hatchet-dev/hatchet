@@ -16,7 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/digest"
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -241,7 +241,7 @@ type ListWorkflowsOpts struct {
 }
 
 type ListWorkflowsResult struct {
-	Rows  []*sqlcv1.Workflow
+	Rows  []*sqlcv1.ListWorkflowsRow
 	Count int
 }
 
@@ -285,15 +285,18 @@ type WorkflowRepository interface {
 
 	GetLatestWorkflowVersion(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
 
-	PauseWorkflow(ctx context.Context, workflowId uuid.UUID, opts PauseWorkflowOpts) (*sqlcv1.Workflow, error)
+	PauseWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID, opts PauseWorkflowOpts) (*sqlcv1.Workflow, error)
 
-	UnpauseWorkflow(ctx context.Context, workflowId uuid.UUID) (*sqlcv1.Workflow, error)
+	UnpauseWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.Workflow, error)
 
 	MovePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) error
 
 	RequeuePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) (queueNames []string, concurrencyStrategyIds []int64, err error)
 
 	ListUnpausedWorkflowsWithPausedQueueItems(ctx context.Context, tenantId uuid.UUID) ([]uuid.UUID, error)
+
+	// RequeueRateLimitPausedQueueItems releases held items whose rate limit pauses have all ended
+	RequeueRateLimitPausedQueueItems(ctx context.Context, tenantId uuid.UUID) (queueNames []string, concurrencyStrategyIds []int64, err error)
 }
 
 type workflowRepository struct {
@@ -307,26 +310,30 @@ func newWorkflowRepository(shared *sharedRepository) WorkflowRepository {
 }
 
 func (r *workflowRepository) ListWorkflowNamesByIds(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) (map[uuid.UUID]string, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	ctx, span := telemetry.NewSpan(ctx, "list-workflow-names-by-ids")
 	defer span.End()
 
-	workflowNames, err := r.queries.ListWorkflowNamesByIds(ctx, r.pool, workflowIds)
+	workflowNames, err := r.queries.ListWorkflowNamesByIds(ctx, db, workflowIds)
 
 	if err != nil {
 		return nil, err
 	}
 
-	workflowIdToNameMap := make(map[uuid.UUID]string)
-
-	for _, row := range workflowNames {
-		workflowIdToNameMap[row.ID] = row.Name
-	}
+	workflowIdToNameMap := enumerables.ToMap(
+		workflowNames,
+		func(row *sqlcv1.ListWorkflowNamesByIdsRow) uuid.UUID { return row.ID },
+		func(row *sqlcv1.ListWorkflowNamesByIdsRow) string { return row.Name },
+	)
 
 	return workflowIdToNameMap, nil
 }
 
 func (r *workflowRepository) ListStepsByWorkflowVersionId(ctx context.Context, tenantId uuid.UUID, workflowVersionId uuid.UUID) ([]*sqlcv1.ListStepsByWorkflowVersionIdsRow, error) {
-	steps, err := r.listStepsByWorkflowVersionIds(ctx, r.pool, tenantId, []uuid.UUID{workflowVersionId})
+	db := r.pool.ForTenant(tenantId)
+
+	steps, err := r.listStepsByWorkflowVersionIds(ctx, db, tenantId, []uuid.UUID{workflowVersionId})
 
 	if err != nil {
 		return nil, err
@@ -336,7 +343,9 @@ func (r *workflowRepository) ListStepsByWorkflowVersionId(ctx context.Context, t
 }
 
 func (r *workflowRepository) ListStepMatchConditions(ctx context.Context, tenantId uuid.UUID, stepIds []uuid.UUID) ([]*sqlcv1.V1StepMatchCondition, error) {
-	return r.listStepMatchConditions(ctx, r.pool, tenantId, stepIds)
+	db := r.pool.ForTenant(tenantId)
+
+	return r.listStepMatchConditions(ctx, db, tenantId, stepIds)
 }
 
 // upsertTenantConcurrencyStrategies upserts all of a workflow's tenant-scoped strategy
@@ -465,19 +474,13 @@ func (r *workflowRepository) getTenantStrategiesForEntries(ctx context.Context, 
 		return nil, err
 	}
 
-	strategiesByName := make(map[string]*sqlcv1.V1TenantConcurrency, len(strategies))
+	strategiesByName := enumerables.KeyBy(strategies, func(strategy *sqlcv1.V1TenantConcurrency) string {
+		return strategy.Name
+	})
 
-	for _, strategy := range strategies {
-		strategiesByName[strategy.Name] = strategy
-	}
-
-	missingNames := make([]string, 0)
-
-	for _, name := range names {
-		if _, ok := strategiesByName[name]; !ok {
-			missingNames = append(missingNames, name)
-		}
-	}
+	missingNames := enumerables.Filter(names, func(name string) bool {
+		return !enumerables.HasKey(strategiesByName, name)
+	})
 
 	if len(missingNames) > 0 {
 		return nil, newTenantConcurrencyError("unknown tenant-scoped concurrency strategies: %s (step %s)", strings.Join(missingNames, ", "), stepReadableId)
@@ -688,6 +691,8 @@ func (e *JobRunHasCycleError) Error() string {
 }
 
 func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkflowVersionOpts) (*sqlcv1.GetWorkflowVersionForEngineRow, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -705,7 +710,7 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 		return nil, err
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, r.pool, r.l, 60000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, db, r.l, 60000)
 
 	if err != nil {
 		return nil, err
@@ -730,25 +735,37 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 		Name:     opts.Name,
 	})
 
-	switch {
-	case err != nil && errors.Is(err, pgx.ErrNoRows):
-		// create the workflow
-		workflowId = uuid.New()
-
-		_, err = r.queries.CreateWorkflow(
+	if err != nil && errors.Is(err, pgx.ErrNoRows) {
+		// Concurrent registrations of the same name race to create the workflow: the insert
+		// yields to the one that wins, and the loser continues on the row it created.
+		created, createErr := r.queries.CreateWorkflow(
 			ctx,
 			tx,
 			sqlcv1.CreateWorkflowParams{
-				ID:          workflowId,
+				ID:          uuid.New(),
 				Tenantid:    tenantId,
 				Name:        opts.Name,
 				Description: *opts.Description,
 			},
 		)
 
-		if err != nil {
-			return nil, err
+		switch {
+		case createErr == nil:
+			existingWorkflow, err = nil, pgx.ErrNoRows
+			workflowId = created.ID
+		case errors.Is(createErr, pgx.ErrNoRows):
+			existingWorkflow, err = r.queries.GetWorkflowByName(ctx, tx, sqlcv1.GetWorkflowByNameParams{
+				Tenantid: tenantId,
+				Name:     opts.Name,
+			})
+		default:
+			return nil, createErr
 		}
+	}
+
+	switch {
+	case err != nil && errors.Is(err, pgx.ErrNoRows):
+		// the workflow was created above
 	case err != nil:
 		return nil, err
 	case existingWorkflow.ID == uuid.Nil:
@@ -1695,10 +1712,12 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 }
 
 func (r *workflowRepository) GetWorkflowShape(ctx context.Context, workflowVersionId uuid.UUID) ([]*sqlcv1.GetWorkflowShapeRow, error) {
-	return r.queries.GetWorkflowShape(ctx, r.pool, workflowVersionId)
+	return r.queries.GetWorkflowShape(ctx, r.pool.ForShared(), workflowVersionId)
 }
 
 func (r *workflowRepository) ListWorkflows(tenantId uuid.UUID, opts *ListWorkflowsOpts) (*ListWorkflowsResult, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -1732,7 +1751,7 @@ func (r *workflowRepository) ListWorkflows(tenantId uuid.UUID, opts *ListWorkflo
 
 	queryParams.Orderby = orderByField + " " + orderByDirection
 
-	tx, err := r.pool.Begin(context.Background())
+	tx, err := db.Begin(context.Background())
 
 	if err != nil {
 		return nil, err
@@ -1759,20 +1778,13 @@ func (r *workflowRepository) ListWorkflows(tenantId uuid.UUID, opts *ListWorkflo
 	}
 
 	res.Count = int(count)
-
-	sqlcWorkflows := make([]*sqlcv1.Workflow, len(workflows))
-
-	for i := range workflows {
-		sqlcWorkflows[i] = &workflows[i].Workflow
-	}
-
-	res.Rows = sqlcWorkflows
+	res.Rows = workflows
 
 	return res, nil
 }
 
 func (r *workflowRepository) GetWorkflowById(ctx context.Context, workflowId uuid.UUID) (*sqlcv1.GetWorkflowByIdRow, error) {
-	return r.queries.GetWorkflowById(context.Background(), r.pool, workflowId)
+	return r.queries.GetWorkflowById(context.Background(), r.pool.ForShared(), workflowId)
 }
 
 func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context, tenantId uuid.UUID, workflowVersionId uuid.UUID) (
@@ -1784,14 +1796,12 @@ func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context,
 	[]*sqlcv1.ListWorkflowConcurrencyByVersionIdRow,
 	error,
 ) {
-	row, err := r.queries.GetWorkflowVersionById(
-		ctx,
-		r.pool,
-		sqlcv1.GetWorkflowVersionByIdParams{
-			ID:       workflowVersionId,
-			Tenantid: tenantId,
-		},
-	)
+	db := r.pool.ForTenant(tenantId)
+
+	row, err := r.queries.GetWorkflowVersionById(ctx, db, sqlcv1.GetWorkflowVersionByIdParams{
+		ID:       workflowVersionId,
+		Tenantid: tenantId,
+	})
 
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to fetch workflow version: %w", err)
@@ -1799,7 +1809,7 @@ func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context,
 
 	crons, err := r.queries.GetWorkflowVersionCronTriggerRefs(
 		ctx,
-		r.pool,
+		db,
 		workflowVersionId,
 	)
 
@@ -1809,7 +1819,7 @@ func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context,
 
 	events, err := r.queries.GetWorkflowVersionEventTriggerRefs(
 		ctx,
-		r.pool,
+		db,
 		workflowVersionId,
 	)
 
@@ -1819,7 +1829,7 @@ func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context,
 
 	scheduled, err := r.queries.GetWorkflowVersionScheduleTriggerRefs(
 		ctx,
-		r.pool,
+		db,
 		workflowVersionId,
 	)
 
@@ -1827,7 +1837,7 @@ func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context,
 		return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to fetch scheduled triggers: %w", err)
 	}
 
-	stepConcurrency, err := r.queries.ListConcurrencyStrategiesByWorkflowVersionId(ctx, r.pool, sqlcv1.ListConcurrencyStrategiesByWorkflowVersionIdParams{
+	stepConcurrency, err := r.queries.ListConcurrencyStrategiesByWorkflowVersionId(ctx, db, sqlcv1.ListConcurrencyStrategiesByWorkflowVersionIdParams{
 		Tenantid:          tenantId,
 		Workflowversionid: row.WorkflowVersion.ID,
 		Workflowid:        row.Workflow.ID,
@@ -1837,7 +1847,7 @@ func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context,
 		return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to fetch step concurrency strategies: %w", err)
 	}
 
-	workflowConcurrency, err := r.queries.ListWorkflowConcurrencyByVersionId(ctx, r.pool, sqlcv1.ListWorkflowConcurrencyByVersionIdParams{
+	workflowConcurrency, err := r.queries.ListWorkflowConcurrencyByVersionId(ctx, db, sqlcv1.ListWorkflowConcurrencyByVersionIdParams{
 		Workflowversionid: row.WorkflowVersion.ID,
 		Workflowid:        row.Workflow.ID,
 	})
@@ -1850,7 +1860,9 @@ func (r *workflowRepository) GetWorkflowVersionWithTriggers(ctx context.Context,
 }
 
 func (r *workflowRepository) GetWorkflowVersionById(ctx context.Context, tenantId, workflowId uuid.UUID) (*sqlcv1.GetWorkflowVersionForEngineRow, error) {
-	versions, err := r.queries.GetWorkflowVersionForEngine(ctx, r.pool, sqlcv1.GetWorkflowVersionForEngineParams{
+	db := r.pool.ForTenant(tenantId)
+
+	versions, err := r.queries.GetWorkflowVersionForEngine(ctx, db, sqlcv1.GetWorkflowVersionForEngineParams{
 		Tenantid: tenantId,
 		Ids:      []uuid.UUID{workflowId},
 	})
@@ -1867,24 +1879,30 @@ func (r *workflowRepository) GetWorkflowVersionById(ctx context.Context, tenantI
 }
 
 func (r *workflowRepository) DeleteWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.Workflow, error) {
-	return r.queries.SoftDeleteWorkflow(ctx, r.pool, workflowId)
+	db := r.pool.ForTenant(tenantId)
+
+	return r.queries.SoftDeleteWorkflow(ctx, db, workflowId)
 }
 
 func (r *workflowRepository) GetWorkflowByName(ctx context.Context, tenantId uuid.UUID, workflowName string) (*sqlcv1.Workflow, error) {
-	return r.queries.GetWorkflowByName(ctx, r.pool, sqlcv1.GetWorkflowByNameParams{
+	db := r.pool.ForTenant(tenantId)
+
+	return r.queries.GetWorkflowByName(ctx, db, sqlcv1.GetWorkflowByNameParams{
 		Tenantid: tenantId,
 		Name:     workflowName,
 	})
 }
 
 func (r *workflowRepository) GetLatestWorkflowVersion(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.GetWorkflowVersionForEngineRow, error) {
-	versionId, err := r.queries.GetWorkflowLatestVersion(ctx, r.pool, workflowId)
+	db := r.pool.ForTenant(tenantId)
+
+	versionId, err := r.queries.GetWorkflowLatestVersion(ctx, db, workflowId)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch latest version: %w", err)
 	}
 
-	versions, err := r.queries.GetWorkflowVersionForEngine(ctx, r.pool, sqlcv1.GetWorkflowVersionForEngineParams{
+	versions, err := r.queries.GetWorkflowVersionForEngine(ctx, db, sqlcv1.GetWorkflowVersionForEngineParams{
 		Tenantid: tenantId,
 		Ids:      []uuid.UUID{versionId},
 	})
@@ -1913,8 +1931,8 @@ type PauseWorkflowOpts struct {
 	QueueTTL                  string
 }
 
-func (r *workflowRepository) PauseWorkflow(ctx context.Context, workflowId uuid.UUID, opts PauseWorkflowOpts) (*sqlcv1.Workflow, error) {
-	return r.queries.PauseWorkflow(ctx, r.pool, sqlcv1.PauseWorkflowParams{
+func (r *workflowRepository) PauseWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID, opts PauseWorkflowOpts) (*sqlcv1.Workflow, error) {
+	return r.queries.PauseWorkflow(ctx, r.pool.ForTenant(tenantId), sqlcv1.PauseWorkflowParams{
 		ID:                        workflowId,
 		Cronrunqueuebehavior:      sqlcv1.WorkflowPauseQueueBehavior(opts.CronRunQueueBehavior),
 		Scheduledrunqueuebehavior: sqlcv1.WorkflowPauseQueueBehavior(opts.ScheduledRunQueueBehavior),
@@ -1922,11 +1940,13 @@ func (r *workflowRepository) PauseWorkflow(ctx context.Context, workflowId uuid.
 	})
 }
 
-func (r *workflowRepository) UnpauseWorkflow(ctx context.Context, workflowId uuid.UUID) (*sqlcv1.Workflow, error) {
-	return r.queries.UnpauseWorkflow(ctx, r.pool, workflowId)
+func (r *workflowRepository) UnpauseWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.Workflow, error) {
+	return r.queries.UnpauseWorkflow(ctx, r.pool.ForTenant(tenantId), workflowId)
 }
 
 func (r *workflowRepository) MovePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) error {
+	db := r.pool.ForTenant(tenantId)
+
 	ctx, span := telemetry.NewSpan(ctx, "move-paused-workflow-queue-items")
 	defer span.End()
 
@@ -1934,39 +1954,31 @@ func (r *workflowRepository) MovePausedWorkflowQueueItems(ctx context.Context, t
 		return nil
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+	rows, err := r.queries.ListQueuedTasksForWorkflows(ctx, db, sqlcv1.ListQueuedTasksForWorkflowsParams{
+		Tenantid:    tenantId,
+		Workflowids: workflowIds,
+	})
 
 	if err != nil {
-		return err
+		return fmt.Errorf("could not list queued tasks for paused workflows: %w", err)
 	}
 
-	defer rollback()
+	tasks := make([]TaskIdInsertedAtRetryCount, 0, len(rows))
 
-	if err := r.queries.MovePausedWorkflowQueueItems(ctx, tx, sqlcv1.MovePausedWorkflowQueueItemsParams{
-		Workflowids: workflowIds,
-		Tenantid:    tenantId,
-	}); err != nil {
-		return err
+	for _, row := range rows {
+		tasks = append(tasks, TaskIdInsertedAtRetryCount{
+			Id:         row.TaskID,
+			InsertedAt: row.TaskInsertedAt,
+			RetryCount: row.RetryCount,
+		})
 	}
 
-	if err := r.queries.MovePausedWorkflowConcurrencySlots(ctx, tx, sqlcv1.MovePausedWorkflowConcurrencySlotsParams{
-		Workflowids: workflowIds,
-		Tenantid:    tenantId,
-	}); err != nil {
-		return err
-	}
-
-	if err := r.queries.MovePausedWorkflowRateLimitedQueueItems(ctx, tx, sqlcv1.MovePausedWorkflowRateLimitedQueueItemsParams{
-		Workflowids: workflowIds,
-		Tenantid:    tenantId,
-	}); err != nil {
-		return err
-	}
-
-	return commit(ctx)
+	return r.holdPausedTasksInBatches(ctx, tenantId, tasks)
 }
 
 func (r *workflowRepository) RequeuePausedWorkflowQueueItems(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) ([]string, []int64, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	ctx, span := telemetry.NewSpan(ctx, "requeue-paused-workflow-queue-items")
 	defer span.End()
 
@@ -1974,7 +1986,7 @@ func (r *workflowRepository) RequeuePausedWorkflowQueueItems(ctx context.Context
 		return nil, nil, nil
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, r.l)
 
 	if err != nil {
 		return nil, nil, err
@@ -1982,19 +1994,26 @@ func (r *workflowRepository) RequeuePausedWorkflowQueueItems(ctx context.Context
 
 	defer rollback()
 
-	queueNames, err := r.queries.RequeuePausedWorkflowQueueItems(ctx, tx, sqlcv1.RequeuePausedWorkflowQueueItemsParams{
+	released, err := r.queries.ReleaseHeldQueueItemsForWorkflows(ctx, tx, sqlcv1.ReleaseHeldQueueItemsForWorkflowsParams{
 		Workflowids: workflowIds,
 		Tenantid:    tenantId,
 	})
 
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("could not release held queue items for workflows: %w", err)
 	}
 
-	concurrencyStrategyIds, err := r.queries.RequeuePausedWorkflowConcurrencySlots(ctx, tx, sqlcv1.RequeuePausedWorkflowConcurrencySlotsParams{
-		Workflowids: workflowIds,
-		Tenantid:    tenantId,
-	})
+	tasks := make([]TaskIdInsertedAtRetryCount, 0, len(released))
+
+	for _, row := range released {
+		tasks = append(tasks, TaskIdInsertedAtRetryCount{
+			Id:         row.TaskID,
+			InsertedAt: row.TaskInsertedAt,
+			RetryCount: row.RetryCount,
+		})
+	}
+
+	queueNames, concurrencyStrategyIds, err := r.requeueHeldTasks(ctx, tx, tenantId, tasks)
 
 	if err != nil {
 		return nil, nil, err
@@ -2004,14 +2023,130 @@ func (r *workflowRepository) RequeuePausedWorkflowQueueItems(ctx context.Context
 		return nil, nil, err
 	}
 
-	return listutils.Uniq(queueNames), listutils.Uniq(concurrencyStrategyIds), nil
+	return queueNames, concurrencyStrategyIds, nil
+}
+
+const releaseDueHeldQueueItemsBatchSize = 1000
+
+func (r *workflowRepository) RequeueRateLimitPausedQueueItems(ctx context.Context, tenantId uuid.UUID) ([]string, []int64, error) {
+	ctx, span := telemetry.NewSpan(ctx, "requeue-rate-limit-paused-queue-items")
+	defer span.End()
+
+	allQueueNames := make([]string, 0)
+	allStrategyIds := make([]int64, 0)
+
+	for {
+		released, err := r.releaseDueHeldQueueItemsBatch(ctx, tenantId)
+
+		if err != nil {
+			return nil, nil, err
+		}
+
+		allQueueNames = append(allQueueNames, released.queueNames...)
+		allStrategyIds = append(allStrategyIds, released.concurrencyStrategyIds...)
+
+		if released.candidates < releaseDueHeldQueueItemsBatchSize {
+			break
+		}
+	}
+
+	return enumerables.Uniq(allQueueNames), enumerables.Uniq(allStrategyIds), nil
+}
+
+type releasedHeldQueueItems struct {
+	candidates             int
+	queueNames             []string
+	concurrencyStrategyIds []int64
+}
+
+func (r *workflowRepository) releaseDueHeldQueueItemsBatch(ctx context.Context, tenantId uuid.UUID) (*releasedHeldQueueItems, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool.ForTenant(tenantId), r.l)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rollback()
+
+	rows, err := r.queries.ReleaseDueHeldQueueItems(ctx, tx, sqlcv1.ReleaseDueHeldQueueItemsParams{
+		Tenantid:  tenantId,
+		Batchsize: releaseDueHeldQueueItemsBatchSize,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not release due held queue items: %w", err)
+	}
+
+	tasks := make([]TaskIdInsertedAtRetryCount, 0, len(rows))
+
+	for _, row := range rows {
+		if !row.Released {
+			continue
+		}
+
+		tasks = append(tasks, TaskIdInsertedAtRetryCount{
+			Id:         row.TaskID,
+			InsertedAt: row.TaskInsertedAt,
+			RetryCount: row.RetryCount,
+		})
+	}
+
+	queueNames, concurrencyStrategyIds, err := r.requeueHeldTasks(ctx, tx, tenantId, tasks)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return &releasedHeldQueueItems{
+		candidates:             len(rows),
+		queueNames:             queueNames,
+		concurrencyStrategyIds: concurrencyStrategyIds,
+	}, nil
+}
+
+func (r *workflowRepository) requeueHeldTasks(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) ([]string, []int64, error) {
+	if len(tasks) == 0 {
+		return nil, nil, nil
+	}
+
+	taskIds, taskInsertedAts, retryCounts := taskTupleArrays(tasks)
+
+	queueNames, err := r.queries.RequeueHeldQueueItems(ctx, tx, sqlcv1.RequeueHeldQueueItemsParams{
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+		Retrycounts:     retryCounts,
+		Tenantid:        tenantId,
+	})
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not requeue held queue items: %w", err)
+	}
+
+	concurrencyStrategyIds, err := r.queries.RequeueHeldConcurrencySlots(ctx, tx, sqlcv1.RequeueHeldConcurrencySlotsParams{
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+		Retrycounts:     retryCounts,
+		Tenantid:        tenantId,
+	})
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not requeue held concurrency slots: %w", err)
+	}
+
+	return enumerables.Uniq(queueNames), enumerables.Uniq(concurrencyStrategyIds), nil
 }
 
 func (r *workflowRepository) ListUnpausedWorkflowsWithPausedQueueItems(ctx context.Context, tenantId uuid.UUID) ([]uuid.UUID, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	ctx, span := telemetry.NewSpan(ctx, "list-unpaused-workflows-with-paused-queue-items")
 	defer span.End()
 
-	return r.queries.ListUnpausedWorkflowsWithPausedQueueItems(ctx, r.pool, tenantId)
+	return r.queries.ListUnpausedWorkflowsWithPausedQueueItems(ctx, db, tenantId)
 }
 
 func checksumV1(opts *CreateWorkflowVersionOpts) (string, *CreateWorkflowVersionOpts, error) {
@@ -2115,10 +2250,11 @@ func stripTenantConcurrencyDefs(entries []CreateConcurrencyOpts) []CreateConcurr
 }
 
 func hasCycleV1(steps []CreateStepOpts) bool {
-	graph := make(map[string][]string)
-	for _, step := range steps {
-		graph[step.ReadableId] = step.Parents
-	}
+	graph := enumerables.ToMap(
+		steps,
+		func(step CreateStepOpts) string { return step.ReadableId },
+		func(step CreateStepOpts) []string { return step.Parents },
+	)
 
 	visited := make(map[string]bool)
 	var dfs func(string) bool

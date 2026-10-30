@@ -65,6 +65,8 @@ withTenant:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: List rate limits
     tags:
       - Rate Limits
@@ -104,6 +106,8 @@ withTenant:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Delete rate limit
     tags:
       - Rate Limits

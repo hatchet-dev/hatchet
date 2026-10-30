@@ -1,4 +1,9 @@
-import { V1EventList, V1TaskSummaryList, WebhookWorkerCreateRequest } from '.';
+import {
+  V1ConcurrencyScope,
+  V1EventList,
+  V1TaskSummaryList,
+  WebhookWorkerCreateRequest,
+} from '.';
 import api, {
   cloudApi,
   controlPlaneApi,
@@ -11,6 +16,8 @@ import invariant from 'tiny-invariant';
 
 type ListEventQuery = Parameters<typeof api.eventList>[1];
 type ListRateLimitsQuery = Parameters<typeof api.rateLimitList>[1];
+type ListStreamTopicsQuery = Parameters<typeof api.v1StreamTopicList>[1];
+type V1ConcurrencyKeyListQuery = Parameters<typeof api.v1ConcurrencyKeyList>[3];
 type ListWorkersQuery = Parameters<typeof api.workerList>[1];
 type ListLogLineQuery = Parameters<typeof api.v1LogLineList>[1];
 type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
@@ -189,6 +196,12 @@ export const queries = createQueryKeyStore({
       queryFn: async () => (await api.tenantAlertingSettingsGet(tenant)).data,
     }),
   },
+  tenantEntitlements: {
+    get: (tenant: string) => ({
+      queryKey: ['tenant-entitlements:get', tenant],
+      queryFn: async () => (await api.tenantEntitlementsGet(tenant)).data,
+    }),
+  },
   tenantResourcePolicy: {
     get: (tenant: string) => ({
       queryKey: ['tenant-resource-policy:get', tenant],
@@ -298,6 +311,23 @@ export const queries = createQueryKeyStore({
     list: (tenant: string, params?: ListWebhooksQuery | undefined) => ({
       queryKey: ['v1:webhook:list', tenant],
       queryFn: async () => (await api.v1WebhookList(tenant, params)).data,
+    }),
+  },
+  v1ServerlessEndpoints: {
+    list: (tenant: string, query: { offset: number; limit: number }) => ({
+      queryKey: ['v1:serverless-endpoint:list', tenant, query],
+      queryFn: async () =>
+        (await api.v1ServerlessEndpointList(tenant, query)).data,
+    }),
+    get: (endpoint: string) => ({
+      queryKey: ['v1:serverless-endpoint:get', endpoint],
+      queryFn: async () => (await api.v1ServerlessEndpointGet(endpoint)).data,
+    }),
+    events: (endpoint: string) => ({
+      queryKey: ['v1:serverless-endpoint:events', endpoint],
+      queryFn: async () =>
+        (await api.v1ServerlessEndpointEventList(endpoint, { limit: 200 }))
+          .data,
     }),
   },
   v1Events: {
@@ -528,6 +558,33 @@ export const queries = createQueryKeyStore({
     list: (tenant: string, query: ListRateLimitsQuery) => ({
       queryKey: ['rate-limits:list', tenant, query],
       queryFn: async () => (await api.rateLimitList(tenant, query)).data,
+    }),
+  },
+  stream_topics: {
+    list: (tenant: string, query: ListStreamTopicsQuery) => ({
+      queryKey: ['stream-topics:list', tenant, query],
+      queryFn: async () => (await api.v1StreamTopicList(tenant, query)).data,
+    }),
+  },
+  v1Concurrency: {
+    strategies: (tenant: string) => ({
+      queryKey: ['v1:concurrency:strategies', tenant],
+      queryFn: async ({ signal }) =>
+        (await api.v1ConcurrencyStrategyList(tenant, { signal })).data,
+    }),
+    keys: (
+      tenant: string,
+      scope: V1ConcurrencyScope,
+      strategy: number,
+      query: V1ConcurrencyKeyListQuery,
+    ) => ({
+      queryKey: ['v1:concurrency:keys', tenant, scope, strategy, query],
+      queryFn: async ({ signal }) =>
+        (
+          await api.v1ConcurrencyKeyList(tenant, scope, strategy, query, {
+            signal,
+          })
+        ).data,
     }),
   },
   workers: {

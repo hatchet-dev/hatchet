@@ -133,6 +133,10 @@ type HatchetContext interface {
 	// duration string, such as "5m".
 	RefreshTimeout(incrementTimeoutBy string) error
 
+	// PauseRateLimit keeps queued runs that use the rate limit key from starting until the given time.
+	// It returns the time the key is paused until.
+	PauseRateLimit(key string, until time.Time) (time.Time, error)
+
 	// RetryCount returns the number of times the current task run has been retried.
 	RetryCount() int
 
@@ -608,6 +612,16 @@ func (h *hatchetContext) RefreshTimeout(incrementTimeoutBy string) error {
 	}
 
 	return nil
+}
+
+func (h *hatchetContext) PauseRateLimit(key string, until time.Time) (time.Time, error) {
+	pausedUntil, err := h.c.Admin().PauseRateLimit(h, key, until)
+
+	if err != nil {
+		return time.Time{}, fmt.Errorf("failed to pause rate limit: %w", err)
+	}
+
+	return pausedUntil, nil
 }
 
 // Deprecated: StreamEvent is an internal method used by the new Go SDK.

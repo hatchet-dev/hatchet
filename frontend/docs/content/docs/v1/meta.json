@@ -53,6 +53,7 @@
     "middleware",
     "durable-streams",
     "environments",
+    "api-tokens",
     "troubleshooting",
     "---Custom plans---",
     "single-sign-on",

@@ -1,0 +1,22 @@
+{
+  "name": "hatchet-serverless-cloudflare-workers",
+  "private": true,
+  "type": "module",
+  "description": "Example Hatchet serverless endpoint running on Cloudflare Workers",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail --format pretty",
+    "typecheck": "tsc --noEmit",
+    "consume-stream": "node --env-file-if-exists=.dev.vars scripts/consume-stream.ts"
+  },
+  "dependencies": {
+    "@hatchet-dev/serverless": "link:../../../sdks/typescript-serverless",
+    "@hatchet-dev/typescript-sdk": "file:../../../sdks/typescript/dist"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250906.0",
+    "typescript": "^5.6.0",
+    "wrangler": "^4.0.0"
+  }
+}
