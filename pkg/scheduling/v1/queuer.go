@@ -31,6 +31,9 @@ const (
 
 	// maxQueuePollInterval caps the backed-off polling interval.
 	maxQueuePollInterval = 30 * time.Second
+
+	// queuerShutdownTimeout bounds how long cleanup waits for an in-flight tick to finish.
+	queuerShutdownTimeout = 10 * time.Second
 )
 
 type Queuer struct {
@@ -137,6 +140,7 @@ func newQueuer(conf *sharedConfig, tenantId uuid.UUID, queueName string, s *Sche
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
 	cleanupMu := sync.Mutex{}
 	q.cleanup = func() {
 		cleanupMu.Lock()
@@ -149,10 +153,20 @@ func newQueuer(conf *sharedConfig, tenantId uuid.UUID, queueName string, s *Sche
 		q.isCleanedUp = true
 		cancel()
 
+		// an in-flight tick may still emit results, which StopTenants callers must be able to drain
+		select {
+		case <-done:
+		case <-time.After(queuerShutdownTimeout):
+			q.l.Warn().Msg("timed out waiting for queue loop to exit")
+		}
+
 		queueRepo.Cleanup()
 	}
 
-	go q.loopQueue(ctx)
+	go func() {
+		defer close(done)
+		q.loopQueue(ctx)
+	}()
 
 	return q
 }

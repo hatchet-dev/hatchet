@@ -1139,8 +1139,8 @@ func (d *DispatcherImpl) sendBatchStartFromPayload(ctx context.Context, payload 
 	workers, err := d.workers.Get(payload.WorkerId)
 	if err != nil {
 		if errors.Is(err, ErrWorkerNotFound) {
-			// If the worker isn't connected, ignore (the tasks will be retried separately).
-			return nil
+			// members are already assigned to this worker, so nothing else requeues them before their timeout
+			return d.retryBatchItems(ctx, payload)
 		}
 		return fmt.Errorf("could not get worker for batch %s: %w", payload.BatchId, err)
 	}
@@ -1236,6 +1236,28 @@ func (d *DispatcherImpl) sendBatchStartFromPayload(ctx context.Context, payload 
 	}
 
 	return nil
+}
+
+func (d *DispatcherImpl) retryBatchItems(ctx context.Context, payload *tasktypesv1.StartBatchTaskPayload) error {
+	taskIds := make([]int64, 0, len(payload.Items))
+
+	for _, item := range payload.Items {
+		taskIds = append(taskIds, item.TaskID)
+	}
+
+	if len(taskIds) == 0 {
+		return nil
+	}
+
+	tasks, err := d.repov1.Tasks().ListTasks(ctx, payload.TenantId, taskIds)
+
+	if err != nil {
+		return fmt.Errorf("could not list tasks to retry for batch %s: %w", payload.BatchId, err)
+	}
+
+	d.l.Warn().Ctx(ctx).Msgf("worker %s not found for batch %s, retrying %d tasks", payload.WorkerId, payload.BatchId, len(tasks))
+
+	return d.handleRetries(ctx, payload.TenantId, tasks)
 }
 
 func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueue.Message) error {

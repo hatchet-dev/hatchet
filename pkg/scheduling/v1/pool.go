@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -52,6 +53,7 @@ type SchedulingPool struct {
 
 	tenants syncx.Map[uuid.UUID, *tenantManager]
 	setMu   mutex
+	stopped atomic.Bool
 
 	cf *sharedConfig
 
@@ -136,15 +138,7 @@ func (p *SchedulingPool) GetRateLimitPausesEndedCh() chan uuid.UUID {
 }
 
 func (p *SchedulingPool) cleanup() {
-	toCleanup := make([]*tenantManager, 0)
-
-	p.tenants.Range(func(key uuid.UUID, value *tenantManager) bool {
-		toCleanup = append(toCleanup, value)
-
-		return true
-	})
-
-	p.cleanupTenants(toCleanup)
+	p.StopTenants()
 
 	err := p.Extensions.Cleanup()
 
@@ -153,12 +147,39 @@ func (p *SchedulingPool) cleanup() {
 	}
 }
 
+// StopTenants blocks until every queuer and batch scheduler has exited and can emit no more results.
+func (p *SchedulingPool) StopTenants() {
+	p.stopped.Store(true)
+
+	// wait out an in-flight SetTenants so it can't store a tenant after we've swept the map
+	p.setMu.Lock()
+	defer p.setMu.Unlock()
+
+	toCleanup := make([]*tenantManager, 0)
+
+	p.tenants.Range(func(key uuid.UUID, value *tenantManager) bool {
+		toCleanup = append(toCleanup, value)
+
+		return true
+	})
+
+	for _, tm := range toCleanup {
+		p.tenants.Delete(tm.tenantId)
+	}
+
+	p.cleanupTenants(toCleanup)
+}
+
 func (p *SchedulingPool) SetTenants(tenants []*sqlcv1.Tenant) {
 	if ok := p.setMu.TryLock(); !ok {
 		return
 	}
 
 	defer p.setMu.Unlock()
+
+	if p.stopped.Load() {
+		return
+	}
 
 	tenantMap := make(map[uuid.UUID]bool)
 

@@ -145,10 +145,14 @@ func (t *tenantManager) Cleanup() error {
 
 	t.rl.cleanup()
 
+	// separate budget: the shared cleanupCtx may already be spent waiting on queuers
+	batchCleanupCtx, cancelBatchCleanup := context.WithTimeout(context.Background(), queuerShutdownTimeout)
+	defer cancelBatchCleanup()
+
 	t.batchSchedulersMu.Lock()
 
 	for stepId, scheduler := range t.batchSchedulers {
-		if err := scheduler.Cleanup(cleanupCtx); err != nil {
+		if err := scheduler.Cleanup(batchCleanupCtx); err != nil {
 			t.cf.l.Error().
 				Err(err).
 				Str("tenant_id", t.tenantId.String()).
