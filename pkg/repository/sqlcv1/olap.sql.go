@@ -606,7 +606,8 @@ SELECT
     create_v1_monthly_range_partition('v1_lookup_table_olap'::text, $2::date) AS v1_lookup_table_olap,
     create_v1_monthly_range_partition('v1_statuses_olap'::text, $2::date) AS v1_statuses_olap,
     create_v1_range_partition('v1_otel_trace_olap'::text, $2::date) AS v1_otel_trace_olap,
-    create_v1_range_partition('v1_otel_trace_lookup_olap'::text, $2::date) AS v1_otel_trace_lookup_olap
+    create_v1_range_partition('v1_otel_trace_lookup_olap'::text, $2::date) AS v1_otel_trace_lookup_olap,
+    create_v1_range_partition('v1_audit_log'::text, $2::date) AS v1_audit_log
 `
 
 type CreateOLAPPartitionsParams struct {
@@ -638,6 +639,7 @@ type CreateOLAPPartitionsRow struct {
 	V1StatusesOlap                          int32 `json:"v1_statuses_olap"`
 	V1OtelTraceOlap                         int32 `json:"v1_otel_trace_olap"`
 	V1OtelTraceLookupOlap                   int32 `json:"v1_otel_trace_lookup_olap"`
+	V1AuditLog                              int32 `json:"v1_audit_log"`
 }
 
 func (q *Queries) CreateOLAPPartitions(ctx context.Context, db DBTX, arg CreateOLAPPartitionsParams) (*CreateOLAPPartitionsRow, error) {
@@ -667,6 +669,7 @@ func (q *Queries) CreateOLAPPartitions(ctx context.Context, db DBTX, arg CreateO
 		&i.V1StatusesOlap,
 		&i.V1OtelTraceOlap,
 		&i.V1OtelTraceLookupOlap,
+		&i.V1AuditLog,
 	)
 	return &i, err
 }
