@@ -33,6 +33,7 @@ type DispatcherServiceImpl struct {
 	triggerWriter      *trigger.TriggerWriter
 	pubBuffer          *msgqueue.MQPubBuffer
 	streamSessions     *streams.Registry
+	durableBudgets     *durableTaskBudgets
 	l                  *zerolog.Logger
 	durableInvocations syncx.Map[durableInvocationsKey, *durableTaskInvocation]
 	workerInvocations  syncx.Map[uuid.UUID, *durableTaskInvocation]
@@ -46,7 +47,7 @@ func (d *DispatcherServiceImpl) CancelStreamSessions() {
 	d.streamSessions.CancelAll()
 }
 
-func newDispatcherService(repo v1.Repository, mq msgqueue.MessageQueue, pubsub msgqueue.PubSub, v validator.Validator, l *zerolog.Logger, dispatcherId uuid.UUID, a analytics.Analytics, alerter *hatcheterrors.Wrapped, promGate *prometheus.Gate) *DispatcherServiceImpl {
+func newDispatcherService(repo v1.Repository, mq msgqueue.MessageQueue, pubsub msgqueue.PubSub, v validator.Validator, l *zerolog.Logger, dispatcherId uuid.UUID, a analytics.Analytics, alerter *hatcheterrors.Wrapped, promGate *prometheus.Gate, maxMsgSize int) *DispatcherServiceImpl {
 	pubBuffer := msgqueue.NewMQPubBuffer(mq)
 	tw := trigger.NewTriggerWriter(mq, pubsub, repo, l, pubBuffer, 0, promGate)
 
@@ -62,5 +63,6 @@ func newDispatcherService(repo v1.Repository, mq msgqueue.MessageQueue, pubsub m
 		alerter:       alerter,
 
 		streamSessions: streams.NewRegistry(),
+		durableBudgets: newDurableTaskBudgets(l, maxMsgSize),
 	}
 }

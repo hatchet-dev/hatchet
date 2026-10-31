@@ -35,6 +35,7 @@ func newTestDispatcher() *DispatcherServiceImpl {
 	return &DispatcherServiceImpl{
 		l:              &l,
 		streamSessions: streams.NewRegistry(),
+		durableBudgets: newDurableTaskBudgets(&l, 0),
 		analytics:      analytics.NoOpAnalytics{},
 	}
 }
@@ -281,4 +282,60 @@ func TestDurableTaskRecoversFromHandlerPanics(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("a request after a panicking one was never handled")
 	}
+}
+
+type gatedRepo struct {
+	v1.Repository
+	started chan struct{}
+	release chan struct{}
+}
+
+func (r gatedRepo) Tasks() v1.TaskRepository {
+	r.started <- struct{}{}
+	<-r.release
+	panic("handler done")
+}
+
+func TestDurableTaskStopsStartingHandlersWhenStreamBudgetIsHeld(t *testing.T) {
+	d := newTestDispatcher()
+	repo := gatedRepo{started: make(chan struct{}, 3), release: make(chan struct{})}
+	d.repo = repo
+
+	payload := make([]byte, d.durableBudgets.streamBytes*6/10)
+	memo := &contracts.DurableTaskRequest{Message: &contracts.DurableTaskRequest_Memo{
+		Memo: &contracts.DurableTaskMemoRequest{DurableTaskExternalId: uuid.NewString(), Payload: payload},
+	}}
+
+	sent := 0
+	server := &fakeDurableTaskServer{
+		ctx: tenantContext(),
+		recv: func() (*contracts.DurableTaskRequest, error) {
+			if sent == 3 {
+				return nil, io.EOF
+			}
+			sent++
+			return memo, nil
+		},
+	}
+
+	done := runDurableTask(d, server)
+
+	<-repo.started
+	select {
+	case <-repo.started:
+		t.Fatal("second handler started while the first held the stream budget")
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	close(repo.release)
+
+	for range 2 {
+		select {
+		case <-repo.started:
+		case <-time.After(5 * time.Second):
+			t.Fatal("handler did not start after the budget was released")
+		}
+	}
+
+	require.NoError(t, <-done)
 }
