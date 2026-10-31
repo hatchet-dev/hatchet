@@ -346,3 +346,5 @@ func (b errBatchResults) Query() (pgx.Rows, error) { return nil, b.err }
 func (b errBatchResults) QueryRow() pgx.Row { return errRow(b) }
 
 func (b errBatchResults) Close() error { return b.err }
+
+func (b errBatchResults) Tx() pgx.Tx { return nil }
