@@ -238,10 +238,6 @@ CREATE INDEX v1_tasks_olap_workflow_id_idx ON v1_tasks_olap (tenant_id, workflow
 CREATE INDEX v1_tasks_olap_worker_id_idx ON v1_tasks_olap (tenant_id, latest_worker_id) WHERE latest_worker_id IS NOT NULL;
 CREATE INDEX ix_v1_tasks_olap_idempotency_key ON v1_tasks_olap (idempotency_key, inserted_at) WHERE idempotency_key IS NOT NULL;
 
--- Backs additional_metadata containment filters (@> / @> ANY). jsonb_path_ops only
--- supports containment, which is all the list/count queries use.
-CREATE INDEX ix_v1_tasks_olap_additional_metadata_gin ON v1_tasks_olap USING gin (additional_metadata jsonb_path_ops);
-
 -- DAG DEFINITIONS --
 CREATE TABLE v1_dags_olap (
     id BIGINT NOT NULL,
@@ -648,37 +644,6 @@ CREATE OR REPLACE FUNCTION v1_tasks_olap_insert_function()
 RETURNS TRIGGER AS
 $$
 BEGIN
-    INSERT INTO v1_runs_olap (
-        tenant_id,
-        id,
-        inserted_at,
-        external_id,
-        readable_status,
-        kind,
-        workflow_id,
-        workflow_version_id,
-        additional_metadata,
-        parent_task_external_id,
-        idempotency_key,
-        finished_at
-    )
-    SELECT
-        tenant_id,
-        id,
-        inserted_at,
-        external_id,
-        readable_status,
-        'TASK',
-        workflow_id,
-        workflow_version_id,
-        additional_metadata,
-        parent_task_external_id,
-        idempotency_key,
-        CASE WHEN readable_status IN ('COMPLETED', 'FAILED', 'CANCELLED') THEN clock_timestamp() END
-    FROM new_rows
-    WHERE dag_id IS NULL
-    ON CONFLICT (inserted_at, id) DO NOTHING;
-
     INSERT INTO v1_lookup_table_olap (
         tenant_id,
         external_id,
@@ -780,36 +745,6 @@ CREATE OR REPLACE FUNCTION v1_dags_olap_insert_function()
 RETURNS TRIGGER AS
 $$
 BEGIN
-    INSERT INTO v1_runs_olap (
-        tenant_id,
-        id,
-        inserted_at,
-        external_id,
-        readable_status,
-        kind,
-        workflow_id,
-        workflow_version_id,
-        additional_metadata,
-        parent_task_external_id,
-        idempotency_key,
-        finished_at
-    )
-    SELECT
-        tenant_id,
-        id,
-        inserted_at,
-        external_id,
-        readable_status,
-        'DAG',
-        workflow_id,
-        workflow_version_id,
-        additional_metadata,
-        parent_task_external_id,
-        idempotency_key,
-        CASE WHEN readable_status IN ('COMPLETED', 'FAILED', 'CANCELLED') THEN clock_timestamp() END
-    FROM new_rows
-    ON CONFLICT (inserted_at, id) DO NOTHING;
-
     INSERT INTO v1_lookup_table_olap (
         tenant_id,
         external_id,
