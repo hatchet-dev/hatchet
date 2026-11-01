@@ -29,7 +29,7 @@ import (
 const countTasks = `-- name: CountTasks :one
 WITH filtered AS (
     SELECT
-        tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, additional_metadata, readable_status, latest_retry_count, latest_worker_id, dag_id, dag_inserted_at
+        tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, readable_status, latest_retry_count, latest_worker_id, dag_id, dag_inserted_at
     FROM
         v1_tasks_olap
     WHERE
@@ -49,17 +49,31 @@ WITH filtered AS (
         AND (
             $7::text[] IS NULL
             OR $8::text[] IS NULL
-            OR EXISTS (
-                SELECT 1 FROM jsonb_each_text(additional_metadata) kv
-                JOIN LATERAL (
-                    SELECT unnest($7::text[]) AS k,
-                        unnest($8::text[]) AS v
-                ) AS u ON kv.key = u.k AND kv.value = u.v
+            OR (COALESCE(dag_id, id), COALESCE(dag_inserted_at, inserted_at)) IN (
+                SELECT r.id, r.inserted_at
+                FROM v1_runs_olap r
+                WHERE
+                    r.tenant_id = $1::uuid
+                    AND r.inserted_at >= $2::timestamptz - INTERVAL '1 day'
+                    AND EXISTS (
+                        SELECT 1 FROM jsonb_each_text(r.additional_metadata) kv
+                        JOIN LATERAL (
+                            SELECT unnest($7::text[]) AS k,
+                                unnest($8::text[]) AS v
+                        ) AS u ON kv.key = u.k AND kv.value = u.v
+                    )
             )
         )
         AND (
             $10::jsonb IS NULL
-            OR additional_metadata @> $10::jsonb
+            OR (COALESCE(dag_id, id), COALESCE(dag_inserted_at, inserted_at)) IN (
+                SELECT r.id, r.inserted_at
+                FROM v1_runs_olap r
+                WHERE
+                    r.tenant_id = $1::uuid
+                    AND r.inserted_at >= $2::timestamptz - INTERVAL '1 day'
+                    AND r.additional_metadata @> $10::jsonb
+            )
         )
 		AND (
 			$9::UUID IS NULL
@@ -89,7 +103,7 @@ FROM filtered
 const countTasksMetadataContainsAll = `-- name: CountTasksMetadataContainsAll :one
 WITH filtered AS (
     SELECT
-        tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, additional_metadata, readable_status, latest_retry_count, latest_worker_id, dag_id, dag_inserted_at
+        tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, readable_status, latest_retry_count, latest_worker_id, dag_id, dag_inserted_at
     FROM
         v1_tasks_olap
     WHERE
@@ -109,15 +123,29 @@ WITH filtered AS (
         AND (
             $7::text[] IS NULL
             OR $8::text[] IS NULL
-            OR EXISTS (
-                SELECT 1 FROM jsonb_each_text(additional_metadata) kv
-                JOIN LATERAL (
-                    SELECT unnest($7::text[]) AS k,
-                        unnest($8::text[]) AS v
-                ) AS u ON kv.key = u.k AND kv.value = u.v
+            OR (COALESCE(dag_id, id), COALESCE(dag_inserted_at, inserted_at)) IN (
+                SELECT r.id, r.inserted_at
+                FROM v1_runs_olap r
+                WHERE
+                    r.tenant_id = $1::uuid
+                    AND r.inserted_at >= $2::timestamptz - INTERVAL '1 day'
+                    AND EXISTS (
+                        SELECT 1 FROM jsonb_each_text(r.additional_metadata) kv
+                        JOIN LATERAL (
+                            SELECT unnest($7::text[]) AS k,
+                                unnest($8::text[]) AS v
+                        ) AS u ON kv.key = u.k AND kv.value = u.v
+                    )
             )
         )
-        AND additional_metadata @> $10::jsonb
+        AND (COALESCE(dag_id, id), COALESCE(dag_inserted_at, inserted_at)) IN (
+            SELECT r.id, r.inserted_at
+            FROM v1_runs_olap r
+            WHERE
+                r.tenant_id = $1::uuid
+                AND r.inserted_at >= $2::timestamptz - INTERVAL '1 day'
+                AND r.additional_metadata @> $10::jsonb
+        )
 		AND (
 			$9::UUID IS NULL
 			OR (id, inserted_at) IN (
@@ -146,7 +174,7 @@ FROM filtered
 const countTasksMetadataContainsAny = `-- name: CountTasksMetadataContainsAny :one
 WITH filtered AS (
     SELECT
-        tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, additional_metadata, readable_status, latest_retry_count, latest_worker_id, dag_id, dag_inserted_at
+        tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, readable_status, latest_retry_count, latest_worker_id, dag_id, dag_inserted_at
     FROM
         v1_tasks_olap
     WHERE
@@ -166,15 +194,29 @@ WITH filtered AS (
         AND (
             $7::text[] IS NULL
             OR $8::text[] IS NULL
-            OR EXISTS (
-                SELECT 1 FROM jsonb_each_text(additional_metadata) kv
-                JOIN LATERAL (
-                    SELECT unnest($7::text[]) AS k,
-                        unnest($8::text[]) AS v
-                ) AS u ON kv.key = u.k AND kv.value = u.v
+            OR (COALESCE(dag_id, id), COALESCE(dag_inserted_at, inserted_at)) IN (
+                SELECT r.id, r.inserted_at
+                FROM v1_runs_olap r
+                WHERE
+                    r.tenant_id = $1::uuid
+                    AND r.inserted_at >= $2::timestamptz - INTERVAL '1 day'
+                    AND EXISTS (
+                        SELECT 1 FROM jsonb_each_text(r.additional_metadata) kv
+                        JOIN LATERAL (
+                            SELECT unnest($7::text[]) AS k,
+                                unnest($8::text[]) AS v
+                        ) AS u ON kv.key = u.k AND kv.value = u.v
+                    )
             )
         )
-        AND additional_metadata @> ANY($10::jsonb[])
+        AND (COALESCE(dag_id, id), COALESCE(dag_inserted_at, inserted_at)) IN (
+            SELECT r.id, r.inserted_at
+            FROM v1_runs_olap r
+            WHERE
+                r.tenant_id = $1::uuid
+                AND r.inserted_at >= $2::timestamptz - INTERVAL '1 day'
+                AND r.additional_metadata @> ANY($10::jsonb[])
+        )
 		AND (
 			$9::UUID IS NULL
 			OR (id, inserted_at) IN (
@@ -744,17 +786,31 @@ WHERE
     AND (
         $7::text[] IS NULL
         OR $8::text[] IS NULL
-        OR EXISTS (
-            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
-            JOIN LATERAL (
-                SELECT unnest($7::text[]) AS k,
-                    unnest($8::text[]) AS v
-            ) AS u ON kv.key = u.k AND kv.value = u.v
+        OR (COALESCE(dag_id, id), COALESCE(dag_inserted_at, inserted_at)) IN (
+            SELECT r.id, r.inserted_at
+            FROM v1_runs_olap r
+            WHERE
+                r.tenant_id = $1::uuid
+                AND r.inserted_at >= $2::timestamptz - INTERVAL '1 day'
+                AND EXISTS (
+                    SELECT 1 FROM jsonb_each_text(r.additional_metadata) kv
+                    JOIN LATERAL (
+                        SELECT unnest($7::text[]) AS k,
+                            unnest($8::text[]) AS v
+                    ) AS u ON kv.key = u.k AND kv.value = u.v
+                )
         )
     )
     AND (
         $12::jsonb IS NULL
-        OR additional_metadata @> $12::jsonb
+        OR (COALESCE(dag_id, id), COALESCE(dag_inserted_at, inserted_at)) IN (
+            SELECT r.id, r.inserted_at
+            FROM v1_runs_olap r
+            WHERE
+                r.tenant_id = $1::uuid
+                AND r.inserted_at >= $2::timestamptz - INTERVAL '1 day'
+                AND r.additional_metadata @> $12::jsonb
+        )
     )
     AND (
         $11::UUID IS NULL
@@ -801,15 +857,29 @@ WHERE
     AND (
         $7::text[] IS NULL
         OR $8::text[] IS NULL
-        OR EXISTS (
-            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
-            JOIN LATERAL (
-                SELECT unnest($7::text[]) AS k,
-                    unnest($8::text[]) AS v
-            ) AS u ON kv.key = u.k AND kv.value = u.v
+        OR (COALESCE(dag_id, id), COALESCE(dag_inserted_at, inserted_at)) IN (
+            SELECT r.id, r.inserted_at
+            FROM v1_runs_olap r
+            WHERE
+                r.tenant_id = $1::uuid
+                AND r.inserted_at >= $2::timestamptz - INTERVAL '1 day'
+                AND EXISTS (
+                    SELECT 1 FROM jsonb_each_text(r.additional_metadata) kv
+                    JOIN LATERAL (
+                        SELECT unnest($7::text[]) AS k,
+                            unnest($8::text[]) AS v
+                    ) AS u ON kv.key = u.k AND kv.value = u.v
+                )
         )
     )
-    AND additional_metadata @> $12::jsonb
+    AND (COALESCE(dag_id, id), COALESCE(dag_inserted_at, inserted_at)) IN (
+        SELECT r.id, r.inserted_at
+        FROM v1_runs_olap r
+        WHERE
+            r.tenant_id = $1::uuid
+            AND r.inserted_at >= $2::timestamptz - INTERVAL '1 day'
+            AND r.additional_metadata @> $12::jsonb
+    )
     AND (
         $11::UUID IS NULL
 		OR (id, inserted_at) IN (
@@ -855,15 +925,29 @@ WHERE
     AND (
         $7::text[] IS NULL
         OR $8::text[] IS NULL
-        OR EXISTS (
-            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
-            JOIN LATERAL (
-                SELECT unnest($7::text[]) AS k,
-                    unnest($8::text[]) AS v
-            ) AS u ON kv.key = u.k AND kv.value = u.v
+        OR (COALESCE(dag_id, id), COALESCE(dag_inserted_at, inserted_at)) IN (
+            SELECT r.id, r.inserted_at
+            FROM v1_runs_olap r
+            WHERE
+                r.tenant_id = $1::uuid
+                AND r.inserted_at >= $2::timestamptz - INTERVAL '1 day'
+                AND EXISTS (
+                    SELECT 1 FROM jsonb_each_text(r.additional_metadata) kv
+                    JOIN LATERAL (
+                        SELECT unnest($7::text[]) AS k,
+                            unnest($8::text[]) AS v
+                    ) AS u ON kv.key = u.k AND kv.value = u.v
+                )
         )
     )
-    AND additional_metadata @> ANY($12::jsonb[])
+    AND (COALESCE(dag_id, id), COALESCE(dag_inserted_at, inserted_at)) IN (
+        SELECT r.id, r.inserted_at
+        FROM v1_runs_olap r
+        WHERE
+            r.tenant_id = $1::uuid
+            AND r.inserted_at >= $2::timestamptz - INTERVAL '1 day'
+            AND r.additional_metadata @> ANY($12::jsonb[])
+    )
     AND (
         $11::UUID IS NULL
 		OR (id, inserted_at) IN (
@@ -1062,61 +1146,90 @@ WITH inputs AS (
 		UNNEST($22::TEXT[]) AS idempotency_key,
         UNNEST(CAST($23::TEXT[] AS v1_readable_status_olap[])) AS readable_status,
         UNNEST($24::UUID[]) AS payload_reference_id
+), inserted_tasks AS (
+        INSERT INTO v1_tasks_olap (
+        tenant_id,
+        id,
+        inserted_at,
+        queue,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_version_id,
+        workflow_run_id,
+        schedule_timeout,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        external_id,
+        display_name,
+        input,
+        dag_id,
+        dag_inserted_at,
+        parent_task_external_id,
+        is_durable,
+        idempotency_key,
+        readable_status,
+        payload_reference_id
+    )
+    SELECT
+        tenant_id,
+        id,
+        inserted_at,
+        queue,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_version_id,
+        workflow_run_id,
+        schedule_timeout,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        external_id,
+        display_name,
+        '{}'::JSONB AS input,
+        dag_id,
+        dag_inserted_at,
+        parent_task_external_id,
+        is_durable,
+        idempotency_key,
+        readable_status,
+        payload_reference_id
+    FROM inputs
+    ON CONFLICT (inserted_at, id) DO NOTHING
+    RETURNING id, inserted_at
 )
-INSERT INTO v1_tasks_olap (
+INSERT INTO v1_runs_olap (
     tenant_id,
     id,
     inserted_at,
-    queue,
-    action_id,
-    step_id,
+    external_id,
+    readable_status,
+    kind,
     workflow_id,
     workflow_version_id,
-    workflow_run_id,
-    schedule_timeout,
-    step_timeout,
-    priority,
-    sticky,
-    desired_worker_id,
-    external_id,
-    display_name,
-    input,
     additional_metadata,
-    dag_id,
-    dag_inserted_at,
     parent_task_external_id,
-    is_durable,
-	idempotency_key,
-    readable_status,
-    payload_reference_id
+    idempotency_key
 )
 SELECT
-    tenant_id,
-    id,
-    inserted_at,
-    queue,
-    action_id,
-    step_id,
-    workflow_id,
-    workflow_version_id,
-    workflow_run_id,
-    schedule_timeout,
-    step_timeout,
-    priority,
-    sticky,
-    desired_worker_id,
-    external_id,
-    display_name,
-    '{}'::JSONB AS input,
-    additional_metadata,
-    dag_id,
-    dag_inserted_at,
-    parent_task_external_id,
-    is_durable,
-	idempotency_key,
-    readable_status,
-    payload_reference_id
-FROM inputs
+    i.tenant_id,
+    i.id,
+    i.inserted_at,
+    i.external_id,
+    i.readable_status,
+    'TASK',
+    i.workflow_id,
+    i.workflow_version_id,
+    i.additional_metadata,
+    i.parent_task_external_id,
+    i.idempotency_key
+FROM inputs i
+JOIN inserted_tasks t ON (i.id, i.inserted_at) = (t.id, t.inserted_at)
+WHERE i.dag_id IS NULL
 ON CONFLICT (inserted_at, id) DO NOTHING
 `
 
@@ -1224,55 +1337,82 @@ WITH inputs AS (
             ELSE 'RUNNING'
         END::v1_readable_status_olap AS computed_status
     FROM dag_task_counts dtc
+), upserted_dags AS (
+    INSERT INTO v1_dags_olap (
+        tenant_id,
+        id,
+        inserted_at,
+        external_id,
+        display_name,
+        workflow_id,
+        workflow_version_id,
+        input,
+        parent_task_external_id,
+        total_tasks,
+        readable_status,
+        idempotency_key,
+        is_dag_operator,
+        payload_reference_id
+    )
+    SELECT
+        i.tenant_id,
+        i.id,
+        i.inserted_at,
+        i.external_id,
+        i.display_name,
+        i.workflow_id,
+        i.workflow_version_id,
+        '{}'::JSONB AS input,
+        i.parent_task_external_id,
+        i.total_tasks,
+        COALESCE(ds.computed_status, 'QUEUED'::v1_readable_status_olap),
+        i.idempotency_key,
+        i.is_dag_operator,
+        i.payload_reference_id
+    FROM inputs i
+    LEFT JOIN dag_statuses ds ON (i.id, i.inserted_at) = (ds.id, ds.inserted_at)
+    ORDER BY i.inserted_at, i.id
+    ON CONFLICT (inserted_at, id) DO UPDATE SET
+        readable_status = CASE
+            WHEN v1_status_to_priority(EXCLUDED.readable_status) > v1_status_to_priority(v1_dags_olap.readable_status)
+            THEN EXCLUDED.readable_status
+            ELSE v1_dags_olap.readable_status
+        END,
+        display_name = EXCLUDED.display_name,
+        workflow_version_id = EXCLUDED.workflow_version_id,
+        parent_task_external_id = EXCLUDED.parent_task_external_id,
+        total_tasks = EXCLUDED.total_tasks,
+        idempotency_key = EXCLUDED.idempotency_key
+    RETURNING id, inserted_at, readable_status
 )
-INSERT INTO v1_dags_olap (
+INSERT INTO v1_runs_olap (
     tenant_id,
     id,
     inserted_at,
     external_id,
-    display_name,
+    readable_status,
+    kind,
     workflow_id,
     workflow_version_id,
-    input,
     additional_metadata,
     parent_task_external_id,
-    total_tasks,
-    readable_status,
-	idempotency_key,
-    is_dag_operator,
-    payload_reference_id
+    idempotency_key
 )
 SELECT
     i.tenant_id,
     i.id,
     i.inserted_at,
     i.external_id,
-    i.display_name,
+    d.readable_status,
+    'DAG',
     i.workflow_id,
     i.workflow_version_id,
-    '{}'::JSONB AS input,
     i.additional_metadata,
     i.parent_task_external_id,
-    i.total_tasks,
-    COALESCE(ds.computed_status, 'QUEUED'::v1_readable_status_olap),
-	i.idempotency_key,
-    i.is_dag_operator,
-    i.payload_reference_id
+    i.idempotency_key
 FROM inputs i
-LEFT JOIN dag_statuses ds ON (i.id, i.inserted_at) = (ds.id, ds.inserted_at)
-ORDER BY i.inserted_at, i.id
-ON CONFLICT (inserted_at, id) DO UPDATE SET
-    readable_status = CASE
-        WHEN v1_status_to_priority(EXCLUDED.readable_status) > v1_status_to_priority(v1_dags_olap.readable_status)
-        THEN EXCLUDED.readable_status
-        ELSE v1_dags_olap.readable_status
-    END,
-    display_name = EXCLUDED.display_name,
-    workflow_version_id = EXCLUDED.workflow_version_id,
-    additional_metadata = EXCLUDED.additional_metadata,
-    parent_task_external_id = EXCLUDED.parent_task_external_id,
-    total_tasks = EXCLUDED.total_tasks,
-    idempotency_key = EXCLUDED.idempotency_key
+JOIN upserted_dags d ON (i.id, i.inserted_at) = (d.id, d.inserted_at)
+ON CONFLICT (inserted_at, id) DO NOTHING
 `
 
 type CreateDAGsOLAPOverwriteParams struct {
