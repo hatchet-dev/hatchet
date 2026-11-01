@@ -56,11 +56,9 @@ WITH filtered AS (
                     r.tenant_id = $1::uuid
                     AND r.inserted_at >= $2::timestamptz - INTERVAL '1 day'
                     AND EXISTS (
-                        SELECT 1 FROM jsonb_each_text(r.additional_metadata) kv
-                        JOIN LATERAL (
-                            SELECT unnest($7::text[]) AS k,
-                                unnest($8::text[]) AS v
-                        ) AS u ON kv.key = u.k AND kv.value = u.v
+                        SELECT 1
+                        FROM unnest($7::text[], $8::text[]) AS filter(key, value)
+                        WHERE r.additional_metadata ->> filter.key = filter.value
                     )
             )
         )
@@ -130,11 +128,9 @@ WITH filtered AS (
                     r.tenant_id = $1::uuid
                     AND r.inserted_at >= $2::timestamptz - INTERVAL '1 day'
                     AND EXISTS (
-                        SELECT 1 FROM jsonb_each_text(r.additional_metadata) kv
-                        JOIN LATERAL (
-                            SELECT unnest($7::text[]) AS k,
-                                unnest($8::text[]) AS v
-                        ) AS u ON kv.key = u.k AND kv.value = u.v
+                        SELECT 1
+                        FROM unnest($7::text[], $8::text[]) AS filter(key, value)
+                        WHERE r.additional_metadata ->> filter.key = filter.value
                     )
             )
         )
@@ -201,11 +197,9 @@ WITH filtered AS (
                     r.tenant_id = $1::uuid
                     AND r.inserted_at >= $2::timestamptz - INTERVAL '1 day'
                     AND EXISTS (
-                        SELECT 1 FROM jsonb_each_text(r.additional_metadata) kv
-                        JOIN LATERAL (
-                            SELECT unnest($7::text[]) AS k,
-                                unnest($8::text[]) AS v
-                        ) AS u ON kv.key = u.k AND kv.value = u.v
+                        SELECT 1
+                        FROM unnest($7::text[], $8::text[]) AS filter(key, value)
+                        WHERE r.additional_metadata ->> filter.key = filter.value
                     )
             )
         )
@@ -793,11 +787,9 @@ WHERE
                 r.tenant_id = $1::uuid
                 AND r.inserted_at >= $2::timestamptz - INTERVAL '1 day'
                 AND EXISTS (
-                    SELECT 1 FROM jsonb_each_text(r.additional_metadata) kv
-                    JOIN LATERAL (
-                        SELECT unnest($7::text[]) AS k,
-                            unnest($8::text[]) AS v
-                    ) AS u ON kv.key = u.k AND kv.value = u.v
+                    SELECT 1
+                    FROM unnest($7::text[], $8::text[]) AS filter(key, value)
+                    WHERE r.additional_metadata ->> filter.key = filter.value
                 )
         )
     )
@@ -864,11 +856,9 @@ WHERE
                 r.tenant_id = $1::uuid
                 AND r.inserted_at >= $2::timestamptz - INTERVAL '1 day'
                 AND EXISTS (
-                    SELECT 1 FROM jsonb_each_text(r.additional_metadata) kv
-                    JOIN LATERAL (
-                        SELECT unnest($7::text[]) AS k,
-                            unnest($8::text[]) AS v
-                    ) AS u ON kv.key = u.k AND kv.value = u.v
+                    SELECT 1
+                    FROM unnest($7::text[], $8::text[]) AS filter(key, value)
+                    WHERE r.additional_metadata ->> filter.key = filter.value
                 )
         )
     )
@@ -932,11 +922,9 @@ WHERE
                 r.tenant_id = $1::uuid
                 AND r.inserted_at >= $2::timestamptz - INTERVAL '1 day'
                 AND EXISTS (
-                    SELECT 1 FROM jsonb_each_text(r.additional_metadata) kv
-                    JOIN LATERAL (
-                        SELECT unnest($7::text[]) AS k,
-                            unnest($8::text[]) AS v
-                    ) AS u ON kv.key = u.k AND kv.value = u.v
+                    SELECT 1
+                    FROM unnest($7::text[], $8::text[]) AS filter(key, value)
+                    WHERE r.additional_metadata ->> filter.key = filter.value
                 )
         )
     )
