@@ -241,6 +241,11 @@ SELECT
     partition_date::TIMESTAMPTZ AS lower_bound,
     (partition_date + 1)::TIMESTAMPTZ AS upper_bound
 FROM partitions
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM v1_audit_log_archive_cursor c
+    WHERE c.is_completed AND c.partition_date = partitions.partition_date
+)
 ORDER BY partition_date ASC
 ;
 
