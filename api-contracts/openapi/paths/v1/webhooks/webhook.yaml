@@ -103,6 +103,8 @@ V1WebhookGetDeleteReceiveUpdate:
     description: Post an incoming webhook message
     operationId: v1-webhook:receive
     x-payloads: true
+    # webhook senders such as GitHub deliver up to 25 MB
+    x-max-body-bytes: 26214400
     security: []
     parameters:
       - description: The tenant id
