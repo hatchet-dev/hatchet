@@ -227,6 +227,88 @@ FROM partitioned_tables t, get_v1_monthly_partitions_before_date(t.parent_table,
 WHERE t.partition_frequency = 'monthly'
 ;
 
+-- name: ListAuditLogPartitionsBeforeDate :many
+WITH partitions AS (
+    SELECT
+        p::TEXT AS partition_name,
+        TO_DATE(RIGHT(p::TEXT, 8), 'YYYYMMDD') AS partition_date
+    FROM get_v1_partitions_before_date('v1_audit_log', @date::DATE) AS p
+)
+
+SELECT
+    partition_name,
+    partition_date,
+    partition_date::TIMESTAMPTZ AS lower_bound,
+    (partition_date + 1)::TIMESTAMPTZ AS upper_bound
+FROM partitions
+ORDER BY partition_date ASC
+;
+
+-- name: ListAuditLogsInRangeAfterCursor :many
+SELECT *
+FROM v1_audit_log
+WHERE
+    inserted_at >= @lowerBound::TIMESTAMPTZ
+    AND inserted_at < @upperBound::TIMESTAMPTZ
+    AND (tenant_id, inserted_at, id) > (@cursorTenantId::UUID, @cursorInsertedAt::TIMESTAMPTZ, @cursorId::UUID)
+ORDER BY tenant_id, inserted_at, id
+LIMIT @batchSize::INTEGER
+;
+
+-- name: AcquireOrExtendAuditLogArchiveLease :one
+WITH inputs AS (
+    SELECT
+        @partitionDate::DATE AS partition_date,
+        @leaseProcessId::UUID AS lease_process_id,
+        @leaseExpiresAt::TIMESTAMPTZ AS lease_expires_at,
+        @nextFileIndex::INTEGER AS next_file_index,
+        @lastTenantId::UUID AS last_tenant_id,
+        @lastInsertedAt::TIMESTAMPTZ AS last_inserted_at,
+        @lastId::UUID AS last_id
+), any_lease_held_by_other_process AS (
+    SELECT COALESCE(BOOL_OR(lease_expires_at > NOW()), FALSE) AS lease_exists
+    FROM v1_audit_log_archive_cursor
+    WHERE lease_process_id != @leaseProcessId::UUID
+), to_insert AS (
+    SELECT *
+    FROM inputs
+    WHERE NOT (SELECT lease_exists FROM any_lease_held_by_other_process)
+)
+
+INSERT INTO v1_audit_log_archive_cursor (partition_date, lease_process_id, lease_expires_at, next_file_index, last_tenant_id, last_inserted_at, last_id)
+SELECT partition_date, lease_process_id, lease_expires_at, next_file_index, last_tenant_id, last_inserted_at, last_id
+FROM to_insert
+ON CONFLICT (partition_date)
+DO UPDATE SET
+    -- a process taking over an expired lease resumes from the cursor the previous holder saved
+    next_file_index = CASE
+        WHEN EXCLUDED.lease_process_id = v1_audit_log_archive_cursor.lease_process_id THEN EXCLUDED.next_file_index
+        ELSE v1_audit_log_archive_cursor.next_file_index
+    END,
+    last_tenant_id = CASE
+        WHEN EXCLUDED.lease_process_id = v1_audit_log_archive_cursor.lease_process_id THEN EXCLUDED.last_tenant_id
+        ELSE v1_audit_log_archive_cursor.last_tenant_id
+    END,
+    last_inserted_at = CASE
+        WHEN EXCLUDED.lease_process_id = v1_audit_log_archive_cursor.lease_process_id THEN EXCLUDED.last_inserted_at
+        ELSE v1_audit_log_archive_cursor.last_inserted_at
+    END,
+    last_id = CASE
+        WHEN EXCLUDED.lease_process_id = v1_audit_log_archive_cursor.lease_process_id THEN EXCLUDED.last_id
+        ELSE v1_audit_log_archive_cursor.last_id
+    END,
+
+    lease_process_id = EXCLUDED.lease_process_id,
+    lease_expires_at = EXCLUDED.lease_expires_at
+WHERE v1_audit_log_archive_cursor.lease_expires_at < NOW() OR v1_audit_log_archive_cursor.lease_process_id = @leaseProcessId::UUID
+RETURNING *
+;
+
+-- name: DeleteAuditLogArchiveCursor :exec
+DELETE FROM v1_audit_log_archive_cursor
+WHERE partition_date = @partitionDate::DATE
+;
+
 -- name: CreateTaskEventsOLAP :copyfrom
 INSERT INTO v1_task_events_olap (
     tenant_id,
