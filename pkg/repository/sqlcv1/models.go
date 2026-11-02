@@ -3697,6 +3697,15 @@ type V1EventsOlap struct {
 	PayloadReferenceID    *uuid.UUID         `json:"payload_reference_id"`
 }
 
+type V1FailedRunAlertsOlap struct {
+	TenantID      uuid.UUID          `json:"tenant_id"`
+	RunID         int64              `json:"run_id"`
+	RunInsertedAt pgtype.Timestamptz `json:"run_inserted_at"`
+	Kind          V1RunKind          `json:"kind"`
+	ExternalID    uuid.UUID          `json:"external_id"`
+	FailedAt      pgtype.Timestamptz `json:"failed_at"`
+}
+
 type V1Filter struct {
 	ID            uuid.UUID          `json:"id"`
 	TenantID      uuid.UUID          `json:"tenant_id"`

@@ -256,6 +256,13 @@ type StatusUpdateResult struct {
 	DAGRows  []UpdateDAGStatusRow
 }
 
+type FailedRunAlert struct {
+	RunId         int64
+	RunInsertedAt pgtype.Timestamptz
+	Kind          sqlcv1.V1RunKind
+	ExternalId    uuid.UUID
+}
+
 type TaskWithPayloads struct {
 	*sqlcv1.PopulateTaskRunDataRow
 	InputPayload       []byte
@@ -280,6 +287,9 @@ type OLAPRepository interface {
 
 	ListTasks(ctx context.Context, tenantId uuid.UUID, opts ListTaskRunOpts) ([]*TaskWithPayloads, int, error)
 	ListWorkflowRuns(ctx context.Context, tenantId uuid.UUID, opts ListWorkflowRunOpts) ([]*WorkflowRunData, int, error)
+	CreateFailedRunAlerts(ctx context.Context, tenantId uuid.UUID, runs []FailedRunAlert) error
+	ListPendingFailedRunAlerts(ctx context.Context, tenantId uuid.UUID) ([]*WorkflowRunData, pgtype.Timestamptz, error)
+	DeleteSentFailedRunAlerts(ctx context.Context, tenantId uuid.UUID, failedAtThrough pgtype.Timestamptz) error
 	CountTasks(ctx context.Context, tenantId uuid.UUID, opts ListTaskRunOpts) (int, error)
 	CountWorkflowRuns(ctx context.Context, tenantId uuid.UUID, opts ListWorkflowRunOpts) (int, error)
 	ListTaskRunEvents(ctx context.Context, tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, limit, offset *int64) ([]*sqlcv1.ListTaskEventsRow, error)
@@ -489,6 +499,10 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 			r.l.Warn().Ctx(ctx).Err(releaseErr).Msg("failed to release partition lease")
 		}
 	}()
+
+	if err = r.queries.DeleteExpiredFailedRunAlertsOLAP(ctx, r.ddlPool); err != nil {
+		r.l.Warn().Ctx(ctx).Err(err).Msg("failed to delete expired failed run alerts")
+	}
 
 	today := time.Now().UTC()
 	tomorrow := today.AddDate(0, 0, 1)
@@ -1329,6 +1343,81 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		}
 	}
 
+	res, err := r.populateWorkflowRuns(ctx, readDB, tenantId, workflowRunIds, opts.IncludePayloads)
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return res, int(count), nil
+}
+
+func (r *OLAPRepositoryImpl) CreateFailedRunAlerts(ctx context.Context, tenantId uuid.UUID, runs []FailedRunAlert) error {
+	if len(runs) == 0 {
+		return nil
+	}
+
+	params := sqlcv1.CreateFailedRunAlertsOLAPParams{
+		Tenantid:       tenantId,
+		Runids:         make([]int64, 0, len(runs)),
+		Runinsertedats: make([]pgtype.Timestamptz, 0, len(runs)),
+		Kinds:          make([]string, 0, len(runs)),
+		Externalids:    make([]uuid.UUID, 0, len(runs)),
+	}
+
+	for _, run := range runs {
+		params.Runids = append(params.Runids, run.RunId)
+		params.Runinsertedats = append(params.Runinsertedats, run.RunInsertedAt)
+		params.Kinds = append(params.Kinds, string(run.Kind))
+		params.Externalids = append(params.Externalids, run.ExternalId)
+	}
+
+	return r.queries.CreateFailedRunAlertsOLAP(ctx, r.pool.ForTenant(tenantId), params)
+}
+
+func (r *OLAPRepositoryImpl) ListPendingFailedRunAlerts(ctx context.Context, tenantId uuid.UUID) ([]*WorkflowRunData, pgtype.Timestamptz, error) {
+	db := r.pool.ForTenant(tenantId)
+
+	pending, err := r.queries.ListPendingFailedRunAlertsOLAP(ctx, db, tenantId)
+
+	if err != nil {
+		return nil, pgtype.Timestamptz{}, err
+	}
+
+	var maxFailedAt pgtype.Timestamptz
+
+	runIds := make([]*sqlcv1.FetchWorkflowRunIdsRow, 0, len(pending))
+
+	for _, row := range pending {
+		if !maxFailedAt.Valid || row.FailedAt.Time.After(maxFailedAt.Time) {
+			maxFailedAt = row.FailedAt
+		}
+
+		runIds = append(runIds, &sqlcv1.FetchWorkflowRunIdsRow{
+			ID:         row.ID,
+			InsertedAt: row.InsertedAt,
+			Kind:       row.Kind,
+			ExternalID: row.ExternalID,
+		})
+	}
+
+	runs, err := r.populateWorkflowRuns(ctx, db, tenantId, runIds, false)
+
+	if err != nil {
+		return nil, pgtype.Timestamptz{}, err
+	}
+
+	return runs, maxFailedAt, nil
+}
+
+func (r *OLAPRepositoryImpl) DeleteSentFailedRunAlerts(ctx context.Context, tenantId uuid.UUID, failedAtThrough pgtype.Timestamptz) error {
+	return r.queries.DeleteSentFailedRunAlertsOLAP(ctx, r.pool.ForTenant(tenantId), sqlcv1.DeleteSentFailedRunAlertsOLAPParams{
+		Tenantid:        tenantId,
+		Failedatthrough: failedAtThrough,
+	})
+}
+
+func (r *OLAPRepositoryImpl) populateWorkflowRuns(ctx context.Context, readDB sqlcv1.DBTX, tenantId uuid.UUID, workflowRunIds []*sqlcv1.FetchWorkflowRunIdsRow, includePayloads bool) ([]*WorkflowRunData, error) {
 	runIdsWithDAGs := make([]int64, 0)
 	runInsertedAtsWithDAGs := make([]pgtype.Timestamptz, 0)
 	taskIdsInsertedAts := make([]IdInsertedAt, 0, len(workflowRunIds))
@@ -1350,11 +1439,11 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		Ids:             runIdsWithDAGs,
 		Insertedats:     runInsertedAtsWithDAGs,
 		Tenantid:        tenantId,
-		Includepayloads: opts.IncludePayloads,
+		Includepayloads: includePayloads,
 	})
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return nil, 0, err
+		return nil, err
 	}
 
 	dagsToPopulated := make(map[uuid.UUID]*sqlcv1.PopulateDAGMetadataRow)
@@ -1380,10 +1469,10 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 
 	tasksToPopulated := make(map[uuid.UUID]*sqlcv1.PopulateTaskRunDataRow)
 
-	populatedTasks, err := r.populateTaskRunData(ctx, readDB, tenantId, taskIdsInsertedAts, opts.IncludePayloads)
+	populatedTasks, err := r.populateTaskRunData(ctx, readDB, tenantId, taskIdsInsertedAts, includePayloads)
 
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
 	for _, task := range populatedTasks {
@@ -1393,11 +1482,11 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 
 	externalIdToPayload := make(map[uuid.UUID][]byte)
 
-	if opts.IncludePayloads {
+	if includePayloads {
 		externalIdToPayload, err = r.readPayloads(ctx, tenantId, retrievePayloadOpts...)
 
 		if err != nil {
-			return nil, 0, err
+			return nil, err
 		}
 	}
 
@@ -1466,11 +1555,11 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 				continue
 			}
 
-			res = append(res, r.taskToWorkflowRunData(ctx, task, externalIdToPayload, opts.IncludePayloads))
+			res = append(res, r.taskToWorkflowRunData(ctx, task, externalIdToPayload, includePayloads))
 		}
 	}
 
-	return res, int(count), nil
+	return res, nil
 }
 
 func (r *OLAPRepositoryImpl) taskToWorkflowRunData(ctx context.Context, task *sqlcv1.PopulateTaskRunDataRow, payloads map[uuid.UUID][]byte, includePayloads bool) *WorkflowRunData {

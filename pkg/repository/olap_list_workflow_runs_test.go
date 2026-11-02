@@ -18,6 +18,7 @@ import (
 type finishedDAGFixture struct {
 	tenantId            uuid.UUID
 	dagId               int64
+	dagExternalId       uuid.UUID
 	insertedAt          pgtype.Timestamptz
 	lastFinishedEventId uuid.UUID
 }
@@ -53,6 +54,7 @@ func seedDAGWithFinishedChildren(t *testing.T, ctx context.Context, repo *OLAPRe
 	workflowId := uuid.New()
 	workflowVersionId := uuid.New()
 	dagExternalId := uuid.New()
+	f.dagExternalId = dagExternalId
 
 	locksNotAcquired, err := repo.CreateDAGs(ctx, f.tenantId, []*DAGWithData{{
 		V1Dag: &sqlcv1.V1Dag{
@@ -156,4 +158,26 @@ func TestCheckTasksWithPayloads(t *testing.T) {
 	require.NoError(t, checkTasksWithPayloads(true, MaxTasksWithPayloads))
 	require.ErrorIs(t, checkTasksWithPayloads(true, MaxTasksWithPayloads+1), ErrTooManyTasksWithPayloads)
 	require.NoError(t, checkTasksWithPayloads(false, MaxTasksWithPayloads+1))
+}
+
+func TestFailedRunAlerts_ReadAfterFailureThenClearedBySend(t *testing.T) {
+	ctx, _, repo := setupOLAPRepository(t)
+	f := seedDAGWithFinishedChildren(t, ctx, repo, 1)
+
+	runs, _, err := repo.ListPendingFailedRunAlerts(ctx, f.tenantId)
+	require.NoError(t, err)
+	require.Empty(t, runs)
+
+	require.NoError(t, repo.CreateFailedRunAlerts(ctx, f.tenantId, []FailedRunAlert{{RunId: f.dagId, RunInsertedAt: f.insertedAt, Kind: sqlcv1.V1RunKindDAG, ExternalId: f.dagExternalId}}))
+
+	runs, failedThrough, err := repo.ListPendingFailedRunAlerts(ctx, f.tenantId)
+	require.NoError(t, err)
+	require.Len(t, runs, 1)
+	require.Equal(t, f.dagId, runs[0].ID)
+
+	require.NoError(t, repo.DeleteSentFailedRunAlerts(ctx, f.tenantId, failedThrough))
+
+	runs, _, err = repo.ListPendingFailedRunAlerts(ctx, f.tenantId)
+	require.NoError(t, err)
+	require.Empty(t, runs)
 }

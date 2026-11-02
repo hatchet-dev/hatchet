@@ -50,8 +50,18 @@ func (o *OLAPControllerImpl) runTaskStatusUpdates(ctx context.Context) func() {
 
 func (o *OLAPControllerImpl) notifyTasksUpdated(ctx context.Context, rows []v1.UpdateTaskStatusRow) error {
 	tenantIdToPayloads := make(map[uuid.UUID][]tasktypes.NotifyFinalizedPayload)
+	tenantIdToFailedRuns := make(map[uuid.UUID][]v1.FailedRunAlert)
 
 	for _, row := range rows {
+		if row.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED && !row.IsDAGTask {
+			tenantIdToFailedRuns[row.TenantId] = append(tenantIdToFailedRuns[row.TenantId], v1.FailedRunAlert{
+				RunId:         row.TaskId,
+				RunInsertedAt: row.TaskInsertedAt,
+				Kind:          sqlcv1.V1RunKindTASK,
+				ExternalId:    row.ExternalId,
+			})
+		}
+
 		if row.ReadableStatus != sqlcv1.V1ReadableStatusOlapCOMPLETED && row.ReadableStatus != sqlcv1.V1ReadableStatusOlapCANCELLED && row.ReadableStatus != sqlcv1.V1ReadableStatusOlapFAILED {
 			continue
 		}
@@ -61,6 +71,8 @@ func (o *OLAPControllerImpl) notifyTasksUpdated(ctx context.Context, rows []v1.U
 			Status:     row.ReadableStatus,
 		})
 	}
+
+	o.recordFailedRunAlerts(ctx, tenantIdToFailedRuns)
 
 	// Send prometheus updates asynchronously
 	if o.prometheusMetricsEnabled && o.taskPrometheusUpdateCh != nil {

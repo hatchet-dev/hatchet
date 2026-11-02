@@ -553,6 +553,42 @@ func (q *Queries) CreateDagToTaskOLAPSelfMappings(ctx context.Context, db DBTX, 
 	return err
 }
 
+const createFailedRunAlertsOLAP = `-- name: CreateFailedRunAlertsOLAP :exec
+INSERT INTO v1_failed_run_alerts_olap (
+    tenant_id,
+    run_id,
+    run_inserted_at,
+    kind,
+    external_id
+)
+SELECT
+    $1::uuid,
+    UNNEST($2::bigint[]),
+    UNNEST($3::timestamptz[]),
+    UNNEST(CAST($4::text[] AS v1_run_kind[])),
+    UNNEST($5::uuid[])
+ON CONFLICT DO NOTHING
+`
+
+type CreateFailedRunAlertsOLAPParams struct {
+	Tenantid       uuid.UUID            `json:"tenantid"`
+	Runids         []int64              `json:"runids"`
+	Runinsertedats []pgtype.Timestamptz `json:"runinsertedats"`
+	Kinds          []string             `json:"kinds"`
+	Externalids    []uuid.UUID          `json:"externalids"`
+}
+
+func (q *Queries) CreateFailedRunAlertsOLAP(ctx context.Context, db DBTX, arg CreateFailedRunAlertsOLAPParams) error {
+	_, err := db.Exec(ctx, createFailedRunAlertsOLAP,
+		arg.Tenantid,
+		arg.Runids,
+		arg.Runinsertedats,
+		arg.Kinds,
+		arg.Externalids,
+	)
+	return err
+}
+
 const createIncomingWebhookValidationFailureLogs = `-- name: CreateIncomingWebhookValidationFailureLogs :exec
 WITH inputs AS (
     SELECT
@@ -692,6 +728,33 @@ type CreateTaskEventsOLAPParams struct {
 	DurableInvocationCount int32                `json:"durable_invocation_count"`
 	IsDagOrchestrator      bool                 `json:"is_dag_orchestrator"`
 	PayloadReferenceID     *uuid.UUID           `json:"payload_reference_id"`
+}
+
+const deleteExpiredFailedRunAlertsOLAP = `-- name: DeleteExpiredFailedRunAlertsOLAP :exec
+DELETE FROM v1_failed_run_alerts_olap
+WHERE failed_at < NOW() - INTERVAL '24 hours'
+`
+
+func (q *Queries) DeleteExpiredFailedRunAlertsOLAP(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, deleteExpiredFailedRunAlertsOLAP)
+	return err
+}
+
+const deleteSentFailedRunAlertsOLAP = `-- name: DeleteSentFailedRunAlertsOLAP :exec
+DELETE FROM v1_failed_run_alerts_olap
+WHERE
+    tenant_id = $1::uuid
+    AND failed_at <= $2::timestamptz
+`
+
+type DeleteSentFailedRunAlertsOLAPParams struct {
+	Tenantid        uuid.UUID          `json:"tenantid"`
+	Failedatthrough pgtype.Timestamptz `json:"failedatthrough"`
+}
+
+func (q *Queries) DeleteSentFailedRunAlertsOLAP(ctx context.Context, db DBTX, arg DeleteSentFailedRunAlertsOLAPParams) error {
+	_, err := db.Exec(ctx, deleteSentFailedRunAlertsOLAP, arg.Tenantid, arg.Failedatthrough)
+	return err
 }
 
 const findMinInsertedAtForDAGStatusUpdates = `-- name: FindMinInsertedAtForDAGStatusUpdates :one
@@ -1692,6 +1755,57 @@ func (q *Queries) ListOLAPPartitionsBeforeDate(ctx context.Context, db DBTX, dat
 	for rows.Next() {
 		var i ListOLAPPartitionsBeforeDateRow
 		if err := rows.Scan(&i.ParentTable, &i.PartitionName); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPendingFailedRunAlertsOLAP = `-- name: ListPendingFailedRunAlertsOLAP :many
+SELECT
+    run_id AS id,
+    run_inserted_at AS inserted_at,
+    kind,
+    external_id,
+    failed_at
+FROM
+    v1_failed_run_alerts_olap
+WHERE
+    tenant_id = $1::uuid
+    AND failed_at > NOW() - INTERVAL '24 hours'
+ORDER BY
+    failed_at DESC
+LIMIT 1000
+`
+
+type ListPendingFailedRunAlertsOLAPRow struct {
+	ID         int64              `json:"id"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+	Kind       V1RunKind          `json:"kind"`
+	ExternalID uuid.UUID          `json:"external_id"`
+	FailedAt   pgtype.Timestamptz `json:"failed_at"`
+}
+
+func (q *Queries) ListPendingFailedRunAlertsOLAP(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*ListPendingFailedRunAlertsOLAPRow, error) {
+	rows, err := db.Query(ctx, listPendingFailedRunAlertsOLAP, tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListPendingFailedRunAlertsOLAPRow
+	for rows.Next() {
+		var i ListPendingFailedRunAlertsOLAPRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.InsertedAt,
+			&i.Kind,
+			&i.ExternalID,
+			&i.FailedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

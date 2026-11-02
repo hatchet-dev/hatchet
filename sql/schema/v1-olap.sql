@@ -640,6 +640,19 @@ CREATE TABLE v1_audit_log (
 
 CREATE INDEX v1_audit_log_tenant_id_correlation_id_idx ON v1_audit_log (tenant_id, correlation_id DESC);
 
+CREATE TABLE v1_failed_run_alerts_olap (
+    tenant_id UUID NOT NULL,
+    run_id BIGINT NOT NULL,
+    run_inserted_at TIMESTAMPTZ NOT NULL,
+    kind v1_run_kind NOT NULL,
+    external_id UUID NOT NULL,
+    failed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (tenant_id, run_inserted_at, run_id)
+);
+
+CREATE INDEX v1_failed_run_alerts_olap_tenant_id_failed_at_idx ON v1_failed_run_alerts_olap (tenant_id, failed_at);
+
 -- TRIGGERS TO LINK TASKS, DAGS AND EVENTS --
 CREATE OR REPLACE FUNCTION v1_tasks_olap_insert_function()
 RETURNS TRIGGER AS

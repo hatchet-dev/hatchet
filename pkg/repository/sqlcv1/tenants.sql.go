@@ -908,6 +908,22 @@ func (q *Queries) GetTenantWorkflowQueueMetrics(ctx context.Context, db DBTX, ar
 	return items, nil
 }
 
+const isWorkflowRunFailureAlertEnabled = `-- name: IsWorkflowRunFailureAlertEnabled :one
+SELECT
+    "enableWorkflowRunFailureAlerts"
+FROM
+    "TenantAlertingSettings"
+WHERE
+    "tenantId" = $1::uuid
+`
+
+func (q *Queries) IsWorkflowRunFailureAlertEnabled(ctx context.Context, db DBTX, tenantid uuid.UUID) (bool, error) {
+	row := db.QueryRow(ctx, isWorkflowRunFailureAlertEnabled, tenantid)
+	var enableWorkflowRunFailureAlerts bool
+	err := row.Scan(&enableWorkflowRunFailureAlerts)
+	return enableWorkflowRunFailureAlerts, err
+}
+
 const listTenantAlertGroups = `-- name: ListTenantAlertGroups :many
 SELECT
     id, "createdAt", "updatedAt", "deletedAt", "tenantId", emails

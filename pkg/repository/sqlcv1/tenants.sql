@@ -125,6 +125,14 @@ FROM
 WHERE
     "tenantId" = sqlc.arg('tenantId')::uuid;
 
+-- name: IsWorkflowRunFailureAlertEnabled :one
+SELECT
+    "enableWorkflowRunFailureAlerts"
+FROM
+    "TenantAlertingSettings"
+WHERE
+    "tenantId" = @tenantId::uuid;
+
 -- name: GetSlackWebhooks :many
 SELECT
     *

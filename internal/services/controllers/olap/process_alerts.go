@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -41,7 +40,7 @@ func (o *OLAPControllerImpl) processTenantAlerts(ctx context.Context, tenantId s
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
-	isActive, lastAlerted, err := o.repo.Ticker().IsTenantAlertActive(ctx, uuid.MustParse(tenantId))
+	isActive, _, err := o.repo.Ticker().IsTenantAlertActive(ctx, uuid.MustParse(tenantId))
 
 	if err != nil {
 		return false, fmt.Errorf("could not check if tenant is active: %w", err)
@@ -51,21 +50,10 @@ func (o *OLAPControllerImpl) processTenantAlerts(ctx context.Context, tenantId s
 		return false, nil
 	}
 
-	if lastAlerted.IsZero() || lastAlerted.Before(time.Now().Add(-24*time.Hour)) {
-		lastAlerted = time.Now().Add(-24 * time.Hour).UTC()
-	}
-
-	failedRuns, _, err := o.repo.OLAP().ListWorkflowRuns(ctx, uuid.MustParse(tenantId), v1.ListWorkflowRunOpts{
-		Statuses: []sqlcv1.V1ReadableStatusOlap{
-			sqlcv1.V1ReadableStatusOlapFAILED,
-		},
-		CreatedAfter:    lastAlerted,
-		Limit:           1000,
-		IncludePayloads: false,
-	})
+	failedRuns, failedThrough, err := o.repo.OLAP().ListPendingFailedRunAlerts(ctx, uuid.MustParse(tenantId))
 
 	if err != nil {
-		return false, fmt.Errorf("could not list workflow runs: %w", err)
+		return false, fmt.Errorf("could not list failed workflow runs: %w", err)
 	}
 
 	err = o.ta.SendWorkflowRunAlertV1(uuid.MustParse(tenantId), failedRuns)
@@ -74,5 +62,33 @@ func (o *OLAPControllerImpl) processTenantAlerts(ctx context.Context, tenantId s
 		return false, fmt.Errorf("could not send alert: %w", err)
 	}
 
+	if failedThrough.Valid {
+		if err = o.repo.OLAP().DeleteSentFailedRunAlerts(ctx, uuid.MustParse(tenantId), failedThrough); err != nil {
+			return false, fmt.Errorf("could not delete sent failed run alerts: %w", err)
+		}
+	}
+
 	return false, nil
+}
+
+func (o *OLAPControllerImpl) recordFailedRunAlerts(ctx context.Context, tenantIdToFailedRuns map[uuid.UUID][]v1.FailedRunAlert) {
+	for tenantId, runs := range tenantIdToFailedRuns {
+		enabled, err := o.repo.TenantAlertingSettings().IsWorkflowRunFailureAlertEnabled(ctx, tenantId)
+
+		if err != nil {
+			o.l.Error().Ctx(ctx).Err(err).Msgf("could not check workflow run failure alerts for tenant %s", tenantId.String())
+			continue
+		}
+
+		if !enabled {
+			continue
+		}
+
+		if err := o.repo.OLAP().CreateFailedRunAlerts(ctx, tenantId, runs); err != nil {
+			o.l.Error().Ctx(ctx).Err(err).Msgf("could not record failed runs for alerting for tenant %s", tenantId.String())
+			continue
+		}
+
+		o.processTenantAlertOperations.RunOrContinue(tenantId.String())
+	}
 }

@@ -66,6 +66,8 @@ type TenantAlertingRepository interface {
 	GetTenantAlertGroupById(ctx context.Context, id uuid.UUID) (*sqlcv1.TenantAlertEmailGroup, error)
 
 	DeleteTenantAlertGroup(ctx context.Context, tenantId uuid.UUID, id uuid.UUID) error
+
+	IsWorkflowRunFailureAlertEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error)
 }
 
 type tenantAlertingRepository struct {
@@ -293,4 +295,26 @@ func (r *tenantAlertingRepository) GetTenantResourceLimitState(ctx context.Conte
 			Valid:         true,
 		},
 	})
+}
+
+func (r *tenantAlertingRepository) IsWorkflowRunFailureAlertEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error) {
+	enabled, err := cache.MakeCacheable(r.cache, "wf-failure-alerts"+tenantId.String(), func() (*bool, error) {
+		res, err := r.queries.IsWorkflowRunFailureAlertEnabled(ctx, r.pool.ForTenant(tenantId), tenantId)
+
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return new(bool), nil
+			}
+
+			return nil, err
+		}
+
+		return &res, nil
+	})
+
+	if err != nil {
+		return false, err
+	}
+
+	return *enabled, nil
 }

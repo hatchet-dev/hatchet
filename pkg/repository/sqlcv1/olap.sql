@@ -2565,3 +2565,45 @@ WHERE (d.id, d.inserted_at) = (le.task_id, le.task_inserted_at)
             AND le.readable_status != 'EVICTED'
         )
     );
+
+-- name: CreateFailedRunAlertsOLAP :exec
+INSERT INTO v1_failed_run_alerts_olap (
+    tenant_id,
+    run_id,
+    run_inserted_at,
+    kind,
+    external_id
+)
+SELECT
+    @tenantId::uuid,
+    UNNEST(@runIds::bigint[]),
+    UNNEST(@runInsertedAts::timestamptz[]),
+    UNNEST(CAST(@kinds::text[] AS v1_run_kind[])),
+    UNNEST(@externalIds::uuid[])
+ON CONFLICT DO NOTHING;
+
+-- name: ListPendingFailedRunAlertsOLAP :many
+SELECT
+    run_id AS id,
+    run_inserted_at AS inserted_at,
+    kind,
+    external_id,
+    failed_at
+FROM
+    v1_failed_run_alerts_olap
+WHERE
+    tenant_id = @tenantId::uuid
+    AND failed_at > NOW() - INTERVAL '24 hours'
+ORDER BY
+    failed_at DESC
+LIMIT 1000;
+
+-- name: DeleteSentFailedRunAlertsOLAP :exec
+DELETE FROM v1_failed_run_alerts_olap
+WHERE
+    tenant_id = @tenantId::uuid
+    AND failed_at <= @failedAtThrough::timestamptz;
+
+-- name: DeleteExpiredFailedRunAlertsOLAP :exec
+DELETE FROM v1_failed_run_alerts_olap
+WHERE failed_at < NOW() - INTERVAL '24 hours';

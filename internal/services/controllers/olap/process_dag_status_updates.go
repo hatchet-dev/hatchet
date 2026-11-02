@@ -51,6 +51,7 @@ func (o *OLAPControllerImpl) runDAGStatusUpdates(ctx context.Context) func() {
 
 func (o *OLAPControllerImpl) notifyDAGsUpdated(ctx context.Context, rows []v1.UpdateDAGStatusRow) error {
 	tenantIdToPayloads := make(map[uuid.UUID][]tasktypes.NotifyFinalizedPayload)
+	tenantIdToFailedRuns := make(map[uuid.UUID][]v1.FailedRunAlert)
 
 	for _, row := range rows {
 		// only terminal transitions are finalizations: UpdateDAGStatuses also
@@ -67,9 +68,16 @@ func (o *OLAPControllerImpl) notifyDAGsUpdated(ctx context.Context, rows []v1.Up
 		})
 
 		if row.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED {
-			o.processTenantAlertOperations.RunOrContinue(row.TenantId.String())
+			tenantIdToFailedRuns[row.TenantId] = append(tenantIdToFailedRuns[row.TenantId], v1.FailedRunAlert{
+				RunId:         row.DagId,
+				RunInsertedAt: row.DagInsertedAt,
+				Kind:          sqlcv1.V1RunKindDAG,
+				ExternalId:    row.ExternalId,
+			})
 		}
 	}
+
+	o.recordFailedRunAlerts(ctx, tenantIdToFailedRuns)
 
 	// Send prometheus updates asynchronously
 	if o.prometheusMetricsEnabled && o.dagPrometheusUpdateCh != nil {
