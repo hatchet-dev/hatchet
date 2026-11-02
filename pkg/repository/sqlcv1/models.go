@@ -3486,6 +3486,16 @@ type V1AuditLog struct {
 	UserAgent     pgtype.Text         `json:"user_agent"`
 }
 
+type V1AuditLogArchiveCursor struct {
+	PartitionDate  pgtype.Date        `json:"partition_date"`
+	LeaseProcessID uuid.UUID          `json:"lease_process_id"`
+	LeaseExpiresAt pgtype.Timestamptz `json:"lease_expires_at"`
+	NextFileIndex  int32              `json:"next_file_index"`
+	LastTenantID   uuid.UUID          `json:"last_tenant_id"`
+	LastInsertedAt pgtype.Timestamptz `json:"last_inserted_at"`
+	LastID         uuid.UUID          `json:"last_id"`
+}
+
 type V1BatchRuntime struct {
 	TenantID  uuid.UUID          `json:"tenant_id"`
 	StepID    uuid.UUID          `json:"step_id"`
