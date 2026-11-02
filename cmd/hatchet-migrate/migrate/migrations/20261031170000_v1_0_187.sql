@@ -19,6 +19,10 @@ CREATE TABLE v1_audit_log (
 ) PARTITION BY RANGE(inserted_at);
 
 CREATE INDEX v1_audit_log_tenant_id_correlation_id_idx ON v1_audit_log (tenant_id, correlation_id DESC);
+
+SELECT create_v1_range_partition('v1_audit_log', (NOW() - INTERVAL '1 day')::DATE);
+SELECT create_v1_range_partition('v1_audit_log', NOW()::DATE);
+SELECT create_v1_range_partition('v1_audit_log', (NOW() + INTERVAL '1 day')::DATE);
 -- +goose StatementEnd
 
 -- +goose Down
