@@ -7,8 +7,6 @@ import (
 
 	"github.com/google/uuid"
 
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -51,24 +49,23 @@ func (o *OLAPControllerImpl) processTenantAlerts(ctx context.Context, tenantId s
 		return false, nil
 	}
 
-	if lastAlerted.IsZero() || lastAlerted.Before(time.Now().Add(-24*time.Hour)) {
-		lastAlerted = time.Now().Add(-24 * time.Hour).UTC()
+	now := time.Now().UTC()
+	// finished_at is stamped before its transaction commits; querying behind now avoids skipping late commits.
+	lag := time.Minute
+
+	lastAlerted = lastAlerted.UTC()
+
+	if lastAlerted.Before(now.Add(-24 * time.Hour)) {
+		lastAlerted = now.Add(-24 * time.Hour)
 	}
 
-	failedRuns, _, err := o.repo.OLAP().ListWorkflowRuns(ctx, uuid.MustParse(tenantId), v1.ListWorkflowRunOpts{
-		Statuses: []sqlcv1.V1ReadableStatusOlap{
-			sqlcv1.V1ReadableStatusOlapFAILED,
-		},
-		CreatedAfter:    lastAlerted,
-		Limit:           1000,
-		IncludePayloads: false,
-	})
+	failedRuns, err := o.repo.OLAP().ListFailedWorkflowRunsByFinishedAt(ctx, uuid.MustParse(tenantId), lastAlerted.Add(-lag), now.Add(-lag), 1000)
 
 	if err != nil {
 		return false, fmt.Errorf("could not list workflow runs: %w", err)
 	}
 
-	err = o.ta.SendWorkflowRunAlertV1(uuid.MustParse(tenantId), failedRuns)
+	err = o.ta.SendWorkflowRunAlertV1(uuid.MustParse(tenantId), failedRuns, now)
 
 	if err != nil {
 		return false, fmt.Errorf("could not send alert: %w", err)

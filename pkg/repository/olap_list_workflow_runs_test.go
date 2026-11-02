@@ -152,6 +152,23 @@ func TestListWorkflowRuns_PayloadCapCountsReturnedRowsNotLimit(t *testing.T) {
 	require.Len(t, runs, 1)
 }
 
+func TestListFailedWorkflowRunsByFinishedAt_ReturnsRunFailedAfterInsert(t *testing.T) {
+	ctx, pool, repo := setupOLAPRepository(t)
+	f := seedDAGWithFinishedChildren(t, ctx, repo, 1)
+
+	beforeFailure := time.Now()
+	_, err := pool.Exec(ctx, `UPDATE v1_dags_olap SET readable_status = 'FAILED' WHERE tenant_id = $1 AND id = $2 AND inserted_at = $3`, f.tenantId, f.dagId, f.insertedAt)
+	require.NoError(t, err)
+
+	var finishedAt pgtype.Timestamptz
+	require.NoError(t, pool.QueryRow(ctx, `SELECT finished_at FROM v1_runs_olap WHERE tenant_id = $1 AND id = $2`, f.tenantId, f.dagId).Scan(&finishedAt))
+	require.True(t, finishedAt.Valid)
+
+	runs, err := repo.ListFailedWorkflowRunsByFinishedAt(ctx, f.tenantId, beforeFailure, time.Now().Add(time.Minute), 10)
+	require.NoError(t, err)
+	require.Len(t, runs, 1)
+}
+
 func TestCheckTasksWithPayloads(t *testing.T) {
 	require.NoError(t, checkTasksWithPayloads(true, MaxTasksWithPayloads))
 	require.ErrorIs(t, checkTasksWithPayloads(true, MaxTasksWithPayloads+1), ErrTooManyTasksWithPayloads)
