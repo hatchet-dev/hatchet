@@ -49,6 +49,8 @@ export interface SandboxOpts {
   idleTimeoutMs?: number;
   /** With `from`, start from the metadata of the sandbox that made that snapshot. Pairs given in `metadata` take precedence over inherited ones. */
   inheritParentMetadata?: boolean;
+  /** Name of the sandbox provider to create on. Required when the tenant has more than one; with `from`, it must be the provider that holds the snapshot. */
+  provider?: string;
 }
 
 export interface ExecOpts {
@@ -112,13 +114,14 @@ export class Sandbox {
   static async create(client: HatchetClient, opts: SandboxOpts = {}): Promise<Sandbox> {
     void setupTelemetry();
     const run = turnRunner(client);
+    const metadata = opts.provider ? { ...opts.metadata, provider: opts.provider } : opts.metadata;
     const created = await run({
       fn: '$create',
       input: {},
       ...(opts.id ? { sandboxId: opts.id } : {}),
       ...(opts.template ? { image: opts.template } : {}),
       ...(opts.from ? { snapshotId: opts.from } : {}),
-      ...(opts.metadata ? { metadata: opts.metadata } : {}),
+      ...(metadata ? { metadata } : {}),
       ...(opts.idleTimeoutMs ? { idleTtlMs: opts.idleTimeoutMs } : {}),
       ...(opts.inheritParentMetadata ? { inheritMetadata: true } : {}),
     });

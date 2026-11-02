@@ -1,6 +1,6 @@
 {
   "name": "@hatchet-dev/sandbox",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": false,
   "description": "Hatchet Sandbox TypeScript SDK",
   "license": "MIT",

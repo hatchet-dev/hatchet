@@ -77,6 +77,7 @@ Options for `create`:
 | `metadata`              | Tags you can search for with `list`.                                                                                         |
 | `inheritParentMetadata` | With `from`, copy the tags of the sandbox that made the snapshot onto the new one. Tags given in `metadata` take precedence. |
 | `idleTimeoutMs`         | Remove the sandbox after this long with no calls. The provider sets the maximum.                                             |
+| `provider`              | Which sandbox provider to create on, by its name. Needed when the tenant has several; a fork always uses its snapshot's.     |
 
 ### `Sandbox`
 

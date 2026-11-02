@@ -6,9 +6,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Eac
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-02
+
+### Added
+
+- `create({ provider })` picks the sandbox provider by name when a tenant has more than one. It is sent as the `provider` metadata tag, so providers that already read that tag need no change.
+
 ### Changed
 
-- The package now lives in [hatchet-dev/hatchet](https://github.com/hatchet-dev/hatchet) under `sdks/typescript-sandbox` and ships CommonJS alongside ESM.
+- The package now lives in [hatchet-dev/hatchet](https://github.com/hatchet-dev/hatchet) under `sdks/typescript-sandbox` and ships CommonJS alongside ESM. The wire contract with providers is unchanged.
+
+### Fixed
+
+- `files.write` of a staged file replayed in a durable task after its signed upload URL expired now asks the provider for a new URL instead of failing with `staging_failed`, matching what `files.read` already did.
 
 ## [0.1.1] - 2026-10-29
 
