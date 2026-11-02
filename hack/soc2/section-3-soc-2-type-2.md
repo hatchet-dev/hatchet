@@ -1,24 +1,18 @@
 # Company Background
 
-Hatchet Technologies, Inc. ("Hatchet") builds a platform for running mission-critical AI agents, durable workflows, and background tasks. Every task and agent invocation is persisted, so work survives crashes and can be retried, replayed, and debugged. Customers define tasks as code in Python, TypeScript, Go, or Ruby. Workers running in the customer's environment connect to the engine over gRPC. The console and API provide monitoring, alerting, and logging.
+Hatchet Technologies, Inc. ("Hatchet") builds an orchestration platform for AI agents, durable workflows, and background tasks. The core engine is open source under the MIT license and has more than 450,000 active instances; the same engine code powers both self-hosted deployments and Hatchet Cloud, which adds the managed control plane, multi-tenant operations, and hosted infrastructure. Hundreds of engineering teams worldwide run production workloads on Hatchet Cloud, which processes billions of tasks per month. Hatchet Cloud is the system under examination. This description covers Hatchet Cloud for the period July 28, 2026 to October 28, 2026.
 
-The platform is open source under the MIT license. The same core engine code performs task orchestration in Hatchet Cloud and in self-hosted deployments. Hatchet Cloud adds the managed control plane, multi-tenant operations, and hosted infrastructure. Hatchet Cloud is the system under examination. This description covers Hatchet Cloud for the period July 28, 2026 to October 28, 2026.
-
-Hatchet Cloud processes billions of tasks per month. Hundreds of companies run production workloads on Hatchet Cloud. The open-source project has more than 450,000 active instances. Customers are engineering teams worldwide. Data-plane regions run in the United States, the European Union, and Australia, and EU customers can keep tenant data in the EU region.
-
-Hatchet processes standard personal information (names, emails, addresses), protected health information (PHI) under HIPAA as a Business Associate, and personal data of EU residents subject to the General Data Protection Regulation (GDPR). Hatchet maintains compliance with SOC 2 (Security), HIPAA, and GDPR, and publishes its compliance posture at its Trust Center (trust.hatchet.run).
-
-The CTO is the designated Security Official. The Security Official develops, implements, and oversees the information security program.
+Hatchet processes standard personal information (names, emails, addresses), protected health information (PHI) under HIPAA as a Business Associate, and personal data of EU residents subject to the General Data Protection Regulation (GDPR). Hatchet maintains compliance with SOC 2 (Security), HIPAA, and GDPR, and publishes its compliance posture at its Trust Center (trust.hatchet.run). The CTO is the designated Security Official and develops, implements, and oversees the information security program.
 
 # Services Provided
 
-Hatchet Cloud is a managed orchestration platform for background tasks, durable workflows, and AI agents. It is a durable execution engine. Each task invocation is persisted, which supports automatic retries, replays, debugging, and workflow patterns that a traditional queue does not.
+Hatchet Cloud is a managed durable execution engine for background tasks, durable workflows, and AI agents. Every task and agent invocation is persisted so that work survives crashes and can be retried, replayed, and debugged.
 
 Platform capabilities include configurable retry policies (including exponential backoff), cron scheduling, and future-dated execution. Multi-step durable workflows checkpoint state to a durable event log and survive crashes without losing progress. AI agent execution supports human-in-the-loop waits and real-time streaming. The engine provides concurrency control, rate limiting, task priority, and worker affinity routing, plus real-time monitoring, alerting, and logging.
 
-Customers integrate by defining tasks as functions in their application code and connecting workers to the engine over gRPC. Native SDKs cover Python, TypeScript, Go, and Ruby. Customers use the web console at cloud.hatchet.run, the REST API, and the gRPC API.
+Customers define tasks as functions in their application code using native SDKs for Python, TypeScript, Go, and Ruby. Workers running in the customer's environment connect outbound to the engine over gRPC. Customers use the web console at cloud.hatchet.run, the REST API, and the gRPC API.
 
-Hatchet Cloud runs data-plane regions on Amazon Web Services in the United States (Oregon and Northern Virginia), the European Union (Ireland), and Australia (Sydney). Customers on custom plans can add dedicated capacity, additional regions, or bring-your-own-cloud deployments. Customer workloads include data pipelines, AI agent loops, video encoding, GPU scheduling, and event-driven systems.
+Hatchet Cloud runs data-plane regions on Amazon Web Services in the United States (Oregon and Northern Virginia), the European Union (Ireland), and Australia (Sydney), and EU customers can keep tenant data in the EU region. Customers on custom plans can add dedicated capacity, additional regions, or bring-your-own-cloud deployments. Customer workloads include data pipelines, AI agent loops, video encoding, GPU scheduling, and event-driven systems.
 
 # Service Commitments and System Requirements
 
@@ -222,13 +216,9 @@ Changes are logged. Significant changes get a post-implementation review. Custom
 
 ### Secure Development
 
-The platform is developed in GitHub repositories. Branch protection requires a pull request, passing CI, and one approving review from someone other than the author. CI runs automated tests. Dependabot reports vulnerable dependencies. Container images are scanned in Amazon ECR.
+Application and infrastructure code live in separate GitHub repositories governed by the pull-request, CI, and independent-review rules in Change Management. For Terraform changes, the plan output is reviewed before apply. Dependabot reports vulnerable dependencies, and container images are scanned in Amazon ECR.
 
-Infrastructure is Terraform in a separate repository, with the same review rules. The plan output is reviewed before apply.
-
-Security fixes for the open-source project are released for the current major version. Vulnerability reports for the open-source repositories go through the private advisory form on GitHub, as described in SECURITY.md, with security@hatchet.run as the fallback.
-
-SDK vulnerabilities are tracked. The remediation timelines in Vulnerability Management apply to the hosted service. They do not apply to SDK upgrades the customer chooses when to install. Secure coding and common web application weaknesses are covered in the annual security training.
+Security fixes for the open-source project are released for the current major version. Vulnerability reports for the open-source repositories go through the private advisory form on GitHub, as described in SECURITY.md, with security@hatchet.run as the fallback. SDK vulnerabilities are tracked; the remediation timelines in Vulnerability Management apply to the hosted service rather than to SDK upgrades that customers choose when to install. Secure coding and common web application weaknesses are covered in the annual security training.
 
 ### Data Communications and Network Security
 
@@ -324,9 +314,7 @@ The policies below are the current published versions in the compliance platform
 
 ## System Boundaries
 
-The components above are the system under examination. The system includes everything that delivers Hatchet Cloud, processes or stores customer data, or supports a control behind a security commitment. Security tools that support those controls, including the WAF, VPN, endpoint agent, threat detection, vulnerability scanning, and log management, are in scope.
-
-Postmark delivers transactional notification email for the platform. It is a third party in the system. It is not a subservice organization: Hatchet's security commitments do not depend on a control that only Postmark performs. PropelAuth licenses the authentication software that Hatchet runs inside its own infrastructure. The software performs a license check against PropelAuth, but no customer or identity data is sent to PropelAuth, and it is neither a subservice organization nor a subprocessor.
+The components above are the system under examination. The system includes everything that delivers Hatchet Cloud, processes or stores customer data, or supports a control behind a security commitment. Security tools that support those controls, including the WAF, VPN, endpoint agent, threat detection, vulnerability scanning, and log management, are in scope. In-scope third parties that are not carved-out subservice organizations (such as Teleport, Postmark, Vercel, and PropelAuth) are explained under Subservice Organizations.
 
 The following are outside the system. They do not process or store customer production data, they are not required to deliver the service, and they do not support controls behind the security commitments:
 
@@ -459,7 +447,7 @@ Each is described further under Infrastructure, and management's monitoring of t
 | Ubicloud | Maintain backup and recovery controls for customer data stored in managed databases. |
 | Ubicloud | Monitor database infrastructure for security events and unauthorized access attempts. |
 
-Teleport, Postmark, and Vercel are third parties, not subservice organizations. Teleport issues short-lived production credentials for Hatchet engineers; customers do not use it, and Hatchet's access commitments are met by Hatchet's own controls. Postmark delivers transactional notification email. Vercel hosts the public website and frontend assets, which are classified Public and are not in the customer data path for the orchestration service.
+Teleport, Postmark, Vercel, and PropelAuth are third parties, not subservice organizations. Teleport issues short-lived production credentials for Hatchet engineers; customers do not use it, and Hatchet's access commitments are met by Hatchet's own controls. Postmark delivers transactional notification email, and Hatchet's security commitments do not depend on a control that only Postmark performs. Vercel hosts the public website and frontend assets, which are classified Public and are not in the customer data path for the orchestration service. PropelAuth licenses the authentication software that Hatchet runs inside its own infrastructure; the software performs a license check against PropelAuth, but no customer or identity data is sent to PropelAuth, and it is neither a subservice organization nor a subprocessor.
 
 # System Incidents
 
