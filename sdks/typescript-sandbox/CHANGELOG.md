@@ -18,7 +18,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Eac
 
 ### Fixed
 
-- `files.write` of a staged file replayed in a durable task after its signed upload URL expired now asks the provider for a new URL instead of failing with `staging_failed`, matching what `files.read` already did.
+- `files.write` of a staged file replayed in a durable task after its signed upload URL expired now asks the provider for a new URL instead of failing with `staging_failed`. For both `write` and `read`, that renewal is a plain task run rather than a durable child, so it does not shift the replayed child sequence.
 
 ## [0.1.1] - 2026-10-29
 

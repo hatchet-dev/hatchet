@@ -71,7 +71,7 @@ interface FsOutput extends JsonObject {
 }
 
 /** @internal */
-export type FsTurn = (fn: string, input: JsonObject) => Promise<FsOutput>;
+export type FsTurn = (fn: string, input: JsonObject, fresh?: boolean) => Promise<FsOutput>;
 
 const toEntry = (e: RawEntry): EntryInfo => ({
   ...e,
@@ -115,8 +115,8 @@ export class Files {
   /** @internal */
   constructor(private readonly turn: FsTurn) {}
 
-  private async call(fn: string, input: JsonObject): Promise<FsOutput> {
-    const out = await this.turn(`$fs.${fn}`, input);
+  private async call(fn: string, input: JsonObject, fresh = false): Promise<FsOutput> {
+    const out = await this.turn(`$fs.${fn}`, input, fresh);
     if (out.error) throw new FilesystemError(out.error.code, out.error.message);
     return out;
   }
@@ -135,13 +135,13 @@ export class Files {
     return bytes.toString('utf8');
   }
 
-  /** A replayed durable read may hold a URL that has expired; the provider signs the same staged file again. */
+  /** A replayed durable read may hold a URL that has expired; the provider signs the same staged file again. The renewal is a plain run, not a durable child, so the replayed child sequence stays aligned. */
   private async readStaged(url: string, stagedKey: string): Promise<Buffer> {
     try {
       return await getStaged(url);
     } catch (e) {
       if (url.startsWith('file://') || !(e instanceof FilesystemError)) throw e;
-      const { getUrl } = await this.call('presign', { stagedKey });
+      const { getUrl } = await this.call('presign', { stagedKey }, true);
       return getStaged(getUrl!);
     }
   }
@@ -170,7 +170,7 @@ export class Files {
           await putStaged(putUrl!, bytes);
           return { path: f.path, stagedKey: stagedKey! };
         } catch {
-          const again = await this.call('presign', {});
+          const again = await this.call('presign', {}, true);
           await putStaged(again.putUrl!, bytes);
           return { path: f.path, stagedKey: again.stagedKey! };
         }

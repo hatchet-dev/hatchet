@@ -80,19 +80,26 @@ export interface SandboxInfo {
   lastUsed?: Date;
 }
 
-type RunTurn = (input: TurnInput) => Promise<TurnResult>;
+type RunTurn = (input: TurnInput, opts?: { fresh?: boolean }) => Promise<TurnResult>;
 
 function turnRunner(client: HatchetClient): RunTurn {
   const task = client.workflow<TurnInput, Record<string, TurnResult>>({ name: SANDBOX_TASK_NAME });
-  return async (input) => {
-    const result = await task.run(input, {
-      additionalMetadata: {
-        'brickie.fn': input.fn,
-        ...(input.sandboxId ? { 'brickie.sandbox': input.sandboxId } : {}),
-        ...(input.image ? { 'brickie.image': input.image } : {}),
-        ...(input.snapshotId ? { 'brickie.from': input.snapshotId } : {}),
-      },
-    });
+  return async (input, opts) => {
+    const additionalMetadata = {
+      'brickie.fn': input.fn,
+      ...(input.sandboxId ? { 'brickie.sandbox': input.sandboxId } : {}),
+      ...(input.image ? { 'brickie.image': input.image } : {}),
+      ...(input.snapshotId ? { 'brickie.from': input.snapshotId } : {}),
+    };
+    const result = opts?.fresh
+      ? await (
+          await client.admin.runWorkflow<TurnInput, Record<string, TurnResult>>(
+            SANDBOX_TASK_NAME,
+            input,
+            { additionalMetadata }
+          )
+        ).result()
+      : await task.run(input, { additionalMetadata });
     return result[SANDBOX_TASK_NAME] ?? (result as unknown as TurnResult);
   };
 }
@@ -107,7 +114,7 @@ export class Sandbox {
     readonly sandboxId: string,
     private readonly template?: string
   ) {
-    this.files = new Files((fn, input) => this.turn(fn, input));
+    this.files = new Files((fn, input, fresh) => this.turn(fn, input, fresh));
   }
 
   /** Starts a new sandbox. Prefer `hatchet.sandbox.create`. */
@@ -195,13 +202,16 @@ export class Sandbox {
     await this.turn('$delete', {});
   }
 
-  private async turn<T = JsonObject>(fn: string, input: JsonObject): Promise<T> {
-    const result = await this.run({
-      sandboxId: this.sandboxId,
-      ...(this.template ? { image: this.template } : {}),
-      fn,
-      input,
-    });
+  private async turn<T = JsonObject>(fn: string, input: JsonObject, fresh = false): Promise<T> {
+    const result = await this.run(
+      {
+        sandboxId: this.sandboxId,
+        ...(this.template ? { image: this.template } : {}),
+        fn,
+        input,
+      },
+      { fresh }
+    );
     return {
       ...result.output,
       snapshotId: result.snapshotId,
