@@ -35,7 +35,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - [Durable tasks](https://docs.hatchet.run/v1/durable-tasks) no longer stall after the worker's durable stream reconnects in the middle of a wait. The worker now reports the last completion it received in its status requests, so the engine resumes delivery from there instead of holding later completions until the task is evicted and replayed.
->>>>>>> origin/main
 
 ## [1.43.0] - 2026-10-14
 
