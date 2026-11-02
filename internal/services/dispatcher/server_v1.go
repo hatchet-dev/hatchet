@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
+	"golang.org/x/sync/semaphore"
 
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -696,6 +697,11 @@ func (d *DispatcherServiceImpl) durableTask(
 
 	registeredTasks := make(map[uuid.UUID]struct{})
 
+	tenantSem, releaseTenantBudget := d.durableBudgets.tenant(tenantId)
+	defer releaseTenantBudget()
+
+	streamSem := semaphore.NewWeighted(d.durableBudgets.streamBytes)
+
 	var reqWg sync.WaitGroup
 
 	statuses := newWorkerStatusCoalescer()
@@ -822,9 +828,25 @@ func (d *DispatcherServiceImpl) durableTask(
 				continue
 			}
 
+			// Wait for budget on this loop, not in the handler goroutine: while it waits the stream isn't
+			// read, so HTTP/2 flow control stops the worker from sending more instead of requests piling
+			// up in memory.
+			weight := d.durableBudgets.cost(r.req)
+
+			if err := d.durableBudgets.acquire(ctx, tenantId, "stream", streamSem, weight); err != nil {
+				return nil
+			}
+
+			if err := d.durableBudgets.acquire(ctx, tenantId, "tenant", tenantSem, weight); err != nil {
+				streamSem.Release(weight)
+				return nil
+			}
+
 			reqWg.Add(1)
 			go func(req *contracts.DurableTaskRequest) {
 				defer reqWg.Done()
+				defer streamSem.Release(weight)
+				defer tenantSem.Release(weight)
 
 				if err := d.handleDurableTaskRequest(ctx, invocation, req); err != nil {
 					d.logDurableTaskRequestError(err)
