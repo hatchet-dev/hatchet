@@ -4,7 +4,7 @@ Hatchet Technologies, Inc. ("Hatchet") builds a platform for running mission-cri
 
 The platform is open source under the MIT license. The same core engine code performs task orchestration in Hatchet Cloud and in self-hosted deployments. Hatchet Cloud adds the managed control plane, multi-tenant operations, and hosted infrastructure. Hatchet Cloud is the system under examination. This description covers Hatchet Cloud for the period July 28, 2026 to October 28, 2026.
 
-Hatchet Cloud processes billions of tasks per month. Hundreds of companies run production workloads on Hatchet Cloud. The open-source project is deployed more than 10,000 times per month. Customers are engineering teams worldwide. Data-plane regions run in the United States, the European Union, and Australia, and EU customers can keep tenant data in the EU region.
+Hatchet Cloud processes billions of tasks per month. Hundreds of companies run production workloads on Hatchet Cloud. The open-source project has more than 450,000 active instances. Customers are engineering teams worldwide. Data-plane regions run in the United States, the European Union, and Australia, and EU customers can keep tenant data in the EU region.
 
 Hatchet processes standard personal information (names, emails, addresses), protected health information (PHI) under HIPAA as a Business Associate, and personal data of EU residents subject to the General Data Protection Regulation (GDPR). Hatchet maintains compliance with SOC 2 (Security), HIPAA, and GDPR, and publishes its compliance posture at its Trust Center (trust.hatchet.run).
 
@@ -41,15 +41,15 @@ Hatchet sets internal system requirements from the Trust Services Criteria for S
 
 **System requirements.** The following requirements are how those commitments are met. Each one is implemented by a procedure described later in this section.
 
-- Every user and service account has a unique identity. Hatchet uses Google Workspace single sign-on where the service supports it, and requires multi-factor authentication on critical systems. Access is least privilege. A manager and the Security Official approve grants. Unused accounts are removed within 30 days. Access is revoked within 24 hours of departure. Access is reviewed at least annually. (Access Management Policy v3.1)
-- Production access uses short-lived, audited privileged-access credentials issued by Teleport. Personnel do not hold standing production credentials. (Access Management Policy v3.1)
-- Production and infrastructure changes go through version control and an independent review. Emergency changes are documented within one business day. (Change Management Policy v2.1)
-- Production customer data has nightly encrypted backups retained at least three days, point-in-time recovery where the database supports it, an annual restore test, and documented recovery time and recovery point objectives. (Data Backup and Recovery Policy v2.0; Business Continuity and Disaster Recovery Policy v2.0)
-- Vulnerability remediation targets are 7 days for critical (P0), 30 days for high (P1), 60 days for medium (P2), and as needed for low (P3). An independent firm performs a penetration test at least annually. (Vulnerability Management Policy v3.0)
-- Audit logs cover authentication, administrative actions, privilege changes, and lifecycle events. Logs are sent to a central store and protected from tampering. Security logs are retained for one to five years. PHI access logs are retained for six years. (Audit Log Management Policy v3.0; Data Management, Retention, and Destruction Policy v4.1)
-- Employees complete security awareness training within 30 days of start and annually after that, plus HIPAA and GDPR training where the role requires it. (Human Resource Security Policy v2.0)
-- A vendor risk review is completed before a vendor connects to production. Vendors that handle sensitive data must provide a SOC 2 or ISO 27001 report, or an equivalent. The vendor inventory is reviewed annually. (Vendor Management Policy v2.0)
-- Workstations use disk encryption, a host firewall, a screen lock at 20 minutes, and anti-malware. PHI is not stored on local drives. (Workstation Security Policy v3.0)
+- Every user and service account has a unique identity. Hatchet uses Google Workspace single sign-on where the service supports it, and requires multi-factor authentication on critical systems. Access is least privilege. A manager and the Security Official approve grants. Unused accounts are removed within 30 days. Access is revoked within 24 hours of departure. Access is reviewed at least annually.
+- Production access uses short-lived, audited privileged-access credentials issued by Teleport. Personnel do not hold standing production credentials.
+- Production and infrastructure changes go through version control and an independent review. Emergency changes are documented within one business day.
+- Production customer data has nightly encrypted backups retained at least three days, point-in-time recovery where the database supports it, an annual restore test, and documented recovery time and recovery point objectives.
+- Vulnerability remediation targets are 7 days for critical (P0), 30 days for high (P1), 60 days for medium (P2), and as needed for low (P3). An independent firm performs a penetration test at least annually.
+- Audit logs cover authentication, administrative actions, privilege changes, and lifecycle events. Logs are sent to a central store and protected from tampering. Security logs are retained for one to five years. PHI access logs are retained for six years.
+- Employees complete security awareness training within 30 days of start and annually after that, plus HIPAA and GDPR training where the role requires it.
+- A vendor risk review is completed before a vendor connects to production. Vendors that handle sensitive data must provide a SOC 2 or ISO 27001 report, or an equivalent. The vendor inventory is reviewed annually.
+- Workstations use disk encryption, a host firewall, a screen lock at 20 minutes, and anti-malware. PHI is not stored on local drives.
 
 # Components of the System
 
@@ -135,7 +135,7 @@ Employees use company-managed laptops with endpoint protection, disk encryption,
 | --- | --- |
 | Amazon Web Services (AWS) | Primary cloud hosting. Amazon EKS runs the control plane and the regional shards. Also used for RDS, S3, ECR, and GuardDuty. Data-plane regions in the US (Oregon, Northern Virginia), the EU (Ireland), and Australia (Sydney). The control plane runs in Oregon. |
 | Google Cloud Platform (GCP) | Cloud KMS for the application encryption root key, Secret Manager for production secrets, and Artifact Registry for build artifacts. GCP does not run production compute or production databases. |
-| Cloudflare | DNS, web application firewall, DDoS protection, TLS termination, content delivery, and R2 object storage. |
+| Cloudflare | DNS, web application firewall, DDoS protection, TLS termination, and content delivery. |
 | ClickHouse Cloud | Managed analytics database for customer observability data. Shards export OpenTelemetry data over AWS PrivateLink. |
 | Ubicloud | Managed PostgreSQL for production customer shards and for the regional TimescaleDB run-history databases, in the US, EU, and Australia. |
 | Fly.io | Application hosting for internal tooling and services. |
@@ -153,6 +153,7 @@ The platform is a web and API application. There is no native mobile application
 | Hatchet Cloud Console *(in-house)* | Web application for workflow monitoring, debugging, configuration, and tenant administration. |
 | Hatchet SDKs *(in-house)* | Client libraries for defining tasks, connecting workers, and calling the platform from application code. |
 | Control plane *(in-house)* | Sign-up, organizations, tenant provisioning, billing hooks, and shard exchange tokens. Runs on the production EKS cluster. |
+| PostgreSQL *(managed)* | Primary durable store for each shard (workflow definitions, run state, payloads, and API token metadata) and for the control plane (accounts, organizations, and billing metadata). Runs on Ubicloud or Amazon RDS. |
 | RabbitMQ *(self-hosted)* | Internal message bus on each shard. Not exposed to customers. |
 | NATS *(self-hosted)* | Optional internal publish/subscribe layer on shards where it is enabled, used for real-time event fan-out between engine processes. Not exposed to customers. |
 | TimescaleDB *(self-hosted)* | Time-series extension on a dedicated PostgreSQL database per region that stores run history and task events for the console and the API.|
@@ -251,7 +252,7 @@ Credentials known to a departing team member are rotated at offboarding. TLS cer
 
 Production systems emit audit logs for login attempts, administrative actions, privilege changes, and major application lifecycle events. Logs are transmitted to a central store and protected from tampering. GCP audit logs are enabled for Cloud KMS and Secret Manager.
 
-Production services emit metrics, structured logs, and distributed traces through OpenTelemetry to a central observability platform that Hatchet operates. Engineers use it to monitor the health of every shard and the control plane, including request latency and error rates, queue depth, worker connectivity, database load and capacity, and message-bus health. Application errors are captured in an error-tracking service, and external uptime checks run against the API and the console from outside Hatchet's network. Alert thresholds are defined on these signals and page the on-call engineer; a paged alert that indicates customer impact follows the incident response process below and is reflected on the public status page.
+Production services emit metrics, structured logs, and distributed traces through OpenTelemetry to a central observability platform that Hatchet operates. Engineers use it to monitor the health of every shard and the control plane, including request latency and error rates, queue depth, worker connectivity, database load and capacity, and message-bus health. Application errors are captured in an error-tracking service, and external uptime checks run against the API and the console from outside Hatchet's network. Alerts on these signals are classified as critical or non-critical. Critical alerts page the on-call engineer; non-critical alerts are routed to the engineering team for review during working hours. A critical alert that indicates customer impact follows the incident response process below and is reflected on the public status page where appropriate.
 
 Security monitoring runs alongside operational monitoring. AWS GuardDuty performs threat detection in the production accounts, attack surface scanning runs continuously against company domains, and high-risk audit events are reviewed. A suspected security incident starts the incident response process below.
 
