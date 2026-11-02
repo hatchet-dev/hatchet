@@ -145,7 +145,7 @@ func (s *ServiceImpl) publish(ctx context.Context, namespace, topic, producerId 
 	results, err := s.publisher.publish(ctx, msgs...)
 
 	if err != nil {
-		return connect.NewError(connect.CodeUnavailable, fmt.Errorf("could not persist stream message: %w", err))
+		return connect.NewError(connect.CodeUnavailable, fmt.Errorf("could not persist stream message"))
 	}
 
 	// a sequence at or below the watermark is a retry of a message already

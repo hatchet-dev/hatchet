@@ -1,7 +1,7 @@
 /**
  * The client a task gets from `clientFromContext(ctx)`: the handler's `HatchetCore` seen
  * through the invocation socket. Every unary call is the client's own. Reading a durable
- * stream topic (`streams.events`) and a run's events (`runs.events`) are server streams, which
+ * stream topic (`streams.subscribe`) and a run's events (`runs.events`) are server streams, which
  * the unary client does not carry; here each opens one engine stream through the operator
  * over the socket (`SocketStreams`), the way child results are awaited, and reads it as an
  * async iterable with the Node client's shapes (`StreamEvent`, `StreamCallOptions`).
@@ -12,7 +12,7 @@
  * serves every unary call and the two iterators throw `ServerlessLimitationError` saying where
  * the socket went.
  *
- * Both iterators are async generators, as the Node client's `events()` is: `break` and
+ * Both iterators are async generators, as the Node client's `subscribe()` is: `break` and
  * `return()` close the stream between messages, and `options.signal` ends a read that is
  * waiting for the next one.
  */
@@ -34,11 +34,11 @@ import {
 } from './durable/streams';
 import { ServerlessLimitationError } from './errors';
 
-/** One message of a durable stream topic, as the Node client's `streams.events` yields it. */
+/** One message of a durable stream topic, as the Node client's `streams.subscribe` yields it. */
 export interface StreamEvent {
   /** The message payload. */
   payload: Uint8Array;
-  /** Resumes `events()` right after this message. */
+  /** Resumes `subscribe()` right after this message. */
   cursor: string;
   /** When the message was stored. */
   createdAt?: Date;
@@ -90,6 +90,8 @@ export type TaskStreamsClient = Pick<StreamsClient, keyof StreamsClient> & {
    * when the stream ends any other way. Unlike the Node client it does not resubscribe: the
    * error carries the cursor to resume from.
    */
+  subscribe(topic: string, options?: StreamCallOptions): AsyncIterable<StreamEvent>;
+  /** An alias of `subscribe`, which replaces it; `events` will be removed in a future release. */
   events(topic: string, options?: StreamCallOptions): AsyncIterable<StreamEvent>;
 };
 
@@ -363,21 +365,20 @@ function inheritingView<T extends object, M extends object>(base: T, members: M)
 
 /**
  * The task's view of the handler's client. With `streams`, the socket of the invocation,
- * `streams.events` and `runs.events` read over it; without one they throw.
+ * `streams.subscribe` and `runs.events` read over it; without one they throw.
  */
 export function createTaskClient(
   client: HatchetCore,
   streams: SocketStreams | undefined
 ): TaskClient {
-  const streamsView: TaskStreamsClient = view(client.streams, {
-    events: (topic: string, options?: StreamCallOptions) => {
-      if (!streams) {
-        throw noSocket('clientFromContext(ctx).streams.events(topic)');
-      }
+  const subscribe = (topic: string, options?: StreamCallOptions) => {
+    if (!streams) {
+      throw noSocket('clientFromContext(ctx).streams.subscribe(topic)');
+    }
 
-      return topicEvents(streams, topic, options);
-    },
-  });
+    return topicEvents(streams, topic, options);
+  };
+  const streamsView: TaskStreamsClient = view(client.streams, { subscribe, events: subscribe });
   const runsView: TaskRunsClient = view(client.runs, {
     events: (workflowRunId: string, options?: RunEventsOptions) => {
       if (!streams) {

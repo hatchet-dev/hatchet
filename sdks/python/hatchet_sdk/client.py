@@ -12,6 +12,7 @@ from hatchet_sdk.features.metrics import MetricsClient
 from hatchet_sdk.features.rate_limits import RateLimitsClient
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.features.scheduled import ScheduledClient
+from hatchet_sdk.features.streams import StreamsClient
 from hatchet_sdk.features.tenant import TenantClient
 from hatchet_sdk.features.webhooks import WebhooksClient
 from hatchet_sdk.features.workers import WorkersClient
@@ -55,6 +56,7 @@ class Client:
             admin_client=self.admin,
         )
         self.scheduled = ScheduledClient(self.config)
+        self.streams = StreamsClient(self.config)
         self.tenant = TenantClient(self.config)
         self.webhooks = WebhooksClient(self.config)
         self.workers = WorkersClient(self.config)

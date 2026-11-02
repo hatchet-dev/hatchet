@@ -37,6 +37,7 @@ module Hatchet
     def rate_limits: () -> Features::RateLimits
     def cron: () -> Features::Cron
     def scheduled: () -> Features::Scheduled
+    def streams: () -> Features::Streams
 
     def workflow: (name: String, **untyped opts) -> Workflow
     def task: (name: String, **untyped opts) { (Hash[String, untyped], Context) -> untyped } -> Task

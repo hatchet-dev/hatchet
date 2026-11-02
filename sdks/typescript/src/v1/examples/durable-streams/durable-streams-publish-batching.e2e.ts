@@ -87,7 +87,14 @@ describe('durable-streams-e2e publish batching: PublishBatch', () => {
       payloadRef: '',
     });
 
-    expect(await collect(hatchet.streams.events(topic), 6)).toEqual(['a', 'b', 'c', 'd', 'e', 'f']);
+    expect(await collect(hatchet.streams.subscribe(topic), 6)).toEqual([
+      'a',
+      'b',
+      'c',
+      'd',
+      'e',
+      'f',
+    ]);
   }, 30_000);
 
   it('rejects a batch that skips a sequence number and stores none of it', async () => {
@@ -100,7 +107,7 @@ describe('durable-streams-e2e publish batching: PublishBatch', () => {
     });
     await batch(topic, producerId, 1, ['b']);
 
-    expect(await collect(hatchet.streams.events(topic), 2)).toEqual(['a', 'b']);
+    expect(await collect(hatchet.streams.subscribe(topic), 2)).toEqual(['a', 'b']);
   }, 30_000);
 
   it('rejects a batch with an invalid entry, naming the entry, and stores none of it', async () => {
@@ -127,7 +134,7 @@ describe('durable-streams-e2e publish batching: PublishBatch', () => {
 
     // the rejected batch used no seq, so seq 0 is still free
     await batch(topic, producerId, 0, ['first']);
-    expect(await collect(hatchet.streams.events(topic), 1)).toEqual(['first']);
+    expect(await collect(hatchet.streams.subscribe(topic), 1)).toEqual(['first']);
   }, 30_000);
 });
 
@@ -176,7 +183,7 @@ describe('durable-streams-e2e publish batching: StreamsClient.publish', () => {
     expect(requests.reduce((a, b) => a + b, 0)).toBe(messages.length);
     expect(requests.length).toBeLessThan(messages.length / 10);
 
-    expect(await collect(hatchet.streams.events(topic), messages.length)).toEqual(messages);
+    expect(await collect(hatchet.streams.subscribe(topic), messages.length)).toEqual(messages);
   }, 60_000);
 
   it('holds publishes for their batch timeout and sends the ones made within it as one request', async () => {
@@ -190,7 +197,7 @@ describe('durable-streams-e2e publish batching: StreamsClient.publish', () => {
 
     expect(Date.now() - startedAt).toBeGreaterThanOrEqual(250);
     expect(requestsTo(topic)).toEqual([5]);
-    expect(await collect(hatchet.streams.events(topic), messages.length)).toEqual(messages);
+    expect(await collect(hatchet.streams.subscribe(topic), messages.length)).toEqual(messages);
   }, 30_000);
 
   it('sends a publish without a timeout at once, carrying the ones still waiting out their timeout', async () => {
@@ -208,7 +215,7 @@ describe('durable-streams-e2e publish batching: StreamsClient.publish', () => {
 
     expect(Date.now() - startedAt).toBeLessThan(10_000);
     expect(requestsTo(topic)).toEqual([4]);
-    expect(await collect(hatchet.streams.events(topic), 4)).toEqual([
+    expect(await collect(hatchet.streams.subscribe(topic), 4)).toEqual([
       'waiting-0',
       'waiting-1',
       'waiting-2',
@@ -235,7 +242,7 @@ describe('durable-streams-e2e publish batching: StreamsClient.publish', () => {
 
     expect(requestsTo(topic)).toEqual([batched.length, 1]);
     expect(resolved[resolved.length - 1]).toBe('single');
-    expect(await collect(hatchet.streams.events(topic), batched.length + 1)).toEqual([
+    expect(await collect(hatchet.streams.subscribe(topic), batched.length + 1)).toEqual([
       ...batched,
       'single',
     ]);
@@ -254,7 +261,7 @@ describe('durable-streams-e2e publish batching: StreamsClient.publish', () => {
     await Promise.all([single, ...queuedPublishes]);
 
     expect(requestsTo(topic)).toEqual([1, queued.length]);
-    expect(await collect(hatchet.streams.events(topic), queued.length + 1)).toEqual([
+    expect(await collect(hatchet.streams.subscribe(topic), queued.length + 1)).toEqual([
       'single',
       ...queued,
     ]);
@@ -296,7 +303,7 @@ describe('durable-streams-e2e publish batching: StreamsClient.publish', () => {
       );
     });
 
-    expectSamePayloads(await collectBytes(hatchet.streams.events(topic), sent.length), sent);
+    expectSamePayloads(await collectBytes(hatchet.streams.subscribe(topic), sent.length), sent);
   }, 60_000);
 
   it('sends a max-size inline payload on its own, between batches of small ones', async () => {
@@ -313,7 +320,7 @@ describe('durable-streams-e2e publish batching: StreamsClient.publish', () => {
     await Promise.all(sent.map((p) => hatchet.streams.publish(topic, p, { batchTimeoutMs: 200 })));
 
     expect(requestsTo(topic)).toEqual([2, 1, 2]);
-    expectSamePayloads(await collectBytes(hatchet.streams.events(topic), sent.length), sent);
+    expectSamePayloads(await collectBytes(hatchet.streams.subscribe(topic), sent.length), sent);
   }, 60_000);
 
   it('batches uploaded payloads by ref alongside inline ones, and readers get every payload back whole', async () => {
@@ -339,6 +346,6 @@ describe('durable-streams-e2e publish batching: StreamsClient.publish', () => {
       false,
     ]);
 
-    expectSamePayloads(await collectBytes(hatchet.streams.events(topic), sent.length), sent);
+    expectSamePayloads(await collectBytes(hatchet.streams.subscribe(topic), sent.length), sent);
   }, 120_000);
 });

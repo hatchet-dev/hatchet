@@ -85,6 +85,7 @@
 //   - Rate Limits: https://docs.hatchet.run/reference/go/feature-clients/ratelimits.md (guide: https://docs.hatchet.run/v1/rate-limits.md)
 //   - Runs: https://docs.hatchet.run/reference/go/feature-clients/runs.md (guide: https://docs.hatchet.run/v1/running-your-task.md)
 //   - Scheduled Runs: https://docs.hatchet.run/reference/go/feature-clients/schedules.md (guide: https://docs.hatchet.run/v1/scheduled-runs.md)
+//   - Streams: https://docs.hatchet.run/reference/go/feature-clients/streams.md
 //   - Webhooks: https://docs.hatchet.run/reference/go/feature-clients/webhooks.md (guide: https://docs.hatchet.run/v1/webhooks.md)
 //   - Workers: https://docs.hatchet.run/reference/go/feature-clients/workers.md (guide: https://docs.hatchet.run/v1/workers.md)
 //   - Workflows: https://docs.hatchet.run/reference/go/feature-clients/workflows.md (guide: https://docs.hatchet.run/v1/tasks.md)

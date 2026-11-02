@@ -310,7 +310,8 @@ type TaskRepository interface {
 
 	ListTasks(ctx context.Context, tenantId uuid.UUID, tasks []int64) ([]*sqlcv1.V1Task, error)
 
-	ListTaskRuntimes(ctx context.Context, tenantId uuid.UUID, tasks []*sqlcv1.V1Task) (map[int64]*sqlcv1.V1TaskRuntime, error)
+	// ListTasksForDispatch leaves out tasks without a runtime row for their current retry.
+	ListTasksForDispatch(ctx context.Context, tenantId uuid.UUID, tasks []int64) (*TasksForDispatch, error)
 
 	ListTaskMetas(ctx context.Context, tenantId uuid.UUID, tasks []int64) ([]*sqlcv1.ListTaskMetasRow, error)
 
@@ -1496,30 +1497,56 @@ func (r *sharedRepository) listTasks(ctx context.Context, dbtx sqlcv1.DBTX, tena
 	return result, nil
 }
 
-func (r *TaskRepositoryImpl) ListTaskRuntimes(ctx context.Context, tenantId uuid.UUID, tasks []*sqlcv1.V1Task) (map[int64]*sqlcv1.V1TaskRuntime, error) {
-	db := r.pool.ForTenant(tenantId)
+type TasksForDispatch struct {
+	Tasks       []*sqlcv1.V1Task
+	Runtimes    map[int64]*sqlcv1.V1TaskRuntime
+	PayloadRows []*sqlcv1.V1Payload
+}
 
-	taskIds := make([]int64, 0, len(tasks))
-	insertedAts := make([]pgtype.Timestamptz, 0, len(tasks))
-	retryCounts := make([]int32, 0, len(tasks))
+func (r *TaskRepositoryImpl) ListTasksForDispatch(ctx context.Context, tenantId uuid.UUID, tasks []int64) (*TasksForDispatch, error) {
+	rows, err := r.queries.ListTasksForDispatch(ctx, r.pool.ForTenant(tenantId), tenantId, enumerables.Uniq(tasks))
 
-	for _, t := range tasks {
-		taskIds = append(taskIds, t.ID)
-		insertedAts = append(insertedAts, t.InsertedAt)
-		retryCounts = append(retryCounts, t.RetryCount)
-	}
-
-	rows, err := r.queries.ListTaskRuntimes(ctx, db, sqlcv1.ListTaskRuntimesParams{
-		Tenantid:        tenantId,
-		Taskids:         taskIds,
-		Taskinsertedats: insertedAts,
-		Taskretrycounts: retryCounts,
-	})
 	if err != nil {
 		return nil, err
 	}
 
-	return enumerables.KeyBy(rows, func(row *sqlcv1.V1TaskRuntime) int64 { return row.TaskID }), nil
+	return tasksForDispatchFromRows(rows), nil
+}
+
+// tasksForDispatchFromRows dedupes payload rows because tasks sharing a payload_reference_id each get
+// their own copy of the row, and Resolve would map every referrer once per copy.
+func tasksForDispatchFromRows(rows []*sqlcv1.ListTasksForDispatchRow) *TasksForDispatch {
+	res := &TasksForDispatch{
+		Tasks:       make([]*sqlcv1.V1Task, 0, len(rows)),
+		Runtimes:    make(map[int64]*sqlcv1.V1TaskRuntime, len(rows)),
+		PayloadRows: make([]*sqlcv1.V1Payload, 0, len(rows)),
+	}
+
+	seenTasks := make(map[int64]struct{}, len(rows))
+	seenPayloadRows := make(map[PayloadUniqueKey]struct{}, len(rows))
+
+	for _, row := range rows {
+		task := &row.V1Task
+
+		if row.V1Payload != nil {
+			key := payloadUniqueKeyFromRow(row.V1Payload)
+
+			if _, seen := seenPayloadRows[key]; !seen {
+				seenPayloadRows[key] = struct{}{}
+				res.PayloadRows = append(res.PayloadRows, row.V1Payload)
+			}
+		}
+
+		if _, seen := seenTasks[task.ID]; seen {
+			continue
+		}
+
+		seenTasks[task.ID] = struct{}{}
+		res.Tasks = append(res.Tasks, task)
+		res.Runtimes[task.ID] = &row.V1TaskRuntime
+	}
+
+	return res
 }
 
 func (r *TaskRepositoryImpl) ListDurableOrchestratorChildOutputEvents(ctx context.Context, tenantId, orchestratorExternalId uuid.UUID) ([]*TaskOutputEvent, error) {

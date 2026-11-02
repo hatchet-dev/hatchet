@@ -8,6 +8,7 @@
     "rate_limits",
     "runs",
     "scheduled",
+    "streams",
     "stubs",
     "webhooks",
     "workers",

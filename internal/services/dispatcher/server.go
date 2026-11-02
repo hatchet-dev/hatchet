@@ -227,6 +227,8 @@ func (s *DispatcherImpl) Listen(ctx context.Context, request *contracts.WorkerLi
 			s.l.Error().Ctx(ctx).Err(err).Msgf("could not update worker %s dispatcher", request.WorkerId)
 			return err
 		}
+
+		s.NotifyWorkerDispatcherChanged(ctx, tenant, workerId)
 	}
 
 	// Activation records this session's id on the worker; deactivation below only succeeds
@@ -353,6 +355,8 @@ func (s *DispatcherImpl) ListenV2(ctx context.Context, request *contracts.Worker
 			s.l.Error().Ctx(ctx).Err(err).Msgf("could not update worker %s dispatcher", request.WorkerId)
 			return err
 		}
+
+		s.NotifyWorkerDispatcherChanged(ctx, tenant, workerId)
 	}
 
 	// Activation records this session's id on the worker; deactivation below only succeeds

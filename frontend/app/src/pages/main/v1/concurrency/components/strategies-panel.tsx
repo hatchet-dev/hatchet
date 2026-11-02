@@ -54,7 +54,7 @@ export function StrategiesPanel({
   return (
     <section
       aria-label="Strategies"
-      className="flex min-w-0 flex-col overflow-hidden rounded-lg ring-1 ring-border/50"
+      className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg ring-1 ring-border/50"
     >
       <div className="flex flex-wrap items-center gap-3 border-b border-border/50 px-4 py-2.5">
         <span className="text-sm font-semibold">Strategies</span>
@@ -66,12 +66,12 @@ export function StrategiesPanel({
         </div>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="min-h-0 flex-1 overflow-auto">
         <div className="min-w-[940px]">
           <div
             className={cn(
               grid,
-              'h-8 border-b border-border/50 bg-muted/30 text-xs font-medium text-muted-foreground',
+              'sticky top-0 z-10 h-8 border-b border-border/50 bg-background bg-[linear-gradient(hsl(var(--muted)/0.3),hsl(var(--muted)/0.3))] text-xs font-medium text-muted-foreground',
             )}
           >
             <span>Strategy</span>

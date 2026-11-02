@@ -1,0 +1,121 @@
+---
+title: "Streams"
+---
+
+# Streams Client
+
+Streams client for publishing to and reading from durable topics. Unlike +runs.subscribe_to_stream+, topics are stored, independent of any run, and readers can resume from a cursor.
+
+```ruby
+hatchet.streams.publish("orders", '{"status":"shipped"}')
+hatchet.streams.subscribe("orders") { |event| puts event.payload }
+```
+
+It is available on the main client as `hatchet.streams`.
+
+Methods:
+
+| Name             | Description                                                                                                         |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `publish`        | Publish a message to a topic, returning once it is stored.                                                          |
+| `topic_metadata` | Describe a topic's retained messages.                                                                               |
+| `reset`          | Make `subscribe` calls without a cursor start after `cursor`, or the topic's latest message.                        |
+| `subscribe`      | Read a topic's messages after `cursor`, or from the oldest retained (or, once the topic is reset, after the reset). |
+
+### Functions
+
+#### `publish`
+
+Publish a message to a topic, returning once it is stored. A client's messages to a topic are delivered in the order `publish` was called. Publishes to a topic share requests: everything queued while one is in flight goes out in the next, and `batch_timeout` holds a message up to that long for more to join it.
+
+```ruby
+hatchet.streams.publish("orders", '{"order_id":"ord_123"}', namespace: "customer-a")
+```
+
+Parameters:
+
+| Name            | Type             | Description                                                                                                                                                                                                | Default    |
+| --------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `topic`         | `String`         | The topic to publish to.                                                                                                                                                                                   | _required_ |
+| `message`       | `String`         | The message payload.                                                                                                                                                                                       | _required_ |
+| `namespace`     | `String`         | The topic's namespace; the empty namespace by default.                                                                                                                                                     | `""`       |
+| `batch_timeout` | `Numeric \| nil` | Seconds the message may wait for later publishes to the same topic to share its request, bounding the latency batching adds. By default, it is sent as soon as no other request to the topic is in flight. | `nil`      |
+
+Raises:
+
+| Type              | Description                                                             |
+| ----------------- | ----------------------------------------------------------------------- |
+| `ArgumentError`   | If the payload is empty or too large, or the batch timeout is negative. |
+| `GRPC::BadStatus` | If the engine rejects the publish.                                      |
+
+#### `topic_metadata`
+
+Describe a topic's retained messages.
+
+Parameters:
+
+| Name        | Type     | Description                                            | Default    |
+| ----------- | -------- | ------------------------------------------------------ | ---------- |
+| `topic`     | `String` | The topic to describe.                                 | _required_ |
+| `namespace` | `String` | The topic's namespace; the empty namespace by default. | `""`       |
+
+Returns:
+
+| Type                  | Description           |
+| --------------------- | --------------------- |
+| `StreamTopicMetadata` | The topic's metadata. |
+
+Raises:
+
+| Type             | Description                           |
+| ---------------- | ------------------------------------- |
+| `GRPC::NotFound` | For a topic nothing was published to. |
+
+#### `reset`
+
+Make `subscribe` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.
+
+Parameters:
+
+| Name        | Type            | Description                                                                             | Default    |
+| ----------- | --------------- | --------------------------------------------------------------------------------------- | ---------- |
+| `topic`     | `String`        | The topic to reset.                                                                     | _required_ |
+| `namespace` | `String`        | The topic's namespace; the empty namespace by default.                                  | `""`       |
+| `cursor`    | `String \| nil` | A cursor read off one of the topic's events to reset to, instead of its latest message. | `nil`      |
+
+Raises:
+
+| Type              | Description                      |
+| ----------------- | -------------------------------- |
+| `GRPC::BadStatus` | If the engine rejects the reset. |
+
+#### `subscribe`
+
+Read a topic's messages after `cursor`, or from the oldest retained (or, once the topic is reset, after the reset). If the connection drops, it resubscribes from the last message yielded, so nothing is skipped or repeated. Ends when the server hangs up an idle subscription or the block breaks; raises on errors a retry can't fix, such as an expired cursor.
+
+```ruby
+hatchet.streams.subscribe("orders") do |event|
+  puts event.payload
+  break if event.payload == "done"
+end
+```
+
+Parameters:
+
+| Name        | Type            | Description                                                   | Default    |
+| ----------- | --------------- | ------------------------------------------------------------- | ---------- |
+| `topic`     | `String`        | The topic to read from.                                       | _required_ |
+| `namespace` | `String`        | The topic's namespace; the empty namespace by default.        | `""`       |
+| `cursor`    | `String \| nil` | A cursor read off a previous event, to resume right after it. | `nil`      |
+
+Returns:
+
+| Type                             | Description                                                 |
+| -------------------------------- | ----------------------------------------------------------- |
+| `Enumerator<StreamEvent> \| nil` | An enumerator of the topic's events when no block is given. |
+
+Raises:
+
+| Type              | Description                          |
+| ----------------- | ------------------------------------ |
+| `GRPC::BadStatus` | On an error a resubscribe can't fix. |

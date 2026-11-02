@@ -71,7 +71,7 @@ export interface TestOperatorOptions extends Omit<
   /**
    * The engine behind the streams a task opens over its socket: run subscriptions
    * (`ctx.runChild` awaits child results on one; answered by `completeRun` by default), run
-   * event subscriptions (`runs.events`) and durable stream topics (`streams.events`).
+   * event subscriptions (`runs.events`) and durable stream topics (`streams.subscribe`).
    */
   runStream?: RunStreamScript;
 }

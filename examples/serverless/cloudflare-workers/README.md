@@ -24,7 +24,7 @@ and delivers assigned tasks to it over signed HTTPS requests.
   `client.streams.publish`) and returns the topic; `scripts/consume-stream.ts` reads the topic
   with the Node SDK. It talks to Hatchet, so it is dialed too.
 - `stream-echo`: a non-durable task that publishes a few messages to a durable stream topic and
-  reads them back in the same invocation with `client.streams.events(topic)`, which the package
+  reads them back in the same invocation with `client.streams.subscribe(topic)`, which the package
   serves over the invocation websocket: the operator opens the engine's `Subscribe` stream on
   the task's behalf and relays its messages. It returns what it read, so it proves the relay end
   to end. It needs an operator that relays durable stream subscriptions.
@@ -38,7 +38,7 @@ The operator registers the workflows under the names declared here, the way a wo
 |---|---|
 | `src/tasks.ts` | The declarations, written with `hatchet.task` and `hatchet.durableTask` from `@hatchet-dev/serverless`; `hatchetClient: false` on `echo` states it never talks to Hatchet, so it is POSTed. The same file works on a regular worker. |
 | `src/index.ts` | `export default cloudflare({ workflows })`: the adapter serves `POST /hatchet/healthcheck`, `POST /hatchet/trigger` and the invocation websocket upgrade on `/hatchet/trigger`, reads the signing secret from `env.HATCHET_SIGNING_SECRET`, and builds the tasks' Hatchet client from `env.HATCHET_CLIENT_TOKEN` (plus `HATCHET_CLIENT_HOST_PORT` and `HATCHET_CLIENT_TLS_STRATEGY` for a local engine). |
-| `scripts/consume-stream.ts` | Prints what a `stream-progress` or `stream-echo` run published, with the Node SDK's `hatchet.streams.events(topic)`; `pnpm run consume-stream <topic>`. |
+| `scripts/consume-stream.ts` | Prints what a `stream-progress` or `stream-echo` run published, with the Node SDK's `hatchet.streams.subscribe(topic)`; `pnpm run consume-stream <topic>`. |
 | `wrangler.toml` | Worker config. `limits.cpu_ms = 300000` raises the CPU budget to the 5 minute maximum (Workers Paid plan). |
 
 The wire contract is `api-contracts/v1/serverless.proto` (every request, response and websocket
@@ -268,7 +268,7 @@ script. Without `HATCHET_CLIENT_TOKEN` in `.dev.vars` the task fails with `422` 
 `configure \`client\``.
 
 A task can read a topic too, over the invocation websocket: `stream-echo` publishes `count`
-messages and `{"done": true}`, then reads the topic back with `client.streams.events(topic)`
+messages and `{"done": true}`, then reads the topic back with `client.streams.subscribe(topic)`
 in the same invocation and returns the messages it read. The package sends a `stream_open`
 naming `/v1.V1Streams/Subscribe` on the socket and the operator relays the engine stream, the
 way a child's result is awaited, so it needs an operator that relays the subscription: an older

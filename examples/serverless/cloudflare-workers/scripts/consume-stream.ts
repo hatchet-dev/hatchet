@@ -1,6 +1,6 @@
 /**
  * Prints the messages a `stream-progress` run published to its durable stream topic, with the
- * Node SDK (`hatchet.streams.events(topic)`, a server stream over gRPC), and exits on the
+ * Node SDK (`hatchet.streams.subscribe(topic)`, a server stream over gRPC), and exits on the
  * `{"done": true}` message the task publishes last. Reading starts from the oldest retained
  * message, so it works after the run finished as well as while it is publishing.
  *
@@ -26,7 +26,7 @@ const hatchet = HatchetClient.init();
 const signal = AbortSignal.timeout(60_000);
 const decoder = new TextDecoder();
 
-for await (const event of hatchet.streams.events(topic, { signal })) {
+for await (const event of hatchet.streams.subscribe(topic, { signal })) {
   const text = decoder.decode(event.payload);
   console.log(text);
 

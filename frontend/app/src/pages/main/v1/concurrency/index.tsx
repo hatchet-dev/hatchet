@@ -135,7 +135,7 @@ function Concurrency({ tenantId }: ConcurrencyProps) {
   }, [sidePanel.isOpen, navigate]);
 
   return (
-    <div className="flex min-w-0 flex-col gap-3">
+    <div className="flex h-full min-w-0 flex-col gap-3">
       <h1 className="text-lg font-semibold">Concurrency</h1>
 
       {error ? (

@@ -72,6 +72,7 @@ proto_paths=(
   "../../api-contracts v1/shared/trigger.proto"
   "../../api-contracts v1/dispatcher.proto"
   "../../api-contracts v1/workflows.proto"
+  "../../api-contracts v1/streams.proto"
 )
 
 for entry in "${proto_paths[@]}"; do

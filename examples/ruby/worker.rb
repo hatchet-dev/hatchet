@@ -37,6 +37,7 @@ require_relative "durable_sleep/worker"
 require_relative "conditions/worker"
 require_relative "dependency_injection/worker"
 require_relative "streaming/worker"
+require_relative "durable_streams/worker"
 require_relative "serde/worker"
 require_relative "dataclasses/worker"
 require_relative "dedupe/worker"
@@ -95,6 +96,7 @@ ALL_WORKFLOWS = [
 
   # Tier 4-5
   STREAM_TASK,
+  DURABLE_STREAMS_PROGRESS_TASK, DURABLE_STREAMS_RETRYING_PROGRESS_TASK,
   SERDE_WORKFLOW,
   SAY_HELLO,
   DEDUPE_PARENT_WF, DEDUPE_CHILD_WF,

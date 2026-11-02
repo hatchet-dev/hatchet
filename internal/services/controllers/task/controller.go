@@ -1434,6 +1434,12 @@ func (tc *TasksControllerImpl) handleProcessDurableRunTrigger(ctx context.Contex
 
 	createdTasks, createdDags, celFailures, err := tc.repov1.DurableEvents().TriggerPendingRunEntries(ctx, tenantId, tasks)
 
+	if errors.Is(err, v1.ErrResourceExhausted) {
+		tc.l.Warn().Ctx(ctx).Str("tenantId", tenantId.String()).Msg("resource exhausted while triggering pending durable run entries. Not retrying")
+
+		return nil
+	}
+
 	if err != nil {
 		return fmt.Errorf("failed to trigger pending durable run entries: %w", err)
 	}

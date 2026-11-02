@@ -75,7 +75,7 @@ export const parentEcho = hatchet.task({
  * (`clientFromContext(ctx)`, the same core client `ctx.runChild` triggers through) and
  * returns the topic. The topic is the input's `topic` or
  * one derived from the run id, so a consumer can follow a run it triggered:
- * `scripts/consume-stream.ts` reads it with the Node SDK's `hatchet.streams.events(topic)`.
+ * `scripts/consume-stream.ts` reads it with the Node SDK's `hatchet.streams.subscribe(topic)`.
  * Without HATCHET_CLIENT_TOKEN the client call throws and the task fails without retry.
  */
 export const streamProgress = hatchet.task({
@@ -101,7 +101,7 @@ export const streamProgress = hatchet.task({
 /**
  * Non-durable, on the socket by default: publishes `count` messages and a final
  * `{"done": true}` to a durable stream topic through the Worker's Hatchet client, then reads the
- * topic back in the same invocation with `client.streams.events(topic)` and returns what it
+ * topic back in the same invocation with `client.streams.subscribe(topic)` and returns what it
  * read. Reading a topic is a server stream, which the core client does not carry on its own;
  * inside a task the package serves it over the invocation websocket: the operator opens the
  * engine's `/v1.V1Streams/Subscribe` stream and relays its messages back, the way a child's
@@ -127,7 +127,7 @@ export const streamEcho = hatchet.task({
     const decoder = new TextDecoder();
     const read: string[] = [];
 
-    for await (const event of client.streams.events(topic)) {
+    for await (const event of client.streams.subscribe(topic)) {
       const text = decoder.decode(event.payload);
       read.push(text);
 

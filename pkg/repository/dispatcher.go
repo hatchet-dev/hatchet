@@ -26,6 +26,10 @@ type DispatcherRepository interface {
 	UpdateDispatcher(ctx context.Context, dispatcherId uuid.UUID, opts *UpdateDispatcherOpts) (*sqlcv1.Dispatcher, error)
 
 	Delete(ctx context.Context, dispatcherId uuid.UUID) error
+
+	// MarkInactive flags the dispatcher as shutting down. ClaimOperators then claims nothing
+	// for it and lets other dispatchers take its operators over at once.
+	MarkInactive(ctx context.Context, dispatcherId uuid.UUID) error
 }
 
 type dispatcherRepository struct {
@@ -59,5 +63,10 @@ func (d *dispatcherRepository) UpdateDispatcher(ctx context.Context, dispatcherI
 
 func (d *dispatcherRepository) Delete(ctx context.Context, dispatcherId uuid.UUID) error {
 	_, err := d.queries.DeleteDispatcher(ctx, d.pool.ForShared(), dispatcherId)
+	return err
+}
+
+func (d *dispatcherRepository) MarkInactive(ctx context.Context, dispatcherId uuid.UUID) error {
+	_, err := d.queries.SetDispatchersInactive(ctx, d.pool.ForShared(), []uuid.UUID{dispatcherId})
 	return err
 }

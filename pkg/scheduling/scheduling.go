@@ -56,6 +56,9 @@ type Pool interface {
 	NotifyConcurrency(ctx context.Context, tenantId uuid.UUID, strategyIds []int64)
 	NotifyRateLimitsChanged(ctx context.Context, tenantId uuid.UUID)
 	NotifyNewWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID)
+	// RemoveWorker drops a worker from the tenant's in-memory scheduling view ahead of the
+	// next worker lease refresh, for a worker the scheduler just learned is gone.
+	RemoveWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID)
 	NotifyNewQueue(ctx context.Context, tenantId uuid.UUID, queueName string)
 	NotifyNewConcurrencyStrategy(ctx context.Context, tenantId uuid.UUID, strategyId int64)
 

@@ -192,7 +192,10 @@
       "guide": null,
       "guideTitle": null,
       "slugs": {
-        "typescript": "streams"
+        "python": "streams",
+        "typescript": "streams",
+        "go": "streams",
+        "ruby": "streams"
       }
     },
     "stubs": {

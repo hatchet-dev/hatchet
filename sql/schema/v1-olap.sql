@@ -110,13 +110,21 @@ $$
 BEGIN
     RETURN QUERY
     SELECT
-        inhrelid::regclass::text AS partition_name
-    FROM
-        pg_inherits
+        partition_bounds.child_name
+    FROM (
+        SELECT
+            i.inhrelid::regclass::text AS child_name,
+            (regexp_match(pg_get_expr(c.relpartbound, c.oid), 'TO \(''([^'']+)''\)'))[1] AS upper_bound
+        FROM
+            pg_inherits i
+        JOIN
+            pg_class c ON c.oid = i.inhrelid
+        WHERE
+            i.inhparent = targetTableName::regclass
+            AND substring(i.inhrelid::regclass::text, format('%s_(\d{8})', targetTableName)) ~ '^\d{8}'
+    ) partition_bounds
     WHERE
-        inhparent = targetTableName::regclass
-        AND substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName)) ~ '^\d{8}'
-        AND (substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName))::date) < targetDate;
+        partition_bounds.upper_bound::timestamptz <= targetDate::timestamptz;
 END;
 $$;
 
@@ -842,82 +850,6 @@ AFTER UPDATE ON v1_dags_olap
 REFERENCING NEW TABLE AS new_rows
 FOR EACH STATEMENT
 EXECUTE FUNCTION v1_dags_olap_status_update_function();
-
-CREATE OR REPLACE FUNCTION v1_runs_olap_insert_function()
-RETURNS TRIGGER AS
-$$
-BEGIN
-    INSERT INTO v1_statuses_olap (
-        external_id,
-        inserted_at,
-        tenant_id,
-        workflow_id,
-        kind,
-        readable_status
-    )
-    SELECT
-        external_id,
-        inserted_at,
-        tenant_id,
-        workflow_id,
-        kind,
-        readable_status
-    FROM new_rows
-    ON CONFLICT (external_id, inserted_at) DO NOTHING;
-
-    RETURN NULL;
-END;
-$$
-LANGUAGE plpgsql;
-
-CREATE TRIGGER v1_runs_olap_status_insert_trigger
-AFTER INSERT ON v1_runs_olap
-REFERENCING NEW TABLE AS new_rows
-FOR EACH STATEMENT
-EXECUTE FUNCTION v1_runs_olap_insert_function();
-
--- We use INSERT INTO rather than UPDATE for ensuring this query is fast on TimescaleDB,
--- which does not have effective runtime partition pruning on UPDATE and would involve scanning
--- every partition in v1_statuses_olap.
-CREATE OR REPLACE FUNCTION v1_runs_olap_status_update_function()
-RETURNS TRIGGER AS
-$$
-BEGIN
-    INSERT INTO v1_statuses_olap (
-        external_id,
-        inserted_at,
-        tenant_id,
-        workflow_id,
-        kind,
-        readable_status
-    )
-    -- DISTINCT ON: nothing constraint-enforces (external_id, inserted_at)
-    -- uniqueness across new_rows, and ON CONFLICT DO UPDATE errors if a single
-    -- statement affects the same row twice. On duplicates, keep the
-    -- highest-priority status.
-    SELECT DISTINCT ON (external_id, inserted_at)
-        external_id,
-        inserted_at,
-        tenant_id,
-        workflow_id,
-        kind,
-        readable_status
-    FROM new_rows
-    ORDER BY external_id, inserted_at, v1_status_to_priority(readable_status) DESC
-    ON CONFLICT (external_id, inserted_at) DO UPDATE
-    SET readable_status = EXCLUDED.readable_status
-    WHERE v1_statuses_olap.readable_status IS DISTINCT FROM EXCLUDED.readable_status;
-
-    RETURN NULL;
-END;
-$$
-LANGUAGE plpgsql;
-
-CREATE TRIGGER v1_runs_olap_status_update_trigger
-AFTER UPDATE ON v1_runs_olap
-REFERENCING NEW TABLE AS new_rows
-FOR EACH STATEMENT
-EXECUTE FUNCTION v1_runs_olap_status_update_function();
 
 CREATE OR REPLACE FUNCTION v1_events_lookup_table_olap_insert_function()
 RETURNS TRIGGER AS
