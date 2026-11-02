@@ -15,13 +15,15 @@ import (
 )
 
 const (
-	// keeps room for about a thousand small requests per stream when the max message size is set low
-	minStreamBudgetBytes int64 = 16 << 20
+	// minStreamBudgetBytes lets a stream run about 1,000 small requests at once (at
+	// handlerCostBytes each) when the max message size is under 4 MiB.
+	minStreamBudgetBytes int64 = 16 * 1024 * 1024
 
-	// Added to every request's size so small requests still use up budget: a 16 MiB budget runs at
-	// most about 1,000 handlers at once. A handler parked on a send holds about 6 KiB besides its
-	// request, so this is conservative.
-	handlerCostBytes int64 = 16 << 10
+	// handlerCostBytes is added to each request's size for the goroutine that handles it. A
+	// handler blocked sending its response uses about 6 KiB (4 KiB stack, 1.6 KiB heap, measured).
+	// The higher charge is deliberate: it makes many small requests use up the budget too, capping
+	// a 16 MiB stream budget at about 1,000 concurrent handlers.
+	handlerCostBytes int64 = 16 * 1024
 )
 
 type tenantBudget struct {
@@ -29,9 +31,11 @@ type tenantBudget struct {
 	refs int
 }
 
-// durableTaskBudgets caps the bytes of DurableTask requests being handled at once. Each stream
-// may hold 4× the max gRPC message size (at least minStreamBudgetBytes). Each tenant may hold 8×
-// that, shared by all of its streams on this engine.
+// durableTaskBudgets caps the bytes of DurableTask requests being handled at once, per stream
+// and per tenant. A request holds its cost until its handler returns, which is after its
+// response is sent. A stream's budget is 4× the max gRPC message size, at least
+// minStreamBudgetBytes; a tenant's is 8× that, shared by all its streams on this engine replica.
+// With the default 4 MiB max message size: 16 MiB per stream, 128 MiB per tenant per replica.
 type durableTaskBudgets struct {
 	l           *zerolog.Logger
 	streamBytes int64
@@ -73,8 +77,9 @@ func (b *durableTaskBudgets) tenant(tenantId uuid.UUID) (*semaphore.Weighted, fu
 	}
 }
 
-// cost is capped at the stream budget so a request larger than the whole budget runs alone
-// instead of waiting forever.
+// cost is capped at the stream budget because semaphore.Acquire blocks until ctx ends when n
+// exceeds the semaphore's size. The engine never reaches the cap: its gRPC server rejects
+// messages over GRPCMaxMsgSize, and the stream budget is at least 4× that.
 func (b *durableTaskBudgets) cost(req *contracts.DurableTaskRequest) int64 {
 	return min(int64(proto.Size(req))+handlerCostBytes, b.streamBytes)
 }

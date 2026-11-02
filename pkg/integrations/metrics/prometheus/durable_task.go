@@ -6,9 +6,10 @@ import (
 )
 
 // DurableTaskBudgetWait records how long a DurableTask stream paused reading to wait for in-flight
-// budget. Requests that get budget straight away are not observed. budget is "stream" or "tenant";
-// outcome is "acquired", or "canceled" if the stream ended while waiting. There is no tenant id
-// label, to bound the series count; the sampled warning logged when a wait starts carries it.
+// request budget (durableTaskBudgets in internal/services/dispatcher). Requests that get budget
+// without waiting are not observed. budget is "stream" or "tenant"; outcome is "acquired", or
+// "canceled" if the stream ended while waiting. There is no tenant label, to bound the series
+// count; the sampled warning logged when a wait starts carries the tenant id.
 var DurableTaskBudgetWait = promauto.NewHistogramVec(prometheus.HistogramOpts{
 	Name:    "hatchet_durable_task_budget_wait_seconds",
 	Help:    "Time a DurableTask stream waited for its in-flight request budget",
