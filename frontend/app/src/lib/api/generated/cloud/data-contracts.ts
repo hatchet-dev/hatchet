@@ -902,6 +902,8 @@ export interface OrganizationInvite {
    * @format uuid
    */
   organizationId: string;
+  /** The name of the organization */
+  organizationName?: string;
   /**
    * The email of the inviter
    * @format email

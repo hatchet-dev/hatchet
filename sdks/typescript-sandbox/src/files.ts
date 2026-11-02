@@ -166,8 +166,14 @@ export class Files {
         if (bytes.length <= STAGE_OVER_BYTES)
           return { path: f.path, content: bytes.toString('base64') };
         const { stagedKey, putUrl } = await this.call('presign', {});
-        await putStaged(putUrl!, bytes);
-        return { path: f.path, stagedKey: stagedKey! };
+        try {
+          await putStaged(putUrl!, bytes);
+          return { path: f.path, stagedKey: stagedKey! };
+        } catch {
+          const again = await this.call('presign', {});
+          await putStaged(again.putUrl!, bytes);
+          return { path: f.path, stagedKey: again.stagedKey! };
+        }
       })
     );
     const { entries = [] } = await this.call('write', { files: encoded });

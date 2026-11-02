@@ -217,7 +217,6 @@ TenantEntitlements:
     - dagOperator
     - durableStreams
     - serverlessOperator
-    - sandboxOperator
   type: object
 
 TenantMember:

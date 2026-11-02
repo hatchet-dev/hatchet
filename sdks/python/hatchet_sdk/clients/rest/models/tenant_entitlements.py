@@ -17,7 +17,7 @@ import re  # noqa: F401
 import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
-from typing import Any, ClassVar, Dict, List
+from typing import Any, ClassVar, Dict, List, Optional
 from typing import Optional, Set
 from typing_extensions import Self
 
@@ -35,7 +35,9 @@ class TenantEntitlements(BaseModel):
     dag_operator: StrictBool = Field(alias="dagOperator")
     durable_streams: StrictBool = Field(alias="durableStreams")
     serverless_operator: StrictBool = Field(alias="serverlessOperator")
-    sandbox_operator: StrictBool = Field(alias="sandboxOperator")
+    sandbox_operator: Optional[StrictBool] = Field(
+        default=None, alias="sandboxOperator"
+    )
     __properties: ClassVar[List[str]] = [
         "auditLogs",
         "prometheusMetrics",
