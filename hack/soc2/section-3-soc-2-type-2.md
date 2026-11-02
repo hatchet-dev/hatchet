@@ -156,7 +156,7 @@ The platform is a web and API application. There is no native mobile application
 | PostgreSQL *(managed)* | Primary durable store for each shard (workflow definitions, run state, payloads, and API token metadata) and for the control plane (accounts, organizations, and billing metadata). Runs on Ubicloud or Amazon RDS. |
 | RabbitMQ *(self-hosted)* | Internal message bus on each shard. Not exposed to customers. |
 | NATS *(self-hosted)* | Optional internal publish/subscribe layer on shards where it is enabled, used for real-time event fan-out between engine processes. Not exposed to customers. |
-| TimescaleDB *(self-hosted)* | Time-series extension on a dedicated PostgreSQL database per region that stores run history and task events for the console and the API.|
+| TimescaleDB *(self-hosted)* | Time-series extension on a dedicated PostgreSQL database per region that stores run history and task events for the console and the API. |
 | PropelAuth BYO *(self-hosted)* | Licensed software Hatchet operates for console sessions, enterprise SSO (SAML and OIDC), SCIM, and passkeys. Customer identity data stays in Hatchet's infrastructure. |
 | GitHub | Version control, pull-request code review, CI, and Dependabot dependency scanning. |
 | Google Workspace | Identity provider (SSO via Google sign-in), corporate email, and collaboration. |
@@ -188,7 +188,7 @@ Hatchet classifies data as **Public**, **Internal**, **Confidential**, or **Secr
 
 The system stores customer workflow data (definitions, execution parameters, input and output payloads, durable event logs), customer observability data (execution telemetry, metrics, alerting state, and logs), account and tenant metadata (identifiers, emails, authentication tokens, API keys, and configuration), and audit and security logs (authentication events, administrative actions, privilege changes, and lifecycle events). For customers with a signed Business Associate Agreement, Hatchet processes PHI as a Business Associate. PHI is Confidential. Encryption keys, service account credentials, and internal API tokens are Secret.
 
-Data in transit uses TLS, with a minimum of TLS 1.2 and a preference for TLS 1.3. Cloudflare terminates TLS at the edge and uses full or strict encryption between the edge and origin. Internal service-to-service traffic uses Tailscale. Data at rest, including production databases, object storage, and backups, is encrypted with the provider's managed encryption.
+Data in transit uses TLS, with a minimum of TLS 1.2 and a preference for TLS 1.3. Cloudflare terminates TLS at the edge and uses full or strict encryption between the edge and origin. Connections from production services to databases, the message bus, and the observability platform are encrypted, and operator access to internal systems goes over Tailscale. Data at rest, including production databases, object storage, and backups, is encrypted with the provider's managed encryption.
 
 Retention follows the data type, the classification, and the applicable regulation. Customer data retention follows the customer contract. Workflow execution logs are retained for up to 90 days. Security logs are retained for one to five years. PHI access logs are retained for at least six years. Account data is retained while the account is active and for up to 12 months after closure. Backup copies are retained from 14 days to one year, depending on classification. At the end of the retention period, Hatchet deletes the data using methods consistent with NIST 800-88, including cryptographic erasure where the storage system supports it.
 
@@ -236,7 +236,7 @@ SDK vulnerabilities are tracked. The remediation timelines in Vulnerability Mana
 
 Network access to production uses layered controls. Security groups and firewall rules block public access to non-essential ports, including SSH and RDP, and databases are not publicly reachable. Object storage blocks public access unless there is a documented business justification. Automated monitors check these settings on AWS, GCP, and Cloudflare.
 
-Where appropriate, external traffic passes through Cloudflare for WAF, DDoS mitigation, DNSSEC where the domain supports it, and HTTPS. Internal connectivity uses Tailscale, which authenticates each device and encrypts traffic. Unauthorized Tailscale peers are flagged for removal. Production database access requires unique credentials, and database connections are encrypted.
+Dashboard and API traffic passes through Cloudflare for WAF, DDoS mitigation, DNSSEC where the domain supports it, and HTTPS. Operator access to internal and production systems goes over Tailscale, which authenticates each device and encrypts traffic. Unauthorized Tailscale peers are flagged for removal. Production database access requires unique credentials, and database connections are encrypted.
 
 ### Key Management
 
