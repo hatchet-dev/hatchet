@@ -288,6 +288,7 @@ type OLAPRepository interface {
 	ListTasks(ctx context.Context, tenantId uuid.UUID, opts ListTaskRunOpts) ([]*TaskWithPayloads, int, error)
 	ListWorkflowRuns(ctx context.Context, tenantId uuid.UUID, opts ListWorkflowRunOpts) ([]*WorkflowRunData, int, error)
 	CreateFailedRunAlerts(ctx context.Context, tenantId uuid.UUID, runs []FailedRunAlert) error
+	// ListPendingFailedRunAlerts also returns the newest failed_at it read; pass it to DeleteSentFailedRunAlerts once the alert is sent.
 	ListPendingFailedRunAlerts(ctx context.Context, tenantId uuid.UUID) ([]*WorkflowRunData, pgtype.Timestamptz, error)
 	DeleteSentFailedRunAlerts(ctx context.Context, tenantId uuid.UUID, failedAtThrough pgtype.Timestamptz) error
 	CountTasks(ctx context.Context, tenantId uuid.UUID, opts ListTaskRunOpts) (int, error)
