@@ -270,6 +270,8 @@ type TaskEventWithPayloads struct {
 
 type OLAPRepository interface {
 	UpdateTablePartitions(ctx context.Context) error
+	SetAuditLogArchiveStore(store AuditLogArchiveStore)
+	ArchiveAuditLogPartitions(ctx context.Context, opts ArchiveAuditLogPartitionsOpts) error
 	SetReadReplicaPool(pool *fairpool.Pool)
 	Aggregates() *olapagg.Aggregator
 	SetPayloadStoreOnSeparateDatabase(store PayloadStoreRepository)
@@ -354,6 +356,8 @@ type OLAPRepositoryImpl struct {
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits
 
 	aggregates *olapagg.Aggregator
+
+	auditLogArchiveStore AuditLogArchiveStore
 }
 
 func NewOLAPRepositoryFromPool(
