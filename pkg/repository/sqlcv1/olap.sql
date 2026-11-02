@@ -22,7 +22,8 @@ SELECT
     create_v1_monthly_range_partition('v1_lookup_table_olap'::text, @date::date) AS v1_lookup_table_olap,
     create_v1_monthly_range_partition('v1_statuses_olap'::text, @date::date) AS v1_statuses_olap,
     create_v1_range_partition('v1_otel_trace_olap'::text, @date::date) AS v1_otel_trace_olap,
-    create_v1_range_partition('v1_otel_trace_lookup_olap'::text, @date::date) AS v1_otel_trace_lookup_olap
+    create_v1_range_partition('v1_otel_trace_lookup_olap'::text, @date::date) AS v1_otel_trace_lookup_olap,
+    create_v1_range_partition('v1_audit_log'::text, @date::date) AS v1_audit_log
 ;
 
 -- name: GetOLAPAggregateRetainedFrom :one
