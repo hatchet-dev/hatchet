@@ -1,372 +1,467 @@
 # Company Background
 
-Hatchet Technologies, Inc. ("Hatchet" or "the Company") is a developer infrastructure company founded in 2023 by Alexander Belanger and Gabriel Ruttner. The Company builds an orchestration engine for distributed workloads — a platform that enables engineering teams to schedule, execute, observe, and manage background tasks, durable workflows, and AI agent workloads at scale. Hatchet participated in the Y Combinator Winter 2024 batch and is headquartered in New York City.
+Hatchet Technologies, Inc. ("Hatchet") builds a platform for running mission-critical AI agents, durable workflows, and background tasks. Every task and agent invocation is persisted, so work survives crashes and can be retried, replayed, and debugged. Customers define tasks as code in Python, TypeScript, Go, or Ruby. Workers running in the customer's environment connect to the engine over gRPC. The console and API provide monitoring, alerting, and logging.
 
-As of the examination period, Hatchet employs eight employees and one contractor, for a total of nine active personnel. The founding team brings deep experience in distributed systems and infrastructure engineering, which directly informs the Company's product architecture and security program. The Company operates in the infrastructure and developer tools space, serving customers in the United States and the European Union.
+The platform is open source under the MIT license. The same core engine code performs task orchestration in Hatchet Cloud and in self-hosted deployments. Hatchet Cloud adds the managed control plane, multi-tenant operations, and hosted infrastructure. Hatchet Cloud is the system under examination. This description covers Hatchet Cloud for the period July 28, 2026 to October 28, 2026.
 
-Hatchet processes standard personal information (names, emails, addresses), protected health information (PHI) under HIPAA as a Business Associate, and personal data of EU residents subject to the General Data Protection Regulation (GDPR). The Company maintains compliance with SOC 2 (Security), HIPAA, and GDPR, and publishes its compliance posture and documentation at its Trust Center (trust.hatchet.run).
+Hatchet Cloud processes billions of tasks per month. Hundreds of companies run production workloads on Hatchet Cloud. The open-source project is deployed more than 10,000 times per month. Customers are engineering teams worldwide. Data-plane regions run in the United States, the European Union, and Australia, and EU customers can keep tenant data in the EU region.
 
-The Hatchet platform is open source under the MIT license, available both as a self-hosted deployment and as a fully managed cloud service (Hatchet Cloud). The open-source codebase and the cloud service share the same code, so security improvements apply uniformly across both deployment models.
+Hatchet processes standard personal information (names, emails, addresses), protected health information (PHI) under HIPAA as a Business Associate, and personal data of EU residents subject to the General Data Protection Regulation (GDPR). Hatchet maintains compliance with SOC 2 (Security), HIPAA, and GDPR, and publishes its compliance posture at its Trust Center (trust.hatchet.run).
 
-Security at Hatchet is owned at the executive level. Gabriel Ruttner, the Company's CTO and co-founder, serves as the designated Security Official and is responsible for developing, implementing, and overseeing the information security program.
+The CTO is the designated Security Official. The Security Official develops, implements, and oversees the information security program.
 
 # Services Provided
 
-Hatchet provides a managed orchestration platform that enables engineering teams to build and operate distributed workloads — specifically background tasks, durable workflows, and AI agents. The platform functions as a durable execution engine: every task invocation is persisted, enabling automatic retries, replays, debugging, and complex workflow patterns that traditional queuing systems do not support.
+Hatchet Cloud is a managed orchestration platform for background tasks, durable workflows, and AI agents. It is a durable execution engine. Each task invocation is persisted, which supports automatic retries, replays, debugging, and workflow patterns that a traditional queue does not.
 
-Core platform capabilities include task orchestration with configurable retry policies (including exponential backoff), cron scheduling, and future-dated execution; multi-step durable workflows that checkpoint state to a durable event log and survive crashes without losing progress; AI agent execution with human-in-the-loop waits and real-time streaming; first-class concurrency control, rate limiting, task priority, and worker affinity routing; and real-time monitoring, alerting, and logging for all tasks and workflows.
+Platform capabilities include configurable retry policies (including exponential backoff), cron scheduling, and future-dated execution. Multi-step durable workflows checkpoint state to a durable event log and survive crashes without losing progress. AI agent execution supports human-in-the-loop waits and real-time streaming. The engine provides concurrency control, rate limiting, task priority, and worker affinity routing, plus real-time monitoring, alerting, and logging.
 
-Hatchet supports applications written in Python, TypeScript, Go, and Ruby through native SDKs. Customers integrate by defining tasks as functions in their application code and connecting workers to the Hatchet engine via gRPC.
+Customers integrate by defining tasks as functions in their application code and connecting workers to the engine over gRPC. Native SDKs cover Python, TypeScript, Go, and Ruby. Customers use the web console at cloud.hatchet.run, the REST API, and the gRPC API.
 
-**Hatchet Cloud** — the fully managed service — is the system under examination in this report. Hatchet Cloud operates data plane regions on Amazon Web Services in the United States (Oregon, Northern Virginia), the European Union (Ireland), and Australia (Sydney). Customers on custom plans can add dedicated capacity, additional regions, or bring-your-own-cloud deployments.
-
-Hatchet's customers are primarily engineering teams at technology companies running workloads such as data pipelines, AI agent loops, video encoding, GPU scheduling, and event-driven architectures. The Company serves customers across the United States and the European Union.
+Hatchet Cloud runs data-plane regions on Amazon Web Services in the United States (Oregon and Northern Virginia), the European Union (Ireland), and Australia (Sydney). Customers on custom plans can add dedicated capacity, additional regions, or bring-your-own-cloud deployments. Customer workloads include data pipelines, AI agent loops, video encoding, GPU scheduling, and event-driven systems.
 
 # Service Commitments and System Requirements
 
-Hatchet makes specific commitments to customers regarding the security of the Hatchet Cloud platform. The Company communicates these commitments through the Cloud Service Agreement (Terms and Conditions, published at hatchet.run/policies/terms), Privacy Policy (hatchet.run/policies/privacy), Data Processing Agreement (hatchet.run/policies/dpa), and the published Trust Center (trust.hatchet.run). The Cloud Service Agreement commits that Hatchet will use commercially reasonable efforts to secure the Cloud Service from unauthorized access, alteration, or use and other unlawful tampering.
+Hatchet commits to customers on the security of Hatchet Cloud. Those commitments are in the Cloud Service Agreement (Terms and Conditions, published at hatchet.run/policies/terms), the Privacy Policy (hatchet.run/policies/privacy), the Data Processing Agreement (hatchet.run/policies/dpa), and the Trust Center (trust.hatchet.run). The Cloud Service Agreement states that Hatchet will use commercially reasonable efforts to secure the Cloud Service from unauthorized access, alteration, or use and other unlawful tampering.
 
-Hatchet establishes internal system requirements based on the applicable Trust Services Criteria for the Security category — the sole category in scope for this examination. These requirements translate the customer-facing commitments into specific control objectives that the Company designs, implements, and monitors.
+Hatchet sets internal system requirements from the Trust Services Criteria for Security, the only category in scope. Those requirements are the control objectives below. Later sections describe how they are implemented.
 
-**Security** commitments include, but are not limited to, the following:
+**Security** commitments include the following:
 
-- Encrypting all data in transit using TLS (with a minimum of TLS 1.2) for API and worker traffic, and encrypting all data at rest on production storage and database services using encryption provided by the underlying cloud infrastructure.
-- Enforcing logical tenant isolation so that all requests are authenticated and scoped to a single tenant, preventing cross-tenant data access.
-- Restricting access to production infrastructure and customer data to authorized personnel on a least-privilege basis, with multi-factor authentication required for all administrative, infrastructure, and critical-service access.
-- Deploying a web application firewall and DDoS mitigation at the network edge to protect the platform from external attacks.
-- Conducting regular vulnerability scans across infrastructure, applications, and dependencies, and performing independent third-party penetration testing at least annually, with findings remediated according to severity-based timelines.
-- Maintaining an incident response framework with defined procedures for detection, containment, eradication, recovery, and breach notification — including HIPAA-specific notification to covered entities within required timeframes.
-- Managing all infrastructure and configuration changes through infrastructure-as-code and version-controlled code review, enforcing segregation of duties between change authors and approvers.
-- Reviewing employee and system access at least annually, revoking access promptly upon termination, and disabling dormant accounts.
-- Assessing third-party vendors for security posture before granting access to production environments or customer data, and maintaining an inventory of vendors classified by data sensitivity and risk level.
-- Publishing security commitments and service descriptions externally through the Trust Center, Terms and Conditions, and Privacy Policy so that customers can evaluate the Company's security posture.
+- Encrypt all data in transit using TLS (minimum TLS 1.2) for API and worker traffic, and encrypt all data at rest on production storage and database services using encryption provided by the underlying infrastructure.
+- Enforce logical tenant isolation so that every request is authenticated and scoped to a single tenant.
+- Restrict access to production infrastructure and customer data to authorized personnel on a least-privilege basis, and require multi-factor authentication for administrative, infrastructure, and critical-service access.
+- Deploy a web application firewall and DDoS mitigation at the network edge.
+- Run vulnerability scans across infrastructure, applications, and dependencies, and perform independent third-party penetration testing at least annually. Remediate findings on severity-based timelines.
+- Maintain an incident response framework covering detection, containment, eradication, recovery, and breach notification, including HIPAA notification to covered entities within required timeframes.
+- Manage infrastructure and configuration changes through infrastructure-as-code and version-controlled code review, with segregation of duties between change authors and approvers.
+- Review access at least annually, revoke access on termination, and disable dormant accounts.
+- Assess third-party vendors before granting access to production environments or customer data, and keep an inventory of vendors by data sensitivity and risk.
+- Publish security commitments and service descriptions through the Trust Center, Terms and Conditions, and Privacy Policy.
 
-> **REVIEW NEEDED**: The commitments above reference specific values (TLS 1.2 minimum, annual penetration testing, HIPAA notification timeframes). Publishing these in the SOC 2 report commits Hatchet to maintaining them throughout future audit periods. Confirm whether to retain the specific figures or adopt more general phrasing where appropriate.
+**System requirements.** The following requirements are how those commitments are met. Each one is implemented by a procedure described later in this section.
+
+- Every user and service account has a unique identity. Hatchet uses Google Workspace single sign-on where the service supports it, and requires multi-factor authentication on critical systems. Access is least privilege. A manager and the Security Official approve grants. Unused accounts are removed within 30 days. Access is revoked within 24 hours of departure. Access is reviewed at least annually. (Access Management Policy v3.1)
+- Production access uses short-lived, audited privileged-access credentials issued by Teleport. Personnel do not hold standing production credentials. (Access Management Policy v3.1)
+- Production and infrastructure changes go through version control and an independent review. Emergency changes are documented within one business day. (Change Management Policy v2.1)
+- Production customer data has nightly encrypted backups retained at least three days, point-in-time recovery where the database supports it, an annual restore test, and documented recovery time and recovery point objectives. (Data Backup and Recovery Policy v2.0; Business Continuity and Disaster Recovery Policy v2.0)
+- Vulnerability remediation targets are 7 days for critical (P0), 30 days for high (P1), 60 days for medium (P2), and as needed for low (P3). An independent firm performs a penetration test at least annually. (Vulnerability Management Policy v3.0)
+- Audit logs cover authentication, administrative actions, privilege changes, and lifecycle events. Logs are sent to a central store and protected from tampering. Security logs are retained for one to five years. PHI access logs are retained for six years. (Audit Log Management Policy v3.0; Data Management, Retention, and Destruction Policy v4.1)
+- Employees complete security awareness training within 30 days of start and annually after that, plus HIPAA and GDPR training where the role requires it. (Human Resource Security Policy v2.0)
+- A vendor risk review is completed before a vendor connects to production. Vendors that handle sensitive data must provide a SOC 2 or ISO 27001 report, or an equivalent. The vendor inventory is reviewed annually. (Vendor Management Policy v2.0)
+- Workstations use disk encryption, a host firewall, a screen lock at 20 minutes, and anti-malware. PHI is not stored on local drives. (Workstation Security Policy v3.0)
 
 # Components of the System
 
-The system under examination encompasses the infrastructure, software, people, data, and procedures that Hatchet uses to deliver Hatchet Cloud and meet its security commitments. The following sections describe each component and establish the boundaries of the system.
+The system is the infrastructure, software, people, data, and procedures Hatchet uses to deliver Hatchet Cloud and meet its security commitments.
 
-The System is comprised of the following components:
-- **Infrastructure** – The collection of physical or virtual resources that supports an overall IT environment, including the physical environment and related structures, IT and hardware (for example, facilities, servers, storage, environmental monitoring equipment, data storage devices and media, mobile devices, and internal networks and connected external telecommunications networks) that Hatchet uses to provide the services.
-- **Software** – The application programs and IT system software that supports application programs (operating systems, middleware, and utilities), the types of databases used, the nature of external-facing web applications, and the nature of applications developed in-house, including details about whether the applications in use are mobile applications or desktop or laptop applications.
-- **People** – The personnel involved in the governance, operation, security, and use of a system (business unit personnel, developers, operators, user entity personnel, vendor personnel, and managers).
-- **Data** – The types of data used by the system, such as transaction streams, files, databases, tables, and output used or processed by the system.
-- **Procedures** – The automated and manual procedures related to the services provided, including, as appropriate, procedures by which service activities are initiated, authorized, performed, and delivered, and reports and other information prepared.
+The system is comprised of the following components:
+
+- **Infrastructure.** The physical and virtual resources that support the environment, including cloud facilities, servers, storage, data storage devices, and the networks that connect them. Hatchet does not operate its own data centers.
+- **Software.** The application programs and supporting system software, including the in-house platform, databases, and the external-facing web application. There is no native mobile application.
+- **People.** The personnel involved in governance, operation, security, and use of the system, including developers, operators, managers, contractors, and vendor personnel. Customer personnel use the service but do not operate it.
+- **Data.** The data the system uses and stores, including workflow and execution data, observability data, account metadata, and audit logs.
+- **Procedures.** The automated and manual procedures by which the service is authorized, performed, and delivered, and by which security controls are operated.
+
+## Architecture and Data Flow
+
+Hatchet Cloud has two tiers. Both run on Amazon Web Services.
+
+The control plane runs on the production Amazon EKS cluster in us-west-2 (Oregon). It handles sign-up, organizations, tenant provisioning, and billing hooks. Console login (email and password, Google, GitHub, and enterprise SSO) is handled by PropelAuth BYO, which Hatchet runs as a self-hosted sidecar next to the control-plane API, with its own PostgreSQL database. Customer identity data stays in Hatchet's infrastructure. The control plane issues short-lived exchange tokens that the console uses to call a shard.
+
+The data plane is a set of regional shards on Amazon EKS in us-west-2 (Oregon), us-east-1 (Northern Virginia), eu-west-1 (Ireland), and ap-southeast-2 (Sydney). Shared multi-tenant shards and single-tenant shards use the same deployment module. Each shard runs the open-source engine: a REST API, a gRPC dispatcher for workers, scheduler and controller processes, a RabbitMQ cluster for internal messaging, and PostgreSQL as the durable store. PostgreSQL for a shard runs on Ubicloud or on Amazon RDS. Shards export execution telemetry (OpenTelemetry spans, metrics, and logs) to ClickHouse Cloud over AWS PrivateLink.
+
+Google Cloud Platform does not host the control plane or the shards. It holds the Cloud KMS root key used for application envelope encryption, stores production secrets in Secret Manager, and stores build artifacts in Artifact Registry. Terraform reads secrets from Secret Manager and injects them into Kubernetes at deploy time.
+
+Customer traffic reaches Hatchet Cloud over two paths. Browser and REST API traffic to the console and API hostnames is proxied through Cloudflare, which provides DNS, web application firewall, DDoS mitigation, and TLS termination (minimum TLS 1.2), and is then forwarded to the ingress load balancer on the EKS cluster. Worker traffic uses gRPC: customer workers open outbound, TLS-encrypted gRPC connections directly to a per-shard AWS Network Load Balancer, where the engine terminates TLS with an automatically issued certificate, and authenticate with a tenant API token. Cloudflare serves DNS for the gRPC hostnames but does not proxy them. In both paths the connection is initiated by the customer; Hatchet does not connect into customer networks.
+
+Hatchet engineers do not have direct access to production from the internet. To reach a Kubernetes cluster or a database, an engineer first connects to Hatchet's private network over Tailscale, then requests a short-lived credential from Teleport, which records the session. Production servers do not accept SSH or remote desktop connections from the internet.
+
+Data at rest sits in five places. Shard PostgreSQL stores workflow definitions, run state, payloads, and API token metadata. A regional TimescaleDB database stores run history and task events for the console and the API. ClickHouse Cloud stores execution telemetry. Amazon S3 stores large payload offload, where that feature is enabled, and participates in backup durability. Control-plane PostgreSQL stores accounts, organizations, and billing metadata.
+
+```mermaid
+flowchart LR
+  subgraph customer [Customer environment]
+    devs[Developers and console users]
+    workers[Workers running customer code with SDKs]
+  end
+  subgraph edge [Cloudflare edge]
+    cf[DNS, WAF, DDoS, TLS termination]
+  end
+  subgraph aws [AWS]
+    subgraph cp [Control plane on EKS us-west-2]
+      cpapi[Control plane API and console]
+      cpdb[(Control plane PostgreSQL)]
+      propel[PropelAuth BYO sidecar, self-hosted]
+    end
+    subgraph shard [Regional shard on EKS]
+      api[REST API]
+      grpc[gRPC dispatcher]
+      engine[Scheduler and controllers]
+      mq[RabbitMQ]
+      pg[(PostgreSQL on Ubicloud or RDS)]
+    end
+  end
+  subgraph gcp [GCP supporting services]
+    kms[Cloud KMS]
+    sm[Secret Manager]
+  end
+  ch[(ClickHouse Cloud via PrivateLink)]
+  ops[Hatchet operators via Tailscale and Teleport]
+  devs --> cf --> cpapi
+  cpapi --> cpdb
+  cpapi --> propel
+  cpapi -->|exchange token| api
+  devs --> cf --> api
+  workers -->|outbound gRPC over TLS, API token| grpc
+  api --> pg
+  grpc --> engine --> pg
+  engine --> mq
+  engine -->|OTEL| ch
+  api -->|envelope encryption| kms
+  sm -.->|secrets at deploy| cp
+  sm -.->|secrets at deploy| shard
+  ops --> grpc
+  ops --> pg
+```
 
 ## Infrastructure
 
-Hatchet Cloud runs on a multi-cloud infrastructure, with production customer workloads hosted primarily on Amazon Web Services. The Company also leverages Google Cloud Platform for infrastructure services including database, key management, and compute resources; Cloudflare for edge security and traffic management; and additional providers for internal tooling, observability, and network connectivity. All production data processing occurs in data center regions operated by the cloud providers listed below — Hatchet does not operate its own physical data centers.
+Production customer workloads run on Amazon Web Services. Google Cloud Platform provides key management, secret storage, and artifact storage. Cloudflare provides edge security. Additional providers cover internal tooling, observability, and network connectivity. All production data processing occurs in data center regions operated by the providers below. Hatchet does not operate its own physical data centers.
 
-Employees access production systems through company-managed laptops secured with endpoint protection software, disk encryption, and firewall controls. Remote access to internal and production networks routes through an encrypted mesh VPN.
+Employees use company-managed laptops with endpoint protection, disk encryption, and a host firewall. Remote access to internal and production networks goes through an encrypted mesh VPN.
 
 | Provider | Purpose |
 | --- | --- |
-| Amazon Web Services (AWS) | Primary cloud hosting for production workloads: compute (EC2), relational databases (RDS), object storage (S3), container registry (ECR), and threat detection (GuardDuty). Data plane regions in the US (Oregon, N. Virginia), EU (Ireland), and Australia (Sydney). |
-| Google Cloud Platform (GCP) | Cloud infrastructure including compute instances, Cloud SQL databases, Cloud KMS for cryptographic key management, load balancing, and centralized audit logging. |
-| Cloudflare | DNS management, web application firewall (WAF), DDoS protection, TLS termination and enforcement, content delivery, and R2 object storage. |
-| ClickHouse | Managed analytics database for customer observability and telemetry data. |
-| Ubicloud | Cloud compute for application workloads across US, EU, and Australia regions. |
+| Amazon Web Services (AWS) | Primary cloud hosting. Amazon EKS runs the control plane and the regional shards. Also used for RDS, S3, ECR, and GuardDuty. Data-plane regions in the US (Oregon, Northern Virginia), the EU (Ireland), and Australia (Sydney). The control plane runs in Oregon. |
+| Google Cloud Platform (GCP) | Cloud KMS for the application encryption root key, Secret Manager for production secrets, and Artifact Registry for build artifacts. GCP does not run production compute or production databases. |
+| Cloudflare | DNS, web application firewall, DDoS protection, TLS termination, content delivery, and R2 object storage. |
+| ClickHouse Cloud | Managed analytics database for customer observability data. Shards export OpenTelemetry data over AWS PrivateLink. |
+| Ubicloud | Managed PostgreSQL for production customer shards and for the regional TimescaleDB run-history databases, in the US, EU, and Australia. |
 | Fly.io | Application hosting for internal tooling and services. |
-| Vercel | Hosting for the public-facing website, documentation, and frontend assets. |
-| Tailscale | Encrypted mesh VPN providing authenticated, end-to-end encrypted network connectivity to internal and production systems. |
-
-> **REVIEW NEEDED**: ClickHouse and Ubicloud appear in the vendor inventory storing customer or confidential data but are not connected as integrations in the compliance platform. Confirm that both are accurately described above — in particular, confirm whether ClickHouse stores customer-facing observability data as part of the delivered platform service, and whether Ubicloud hosts production application workloads or only internal/development environments. If either vendor's role differs, this table and the Subservice Organizations section should be updated accordingly.
+| Vercel | Hosting for the public website, documentation, and frontend assets. |
+| Tailscale | Encrypted mesh VPN for authenticated access to internal and production systems. |
 
 ## Software
 
-Hatchet's system includes the Company's internally developed platform and third-party applications that support operations, security, and service delivery. The Hatchet platform is a web and API-based application — there are no native mobile applications. Customers interact with the platform through the web console (cloud.hatchet.run), REST and gRPC APIs, and native SDKs for Python, TypeScript, Go, and Ruby.
+The platform is a web and API application. There is no native mobile application. Customers use the web console (cloud.hatchet.run), the REST and gRPC APIs, and the SDKs.
 
 | Application / Vendor | Purpose |
 | --- | --- |
-| Hatchet Engine *(in-house)* | Core orchestration engine providing durable execution, task scheduling, workflow management, retry logic, and AI agent coordination. |
-| Hatchet API *(in-house)* | External-facing REST and gRPC APIs serving client SDKs, worker connections, and platform management operations. |
+| Hatchet Engine *(in-house)* | Core orchestration engine: durable execution, task scheduling, workflow management, retry logic, and agent coordination. |
+| Hatchet API *(in-house)* | External REST and gRPC APIs for client SDKs, worker connections, and platform management. |
 | Hatchet Cloud Console *(in-house)* | Web application for workflow monitoring, debugging, configuration, and tenant administration. |
-| Hatchet SDKs *(in-house)* | Client libraries enabling developers to define tasks, connect workers, and interact with the platform from application code. |
-| GitHub | Version control, pull-request-based code review, CI/CD pipelines, and automated dependency vulnerability scanning (Dependabot). |
-| Google Workspace | Identity provider (SSO via Google Sign-In), corporate email, and collaboration. |
-| 1Password | Credential and secrets management for team access and secure sharing. |
-| Teleport | Privileged access management (PAM) for production infrastructure — short-lived credentials, session recording, and audited access. |
-| Slack | Internal communication, access request workflows, and incident coordination. |
-| Oneleet | Security compliance platform for control monitoring, evidence collection, policy management, and risk assessment. |
-| Oneleet Agent | Endpoint security agent providing MDM capabilities — disk encryption verification, firewall status, screen lock enforcement, and anti-malware monitoring on employee devices. |
+| Hatchet SDKs *(in-house)* | Client libraries for defining tasks, connecting workers, and calling the platform from application code. |
+| Control plane *(in-house)* | Sign-up, organizations, tenant provisioning, billing hooks, and shard exchange tokens. Runs on the production EKS cluster. |
+| RabbitMQ *(self-hosted)* | Internal message bus on each shard. Not exposed to customers. |
+| TimescaleDB *(self-hosted)* | Time-series extension on a dedicated PostgreSQL database per region that stores run history and task events for the console and the API.|
+| PropelAuth BYO *(self-hosted)* | Licensed software Hatchet operates for console sessions, enterprise SSO (SAML and OIDC), SCIM, and passkeys. Customer identity data stays in Hatchet's infrastructure. |
+| GitHub | Version control, pull-request code review, CI, and Dependabot dependency scanning. |
+| Google Workspace | Identity provider (SSO via Google sign-in), corporate email, and collaboration. |
+| 1Password | Credential and secrets management for the team. |
+| Teleport | Privileged access management for production infrastructure: short-lived credentials, session recording, and audited access. |
+| Slack | Internal communication, access request workflow, and incident coordination. |
+| Oneleet | Compliance platform for control monitoring, evidence collection, policy management, and risk assessment. |
+| Oneleet Agent | Endpoint agent for disk encryption, firewall status, screen lock, and anti-malware on employee devices. |
 | incident.io | Incident management and response coordination. |
 | Sentry | Application error tracking and performance monitoring for production services. |
-| Betterstack | Uptime monitoring, public status page (status.hatchet.run), and incident alerting. |
-| Pganalyze | PostgreSQL database performance monitoring and query analysis. |
-| Postmark | Transactional email delivery for customer-facing notifications. |
-| GDPR Local | Privacy request management for GDPR data subject access requests. |
+| Betterstack | Uptime monitoring, the public status page (status.hatchet.run), and incident alerting. |
+| Pganalyze | PostgreSQL performance monitoring and query analysis. |
+| Postmark | Transactional email for customer-facing notifications. |
+| GDPR Local | Intake for GDPR data subject access requests. |
 
 ## People
 
-Hatchet has nine active personnel: eight employees and one contractor. The Company operates as a small, cross-functional team where most engineers contribute to platform development, infrastructure operations, and security practices.
+Hatchet is a fully remote team. The people involved in the system are organized into the following groups.
 
-**Executive leadership and governance.** Alexander Belanger (CEO) and Gabriel Ruttner (CTO) co-founded the Company and form the Founders group. Both executives set security strategy, approve all policies, and make risk tolerance decisions. The two founders jointly review and approve security policies on at least an annual cycle and are both named in the business continuity and disaster recovery escalation chain.
-
-**Security.** Gabriel Ruttner serves as the designated Security Official. In this capacity, the CTO develops and oversees the information security program, manages incident response, conducts risk assessments, approves disposal of classified media, and evaluates control effectiveness. Hatchet does not maintain a separate security team; security responsibilities are embedded in the CTO role and supported by the broader engineering team.
-
-**Engineering and operations.** The engineering team handles platform development, production infrastructure operations, code review, incident response, and day-to-day execution of change management and access control procedures. Access to production systems and customer data is limited to personnel with a demonstrated operational need.
-
-**Contractors.** The Company's contractor is subject to the same confidentiality agreements, policy acknowledgments, training requirements, and access controls as employees. Scope-appropriate adjustments — such as exemption from formal background checks with documented executive approval — are permitted under the Human Resource Security Policy, provided the contractor signs applicable non-disclosure agreements.
-
-**User entity personnel.** Customers interact with the system through the Hatchet Cloud Console, APIs, and SDKs. Customer administrators manage their own tenant configuration, API tokens, and team membership within the platform. Customer personnel do not have access to Hatchet's internal systems or other tenants' data.
+- **Executive management.** The CEO and the CTO, who are the co-founders. They set security strategy and risk tolerance, approve policies at least annually, and sit in the business continuity and disaster recovery escalation chain.
+- **Security.** The CTO is the designated Security Official. The Security Official owns the information security program: incident response, risk assessments, approval of classified-media disposal, and evaluation of control effectiveness. Engineering carries out the day-to-day procedures.
+- **Engineering and operations.** Engineers build the platform, operate production infrastructure, review code, respond to incidents, and perform change management and access provisioning. Production and customer-data access is limited to engineers with an operational need. Engineering includes contractors, who sign the same confidentiality agreements, acknowledge the same policies, complete the same training, and receive access under the same controls as employees.
+- **Customers.** Customer administrators and developers use the console, the APIs, and the SDKs, and manage their own tenant configuration, API tokens, and team membership. They do not have access to Hatchet's internal systems or to other tenants' data. Customer responsibilities are listed under Complementary User Entity Controls.
 
 ## Data
 
-Hatchet classifies all data into four sensitivity levels — **Public**, **Internal**, **Confidential**, and **Secret** — with handling, access, encryption, and disposal requirements escalating at each tier. All customer data is classified as Confidential at minimum, regardless of whether it independently appears sensitive, ensuring uniform protection across the entire customer data set.
+Hatchet classifies data as **Public**, **Internal**, **Confidential**, or **Secret**. Handling, access, encryption, and disposal requirements increase at each level. All customer data is Confidential at minimum.
 
-The primary data categories the system processes and stores include customer workflow data (definitions, execution parameters, input/output payloads, durable event logs), customer observability data (execution telemetry, monitoring metrics, alerting state, logs), account and tenant metadata (identifiers, emails, authentication tokens, API keys, configuration), and audit and security logs (authentication events, administrative actions, privilege changes, lifecycle events). For customers operating under signed Business Associate Agreements, Hatchet processes protected health information as a Business Associate; PHI is classified as Confidential and subject to the strictest access, disclosure, and disposal controls. Encryption keys, service account credentials, and internal API tokens are classified as Secret.
+The system stores customer workflow data (definitions, execution parameters, input and output payloads, durable event logs), customer observability data (execution telemetry, metrics, alerting state, and logs), account and tenant metadata (identifiers, emails, authentication tokens, API keys, and configuration), and audit and security logs (authentication events, administrative actions, privilege changes, and lifecycle events). For customers with a signed Business Associate Agreement, Hatchet processes PHI as a Business Associate. PHI is Confidential. Encryption keys, service account credentials, and internal API tokens are Secret.
 
-Hatchet encrypts all data in transit using TLS, enforcing a minimum of TLS 1.2 and preferring TLS 1.3. Cloudflare terminates TLS at the edge with full or strict encryption modes between edge and origin servers. Internal service-to-service traffic transits Tailscale's end-to-end encrypted mesh. All data at rest — production databases, object storage, backups — is encrypted using managed encryption services provided by the underlying cloud infrastructure providers.
+Data in transit uses TLS, with a minimum of TLS 1.2 and a preference for TLS 1.3. Cloudflare terminates TLS at the edge and uses full or strict encryption between the edge and origin. Internal service-to-service traffic uses Tailscale. Data at rest, including production databases, object storage, and backups, is encrypted with the provider's managed encryption.
 
-Hatchet retains data according to defined schedules tied to data type, classification, and applicable regulation. Customer data retention is governed by the applicable customer contract. Workflow execution logs are retained for up to 90 days. Security logs are retained for a minimum of one year, with PHI-related audit logs retained for at least six years per HIPAA. Account data is retained while active and for up to 12 months after closure. When data reaches the end of its retention period, the Company securely deletes or destroys it using classification-appropriate methods — multi-pass overwrite (NIST 800-88) for Confidential data and physical destruction of storage media for Secret data. Third-party disposal vendors must provide certificates of destruction and maintain chain-of-custody documentation.
+Retention follows the data type, the classification, and the applicable regulation. Customer data retention follows the customer contract. Workflow execution logs are retained for up to 90 days. Security logs are retained for one to five years. PHI access logs are retained for at least six years. Account data is retained while the account is active and for up to 12 months after closure. Backup copies are retained from 14 days to one year, depending on classification. At the end of the retention period, Hatchet deletes the data using methods consistent with NIST 800-88, including cryptographic erasure where the storage system supports it.
 
 ## Procedures
 
 ### Access Management
 
-Hatchet governs access to systems and data under the principle of least privilege. Every user and service account receives a unique identifier and only the minimum access necessary for its function. The Company prefers SSO via Google Sign-In wherever a service supports it, reducing standalone credential sprawl. Multi-factor authentication is required for all critical services, infrastructure access, and administrative accounts — enforced and monitored across AWS, GCP, Cloudflare, Fly.io, GitHub, Google Workspace, and Slack.
+Access follows least privilege. Every user and service account has a unique identifier and only the access its function requires. Administrative duties use separate administrative accounts. Hatchet prefers single sign-on through Google Workspace wherever the service supports it. Multi-factor authentication is required for critical services, infrastructure access, and administrative accounts, and is enforced on the cloud providers, the identity provider, source control, and collaboration tools. Services enforce session timeouts.
 
-New access follows a formal approval process: requests are submitted in the #service-access-requests Slack channel and require endorsement from at least one member of leadership. Access to critical systems or data additionally requires approval from a security team member (who may be the same person as the manager). Administrative access to production systems — including databases and container orchestration — is granted through Teleport, which issues short-lived credentials rather than standing access. Elevated sessions expire automatically, and all access events are logged and auditable.
+New access is requested through a designated request channel and needs approval from a manager and from the Security Official. Production administrative access, including databases and Kubernetes, is issued by Teleport as short-lived credentials. Sessions expire on their own. Access events are logged.
 
-The Company reviews access privileges at least annually across all critical vendors and systems. Automated monitors continuously verify that accounts are not dormant, that MFA remains enabled, that offboarded personnel have been fully removed, and that access reviews have been completed within the trailing twelve-month window. When employment or a contractor engagement ends, Hatchet revokes all access within 24 hours using a structured offboarding checklist. Shared accounts are prohibited; service account credentials are rotated whenever a team member with knowledge of the credential departs.
+Access is reviewed at least annually across critical vendors and systems. Automated monitors check for dormant accounts, MFA, completed offboarding, and access reviews in the trailing twelve months. Accounts unused for 30 days are removed. When employment or a contractor engagement ends, Hatchet revokes access within 24 hours using an offboarding checklist. Shared accounts are prohibited. Service account credentials are rotated when someone who knows the credential leaves.
+
+### Customer-side Logical Access
+
+Customers control who can use their own tenant. This subsection describes that boundary so the complementary user entity controls later in this description have a defined object.
+
+Console users sign in with email and password, Google, GitHub, or enterprise SSO. Enterprise SSO uses SAML or OIDC through the self-hosted PropelAuth BYO sidecar. SCIM provisioning is available to enterprise customers. Organization owners invite members and assign a role (owner, admin, or member) on each tenant.
+
+API tokens are tenant-scoped JWTs. A tenant admin creates them in Settings. The token is shown once, can be given an expiry, and can be revoked. Workers authenticate with these tokens over TLS.
+
+The tenant is the isolation boundary. Every API and gRPC request is authenticated and scoped to one tenant. Webhook and integration credentials are stored encrypted, as described under Key Management. The customer chooses the data-plane region when the tenant is created. EU tenants stay in eu-west-1.
 
 ### Change Management
 
-All changes to the Hatchet platform, infrastructure, and configuration follow a standardized change management process. Code and infrastructure-as-code changes are managed through GitHub, where every change requires a pull request with at least one approval from a strongly authenticated reviewer before merging — enforcing segregation of duties between author and approver.
+Code and infrastructure-as-code changes go through GitHub. Each change is a pull request. CI runs before merge, and at least one reviewer other than the author approves it. The author does not approve their own change.
 
-Hatchet tests changes through automated CI pipelines and manual verification before deploying to production. Development, staging, and production environments are maintained as separate environments to prevent unauthorized changes from reaching production. The Company classifies changes by risk and impact; high-risk changes receive additional scrutiny, and authors or reviewers include rollback and test plans where the change's risk warrants them.
+Changes are tested in CI and by manual verification before production. Development, staging, and production are separate environments. Non-production environments do not hold customer data. Changes are classified by risk. High-risk changes get additional review, and the author or reviewer includes a rollback and test plan when the risk calls for one.
 
-A streamlined path exists for emergency changes: implementation may proceed before formal approval, but documentation and approval must be completed within one business day. Changes outside version control — such as manual configuration adjustments to third-party consoles — require explicit affirmative acknowledgment from an approver in an approved communication channel before implementation; silence does not constitute approval.
+Emergency changes may be implemented before formal approval. Documentation and approval are completed within one business day. Changes outside version control, such as manual configuration in a third-party console, need an explicit approval in an approved channel before implementation.
 
-All changes are logged to maintain an audit trail. Significant changes undergo post-implementation review to verify success and capture lessons learned. The Company communicates relevant system changes to customers through the status page and external release communications, and internally to affected teams.
+Changes are logged. Significant changes get a post-implementation review. Customer-visible changes are communicated on the status page and in release notes, and internally to the teams affected.
+
+### Secure Development
+
+The platform is developed in GitHub repositories. Branch protection requires a pull request, passing CI, and one approving review from someone other than the author. CI runs automated tests. Dependabot reports vulnerable dependencies. Container images are scanned in Amazon ECR.
+
+Infrastructure is Terraform in a separate repository, with the same review rules. The plan output is reviewed before apply.
+
+Security fixes for the open-source project are released for the current major version. Vulnerability reports for the open-source repositories go through the private advisory form on GitHub, as described in SECURITY.md. If GitHub is not available, reports go to security@hatchet.run.
+
+SDK vulnerabilities are tracked. The remediation timelines in Vulnerability Management apply to the hosted service. They do not apply to SDK upgrades the customer chooses when to install. Secure coding and common web application weaknesses are covered in the annual security training.
 
 ### Data Communications and Network Security
 
-Hatchet restricts network access to production infrastructure using multiple layers of defense. Cloud security groups and firewall rules block public access to non-essential ports — including SSH and RDP — and prevent database instances from being publicly accessible. Cloud storage buckets are configured to block public access unless a documented business justification is in place, and automated monitors continuously verify these configurations across AWS, GCP, and Cloudflare.
+Network access to production uses layered controls. Security groups and firewall rules block public access to non-essential ports, including SSH and RDP, and databases are not publicly reachable. Object storage blocks public access unless there is a documented business justification. Automated monitors check these settings on AWS, GCP, and Cloudflare.
 
-All external traffic to Hatchet Cloud passes through Cloudflare, which provides WAF protection, DDoS mitigation, DNSSEC for supported domains, and automatic HTTPS enforcement. Internal network connectivity between systems uses Tailscale, which authenticates every device and encrypts all traffic end-to-end. Hatchet monitors Tailscale devices for authorization status and flags unauthorized peers for removal. Production database access requires unique authentication credentials, and all database connections are encrypted.
+Where appropriate, external traffic passes through Cloudflare for WAF, DDoS mitigation, DNSSEC where the domain supports it, and HTTPS. Internal connectivity uses Tailscale, which authenticates each device and encrypts traffic. Unauthorized Tailscale peers are flagged for removal. Production database access requires unique credentials, and database connections are encrypted.
+
+### Key Management
+
+Data stored in production databases, object storage, and backups is encrypted at rest using the hosting provider's managed encryption.
+
+Sensitive values the application stores on behalf of customers, such as third-party credentials and signing secrets, are additionally encrypted by the application before they are written to the database. The application uses envelope encryption: each value is encrypted with its own data key, and data keys are protected by a root key held in Google Cloud KMS that Hatchet does not export. The root key rotates automatically on a fixed schedule. The keys used to sign customer API tokens are protected by the same root key.
+
+Infrastructure secrets are stored in Google Secret Manager and delivered to workloads at deploy time; they are not kept in source control or on employee devices. Team credentials are kept in a shared password manager. Access to Cloud KMS and Secret Manager is limited to the production workload identity and to the engineers who operate infrastructure.
+
+Credentials known to a departing team member are rotated at offboarding. TLS certificates for customer-facing endpoints and for services inside the cluster are issued and renewed automatically.
 
 ### Logging and Monitoring
 
-Hatchet collects audit logs from all production systems, capturing security-relevant events including login attempts, administrative actions, privilege changes, and major application lifecycle events. The Company transmits logs securely to centralized log management and protects them from tampering. GCP services have data read and write audit logs enabled, GCP subnets have flow logs enabled, and Cloudflare Workers have logging enabled. AWS CloudWatch log groups retain logs for a minimum of 365 days, and GCP log sinks are configured with appropriate retention policies.
+Production systems emit audit logs for login attempts, administrative actions, privilege changes, and major application lifecycle events. Logs are transmitted to a central store and protected from tampering. GCP audit logs are enabled for Cloud KMS and Secret Manager.
 
-Hatchet monitors infrastructure performance across production databases (RDS CPU utilization, I/O activity, free space, freeable memory), load balancers (GCP latency), and network flows. AWS GuardDuty provides continuous threat detection across AWS regions, with findings tracked to remediation. Attack surface scanning runs continuously across company domains. High-risk audit events are reviewed regularly, and any indication of a security incident triggers the incident response process described below.
+Infrastructure monitoring covers production database health (i.e. CPU, I/O, free space, and freeable memory) and network exposure. AWS GuardDuty runs in the production regions, and findings are tracked to remediation. Attack surface scanning runs continuously against company domains. High-risk audit events are reviewed, and a suspected security incident starts the incident response process below.
 
 ### Vulnerability Management
 
-Hatchet identifies vulnerabilities through three complementary methods: automated security scanning of production infrastructure (AWS GuardDuty, attack surface scanners), dependency and container image scanning in code and artifact repositories (GitHub Dependabot, AWS ECR image scanning), and at least annual third-party penetration testing performed by an independent firm.
+Vulnerabilities are found by automated scanning of production infrastructure (AWS GuardDuty and attack surface scanning), by dependency and container image scanning (GitHub Dependabot and Amazon ECR image scanning), and by a third-party penetration test at least annually.
 
-The Company assigns each vulnerability a severity-based remediation target: Critical (P0) within 7 days, High (P1) within 30 days, Medium (P2) within 60 days, and Low (P3) as needed. Automated monitors track remediation progress for ECR image vulnerabilities, GuardDuty findings, attack surface findings, Dependabot alerts, and penetration test findings. Hatchet tests patches in non-production environments before deploying them. For zero-day or actively exploited vulnerabilities, emergency patching follows an accelerated path with testing and approval.
+Once a vulnerability is accepted, remediation targets are 7 days for critical (P0), 30 days for high (P1), 60 days for medium (P2), and as needed for low (P3). Monitors track ECR image findings, GuardDuty findings, attack surface findings, Dependabot alerts, and penetration test findings. Patches are tested outside production before they are deployed. Actively exploited vulnerabilities follow an accelerated path with testing and approval. Findings are retained for five years.
 
 ### Endpoint Security
 
-Hatchet secures all employee devices through the Oneleet Agent, which functions as both an MDM solution and an endpoint compliance monitor. The agent continuously verifies that each device maintains disk encryption, an active firewall, screen lock configured to engage after inactivity, and anti-malware protection (Gatekeeper). Automated monitors flag devices that become dormant or fall out of compliance.
+Employee devices run the Oneleet Agent, which checks disk encryption, host firewall, screen lock, and anti-malware. The Workstation Security Policy requires the screen lock to engage after 20 minutes. Monitors flag devices that are dormant or out of compliance.
 
-Employees connect to internal and production networks through the Tailscale VPN. The Workstation Security Policy prohibits storing PHI or PII on local drives without explicit authorization and encryption, requiring all sensitive data to reside on approved production servers. Lost or stolen devices must be reported immediately and are deactivated upon report.
+Employees reach internal and production networks through Tailscale. PHI and other sensitive data stay on approved production systems, not on local drives, unless there is explicit authorization and encryption. A lost or stolen device is reported immediately and deactivated.
 
 ### Physical Security
 
-Hatchet operates as a distributed team with some employees working from a co-working space and others working remotely. For the co-working environment, the Company relies on the provider's physical perimeter controls — keycards, entry systems, and surveillance — while enforcing additional measures within its own workspace, including clear desk and clear screen policies, visitor escort requirements, and secure storage of sensitive materials in locked cabinets.
+Hatchet is a fully remote company. Some personnel also use a co-working space. Remote personnel use encrypted home networks, store devices securely when not in use, and prevent unauthorized viewing of sensitive information.
 
-Remote employees maintain secure home networks with WPA2 encryption, store devices securely when not in use, and take steps to prevent unauthorized viewing of sensitive information. The Company does not operate its own data centers; physical security of production infrastructure is the responsibility of the cloud service providers described under Infrastructure. Hatchet reviews each provider's physical security documentation annually to confirm it meets the Company's security requirements.
+In a co-working space, Hatchet relies on the provider's perimeter controls (keycards, entry systems, and surveillance) and adds clear-desk and clear-screen rules, visitor escort, and locked storage for sensitive materials.
+
+Hatchet does not operate data centers. Physical security of production infrastructure belongs to the cloud providers in the Infrastructure section. Hatchet reviews each provider's physical security documentation annually.
 
 ### Incident Response
 
-Hatchet maintains an incident response framework organized into six phases: preparation, identification, containment, eradication, recovery, and lessons learned. The Company classifies incidents by severity (Critical, High, Medium, Low), with defined escalation criteria for each level.
+Incident response has six phases: preparation, identification, containment, eradication, recovery, and lessons learned. Severity is Critical, High, Medium, or Low, with an escalation path for each.
 
-The incident response team uses incident.io to coordinate response activities and Betterstack to communicate status to customers through the public status page. Employees report suspicious activity or potential security incidents immediately. For incidents involving protected health information, Hatchet follows HIPAA-specific breach notification procedures, notifying the affected covered entity within 60 days of discovery and providing the identification of affected individuals, a description of the breach, and steps being taken to investigate and mitigate harm.
+Personnel report suspicious activity immediately. The response team coordinates in a dedicated incident management tool, and customer communication goes through the public status page. Where an incident affects customer data, Hatchet notifies affected customers within the timeframes required by contract and by applicable regulation, including HIPAA breach notification to covered entities.
 
-After resolution, the Company conducts post-incident reviews to analyze root causes, evaluate response effectiveness, and improve procedures. All incidents and response actions are documented. Hatchet also performs incident response exercises to test capabilities and identify gaps before real incidents occur.
+After resolution, Hatchet reviews root cause and the response, and records the incident. Hatchet also runs incident response exercises.
 
 ### Backups and Disaster Recovery
 
-Hatchet maintains automated backups for all production systems containing customer data. AWS RDS instances and GCP Cloud SQL databases have automated backups enabled, and Vercel and Cloudflare R2 data is backed up through native platform mechanisms. Nightly full backups of production customer data are retained for a minimum of three days, with longer retention applied where data classification or regulatory obligations require it. Backups are encrypted at rest and in transit, stored in locations geographically separate from the production environment, and restricted to authorized personnel.
+Every production database that holds customer data is backed up automatically. Nightly full backups are retained for at least three days, and point-in-time recovery is enabled on databases that support it. Backups are kept longer, from 14 days to one year, where data classification or a regulatory obligation requires it. Backups are encrypted at rest and in transit, and only authorized personnel can access them. Objects in Amazon S3 are protected by the provider's built-in durability. The infrastructure team owns the recovery runbook.
 
-The Company tests backup restoration at least annually to validate recovery procedures and documents results. Disaster recovery plans define Recovery Time Objectives and Recovery Point Objectives for each critical system, integrate with the incident response framework, and are reviewed annually or after significant organizational changes.
+Backup restoration is tested at least annually, and the results are recorded. Disaster recovery plans set a recovery time objective and a recovery point objective for each critical system, tie into incident response, and are reviewed annually or after a significant change. Personnel with a role in recovery receive training annually.
 
 ### Vendor Management
 
-Hatchet maintains an inventory of all third-party vendors, documenting what services each provides, what data each accesses, and the assessed risk level. Before connecting any new technology vendor to the production environment, the Company completes a vendor risk assessment evaluating the vendor's security program, compliance posture (SOC 2, ISO 27001, or equivalent), data segregation controls, and support capabilities for data management and deletion.
+Hatchet keeps an inventory of third-party vendors, including the service each provides, the data each can access, and the risk level. A vendor is connected to production only after leadership approval and a vendor risk review. The review covers the vendor's security program, compliance posture (SOC 2, ISO 27001, or an equivalent), data segregation, and support for deletion. Vendors that handle sensitive data must show an established security program. Vendors with potential access to PHI sign a Business Associate Agreement. Agreements state the security expectations and service commitments. The inventory and the risk reviews are updated at least annually.
 
-The Company classifies vendors by both data sensitivity and risk level. Vendors processing sensitive data — whether internal or on behalf of customers — must demonstrate an established security program with clear documentation. Vendors with potential access to PHI execute Business Associate Agreements that flow down the same obligations Hatchet holds under its own BAAs with covered-entity customers. All vendor agreements establish security expectations and service-level commitments. The vendor inventory and risk assessments are reviewed and updated annually.
+PropelAuth is a software licensor for the self-hosted BYO auth sidecar. PropelAuth does not receive customer identity data. It is recorded as a supplier with no data access, not as a subprocessor.
 
 ### Email Security
 
-Hatchet enforces DMARC across its domains to prevent email spoofing and phishing. Google Workspace email settings block malicious content through protections for anomalous attachment types, attachment scripts, encrypted attachments, linked image malicious content, short URL identification, and untrusted domain warnings. The Company restricts super-administrator mailbox access and does not delegate email account access to non-admin users.
+Hatchet publishes DMARC on its domains. Google Workspace's advanced protections against malicious attachments, links, and spoofed senders are enabled. Super-administrator access is restricted, and mailbox access is not delegated to non-admin users.
+
+### Policy Inventory
+
+The policies below are the current published versions in the compliance platform. Each line gives the version and the date that version was published. The recorded reviewer is the CTO, who is the Security Official, except where the line says otherwise. Current personnel sign each policy.
+
+- Acceptable Use Policy, v2.1, published July 21, 2026.
+- Access Management Policy, v3.1, published July 21, 2026.
+- Asset Management Policy, v2.0, published July 21, 2026.
+- Audit Log Management Policy, v3.0, published July 23, 2026.
+- Business Continuity and Disaster Recovery Policy, v2.0, published July 21, 2026.
+- Change Management Policy, v2.1, published July 21, 2026.
+- Code of Conduct, v2.0, published July 21, 2026.
+- Data Backup and Recovery Policy, v2.0, published July 21, 2026.
+- Data Management, Retention, and Destruction Policy, v4.1, published August 7, 2026.
+- Employee Privacy Notice, v1.0, published July 27, 2026. Reviewed by the CEO.
+- Human Resource Security Policy, v2.0, published July 21, 2026.
+- Incident Response Policy, v3.0, published July 21, 2026.
+- Law Enforcement and Compelled Disclosure Policy, v1.0, published July 27, 2026. Reviewed by the CEO.
+- Password Policy, v2.0, published July 21, 2026.
+- Physical Security Policy (Coworking), v1.0, published July 21, 2026.
+- Physical Security Policy (Remote), v2.0, published July 21, 2026.
+- Risk Management Policy, v2.0, published July 21, 2026.
+- Vendor Management Policy, v2.0, published July 21, 2026.
+- Vulnerability Management Policy, v3.0, published July 21, 2026.
+- Whistleblower Policy, v3.0, published July 21, 2026.
+- Workstation Security Policy, v3.0, published July 21, 2026.
 
 ## System Boundaries
 
-The infrastructure, software, people, data, and procedures described in the preceding subsections define the boundaries of the system under examination. The system encompasses all components that deliver Hatchet Cloud, process or store customer data, or support controls that meet the Company's security commitments. Security tools that support controls — including WAF, VPN, endpoint agents, threat detection, vulnerability scanning, and log management — are part of the system and are in scope.
+The components above are the system under examination. The system includes everything that delivers Hatchet Cloud, processes or stores customer data, or supports a control behind a security commitment. Security tools that support those controls, including the WAF, VPN, endpoint agent, threat detection, vulnerability scanning, and log management, are in scope.
 
-The following systems and services are outside the boundaries of this examination. They do not process or store customer production data, are not necessary for service delivery, and do not support controls relevant to the Company's security commitments:
+Postmark delivers transactional notification email for the platform. It is a third party in the system. It is not a subservice organization: Hatchet's security commitments do not depend on a control that only Postmark performs.
 
-- Apollo
-- Autumn
-- Cal.com
-- Carta
-- Central Business Applications
-- Clay
-- Common Paper
-- Cursor
-- Deel
-- Discord
-- Figma
-- Granola
-- Lemlist
-- Linear
-- Mercury
-- Notion
-- OpenAI
-- Anthropic
-- PostHog
-- Pylon
-- Railway
-- Stable
-- Stripe
-- Zoom
-- Apple
+The following are outside the system. They do not process or store customer production data, they are not required to deliver the service, and they do not support controls behind the security commitments:
 
-> **REVIEW NEEDED**: Autumn stores "Payment and Subscription Data" tagged as Customer Data. If Autumn processes customer-identifiable information beyond aggregate billing metadata or gates service access as part of the production control flow, it may need to be brought in scope. Confirm that Autumn handles only billing administration.
+- Corporate back-office tools for finance, payroll, banking, equity, legal, sales, and scheduling.
+- Internal productivity and communication tools, including Notion, Linear, Figma, Discord, Zoom, and AI-assisted development tools.
+- Autumn, PostHog, Pylon, Stripe, and Railway, which touch the customer relationship but not the production data path, as described below.
 
-> **REVIEW NEEDED**: PostHog collects product usage telemetry and may include customer user identifiers (emails, distinct IDs) depending on configuration. If Hatchet configures PostHog to collect PII from platform end users, it may belong within the system boundary. Confirm whether PostHog ingests identifiable customer data.
+Autumn is billing and plan-entitlement administration. It does not gate the production data path and does not store customer workflow data. PostHog receives product-usage analytics from the console, including user email and name, with masked session recording. Tenants can opt out. PostHog is not in the service delivery path. Railway is a deployment target some customers use for their own workers. Hatchet does not run production services on Railway and does not store customer data there.
 
-> **REVIEW NEEDED**: Railway appears in the vendor inventory with customer and company data. The Company's documentation references Railway as a customer deployment target, not as Hatchet's own infrastructure. Confirm that Railway does not host any of Hatchet's production services or store Hatchet-managed customer data.
-
-Third-party connectivity to the system is managed through authenticated APIs, SSO, VPN, and service-specific access controls. Vendors with access to in-scope systems operate under contractual agreements that define security expectations, and their access is governed by the same least-privilege and monitoring controls described under Procedures. Customer-managed environments — including customer application code, worker runtime environments, and self-hosted Hatchet deployments — are outside the system boundary.
+Third-party connectivity uses authenticated APIs, SSO, the VPN, and service-specific access controls. Vendors with access to in-scope systems are under contract, and that access follows the least-privilege and monitoring controls in Procedures. Customer-managed environments, including customer application code, worker runtimes, and self-hosted Hatchet deployments, are outside the system.
 
 # Control Environment
 
 ## Integrity and Ethical Values
 
-Hatchet maintains a Code of Conduct that establishes behavioral expectations for all personnel — employees, contractors, interns, and anyone engaging with the Company in a professional capacity. The Code addresses respect and inclusivity, privacy and security, professionalism, collaboration, and reporting and accountability. All employees formally acknowledge the Code of Conduct, and contractors are required to do the same before beginning work.
+The Code of Conduct sets expectations for employees, contractors, interns, and anyone working with Hatchet in a professional capacity. It covers respect and inclusion, privacy and security, professionalism, collaboration, and reporting. Employees acknowledge the Code. Contractors acknowledge it before they start.
 
-The Company supports transparency and accountability through a Whistleblower Policy that enables personnel to report wrongdoing — including harassment, discrimination, policy violations (including HIPAA), and unethical behavior — anonymously and without fear of retaliation. Reports are submitted through a dedicated form and reviewed by the CTO; an alternative escalation path to the CEO exists for complaints involving the CTO.
+The Whistleblower Policy lets personnel report harassment, discrimination, policy violations (including HIPAA), and other misconduct anonymously and without retaliation. Reports go through an anonymous reporting channel. The CTO reviews them. A report about the CTO goes to the CEO.
 
-A formal disciplinary process governs how security violations and policy non-compliance are investigated and resolved. The Security Official investigates reported violations, determines appropriate consequences (up to and including termination), takes steps to prevent recurrence, and retains investigation documentation for a minimum of seven years. Personnel who report violations in good faith are protected from intimidation, threats, or retaliation.
+A disciplinary process covers security violations and policy non-compliance. The Security Official investigates, decides the consequence (up to termination), acts to prevent a repeat, and keeps the investigation record for at least seven years. Personnel who report in good faith are protected from intimidation, threats, and retaliation.
 
 ## Management Philosophy and Operating Style
 
-Hatchet's management approach to security reflects the Company's engineering-first culture. Security controls are embedded into development and operations workflows rather than managed as a separate compliance exercise. Infrastructure-as-code, automated CI pipelines, mandatory code review with segregation of duties, and continuous automated compliance monitoring are the primary enforcement mechanisms.
+Security controls sit in the development and operations workflow. Infrastructure-as-code, CI, mandatory code review with segregation of duties, and continuous compliance monitoring are the main enforcement mechanisms.
 
-Both co-founders are directly involved in security governance. All security policies are reviewed and approved jointly by the CEO and CTO on at least an annual cycle, and both are named in the business continuity and disaster recovery escalation chain. This direct executive involvement ensures that security decisions are made with full business context and that risk tolerance is set by the individuals most accountable for the Company's operations.
+The CEO and the CTO both take part in security governance. They review and approve security policies at least annually, and both are in the business continuity and disaster recovery escalation chain. They set risk tolerance.
 
 ## Organizational Structure and Assignment of Authority
 
-Hatchet's organizational structure is flat, consistent with its size and stage. Authority and accountability are clearly assigned:
+Hatchet does not have a formal board of directors. Oversight of the security program sits with the CEO and the CTO. They review and approve all policies and the annual risk assessment.
 
-- **Alexander Belanger (CEO)** sets Company strategy, approves security policies, and serves as the final escalation point for security violations and privacy matters.
-- **Gabriel Ruttner (CTO and Security Official)** owns the information security program — developing and overseeing policies and procedures, managing incident response, conducting risk assessments, approving disposal of classified media, and evaluating control effectiveness.
-- **The engineering team** is responsible for platform development, infrastructure operations, code review, and day-to-day execution of security procedures including change management, access control, and incident response.
+- **The CEO** sets company strategy, approves security policies, and is the final escalation point for security violations and privacy matters.
+- **The CTO, who is the Security Official,** owns the information security program. That includes policies and procedures, incident response, risk assessments, disposal of classified media, and evaluating whether controls work.
+- **Engineering** builds the platform, operates infrastructure, reviews code, and carries out change management, access control, and incident response.
 
-Roles and responsibilities are defined in the information security program and communicated to all personnel during onboarding. The assignment of security responsibilities is reinforced through policy acknowledgment, training completion tracking, and access controls that align system permissions with job function.
+Roles are defined in the information security program and covered in onboarding. Policy acknowledgment, training records, and access that matches job function keep those assignments in place.
 
 ## Commitment to Competence
 
-Hatchet evaluates competence during hiring and maintains it through ongoing training and performance management. The Company conducts background checks or reference checks on prospective employees, contractors, and third parties who will access sensitive data or production systems, scaled to the role's level of access and risk exposure.
+Hiring includes a background check or a reference check for employees, contractors, and third parties who will access sensitive data or production systems. The check matches the access and the risk of the role. A limited-scope exemption requires documented approval from the CEO or the CTO.
 
-All personnel complete general security awareness training within 30 days of onboarding and annually thereafter. The training covers social engineering identification and response, workstation security, common attack vectors, and sensitive data handling. In addition, all personnel complete HIPAA training (covering PHI types, obligations, and penalties) and GDPR training (covering personal data types, core principles, and data subject rights), reflecting the Company's regulatory obligations. Training completion is tracked through automated monitors that flag overdue personnel.
+Personnel complete security awareness training within 30 days of start and annually after that. The training covers social engineering, workstation security, common attack vectors, and handling sensitive data. Personnel whose roles require it also complete HIPAA training (PHI types, obligations, and penalties) and GDPR training (personal data types, principles, and data subject rights). Completion is tracked, and overdue training is flagged.
 
-Hatchet conducts regular performance evaluations that integrate security practices — recognizing good security behavior, constructively addressing security mistakes, and assessing security awareness for roles with significant system or data access.
+Performance reviews cover security practices for roles with significant system or data access.
 
 ## HR Policies and Practices
 
-Hatchet maintains a Human Resource Security Policy governing the security dimensions of the entire employment lifecycle.
+The Human Resource Security Policy covers the employment lifecycle. HR security records are retained for seven years.
 
-**Hiring.** Prospective personnel undergo background and/or reference checks appropriate to their role before being granted access to sensitive data or production systems. All new personnel sign non-disclosure and confidentiality agreements before accessing Company data or systems. Contractors with limited scope and no exposure to sensitive data may be exempted from formal background checks with documented executive approval, but must still sign confidentiality agreements before any access is granted.
+**Hiring.** Background or reference checks are completed before access to sensitive data or production systems, scaled to the role. New personnel sign a non-disclosure agreement before they access company data or systems. A limited-scope exemption from a background check requires documented executive approval and still requires a confidentiality agreement.
 
-**Onboarding.** The Company follows a structured onboarding process tracked through a dedicated checklist. New personnel are provisioned with role-appropriate access, complete required training (general security, HIPAA, GDPR), and acknowledge all applicable policies. Automated monitors verify that every new hire completes the onboarding checklist.
+**Onboarding.** Onboarding follows a checklist. New personnel receive role-appropriate access, complete security, HIPAA, and GDPR training as applicable, and acknowledge policies. A monitor checks that the checklist is completed.
 
-**During employment.** All personnel formally acknowledge and sign applicable security policies, tracked by automated monitors. Role-based and compliance-specific training is assigned based on responsibilities and regulatory requirements. Policy compliance is mandatory, and violations trigger the formal disciplinary process.
+**During employment.** Personnel acknowledge applicable security policies. Acknowledgments are tracked. Role-based and compliance training follows the person's responsibilities. Violations go through the disciplinary process.
 
-**Offboarding.** A structured offboarding checklist governs all departures. Hatchet revokes all system access within 24 hours or one business day, collects company property, and reminds departing personnel of ongoing confidentiality obligations that extend beyond the end of the relationship. Automated monitors verify that every offboarded individual has been fully removed from integrated systems.
+**Offboarding.** Departures follow a checklist. Access is revoked within 24 hours or one business day. Company property is collected. Departing personnel are reminded that confidentiality obligations continue. A monitor checks that the person has been removed from connected systems.
 
 # Risk Assessment
 
-Hatchet conducts formal risk assessments at least annually to identify and evaluate threats and vulnerabilities that could affect the Company's ability to meet its security commitments. The Company's Risk Management Policy defines the methodology: each identified risk is evaluated on likelihood and potential impact (financial, operational, reputational, regulatory) and rated as high, medium, or low.
+Hatchet runs a formal risk assessment at least annually. The Risk Management Policy scores each risk by likelihood and impact (financial, operational, reputational, and regulatory) and rates it high, medium, or low.
 
-High residual risks — such as regulatory non-compliance or significant data exposure — receive the highest priority treatment with immediate corrective actions. Medium risks are actively managed with documented contingency plans. Low risks are monitored to prevent escalation. Any risk exceeding defined tolerance levels is escalated to senior management for review.
+High residual risks, such as regulatory non-compliance or a significant data exposure, are treated first. Medium risks have a documented contingency plan. Low risks are monitored. A risk above tolerance is escalated to senior management.
 
-For each risk, the Company assigns a risk owner and records a treatment plan in a risk register specifying the chosen strategy (mitigate, avoid, transfer, or accept), responsible parties, required resources, and deadlines. Fraud risk is explicitly identified and assessed as part of the process. Risk monitoring occurs continuously, with formal reviews of control effectiveness on an annual basis.
+Each risk has an owner and a treatment in the risk register: mitigate, avoid, transfer, or accept, with the responsible party, the resources, and a deadline. Fraud risk is assessed as part of the same process. Control effectiveness is reviewed annually.
 
-**Vendor and third-party risk.** Hatchet addresses risks from vendors and third parties through its vendor management program. Before connecting any new technology vendor to the production environment, the Company completes a vendor risk assessment evaluating the vendor's security program, compliance certifications, data segregation controls, and support for data management and deletion. Vendors are classified by data sensitivity and risk level. Those handling sensitive or customer data must demonstrate an established security program, and vendors with potential access to PHI execute Business Associate Agreements that extend the same protective obligations. The vendor inventory and associated risk assessments are reviewed annually.
+**Vendor and third-party risk.** Before a technology vendor connects to production, Hatchet completes a vendor risk review covering the vendor's security program, certifications, data segregation, and support for deletion. Vendors are classified by data sensitivity and risk. Vendors that handle sensitive or customer data must show an established security program. Vendors with potential access to PHI sign a Business Associate Agreement. The inventory and the reviews are updated annually.
 
 # Information and Communication
 
-**Internal communication.** Hatchet communicates security policies, responsibilities, and control requirements to personnel through multiple reinforcing channels. All security policies are maintained in the compliance platform and require formal acknowledgment by relevant personnel — tracked by automated monitors that flag unsigned policies. New personnel receive policies and training during the onboarding process. The Company uses Slack for day-to-day communication of security-relevant matters, including access requests, incident coordination, and change notifications. Findings from risk assessments, control monitoring, and internal audits are escalated to management through defined reporting lines. When policies are updated, the Company communicates changes through internal channels and requires re-acknowledgment.
+**Internal communication.** Security policies live in the compliance platform. Personnel acknowledge the policies that apply to them, and unsigned policies are flagged. New personnel receive policies and training during onboarding. Slack is used for access requests, incident coordination, and change notices. Findings from risk assessments, control monitoring, and internal audits go to management. Policy changes are communicated internally, and personnel re-acknowledge the updated policy.
 
-**External communication.** Hatchet communicates with customers and stakeholders through several defined mechanisms. The Trust Center (trust.hatchet.run) publishes the Company's compliance posture, active frameworks, and security documentation. The status page (status.hatchet.run) provides real-time availability information and incident history for Hatchet Cloud, including API availability and the web console. System changes and maintenance activities that affect customers are communicated through the status page and external notifications. The Terms and Conditions, Privacy Policy, and DPA are published on hatchet.run and define the contractual framework under which the service operates. For privacy inquiries and data subject access requests, the Company provides a contact channel at legal@hatchet.run.
+**External communication.** The Trust Center (trust.hatchet.run) publishes the compliance posture, active frameworks, and security documentation. The status page (status.hatchet.run) shows availability and incident history for Hatchet Cloud, including the API and the console. Maintenance that affects customers is posted on the status page and sent as external notices. The Terms and Conditions, Privacy Policy, and DPA are published on hatchet.run.
+
+Vulnerability reports follow SECURITY.md. Reports on the open-source repositories use the private advisory form on GitHub, with security@hatchet.run as the fallback. Reports on the hosted service go to security@hatchet.run. Hatchet does not operate a bug bounty. Privacy requests go to legal@hatchet.run. Requests from law enforcement and other compelled-disclosure demands also go to legal@hatchet.run, are handled under the Law Enforcement and Compelled Disclosure Policy, and are preserved for 90 days where that policy requires it.
 
 # Monitoring
 
-**Ongoing automated monitoring.** Hatchet monitors control effectiveness on a continuous basis through automated monitors integrated into its compliance platform and cloud infrastructure. The Company maintains automated checks across its integrated systems that alert when controls drift from their expected state. These monitors cover access control (dormant account detection, MFA enforcement verification, access review completion, offboarding verification across Fly.io, Tailscale, Google Workspace, and other systems), infrastructure security (public bucket exposure on AWS and GCP, firewall and security group configurations, public SSH/RDP access, WAF status), endpoint compliance (disk encryption, firewall, screen lock, anti-malware status via Oneleet Agent), vulnerability management (ECR image scan findings, GuardDuty alerts, attack surface findings, Dependabot alerts, penetration test remediation), change management (code review approval requirements, deployment access restrictions), logging (CloudWatch retention, GCP audit log enablement, GCP flow logs, Cloudflare worker logging), data protection (encryption at rest on Cloud SQL, R2, Vercel; encryption in transit via TLS enforcement on Cloudflare zones), and email security (DMARC enablement, Google Workspace malicious content protections).
+**Ongoing automated monitoring.** Control operation is checked continuously by monitors in the compliance platform and in the cloud accounts. The checks cover access (dormant accounts, MFA, access review completion, and offboarding across Fly.io, Tailscale, Google Workspace, and other connected systems), infrastructure (public buckets on AWS, firewall and security group configuration, public SSH and RDP, and WAF status), endpoints (disk encryption, firewall, screen lock, and anti-malware through the Oneleet Agent), vulnerabilities (ECR image findings, GuardDuty, attack surface findings, Dependabot, and penetration test remediation), change management (review approval and deployment access), logging (CloudWatch retention, GCP audit logs on Cloud KMS and Secret Manager, and Cloudflare worker logging), encryption in transit (TLS on Cloudflare zones), and email (DMARC and Google Workspace protections).
 
-Infrastructure performance monitoring tracks production database health (RDS CPU utilization, I/O, free space, freeable memory), load balancer latency, and network flow data. AWS GuardDuty provides continuous threat detection, with all findings tracked through to remediation.
+Infrastructure monitoring covers production database health (RDS CPU, I/O, free space, and freeable memory). GuardDuty findings are tracked to remediation.
 
-**Periodic evaluations.** Hatchet performs an internal security audit annually to evaluate control effectiveness, verify compliance, and identify improvement areas. Risk assessments are conducted annually, and the risk register is updated for any material changes between cycles. Employee access reviews are completed at least annually across all critical systems and vendors. All security policies are reviewed and re-approved on an annual cycle by executive leadership.
+**Periodic evaluations.** Hatchet performs an internal security audit annually. The risk assessment is annual, and the risk register is updated when something material changes between assessments. Access reviews are completed at least annually. The CEO and the CTO review and approve security policies annually.
 
-**Subservice organization monitoring.** Hatchet monitors the services performed by its subservice organizations through both automated and manual activities. The compliance platform maintains connected integrations with AWS, GCP, and Cloudflare that continuously monitor configuration state, security posture, and control adherence through the automated monitors described above. The Company reviews independent third-party assessment reports (such as SOC 2 reports) from its subservice organizations annually and monitors their public status pages for service disruptions or material changes.
+**Subservice organization monitoring.** Connected integrations in the compliance platform continuously check configuration and security posture for AWS, GCP, and Cloudflare, including encryption settings, access, logging, and network exposure. Ubicloud is not connected to the compliance platform. Hatchet reviews Ubicloud's independent assessment and checks database access and network exposure through Teleport and firewall configuration. Hatchet reviews SOC 2 reports, or an equivalent independent assessment, from its subservice organizations annually, and watches their status pages for disruptions.
 
-**Deficiency remediation.** When monitoring activities, reviews, or assessments identify a control deficiency — through automated alerts, audit findings, or management review — Hatchet logs the finding, assigns an owner, and tracks it to remediation. Vulnerability remediation follows severity-based timelines (Critical within 7 days, High within 30 days, Medium within 60 days). Penetration test findings are individually tracked and verified as resolved. Unresolved items are escalated to management for prioritization.
+**Deficiency remediation.** A control gap found by a monitor, an audit, or a management review is logged, assigned, and tracked to closure. Vulnerability timelines are 7 days for critical, 30 days for high, and 60 days for medium. Penetration test findings are tracked individually and checked when closed. Open items are escalated to management.
 
 # Subservice Organizations
 
-The description does not extend to the services provided by Amazon Web Services, Google Cloud Platform, Cloudflare, and ClickHouse (collectively, the subservice organizations). Section 4 of this report and the description of the system only cover the relevant trust services criteria and related controls in support of the achievement of Hatchet's service commitments and system requirements and exclude the related controls of the subservice organizations.
+The description does not extend to the services provided by Amazon Web Services, Google Cloud Platform, Cloudflare, ClickHouse Cloud, and Ubicloud (collectively, the subservice organizations). Section 4 of this report and the description of the system only cover the relevant trust services criteria and related controls in support of the achievement of Hatchet's service commitments and system requirements and exclude the related controls of the subservice organizations.
 
 Although the subservice organizations have been carved out for the purposes of this report, Hatchet's management has assumed, in the design of the system, that certain complementary subservice organization controls (CSOCs) would be implemented by the subservice organizations. Such controls are necessary, in combination with controls at Hatchet, to provide reasonable assurance that Hatchet's service commitments and system requirements were achieved. Because the related service commitments and system requirements can only be achieved if the CSOCs are suitably designed and operating effectively during the audit period, each user entity must evaluate Hatchet's controls, related tests of controls, and results of tests described in Section 4 of this report, considering the types of related CSOCs expected to be implemented at the subservice organizations as shown below.
 
 The subservice organizations and their roles are:
 
-- **Amazon Web Services** — primary cloud hosting for production infrastructure, described under Infrastructure.
-- **Google Cloud Platform** — cloud infrastructure including compute, databases, KMS, and logging, described under Infrastructure.
-- **Cloudflare** — edge security, DNS, WAF, TLS termination, and content delivery, described under Infrastructure.
-- **ClickHouse** — managed analytics database for customer observability data, described under Infrastructure.
+- **Amazon Web Services.** Primary cloud hosting for the control plane, the shards, and production data stores, described under Infrastructure.
+- **Google Cloud Platform.** Cloud KMS, Secret Manager, and Artifact Registry, described under Infrastructure. GCP does not host production compute or production databases.
+- **Cloudflare.** Edge security, DNS, WAF, TLS termination, and content delivery, described under Infrastructure.
+- **ClickHouse Cloud.** Managed analytics database for customer observability data, reached over AWS PrivateLink, described under Infrastructure.
+- **Ubicloud.** Managed PostgreSQL for production customer shards in the US, EU, and Australia, described under Infrastructure. Ubicloud is not connected to the compliance platform. Monitoring is the annual report review plus Hatchet's own access and firewall checks.
 
-The following table maps the complementary subservice organization controls that each subservice organization is expected to implement. These mappings are based on the nature of services each provider delivers and should be verified against each subservice organization's SOC 2 report or equivalent independent assessment.
+The following table maps the complementary subservice organization controls that each subservice organization is expected to implement. These mappings are based on the services each provider delivers and should be checked against that provider's SOC 2 report or an equivalent independent assessment.
 
 | Subservice Organization | Complementary Subservice Organization Control |
 | --- | --- |
 | Amazon Web Services | Restrict physical access to data center facilities to authorized personnel. |
-| Amazon Web Services | Implement environmental protections — fire detection and suppression, climate control, and power redundancy — to safeguard infrastructure from environmental threats. |
+| Amazon Web Services | Implement environmental protections (fire detection and suppression, climate control, and power redundancy) to safeguard infrastructure from environmental threats. |
 | Amazon Web Services | Securely dispose of or sanitize storage media containing customer data before reuse or decommissioning. |
 | Amazon Web Services | Restrict logical access to production host infrastructure, hypervisors, and management planes to authorized personnel. |
 | Amazon Web Services | Monitor cloud infrastructure for security events, anomalies, and unauthorized access attempts. |
 | Amazon Web Services | Encrypt data at rest on managed storage and database services using industry-standard encryption algorithms. |
 | Amazon Web Services | Detect and mitigate network-level and application-level attacks against cloud infrastructure. |
-| Google Cloud Platform | Restrict physical access to data center facilities to authorized personnel. |
-| Google Cloud Platform | Implement environmental protections to safeguard infrastructure from environmental threats. |
+| Google Cloud Platform | Restrict physical access to data center facilities that host Cloud KMS and Secret Manager to authorized personnel. |
+| Google Cloud Platform | Implement environmental protections to safeguard that infrastructure from environmental threats. |
 | Google Cloud Platform | Securely dispose of or sanitize storage media before reuse or decommissioning. |
 | Google Cloud Platform | Restrict logical access to Cloud KMS key material and cryptographic operations to authorized services and personnel. |
-| Google Cloud Platform | Monitor cloud infrastructure for security events, anomalies, and unauthorized access attempts. |
-| Google Cloud Platform | Encrypt data at rest on managed storage and database services using industry-standard encryption algorithms. |
+| Google Cloud Platform | Restrict logical access to Secret Manager secrets to authorized services and personnel. |
+| Google Cloud Platform | Encrypt Cloud KMS key material and Secret Manager payloads at rest. |
+| Google Cloud Platform | Monitor Cloud KMS and Secret Manager for security events, anomalies, and unauthorized access attempts. |
 | Cloudflare | Maintain WAF rule sets and DDoS mitigation controls to protect customer traffic traversing the edge network. |
 | Cloudflare | Enforce TLS termination and encrypt data in transit across edge infrastructure using current protocol versions. |
 | Cloudflare | Restrict physical and logical access to network edge infrastructure to authorized personnel. |
 | Cloudflare | Monitor edge network infrastructure for security events, anomalies, and unauthorized access attempts. |
-| ClickHouse | Restrict physical and logical access to managed database infrastructure to authorized personnel. |
-| ClickHouse | Encrypt customer data at rest on managed storage using industry-standard encryption algorithms. |
-| ClickHouse | Monitor database infrastructure for security events and unauthorized access attempts. |
-| ClickHouse | Maintain backup and recovery controls for customer data stored in managed databases. |
+| ClickHouse Cloud | Restrict physical and logical access to managed database infrastructure to authorized personnel. |
+| ClickHouse Cloud | Encrypt customer data at rest on managed storage using industry-standard encryption algorithms. |
+| ClickHouse Cloud | Monitor database infrastructure for security events and unauthorized access attempts. |
+| ClickHouse Cloud | Maintain backup and recovery controls for customer data stored in managed databases. |
+| Ubicloud | Restrict physical access to data center facilities to authorized personnel. |
+| Ubicloud | Restrict logical access to host and database infrastructure to authorized personnel. |
+| Ubicloud | Encrypt customer data at rest using industry-standard encryption algorithms. |
+| Ubicloud | Maintain backup and recovery controls for customer data stored in managed databases. |
+| Ubicloud | Monitor database infrastructure for security events and unauthorized access attempts. |
 
-Management of Hatchet receives and reviews independent third-party assessment reports of its subservice organizations annually. In addition, management monitors the services performed by the subservice organizations through connected integrations in the compliance platform that continuously assess configuration state and security posture for AWS, GCP, and Cloudflare — including automated checks on encryption settings, access controls, logging enablement, and network exposure. Management monitors the subservice organizations' status pages to stay informed of service disruptions or material changes and maintains customer support channels to relay issues or concerns to subservice organization management.
+Management reviews independent third-party assessment reports of the subservice organizations annually. For AWS, GCP, and Cloudflare, management also uses connected integrations that continuously check encryption, access, logging, and network exposure. For Ubicloud, which has no compliance-platform integration, management reviews the provider's report and checks access paths and network exposure directly. Management monitors the subservice organizations' status pages for disruptions and uses customer support channels to raise issues with the provider.
 
-> **REVIEW NEEDED — Subservice Organization Classification and Monitoring Activities:**
->
-> **Included as subservice organizations (confirm each):**
->
-> - **Amazon Web Services** — Hosts production infrastructure and stores customer data (classified Secret, tagged Customer Data / PHI / PII). Hatchet cannot perform physical security, media disposal, or host-level infrastructure controls at AWS data centers; these must be performed by AWS. AWS is **not** marked [Subprocessor] on the trust center — confirm this is an oversight and update the subprocessor list accordingly.
-> - **Google Cloud Platform** — Extensive control monitoring (Cloud SQL databases, compute instances, KMS keys, load balancers, logging sinks) indicates GCP runs production infrastructure components. The data inventory classifies GCP-stored data as Secret ("Credentials and Secrets"). If GCP manages encryption keys (via Cloud KMS) that protect customer data, or hosts production databases or compute in the service delivery path, its physical and logical infrastructure controls are necessary for Hatchet's security commitments. GCP is **not** marked [Subprocessor]. Confirm whether GCP hosts production components in the service delivery path, or only internal operational infrastructure — if the latter, reclassify to bucket 2 and remove from this section.
-> - **Cloudflare** — All external customer traffic routes through Cloudflare for WAF, DDoS protection, and TLS termination. Hatchet's automated monitors track Cloudflare TLS configuration (TLS 1.3, minimum 1.2, full/strict encryption mode), WAF status, DNSSEC, and proxy enablement — indicating the system design depends on Cloudflare to fulfill encryption-in-transit and network protection commitments. Cloudflare is **not** marked [Subprocessor]; confirm and update the subprocessor list.
-> - **ClickHouse** — Stores customer observability data (classified Confidential, tagged Customer Data) that supports the platform's monitoring and logging features. No evidence of client-side encryption — ClickHouse can read this data. If ClickHouse's data protection controls fail, customer data confidentiality is affected. ClickHouse is **not** marked [Subprocessor] and has no connected integration in the compliance platform (no automated monitoring). Confirm ClickHouse is in the service delivery path, add it to the subprocessor list, and confirm whether Hatchet currently reviews a ClickHouse SOC 2 or equivalent report.
->
-> **Considered but excluded (bucket 2 — third party with system access, not subservice organizations):**
->
-> - **Teleport** [Subprocessor] — PAM tool for internal production access (session recording, short-lived credentials). Not in the service delivery path: customers do not interact with Teleport, and Hatchet's access control commitments are achievable through its own controls. The [Subprocessor] marker indicates Teleport processes data as a subprocessor under privacy law, but the subservice organization test is narrower. Confirm whether any security commitment depends on a control Teleport performs (e.g., integrity of session recordings for audit). If so, reclassify as a subservice organization.
-> - **Postmark** — Delivers transactional customer emails (tagged Customer Data). If email notifications are a feature of the platform rather than an operational convenience, and Postmark can read message content that constitutes customer data, Postmark may belong in bucket 1. Confirm whether platform alerting/notification features depend on Postmark delivery and whether the email content includes customer production data.
-> - **Ubicloud** — Stores Confidential "Application Data" in US, EU, and Australia, with processing locations matching Hatchet Cloud regions. Not connected as an integration. If Ubicloud hosts production workloads serving customers, it is likely a subservice organization. Confirm Ubicloud's role and reclassify accordingly.
-> - **Vercel** — Hosts the public website and frontend assets. Data inventory shows only Public-classified website traffic. Not in the customer data delivery path for the orchestration service.
->
-> **Monitoring activities:** The narrative above asserts that Hatchet reviews subservice organization SOC 2 reports annually, monitors status pages, and uses connected integrations for continuous posture assessment. Confirm these statements match actual practice — particularly whether Hatchet currently holds and reviews SOC 2 (or equivalent) reports from all four named subservice organizations, and whether status page monitoring is formalized or ad hoc.
+Teleport, Postmark, and Vercel are third parties, not subservice organizations. Teleport issues short-lived production credentials for Hatchet personnel. Customers do not use it, and Hatchet's access commitments are met by Hatchet's own controls. Postmark delivers transactional notification email. Vercel hosts the public website and frontend assets, which are classified Public and are not in the customer data path for the orchestration service.
 
 # System Incidents
 
@@ -415,14 +510,18 @@ All Security criteria are applicable to the system. The Availability, Processing
 
 # Complementary User Entity Controls
 
-Hatchet's services are built on a shared responsibility model. While Hatchet implements comprehensive controls on its side, certain security measures must be implemented by its customers in their own environments to ensure the overall security of the system. In the context of this report, these are referred to as "complementary user entity controls."
-
-Not all Trust Services Criteria can be met by Hatchet's controls alone. Customers should implement the following controls to provide additional assurance that the criteria described within this report are met. These represent key controls but are not exhaustive — auditors reviewing customer compliance should exercise judgment in determining what additional controls may apply.
+Hatchet Cloud is a shared-responsibility service. Hatchet's controls do not cover the customer's environment. The controls below are complementary user entity controls. They are the main ones. They are not a complete list. A customer's auditor should decide what else applies.
 
 | Trust Services Criteria | Complementary User Entity Controls |
 |------------------------|-----------------------------------|
 | CC2.1 | User entities are responsible for the security and integrity of their own data, including data used by Hatchet systems and services. |
+| CC6.1 | User entities protect API tokens and worker credentials, rotate them when personnel change, and set an expiry where the token supports one. |
+| CC6.1 | User entities enable SSO or multi-factor authentication on the identity provider they use to sign in to the console. |
 | CC6.2 | Authorized personnel at the user entity determine which individuals need access to Hatchet and grant permissions accordingly, including managing any API keys or credentials used to access the platform. |
 | CC6.3 | User entities periodically review authorized users and their access privileges. |
 | CC6.6 | User entities are responsible for protecting their data in transit to Hatchet. |
-| CC6.6 | User entities should maintain physical security and environmental controls for all devices and access points at their facilities — including remote employees — that connect to Hatchet. |
+| CC6.6 | User entities maintain physical security and environmental controls for devices and access points, including those used by remote personnel, that connect to Hatchet. |
+| CC6.6 | User entities secure the worker runtime where their code and task payloads execute. |
+| CC6.7 | User entities do not place PHI in Hatchet without an executed Business Associate Agreement, and they avoid placing secrets in task payloads or logs. |
+| CC7.2 | User entities monitor the status page, configure tenant alerting, and verify signatures on outbound webhooks. |
+| CC9.2 | User entities review this report, and the subservice organizations' reports, as part of their own vendor management program. |
