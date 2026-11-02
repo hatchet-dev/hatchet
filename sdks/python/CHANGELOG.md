@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fixes an issue where a worker would be blocked because the default ThreadPoolExecutor used by calls to `loop.run_in_executor(None, ...)` and `asyncio.to_thread` was exhausted. 
+- Fixes an issue where a worker would be blocked because the default ThreadPoolExecutor used by calls to `loop.run_in_executor(None, ...)` and `asyncio.to_thread` was exhausted.
 
 ## [1.44.0] - 2026-10-26
 
