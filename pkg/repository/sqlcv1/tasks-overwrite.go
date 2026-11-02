@@ -1221,3 +1221,160 @@ func (q *Queries) ListDurableOrchestratorChildTaskExternalIds(ctx context.Contex
 	}
 	return items, nil
 }
+
+const listTasksForDispatch = `-- name: ListTasksForDispatch :many
+SELECT
+    v1_task.id, v1_task.inserted_at, v1_task.tenant_id, v1_task.queue, v1_task.action_id, v1_task.step_id, v1_task.step_readable_id, v1_task.workflow_id, v1_task.workflow_version_id, v1_task.workflow_run_id, v1_task.schedule_timeout, v1_task.step_timeout, v1_task.priority, v1_task.sticky, v1_task.desired_worker_id, v1_task.external_id, v1_task.display_name, v1_task.input, v1_task.retry_count, v1_task.internal_retry_count, v1_task.app_retry_count, v1_task.step_index, v1_task.additional_metadata, v1_task.dag_id, v1_task.dag_inserted_at, v1_task.parent_task_external_id, v1_task.parent_task_id, v1_task.parent_task_inserted_at, v1_task.child_index, v1_task.child_key, v1_task.initial_state, v1_task.initial_state_reason, v1_task.concurrency_parent_strategy_ids, v1_task.concurrency_strategy_ids, v1_task.concurrency_keys, v1_task.batch_key, v1_task.retry_backoff_factor, v1_task.retry_max_backoff, v1_task.is_durable, v1_task.desired_worker_label, v1_task.triggering_event_external_id, v1_task.triggering_event_key, v1_task.idempotency_key, v1_task.is_dag_orchestrator, v1_task.concurrency_max_runs, v1_task.payload_reference_id, v1_task.triggers, v1_task.dag_parent_task_run_ids, v1_task.child_task_desired_worker_labels, v1_task.task_input_payload_version,
+    tr.task_id, tr.task_inserted_at, tr.retry_count, tr.worker_id, tr.batch_id, tr.batch_size, tr.batch_index, tr.batch_key, tr.tenant_id, tr.timeout_at, tr.evicted_at, tr.assigned_at, tr.acked_at,
+    p.id AS payload_id,
+    p.inserted_at AS payload_inserted_at,
+    p.external_id AS payload_external_id,
+    p.type AS payload_type,
+    p.location AS payload_location,
+    p.external_location_key AS payload_external_location_key,
+    p.inline_content AS payload_inline_content,
+    p.updated_at AS payload_updated_at
+FROM unnest((SELECT $2::bigint[])) AS ids(id)
+JOIN v1_task ON v1_task.tenant_id = $1::uuid
+    AND v1_task.id = ids.id
+JOIN v1_task_runtime tr ON tr.task_id = v1_task.id
+    AND tr.task_inserted_at = v1_task.inserted_at
+    AND tr.retry_count = v1_task.retry_count
+    AND tr.tenant_id = v1_task.tenant_id
+LEFT JOIN LATERAL read_payloads(
+    ARRAY[v1_task.tenant_id],
+    ARRAY[v1_task.id],
+    ARRAY[v1_task.inserted_at],
+    ARRAY['TASK_INPUT'::v1_payload_type],
+    ARRAY[COALESCE(v1_task.payload_reference_id, '00000000-0000-0000-0000-000000000000'::uuid)]
+) p ON true
+`
+
+// ListTasksForDispatchRow is hand-written because sqlc types the columns of a LEFT JOIN LATERAL
+// function as NOT NULL.
+type ListTasksForDispatchRow struct {
+	V1Task        V1Task        `json:"v1_task"`
+	V1TaskRuntime V1TaskRuntime `json:"v1_task_runtime"`
+	V1Payload     *V1Payload    `json:"v1_payload"`
+}
+
+// The ids go through unnest of a scalar subquery so the custom and generic plans are costed the same
+// (an initplan output is estimated at ten rows either way). With the array as a direct parameter, the
+// custom plan knows the real length and wins for short arrays, so every execution is planned again.
+//
+// A task appears once per payload row read_payloads returns for it, and once with a nil V1Payload
+// when it has none. A zero uuid stands in for a missing payload_reference_id.
+func (q *Queries) ListTasksForDispatch(ctx context.Context, db DBTX, tenantId uuid.UUID, ids []int64) ([]*ListTasksForDispatchRow, error) {
+	rows, err := db.Query(ctx, listTasksForDispatch, tenantId, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]*ListTasksForDispatchRow, 0, len(ids))
+	for rows.Next() {
+		var (
+			i                          ListTasksForDispatchRow
+			payloadID                  pgtype.Int8
+			payloadInsertedAt          pgtype.Timestamptz
+			payloadExternalID          *uuid.UUID
+			payloadType                NullV1PayloadType
+			payloadLocation            NullV1PayloadLocation
+			payloadExternalLocationKey pgtype.Text
+			payloadInlineContent       []byte
+			payloadUpdatedAt           pgtype.Timestamptz
+		)
+		if err := rows.Scan(
+			&i.V1Task.ID,
+			&i.V1Task.InsertedAt,
+			&i.V1Task.TenantID,
+			&i.V1Task.Queue,
+			&i.V1Task.ActionID,
+			&i.V1Task.StepID,
+			&i.V1Task.StepReadableID,
+			&i.V1Task.WorkflowID,
+			&i.V1Task.WorkflowVersionID,
+			&i.V1Task.WorkflowRunID,
+			&i.V1Task.ScheduleTimeout,
+			&i.V1Task.StepTimeout,
+			&i.V1Task.Priority,
+			&i.V1Task.Sticky,
+			&i.V1Task.DesiredWorkerID,
+			&i.V1Task.ExternalID,
+			&i.V1Task.DisplayName,
+			&i.V1Task.Input,
+			&i.V1Task.RetryCount,
+			&i.V1Task.InternalRetryCount,
+			&i.V1Task.AppRetryCount,
+			&i.V1Task.StepIndex,
+			&i.V1Task.AdditionalMetadata,
+			&i.V1Task.DagID,
+			&i.V1Task.DagInsertedAt,
+			&i.V1Task.ParentTaskExternalID,
+			&i.V1Task.ParentTaskID,
+			&i.V1Task.ParentTaskInsertedAt,
+			&i.V1Task.ChildIndex,
+			&i.V1Task.ChildKey,
+			&i.V1Task.InitialState,
+			&i.V1Task.InitialStateReason,
+			&i.V1Task.ConcurrencyParentStrategyIds,
+			&i.V1Task.ConcurrencyStrategyIds,
+			&i.V1Task.ConcurrencyKeys,
+			&i.V1Task.BatchKey,
+			&i.V1Task.RetryBackoffFactor,
+			&i.V1Task.RetryMaxBackoff,
+			&i.V1Task.IsDurable,
+			&i.V1Task.DesiredWorkerLabel,
+			&i.V1Task.TriggeringEventExternalID,
+			&i.V1Task.TriggeringEventKey,
+			&i.V1Task.IdempotencyKey,
+			&i.V1Task.IsDagOrchestrator,
+			&i.V1Task.ConcurrencyMaxRuns,
+			&i.V1Task.PayloadReferenceID,
+			&i.V1Task.Triggers,
+			&i.V1Task.DagParentTaskRunIds,
+			&i.V1Task.ChildTaskDesiredWorkerLabels,
+			&i.V1Task.TaskInputPayloadVersion,
+			&i.V1TaskRuntime.TaskID,
+			&i.V1TaskRuntime.TaskInsertedAt,
+			&i.V1TaskRuntime.RetryCount,
+			&i.V1TaskRuntime.WorkerID,
+			&i.V1TaskRuntime.BatchID,
+			&i.V1TaskRuntime.BatchSize,
+			&i.V1TaskRuntime.BatchIndex,
+			&i.V1TaskRuntime.BatchKey,
+			&i.V1TaskRuntime.TenantID,
+			&i.V1TaskRuntime.TimeoutAt,
+			&i.V1TaskRuntime.EvictedAt,
+			&i.V1TaskRuntime.AssignedAt,
+			&i.V1TaskRuntime.AckedAt,
+			&payloadID,
+			&payloadInsertedAt,
+			&payloadExternalID,
+			&payloadType,
+			&payloadLocation,
+			&payloadExternalLocationKey,
+			&payloadInlineContent,
+			&payloadUpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		if payloadID.Valid {
+			i.V1Payload = &V1Payload{
+				TenantID:            i.V1Task.TenantID,
+				ID:                  payloadID.Int64,
+				InsertedAt:          payloadInsertedAt,
+				ExternalID:          *payloadExternalID,
+				Type:                payloadType.V1PayloadType,
+				Location:            payloadLocation.V1PayloadLocation,
+				ExternalLocationKey: payloadExternalLocationKey,
+				InlineContent:       payloadInlineContent,
+				UpdatedAt:           payloadUpdatedAt,
+			}
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

@@ -15,6 +15,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/olap/signal"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
@@ -147,6 +148,7 @@ type Scheduler struct {
 
 	tasksWithNoWorkerCache *expirable.LRU[string, struct{}]
 	rateLimitedTasksCache  *expirable.LRU[string, struct{}]
+	dispatcherIds          *dispatcherIdCache
 
 	promGate *prometheus.Gate
 
@@ -213,6 +215,7 @@ func New(
 		pool:                   opts.pool,
 		tasksWithNoWorkerCache: tasksWithNoWorkerCache,
 		rateLimitedTasksCache:  rateLimitedTasksCache,
+		dispatcherIds:          newDispatcherIdCache(opts.repov1.Workers().GetDispatcherIdsForWorkers),
 		signaler:               signaler,
 		promGate:               opts.promGate,
 		queueMetrics:           newQueueMetricsPoller(opts.repov1.Tasks(), opts.l),
@@ -381,6 +384,8 @@ func (s *Scheduler) handleTask(ctx context.Context, task *msgqueue.Message) (err
 		return s.handleCheckQueue(ctx, task)
 	case msgqueue.MsgIDNewWorker:
 		return s.handleNewWorker(ctx, task)
+	case msgqueue.MsgIDWorkerDispatcherChanged:
+		return s.handleWorkerDispatcherChanged(ctx, task)
 	case msgqueue.MsgIDNewQueue:
 		return s.handleNewQueue(ctx, task)
 	case msgqueue.MsgIDNewConcurrencyStrategy:
@@ -423,6 +428,23 @@ func (s *Scheduler) handleNewWorker(ctx context.Context, msg *msgqueue.Message) 
 
 	for _, payload := range payloads {
 		s.pool.NotifyNewWorker(ctx, msg.TenantID, payload.WorkerId)
+	}
+
+	return nil
+}
+
+func (s *Scheduler) handleWorkerDispatcherChanged(ctx context.Context, msg *msgqueue.Message) error {
+	_, span := telemetry.NewSpanWithCarrier(ctx, "handle-worker-dispatcher-changed", msg.OtelCarrier)
+	defer span.End()
+
+	payloads := msgqueue.JSONConvert[tasktypes.WorkerDispatcherChangedPayload](msg.Payloads)
+
+	for _, payload := range payloads {
+		if payload.WorkerId == uuid.Nil || payload.DispatcherId == uuid.Nil {
+			continue
+		}
+
+		s.dispatcherIds.set(payload.WorkerId, payload.DispatcherId)
 	}
 
 	return nil
@@ -507,7 +529,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 
 	// bulk assign step runs
 	if len(res.Assigned) > 0 {
-		dispatcherIdToWorkerIdsToStepRuns := make(map[uuid.UUID]map[uuid.UUID][]int64)
+		dispatcherIdToAssignments := make(map[uuid.UUID]*tasktypes.TaskAssignedBulkTaskPayload)
 
 		workerIds := make([]uuid.UUID, 0)
 
@@ -515,7 +537,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 			workerIds = append(workerIds, assigned.WorkerId)
 		}
 
-		workerIdToDispatcherId, workersWithoutDispatchers, err := s.repov1.Workers().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
+		workerIdToDispatcherId, workersWithoutDispatchers, err := s.dispatcherIds.get(ctx, tenantId, workerIds)
 
 		if err != nil {
 			s.internalRetry(ctx, tenantId, res.Assigned...)
@@ -554,32 +576,29 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 				continue
 			}
 
-			_, hasNoDispatcher := workersWithoutDispatchers[bulkAssigned.WorkerId]
-			dispatcherId, ok := workerIdToDispatcherId[bulkAssigned.WorkerId]
-
-			if hasNoDispatcher || !ok {
-				s.l.Error().Ctx(ctx).Msg("could not assign step run to worker: no dispatcher id. attempting internal retry.")
-
-				s.internalRetry(ctx, tenantId, bulkAssigned)
-
-				continue
-			}
-
-			if _, ok := dispatcherIdToWorkerIdsToStepRuns[dispatcherId]; !ok {
-				dispatcherIdToWorkerIdsToStepRuns[dispatcherId] = make(map[uuid.UUID][]int64)
-			}
-
 			workerId := bulkAssigned.WorkerId
-
-			if _, ok := dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId]; !ok {
-				dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = make([]int64, 0)
-			}
-
-			if !bulkAssigned.IsAssignedLocally {
-				dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = append(dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId], bulkAssigned.QueueItem.TaskID)
-			}
-
 			taskId := bulkAssigned.QueueItem.TaskID
+
+			// locally assigned items were already sent to the worker
+			if !bulkAssigned.IsAssignedLocally {
+				hasNoDispatcher := enumerables.HasKey(workersWithoutDispatchers, workerId)
+				dispatcherId, ok := workerIdToDispatcherId[workerId]
+
+				if hasNoDispatcher || !ok {
+					s.l.Error().Ctx(ctx).Str("worker_id", workerId.String()).Msg("could not assign step run to worker: no dispatcher id. removing worker from the scheduler and attempting internal retry.")
+
+					s.pool.RemoveWorker(ctx, tenantId, workerId)
+					s.internalRetry(ctx, tenantId, bulkAssigned)
+
+					continue
+				}
+
+				if _, ok := dispatcherIdToAssignments[dispatcherId]; !ok {
+					dispatcherIdToAssignments[dispatcherId] = &tasktypes.TaskAssignedBulkTaskPayload{}
+				}
+
+				dispatcherIdToAssignments[dispatcherId].Add(workerId, taskId, bulkAssigned.QueueItem.RetryCount)
+			}
 
 			var durableInvCount int32
 			if count, ok := invocationCounts[repov1.IdInsertedAt{
@@ -616,8 +635,8 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 		}
 
 		// for each dispatcher, send a bulk assigned task
-		for dispatcherId, workerIdsToStepRuns := range dispatcherIdToWorkerIdsToStepRuns {
-			msg, err := taskBulkAssignedTask(tenantId, workerIdsToStepRuns)
+		for dispatcherId, assignments := range dispatcherIdToAssignments {
+			msg, err := taskBulkAssignedTask(tenantId, assignments)
 
 			if err != nil {
 				outerErr = multierror.Append(outerErr, fmt.Errorf("could not create bulk assigned task: %w", err))
@@ -913,17 +932,9 @@ func (s *Scheduler) internalRetry(ctx context.Context, tenantId uuid.UUID, assig
 }
 
 func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId uuid.UUID, res *v1.ConcurrencyResults) {
-	uniqueQueueNames := make(map[string]struct{}, 0)
+	uniqueQueueNames := enumerables.ToSet(res.Queued, func(task repov1.TaskWithQueue) string { return task.Queue })
 
-	for _, task := range res.Queued {
-		uniqueQueueNames[task.Queue] = struct{}{}
-	}
-
-	uniqueNextStrategies := make(map[int64]struct{}, len(res.NextConcurrencyStrategies))
-
-	for _, id := range res.NextConcurrencyStrategies {
-		uniqueNextStrategies[id] = struct{}{}
-	}
+	uniqueNextStrategies := enumerables.ToSet(res.NextConcurrencyStrategies, func(id int64) int64 { return id })
 
 	strategies := make([]int64, 0, len(uniqueNextStrategies))
 
@@ -1150,6 +1161,7 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId uuid.UU
 
 		dispatcherID, ok := workerIdToDispatcherId[key.WorkerID]
 		if !ok {
+			s.pool.RemoveWorker(ctx, tenantId, key.WorkerID)
 			s.internalRetry(ctx, tenantId, group...)
 			releaseOnError()
 			result = multierror.Append(result, fmt.Errorf("could not assign batch to worker %s: dispatcher id missing", key.WorkerID))
@@ -1335,15 +1347,13 @@ func describeBatchFlushReason(reason repov1.BatchFlushReason, batchSize int, int
 	}
 }
 
-func taskBulkAssignedTask(tenantId uuid.UUID, workerIdsToTaskIds map[uuid.UUID][]int64) (*msgqueue.Message, error) {
+func taskBulkAssignedTask(tenantId uuid.UUID, assignments *tasktypes.TaskAssignedBulkTaskPayload) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDTaskAssignedBulk,
 		false,
 		true,
-		tasktypes.TaskAssignedBulkTaskPayload{
-			WorkerIdToTaskIds: workerIdsToTaskIds,
-		},
+		*assignments,
 	)
 }
 
@@ -1551,10 +1561,7 @@ func (s *Scheduler) handleDeadLetteredDurableCallbackCompleted(ctx context.Conte
 		return fmt.Errorf("could not resolve tasks for undelivered durable callbacks: %w", err)
 	}
 
-	flatByExternalId := make(map[uuid.UUID]*sqlcv1.FlattenExternalIdsRow, len(flatTasks))
-	for _, t := range flatTasks {
-		flatByExternalId[t.ExternalID] = t
-	}
+	flatByExternalId := enumerables.KeyBy(flatTasks, func(t *sqlcv1.FlattenExternalIdsRow) uuid.UUID { return t.ExternalID })
 
 	callbacks := make([]repov1.SatisfiedEntry, 0, len(payloads))
 
@@ -1628,7 +1635,7 @@ func (s *Scheduler) handleDeadLetteredTaskCancelled(ctx context.Context, msg *ms
 	for _, p := range payloads {
 		// if we no longer have the worker attached to a dispatcher, discard the message
 		dispatcherId, ok := workerIdToDispatcherId[p.WorkerId]
-		_, hasNoDispatcher := workersWithoutDispatchers[p.WorkerId]
+		hasNoDispatcher := enumerables.HasKey(workersWithoutDispatchers, p.WorkerId)
 
 		if hasNoDispatcher || !ok {
 			continue

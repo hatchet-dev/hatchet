@@ -94,15 +94,14 @@ WHERE
 RETURNING *;
 
 -- name: PollCronSchedules :many
-WITH eligible_cron_with_versions AS MATERIALIZED (
+-- Returns every cron schedule this ticker should have scheduled: crons it already owns plus crons it claims
+-- on this poll (unassigned, or owned by a ticker that stopped heartbeating). Only the claimed rows are
+-- written; already-owned rows are read without an UPDATE so a steady-state poll generates no row churn.
+WITH eligible_crons AS (
     SELECT
-        cronSchedule."parentId",
-        cronSchedule."cron",
-        cronSchedule."name",
+        cronSchedule."id",
         triggers."workflowVersionId",
-        triggers."tenantId",
-        versions."workflowId",
-        versions."order"
+        triggers."tenantId"
     FROM
         "WorkflowTriggerCronRef" as cronSchedule
     JOIN
@@ -116,12 +115,14 @@ WITH eligible_cron_with_versions AS MATERIALIZED (
     WHERE cronSchedule."enabled" = TRUE
         AND versions."deletedAt" IS NULL
         AND tenant."deletedAt" IS NULL
-        AND (
-            cronSchedule."tickerId" IS NULL
-            OR NOT EXISTS (
-                SELECT 1 FROM "Ticker" WHERE "id" = cronSchedule."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
-            )
-            OR cronSchedule."tickerId" = @tickerId::uuid
+        AND versions."id" = (
+            SELECT latestVersion."id"
+            FROM "WorkflowVersion" as latestVersion
+            WHERE
+                latestVersion."workflowId" = versions."workflowId"
+                AND latestVersion."deletedAt" IS NULL
+            ORDER BY latestVersion."order" DESC
+            LIMIT 1
         )
         AND (
             workflow."isPaused" IS NULL
@@ -130,63 +131,59 @@ WITH eligible_cron_with_versions AS MATERIALIZED (
                 workflow."isPaused" = TRUE AND workflow."pausedWorkflowCronRunQueueBehavior" = 'QUEUE'
             )
         )
+),
+crons_to_claim AS MATERIALIZED (
+    SELECT
+        cronSchedule."id"
+    FROM
+        "WorkflowTriggerCronRef" as cronSchedule
+    JOIN
+        eligible_crons ON eligible_crons."id" = cronSchedule."id"
+    WHERE
+        cronSchedule."tickerId" IS DISTINCT FROM @tickerId::uuid
+        AND (
+            cronSchedule."tickerId" IS NULL
+            OR NOT EXISTS (
+                SELECT 1 FROM "Ticker" WHERE "id" = cronSchedule."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
+            )
+        )
     FOR UPDATE OF cronSchedule SKIP LOCKED
 ),
-latest_workflow_versions AS (
-    SELECT
-        DISTINCT ON ("workflowId")
-        "workflowId",
-        "id"
+claimed_crons AS (
+    UPDATE
+        "WorkflowTriggerCronRef" as cronSchedule
+    SET
+        "tickerId" = @tickerId::uuid
     FROM
-        "WorkflowVersion"
-    WHERE
-        "deletedAt" IS NULL
-    ORDER BY "workflowId", "order" DESC
-),
-eligible_cron_schedules AS (
-    SELECT
-        ecv."parentId",
-        ecv."cron",
-        ecv."name",
-        ecv."workflowVersionId",
-        ecv."tenantId"
-    FROM
-        eligible_cron_with_versions as ecv
+        crons_to_claim
     JOIN
-        latest_workflow_versions as l ON ecv."workflowId" = l."workflowId" AND ecv."workflowVersionId" = l."id"
+        eligible_crons ON eligible_crons."id" = crons_to_claim."id"
+    WHERE
+        cronSchedule."id" = crons_to_claim."id"
+    RETURNING cronSchedule.*, eligible_crons."workflowVersionId", eligible_crons."tenantId"
 )
-UPDATE
-    "WorkflowTriggerCronRef" as cronSchedules
-SET
-    "tickerId" = @tickerId::uuid
+SELECT * FROM claimed_crons
+UNION ALL
+SELECT
+    cronSchedule.*,
+    eligible_crons."workflowVersionId",
+    eligible_crons."tenantId"
 FROM
-    eligible_cron_schedules
+    "WorkflowTriggerCronRef" as cronSchedule
+JOIN
+    eligible_crons ON eligible_crons."id" = cronSchedule."id"
 WHERE
-    cronSchedules."parentId" = eligible_cron_schedules."parentId"
-    AND cronSchedules."cron" = eligible_cron_schedules."cron"
-    AND cronSchedules."name" = eligible_cron_schedules."name"
-
-RETURNING cronSchedules.*, eligible_cron_schedules."workflowVersionId", eligible_cron_schedules."tenantId";
+    cronSchedule."tickerId" = @tickerId::uuid;
 
 -- name: PollScheduledWorkflows :many
--- Finds workflows that are either past their execution time or will be in the next 5 seconds and assigns them
--- to a ticker, or finds workflows that were assigned to a ticker that is no longer active
-WITH latest_workflow_versions AS (
-    SELECT
-        DISTINCT ON("workflowId")
-        "workflowId",
-        "id"
-    FROM
-        "WorkflowVersion"
-    WHERE
-        "deletedAt" IS NULL
-    ORDER BY "workflowId", "order" DESC
-), not_run_scheduled_workflows AS (
+-- Returns every scheduled workflow this ticker should have scheduled: ones due within the next 5 seconds that
+-- it already owns, plus ones it claims on this poll (unassigned, or owned by a ticker that stopped
+-- heartbeating). Only the claimed rows are written; already-owned rows are read without an UPDATE.
+WITH eligible_schedules AS (
     SELECT
         scheduledWorkflow."id",
-        latestVersions."id" AS "workflowVersionId",
-        workflow."tenantId" AS "tenantId",
-        scheduledWorkflow."additionalMetadata" AS "additionalMetadata"
+        versions."id" AS "workflowVersionId",
+        workflow."tenantId"
     FROM
         "WorkflowTriggerScheduledRef" AS scheduledWorkflow
     JOIN
@@ -195,20 +192,11 @@ WITH latest_workflow_versions AS (
         "Workflow" AS workflow ON workflow."id" = versions."workflowId"
     JOIN
         "Tenant" AS tenant ON tenant."id" = workflow."tenantId"
-    JOIN
-        latest_workflow_versions AS latestVersions ON latestVersions."workflowId" = workflow."id"
     WHERE
-        "triggerAt" <= NOW() + INTERVAL '5 seconds'
+        scheduledWorkflow."triggerAt" <= NOW() + INTERVAL '5 seconds'
         AND versions."deletedAt" IS NULL
         AND workflow."deletedAt" IS NULL
         AND tenant."deletedAt" IS NULL
-        AND (
-            "tickerId" IS NULL
-            OR NOT EXISTS (
-                SELECT 1 FROM "Ticker" WHERE "id" = scheduledWorkflow."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
-            )
-            OR "tickerId" = @tickerId::uuid
-        )
         AND NOT EXISTS (
             SELECT 1
             FROM "WorkflowRunTriggeredBy" AS runTriggeredBy
@@ -221,29 +209,49 @@ WITH latest_workflow_versions AS (
                 workflow."isPaused" = TRUE AND workflow."pausedWorkflowScheduledRunQueueBehavior" = 'QUEUE'
             )
         )
-    ORDER BY scheduledWorkflow."triggerAt" ASC, scheduledWorkflow."id" ASC
 ),
-active_scheduled_workflows AS (
+schedules_to_claim AS MATERIALIZED (
     SELECT
-        *
+        scheduledWorkflow."id"
     FROM
-        "WorkflowTriggerScheduledRef"
-    WHERE "id" IN (SELECT "id" FROM not_run_scheduled_workflows)
-    ORDER BY "triggerAt" ASC, "id" ASC
-    FOR UPDATE SKIP LOCKED
+        "WorkflowTriggerScheduledRef" AS scheduledWorkflow
+    JOIN
+        eligible_schedules ON eligible_schedules."id" = scheduledWorkflow."id"
+    WHERE
+        scheduledWorkflow."tickerId" IS DISTINCT FROM @tickerId::uuid
+        AND (
+            scheduledWorkflow."tickerId" IS NULL
+            OR NOT EXISTS (
+                SELECT 1 FROM "Ticker" WHERE "id" = scheduledWorkflow."tickerId" AND "isActive" = true AND "lastHeartbeatAt" >= NOW() - INTERVAL '10 seconds'
+            )
+        )
+    FOR UPDATE OF scheduledWorkflow SKIP LOCKED
+),
+claimed_schedules AS (
+    UPDATE
+        "WorkflowTriggerScheduledRef" AS scheduledWorkflow
+    SET
+        "tickerId" = @tickerId::uuid
+    FROM
+        schedules_to_claim
+    JOIN
+        eligible_schedules ON eligible_schedules."id" = schedules_to_claim."id"
+    WHERE
+        scheduledWorkflow."id" = schedules_to_claim."id"
+    RETURNING scheduledWorkflow.*, eligible_schedules."workflowVersionId", eligible_schedules."tenantId"
 )
-
-UPDATE
-    "WorkflowTriggerScheduledRef" as scheduledWorkflows
-SET
-    "tickerId" = @tickerId::uuid
+SELECT * FROM claimed_schedules
+UNION ALL
+SELECT
+    scheduledWorkflow.*,
+    eligible_schedules."workflowVersionId",
+    eligible_schedules."tenantId"
 FROM
-    active_scheduled_workflows
-JOIN "WorkflowVersion" as versions ON versions."id" = active_scheduled_workflows."parentId"
-JOIN "Workflow" as workflow ON workflow."id" = versions."workflowId"
+    "WorkflowTriggerScheduledRef" AS scheduledWorkflow
+JOIN
+    eligible_schedules ON eligible_schedules."id" = scheduledWorkflow."id"
 WHERE
-    scheduledWorkflows."id" = active_scheduled_workflows."id"
-RETURNING scheduledWorkflows.*, versions."id" AS "workflowVersionId", workflow."tenantId";
+    scheduledWorkflow."tickerId" = @tickerId::uuid;
 
 -- name: PollTenantAlerts :many
 -- Finds tenant alerts which haven't alerted since their frequency and assigns them to a ticker

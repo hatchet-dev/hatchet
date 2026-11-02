@@ -768,13 +768,13 @@ func TestWorkerStatusRequestsAreSplitByMaxEntries(t *testing.T) {
 		keys[nodeID] = PendingCallbackKey{TaskID: "task1", SignalKey: 1, NodeID: int64(nodeID)}
 	}
 
-	requests := workerStatusRequests("test-worker", keys, 10)
+	requests := workerStatusRequests("test-worker", keys, nil, 10)
 
 	require.Len(t, requests, 3)
 	assert.Len(t, requests[0].GetWorkerStatus().GetWaitingEntries(), 10)
 	assert.Len(t, requests[1].GetWorkerStatus().GetWaitingEntries(), 10)
 	assert.Len(t, requests[2].GetWorkerStatus().GetWaitingEntries(), 5)
-	assert.Empty(t, workerStatusRequests("test-worker", nil, 10))
+	assert.Empty(t, workerStatusRequests("test-worker", nil, nil, 10))
 }
 
 // --- Trigger runs ---

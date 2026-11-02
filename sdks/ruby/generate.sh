@@ -41,6 +41,7 @@ generate_proto() {
     "v1/shared/trigger.proto"
     "v1/dispatcher.proto"
     "v1/workflows.proto"
+    "v1/streams.proto"
   )
 
   for proto_file in "${proto_files[@]}"; do

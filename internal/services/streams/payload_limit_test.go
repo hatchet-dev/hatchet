@@ -47,7 +47,15 @@ func TestMaxPayloadFitsInGRPCMessages(t *testing.T) {
 			entry := &contracts.StreamEntry{Payload: payload, Cursor: cursor, CreatedAt: timestamppb.Now()}
 			chunks := chunkStreamEntries([]*contracts.StreamEntry{entry, entry})
 
-			publishSize := proto.Size(publish)
+			batch := &contracts.PublishStreamMessagesRequest{
+				Namespace:        name,
+				Topic:            name,
+				ProducerId:       uuid.NewString(),
+				FirstProducerSeq: math.MaxInt64,
+				Entries:          []*contracts.StreamPublishEntry{{Payload: payload}},
+			}
+
+			publishSize := max(proto.Size(publish), proto.Size(batch))
 			frameSize := proto.Size(&contracts.StreamMessage{Entries: chunks[0]})
 
 			t.Logf("publish request %d bytes, delivered frame %d bytes, of %d", publishSize, frameSize, grpcMaxMessageBytes)

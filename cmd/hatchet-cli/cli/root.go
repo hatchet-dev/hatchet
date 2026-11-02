@@ -40,10 +40,31 @@ func Execute() {
 	waitForTelemetry := telemetry.Report(Version)
 	defer waitForTelemetry()
 
-	if err := rootCmd.Execute(); err != nil {
+	updateNotice := startUpdateCheck()
+
+	cmd, err := rootCmd.ExecuteC()
+	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+
+	for c := cmd; c != nil; c = c.Parent() {
+		if noUpdateNoticeCommands[c.Name()] {
+			return
+		}
+	}
+
+	if msg := updateNotice(); msg != "" {
+		fmt.Fprintln(os.Stderr, msg)
+	}
+}
+
+var noUpdateNoticeCommands = map[string]bool{
+	"upgrade":                       true,
+	"version":                       true,
+	"completion":                    true,
+	cobra.ShellCompRequestCmd:       true,
+	cobra.ShellCompNoDescRequestCmd: true,
 }
 
 func init() {

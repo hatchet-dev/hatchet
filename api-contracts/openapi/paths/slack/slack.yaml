@@ -39,6 +39,8 @@ slackWebhook:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Method not allowed
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: List Slack integrations
     tags:
       - Slack
@@ -79,6 +81,8 @@ deleteSlack:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Method not allowed
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Delete Slack webhook
     tags:
       - Slack

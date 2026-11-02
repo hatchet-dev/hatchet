@@ -1,6 +1,6 @@
-import { AxiosError } from 'axios';
 import { V1CELDebugResponseStatus } from '@hatchet/clients/rest/generated/data-contracts';
-import { HatchetClient } from '../client';
+import type { RestApi, RestClientDeps } from '@hatchet/clients/rest/rest-api';
+import { rethrowRestError } from '@hatchet/clients/rest/errors';
 
 export type DebugCELInput = {
   expression: string;
@@ -23,10 +23,10 @@ export type CELEvaluationResult =
  * Client for debugging CEL expressions.
  */
 export class CELClient {
-  api: HatchetClient['api'];
+  api: RestApi;
   tenantId: string;
 
-  constructor(client: HatchetClient) {
+  constructor(client: RestClientDeps) {
     this.api = client.api;
     this.tenantId = client.tenantId;
   }
@@ -62,10 +62,7 @@ export class CELClient {
         output: response.data.output,
       };
     } catch (err) {
-      if (err instanceof AxiosError) {
-        throw new Error(JSON.stringify(err.response?.data.errors), { cause: err });
-      }
-      throw err;
+      rethrowRestError(err);
     }
   }
 }

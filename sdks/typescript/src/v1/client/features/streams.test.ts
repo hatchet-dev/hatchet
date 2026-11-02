@@ -20,7 +20,7 @@ function entry(byte: number, cursor: string) {
   return { payload: new Uint8Array([byte]), cursor, createdAt: undefined };
 }
 
-describe('StreamsClient.events cancellation', () => {
+describe('StreamsClient.subscribe cancellation', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
@@ -29,8 +29,27 @@ describe('StreamsClient.events cancellation', () => {
     async function* subscribeStub() {
       yield { entries: [entry(1, 'c1')], hangup: false };
       yield { entries: [], hangup: true };
-      // events() must never reach this -- a hangup ends the iteration
+      // subscribe() must never reach this -- a hangup ends the iteration
       yield { entries: [entry(2, 'c2')], hangup: false };
+    }
+
+    const subscribe = jest.fn(() => subscribeStub());
+    mockedCreateGrpcClient.mockReturnValue({ client: { subscribe } } as any);
+
+    const streams = new StreamsClient(fakeHatchetClient());
+
+    const received: number[] = [];
+    for await (const event of streams.subscribe('topic')) {
+      received.push(event.payload[0]);
+    }
+
+    expect(received).toEqual([1]);
+  });
+
+  it('reads the same events through the events() alias', async () => {
+    async function* subscribeStub() {
+      yield { entries: [entry(1, 'c1')], hangup: false };
+      yield { entries: [], hangup: true };
     }
 
     const subscribe = jest.fn(() => subscribeStub());
@@ -65,7 +84,9 @@ describe('StreamsClient.events cancellation', () => {
 
     const streams = new StreamsClient(fakeHatchetClient());
     const controller = new AbortController();
-    const iterator = streams.events('topic', { signal: controller.signal })[Symbol.asyncIterator]();
+    const iterator = streams
+      .subscribe('topic', { signal: controller.signal })
+      [Symbol.asyncIterator]();
 
     const first = await iterator.next();
     expect(first.done).toBe(false);
@@ -90,7 +111,7 @@ describe('StreamsClient.events cancellation', () => {
     const streams = new StreamsClient(fakeHatchetClient());
 
     await expect(async () => {
-      for await (const _event of streams.events('topic')) {
+      for await (const _event of streams.subscribe('topic')) {
         // drain
       }
     }).rejects.toThrow('transport failure');
@@ -111,7 +132,7 @@ describe('StreamsClient.events cancellation', () => {
     const streams = new StreamsClient(fakeHatchetClient());
 
     const received: number[] = [];
-    for await (const event of streams.events('topic')) {
+    for await (const event of streams.subscribe('topic')) {
       received.push(event.payload[0]);
       if (received.length === 1) {
         break;
@@ -134,7 +155,7 @@ describe('StreamsClient.publish producer sequencing', () => {
       if (err) throw err;
       return {};
     });
-    mockedCreateGrpcClient.mockReturnValue({ client: { publish } } as any);
+    mockedCreateGrpcClient.mockReturnValue({ client: { publishBatch: publish } } as any);
     return { streams: new StreamsClient(fakeHatchetClient()), publish };
   }
 
@@ -147,9 +168,9 @@ describe('StreamsClient.publish producer sequencing', () => {
 
     const reqs = publish.mock.calls.map(([req]) => req);
     expect(reqs[1].producerId).toBe(reqs[0].producerId);
-    expect(reqs[1].producerSeq).toBe(1);
+    expect(reqs[1].firstProducerSeq).toBe(1);
     expect(reqs[2].producerId).not.toBe(reqs[1].producerId);
-    expect(reqs[2].producerSeq).toBe(0);
+    expect(reqs[2].firstProducerSeq).toBe(0);
   });
 
   it('retries a sequence gap once as a new producer instead of failing', async () => {
@@ -160,9 +181,9 @@ describe('StreamsClient.publish producer sequencing', () => {
 
     const reqs = publish.mock.calls.map(([req]) => req);
     expect(reqs).toHaveLength(3);
-    expect(reqs[1].producerSeq).toBe(1);
+    expect(reqs[1].firstProducerSeq).toBe(1);
     expect(reqs[2].producerId).not.toBe(reqs[1].producerId);
-    expect(reqs[2].producerSeq).toBe(0);
+    expect(reqs[2].firstProducerSeq).toBe(0);
   });
 
   it('surfaces a second consecutive sequence gap', async () => {
@@ -175,6 +196,100 @@ describe('StreamsClient.publish producer sequencing', () => {
     expect(publish).toHaveBeenCalledTimes(2);
   });
 
+  it('sends the publishes queued behind an in-flight request as one batch, in call order', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const publish = jest.fn(async (req: any) => {
+      if (publish.mock.calls.length === 1) await gate;
+      return { req };
+    });
+    mockedCreateGrpcClient.mockReturnValue({ client: { publishBatch: publish } } as any);
+    const streams = new StreamsClient(fakeHatchetClient());
+
+    const published = ['a', 'b', 'c', 'd'].map((m) => streams.publish('topic', m));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(publish).toHaveBeenCalledTimes(1);
+
+    release();
+    await Promise.all(published);
+
+    const reqs = publish.mock.calls.map(([req]) => req);
+    const text = (entries: any[]) => entries.map((e) => new TextDecoder().decode(e.payload));
+    expect(reqs.map((r) => [text(r.entries), r.firstProducerSeq])).toEqual([
+      [['a'], 0],
+      [['b', 'c', 'd'], 1],
+    ]);
+    expect(reqs[1].producerId).toBe(reqs[0].producerId);
+  });
+
+  it('fails every publish in a batch the engine rejects, and starts the next at the same seq', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const publish = jest.fn(async (_req: any) => {
+      const call = publish.mock.calls.length;
+      if (call === 1) await gate;
+      if (call === 2) throw grpcError(Status.INVALID_ARGUMENT);
+      return {};
+    });
+    mockedCreateGrpcClient.mockReturnValue({ client: { publishBatch: publish } } as any);
+    const streams = new StreamsClient(fakeHatchetClient());
+
+    const first = streams.publish('topic', 'a');
+    const rejected = [streams.publish('topic', 'b'), streams.publish('topic', 'c')];
+    release();
+    await first;
+    await Promise.all(rejected.map((p) => expect(p).rejects.toThrow()));
+    await streams.publish('topic', 'd');
+
+    const reqs = publish.mock.calls.map(([req]) => req);
+    expect(reqs.map((r) => [r.entries.length, r.firstProducerSeq])).toEqual([
+      [1, 0],
+      [2, 1],
+      [1, 1],
+    ]);
+  });
+
+  it('rejects an empty payload or a bad batch timeout without sending anything', async () => {
+    const { streams, publish } = setup([]);
+
+    await expect(streams.publish('topic', '')).rejects.toThrow(/payload is empty/);
+    await expect(streams.publish('topic', 'a', { batchTimeoutMs: -1 })).rejects.toThrow(
+      /batchTimeoutMs must be/
+    );
+    expect(publish).not.toHaveBeenCalled();
+
+    await streams.publish('topic', 'a');
+    expect(publish.mock.calls.map(([req]) => req.firstProducerSeq)).toEqual([0]);
+  });
+
+  it('falls back to one Publish per message against an engine without PublishBatch, and remembers it', async () => {
+    const publishBatch = jest.fn(async (_req: any) => {
+      throw grpcError(Status.UNIMPLEMENTED);
+    });
+    const publish = jest.fn(async (_req: any) => ({}));
+    mockedCreateGrpcClient.mockReturnValue({ client: { publishBatch, publish } } as any);
+    const streams = new StreamsClient(fakeHatchetClient());
+
+    await Promise.all(
+      ['a', 'b', 'c'].map((m) => streams.publish('topic', m, { batchTimeoutMs: 20 }))
+    );
+    await streams.publish('topic', 'd');
+
+    expect(publishBatch).toHaveBeenCalledTimes(1);
+    const reqs = publish.mock.calls.map(([req]) => req);
+    expect(reqs.map((r) => [new TextDecoder().decode(r.payload), r.producerSeq])).toEqual([
+      ['a', 0],
+      ['b', 1],
+      ['c', 2],
+      ['d', 3],
+    ]);
+    expect(new Set(reqs.map((r) => r.producerId)).size).toBe(1);
+  });
+
   it('reuses the seq when the server rejected the publish before storing it', async () => {
     const { streams, publish } = setup([grpcError(Status.RESOURCE_EXHAUSTED)]);
 
@@ -183,7 +298,7 @@ describe('StreamsClient.publish producer sequencing', () => {
 
     const reqs = publish.mock.calls.map(([req]) => req);
     expect(reqs[1].producerId).toBe(reqs[0].producerId);
-    expect(reqs[1].producerSeq).toBe(0);
+    expect(reqs[1].firstProducerSeq).toBe(0);
   });
 });
 
@@ -204,7 +319,7 @@ describe('StreamsClient without the durable streams entitlement', () => {
       if (err) throw err;
       return {};
     });
-    mockedCreateGrpcClient.mockReturnValue({ client: { publish } } as any);
+    mockedCreateGrpcClient.mockReturnValue({ client: { publishBatch: publish } } as any);
     const streams = new StreamsClient(fakeHatchetClient());
 
     await expect(streams.publish('topic', 'a')).rejects.toMatchObject({
@@ -217,10 +332,10 @@ describe('StreamsClient without the durable streams entitlement', () => {
 
     const reqs = publish.mock.calls.map(([req]) => req);
     expect(reqs[1].producerId).toBe(reqs[0].producerId);
-    expect(reqs[1].producerSeq).toBe(0);
+    expect(reqs[1].firstProducerSeq).toBe(0);
   });
 
-  it('throws from events() instead of ending the iteration as if the topic were quiet', async () => {
+  it('throws from subscribe() instead of ending the iteration as if the topic were quiet', async () => {
     // eslint-disable-next-line require-yield
     async function* subscribeStub(): AsyncGenerator<never> {
       throw denied();
@@ -231,7 +346,7 @@ describe('StreamsClient without the durable streams entitlement', () => {
     const received: unknown[] = [];
     await expect(
       (async () => {
-        for await (const event of streams.events('topic')) {
+        for await (const event of streams.subscribe('topic')) {
           received.push(event);
         }
       })()
@@ -240,7 +355,7 @@ describe('StreamsClient without the durable streams entitlement', () => {
   });
 });
 
-describe('StreamsClient.events reconnection', () => {
+describe('StreamsClient.subscribe reconnection', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
@@ -283,7 +398,7 @@ describe('StreamsClient.events reconnection', () => {
       },
     ]);
 
-    expect(await take(streams.events('topic', { cursor: 'c0' }), 10)).toEqual([1, 2, 3]);
+    expect(await take(streams.subscribe('topic', { cursor: 'c0' }), 10)).toEqual([1, 2, 3]);
     expect(subscribe.mock.calls.map(([req]) => req.cursor)).toEqual(['c0', 'c2']);
   });
 
@@ -298,7 +413,7 @@ describe('StreamsClient.events reconnection', () => {
       },
     ]);
 
-    expect(await take(streams.events('topic'), 10)).toEqual([1, 2]);
+    expect(await take(streams.subscribe('topic'), 10)).toEqual([1, 2]);
     expect(subscribe.mock.calls.map(([req]) => req.cursor)).toEqual([undefined, 'c1']);
   });
 
@@ -314,7 +429,7 @@ describe('StreamsClient.events reconnection', () => {
       },
     ]);
 
-    expect(await take(streams.events('topic'), 10)).toEqual([1]);
+    expect(await take(streams.subscribe('topic'), 10)).toEqual([1]);
     expect(subscribe.mock.calls.map(([req]) => req.cursor)).toEqual([undefined, undefined]);
   });
 
@@ -330,7 +445,7 @@ describe('StreamsClient.events reconnection', () => {
       },
     ]);
 
-    await expect(take(streams.events('topic'), 10)).rejects.toMatchObject({
+    await expect(take(streams.subscribe('topic'), 10)).rejects.toMatchObject({
       code: Status.OUT_OF_RANGE,
     });
     expect(subscribe).toHaveBeenCalledTimes(2);
@@ -343,7 +458,7 @@ describe('StreamsClient.events reconnection', () => {
     }
 
     const first = setup([unimplemented]);
-    await expect(take(first.streams.events('topic'), 10)).rejects.toMatchObject({
+    await expect(take(first.streams.subscribe('topic'), 10)).rejects.toMatchObject({
       code: Status.UNIMPLEMENTED,
     });
     expect(first.subscribe).toHaveBeenCalledTimes(1);
@@ -359,7 +474,7 @@ describe('StreamsClient.events reconnection', () => {
         yield* hangup();
       },
     ]);
-    expect(await take(later.streams.events('topic'), 10)).toEqual([1, 2]);
+    expect(await take(later.streams.subscribe('topic'), 10)).toEqual([1, 2]);
     expect(later.subscribe).toHaveBeenCalledTimes(3);
   });
 
@@ -373,7 +488,7 @@ describe('StreamsClient.events reconnection', () => {
       },
     ]);
 
-    expect(await take(streams.events('topic', { signal: controller.signal }), 10)).toEqual([1]);
+    expect(await take(streams.subscribe('topic', { signal: controller.signal }), 10)).toEqual([1]);
     expect(subscribe).toHaveBeenCalledTimes(1);
   });
 });
@@ -386,10 +501,12 @@ describe('StreamsClient.reset', () => {
     const streams = new StreamsClient(fakeHatchetClient());
     await streams.reset('topic');
     await streams.reset('topic', { namespace: 'ns' });
+    await streams.reset('topic', { cursor: 'c' });
 
     expect(reset.mock.calls.map(([req]) => req)).toEqual([
-      { namespace: '', topic: 'topic' },
-      { namespace: 'ns', topic: 'topic' },
+      { namespace: '', topic: 'topic', cursor: undefined },
+      { namespace: 'ns', topic: 'topic', cursor: undefined },
+      { namespace: '', topic: 'topic', cursor: 'c' },
     ]);
   });
 });
@@ -434,7 +551,7 @@ describe('StreamsClient.topicMetadata', () => {
   });
 });
 
-describe('StreamsClient.events large payloads', () => {
+describe('StreamsClient.subscribe large payloads', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
@@ -489,7 +606,7 @@ describe('StreamsClient.events large payloads', () => {
     );
 
     const received: number[] = [];
-    for await (const event of streams.events('topic')) {
+    for await (const event of streams.subscribe('topic')) {
       received.push(event.payload[0]);
       if (received.length >= 2) break;
     }
@@ -510,7 +627,7 @@ describe('StreamsClient.events large payloads', () => {
     );
 
     await expect(async () => {
-      for await (const _event of streams.events('topic')) {
+      for await (const _event of streams.subscribe('topic')) {
         // a 404 must not be delivered as an empty event
       }
     }).rejects.toMatchObject({ response: { status: 404 } });

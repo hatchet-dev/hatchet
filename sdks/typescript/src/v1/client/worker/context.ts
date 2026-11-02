@@ -27,6 +27,7 @@ import { JsonObject, OutputType } from '@hatchet/v1/types';
 import { Action as ConditionAction } from '@hatchet/protoc/v1/shared/condition';
 import type { HatchetClient } from '@hatchet/v1/client/client';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
+import { convertDesiredWorkerLabels } from '@hatchet/clients/admin/trigger-request';
 import { createAbortError, rethrowIfAborted } from '@hatchet/util/abort-error';
 import { parentRunContextManager } from '@hatchet/v1/parent-run-context-vars';
 import type { NextStep } from '@hatchet-dev/typescript-sdk/legacy/step';
@@ -1297,7 +1298,9 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
         : undefined,
       desiredWorkerId: options?.sticky ? this.worker.id() : undefined,
       priority: options?.priority,
-      desiredWorkerLabels: {},
+      desiredWorkerLabels: options?.desiredWorkerLabels
+        ? convertDesiredWorkerLabels(options.desiredWorkerLabels)
+        : {},
     };
 
     return { workflowName, triggerOpts };

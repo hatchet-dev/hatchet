@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -23,7 +24,7 @@ func createRateLimitTestShared(pool *pgxpool.Pool) *sharedRepository {
 	logger := zerolog.New(io.Discard)
 
 	return &sharedRepository{
-		pool:    pool,
+		pool:    fairpool.Ungated(pool),
 		ddlPool: pool,
 		l:       &logger,
 		queries: sqlcv1.New(),
@@ -109,7 +110,7 @@ func TestGetTaskRateLimitsDoesNotLockRateLimitRows(t *testing.T) {
 	_, err = blocker.Exec(ctx, `SELECT 1 FROM "RateLimit" WHERE "tenantId" = $1 FOR UPDATE`, tenantID)
 	require.NoError(t, err)
 
-	otx, err := shared.PrepareOptimisticTx(ctx)
+	otx, err := shared.PrepareOptimisticTx(ctx, tenantID)
 	require.NoError(t, err)
 	defer otx.Rollback()
 

@@ -52,6 +52,8 @@ listTasksByDAGIds:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not implemented
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: List tasks
     tags:
       - Task
@@ -109,6 +111,8 @@ getTask:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not implemented
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get a task
     tags:
       - Task
@@ -174,6 +178,8 @@ listTaskEvents:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not implemented
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: List events for a task
     tags:
       - Task
@@ -269,6 +275,8 @@ getTaskStatusMetrics:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not implemented
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get task metrics
     tags:
       - Task
@@ -330,6 +338,8 @@ getTaskPointMetrics:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not implemented
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get task point metrics
     tags:
       - Task
@@ -387,6 +397,8 @@ cancelTasks:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not implemented
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: Cancel tasks
     tags:
       - Task
@@ -444,6 +456,8 @@ replayTasks:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not implemented
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: Replay tasks
     tags:
       - Task
@@ -489,6 +503,8 @@ restoreTask:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: The task was not found
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: Restore a task
     tags:
       - Task
@@ -575,6 +591,8 @@ listLogs:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: List log lines
     tags:
       - Log

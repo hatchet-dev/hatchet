@@ -63,6 +63,11 @@ func newStreamTable(r *relay) *streamTable {
 // socket is authorized for one task run of the tenant and the operator's engine calls carry
 // the operator's own credentials, which are tenant-wide themselves. When tokens gain a
 // narrower scope, that scope is checked here, without a change to the frames.
+//
+// Durable stream topics (V1Streams.Subscribe) have the same scope and need no filter of their
+// own: a socket may subscribe to any topic of its tenant, and nothing cross-tenant is
+// reachable by construction, since the engine resolves the namespace and topic under the
+// tenant of the credentials the stream is opened with.
 func (r *relay) allowRun(tenantId, runId string) bool {
 	_, _ = tenantId, runId
 	return true
@@ -70,7 +75,8 @@ func (r *relay) allowRun(tenantId, runId string) bool {
 
 // runsOf lists the runs a message names, for allowRun: the workflow run of a subscription,
 // the task of a durable event listener. A message naming no run (an additional-metadata
-// subscription spans runs) yields none and is admitted by the tenant-wide filter.
+// subscription spans runs, a topic subscription names a topic) yields none and is admitted
+// by the tenant-wide filter.
 func runsOf(msg proto.Message) []string {
 	switch m := msg.(type) {
 	case *contracts.SubscribeToWorkflowRunsRequest:
@@ -83,6 +89,8 @@ func runsOf(msg proto.Message) []string {
 		return nil
 	case *v1.ListenForDurableEventRequest:
 		return []string{m.GetTaskId()}
+	case *v1.SubscribeStreamRequest:
+		return nil
 	default:
 		return nil
 	}

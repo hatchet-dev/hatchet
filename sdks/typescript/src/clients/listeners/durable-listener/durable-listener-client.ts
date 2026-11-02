@@ -15,6 +15,7 @@ import {
   DurableTaskRequestRegisterWorker,
   DurableTaskWorkerStatusRequest,
   DurableTaskAwaitedCompletedEntry,
+  DurableTaskReceivedSatisfiedOrder,
   DurableTaskEvictInvocationRequest,
   DurableTaskCompleteMemoRequest,
   DurableEvent,
@@ -222,6 +223,9 @@ export class DurableListenerClient {
   // The TTL only garbage-collects queues for invocations that died
   // without consuming everything; the server stall-evicts long before.
   private _orderedCompletions = new TTLMap<CompletionOrderKey, OrderedCompletionQueue>(300_000);
+  // Reported in worker status requests so that after a reconnect the server resumes ordered
+  // delivery where this worker left off instead of waiting for orders it already sent.
+  private _highestReceivedSatisfiedOrders = new Map<CompletionOrderKey, number>();
   private _pendingEvictionAcks = new Map<PendingEvictionAckKey, Deferred<void>>();
   private _newlyWaitingKeys = new Set<PendingCallbackKey>();
   private _waitingSince = new Map<PendingCallbackKey, number>();
@@ -435,15 +439,37 @@ export class DurableListenerClient {
     if (!this._workerId) return;
 
     for (let start = 0; start < keys.length; start += maxEntriesPerRequest) {
+      const waitingEntries = keys
+        .slice(start, start + maxEntriesPerRequest)
+        .map(awaitedCompletedEntryFromCallbackKey);
       this._enqueueRequest({
         workerStatus: {
           workerId: this._workerId,
-          waitingEntries: keys
-            .slice(start, start + maxEntriesPerRequest)
-            .map(awaitedCompletedEntryFromCallbackKey),
+          waitingEntries,
+          receivedSatisfiedOrders: this._receivedSatisfiedOrdersFor(waitingEntries),
         } as DurableTaskWorkerStatusRequest,
       });
     }
+  }
+
+  private _receivedSatisfiedOrdersFor(
+    waitingEntries: DurableTaskAwaitedCompletedEntry[]
+  ): DurableTaskReceivedSatisfiedOrder[] {
+    const receivedByInvocation = new Map<CompletionOrderKey, DurableTaskReceivedSatisfiedOrder>();
+
+    for (const entry of waitingEntries) {
+      const orderKey = completionOrderKey(entry.durableTaskExternalId, entry.invocationCount);
+      const highestReceived = this._highestReceivedSatisfiedOrders.get(orderKey);
+      if (highestReceived !== undefined) {
+        receivedByInvocation.set(orderKey, {
+          durableTaskExternalId: entry.durableTaskExternalId,
+          invocationCount: entry.invocationCount,
+          highestReceivedSatisfiedOrder: highestReceived,
+        });
+      }
+    }
+
+    return [...receivedByInvocation.values()];
   }
 
   private _failPendingAcks(exc: Error): void {
@@ -466,6 +492,7 @@ export class DurableListenerClient {
     }
     this._pendingCallbacks.clear();
     this._orderedCompletions.clear();
+    this._highestReceivedSatisfiedOrders.clear();
   }
 
   private _handleResponse(response: DurableTaskResponse): void {
@@ -534,6 +561,15 @@ export class DurableListenerClient {
         ref?.durableTaskExternalId ?? '',
         ref?.invocationCount ?? 0
       );
+      if (completed.satisfiedOrder !== undefined) {
+        this._highestReceivedSatisfiedOrders.set(
+          orderKey,
+          Math.max(
+            this._highestReceivedSatisfiedOrders.get(orderKey) ?? 0,
+            completed.satisfiedOrder
+          )
+        );
+      }
       const queue: OrderedCompletionQueue = this._orderedCompletions.get(orderKey) ?? {
         pending: [],
         pendingKeys: new Set(),
@@ -876,6 +912,13 @@ export class DurableListenerClient {
       const parts = k.split(':');
       if (parts[0] === durableTaskExternalId && parseInt(parts[1], 10) <= invocationCount) {
         this._orderedCompletions.delete(k);
+      }
+    }
+
+    for (const k of this._highestReceivedSatisfiedOrders.keys()) {
+      const parts = k.split(':');
+      if (parts[0] === durableTaskExternalId && parseInt(parts[1], 10) <= invocationCount) {
+        this._highestReceivedSatisfiedOrders.delete(k);
       }
     }
   }

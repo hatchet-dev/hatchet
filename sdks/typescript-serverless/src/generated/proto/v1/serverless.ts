@@ -179,15 +179,16 @@ export interface ServerlessStreamOpen {
   id: string;
   /**
    * The fully qualified procedure name. The operator allows exactly
-   * /Dispatcher/SubscribeToWorkflowRuns, /Dispatcher/SubscribeToWorkflowEvents and
-   * /v1.V1Dispatcher/ListenForDurableEvent; anything else is closed with code 12
-   * (unimplemented) before any engine call is made.
+   * /Dispatcher/SubscribeToWorkflowRuns, /Dispatcher/SubscribeToWorkflowEvents,
+   * /v1.V1Dispatcher/ListenForDurableEvent and /v1.V1Streams/Subscribe; anything else is
+   * closed with code 12 (unimplemented) before any engine call is made.
    */
   procedure: string;
   /**
    * The first message of the stream as a protojson document: the request of a server
    * stream, the first subscription of a bidi stream. A request that names a run the task
-   * may not observe is closed with code 7 (permission denied).
+   * may not observe is closed with code 7 (permission denied), as is a V1Streams/Subscribe
+   * request from a tenant without the durable streams entitlement.
    */
   request: string;
 }

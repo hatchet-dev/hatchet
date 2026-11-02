@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -106,7 +107,9 @@ func (c *ChildWorkflowSignalCreatedData) Bytes() []byte {
 // GenerateExternalIdsForWorkflow generates external ids and additional looks up child workflows and whether they
 // already exist.
 func (s *sharedRepository) PopulateExternalIdsForWorkflow(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l)
+	db := s.pool.ForTenant(tenantId)
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, s.l)
 
 	if err != nil {
 		return err
@@ -165,11 +168,9 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		return err
 	}
 
-	externalIdToLookupRow := make(map[uuid.UUID]*sqlcv1.V1LookupTable)
-
-	for _, task := range gotTasks {
-		externalIdToLookupRow[task.ExternalID] = task
-	}
+	externalIdToLookupRow := enumerables.KeyBy(gotTasks, func(task *sqlcv1.V1LookupTable) uuid.UUID {
+		return task.ExternalID
+	})
 
 	eventTaskIds := make([]int64, 0, len(gotTasks))
 	eventTaskInsertedAts := make([]pgtype.Timestamptz, 0, len(gotTasks))

@@ -18,6 +18,9 @@ module HatchetSdkRest
     # A name for the API token.
     attr_accessor :name
 
+    # Limit the token to viewer access over REST and deny all gRPC calls. Defaults to false.
+    attr_accessor :read_only
+
     # The duration for which the token is valid.
     attr_accessor :expires_in
 
@@ -25,6 +28,7 @@ module HatchetSdkRest
     def self.attribute_map
       {
         :'name' => :'name',
+        :'read_only' => :'readOnly',
         :'expires_in' => :'expiresIn'
       }
     end
@@ -43,6 +47,7 @@ module HatchetSdkRest
     def self.openapi_types
       {
         :'name' => :'String',
+        :'read_only' => :'Boolean',
         :'expires_in' => :'String'
       }
     end
@@ -73,6 +78,10 @@ module HatchetSdkRest
         self.name = attributes[:'name']
       else
         self.name = nil
+      end
+
+      if attributes.key?(:'read_only')
+        self.read_only = attributes[:'read_only']
       end
 
       if attributes.key?(:'expires_in')
@@ -125,6 +134,7 @@ module HatchetSdkRest
       return true if self.equal?(o)
       self.class == o.class &&
           name == o.name &&
+          read_only == o.read_only &&
           expires_in == o.expires_in
     end
 
@@ -137,7 +147,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [name, expires_in].hash
+      [name, read_only, expires_in].hash
     end
 
     # Builds the object from hash

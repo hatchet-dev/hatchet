@@ -41,13 +41,15 @@ func newSlackRepository(shared *sharedRepository) SlackRepository {
 }
 
 func (r *slackRepository) UpsertSlackWebhook(ctx context.Context, tenantId uuid.UUID, opts *UpsertSlackWebhookOpts) (*sqlcv1.SlackAppWebhook, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
 	return r.queries.UpsertSlackWebhook(
 		ctx,
-		r.pool,
+		db,
 		sqlcv1.UpsertSlackWebhookParams{
 			Tenantid:    tenantId,
 			Teamid:      opts.TeamId,
@@ -60,9 +62,11 @@ func (r *slackRepository) UpsertSlackWebhook(ctx context.Context, tenantId uuid.
 }
 
 func (r *slackRepository) ListSlackWebhooks(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.SlackAppWebhook, error) {
+	db := r.pool.ForTenant(tenantId)
+
 	return r.queries.ListSlackWebhooks(
 		ctx,
-		r.pool,
+		db,
 		tenantId,
 	)
 }
@@ -70,15 +74,17 @@ func (r *slackRepository) ListSlackWebhooks(ctx context.Context, tenantId uuid.U
 func (r *slackRepository) GetSlackWebhookById(ctx context.Context, id uuid.UUID) (*sqlcv1.SlackAppWebhook, error) {
 	return r.queries.GetSlackWebhookById(
 		ctx,
-		r.pool,
+		r.pool.ForShared(),
 		id,
 	)
 }
 
 func (r *slackRepository) DeleteSlackWebhook(ctx context.Context, tenantId uuid.UUID, id uuid.UUID) error {
+	db := r.pool.ForTenant(tenantId)
+
 	return r.queries.DeleteSlackWebhook(
 		ctx,
-		r.pool,
+		db,
 		sqlcv1.DeleteSlackWebhookParams{
 			Tenantid: tenantId,
 			ID:       id,

@@ -6,7 +6,6 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
-import type { CallContext, CallOptions } from "nice-grpc-common";
 import { Timestamp } from "../google/protobuf/timestamp";
 import { TaskConditions } from "./shared/condition";
 import { DesiredWorkerLabels } from "./shared/trigger";
@@ -3829,117 +3828,6 @@ export const GetRunDetailsResponse_TaskRunsEntry: MessageFns<GetRunDetailsRespon
     return message;
   },
 };
-
-/** AdminService represents a set of RPCs for admin management of tasks, workflows, etc. */
-export type AdminServiceDefinition = typeof AdminServiceDefinition;
-export const AdminServiceDefinition = {
-  name: "AdminService",
-  fullName: "v1.AdminService",
-  methods: {
-    putWorkflow: {
-      name: "PutWorkflow",
-      requestType: CreateWorkflowVersionRequest as typeof CreateWorkflowVersionRequest,
-      requestStream: false,
-      responseType: CreateWorkflowVersionResponse as typeof CreateWorkflowVersionResponse,
-      responseStream: false,
-      options: {},
-    },
-    cancelTasks: {
-      name: "CancelTasks",
-      requestType: CancelTasksRequest as typeof CancelTasksRequest,
-      requestStream: false,
-      responseType: CancelTasksResponse as typeof CancelTasksResponse,
-      responseStream: false,
-      options: {},
-    },
-    replayTasks: {
-      name: "ReplayTasks",
-      requestType: ReplayTasksRequest as typeof ReplayTasksRequest,
-      requestStream: false,
-      responseType: ReplayTasksResponse as typeof ReplayTasksResponse,
-      responseStream: false,
-      options: {},
-    },
-    triggerWorkflowRun: {
-      name: "TriggerWorkflowRun",
-      requestType: TriggerWorkflowRunRequest as typeof TriggerWorkflowRunRequest,
-      requestStream: false,
-      responseType: TriggerWorkflowRunResponse as typeof TriggerWorkflowRunResponse,
-      responseStream: false,
-      options: {},
-    },
-    getRunDetails: {
-      name: "GetRunDetails",
-      requestType: GetRunDetailsRequest as typeof GetRunDetailsRequest,
-      requestStream: false,
-      responseType: GetRunDetailsResponse as typeof GetRunDetailsResponse,
-      responseStream: false,
-      options: {},
-    },
-    branchDurableTask: {
-      name: "BranchDurableTask",
-      requestType: BranchDurableTaskRequest as typeof BranchDurableTaskRequest,
-      requestStream: false,
-      responseType: BranchDurableTaskResponse as typeof BranchDurableTaskResponse,
-      responseStream: false,
-      options: {},
-    },
-  },
-} as const;
-
-export interface AdminServiceImplementation<CallContextExt = {}> {
-  putWorkflow(
-    request: CreateWorkflowVersionRequest,
-    context: CallContext & CallContextExt,
-  ): Promise<DeepPartial<CreateWorkflowVersionResponse>>;
-  cancelTasks(
-    request: CancelTasksRequest,
-    context: CallContext & CallContextExt,
-  ): Promise<DeepPartial<CancelTasksResponse>>;
-  replayTasks(
-    request: ReplayTasksRequest,
-    context: CallContext & CallContextExt,
-  ): Promise<DeepPartial<ReplayTasksResponse>>;
-  triggerWorkflowRun(
-    request: TriggerWorkflowRunRequest,
-    context: CallContext & CallContextExt,
-  ): Promise<DeepPartial<TriggerWorkflowRunResponse>>;
-  getRunDetails(
-    request: GetRunDetailsRequest,
-    context: CallContext & CallContextExt,
-  ): Promise<DeepPartial<GetRunDetailsResponse>>;
-  branchDurableTask(
-    request: BranchDurableTaskRequest,
-    context: CallContext & CallContextExt,
-  ): Promise<DeepPartial<BranchDurableTaskResponse>>;
-}
-
-export interface AdminServiceClient<CallOptionsExt = {}> {
-  putWorkflow(
-    request: DeepPartial<CreateWorkflowVersionRequest>,
-    options?: CallOptions & CallOptionsExt,
-  ): Promise<CreateWorkflowVersionResponse>;
-  cancelTasks(
-    request: DeepPartial<CancelTasksRequest>,
-    options?: CallOptions & CallOptionsExt,
-  ): Promise<CancelTasksResponse>;
-  replayTasks(
-    request: DeepPartial<ReplayTasksRequest>,
-    options?: CallOptions & CallOptionsExt,
-  ): Promise<ReplayTasksResponse>;
-  triggerWorkflowRun(
-    request: DeepPartial<TriggerWorkflowRunRequest>,
-    options?: CallOptions & CallOptionsExt,
-  ): Promise<TriggerWorkflowRunResponse>;
-  getRunDetails(
-    request: DeepPartial<GetRunDetailsRequest>,
-    options?: CallOptions & CallOptionsExt,
-  ): Promise<GetRunDetailsResponse>;
-  branchDurableTask(
-    request: DeepPartial<BranchDurableTaskRequest>,
-    options?: CallOptions & CallOptionsExt,
-  ): Promise<BranchDurableTaskResponse>;
-}
 
 function bytesFromBase64(b64: string): Uint8Array {
   if ((globalThis as any).Buffer) {

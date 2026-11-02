@@ -9,6 +9,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/limits"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
@@ -23,6 +24,7 @@ type ServerlessRepository interface {
 	Tenants() ServerlessTenantRepository
 	Processes() ServerlessProcessRepository
 	Leases() ServerlessLeaseRepository
+	Events() ServerlessEndpointEventRepository
 }
 
 // ServerlessUnit is one lease unit: the (tenant, partition) pair a process owns.
@@ -145,6 +147,7 @@ type serverlessRepository struct {
 	tenants   ServerlessTenantRepository
 	processes ServerlessProcessRepository
 	leases    ServerlessLeaseRepository
+	events    ServerlessEndpointEventRepository
 }
 
 func newServerlessRepository(shared *sharedRepository) ServerlessRepository {
@@ -153,6 +156,7 @@ func newServerlessRepository(shared *sharedRepository) ServerlessRepository {
 		tenants:   &serverlessTenantRepository{sharedRepository: shared},
 		processes: &serverlessProcessRepository{sharedRepository: shared},
 		leases:    &serverlessLeaseRepository{sharedRepository: shared},
+		events:    &serverlessEventRepository{sharedRepository: shared},
 	}
 }
 
@@ -162,7 +166,7 @@ func newServerlessRepository(shared *sharedRepository) ServerlessRepository {
 func NewServerlessRepositoryFromPool(pool *pgxpool.Pool, l *zerolog.Logger) (ServerlessRepository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, pool, v, l, PayloadStoreRepositoryOpts{}, limits.LimitConfigFile{}, false, time.Minute)
+	shared, cleanupShared := newSharedRepository(fairpool.Ungated(pool), pool, v, l, PayloadStoreRepositoryOpts{}, limits.LimitConfigFile{}, false, time.Minute, false)
 
 	return newServerlessRepository(shared), cleanupShared
 }
@@ -181,6 +185,10 @@ func (r *serverlessRepository) Processes() ServerlessProcessRepository {
 
 func (r *serverlessRepository) Leases() ServerlessLeaseRepository {
 	return r.leases
+}
+
+func (r *serverlessRepository) Events() ServerlessEndpointEventRepository {
+	return r.events
 }
 
 // unitArrays splits units into the parallel arrays the unnest-based queries take.

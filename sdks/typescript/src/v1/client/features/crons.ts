@@ -1,11 +1,11 @@
 import { CronWorkflows, CronWorkflowsList } from '@hatchet/clients/rest/generated/data-contracts';
 import { z } from 'zod/v4';
-import { AxiosError } from 'axios';
 import { isValidUUID } from '@util/uuid';
 import { BaseWorkflowDeclaration } from '@hatchet/v1';
 import type { LegacyWorkflow } from '@hatchet/legacy/legacy-transformer';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
-import { HatchetClient } from '../client';
+import type { RestApi, RestClientDeps } from '@hatchet/clients/rest/rest-api';
+import { rethrowRestError } from '@hatchet/clients/rest/errors';
 import { workflowNameString, WorkflowsClient } from './workflows';
 
 /**
@@ -30,16 +30,16 @@ export type CreateCronInput = z.infer<typeof CreateCronTriggerSchema>;
  * The cron client is a client for managing cron workflows within Hatchet.
  */
 export class CronClient {
-  api: HatchetClient['api'];
+  api: RestApi;
   tenantId: string;
   workflows: WorkflowsClient;
   namespace: string | undefined;
 
-  constructor(client: HatchetClient) {
+  constructor(client: RestClientDeps) {
     this.api = client.api;
     this.tenantId = client.tenantId;
     this.workflows = new WorkflowsClient(client);
-    this.namespace = client.config.namespace;
+    this.namespace = client.config?.namespace;
   }
 
   /**
@@ -86,11 +86,7 @@ export class CronClient {
         throw new Error(`Invalid cron input: ${err.message}`, { cause: err });
       }
 
-      if (err instanceof AxiosError) {
-        throw new Error(JSON.stringify(err.response?.data.errors), { cause: err });
-      }
-
-      throw err;
+      rethrowRestError(err);
     }
   }
 

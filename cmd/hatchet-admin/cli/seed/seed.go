@@ -144,6 +144,7 @@ func seedAuthDisabledToken(dc *database.Layer) error {
 		TenantId:  &tenantID,
 		Name:      &name,
 		Internal:  true,
+		ReadOnly:  false,
 	})
 
 	return err

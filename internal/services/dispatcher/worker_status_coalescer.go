@@ -16,8 +16,9 @@ type branchNodeKey struct {
 }
 
 type pendingTaskStatus struct {
-	entries         map[branchNodeKey]*contracts.DurableTaskAwaitedCompletedEntry
-	invocationCount int32
+	entries                       map[branchNodeKey]*contracts.DurableTaskAwaitedCompletedEntry
+	invocationCount               int32
+	highestReceivedSatisfiedOrder int64
 }
 
 // workerStatusCoalescer merges the worker-status messages of one durable task stream while a
@@ -25,7 +26,8 @@ type pendingTaskStatus struct {
 // status batch in flight plus the merged pending set.
 //
 // For each durable task only the highest invocation count seen is kept: a status for an older
-// invocation is dropped, and entries for the same invocation are unioned by (branch, node).
+// invocation is dropped, entries for the same invocation are unioned by (branch, node), and the
+// highest received satisfied order for the same invocation is the max of the reported values.
 type workerStatusCoalescer struct {
 	pending map[string]*pendingTaskStatus
 	mu      sync.Mutex
@@ -48,20 +50,25 @@ func (c *workerStatusCoalescer) merge(status *contracts.DurableTaskWorkerStatusR
 			continue
 		}
 
-		task, ok := c.pending[entry.DurableTaskExternalId]
-
-		switch {
-		case !ok || entry.InvocationCount > task.invocationCount:
-			task = &pendingTaskStatus{
-				invocationCount: entry.InvocationCount,
-				entries:         make(map[branchNodeKey]*contracts.DurableTaskAwaitedCompletedEntry),
-			}
-			c.pending[entry.DurableTaskExternalId] = task
-		case entry.InvocationCount < task.invocationCount:
+		task, isCurrentInvocation := c.pendingTaskForInvocation(entry.DurableTaskExternalId, entry.InvocationCount)
+		if !isCurrentInvocation {
 			continue
 		}
 
 		task.entries[branchNodeKey{branchId: entry.BranchId, nodeId: entry.NodeId}] = entry
+	}
+
+	for _, received := range status.GetReceivedSatisfiedOrders() {
+		if received == nil {
+			continue
+		}
+
+		task, isCurrentInvocation := c.pendingTaskForInvocation(received.DurableTaskExternalId, received.InvocationCount)
+		if !isCurrentInvocation {
+			continue
+		}
+
+		task.highestReceivedSatisfiedOrder = max(task.highestReceivedSatisfiedOrder, received.HighestReceivedSatisfiedOrder)
 	}
 
 	if c.running || len(c.pending) == 0 {
@@ -71,6 +78,25 @@ func (c *workerStatusCoalescer) merge(status *contracts.DurableTaskWorkerStatusR
 	c.running = true
 
 	return true
+}
+
+// pendingTaskForInvocation returns the pending status for the task, replacing it when
+// invocationCount is newer. It reports false when invocationCount is older than the one pending.
+func (c *workerStatusCoalescer) pendingTaskForInvocation(taskExternalId string, invocationCount int32) (*pendingTaskStatus, bool) {
+	task, ok := c.pending[taskExternalId]
+
+	switch {
+	case !ok || invocationCount > task.invocationCount:
+		task = &pendingTaskStatus{
+			invocationCount: invocationCount,
+			entries:         make(map[branchNodeKey]*contracts.DurableTaskAwaitedCompletedEntry),
+		}
+		c.pending[taskExternalId] = task
+	case invocationCount < task.invocationCount:
+		return nil, false
+	}
+
+	return task, true
 }
 
 // next takes whole tasks from the pending set as one worker-status request, stopping before a
@@ -96,6 +122,14 @@ func (c *workerStatusCoalescer) next() *contracts.DurableTaskWorkerStatusRequest
 
 		for _, entry := range task.entries {
 			req.WaitingEntries = append(req.WaitingEntries, entry)
+		}
+
+		if task.highestReceivedSatisfiedOrder > 0 {
+			req.ReceivedSatisfiedOrders = append(req.ReceivedSatisfiedOrders, &contracts.DurableTaskReceivedSatisfiedOrder{
+				DurableTaskExternalId:         taskId,
+				InvocationCount:               task.invocationCount,
+				HighestReceivedSatisfiedOrder: task.highestReceivedSatisfiedOrder,
+			})
 		}
 
 		delete(c.pending, taskId)

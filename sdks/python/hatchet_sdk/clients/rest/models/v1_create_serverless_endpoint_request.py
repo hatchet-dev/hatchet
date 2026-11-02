@@ -49,7 +49,7 @@ class V1CreateServerlessEndpointRequest(BaseModel):
     )
     request_timeout_seconds: Optional[StrictInt] = Field(
         default=None,
-        description="The per-request timeout backstop for trigger requests, in seconds. Defaults to 60.",
+        description="The per-request timeout backstop for trigger requests, in seconds. Defaults to 300.",
         alias="requestTimeoutSeconds",
     )
     poll_interval_seconds: Optional[StrictInt] = Field(

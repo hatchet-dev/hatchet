@@ -6,12 +6,14 @@ import (
 	"testing"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/operatorsvc"
+	"github.com/hatchet-dev/hatchet/internal/services/operatorsvc/operatorsvctest"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -117,4 +119,53 @@ func TestOpenRunStreamErrors(t *testing.T) {
 
 	_, err = session.OpenRunStream(t.Context(), operator.RunStreamDurableEvents, &v1contracts.ListenForDurableEventRequest{})
 	assert.ErrorIs(t, err, refused)
+}
+
+// A topic subscription goes to the streams backend with the session's tenant on the context,
+// not to the dispatcher; once the stream ended, the handler's error is what Recv reports in
+// place of ErrStreamEnded. Without a streams backend the kind is unimplemented.
+func TestOpenRunStreamDurableStreams(t *testing.T) {
+	tenant := &sqlcv1.Tenant{ID: uuid.New()}
+	streams := operatorsvctest.NewStreams()
+	svc := newTestService(t, nil, operatorsvc.WithStreamsBackend(streams))
+	session, _ := durableSession(t, svc, tenant)
+
+	_, err := session.OpenRunStream(t.Context(), operator.RunStreamDurableStreams, &contracts.SubscribeToWorkflowEventsRequest{})
+	assert.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err), "%v", err)
+
+	req := &v1contracts.SubscribeStreamRequest{Namespace: "ns", Topic: "orders"}
+	rs, err := session.OpenRunStream(t.Context(), operator.RunStreamDurableStreams, req)
+	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = rs.Close() })
+
+	subscriptions := streams.Subscriptions()
+	require.Len(t, subscriptions, 1)
+	assert.Same(t, req, subscriptions[0].First)
+	require.NotNil(t, subscriptions[0].Tenant)
+	assert.Equal(t, tenant.ID, subscriptions[0].Tenant.ID)
+	assert.Empty(t, svc.dispatcher.RunStreams())
+
+	refused := connect.NewError(connect.CodePermissionDenied, errors.New("durable streams are not enabled for this tenant"))
+
+	subscriptions[0].Responses <- &v1contracts.StreamMessage{Cursor: "c1"}
+	subscriptions[0].EndWith(refused)
+
+	got, err := rs.Recv(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, "c1", got.(*v1contracts.StreamMessage).Cursor)
+
+	_, err = rs.Recv(t.Context())
+	assert.ErrorIs(t, err, refused)
+
+	require.NoError(t, rs.Close())
+
+	_, err = rs.Recv(t.Context())
+	assert.ErrorIs(t, err, operatorsvc.ErrChannelClosed)
+
+	bare := newTestService(t, nil)
+	session, _ = durableSession(t, bare, tenant)
+
+	_, err = session.OpenRunStream(t.Context(), operator.RunStreamDurableStreams, req)
+	assert.Equal(t, connect.CodeUnimplemented, connect.CodeOf(err), "%v", err)
 }

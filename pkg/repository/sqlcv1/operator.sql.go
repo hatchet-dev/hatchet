@@ -24,6 +24,7 @@ WITH operators_on_inactive_dispatchers AS (
             FROM "Dispatcher"
             WHERE
                 "lastHeartbeatAt" < NOW () - INTERVAL '15 seconds'
+                OR "isActive" = FALSE
         )
 ), unassigned_operators AS (
     SELECT v1_operator.id
@@ -43,6 +44,13 @@ WHERE
     -- (a Listen stream out of process, its own leaser in process) and registers its own
     -- workers, so the claimer never claims or reconciles it.
     v1_operator.leasing_manager = 'DISPATCHER'
+    -- A dispatcher that has started shutting down marks itself inactive and claims nothing
+    -- more, so an operator released by another dispatcher never lands on one that is leaving.
+    AND EXISTS (
+        SELECT 1
+        FROM "Dispatcher" d
+        WHERE d."id" = $1::UUID AND d."isActive" = TRUE
+    )
     AND (
         v1_operator.id IN (SELECT id FROM operators_on_inactive_dispatchers) OR
         v1_operator.id IN (SELECT id FROM unassigned_operators) OR

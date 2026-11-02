@@ -35,6 +35,13 @@ const (
 	// ListenForDurableEventRequest names a task and a signal key, and the engine sends the
 	// DurableEvent that completes it.
 	RunStreamDurableEvents
+
+	// RunStreamDurableStreams is V1Streams.Subscribe, a server stream: the
+	// SubscribeStreamRequest names one durable stream topic of the tenant, and an optional
+	// cursor to resume from, and the engine sends every StreamMessage published to it until
+	// the stream is closed. The engine refuses a tenant without the durable streams
+	// entitlement with PermissionDenied.
+	RunStreamDurableStreams
 )
 
 // runStreamKinds is every kind, keyed by procedure.
@@ -42,6 +49,7 @@ var runStreamKinds = map[string]RunStreamKind{
 	"/Dispatcher/SubscribeToWorkflowRuns":    RunStreamWorkflowRuns,
 	"/Dispatcher/SubscribeToWorkflowEvents":  RunStreamWorkflowEvents,
 	"/v1.V1Dispatcher/ListenForDurableEvent": RunStreamDurableEvents,
+	"/v1.V1Streams/Subscribe":                RunStreamDurableStreams,
 }
 
 // RunStreamKindOf resolves a fully qualified procedure name to its kind; ok is false for a
@@ -68,7 +76,14 @@ func (k RunStreamKind) String() string {
 
 // Bidi reports whether the client sends messages after the first one.
 func (k RunStreamKind) Bidi() bool {
-	return k != RunStreamWorkflowEvents
+	switch k {
+	case RunStreamWorkflowRuns, RunStreamDurableEvents:
+		return true
+	case RunStreamWorkflowEvents, RunStreamDurableStreams:
+		return false
+	default:
+		return false
+	}
 }
 
 // NewRequest returns an empty request message of the kind.
@@ -80,6 +95,8 @@ func (k RunStreamKind) NewRequest() proto.Message {
 		return &contracts.SubscribeToWorkflowEventsRequest{}
 	case RunStreamDurableEvents:
 		return &v1.ListenForDurableEventRequest{}
+	case RunStreamDurableStreams:
+		return &v1.SubscribeStreamRequest{}
 	default:
 		return nil
 	}
@@ -94,6 +111,8 @@ func (k RunStreamKind) NewResponse() proto.Message {
 		return &contracts.WorkflowEvent{}
 	case RunStreamDurableEvents:
 		return &v1.DurableEvent{}
+	case RunStreamDurableStreams:
+		return &v1.StreamMessage{}
 	default:
 		return nil
 	}

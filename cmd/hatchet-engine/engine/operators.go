@@ -32,13 +32,14 @@ type inprocOperators struct {
 // operator on it for every claimed row, by the row's kind. The stop it returns blocks until
 // every claimed operator is torn down; the caller runs it before the dispatcher drains its
 // workers so the operators' events still have somewhere to go.
-func startOperatorClaimer(sc *server.ServerConfig, d *dispatcher.DispatcherImpl, adminv1Svc adminv1.AdminService) (*inprocOperators, error) {
+func startOperatorClaimer(sc *server.ServerConfig, d *dispatcher.DispatcherImpl, adminv1Svc adminv1.AdminService, streamsSvc operatorsvc.StreamsBackend) (*inprocOperators, error) {
 	l := sc.Logger.With().Str("service", "operator-claimer").Logger()
 
 	svc, err := operatorsvc.New(
 		operatorsvc.WithOperatorStore(sc.V1.Operators()),
 		operatorsvc.WithWorkerStore(sc.V1.Workers()),
 		operatorsvc.WithDispatcherBackend(operatorsvc.NewDispatcherBackend(d)),
+		operatorsvc.WithStreamsBackend(streamsSvc),
 		operatorsvc.WithDispatcherId(d.DispatcherId()),
 		operatorsvc.WithLogger(&l),
 		operatorsvc.WithValidator(sc.Validator),

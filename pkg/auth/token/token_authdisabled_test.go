@@ -56,7 +56,7 @@ func (s *stubAPITokenRepository) ListAPITokensByTenant(ctx context.Context, tena
 	return nil, nil
 }
 
-func (s *stubAPITokenRepository) RevokeAPIToken(ctx context.Context, id uuid.UUID) error {
+func (s *stubAPITokenRepository) RevokeAPIToken(ctx context.Context, tenantId uuid.UUID, id uuid.UUID) error {
 	return nil
 }
 
@@ -87,7 +87,7 @@ func TestAuthDisabledKeysetIsolation(t *testing.T) {
 	ctx := context.Background()
 	tenantID := uuid.New()
 
-	adTok, err := adMgr.GenerateTenantToken(ctx, tenantID, "authdisabled", false, nil)
+	adTok, err := adMgr.GenerateTenantToken(ctx, tenantID, "authdisabled", false, false, nil)
 	require.NoError(t, err)
 
 	gotTenant, _, err := adMgr.ValidateTenantToken(ctx, adTok.Token)
@@ -97,7 +97,7 @@ func TestAuthDisabledKeysetIsolation(t *testing.T) {
 	_, _, err = mainMgr.ValidateTenantToken(ctx, adTok.Token)
 	assert.Error(t, err, "the main JWT manager must reject the embedded-keyset token")
 
-	mainTok, err := mainMgr.GenerateTenantToken(ctx, tenantID, "main", false, nil)
+	mainTok, err := mainMgr.GenerateTenantToken(ctx, tenantID, "main", false, false, nil)
 	require.NoError(t, err)
 
 	_, _, err = adMgr.ValidateTenantToken(ctx, mainTok.Token)
@@ -115,7 +115,7 @@ func TestRejectsTokenWhenSubjectDoesNotMatchStoredTenant(t *testing.T) {
 	tenantA := uuid.New()
 	tenantB := uuid.New()
 
-	tokenA, err := mgr.GenerateTenantToken(ctx, tenantA, "tenant-a", false, nil)
+	tokenA, err := mgr.GenerateTenantToken(ctx, tenantA, "tenant-a", false, false, nil)
 	require.NoError(t, err)
 
 	gotTenant, _, err := mgr.ValidateTenantToken(ctx, tokenA.Token)

@@ -172,6 +172,83 @@ module HatchetSdkRest
       return data, status_code, headers
     end
 
+    # List serverless endpoint events
+    # Lists the most recent events the serverless operator recorded for an endpoint, newest first.
+    # @param v1_serverless_endpoint [String] The serverless endpoint id
+    # @param [Hash] opts the optional parameters
+    # @option opts [Integer] :limit The number of events to return, at most 500. Defaults to 100.
+    # @option opts [Time] :since Only return events created after this time
+    # @return [V1ServerlessEndpointEventList]
+    def v1_serverless_endpoint_event_list(v1_serverless_endpoint, opts = {})
+      data, _status_code, _headers = v1_serverless_endpoint_event_list_with_http_info(v1_serverless_endpoint, opts)
+      data
+    end
+
+    # List serverless endpoint events
+    # Lists the most recent events the serverless operator recorded for an endpoint, newest first.
+    # @param v1_serverless_endpoint [String] The serverless endpoint id
+    # @param [Hash] opts the optional parameters
+    # @option opts [Integer] :limit The number of events to return, at most 500. Defaults to 100.
+    # @option opts [Time] :since Only return events created after this time
+    # @return [Array<(V1ServerlessEndpointEventList, Integer, Hash)>] V1ServerlessEndpointEventList data, response status code and response headers
+    def v1_serverless_endpoint_event_list_with_http_info(v1_serverless_endpoint, opts = {})
+      if @api_client.config.debugging
+        @api_client.config.logger.debug 'Calling API: ServerlessApi.v1_serverless_endpoint_event_list ...'
+      end
+      # verify the required parameter 'v1_serverless_endpoint' is set
+      if @api_client.config.client_side_validation && v1_serverless_endpoint.nil?
+        fail ArgumentError, "Missing the required parameter 'v1_serverless_endpoint' when calling ServerlessApi.v1_serverless_endpoint_event_list"
+      end
+      if @api_client.config.client_side_validation && v1_serverless_endpoint.to_s.length > 36
+        fail ArgumentError, 'invalid value for "v1_serverless_endpoint" when calling ServerlessApi.v1_serverless_endpoint_event_list, the character length must be smaller than or equal to 36.'
+      end
+
+      if @api_client.config.client_side_validation && v1_serverless_endpoint.to_s.length < 36
+        fail ArgumentError, 'invalid value for "v1_serverless_endpoint" when calling ServerlessApi.v1_serverless_endpoint_event_list, the character length must be greater than or equal to 36.'
+      end
+
+      # resource path
+      local_var_path = '/api/v1/stable/serverless/endpoints/{v1-serverless-endpoint}/events'.sub('{' + 'v1-serverless-endpoint' + '}', CGI.escape(v1_serverless_endpoint.to_s))
+
+      # query parameters
+      query_params = opts[:query_params] || {}
+      query_params[:'limit'] = opts[:'limit'] if !opts[:'limit'].nil?
+      query_params[:'since'] = opts[:'since'] if !opts[:'since'].nil?
+
+      # header parameters
+      header_params = opts[:header_params] || {}
+      # HTTP header 'Accept' (if needed)
+      header_params['Accept'] = @api_client.select_header_accept(['application/json']) unless header_params['Accept']
+
+      # form parameters
+      form_params = opts[:form_params] || {}
+
+      # http body (model)
+      post_body = opts[:debug_body]
+
+      # return_type
+      return_type = opts[:debug_return_type] || 'V1ServerlessEndpointEventList'
+
+      # auth_names
+      auth_names = opts[:debug_auth_names] || ['cookieAuth', 'bearerAuth']
+
+      new_options = opts.merge(
+        :operation => :"ServerlessApi.v1_serverless_endpoint_event_list",
+        :header_params => header_params,
+        :query_params => query_params,
+        :form_params => form_params,
+        :body => post_body,
+        :auth_names => auth_names,
+        :return_type => return_type
+      )
+
+      data, status_code, headers = @api_client.call_api(:GET, local_var_path, new_options)
+      if @api_client.config.debugging
+        @api_client.config.logger.debug "API called: ServerlessApi#v1_serverless_endpoint_event_list\nData: #{data.inspect}\nStatus code: #{status_code}\nHeaders: #{headers}"
+      end
+      return data, status_code, headers
+    end
+
     # Get a serverless endpoint
     # Get a serverless endpoint by its id
     # @param v1_serverless_endpoint [String] The serverless endpoint id

@@ -111,6 +111,7 @@ class APITokenApi:
             "200": "CreateAPITokenResponse",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -186,6 +187,7 @@ class APITokenApi:
             "200": "CreateAPITokenResponse",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -261,6 +263,7 @@ class APITokenApi:
             "200": "CreateAPITokenResponse",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -395,6 +398,7 @@ class APITokenApi:
             "200": "ListAPITokensResponse",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -466,6 +470,7 @@ class APITokenApi:
             "200": "ListAPITokensResponse",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -537,6 +542,7 @@ class APITokenApi:
             "200": "ListAPITokensResponse",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -658,6 +664,7 @@ class APITokenApi:
             "204": None,
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -729,6 +736,7 @@ class APITokenApi:
             "204": None,
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -800,6 +808,7 @@ class APITokenApi:
             "204": None,
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout

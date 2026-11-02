@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hatchet-dev/hatchet/internal/listutils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -97,23 +97,23 @@ func V1RunStatusFromEventType(eventType sqlcv1.V1TaskEventType) (*V1RunStatus, e
 }
 
 func DeriveWorkflowRunStatus(ctx context.Context, statuses []V1RunStatus) (*V1RunStatus, error) {
-	uniqueStatuses := listutils.Uniq(statuses)
+	uniqueStatuses := enumerables.Uniq(statuses)
 
 	if len(uniqueStatuses) == 1 {
 		return &uniqueStatuses[0], nil
 	}
 
-	if listutils.Any(uniqueStatuses, "FAILED") {
+	if enumerables.Any(uniqueStatuses, "FAILED") {
 		f := V1RunStatusFailed
 		return &f, nil
 	}
 
-	if listutils.Any(uniqueStatuses, "RUNNING") || listutils.Any(uniqueStatuses, "QUEUED") || listutils.Any(uniqueStatuses, "EVICTED") {
+	if enumerables.Any(uniqueStatuses, "RUNNING") || enumerables.Any(uniqueStatuses, "QUEUED") || enumerables.Any(uniqueStatuses, "EVICTED") {
 		r := V1RunStatusRunning
 		return &r, nil
 	}
 
-	if listutils.Any(uniqueStatuses, "CANCELLED") {
+	if enumerables.Any(uniqueStatuses, "CANCELLED") {
 		c := V1RunStatusCancelled
 		return &c, nil
 	}

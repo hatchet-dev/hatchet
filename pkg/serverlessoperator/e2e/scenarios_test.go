@@ -8,9 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 // linkCase is one of the two hosts a scenario runs against: the in-engine process (the
@@ -313,6 +316,86 @@ func TestStreamChildResult(t *testing.T) {
 		assert.Equal(t, "svc:child", triggers[0].actionId)
 
 		assertServedBy(t, e, tn.id, "svc:parent", lc.owner)
+	})
+}
+
+// A flagged task opens a durable stream topic subscription (V1Streams.Subscribe) over the
+// socket: the two messages the test published to the topic through the engine reach it as
+// stream_message frames and the task completes with their payloads, on either host.
+func TestStreamTopicSubscribe(t *testing.T) {
+	forEachLink(t, func(t *testing.T, lc linkCase) {
+		e := lc.e
+		tn := e.newTenant()
+		e.pinLease(tn.id, 0, lc.owner)
+
+		fake := newFakeEndpoint(t, "subscriber", workflow("reader", "svc:reader", false, 0))
+		ep := e.createEndpoint(tn, fake, endpointOpts{})
+
+		topic := uniqueName("orders")
+		fake.setStreamScript(streamScript{topic: topicSubscription{namespace: "e2e", topic: topic, want: 2}}, "svc:reader")
+
+		dumpOnFailure(t, e, tn, fake)
+
+		e.waitRegistered(ep.ID, "svc:reader")
+
+		e.pollUntil(registerWait, "the reader's action to be flagged for the socket", func() (bool, error) {
+			return len(e.streamActions(ep.ID)) == 1, nil
+		})
+
+		e.publishStreamMessages(tn, "e2e", topic, `{"n":1}`, `{"n":2}`)
+
+		details := e.runToCompletion(tn, "reader", map[string]any{}, 60*time.Second)
+		out := taskOutput(t, details)
+
+		assert.Equal(t, []any{`{"n":1}`, `{"n":2}`}, out["payloads"], "the task read both messages in order")
+		assert.Equal(t, float64(0), out["closeCode"], "the task closed the stream itself")
+
+		streamed := fake.streamedRuns()
+		require.Len(t, streamed, 1, "the reader ran once over the socket: %+v", streamed)
+		assert.Equal(t, []string{`{"n":1}`, `{"n":2}`}, streamed[0].payloads)
+
+		upgrades := fake.requestsOfKind("upgrade")
+		require.Len(t, upgrades, 1)
+		assert.Equal(t, "svc:reader", upgrades[0].actionId)
+
+		assertServedBy(t, e, tn.id, "svc:reader", lc.owner)
+	})
+}
+
+// A tenant without the durable streams entitlement is refused by the engine, on either host:
+// the socket reports the subscription closed with code 7 (permission denied) and the task
+// goes on to complete.
+func TestStreamTopicSubscribeUnentitled(t *testing.T) {
+	forEachLink(t, func(t *testing.T, lc linkCase) {
+		e := lc.e
+		tn := e.newTenantEntitled(repository.TenantEntitlements{ServerlessOperator: true})
+		e.pinLease(tn.id, 0, lc.owner)
+
+		fake := newFakeEndpoint(t, "unentitled", workflow("reader", "svc:reader", false, 0))
+		ep := e.createEndpoint(tn, fake, endpointOpts{})
+
+		fake.setStreamScript(streamScript{topic: topicSubscription{namespace: "e2e", topic: uniqueName("orders"), want: 1}}, "svc:reader")
+
+		dumpOnFailure(t, e, tn, fake)
+
+		e.waitRegistered(ep.ID, "svc:reader")
+
+		e.pollUntil(registerWait, "the reader's action to be flagged for the socket", func() (bool, error) {
+			return len(e.streamActions(ep.ID)) == 1, nil
+		})
+
+		details := e.runToCompletion(tn, "reader", map[string]any{}, 60*time.Second)
+		out := taskOutput(t, details)
+
+		assert.Equal(t, float64(connect.CodePermissionDenied), out["closeCode"], "the engine's refusal reached the task as code 7")
+		assert.Equal(t, []any{}, out["payloads"])
+
+		streamed := fake.streamedRuns()
+		require.Len(t, streamed, 1, "the reader ran once over the socket: %+v", streamed)
+		assert.Equal(t, int32(connect.CodePermissionDenied), streamed[0].closeCode)
+		assert.Empty(t, streamed[0].payloads)
+
+		assertServedBy(t, e, tn.id, "svc:reader", lc.owner)
 	})
 }
 

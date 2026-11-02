@@ -40,6 +40,11 @@ type PendingAckKey struct {
 	SignalKey int64
 }
 
+type durableInvocationKey struct {
+	taskID          string
+	invocationCount int32
+}
+
 // PendingCallbackKey uniquely identifies a pending event-log entry callback.
 type PendingCallbackKey struct {
 	TaskID    string
@@ -115,19 +120,22 @@ type DurableTaskListener struct {
 	pendingCallbacks            map[PendingCallbackKey]chan CallbackResult
 	newlyPendingCallbackKeys    map[PendingCallbackKey]struct{}
 	pendingCallbackRegisteredAt map[PendingCallbackKey]time.Time
-	callbackTerminalErr         error
-	workerID                    string
-	streamSeq                   int
-	reconnectInterval           time.Duration
-	evictionAckTTL              time.Duration
-	onServerEvictMu             sync.RWMutex
-	streamMu                    sync.Mutex
-	callbackStateMu             sync.Mutex
-	callbacksTerminal           bool
-	pendingEvictionAcksMu       sync.Mutex
-	pendingEventAcksMu          sync.Mutex
-	mu                          sync.Mutex
-	running                     bool
+	// reported in worker status requests so that after a reconnect the engine resumes ordered
+	// delivery where this worker left off instead of waiting for orders it already sent
+	highestReceivedSatisfiedOrders map[durableInvocationKey]int64
+	callbackTerminalErr            error
+	workerID                       string
+	streamSeq                      int
+	reconnectInterval              time.Duration
+	evictionAckTTL                 time.Duration
+	onServerEvictMu                sync.RWMutex
+	streamMu                       sync.Mutex
+	callbackStateMu                sync.Mutex
+	callbacksTerminal              bool
+	pendingEvictionAcksMu          sync.Mutex
+	pendingEventAcksMu             sync.Mutex
+	mu                             sync.Mutex
+	running                        bool
 }
 
 // DurableTaskListenerOpt configures a DurableTaskListener.
@@ -160,20 +168,21 @@ func NewDurableTaskListener(
 	}
 
 	dtl := &DurableTaskListener{
-		workerID:                    workerID,
-		l:                           logger,
-		reconnectInterval:           defaultReconnectInterval,
-		evictionAckTTL:              evictionAckTimeout,
-		connectFn:                   connectFn,
-		pendingEventAcks:            make(map[PendingAckKey]chan EventAckResult),
-		pendingEvictionAcks:         make(map[PendingAckKey]chan error),
-		pendingCallbacks:            make(map[PendingCallbackKey]chan CallbackResult),
-		newlyPendingCallbackKeys:    make(map[PendingCallbackKey]struct{}),
-		pendingCallbackRegisteredAt: make(map[PendingCallbackKey]time.Time),
-		bufferedCompletions:         make(map[PendingCallbackKey]bufferedCompletion),
-		requestQueue:                make(chan *v1.DurableTaskRequest, 100),
-		statusChanged:               make(chan struct{}, 1),
-		stopCh:                      make(chan struct{}),
+		workerID:                       workerID,
+		l:                              logger,
+		reconnectInterval:              defaultReconnectInterval,
+		evictionAckTTL:                 evictionAckTimeout,
+		connectFn:                      connectFn,
+		pendingEventAcks:               make(map[PendingAckKey]chan EventAckResult),
+		pendingEvictionAcks:            make(map[PendingAckKey]chan error),
+		pendingCallbacks:               make(map[PendingCallbackKey]chan CallbackResult),
+		newlyPendingCallbackKeys:       make(map[PendingCallbackKey]struct{}),
+		pendingCallbackRegisteredAt:    make(map[PendingCallbackKey]time.Time),
+		highestReceivedSatisfiedOrders: make(map[durableInvocationKey]int64),
+		bufferedCompletions:            make(map[PendingCallbackKey]bufferedCompletion),
+		requestQueue:                   make(chan *v1.DurableTaskRequest, 100),
+		statusChanged:                  make(chan struct{}, 1),
+		stopCh:                         make(chan struct{}),
 	}
 
 	for _, opt := range opts {
@@ -403,6 +412,11 @@ func (l *DurableTaskListener) CleanupTaskState(taskExternalID string, invocation
 	for k := range l.bufferedCompletions {
 		if k.TaskID == taskExternalID && k.SignalKey <= int64(invocationCount) {
 			delete(l.bufferedCompletions, k)
+		}
+	}
+	for k := range l.highestReceivedSatisfiedOrders {
+		if k.taskID == taskExternalID && k.invocationCount <= invocationCount {
+			delete(l.highestReceivedSatisfiedOrders, k)
 		}
 	}
 	l.callbackStateMu.Unlock()
@@ -951,6 +965,10 @@ func (l *DurableTaskListener) dispatchResponse(resp *v1.DurableTaskResponse) {
 			return
 		}
 		l.pruneExpiredCompletionsLocked(time.Now())
+		if completed.SatisfiedOrder != nil {
+			invocation := durableInvocationKey{taskID: ref.GetDurableTaskExternalId(), invocationCount: ref.GetInvocationCount()}
+			l.highestReceivedSatisfiedOrders[invocation] = max(l.highestReceivedSatisfiedOrders[invocation], completed.GetSatisfiedOrder())
+		}
 		ch, ok := l.pendingCallbacks[key]
 		if ok {
 			l.forgetPendingCallbackLocked(key)
@@ -1086,13 +1104,28 @@ func (l *DurableTaskListener) signalStatusChanged() {
 }
 
 func (l *DurableTaskListener) sendWorkerStatusFor(stream v1.V1Dispatcher_DurableTaskClient, keys []PendingCallbackKey) error {
-	for _, req := range workerStatusRequests(l.workerID, keys, workerStatusMaxEntriesPerRequest) {
+	for _, req := range workerStatusRequests(l.workerID, keys, l.highestReceivedSatisfiedOrdersFor(keys), workerStatusMaxEntriesPerRequest) {
 		if err := stream.Send(req); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func (l *DurableTaskListener) highestReceivedSatisfiedOrdersFor(keys []PendingCallbackKey) map[durableInvocationKey]int64 {
+	l.callbackStateMu.Lock()
+	defer l.callbackStateMu.Unlock()
+
+	orders := make(map[durableInvocationKey]int64)
+	for _, key := range keys {
+		invocation := durableInvocationKey{taskID: key.TaskID, invocationCount: int32(key.SignalKey)} //nolint:gosec
+		if order, ok := l.highestReceivedSatisfiedOrders[invocation]; ok {
+			orders[invocation] = order
+		}
+	}
+
+	return orders
 }
 
 func (l *DurableTaskListener) takeAllPendingCallbackKeys() []PendingCallbackKey {
@@ -1144,25 +1177,47 @@ func (l *DurableTaskListener) longPendingCallbackKeys(now time.Time) []PendingCa
 
 // workerStatusRequests splits the keys over several requests so that a large fan-out
 // stays under the gRPC message size limit.
-func workerStatusRequests(workerID string, keys []PendingCallbackKey, maxEntriesPerRequest int) []*v1.DurableTaskRequest {
+func workerStatusRequests(
+	workerID string,
+	keys []PendingCallbackKey,
+	highestReceivedSatisfiedOrders map[durableInvocationKey]int64,
+	maxEntriesPerRequest int,
+) []*v1.DurableTaskRequest {
 	requests := make([]*v1.DurableTaskRequest, 0, len(keys)/maxEntriesPerRequest+1)
 
 	for keysForRequest := range slices.Chunk(keys, maxEntriesPerRequest) {
 		waitingEntries := make([]*v1.DurableTaskAwaitedCompletedEntry, 0, len(keysForRequest))
+		receivedSatisfiedOrders := make([]*v1.DurableTaskReceivedSatisfiedOrder, 0)
+		reportedInvocations := make(map[durableInvocationKey]struct{})
+
 		for _, key := range keysForRequest {
+			invocationCount := int32(key.SignalKey) //nolint:gosec
 			waitingEntries = append(waitingEntries, &v1.DurableTaskAwaitedCompletedEntry{
 				DurableTaskExternalId: key.TaskID,
-				InvocationCount:       int32(key.SignalKey), //nolint:gosec
+				InvocationCount:       invocationCount,
 				BranchId:              key.BranchID,
 				NodeId:                key.NodeID,
+			})
+
+			invocation := durableInvocationKey{taskID: key.TaskID, invocationCount: invocationCount}
+			order, hasReceived := highestReceivedSatisfiedOrders[invocation]
+			if _, alreadyReported := reportedInvocations[invocation]; !hasReceived || alreadyReported {
+				continue
+			}
+			reportedInvocations[invocation] = struct{}{}
+			receivedSatisfiedOrders = append(receivedSatisfiedOrders, &v1.DurableTaskReceivedSatisfiedOrder{
+				DurableTaskExternalId:         key.TaskID,
+				InvocationCount:               invocationCount,
+				HighestReceivedSatisfiedOrder: order,
 			})
 		}
 
 		requests = append(requests, &v1.DurableTaskRequest{
 			Message: &v1.DurableTaskRequest_WorkerStatus{
 				WorkerStatus: &v1.DurableTaskWorkerStatusRequest{
-					WorkerId:       workerID,
-					WaitingEntries: waitingEntries,
+					WorkerId:                workerID,
+					WaitingEntries:          waitingEntries,
+					ReceivedSatisfiedOrders: receivedSatisfiedOrders,
 				},
 			},
 		})

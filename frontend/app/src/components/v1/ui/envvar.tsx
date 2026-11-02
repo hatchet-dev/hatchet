@@ -162,6 +162,7 @@ const EnvGroupArray: React.FC<PropsType> = ({
           )}
           {secretOption && (
             <Button
+              type="button"
               variant="ghost"
               onClick={() =>
                 !entry.locked && handleValueChange(i, 'hidden', !entry.hidden)
@@ -174,6 +175,7 @@ const EnvGroupArray: React.FC<PropsType> = ({
           {!disabled && (
             <div className="flex items-center gap-2">
               <Button
+                type="button"
                 variant="ghost"
                 size="sm"
                 onClick={() => {
@@ -193,6 +195,7 @@ const EnvGroupArray: React.FC<PropsType> = ({
       {!disabled && (
         <div className="flex items-center">
           <Button
+            type="button"
             variant="secondary"
             onClick={() => {
               const newEntry = {

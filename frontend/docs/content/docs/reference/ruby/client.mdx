@@ -101,6 +101,10 @@ The runs client is a client for interacting with task and workflow runs within H
 
 The scheduled client is a client for managing scheduled workflow runs within Hatchet. See the [Scheduled client](/reference/ruby/feature-clients/scheduled).
 
+#### `streams`
+
+The streams client publishes to and reads from durable topics. Unlike +runs.subscribe_to_stream+, topics are stored, independent of any run, and readers can resume from a cursor. See the [Streams client](/reference/ruby/feature-clients/streams).
+
 #### `tenant`
 
 The tenant client is a client for reading information about the tenant you're operating in. See the [Tenant client](/reference/ruby/feature-clients/tenant).

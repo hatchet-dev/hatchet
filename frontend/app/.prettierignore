@@ -1,2 +1,5 @@
 src/lib/api/generated/
 **/.next/**
+
+# hand-edited copy; prettier rewrites its comment and headings
+src/pages/main/v1/endpoints/copy.mdx

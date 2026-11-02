@@ -70,6 +70,7 @@ import {
   TenantAlertEmailGroup,
   TenantAlertEmailGroupList,
   TenantAlertingSettings,
+  TenantEntitlements,
   TenantInvite,
   TenantInviteList,
   TenantMember,
@@ -98,6 +99,9 @@ import {
   V1CELDebugResponse,
   V1CancelTaskRequest,
   V1CancelledTasks,
+  V1ConcurrencyKeyList,
+  V1ConcurrencyScope,
+  V1ConcurrencyStrategyList,
   V1CreateFilterRequest,
   V1CreateServerlessEndpointRequest,
   V1CreateWebhookRequest,
@@ -116,8 +120,10 @@ import {
   V1RestoreTaskResponse,
   V1RunningFilter,
   V1ServerlessEndpoint,
+  V1ServerlessEndpointEventList,
   V1ServerlessEndpointList,
   V1StreamPayloadRef,
+  V1StreamTopicList,
   V1TaskEventList,
   V1TaskPointMetrics,
   V1TaskRunMetrics,
@@ -825,6 +831,42 @@ export class Api<
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
   /**
+   * @description List the tenant's durable stream topics, with the number of messages each has within the tenant's retention.
+   *
+   * @tags Streams
+   * @name V1StreamTopicList
+   * @summary List stream topics
+   * @request GET:/api/v1/stable/tenants/{tenant}/streams/topics
+   * @secure
+   */
+  v1StreamTopicList = Object.assign((
+    tenant: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /** Matches topics or namespaces containing it */
+      search?: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1StreamTopicList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/streams/topics`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
+  /**
    * @description Get a workflow run and its metadata to display on the "detail" page
    *
    * @tags Workflow Runs
@@ -1150,6 +1192,64 @@ export class Api<
     this.request<EventKeyList, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/events/keys`,
       method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
+  /**
+   * @description Lists the concurrency strategies on the latest version of each workflow in a tenant, and the shared strategies their tasks use, with live slot counts.
+   *
+   * @tags Concurrency
+   * @name V1ConcurrencyStrategyList
+   * @summary List concurrency strategies
+   * @request GET:/api/v1/stable/tenants/{tenant}/concurrency/strategies
+   * @secure
+   */
+  v1ConcurrencyStrategyList = Object.assign((tenant: string, params: RequestParams = {}) =>
+    this.request<V1ConcurrencyStrategyList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/concurrency/strategies`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
+  /**
+   * @description Lists the keys of a concurrency strategy that have running or queued runs, sorted by queued count, then oldest queued run.
+   *
+   * @tags Concurrency
+   * @name V1ConcurrencyKeyList
+   * @summary List concurrency keys
+   * @request GET:/api/v1/stable/tenants/{tenant}/concurrency/strategies/{scope}/{strategy}/keys
+   * @secure
+   */
+  v1ConcurrencyKeyList = Object.assign((
+    tenant: string,
+    scope: V1ConcurrencyScope,
+    strategy: number,
+    query?: {
+      /** Only return keys containing this string (case-insensitive) */
+      search?: string;
+      /** Only return keys with at least one queued run */
+      onlyQueued?: boolean;
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1ConcurrencyKeyList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/concurrency/strategies/${scope}/${strategy}/keys`,
+      method: "GET",
+      query: query,
       secure: true,
       format: "json",
       ...params,
@@ -1564,6 +1664,40 @@ export class Api<
       xResources: ["tenant", "v1-serverless-endpoint"],
     }), { resources: new Set<string>(["tenant", "v1-serverless-endpoint"]) });
   /**
+   * @description Lists the most recent events the serverless operator recorded for an endpoint, newest first.
+   *
+   * @tags Serverless
+   * @name V1ServerlessEndpointEventList
+   * @summary List serverless endpoint events
+   * @request GET:/api/v1/stable/serverless/endpoints/{v1-serverless-endpoint}/events
+   * @secure
+   */
+  v1ServerlessEndpointEventList = Object.assign((
+    v1ServerlessEndpoint: string,
+    query?: {
+      /**
+       * The number of events to return, at most 500. Defaults to 100.
+       * @format int64
+       */
+      limit?: number;
+      /**
+       * Only return events created after this time
+       * @format date-time
+       */
+      since?: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1ServerlessEndpointEventList, APIErrors>({
+      path: `/api/v1/stable/serverless/endpoints/${v1ServerlessEndpoint}/events`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+      xResources: ["tenant", "v1-serverless-endpoint"],
+    }), { resources: new Set<string>(["tenant", "v1-serverless-endpoint"]) });
+  /**
    * @description Evaluate a CEL expression against provided input data.
    *
    * @tags CEL
@@ -1755,7 +1889,7 @@ export class Api<
    * @secure
    */
   userUpdateSlackOauthStart = Object.assign((tenant: string, params: RequestParams = {}) =>
-    this.request<any, void>({
+    this.request<any, void | APIErrors>({
       path: `/api/v1/tenants/${tenant}/slack/start`,
       method: "GET",
       secure: true,
@@ -1772,7 +1906,7 @@ export class Api<
    * @secure
    */
   userUpdateSlackOauthCallback = Object.assign((params: RequestParams = {}) =>
-    this.request<any, void>({
+    this.request<any, void | APIErrors>({
       path: `/api/v1/users/slack/callback`,
       method: "GET",
       secure: true,
@@ -1890,6 +2024,24 @@ export class Api<
   tenantResourcePolicyGet = Object.assign((tenant: string, params: RequestParams = {}) =>
     this.request<TenantResourcePolicy, APIErrors | APIError>({
       path: `/api/v1/tenants/${tenant}/resource-policy`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
+  /**
+   * @description Gets the features the tenant is entitled to
+   *
+   * @tags Tenant
+   * @name TenantEntitlementsGet
+   * @summary Get tenant entitlements
+   * @request GET:/api/v1/tenants/{tenant}/entitlements
+   * @secure
+   */
+  tenantEntitlementsGet = Object.assign((tenant: string, params: RequestParams = {}) =>
+    this.request<TenantEntitlements, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}/entitlements`,
       method: "GET",
       secure: true,
       format: "json",

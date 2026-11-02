@@ -1,12 +1,13 @@
 import { BaseWorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1';
 import type { LegacyWorkflow } from '@hatchet/legacy/legacy-transformer';
-import { isLegacyWorkflow, warnLegacyWorkflow } from '@hatchet/legacy/legacy-transformer';
+import { isLegacyWorkflow, warnLegacyWorkflow } from '@hatchet/legacy/legacy-workflow';
+import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { isValidUUID } from '@util/uuid';
 import {
   WorkflowPauseScheduledCronRunQueueBehavior,
   WorkflowUpdateRequest,
 } from '@hatchet/clients/rest/generated/data-contracts';
-import { HatchetClient } from '../client';
+import type { RestApi, RestClientDeps } from '@hatchet/clients/rest/rest-api';
 import { Duration, durationToString } from '../duration';
 
 export { WorkflowPauseScheduledCronRunQueueBehavior };
@@ -45,16 +46,19 @@ export const workflowNameString = (
  *
  */
 export class WorkflowsClient {
-  api: HatchetClient['api'];
+  api: RestApi;
   tenantId: string;
+  /** Prefixed onto workflow names the way registration prefixes them; a name already carrying it is left as is. */
+  namespace: string | undefined;
   // Add a cache for workflows
   private workflowCache: Map<string, { workflow: any; expiry: number }> = new Map();
   // Default cache TTL: 5 minutes (in ms)
   private cacheTTL: number = 5 * 60 * 1000;
 
-  constructor(client: HatchetClient, cacheTTL?: number) {
+  constructor(client: RestClientDeps, cacheTTL?: number) {
     this.api = client.api;
     this.tenantId = client.tenantId;
+    this.namespace = client.config?.namespace;
     // Allow custom cache TTL if provided
     if (cacheTTL !== undefined) {
       this.cacheTTL = cacheTTL;
@@ -101,8 +105,8 @@ export class WorkflowsClient {
    * @returns A promise that resolves to the workflow.
    */
   async get(workflow: string | BaseWorkflowDeclaration<any, any> | LegacyWorkflow) {
-    // Get workflow name string
-    const name = workflowNameString(workflow);
+    // the name as registered: the client's namespace in front, unless it is already there
+    const name = applyNamespace(workflowNameString(workflow), this.namespace);
 
     // Check cache first
     const cached = this.workflowCache.get(name);
@@ -155,7 +159,8 @@ export class WorkflowsClient {
    * @returns A promise that resolves to the deleted workflow.
    */
   async delete(workflow: string | BaseWorkflowDeclaration<any, any> | LegacyWorkflow) {
-    const name = workflowNameString(workflow);
+    // the cache is keyed by the registered name, so the namespace applies here as in get()
+    const name = applyNamespace(workflowNameString(workflow), this.namespace);
 
     try {
       // Get the workflow first to find its ID

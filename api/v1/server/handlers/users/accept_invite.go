@@ -69,7 +69,7 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 		return nil, err
 	} else if err == nil {
 		// User is already a member — mark invite accepted and return success
-		_, err = u.config.V1.TenantInvite().UpdateTenantInvite(ctx.Request().Context(), invite.ID, &v1.UpdateTenantInviteOpts{
+		_, err = u.config.V1.TenantInvite().UpdateTenantInvite(ctx.Request().Context(), invite.TenantId, invite.ID, &v1.UpdateTenantInviteOpts{
 			Status: v1.StringPtr(string(sqlcv1.InviteLinkStatusACCEPTED)),
 		})
 		if err != nil {
@@ -84,7 +84,7 @@ func (u *UserService) TenantInviteAccept(ctx echo.Context, request gen.TenantInv
 	}
 
 	// update the invite
-	invite, err = u.config.V1.TenantInvite().UpdateTenantInvite(ctx.Request().Context(), invite.ID, updateOpts)
+	invite, err = u.config.V1.TenantInvite().UpdateTenantInvite(ctx.Request().Context(), invite.TenantId, invite.ID, updateOpts)
 
 	if err != nil {
 		return nil, err

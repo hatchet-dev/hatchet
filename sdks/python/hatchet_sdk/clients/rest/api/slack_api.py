@@ -102,6 +102,7 @@ class SlackApi:
             "400": "APIErrors",
             "401": "APIErrors",
             "405": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -177,6 +178,7 @@ class SlackApi:
             "400": "APIErrors",
             "401": "APIErrors",
             "405": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -252,6 +254,7 @@ class SlackApi:
             "400": "APIErrors",
             "401": "APIErrors",
             "405": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -374,6 +377,7 @@ class SlackApi:
             "400": "APIErrors",
             "401": "APIErrors",
             "405": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -446,6 +450,7 @@ class SlackApi:
             "400": "APIErrors",
             "401": "APIErrors",
             "405": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -518,6 +523,7 @@ class SlackApi:
             "400": "APIErrors",
             "401": "APIErrors",
             "405": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout

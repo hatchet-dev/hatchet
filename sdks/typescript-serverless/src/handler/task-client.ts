@@ -1,0 +1,395 @@
+/**
+ * The client a task gets from `clientFromContext(ctx)`: the handler's `HatchetCore` seen
+ * through the invocation socket. Every unary call is the client's own. Reading a durable
+ * stream topic (`streams.subscribe`) and a run's events (`runs.events`) are server streams, which
+ * the unary client does not carry; here each opens one engine stream through the operator
+ * over the socket (`SocketStreams`), the way child results are awaited, and reads it as an
+ * async iterable with the Node client's shapes (`StreamEvent`, `StreamCallOptions`).
+ *
+ * The view inherits from the client with `streams` and `runs` replaced by views of their own,
+ * so every other member, `instanceof HatchetCore` and the producer state behind
+ * `streams.publish` are the client's. Without a socket (a task delivered over a POST) the view
+ * serves every unary call and the two iterators throw `ServerlessLimitationError` saying where
+ * the socket went.
+ *
+ * Both iterators are async generators, as the Node client's `subscribe()` is: `break` and
+ * `return()` close the stream between messages, and `options.signal` ends a read that is
+ * waiting for the next one.
+ */
+import {
+  HatchetError,
+  type HatchetCore,
+  type RunsClient,
+  type StreamCallOptions,
+  type StreamsClient,
+} from '@hatchet-dev/typescript-sdk/core/index.js';
+import { SubscribeToWorkflowEventsRequest, WorkflowEvent } from '../generated/proto/dispatcher';
+import { StreamMessage, SubscribeStreamRequest } from '../generated/proto/v1/streams';
+import {
+  SUBSCRIBE_STREAM,
+  SUBSCRIBE_TO_WORKFLOW_EVENTS,
+  StreamCloseCode,
+  streamCloseCodeName,
+  type SocketStreams,
+} from './durable/streams';
+import { ServerlessLimitationError } from './errors';
+
+/** One message of a durable stream topic, as the Node client's `streams.subscribe` yields it. */
+export interface StreamEvent {
+  /** The message payload. */
+  payload: Uint8Array;
+  /** Resumes `subscribe()` right after this message. */
+  cursor: string;
+  /** When the message was stored. */
+  createdAt?: Date;
+}
+
+export interface RunEventsOptions {
+  /** Ends the iteration cleanly, without throwing. */
+  signal?: AbortSignal;
+}
+
+/**
+ * The operator or the engine ended a stream the task was reading, with a connect code other
+ * than 0. `code` is the stream_close code (7, permission denied, on a topic is the engine
+ * refusing a tenant without the durable streams entitlement; 12, unimplemented, an operator
+ * that does not relay the procedure) and `cursor` the last message yielded, to resume from.
+ */
+export class StreamClosedError extends Error {
+  constructor(
+    /** What was being read, as the message names it. */
+    readonly subject: string,
+    readonly code: number,
+    detail: string,
+    hint?: string,
+    readonly cursor?: string
+  ) {
+    const name = streamCloseCodeName(code);
+    // The operator's own messages start with the code's name; it is not repeated.
+    const text = detail.startsWith(`${name}: `) ? detail.slice(name.length + 2) : detail;
+
+    super(
+      `${subject} closed with code ${code} (${name}${text ? `: ${text}` : ''})` +
+        (hint ? `: ${hint}` : '')
+    );
+    this.name = 'StreamClosedError';
+  }
+}
+
+/**
+ * The streams client of a task: the handler's public surface, plus reading a topic over the
+ * socket. The intersection is over the public members only (the class has private ones of
+ * its own, one of them named `events`); the value is the client's own `StreamsClient`.
+ */
+export type TaskStreamsClient = Pick<StreamsClient, keyof StreamsClient> & {
+  /**
+   * Yields the topic's messages after `options.cursor`, or from the oldest retained (or,
+   * once the topic is reset, after the reset), over the invocation socket. Ends when the
+   * engine hangs up an idle subscription, `options.signal` aborts, or the task stops
+   * iterating, which closes the stream and frees its socket slot; throws `StreamClosedError`
+   * when the stream ends any other way. Unlike the Node client it does not resubscribe: the
+   * error carries the cursor to resume from.
+   */
+  subscribe(topic: string, options?: StreamCallOptions): AsyncIterable<StreamEvent>;
+  /** An alias of `subscribe`, which replaces it; `events` will be removed in a future release. */
+  events(topic: string, options?: StreamCallOptions): AsyncIterable<StreamEvent>;
+};
+
+/** The runs client of a task: the handler's public surface, plus a run's events over the socket. */
+export type TaskRunsClient = Pick<RunsClient, keyof RunsClient> & {
+  /**
+   * Yields the run's events (`/Dispatcher/SubscribeToWorkflowEvents`) over the invocation
+   * socket until the engine hangs up after the run's last event, `options.signal` aborts, or
+   * the task stops iterating.
+   */
+  events(workflowRunId: string, options?: RunEventsOptions): AsyncIterable<WorkflowEvent>;
+};
+
+/**
+ * The handler's client as a task sees it: the public surface of `HatchetCore` with `streams`
+ * and `runs` carrying the socket-backed iterators. The value is an instance of `HatchetCore`.
+ */
+export type TaskClient = Omit<HatchetCore, 'streams' | 'runs'> & {
+  readonly streams: TaskStreamsClient;
+  readonly runs: TaskRunsClient;
+};
+
+type Relayed = { message: string } | { closed: { code: number; detail: string } };
+
+/** What a queued message holds in memory: JavaScript strings store two bytes per UTF-16 unit. */
+function retainedBytes(message: string): number {
+  return message.length * 2;
+}
+
+/**
+ * Reads one engine stream over the socket as the protojson documents the operator relays.
+ * Ends on a stream_close with code 0 or when the signal aborts; throws `closed(code, detail)`
+ * on any other close. The stream is closed, freeing its slot, however the iteration ends.
+ * Messages the task has not consumed yet are queued up to `streams.maxQueuedBytes` of
+ * retained string storage (two bytes per UTF-16 code unit, so a message's share is never
+ * undercounted); past that the reader has stalled, the unread messages are dropped and the
+ * stream is closed at once, so a fast publisher cannot grow the invocation's memory or hold
+ * the stream's slot while the task is busy elsewhere. The reader learns of it on its next
+ * call, with RESOURCE_EXHAUSTED.
+ */
+async function* relayed(
+  streams: SocketStreams,
+  procedure: string,
+  request: string,
+  signal: AbortSignal | undefined,
+  closed: (code: number, detail: string) => Error
+): AsyncGenerator<string, void, undefined> {
+  if (signal?.aborted) {
+    return;
+  }
+
+  const queue: Relayed[] = [];
+  let queuedBytes = 0;
+  let aborted = false;
+  let wake: (() => void) | undefined;
+  const push = (item: Relayed) => {
+    if ('message' in item) {
+      queuedBytes += retainedBytes(item.message);
+
+      if (queuedBytes > streams.maxQueuedBytes) {
+        // The unread messages go with the stream, which is closed here and now rather than
+        // when the task next reads, so its slot is freed and nothing else arrives on it
+        // (a closed stream delivers no further callbacks). The task resumes from the
+        // cursor of the last message it consumed.
+        queue.length = 0;
+        queuedBytes = 0;
+        queue.push({
+          closed: {
+            code: StreamCloseCode.RESOURCE_EXHAUSTED,
+            detail: `the task fell behind reading the stream: more than ${streams.maxQueuedBytes} bytes of unread messages were queued`,
+          },
+        });
+        stream.close();
+        wake?.();
+        wake = undefined;
+        return;
+      }
+    }
+
+    queue.push(item);
+    wake?.();
+    wake = undefined;
+  };
+  const onAbort = () => {
+    aborted = true;
+    wake?.();
+    wake = undefined;
+  };
+
+  // `push` above closes over this binding; it runs only from the listeners, after the open.
+  const stream = streams.openStream(procedure, request, {
+    onMessage: (message) => push({ message }),
+    onClose: (code, detail) => push({ closed: { code, detail } }),
+  });
+  signal?.addEventListener('abort', onAbort, { once: true });
+
+  try {
+    for (;;) {
+      if (aborted) {
+        return;
+      }
+
+      const item = queue.shift();
+
+      if (!item) {
+        await new Promise<void>((resolve) => {
+          wake = resolve;
+        });
+        continue;
+      }
+
+      if ('closed' in item) {
+        if (item.closed.code === StreamCloseCode.OK) {
+          return;
+        }
+
+        throw closed(item.closed.code, item.closed.detail);
+      }
+
+      queuedBytes -= retainedBytes(item.message);
+      yield item.message;
+    }
+  } finally {
+    signal?.removeEventListener('abort', onAbort);
+    stream.close();
+  }
+}
+
+const TOPIC_CLOSE_HINTS: Partial<Record<number, string>> = {
+  [StreamCloseCode.PERMISSION_DENIED]:
+    'durable streams are not enabled for this tenant; the durable_streams entitlement enables them',
+  [StreamCloseCode.UNIMPLEMENTED]:
+    'the operator does not relay durable stream subscriptions over the socket; deploy an operator that does',
+};
+
+async function* topicEvents(
+  streams: SocketStreams,
+  topic: string,
+  options: StreamCallOptions | undefined
+): AsyncGenerator<StreamEvent, void, undefined> {
+  const namespace = options?.namespace ?? '';
+  let cursor = options?.cursor;
+  const request = JSON.stringify(
+    SubscribeStreamRequest.toJSON(SubscribeStreamRequest.create({ namespace, topic, cursor }))
+  );
+  const subject = `the subscription to topic "${topic}"`;
+
+  for await (const raw of relayed(
+    streams,
+    SUBSCRIBE_STREAM,
+    request,
+    options?.signal,
+    (code, detail) => new StreamClosedError(subject, code, detail, TOPIC_CLOSE_HINTS[code], cursor)
+  )) {
+    const message = StreamMessage.fromJSON(JSON.parse(raw));
+
+    if (message.hangup) {
+      return;
+    }
+
+    for (const entry of message.entries) {
+      if (entry.payloadRef && entry.payload.byteLength === 0) {
+        // The Node client fetches an uploaded payload over REST; the task client does not yet.
+        throw new HatchetError(
+          `message ${entry.cursor} of topic "${topic}" is an uploaded payload (over the inline limit), which the serverless client cannot fetch; read the topic with the Node client`
+        );
+      }
+
+      ({ cursor } = entry);
+      yield { payload: entry.payload, cursor: entry.cursor, createdAt: entry.createdAt };
+    }
+  }
+}
+
+async function* runEvents(
+  streams: SocketStreams,
+  workflowRunId: string,
+  options: RunEventsOptions | undefined
+): AsyncGenerator<WorkflowEvent, void, undefined> {
+  const request = JSON.stringify(
+    SubscribeToWorkflowEventsRequest.toJSON(
+      SubscribeToWorkflowEventsRequest.create({ workflowRunId })
+    )
+  );
+
+  for await (const raw of relayed(
+    streams,
+    SUBSCRIBE_TO_WORKFLOW_EVENTS,
+    request,
+    options?.signal,
+    (code, detail) =>
+      new StreamClosedError(`the event stream of run ${workflowRunId}`, code, detail)
+  )) {
+    const event = WorkflowEvent.fromJSON(JSON.parse(raw));
+
+    yield event;
+
+    if (event.hangup) {
+      return;
+    }
+  }
+}
+
+function noSocket(feature: string): ServerlessLimitationError {
+  return new ServerlessLimitationError(
+    feature,
+    'It reads an engine stream the operator relays over the invocation socket, which the operator dials for every task not declared with `hatchetClient: false`; upgrade the operator, or serve the task from an endpoint whose adapter accepts the upgrade (`durable` on). From a Node process, use the Node client',
+    'this task was invoked over a POST and has no invocation socket, which happens with an operator that predates stream delivery or an endpoint reporting no durable support'
+  );
+}
+
+/**
+ * `base` with `members` added, where every method of `base` still runs against `base`
+ * itself and every field reads through to it. A member may share its name with a field the
+ * base's methods use (`StreamsClient.put` reads a private `events` field, and the view adds
+ * an `events` method), which is why the methods are bound rather than inherited: inherited
+ * methods would run with the view as `this` and find the member instead of the field.
+ */
+function view<T extends object, M extends object>(base: T, members: M): T & M {
+  const result: Record<PropertyKey, unknown> = {};
+  const taken = new Set<PropertyKey>(Object.keys(members));
+
+  for (
+    let proto = Object.getPrototypeOf(base);
+    proto && proto !== Object.prototype;
+    proto = Object.getPrototypeOf(proto)
+  ) {
+    for (const name of Object.getOwnPropertyNames(proto)) {
+      if (name === 'constructor' || taken.has(name)) continue;
+      taken.add(name);
+
+      const descriptor = Object.getOwnPropertyDescriptor(proto, name)!;
+
+      // Not enumerable, as on the original: a prototype method is not an own property there,
+      // and a serialized context should not grow by the feature clients' internals.
+      if (typeof descriptor.value === 'function') {
+        Object.defineProperty(result, name, {
+          value: (descriptor.value as (...args: unknown[]) => unknown).bind(base),
+          enumerable: false,
+        });
+      } else if (descriptor.get) {
+        Object.defineProperty(result, name, {
+          get: () => (base as Record<string, unknown>)[name],
+          enumerable: false,
+        });
+      }
+    }
+  }
+
+  for (const name of Object.keys(base)) {
+    if (taken.has(name)) continue;
+    taken.add(name);
+    Object.defineProperty(result, name, {
+      get: () => (base as Record<string, unknown>)[name],
+      enumerable: false,
+    });
+  }
+
+  return Object.assign(result, members) as T & M;
+}
+
+/** `base` with `members` as its own properties, inheriting everything else from `base`. */
+function inheritingView<T extends object, M extends object>(base: T, members: M): T & M {
+  return Object.create(
+    base,
+    Object.fromEntries(
+      Object.entries(members).map(([name, value]) => [name, { value, enumerable: true }])
+    )
+  ) as T & M;
+}
+
+/**
+ * The task's view of the handler's client. With `streams`, the socket of the invocation,
+ * `streams.subscribe` and `runs.events` read over it; without one they throw.
+ */
+export function createTaskClient(
+  client: HatchetCore,
+  streams: SocketStreams | undefined
+): TaskClient {
+  const subscribe = (topic: string, options?: StreamCallOptions) => {
+    if (!streams) {
+      throw noSocket('clientFromContext(ctx).streams.subscribe(topic)');
+    }
+
+    return topicEvents(streams, topic, options);
+  };
+  const streamsView: TaskStreamsClient = view(client.streams, { subscribe, events: subscribe });
+  const runsView: TaskRunsClient = view(client.runs, {
+    events: (workflowRunId: string, options?: RunEventsOptions) => {
+      if (!streams) {
+        throw noSocket('clientFromContext(ctx).runs.events(runId)');
+      }
+
+      return runEvents(streams, workflowRunId, options);
+    },
+  });
+
+  // The client's own methods read `this.streams` and `this.runs`, which is the point of
+  // the override; the views' methods are bound to the originals, so nothing else changes.
+  return inheritingView(client, { streams: streamsView, runs: runsView });
+}

@@ -1,12 +1,12 @@
 import type { SpanGroupInfo } from './timeline/trace-timeline-utils';
 import { formatDuration, formatTimestamp } from './utils/format-utils';
 import { isQueuedOnly, statusLabel } from './utils/span-tree-utils';
-import { useLiveClock } from './utils/use-live-clock';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
+import { useLiveClock } from '@/hooks/use-live-clock';
 import { OtelStatusCode } from '@/lib/api/generated/data-contracts';
 import { PanelRight } from 'lucide-react';
 import { useCallback, useMemo } from 'react';

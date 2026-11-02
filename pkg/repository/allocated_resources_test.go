@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -21,7 +22,7 @@ import (
 func newAllocatedResourcesTestRepos(pool *pgxpool.Pool) (*workflowRepository, *workflowScheduleRepository, *sqlcv1.Queries) {
 	logger := zerolog.Nop()
 	shared := &sharedRepository{
-		pool:       pool,
+		pool:       fairpool.Ungated(pool),
 		ddlPool:    pool,
 		l:          &logger,
 		queries:    sqlcv1.New(),

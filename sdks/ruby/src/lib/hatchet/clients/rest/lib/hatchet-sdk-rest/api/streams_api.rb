@@ -179,5 +179,85 @@ module HatchetSdkRest
       end
       return data, status_code, headers
     end
+
+    # List stream topics
+    # List the tenant's durable stream topics, with the number of messages each has within the tenant's retention.
+    # @param tenant [String] The tenant id
+    # @param [Hash] opts the optional parameters
+    # @option opts [Integer] :offset The number to skip
+    # @option opts [Integer] :limit The number to limit by
+    # @option opts [String] :search Matches topics or namespaces containing it
+    # @return [V1StreamTopicList]
+    def v1_stream_topic_list(tenant, opts = {})
+      data, _status_code, _headers = v1_stream_topic_list_with_http_info(tenant, opts)
+      data
+    end
+
+    # List stream topics
+    # List the tenant&#39;s durable stream topics, with the number of messages each has within the tenant&#39;s retention.
+    # @param tenant [String] The tenant id
+    # @param [Hash] opts the optional parameters
+    # @option opts [Integer] :offset The number to skip
+    # @option opts [Integer] :limit The number to limit by
+    # @option opts [String] :search Matches topics or namespaces containing it
+    # @return [Array<(V1StreamTopicList, Integer, Hash)>] V1StreamTopicList data, response status code and response headers
+    def v1_stream_topic_list_with_http_info(tenant, opts = {})
+      if @api_client.config.debugging
+        @api_client.config.logger.debug 'Calling API: StreamsApi.v1_stream_topic_list ...'
+      end
+      # verify the required parameter 'tenant' is set
+      if @api_client.config.client_side_validation && tenant.nil?
+        fail ArgumentError, "Missing the required parameter 'tenant' when calling StreamsApi.v1_stream_topic_list"
+      end
+      if @api_client.config.client_side_validation && tenant.to_s.length > 36
+        fail ArgumentError, 'invalid value for "tenant" when calling StreamsApi.v1_stream_topic_list, the character length must be smaller than or equal to 36.'
+      end
+
+      if @api_client.config.client_side_validation && tenant.to_s.length < 36
+        fail ArgumentError, 'invalid value for "tenant" when calling StreamsApi.v1_stream_topic_list, the character length must be greater than or equal to 36.'
+      end
+
+      # resource path
+      local_var_path = '/api/v1/stable/tenants/{tenant}/streams/topics'.sub('{' + 'tenant' + '}', CGI.escape(tenant.to_s))
+
+      # query parameters
+      query_params = opts[:query_params] || {}
+      query_params[:'offset'] = opts[:'offset'] if !opts[:'offset'].nil?
+      query_params[:'limit'] = opts[:'limit'] if !opts[:'limit'].nil?
+      query_params[:'search'] = opts[:'search'] if !opts[:'search'].nil?
+
+      # header parameters
+      header_params = opts[:header_params] || {}
+      # HTTP header 'Accept' (if needed)
+      header_params['Accept'] = @api_client.select_header_accept(['application/json']) unless header_params['Accept']
+
+      # form parameters
+      form_params = opts[:form_params] || {}
+
+      # http body (model)
+      post_body = opts[:debug_body]
+
+      # return_type
+      return_type = opts[:debug_return_type] || 'V1StreamTopicList'
+
+      # auth_names
+      auth_names = opts[:debug_auth_names] || ['cookieAuth', 'bearerAuth']
+
+      new_options = opts.merge(
+        :operation => :"StreamsApi.v1_stream_topic_list",
+        :header_params => header_params,
+        :query_params => query_params,
+        :form_params => form_params,
+        :body => post_body,
+        :auth_names => auth_names,
+        :return_type => return_type
+      )
+
+      data, status_code, headers = @api_client.call_api(:GET, local_var_path, new_options)
+      if @api_client.config.debugging
+        @api_client.config.logger.debug "API called: StreamsApi#v1_stream_topic_list\nData: #{data.inspect}\nStatus code: #{status_code}\nHeaders: #{headers}"
+      end
+      return data, status_code, headers
+    end
   end
 end

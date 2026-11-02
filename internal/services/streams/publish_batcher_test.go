@@ -84,18 +84,18 @@ func TestPublishBatcher_BatchesQueuedPublishesAndRoutesResults(t *testing.T) {
 	results := make([]v1.OrderedStreamMessageResult, total)
 
 	wg.Go(func() {
-		var err error
-		results[0], err = b.publish(context.Background(), publishMsg(tenantId, "topic-0", 0))
+		res, err := b.publish(context.Background(), publishMsg(tenantId, "topic-0", 0))
 		assert.NoError(t, err)
+		results[0] = res[0]
 	})
 
 	require.Eventually(t, func() bool { return len(repo.batchSizes()) == 1 }, time.Second, time.Millisecond)
 
 	for i := 1; i < total; i++ {
 		wg.Go(func() {
-			var err error
-			results[i], err = b.publish(context.Background(), publishMsg(tenantId, fmt.Sprintf("topic-%d", i), int64(i)))
+			res, err := b.publish(context.Background(), publishMsg(tenantId, fmt.Sprintf("topic-%d", i), int64(i)))
 			assert.NoError(t, err)
+			results[i] = res[0]
 		})
 	}
 
@@ -110,6 +110,57 @@ func TestPublishBatcher_BatchesQueuedPublishesAndRoutesResults(t *testing.T) {
 	assert.Equal(t, []int{1, total - 1}, repo.batchSizes())
 }
 
+func TestPublishBatcher_KeepsAPublishsMessagesInOneCommit(t *testing.T) {
+	repo := &batchingStreamsRepository{firstBatch: make(chan struct{})}
+	release := sync.OnceFunc(func() { close(repo.firstBatch) })
+	b := newPublishBatcher(repo, fakePubSub{}, testLogger(), 1)
+	defer b.stop()
+	defer release()
+
+	tenantId := uuid.New()
+
+	var wg sync.WaitGroup
+
+	wg.Go(func() {
+		_, err := b.publish(context.Background(), publishMsg(tenantId, "first", 0))
+		assert.NoError(t, err)
+	})
+
+	require.Eventually(t, func() bool { return len(repo.batchSizes()) == 1 }, time.Second, time.Millisecond)
+
+	// the first fills a commit on its own, so the second can't be split into it
+	sizes := []int{publishBatchMaxMessages, 3}
+	results := make([][]v1.OrderedStreamMessageResult, len(sizes))
+
+	for i, n := range sizes {
+		msgs := make([]v1.TenantStreamMessage, n)
+		for j := range msgs {
+			msgs[j] = publishMsg(tenantId, fmt.Sprintf("topic-%d", i), int64(j))
+		}
+
+		wg.Go(func() {
+			var err error
+			results[i], err = b.publish(context.Background(), msgs...)
+			assert.NoError(t, err)
+		})
+
+		// queued in order, so the full one is taken first
+		require.Eventually(t, func() bool { return len(b.pending) == i+1 }, time.Second, time.Millisecond)
+	}
+	release()
+	wg.Wait()
+
+	assert.ElementsMatch(t, []int{1, sizes[0], sizes[1]}, repo.batchSizes())
+
+	for i, res := range results {
+		require.Len(t, res, sizes[i])
+
+		for j, r := range res {
+			assert.Equal(t, j%2 == 0, r.Inserted, "publish %d entry %d got another entry's result", i, j)
+		}
+	}
+}
+
 func TestPublishBatcher_WakesOnlyStoredTopicsPerTenant(t *testing.T) {
 	repo := &batchingStreamsRepository{}
 	pubsub := &recordingPubSub{}
@@ -119,9 +170,9 @@ func TestPublishBatcher_WakesOnlyStoredTopicsPerTenant(t *testing.T) {
 	tenantId := uuid.New()
 
 	b.commit([]*pendingPublish{
-		{msg: publishMsg(tenantId, "stored", 0), done: make(chan publishResult, 1)},
-		{msg: publishMsg(tenantId, "stored", 2), done: make(chan publishResult, 1)},
-		{msg: publishMsg(tenantId, "gap", 1), done: make(chan publishResult, 1)},
+		{msgs: []v1.TenantStreamMessage{publishMsg(tenantId, "stored", 0)}, done: make(chan publishResult, 1)},
+		{msgs: []v1.TenantStreamMessage{publishMsg(tenantId, "stored", 2)}, done: make(chan publishResult, 1)},
+		{msgs: []v1.TenantStreamMessage{publishMsg(tenantId, "gap", 1)}, done: make(chan publishResult, 1)},
 	})
 
 	require.Len(t, pubsub.messages, 1)

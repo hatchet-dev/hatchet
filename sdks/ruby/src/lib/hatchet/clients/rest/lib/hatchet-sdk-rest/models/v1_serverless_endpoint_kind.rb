@@ -17,9 +17,10 @@ module HatchetSdkRest
   class V1ServerlessEndpointKind
     GENERIC_HTTP = "GENERIC_HTTP".freeze
     CLOUDFLARE_WORKERS = "CLOUDFLARE_WORKERS".freeze
+    VERCEL = "VERCEL".freeze
 
     def self.all_vars
-      @all_vars ||= [GENERIC_HTTP, CLOUDFLARE_WORKERS].freeze
+      @all_vars ||= [GENERIC_HTTP, CLOUDFLARE_WORKERS, VERCEL].freeze
     end
 
     # Builds the enum from string

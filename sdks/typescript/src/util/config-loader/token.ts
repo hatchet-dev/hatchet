@@ -16,6 +16,11 @@ export function getGrpcBroadcastAddressFromJWT(token: string): string | undefine
   return extractClaimsFromJWT(token).grpc_broadcast_address || undefined;
 }
 
+/** The API server URL a token was issued with, or `undefined` when the claim is absent. */
+export function getServerUrlFromJWT(token: string): string | undefined {
+  return extractClaimsFromJWT(token).server_url || undefined;
+}
+
 export function getAddressesFromJWT(token: string): {
   serverUrl: string;
   grpcBroadcastAddress: string;

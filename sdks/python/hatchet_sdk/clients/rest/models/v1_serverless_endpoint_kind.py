@@ -19,7 +19,7 @@ from typing_extensions import Self
 
 class V1ServerlessEndpointKind(str, Enum):
     """
-    The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS applies the Cloudflare Workers runtime constraints on top of it.
+    The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS and VERCEL name the platform the endpoint is deployed on, which the dashboard uses to guide setup and diagnose failures.
     """
 
     """
@@ -27,6 +27,7 @@ class V1ServerlessEndpointKind(str, Enum):
     """
     GENERIC_HTTP = "GENERIC_HTTP"
     CLOUDFLARE_WORKERS = "CLOUDFLARE_WORKERS"
+    VERCEL = "VERCEL"
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

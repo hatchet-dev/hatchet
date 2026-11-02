@@ -5,18 +5,17 @@ import (
 	"fmt"
 	"maps"
 	"net"
+	"net/netip"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	cerrdefs "github.com/containerd/errdefs"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/api/types/mount"
-	"github.com/docker/docker/api/types/network"
-	"github.com/docker/docker/api/types/volume"
-	"github.com/docker/go-connections/nat"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/mount"
+	"github.com/moby/moby/api/types/network"
+	"github.com/moby/moby/client"
 )
 
 // Progress message styling
@@ -208,7 +207,8 @@ func (d *DockerDriver) RunHatchetLite(ctx context.Context, opts ...HatchetLiteOp
 
 	// Check if hatchet container already exists and get its ports
 	hatchetContainerName := canonicalContainerName(hatchetLiteOpts.projectName, hatchetLiteOpts.hatchetName)
-	existingContainer, err := d.apiClient.ContainerInspect(ctx, hatchetContainerName)
+	existingInspect, err := d.apiClient.ContainerInspect(ctx, hatchetContainerName, client.ContainerInspectOptions{})
+	existingContainer := existingInspect.Container
 
 	var dashboardPort, grpcPort int
 
@@ -341,7 +341,7 @@ func (d *DockerDriver) startPostgresContainer(ctx context.Context, opts *Hatchet
 
 	// Create volume with proper labels for Docker Compose compatibility
 	postgresVolumeName := fmt.Sprintf("%s_postgres_data", opts.projectName)
-	_, err = d.apiClient.VolumeCreate(ctx, volume.CreateOptions{
+	_, err = d.apiClient.VolumeCreate(ctx, client.VolumeCreateOptions{
 		Name: postgresVolumeName,
 		Labels: map[string]string{
 			"com.docker.compose.project": opts.projectName,
@@ -416,9 +416,9 @@ func (d *DockerDriver) startHatchetLiteContainer(ctx context.Context, opts *Hatc
 	}
 
 	// ExposedPorts are the INTERNAL container ports
-	exposedPorts := nat.PortSet{
-		nat.Port(fmt.Sprintf("%d/tcp", hatchetInternalDashboardPort)): struct{}{},
-		nat.Port(fmt.Sprintf("%d/tcp", hatchetInternalGrpcPort)):      struct{}{},
+	exposedPorts := network.PortSet{
+		network.MustParsePort(fmt.Sprintf("%d/tcp", hatchetInternalDashboardPort)): struct{}{},
+		network.MustParsePort(fmt.Sprintf("%d/tcp", hatchetInternalGrpcPort)):      struct{}{},
 	}
 
 	labels := map[string]string{}
@@ -459,7 +459,7 @@ func (d *DockerDriver) startHatchetLiteContainer(ctx context.Context, opts *Hatc
 
 	// Create volume with proper labels for Docker Compose compatibility
 	hatchetVolumeName := fmt.Sprintf("%s_hatchet_config", opts.projectName)
-	_, err = d.apiClient.VolumeCreate(ctx, volume.CreateOptions{
+	_, err = d.apiClient.VolumeCreate(ctx, client.VolumeCreateOptions{
 		Name: hatchetVolumeName,
 		Labels: map[string]string{
 			"com.docker.compose.project": opts.projectName,
@@ -476,12 +476,12 @@ func (d *DockerDriver) startHatchetLiteContainer(ctx context.Context, opts *Hatc
 			Name: container.RestartPolicyUnlessStopped,
 		},
 		// PortBindings maps INTERNAL container port -> EXTERNAL host port
-		PortBindings: nat.PortMap{
-			nat.Port(fmt.Sprintf("%d/tcp", hatchetInternalDashboardPort)): []nat.PortBinding{
-				{HostIP: "0.0.0.0", HostPort: fmt.Sprintf("%d", dashboardPort)}, // 8888 -> 8889
+		PortBindings: network.PortMap{
+			network.MustParsePort(fmt.Sprintf("%d/tcp", hatchetInternalDashboardPort)): []network.PortBinding{
+				{HostIP: netip.IPv4Unspecified(), HostPort: fmt.Sprintf("%d", dashboardPort)}, // 8888 -> 8889
 			},
-			nat.Port(fmt.Sprintf("%d/tcp", hatchetInternalGrpcPort)): []nat.PortBinding{
-				{HostIP: "0.0.0.0", HostPort: fmt.Sprintf("%d", grpcPort)}, // 7077 -> defaultGrpcPort
+			network.MustParsePort(fmt.Sprintf("%d/tcp", hatchetInternalGrpcPort)): []network.PortBinding{
+				{HostIP: netip.IPv4Unspecified(), HostPort: fmt.Sprintf("%d", grpcPort)}, // 7077 -> defaultGrpcPort
 			},
 		},
 		Mounts: []mount.Mount{
@@ -563,7 +563,7 @@ func extractPortsFromContainer(inspect *container.InspectResponse) (dashboardPor
 	}
 
 	// Extract dashboard port (internal port 8888)
-	dashboardPortKey := nat.Port(fmt.Sprintf("%d/tcp", hatchetInternalDashboardPort))
+	dashboardPortKey := network.MustParsePort(fmt.Sprintf("%d/tcp", hatchetInternalDashboardPort))
 	if bindings, ok := inspect.NetworkSettings.Ports[dashboardPortKey]; ok && len(bindings) > 0 {
 		port, parseErr := strconv.Atoi(bindings[0].HostPort)
 		if parseErr != nil {
@@ -575,7 +575,7 @@ func extractPortsFromContainer(inspect *container.InspectResponse) (dashboardPor
 	}
 
 	// Extract gRPC port (internal port 7077)
-	grpcPortKey := nat.Port(fmt.Sprintf("%d/tcp", hatchetInternalGrpcPort))
+	grpcPortKey := network.MustParsePort(fmt.Sprintf("%d/tcp", hatchetInternalGrpcPort))
 	if bindings, ok := inspect.NetworkSettings.Ports[grpcPortKey]; ok && len(bindings) > 0 {
 		port, parseErr := strconv.Atoi(bindings[0].HostPort)
 		if parseErr != nil {
@@ -619,7 +619,7 @@ func (d *DockerDriver) pullImageWithPolicy(ctx context.Context, imageName string
 		return fmt.Errorf("unknown pull policy: %q", policy)
 	}
 
-	out, err := d.apiClient.ImagePull(ctx, imageName, image.PullOptions{})
+	out, err := d.apiClient.ImagePull(ctx, imageName, client.ImagePullOptions{})
 	if err != nil {
 		return fmt.Errorf("could not pull image %s: %w", imageName, err)
 	}

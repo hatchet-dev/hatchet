@@ -23,6 +23,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type V1StreamsClient interface {
 	Publish(ctx context.Context, in *PublishStreamMessageRequest, opts ...grpc.CallOption) (*PublishStreamMessageResponse, error)
+	PublishBatch(ctx context.Context, in *PublishStreamMessagesRequest, opts ...grpc.CallOption) (*PublishStreamMessagesResponse, error)
 	Subscribe(ctx context.Context, in *SubscribeStreamRequest, opts ...grpc.CallOption) (V1Streams_SubscribeClient, error)
 	GetTopicMetadata(ctx context.Context, in *GetStreamTopicMetadataRequest, opts ...grpc.CallOption) (*StreamTopicMetadata, error)
 	Reset(ctx context.Context, in *ResetStreamTopicRequest, opts ...grpc.CallOption) (*ResetStreamTopicResponse, error)
@@ -39,6 +40,15 @@ func NewV1StreamsClient(cc grpc.ClientConnInterface) V1StreamsClient {
 func (c *v1StreamsClient) Publish(ctx context.Context, in *PublishStreamMessageRequest, opts ...grpc.CallOption) (*PublishStreamMessageResponse, error) {
 	out := new(PublishStreamMessageResponse)
 	err := c.cc.Invoke(ctx, "/v1.V1Streams/Publish", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *v1StreamsClient) PublishBatch(ctx context.Context, in *PublishStreamMessagesRequest, opts ...grpc.CallOption) (*PublishStreamMessagesResponse, error) {
+	out := new(PublishStreamMessagesResponse)
+	err := c.cc.Invoke(ctx, "/v1.V1Streams/PublishBatch", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -100,6 +110,7 @@ func (c *v1StreamsClient) Reset(ctx context.Context, in *ResetStreamTopicRequest
 // for forward compatibility
 type V1StreamsServer interface {
 	Publish(context.Context, *PublishStreamMessageRequest) (*PublishStreamMessageResponse, error)
+	PublishBatch(context.Context, *PublishStreamMessagesRequest) (*PublishStreamMessagesResponse, error)
 	Subscribe(*SubscribeStreamRequest, V1Streams_SubscribeServer) error
 	GetTopicMetadata(context.Context, *GetStreamTopicMetadataRequest) (*StreamTopicMetadata, error)
 	Reset(context.Context, *ResetStreamTopicRequest) (*ResetStreamTopicResponse, error)
@@ -112,6 +123,9 @@ type UnimplementedV1StreamsServer struct {
 
 func (UnimplementedV1StreamsServer) Publish(context.Context, *PublishStreamMessageRequest) (*PublishStreamMessageResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Publish not implemented")
+}
+func (UnimplementedV1StreamsServer) PublishBatch(context.Context, *PublishStreamMessagesRequest) (*PublishStreamMessagesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PublishBatch not implemented")
 }
 func (UnimplementedV1StreamsServer) Subscribe(*SubscribeStreamRequest, V1Streams_SubscribeServer) error {
 	return status.Errorf(codes.Unimplemented, "method Subscribe not implemented")
@@ -149,6 +163,24 @@ func _V1Streams_Publish_Handler(srv interface{}, ctx context.Context, dec func(i
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(V1StreamsServer).Publish(ctx, req.(*PublishStreamMessageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _V1Streams_PublishBatch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PublishStreamMessagesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(V1StreamsServer).PublishBatch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/v1.V1Streams/PublishBatch",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(V1StreamsServer).PublishBatch(ctx, req.(*PublishStreamMessagesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -220,6 +252,10 @@ var V1Streams_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Publish",
 			Handler:    _V1Streams_Publish_Handler,
+		},
+		{
+			MethodName: "PublishBatch",
+			Handler:    _V1Streams_PublishBatch_Handler,
 		},
 		{
 			MethodName: "GetTopicMetadata",

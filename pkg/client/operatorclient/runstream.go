@@ -19,18 +19,19 @@ import (
 // past it, which is the stream's flow control.
 const runStreamQueueSize = 64
 
-// runStreamClients are the dispatcher clients the run streams are opened on, built over the
-// same connection as the operator client.
+// runStreamClients are the engine clients the run streams are opened on, built over the same
+// connection as the operator client.
 type runStreamClients struct {
 	dispatcher   dispatchercontracts.DispatcherClient
 	v1dispatcher v1.V1DispatcherClient
+	v1streams    v1.V1StreamsClient
 }
 
 // OpenRunStream implements Session: the stream is opened on the session's connection with
 // its bearer token and lives until Close, the engine ending it, ctx ending, or the session's
 // loops ending. ctx is the caller's hold on the stream: a Send blocked on flow control is
-// released when ctx ends, the same as when Close is called. The dispatcher services
-// authenticate with the token alone; the operator id metadata is only meaningful to
+// released when ctx ends, the same as when Close is called. The dispatcher and streams
+// services authenticate with the token alone; the operator id metadata is only meaningful to
 // OperatorService.
 func (s *session) OpenRunStream(ctx context.Context, kind operator.RunStreamKind, first proto.Message) (operator.RunStream, error) {
 	if s.isClosed() {
@@ -111,6 +112,23 @@ func (s *session) OpenRunStream(ctx context.Context, kind operator.RunStreamKind
 
 			return c.Send(req)
 		}
+		rs.recv = func() (proto.Message, error) { return c.Recv() }
+	case operator.RunStreamDurableStreams:
+		req, ok := first.(*v1.SubscribeStreamRequest)
+
+		if !ok {
+			cancel()
+			return nil, fmt.Errorf("%s takes a SubscribeStreamRequest, not a %T", kind, first)
+		}
+
+		c, err := s.streams.v1streams.Subscribe(mdCtx, req, grpc_retry.Disable())
+
+		if err != nil {
+			cancel()
+			return nil, err
+		}
+
+		first = nil
 		rs.recv = func() (proto.Message, error) { return c.Recv() }
 	default:
 		cancel()

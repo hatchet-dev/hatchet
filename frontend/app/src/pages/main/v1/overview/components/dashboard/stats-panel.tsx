@@ -4,44 +4,12 @@ import {
   sumQueueMetrics,
 } from './dashboard-metrics';
 import { PanelCard } from './panel-card';
-import { Skeleton } from '@/components/v1/ui/skeleton';
+import { StatCell } from '@/components/v1/molecules/stat-cell';
 import { queries, V1TaskStatus, WorkerStatus } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
-import { type ReactNode } from 'react';
 import { RiBarChart2Line } from 'react-icons/ri';
 
 const REFETCH_MS = 20000;
-
-function StatCell({
-  label,
-  hint,
-  loading,
-  error,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  loading: boolean;
-  // A failed request must not render as an authoritative-looking zero.
-  error: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-1 p-4">
-      <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
-        {label}
-      </span>
-      {loading ? (
-        <Skeleton className="h-8 w-16" />
-      ) : (
-        <span className="text-2xl font-semibold tabular-nums">
-          {error ? 'n/a' : children}
-        </span>
-      )}
-      {hint && <span className="text-xs text-muted-foreground/70">{hint}</span>}
-    </div>
-  );
-}
 
 export function StatsPanel({
   tenantId,

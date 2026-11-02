@@ -11,6 +11,7 @@ import (
 )
 
 func (a *APITokenService) ApiTokenUpdateRevoke(ctx echo.Context, request gen.ApiTokenUpdateRevokeRequestObject) (gen.ApiTokenUpdateRevokeResponseObject, error) {
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 	apiToken := ctx.Get("api-token").(*sqlcv1.APIToken)
 
 	if apiToken.Internal {
@@ -19,7 +20,7 @@ func (a *APITokenService) ApiTokenUpdateRevoke(ctx echo.Context, request gen.Api
 		), nil
 	}
 
-	err := a.config.V1.APIToken().RevokeAPIToken(ctx.Request().Context(), apiToken.ID)
+	err := a.config.V1.APIToken().RevokeAPIToken(ctx.Request().Context(), tenant.ID, apiToken.ID)
 
 	if err != nil {
 		return nil, err

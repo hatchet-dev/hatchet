@@ -258,7 +258,7 @@ func runCreateWorkerToken() error {
 		return err
 	}
 
-	defaultTok, err := server.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, tokenName, false, &expiresAt)
+	defaultTok, err := server.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, tokenName, false, false, &expiresAt)
 
 	if err != nil {
 		return err

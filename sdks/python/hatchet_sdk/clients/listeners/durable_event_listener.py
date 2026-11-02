@@ -25,6 +25,7 @@ from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
     DurableTaskEventLogEntryCompletedResponse,
     DurableTaskEvictInvocationRequest,
     DurableTaskMemoRequest,
+    DurableTaskReceivedSatisfiedOrder,
     DurableTaskRequest,
     DurableTaskRequestRegisterWorker,
     DurableTaskResponse,
@@ -220,6 +221,10 @@ class DurableEventListener:
             CompletionOrderKey, OrderedCompletionQueue
         ] = TTLCache(ttl=timedelta(minutes=5))
 
+        # Reported in worker status requests so that after a reconnect the server resumes
+        # ordered delivery where this worker left off instead of waiting for orders it already sent.
+        self._highest_received_satisfied_orders: dict[CompletionOrderKey, int] = {}
+
         self._receive_task: asyncio.Task[None] | None = None
         self._send_task: asyncio.Task[None] | None = None
         self._running = False
@@ -374,6 +379,9 @@ class DurableEventListener:
 
         for start in range(0, len(keys), WORKER_STATUS_MAX_ENTRIES_PER_REQUEST):
             chunk = keys[start : start + WORKER_STATUS_MAX_ENTRIES_PER_REQUEST]
+            invocations_in_chunk = {
+                (task_ext_id, inv_count) for (task_ext_id, inv_count, _, _) in chunk
+            }
             request = DurableTaskRequest(
                 worker_status=DurableTaskWorkerStatusRequest(
                     worker_id=self._worker_id,
@@ -385,6 +393,18 @@ class DurableEventListener:
                             branch_id=branch_id,
                         )
                         for (task_ext_id, inv_count, branch_id, node_id) in chunk
+                    ],
+                    received_satisfied_orders=[
+                        DurableTaskReceivedSatisfiedOrder(
+                            durable_task_external_id=task_ext_id,
+                            invocation_count=inv_count,
+                            highest_received_satisfied_order=self._highest_received_satisfied_orders[
+                                (task_ext_id, inv_count)
+                            ],
+                        )
+                        for (task_ext_id, inv_count) in invocations_in_chunk
+                        if (task_ext_id, inv_count)
+                        in self._highest_received_satisfied_orders
                     ],
                 )
             )
@@ -409,6 +429,7 @@ class DurableEventListener:
                 future.set_exception(exc)
         self._pending_callbacks.clear()
         self._ordered_completions.clear()
+        self._highest_received_satisfied_orders.clear()
 
     async def _receive_loop(self) -> None:
         while self._running:
@@ -538,6 +559,11 @@ class DurableEventListener:
                 if order_key in self._ordered_completions
                 else OrderedCompletionQueue()
             )
+            if completed.HasField("satisfied_order"):
+                self._highest_received_satisfied_orders[order_key] = max(
+                    self._highest_received_satisfied_orders.get(order_key, 0),
+                    completed.satisfied_order,
+                )
             if completed_key not in queue.delivered:
                 queue.enqueue(completed_key, result)
             elif completed_key not in queue.pending_keys:
@@ -841,6 +867,14 @@ class DurableEventListener:
         ]
         for ok in stale_order_keys:
             del self._ordered_completions[ok]
+
+        stale_received_order_keys = [
+            ok
+            for ok in self._highest_received_satisfied_orders
+            if ok[0] == durable_task_external_id and ok[1] <= invocation_count
+        ]
+        for ok in stale_received_order_keys:
+            del self._highest_received_satisfied_orders[ok]
 
     _EVICTION_ACK_TIMEOUT_S = 30.0
 

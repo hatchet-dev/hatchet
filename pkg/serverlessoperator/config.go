@@ -132,7 +132,8 @@ const (
 	processSweepInterval = 10 * time.Minute
 	processExpiryCutoff  = time.Hour
 
-	// workerLabelProcess is the worker label carrying the owning process id.
+	// workerLabelProcess is the worker label carrying the owning process id. The workers list
+	// hides workers with this label (ListWorkers and CountWorkers in pkg/repository/sqlcv1/workers.sql).
 	workerLabelProcess = "hatchet-serverless-process"
 )
 

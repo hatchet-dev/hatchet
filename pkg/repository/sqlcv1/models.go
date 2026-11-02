@@ -1889,11 +1889,58 @@ func (ns NullV1RunKind) Value() (driver.Value, error) {
 	return string(ns.V1RunKind), nil
 }
 
+type V1ServerlessEndpointEventKind string
+
+const (
+	V1ServerlessEndpointEventKindHEALTHCHECKFAILED V1ServerlessEndpointEventKind = "HEALTHCHECK_FAILED"
+	V1ServerlessEndpointEventKindUNHEALTHY         V1ServerlessEndpointEventKind = "UNHEALTHY"
+	V1ServerlessEndpointEventKindHEALTHY           V1ServerlessEndpointEventKind = "HEALTHY"
+	V1ServerlessEndpointEventKindCATALOGREGISTERED V1ServerlessEndpointEventKind = "CATALOG_REGISTERED"
+	V1ServerlessEndpointEventKindCATALOGREJECTED   V1ServerlessEndpointEventKind = "CATALOG_REJECTED"
+	V1ServerlessEndpointEventKindDELIVERYFAILED    V1ServerlessEndpointEventKind = "DELIVERY_FAILED"
+)
+
+func (e *V1ServerlessEndpointEventKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1ServerlessEndpointEventKind(s)
+	case string:
+		*e = V1ServerlessEndpointEventKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1ServerlessEndpointEventKind: %T", src)
+	}
+	return nil
+}
+
+type NullV1ServerlessEndpointEventKind struct {
+	V1ServerlessEndpointEventKind V1ServerlessEndpointEventKind `json:"v1_serverless_endpoint_event_kind"`
+	Valid                         bool                          `json:"valid"` // Valid is true if V1ServerlessEndpointEventKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1ServerlessEndpointEventKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1ServerlessEndpointEventKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1ServerlessEndpointEventKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1ServerlessEndpointEventKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1ServerlessEndpointEventKind), nil
+}
+
 type V1ServerlessEndpointKind string
 
 const (
 	V1ServerlessEndpointKindGENERICHTTP       V1ServerlessEndpointKind = "GENERIC_HTTP"
 	V1ServerlessEndpointKindCLOUDFLAREWORKERS V1ServerlessEndpointKind = "CLOUDFLARE_WORKERS"
+	V1ServerlessEndpointKindVERCEL            V1ServerlessEndpointKind = "VERCEL"
 )
 
 func (e *V1ServerlessEndpointKind) Scan(src interface{}) error {
@@ -2636,6 +2683,7 @@ type APIToken struct {
 	TenantId    *uuid.UUID       `json:"tenantId"`
 	NextAlertAt pgtype.Timestamp `json:"nextAlertAt"`
 	Internal    bool             `json:"internal"`
+	ReadOnly    bool             `json:"readOnly"`
 }
 
 type Action struct {
@@ -2707,6 +2755,13 @@ type GetGroupKeyRun struct {
 	CancelledError    pgtype.Text      `json:"cancelledError"`
 	WorkflowRunId     uuid.UUID        `json:"workflowRunId"`
 	ScheduleTimeoutAt pgtype.Timestamp `json:"scheduleTimeoutAt"`
+}
+
+type GooseDbVersion struct {
+	ID        pgtype.Int4      `json:"id"`
+	VersionID pgtype.Int8      `json:"version_id"`
+	IsApplied pgtype.Bool      `json:"is_applied"`
+	Tstamp    pgtype.Timestamp `json:"tstamp"`
 }
 
 type InternalQueueItem struct {
@@ -3314,6 +3369,67 @@ type UserSession struct {
 	ExpiresAt pgtype.Timestamp `json:"expiresAt"`
 }
 
+type V1AggEventsMinuteDeltaOlap struct {
+	ID         int64              `json:"id"`
+	TenantID   uuid.UUID          `json:"tenant_id"`
+	Bucket     pgtype.Timestamptz `json:"bucket"`
+	EventCount int32              `json:"event_count"`
+}
+
+type V1AggEventsMinuteOlap struct {
+	TenantID   uuid.UUID          `json:"tenant_id"`
+	Bucket     pgtype.Timestamptz `json:"bucket"`
+	EventCount int64              `json:"event_count"`
+}
+
+type V1AggTaskEventsMinuteDeltaOlap struct {
+	ID             int64              `json:"id"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	Bucket         pgtype.Timestamptz `json:"bucket"`
+	WorkflowID     uuid.UUID          `json:"workflow_id"`
+	QueuedCount    int32              `json:"queued_count"`
+	RunningCount   int32              `json:"running_count"`
+	CompletedCount int32              `json:"completed_count"`
+	CancelledCount int32              `json:"cancelled_count"`
+	FailedCount    int32              `json:"failed_count"`
+}
+
+type V1AggTaskEventsMinuteOlap struct {
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	Bucket         pgtype.Timestamptz `json:"bucket"`
+	WorkflowID     uuid.UUID          `json:"workflow_id"`
+	QueuedCount    int64              `json:"queued_count"`
+	RunningCount   int64              `json:"running_count"`
+	CompletedCount int64              `json:"completed_count"`
+	CancelledCount int64              `json:"cancelled_count"`
+	FailedCount    int64              `json:"failed_count"`
+}
+
+type V1AggTaskStatusesMinuteDeltaOlap struct {
+	ID             int64              `json:"id"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	Bucket         pgtype.Timestamptz `json:"bucket"`
+	WorkflowID     uuid.UUID          `json:"workflow_id"`
+	QueuedCount    int32              `json:"queued_count"`
+	RunningCount   int32              `json:"running_count"`
+	CompletedCount int32              `json:"completed_count"`
+	CancelledCount int32              `json:"cancelled_count"`
+	FailedCount    int32              `json:"failed_count"`
+	EvictedCount   int32              `json:"evicted_count"`
+}
+
+type V1AggTaskStatusesMinuteOlap struct {
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	Bucket         pgtype.Timestamptz `json:"bucket"`
+	WorkflowID     uuid.UUID          `json:"workflow_id"`
+	QueuedCount    int64              `json:"queued_count"`
+	RunningCount   int64              `json:"running_count"`
+	CompletedCount int64              `json:"completed_count"`
+	CancelledCount int64              `json:"cancelled_count"`
+	FailedCount    int64              `json:"failed_count"`
+	EvictedCount   int64              `json:"evicted_count"`
+}
+
 type V1BatchRuntime struct {
 	TenantID  uuid.UUID          `json:"tenant_id"`
 	StepID    uuid.UUID          `json:"step_id"`
@@ -3875,6 +3991,16 @@ type V1ServerlessEndpoint struct {
 	DeletedAt             pgtype.Timestamptz       `json:"deleted_at"`
 }
 
+type V1ServerlessEndpointEvent struct {
+	ID         int64                         `json:"id"`
+	TenantID   uuid.UUID                     `json:"tenant_id"`
+	EndpointID uuid.UUID                     `json:"endpoint_id"`
+	CreatedAt  pgtype.Timestamptz            `json:"created_at"`
+	Kind       V1ServerlessEndpointEventKind `json:"kind"`
+	Message    string                        `json:"message"`
+	Details    []byte                        `json:"details"`
+}
+
 type V1ServerlessLease struct {
 	TenantID          uuid.UUID          `json:"tenant_id"`
 	EndpointPartition int32              `json:"endpoint_partition"`
@@ -4119,6 +4245,8 @@ type V1TaskRuntime struct {
 	TenantID       uuid.UUID          `json:"tenant_id"`
 	TimeoutAt      pgtype.Timestamp   `json:"timeout_at"`
 	EvictedAt      pgtype.Timestamptz `json:"evicted_at"`
+	AssignedAt     pgtype.Timestamptz `json:"assigned_at"`
+	AckedAt        pgtype.Timestamptz `json:"acked_at"`
 }
 
 type V1TaskRuntimeSlot struct {

@@ -1,0 +1,14 @@
+TooManyRequests:
+  description: >-
+    Too many requests: the tenant hit a rate or concurrency limit. Retry after
+    the interval in the Retry-After header.
+  headers:
+    Retry-After:
+      description: Number of seconds to wait before retrying the request
+      schema:
+        type: integer
+        minimum: 1
+  content:
+    application/json:
+      schema:
+        $ref: "../schemas/_index.yaml#/APIErrors"

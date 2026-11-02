@@ -696,13 +696,14 @@ type ServerlessStreamOpen struct {
 	// of the stream carries it.
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// The fully qualified procedure name. The operator allows exactly
-	// /Dispatcher/SubscribeToWorkflowRuns, /Dispatcher/SubscribeToWorkflowEvents and
-	// /v1.V1Dispatcher/ListenForDurableEvent; anything else is closed with code 12
-	// (unimplemented) before any engine call is made.
+	// /Dispatcher/SubscribeToWorkflowRuns, /Dispatcher/SubscribeToWorkflowEvents,
+	// /v1.V1Dispatcher/ListenForDurableEvent and /v1.V1Streams/Subscribe; anything else is
+	// closed with code 12 (unimplemented) before any engine call is made.
 	Procedure string `protobuf:"bytes,2,opt,name=procedure,proto3" json:"procedure,omitempty"`
 	// The first message of the stream as a protojson document: the request of a server
 	// stream, the first subscription of a bidi stream. A request that names a run the task
-	// may not observe is closed with code 7 (permission denied).
+	// may not observe is closed with code 7 (permission denied), as is a V1Streams/Subscribe
+	// request from a tenant without the durable streams entitlement.
 	Request string `protobuf:"bytes,3,opt,name=request,proto3" json:"request,omitempty"`
 }
 

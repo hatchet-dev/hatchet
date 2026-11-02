@@ -127,6 +127,7 @@ class WorkflowRunsApi:
             "200": "V1BranchDurableTaskResponse",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -204,6 +205,7 @@ class WorkflowRunsApi:
             "200": "V1BranchDurableTaskResponse",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -281,6 +283,7 @@ class WorkflowRunsApi:
             "200": "V1BranchDurableTaskResponse",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -503,6 +506,7 @@ class WorkflowRunsApi:
             "200": "V1WorkflowRunCount",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -662,6 +666,7 @@ class WorkflowRunsApi:
             "200": "V1WorkflowRunCount",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -821,6 +826,7 @@ class WorkflowRunsApi:
             "200": "V1WorkflowRunCount",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -1031,6 +1037,7 @@ class WorkflowRunsApi:
             "200": "V1WorkflowRunDetails",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -1108,6 +1115,7 @@ class WorkflowRunsApi:
             "200": "V1WorkflowRunDetails",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -1185,6 +1193,7 @@ class WorkflowRunsApi:
             "200": "V1WorkflowRunDetails",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -1328,6 +1337,7 @@ class WorkflowRunsApi:
             "200": "V1WorkflowRunDisplayNameList",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -1409,6 +1419,7 @@ class WorkflowRunsApi:
             "200": "V1WorkflowRunDisplayNameList",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -1490,6 +1501,7 @@ class WorkflowRunsApi:
             "200": "V1WorkflowRunDisplayNameList",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -1661,6 +1673,7 @@ class WorkflowRunsApi:
             "200": "List[str]",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -1775,6 +1788,7 @@ class WorkflowRunsApi:
             "200": "List[str]",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -1889,6 +1903,7 @@ class WorkflowRunsApi:
             "200": "List[str]",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -2071,6 +2086,7 @@ class WorkflowRunsApi:
             "200": "V1WorkflowRunDetails",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -2155,6 +2171,7 @@ class WorkflowRunsApi:
             "200": "V1WorkflowRunDetails",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -2239,6 +2256,7 @@ class WorkflowRunsApi:
             "200": "V1WorkflowRunDetails",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -2372,6 +2390,7 @@ class WorkflowRunsApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -2448,6 +2467,7 @@ class WorkflowRunsApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -2524,6 +2544,7 @@ class WorkflowRunsApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -2655,6 +2676,7 @@ class WorkflowRunsApi:
             "200": "V1TaskTimingList",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -2736,6 +2758,7 @@ class WorkflowRunsApi:
             "200": "V1TaskTimingList",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -2817,6 +2840,7 @@ class WorkflowRunsApi:
             "200": "V1TaskTimingList",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -3062,6 +3086,7 @@ class WorkflowRunsApi:
             "200": "V1TaskSummaryList",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -3252,6 +3277,7 @@ class WorkflowRunsApi:
             "200": "V1TaskSummaryList",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -3442,6 +3468,7 @@ class WorkflowRunsApi:
             "200": "V1TaskSummaryList",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -3682,6 +3709,7 @@ class WorkflowRunsApi:
             "200": "V1TaskEventList",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -3769,6 +3797,7 @@ class WorkflowRunsApi:
             "200": "V1TaskEventList",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -3856,6 +3885,7 @@ class WorkflowRunsApi:
             "200": "V1TaskEventList",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(

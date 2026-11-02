@@ -76,29 +76,49 @@ Restart your Hatchet server after setting these variables to apply the changes.
 
 ## Global Metrics
 
-| Metric Name                                                | Type      | Description                                                                                 |
-| ---------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------- |
-| `hatchet_queue_invocations_total`                          | Counter   | The total number of invocations of the queuer function                                      |
-| `hatchet_created_tasks_total`                              | Counter   | The total number of tasks created                                                           |
-| `hatchet_retried_tasks_total`                              | Counter   | The total number of tasks retried                                                           |
-| `hatchet_succeeded_tasks_total`                            | Counter   | The total number of tasks that succeeded                                                    |
-| `hatchet_failed_tasks_total`                               | Counter   | The total number of tasks that failed (in a final state, not including retries)             |
-| `hatchet_skipped_tasks_total`                              | Counter   | The total number of tasks that were skipped                                                 |
-| `hatchet_cancelled_tasks_total`                            | Counter   | The total number of tasks cancelled                                                         |
-| `hatchet_assigned_tasks`                                   | Counter   | The total number of tasks assigned to a worker                                              |
-| `hatchet_scheduling_timed_out`                             | Counter   | The total number of tasks that timed out while waiting to be scheduled                      |
-| `hatchet_rate_limited`                                     | Counter   | The total number of tasks that were rate limited                                            |
-| `hatchet_queued_to_assigned`                               | Counter   | The total number of unique tasks that were queued and later assigned to a worker            |
-| `hatchet_queued_to_assigned_time_seconds`                  | Histogram | Buckets of time (in seconds) spent in the queue before being assigned to a worker           |
-| `hatchet_reassigned_tasks`                                 | Counter   | The total number of tasks that were reassigned to a worker                                  |
-| `hatchet_pubsub_publish_duration_seconds`                  | Histogram | Publisher-side blocking time of a pub/sub `Pub` call                                        |
-| `hatchet_pubsub_transit_seconds`                           | Histogram | Pub/sub publish-to-delivery latency, from the message's `published_at` stamp                |
-| `hatchet_pubsub_nats_scheduler_partition_drops_total`      | Counter   | Messages dropped client-side by the NATS scheduler-partition subscription                   |
-| `hatchet_pubsub_stale_skipped_total`                       | Counter   | Delivered pub/sub messages skipped because they were older than the max age                 |
-| `hatchet_pubsub_handlers_in_flight`                        | Gauge     | Pub/sub subscriber handler calls currently running                                          |
-| `hatchet_pubsub_handler_pool_full_total`                   | Counter   | Pub/sub deliveries that waited because their subscription's handler limit was reached       |
-| `hatchet_pubsub_handler_slot_wait_seconds`                 | Histogram | Time a pub/sub delivery waited for a free handler slot                                      |
-| `hatchet_pubsub_nats_scheduler_partition_pending_messages` | Gauge     | Messages buffered by the NATS scheduler-partition subscription, not yet handed to a handler |
+| Metric Name                                                | Type      | Description                                                                                        |
+| ---------------------------------------------------------- | --------- | -------------------------------------------------------------------------------------------------- |
+| `hatchet_queue_invocations_total`                          | Counter   | The total number of invocations of the queuer function                                             |
+| `hatchet_created_tasks_total`                              | Counter   | The total number of tasks created                                                                  |
+| `hatchet_retried_tasks_total`                              | Counter   | The total number of tasks retried                                                                  |
+| `hatchet_succeeded_tasks_total`                            | Counter   | The total number of tasks that succeeded                                                           |
+| `hatchet_failed_tasks_total`                               | Counter   | The total number of tasks that failed (in a final state, not including retries)                    |
+| `hatchet_skipped_tasks_total`                              | Counter   | The total number of tasks that were skipped                                                        |
+| `hatchet_cancelled_tasks_total`                            | Counter   | The total number of tasks cancelled                                                                |
+| `hatchet_assigned_tasks`                                   | Counter   | The total number of tasks assigned to a worker                                                     |
+| `hatchet_scheduling_timed_out`                             | Counter   | The total number of tasks that timed out while waiting to be scheduled                             |
+| `hatchet_rate_limited`                                     | Counter   | The total number of tasks that were rate limited                                                   |
+| `hatchet_queued_to_assigned`                               | Counter   | The total number of unique tasks that were queued and later assigned to a worker                   |
+| `hatchet_queued_to_assigned_time_seconds`                  | Histogram | Buckets of time (in seconds) spent in the queue before being assigned to a worker                  |
+| `hatchet_reassigned_tasks`                                 | Counter   | The total number of tasks that were reassigned to a worker                                         |
+| `hatchet_pubsub_publish_duration_seconds`                  | Histogram | Publisher-side blocking time of a pub/sub `Pub` call                                               |
+| `hatchet_pubsub_transit_seconds`                           | Histogram | Pub/sub publish-to-delivery latency, from the message's `published_at` stamp                       |
+| `hatchet_pubsub_nats_scheduler_partition_drops_total`      | Counter   | Messages dropped client-side by the NATS scheduler-partition subscription                          |
+| `hatchet_pubsub_stale_skipped_total`                       | Counter   | Delivered pub/sub messages skipped because they were older than the max age                        |
+| `hatchet_pubsub_handlers_in_flight`                        | Gauge     | Pub/sub subscriber handler calls currently running                                                 |
+| `hatchet_pubsub_handler_pool_full_total`                   | Counter   | Pub/sub deliveries that waited because their subscription's handler limit was reached              |
+| `hatchet_pubsub_handler_slot_wait_seconds`                 | Histogram | Time a pub/sub delivery waited for a free handler slot                                             |
+| `hatchet_pubsub_nats_scheduler_partition_pending_messages` | Gauge     | Messages buffered by the NATS scheduler-partition subscription, not yet handed to a handler        |
+| `hatchet_fairpool_held_connections`                        | Gauge     | Database connections a fairpool bucket currently holds                                             |
+| `hatchet_fairpool_connection_limit`                        | Gauge     | Database checkouts a fairpool bucket may have in flight at once                                    |
+| `hatchet_fairpool_wait_seconds`                            | Histogram | Time an acquire waited for a fairpool connection slot                                              |
+| `hatchet_fairpool_rejections_total`                        | Counter   | Acquires rejected because a fairpool bucket was at its cap for `DATABASE_FAIRPOOL_TENANT_MAX_WAIT` |
+
+The `hatchet_fairpool_*` metrics are reported per engine process, and only for
+buckets with a cap: `DATABASE_FAIRPOOL_TENANT_MAX_PERCENT` or
+`DATABASE_FAIRPOOL_SHARED_MAX_PERCENT` from `1` to `99`. `pool` is `main` or
+`read-replica`. `bucket` is `tenant` or `shared`; the `tenant` limit applies to
+each tenant separately. `hatchet_fairpool_held_connections` is labelled by
+`tenant_id` instead, which is a tenant id or `shared`, and a series is removed
+when its count returns to zero. `hatchet_fairpool_wait_seconds` is labelled by
+`outcome` (`acquired`, `rejected` or `canceled`) and only observes acquires that
+had to wait.
+
+The shared bucket carries engine work that is not tied to a tenant, including
+partition heartbeats and API lookups that run before the tenant is known. If
+`hatchet_fairpool_rejections_total{bucket="shared"}` rises, or shared held
+connections stay at `hatchet_fairpool_connection_limit{bucket="shared"}`, raise
+`DATABASE_FAIRPOOL_SHARED_MAX_PERCENT`.
 
 The publish duration and transit histograms are labelled by `kind` (the
 pub/sub backend: `rabbitmq`, `postgres`, or `nats`) and `topic_kind`;
@@ -252,6 +272,18 @@ rate(hatchet_assigned_tasks[5m]) / rate(hatchet_created_tasks_total[5m])
 
 ```promql
 rate(hatchet_reassigned_tasks[5m])
+```
+
+#### 14. Fairpool Shared Bucket Saturation
+
+```promql
+# Share of the shared cap in use, per engine process (1 = at the cap)
+hatchet_fairpool_held_connections{tenant_id="shared"}
+  / ignoring(tenant_id, bucket)
+hatchet_fairpool_connection_limit{bucket="shared"}
+
+# Shared acquires rejected per second
+sum by (pool) (rate(hatchet_fairpool_rejections_total{bucket="shared"}[5m]))
 ```
 
 ## Tenant Metrics

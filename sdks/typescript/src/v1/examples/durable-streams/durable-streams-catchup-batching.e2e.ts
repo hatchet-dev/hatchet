@@ -38,7 +38,7 @@ describe('durable-streams-e2e catch-up batching', () => {
       await hatchet.streams.publish(topic, makePayload(i));
     }
 
-    // talk to the raw Subscribe RPC directly (bypassing events()) so we can
+    // talk to the raw Subscribe RPC directly (bypassing subscribe()) so we can
     // count how many StreamMessage frames the catch-up actually took --
     // proving chunking was exercised, not just that everything happened to
     // fit in one frame

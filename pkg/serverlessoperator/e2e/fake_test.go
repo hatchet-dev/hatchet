@@ -65,17 +65,33 @@ type durableScript struct {
 }
 
 // streamScript is what the fake does on the socket of a non-durable task the catalog flagged
-// with streams: trigger a child run through the tenant's client (unary, outside the socket),
-// open a SubscribeToWorkflowRuns stream for it over the socket, wait for the child's terminal
-// event, close the stream and finish with the child's result as the output.
+// with streams. With trigger set: trigger a child run through the tenant's client (unary,
+// outside the socket), open a SubscribeToWorkflowRuns stream for it over the socket, wait for
+// the child's terminal event, close the stream and finish with the child's result as the
+// output. With topic set: open a V1Streams.Subscribe stream for the topic over the socket,
+// read until the wanted number of entries arrived or the operator closed the stream, close it
+// and finish with the payloads and the close code as the output.
 type streamScript struct {
 	// trigger starts the child run with the parent's input and returns its run id.
 	trigger func(input json.RawMessage) (string, error)
+	// topic is the durable stream topic to subscribe to instead of awaiting a child.
+	topic topicSubscription
+}
+
+// topicSubscription names a durable stream topic and how many entries the script reads.
+type topicSubscription struct {
+	namespace string
+	topic     string
+	want      int
 }
 
 // streamRun is what the stream script observed for one socket invocation.
 type streamRun struct {
 	childRunId string
+	// payloads are the entries a topic subscription received, in order.
+	payloads []string
+	// closeCode is the code of the stream_close the operator sent, when it closed the stream
+	// before the script did.
 	closeCode  int32
 	invocation int32
 }
@@ -592,6 +608,11 @@ func (f *fakeEndpoint) runStreaming(conn *websocket.Conn, first *v1.ServerlessFi
 
 	s := newDurableSession(f, conn)
 
+	if script.topic.topic != "" {
+		f.runTopicStream(s, &run, script.topic)
+		return
+	}
+
 	if script.trigger == nil {
 		f.t.Errorf("fake %s: a flagged task was invoked over the socket without a stream script", f.name)
 		return
@@ -669,6 +690,75 @@ func (f *fakeEndpoint) runStreaming(conn *websocket.Conn, first *v1.ServerlessFi
 	s.done(&v1.ServerlessDoneFrame{Output: &encoded})
 }
 
+// runTopicStream subscribes to the topic over the socket and reads sub.want entries, or
+// stops at the operator's stream_close, then completes with what it saw.
+func (f *fakeEndpoint) runTopicStream(s *durableSession, run *streamRun, sub topicSubscription) {
+	request, err := protojson.Marshal(&v1.SubscribeStreamRequest{Namespace: sub.namespace, Topic: sub.topic})
+
+	if err != nil {
+		f.t.Errorf("fake %s: could not encode the subscription: %v", f.name, err)
+		return
+	}
+
+	if err := s.sendFrame(&v1.ServerlessDurableFrame{Frame: &v1.ServerlessDurableFrame_StreamOpen{StreamOpen: &v1.ServerlessStreamOpen{
+		Id:        "topic",
+		Procedure: "/v1.V1Streams/Subscribe",
+		Request:   string(request),
+	}}}); err != nil {
+		f.t.Errorf("fake %s: could not send stream_open: %v", f.name, err)
+		return
+	}
+
+	payloads := []string{}
+	closed := false
+
+	for len(payloads) < sub.want && !closed {
+		message, closeCode, isClose, err := s.recvStreamFrame("topic", ackWait)
+
+		if err != nil {
+			f.t.Errorf("fake %s: waiting for the topic's messages: %v", f.name, err)
+			return
+		}
+
+		if isClose {
+			run.closeCode = closeCode
+			closed = true
+
+			break
+		}
+
+		msg := &v1.StreamMessage{}
+
+		if err := protojson.Unmarshal([]byte(message), msg); err != nil {
+			f.t.Errorf("fake %s: could not decode the stream message: %v", f.name, err)
+			return
+		}
+
+		for _, entry := range msg.GetEntries() {
+			payloads = append(payloads, string(entry.GetPayload()))
+		}
+	}
+
+	run.payloads = payloads
+
+	if !closed {
+		if err := s.sendFrame(&v1.ServerlessDurableFrame{Frame: &v1.ServerlessDurableFrame_StreamClose{StreamClose: &v1.ServerlessStreamClose{Id: "topic"}}}); err != nil {
+			f.t.Errorf("fake %s: could not send stream_close: %v", f.name, err)
+			return
+		}
+	}
+
+	raw, err := json.Marshal(map[string]any{"payloads": payloads, "closeCode": run.closeCode})
+
+	if err != nil {
+		f.t.Errorf("fake %s: could not encode output: %v", f.name, err)
+		return
+	}
+
+	encoded := string(raw)
+	s.done(&v1.ServerlessDoneFrame{Output: &encoded})
+}
+
 // durableSession is the endpoint side of one durable websocket: it sends requests as the
 // endpoint SDK would and reads the engine's responses back. Frames are read by one goroutine
 // into a channel so waiting with a timeout (the inline budget) never sets a read deadline,
@@ -733,9 +823,27 @@ func (s *durableSession) sendFrame(frame *v1.ServerlessDurableFrame) error {
 	return s.conn.WriteMessage(websocket.TextMessage, out)
 }
 
-// recvStream reads frames until the stream carries a message (returned decoded) or a
-// stream_close (returned as its code with a nil event).
+// recvStream reads frames until the stream carries a workflow run event (returned decoded)
+// or a stream_close (returned as its code with a nil event).
 func (s *durableSession) recvStream(id string, wait time.Duration) (*dispatchercontracts.WorkflowRunEvent, int32, error) {
+	message, closeCode, closed, err := s.recvStreamFrame(id, wait)
+
+	if err != nil || closed {
+		return nil, closeCode, err
+	}
+
+	event := &dispatchercontracts.WorkflowRunEvent{}
+
+	if err := protojson.Unmarshal([]byte(message), event); err != nil {
+		return nil, 0, err
+	}
+
+	return event, 0, nil
+}
+
+// recvStreamFrame reads frames until the stream carries a message (returned as its protojson)
+// or a stream_close (closed, with its code).
+func (s *durableSession) recvStreamFrame(id string, wait time.Duration) (message string, closeCode int32, closed bool, err error) {
 	deadline := time.After(wait)
 
 	for {
@@ -744,37 +852,31 @@ func (s *durableSession) recvStream(id string, wait time.Duration) (*dispatcherc
 		select {
 		case frame, ok := <-s.frames:
 			if !ok {
-				return nil, 0, errors.New("socket closed")
+				return "", 0, false, errors.New("socket closed")
 			}
 
 			if frame.err != nil {
-				return nil, 0, frame.err
+				return "", 0, false, frame.err
 			}
 
 			data = frame.data
 		case <-deadline:
-			return nil, 0, errReadTimeout
+			return "", 0, false, errReadTimeout
 		}
 
 		frame, err := contract.UnmarshalFrame(data)
 
 		if err != nil {
-			return nil, 0, err
+			return "", 0, false, err
 		}
 
 		switch {
 		case frame.GetStreamMessage() != nil && frame.GetStreamMessage().GetId() == id:
-			event := &dispatchercontracts.WorkflowRunEvent{}
-
-			if err := protojson.Unmarshal([]byte(frame.GetStreamMessage().GetMessage()), event); err != nil {
-				return nil, 0, err
-			}
-
-			return event, 0, nil
+			return frame.GetStreamMessage().GetMessage(), 0, false, nil
 		case frame.GetStreamClose() != nil && frame.GetStreamClose().GetId() == id:
-			return nil, frame.GetStreamClose().GetCode(), nil
+			return "", frame.GetStreamClose().GetCode(), true, nil
 		default:
-			return nil, 0, fmt.Errorf("unexpected frame %s", string(data))
+			return "", 0, false, fmt.Errorf("unexpected frame %s", string(data))
 		}
 	}
 }

@@ -9,17 +9,27 @@ import type {
 import type { BaseWorkflowDeclaration, WorkflowDefinition } from '@hatchet/v1/declaration';
 import type { InputType, OutputType } from '@hatchet/v1/types';
 import { workflowToProto } from '@hatchet/v1/client/worker/workflow-proto';
+import { WorkflowsClient as RestWorkflowsClient } from '@hatchet/v1/client/features/workflows';
+import type { RestApi } from '@hatchet/clients/rest/rest-api';
 
 export interface WorkflowsClientDeps {
   rpc: AdminServiceClient;
+  api: RestApi;
+  tenantId: string;
   logger: Logger;
   namespace?: string;
   retrier?: RetrierConfig;
 }
 
-/** Registers workflow definitions with the engine. */
-export class WorkflowsClient {
-  constructor(private readonly deps: WorkflowsClientDeps) {}
+/**
+ * Registers workflow definitions with the engine over the v1 `AdminService`, and manages the
+ * registered workflows over the REST API with the Node client's `get`, `list`, `delete`,
+ * `pause` and `unpause`.
+ */
+export class WorkflowsClient extends RestWorkflowsClient {
+  constructor(private readonly deps: WorkflowsClientDeps) {
+    super({ api: deps.api, tenantId: deps.tenantId, config: { namespace: deps.namespace } });
+  }
 
   /**
    * Creates or updates a workflow. A declaration from `/edge` (or its definition) is

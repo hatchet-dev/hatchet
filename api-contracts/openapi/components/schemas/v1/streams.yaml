@@ -6,3 +6,45 @@ V1StreamPayloadRef:
   required:
     - ref
   type: object
+
+V1StreamTopic:
+  properties:
+    namespace:
+      type: string
+      description: The topic's namespace, empty for the default namespace
+    topic:
+      type: string
+    createdAt:
+      type: string
+      format: date-time
+    lastPublishedAt:
+      type: string
+      format: date-time
+    messageCount:
+      type: integer
+      format: int64
+      description: The number of messages within the tenant's retention
+  required:
+    - namespace
+    - topic
+    - createdAt
+    - lastPublishedAt
+    - messageCount
+  type: object
+
+V1StreamTopicList:
+  properties:
+    pagination:
+      $ref: "../metadata.yaml#/PaginationResponse"
+    retentionHours:
+      type: integer
+      description: How long messages are kept, and how long a topic is kept after its last publish
+    rows:
+      type: array
+      items:
+        $ref: "#/V1StreamTopic"
+  required:
+    - pagination
+    - retentionHours
+    - rows
+  type: object

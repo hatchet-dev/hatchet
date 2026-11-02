@@ -15,11 +15,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
-	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
@@ -437,31 +436,19 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not run analyze: %w", err)
 	}
 
-	_, err = o.s.NewJob(
-		gocron.DurationJob(o.repo.Payloads().ExternalCutoverProcessInterval()),
-		gocron.NewTask(
-			o.processPayloadExternalCutovers(ctx),
-		),
-		gocron.WithSingletonMode(gocron.LimitModeReschedule),
-	)
-
-	if err != nil {
-		wrappedErr := fmt.Errorf("could not schedule process olap payload external cutovers: %w", err)
-
-		cancel()
-
-		return nil, wrappedErr
-	}
+	stopAggregates := o.repo.OLAP().Aggregates().Start()
 
 	cleanupBuffer, err := mqBuffer.Start()
 
 	if err != nil {
 		cancel()
+		stopAggregates()
 		return nil, fmt.Errorf("could not start message queue buffer: %w", err)
 	}
 
 	cleanup := func() error {
 		cancel()
+		stopAggregates()
 
 		// Stop prometheus workers if running
 		if o.taskPrometheusWorkerCancel != nil {
@@ -570,7 +557,7 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 	attempts := 0
 	for len(createTaskOpts) > 0 {
 		if attempts >= maxLockAttempts {
-			maxRequeueCount := listutils.MaxOf(createTaskOpts, func(o *tasktypes.CreatedTaskPayload) int { return o.RequeueCount })
+			maxRequeueCount := enumerables.MaxOf(createTaskOpts, func(o *tasktypes.CreatedTaskPayload) int { return o.RequeueCount })
 			tc.logRepublish(ctx, "tasks", len(createTaskOpts), attempts, maxRequeueCount)
 			return tc.republishCreatedTasks(ctx, tenantId, createTaskOpts)
 		}
@@ -665,7 +652,7 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 	attempts := 0
 	for len(createDAGOpts) > 0 {
 		if attempts >= maxLockAttempts {
-			maxRequeueCount := listutils.MaxOf(createDAGOpts, func(o *tasktypes.CreatedDAGPayload) int { return o.RequeueCount })
+			maxRequeueCount := enumerables.MaxOf(createDAGOpts, func(o *tasktypes.CreatedDAGPayload) int { return o.RequeueCount })
 			tc.logRepublish(ctx, "DAGs", len(createDAGOpts), attempts, maxRequeueCount)
 			return tc.republishCreatedDAGs(ctx, tenantId, createDAGOpts)
 		}
@@ -790,7 +777,7 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 				}
 			}
 
-			_, eventAlreadySeen := seenEventKeysSet[payload.EventExternalId]
+			eventAlreadySeen := enumerables.HasKey(seenEventKeysSet, payload.EventExternalId)
 
 			if eventAlreadySeen {
 				continue
@@ -972,11 +959,9 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		return err
 	}
 
-	taskIdsToMetas := make(map[int64]*sqlcv1.ListTaskMetasRow)
-
-	for _, taskMeta := range metas {
-		taskIdsToMetas[taskMeta.ID] = taskMeta
-	}
+	taskIdsToMetas := enumerables.KeyBy(metas, func(taskMeta *sqlcv1.ListTaskMetasRow) int64 {
+		return taskMeta.ID
+	})
 
 	taskIds := make([]int64, 0)
 	taskInsertedAts := make([]pgtype.Timestamptz, 0)
@@ -1197,7 +1182,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 				continue
 			}
 
-			_, lockNotAcquired := workflowRunIdsOfLocksNotAcquired[taskMeta.WorkflowRunID]
+			lockNotAcquired := enumerables.HasKey(workflowRunIdsOfLocksNotAcquired, taskMeta.WorkflowRunID)
 
 			if !lockNotAcquired {
 				spanEvent, ok := msgIxToSpanEvent[ix]
@@ -1352,22 +1337,4 @@ func hashToBucket(workflowRunID string, buckets int) int {
 	idBytes := []byte(workflowRunID)
 	hasher.Write(idBytes)
 	return int(hasher.Sum32()) % buckets
-}
-
-func (oc *OLAPControllerImpl) processPayloadExternalCutovers(ctx context.Context) func() {
-	return func() {
-		ctx, span := telemetry.NewSpan(ctx, "OLAPControllerImpl.processPayloadExternalCutovers")
-		defer span.End()
-
-		oc.l.Debug().Ctx(ctx).Msgf("payload external cutover: processing external cutover payloads")
-
-		p := oc.repo.Payloads()
-		err := oc.repo.OLAP().ProcessOLAPPayloadCutovers(ctx, p.ExternalStoreEnabled(), p.InlineStoreTTL(), p.ExternalCutoverBatchSize(), p.ExternalCutoverNumConcurrentOffloads(), p.EnableWindowSizeOptimization())
-
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "could not process external cutover payloads")
-			oc.l.Error().Ctx(ctx).Err(err).Msg("could not process external cutover payloads")
-		}
-	}
 }

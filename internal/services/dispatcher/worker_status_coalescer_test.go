@@ -129,6 +129,31 @@ func TestWorkerStatusCoalescerMerge(t *testing.T) {
 	}
 }
 
+func TestWorkerStatusCoalescerKeepsHighestReceivedSatisfiedOrder(t *testing.T) {
+	received := func(task string, invocation int32, order int64) *contracts.DurableTaskReceivedSatisfiedOrder {
+		return &contracts.DurableTaskReceivedSatisfiedOrder{DurableTaskExternalId: task, InvocationCount: invocation, HighestReceivedSatisfiedOrder: order}
+	}
+	withReceived := func(status *contracts.DurableTaskWorkerStatusRequest, orders ...*contracts.DurableTaskReceivedSatisfiedOrder) *contracts.DurableTaskWorkerStatusRequest {
+		status.ReceivedSatisfiedOrders = orders
+		return status
+	}
+
+	c := newWorkerStatusCoalescer()
+	c.merge(withReceived(statusOf(statusEntry{"a", 1, 2, 1}, statusEntry{"b", 1, 1, 1}), received("a", 1, 3), received("b", 1, 4)))
+	c.merge(withReceived(statusOf(statusEntry{"a", 1, 3, 1}), received("a", 1, 1)))
+	c.merge(withReceived(statusOf(statusEntry{"b", 1, 1, 2}), received("b", 1, 9)))
+
+	got := c.next()
+	require.NotNil(t, got)
+
+	highestByTask := make(map[string]int64)
+	for _, r := range got.ReceivedSatisfiedOrders {
+		highestByTask[r.DurableTaskExternalId] = r.HighestReceivedSatisfiedOrder
+	}
+
+	assert.Equal(t, map[string]int64{"a": 3}, highestByTask)
+}
+
 func TestWorkerStatusCoalescerRunnerLifecycle(t *testing.T) {
 	c := newWorkerStatusCoalescer()
 

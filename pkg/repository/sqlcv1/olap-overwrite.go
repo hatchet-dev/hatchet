@@ -1035,62 +1035,6 @@ func (q *Queries) BulkCreateEventsOLAP(ctx context.Context, db DBTX, arg BulkCre
 	return items, nil
 }
 
-const findV1OLAPPayloadPartitionsBeforeDate = `-- name: findV1OLAPPayloadPartitionsBeforeDate :many
-WITH partitions AS (
-    SELECT
-        child.relname::text AS partition_name,
-        SUBSTRING(pg_get_expr(child.relpartbound, child.oid) FROM 'FROM \(''([^'']+)')::DATE AS lower_bound,
-        SUBSTRING(pg_get_expr(child.relpartbound, child.oid) FROM 'TO \(''([^'']+)')::DATE AS upper_bound
-    FROM pg_inherits
-    JOIN pg_class parent ON pg_inherits.inhparent = parent.oid
-    JOIN pg_class child ON pg_inherits.inhrelid = child.oid
-    WHERE parent.relname = 'v1_payloads_olap'
-)
-
-SELECT partition_name, lower_bound AS partition_date
-FROM partitions
-WHERE
-    lower_bound <= $2::DATE
-    AND NOT EXISTS (
-        SELECT 1
-        FROM v1_payloads_olap_cutover_job_offset offsets
-        WHERE offsets.key = partitions.lower_bound AND offsets.is_completed
-    )
-ORDER BY partition_date ASC -- finish old partitions before starting new ones
-LIMIT $1::INTEGER
-`
-
-type FindV1OLAPPayloadPartitionsBeforeDateRow struct {
-	PartitionName string      `json:"partition_name"`
-	PartitionDate pgtype.Date `json:"partition_date"`
-}
-
-func (q *Queries) FindV1OLAPPayloadPartitionsBeforeDate(ctx context.Context, db DBTX, maxPartitionsToProcess int32, date pgtype.Date) ([]*FindV1OLAPPayloadPartitionsBeforeDateRow, error) {
-	rows, err := db.Query(ctx, findV1OLAPPayloadPartitionsBeforeDate,
-		maxPartitionsToProcess,
-		date,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*FindV1OLAPPayloadPartitionsBeforeDateRow
-	for rows.Next() {
-		var i FindV1OLAPPayloadPartitionsBeforeDateRow
-		if err := rows.Scan(
-			&i.PartitionName,
-			&i.PartitionDate,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const createTasksOLAP = `-- name: CreateTasksOLAP :exec
 WITH inputs AS (
     SELECT
@@ -1316,6 +1260,7 @@ SELECT
     i.payload_reference_id
 FROM inputs i
 LEFT JOIN dag_statuses ds ON (i.id, i.inserted_at) = (ds.id, ds.inserted_at)
+ORDER BY i.inserted_at, i.id
 ON CONFLICT (inserted_at, id) DO UPDATE SET
     readable_status = CASE
         WHEN v1_status_to_priority(EXCLUDED.readable_status) > v1_status_to_priority(v1_dags_olap.readable_status)

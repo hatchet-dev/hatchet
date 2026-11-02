@@ -1234,7 +1234,7 @@ func TestConcurrency_PauseDynamicRateLimitKeyHoldsMatchingRuns(t *testing.T) {
 func pauseConcurrencyTestWorkflow(t *testing.T, ctx context.Context, conf *database.Layer, s *concurrencyTestSetup) {
 	t.Helper()
 
-	_, err := conf.V1.Workflows().PauseWorkflow(ctx, s.workflowId, repo.PauseWorkflowOpts{
+	_, err := conf.V1.Workflows().PauseWorkflow(ctx, s.tenantId, s.workflowId, repo.PauseWorkflowOpts{
 		CronRunQueueBehavior:      "QUEUE",
 		ScheduledRunQueueBehavior: "QUEUE",
 		QueueTTL:                  "1h",
@@ -1248,7 +1248,7 @@ func pauseConcurrencyTestWorkflow(t *testing.T, ctx context.Context, conf *datab
 func unpauseConcurrencyTestWorkflow(t *testing.T, ctx context.Context, conf *database.Layer, s *concurrencyTestSetup) {
 	t.Helper()
 
-	_, err := conf.V1.Workflows().UnpauseWorkflow(ctx, s.workflowId)
+	_, err := conf.V1.Workflows().UnpauseWorkflow(ctx, s.tenantId, s.workflowId)
 	require.NoError(t, err)
 
 	_, _, err = conf.V1.Workflows().RequeuePausedWorkflowQueueItems(ctx, s.tenantId, []uuid.UUID{s.workflowId})
@@ -1385,7 +1385,7 @@ func TestConcurrency_TriggerHoldsQueuedRunsOfPausedWorkflow(t *testing.T) {
 		queuedBeforePause := listConcurrencyTestTasks(t, ctx, conf, s.tenantId)[0]
 
 		// paused without the toggle message, so the earlier run is still waiting on its slot
-		_, err := conf.V1.Workflows().PauseWorkflow(ctx, s.workflowId, repo.PauseWorkflowOpts{
+		_, err := conf.V1.Workflows().PauseWorkflow(ctx, s.tenantId, s.workflowId, repo.PauseWorkflowOpts{
 			CronRunQueueBehavior:      "QUEUE",
 			ScheduledRunQueueBehavior: "QUEUE",
 			QueueTTL:                  "1h",

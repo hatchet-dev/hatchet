@@ -31,6 +31,7 @@ class FeatureFlagId(str, Enum):
     TRACE_MINUS_MINIMAP_MINUS_ENABLED = "trace-minimap-enabled"
     ORGANIZATION_MINUS_SSO_MINUS_ENABLED = "organization-sso-enabled"
     OPERATOR_MINUS_DETAILS_MINUS_ENABLED = "operator-details-enabled"
+    CONCURRENCY_MINUS_PAGE_MINUS_ENABLED = "concurrency-page-enabled"
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

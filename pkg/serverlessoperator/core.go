@@ -171,7 +171,7 @@ func Run(ctx context.Context, deps Deps) error {
 		l.Error().Err(err).Msg("could not release serverless leases")
 	}
 
-	r.Shutdown()
+	r.Shutdown(shutdownCtx)
 
 	if err := leaser.DeleteProcess(shutdownCtx); err != nil {
 		l.Error().Err(err).Msg("could not delete serverless process row")

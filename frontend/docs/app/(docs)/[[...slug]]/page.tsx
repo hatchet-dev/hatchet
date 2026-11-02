@@ -1,3 +1,4 @@
+import { isHiddenPage } from "@/lib/hidden-pages";
 import { source } from "@/lib/source";
 import { DocsPage, DocsBody, DocsTitle } from "fumadocs-ui/page";
 import defaultMdxComponents from "fumadocs-ui/mdx";
@@ -136,6 +137,9 @@ export async function generateMetadata({
   return {
     title,
     description,
+    ...(isHiddenPage(canonical)
+      ? { robots: { index: false, follow: false } }
+      : {}),
     alternates: {
       canonical,
       types: {

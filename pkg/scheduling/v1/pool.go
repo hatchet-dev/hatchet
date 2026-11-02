@@ -246,6 +246,12 @@ func (p *SchedulingPool) NotifyNewWorker(ctx context.Context, tenantId uuid.UUID
 	}
 }
 
+func (p *SchedulingPool) RemoveWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) {
+	if tm := p.getTenantManager(tenantId, false); tm != nil {
+		tm.removeWorker(ctx, workerId)
+	}
+}
+
 func (p *SchedulingPool) NotifyNewQueue(ctx context.Context, tenantId uuid.UUID, queueName string) {
 	if tm := p.getTenantManager(tenantId, false); tm != nil {
 		tm.notifyNewQueue(ctx, queueName)

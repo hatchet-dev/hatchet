@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file v1/streams.proto.
  */
 export const file_v1_streams: GenFile = /*@__PURE__*/
-  fileDesc("ChB2MS9zdHJlYW1zLnByb3RvEgJ2MSKQAQobUHVibGlzaFN0cmVhbU1lc3NhZ2VSZXF1ZXN0EhEKCW5hbWVzcGFjZRgBIAEoCRINCgV0b3BpYxgCIAEoCRIPCgdwYXlsb2FkGAMgASgMEhMKC3Byb2R1Y2VyX2lkGAQgASgJEhQKDHByb2R1Y2VyX3NlcRgFIAEoAxITCgtwYXlsb2FkX3JlZhgGIAEoCSIeChxQdWJsaXNoU3RyZWFtTWVzc2FnZVJlc3BvbnNlIloKFlN1YnNjcmliZVN0cmVhbVJlcXVlc3QSEQoJbmFtZXNwYWNlGAEgASgJEg0KBXRvcGljGAIgASgJEhMKBmN1cnNvchgDIAEoCUgAiAEBQgkKB19jdXJzb3IiUQoNU3RyZWFtTWVzc2FnZRIgCgdlbnRyaWVzGAEgAygLMg8udjEuU3RyZWFtRW50cnkSDgoGaGFuZ3VwGAIgASgIEg4KBmN1cnNvchgDIAEoCSJzCgtTdHJlYW1FbnRyeRIPCgdwYXlsb2FkGAEgASgMEg4KBmN1cnNvchgCIAEoCRIuCgpjcmVhdGVkX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBITCgtwYXlsb2FkX3JlZhgEIAEoCSJBCh1HZXRTdHJlYW1Ub3BpY01ldGFkYXRhUmVxdWVzdBIRCgluYW1lc3BhY2UYASABKAkSDQoFdG9waWMYAiABKAkixgEKE1N0cmVhbVRvcGljTWV0YWRhdGESEQoJbmFtZXNwYWNlGAEgASgJEg0KBXRvcGljGAIgASgJEhEKCXRlbmFudF9pZBgDIAEoCRIaCg1sYXRlc3RfY3Vyc29yGAQgASgJSACIAQESFQoNbWVzc2FnZV9jb3VudBgFIAEoAxI1ChFsYXN0X3B1Ymxpc2hlZF9hdBgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXBCEAoOX2xhdGVzdF9jdXJzb3IiOwoXUmVzZXRTdHJlYW1Ub3BpY1JlcXVlc3QSEQoJbmFtZXNwYWNlGAEgASgJEg0KBXRvcGljGAIgASgJIhoKGFJlc2V0U3RyZWFtVG9waWNSZXNwb25zZTKzAgoJVjFTdHJlYW1zEk4KB1B1Ymxpc2gSHy52MS5QdWJsaXNoU3RyZWFtTWVzc2FnZVJlcXVlc3QaIC52MS5QdWJsaXNoU3RyZWFtTWVzc2FnZVJlc3BvbnNlIgASPgoJU3Vic2NyaWJlEhoudjEuU3Vic2NyaWJlU3RyZWFtUmVxdWVzdBoRLnYxLlN0cmVhbU1lc3NhZ2UiADABElAKEEdldFRvcGljTWV0YWRhdGESIS52MS5HZXRTdHJlYW1Ub3BpY01ldGFkYXRhUmVxdWVzdBoXLnYxLlN0cmVhbVRvcGljTWV0YWRhdGEiABJECgVSZXNldBIbLnYxLlJlc2V0U3RyZWFtVG9waWNSZXF1ZXN0GhwudjEuUmVzZXRTdHJlYW1Ub3BpY1Jlc3BvbnNlIgBCQlpAZ2l0aHViLmNvbS9oYXRjaGV0LWRldi9oYXRjaGV0L2ludGVybmFsL3NlcnZpY2VzL3NoYXJlZC9wcm90by92MWIGcHJvdG8z", [file_google_protobuf_timestamp]);
+  fileDesc("ChB2MS9zdHJlYW1zLnByb3RvEgJ2MSKQAQobUHVibGlzaFN0cmVhbU1lc3NhZ2VSZXF1ZXN0EhEKCW5hbWVzcGFjZRgBIAEoCRINCgV0b3BpYxgCIAEoCRIPCgdwYXlsb2FkGAMgASgMEhMKC3Byb2R1Y2VyX2lkGAQgASgJEhQKDHByb2R1Y2VyX3NlcRgFIAEoAxITCgtwYXlsb2FkX3JlZhgGIAEoCSIeChxQdWJsaXNoU3RyZWFtTWVzc2FnZVJlc3BvbnNlIpoBChxQdWJsaXNoU3RyZWFtTWVzc2FnZXNSZXF1ZXN0EhEKCW5hbWVzcGFjZRgBIAEoCRINCgV0b3BpYxgCIAEoCRITCgtwcm9kdWNlcl9pZBgDIAEoCRIaChJmaXJzdF9wcm9kdWNlcl9zZXEYBCABKAMSJwoHZW50cmllcxgFIAMoCzIWLnYxLlN0cmVhbVB1Ymxpc2hFbnRyeSI6ChJTdHJlYW1QdWJsaXNoRW50cnkSDwoHcGF5bG9hZBgBIAEoDBITCgtwYXlsb2FkX3JlZhgCIAEoCSIfCh1QdWJsaXNoU3RyZWFtTWVzc2FnZXNSZXNwb25zZSJaChZTdWJzY3JpYmVTdHJlYW1SZXF1ZXN0EhEKCW5hbWVzcGFjZRgBIAEoCRINCgV0b3BpYxgCIAEoCRITCgZjdXJzb3IYAyABKAlIAIgBAUIJCgdfY3Vyc29yIlEKDVN0cmVhbU1lc3NhZ2USIAoHZW50cmllcxgBIAMoCzIPLnYxLlN0cmVhbUVudHJ5Eg4KBmhhbmd1cBgCIAEoCBIOCgZjdXJzb3IYAyABKAkicwoLU3RyZWFtRW50cnkSDwoHcGF5bG9hZBgBIAEoDBIOCgZjdXJzb3IYAiABKAkSLgoKY3JlYXRlZF9hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEwoLcGF5bG9hZF9yZWYYBCABKAkiQQodR2V0U3RyZWFtVG9waWNNZXRhZGF0YVJlcXVlc3QSEQoJbmFtZXNwYWNlGAEgASgJEg0KBXRvcGljGAIgASgJIsYBChNTdHJlYW1Ub3BpY01ldGFkYXRhEhEKCW5hbWVzcGFjZRgBIAEoCRINCgV0b3BpYxgCIAEoCRIRCgl0ZW5hbnRfaWQYAyABKAkSGgoNbGF0ZXN0X2N1cnNvchgEIAEoCUgAiAEBEhUKDW1lc3NhZ2VfY291bnQYBSABKAMSNQoRbGFzdF9wdWJsaXNoZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wQhAKDl9sYXRlc3RfY3Vyc29yIlsKF1Jlc2V0U3RyZWFtVG9waWNSZXF1ZXN0EhEKCW5hbWVzcGFjZRgBIAEoCRINCgV0b3BpYxgCIAEoCRITCgZjdXJzb3IYAyABKAlIAIgBAUIJCgdfY3Vyc29yIhoKGFJlc2V0U3RyZWFtVG9waWNSZXNwb25zZTKKAwoJVjFTdHJlYW1zEk4KB1B1Ymxpc2gSHy52MS5QdWJsaXNoU3RyZWFtTWVzc2FnZVJlcXVlc3QaIC52MS5QdWJsaXNoU3RyZWFtTWVzc2FnZVJlc3BvbnNlIgASVQoMUHVibGlzaEJhdGNoEiAudjEuUHVibGlzaFN0cmVhbU1lc3NhZ2VzUmVxdWVzdBohLnYxLlB1Ymxpc2hTdHJlYW1NZXNzYWdlc1Jlc3BvbnNlIgASPgoJU3Vic2NyaWJlEhoudjEuU3Vic2NyaWJlU3RyZWFtUmVxdWVzdBoRLnYxLlN0cmVhbU1lc3NhZ2UiADABElAKEEdldFRvcGljTWV0YWRhdGESIS52MS5HZXRTdHJlYW1Ub3BpY01ldGFkYXRhUmVxdWVzdBoXLnYxLlN0cmVhbVRvcGljTWV0YWRhdGEiABJECgVSZXNldBIbLnYxLlJlc2V0U3RyZWFtVG9waWNSZXF1ZXN0GhwudjEuUmVzZXRTdHJlYW1Ub3BpY1Jlc3BvbnNlIgBCQlpAZ2l0aHViLmNvbS9oYXRjaGV0LWRldi9oYXRjaGV0L2ludGVybmFsL3NlcnZpY2VzL3NoYXJlZC9wcm90by92MWIGcHJvdG8z", [file_google_protobuf_timestamp]);
 
 /**
  * @generated from message v1.PublishStreamMessageRequest
@@ -73,6 +73,84 @@ export const PublishStreamMessageResponseSchema: GenMessage<PublishStreamMessage
   messageDesc(file_v1_streams, 1);
 
 /**
+ * one round trip for a producer's next messages to a topic, stored atomically
+ *
+ * @generated from message v1.PublishStreamMessagesRequest
+ */
+export type PublishStreamMessagesRequest = Message<"v1.PublishStreamMessagesRequest"> & {
+  /**
+   * @generated from field: string namespace = 1;
+   */
+  namespace: string;
+
+  /**
+   * @generated from field: string topic = 2;
+   */
+  topic: string;
+
+  /**
+   * @generated from field: string producer_id = 3;
+   */
+  producerId: string;
+
+  /**
+   * the first entry's sequence number; each later entry's is one more
+   *
+   * @generated from field: int64 first_producer_seq = 4;
+   */
+  firstProducerSeq: bigint;
+
+  /**
+   * @generated from field: repeated v1.StreamPublishEntry entries = 5;
+   */
+  entries: StreamPublishEntry[];
+};
+
+/**
+ * Describes the message v1.PublishStreamMessagesRequest.
+ * Use `create(PublishStreamMessagesRequestSchema)` to create a new message.
+ */
+export const PublishStreamMessagesRequestSchema: GenMessage<PublishStreamMessagesRequest> = /*@__PURE__*/
+  messageDesc(file_v1_streams, 2);
+
+/**
+ * @generated from message v1.StreamPublishEntry
+ */
+export type StreamPublishEntry = Message<"v1.StreamPublishEntry"> & {
+  /**
+   * @generated from field: bytes payload = 1;
+   */
+  payload: Uint8Array;
+
+  /**
+   * instead of payload: a ref returned by the stream payload upload endpoint
+   *
+   * @generated from field: string payload_ref = 2;
+   */
+  payloadRef: string;
+};
+
+/**
+ * Describes the message v1.StreamPublishEntry.
+ * Use `create(StreamPublishEntrySchema)` to create a new message.
+ */
+export const StreamPublishEntrySchema: GenMessage<StreamPublishEntry> = /*@__PURE__*/
+  messageDesc(file_v1_streams, 3);
+
+/**
+ * @generated from message v1.PublishStreamMessagesResponse
+ */
+export type PublishStreamMessagesResponse = Message<"v1.PublishStreamMessagesResponse"> & {
+};
+
+/**
+ * Describes the message v1.PublishStreamMessagesResponse.
+ * Use `create(PublishStreamMessagesResponseSchema)` to create a new message.
+ */
+export const PublishStreamMessagesResponseSchema: GenMessage<PublishStreamMessagesResponse> = /*@__PURE__*/
+  messageDesc(file_v1_streams, 4);
+
+/**
  * @generated from message v1.SubscribeStreamRequest
  */
 export type SubscribeStreamRequest = Message<"v1.SubscribeStreamRequest"> & {
@@ -97,7 +175,7 @@ export type SubscribeStreamRequest = Message<"v1.SubscribeStreamRequest"> & {
  * Use `create(SubscribeStreamRequestSchema)` to create a new message.
  */
 export const SubscribeStreamRequestSchema: GenMessage<SubscribeStreamRequest> = /*@__PURE__*/
-  messageDesc(file_v1_streams, 2);
+  messageDesc(file_v1_streams, 5);
 
 /**
  * @generated from message v1.StreamMessage
@@ -124,7 +202,7 @@ export type StreamMessage = Message<"v1.StreamMessage"> & {
  * Use `create(StreamMessageSchema)` to create a new message.
  */
 export const StreamMessageSchema: GenMessage<StreamMessage> = /*@__PURE__*/
-  messageDesc(file_v1_streams, 3);
+  messageDesc(file_v1_streams, 6);
 
 /**
  * @generated from message v1.StreamEntry
@@ -158,7 +236,7 @@ export type StreamEntry = Message<"v1.StreamEntry"> & {
  * Use `create(StreamEntrySchema)` to create a new message.
  */
 export const StreamEntrySchema: GenMessage<StreamEntry> = /*@__PURE__*/
-  messageDesc(file_v1_streams, 4);
+  messageDesc(file_v1_streams, 7);
 
 /**
  * @generated from message v1.GetStreamTopicMetadataRequest
@@ -180,7 +258,7 @@ export type GetStreamTopicMetadataRequest = Message<"v1.GetStreamTopicMetadataRe
  * Use `create(GetStreamTopicMetadataRequestSchema)` to create a new message.
  */
 export const GetStreamTopicMetadataRequestSchema: GenMessage<GetStreamTopicMetadataRequest> = /*@__PURE__*/
-  messageDesc(file_v1_streams, 5);
+  messageDesc(file_v1_streams, 8);
 
 /**
  * Counts and the latest message cover only what's within the tenant's retention.
@@ -228,7 +306,7 @@ export type StreamTopicMetadata = Message<"v1.StreamTopicMetadata"> & {
  * Use `create(StreamTopicMetadataSchema)` to create a new message.
  */
 export const StreamTopicMetadataSchema: GenMessage<StreamTopicMetadata> = /*@__PURE__*/
-  messageDesc(file_v1_streams, 6);
+  messageDesc(file_v1_streams, 9);
 
 /**
  * @generated from message v1.ResetStreamTopicRequest
@@ -243,6 +321,13 @@ export type ResetStreamTopicRequest = Message<"v1.ResetStreamTopicRequest"> & {
    * @generated from field: string topic = 2;
    */
   topic: string;
+
+  /**
+   * subscribers without a cursor start after this one instead of the latest message
+   *
+   * @generated from field: optional string cursor = 3;
+   */
+  cursor?: string | undefined;
 };
 
 /**
@@ -250,7 +335,7 @@ export type ResetStreamTopicRequest = Message<"v1.ResetStreamTopicRequest"> & {
  * Use `create(ResetStreamTopicRequestSchema)` to create a new message.
  */
 export const ResetStreamTopicRequestSchema: GenMessage<ResetStreamTopicRequest> = /*@__PURE__*/
-  messageDesc(file_v1_streams, 7);
+  messageDesc(file_v1_streams, 10);
 
 /**
  * @generated from message v1.ResetStreamTopicResponse
@@ -263,7 +348,7 @@ export type ResetStreamTopicResponse = Message<"v1.ResetStreamTopicResponse"> & 
  * Use `create(ResetStreamTopicResponseSchema)` to create a new message.
  */
 export const ResetStreamTopicResponseSchema: GenMessage<ResetStreamTopicResponse> = /*@__PURE__*/
-  messageDesc(file_v1_streams, 8);
+  messageDesc(file_v1_streams, 11);
 
 /**
  * @generated from service v1.V1Streams
@@ -276,6 +361,14 @@ export const V1Streams: GenService<{
     methodKind: "unary";
     input: typeof PublishStreamMessageRequestSchema;
     output: typeof PublishStreamMessageResponseSchema;
+  },
+  /**
+   * @generated from rpc v1.V1Streams.PublishBatch
+   */
+  publishBatch: {
+    methodKind: "unary";
+    input: typeof PublishStreamMessagesRequestSchema;
+    output: typeof PublishStreamMessagesResponseSchema;
   },
   /**
    * @generated from rpc v1.V1Streams.Subscribe

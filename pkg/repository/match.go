@@ -271,12 +271,14 @@ func (r *sharedRepository) registerSignalMatchConditions(ctx context.Context, tx
 }
 
 func (m *MatchRepositoryImpl) RegisterSignalMatchConditions(ctx context.Context, tenantId uuid.UUID, signalMatches []ExternalCreateSignalMatchOpts) error {
+	db := m.pool.ForTenant(tenantId)
+
 	// TODO: ADD BACK VALIDATION
 	// if err := m.v.Validate(signalMatches); err != nil {
 	// 	return err
 	// }
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, m.pool, m.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, m.l)
 
 	if err != nil {
 		return err
@@ -317,7 +319,9 @@ func ownedTaskInputStoreOpts(tasks []*V1TaskWithPayload) []StorePayloadOpts {
 
 // ProcessInternalEventMatches processes a list of internal events
 func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, tenantId uuid.UUID, events []CandidateEventMatch) (*EventMatchResults, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, m.pool, m.l)
+	db := m.pool.ForTenant(tenantId)
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, m.l)
 
 	if err != nil {
 		return nil, err
@@ -350,7 +354,9 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 
 // ProcessUserEventMatches processes a list of user events
 func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenantId uuid.UUID, events []CandidateEventMatch) (*EventMatchResults, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, m.pool, m.l)
+	db := m.pool.ForTenant(tenantId)
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, m.l)
 
 	if err != nil {
 		return nil, err

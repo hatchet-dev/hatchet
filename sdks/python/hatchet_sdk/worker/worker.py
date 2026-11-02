@@ -686,7 +686,15 @@ class Worker:
                     not self._action_listener_process
                     or not self._action_listener_process.is_alive()
                 ):
-                    logger.debug("child action listener process killed...")
+                    exitcode = (
+                        self._action_listener_process.exitcode
+                        if self._action_listener_process is not None
+                        else None
+                    )
+                    self._aio_start_exception = RuntimeError(
+                        f"action listener process exited unexpectedly (exit code: {exitcode})"
+                    )
+                    logger.error(str(self._aio_start_exception))
                     self._status = WorkerStatus.UNHEALTHY
                     if self._loop:
                         self._loop.create_task(self.exit_gracefully())

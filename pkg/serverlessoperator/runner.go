@@ -131,6 +131,7 @@ type runner struct {
 	sender       RequestSender
 	l            *zerolog.Logger
 	m            *metrics
+	events       *eventRecorder
 	tenants      map[uuid.UUID]*tenantState
 	pending      map[lease.Unit]struct{}
 	hcSem        chan struct{}
@@ -158,6 +159,7 @@ func newRunner(deps Deps, cfg Config, m *metrics) *runner {
 		sender:       deps.Sender,
 		l:            deps.Logger,
 		m:            m,
+		events:       newEventRecorder(deps.Repo.Events(), deps.Logger),
 		cfg:          cfg,
 		processId:    deps.ProcessId,
 		tenants:      map[uuid.UUID]*tenantState{},
@@ -628,8 +630,9 @@ func (r *runner) syncTenantActions(ctx context.Context, ts *tenantState) {
 
 // Shutdown is the graceful stop after leases were released: stop pollers, pause every
 // registration's worker, drain deliveries up to DrainTimeout, close the sessions, then wait
-// for every goroutine.
-func (r *runner) Shutdown() {
+// for every goroutine. The endpoint events still queued are written within ctx and dropped
+// once it ends.
+func (r *runner) Shutdown(ctx context.Context) {
 	r.mu.Lock()
 	tenants := r.tenants
 	r.tenants = map[uuid.UUID]*tenantState{}
@@ -675,6 +678,9 @@ func (r *runner) Shutdown() {
 	r.stopLoops()
 	r.stopDelivery()
 	r.wg.Wait()
+
+	// After the pollers and deliveries, so their last events are flushed.
+	r.events.stop(ctx)
 
 	r.updateGauges()
 }

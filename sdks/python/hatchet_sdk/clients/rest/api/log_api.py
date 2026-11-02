@@ -148,6 +148,7 @@ class LogApi:
             "200": "V1LogLineList",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -262,6 +263,7 @@ class LogApi:
             "200": "V1LogLineList",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -376,6 +378,7 @@ class LogApi:
             "200": "V1LogLineList",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -601,6 +604,7 @@ class LogApi:
             "200": "V1LogsPointMetrics",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -726,6 +730,7 @@ class LogApi:
             "200": "V1LogsPointMetrics",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -851,6 +856,7 @@ class LogApi:
             "200": "V1LogsPointMetrics",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -1099,6 +1105,7 @@ class LogApi:
             "200": "V1LogLineList",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -1242,6 +1249,7 @@ class LogApi:
             "200": "V1LogLineList",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -1385,6 +1393,7 @@ class LogApi:
             "200": "V1LogLineList",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout

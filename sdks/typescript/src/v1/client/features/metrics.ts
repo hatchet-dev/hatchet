@@ -1,5 +1,5 @@
 import { TaskStats } from '@hatchet/clients/rest/generated/data-contracts';
-import { HatchetClient } from '../client';
+import type { RestApi, RestClientDeps } from '@hatchet/clients/rest/rest-api';
 
 export type TaskStatusMetrics = {
   cancelled: number;
@@ -14,9 +14,9 @@ export type TaskStatusMetrics = {
  */
 export class MetricsClient {
   tenantId: string;
-  api: HatchetClient['api'];
+  api: RestApi;
 
-  constructor(client: HatchetClient) {
+  constructor(client: RestClientDeps) {
     this.tenantId = client.tenantId;
     this.api = client.api;
   }
@@ -56,7 +56,7 @@ export class MetricsClient {
    * @returns The metrics in Prometheus text format.
    */
   async scrapePrometheusMetrics(): Promise<string> {
-    const { data } = await this.api.tenantGetPrometheusMetrics(this.tenantId);
+    const { data } = await this.api.tenantGetPrometheusMetrics(this.tenantId, { format: 'text' });
     return data;
   }
 

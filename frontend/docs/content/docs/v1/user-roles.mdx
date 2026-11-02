@@ -19,6 +19,10 @@ Every user in a tenant has a role that controls what they can do in the dashboar
 
 Roles are assigned when a member is invited and can be changed later from **Settings > Members**. A member cannot change their own role.
 
+## API token permissions
+
+[Read-only API tokens](/v1/api-tokens#read-only-tokens) use the VIEWER permissions for tenant-scoped REST operations. They cannot use gRPC. Unrestricted tokens bypass REST role checks and can use gRPC, but neither token type can list, create, or revoke API tokens. Those operations require an admin or owner session.
+
 ## Organization roles
 
 Organizations (Hatchet Cloud) have two roles:
@@ -35,7 +39,7 @@ Members with the MEMBER or VIEWER tenant role can additionally be restricted fro
 A few rules:
 
 - **OWNER and ADMIN always see payloads**, regardless of the flag.
-- **API tokens are not restricted.** Workers need payloads to run tasks, so programmatic access through an API token always includes them.
+- **API tokens always include payloads**, including read-only tokens. The member-level payload visibility flag does not apply to them. See [API Tokens](/v1/api-tokens) for token permissions.
 - The flag **defaults to true** everywhere it can be set.
 
 The flag can be set in the following places:

@@ -3,7 +3,7 @@ import { ActionListener, ActionKey } from '@hatchet/clients/dispatcher/action-li
 import { HatchetClient } from '../client';
 import { TenantClient } from '../features/tenant';
 import { DurableEvictionManager } from './eviction/eviction-manager';
-import HatchetPromise from '@util/hatchet-promise/hatchet-promise';
+import HatchetPromise, { CancellationReason } from '@util/hatchet-promise/hatchet-promise';
 import { InternalWorker } from './worker-internal';
 import { HealthServer } from './health-server';
 
@@ -70,12 +70,15 @@ describe('durable worker shutdown', () => {
     });
     manager = new DurableEvictionManager({
       durableSlots: 2,
-      cancelLocal: (key) => cancelled.push(key),
-      requestEvictionWithAck: (_key, run) =>
+      cancelLocal: (key) => {
+        cancelled.push(key);
+        worker.futures[key]?.cancel(CancellationReason.EVICTED_BY_WORKER);
+      },
+      requestEvictionWithAck: (_key, run, reason) =>
         client.durableListener.sendEvictInvocation(
           run.taskRunExternalId,
           run.invocationCount,
-          run.evictionReason
+          reason
         ),
       logger: worker.logger,
     });
@@ -183,6 +186,26 @@ describe('durable worker shutdown', () => {
     expect(unsubscribe).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps the durable listener running until in-flight tasks finish', async () => {
+    registerOpenActionStream();
+    const stopDurableListener = jest.spyOn(client.durableListener, 'stop');
+    const inFlightTask = registerRunningTask('in-flight-task/0' as ActionKey);
+
+    const starting = worker.start();
+    await jest.advanceTimersByTimeAsync(0);
+
+    const stopping = worker.stop();
+    await jest.advanceTimersByTimeAsync(60_000);
+
+    expect(stopDurableListener).not.toHaveBeenCalled();
+
+    inFlightTask.finish();
+    await stopping;
+    await starting;
+
+    expect(stopDurableListener).toHaveBeenCalledTimes(1);
+  });
+
   it('still unregisters when an in-flight task is cancelled during shutdown', async () => {
     const { unsubscribe } = registerOpenActionStream();
     const inFlightTask = registerRunningTask('in-flight-task/0' as ActionKey);
@@ -202,6 +225,33 @@ describe('durable worker shutdown', () => {
     await expect(stopping).resolves.toBeUndefined();
     await starting;
 
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('drains a task that was already waiting when shutdown began before unregistering', async () => {
+    const { unsubscribe } = registerOpenActionStream();
+    const stopDurableListener = jest.spyOn(client.durableListener, 'stop');
+    const waitingTask = registerRunningTask('waiting-task/0' as ActionKey);
+    manager.registerRun('waiting-task/0', 'waiting-task', 1, undefined);
+    manager.markWaiting('waiting-task/0', 'sleep', 'test-sleep');
+
+    const starting = worker.start();
+    await jest.advanceTimersByTimeAsync(0);
+
+    const stopping = worker.stop();
+    acknowledgement.release();
+    await jest.advanceTimersByTimeAsync(60_000);
+
+    expect(cancelled).toEqual(['waiting-task/0']);
+    expect(worker.futures).toEqual({});
+    expect(stopDurableListener).not.toHaveBeenCalled();
+    expect(unsubscribe).not.toHaveBeenCalled();
+
+    waitingTask.finish();
+    await expect(stopping).resolves.toBeUndefined();
+    await starting;
+
+    expect(stopDurableListener).toHaveBeenCalledTimes(1);
     expect(unsubscribe).toHaveBeenCalledTimes(1);
   });
 

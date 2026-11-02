@@ -34,7 +34,7 @@ func TestTaskInputReadsBackAfterCreateAndAfterReplayingWithTheFlagFlipped(t *tes
 
 		shared.wrapTaskInputInStepRunData = !wrapTaskInputInStepRunDataAtCreation
 
-		replayed, err := shared.replayTasks(context.Background(), shared.pool, internalTenantId, []ReplayTaskOpts{
+		replayed, err := shared.replayTasks(context.Background(), shared.pool.ForShared(), internalTenantId, []ReplayTaskOpts{
 			{
 				TaskId:       task.ID,
 				InsertedAt:   task.InsertedAt,
@@ -47,7 +47,7 @@ func TestTaskInputReadsBackAfterCreateAndAfterReplayingWithTheFlagFlipped(t *tes
 		require.NoError(t, err)
 		require.Len(t, replayed, 1)
 
-		replayedTasks, err := shared.listTasks(context.Background(), shared.pool, internalTenantId, []int64{task.ID})
+		replayedTasks, err := shared.listTasks(context.Background(), shared.pool.ForShared(), internalTenantId, []int64{task.ID})
 		require.NoError(t, err)
 		require.Len(t, replayedTasks, 1)
 

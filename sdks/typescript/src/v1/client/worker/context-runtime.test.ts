@@ -274,6 +274,55 @@ describe('DurableContext on a DurableTransport', () => {
     expect(runtime.runWorkflow).not.toHaveBeenCalled();
   });
 
+  it('keeps desiredWorkerLabels on durable child triggers', async () => {
+    const transport = fakeTransport();
+    transport.waitForCallback.mockResolvedValue({
+      durableTaskExternalId: 'task-run-id',
+      nodeId: 1,
+      payload: {},
+      isFailure: false,
+      errorMessage: undefined,
+    });
+    const ctx = new DurableContext(action(), fakeRuntime(), transport, {
+      engineVersion: 'v0.81.0',
+    });
+
+    await ctx.spawnChildren([
+      {
+        workflow: 'Child',
+        input: {},
+        options: { desiredWorkerLabels: { color: { value: 'blue', required: true } } },
+      },
+      {
+        workflow: 'Child',
+        input: {},
+        options: { desiredWorkerLabels: { shard: { value: 3, weight: 2 } } },
+      },
+    ]);
+
+    const [, , event] = transport.sendEvent.mock.calls[0] as any;
+    expect(event.triggerOpts.map((opts: any) => opts.desiredWorkerLabels)).toEqual([
+      {
+        color: {
+          strValue: 'blue',
+          intValue: undefined,
+          required: true,
+          weight: undefined,
+          comparator: undefined,
+        },
+      },
+      {
+        shard: {
+          strValue: undefined,
+          intValue: 3,
+          required: undefined,
+          weight: 2,
+          comparator: undefined,
+        },
+      },
+    ]);
+  });
+
   it('fails clearly when the engine predates eviction and the transport has no legacy fallback', async () => {
     const ctx = new DurableContext(action(), fakeRuntime(), fakeTransport(), {
       engineVersion: 'v0.70.0',

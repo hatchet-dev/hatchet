@@ -91,3 +91,35 @@ func ToV1ServerlessEndpointList(endpoints []*sqlcv1.V1ServerlessEndpoint, total,
 		},
 	}
 }
+
+// ToV1ServerlessEndpointEventList transforms stored endpoint events into the API list. The
+// details object is stored in the API's shape, so it decodes as is, except that the response
+// excerpt, a payload, is dropped unless WithPayloads(true) is given.
+func ToV1ServerlessEndpointEventList(events []*sqlcv1.V1ServerlessEndpointEvent, opts ...PayloadOption) gen.V1ServerlessEndpointEventList {
+	o := applyPayloadOptions(opts)
+	rows := make([]gen.V1ServerlessEndpointEvent, 0, len(events))
+
+	for _, event := range events {
+		var details gen.V1ServerlessEndpointEventDetails
+
+		if len(event.Details) > 0 {
+			if err := json.Unmarshal(event.Details, &details); err != nil {
+				log.Error().Err(err).Int64("event", event.ID).Msg("failed to unmarshal serverless endpoint event details")
+			}
+		}
+
+		if !o.includePayloads {
+			details.ResponseExcerpt = nil
+		}
+
+		rows = append(rows, gen.V1ServerlessEndpointEvent{
+			Id:        event.ID,
+			CreatedAt: event.CreatedAt.Time,
+			Kind:      gen.V1ServerlessEndpointEventKind(event.Kind),
+			Message:   event.Message,
+			Details:   details,
+		})
+	}
+
+	return gen.V1ServerlessEndpointEventList{Rows: rows}
+}

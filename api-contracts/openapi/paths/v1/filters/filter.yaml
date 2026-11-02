@@ -42,6 +42,8 @@ V1FilterGetDeleteUpdate:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get a filter
     tags:
       - Filter
@@ -94,6 +96,8 @@ V1FilterGetDeleteUpdate:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: Delete a filter
     tags:
       - Filter
@@ -153,6 +157,8 @@ V1FilterGetDeleteUpdate:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: Update a filter
     tags:
       - Filter
@@ -227,6 +233,8 @@ V1FilterListCreate:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: List filters
     tags:
       - Filter
@@ -277,6 +285,8 @@ V1FilterListCreate:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: Create a filter
     tags:
       - Filter

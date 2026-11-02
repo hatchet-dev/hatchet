@@ -1,12 +1,14 @@
 package tasks
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
 	transformers "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
@@ -22,6 +24,11 @@ func (t *TasksService) V1DagListTasks(ctx echo.Context, request gen.V1DagListTas
 	tenantMember, err := t.config.V1.Tenant().GetTenantMemberByUserID(ctx.Request().Context(), tenantId, user.ID)
 
 	if err != nil {
+		var limitErr *fairpool.LimitError
+		if errors.As(err, &limitErr) {
+			return nil, err
+		}
+
 		return nil, unauthorized
 	}
 

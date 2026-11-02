@@ -41,11 +41,7 @@ replayWorkflowRuns:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
       "429":
-        content:
-          application/json:
-            schema:
-              $ref: "../../components/schemas/_index.yaml#/APIErrors"
-        description: Resource limit exceeded
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Replay workflow runs
     tags:
       - Workflow Run
@@ -100,6 +96,8 @@ getWorkflowRunInput:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Workflow run not found
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get workflow run input
     tags:
       - Workflow Run

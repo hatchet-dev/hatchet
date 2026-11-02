@@ -113,6 +113,8 @@ listLogs:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: List log lines
     tags:
       - Log
@@ -219,6 +221,8 @@ getLogPointMetrics:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not implemented
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get log point metrics
     tags:
       - Log

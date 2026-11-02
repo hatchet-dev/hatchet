@@ -132,3 +132,49 @@ func TestToV1ServerlessEndpointListPagination(t *testing.T) {
 	assert.Equal(t, int64(2), *list.Pagination.NextPage)
 	assert.Equal(t, int64(4), *list.Pagination.NumPages)
 }
+
+func TestToV1ServerlessEndpointEventList(t *testing.T) {
+	taskId := uuid.New()
+	now := time.Date(2026, 9, 7, 12, 0, 0, 0, time.UTC)
+
+	events := []*sqlcv1.V1ServerlessEndpointEvent{
+		{
+			ID:        2,
+			CreatedAt: pgtype.Timestamptz{Time: now, Valid: true},
+			Kind:      sqlcv1.V1ServerlessEndpointEventKindDELIVERYFAILED,
+			Message:   "endpoint returned status 500 Internal Server Error",
+			Details:   []byte(`{"statusCode":500,"taskRunExternalId":"` + taskId.String() + `","retryable":true,"suppressed":4,"responseExcerpt":"boom"}`),
+		},
+		{
+			ID:        1,
+			CreatedAt: pgtype.Timestamptz{Time: now.Add(-time.Minute), Valid: true},
+			Kind:      sqlcv1.V1ServerlessEndpointEventKindHEALTHY,
+			Message:   "endpoint is healthy",
+			Details:   []byte(`{}`),
+		},
+	}
+
+	list := ToV1ServerlessEndpointEventList(events, WithPayloads(true))
+
+	require.Len(t, list.Rows, 2)
+
+	failed := list.Rows[0]
+	assert.Equal(t, int64(2), failed.Id)
+	assert.Equal(t, "DELIVERY_FAILED", string(failed.Kind))
+	require.NotNil(t, failed.Details.StatusCode)
+	assert.Equal(t, int32(500), *failed.Details.StatusCode)
+	require.NotNil(t, failed.Details.TaskRunExternalId)
+	assert.Equal(t, taskId, *failed.Details.TaskRunExternalId)
+	require.NotNil(t, failed.Details.Suppressed)
+	assert.Equal(t, int32(4), *failed.Details.Suppressed)
+	require.NotNil(t, failed.Details.ResponseExcerpt)
+	assert.Equal(t, "boom", *failed.Details.ResponseExcerpt)
+
+	assert.Nil(t, list.Rows[1].Details.StatusCode)
+
+	// The response excerpt is a payload: without the option it is left out, the rest stays.
+	redacted := ToV1ServerlessEndpointEventList(events).Rows[0].Details
+	assert.Nil(t, redacted.ResponseExcerpt)
+	require.NotNil(t, redacted.StatusCode)
+	assert.Equal(t, int32(500), *redacted.StatusCode)
+}

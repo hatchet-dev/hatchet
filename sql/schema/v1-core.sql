@@ -7,13 +7,21 @@ $$
 BEGIN
     RETURN QUERY
     SELECT
-        inhrelid::regclass::text AS partition_name
-    FROM
-        pg_inherits
+        partition_bounds.child_name
+    FROM (
+        SELECT
+            i.inhrelid::regclass::text AS child_name,
+            (regexp_match(pg_get_expr(c.relpartbound, c.oid), 'TO \(''([^'']+)''\)'))[1] AS upper_bound
+        FROM
+            pg_inherits i
+        JOIN
+            pg_class c ON c.oid = i.inhrelid
+        WHERE
+            i.inhparent = targetTableName::regclass
+            AND substring(i.inhrelid::regclass::text, format('%s_(\d{8})', targetTableName)) ~ '^\d{8}'
+    ) partition_bounds
     WHERE
-        inhparent = targetTableName::regclass
-        AND substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName)) ~ '^\d{8}'
-        AND (substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName))::date) < targetDate;
+        partition_bounds.upper_bound::timestamptz <= targetDate::timestamptz;
 END;
 $$;
 
@@ -25,16 +33,7 @@ CREATE OR REPLACE FUNCTION get_v1_weekly_partitions_before_date(
 $$
 BEGIN
     RETURN QUERY
-    SELECT
-        inhrelid::regclass::text AS partition_name
-    FROM
-        pg_inherits
-    WHERE
-        inhparent = targetTableName::regclass
-        AND substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName)) ~ '^\d{8}'
-        AND (substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName))::date) < targetDate
-        AND (substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName))::date) < NOW() - INTERVAL '1 week'
-    ;
+    SELECT * FROM get_v1_partitions_before_date(targetTableName, targetDate);
 END;
 $$;
 
@@ -46,15 +45,7 @@ CREATE OR REPLACE FUNCTION get_v1_monthly_partitions_before_date(
 $$
 BEGIN
     RETURN QUERY
-    SELECT
-        inhrelid::regclass::text AS partition_name
-    FROM
-        pg_inherits
-    WHERE
-        inhparent = targetTableName::regclass
-        AND substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName)) ~ '^\d{8}'
-        AND (substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName))::date + INTERVAL '1 month') <= targetDate
-    ;
+    SELECT * FROM get_v1_partitions_before_date(targetTableName, targetDate);
 END;
 $$;
 
@@ -706,6 +697,8 @@ CREATE TABLE v1_task_runtime (
     tenant_id UUID NOT NULL,
     timeout_at TIMESTAMP(3) NOT NULL,
     evicted_at TIMESTAMPTZ DEFAULT NULL,
+    assigned_at TIMESTAMPTZ,
+    acked_at TIMESTAMPTZ,
 
     CONSTRAINT v1_task_runtime_pkey PRIMARY KEY (task_id, task_inserted_at, retry_count)
 );
@@ -719,6 +712,8 @@ CREATE INDEX v1_task_runtime_tenant_worker_not_evicted_idx ON v1_task_runtime (t
 CREATE INDEX v1_task_runtime_tenant_evicted_at_idx ON v1_task_runtime (tenant_id, evicted_at, task_id, task_inserted_at, retry_count) WHERE evicted_at IS NOT NULL;
 
 CREATE INDEX v1_task_runtime_batch_id_idx ON v1_task_runtime (batch_id) WHERE batch_id IS NOT NULL;
+
+CREATE INDEX v1_task_runtime_tenant_unacked_assigned_at_idx ON v1_task_runtime (tenant_id, assigned_at) WHERE assigned_at IS NOT NULL AND acked_at IS NULL;
 
 -- Cleanup v1_batch_runtime reservations when the last v1_task_runtime row for a batch_id is deleted.
 CREATE OR REPLACE FUNCTION after_v1_task_runtime_delete_cleanup_batch_runtime_fn()
@@ -3227,7 +3222,7 @@ CREATE TABLE v1_operator (
 
 CREATE UNIQUE INDEX v1_operator_tenant_name_kind_key ON v1_operator (tenant_id, name, kind);
 
-CREATE TYPE v1_serverless_endpoint_kind AS ENUM ('GENERIC_HTTP', 'CLOUDFLARE_WORKERS');
+CREATE TYPE v1_serverless_endpoint_kind AS ENUM ('GENERIC_HTTP', 'CLOUDFLARE_WORKERS', 'VERCEL');
 
 -- Customer configuration. Written by the API server; the operator writes only the status
 -- columns, and only on state transitions (never per poll).
@@ -3240,7 +3235,7 @@ CREATE TABLE v1_serverless_endpoint (
     trigger_url TEXT NOT NULL,
     -- enc.EncryptString(secret, SigningSecretEncryptionDataID)
     signing_secret_enc TEXT NOT NULL,
-    request_timeout_seconds INT NOT NULL DEFAULT 60,
+    request_timeout_seconds INT NOT NULL DEFAULT 300,
     poll_interval_seconds INT NOT NULL DEFAULT 30,
     inline_wait_budget_ms INT NOT NULL DEFAULT 5000,
     labels JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -3279,6 +3274,31 @@ CREATE INDEX v1_serverless_endpoint_unit_idx ON v1_serverless_endpoint (tenant_i
 -- incremental refresh of the routing cache, keyed by row version: the later of updated_at
 -- (configuration and registered_actions writes) and status_changed_at (health transitions)
 CREATE INDEX v1_serverless_endpoint_version_idx ON v1_serverless_endpoint (tenant_id, GREATEST(updated_at, COALESCE(status_changed_at, updated_at)), id);
+
+CREATE TYPE v1_serverless_endpoint_event_kind AS ENUM (
+    'HEALTHCHECK_FAILED',
+    'UNHEALTHY',
+    'HEALTHY',
+    'CATALOG_REGISTERED',
+    'CATALOG_REJECTED',
+    'DELIVERY_FAILED'
+);
+
+-- What the serverless operator observed about an endpoint, for the dashboard. Written by the
+-- owning process on failure-streak starts, status transitions, catalog changes and rate-limited
+-- delivery failures, never once per poll. Partitioned by day like the other core tables, and
+-- dropped with them after the core retention period; reads also stop at the tenant's retention.
+CREATE TABLE v1_serverless_endpoint_event (
+    id BIGINT GENERATED ALWAYS AS IDENTITY,
+    tenant_id UUID NOT NULL,
+    endpoint_id UUID NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    kind v1_serverless_endpoint_event_kind NOT NULL,
+    message TEXT NOT NULL,
+    details JSONB NOT NULL DEFAULT '{}'::jsonb,
+    -- also serves an endpoint's events newest first, scanned backward
+    CONSTRAINT v1_serverless_endpoint_event_pkey PRIMARY KEY (tenant_id, endpoint_id, created_at, id)
+) PARTITION BY RANGE(created_at);
 
 CREATE TABLE v1_serverless_tenant (
     tenant_id UUID NOT NULL,

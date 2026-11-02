@@ -455,3 +455,27 @@ SET endpoint_count = endpoint_count + @delta::INT
 WHERE
     tenant_id = @tenantId::UUID
     AND endpoint_partition = @partition::INT;
+
+-- name: InsertServerlessEndpointEvents :exec
+-- Batch insert; the arrays are parallel.
+INSERT INTO v1_serverless_endpoint_event (tenant_id, endpoint_id, created_at, kind, message, details)
+SELECT
+    unnest(@tenantIds::UUID[]),
+    unnest(@endpointIds::UUID[]),
+    unnest(@createdAts::TIMESTAMPTZ[]),
+    unnest(@kinds::TEXT[])::v1_serverless_endpoint_event_kind,
+    unnest(@messages::TEXT[]),
+    unnest(@details::JSONB[]);
+
+-- name: ListServerlessEndpointEvents :many
+-- retentionStart is the start of the tenant's retention window: older events are never
+-- returned, though their partition may not be dropped yet. It also prunes the partitions read.
+SELECT *
+FROM v1_serverless_endpoint_event
+WHERE
+    tenant_id = @tenantId::UUID
+    AND endpoint_id = @endpointId::UUID
+    AND created_at >= @retentionStart::TIMESTAMPTZ
+    AND (sqlc.narg('since')::TIMESTAMPTZ IS NULL OR created_at > sqlc.narg('since')::TIMESTAMPTZ)
+ORDER BY created_at DESC, id DESC
+LIMIT @eventLimit::BIGINT;

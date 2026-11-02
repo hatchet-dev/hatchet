@@ -6,6 +6,8 @@
  *
  * `process.emitWarning` with a fixed code keeps the warning filterable with Node's standard
  * `--no-deprecation` and `--no-warnings` flags and addressable from `process.on('warning')`.
+ * The global is read through `globalThis`, since this module is bundled into the core entry
+ * and must load where there is no `process` at all.
  */
 
 export const V0_DEPRECATION_CODE = 'HATCHET_V0_REMOVED';
@@ -56,17 +58,17 @@ export function emitV0RemovedWarning(submodule: string, detail?: string): void {
     `The v0 SDK, including the ${submodule} module, has been deprecated and was removed in v1.14.0. ` +
     `Please migrate to the v1 SDK: ${MIGRATION_URL}`;
 
-  const hasProcess = typeof process !== 'undefined';
-  const hasEmitWarning = hasProcess && typeof process.emitWarning === 'function';
-  const willThrowAsync = hasProcess && process.throwDeprecation === true;
+  const proc = (globalThis as { process?: NodeJS.Process }).process;
+  const hasEmitWarning = typeof proc?.emitWarning === 'function';
+  const willThrowAsync = proc?.throwDeprecation === true;
 
-  if (!hasEmitWarning || willThrowAsync) {
+  if (!proc || !hasEmitWarning || willThrowAsync) {
     fallbackConsoleWarn(message, detail);
     return;
   }
 
   try {
-    process.emitWarning(message, {
+    proc.emitWarning(message, {
       type: 'DeprecationWarning',
       code: V0_DEPRECATION_CODE,
       detail,

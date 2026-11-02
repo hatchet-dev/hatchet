@@ -13,6 +13,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	authtoken "github.com/hatchet-dev/hatchet/pkg/auth/token"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 )
 
 type GRPCAuthN struct {
@@ -51,6 +52,14 @@ func (a *GRPCAuthN) Middleware(ctx context.Context, header http.Header) (context
 		return nil, forbidden
 	}
 
+	dbToken, err := a.config.V1.APIToken().GetAPITokenById(ctx, tokenUUID)
+	if err != nil {
+		return nil, forbidden
+	}
+	if dbToken.ReadOnly {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("read-only tokens cannot use gRPC"))
+	}
+
 	ctx = context.WithValue(ctx, analytics.APITokenIDKey, tokenUUID)
 	ctx = context.WithValue(ctx, analytics.TenantIDKey, tenantId)
 
@@ -75,7 +84,8 @@ func (a *GRPCAuthN) Middleware(ctx context.Context, header http.Header) (context
 }
 
 func (a *GRPCAuthN) couldNotCheckToken(ctx context.Context, err error) error {
-	if ctx.Err() != nil {
+	var limitErr *fairpool.LimitError
+	if ctx.Err() != nil || errors.As(err, &limitErr) {
 		return expectedStatus(ctx, err)
 	}
 

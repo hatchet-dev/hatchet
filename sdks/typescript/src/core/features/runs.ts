@@ -1,15 +1,22 @@
 import type { AdminServiceClient, TasksFilter } from '@hatchet/protoc/v1/workflows';
+import type { ListRunsOpts, RestRunsClient } from '@hatchet/clients/rest/runs';
 import { toRunDetail } from '../run-detail';
 import { WorkflowRunRef } from '../run-ref';
 import type { CallOptions, CancelRunOpts, ReplayRunOpts, RunDetail, RunFilter } from '../types';
 
+export interface RunsClientDeps {
+  rpc: AdminServiceClient;
+  /** The run operations that go over the REST API. */
+  rest: RestRunsClient;
+}
+
 /**
- * Task and workflow runs, over the v1 `AdminService`. Everything here is a unary call, so
- * it works from any runtime the client runs on; listing runs is a REST feature of the Node
- * client and is not available here.
+ * Task and workflow runs. Getting, cancelling and replaying a run go over the v1
+ * `AdminService`; listing runs and restoring or branching durable tasks go over the REST
+ * API, with the Node client's names and signatures.
  */
 export class RunsClient {
-  constructor(private readonly rpc: AdminServiceClient) {}
+  constructor(private readonly deps: RunsClientDeps) {}
 
   /**
    * Gets a run's state: its status, whether it is done, its input and metadata, and each of
@@ -30,7 +37,17 @@ export class RunsClient {
     options?: CallOptions
   ): Promise<RunDetail> {
     const externalId = typeof run === 'string' ? run : await run.getWorkflowRunId();
-    return toRunDetail(await this.rpc.getRunDetails({ externalId }, options));
+    return toRunDetail(await this.deps.rpc.getRunDetails({ externalId }, options));
+  }
+
+  /**
+   * Lists the tenant's task and workflow runs matching the options. Workflow names are
+   * resolved to ids through the REST API first.
+   * @param opts - The options for the list operation.
+   * @returns the matching runs
+   */
+  async list(opts?: Partial<ListRunsOpts>) {
+    return this.deps.rest.list(opts);
   }
 
   /**
@@ -38,7 +55,7 @@ export class RunsClient {
    * @returns the ids of the cancelled tasks
    */
   async cancel(opts: CancelRunOpts) {
-    return this.rpc.cancelTasks({
+    return this.deps.rpc.cancelTasks({
       externalIds: opts.ids ?? [],
       filter: opts.ids ? undefined : prepareFilter(opts.filters ?? {}),
     });
@@ -49,10 +66,27 @@ export class RunsClient {
    * @returns the ids of the replayed tasks
    */
   async replay(opts: ReplayRunOpts) {
-    return this.rpc.replayTasks({
+    return this.deps.rpc.replayTasks({
       externalIds: opts.ids ?? [],
       filter: opts.ids ? undefined : prepareFilter(opts.filters ?? {}),
     });
+  }
+
+  /**
+   * Restores an evicted durable task so it can resume execution.
+   * @param taskExternalId - The external ID of the evicted task.
+   */
+  async restoreTask(taskExternalId: string) {
+    return this.deps.rest.restoreTask(taskExternalId);
+  }
+
+  /**
+   * Forks (resets) a durable task from a specific node, triggering re-execution from that point.
+   * @param taskExternalId - The external ID of the durable task to reset.
+   * @param nodeId - The node ID to replay from.
+   */
+  async branchDurableTask(taskExternalId: string, nodeId: number, branchId: number = 0) {
+    return this.deps.rest.branchDurableTask(taskExternalId, nodeId, branchId);
   }
 
   /** A reference to an existing run, to wait on, cancel or replay it. */

@@ -32,6 +32,8 @@ func newLeaseRepository(shared *sharedRepository) *leaseRepository {
 }
 
 func (d *leaseRepository) AcquireOrExtendLeases(ctx context.Context, tenantId uuid.UUID, kind sqlcv1.LeaseKind, resourceIds []string, existingLeases []*sqlcv1.Lease) ([]*sqlcv1.Lease, error) {
+	db := d.pool.ForTenant(tenantId)
+
 	ctx, span := telemetry.NewSpan(ctx, "acquire-leases")
 	defer span.End()
 
@@ -41,7 +43,7 @@ func (d *leaseRepository) AcquireOrExtendLeases(ctx context.Context, tenantId uu
 		leaseIds[i] = lease.ID
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, d.l)
 
 	if err != nil {
 		return nil, err
@@ -78,6 +80,8 @@ func (d *leaseRepository) AcquireOrExtendLeases(ctx context.Context, tenantId uu
 }
 
 func (d *leaseRepository) ReleaseLeases(ctx context.Context, tenantId uuid.UUID, leases []*sqlcv1.Lease) error {
+	db := d.pool.ForTenant(tenantId)
+
 	ctx, span := telemetry.NewSpan(ctx, "release-leases")
 	defer span.End()
 
@@ -87,7 +91,7 @@ func (d *leaseRepository) ReleaseLeases(ctx context.Context, tenantId uuid.UUID,
 		leaseIds[i] = lease.ID
 	}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, d.l)
 
 	if err != nil {
 		return err
@@ -109,18 +113,22 @@ func (d *leaseRepository) ReleaseLeases(ctx context.Context, tenantId uuid.UUID,
 }
 
 func (d *leaseRepository) ListQueues(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.V1Queue, error) {
+	db := d.pool.ForTenant(tenantId)
+
 	ctx, span := telemetry.NewSpan(ctx, "list-queues")
 	defer span.End()
 
-	return d.queries.ListQueues(ctx, d.pool, tenantId)
+	return d.queries.ListQueues(ctx, db, tenantId)
 }
 
 func (d *leaseRepository) ListActiveWorkers(ctx context.Context, tenantId uuid.UUID) ([]*ListActiveWorkersResult, error) {
+	db := d.pool.ForTenant(tenantId)
+
 	ctx, span := telemetry.NewSpan(ctx, "list-active-workers")
 	defer span.End()
 
 	// the query returns one row per (worker, slot type)
-	activeWorkerRows, err := d.queries.ListActiveWorkers(ctx, d.pool, tenantId)
+	activeWorkerRows, err := d.queries.ListActiveWorkers(ctx, db, tenantId)
 
 	if err != nil {
 		return nil, err
@@ -147,7 +155,7 @@ func (d *leaseRepository) ListActiveWorkers(ctx context.Context, tenantId uuid.U
 		worker.TotalSlotsByType[row.SlotType] += int(row.MaxUnits)
 	}
 
-	labels, err := d.queries.ListManyWorkerLabels(ctx, d.pool, workerIds)
+	labels, err := d.queries.ListManyWorkerLabels(ctx, db, workerIds)
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
@@ -164,7 +172,9 @@ func (d *leaseRepository) ListActiveWorkers(ctx context.Context, tenantId uuid.U
 
 // listTotalSlotsForWorkers returns each worker's total slot capacity keyed by slot type.
 func (d *leaseRepository) listTotalSlotsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]map[string]int, error) {
-	slotConfigs, err := d.queries.ListWorkerSlotConfigs(ctx, d.pool, sqlcv1.ListWorkerSlotConfigsParams{
+	db := d.pool.ForTenant(tenantId)
+
+	slotConfigs, err := d.queries.ListWorkerSlotConfigs(ctx, db, sqlcv1.ListWorkerSlotConfigsParams{
 		Tenantid:  tenantId,
 		Workerids: workerIds,
 	})
@@ -187,10 +197,12 @@ func (d *leaseRepository) listTotalSlotsForWorkers(ctx context.Context, tenantId
 }
 
 func (d *leaseRepository) GetActiveWorker(ctx context.Context, tenantId, workerId uuid.UUID) (*ListActiveWorkersResult, error) {
+	db := d.pool.ForTenant(tenantId)
+
 	ctx, span := telemetry.NewSpan(ctx, "get-active-worker")
 	defer span.End()
 
-	worker, err := d.queries.GetActiveWorkerById(ctx, d.pool, sqlcv1.GetActiveWorkerByIdParams{
+	worker, err := d.queries.GetActiveWorkerById(ctx, db, sqlcv1.GetActiveWorkerByIdParams{
 		Tenantid: tenantId,
 		ID:       workerId,
 	})
@@ -199,7 +211,7 @@ func (d *leaseRepository) GetActiveWorker(ctx context.Context, tenantId, workerI
 		return nil, err
 	}
 
-	labels, err := d.queries.ListManyWorkerLabels(ctx, d.pool, []uuid.UUID{workerId})
+	labels, err := d.queries.ListManyWorkerLabels(ctx, db, []uuid.UUID{workerId})
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
@@ -230,16 +242,18 @@ func (d *leaseRepository) GetActiveWorker(ctx context.Context, tenantId, workerI
 }
 
 func (d *leaseRepository) ListConcurrencyStrategies(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.V1StepConcurrency, error) {
+	db := d.pool.ForTenant(tenantId)
+
 	ctx, span := telemetry.NewSpan(ctx, "list-concurrency-strategies")
 	defer span.End()
 
-	stepStrategies, err := d.queries.ListActiveConcurrencyStrategies(ctx, d.pool, tenantId)
+	stepStrategies, err := d.queries.ListActiveConcurrencyStrategies(ctx, db, tenantId)
 
 	if err != nil {
 		return nil, err
 	}
 
-	tenantStrategies, err := d.queries.ListActiveTenantConcurrencyStrategies(ctx, d.pool, tenantId)
+	tenantStrategies, err := d.queries.ListActiveTenantConcurrencyStrategies(ctx, db, tenantId)
 
 	if err != nil {
 		return nil, err
@@ -256,10 +270,12 @@ func (d *leaseRepository) ListConcurrencyStrategies(ctx context.Context, tenantI
 }
 
 func (d *leaseRepository) GetConcurrencyStrategy(ctx context.Context, tenantId uuid.UUID, id int64) (*sqlcv1.V1StepConcurrency, error) {
+	db := d.pool.ForTenant(tenantId)
+
 	ctx, span := telemetry.NewSpan(ctx, "get-concurrency-strategy")
 	defer span.End()
 
-	strategy, err := d.queries.GetConcurrencyStrategyById(ctx, d.pool, sqlcv1.GetConcurrencyStrategyByIdParams{
+	strategy, err := d.queries.GetConcurrencyStrategyById(ctx, db, sqlcv1.GetConcurrencyStrategyByIdParams{
 		ID:       id,
 		Tenantid: tenantId,
 	})
@@ -274,7 +290,7 @@ func (d *leaseRepository) GetConcurrencyStrategy(ctx context.Context, tenantId u
 
 	// strategy ids are unique across both tables, so an id missing from
 	// v1_step_concurrency can only be a tenant strategy
-	tenantStrategy, err := d.queries.GetTenantConcurrencyStrategyById(ctx, d.pool, sqlcv1.GetTenantConcurrencyStrategyByIdParams{
+	tenantStrategy, err := d.queries.GetTenantConcurrencyStrategyById(ctx, db, sqlcv1.GetTenantConcurrencyStrategyByIdParams{
 		ID:       id,
 		Tenantid: tenantId,
 	})

@@ -1,4 +1,4 @@
-import { HatchetClient } from '../client';
+import type { RestApi, RestClientDeps } from '@hatchet/clients/rest/rest-api';
 
 export type WorkflowIdScopePair = {
   workflowId: string;
@@ -10,9 +10,9 @@ export type WorkflowIdScopePair = {
  */
 export class FiltersClient {
   tenantId: string;
-  api: HatchetClient['api'];
+  api: RestApi;
 
-  constructor(client: HatchetClient) {
+  constructor(client: RestClientDeps) {
     this.tenantId = client.tenantId;
     this.api = client.api;
   }

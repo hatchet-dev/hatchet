@@ -10,7 +10,7 @@ import {
   V1WebhookBasicAuth,
   V1WebhookHMACAuth,
 } from '@hatchet/clients/rest/generated/data-contracts';
-import { HatchetClient } from '../client';
+import type { RestApi, RestClientDeps } from '@hatchet/clients/rest/rest-api';
 
 export type CreateWebhookOptions = V1CreateWebhookRequestBase & {
   auth: V1WebhookBasicAuth | V1WebhookAPIKeyAuth | V1WebhookHMACAuth;
@@ -51,10 +51,10 @@ function toCreateWebhookRequest(options: CreateWebhookOptions): V1CreateWebhookR
  * can send webhook events.
  */
 export class WebhooksClient {
-  api: HatchetClient['api'];
+  api: RestApi;
   tenantId: string;
 
-  constructor(client: HatchetClient) {
+  constructor(client: RestClientDeps) {
     this.api = client.api;
     this.tenantId = client.tenantId;
   }

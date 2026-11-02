@@ -1,15 +1,19 @@
 package authz
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/auth/rbac"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -95,8 +99,7 @@ var restrictedWithBearerToken = []string{
 	"ApiTokenUpdateRevoke",
 }
 
-// At the moment, there's no further bearer auth because bearer tokens are admin-scoped
-// and we check that the bearer token has access to the tenant in the authn step.
+// Bearer tokens have tenant access checked by authentication and optional viewer restrictions here.
 func (a *AuthZ) handleBearerAuth(c echo.Context, r *middleware.RouteInfo) error {
 	// check for is_exchange_token set in the context, in which case we need to validate the user set in the context
 	// exchange tokens are subject to the same RBAC restrictions as cookie auth, since they represent a user. only
@@ -119,6 +122,17 @@ func (a *AuthZ) handleBearerAuth(c echo.Context, r *middleware.RouteInfo) error 
 	} else if !isExchangeToken {
 		if rbac.OperationIn(r.OperationID, restrictedWithBearerToken) {
 			return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
+		}
+		tokenID, ok := c.Get(string(analytics.APITokenIDKey)).(uuid.UUID)
+		if !ok {
+			return echo.NewHTTPError(http.StatusUnauthorized, "Missing API token")
+		}
+		token, err := a.config.V1.APIToken().GetAPITokenById(c.Request().Context(), tokenID)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusUnauthorized, "Invalid API token")
+		}
+		if token.ReadOnly {
+			return a.authorizeTenantOperations(string(sqlcv1.TenantMemberRoleVIEWER), r)
 		}
 	}
 
@@ -174,6 +188,11 @@ func (a *AuthZ) validateUserTenantPermissions(c echo.Context, r *middleware.Rout
 		tenantMember, err := a.config.V1.Tenant().GetTenantMemberByUserID(c.Request().Context(), tenant.ID, user.ID)
 
 		if err != nil {
+			var limitErr *fairpool.LimitError
+			if errors.As(err, &limitErr) {
+				return err
+			}
+
 			a.l.Debug().Ctx(ctx).Err(err).Msgf("error getting tenant member")
 
 			return unauthorized

@@ -163,6 +163,7 @@ from hatchet_sdk.exceptions import (
 )
 from hatchet_sdk.features.cel import CELEvaluationResult, CELFailure, CELSuccess
 from hatchet_sdk.features.runs import BulkCancelReplayOpts, RunFilter
+from hatchet_sdk.features.streams import StreamEvent, StreamTopicMetadata
 from hatchet_sdk.hatchet import Hatchet
 from hatchet_sdk.runnables.eviction import EvictionPolicy
 from hatchet_sdk.runnables.task import Depends, Task
@@ -299,6 +300,8 @@ __all__ = [
     "StepRunEventType",
     "StepRunStatus",
     "StickyStrategy",
+    "StreamEvent",
+    "StreamTopicMetadata",
     "TTLBasedIdempotencyConfig",
     "Task",
     "TaskDefaults",

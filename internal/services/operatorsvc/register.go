@@ -128,7 +128,7 @@ func (s *Service) Register(ctx context.Context, tenant *sqlcv1.Tenant, opts Regi
 	}
 
 	if len(opts.Labels) > 0 {
-		if err := s.upsertLabels(ctx, workerId, opts.Labels); err != nil {
+		if err := s.upsertLabels(ctx, tenant.ID, workerId, opts.Labels); err != nil {
 			return Registration{}, err
 		}
 	}
@@ -298,7 +298,7 @@ func (s *Service) createWorker(ctx context.Context, tenant *sqlcv1.Tenant, op *s
 	return worker.ID, nil
 }
 
-func (s *Service) upsertLabels(ctx context.Context, workerId uuid.UUID, labels map[string]*contracts.WorkerLabels) error {
+func (s *Service) upsertLabels(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, labels map[string]*contracts.WorkerLabels) error {
 	affinities := make([]repository.UpsertWorkerLabelOpts, 0, len(labels))
 
 	for key, config := range labels {
@@ -313,7 +313,7 @@ func (s *Service) upsertLabels(ctx context.Context, workerId uuid.UUID, labels m
 		})
 	}
 
-	if _, err := s.workers.UpsertWorkerLabels(ctx, workerId, affinities); err != nil {
+	if _, err := s.workers.UpsertWorkerLabels(ctx, tenantId, workerId, affinities); err != nil {
 		s.l.Error().Ctx(ctx).Err(err).Msgf("could not upsert worker labels for worker %s", workerId)
 		return err
 	}

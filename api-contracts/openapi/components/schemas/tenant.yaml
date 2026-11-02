@@ -194,6 +194,29 @@ TenantResourcePolicy:
     - limits
   type: object
 
+TenantEntitlements:
+  properties:
+    auditLogs:
+      type: boolean
+    prometheusMetrics:
+      type: boolean
+    strictAdditionalMetadataFilters:
+      type: boolean
+    dagOperator:
+      type: boolean
+    durableStreams:
+      type: boolean
+    serverlessOperator:
+      type: boolean
+  required:
+    - auditLogs
+    - prometheusMetrics
+    - strictAdditionalMetadataFilters
+    - dagOperator
+    - durableStreams
+    - serverlessOperator
+  type: object
+
 TenantMember:
   properties:
     metadata:

@@ -16,22 +16,26 @@ import (
 func TestRegisterBidiRunStreamEndsOnRequestClose(t *testing.T) {
 	d := newTestDispatcher()
 
-	reqCh, respCh, err := registerBidiRunStream(tenantContext(), nil, func(ctx context.Context, receive func() (*contracts.ListenForDurableEventRequest, error), sender *rpcstream.Sender[contracts.DurableEvent]) error {
+	cs, err := rpcstream.ServeBidi(tenantContext(), nil, func(ctx context.Context, receive func() (*contracts.ListenForDurableEventRequest, error), sender *rpcstream.Sender[contracts.DurableEvent]) error {
 		return d.listenForDurableEvent(ctx, receive, sender)
 	})
 	if err != nil {
-		t.Fatalf("registerBidiRunStream returned error: %v", err)
+		t.Fatalf("ServeBidi returned error: %v", err)
 	}
 
-	close(reqCh)
+	close(cs.Requests)
 
 	select {
-	case _, open := <-respCh:
+	case _, open := <-cs.Responses:
 		if open {
-			t.Fatal("expected respCh to be closed once the request channel closed")
+			t.Fatal("expected Responses to be closed once the request channel closed")
 		}
 	case <-time.After(5 * time.Second):
-		t.Fatal("respCh was not closed after the request channel closed")
+		t.Fatal("Responses was not closed after the request channel closed")
+	}
+
+	if err := cs.Err; err != nil {
+		t.Fatalf("a half-closed stream ends without error, got %v", err)
 	}
 }
 
@@ -46,25 +50,25 @@ func TestRegisterBidiRunStreamCancelAndBadFirst(t *testing.T) {
 
 	var wrong proto.Message = &contracts.DurableEvent{}
 
-	if _, _, err := registerBidiRunStream(tenantContext(), wrong, handler); err == nil {
+	if _, err := rpcstream.ServeBidi(tenantContext(), wrong, handler); err == nil {
 		t.Fatal("expected a wrongly typed opening message to be refused")
 	}
 
 	ctx, cancel := context.WithCancel(tenantContext())
 
-	_, respCh, err := registerBidiRunStream(ctx, nil, handler)
+	cs, err := rpcstream.ServeBidi(ctx, nil, handler)
 	if err != nil {
-		t.Fatalf("registerBidiRunStream returned error: %v", err)
+		t.Fatalf("ServeBidi returned error: %v", err)
 	}
 
 	cancel()
 
 	select {
-	case _, open := <-respCh:
+	case _, open := <-cs.Responses:
 		if open {
-			t.Fatal("expected respCh to be closed after cancel")
+			t.Fatal("expected Responses to be closed after cancel")
 		}
 	case <-time.After(5 * time.Second):
-		t.Fatal("respCh was not closed after cancel")
+		t.Fatal("Responses was not closed after cancel")
 	}
 }

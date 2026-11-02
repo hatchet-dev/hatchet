@@ -22,6 +22,7 @@ from hatchet_sdk.features.metrics import MetricsClient
 from hatchet_sdk.features.rate_limits import RateLimitsClient
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.features.scheduled import ScheduledClient
+from hatchet_sdk.features.streams import StreamsClient
 from hatchet_sdk.features.stubs import StubsClient
 from hatchet_sdk.features.webhooks import WebhooksClient
 from hatchet_sdk.features.workers import WorkersClient
@@ -199,6 +200,13 @@ class Hatchet:
         The scheduled client is a client for managing scheduled workflows within Hatchet.
         """
         return self._client.scheduled
+
+    @property
+    def streams(self) -> StreamsClient:
+        """
+        The streams client publishes to and reads from durable topics. Unlike `runs.subscribe_to_stream`, topics are stored, independent of any run, and readers can resume from a cursor.
+        """
+        return self._client.streams
 
     @property
     def webhooks(self) -> WebhooksClient:

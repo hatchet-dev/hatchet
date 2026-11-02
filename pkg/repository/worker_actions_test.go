@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
@@ -42,7 +43,7 @@ func createWorkerActionsRepositoryForTest(pool *pgxpool.Pool) WorkerRepository {
 	logger := zerolog.New(io.Discard)
 
 	return newWorkerRepository(&sharedRepository{
-		pool:    pool,
+		pool:    fairpool.Ungated(pool),
 		l:       &logger,
 		v:       validator.NewDefaultValidator(),
 		queries: sqlcv1.New(),

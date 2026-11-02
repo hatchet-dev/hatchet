@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/docker/docker/client"
 	dockercontext "github.com/docker/go-sdk/context"
+	"github.com/moby/moby/client"
 )
 
 type DockerDriverOpt func(*DockerDriverOpts) error
@@ -39,7 +39,6 @@ func NewDockerDriver(ctx context.Context, optFns ...DockerDriverOpt) (*DockerDri
 func (d *DockerDriver) init() error {
 	clientOpts := []client.Opt{
 		client.FromEnv,
-		client.WithAPIVersionNegotiation(),
 	}
 
 	// Resolve Docker host from the current Docker context.
@@ -48,7 +47,7 @@ func (d *DockerDriver) init() error {
 		clientOpts = append(clientOpts, client.WithHost(host))
 	}
 
-	apiClient, err := client.NewClientWithOpts(clientOpts...)
+	apiClient, err := client.New(clientOpts...)
 	if err != nil {
 		return fmt.Errorf("could not create docker client: %w", err)
 	}
