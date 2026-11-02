@@ -1340,7 +1340,8 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 }
 
 func (r *OLAPRepositoryImpl) ListFailedWorkflowRunsByFinishedAt(ctx context.Context, tenantId uuid.UUID, finishedAfter, finishedThrough time.Time, limit int) ([]*WorkflowRunData, error) {
-	readDB := r.readPool.ForTenant(tenantId)
+	// replica lag beyond the alert window's lag would skip runs permanently
+	readDB := r.pool.ForTenant(tenantId)
 
 	ctx, span := telemetry.NewSpan(ctx, "list-failed-workflow-runs-by-finished-at-olap")
 	defer span.End()
