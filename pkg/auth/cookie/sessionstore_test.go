@@ -170,7 +170,7 @@ func TestSessionStoreSaveRacingRevokeFails(t *testing.T) {
 
 		rr := httptest.NewRecorder()
 		assert.ErrorIs(t, ss.Save(req, rr, session), cookie.ErrSessionRevoked)
-		assert.Contains(t, rr.Header().Get("Set-Cookie"), "Max-Age=0")
+		assert.Empty(t, rr.Header().Values("Set-Cookie"))
 
 		_, err = conf.V1.UserSession().GetById(context.Background(), oldID)
 		assert.ErrorIs(t, err, pgx.ErrNoRows)

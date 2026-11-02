@@ -254,11 +254,6 @@ func (store *UserSessionStore) Save(r *http.Request, w http.ResponseWriter, sess
 	}
 
 	if err := store.save(r.Context(), session, mintedHere); err != nil {
-		if errors.Is(err, ErrSessionRevoked) {
-			clearing := store.ClearingCookie(session.Name())
-			http.SetCookie(w, &clearing)
-		}
-
 		return err
 	}
 
