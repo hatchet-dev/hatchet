@@ -248,7 +248,7 @@ Security monitoring runs alongside operational monitoring. AWS GuardDuty perform
 
 Vulnerabilities are found by automated scanning of production infrastructure (AWS GuardDuty and attack surface scanning), by dependency and container image scanning (GitHub Dependabot and Amazon ECR image scanning), and by a third-party penetration test at least annually.
 
-Once a vulnerability is accepted, remediation targets are 7 days for critical (P0), 30 days for high (P1), 60 days for medium (P2), and as needed for low (P3). Monitors track ECR image findings, GuardDuty findings, attack surface findings, Dependabot alerts, and penetration test findings. Patches are tested outside production before they are deployed. Actively exploited vulnerabilities follow an accelerated path with testing and approval. Findings are retained for 5 years.
+Once a vulnerability is triaged, remediation targets are 7 days for critical (P0), 30 days for high (P1), 60 days for medium (P2), and as needed for low (P3). Monitors track ECR image findings, GuardDuty findings, attack surface findings, Dependabot alerts, and penetration test findings. Patches are tested outside production before they are deployed. Actively exploited vulnerabilities follow an accelerated path with testing and approval. Findings are retained for 5 years.
 
 ### Endpoint Security
 
