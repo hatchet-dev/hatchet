@@ -69,7 +69,7 @@ Hatchet Cloud has two tiers. Both run on Amazon Web Services.
 
 The control plane runs on the production Amazon EKS cluster in us-west-2 (Oregon). It handles sign-up, organizations, tenant provisioning, and billing hooks. Console login (email and password, Google, GitHub, and enterprise SSO) is handled by PropelAuth BYO, which Hatchet runs as a self-hosted sidecar next to the control-plane API, with its own PostgreSQL database. Customer identity data stays in Hatchet's infrastructure. The control plane issues short-lived exchange tokens that the console uses to call a shard.
 
-The data plane is a set of regional shards on Amazon EKS in us-west-2 (Oregon), us-east-1 (Northern Virginia), eu-west-1 (Ireland), and ap-southeast-2 (Sydney). Shared multi-tenant shards and single-tenant shards use the same deployment module. Each shard runs the open-source engine: a REST API, a gRPC dispatcher for workers, scheduler and controller processes, a RabbitMQ cluster for internal messaging, and PostgreSQL as the durable store. PostgreSQL for a shard runs on Ubicloud or on Amazon RDS. Shards export execution telemetry (OpenTelemetry spans, metrics, and logs) to ClickHouse Cloud over AWS PrivateLink.
+The data plane is a set of regional shards on Amazon EKS in us-west-2 (Oregon), us-east-1 (Northern Virginia), eu-west-1 (Ireland), and ap-southeast-2 (Sydney). Shared multi-tenant shards and single-tenant shards use the same deployment module. Each shard runs the open-source engine: a REST API, a gRPC dispatcher for workers, scheduler and controller processes, a RabbitMQ cluster for internal messaging (with NATS as an optional publish/subscribe layer on some shards), and PostgreSQL as the durable store. PostgreSQL for a shard runs on Ubicloud or on Amazon RDS. Shards export execution telemetry (OpenTelemetry spans, metrics, and logs) to ClickHouse Cloud over AWS PrivateLink.
 
 Google Cloud Platform does not host the control plane or the shards. It holds the Cloud KMS root key used for application envelope encryption, stores production secrets in Secret Manager, and stores build artifacts in Artifact Registry. Terraform reads secrets from Secret Manager and injects them into Kubernetes at deploy time.
 
@@ -154,6 +154,7 @@ The platform is a web and API application. There is no native mobile application
 | Hatchet SDKs *(in-house)* | Client libraries for defining tasks, connecting workers, and calling the platform from application code. |
 | Control plane *(in-house)* | Sign-up, organizations, tenant provisioning, billing hooks, and shard exchange tokens. Runs on the production EKS cluster. |
 | RabbitMQ *(self-hosted)* | Internal message bus on each shard. Not exposed to customers. |
+| NATS *(self-hosted)* | Optional internal publish/subscribe layer on shards where it is enabled, used for real-time event fan-out between engine processes. Not exposed to customers. |
 | TimescaleDB *(self-hosted)* | Time-series extension on a dedicated PostgreSQL database per region that stores run history and task events for the console and the API.|
 | PropelAuth BYO *(self-hosted)* | Licensed software Hatchet operates for console sessions, enterprise SSO (SAML and OIDC), SCIM, and passkeys. Customer identity data stays in Hatchet's infrastructure. |
 | GitHub | Version control, pull-request code review, CI, and Dependabot dependency scanning. |
@@ -164,6 +165,7 @@ The platform is a web and API application. There is no native mobile application
 | Oneleet | Compliance platform for control monitoring, evidence collection, policy management, and risk assessment. |
 | Oneleet Agent | Endpoint agent for disk encryption, firewall status, screen lock, and anti-malware on employee devices. |
 | incident.io | Incident management and response coordination. |
+| HyperDX *(self-hosted)* | Central store and dashboards for production metrics, logs, and traces, built on OpenTelemetry and ClickHouse. Used for operational monitoring and alerting. |
 | Sentry | Application error tracking and performance monitoring for production services. |
 | Betterstack | Uptime monitoring, the public status page (status.hatchet.run), and incident alerting. |
 | Pganalyze | PostgreSQL performance monitoring and query analysis. |
@@ -249,7 +251,9 @@ Credentials known to a departing team member are rotated at offboarding. TLS cer
 
 Production systems emit audit logs for login attempts, administrative actions, privilege changes, and major application lifecycle events. Logs are transmitted to a central store and protected from tampering. GCP audit logs are enabled for Cloud KMS and Secret Manager.
 
-Infrastructure monitoring covers production database health (i.e. CPU, I/O, free space, and freeable memory) and network exposure. AWS GuardDuty runs in the production regions, and findings are tracked to remediation. Attack surface scanning runs continuously against company domains. High-risk audit events are reviewed, and a suspected security incident starts the incident response process below.
+Production services emit metrics, structured logs, and distributed traces through OpenTelemetry to a central observability platform that Hatchet operates. Engineers use it to monitor the health of every shard and the control plane, including request latency and error rates, queue depth, worker connectivity, database load and capacity, and message-bus health. Application errors are captured in an error-tracking service, and external uptime checks run against the API and the console from outside Hatchet's network. Alert thresholds are defined on these signals and page the on-call engineer; a paged alert that indicates customer impact follows the incident response process below and is reflected on the public status page.
+
+Security monitoring runs alongside operational monitoring. AWS GuardDuty performs threat detection in the production accounts, attack surface scanning runs continuously against company domains, and high-risk audit events are reviewed. A suspected security incident starts the incident response process below.
 
 ### Vulnerability Management
 
@@ -288,16 +292,13 @@ Backup restoration is tested at least annually, and the results are recorded. Di
 ### Vendor Management
 
 Hatchet keeps an inventory of third-party vendors, including the service each provides, the data each can access, and the risk level. A vendor is connected to production only after leadership approval and a vendor risk review. The review covers the vendor's security program, compliance posture (SOC 2, ISO 27001, or an equivalent), data segregation, and support for deletion. Vendors that handle sensitive data must show an established security program. Vendors with potential access to PHI sign a Business Associate Agreement. Agreements state the security expectations and service commitments. The inventory and the risk reviews are updated at least annually.
-
-PropelAuth is a software licensor for the self-hosted BYO auth sidecar. PropelAuth does not receive customer identity data. It is recorded as a supplier with no data access, not as a subprocessor.
-
 ### Email Security
 
 Hatchet publishes DMARC on its domains. Google Workspace's advanced protections against malicious attachments, links, and spoofed senders are enabled. Super-administrator access is restricted, and mailbox access is not delegated to non-admin users.
 
 ### Policy Inventory
 
-The policies below are the current published versions in the compliance platform. Each line gives the version and the date that version was published. The recorded reviewer is the CTO, who is the Security Official, except where the line says otherwise. Current personnel sign each policy.
+The policies below are the current published versions in the compliance platform. Each line gives the version and the date that version was published. Current personnel sign each policy.
 
 - Acceptable Use Policy, v2.1, published July 21, 2026.
 - Access Management Policy, v3.1, published July 21, 2026.
@@ -308,10 +309,10 @@ The policies below are the current published versions in the compliance platform
 - Code of Conduct, v2.0, published July 21, 2026.
 - Data Backup and Recovery Policy, v2.0, published July 21, 2026.
 - Data Management, Retention, and Destruction Policy, v4.1, published August 7, 2026.
-- Employee Privacy Notice, v1.0, published July 27, 2026. Reviewed by the CEO.
+- Employee Privacy Notice, v1.0, published July 27, 2026.
 - Human Resource Security Policy, v2.0, published July 21, 2026.
 - Incident Response Policy, v3.0, published July 21, 2026.
-- Law Enforcement and Compelled Disclosure Policy, v1.0, published July 27, 2026. Reviewed by the CEO.
+- Law Enforcement and Compelled Disclosure Policy, v1.0, published July 27, 2026.
 - Password Policy, v2.0, published July 21, 2026.
 - Physical Security Policy (Coworking), v1.0, published July 21, 2026.
 - Physical Security Policy (Remote), v2.0, published July 21, 2026.
@@ -325,7 +326,7 @@ The policies below are the current published versions in the compliance platform
 
 The components above are the system under examination. The system includes everything that delivers Hatchet Cloud, processes or stores customer data, or supports a control behind a security commitment. Security tools that support those controls, including the WAF, VPN, endpoint agent, threat detection, vulnerability scanning, and log management, are in scope.
 
-Postmark delivers transactional notification email for the platform. It is a third party in the system. It is not a subservice organization: Hatchet's security commitments do not depend on a control that only Postmark performs.
+Postmark delivers transactional notification email for the platform. It is a third party in the system. It is not a subservice organization: Hatchet's security commitments do not depend on a control that only Postmark performs. PropelAuth licenses the authentication software that Hatchet runs inside its own infrastructure. The software performs a license check against PropelAuth, but no customer or identity data is sent to PropelAuth, and it is neither a subservice organization nor a subprocessor.
 
 The following are outside the system. They do not process or store customer production data, they are not required to deliver the service, and they do not support controls behind the security commitments:
 
@@ -333,7 +334,7 @@ The following are outside the system. They do not process or store customer prod
 - Internal productivity and communication tools, including Notion, Linear, Figma, Discord, Zoom, and AI-assisted development tools.
 - Autumn, PostHog, Pylon, Stripe, and Railway, which touch the customer relationship but not the production data path, as described below.
 
-Autumn is billing and plan-entitlement administration. It does not gate the production data path and does not store customer workflow data. PostHog receives product-usage analytics from the console, including user email and name, with masked session recording. Tenants can opt out. PostHog is not in the service delivery path. Railway is a deployment target some customers use for their own workers. Hatchet does not run production services on Railway and does not store customer data there.
+A few of these are close enough to the product that their exclusion needs explaining. Autumn (plan entitlements) and Stripe (payments) handle billing; neither is consulted when a task runs, and neither stores workflow data. Pylon is the customer support desk and holds only what customers put in support conversations. PostHog receives product-usage analytics from the console, including the user's name and email and session recordings with inputs masked; tenants can opt out, and it never receives workflow data. Railway hosts internal Hatchet automation, such as growth and marketing workers. No Hatchet Cloud production service runs on Railway, and it does not store customer production data.
 
 Third-party connectivity uses authenticated APIs, SSO, the VPN, and service-specific access controls. Vendors with access to in-scope systems are under contract, and that access follows the least-privilege and monitoring controls in Procedures. Customer-managed environments, including customer application code, worker runtimes, and self-hosted Hatchet deployments, are outside the system.
 
@@ -367,7 +368,7 @@ Roles are defined in the information security program and covered in onboarding.
 
 Hiring includes a background check or a reference check for employees, contractors, and third parties who will access sensitive data or production systems. The check matches the access and the risk of the role. A limited-scope exemption requires documented approval from the CEO or the CTO.
 
-Personnel complete security awareness training within 30 days of start and annually after that. The training covers social engineering, workstation security, common attack vectors, and handling sensitive data. Personnel whose roles require it also complete HIPAA training (PHI types, obligations, and penalties) and GDPR training (personal data types, principles, and data subject rights). Completion is tracked, and overdue training is flagged.
+Employees complete security awareness training within 30 days of start and annually after that. The training covers social engineering, workstation security, common attack vectors, and handling sensitive data. Personnel whose roles require it also complete HIPAA training (PHI types, obligations, and penalties) and GDPR training (personal data types, principles, and data subject rights). Completion is tracked, and overdue training is flagged.
 
 Performance reviews cover security practices for roles with significant system or data access.
 
@@ -403,13 +404,11 @@ Vulnerability reports follow SECURITY.md. Reports on the open-source repositorie
 
 # Monitoring
 
-**Ongoing automated monitoring.** Control operation is checked continuously by monitors in the compliance platform and in the cloud accounts. The checks cover access (dormant accounts, MFA, access review completion, and offboarding across Fly.io, Tailscale, Google Workspace, and other connected systems), infrastructure (public buckets on AWS, firewall and security group configuration, public SSH and RDP, and WAF status), endpoints (disk encryption, firewall, screen lock, and anti-malware through the Oneleet Agent), vulnerabilities (ECR image findings, GuardDuty, attack surface findings, Dependabot, and penetration test remediation), change management (review approval and deployment access), logging (CloudWatch retention, GCP audit logs on Cloud KMS and Secret Manager, and Cloudflare worker logging), encryption in transit (TLS on Cloudflare zones), and email (DMARC and Google Workspace protections).
-
-Infrastructure monitoring covers production database health (RDS CPU, I/O, free space, and freeable memory). GuardDuty findings are tracked to remediation.
+**Ongoing automated monitoring.** The compliance platform connects to the cloud accounts, the identity provider, source control, and employee devices, and runs automated checks continuously. The checks cover the controls described in Procedures: user access and offboarding, MFA, network exposure and firewall configuration, endpoint protection, vulnerability and dependency findings, code review enforcement, audit log configuration, TLS settings, and email security. A failing check opens a finding that is assigned and tracked to closure.
 
 **Periodic evaluations.** Hatchet performs an internal security audit annually. The risk assessment is annual, and the risk register is updated when something material changes between assessments. Access reviews are completed at least annually. The CEO and the CTO review and approve security policies annually.
 
-**Subservice organization monitoring.** Connected integrations in the compliance platform continuously check configuration and security posture for AWS, GCP, and Cloudflare, including encryption settings, access, logging, and network exposure. Ubicloud is not connected to the compliance platform. Hatchet reviews Ubicloud's independent assessment and checks database access and network exposure through Teleport and firewall configuration. Hatchet reviews SOC 2 reports, or an equivalent independent assessment, from its subservice organizations annually, and watches their status pages for disruptions.
+**Subservice organization monitoring.** Hatchet reviews each subservice organization's SOC 2 report, or an equivalent independent assessment, at least annually, and monitors their status pages for disruptions. Where a provider supports it, the compliance platform also checks Hatchet's configuration of that provider continuously; for providers it cannot connect to, Hatchet verifies access and network exposure directly as part of the periodic review.
 
 **Deficiency remediation.** A control gap found by a monitor, an audit, or a management review is logged, assigned, and tracked to closure. Vulnerability timelines are 7 days for critical, 30 days for high, and 60 days for medium. Penetration test findings are tracked individually and checked when closed. Open items are escalated to management.
 
@@ -421,13 +420,13 @@ Although the subservice organizations have been carved out for the purposes of t
 
 The subservice organizations and their roles are:
 
-- **Amazon Web Services.** Primary cloud hosting for the control plane, the shards, and production data stores, described under Infrastructure.
-- **Google Cloud Platform.** Cloud KMS, Secret Manager, and Artifact Registry, described under Infrastructure. GCP does not host production compute or production databases.
-- **Cloudflare.** Edge security, DNS, WAF, TLS termination, and content delivery, described under Infrastructure.
-- **ClickHouse Cloud.** Managed analytics database for customer observability data, reached over AWS PrivateLink, described under Infrastructure.
-- **Ubicloud.** Managed PostgreSQL for production customer shards in the US, EU, and Australia, described under Infrastructure. Ubicloud is not connected to the compliance platform. Monitoring is the annual report review plus Hatchet's own access and firewall checks.
+- **Amazon Web Services.** Cloud hosting for the control plane, the shards, and production data stores.
+- **Google Cloud Platform.** Key management, secret storage, and build artifact storage.
+- **Cloudflare.** DNS, web application firewall, DDoS mitigation, and TLS termination for console and API traffic.
+- **ClickHouse Cloud.** Managed analytics database for customer observability data.
+- **Ubicloud.** Managed PostgreSQL for production shards and run-history databases.
 
-The following table maps the complementary subservice organization controls that each subservice organization is expected to implement. These mappings are based on the services each provider delivers and should be checked against that provider's SOC 2 report or an equivalent independent assessment.
+Each is described further under Infrastructure. The following table lists the complementary subservice organization controls that each is expected to implement.
 
 | Subservice Organization | Complementary Subservice Organization Control |
 | --- | --- |
@@ -459,7 +458,7 @@ The following table maps the complementary subservice organization controls that
 | Ubicloud | Maintain backup and recovery controls for customer data stored in managed databases. |
 | Ubicloud | Monitor database infrastructure for security events and unauthorized access attempts. |
 
-Management reviews independent third-party assessment reports of the subservice organizations annually. For AWS, GCP, and Cloudflare, management also uses connected integrations that continuously check encryption, access, logging, and network exposure. For Ubicloud, which has no compliance-platform integration, management reviews the provider's report and checks access paths and network exposure directly. Management monitors the subservice organizations' status pages for disruptions and uses customer support channels to raise issues with the provider.
+Management reviews each subservice organization's independent assessment report annually, monitors their status pages for disruptions, and raises issues through the provider's support channels. Where the provider supports it, the compliance platform also checks Hatchet's configuration of that provider continuously, as described under Monitoring.
 
 Teleport, Postmark, and Vercel are third parties, not subservice organizations. Teleport issues short-lived production credentials for Hatchet personnel. Customers do not use it, and Hatchet's access commitments are met by Hatchet's own controls. Postmark delivers transactional notification email. Vercel hosts the public website and frontend assets, which are classified Public and are not in the customer data path for the orchestration service.
 
@@ -467,42 +466,23 @@ Teleport, Postmark, and Vercel are third parties, not subservice organizations. 
 
 ## A. Incidents Pertaining to the Audit Period
 
-> **INPUT NEEDED**: Confirm whether any significant system incidents occurred during the audit period (including incidents that occurred during the period and were subsequently identified after period end but before report issuance) that resulted in a failure to achieve Hatchet's service commitments and system requirements. Also consider whether any known incidents at subservice organizations should be disclosed. If any occurred, describe their nature, timing, effect, and remediation.
->
-> If none occurred, you can use the following:
->
-> "No significant security incidents have occurred during the audit period that would have a material effect on the suitability of the design and operating effectiveness of the controls and/or description of the system covered in Section 3 of this report."
+No significant security incidents have occurred during the audit period that would have a material effect on the suitability of the design and operating effectiveness of the controls and/or description of the system covered in Section 3 of this report.
 
 ## B. Incidents Subsequent to the Audit Period
 
-> **INPUT NEEDED**: Confirm whether any significant system incidents occurred subsequent to the audit period but before report issuance. If any occurred, describe their nature, timing, effect, and remediation.
->
-> If none occurred, you can use the following:
->
-> "Management is not aware of any incidents that occurred subsequent to the period covered by Section 3 of this report through the date of the service auditor's report that would have a significant effect on management's assertion and description of its system."
+Management is not aware of any incidents that occurred subsequent to the period covered by Section 3 of this report through the date of the service auditor's report that would have a significant effect on management's assertion and description of its system.
 
 # Significant Changes During the Audit Period
 
 ## A. Significant Changes and Events During the Audit Period
 
-> **INPUT NEEDED**: Confirm whether any significant changes or events occurred during the audit period (including changes that occurred during the period and were subsequently identified after period end but before report issuance). Significant changes include:
-> - Changes to the services provided
-> - Significant changes to IT and security personnel
-> - Significant changes to system processes, IT architecture, or applications
-> - Changes to legal and regulatory requirements affecting system requirements
-> - Changes to organizational structure resulting in a change to internal control
->
-> If any occurred, describe them here. If none occurred, you can use the following:
->
-> "No significant changes and events have occurred during the audit period that would have a material effect on the suitability of the design and operating effectiveness of the controls and/or description of the system covered in Section 3 of this report."
+No significant changes and events have occurred during the audit period that would have a material effect on the suitability of the design and operating effectiveness of the controls and/or description of the system covered in Section 3 of this report.
 
 ## B. Significant Changes and Events Subsequent to the Audit Period
 
-> **INPUT NEEDED**: Confirm whether any significant changes or events occurred subsequent to the audit period but before report issuance. If any occurred, describe them here.
->
-> If none occurred, you can use the following:
->
-> "Management is not aware of any changes that occurred subsequent to the period covered by Section 3 of this report through the date of the service auditor's report that would have a significant effect on management's assertion and description of its system."
+Subsequent to the audit period, Hatchet began removing the TimescaleDB extension as a dependency of Hatchet Cloud. Run history and task events will be stored in standard PostgreSQL on the same managed database providers, under the same access, encryption, backup, and monitoring controls described in this section. This change affects a component described in this section but not the design or operation of Hatchet's controls.
+
+Other than the change noted above, management is not aware of any changes that occurred subsequent to the period covered by Section 3 of this report through the date of the service auditor's report that would have a significant effect on management's assertion and description of its system.
 
 # Applicable Trust Services Criteria
 
