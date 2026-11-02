@@ -85,13 +85,14 @@ BEGIN
         v1_runs_olap r
     SET
         readable_status = n.readable_status,
-        -- unchanged status keeps finished_at so unrelated updates never mark old rows newly finished
+        -- same status and attempt keeps finished_at, so unrelated updates never mark old rows newly finished
         finished_at = CASE
-            WHEN n.readable_status = r.readable_status THEN r.finished_at
+            WHEN n.readable_status = r.readable_status AND n.latest_retry_count = o.latest_retry_count THEN r.finished_at
             WHEN n.readable_status IN ('COMPLETED', 'FAILED', 'CANCELLED') THEN clock_timestamp()
             ELSE NULL
         END
     FROM new_rows n
+    JOIN old_rows o ON o.id = n.id AND o.inserted_at = n.inserted_at
     WHERE
         r.id = n.id
         AND r.inserted_at = n.inserted_at
@@ -165,13 +166,14 @@ BEGIN
         readable_status = n.readable_status,
         parent_task_external_id = n.parent_task_external_id,
         idempotency_key = n.idempotency_key,
-        -- unchanged status keeps finished_at so unrelated updates never mark old rows newly finished
+        -- same status and attempt keeps finished_at, so unrelated updates never mark old rows newly finished
         finished_at = CASE
-            WHEN n.readable_status = r.readable_status THEN r.finished_at
+            WHEN n.readable_status = r.readable_status AND n.latest_retry_count = o.latest_retry_count THEN r.finished_at
             WHEN n.readable_status IN ('COMPLETED', 'FAILED', 'CANCELLED') THEN clock_timestamp()
             ELSE NULL
         END
     FROM new_rows n
+    JOIN old_rows o ON o.id = n.id AND o.inserted_at = n.inserted_at
     WHERE
         r.id = n.id
         AND r.inserted_at = n.inserted_at
@@ -181,6 +183,18 @@ BEGIN
 END;
 $$
 LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER v1_tasks_olap_status_update_trigger
+AFTER UPDATE ON v1_tasks_olap
+REFERENCING OLD TABLE AS old_rows NEW TABLE AS new_rows
+FOR EACH STATEMENT
+EXECUTE FUNCTION v1_tasks_olap_status_update_function();
+
+CREATE OR REPLACE TRIGGER v1_dags_olap_status_update_trigger
+AFTER UPDATE ON v1_dags_olap
+REFERENCING OLD TABLE AS old_rows NEW TABLE AS new_rows
+FOR EACH STATEMENT
+EXECUTE FUNCTION v1_dags_olap_status_update_function();
 
 -- +goose StatementEnd
 
@@ -345,6 +359,18 @@ BEGIN
 END;
 $$
 LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER v1_tasks_olap_status_update_trigger
+AFTER UPDATE ON v1_tasks_olap
+REFERENCING NEW TABLE AS new_rows
+FOR EACH STATEMENT
+EXECUTE FUNCTION v1_tasks_olap_status_update_function();
+
+CREATE OR REPLACE TRIGGER v1_dags_olap_status_update_trigger
+AFTER UPDATE ON v1_dags_olap
+REFERENCING NEW TABLE AS new_rows
+FOR EACH STATEMENT
+EXECUTE FUNCTION v1_dags_olap_status_update_function();
 
 DROP INDEX IF EXISTS ix_v1_runs_olap_tenant_failed_finished_at;
 
