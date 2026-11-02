@@ -979,6 +979,7 @@ alter table v1_batched_queue_item set (
     autovacuum_vacuum_cost_limit='1000'
 );
 
+
 CREATE INDEX v1_batched_queue_item_step_batch_id_idx ON v1_batched_queue_item (
     tenant_id ASC,
     step_id ASC,
@@ -1213,6 +1214,7 @@ CREATE TABLE v1_incoming_webhook (
     CHECK (scope_expression IS NULL OR LENGTH(scope_expression) > 0),
     CHECK (LENGTH(name) > 0)
 );
+
 
 CREATE INDEX v1_match_condition_filter_idx ON v1_match_condition (
     tenant_id ASC,
@@ -3178,6 +3180,7 @@ CREATE TABLE v1_durable_event_log_entry (
     CONSTRAINT v1_durable_event_log_entry_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, branch_id, node_id)
 ) PARTITION BY RANGE(durable_task_inserted_at);
 
+
 CREATE TABLE v1_durable_event_log_branch_point (
     tenant_id UUID NOT NULL,
 
@@ -3374,9 +3377,7 @@ CREATE UNIQUE INDEX v1_sandbox_provider_tenant_name_key ON v1_sandbox_provider (
 
 CREATE INDEX v1_sandbox_provider_unit_idx ON v1_sandbox_provider (tenant_id, provider_partition, id);
 
-CREATE INDEX v1_sandbox_provider_version_idx ON v1_sandbox_provider (tenant_id, GREATEST(updated_at, COALESCE(status_changed_at, updated_at)), id);
-
-CREATE TYPE v1_sandbox_status AS ENUM ('CREATING', 'RUNNING', 'PAUSED', 'DESTROYED', 'FAILED');
+CREATE TYPE v1_sandbox_status AS ENUM ('CREATING', 'RUNNING', 'DESTROYED', 'FAILED');
 
 CREATE TABLE v1_sandbox (
     id TEXT NOT NULL,
@@ -3395,7 +3396,7 @@ CREATE TABLE v1_sandbox (
     CONSTRAINT v1_sandbox_pkey PRIMARY KEY (tenant_id, id)
 );
 
-CREATE INDEX v1_sandbox_provider_idx ON v1_sandbox (tenant_id, provider_id, created_at DESC);
+CREATE INDEX v1_sandbox_tenant_created_idx ON v1_sandbox (tenant_id, created_at DESC, id DESC);
 
 CREATE TABLE v1_sandbox_snapshot (
     id TEXT NOT NULL,
@@ -3403,7 +3404,6 @@ CREATE TABLE v1_sandbox_snapshot (
     sandbox_id TEXT NOT NULL,
     parent_id TEXT,
     external_id TEXT NOT NULL,
-    size_bytes BIGINT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT v1_sandbox_snapshot_pkey PRIMARY KEY (tenant_id, id)
 );

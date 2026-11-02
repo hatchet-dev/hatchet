@@ -1986,7 +1986,6 @@ type V1SandboxStatus string
 const (
 	V1SandboxStatusCREATING  V1SandboxStatus = "CREATING"
 	V1SandboxStatusRUNNING   V1SandboxStatus = "RUNNING"
-	V1SandboxStatusPAUSED    V1SandboxStatus = "PAUSED"
 	V1SandboxStatusDESTROYED V1SandboxStatus = "DESTROYED"
 	V1SandboxStatusFAILED    V1SandboxStatus = "FAILED"
 )
@@ -4175,7 +4174,6 @@ type V1SandboxSnapshot struct {
 	SandboxID  string             `json:"sandbox_id"`
 	ParentID   pgtype.Text        `json:"parent_id"`
 	ExternalID string             `json:"external_id"`
-	SizeBytes  pgtype.Int8        `json:"size_bytes"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 }
 

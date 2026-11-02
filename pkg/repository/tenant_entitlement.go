@@ -43,7 +43,6 @@ const (
 	EntitlementDAGOperator                     Entitlement = "dag_operator"
 	EntitlementDurableStreams                  Entitlement = "durable_streams"
 	EntitlementServerlessOperator              Entitlement = "serverless_operator"
-	EntitlementSandboxOperator                 Entitlement = "sandbox_operator"
 )
 
 // Entitlements only change on plan changes fanned out from the control plane,
@@ -79,8 +78,6 @@ func (e TenantEntitlements) Has(entitlement Entitlement) (bool, error) {
 		return e.DurableStreams, nil
 	case EntitlementServerlessOperator:
 		return e.ServerlessOperator, nil
-	case EntitlementSandboxOperator:
-		return e.SandboxOperator, nil
 	default:
 		return false, fmt.Errorf("unknown entitlement %q", entitlement)
 	}
