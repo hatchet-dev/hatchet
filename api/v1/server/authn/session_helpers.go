@@ -79,6 +79,8 @@ func (s *SessionHelpers) SaveUnauthenticated(c echo.Context) error {
 	return session.Save(c.Request(), c.Response())
 }
 
+// RotateSession moves the request's stored cookie session to a new ID, keeping its values.
+// It does nothing when the request has no stored session, e.g. bearer-token auth.
 func (s *SessionHelpers) RotateSession(c echo.Context) error {
 	session, err := s.ss.Get(c.Request(), s.ss.GetName())
 

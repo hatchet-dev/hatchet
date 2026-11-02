@@ -285,6 +285,8 @@ func dropSetCookies(h http.Header, name string) {
 	h["Set-Cookie"] = kept
 }
 
+// Rotate deletes the row of the session cached for this request and saves its values under a
+// newly minted ID, so an ID known before a privilege change can't follow the session across it.
 func (store *UserSessionStore) Rotate(r *http.Request, w http.ResponseWriter) error {
 	session, err := store.Get(r, store.cookieName)
 	if err != nil {
