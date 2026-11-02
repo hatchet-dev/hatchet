@@ -124,8 +124,12 @@ class WorkerActionListenerProcess:
         self._stop_event_task: asyncio.Task[None] | None = None
         self.running_step_runs: dict[str, float] = {}
         self.step_action_events: set[asyncio.Task[ActionEventResponse | None]] = set()
-        self._get_event_threadpool_executor = ThreadPoolExecutor(max_workers=1)
-        self._stop_event_threadpool_executor = ThreadPoolExecutor(max_workers=1)
+        self._get_event_threadpool_executor = ThreadPoolExecutor(
+            max_workers=None, thread_name_prefix="event_queue_get_"
+        )
+        self._stop_event_threadpool_executor = ThreadPoolExecutor(
+            max_workers=None, thread_name_prefix="stop_event_wait_"
+        )
 
         if self.debug:
             logger.setLevel(logging.DEBUG)

@@ -64,7 +64,9 @@ class WorkerActionRunLoopManager:
         self.client = Client(config=self.config, debug=self.debug)
         self.start_loop_manager_task: asyncio.Task[None] | None = None
         self.log_sender = AsyncLogSender(self.client.event)
-        self._get_action_threadpool_executor = ThreadPoolExecutor(max_workers=1)
+        self._get_action_threadpool_executor = ThreadPoolExecutor(
+            max_workers=None, thread_name_prefix="action_queue_get_"
+        )
 
         self.log_sender.start()
         self.start()
