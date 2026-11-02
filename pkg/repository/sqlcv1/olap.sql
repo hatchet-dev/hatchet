@@ -304,8 +304,9 @@ WHERE v1_audit_log_archive_cursor.lease_expires_at < NOW() OR v1_audit_log_archi
 RETURNING *
 ;
 
--- name: DeleteAuditLogArchiveCursor :exec
-DELETE FROM v1_audit_log_archive_cursor
+-- name: MarkAuditLogArchiveAsCompleted :exec
+UPDATE v1_audit_log_archive_cursor
+SET is_completed = TRUE
 WHERE partition_date = @partitionDate::DATE
 ;
 

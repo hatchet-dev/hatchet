@@ -3488,6 +3488,7 @@ type V1AuditLog struct {
 
 type V1AuditLogArchiveCursor struct {
 	PartitionDate  pgtype.Date        `json:"partition_date"`
+	IsCompleted    bool               `json:"is_completed"`
 	LeaseProcessID uuid.UUID          `json:"lease_process_id"`
 	LeaseExpiresAt pgtype.Timestamptz `json:"lease_expires_at"`
 	NextFileIndex  int32              `json:"next_file_index"`

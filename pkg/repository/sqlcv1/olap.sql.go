@@ -58,7 +58,7 @@ DO UPDATE SET
     lease_process_id = EXCLUDED.lease_process_id,
     lease_expires_at = EXCLUDED.lease_expires_at
 WHERE v1_audit_log_archive_cursor.lease_expires_at < NOW() OR v1_audit_log_archive_cursor.lease_process_id = $1::UUID
-RETURNING partition_date, lease_process_id, lease_expires_at, next_file_index, last_tenant_id, last_inserted_at, last_id
+RETURNING partition_date, is_completed, lease_process_id, lease_expires_at, next_file_index, last_tenant_id, last_inserted_at, last_id
 `
 
 type AcquireOrExtendAuditLogArchiveLeaseParams struct {
@@ -84,6 +84,7 @@ func (q *Queries) AcquireOrExtendAuditLogArchiveLease(ctx context.Context, db DB
 	var i V1AuditLogArchiveCursor
 	err := row.Scan(
 		&i.PartitionDate,
+		&i.IsCompleted,
 		&i.LeaseProcessID,
 		&i.LeaseExpiresAt,
 		&i.NextFileIndex,
@@ -774,16 +775,6 @@ type CreateTaskEventsOLAPParams struct {
 	DurableInvocationCount int32                `json:"durable_invocation_count"`
 	IsDagOrchestrator      bool                 `json:"is_dag_orchestrator"`
 	PayloadReferenceID     *uuid.UUID           `json:"payload_reference_id"`
-}
-
-const deleteAuditLogArchiveCursor = `-- name: DeleteAuditLogArchiveCursor :exec
-DELETE FROM v1_audit_log_archive_cursor
-WHERE partition_date = $1::DATE
-`
-
-func (q *Queries) DeleteAuditLogArchiveCursor(ctx context.Context, db DBTX, partitiondate pgtype.Date) error {
-	_, err := db.Exec(ctx, deleteAuditLogArchiveCursor, partitiondate)
-	return err
 }
 
 const findMinInsertedAtForDAGStatusUpdates = `-- name: FindMinInsertedAtForDAGStatusUpdates :one
@@ -2430,6 +2421,17 @@ func (q *Queries) ListYesterdayRunCountsByStatus(ctx context.Context, db DBTX) (
 		return nil, err
 	}
 	return items, nil
+}
+
+const markAuditLogArchiveAsCompleted = `-- name: MarkAuditLogArchiveAsCompleted :exec
+UPDATE v1_audit_log_archive_cursor
+SET is_completed = TRUE
+WHERE partition_date = $1::DATE
+`
+
+func (q *Queries) MarkAuditLogArchiveAsCompleted(ctx context.Context, db DBTX, partitiondate pgtype.Date) error {
+	_, err := db.Exec(ctx, markAuditLogArchiveAsCompleted, partitiondate)
+	return err
 }
 
 const populateDAGMetadata = `-- name: PopulateDAGMetadata :many

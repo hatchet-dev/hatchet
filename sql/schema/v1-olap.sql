@@ -642,6 +642,7 @@ CREATE INDEX v1_audit_log_tenant_id_correlation_id_idx ON v1_audit_log (tenant_i
 
 CREATE TABLE v1_audit_log_archive_cursor (
     partition_date DATE PRIMARY KEY,
+    is_completed BOOLEAN NOT NULL DEFAULT FALSE,
     lease_process_id UUID NOT NULL,
     lease_expires_at TIMESTAMPTZ NOT NULL,
 
