@@ -2,6 +2,7 @@ import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
 import { AppLayout } from '@/components/layout/app-layout';
 import { AuthDisabledBanner } from '@/components/layout/auth-disabled-banner';
 import { setupCardDialogClassName } from '@/components/layout/setup-card';
+import { SupportSessionBanner } from '@/components/layout/support-session-banner';
 import { CreateTenantInviteModal } from '@/components/modals/create-tenant-invite-modal';
 import { InviteModal } from '@/components/modals/invite-modal';
 import { OrganizationInviteMemberModal } from '@/components/modals/organization-invite-member-modal';
@@ -18,6 +19,7 @@ import {
   pendingInvitesQuery,
   usePendingInvites,
 } from '@/hooks/use-pending-invites.ts';
+import { useSupportSessionRenewal } from '@/hooks/use-support-session-renewal';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { User, queries } from '@/lib/api';
 import {
@@ -33,6 +35,10 @@ import { useContextFromParent } from '@/lib/outlet';
 import { REDIRECT_TARGET_KEY } from '@/lib/redirect';
 import { getResourceLimitStatus } from '@/lib/resource-limit-status';
 import { OutletWithContext } from '@/lib/router-helpers';
+import {
+  markSupportSessionExpired,
+  useSupportSession,
+} from '@/lib/support-session';
 import { cn } from '@/lib/utils';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
@@ -101,6 +107,8 @@ function AuthenticatedInner() {
   >();
   const [showWelcome, setShowWelcome] = useState(false);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const { isSupport, isExpired: isSupportExpired } = useSupportSession();
+  useSupportSessionRenewal();
 
   const loaderData = useLoaderData({ from: '/' });
 
@@ -238,20 +246,30 @@ function AuthenticatedInner() {
       return;
     }
 
-    // If we definitively have no user, always go to login.
-    if (!isUserLoading && !currentUser && !isAuthPage) {
-      storeRedirectPath();
-      navigate({ to: appRoutes.authLoginRoute.to, replace: true });
-      return;
-    }
+    // A support session has no login or onboarding to fall back to; the banner
+    // explains the expiry.
+    if (isSupport) {
+      if (userQueryError?.status === 401 || userQueryError?.status === 403) {
+        markSupportSessionExpired();
+        return;
+      }
+    } else {
+      // If we definitively have no user, always go to login.
+      if (!isUserLoading && !currentUser && !isAuthPage) {
+        storeRedirectPath();
+        navigate({ to: appRoutes.authLoginRoute.to, replace: true });
+        return;
+      }
 
-    if (userQueryError?.status === 401 || userQueryError?.status === 403) {
-      storeRedirectPath();
-      navigate({ to: appRoutes.authLoginRoute.to, replace: true });
-      return;
+      if (userQueryError?.status === 401 || userQueryError?.status === 403) {
+        storeRedirectPath();
+        navigate({ to: appRoutes.authLoginRoute.to, replace: true });
+        return;
+      }
     }
 
     if (
+      !isSupport &&
       currentUser &&
       !currentUser.emailVerified &&
       !isOnboardingVerifyEmailPage
@@ -265,6 +283,7 @@ function AuthenticatedInner() {
       : null;
 
     const okayToMakeOnboardingRedirectDecisions =
+      !isSupport &&
       pendingInvitesQuery.isSuccess &&
       !isOnboardingPage &&
       isUserUniverseLoaded &&
@@ -407,6 +426,7 @@ function AuthenticatedInner() {
     isOnboardingCreateOrganizationPage,
     isOnboardingCreateTenantPage,
     loaderData.isControlPlaneEnabled,
+    isSupport,
   ]);
 
   useEffect(
@@ -534,33 +554,36 @@ function AuthenticatedInner() {
     tenantMemberships?.length,
   ]);
 
-  if (!currentUser) {
+  // Render the shell for an expired support session so the banner can explain.
+  if (!currentUser && !(isSupport && isSupportExpired)) {
     return <Loading />;
   }
+
+  const showAuthDisabledBanner =
+    meta && 'authDisabled' in meta && meta.authDisabled && !authBannerDismissed;
+  const banner =
+    isSupport || showAuthDisabledBanner ? (
+      <div>
+        {isSupport && <SupportSessionBanner />}
+        {showAuthDisabledBanner && (
+          <AuthDisabledBanner
+            onDismiss={() => {
+              try {
+                localStorage.setItem('auth-disabled-banner-dismissed', 'true');
+              } catch {
+                /* empty */
+              }
+              setAuthBannerDismissed(true);
+            }}
+          />
+        )}
+      </div>
+    ) : undefined;
 
   return (
     <SupportChat user={currentUser}>
       <AppLayout
-        banner={
-          meta &&
-          'authDisabled' in meta &&
-          meta.authDisabled &&
-          !authBannerDismissed ? (
-            <AuthDisabledBanner
-              onDismiss={() => {
-                try {
-                  localStorage.setItem(
-                    'auth-disabled-banner-dismissed',
-                    'true',
-                  );
-                } catch {
-                  /* empty */
-                }
-                setAuthBannerDismissed(true);
-              }}
-            />
-          ) : undefined
-        }
+        banner={banner}
         header={
           <TopNav
             user={currentUser}

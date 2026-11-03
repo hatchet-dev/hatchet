@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/redirect"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/auth/rbac"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -71,7 +73,7 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 	var bearerErr error
 
 	if r.Security.BearerAuth() {
-		bearerErr = a.handleBearerAuth(c)
+		bearerErr = a.handleBearerAuth(c, r)
 
 		c.Set("auth_strategy", "bearer")
 
@@ -239,12 +241,12 @@ func (a *AuthN) sessionSaveError(ctx context.Context, saveErr error) error {
 	return fmt.Errorf("error saving unauthenticated session")
 }
 
-func (a *AuthN) handleBearerAuth(c echo.Context) error {
+func (a *AuthN) handleBearerAuth(c echo.Context, r *middleware.RouteInfo) error {
 	forbidden := echo.NewHTTPError(http.StatusForbidden, "Please provide valid credentials")
 
 	ctx := c.Request().Context()
 
-	token, isExchangeToken, err := getBearerTokenFromRequest(c.Request())
+	token, kind, err := getBearerTokenFromRequest(c.Request())
 
 	if err != nil {
 		a.l.Debug().Ctx(ctx).Err(err).Msg("error getting bearer token from request")
@@ -254,7 +256,11 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 
 	queriedTenant, isTenantScoped := c.Get("tenant").(*sqlcv1.Tenant)
 
-	if isExchangeToken {
+	if kind == bearerTokenSupport {
+		return a.handleSupportToken(c, r, token)
+	}
+
+	if kind == bearerTokenExchange {
 		if a.config.Auth.ExchangeTokenClient == nil {
 			a.l.Error().Msgf("exchange token client is not configured")
 
@@ -365,24 +371,131 @@ func (a *AuthN) handleCustomAuth(c echo.Context, r *middleware.RouteInfo) error 
 	return a.config.Auth.CustomAuthenticator.Authenticate(c, r)
 }
 
-const exchangeTokenHeader = "X-Exchange-Token"
+// unlike an exchange token, a support token is not a personal access token outside its tenant
+var supportTokenPermittedWithoutTenant = []string{
+	"UserGetCurrent",
+}
+
+// handleSupportToken accepts a token only on the routes of the tenant it names; the role is enforced in authz
+func (a *AuthN) handleSupportToken(c echo.Context, r *middleware.RouteInfo, token string) error {
+	forbidden := echo.NewHTTPError(http.StatusForbidden, "Please provide valid credentials")
+
+	ctx := c.Request().Context()
+
+	if a.config.Auth.SupportTokenClient == nil {
+		a.l.Warn().Ctx(ctx).Msg("support token presented but support tokens are not enabled")
+
+		return forbidden
+	}
+
+	claims, err := a.config.Auth.SupportTokenClient.ValidateSupportToken(ctx, token)
+
+	if err != nil {
+		a.l.Warn().Ctx(ctx).Err(err).Msg("error validating support token")
+
+		return forbidden
+	}
+
+	queriedTenant, isTenantScoped := c.Get("tenant").(*sqlcv1.Tenant)
+
+	switch {
+	case isTenantScoped:
+		if claims.TenantID != queriedTenant.ID {
+			a.l.Warn().Ctx(ctx).
+				Str("tenant_id", claims.TenantID.String()).
+				Str("queried_tenant_id", queriedTenant.ID.String()).
+				Str("support_grant_id", claims.GrantID.String()).
+				Msg("tenant id in support token does not match tenant id in context")
+
+			return forbidden
+		}
+	case r != nil && rbac.OperationIn(r.OperationID, supportTokenPermittedWithoutTenant):
+	default:
+		a.l.Warn().Ctx(ctx).
+			Str("support_grant_id", claims.GrantID.String()).
+			Str("operation_id", operationID(r)).
+			Msg("support token used outside its tenant")
+
+		return forbidden
+	}
+
+	// staff have no user row on the customer's shard and support access must not create one
+	user := &sqlcv1.User{
+		ID:            claims.UserID,
+		Email:         claims.Email,
+		EmailVerified: true,
+	}
+
+	if claims.Name != "" {
+		user.Name = pgtype.Text{String: claims.Name, Valid: true}
+	}
+
+	c.Set("user", user)
+	c.Set(middleware.IsExchangeTokenContextKey, true)
+	c.Set(middleware.IsSupportTokenContextKey, true)
+	c.Set(middleware.SupportClaimsContextKey, claims)
+
+	ctx = context.WithValue(ctx, analytics.UserIDKey, claims.UserID)
+	ctx = context.WithValue(ctx, analytics.TenantIDKey, claims.TenantID)
+	ctx = context.WithValue(ctx, analytics.SupportGrantIDKey, claims.GrantID)
+	ctx = context.WithValue(ctx, analytics.SourceKey, analytics.SourceSupport)
+
+	span := trace.SpanFromContext(ctx)
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant.id", Value: claims.TenantID},
+		telemetry.AttributeKV{Key: "user.id", Value: claims.UserID},
+		telemetry.AttributeKV{Key: "support.grant_id", Value: claims.GrantID},
+		telemetry.AttributeKV{Key: "support.role", Value: string(claims.Role)},
+	)
+
+	c.SetRequest(c.Request().WithContext(ctx))
+
+	return nil
+}
+
+func operationID(r *middleware.RouteInfo) string {
+	if r == nil {
+		return ""
+	}
+
+	return r.OperationID
+}
+
+type bearerTokenKind int
+
+const (
+	bearerTokenAPI bearerTokenKind = iota
+	bearerTokenExchange
+	bearerTokenSupport
+)
+
+const (
+	exchangeTokenHeader = "X-Exchange-Token"
+	supportTokenHeader  = "X-Support-Token"
+)
 
 var errInvalidAuthHeader = fmt.Errorf("invalid authorization header in request")
 
-func getBearerTokenFromRequest(r *http.Request) (token string, isExchangeToken bool, err error) {
+func getBearerTokenFromRequest(r *http.Request) (token string, kind bearerTokenKind, err error) {
 	reqToken := r.Header.Get("Authorization")
 	splitToken := strings.Split(reqToken, "Bearer")
 
 	if len(splitToken) != 2 {
-		return "", false, errInvalidAuthHeader
+		return "", bearerTokenAPI, errInvalidAuthHeader
 	}
 
 	reqToken = strings.TrimSpace(splitToken[1])
 
-	// if there's also an X-Exchange-Token header, then this is an exchange token request
-	if r.Header.Get(exchangeTokenHeader) != "" {
-		return reqToken, true, nil
+	// a support token is a kind of exchange token; its header wins so that a request
+	// carrying both is never validated against the regular exchange token keyset
+	if r.Header.Get(supportTokenHeader) != "" {
+		return reqToken, bearerTokenSupport, nil
 	}
 
-	return reqToken, false, nil
+	// if there's also an X-Exchange-Token header, then this is an exchange token request
+	if r.Header.Get(exchangeTokenHeader) != "" {
+		return reqToken, bearerTokenExchange, nil
+	}
+
+	return reqToken, bearerTokenAPI, nil
 }

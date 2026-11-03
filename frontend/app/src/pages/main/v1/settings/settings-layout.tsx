@@ -7,6 +7,7 @@ import {
   getOptionalStringParam,
   OutletWithContext,
 } from '@/lib/router-helpers';
+import { useSupportSession } from '@/lib/support-session';
 import { cn } from '@/lib/utils';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { Link, useMatchRoute, useParams } from '@tanstack/react-router';
@@ -17,6 +18,7 @@ export default function SettingsLayout() {
   const { isControlPlaneEnabled, canBill } = useControlPlane();
   const { organizations } = useOrganizations();
   const { meta } = useApiMeta();
+  const { isSupport } = useSupportSession();
   const matchRoute = useMatchRoute();
 
   // On /organizations/* routes, prefer the org from the URL over the one
@@ -36,6 +38,7 @@ export default function SettingsLayout() {
     isControlPlaneEnabled,
     isOrganizationOwner,
     canManageSso,
+    isSupport,
   });
 
   return (

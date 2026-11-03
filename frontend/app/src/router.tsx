@@ -3,14 +3,25 @@ import { NotFound } from './pages/error/components/not-found';
 import ErrorBoundary from './pages/error/index.tsx';
 import { concurrencySearchSchema } from './pages/main/v1/concurrency/search';
 import Root from './pages/root.tsx';
+import {
+  loader as supportRedeemLoader,
+  SupportRedeemError,
+  SupportRedeemPending,
+} from './pages/support/redeem';
 import { userUniverseQuery } from './providers/user-universe';
 import api, { TenantMember } from '@/lib/api';
 import {
   controlPlaneApi,
   fetchControlPlaneStatus,
   CONTROL_PLANE_TENANT_STORAGE_KEY,
+  getApiErrorStatus,
 } from '@/lib/api/api';
 import { exchangeTokenQueryOptions } from '@/lib/api/exchange-token';
+import {
+  getSupportSession,
+  isSupportSessionExpired,
+  markSupportSessionExpired,
+} from '@/lib/support-session';
 import queryClient from '@/query-client';
 import {
   RouterProvider,
@@ -95,6 +106,30 @@ const onboardingVerifyRoute = createRoute({
   },
   component: lazyRouteComponent(
     () => import('./pages/onboarding/verify-email'),
+    'default',
+  ),
+});
+
+const supportRedeemRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'support/redeem',
+  validateSearch: z.object({ code: z.string() }),
+  loaderDeps: ({ search }) => ({ code: search.code }),
+  loader: ({ deps }) => supportRedeemLoader(deps),
+  pendingMs: 0,
+  pendingComponent: SupportRedeemPending,
+  errorComponent: SupportRedeemError,
+  component: lazyRouteComponent(
+    () => import('./pages/support/redeem'),
+    'default',
+  ),
+});
+
+const supportEndedRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'support/ended',
+  component: lazyRouteComponent(
+    () => import('./pages/support/ended'),
     'default',
   ),
 });
@@ -449,6 +484,39 @@ const tenantRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
   path: 'tenants/$tenant',
   loader: async ({ params }) => {
+    // The grant is the access check; the token already carries the shard.
+    const supportSession = getSupportSession();
+    if (supportSession) {
+      if (params.tenant !== supportSession.grant.tenantId) {
+        throw redirect({
+          to: appRoutes.tenantRunsRoute.to,
+          params: { tenant: supportSession.grant.tenantId },
+          replace: true,
+        });
+      }
+
+      if (isSupportSessionExpired(supportSession)) {
+        return null;
+      }
+
+      try {
+        await queryClient.fetchQuery({
+          queryKey: ['tenant:get', params.tenant],
+          queryFn: async () => (await api.tenantGet(params.tenant)).data,
+          retry: false,
+        });
+      } catch (err) {
+        const status = getApiErrorStatus(err);
+        if (status === 401 || status === 403) {
+          markSupportSessionExpired();
+          return null;
+        }
+        throw err;
+      }
+
+      return null;
+    }
+
     const { isControlPlaneEnabled } = await fetchControlPlaneStatus();
 
     // Check membership first so an invalid/inaccessible tenant ID produces a
@@ -1214,6 +1282,8 @@ const routeTree = rootRoute.addChildren([
   authRoute.addChildren([authLoginRoute, authRegisterRoute]),
   authMagicLinkRoute,
   onboardingVerifyRoute,
+  supportRedeemRoute,
+  supportEndedRoute,
   authenticatedRoute.addChildren([
     onboardingCreateTenantRoute,
     onboardingCreateOrganizationRoute,
@@ -1274,6 +1344,8 @@ export const appRoutes = {
   authRegisterRoute,
   authMagicLinkRoute,
   onboardingVerifyRoute,
+  supportRedeemRoute,
+  supportEndedRoute,
   redeemOffersRoute,
   organizationsRoute,
   organizationSettingsLayoutRoute,

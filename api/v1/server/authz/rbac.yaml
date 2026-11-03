@@ -90,6 +90,7 @@ roles:
       - V1ServerlessEndpointList
       - V1ServerlessEndpointGet
       - V1ServerlessEndpointEventList
+      - V1ServerlessEndpointEventList
       - V1WebhookReceive
       - V1WorkflowRunList
       - V1EventKeyList
@@ -169,3 +170,130 @@ roles:
       - V1TenantLogLineGetPointMetrics
       - TenantFeatureFlagEvaluate
       - V1DurableTaskEventLogList
+  # Support roles exist only inside support tokens issued by the control plane, never on a TenantMember
+  # row. Neither can change who has access to the tenant; authz/support_test.go pins the partition.
+  SUPPORT_OPERATOR:
+    inherits: [SUPPORT_VIEWER]
+    permissions:
+      - TenantMemberList
+      - TenantInviteList
+      - ApiTokenList
+      # operational writes: cancel, replay, restore, trigger, pause
+      - StepRunUpdateCancel
+      - StepRunUpdateRerun
+      - WorkflowRunUpdateReplay
+      - WorkflowRunCancel
+      - WorkflowRunCreate
+      - V1WorkflowRunCreate
+      - V1TaskCancel
+      - V1TaskReplay
+      - V1TaskRestore
+      - V1DurableTaskBranch
+      - EventCreate
+      - EventCreateBulk
+      - EventUpdateCancel
+      - EventUpdateReplay
+      - CronWorkflowTriggerCreate
+      - WorkflowCronTrigger
+      - WorkflowCronUpdate
+      - WorkflowCronDelete
+      - ScheduledWorkflowRunCreate
+      - WorkflowScheduledTrigger
+      - WorkflowScheduledUpdate
+      - WorkflowScheduledDelete
+      - WorkflowScheduledBulkUpdate
+      - WorkflowScheduledBulkDelete
+      - WorkflowUpdate
+      - WorkerUpdate
+      - RateLimitDelete
+      - V1FilterCreate
+      - V1FilterUpdate
+      - V1FilterDelete
+  SUPPORT_VIEWER:
+    permissions:
+      - UserGetCurrent
+      # tenant metadata and settings reads
+      - TenantGet
+      - TenantAlertingSettingsGet
+      - TenantResourcePolicyGet
+      - TenantEntitlementsGet
+      - TenantFeatureFlagEvaluate
+      - MetadataGet
+      - MetadataListIntegrations
+      - CloudMetadataGet
+      - InfoGetVersion
+      - LivenessGet
+      - ReadinessGet
+      # runs, tasks, events
+      - WorkflowRunList
+      - WorkflowRunGet
+      - WorkflowRunGetInput
+      - WorkflowRunGetShape
+      - WorkflowRunGetMetrics
+      - WorkflowRunListStepRunEvents
+      - V1WorkflowRunList
+      - V1WorkflowRunGet
+      - V1WorkflowRunGetStatus
+      - V1WorkflowRunGetTimings
+      - V1WorkflowRunCountGet
+      - V1WorkflowRunExternalIdsList
+      - V1WorkflowRunDisplayNamesList
+      - V1WorkflowRunTaskEventsList
+      - V1TaskGet
+      - V1TaskEventList
+      - V1TaskListStatusMetrics
+      - V1TaskGetPointMetrics
+      - V1DagListTasks
+      - V1DurableTaskEventLogList
+      - V1StreamPayloadGet
+      - V1StreamTopicList
+      - StepRunGet
+      - StepRunGetSchema
+      - StepRunListEvents
+      - StepRunListArchives
+      - EventList
+      - EventGet
+      - EventKeyList
+      - EventDataGet
+      - EventDataGetWithTenant
+      - V1EventList
+      - V1EventGet
+      - V1EventKeyList
+      - V1CelDebug
+      # logs, traces, metrics
+      - V1LogLineList
+      - V1TenantLogLineList
+      - V1TenantLogLineGetPointMetrics
+      - V1ObservabilityGetTrace
+      - TenantGetTaskStats
+      - TenantGetQueueMetrics
+      - TenantGetStepRunQueueMetrics
+      - TenantGetPrometheusMetrics
+      # workflows, workers, crons, schedules, filters, rate limits, concurrency
+      - WorkflowList
+      - WorkflowGet
+      - WorkflowVersionGet
+      - WorkflowGetMetrics
+      - WorkflowGetWorkersCount
+      - WorkerList
+      - WorkerGet
+      - CronWorkflowList
+      - WorkflowCronGet
+      - WorkflowScheduledList
+      - WorkflowScheduledGet
+      - V1FilterList
+      - V1FilterGet
+      - RateLimitList
+      - V1ConcurrencyStrategyList
+      - V1ConcurrencyKeyList
+      # integrations (read)
+      - WebhookList
+      - WebhookRequestsList
+      - V1WebhookList
+      - V1WebhookGet
+      - SnsList
+      - SlackWebhookList
+      - AlertEmailGroupList
+      - V1ServerlessEndpointList
+      - V1ServerlessEndpointGet
+      - V1ServerlessEndpointEventList

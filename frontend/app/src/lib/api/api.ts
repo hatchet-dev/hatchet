@@ -7,6 +7,7 @@ import { Api } from './generated/Api';
 import { Api as CloudApi } from './generated/cloud/Api';
 import { Api as ControlPlaneApi } from './generated/control-plane/Api';
 import { isRetryableRequestError } from '@/lib/query-retry';
+import { getSupportSession } from '@/lib/support-session';
 import queryClient from '@/query-client';
 import { InternalAxiosRequestConfig } from 'axios';
 import qs from 'qs';
@@ -191,6 +192,12 @@ export const controlPlaneMetaQuery = {
  * loaders, plain async functions) instead of calling the two steps separately.
  */
 export async function fetchControlPlaneStatus() {
+  // A support session has one shard and no cookie session, so the app runs
+  // as if there were no control plane.
+  if (getSupportSession()) {
+    return { meta: null, isControlPlaneEnabled: false };
+  }
+
   const meta = await queryClient.fetchQuery(controlPlaneMetaQuery);
   return { meta, isControlPlaneEnabled: inferControlPlaneEnabled(meta?.data) };
 }
@@ -213,6 +220,17 @@ async function resolveControlPlaneEnabled(): Promise<boolean> {
 export async function exchangeTokenInterceptor(
   config: InternalAxiosRequestConfig,
 ) {
+  // Every request goes to the support session's shard, tenant-scoped or not:
+  // it is the only backend that accepts the token. controlPlaneApi has no interceptor.
+  const supportSession = getSupportSession();
+  if (supportSession) {
+    config.baseURL = supportSession.apiUrl;
+    config.withCredentials = false;
+    config.headers.set('Authorization', `Bearer ${supportSession.token}`);
+    config.headers.set('X-Support-Token', 'true');
+    return config;
+  }
+
   const resources = config.xResources ?? [];
   if (!resources.includes('tenant') && !config.useExchangeToken) {
     return config;

@@ -56,6 +56,8 @@ import {
   SsoConfig,
   SsoDomainArray,
   SubscriptionPlanList,
+  SupportSession,
+  SupportSessionRedeemRequest,
   TagList,
   TenantExchangeToken,
   TenantInvite,
@@ -1442,6 +1444,55 @@ export class Api<
       method: "POST",
       secure: true,
       format: "json",
+      ...params,
+    });
+  /**
+   * @description Exchanges a one-time code issued by the support console for a support session
+   *
+   * @tags Support
+   * @name SupportSessionRedeem
+   * @summary Redeem a support session code
+   * @request POST:/api/v1/control-plane/support/sessions/redeem
+   */
+  supportSessionRedeem = (
+    data: SupportSessionRedeemRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<SupportSession, APIErrors>({
+      path: `/api/v1/control-plane/support/sessions/redeem`,
+      method: "POST",
+      body: data,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Issues a fresh support token for the grant behind the support token in the Authorization header
+   *
+   * @tags Support
+   * @name SupportSessionRenew
+   * @summary Renew a support session
+   * @request POST:/api/v1/control-plane/support/sessions/renew
+   */
+  supportSessionRenew = (params: RequestParams = {}) =>
+    this.request<SupportSession, APIErrors>({
+      path: `/api/v1/control-plane/support/sessions/renew`,
+      method: "POST",
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Revokes the grant behind the support token in the Authorization header
+   *
+   * @tags Support
+   * @name SupportSessionEnd
+   * @summary End a support session
+   * @request POST:/api/v1/control-plane/support/sessions/end
+   */
+  supportSessionEnd = (params: RequestParams = {}) =>
+    this.request<void, APIErrors>({
+      path: `/api/v1/control-plane/support/sessions/end`,
+      method: "POST",
       ...params,
     });
   /**

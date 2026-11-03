@@ -11,6 +11,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/auth/exchangetoken"
 	"github.com/hatchet-dev/hatchet/pkg/auth/rbac"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
@@ -107,7 +108,14 @@ func (a *AuthZ) handleBearerAuth(c echo.Context, r *middleware.RouteInfo) error 
 	// exchange tokens are subject to the same RBAC restrictions as cookie auth, since they represent a user. only
 	// regular bearer tokens should be subject to the additional restrictions in restrictedWithBearerToken
 	if isExchangeToken, ok := c.Get(middleware.IsExchangeTokenContextKey).(bool); ok && isExchangeToken {
-		if a.config.Auth.ExchangeTokenClient == nil {
+		isSupportToken, _ := c.Get(middleware.IsSupportTokenContextKey).(bool)
+
+		if isSupportToken && a.config.Auth.SupportTokenClient == nil {
+			a.l.Error().Msgf("support token client is not configured, but is_support_token is set in context")
+			return echo.NewHTTPError(http.StatusInternalServerError, "Support token client is not configured")
+		}
+
+		if !isSupportToken && a.config.Auth.ExchangeTokenClient == nil {
 			a.l.Error().Msgf("exchange token client is not configured, but is_exchange_token is set in context")
 			return echo.NewHTTPError(http.StatusInternalServerError, "Exchange token client is not configured")
 		}
@@ -186,6 +194,10 @@ func (a *AuthZ) validateUserTenantPermissions(c echo.Context, r *middleware.Rout
 			return unauthorized
 		}
 
+		if isSupport, _ := c.Get(middleware.IsSupportTokenContextKey).(bool); isSupport {
+			return a.validateSupportTenantPermissions(c, r, tenant, user)
+		}
+
 		// check if the user is a member of the tenant
 		tenantMember, err := a.config.V1.Tenant().GetTenantMemberByUserID(c.Request().Context(), tenant.ID, user.ID)
 
@@ -220,7 +232,73 @@ func (a *AuthZ) validateUserTenantPermissions(c echo.Context, r *middleware.Rout
 	return nil
 }
 
+// there is no TenantMember row for support access: a synthetic member carrying the token's role goes in the context
+func (a *AuthZ) validateSupportTenantPermissions(c echo.Context, r *middleware.RouteInfo, tenant *sqlcv1.Tenant, user *sqlcv1.User) error {
+	unauthorized := echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to view this resource")
+	ctx := c.Request().Context()
+
+	claims, ok := c.Get(middleware.SupportClaimsContextKey).(*exchangetoken.SupportClaims)
+
+	if !ok || claims == nil {
+		a.l.Error().Ctx(ctx).Msg("support token request without support claims in context")
+
+		return unauthorized
+	}
+
+	if claims.TenantID != tenant.ID || claims.UserID != user.ID {
+		a.l.Error().Ctx(ctx).Msg("support claims do not match the tenant or user in context")
+
+		return unauthorized
+	}
+
+	if !exchangetoken.IsSupportRole(string(claims.Role)) {
+		a.l.Error().Ctx(ctx).Str("role", string(claims.Role)).Msg("support token carries an unknown role")
+
+		return unauthorized
+	}
+
+	c.Set("tenant-member", syntheticSupportMember(tenant, user, claims))
+
+	if err := a.authorizeTenantOperations(string(claims.Role), r); err != nil {
+		a.l.Debug().Ctx(ctx).Err(err).Str("support_grant_id", claims.GrantID.String()).Msgf("error authorizing support operation")
+
+		return unauthorized
+	}
+
+	return nil
+}
+
+func syntheticSupportMember(tenant *sqlcv1.Tenant, user *sqlcv1.User, claims *exchangetoken.SupportClaims) *sqlcv1.PopulateTenantMembersRow {
+	return &sqlcv1.PopulateTenantMembersRow{
+		ID:              claims.GrantID,
+		TenantId:        tenant.ID,
+		UserId:          user.ID,
+		Role:            sqlcv1.TenantMemberRole(claims.Role),
+		CanViewPayloads: claims.Role == exchangetoken.SupportRoleOperator,
+		Email:           user.Email,
+		Name:            user.Name,
+		TenantId_2:      tenant.ID,
+		TenantCreatedAt: tenant.CreatedAt,
+		TenantUpdatedAt: tenant.UpdatedAt,
+		TenantName:      tenant.Name,
+		TenantSlug:      tenant.Slug,
+	}
+}
+
 func (a *AuthZ) authorizeTenantOperations(roleName string, r *middleware.RouteInfo) error {
+	// support roles never use the extension bypass lists: an extension operation must be granted to the role explicitly
+	if exchangetoken.IsSupportRole(roleName) {
+		if rbac.OperationIn(r.OperationID, a.config.Auth.SupportRoleOperations[roleName]) {
+			return nil
+		}
+
+		if !a.rbac.IsAuthorized(roleName, r.OperationID) {
+			return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
+		}
+
+		return nil
+	}
+
 	// if the operation is in the allowed operations, skip the RBAC check this is needed for extensions
 	if rbac.OperationIn(r.OperationID, a.config.Auth.AllowedOperations) {
 		return nil
