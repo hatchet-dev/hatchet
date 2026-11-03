@@ -79,7 +79,7 @@ func (f *fakeStreamsRepository) recreateTopic() {
 
 	f.messages = nil
 	f.lastOffset = 0
-	f.topicCreatedAt = f.topicCreatedAt.Add(time.Hour)
+	f.topicCreatedAt = time.Now()
 }
 
 func (f *fakeStreamsRepository) readCount() int {
@@ -446,6 +446,69 @@ func TestTopicPoller_FollowsARecreatedTopic(t *testing.T) {
 	require.Eventually(t, func() bool { return len(listener.entryIDs(t)) == 4 }, time.Second, 5*time.Millisecond,
 		"offsets restarting below the cached one still deliver")
 	assert.Equal(t, []int64{1, 2, 3, 1}, listener.entryIDs(t))
+}
+
+func TestTopicPollerRegistry_JoinAfterARecreateThePollerMissedGetsEachMessageOnce(t *testing.T) {
+	tenantId := uuid.New()
+	repo := newFakeStreamsRepository(tenantId, "", "topic", 3, time.Now().Add(-time.Hour))
+	registry := newTopicPollerRegistry(repo, fakePubSub{}, testLogger(), time.Hour, time.Hour)
+	key := topicPollerKey{tenantId: tenantId, topic: "topic"}
+
+	existing := &collectingListener{}
+	unregisterExisting, err := registry.Join(context.Background(), key, v1.StreamCursor{}, &topicListener{send: existing.send, cancel: func() {}})
+	require.NoError(t, err)
+	t.Cleanup(unregisterExisting)
+	require.Equal(t, []int64{1, 2, 3}, existing.entryIDs(t))
+
+	registry.mu.Lock()
+	p := registry.pollers[key]
+	registry.mu.Unlock()
+
+	// the poller ticks only on wakes here, so it hasn't seen the recreate when the second subscriber joins
+	repo.recreateTopic()
+	repo.appendMessage(1, time.Now())
+	repo.appendMessage(2, time.Now())
+
+	joined := &collectingListener{}
+	unregisterJoined, err := registry.Join(context.Background(), key, v1.StreamCursor{}, &topicListener{send: joined.send, cancel: func() {}})
+	require.NoError(t, err)
+	t.Cleanup(unregisterJoined)
+
+	require.Eventually(t, func() bool { return len(existing.entryIDs(t)) == 5 }, time.Second, 5*time.Millisecond,
+		"the join brings the existing listener into the recreated topic")
+
+	readsBefore := repo.readCount()
+	p.wakeUp()
+	require.Eventually(t, func() bool { return repo.readCount() > readsBefore }, time.Second, time.Millisecond)
+
+	// the queue goroutines get a moment to deliver anything the wake fanned out
+	time.Sleep(50 * time.Millisecond)
+
+	assert.Equal(t, []int64{1, 2}, joined.entryIDs(t), "the joining subscriber gets each recreated message once")
+	assert.Equal(t, []int64{1, 2, 3, 1, 2}, existing.entryIDs(t))
+}
+
+func TestTopicPoller_JoinWithACursorFromBeforeARecreateStartsAtTheNewTopic(t *testing.T) {
+	tenantId := uuid.New()
+	// the idle sweep only deletes topics with nothing published within retention
+	base := time.Now().Add(-time.Hour)
+	repo := newFakeStreamsRepository(tenantId, "", "topic", 3, base)
+	p := newTopicPoller(repo, testLogger(), topicPollerKey{tenantId: tenantId, topic: "topic"}, 5*time.Millisecond, time.Hour)
+
+	// a replay that ended at the old topic's last message
+	oldCursor := v1.StreamCursor{Topic: "topic", CreatedAt: base.Add(2 * time.Millisecond), ID: 3}
+
+	repo.recreateTopic()
+	repo.appendMessage(1, time.Now())
+
+	listener := &collectingListener{}
+	id, err := p.join(context.Background(), oldCursor, &topicListener{send: listener.send, cancel: func() {}})
+	require.NoError(t, err)
+	t.Cleanup(func() { p.leave(id) })
+
+	require.Eventually(t, func() bool { return len(listener.entryIDs(t)) == 1 }, time.Second, 5*time.Millisecond,
+		"offsets below the old cursor belong to the new topic")
+	assert.Equal(t, []int64{1}, listener.entryIDs(t))
 }
 
 func TestTopicPollerRegistry_UnregisterIsIdempotent(t *testing.T) {

@@ -150,19 +150,25 @@ func (p *topicPoller) join(ctx context.Context, startCursor v1.StreamCursor, lis
 }
 
 func (p *topicPoller) attachLocked(ctx context.Context, startCursor v1.StreamCursor, q *listenerQueue) error {
-	if !p.running {
-		p.startLocked(startCursor)
-	} else {
-		if startCursor.After(p.cursor) {
-			if _, err := p.pollLocked(ctx); err != nil {
-				return err
-			}
-		}
+	p.startLocked(startCursor)
 
-		// rows up to p.cursor were already fanned out to earlier listeners only
-		if p.cursor.After(startCursor) {
-			return p.catchUpLocked(ctx, startCursor, q)
+	// before comparing positions, so a recreated topic resets the shared cursor while this listener keeps its replay position
+	if _, err := p.syncTopicLocked(ctx); err != nil {
+		return err
+	}
+
+	startCursor = p.inCurrentTopic(startCursor)
+
+	// brings earlier listeners up to where this one's replay ended
+	if startCursor.After(p.cursor) {
+		if _, err := p.pollLocked(ctx); err != nil {
+			return err
 		}
+	}
+
+	// rows up to p.cursor were already fanned out to earlier listeners only
+	if p.cursor.After(startCursor) {
+		return p.catchUpLocked(ctx, startCursor, q)
 	}
 
 	return nil
@@ -327,20 +333,10 @@ func (p *topicPoller) recordPoll(startedAt time.Time, trigger string, listeners 
 
 // pollIfPublishedLocked skips the message read, which spans every retained partition, while nothing was published.
 func (p *topicPoller) pollIfPublishedLocked(ctx context.Context) (sendStats, error) {
-	info, err := p.streams.GetTopicInfo(ctx, p.key.tenantId, p.key.namespace, p.key.topic)
+	info, err := p.syncTopicLocked(ctx)
 
 	if err != nil {
 		return sendStats{}, err
-	}
-
-	// the idle sweep deletes topics, and a publish recreating one restarts its offsets at 1
-	if !info.CreatedAt.Equal(p.topicCreatedAt) {
-		if !p.topicCreatedAt.IsZero() {
-			p.cursor = v1.StreamCursor{Namespace: p.key.namespace, Topic: p.key.topic}
-		}
-
-		p.topicCreatedAt = info.CreatedAt
-		p.checkedOffset = 0
 	}
 
 	// compared to offsets, not the cursor, since a rejected publish reserves one it never stores
@@ -355,6 +351,43 @@ func (p *topicPoller) pollIfPublishedLocked(ctx context.Context) (sendStats, err
 	}
 
 	return stats, err
+}
+
+// syncTopicLocked reads the topic's info, restarting the shared position at the
+// topic's beginning when the idle sweep deleted it and a publish recreated it.
+func (p *topicPoller) syncTopicLocked(ctx context.Context) (v1.StreamTopicInfo, error) {
+	info, err := p.streams.GetTopicInfo(ctx, p.key.tenantId, p.key.namespace, p.key.topic)
+
+	if err != nil {
+		return v1.StreamTopicInfo{}, err
+	}
+
+	if !info.CreatedAt.Equal(p.topicCreatedAt) {
+		if !p.topicCreatedAt.IsZero() {
+			p.cursor = p.topicStart()
+		}
+
+		p.topicCreatedAt = info.CreatedAt
+		p.checkedOffset = 0
+	}
+
+	p.cursor = p.inCurrentTopic(p.cursor)
+
+	return info, nil
+}
+
+func (p *topicPoller) topicStart() v1.StreamCursor {
+	return v1.StreamCursor{Namespace: p.key.namespace, Topic: p.key.topic}
+}
+
+// inCurrentTopic moves a cursor read off a message of an earlier incarnation to
+// the topic's beginning: a topic's messages are never inserted before its row.
+func (p *topicPoller) inCurrentTopic(c v1.StreamCursor) v1.StreamCursor {
+	if !c.CreatedAt.IsZero() && c.CreatedAt.Before(p.topicCreatedAt) {
+		return p.topicStart()
+	}
+
+	return c
 }
 
 // pollLocked sends every listener the rows after the poller's cursor.
