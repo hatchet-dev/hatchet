@@ -15,6 +15,7 @@ import {
   useContextFromParent,
 } from '@/lib/outlet';
 import { OutletWithContext, useOutletContext } from '@/lib/router-helpers';
+import { useSupportSession } from '@/lib/support-session';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ReactNode, useEffect, useMemo } from 'react';
 
@@ -58,6 +59,7 @@ export function MainShell({ children }: { children?: ReactNode }) {
     FeatureFlagId.ConcurrencyPageEnabled,
     false,
   );
+  const { isSupport } = useSupportSession();
 
   const navSections = useMemo(
     () =>
@@ -70,6 +72,7 @@ export function MainShell({ children }: { children?: ReactNode }) {
         hasSandboxProviders,
         hasDurableStreams,
         isConcurrencyEnabled,
+        isSupport,
       }),
     [
       canBill,
@@ -80,6 +83,7 @@ export function MainShell({ children }: { children?: ReactNode }) {
       hasSandboxProviders,
       hasDurableStreams,
       isConcurrencyEnabled,
+      isSupport,
     ],
   );
 

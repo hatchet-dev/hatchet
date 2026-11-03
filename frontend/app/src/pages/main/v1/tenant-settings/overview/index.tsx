@@ -17,6 +17,7 @@ import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { MembershipsContextType } from '@/lib/outlet';
 import { useOutletContext } from '@/lib/router-helpers';
+import { useSupportSession } from '@/lib/support-session';
 import {
   defaultOnboardingState,
   onboardingStorageKey,
@@ -33,35 +34,50 @@ import { useNavigate, useParams } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 
 export default function TenantSettings() {
+  const { isSupport } = useSupportSession();
+  const { tenant } = useTenantDetails();
+
   return (
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <SettingsPageHeader
           title="General"
-          description="Update the tenant name and analytics preferences for this tenant."
+          description={
+            isSupport
+              ? 'Tenant details. Settings are read-only during a support session.'
+              : 'Update the tenant name and analytics preferences for this tenant.'
+          }
         />
 
         <div className="divide-y divide-border">
-          <CurrentTenant />
+          {!isSupport && <CurrentTenant />}
           <SettingRow
             label="Tenant Name"
             description="The display name for this tenant, shown across the dashboard."
           >
-            <UpdateTenant />
+            {isSupport ? (
+              <ReadOnlyValue value={tenant?.name ?? ''} />
+            ) : (
+              <UpdateTenant />
+            )}
           </SettingRow>
           <TenantApiUrl />
           <TenantRegion />
           <TenantTags />
-          <SettingRow
-            label="Analytics Opt-Out"
-            description="Disable usage analytics collection for this tenant."
-          >
-            <AnalyticsOptOut />
-          </SettingRow>
-          <OnboardingSettingRow />
+          {!isSupport && (
+            <>
+              <SettingRow
+                label="Analytics Opt-Out"
+                description="Disable usage analytics collection for this tenant."
+              >
+                <AnalyticsOptOut />
+              </SettingRow>
+              <OnboardingSettingRow />
+            </>
+          )}
         </div>
 
-        <TenantDangerZone />
+        {!isSupport && <TenantDangerZone />}
       </div>
     </div>
   );

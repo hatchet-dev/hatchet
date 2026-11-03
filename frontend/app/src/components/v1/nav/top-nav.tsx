@@ -30,9 +30,11 @@ import useControlPlane from '@/hooks/use-control-plane';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { useTenantHomeRoute } from '@/hooks/use-tenant-home-route';
 import { TenantMember, User } from '@/lib/api';
+import { useSupportSession } from '@/lib/support-session';
 import { cn } from '@/lib/utils';
 import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
+import { BuildingOffice2Icon } from '@heroicons/react/24/outline';
 import {
   Link,
   useMatchRoute,
@@ -72,6 +74,8 @@ function AccountDropdown({ user }: { user?: User }) {
   const authDisabled = useAuthDisabled();
   const { isControlPlaneEnabled } = useControlPlane();
   const { organizationId } = useTenantDetails();
+  // the logout route is user-scoped and rejects the support token; sessions end from the banner
+  const { isSupport } = useSupportSession();
 
   if (!user) {
     return null;
@@ -139,7 +143,7 @@ function AccountDropdown({ user }: { user?: User }) {
             ))}
           </DropdownMenuSubContent>
         </DropdownMenuSub>
-        {!authDisabled && (
+        {!authDisabled && !isSupport && (
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem
@@ -211,8 +215,25 @@ export default function TopNav({
 
   const { isControlPlaneEnabled } = useControlPlane();
   const { tenant } = useTenantDetails();
+  const { isSupport } = useSupportSession();
   const showTenantSwitcher =
     !!user && tenantMemberships?.length > 0 && !!tenant;
+
+  const tenantControl = isSupport ? (
+    tenant ? (
+      <span className="flex min-w-0 max-w-[320px] items-center gap-2 px-2 text-sm font-medium">
+        <BuildingOffice2Icon className="size-4 shrink-0" />
+        <span className="min-w-0 truncate">{tenant.name}</span>
+      </span>
+    ) : null
+  ) : (
+    showTenantSwitcher &&
+    (isControlPlaneEnabled ? (
+      <OrganizationSelector memberships={tenantMemberships} />
+    ) : (
+      <TenantSwitcher memberships={tenantMemberships} />
+    ))
+  );
 
   return (
     <header
@@ -247,12 +268,7 @@ export default function TopNav({
 
         <div className="flex ml-auto items-center justify-end gap-2">
           <Notifications />
-          {showTenantSwitcher &&
-            (isControlPlaneEnabled ? (
-              <OrganizationSelector memberships={tenantMemberships} />
-            ) : (
-              <TenantSwitcher memberships={tenantMemberships} />
-            ))}
+          {tenantControl}
           <AccountDropdown user={user} />
         </div>
       </div>
@@ -323,12 +339,7 @@ export default function TopNav({
 
         <div className="flex items-center justify-end gap-2 pr-4">
           <Notifications />
-          {showTenantSwitcher &&
-            (isControlPlaneEnabled ? (
-              <OrganizationSelector memberships={tenantMemberships} />
-            ) : (
-              <TenantSwitcher memberships={tenantMemberships} />
-            ))}
+          {tenantControl}
           <AccountDropdown user={user} />
         </div>
       </div>
