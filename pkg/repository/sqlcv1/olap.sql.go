@@ -1633,6 +1633,62 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 	return items, nil
 }
 
+const listFailedWorkflowRunsByFinishedAt = `-- name: ListFailedWorkflowRunsByFinishedAt :many
+SELECT id, inserted_at, kind, external_id
+FROM v1_runs_olap
+WHERE
+    tenant_id = $1::uuid
+    AND readable_status = 'FAILED'
+    AND finished_at > $2::timestamptz
+    AND finished_at <= $3::timestamptz
+ORDER BY finished_at DESC
+LIMIT $4::integer
+`
+
+type ListFailedWorkflowRunsByFinishedAtParams struct {
+	Tenantid uuid.UUID          `json:"tenantid"`
+	Lower    pgtype.Timestamptz `json:"lower"`
+	Upper    pgtype.Timestamptz `json:"upper"`
+	Rowlimit int32              `json:"rowlimit"`
+}
+
+type ListFailedWorkflowRunsByFinishedAtRow struct {
+	ID         int64              `json:"id"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+	Kind       V1RunKind          `json:"kind"`
+	ExternalID uuid.UUID          `json:"external_id"`
+}
+
+func (q *Queries) ListFailedWorkflowRunsByFinishedAt(ctx context.Context, db DBTX, arg ListFailedWorkflowRunsByFinishedAtParams) ([]*ListFailedWorkflowRunsByFinishedAtRow, error) {
+	rows, err := db.Query(ctx, listFailedWorkflowRunsByFinishedAt,
+		arg.Tenantid,
+		arg.Lower,
+		arg.Upper,
+		arg.Rowlimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListFailedWorkflowRunsByFinishedAtRow
+	for rows.Next() {
+		var i ListFailedWorkflowRunsByFinishedAtRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.InsertedAt,
+			&i.Kind,
+			&i.ExternalID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOLAPPartitionsBeforeDate = `-- name: ListOLAPPartitionsBeforeDate :many
 WITH partitioned_tables AS (
     SELECT
