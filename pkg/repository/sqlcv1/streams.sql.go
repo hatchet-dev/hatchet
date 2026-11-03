@@ -604,7 +604,6 @@ type ListStreamTopicsRow struct {
 }
 
 // message_count covers only messages within the tenant's retention.
-// namespace and topic break ties so pages stay stable
 func (q *Queries) ListStreamTopics(ctx context.Context, db DBTX, arg ListStreamTopicsParams) ([]*ListStreamTopicsRow, error) {
 	rows, err := db.Query(ctx, listStreamTopics,
 		arg.Retainedsince,

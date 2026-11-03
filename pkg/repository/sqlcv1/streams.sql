@@ -309,7 +309,6 @@ SELECT
 FROM v1_stream_topic t
 WHERE t.tenant_id = @tenantId::uuid
     AND (sqlc.narg('search')::text IS NULL OR t.topic ILIKE '%' || sqlc.narg('search')::text || '%' OR t.namespace ILIKE '%' || sqlc.narg('search')::text || '%')
--- namespace and topic break ties so pages stay stable
 ORDER BY t.last_published_at DESC, t.namespace, t.topic
 LIMIT @topicLimit::integer
 OFFSET @topicOffset::integer;
