@@ -64,6 +64,15 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
+const (
+	readHeaderTimeout = 5 * time.Second
+
+	// idleTimeout must outlast the keep-alive of any proxy in front of the API, or the proxy
+	// reuses a connection the server just closed and returns a 502. GCP load balancers keep
+	// connections for 600s and ask backends for at least 620s.
+	idleTimeout = 650 * time.Second
+)
+
 type apiService struct {
 	*users.UserService
 	*tenants.TenantService
@@ -187,6 +196,9 @@ func (t *APIServer) RunWithServer(e *echo.Echo) (func() error, error) {
 		t.config.Logger.Debug().Msgf("registered route: %s %s", route.Method, route.Path)
 	}
 
+	e.Server.ReadHeaderTimeout = readHeaderTimeout
+	e.Server.IdleTimeout = idleTimeout
+
 	go func() {
 		if err := e.Start(fmt.Sprintf(":%d", t.config.Runtime.Port)); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			panic(err)
@@ -249,8 +261,11 @@ func hatchetIPExtractor(trustPrivateProxies bool, trustedProxies []string, logge
 func retryableLimitErrorHandler(next echo.HTTPErrorHandler) echo.HTTPErrorHandler {
 	return func(err error, c echo.Context) {
 		var limitErr *fairpool.LimitError
+		var maxBytesErr *http.MaxBytesError
 
-		if errors.As(err, &limitErr) {
+		if errors.As(err, &maxBytesErr) {
+			next(echo.NewHTTPError(http.StatusRequestEntityTooLarge).SetInternal(err), c)
+		} else if errors.As(err, &limitErr) {
 			writeThrottled(fairpool.RetryAfter, c)
 		} else if retryAfter, ok := proxy.ThrottleRetryAfter(err); ok {
 			writeThrottled(retryAfter, c)
@@ -819,6 +834,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		return nil, err
 	}
 	mw.Use(headers.Middleware())
+	mw.Use(hatchetmiddleware.NoAuthBodyLimit)
 	mw.Use(populatorMW.Middleware)
 	mw.Use(authnMW.Middleware)
 	mw.Use(authzMW.Middleware)
