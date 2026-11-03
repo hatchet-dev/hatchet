@@ -282,6 +282,7 @@ type OLAPRepository interface {
 
 	ListTasks(ctx context.Context, tenantId uuid.UUID, opts ListTaskRunOpts) ([]*TaskWithPayloads, int, error)
 	ListWorkflowRuns(ctx context.Context, tenantId uuid.UUID, opts ListWorkflowRunOpts) ([]*WorkflowRunData, int, error)
+	ListFailedWorkflowRunsByFinishedAt(ctx context.Context, tenantId uuid.UUID, finishedAfter, finishedThrough time.Time, limit int) ([]*WorkflowRunData, error)
 	CountTasks(ctx context.Context, tenantId uuid.UUID, opts ListTaskRunOpts) (int, error)
 	CountWorkflowRuns(ctx context.Context, tenantId uuid.UUID, opts ListWorkflowRunOpts) (int, error)
 	ListTaskRunEvents(ctx context.Context, tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, limit, offset *int64) ([]*sqlcv1.ListTaskEventsRow, error)
@@ -1334,6 +1335,49 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		}
 	}
 
+	res, err := r.populateWorkflowRuns(ctx, readDB, tenantId, workflowRunIds, opts.IncludePayloads)
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return res, int(count), nil
+}
+
+// ListFailedWorkflowRunsByFinishedAt returns up to limit FAILED runs with finished_at in (finishedAfter, finishedThrough].
+func (r *OLAPRepositoryImpl) ListFailedWorkflowRunsByFinishedAt(ctx context.Context, tenantId uuid.UUID, finishedAfter, finishedThrough time.Time, limit int) ([]*WorkflowRunData, error) {
+	// replica lag beyond the alert window's lag would skip runs permanently
+	readDB := r.pool.ForTenant(tenantId)
+
+	ctx, span := telemetry.NewSpan(ctx, "list-failed-workflow-runs-by-finished-at-olap")
+	defer span.End()
+
+	rows, err := r.queries.ListFailedWorkflowRunsByFinishedAt(ctx, readDB, sqlcv1.ListFailedWorkflowRunsByFinishedAtParams{
+		Tenantid: tenantId,
+		Lower:    sqlchelpers.TimestamptzFromTime(finishedAfter),
+		Upper:    sqlchelpers.TimestamptzFromTime(finishedThrough),
+		Rowlimit: int32(limit), // nolint: gosec
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	runIds := make([]*sqlcv1.FetchWorkflowRunIdsRow, 0, len(rows))
+
+	for _, row := range rows {
+		runIds = append(runIds, &sqlcv1.FetchWorkflowRunIdsRow{
+			ID:         row.ID,
+			InsertedAt: row.InsertedAt,
+			Kind:       row.Kind,
+			ExternalID: row.ExternalID,
+		})
+	}
+
+	return r.populateWorkflowRuns(ctx, readDB, tenantId, runIds, false)
+}
+
+func (r *OLAPRepositoryImpl) populateWorkflowRuns(ctx context.Context, readDB sqlcv1.DBTX, tenantId uuid.UUID, workflowRunIds []*sqlcv1.FetchWorkflowRunIdsRow, includePayloads bool) ([]*WorkflowRunData, error) {
 	runIdsWithDAGs := make([]int64, 0)
 	runInsertedAtsWithDAGs := make([]pgtype.Timestamptz, 0)
 	taskIdsInsertedAts := make([]IdInsertedAt, 0, len(workflowRunIds))
@@ -1355,11 +1399,11 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		Ids:             runIdsWithDAGs,
 		Insertedats:     runInsertedAtsWithDAGs,
 		Tenantid:        tenantId,
-		Includepayloads: opts.IncludePayloads,
+		Includepayloads: includePayloads,
 	})
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return nil, 0, err
+		return nil, err
 	}
 
 	dagsToPopulated := make(map[uuid.UUID]*sqlcv1.PopulateDAGMetadataRow)
@@ -1385,10 +1429,10 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 
 	tasksToPopulated := make(map[uuid.UUID]*sqlcv1.PopulateTaskRunDataRow)
 
-	populatedTasks, err := r.populateTaskRunData(ctx, readDB, tenantId, taskIdsInsertedAts, opts.IncludePayloads)
+	populatedTasks, err := r.populateTaskRunData(ctx, readDB, tenantId, taskIdsInsertedAts, includePayloads)
 
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
 	for _, task := range populatedTasks {
@@ -1398,11 +1442,11 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 
 	externalIdToPayload := make(map[uuid.UUID][]byte)
 
-	if opts.IncludePayloads {
+	if includePayloads {
 		externalIdToPayload, err = r.readPayloads(ctx, tenantId, retrievePayloadOpts...)
 
 		if err != nil {
-			return nil, 0, err
+			return nil, err
 		}
 	}
 
@@ -1471,11 +1515,11 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 				continue
 			}
 
-			res = append(res, r.taskToWorkflowRunData(ctx, task, externalIdToPayload, opts.IncludePayloads))
+			res = append(res, r.taskToWorkflowRunData(ctx, task, externalIdToPayload, includePayloads))
 		}
 	}
 
-	return res, int(count), nil
+	return res, nil
 }
 
 func (r *OLAPRepositoryImpl) taskToWorkflowRunData(ctx context.Context, task *sqlcv1.PopulateTaskRunDataRow, payloads map[uuid.UUID][]byte, includePayloads bool) *WorkflowRunData {

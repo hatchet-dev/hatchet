@@ -1964,6 +1964,18 @@ WHERE
 LIMIT 10000
 ;
 
+-- name: ListFailedWorkflowRunsByFinishedAt :many
+SELECT id, inserted_at, kind, external_id
+FROM v1_runs_olap
+WHERE
+    tenant_id = @tenantId::uuid
+    AND readable_status = 'FAILED'
+    AND finished_at > @lower::timestamptz
+    AND finished_at <= @upper::timestamptz
+ORDER BY finished_at DESC
+LIMIT @rowLimit::integer
+;
+
 -- name: GetRunsListRecursive :many
 WITH RECURSIVE all_runs AS (
   -- seed term

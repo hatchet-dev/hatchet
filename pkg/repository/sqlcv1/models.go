@@ -4031,6 +4031,7 @@ type V1RunsOlap struct {
 	AdditionalMetadata   []byte               `json:"additional_metadata"`
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
 	IdempotencyKey       pgtype.Text          `json:"idempotency_key"`
+	FinishedAt           pgtype.Timestamptz   `json:"finished_at"`
 }
 
 type V1ServerlessEndpoint struct {
