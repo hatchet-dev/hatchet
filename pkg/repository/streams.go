@@ -212,6 +212,7 @@ type StreamTopicInfo struct {
 	Topic          string
 	StartingOffset int64
 	LastOffset     int64
+	CreatedAt      time.Time
 }
 
 // StartCursor has no time, so it never expires.
@@ -702,5 +703,11 @@ func (r *streamsRepositoryImpl) GetTopicInfo(ctx context.Context, tenantId uuid.
 		return StreamTopicInfo{}, err
 	}
 
-	return StreamTopicInfo{Namespace: namespace, Topic: topic, StartingOffset: row.StartingOffset, LastOffset: row.LastOffset}, nil
+	return StreamTopicInfo{
+		Namespace:      namespace,
+		Topic:          topic,
+		StartingOffset: row.StartingOffset,
+		LastOffset:     row.LastOffset,
+		CreatedAt:      row.TopicInsertedAt.Time,
+	}, nil
 }

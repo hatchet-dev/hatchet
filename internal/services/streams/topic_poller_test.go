@@ -29,8 +29,9 @@ type fakeStreamsRepository struct {
 	mu       sync.Mutex
 	messages []*sqlcv1.V1StreamMessage
 
-	lastOffset int64
-	reads      int
+	lastOffset     int64
+	topicCreatedAt time.Time
+	reads          int
 
 	// cursors at or below this ID are reported expired
 	expiredThroughID int64
@@ -61,14 +62,24 @@ func newFakeStreamsRepository(tenantId uuid.UUID, namespace, topic string, n int
 		})
 	}
 
-	return &fakeStreamsRepository{messages: msgs, lastOffset: int64(n)}
+	return &fakeStreamsRepository{messages: msgs, lastOffset: int64(n), topicCreatedAt: baseTime}
 }
 
 func (f *fakeStreamsRepository) GetTopicInfo(_ context.Context, _ uuid.UUID, namespace, topic string) (v1.StreamTopicInfo, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	return v1.StreamTopicInfo{Namespace: namespace, Topic: topic, LastOffset: f.lastOffset}, nil
+	return v1.StreamTopicInfo{Namespace: namespace, Topic: topic, LastOffset: f.lastOffset, CreatedAt: f.topicCreatedAt}, nil
+}
+
+// recreateTopic stands in for the idle sweep deleting the topic and a publish recreating it
+func (f *fakeStreamsRepository) recreateTopic() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.messages = nil
+	f.lastOffset = 0
+	f.topicCreatedAt = f.topicCreatedAt.Add(time.Hour)
 }
 
 func (f *fakeStreamsRepository) readCount() int {
@@ -292,8 +303,9 @@ func TestTopicPollerRegistry_StalledListenerAffectsOnlyItself(t *testing.T) {
 		return nil
 	}
 
-	_, err := registry.Join(context.Background(), stalledKey, v1.StreamCursor{}, &topicListener{send: stalledSend, cancel: func() {}})
+	unregisterStalled, err := registry.Join(context.Background(), stalledKey, v1.StreamCursor{}, &topicListener{send: stalledSend, cancel: func() {}})
 	require.NoError(t, err)
+	t.Cleanup(unregisterStalled)
 
 	repo.appendTopicMessage("stalled", 1)
 
@@ -303,11 +315,16 @@ func TestTopicPollerRegistry_StalledListenerAffectsOnlyItself(t *testing.T) {
 		t.Fatal("the poller never delivered to the stalled listener")
 	}
 
-	joinAsync := func(key topicPollerKey, l *collectingListener) <-chan error {
-		done := make(chan error, 1)
+	type joined struct {
+		unregister func()
+		err        error
+	}
+
+	joinAsync := func(key topicPollerKey, l *collectingListener) <-chan joined {
+		done := make(chan joined, 1)
 		go func() {
-			_, err := registry.Join(context.Background(), key, v1.StreamCursor{}, &topicListener{send: l.send, cancel: func() {}})
-			done <- err
+			unregister, err := registry.Join(context.Background(), key, v1.StreamCursor{}, &topicListener{send: l.send, cancel: func() {}})
+			done <- joined{unregister, err}
 		}()
 		return done
 	}
@@ -321,8 +338,9 @@ func TestTopicPollerRegistry_StalledListenerAffectsOnlyItself(t *testing.T) {
 	other := &collectingListener{}
 
 	select {
-	case err := <-joinAsync(otherKey, other):
-		require.NoError(t, err)
+	case j := <-joinAsync(otherKey, other):
+		require.NoError(t, j.err)
+		t.Cleanup(j.unregister)
 	case <-time.After(time.Second):
 		t.Fatal("a Join on an unrelated topic blocked behind the stalled listener")
 	}
@@ -333,8 +351,9 @@ func TestTopicPollerRegistry_StalledListenerAffectsOnlyItself(t *testing.T) {
 		"live delivery on an unrelated topic is unaffected")
 
 	select {
-	case err := <-sameTopicJoined:
-		require.NoError(t, err)
+	case j := <-sameTopicJoined:
+		require.NoError(t, j.err)
+		t.Cleanup(j.unregister)
 	case <-time.After(time.Second):
 		t.Fatal("a healthy Join on the stalled listener's topic blocked behind it")
 	}
@@ -352,15 +371,17 @@ func TestTopicPoller_DropsAListenerThatFallsTooFarBehind(t *testing.T) {
 	dropped := make(chan struct{})
 	var dropOnce sync.Once
 
-	_, err := registry.Join(context.Background(), key, v1.StreamCursor{}, &topicListener{
+	unregisterStalled, err := registry.Join(context.Background(), key, v1.StreamCursor{}, &topicListener{
 		send:   func(*contracts.StreamMessage) error { <-release; return nil },
 		cancel: func() { dropOnce.Do(func() { close(dropped) }) },
 	})
 	require.NoError(t, err)
+	t.Cleanup(unregisterStalled)
 
 	healthy := &collectingListener{}
-	_, err = registry.Join(context.Background(), key, v1.StreamCursor{}, &topicListener{send: healthy.send, cancel: func() {}})
+	unregisterHealthy, err := registry.Join(context.Background(), key, v1.StreamCursor{}, &topicListener{send: healthy.send, cancel: func() {}})
 	require.NoError(t, err)
+	t.Cleanup(unregisterHealthy)
 
 	// one frame per poll, so the stalled queue fills one frame at a time
 	frames := listenerQueueSize + 2
@@ -376,6 +397,80 @@ func TestTopicPoller_DropsAListenerThatFallsTooFarBehind(t *testing.T) {
 	}
 
 	assert.Equal(t, frames, healthy.count(), "the healthy listener on the same topic received every frame")
+}
+
+func TestTopicPoller_RestartDiscardsTheEarlierRunsState(t *testing.T) {
+	tenantId := uuid.New()
+	repo := newFakeStreamsRepository(tenantId, "", "topic", 0, time.Now())
+	p := newTopicPoller(repo, testLogger(), topicPollerKey{tenantId: tenantId, topic: "topic"}, 5*time.Millisecond, time.Hour)
+
+	first := &collectingListener{}
+	firstID, err := p.join(context.Background(), v1.StreamCursor{}, &topicListener{send: first.send, cancel: func() {}})
+	require.NoError(t, err)
+
+	repo.appendMessage(1, time.Now())
+	require.Eventually(t, func() bool { return first.count() == 1 }, time.Second, 5*time.Millisecond)
+
+	// stops the run after it checked through offset 1
+	p.leave(firstID)
+
+	// a rejoining reader whose replay ended before message 1, with no publish after it
+	second := &collectingListener{}
+	secondID, err := p.join(context.Background(), v1.StreamCursor{}, &topicListener{send: second.send, cancel: func() {}})
+	require.NoError(t, err)
+	t.Cleanup(func() { p.leave(secondID) })
+
+	require.Eventually(t, func() bool { return second.count() == 1 }, time.Second, 5*time.Millisecond,
+		"the restarted run reads from its own cursor, not the earlier run's checked offset")
+}
+
+func TestTopicPoller_FollowsARecreatedTopic(t *testing.T) {
+	tenantId := uuid.New()
+	repo := newFakeStreamsRepository(tenantId, "", "topic", 0, time.Now())
+	registry := newTopicPollerRegistry(repo, fakePubSub{}, testLogger(), 5*time.Millisecond, time.Hour)
+
+	listener := &collectingListener{}
+	unregister, err := registry.Join(context.Background(), topicPollerKey{tenantId: tenantId, topic: "topic"}, v1.StreamCursor{}, &topicListener{send: listener.send, cancel: func() {}})
+	require.NoError(t, err)
+	t.Cleanup(unregister)
+
+	for id := int64(1); id <= 3; id++ {
+		repo.appendMessage(id, time.Now())
+	}
+
+	require.Eventually(t, func() bool { return len(listener.entryIDs(t)) == 3 }, time.Second, 5*time.Millisecond)
+
+	repo.recreateTopic()
+	repo.appendMessage(1, time.Now())
+
+	require.Eventually(t, func() bool { return len(listener.entryIDs(t)) == 4 }, time.Second, 5*time.Millisecond,
+		"offsets restarting below the cached one still deliver")
+	assert.Equal(t, []int64{1, 2, 3, 1}, listener.entryIDs(t))
+}
+
+func TestTopicPollerRegistry_UnregisterIsIdempotent(t *testing.T) {
+	tenantId := uuid.New()
+	repo := newFakeStreamsRepository(tenantId, "", "topic", 0, time.Now())
+	registry := newTopicPollerRegistry(repo, fakePubSub{}, testLogger(), time.Hour, time.Hour)
+	key := topicPollerKey{tenantId: tenantId, topic: "topic"}
+
+	join := func() func() {
+		unregister, err := registry.Join(context.Background(), key, v1.StreamCursor{}, &topicListener{send: (&collectingListener{}).send, cancel: func() {}})
+		require.NoError(t, err)
+		return unregister
+	}
+
+	leaveFirst := join()
+	leaveSecond := join()
+	t.Cleanup(leaveSecond)
+
+	leaveFirst()
+	leaveFirst()
+
+	registry.mu.Lock()
+	_, present := registry.pollers[key]
+	registry.mu.Unlock()
+	assert.True(t, present, "a repeated unregister doesn't release another listener's membership")
 }
 
 func TestTopicPollerRegistry_JoinCatchesUpBeforeAttaching(t *testing.T) {

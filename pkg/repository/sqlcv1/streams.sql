@@ -283,10 +283,12 @@ SET starting_offset = LEAST(sqlc.narg('startingOffset')::bigint, last_offset)
 WHERE tenant_id = @tenantId::uuid AND namespace = @namespace::text AND topic = @topic::text;
 
 -- name: GetStreamTopicInfo :one
--- Zeros for a topic not yet published to. A primary-key lookup, cheap enough to run every poll tick.
+-- Zeros and a NULL topic_inserted_at for a topic not yet published to. A
+-- primary-key lookup, cheap enough to run every poll tick.
 SELECT
     COALESCE(t.starting_offset, 0)::bigint AS starting_offset,
-    COALESCE(t.last_offset, 0)::bigint AS last_offset
+    COALESCE(t.last_offset, 0)::bigint AS last_offset,
+    t.inserted_at AS topic_inserted_at
 FROM (SELECT 1) AS one
 LEFT JOIN v1_stream_topic t
     ON t.tenant_id = @tenantId::uuid AND t.namespace = @namespace::text AND t.topic = @topic::text;

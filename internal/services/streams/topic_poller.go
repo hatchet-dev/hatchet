@@ -92,14 +92,17 @@ type topicPoller struct {
 	tailPollInterval  time.Duration
 	idleHangupTimeout time.Duration
 
-	mu      sync.Mutex
+	mu        sync.Mutex
+	listeners map[int]*listenerQueue
+	nextID    int
+
+	// one run's state, reset by startLocked
 	running bool
+	cancel  context.CancelFunc
 	cursor  v1.StreamCursor
-	// every message up to this reserved offset has been fanned out
+	// every message up to this reserved offset of the topicCreatedAt incarnation has been fanned out
 	checkedOffset  int64
-	listeners      map[int]*listenerQueue
-	nextID         int
-	cancel         context.CancelFunc
+	topicCreatedAt time.Time
 	lastActivityAt time.Time
 
 	wake chan struct{}
@@ -148,10 +151,7 @@ func (p *topicPoller) join(ctx context.Context, startCursor v1.StreamCursor, lis
 
 func (p *topicPoller) attachLocked(ctx context.Context, startCursor v1.StreamCursor, q *listenerQueue) error {
 	if !p.running {
-		p.running = true
-		p.cursor = startCursor
-		p.lastActivityAt = time.Now()
-		p.startLocked()
+		p.startLocked(startCursor)
 	} else {
 		if startCursor.After(p.cursor) {
 			if _, err := p.pollLocked(ctx); err != nil {
@@ -187,54 +187,76 @@ func (p *topicPoller) removeListenerLocked(id int) {
 	}
 }
 
-func (p *topicPoller) stopLocked() {
-	p.running = false
-
-	if p.cancel != nil {
-		p.cancel()
-		p.cancel = nil
+// startLocked begins a run from cursor, discarding everything an earlier run cached. A no-op while running.
+func (p *topicPoller) startLocked(cursor v1.StreamCursor) {
+	if p.running {
+		return
 	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	p.running = true
+	p.cancel = cancel
+	p.cursor = cursor
+	p.checkedOffset = 0
+	p.topicCreatedAt = time.Time{}
+	p.lastActivityAt = time.Now()
+
+	go p.run(ctx)
 }
 
-func (p *topicPoller) startLocked() {
-	ctx, cancel := context.WithCancel(context.Background())
-	p.cancel = cancel
+// stopLocked ends the current run. A no-op once stopped.
+func (p *topicPoller) stopLocked() {
+	if !p.running {
+		return
+	}
 
-	go func() {
-		ticker := time.NewTicker(p.tailPollInterval)
-		defer ticker.Stop()
+	p.running = false
+	p.cancel()
+	p.cancel = nil
+}
 
-		for {
-			trigger := "tick"
+func (p *topicPoller) run(ctx context.Context) {
+	ticker := time.NewTicker(p.tailPollInterval)
+	defer ticker.Stop()
 
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-			case <-p.wake:
-				trigger = "wake"
-			}
+	for {
+		trigger := "tick"
 
-			startedAt := time.Now()
-
-			p.mu.Lock()
-			listeners := len(p.listeners)
-			stats, err := p.pollIfPublishedLocked(ctx)
-			if err == nil {
-				p.hangUpIfIdleLocked()
-			}
-			p.mu.Unlock()
-
-			// most polls find nothing, so only ones that delivered or failed are recorded
-			if err != nil || stats.entries > 0 {
-				p.recordPoll(startedAt, trigger, listeners, stats, err)
-			}
-
-			if err != nil {
-				p.l.Error().Ctx(ctx).Err(err).Msg("stream topic poll failed")
-			}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		case <-p.wake:
+			trigger = "wake"
 		}
-	}()
+
+		startedAt := time.Now()
+
+		p.mu.Lock()
+
+		// the run may have stopped, and another started, while this tick waited for the lock
+		if ctx.Err() != nil {
+			p.mu.Unlock()
+			return
+		}
+
+		listeners := len(p.listeners)
+		stats, err := p.pollIfPublishedLocked(ctx)
+		if err == nil {
+			p.hangUpIfIdleLocked()
+		}
+		p.mu.Unlock()
+
+		// most polls find nothing, so only ones that delivered or failed are recorded
+		if err != nil || stats.entries > 0 {
+			p.recordPoll(startedAt, trigger, listeners, stats, err)
+		}
+
+		if err != nil {
+			p.l.Error().Ctx(ctx).Err(err).Msg("stream topic poll failed")
+		}
+	}
 }
 
 // hangUpIfIdleLocked stops the poller once its topic has been quiet for
@@ -309,6 +331,16 @@ func (p *topicPoller) pollIfPublishedLocked(ctx context.Context) (sendStats, err
 
 	if err != nil {
 		return sendStats{}, err
+	}
+
+	// the idle sweep deletes topics, and a publish recreating one restarts its offsets at 1
+	if !info.CreatedAt.Equal(p.topicCreatedAt) {
+		if !p.topicCreatedAt.IsZero() {
+			p.cursor = v1.StreamCursor{Namespace: p.key.namespace, Topic: p.key.topic}
+		}
+
+		p.topicCreatedAt = info.CreatedAt
+		p.checkedOffset = 0
 	}
 
 	// compared to offsets, not the cursor, since a rejected publish reserves one it never stores
@@ -500,9 +532,13 @@ func (r *topicPollerRegistry) Join(ctx context.Context, key topicPollerKey, star
 		return nil, err
 	}
 
+	var once sync.Once
+
 	return func() {
-		p.leave(id)
-		r.release(key, p)
+		once.Do(func() {
+			p.leave(id)
+			r.release(key, p)
+		})
 	}, nil
 }
 
