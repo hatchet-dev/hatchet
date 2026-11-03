@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"connectrpc.com/connect"
@@ -55,20 +56,20 @@ func startListenerQueue(listener *topicListener) *listenerQueue {
 	return q
 }
 
-// run cancels the RPC once the queue is closed and drained, so a final hangup is written before the stream ends.
+// run ends the RPC once the queue is closed and drained, so a final hangup is
+// written first, or as soon as a send fails.
 func (q *listenerQueue) run() {
-	defer q.listener.cancel()
-
 	for frame := range q.frames {
 		if err := q.listener.send(frame); err != nil {
-			q.listener.cancel()
-
-			for range q.frames {
-				continue
-			}
-
-			return
+			break
 		}
+	}
+
+	q.listener.cancel()
+
+	// after a failed send, discards frames until the poller removes this listener
+	for range q.frames {
+		continue
 	}
 }
 
@@ -84,40 +85,45 @@ func (q *listenerQueue) enqueue(frame *contracts.StreamMessage) bool {
 
 var errListenerFellBehind = errors.New("stream listener fell too far behind")
 
-// topicPoller is one topic's tail loop, shared by every Subscribe RPC on it.
+// errPollerRetired sends a Join back to the registry for the topic's live poller.
+var errPollerRetired = errors.New("topic poller retired")
+
+// topicPoller is one topic's tail loop, shared by every Subscribe RPC on it. It
+// starts with its first listener and retires for good once it has none, idles
+// out, or its topic is recreated; the registry then starts a new one.
 type topicPoller struct {
 	streams           v1.StreamsRepository
 	l                 *zerolog.Logger
 	key               topicPollerKey
 	tailPollInterval  time.Duration
 	idleHangupTimeout time.Duration
+	onRetire          func(*topicPoller)
+
+	wake chan struct{}
+
+	// set under mu, read without it by the registry
+	retired atomic.Bool
 
 	mu        sync.Mutex
 	listeners map[int]*listenerQueue
 	nextID    int
-
-	// one run's state, reset by startLocked
-	running bool
-	cancel  context.CancelFunc
-	cursor  v1.StreamCursor
-	// every message up to this reserved offset of the topicCreatedAt incarnation has been fanned out
-	checkedOffset  int64
+	cancel    context.CancelFunc
+	cursor    v1.StreamCursor
+	// every message up to this reserved offset has been fanned out
+	checkedOffset int64
+	// the topic incarnation this poller follows, zero until the topic exists
 	topicCreatedAt time.Time
 	lastActivityAt time.Time
-
-	wake chan struct{}
-
-	// Join calls and registered listeners; the registry removes the poller at zero. Guarded by the registry's mu.
-	members int
 }
 
-func newTopicPoller(streams v1.StreamsRepository, l *zerolog.Logger, key topicPollerKey, tailPollInterval, idleHangupTimeout time.Duration) *topicPoller {
+func newTopicPoller(streams v1.StreamsRepository, l *zerolog.Logger, key topicPollerKey, tailPollInterval, idleHangupTimeout time.Duration, onRetire func(*topicPoller)) *topicPoller {
 	return &topicPoller{
 		streams:           streams,
 		l:                 l,
 		key:               key,
 		tailPollInterval:  tailPollInterval,
 		idleHangupTimeout: idleHangupTimeout,
+		onRetire:          onRetire,
 		listeners:         make(map[int]*listenerQueue),
 		wake:              make(chan struct{}, 1),
 	}
@@ -131,13 +137,38 @@ func (p *topicPoller) wakeUp() {
 	}
 }
 
-func (p *topicPoller) join(ctx context.Context, startCursor v1.StreamCursor, listener *topicListener) (int, error) {
+// join attaches listener at startCursor, where its replay of the topic's
+// topicCreatedAt incarnation ended.
+func (p *topicPoller) join(ctx context.Context, topicCreatedAt time.Time, startCursor v1.StreamCursor, listener *topicListener) (int, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	if p.retired.Load() {
+		return 0, errPollerRetired
+	}
+
+	first := p.cancel == nil
+
+	switch {
+	case first || p.topicCreatedAt.IsZero():
+		p.topicCreatedAt = topicCreatedAt
+	case topicCreatedAt.After(p.topicCreatedAt):
+		// recreated since this poller started: its listeners resume at the new topic's start
+		p.retireLocked(p.topicStart())
+		return 0, errPollerRetired
+	}
+
+	// a topic's messages are never inserted before its row, so an older cursor, or an
+	// untimed one read before this incarnation, points into an earlier one
+	if startCursor.CreatedAt.Before(p.topicCreatedAt) && (!startCursor.CreatedAt.IsZero() || topicCreatedAt.Before(p.topicCreatedAt)) {
+		startCursor = *p.topicStart()
+	}
+
 	q := startListenerQueue(listener)
 
-	if err := p.attachLocked(ctx, startCursor, q); err != nil {
+	if first {
+		p.startLocked(startCursor)
+	} else if err := p.catchUpLocked(ctx, startCursor, q); err != nil {
 		close(q.frames)
 		return 0, err
 	}
@@ -149,31 +180,6 @@ func (p *topicPoller) join(ctx context.Context, startCursor v1.StreamCursor, lis
 	return id, nil
 }
 
-func (p *topicPoller) attachLocked(ctx context.Context, startCursor v1.StreamCursor, q *listenerQueue) error {
-	p.startLocked(startCursor)
-
-	// before comparing positions, so a recreated topic resets the shared cursor while this listener keeps its replay position
-	if _, err := p.syncTopicLocked(ctx); err != nil {
-		return err
-	}
-
-	startCursor = p.inCurrentTopic(startCursor)
-
-	// brings earlier listeners up to where this one's replay ended
-	if startCursor.After(p.cursor) {
-		if _, err := p.pollLocked(ctx); err != nil {
-			return err
-		}
-	}
-
-	// rows up to p.cursor were already fanned out to earlier listeners only
-	if p.cursor.After(startCursor) {
-		return p.catchUpLocked(ctx, startCursor, q)
-	}
-
-	return nil
-}
-
 func (p *topicPoller) leave(id int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -181,7 +187,7 @@ func (p *topicPoller) leave(id int) {
 	p.removeListenerLocked(id)
 
 	if len(p.listeners) == 0 {
-		p.stopLocked()
+		p.retireLocked(nil)
 	}
 }
 
@@ -193,33 +199,51 @@ func (p *topicPoller) removeListenerLocked(id int) {
 	}
 }
 
-// startLocked begins a run from cursor, discarding everything an earlier run cached. A no-op while running.
 func (p *topicPoller) startLocked(cursor v1.StreamCursor) {
-	if p.running {
-		return
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 
-	p.running = true
 	p.cancel = cancel
 	p.cursor = cursor
-	p.checkedOffset = 0
-	p.topicCreatedAt = time.Time{}
 	p.lastActivityAt = time.Now()
 
 	go p.run(ctx)
 }
 
-// stopLocked ends the current run. A no-op once stopped.
-func (p *topicPoller) stopLocked() {
-	if !p.running {
+// retireLocked hangs up every listener, sending resumeAt to resubscribe from if
+// given, and stops the poller for good.
+func (p *topicPoller) retireLocked(resumeAt *v1.StreamCursor) {
+	if p.retired.Load() {
 		return
 	}
 
-	p.running = false
-	p.cancel()
-	p.cancel = nil
+	var hangupErr error
+
+	if resumeAt != nil {
+		var encodedCursor string
+
+		if encodedCursor, hangupErr = v1.EncodeStreamCursor(*resumeAt); hangupErr != nil {
+			// without a cursor to send, clients resume from the last one they received
+			p.l.Error().Err(hangupErr).Msg("could not encode cursor for stream hangup")
+		} else {
+			p.fanOutLocked(&contracts.StreamMessage{Cursor: encodedCursor, Hangup: true})
+		}
+	}
+
+	for id, q := range p.listeners {
+		if hangupErr != nil {
+			q.listener.cancel()
+		}
+
+		p.removeListenerLocked(id)
+	}
+
+	p.retired.Store(true)
+
+	if p.cancel != nil {
+		p.cancel()
+	}
+
+	p.onRetire(p)
 }
 
 func (p *topicPoller) run(ctx context.Context) {
@@ -241,16 +265,16 @@ func (p *topicPoller) run(ctx context.Context) {
 
 		p.mu.Lock()
 
-		// the run may have stopped, and another started, while this tick waited for the lock
-		if ctx.Err() != nil {
+		// retired while this tick waited for the lock
+		if p.retired.Load() {
 			p.mu.Unlock()
 			return
 		}
 
 		listeners := len(p.listeners)
 		stats, err := p.pollIfPublishedLocked(ctx)
-		if err == nil {
-			p.hangUpIfIdleLocked()
+		if err == nil && p.idleHangupTimeout > 0 && time.Since(p.lastActivityAt) >= p.idleHangupTimeout {
+			p.retireLocked(&p.cursor)
 		}
 		p.mu.Unlock()
 
@@ -263,37 +287,6 @@ func (p *topicPoller) run(ctx context.Context) {
 			p.l.Error().Ctx(ctx).Err(err).Msg("stream topic poll failed")
 		}
 	}
-}
-
-// hangUpIfIdleLocked stops the poller once its topic has been quiet for
-// idleHangupTimeout, sending each listener the cursor to resume from.
-func (p *topicPoller) hangUpIfIdleLocked() {
-	if p.idleHangupTimeout <= 0 || len(p.listeners) == 0 {
-		return
-	}
-
-	if time.Since(p.lastActivityAt) < p.idleHangupTimeout {
-		return
-	}
-
-	encodedCursor, err := v1.EncodeStreamCursor(p.cursor)
-
-	if err != nil {
-		p.l.Error().Err(err).Msg("could not encode cursor for stream idle hangup")
-		return
-	}
-
-	hangup := &contracts.StreamMessage{Cursor: encodedCursor, Hangup: true}
-
-	for id, q := range p.listeners {
-		if !q.enqueue(hangup) {
-			q.listener.cancel()
-		}
-
-		p.removeListenerLocked(id)
-	}
-
-	p.stopLocked()
 }
 
 // sendStats counts what a send callback delivered, once per frame however many listeners it fans out to.
@@ -333,10 +326,19 @@ func (p *topicPoller) recordPoll(startedAt time.Time, trigger string, listeners 
 
 // pollIfPublishedLocked skips the message read, which spans every retained partition, while nothing was published.
 func (p *topicPoller) pollIfPublishedLocked(ctx context.Context) (sendStats, error) {
-	info, err := p.syncTopicLocked(ctx)
+	info, err := p.streams.GetTopicInfo(ctx, p.key.tenantId, p.key.namespace, p.key.topic)
 
 	if err != nil {
 		return sendStats{}, err
+	}
+
+	switch {
+	case p.topicCreatedAt.IsZero():
+		p.topicCreatedAt = info.CreatedAt
+	case !info.CreatedAt.Equal(p.topicCreatedAt):
+		// the idle sweep deleted the topic, which restarts its offsets at 1 if it's republished
+		p.retireLocked(p.topicStart())
+		return sendStats{}, nil
 	}
 
 	// compared to offsets, not the cursor, since a rejected publish reserves one it never stores
@@ -353,41 +355,8 @@ func (p *topicPoller) pollIfPublishedLocked(ctx context.Context) (sendStats, err
 	return stats, err
 }
 
-// syncTopicLocked reads the topic's info, restarting the shared position at the
-// topic's beginning when the idle sweep deleted it and a publish recreated it.
-func (p *topicPoller) syncTopicLocked(ctx context.Context) (v1.StreamTopicInfo, error) {
-	info, err := p.streams.GetTopicInfo(ctx, p.key.tenantId, p.key.namespace, p.key.topic)
-
-	if err != nil {
-		return v1.StreamTopicInfo{}, err
-	}
-
-	if !info.CreatedAt.Equal(p.topicCreatedAt) {
-		if !p.topicCreatedAt.IsZero() {
-			p.cursor = p.topicStart()
-		}
-
-		p.topicCreatedAt = info.CreatedAt
-		p.checkedOffset = 0
-	}
-
-	p.cursor = p.inCurrentTopic(p.cursor)
-
-	return info, nil
-}
-
-func (p *topicPoller) topicStart() v1.StreamCursor {
-	return v1.StreamCursor{Namespace: p.key.namespace, Topic: p.key.topic}
-}
-
-// inCurrentTopic moves a cursor read off a message of an earlier incarnation to
-// the topic's beginning: a topic's messages are never inserted before its row.
-func (p *topicPoller) inCurrentTopic(c v1.StreamCursor) v1.StreamCursor {
-	if !c.CreatedAt.IsZero() && c.CreatedAt.Before(p.topicCreatedAt) {
-		return p.topicStart()
-	}
-
-	return c
+func (p *topicPoller) topicStart() *v1.StreamCursor {
+	return &v1.StreamCursor{Namespace: p.key.namespace, Topic: p.key.topic}
 }
 
 // pollLocked sends every listener the rows after the poller's cursor.
@@ -395,14 +364,7 @@ func (p *topicPoller) pollLocked(ctx context.Context) (sendStats, error) {
 	var stats sendStats
 
 	last, err := sendRange(ctx, p.streams, p.key, p.cursor, math.MaxInt64, stats.counting(func(out *contracts.StreamMessage) error {
-		for id, q := range p.listeners {
-			if !q.enqueue(out) {
-				p.l.Warn().Ctx(ctx).Msg("dropping stream listener that fell too far behind; it resumes from its cursor")
-				q.listener.cancel()
-				p.removeListenerLocked(id)
-			}
-		}
-
+		p.fanOutLocked(out)
 		return nil
 	}))
 
@@ -414,9 +376,31 @@ func (p *topicPoller) pollLocked(ctx context.Context) (sendStats, error) {
 	return stats, err
 }
 
-// catchUpLocked sends listener the rows in (from, p.cursor] that the poller
-// fanned out before it joined.
+// fanOutLocked queues frame for every listener, dropping any too far behind to
+// take it; their clients resume from the last cursor they received.
+func (p *topicPoller) fanOutLocked(frame *contracts.StreamMessage) {
+	for id, q := range p.listeners {
+		if !q.enqueue(frame) {
+			p.l.Warn().Msg("dropping stream listener that fell too far behind")
+			q.listener.cancel()
+			p.removeListenerLocked(id)
+		}
+	}
+}
+
+// catchUpLocked brings earlier listeners up to where q's replay ended, then sends
+// q the rows in (from, p.cursor] that the poller fanned out before it joined.
 func (p *topicPoller) catchUpLocked(ctx context.Context, from v1.StreamCursor, q *listenerQueue) error {
+	if from.After(p.cursor) {
+		if _, err := p.pollLocked(ctx); err != nil {
+			return err
+		}
+	}
+
+	if !p.cursor.After(from) {
+		return nil
+	}
+
 	_, err := sendRange(ctx, p.streams, p.key, from, p.cursor.ID, func(out *contracts.StreamMessage) error {
 		if !q.enqueue(out) {
 			return connect.NewError(connect.CodeUnavailable, errListenerFellBehind)
@@ -501,13 +485,12 @@ func sendRange(ctx context.Context, repo v1.StreamsRepository, key topicPollerKe
 	}
 }
 
-// topicPollerRegistry holds one topicPoller per topic with a listener.
+// topicPollerRegistry holds each topic's live poller.
 type topicPollerRegistry struct {
 	mu      sync.Mutex
 	pollers map[topicPollerKey]*topicPoller
 
-	// wakeTargets mirrors pollers so the wake handler never waits on mu,
-	// which Join holds across database reads
+	// wakeTargets mirrors pollers so the wake handler never waits on mu
 	wakeTargets sync.Map // topicPollerKey -> *topicPoller
 
 	// one wake subscription for every poller; nil until the first Join. Guarded by mu.
@@ -555,55 +538,59 @@ func (r *topicPollerRegistry) Join(ctx context.Context, key topicPollerKey, star
 		return nil, err
 	}
 
-	p := r.acquire(key)
-
-	// outside r.mu, so a poller busy with a slow read can't stall Joins on other topics
-	id, err := p.join(ctx, startCursor, listener)
+	// read after the replay, so it names the incarnation the replay ended in or a later one
+	info, err := r.streams.GetTopicInfo(ctx, key.tenantId, key.namespace, key.topic)
 
 	if err != nil {
-		r.release(key, p)
 		return nil, err
 	}
 
-	var once sync.Once
+	for {
+		p := r.livePoller(key)
 
-	return func() {
-		once.Do(func() {
-			p.leave(id)
-			r.release(key, p)
-		})
-	}, nil
+		// outside r.mu, so a poller busy with a slow read can't stall Joins on other topics
+		id, err := p.join(ctx, info.CreatedAt, startCursor, listener)
+
+		if errors.Is(err, errPollerRetired) {
+			continue
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		var once sync.Once
+
+		return func() { once.Do(func() { p.leave(id) }) }, nil
+	}
 }
 
-// acquire counts a member on key's poller, creating it if needed, so it outlives a Join in progress.
-func (r *topicPollerRegistry) acquire(key topicPollerKey) *topicPoller {
+// livePoller returns key's poller, starting a new one in place of one that retired.
+func (r *topicPollerRegistry) livePoller(key topicPollerKey) *topicPoller {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	r.subscribeWakesLocked()
 
-	p, ok := r.pollers[key]
-
-	if !ok {
-		p = newTopicPoller(r.streams, r.l, key, r.tailPollInterval, r.idleHangupTimeout)
-		r.pollers[key] = p
-		r.wakeTargets.Store(key, p)
+	if p, ok := r.pollers[key]; ok && !p.retired.Load() {
+		return p
 	}
 
-	p.members++
+	p := newTopicPoller(r.streams, r.l, key, r.tailPollInterval, r.idleHangupTimeout, r.remove)
+	r.pollers[key] = p
+	r.wakeTargets.Store(key, p)
 
 	return p
 }
 
-func (r *topicPollerRegistry) release(key topicPollerKey, p *topicPoller) {
+// remove runs under the retiring poller's mu; the registry never takes a poller's mu, so that order can't deadlock.
+func (r *topicPollerRegistry) remove(p *topicPoller) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	p.members--
-
-	if p.members == 0 && r.pollers[key] == p {
-		delete(r.pollers, key)
-		r.wakeTargets.Delete(key)
+	if r.pollers[p.key] == p {
+		delete(r.pollers, p.key)
+		r.wakeTargets.Delete(p.key)
 	}
 }
 
