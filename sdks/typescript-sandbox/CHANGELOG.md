@@ -6,15 +6,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Eac
 
 ## [Unreleased]
 
-## [0.1.2] - 2026-11-02
+## [0.1.2] - 2026-11-03
 
 ### Added
 
 - `create({ provider })` picks the sandbox provider by name when a tenant has more than one. It is sent as the `provider` metadata tag, so providers that already read that tag need no change.
+- The SDK works against any sandbox provider. On first use it checks whether the tenant serves the `hatchet-sandbox` task and uses that; otherwise it keeps using `brickie-sandbox`. Existing deployments need no change.
+- `HATCHET_SANDBOX_OTEL=false` turns the OpenTelemetry instrumentor off. `BRICKIE_OTEL=false` still works.
 
 ### Changed
 
-- The package now lives in [hatchet-dev/hatchet](https://github.com/hatchet-dev/hatchet) under `sdks/typescript-sandbox` and ships CommonJS alongside ESM. The wire contract with providers is unchanged.
+- The package declares `sideEffects: true` so bundlers keep the import that adds `hatchet.sandbox` to the client.
 
 ### Fixed
 

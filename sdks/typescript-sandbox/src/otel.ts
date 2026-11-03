@@ -1,7 +1,11 @@
 let telemetryStarted = false;
 
 export async function setupTelemetry(): Promise<void> {
-  if (telemetryStarted || process.env.BRICKIE_OTEL === 'false') {
+  if (
+    telemetryStarted ||
+    process.env.HATCHET_SANDBOX_OTEL === 'false' ||
+    process.env.BRICKIE_OTEL === 'false'
+  ) {
     return;
   }
   telemetryStarted = true;
@@ -12,6 +16,6 @@ export async function setupTelemetry(): Promise<void> {
     ]);
     registerInstrumentations({ instrumentations: [new HatchetInstrumentor()] });
   } catch (err) {
-    console.error(`brickie: opentelemetry disabled: ${(err as Error).message}`);
+    console.error(`sandbox: opentelemetry disabled: ${(err as Error).message}`);
   }
 }

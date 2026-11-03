@@ -2,7 +2,40 @@ import { HatchetClient, JsonObject } from '@hatchet-dev/typescript-sdk/v1';
 import { Files } from './files.js';
 import { setupTelemetry } from './otel.js';
 
-const SANDBOX_TASK_NAME = 'brickie-sandbox';
+const TASK_NAMES = ['hatchet-sandbox', 'brickie-sandbox'];
+const taskNames = new WeakMap<HatchetClient, Promise<string>>();
+
+async function registered(client: HatchetClient, name: string): Promise<boolean> {
+  const namespace = client.config.namespace ?? '';
+  const full = name.startsWith(namespace) ? name : `${namespace}${name}`;
+  const { rows = [] } = await client.workflows.list({ name: full });
+  return rows.some((w) => w.name === full);
+}
+
+async function probe(client: HatchetClient): Promise<string | undefined> {
+  for (const name of TASK_NAMES) {
+    if (await registered(client, name)) return name;
+  }
+  return undefined;
+}
+
+function resolveTaskName(client: HatchetClient): Promise<string> {
+  let pending = taskNames.get(client);
+  if (!pending) {
+    pending = probe(client).then(
+      (name) => {
+        if (!name) taskNames.delete(client);
+        return name ?? TASK_NAMES[TASK_NAMES.length - 1];
+      },
+      (err) => {
+        taskNames.delete(client);
+        throw err;
+      }
+    );
+    taskNames.set(client, pending);
+  }
+  return pending;
+}
 
 interface TurnInput extends JsonObject {
   sandboxId?: string;
@@ -83,8 +116,9 @@ export interface SandboxInfo {
 type RunTurn = (input: TurnInput, opts?: { fresh?: boolean }) => Promise<TurnResult>;
 
 function turnRunner(client: HatchetClient): RunTurn {
-  const task = client.workflow<TurnInput, Record<string, TurnResult>>({ name: SANDBOX_TASK_NAME });
+  const resolved = resolveTaskName(client);
   return async (input, opts) => {
+    const name = await resolved;
     const additionalMetadata = {
       'brickie.fn': input.fn,
       ...(input.sandboxId ? { 'brickie.sandbox': input.sandboxId } : {}),
@@ -93,18 +127,18 @@ function turnRunner(client: HatchetClient): RunTurn {
     };
     const result = opts?.fresh
       ? await (
-          await client.admin.runWorkflow<TurnInput, Record<string, TurnResult>>(
-            SANDBOX_TASK_NAME,
-            input,
-            { additionalMetadata }
-          )
+          await client.admin.runWorkflow<TurnInput, Record<string, TurnResult>>(name, input, {
+            additionalMetadata,
+          })
         ).result()
-      : await task.run(input, { additionalMetadata });
-    return result[SANDBOX_TASK_NAME] ?? (result as unknown as TurnResult);
+      : await client
+          .workflow<TurnInput, Record<string, TurnResult>>({ name })
+          .run(input, { additionalMetadata });
+    return result[name] ?? (result as unknown as TurnResult);
   };
 }
 
-/** One sandbox. Every method is one `brickie-sandbox` Hatchet task. */
+/** One sandbox. Every method is one Hatchet task on the tenant's sandbox provider. */
 export class Sandbox {
   /** File operations on the workspace. */
   readonly files: Files;

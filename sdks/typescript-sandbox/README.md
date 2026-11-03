@@ -7,9 +7,11 @@
 
 </div>
 
-Run agent sandboxes from [Hatchet](https://hatchet.run) tasks.
+Run sandboxes from [Hatchet](https://hatchet.run) tasks, on the sandbox vendor of your choice.
 
 A sandbox is a workspace with a shell. You run commands in it and read and write its files. Each call is a Hatchet task. Each call that changes files takes a snapshot. You can start a new sandbox from any snapshot, and you can come back to a sandbox later by its ID. If you use it inside a durable task, a crash picks up where it left off.
+
+Your code only talks to Hatchet. The sandbox itself runs on a provider you connect to your tenant.
 
 ## Install
 
@@ -54,7 +56,26 @@ const again = await hatchet.sandbox.connect('conv-42');
 await again.exec('cat haiku.txt');
 ```
 
-Your app only talks to Hatchet. A brickie provider, connected to the same tenant, runs the sandboxes. Set `HATCHET_CLIENT_TOKEN` like you would for any Hatchet client. That is all the app needs.
+Set `HATCHET_CLIENT_TOKEN` like you would for any Hatchet client. That is all the app needs.
+
+## Providers
+
+A provider is a sandbox vendor connected to your Hatchet tenant, configured once in the dashboard under Sandboxes with the vendor's API key.
+
+We currently support the following vendors:
+
+- [Daytona](https://www.daytona.io)
+- [E2B](https://e2b.dev)
+- [Archil](https://archil.com)
+- [Freestyle](https://freestyle.sh).
+
+The sandbox API is the same on all of them; only `template` (base image) is in the vendor's own terms.
+
+With one provider, `create` just uses it. With several, you can pass `provider` with the name you gave it.
+
+```ts
+const sandbox = await hatchet.sandbox.create({ provider: 'e2b' });
+```
 
 ## API
 
@@ -71,13 +92,13 @@ Options for `create`:
 
 | Option                  | What it does                                                                                                                 |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `provider`              | Which sandbox provider to create on, by its name. Needed when the tenant has several; a fork always uses its snapshot's.     |
 | `id`                    | Pick your own sandbox ID. Lowercase letters, digits, and hyphens. It must not exist yet.                                     |
-| `template`              | The container image. Defaults to the provider's image.                                                                       |
+| `template`              | The image or template, in the provider's own terms. Defaults to the provider's default.                                      |
 | `from`                  | Start from this snapshot. Create two sandboxes from the same snapshot and you have a fork.                                   |
 | `metadata`              | Tags you can search for with `list`.                                                                                         |
 | `inheritParentMetadata` | With `from`, copy the tags of the sandbox that made the snapshot onto the new one. Tags given in `metadata` take precedence. |
-| `idleTimeoutMs`         | Remove the sandbox after this long with no calls. The provider sets the maximum.                                             |
-| `provider`              | Which sandbox provider to create on, by its name. Needed when the tenant has several; a fork always uses its snapshot's.     |
+| `idleTimeoutMs`         | Stop the sandbox after this long with no calls. The provider sets the maximum.                                               |
 
 ### `Sandbox`
 
@@ -105,9 +126,7 @@ Paths are relative to the workspace. A path that points outside it throws a `Fil
 | `download(url, path, { timeoutMs? })`                                 | The provider fetches an https URL into the workspace. Private and loopback addresses are refused. |
 | `upload(path, url, { timeoutMs? })`                                   | The provider sends a file to an https URL with HTTP PUT. Presigned URLs work well here.           |
 
-The sandbox itself does not need network access for any of this.
-
-`read` and `write` carry up to 2 MiB through Hatchet. Bigger files go through the provider's object store (`--object-store` on the provider: S3, GCS, Azure Blob, or a local folder) and never pass through Hatchet. You call the same methods either way.
+`read` and `write` carry up to 2 MiB through Hatchet. Providers with an object store stage bigger files there and never pass them through Hatchet; you call the same methods either way.
 
 ## Errors
 
@@ -118,17 +137,17 @@ The sandbox itself does not need network access for any of this.
 
 ## Telemetry
 
-On first use the SDK turns on the Hatchet OpenTelemetry instrumentor. If you have OpenTelemetry set up, sandbox calls show up as spans in your task's trace. Set `BRICKIE_OTEL=false` to turn this off.
+On first use the SDK turns on the Hatchet OpenTelemetry instrumentor. If you have OpenTelemetry set up, sandbox calls show up as spans in your task's trace. Set `HATCHET_SANDBOX_OTEL=false` to turn this off.
 
 ## What you need
 
-- A Hatchet tenant. Hatchet Cloud, or a self-hosted Hatchet v0.110.0 or newer with gRPC operators turned on.
-- A brickie provider connected to that tenant. It is one binary, `brickie worker`. Get it from [github.com/hatchet-dev/brickie](https://github.com/hatchet-dev/brickie).
+- A Hatchet tenant with sandboxes enabled: Hatchet Cloud, or a self-hosted Hatchet v0.110.0 or newer with gRPC operators turned on.
+- At least one sandbox provider connected to that tenant, configured under Sandboxes in the dashboard with your Daytona, E2B, Archil, or Freestyle API key.
 
 ## Changelog
 
-See [CHANGELOG.md](https://github.com/hatchet-dev/hatchet/blob/main/sdks/typescript-sandbox/CHANGELOG.md).
+See [CHANGELOG.md](./CHANGELOG.md).
 
 ## License
 
-MIT. See [LICENSE](https://github.com/hatchet-dev/hatchet/blob/main/sdks/typescript-sandbox/LICENSE).
+MIT. See [LICENSE](./LICENSE).
