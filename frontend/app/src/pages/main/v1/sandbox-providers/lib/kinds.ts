@@ -2,7 +2,7 @@ import { SandboxProviderKind } from '@/lib/api/generated/cloud/data-contracts';
 
 export const KIND_ORDER: SandboxProviderKind[] = [
   SandboxProviderKind.DAYTONA,
-  SandboxProviderKind.SUPABASE,
+  SandboxProviderKind.E2B,
   SandboxProviderKind.ARCHIL,
   SandboxProviderKind.FREESTYLE,
 ];
@@ -25,19 +25,21 @@ export const KINDS: Record<
     templatePlaceholder: 'daytonaio/sandbox:latest',
     available: true,
   },
-  [SandboxProviderKind.SUPABASE]: {
-    label: 'Supabase',
-    description: 'Supabase sandboxes.',
-    keyHint: 'A Supabase API key. The Supabase driver is not available yet.',
-    templatePlaceholder: '',
-    available: false,
+  [SandboxProviderKind.E2B]: {
+    label: 'E2B',
+    description: 'E2B sandboxes with filesystem snapshots.',
+    keyHint:
+      'An API key from the E2B dashboard (Team → API Keys). Leave the template empty for the E2B base template, or set a template name or snapshot id.',
+    templatePlaceholder: 'base',
+    available: true,
   },
   [SandboxProviderKind.ARCHIL]: {
     label: 'Archil',
-    description: 'Archil sandboxes.',
-    keyHint: 'An Archil API key. The Archil driver is not available yet.',
-    templatePlaceholder: '',
-    available: false,
+    description: 'Archil persistent microVMs with forks.',
+    keyHint:
+      'An API key from the Archil console. Keys are scoped to one region; set "region" in the provider config (default aws-us-east-1). The template is an OCI image.',
+    templatePlaceholder: 'node:24-bookworm',
+    available: true,
   },
   [SandboxProviderKind.FREESTYLE]: {
     label: 'Freestyle',

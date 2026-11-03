@@ -24,7 +24,7 @@ export enum SandboxProviderEventKind {
 /** The sandbox vendor a provider connects to. */
 export enum SandboxProviderKind {
   DAYTONA = "DAYTONA",
-  SUPABASE = "SUPABASE",
+  E2B = "E2B",
   ARCHIL = "ARCHIL",
   FREESTYLE = "FREESTYLE",
 }
