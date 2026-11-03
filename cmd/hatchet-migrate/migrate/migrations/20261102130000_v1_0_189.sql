@@ -3,10 +3,6 @@
 
 ALTER TABLE v1_runs_olap ADD COLUMN IF NOT EXISTS finished_at TIMESTAMPTZ;
 
--- ON ONLY skips building on existing partitions (see v1_0_127); they age out with retention.
-CREATE INDEX IF NOT EXISTS ix_v1_runs_olap_tenant_failed_finished_at
-    ON ONLY v1_runs_olap (tenant_id, finished_at) WHERE readable_status = 'FAILED';
-
 CREATE OR REPLACE FUNCTION v1_tasks_olap_insert_function()
 RETURNS TRIGGER AS
 $$
@@ -371,8 +367,6 @@ AFTER UPDATE ON v1_dags_olap
 REFERENCING NEW TABLE AS new_rows
 FOR EACH STATEMENT
 EXECUTE FUNCTION v1_dags_olap_status_update_function();
-
-DROP INDEX IF EXISTS ix_v1_runs_olap_tenant_failed_finished_at;
 
 ALTER TABLE v1_runs_olap DROP COLUMN IF EXISTS finished_at;
 

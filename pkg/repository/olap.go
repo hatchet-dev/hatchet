@@ -1339,6 +1339,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 	return res, int(count), nil
 }
 
+// ListFailedWorkflowRunsByFinishedAt returns up to limit FAILED runs with finished_at in (finishedAfter, finishedThrough].
 func (r *OLAPRepositoryImpl) ListFailedWorkflowRunsByFinishedAt(ctx context.Context, tenantId uuid.UUID, finishedAfter, finishedThrough time.Time, limit int) ([]*WorkflowRunData, error) {
 	// replica lag beyond the alert window's lag would skip runs permanently
 	readDB := r.pool.ForTenant(tenantId)
