@@ -42,9 +42,11 @@ type topicPoller struct {
 	tailPollInterval  time.Duration
 	idleHangupTimeout time.Duration
 
-	mu             sync.Mutex
-	running        bool
-	cursor         v1.StreamCursor
+	mu      sync.Mutex
+	running bool
+	cursor  v1.StreamCursor
+	// every message up to this reserved offset has been fanned out
+	checkedOffset  int64
 	listeners      map[int]*topicListener
 	nextID         int
 	cancel         context.CancelFunc
@@ -147,7 +149,7 @@ func (p *topicPoller) startLocked() {
 
 			p.mu.Lock()
 			listeners := len(p.listeners)
-			stats, err := p.pollLocked(ctx)
+			stats, err := p.pollIfPublishedLocked(ctx)
 			if err == nil {
 				p.hangUpIfIdleLocked()
 			}
@@ -235,6 +237,28 @@ func (p *topicPoller) recordPoll(startedAt time.Time, trigger string, listeners 
 	)
 
 	recordSpanError(span, err)
+}
+
+// pollIfPublishedLocked skips the message read, which spans every retained partition, while nothing was published.
+func (p *topicPoller) pollIfPublishedLocked(ctx context.Context) (sendStats, error) {
+	info, err := p.streams.GetTopicInfo(ctx, p.key.tenantId, p.key.namespace, p.key.topic)
+
+	if err != nil {
+		return sendStats{}, err
+	}
+
+	// compared to offsets, not the cursor, since a rejected publish reserves one it never stores
+	if info.LastOffset <= p.checkedOffset {
+		return sendStats{}, nil
+	}
+
+	stats, err := p.pollLocked(ctx)
+
+	if err == nil {
+		p.checkedOffset = info.LastOffset
+	}
+
+	return stats, err
 }
 
 // pollLocked sends every listener the rows after the poller's cursor.

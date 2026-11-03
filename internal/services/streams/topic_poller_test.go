@@ -22,12 +22,15 @@ import (
 )
 
 // fakeStreamsRepository is an in-memory v1.StreamsRepository backing only
-// ListMessagesAfterCursor, which is all topicPoller needs.
+// what topicPoller needs.
 type fakeStreamsRepository struct {
 	v1.StreamsRepository
 
 	mu       sync.Mutex
 	messages []*sqlcv1.V1StreamMessage
+
+	lastOffset int64
+	reads      int
 
 	// cursors at or below this ID are reported expired
 	expiredThroughID int64
@@ -58,11 +61,34 @@ func newFakeStreamsRepository(tenantId uuid.UUID, namespace, topic string, n int
 		})
 	}
 
-	return &fakeStreamsRepository{messages: msgs}
+	return &fakeStreamsRepository{messages: msgs, lastOffset: int64(n)}
+}
+
+func (f *fakeStreamsRepository) GetTopicInfo(_ context.Context, _ uuid.UUID, namespace, topic string) (v1.StreamTopicInfo, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return v1.StreamTopicInfo{Namespace: namespace, Topic: topic, LastOffset: f.lastOffset}, nil
+}
+
+func (f *fakeStreamsRepository) readCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.reads
+}
+
+// reserveOffset stands in for a rejected publish, which reserves an offset it never stores
+func (f *fakeStreamsRepository) reserveOffset() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.lastOffset++
 }
 
 func (f *fakeStreamsRepository) ListMessagesAfterCursor(_ context.Context, _ uuid.UUID, opts v1.ListStreamMessagesOpts) ([]*sqlcv1.V1StreamMessage, error) {
 	f.mu.Lock()
+	f.reads++
 	out := f.listLocked(opts)
 	hook := f.afterNextRead
 	f.afterNextRead = nil
@@ -96,6 +122,7 @@ func (f *fakeStreamsRepository) appendMessage(id int64, at time.Time) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
+	f.lastOffset = max(f.lastOffset, id)
 	f.messages = append(f.messages, &sqlcv1.V1StreamMessage{
 		ID:         id,
 		InsertedAt: pgtype.Timestamptz{Time: at, Valid: true},
@@ -196,6 +223,35 @@ func TestTopicPollerRegistry_OnePollerPerTopicForAsLongAsItHasListeners(t *testi
 	assert.Contains(t, pollers(), keyB)
 
 	leaveB()
+}
+
+func TestTopicPoller_ReadsMessagesOnlyAfterAnOffsetIsReserved(t *testing.T) {
+	tenantId := uuid.New()
+	repo := newFakeStreamsRepository(tenantId, "", "topic", 0, time.Now())
+	registry := newTopicPollerRegistry(repo, fakePubSub{}, testLogger(), 5*time.Millisecond, time.Hour)
+	listener := &collectingListener{}
+
+	unregister, err := registry.Join(context.Background(), topicPollerKey{tenantId: tenantId, topic: "topic"}, v1.StreamCursor{}, &topicListener{send: listener.send, cancel: func() {}})
+	require.NoError(t, err)
+	defer unregister()
+
+	idleReads := func() int {
+		before := repo.readCount()
+		time.Sleep(50 * time.Millisecond)
+		return repo.readCount() - before
+	}
+
+	assert.Zero(t, idleReads(), "ticks on an idle topic skip the message read")
+
+	repo.appendMessage(1, time.Now())
+	require.Eventually(t, func() bool { return listener.count() == 1 }, time.Second, 5*time.Millisecond)
+	assert.Zero(t, idleReads(), "once delivered, the topic is idle again")
+
+	readsBefore := repo.readCount()
+	repo.reserveOffset()
+	require.Eventually(t, func() bool { return repo.readCount() > readsBefore }, time.Second, 5*time.Millisecond)
+	assert.Zero(t, idleReads(), "an offset reserved but never stored is read once, not every tick")
+	assert.Equal(t, 1, listener.count())
 }
 
 func TestTopicPollerRegistry_JoinCatchesUpBeforeAttaching(t *testing.T) {
