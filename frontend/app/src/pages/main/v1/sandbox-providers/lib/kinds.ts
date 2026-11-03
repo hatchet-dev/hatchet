@@ -41,10 +41,11 @@ export const KINDS: Record<
   },
   [SandboxProviderKind.FREESTYLE]: {
     label: 'Freestyle',
-    description: 'Freestyle VMs.',
-    keyHint: 'A Freestyle API key. The Freestyle driver is not available yet.',
-    templatePlaceholder: '',
-    available: false,
+    description: 'Freestyle VMs with instant memory and disk snapshots.',
+    keyHint:
+      'An API key from admin.freestyle.sh. Leave the template empty for the platform default image, or set a snapshot id or slug.',
+    templatePlaceholder: 'sh-… or your-snapshot-slug',
+    available: true,
   },
 };
 

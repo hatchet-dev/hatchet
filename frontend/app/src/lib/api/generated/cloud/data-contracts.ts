@@ -1248,7 +1248,7 @@ export interface CreateSandboxProviderRequest {
    * @minLength 1
    */
   apiKey: string;
-  /** Vendor-specific settings. For Daytona, apiUrl, template, workdir and snapshotEveryTurn. */
+  /** Vendor-specific settings. Every kind reads apiUrl, template, workdir and snapshotEveryTurn. */
   config?: Record<string, any>;
   defaultTemplate?: string;
   /**
