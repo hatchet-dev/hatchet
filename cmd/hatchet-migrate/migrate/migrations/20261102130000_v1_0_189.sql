@@ -1,7 +1,7 @@
 -- +goose Up
 -- +goose StatementBegin
 
-ALTER TABLE v1_runs_olap ADD COLUMN IF NOT EXISTS finished_at TIMESTAMPTZ;
+ALTER TABLE v1_runs_olap ADD COLUMN finished_at TIMESTAMPTZ;
 
 CREATE OR REPLACE FUNCTION v1_tasks_olap_insert_function()
 RETURNS TRIGGER AS
