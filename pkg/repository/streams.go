@@ -208,12 +208,10 @@ type StreamsRepository interface {
 }
 
 type StreamTopicInfo struct {
-	Namespace string
-	Topic     string
-	// where subscribers without a cursor start: after the last reset, else the topic's beginning
+	Namespace      string
+	Topic          string
 	StartingOffset int64
-	// the last offset reserved, which commits with its messages, so every message up to it is readable
-	LastOffset int64
+	LastOffset     int64
 }
 
 // StartCursor has no time, so it never expires.

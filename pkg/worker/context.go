@@ -1199,13 +1199,6 @@ func (d *durableHatchetContext) waitFor(conditions condition.Condition, waitKind
 
 	// compose the durable event to listen for
 	c := conditions.ToPB(v1.Action_CREATE)
-
-	// pushed events are namespaced, so raw UserEventCondition keys passed to WaitFor would never match
-	namespace := d.c.Namespace()
-	for _, uc := range c.UserEventConditions {
-		uc.UserEventKey = clientconfig.ApplyNamespace(uc.UserEventKey, &namespace)
-	}
-
 	signalKey := fmt.Sprintf("signal-%d", count)
 
 	if resourceID == "" {

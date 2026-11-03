@@ -3,11 +3,13 @@ package streams
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"sync"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -34,6 +36,54 @@ type topicListener struct {
 	cancel context.CancelFunc
 }
 
+// listenerQueueSize is how many frames a listener can fall behind before it's
+// dropped; its client resubscribes from the last cursor it received.
+const listenerQueueSize = 64
+
+// listenerQueue sends to one listener from its own goroutine, so a reader that
+// stops reading blocks only itself, never the poller's lock.
+type listenerQueue struct {
+	listener *topicListener
+	frames   chan *contracts.StreamMessage
+}
+
+func startListenerQueue(listener *topicListener) *listenerQueue {
+	q := &listenerQueue{listener: listener, frames: make(chan *contracts.StreamMessage, listenerQueueSize)}
+
+	go q.run()
+
+	return q
+}
+
+// run cancels the RPC once the queue is closed and drained, so a final hangup is written before the stream ends.
+func (q *listenerQueue) run() {
+	defer q.listener.cancel()
+
+	for frame := range q.frames {
+		if err := q.listener.send(frame); err != nil {
+			q.listener.cancel()
+
+			for range q.frames {
+				continue
+			}
+
+			return
+		}
+	}
+}
+
+// enqueue never blocks; false means the listener has fallen too far behind.
+func (q *listenerQueue) enqueue(frame *contracts.StreamMessage) bool {
+	select {
+	case q.frames <- frame:
+		return true
+	default:
+		return false
+	}
+}
+
+var errListenerFellBehind = errors.New("stream listener fell too far behind")
+
 // topicPoller is one topic's tail loop, shared by every Subscribe RPC on it.
 type topicPoller struct {
 	streams           v1.StreamsRepository
@@ -47,12 +97,15 @@ type topicPoller struct {
 	cursor  v1.StreamCursor
 	// every message up to this reserved offset has been fanned out
 	checkedOffset  int64
-	listeners      map[int]*topicListener
+	listeners      map[int]*listenerQueue
 	nextID         int
 	cancel         context.CancelFunc
 	lastActivityAt time.Time
 
 	wake chan struct{}
+
+	// Join calls and registered listeners; the registry removes the poller at zero. Guarded by the registry's mu.
+	members int
 }
 
 func newTopicPoller(streams v1.StreamsRepository, l *zerolog.Logger, key topicPollerKey, tailPollInterval, idleHangupTimeout time.Duration) *topicPoller {
@@ -62,7 +115,7 @@ func newTopicPoller(streams v1.StreamsRepository, l *zerolog.Logger, key topicPo
 		key:               key,
 		tailPollInterval:  tailPollInterval,
 		idleHangupTimeout: idleHangupTimeout,
-		listeners:         make(map[int]*topicListener),
+		listeners:         make(map[int]*listenerQueue),
 		wake:              make(chan struct{}, 1),
 	}
 }
@@ -79,6 +132,21 @@ func (p *topicPoller) join(ctx context.Context, startCursor v1.StreamCursor, lis
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	q := startListenerQueue(listener)
+
+	if err := p.attachLocked(ctx, startCursor, q); err != nil {
+		close(q.frames)
+		return 0, err
+	}
+
+	p.nextID++
+	id := p.nextID
+	p.listeners[id] = q
+
+	return id, nil
+}
+
+func (p *topicPoller) attachLocked(ctx context.Context, startCursor v1.StreamCursor, q *listenerQueue) error {
 	if !p.running {
 		p.running = true
 		p.cursor = startCursor
@@ -87,43 +155,45 @@ func (p *topicPoller) join(ctx context.Context, startCursor v1.StreamCursor, lis
 	} else {
 		if startCursor.After(p.cursor) {
 			if _, err := p.pollLocked(ctx); err != nil {
-				return 0, err
+				return err
 			}
 		}
 
 		// rows up to p.cursor were already fanned out to earlier listeners only
 		if p.cursor.After(startCursor) {
-			if err := p.catchUpLocked(ctx, startCursor, listener); err != nil {
-				return 0, err
-			}
+			return p.catchUpLocked(ctx, startCursor, q)
 		}
 	}
 
-	p.nextID++
-	id := p.nextID
-	p.listeners[id] = listener
-
-	return id, nil
+	return nil
 }
 
-func (p *topicPoller) leave(id int) (idle bool) {
+func (p *topicPoller) leave(id int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	delete(p.listeners, id)
+	p.removeListenerLocked(id)
 
 	if len(p.listeners) == 0 {
-		p.running = false
-
-		if p.cancel != nil {
-			p.cancel()
-			p.cancel = nil
-		}
-
-		return true
+		p.stopLocked()
 	}
+}
 
-	return false
+// removeListenerLocked lets the listener's queue drain, then ends its RPC.
+func (p *topicPoller) removeListenerLocked(id int) {
+	if q, ok := p.listeners[id]; ok {
+		delete(p.listeners, id)
+		close(q.frames)
+	}
+}
+
+func (p *topicPoller) stopLocked() {
+	p.running = false
+
+	if p.cancel != nil {
+		p.cancel()
+		p.cancel = nil
+	}
 }
 
 func (p *topicPoller) startLocked() {
@@ -187,21 +257,15 @@ func (p *topicPoller) hangUpIfIdleLocked() {
 
 	hangup := &contracts.StreamMessage{Cursor: encodedCursor, Hangup: true}
 
-	for id, l := range p.listeners {
-		if sendErr := l.send(hangup); sendErr != nil {
-			p.l.Debug().Err(sendErr).Msg("stream listener send failed during idle hangup")
+	for id, q := range p.listeners {
+		if !q.enqueue(hangup) {
+			q.listener.cancel()
 		}
 
-		delete(p.listeners, id)
-		l.cancel()
+		p.removeListenerLocked(id)
 	}
 
-	p.running = false
-
-	if p.cancel != nil {
-		p.cancel()
-		p.cancel = nil
-	}
+	p.stopLocked()
 }
 
 // sendStats counts what a send callback delivered, once per frame however many listeners it fans out to.
@@ -266,11 +330,11 @@ func (p *topicPoller) pollLocked(ctx context.Context) (sendStats, error) {
 	var stats sendStats
 
 	last, err := sendRange(ctx, p.streams, p.key, p.cursor, math.MaxInt64, stats.counting(func(out *contracts.StreamMessage) error {
-		for id, l := range p.listeners {
-			if sendErr := l.send(out); sendErr != nil {
-				p.l.Debug().Ctx(ctx).Err(sendErr).Msg("removing stream listener after send failure")
-				delete(p.listeners, id)
-				l.cancel()
+		for id, q := range p.listeners {
+			if !q.enqueue(out) {
+				p.l.Warn().Ctx(ctx).Msg("dropping stream listener that fell too far behind; it resumes from its cursor")
+				q.listener.cancel()
+				p.removeListenerLocked(id)
 			}
 		}
 
@@ -287,8 +351,15 @@ func (p *topicPoller) pollLocked(ctx context.Context) (sendStats, error) {
 
 // catchUpLocked sends listener the rows in (from, p.cursor] that the poller
 // fanned out before it joined.
-func (p *topicPoller) catchUpLocked(ctx context.Context, from v1.StreamCursor, listener *topicListener) error {
-	_, err := sendRange(ctx, p.streams, p.key, from, p.cursor.ID, listener.send)
+func (p *topicPoller) catchUpLocked(ctx context.Context, from v1.StreamCursor, q *listenerQueue) error {
+	_, err := sendRange(ctx, p.streams, p.key, from, p.cursor.ID, func(out *contracts.StreamMessage) error {
+		if !q.enqueue(out) {
+			return connect.NewError(connect.CodeUnavailable, errListenerFellBehind)
+		}
+
+		return nil
+	})
+
 	return err
 }
 
@@ -419,6 +490,24 @@ func (r *topicPollerRegistry) Join(ctx context.Context, key topicPollerKey, star
 		return nil, err
 	}
 
+	p := r.acquire(key)
+
+	// outside r.mu, so a poller busy with a slow read can't stall Joins on other topics
+	id, err := p.join(ctx, startCursor, listener)
+
+	if err != nil {
+		r.release(key, p)
+		return nil, err
+	}
+
+	return func() {
+		p.leave(id)
+		r.release(key, p)
+	}, nil
+}
+
+// acquire counts a member on key's poller, creating it if needed, so it outlives a Join in progress.
+func (r *topicPollerRegistry) acquire(key topicPollerKey) *topicPoller {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -432,29 +521,21 @@ func (r *topicPollerRegistry) Join(ctx context.Context, key topicPollerKey, star
 		r.wakeTargets.Store(key, p)
 	}
 
-	id, err := p.join(ctx, startCursor, listener)
+	p.members++
 
-	if err != nil {
-		if !ok {
-			r.removeLocked(key)
-		}
-
-		return nil, err
-	}
-
-	return func() {
-		r.mu.Lock()
-		defer r.mu.Unlock()
-
-		if p.leave(id) {
-			r.removeLocked(key)
-		}
-	}, nil
+	return p
 }
 
-func (r *topicPollerRegistry) removeLocked(key topicPollerKey) {
-	delete(r.pollers, key)
-	r.wakeTargets.Delete(key)
+func (r *topicPollerRegistry) release(key topicPollerKey, p *topicPoller) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	p.members--
+
+	if p.members == 0 && r.pollers[key] == p {
+		delete(r.pollers, key)
+		r.wakeTargets.Delete(key)
+	}
 }
 
 // on failure pollers still tick, and the next Join retries
