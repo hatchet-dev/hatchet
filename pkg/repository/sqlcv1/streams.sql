@@ -297,6 +297,7 @@ SELECT
     t.topic,
     t.inserted_at,
     t.last_published_at,
+    t.starting_offset,
     (
         SELECT COUNT(*)
         FROM v1_stream_message m
@@ -308,7 +309,8 @@ SELECT
 FROM v1_stream_topic t
 WHERE t.tenant_id = @tenantId::uuid
     AND (sqlc.narg('search')::text IS NULL OR t.topic ILIKE '%' || sqlc.narg('search')::text || '%' OR t.namespace ILIKE '%' || sqlc.narg('search')::text || '%')
-ORDER BY t.namespace, t.topic
+-- namespace and topic break ties so pages stay stable
+ORDER BY t.last_published_at DESC, t.namespace, t.topic
 LIMIT @topicLimit::integer
 OFFSET @topicOffset::integer;
 

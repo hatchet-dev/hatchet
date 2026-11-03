@@ -569,6 +569,7 @@ SELECT
     t.topic,
     t.inserted_at,
     t.last_published_at,
+    t.starting_offset,
     (
         SELECT COUNT(*)
         FROM v1_stream_message m
@@ -580,7 +581,7 @@ SELECT
 FROM v1_stream_topic t
 WHERE t.tenant_id = $2::uuid
     AND ($3::text IS NULL OR t.topic ILIKE '%' || $3::text || '%' OR t.namespace ILIKE '%' || $3::text || '%')
-ORDER BY t.namespace, t.topic
+ORDER BY t.last_published_at DESC, t.namespace, t.topic
 LIMIT $5::integer
 OFFSET $4::integer
 `
@@ -598,10 +599,12 @@ type ListStreamTopicsRow struct {
 	Topic           string             `json:"topic"`
 	InsertedAt      pgtype.Timestamptz `json:"inserted_at"`
 	LastPublishedAt pgtype.Timestamptz `json:"last_published_at"`
+	StartingOffset  int64              `json:"starting_offset"`
 	MessageCount    int64              `json:"message_count"`
 }
 
 // message_count covers only messages within the tenant's retention.
+// namespace and topic break ties so pages stay stable
 func (q *Queries) ListStreamTopics(ctx context.Context, db DBTX, arg ListStreamTopicsParams) ([]*ListStreamTopicsRow, error) {
 	rows, err := db.Query(ctx, listStreamTopics,
 		arg.Retainedsince,
@@ -622,6 +625,7 @@ func (q *Queries) ListStreamTopics(ctx context.Context, db DBTX, arg ListStreamT
 			&i.Topic,
 			&i.InsertedAt,
 			&i.LastPublishedAt,
+			&i.StartingOffset,
 			&i.MessageCount,
 		); err != nil {
 			return nil, err

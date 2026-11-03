@@ -64,6 +64,7 @@ func (s *V1StreamsService) V1StreamTopicList(ctx echo.Context, request gen.V1Str
 			CreatedAt:       row.InsertedAt.Time,
 			LastPublishedAt: row.LastPublishedAt.Time,
 			MessageCount:    row.MessageCount,
+			StartingOffset:  row.StartingOffset,
 		}
 	}
 
