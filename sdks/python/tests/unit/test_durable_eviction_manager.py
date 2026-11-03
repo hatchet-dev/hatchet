@@ -31,7 +31,7 @@ def test_handle_server_eviction_cancels_and_unregisters() -> None:
     key = "run-1/0"
     mgr.register_run(
         key,
-        step_run_id="ext-1",
+        task_run_external_id="ext-1",
         invocation_count=2,
         eviction_policy=EvictionPolicy(ttl=timedelta(seconds=30)),
     )
@@ -47,7 +47,10 @@ def test_handle_server_eviction_unknown_id_is_noop() -> None:
     mgr, cancel = _make_manager()
 
     mgr.register_run(
-        "run-1/0", step_run_id="ext-1", invocation_count=1, eviction_policy=None
+        "run-1/0",
+        task_run_external_id="ext-1",
+        invocation_count=1,
+        eviction_policy=None,
     )
 
     mgr.handle_server_eviction("no-such-id", 1)
@@ -61,13 +64,13 @@ def test_handle_server_eviction_only_evicts_matching_run() -> None:
 
     mgr.register_run(
         "run-1/0",
-        step_run_id="ext-1",
+        task_run_external_id="ext-1",
         invocation_count=1,
         eviction_policy=EvictionPolicy(ttl=timedelta(seconds=30)),
     )
     mgr.register_run(
         "run-2/0",
-        step_run_id="ext-2",
+        task_run_external_id="ext-2",
         invocation_count=1,
         eviction_policy=EvictionPolicy(ttl=timedelta(seconds=30)),
     )
@@ -86,7 +89,7 @@ def test_handle_server_eviction_skips_newer_invocation() -> None:
 
     mgr.register_run(
         "run-1/0",
-        step_run_id="ext-1",
+        task_run_external_id="ext-1",
         invocation_count=3,
         eviction_policy=EvictionPolicy(ttl=timedelta(seconds=30)),
     )
@@ -103,7 +106,7 @@ def test_handle_server_eviction_evicts_exact_invocation_match() -> None:
 
     mgr.register_run(
         "run-1/0",
-        step_run_id="ext-1",
+        task_run_external_id="ext-1",
         invocation_count=5,
         eviction_policy=EvictionPolicy(ttl=timedelta(seconds=30)),
     )

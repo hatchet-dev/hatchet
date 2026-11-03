@@ -1,8 +1,8 @@
 ---
-title: "Cron"
+title: "Crons"
 ---
 
-# Cron Client
+# Crons Client
 
 Bases: `BaseRestClient`
 
@@ -36,13 +36,13 @@ Parameters:
 | `expression`          | `str`                     | The cron expression defining the schedule.            | _required_ |
 | `input`               | `JSONSerializableMapping` | The input data for the cron workflow.                 | _required_ |
 | `additional_metadata` | `JSONSerializableMapping` | Additional metadata associated with the cron trigger. | _required_ |
-| `priority`            | `int \| Priority \| None` | The priority of the cron workflow trigger.            | `None`     |
+| `priority`            | `Priority \| None`        | The priority of the cron workflow trigger.            | `None`     |
 
 Returns:
 
-| Type            | Description                         |
-| --------------- | ----------------------------------- |
-| `CronWorkflows` | The created cron workflow instance. |
+| Type          | Description               |
+| ------------- | ------------------------- |
+| `CronTrigger` | The created cron trigger. |
 
 #### `aio_delete`
 
@@ -66,15 +66,15 @@ Retrieve a specific workflow cron trigger by ID.
 
 Parameters:
 
-| Name      | Type  | Description                                                | Default    |
-| --------- | ----- | ---------------------------------------------------------- | ---------- |
-| `cron_id` | `str` | The cron trigger ID or CronWorkflows instance to retrieve. | _required_ |
+| Name      | Type  | Description                             | Default    |
+| --------- | ----- | --------------------------------------- | ---------- |
+| `cron_id` | `str` | The ID of the cron trigger to retrieve. | _required_ |
 
 Returns:
 
-| Type            | Description                           |
-| --------------- | ------------------------------------- |
-| `CronWorkflows` | The requested cron workflow instance. |
+| Type          | Description                 |
+| ------------- | --------------------------- |
+| `CronTrigger` | The requested cron trigger. |
 
 #### `aio_list`
 
@@ -95,9 +95,9 @@ Parameters:
 
 Returns:
 
-| Type                | Description               |
-| ------------------- | ------------------------- |
-| `CronWorkflowsList` | A list of cron workflows. |
+| Type                | Description              |
+| ------------------- | ------------------------ |
+| `list[CronTrigger]` | A list of cron triggers. |
 
 #### `create`
 
@@ -112,13 +112,13 @@ Parameters:
 | `expression`          | `str`                     | The cron expression defining the schedule.            | _required_ |
 | `input`               | `JSONSerializableMapping` | The input data for the cron workflow.                 | _required_ |
 | `additional_metadata` | `JSONSerializableMapping` | Additional metadata associated with the cron trigger. | _required_ |
-| `priority`            | `int \| Priority \| None` | The priority of the cron workflow trigger.            | `None`     |
+| `priority`            | `Priority \| None`        | The priority of the cron workflow trigger.            | `None`     |
 
 Returns:
 
-| Type            | Description                         |
-| --------------- | ----------------------------------- |
-| `CronWorkflows` | The created cron workflow instance. |
+| Type          | Description               |
+| ------------- | ------------------------- |
+| `CronTrigger` | The created cron trigger. |
 
 #### `delete`
 
@@ -142,15 +142,15 @@ Retrieve a specific workflow cron trigger by ID.
 
 Parameters:
 
-| Name      | Type  | Description                                                | Default    |
-| --------- | ----- | ---------------------------------------------------------- | ---------- |
-| `cron_id` | `str` | The cron trigger ID or CronWorkflows instance to retrieve. | _required_ |
+| Name      | Type  | Description                             | Default    |
+| --------- | ----- | --------------------------------------- | ---------- |
+| `cron_id` | `str` | The ID of the cron trigger to retrieve. | _required_ |
 
 Returns:
 
-| Type            | Description                           |
-| --------------- | ------------------------------------- |
-| `CronWorkflows` | The requested cron workflow instance. |
+| Type          | Description                 |
+| ------------- | --------------------------- |
+| `CronTrigger` | The requested cron trigger. |
 
 #### `list`
 
@@ -171,6 +171,6 @@ Parameters:
 
 Returns:
 
-| Type                | Description               |
-| ------------------- | ------------------------- |
-| `CronWorkflowsList` | A list of cron workflows. |
+| Type                | Description              |
+| ------------------- | ------------------------ |
+| `list[CronTrigger]` | A list of cron triggers. |

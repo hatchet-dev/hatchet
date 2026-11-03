@@ -10,7 +10,7 @@ from examples.bug_tests.dag_replay_twice.worker import (
     second,
 )
 from examples.test_utils import wait_for_running_status
-from hatchet_sdk import FailedTaskRunExceptionGroup, Hatchet, RunStatus, V1TaskStatus
+from hatchet_sdk import FailedTaskRunExceptionGroup, Hatchet, RunStatus
 
 # The DAG operator reports that it is blocked every 10 seconds, and the engine evicts the idle
 # invocation on that report. A step that runs longer than that forces the operator to be
@@ -23,7 +23,7 @@ async def wait_for_task_status(
     hatchet: Hatchet,
     run_id: str,
     task_name: str,
-    status: V1TaskStatus,
+    status: RunStatus,
     timeout: float = 60.0,
 ) -> None:
     interval = 0.5
@@ -69,8 +69,8 @@ async def run_until_first_step_fails(
 
     details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
 
-    assert details.task_runs[first.name].status == V1TaskStatus.FAILED
-    assert details.task_runs[second.name].status == V1TaskStatus.CANCELLED
+    assert details.task_runs[first.name].status == RunStatus.FAILED
+    assert details.task_runs[second.name].status == RunStatus.CANCELLED
 
     return ref.workflow_run_id
 
@@ -83,8 +83,8 @@ async def replay_and_await_completion(
     await wait_for_run_status(hatchet, run_id, RunStatus.COMPLETED, timeout=90)
 
     details = await hatchet.runs.aio_get_details(run_id)
-    assert details.task_runs[first.name].status == V1TaskStatus.COMPLETED
-    assert details.task_runs[second.name].status == V1TaskStatus.COMPLETED
+    assert details.task_runs[first.name].status == RunStatus.COMPLETED
+    assert details.task_runs[second.name].status == RunStatus.COMPLETED
 
     return {name: task_run.output for name, task_run in details.task_runs.items()}
 
@@ -151,14 +151,14 @@ async def test_dag_single_task_replay_then_cancel_then_whole_run_replay(
     details = await hatchet.runs.aio_get_details(run_id)
 
     await hatchet.runs.aio_replay(details.task_runs[first.name].external_id)
-    await wait_for_task_status(hatchet, run_id, second.name, V1TaskStatus.RUNNING)
+    await wait_for_task_status(hatchet, run_id, second.name, RunStatus.RUNNING)
 
     await hatchet.runs.aio_cancel(run_id)
     await wait_for_run_status(hatchet, run_id, RunStatus.CANCELLED)
 
     details = await hatchet.runs.aio_get_details(run_id)
-    assert details.task_runs[first.name].status == V1TaskStatus.COMPLETED
-    assert details.task_runs[second.name].status == V1TaskStatus.CANCELLED
+    assert details.task_runs[first.name].status == RunStatus.COMPLETED
+    assert details.task_runs[second.name].status == RunStatus.CANCELLED
 
     result = await replay_and_await_completion(hatchet, run_id, run_id)
     assert result[first.name] == {"retry_count": 2}
@@ -179,7 +179,7 @@ async def test_dag_completes_after_replaying_a_step_that_is_still_running(
     )
     run_id = ref.workflow_run_id
 
-    await wait_for_task_status(hatchet, run_id, first.name, V1TaskStatus.RUNNING)
+    await wait_for_task_status(hatchet, run_id, first.name, RunStatus.RUNNING)
 
     details = await hatchet.runs.aio_get_details(run_id)
     await hatchet.runs.aio_replay(details.task_runs[first.name].external_id)
@@ -187,5 +187,5 @@ async def test_dag_completes_after_replaying_a_step_that_is_still_running(
     await wait_for_run_status(hatchet, run_id, RunStatus.COMPLETED, timeout=120)
 
     details = await hatchet.runs.aio_get_details(run_id)
-    assert details.task_runs[first.name].status == V1TaskStatus.COMPLETED
-    assert details.task_runs[second.name].status == V1TaskStatus.COMPLETED
+    assert details.task_runs[first.name].status == RunStatus.COMPLETED
+    assert details.task_runs[second.name].status == RunStatus.COMPLETED

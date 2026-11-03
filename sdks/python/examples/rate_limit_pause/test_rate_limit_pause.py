@@ -8,7 +8,6 @@ import pytest
 from examples.rate_limit_pause.worker import RateLimitPauseInput, rate_limit_pause_task
 from hatchet_sdk import Hatchet, RunStatus
 from hatchet_sdk.clients.rest.api.rate_limits_api import RateLimitsApi
-from hatchet_sdk.rate_limit import RateLimitDuration
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -19,7 +18,7 @@ async def test_rate_limit_pause(hatchet: Hatchet) -> None:
 
     try:
         # a held run never creates its dynamic rate limit, so the row has to exist up front to check its units
-        await hatchet.rate_limits.aio_put(paused_key, 10, RateLimitDuration.HOUR)
+        await hatchet.rate_limits.aio_put(paused_key, 10, duration="HOUR")
 
         paused_until = await hatchet.rate_limits.aio_pause(
             paused_key, datetime.now(timezone.utc) + timedelta(seconds=15)
@@ -43,11 +42,11 @@ async def test_rate_limit_pause(hatchet: Hatchet) -> None:
         ), f"Run with a paused key is not queued (status {paused_details.status})."
 
         rate_limits = await hatchet.rate_limits.aio_list(search=paused_key)
-        assert rate_limits.rows is not None and len(rate_limits.rows) == 1
-        assert rate_limits.rows[0].paused_until is not None
+        assert len(rate_limits) == 1
+        assert rate_limits[0].paused_until is not None
         assert (
-            rate_limits.rows[0].value == 10
-        ), f"A queued run consumed units of a paused key (value {rate_limits.rows[0].value})."
+            rate_limits[0].value == 10
+        ), f"A queued run consumed units of a paused key (value {rate_limits[0].value})."
 
         while datetime.now(timezone.utc) < paused_until - timedelta(seconds=1):
             paused_details = await hatchet.runs.aio_get_details(
@@ -88,15 +87,15 @@ async def test_rate_limit_pause(hatchet: Hatchet) -> None:
 
         while True:
             rate_limits = await hatchet.rate_limits.aio_list(search=paused_key)
-            assert rate_limits.rows is not None and len(rate_limits.rows) == 1
-            assert rate_limits.rows[0].paused_until is None
+            assert len(rate_limits) == 1
+            assert rate_limits[0].paused_until is None
 
-            if rate_limits.rows[0].value == 9:
+            if rate_limits[0].value == 9:
                 break
 
             assert (
                 time.time() - start < 10
-            ), f"Run did not consume units after the pause ended (value {rate_limits.rows[0].value})."
+            ), f"Run did not consume units after the pause ended (value {rate_limits[0].value})."
 
             await asyncio.sleep(1)
     finally:

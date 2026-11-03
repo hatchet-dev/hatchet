@@ -7,13 +7,14 @@ This is the Python SDK reference, documenting methods available for interacting 
 ::: hatchet.Hatchet
     options:
       members:
-        - cron
-        - event
+        - crons
+        - events
         - logs
         - metrics
         - rate_limits
         - runs
         - scheduled
+        - tenant
         - streams
         - workers
         - workflows

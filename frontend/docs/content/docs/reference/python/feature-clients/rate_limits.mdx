@@ -37,9 +37,9 @@ Parameters:
 
 Returns:
 
-| Type            | Description            |
-| --------------- | ---------------------- |
-| `RateLimitList` | A list of rate limits. |
+| Type              | Description            |
+| ----------------- | ---------------------- |
+| `list[RateLimit]` | A list of rate limits. |
 
 #### `aio_pause`
 
@@ -70,7 +70,7 @@ Parameters:
 | ---------- | ------------------- | ---------------------------------- | ---------- |
 | `key`      | `str`               | The key to set the rate limit for. | _required_ |
 | `limit`    | `int`               | The rate limit to set.             | _required_ |
-| `duration` | `RateLimitDuration` | The duration of the rate limit.    | `SECOND`   |
+| `duration` | `RateLimitDuration` | The duration of the rate limit.    | `'SECOND'` |
 
 Returns:
 
@@ -94,9 +94,9 @@ Parameters:
 
 Returns:
 
-| Type            | Description            |
-| --------------- | ---------------------- |
-| `RateLimitList` | A list of rate limits. |
+| Type              | Description            |
+| ----------------- | ---------------------- |
+| `list[RateLimit]` | A list of rate limits. |
 
 #### `pause`
 
@@ -127,7 +127,7 @@ Parameters:
 | ---------- | ------------------- | ---------------------------------- | ---------- |
 | `key`      | `str`               | The key to set the rate limit for. | _required_ |
 | `limit`    | `int`               | The rate limit to set.             | _required_ |
-| `duration` | `RateLimitDuration` | The duration of the rate limit.    | `SECOND`   |
+| `duration` | `RateLimitDuration` | The duration of the rate limit.    | `'SECOND'` |
 
 Returns:
 

@@ -11,24 +11,24 @@ this module provides the old worker start flow which:
 from __future__ import annotations
 
 import asyncio
-import multiprocessing.context
 import os
-import sys
-from multiprocessing import Queue
 from typing import TYPE_CHECKING, Any
 
 from hatchet_sdk.deprecated.action_listener_process import (
     legacy_worker_action_listener_process,
 )
 from hatchet_sdk.logger import logger
-from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.runnables.contextvars import task_count
-from hatchet_sdk.runnables.task import Task
-from hatchet_sdk.utils.typing import STOP_LOOP_TYPE
-from hatchet_sdk.worker.action_listener_process import ActionEvent
 from hatchet_sdk.worker.runner.run_loop_manager import WorkerActionRunLoopManager
 
 if TYPE_CHECKING:
+    import multiprocessing.context
+    from multiprocessing import Queue
+
+    from hatchet_sdk.runnables.action import Action
+    from hatchet_sdk.runnables.task import Task
+    from hatchet_sdk.utils.typing import STOP_LOOP_TYPE
+    from hatchet_sdk.worker.action_listener_process import ActionEvent
     from hatchet_sdk.worker.worker import Worker
 
 
@@ -176,8 +176,6 @@ def _legacy_start_action_listener(
                 worker._config,
                 action_queue,
                 event_queue,
-                worker._handle_kill,
-                worker._client.debug,
                 worker._labels,
                 worker._worker_id_queue,
                 worker._stop_listener_event,
@@ -190,7 +188,7 @@ def _legacy_start_action_listener(
         return process
     except Exception:
         logger.exception("failed to start legacy action listener")
-        sys.exit(1)
+        raise
 
 
 def _legacy_run_action_runner(
@@ -200,7 +198,7 @@ def _legacy_run_action_runner(
     max_runs: int,
     action_queue: Queue[Any],
     event_queue: Queue[Any],
-    lifespan_context: Any | None,
+    lifespan_context: Any | None,  # noqa: ANN401
 ) -> WorkerActionRunLoopManager:
     if worker._loop:
         return WorkerActionRunLoopManager(
@@ -212,8 +210,6 @@ def _legacy_run_action_runner(
             action_queue,
             event_queue,
             worker._loop,
-            worker._handle_kill,
-            worker._client.debug,
             worker._labels,
             lifespan_context,
         )
@@ -242,7 +238,7 @@ async def _legacy_check_listener_health(
                 logger.debug("child action listener process killed...")
                 worker._status = WorkerStatus.UNHEALTHY
                 if worker._loop:
-                    worker._loop.create_task(worker.exit_gracefully())
+                    worker._loop.create_task(worker._exit_gracefully())
                 break
 
             if (
@@ -250,7 +246,7 @@ async def _legacy_check_listener_health(
                 and task_count.value >= worker._config.terminate_worker_after_num_tasks
             ):
                 if worker._loop:
-                    worker._loop.create_task(worker.exit_gracefully())
+                    worker._loop.create_task(worker._exit_gracefully())
                 break
 
             worker._status = WorkerStatus.HEALTHY

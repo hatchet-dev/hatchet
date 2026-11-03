@@ -16,7 +16,7 @@ from examples.concurrency_workflow_level.worker import (
     concurrency_workflow_level_workflow,
 )
 from hatchet_sdk import Hatchet
-from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
+from hatchet_sdk import TaskRunSummary
 
 Character = Literal["Anna", "Vronsky", "Stiva", "Dolly", "Levin", "Karenin"]
 characters: list[Character] = [
@@ -40,7 +40,7 @@ class RunWindow(BaseModel):
     finished_at: datetime
 
 
-def build_run_windows(tasks: list[V1TaskSummary]) -> list[RunWindow]:
+def build_run_windows(tasks: list[TaskRunSummary]) -> list[RunWindow]:
     """Build one execution window per workflow run from its task rows.
 
     A workflow run holds its workflow-level concurrency slots from the moment
@@ -61,22 +61,20 @@ def build_run_windows(tasks: list[V1TaskSummary]) -> list[RunWindow]:
     windows: dict[str, RunWindow] = {}
 
     for task in tasks:
-        assert (
-            task.started_at is not None
-        ), f"task {task.task_external_id} has no started_at"
+        assert task.started_at is not None, f"task {task.task_run_id} has no started_at"
         assert (
             task.finished_at is not None
-        ), f"task {task.task_external_id} has no finished_at"
+        ), f"task {task.task_run_id} has no finished_at"
 
         meta = task.additional_metadata or {}
-        existing = windows.get(task.workflow_run_external_id)
+        existing = windows.get(task.workflow_run_id)
 
         if existing is not None:
             existing.started_at = min(existing.started_at, task.started_at)
             existing.finished_at = max(existing.finished_at, task.finished_at)
         else:
-            windows[task.workflow_run_external_id] = RunWindow(
-                run_id=task.workflow_run_external_id,
+            windows[task.workflow_run_id] = RunWindow(
+                run_id=task.workflow_run_id,
                 name=meta.get("name", ""),
                 digit=meta.get("digit", ""),
                 started_at=task.started_at,
@@ -127,9 +125,7 @@ def violations(peaks: dict[str, int], limit: int) -> dict[str, int]:
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_workflow_level_concurrency(hatchet: Hatchet) -> None:
-    test_run_id = str(uuid4())
-
+async def test_workflow_level_concurrency(hatchet: Hatchet, test_run_id: str) -> None:
     run_refs = await concurrency_workflow_level_workflow.aio_run_many(
         [
             concurrency_workflow_level_workflow.create_bulk_run_item(
@@ -152,12 +148,10 @@ async def test_workflow_level_concurrency(hatchet: Hatchet) -> None:
     await asyncio.sleep(10)
     await asyncio.gather(*[r.aio_result() for r in run_refs])
 
-    workflows = (
-        await hatchet.workflows.aio_list(
-            workflow_name=concurrency_workflow_level_workflow.name,
-            limit=1_000,
-        )
-    ).rows
+    workflows = await hatchet.workflows.aio_list(
+        workflow_name=concurrency_workflow_level_workflow.name,
+        limit=1_000,
+    )
 
     assert workflows
 
@@ -172,20 +166,18 @@ async def test_workflow_level_concurrency(hatchet: Hatchet) -> None:
 
     # The OLAP rows are written asynchronously, so wait until every task of
     # every run has both timestamps before measuring.
-    tasks: list[V1TaskSummary] = []
+    tasks: list[TaskRunSummary] = []
     deadline = asyncio.get_running_loop().time() + 60
 
     while True:
-        tasks = (
-            await hatchet.runs.aio_list(
-                workflow_ids=[workflow.metadata.id],
-                additional_metadata={
-                    "test_run_id": test_run_id,
-                },
-                limit=1_000,
-                only_tasks=True,
-            )
-        ).rows
+        tasks = await hatchet.runs.aio_list(
+            workflow_ids=[workflow.metadata.id],
+            additional_metadata={
+                "test_run_id": test_run_id,
+            },
+            limit=1_000,
+            only_tasks=True,
+        )
 
         if len(tasks) == NUM_RUNS * TASKS_PER_RUN and all(
             t.started_at is not None and t.finished_at is not None for t in tasks

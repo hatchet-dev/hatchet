@@ -1,6 +1,6 @@
 import pytest
 from hatchet_sdk import Hatchet
-from hatchet_sdk.labels import DesiredWorkerLabel
+from hatchet_sdk import DesiredWorkerLabel
 from subprocess import Popen
 from typing import Any, Generator
 from examples.runtime_affinity.worker import runtime_affinity_workflow, AffinityResult
@@ -104,7 +104,7 @@ async def test_runtime_affinity(
 ) -> None:
     workers = [
         w
-        for w in (await hatchet.workers.aio_list()).rows or []
+        for w in (await hatchet.workers.aio_list()) or []
         if w.status == "ACTIVE"
         and w.name == hatchet.config.apply_namespace("runtime-affinity-worker")
     ]

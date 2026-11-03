@@ -1,9 +1,9 @@
 import json
 from collections.abc import Callable
 from datetime import timedelta
-from enum import Enum
+from enum import StrEnum
 from logging import Logger, getLogger
-from typing import ClassVar, overload
+from typing import ClassVar, Literal, overload
 
 import tenacity
 from pydantic import Field, field_validator, model_validator
@@ -12,6 +12,18 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from hatchet_sdk.logger import logger
 from hatchet_sdk.token import get_addresses_from_jwt, get_tenant_id_from_jwt
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
+
+
+def parse_timedelta_from_seconds(value: timedelta | int | float | str) -> timedelta:
+    if isinstance(value, timedelta):
+        return value
+
+    if isinstance(value, int | float):
+        return timedelta(seconds=float(value))
+
+    seconds = value.strip().removesuffix("s").strip()
+
+    return timedelta(seconds=float(seconds))
 
 
 def create_settings_config(env_prefix: str) -> SettingsConfigDict:
@@ -27,7 +39,7 @@ class ClientTLSConfig(BaseSettings):
         env_prefix="HATCHET_CLIENT_TLS_",
     )
 
-    strategy: str = "tls"
+    strategy: Literal["tls", "mtls", "none"] = "tls"
     cert_file: str | None = None
     key_file: str | None = None
     root_ca_file: str | None = None
@@ -41,28 +53,18 @@ class HealthcheckConfig(BaseSettings):
 
     port: int = 8001
     enabled: bool = False
-    event_loop_block_threshold_seconds: timedelta = Field(
+    event_loop_block_threshold: timedelta = Field(
         default=timedelta(seconds=5),
-        description="If the worker listener process event loop appears blocked longer than this threshold, /health returns 503. Value is interpreted as seconds.",
+        description="If the worker listener process event loop appears blocked longer than this threshold, /health returns 503. Numeric values are interpreted as seconds.",
     )
     bind_address: str | None = "0.0.0.0"
 
-    @field_validator("event_loop_block_threshold_seconds", mode="before")
+    @field_validator("event_loop_block_threshold", mode="before")
     @classmethod
-    def validate_event_loop_block_threshold_seconds(
+    def validate_event_loop_block_threshold(
         cls, value: timedelta | int | float | str
     ) -> timedelta:
-        if isinstance(value, timedelta):
-            return value
-
-        if isinstance(value, int | float):
-            return timedelta(seconds=float(value))
-
-        v = value.strip()
-        if v.endswith("s"):
-            v = v[:-1].strip()
-
-        return timedelta(seconds=float(v))
+        return parse_timedelta_from_seconds(value)
 
     @field_validator("bind_address", mode="after")
     @classmethod
@@ -86,7 +88,7 @@ class OpenTelemetryConfig(BaseSettings):
         description='Note that if specifying this field via an environment variable, the variable must be a valid JSON array. For example: \'["action_name", "action_payload"]\'',
     )
 
-    include_task_name_in_start_step_run_span_name: bool = False
+    include_task_name_in_span_name: bool = False
 
     individual_run_spans_for_bulk_run: bool = Field(
         default=False,
@@ -100,7 +102,7 @@ class OpenTelemetryConfig(BaseSettings):
     )
 
 
-class HTTPMethod(str, Enum):
+class HTTPMethod(StrEnum):
     GET = "GET"
     DELETE = "DELETE"
     POST = "POST"
@@ -145,7 +147,7 @@ class TenacityConfig(BaseSettings):
     before_sleep: Callable[[tenacity.RetryCallState], None] = tenacity_before_sleep
 
 
-DEFAULT_READY_TIMEOUT_SECONDS = 300.0
+DEFAULT_EMBEDDED_READY_TIMEOUT = timedelta(minutes=5)
 
 
 class EmbeddedHatchetConfig(BaseSettings):
@@ -227,17 +229,22 @@ class EmbeddedHatchetConfig(BaseSettings):
         description="Log level for the embedded engine.",
     )
 
-    ready_timeout_seconds: float = Field(
-        default=DEFAULT_READY_TIMEOUT_SECONDS,
+    ready_timeout: timedelta = Field(
+        default=DEFAULT_EMBEDDED_READY_TIMEOUT,
         description=(
-            "How long to wait, in seconds, for the embedded engine to become "
-            "ready before raising an error. Defaults to 300 seconds."
+            "How long to wait for the embedded engine to become ready before "
+            "raising an error. Defaults to 5 minutes. Numeric values are interpreted as seconds."
         ),
     )
 
+    @field_validator("ready_timeout", mode="before")
+    @classmethod
+    def validate_ready_timeout(cls, value: timedelta | int | float | str) -> timedelta:
+        return parse_timedelta_from_seconds(value)
+
 
 DEFAULT_HOST_PORT = "localhost:7070"
-DEFAULT_SYNC_RESULT_POLL_INTERVAL_SECONDS = 1.0
+DEFAULT_SYNC_RESULT_POLL_INTERVAL = timedelta(seconds=1)
 
 
 class ClientConfig(BaseSettings):
@@ -259,7 +266,10 @@ class ClientConfig(BaseSettings):
     healthcheck: HealthcheckConfig = Field(default_factory=lambda: HealthcheckConfig())
     otel: OpenTelemetryConfig = Field(default_factory=lambda: OpenTelemetryConfig())
 
-    listener_v2_timeout: int | None = None
+    action_listener_timeout: timedelta | None = Field(
+        default=None,
+        description="The gRPC timeout on the worker's action listener stream. Numeric values are interpreted as seconds.",
+    )
     grpc_max_recv_message_length: int = Field(
         default=4 * 1024 * 1024, description="4MB default"
     )
@@ -276,17 +286,32 @@ class ClientConfig(BaseSettings):
     disable_log_capture: bool = False
     log_queue_size: int = 1000
     force_shutdown_on_shutdown_signal: bool = False
-    tenacity: TenacityConfig = TenacityConfig()
+    tenacity: TenacityConfig = Field(default_factory=lambda: TenacityConfig())
     embedded: EmbeddedHatchetConfig | None = None
 
-    sync_result_poll_interval: float = Field(
-        default=DEFAULT_SYNC_RESULT_POLL_INTERVAL_SECONDS,
-        ge=DEFAULT_SYNC_RESULT_POLL_INTERVAL_SECONDS,
+    sync_result_poll_interval: timedelta = Field(
+        default=DEFAULT_SYNC_RESULT_POLL_INTERVAL,
+        ge=DEFAULT_SYNC_RESULT_POLL_INTERVAL,
         description=(
-            "Seconds between GetRunDetails polls when waiting for a workflow "
-            "result on the sync path. Cannot be set below 1 second."
+            "Time between GetRunDetails polls when waiting for a workflow "
+            "result on the sync path. Cannot be set below 1 second. Numeric "
+            "values are interpreted as seconds."
         ),
     )
+
+    @field_validator("sync_result_poll_interval", mode="before")
+    @classmethod
+    def validate_sync_result_poll_interval(
+        cls, value: timedelta | int | float | str
+    ) -> timedelta:
+        return parse_timedelta_from_seconds(value)
+
+    @field_validator("action_listener_timeout", mode="before")
+    @classmethod
+    def validate_action_listener_timeout(
+        cls, value: timedelta | int | float | str | None
+    ) -> timedelta | None:
+        return None if value is None else parse_timedelta_from_seconds(value)
 
     @model_validator(mode="after")
     def validate_token_and_tenant(self) -> "ClientConfig":

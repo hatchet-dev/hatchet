@@ -18,12 +18,8 @@
         - on_success_task
         - run
         - aio_run
-        - run_no_wait
-        - aio_run_no_wait
         - run_many
         - aio_run_many
-        - run_many_no_wait
-        - aio_run_many_no_wait
         - schedule
         - aio_schedule
         - create_cron
@@ -54,12 +50,8 @@
       members:
         - run
         - aio_run
-        - run_no_wait
-        - aio_run_no_wait
         - run_many
         - aio_run_many
-        - run_many_no_wait
-        - aio_run_many_no_wait
         - schedule
         - aio_schedule
         - create_cron

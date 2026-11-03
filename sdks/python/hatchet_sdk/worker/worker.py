@@ -7,18 +7,17 @@ import sys
 from collections.abc import AsyncGenerator, Callable
 from concurrent.futures import Future
 from contextlib import AsyncExitStack, asynccontextmanager, suppress
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from multiprocessing import Queue
-from multiprocessing.process import BaseProcess
 from types import FrameType
-from typing import Any, TypeVar
-from warnings import warn
+from typing import TYPE_CHECKING, Any, TypeVar
 
-from hatchet_sdk.client import Client
+from hatchet_sdk.clients.admin import AdminClient
+from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
+from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
+from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.config import ClientConfig
-from hatchet_sdk.contracts.v1.workflows_pb2 import CreateWorkflowVersionRequest
 from hatchet_sdk.deprecated.deprecation import emit_deprecation_notice, semver_less_than
 from hatchet_sdk.deprecated.worker import legacy_aio_start
 from hatchet_sdk.engine_version import MinEngineVersion
@@ -26,12 +25,11 @@ from hatchet_sdk.exceptions import (
     LifespanSetupError,
     LoopAlreadyRunningError,
 )
+from hatchet_sdk.features.workers import WorkersClient
 from hatchet_sdk.logger import logger
-from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.runnables.contextvars import task_count
-from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.workflow import BaseWorkflow
-from hatchet_sdk.types.labels import WorkerLabel, _warn_if_dict_worker_labels
+from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.aio import gather_max_concurrency
 from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE
 from hatchet_sdk.worker.action_listener_process import (
@@ -43,6 +41,12 @@ from hatchet_sdk.worker.runner.run_loop_manager import WorkerActionRunLoopManage
 from hatchet_sdk.worker.slot_types import SlotType
 from hatchet_sdk.worker.slot_usage import create_shared_slot_usage_by_pool
 
+if TYPE_CHECKING:
+    from multiprocessing.process import BaseProcess
+
+    from hatchet_sdk.runnables.action import Action
+    from hatchet_sdk.runnables.task import Task
+
 T = TypeVar("T")
 
 
@@ -51,11 +55,6 @@ class WorkerStatus(Enum):
     STARTING = 2
     HEALTHY = 3
     UNHEALTHY = 4
-
-
-@dataclass
-class WorkerStartOptions:
-    loop: asyncio.AbstractEventLoop | None = field(default=None)
 
 
 LifespanGenerator = AsyncGenerator[Any, Any]
@@ -77,11 +76,10 @@ class Worker:
     def __init__(
         self,
         name: str,
+        *,
         config: ClientConfig,
         slot_config: dict[str, int],
-        labels: dict[str, str | int] | None = None,
-        debug: bool = False,
-        handle_kill: bool = True,
+        labels: list[WorkerLabel] | None = None,
         workflows: list[BaseWorkflow[Any]] | None = None,
         lifespan: LifespanFn | None = None,
     ) -> None:
@@ -90,14 +88,8 @@ class Worker:
         self._slot_config = slot_config
         self._slots = slot_config.get("default", 0)
         self._durable_slots = slot_config.get("durable", 0)
-        self._debug = debug
 
-        _warn_if_dict_worker_labels(labels, stacklevel=3)
-        self._labels = (
-            [WorkerLabel(key=k, value=v) for k, v in labels.items()] if labels else []
-        )
-
-        self._handle_kill = handle_kill
+        self._labels = labels or []
 
         self._action_registry: dict[str, Task[Any, Any]] = {}
 
@@ -140,8 +132,6 @@ class Worker:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._aio_start_exception: BaseException | None = None
 
-        self._client = Client(config=self._config, debug=self._debug)
-
         self._setup_signal_handlers()
 
         self._lifespan = lifespan
@@ -149,213 +139,19 @@ class Worker:
         self._lifespan_cleanup_complete: asyncio.Event | None = None
         self._workflows = workflows or []
 
+        self._dispatcher_client = DispatcherClient(config=self._config)
+        self._listener_client = RunEventListenerClient(self._config)
+        self._workflow_listener_client = PooledWorkflowRunListener(self._config)
+        self._admin_client = AdminClient(
+            config=self._config,
+            workflow_run_listener=self._workflow_listener_client,
+            workflow_run_event_listener=self._listener_client,
+        )
+        self._workers_client = WorkersClient(self._config)
+
     @property
     def name(self) -> str:
         return self._name
-
-    @property
-    def config(self) -> ClientConfig:
-        warn(
-            "The config property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._config
-
-    @property
-    def slot_config(self) -> dict[str, int]:
-        warn(
-            "The slot_config property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._slot_config
-
-    @property
-    def debug(self) -> bool:
-        warn(
-            "The debug property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._debug
-
-    @property
-    def labels(self) -> dict[str, str | int]:
-        warn(
-            "The labels property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return {
-            label.key: label.value for label in self._labels if label.key is not None
-        }
-
-    @property
-    def handle_kill(self) -> bool:
-        warn(
-            "The handle_kill property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._handle_kill
-
-    @property
-    def owned_loop(self) -> bool:
-        warn(
-            "The owned_loop property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return True
-
-    @property
-    def action_registry(self) -> "dict[str, Task[Any, Any]]":
-        warn(
-            "The action_registry property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._action_registry
-
-    @property
-    def killing(self) -> bool:
-        warn(
-            "The killing property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._killing
-
-    @property
-    def action_listener_process(self) -> "BaseProcess | None":
-        warn(
-            "The action_listener_process property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._action_listener_process
-
-    @property
-    def durable_action_listener_process(self) -> "BaseProcess | None":
-        warn(
-            "The durable_action_listener_process property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._durable_action_listener_process
-
-    @property
-    def action_listener_health_check(self) -> "asyncio.Task[None]":
-        warn(
-            "The action_listener_health_check property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._action_listener_health_check
-
-    @property
-    def action_runner(self) -> "WorkerActionRunLoopManager | None":
-        warn(
-            "The action_runner property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._action_runner
-
-    @property
-    def ctx(self) -> "multiprocessing.context.SpawnContext":
-        warn(
-            "The ctx property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._ctx
-
-    @property
-    def action_queue(self) -> "Queue[Action | STOP_LOOP_TYPE]":
-        warn(
-            "The action_queue property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._action_queue
-
-    @property
-    def event_queue(
-        self,
-    ) -> "Queue[ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE]":
-        warn(
-            "The event_queue property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._event_queue
-
-    @property
-    def durable_action_queue(self) -> "Queue[Action | STOP_LOOP_TYPE] | None":
-        warn(
-            "The durable_action_queue property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._durable_action_queue
-
-    @property
-    def durable_event_queue(self) -> "Queue[ActionEvent | STOP_LOOP_TYPE] | None":
-        warn(
-            "The durable_event_queue property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._durable_event_queue
-
-    @property
-    def loop(self) -> "asyncio.AbstractEventLoop | None":
-        warn(
-            "The loop property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._loop
-
-    @property
-    def client(self) -> Client:
-        warn(
-            "The client property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._client
-
-    @property
-    def lifespan(self) -> "LifespanFn | None":
-        warn(
-            "The lifespan property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._lifespan
-
-    @property
-    def lifespan_stack(self) -> "AsyncExitStack | None":
-        warn(
-            "The lifespan_stack property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._lifespan_stack
-
-    def register_workflow_from_opts(self, opts: CreateWorkflowVersionRequest) -> None:
-        try:
-            self._client.admin.put_workflow(opts)
-        except Exception:
-            logger.exception(f"failed to register workflow: {opts.name}")
-            sys.exit(1)
-
-    def register_workflows(self, workflows: list[BaseWorkflow[Any]]) -> None:
-        for workflow in workflows:
-            self.register_workflow(workflow)
 
     def register_workflow(self, workflow: BaseWorkflow[Any]) -> None:
         if not workflow.tasks:
@@ -363,15 +159,15 @@ class Worker:
             raise ValueError(msg)
 
         try:
-            self._client.admin.put_workflow(workflow.to_proto())
+            self._admin_client.put_workflow(workflow._to_proto())
         except Exception:
             logger.exception(f"failed to register workflow: {workflow.name}")
-            sys.exit(1)
+            raise
 
-        for step in workflow.tasks:
-            action_name = workflow._create_action_name(step)
+        for task in workflow.tasks:
+            action_name = workflow._create_action_name(task)
 
-            self._action_registry[action_name] = step
+            self._action_registry[action_name] = task
 
     async def aio_register_workflow(self, workflow: BaseWorkflow[Any]) -> None:
         await asyncio.to_thread(self.register_workflow, workflow)
@@ -379,24 +175,6 @@ class Worker:
     @property
     def status(self) -> WorkerStatus:
         return self._status
-
-    @property
-    def slots(self) -> int:
-        warn(
-            "Worker.slots is deprecated; use slot_config['default'] instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._slots
-
-    @property
-    def durable_slots(self) -> int:
-        warn(
-            "Worker.durable_slots is deprecated; use slot_config['durable'] instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._durable_slots
 
     def _setup_loop(self) -> None:
         try:
@@ -412,23 +190,11 @@ class Worker:
         self._loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self._loop)
 
-    def start(self, options: WorkerStartOptions | None = None) -> None:
-        if options is not None:
-            warn(
-                "Passing WorkerStartOptions is deprecated and will be removed in version 2.0.0.",
-                DeprecationWarning,
-                stacklevel=1,
-            )
+    def register_workflows(self, workflows: list[BaseWorkflow[Any]]) -> None:
+        for workflow in workflows:
+            self.register_workflow(workflow)
 
-        options = options or WorkerStartOptions()
-
-        if options.loop is not None:
-            warn(
-                "Passing a custom event loop is deprecated and will be removed in version 2.0.0. This option no longer has any effect",
-                DeprecationWarning,
-                stacklevel=1,
-            )
-
+    def start(self) -> None:
         self._setup_loop()
 
         if not self._loop:
@@ -444,9 +210,6 @@ class Worker:
 
         if self._aio_start_exception is not None:
             raise self._aio_start_exception
-
-        if self._handle_kill:
-            sys.exit(0)
 
     def _handle_aio_start_done(self, future: Future[None]) -> None:
         if future.cancelled():
@@ -470,7 +233,7 @@ class Worker:
                 "multiple slot types. Falling back to legacy worker registration. "
                 "Please upgrade your Hatchet engine to the latest version."
             ),
-            start=datetime(2026, 2, 12, tzinfo=timezone.utc),
+            start=datetime(2026, 2, 12, tzinfo=UTC),
             error_days=180,
         )
 
@@ -481,8 +244,8 @@ class Worker:
 
         tasks_with_eviction = [
             task
-            for task in self.action_registry.values()
-            if task.eviction_policy is not None
+            for task in self._action_registry.values()
+            if task._eviction_policy is not None
         ]
         if not tasks_with_eviction:
             return
@@ -496,7 +259,7 @@ class Worker:
                 f"Eviction policies will be ignored for tasks: {names}. "
                 "Please upgrade your Hatchet engine."
             ),
-            start=datetime(2026, 3, 3, tzinfo=timezone.utc),
+            start=datetime(2026, 3, 3, tzinfo=UTC),
             error_days=180,
         )
 
@@ -507,7 +270,7 @@ class Worker:
         version for slot_config support. Returns the version string for modern
         engines so callers can branch on specific versions.
         """
-        version = await self.client.dispatcher.get_version()
+        version = await self._dispatcher_client.get_version()
 
         if not version or semver_less_than(version, MinEngineVersion.SLOT_CONFIG):
             self._emit_legacy_slot_deprecation()
@@ -566,15 +329,7 @@ class Worker:
                     self._loop.stop()
                 raise e
 
-        # Healthcheck server is started inside the spawned action-listener process
-        # (non-durable preferred) to avoid being affected by the main worker loop.
-        healthcheck_port = self._config.healthcheck.port
-        enable_health_server = self._config.healthcheck.enabled
-
-        self._action_listener_process = self._start_action_listener(
-            enable_health_server=enable_health_server,
-            healthcheck_port=healthcheck_port,
-        )
+        self._action_listener_process = self._start_action_listener()
         self._action_runner = self._run_action_runner(lifespan_context=lifespan_context)
 
         if self._loop:
@@ -595,7 +350,8 @@ class Worker:
                 self._lifespan_cleanup_complete.set()
 
     def _run_action_runner(
-        self, lifespan_context: Any | None
+        self,
+        lifespan_context: Any | None,  # noqa: ANN401
     ) -> WorkerActionRunLoopManager:
         # Retrieve the shared queue
         if self._loop:
@@ -603,13 +359,11 @@ class Worker:
                 self.name,
                 self._action_registry,
                 sum(self._slot_config.values()),
-                self.slot_config.get(SlotType.DURABLE.value, 0),
+                self._slot_config.get(SlotType.DURABLE.value, 0),
                 self._config,
                 self._action_queue,
                 self._event_queue,
                 self._loop,
-                self._handle_kill,
-                self._client.debug,
                 self._labels,
                 lifespan_context,
                 engine_version=self._engine_version,
@@ -618,7 +372,7 @@ class Worker:
 
         raise RuntimeError("event loop not set, cannot start action runner")
 
-    async def _setup_lifespan(self) -> Any:
+    async def _setup_lifespan(self) -> Any:  # noqa: ANN401
         if self._lifespan is None:
             return None
 
@@ -646,12 +400,7 @@ class Worker:
             logger.exception("error during lifespan cleanup")
             raise LifespanSetupError("An error occurred during lifespan cleanup") from e
 
-    def _start_action_listener(
-        self,
-        *,
-        enable_health_server: bool = False,
-        healthcheck_port: int = 8001,
-    ) -> multiprocessing.context.SpawnProcess:
+    def _start_action_listener(self) -> multiprocessing.context.SpawnProcess:
         try:
             process = self._ctx.Process(
                 target=worker_action_listener_process,
@@ -662,8 +411,6 @@ class Worker:
                     self._config,
                     self._action_queue,
                     self._event_queue,
-                    self._handle_kill,
-                    self._client.debug,
                     self._labels,
                     self._worker_id_queue,
                     self._stop_listener_event,
@@ -676,7 +423,7 @@ class Worker:
             return process
         except Exception:
             logger.exception("failed to start action listener")
-            sys.exit(1)
+            raise
 
     async def _check_listener_health(self) -> None:
         logger.debug("starting action listener health check...")
@@ -697,7 +444,7 @@ class Worker:
                     logger.error(str(self._aio_start_exception))
                     self._status = WorkerStatus.UNHEALTHY
                     if self._loop:
-                        self._loop.create_task(self.exit_gracefully())
+                        self._loop.create_task(self._exit_gracefully())
                     break
 
                 if (
@@ -706,7 +453,7 @@ class Worker:
                     >= self._config.terminate_worker_after_num_tasks
                 ):
                     if self._loop:
-                        self._loop.create_task(self.exit_gracefully())
+                        self._loop.create_task(self._exit_gracefully())
                     break
 
                 self._status = WorkerStatus.HEALTHY
@@ -733,13 +480,13 @@ class Worker:
         )
         signal.signal(signal.SIGQUIT, self._handle_force_quit_signal)
 
-    def _handle_exit_signal(self, signum: int, frame: FrameType | None) -> None:
+    def _handle_exit_signal(self, signum: int, _frame: FrameType | None) -> None:
         sig_name = "SIGTERM" if signum == signal.SIGTERM else "SIGINT"
         logger.info(f"received signal {sig_name}...")
         if self._loop:
-            self._loop.create_task(self.exit_gracefully())
+            self._loop.create_task(self._exit_gracefully())
 
-    def _handle_force_quit_signal(self, signum: int, frame: FrameType | None) -> None:
+    def _handle_force_quit_signal(self, signum: int, _frame: FrameType | None) -> None:
         signal_received = signal.Signals(signum).name
         logger.info(f"received {signal_received}...")
         if self._loop:
@@ -811,7 +558,7 @@ class Worker:
         logger.info("pausing task assignment...")
         try:
             await asyncio.wait_for(
-                self._client.workers.aio_pause(worker_id), timeout=10
+                self._workers_client.aio_pause(worker_id), timeout=10
             )
         except TimeoutError:
             logger.warning("timeout while pausing task assignment; continuing shutdown")
@@ -832,7 +579,7 @@ class Worker:
         """
         self._stop_listener_event.set()
 
-    async def exit_gracefully(self) -> None:
+    async def _exit_gracefully(self) -> None:
         logger.debug(f"gracefully stopping worker: {self.name}")
 
         if self._killing:
@@ -893,7 +640,7 @@ class Worker:
                 await asyncio.wait_for(
                     self._lifespan_cleanup_complete.wait(), timeout=5.0
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning("lifespan cleanup timed out during forceful shutdown")
 
         logger.info("👋")

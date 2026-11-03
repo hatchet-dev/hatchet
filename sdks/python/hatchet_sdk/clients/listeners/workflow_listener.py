@@ -43,7 +43,7 @@ class PooledWorkflowRunListener(
 
             raise FailedTaskRunExceptionGroup(
                 f"Workflow run {workflow_run_id} failed.",
-                [TaskRunError.deserialize(e) for e in errors],
+                [TaskRunError._deserialize(e) for e in errors],
             )
 
         return {
@@ -62,7 +62,7 @@ class PooledWorkflowRunListener(
             self.client = DispatcherStub(conn)
 
         return cast(
-            grpc.aio.UnaryStreamCall[SubscribeToWorkflowRunsRequest, WorkflowRunEvent],
+            "grpc.aio.UnaryStreamCall[SubscribeToWorkflowRunsRequest, WorkflowRunEvent]",
             self.client.SubscribeToWorkflowRuns(
                 request,
                 metadata=metadata,

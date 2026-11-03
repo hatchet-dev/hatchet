@@ -190,7 +190,7 @@ Additionally, we define a global concurrency expression that limits how many buc
   </Tabs.Tab>
 </UniversalTabs>
 
-These two `ConcurrencyExpression` entries compose to ensure a **single poller per bucket** paired with a **workflow-level limitation** on total in-flight pollers.
+These two concurrency entries compose to ensure a **single poller per bucket** paired with a **workflow-level limitation** on total in-flight pollers.
 
 The task itself paginates through the bucket's objects and spawns a processing run per object:
 

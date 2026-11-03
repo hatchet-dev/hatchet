@@ -4,7 +4,7 @@ from contextlib import suppress
 from datetime import timedelta
 from typing import Any
 
-from hatchet_sdk import DurableContext, EmptyModel, Hatchet
+from hatchet_sdk import DurableContext, Hatchet
 
 hatchet = Hatchet()
 
@@ -20,7 +20,7 @@ async def reconnect_durable_stream(listener: Any, after_seconds: float) -> None:
 
 @hatchet.durable_task(execution_timeout=timedelta(minutes=3))
 async def durable_stream_reconnect_mid_wait(
-    _i: EmptyModel, ctx: DurableContext
+    _i: None, ctx: DurableContext
 ) -> dict[str, float]:
     await ctx.aio_sleep_for(timedelta(seconds=1))
 

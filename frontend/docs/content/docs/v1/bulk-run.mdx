@@ -23,15 +23,7 @@ You can use the `aio_run_many` method to bulk run a task. This will return a lis
   each task.
 </Callout>
 
-There are additional bulk methods available on the `Workflow` object.
-
-- `aio_run_many`
-- `aio_run_many_no_wait`
-
-And blocking variants:
-
-- `run_many`
-- `run_many_no_wait`
+Bulk runs are also available as `aio_run_many` and its blocking variant `run_many` on the `Workflow` object. Pass `wait_for_result=False` to either one to enqueue the runs and get back run references instead of waiting for the results.
 
 As with the run methods, you can call bulk methods from within a task and the runs will be associated with the parent task in the dashboard.
 

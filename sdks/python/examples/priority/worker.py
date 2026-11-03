@@ -1,6 +1,6 @@
 import time
 
-from hatchet_sdk import Context, EmptyModel, Hatchet, Priority
+from hatchet_sdk import Context, Hatchet, Priority
 
 hatchet = Hatchet()
 
@@ -16,7 +16,7 @@ priority_workflow = hatchet.workflow(
 
 
 @priority_workflow.task()
-def priority_task(input: EmptyModel, ctx: Context) -> None:
+def priority_task(input: None, ctx: Context) -> None:
     print("Priority:", ctx.priority)
     time.sleep(SLEEP_TIME)
 

@@ -44,19 +44,21 @@ def remove_null_unicode_character(
     if isinstance(data, dict):
         return {
             remove_null_unicode_character(
-                cast(Any, key), replacement
-            ): remove_null_unicode_character(cast(Any, value), replacement)
+                cast("Any", key), replacement
+            ): remove_null_unicode_character(cast("Any", value), replacement)
             for key, value in data.items()
         }
 
     if isinstance(data, list):
         return [
-            remove_null_unicode_character(cast(Any, item), replacement) for item in data
+            remove_null_unicode_character(cast("Any", item), replacement)
+            for item in data
         ]
 
     if isinstance(data, tuple):
         return tuple(
-            remove_null_unicode_character(cast(Any, item), replacement) for item in data
+            remove_null_unicode_character(cast("Any", item), replacement)
+            for item in data
         )
 
     return data

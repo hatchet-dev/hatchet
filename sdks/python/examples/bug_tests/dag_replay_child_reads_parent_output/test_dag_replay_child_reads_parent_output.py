@@ -7,7 +7,7 @@ from examples.bug_tests.dag_replay_child_reads_parent_output.worker import (
     dag_replay_child_reads_parent_output,
     parent_failing_on_first_attempt,
 )
-from hatchet_sdk import FailedTaskRunExceptionGroup, Hatchet, RunStatus, V1TaskStatus
+from hatchet_sdk import FailedTaskRunExceptionGroup, Hatchet, RunStatus
 
 
 async def wait_for_run_status(
@@ -36,11 +36,11 @@ async def run_until_parent_fails(hatchet: Hatchet) -> str:
 
     assert (
         details.task_runs[parent_failing_on_first_attempt.name].status
-        == V1TaskStatus.FAILED
+        == RunStatus.FAILED
     )
     assert (
         details.task_runs[child_reading_parent_output.name].status
-        == V1TaskStatus.CANCELLED
+        == RunStatus.CANCELLED
     )
 
     return ref.workflow_run_id
