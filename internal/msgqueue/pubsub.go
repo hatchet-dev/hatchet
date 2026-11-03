@@ -24,6 +24,12 @@ const (
 
 	// TopicKindStreamWake fans durable-stream wakes out to every engine.
 	TopicKindStreamWake TopicKind = "stream-wake"
+
+	// TopicKindCronRefresh fans cron changes out to every ticker.
+	TopicKindCronRefresh TopicKind = "cron-refresh"
+
+	// TopicKindTaskControllerWake fans tenant wakes out to every task controller.
+	TopicKindTaskControllerWake TopicKind = "task-controller-wake"
 )
 
 // Topic identifies a best-effort pub/sub destination.
@@ -66,6 +72,24 @@ func StreamWakeTopic() Topic {
 	return Topic{
 		name: "stream_wake_v1",
 		kind: TopicKindStreamWake,
+	}
+}
+
+// CronRefreshTopic tells every ticker that a tenant's crons changed. Tickers
+// also re-read their crons every 15s, so a lost message only delays the change.
+func CronRefreshTopic() Topic {
+	return Topic{
+		name: "cron_refresh_v1",
+		kind: TopicKindCronRefresh,
+	}
+}
+
+// TaskControllerWakeTopic carries tenant-scoped wakes for work that a task
+// controller sweep also finds on its own, so a lost message only delays it.
+func TaskControllerWakeTopic() Topic {
+	return Topic{
+		name: "task_controller_wake_v1",
+		kind: TopicKindTaskControllerWake,
 	}
 }
 

@@ -444,8 +444,25 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 		return nil, wrappedErr
 	}
 
+	cleanupWakes, err := tc.pubsub.Sub(msgqueue.TaskControllerWakeTopic(), tc.handleWake)
+
+	if err != nil {
+		cancel()
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not subscribe to task controller wakes")
+		span.End()
+
+		return nil, fmt.Errorf("could not subscribe to task controller wakes: %w", err)
+	}
+
 	cleanup := func() error {
 		cancel()
+
+		if err := cleanupWakes(); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "could not cleanup task controller wakes")
+			return err
+		}
 
 		if err := cleanupBuffer(); err != nil {
 			span.RecordError(err)
@@ -516,6 +533,8 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId stri
 		return tc.handleProcessDurableRunTrigger(ctx, tenantId, payloads)
 	case msgqueue.MsgIDDurableRestoreTask:
 		return tc.handleDurableRestoreTask(ctx, tenantId, payloads)
+	// releases (unpause, pauses ended) reach this queue only from older
+	// producers; current ones send a wake instead (see handleWake)
 	case msgqueue.MsgIDTogglePauseWorkflow:
 		return tc.handlePauseWorkflow(ctx, tenantId, payloads)
 	case msgqueue.MsgIDRateLimitPausesChanged:
@@ -523,6 +542,21 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId stri
 	}
 
 	return fmt.Errorf("unknown message id: %s", msgId)
+}
+
+// handleWake runs a release that the paused-items sweep would otherwise reach
+// on its next interval. Every task controller receives each wake; only the one
+// whose controller partition owns the tenant runs the sweep, which is serial
+// per tenant, so a burst of wakes costs at most one extra run.
+func (tc *TasksControllerImpl) handleWake(msg *msgqueue.Message) error {
+	switch msg.ID {
+	case msgqueue.MsgIDTogglePauseWorkflow, msgqueue.MsgIDRateLimitPausesChanged:
+		tc.expirePausedWorkflowQueueItemsOperations.RunOrContinueIfOwned(msg.TenantID)
+	default:
+		tc.l.Debug().Str("message_id", msg.ID).Msg("ignoring unknown task controller wake")
+	}
+
+	return nil
 }
 
 // await the sendMessage to the OLAP_QUEUE so that errors delivering are able to be retried
