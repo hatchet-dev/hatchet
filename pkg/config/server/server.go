@@ -1304,7 +1304,6 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("statusUpdates.dagBatchSizeLimit", "SERVER_OLAP_STATUS_UPDATE_DAG_BATCH_SIZE_LIMIT")
 	_ = v.BindEnv("statusUpdates.taskBatchSizeLimit", "SERVER_OLAP_STATUS_UPDATE_TASK_BATCH_SIZE_LIMIT")
 	_ = v.BindEnv("olap.olapMqQos", "SERVER_OLAP_MQ_QOS")
-
 	// exchange token options
 	_ = v.BindEnv("auth.controlPlaneExchangeToken.enabled", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_ENABLED")
 	_ = v.BindEnv("auth.controlPlaneExchangeToken.jwtPublicKeyset", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_JWT_PUBLIC_KEYSET")

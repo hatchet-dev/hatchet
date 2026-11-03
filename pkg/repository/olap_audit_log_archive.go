@@ -26,7 +26,6 @@ type AuditLogArchiveStore interface {
 
 type ArchiveAuditLogPartitionsOpts struct {
 	PartitionsEndingBefore time.Time
-	RowsPerFile            int32
 	LeaseDuration          time.Duration
 }
 
@@ -44,13 +43,18 @@ type AuditLogParquetRow struct {
 	UserAgent     *string   `parquet:"user_agent"`
 }
 
-func (r *OLAPRepositoryImpl) SetAuditLogArchiveStore(store AuditLogArchiveStore) {
+func (r *OLAPRepositoryImpl) SetAuditLogArchiveStore(store AuditLogArchiveStore, rowsPerFile int32) {
 	r.auditLogArchiveStore = store
+	r.auditLogArchiveRowsPerFile = rowsPerFile
 }
 
 func (r *OLAPRepositoryImpl) ArchiveAuditLogPartitions(ctx context.Context, opts ArchiveAuditLogPartitionsOpts) error {
 	if r.auditLogArchiveStore == nil {
 		return nil
+	}
+
+	if r.auditLogArchiveRowsPerFile <= 0 {
+		return fmt.Errorf("audit log archive rows per file must be positive, got %d", r.auditLogArchiveRowsPerFile)
 	}
 
 	ctx, span := telemetry.NewSpan(ctx, "OLAPRepository.ArchiveAuditLogPartitions")
@@ -94,8 +98,9 @@ func (r *OLAPRepositoryImpl) ArchiveAuditLogPartitions(ctx context.Context, opts
 	return nil
 }
 
-// The cursor is saved after each uploaded file, so a restart resumes at the next file. If the process
-// dies between an upload and saving the cursor, the retry overwrites that file with the same rows.
+// Each file holds one tenant's audit logs. The cursor is saved after each uploaded file, so a restart
+// resumes at the next file. If the process dies between an upload and saving the cursor, the retry
+// overwrites that file with the same rows, plus possibly more of that tenant's rows that follow them.
 func (r *OLAPRepositoryImpl) uploadAuditLogPartition(ctx context.Context, processId uuid.UUID, partition *sqlcv1.ListAuditLogPartitionsBeforeDateRow, cursor *sqlcv1.V1AuditLogArchiveCursor, opts ArchiveAuditLogPartitionsOpts) error {
 	for {
 		auditLogs, err := r.queries.ListAuditLogsInRangeAfterCursor(ctx, r.readPool.ForShared(), sqlcv1.ListAuditLogsInRangeAfterCursorParams{
@@ -104,7 +109,7 @@ func (r *OLAPRepositoryImpl) uploadAuditLogPartition(ctx context.Context, proces
 			Cursortenantid:   cursor.LastTenantID,
 			Cursorinsertedat: cursor.LastInsertedAt,
 			Cursorid:         cursor.LastID,
-			Batchsize:        opts.RowsPerFile,
+			Batchsize:        r.auditLogArchiveRowsPerFile,
 		})
 
 		if err != nil {
@@ -115,40 +120,67 @@ func (r *OLAPRepositoryImpl) uploadAuditLogPartition(ctx context.Context, proces
 			return nil
 		}
 
-		parquetFile, err := encodeAuditLogsAsParquet(auditLogs)
-
-		if err != nil {
-			return fmt.Errorf("failed to encode audit logs as parquet: %w", err)
-		}
-
-		key := auditLogArchiveObjectKey(partition.PartitionDate.Time, cursor.NextFileIndex)
-
-		if err := r.auditLogArchiveStore.PutObject(ctx, key, parquetFile); err != nil {
-			return fmt.Errorf("failed to upload %s: %w", key, err)
-		}
-
-		lastAuditLog := auditLogs[len(auditLogs)-1]
-
-		cursor, err = r.acquireOrExtendAuditLogArchiveLease(ctx, processId, opts.LeaseDuration, &sqlcv1.V1AuditLogArchiveCursor{
-			PartitionDate:  partition.PartitionDate,
-			NextFileIndex:  cursor.NextFileIndex + 1,
-			LastTenantID:   lastAuditLog.TenantID,
-			LastInsertedAt: lastAuditLog.InsertedAt,
-			LastID:         lastAuditLog.ID,
+		auditLogsByTenant := enumerables.ChunkBy(auditLogs, func(auditLog *sqlcv1.V1AuditLog) uuid.UUID {
+			return auditLog.TenantID
 		})
 
-		if err != nil {
-			return fmt.Errorf("failed to extend audit log archive lease: %w", err)
+		for _, tenantAuditLogs := range auditLogsByTenant {
+			cursor, err = r.uploadTenantAuditLogFile(ctx, processId, partition, cursor, tenantAuditLogs, opts.LeaseDuration)
+
+			if err != nil {
+				return err
+			}
 		}
 
-		if cursor == nil {
-			return fmt.Errorf("audit log archive lease was taken by another process")
-		}
-
-		if len(auditLogs) < int(opts.RowsPerFile) {
+		if len(auditLogs) < int(r.auditLogArchiveRowsPerFile) {
 			return nil
 		}
 	}
+}
+
+func (r *OLAPRepositoryImpl) uploadTenantAuditLogFile(ctx context.Context, processId uuid.UUID, partition *sqlcv1.ListAuditLogPartitionsBeforeDateRow, cursor *sqlcv1.V1AuditLogArchiveCursor, tenantAuditLogs []*sqlcv1.V1AuditLog, leaseDuration time.Duration) (*sqlcv1.V1AuditLogArchiveCursor, error) {
+	tenantId := tenantAuditLogs[0].TenantID
+	fileIndex := nextFileIndexForTenant(cursor, tenantId)
+
+	parquetFile, err := encodeAuditLogsAsParquet(tenantAuditLogs)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode audit logs as parquet: %w", err)
+	}
+
+	key := auditLogArchiveObjectKey(tenantId, partition.PartitionDate.Time, fileIndex)
+
+	if err := r.auditLogArchiveStore.PutObject(ctx, key, parquetFile); err != nil {
+		return nil, fmt.Errorf("failed to upload %s: %w", key, err)
+	}
+
+	lastAuditLog := tenantAuditLogs[len(tenantAuditLogs)-1]
+
+	nextCursor, err := r.acquireOrExtendAuditLogArchiveLease(ctx, processId, leaseDuration, &sqlcv1.V1AuditLogArchiveCursor{
+		PartitionDate:  partition.PartitionDate,
+		NextFileIndex:  fileIndex + 1,
+		LastTenantID:   tenantId,
+		LastInsertedAt: lastAuditLog.InsertedAt,
+		LastID:         lastAuditLog.ID,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to extend audit log archive lease: %w", err)
+	}
+
+	if nextCursor == nil {
+		return nil, fmt.Errorf("audit log archive lease was taken by another process")
+	}
+
+	return nextCursor, nil
+}
+
+func nextFileIndexForTenant(cursor *sqlcv1.V1AuditLogArchiveCursor, tenantId uuid.UUID) int32 {
+	if cursor.LastTenantID == tenantId {
+		return cursor.NextFileIndex
+	}
+
+	return 0
 }
 
 func (r *OLAPRepositoryImpl) detachAndDropAuditLogPartition(ctx context.Context, partitionName string) error {
@@ -221,8 +253,8 @@ func (r *OLAPRepositoryImpl) acquireOrExtendAuditLogArchiveLease(ctx context.Con
 	return lease, nil
 }
 
-func auditLogArchiveObjectKey(partitionDate time.Time, fileIndex int32) string {
-	return fmt.Sprintf("%s/%05d.parquet", partitionDate.Format("2006/01/02"), fileIndex)
+func auditLogArchiveObjectKey(tenantId uuid.UUID, partitionDate time.Time, fileIndex int32) string {
+	return fmt.Sprintf("%s/%s/%05d.parquet", tenantId, partitionDate.Format("2006/01/02"), fileIndex)
 }
 
 func encodeAuditLogsAsParquet(auditLogs []*sqlcv1.V1AuditLog) ([]byte, error) {

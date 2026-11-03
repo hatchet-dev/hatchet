@@ -10,7 +10,6 @@ import (
 
 const (
 	auditLogTimeInDatabaseAfterPartitionEnds = 24 * time.Hour
-	auditLogArchiveRowsPerFile               = 250_000
 	auditLogArchiveLeaseDuration             = 5 * time.Minute
 )
 
@@ -29,7 +28,6 @@ func (oc *OLAPControllerImpl) runArchiveAuditLogs(ctx context.Context) func() {
 
 		err = oc.repo.OLAP().ArchiveAuditLogPartitions(ctx, v1.ArchiveAuditLogPartitionsOpts{
 			PartitionsEndingBefore: time.Now().UTC().Add(-auditLogTimeInDatabaseAfterPartitionEnds),
-			RowsPerFile:            auditLogArchiveRowsPerFile,
 			LeaseDuration:          auditLogArchiveLeaseDuration,
 		})
 
