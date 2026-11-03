@@ -15,5 +15,5 @@ CREATE TABLE v1_audit_log_archive_cursor (
 
 -- +goose Down
 -- +goose StatementBegin
-DROP TABLE IF EXISTS v1_audit_log_archive_cursor;
+DROP TABLE v1_audit_log_archive_cursor;
 -- +goose StatementEnd
