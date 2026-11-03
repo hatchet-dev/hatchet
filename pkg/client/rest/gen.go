@@ -2263,7 +2263,10 @@ type V1StreamTopic struct {
 
 	// Namespace The topic's namespace, empty for the default namespace
 	Namespace string `json:"namespace"`
-	Topic     string `json:"topic"`
+
+	// StartingOffset Subscribers without a cursor start after this offset, 0 to start from the oldest retained message
+	StartingOffset int64  `json:"startingOffset"`
+	Topic          string `json:"topic"`
 }
 
 // V1StreamTopicList defines model for V1StreamTopicList.
