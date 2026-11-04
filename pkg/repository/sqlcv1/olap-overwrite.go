@@ -31,7 +31,7 @@ WITH filtered AS (
     SELECT
         tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, readable_status, latest_retry_count, latest_worker_id, dag_id, dag_inserted_at
     FROM
-        v1_tasks_olap
+        v1_tasks_olap t
     WHERE
         tenant_id = $1::uuid
         AND inserted_at >= $2::timestamptz
@@ -49,29 +49,23 @@ WITH filtered AS (
         AND (
             $7::text[] IS NULL
             OR $8::text[] IS NULL
-            OR (COALESCE(dag_id, id), COALESCE(dag_inserted_at, inserted_at)) IN (
-                SELECT r.id, r.inserted_at
-                FROM v1_runs_olap r
-                WHERE
-                    r.tenant_id = $1::uuid
-                    AND r.inserted_at >= $2::timestamptz - INTERVAL '1 day'
-                    AND EXISTS (
-                        SELECT 1
-                        FROM unnest($7::text[], $8::text[]) AS filter(key, value)
-                        WHERE r.additional_metadata ->> filter.key = filter.value
-                    )
+            OR EXISTS (
+                SELECT 1
+                FROM unnest($7::text[], $8::text[]) AS filter(key, value)
+                WHERE (
+                    SELECT r.additional_metadata
+                    FROM v1_runs_olap r
+                    WHERE (r.inserted_at, r.id) = (COALESCE(t.dag_inserted_at, t.inserted_at), COALESCE(t.dag_id, t.id))
+                ) ->> filter.key = filter.value
             )
         )
         AND (
             $10::jsonb IS NULL
-            OR (COALESCE(dag_id, id), COALESCE(dag_inserted_at, inserted_at)) IN (
-                SELECT r.id, r.inserted_at
+            OR (
+                SELECT r.additional_metadata
                 FROM v1_runs_olap r
-                WHERE
-                    r.tenant_id = $1::uuid
-                    AND r.inserted_at >= $2::timestamptz - INTERVAL '1 day'
-                    AND r.additional_metadata @> $10::jsonb
-            )
+                WHERE (r.inserted_at, r.id) = (COALESCE(t.dag_inserted_at, t.inserted_at), COALESCE(t.dag_id, t.id))
+            ) @> $10::jsonb
         )
 		AND (
 			$9::UUID IS NULL
@@ -103,7 +97,7 @@ WITH filtered AS (
     SELECT
         tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, readable_status, latest_retry_count, latest_worker_id, dag_id, dag_inserted_at
     FROM
-        v1_tasks_olap
+        v1_tasks_olap t
     WHERE
         tenant_id = $1::uuid
         AND inserted_at >= $2::timestamptz
@@ -121,27 +115,21 @@ WITH filtered AS (
         AND (
             $7::text[] IS NULL
             OR $8::text[] IS NULL
-            OR (COALESCE(dag_id, id), COALESCE(dag_inserted_at, inserted_at)) IN (
-                SELECT r.id, r.inserted_at
-                FROM v1_runs_olap r
-                WHERE
-                    r.tenant_id = $1::uuid
-                    AND r.inserted_at >= $2::timestamptz - INTERVAL '1 day'
-                    AND EXISTS (
-                        SELECT 1
-                        FROM unnest($7::text[], $8::text[]) AS filter(key, value)
-                        WHERE r.additional_metadata ->> filter.key = filter.value
-                    )
+            OR EXISTS (
+                SELECT 1
+                FROM unnest($7::text[], $8::text[]) AS filter(key, value)
+                WHERE (
+                    SELECT r.additional_metadata
+                    FROM v1_runs_olap r
+                    WHERE (r.inserted_at, r.id) = (COALESCE(t.dag_inserted_at, t.inserted_at), COALESCE(t.dag_id, t.id))
+                ) ->> filter.key = filter.value
             )
         )
-        AND (COALESCE(dag_id, id), COALESCE(dag_inserted_at, inserted_at)) IN (
-            SELECT r.id, r.inserted_at
+        AND (
+            SELECT r.additional_metadata
             FROM v1_runs_olap r
-            WHERE
-                r.tenant_id = $1::uuid
-                AND r.inserted_at >= $2::timestamptz - INTERVAL '1 day'
-                AND r.additional_metadata @> $10::jsonb
-        )
+            WHERE (r.inserted_at, r.id) = (COALESCE(t.dag_inserted_at, t.inserted_at), COALESCE(t.dag_id, t.id))
+        ) @> $10::jsonb
 		AND (
 			$9::UUID IS NULL
 			OR (id, inserted_at) IN (
@@ -172,7 +160,7 @@ WITH filtered AS (
     SELECT
         tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, readable_status, latest_retry_count, latest_worker_id, dag_id, dag_inserted_at
     FROM
-        v1_tasks_olap
+        v1_tasks_olap t
     WHERE
         tenant_id = $1::uuid
         AND inserted_at >= $2::timestamptz
@@ -190,27 +178,21 @@ WITH filtered AS (
         AND (
             $7::text[] IS NULL
             OR $8::text[] IS NULL
-            OR (COALESCE(dag_id, id), COALESCE(dag_inserted_at, inserted_at)) IN (
-                SELECT r.id, r.inserted_at
-                FROM v1_runs_olap r
-                WHERE
-                    r.tenant_id = $1::uuid
-                    AND r.inserted_at >= $2::timestamptz - INTERVAL '1 day'
-                    AND EXISTS (
-                        SELECT 1
-                        FROM unnest($7::text[], $8::text[]) AS filter(key, value)
-                        WHERE r.additional_metadata ->> filter.key = filter.value
-                    )
+            OR EXISTS (
+                SELECT 1
+                FROM unnest($7::text[], $8::text[]) AS filter(key, value)
+                WHERE (
+                    SELECT r.additional_metadata
+                    FROM v1_runs_olap r
+                    WHERE (r.inserted_at, r.id) = (COALESCE(t.dag_inserted_at, t.inserted_at), COALESCE(t.dag_id, t.id))
+                ) ->> filter.key = filter.value
             )
         )
-        AND (COALESCE(dag_id, id), COALESCE(dag_inserted_at, inserted_at)) IN (
-            SELECT r.id, r.inserted_at
+        AND (
+            SELECT r.additional_metadata
             FROM v1_runs_olap r
-            WHERE
-                r.tenant_id = $1::uuid
-                AND r.inserted_at >= $2::timestamptz - INTERVAL '1 day'
-                AND r.additional_metadata @> ANY($10::jsonb[])
-        )
+            WHERE (r.inserted_at, r.id) = (COALESCE(t.dag_inserted_at, t.inserted_at), COALESCE(t.dag_id, t.id))
+        ) @> ANY($10::jsonb[])
 		AND (
 			$9::UUID IS NULL
 			OR (id, inserted_at) IN (
@@ -762,7 +744,7 @@ SELECT
     id,
     inserted_at
 FROM
-    v1_tasks_olap
+    v1_tasks_olap t
 WHERE
     tenant_id = $1::uuid
     AND inserted_at >= $2::timestamptz
@@ -780,29 +762,23 @@ WHERE
     AND (
         $7::text[] IS NULL
         OR $8::text[] IS NULL
-        OR (COALESCE(dag_id, id), COALESCE(dag_inserted_at, inserted_at)) IN (
-            SELECT r.id, r.inserted_at
-            FROM v1_runs_olap r
-            WHERE
-                r.tenant_id = $1::uuid
-                AND r.inserted_at >= $2::timestamptz - INTERVAL '1 day'
-                AND EXISTS (
-                    SELECT 1
-                    FROM unnest($7::text[], $8::text[]) AS filter(key, value)
-                    WHERE r.additional_metadata ->> filter.key = filter.value
-                )
+        OR EXISTS (
+            SELECT 1
+            FROM unnest($7::text[], $8::text[]) AS filter(key, value)
+            WHERE (
+                SELECT r.additional_metadata
+                FROM v1_runs_olap r
+                WHERE (r.inserted_at, r.id) = (COALESCE(t.dag_inserted_at, t.inserted_at), COALESCE(t.dag_id, t.id))
+            ) ->> filter.key = filter.value
         )
     )
     AND (
         $12::jsonb IS NULL
-        OR (COALESCE(dag_id, id), COALESCE(dag_inserted_at, inserted_at)) IN (
-            SELECT r.id, r.inserted_at
+        OR (
+            SELECT r.additional_metadata
             FROM v1_runs_olap r
-            WHERE
-                r.tenant_id = $1::uuid
-                AND r.inserted_at >= $2::timestamptz - INTERVAL '1 day'
-                AND r.additional_metadata @> $12::jsonb
-        )
+            WHERE (r.inserted_at, r.id) = (COALESCE(t.dag_inserted_at, t.inserted_at), COALESCE(t.dag_id, t.id))
+        ) @> $12::jsonb
     )
     AND (
         $11::UUID IS NULL
@@ -831,7 +807,7 @@ SELECT
     id,
     inserted_at
 FROM
-    v1_tasks_olap
+    v1_tasks_olap t
 WHERE
     tenant_id = $1::uuid
     AND inserted_at >= $2::timestamptz
@@ -849,27 +825,21 @@ WHERE
     AND (
         $7::text[] IS NULL
         OR $8::text[] IS NULL
-        OR (COALESCE(dag_id, id), COALESCE(dag_inserted_at, inserted_at)) IN (
-            SELECT r.id, r.inserted_at
-            FROM v1_runs_olap r
-            WHERE
-                r.tenant_id = $1::uuid
-                AND r.inserted_at >= $2::timestamptz - INTERVAL '1 day'
-                AND EXISTS (
-                    SELECT 1
-                    FROM unnest($7::text[], $8::text[]) AS filter(key, value)
-                    WHERE r.additional_metadata ->> filter.key = filter.value
-                )
+        OR EXISTS (
+            SELECT 1
+            FROM unnest($7::text[], $8::text[]) AS filter(key, value)
+            WHERE (
+                SELECT r.additional_metadata
+                FROM v1_runs_olap r
+                WHERE (r.inserted_at, r.id) = (COALESCE(t.dag_inserted_at, t.inserted_at), COALESCE(t.dag_id, t.id))
+            ) ->> filter.key = filter.value
         )
     )
-    AND (COALESCE(dag_id, id), COALESCE(dag_inserted_at, inserted_at)) IN (
-        SELECT r.id, r.inserted_at
+    AND (
+        SELECT r.additional_metadata
         FROM v1_runs_olap r
-        WHERE
-            r.tenant_id = $1::uuid
-            AND r.inserted_at >= $2::timestamptz - INTERVAL '1 day'
-            AND r.additional_metadata @> $12::jsonb
-    )
+        WHERE (r.inserted_at, r.id) = (COALESCE(t.dag_inserted_at, t.inserted_at), COALESCE(t.dag_id, t.id))
+    ) @> $12::jsonb
     AND (
         $11::UUID IS NULL
 		OR (id, inserted_at) IN (
@@ -897,7 +867,7 @@ SELECT
     id,
     inserted_at
 FROM
-    v1_tasks_olap
+    v1_tasks_olap t
 WHERE
     tenant_id = $1::uuid
     AND inserted_at >= $2::timestamptz
@@ -915,27 +885,21 @@ WHERE
     AND (
         $7::text[] IS NULL
         OR $8::text[] IS NULL
-        OR (COALESCE(dag_id, id), COALESCE(dag_inserted_at, inserted_at)) IN (
-            SELECT r.id, r.inserted_at
-            FROM v1_runs_olap r
-            WHERE
-                r.tenant_id = $1::uuid
-                AND r.inserted_at >= $2::timestamptz - INTERVAL '1 day'
-                AND EXISTS (
-                    SELECT 1
-                    FROM unnest($7::text[], $8::text[]) AS filter(key, value)
-                    WHERE r.additional_metadata ->> filter.key = filter.value
-                )
+        OR EXISTS (
+            SELECT 1
+            FROM unnest($7::text[], $8::text[]) AS filter(key, value)
+            WHERE (
+                SELECT r.additional_metadata
+                FROM v1_runs_olap r
+                WHERE (r.inserted_at, r.id) = (COALESCE(t.dag_inserted_at, t.inserted_at), COALESCE(t.dag_id, t.id))
+            ) ->> filter.key = filter.value
         )
     )
-    AND (COALESCE(dag_id, id), COALESCE(dag_inserted_at, inserted_at)) IN (
-        SELECT r.id, r.inserted_at
+    AND (
+        SELECT r.additional_metadata
         FROM v1_runs_olap r
-        WHERE
-            r.tenant_id = $1::uuid
-            AND r.inserted_at >= $2::timestamptz - INTERVAL '1 day'
-            AND r.additional_metadata @> ANY($12::jsonb[])
-    )
+        WHERE (r.inserted_at, r.id) = (COALESCE(t.dag_inserted_at, t.inserted_at), COALESCE(t.dag_id, t.id))
+    ) @> ANY($12::jsonb[])
     AND (
         $11::UUID IS NULL
 		OR (id, inserted_at) IN (
