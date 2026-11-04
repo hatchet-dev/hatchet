@@ -285,6 +285,26 @@ func (s *Store) GetProfiles() map[string]cli.Profile {
 
 // GetProfile returns a specific profile by name (case-insensitive).
 func (s *Store) GetProfile(name string) (*cli.Profile, error) {
+	profile, err := s.GetProfileMetadata(name)
+	if err != nil {
+		return nil, err
+	}
+	if profile.Token == "" {
+		token, err := s.lookupToken(name)
+		if err != nil {
+			return nil, fmt.Errorf("could not read the token for profile '%s' from the %s", name, KeyringName())
+		}
+		profile.Token = token
+	}
+
+	return profile, nil
+}
+
+// GetProfileMetadata returns a profile without consulting the keyring. Token
+// is set only when it is stored in the profile file; callers that need only
+// the connection details use this so a locked or absent keyring cannot fail
+// them.
+func (s *Store) GetProfileMetadata(name string) (*cli.Profile, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -298,7 +318,7 @@ func (s *Store) GetProfile(name string) (*cli.Profile, error) {
 		tlsStrategy = "tls"
 	}
 
-	profile := &cli.Profile{
+	return &cli.Profile{
 		TenantId:     s.v.GetString(fmt.Sprintf("%s.tenantId", key)),
 		Name:         s.v.GetString(fmt.Sprintf("%s.name", key)),
 		Token:        s.v.GetString(fmt.Sprintf("%s.token", key)),
@@ -306,16 +326,7 @@ func (s *Store) GetProfile(name string) (*cli.Profile, error) {
 		ApiServerURL: s.v.GetString(fmt.Sprintf("%s.apiServerURL", key)),
 		GrpcHostPort: s.v.GetString(fmt.Sprintf("%s.grpcHostPort", key)),
 		TLSStrategy:  tlsStrategy,
-	}
-	if profile.Token == "" {
-		token, err := s.lookupToken(name)
-		if err != nil {
-			return nil, fmt.Errorf("could not read the token for profile '%s' from the %s", name, KeyringName())
-		}
-		profile.Token = token
-	}
-
-	return profile, nil
+	}, nil
 }
 
 // ListProfiles returns a sorted list of all profile names.
