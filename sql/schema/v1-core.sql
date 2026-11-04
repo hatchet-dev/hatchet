@@ -3352,6 +3352,7 @@ CREATE TABLE tenant_entitlement (
     -- the GIN indexes on the OLAP runs/tasks tables (jsonb @> containment).
     strict_additional_metadata_filters BOOLEAN NOT NULL DEFAULT FALSE,
 
+    -- unused, turned on by default everywhere
     dag_operator BOOLEAN NOT NULL DEFAULT FALSE,
 
     durable_streams BOOLEAN NOT NULL DEFAULT FALSE,
