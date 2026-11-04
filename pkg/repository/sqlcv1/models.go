@@ -949,6 +949,48 @@ func (ns NullTenantResourceLimitAlertType) Value() (driver.Value, error) {
 	return string(ns.TenantResourceLimitAlertType), nil
 }
 
+type V1AuditLogActorType string
+
+const (
+	V1AuditLogActorTypeUser   V1AuditLogActorType = "user"
+	V1AuditLogActorTypeApiKey V1AuditLogActorType = "api_key"
+)
+
+func (e *V1AuditLogActorType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1AuditLogActorType(s)
+	case string:
+		*e = V1AuditLogActorType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1AuditLogActorType: %T", src)
+	}
+	return nil
+}
+
+type NullV1AuditLogActorType struct {
+	V1AuditLogActorType V1AuditLogActorType `json:"v1_audit_log_actor_type"`
+	Valid               bool                `json:"valid"` // Valid is true if V1AuditLogActorType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1AuditLogActorType) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1AuditLogActorType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1AuditLogActorType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1AuditLogActorType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1AuditLogActorType), nil
+}
+
 type V1CelEvaluationFailureSource string
 
 const (
@@ -3430,6 +3472,20 @@ type V1AggTaskStatusesMinuteOlap struct {
 	EvictedCount   int64              `json:"evicted_count"`
 }
 
+type V1AuditLog struct {
+	ID            uuid.UUID           `json:"id"`
+	InsertedAt    pgtype.Timestamptz  `json:"inserted_at"`
+	TenantID      uuid.UUID           `json:"tenant_id"`
+	ActorType     V1AuditLogActorType `json:"actor_type"`
+	ActorID       uuid.UUID           `json:"actor_id"`
+	Action        string              `json:"action"`
+	CorrelationID pgtype.Text         `json:"correlation_id"`
+	ResourceID    string              `json:"resource_id"`
+	ResourceType  string              `json:"resource_type"`
+	IpAddress     pgtype.Text         `json:"ip_address"`
+	UserAgent     pgtype.Text         `json:"user_agent"`
+}
+
 type V1BatchRuntime struct {
 	TenantID  uuid.UUID          `json:"tenant_id"`
 	StepID    uuid.UUID          `json:"step_id"`
@@ -3964,6 +4020,7 @@ type V1RunsOlap struct {
 	AdditionalMetadata   []byte               `json:"additional_metadata"`
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
 	IdempotencyKey       pgtype.Text          `json:"idempotency_key"`
+	FinishedAt           pgtype.Timestamptz   `json:"finished_at"`
 }
 
 type V1ServerlessEndpoint struct {

@@ -22,7 +22,8 @@ SELECT
     create_v1_monthly_range_partition('v1_lookup_table_olap'::text, @date::date) AS v1_lookup_table_olap,
     create_v1_monthly_range_partition('v1_statuses_olap'::text, @date::date) AS v1_statuses_olap,
     create_v1_range_partition('v1_otel_trace_olap'::text, @date::date) AS v1_otel_trace_olap,
-    create_v1_range_partition('v1_otel_trace_lookup_olap'::text, @date::date) AS v1_otel_trace_lookup_olap
+    create_v1_range_partition('v1_otel_trace_lookup_olap'::text, @date::date) AS v1_otel_trace_lookup_olap,
+    create_v1_range_partition('v1_audit_log'::text, @date::date) AS v1_audit_log
 ;
 
 -- name: GetOLAPAggregateRetainedFrom :one
@@ -1875,6 +1876,18 @@ WHERE
     lt.external_id = ANY(@externalIds::uuid[])
     AND lt.tenant_id = @tenantId::uuid
 LIMIT 10000
+;
+
+-- name: ListFailedWorkflowRunsByFinishedAt :many
+SELECT id, inserted_at, kind, external_id
+FROM v1_runs_olap
+WHERE
+    tenant_id = @tenantId::uuid
+    AND readable_status = 'FAILED'
+    AND finished_at > @lower::timestamptz
+    AND finished_at <= @upper::timestamptz
+ORDER BY finished_at DESC
+LIMIT @rowLimit::integer
 ;
 
 -- name: GetRunsListRecursive :many

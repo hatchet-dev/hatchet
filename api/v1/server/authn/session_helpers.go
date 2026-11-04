@@ -39,7 +39,7 @@ func (s *SessionHelpers) SaveAuthenticated(c echo.Context, user *sqlcv1.User) er
 	session.Values["user_id"] = user.ID.String()
 	session.Values[sessionEmailVerifiedKey] = strconv.FormatBool(user.EmailVerified)
 
-	return session.Save(c.Request(), c.Response())
+	return s.ss.Rotate(c.Request(), c.Response())
 }
 
 func sessionKeepsUserUnverified(session *sessions.Session) bool {
@@ -79,23 +79,20 @@ func (s *SessionHelpers) SaveUnauthenticated(c echo.Context) error {
 	return session.Save(c.Request(), c.Response())
 }
 
-// CurrentSessionID returns the ID of the persisted cookie session backing this request, or
-// nil when the request is not backed by a stored session (e.g. bearer-token auth, or a cookie
-// whose session row no longer exists).
-func (s *SessionHelpers) CurrentSessionID(c echo.Context) *uuid.UUID {
+// RotateSession moves the request's stored cookie session to a new ID, keeping its values.
+// It does nothing when the request has no stored session, e.g. bearer-token auth.
+func (s *SessionHelpers) RotateSession(c echo.Context) error {
 	session, err := s.ss.Get(c.Request(), s.ss.GetName())
 
-	if err != nil || session == nil || session.IsNew || session.ID == "" {
-		return nil
-	}
-
-	id, err := uuid.Parse(session.ID)
-
 	if err != nil {
+		return err
+	}
+
+	if session.IsNew {
 		return nil
 	}
 
-	return &id
+	return s.ss.Rotate(c.Request(), c.Response())
 }
 
 func (s *SessionHelpers) SaveKV(

@@ -46,6 +46,10 @@ func (u *UserService) UserUpdateGoogleOauthCallback(ctx echo.Context, _ gen.User
 			return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, err, "Email is not in the restricted domain group.")
 		}
 
+		if errors.Is(err, ErrGoogleNotVerified) {
+			return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, err, "Please verify your email on Google.")
+		}
+
 		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, err, "Internal error.")
 	}
 
@@ -134,6 +138,8 @@ func (u *UserService) upsertGoogleUserFromToken(ctx context.Context, config *ser
 	return user, nil
 }
 
+var ErrGoogleNotVerified = fmt.Errorf("Please verify your email on Google")
+
 type googleUserInfo struct {
 	Email         string `json:"email"`
 	EmailVerified bool   `json:"email_verified"`
@@ -163,6 +169,10 @@ func getGoogleUserInfoFromToken(tok *oauth2.Token) (*googleUserInfo, error) {
 
 	defer response.Body.Close()
 
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed getting user info: status %d", response.StatusCode)
+	}
+
 	contents, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed reading response body: %s", err.Error())
@@ -174,6 +184,10 @@ func getGoogleUserInfoFromToken(tok *oauth2.Token) (*googleUserInfo, error) {
 
 	if err != nil {
 		return nil, fmt.Errorf("failed parsing response body: %s", err.Error())
+	}
+
+	if !gInfo.EmailVerified {
+		return nil, ErrGoogleNotVerified
 	}
 
 	return gInfo, nil

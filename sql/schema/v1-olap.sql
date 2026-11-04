@@ -281,6 +281,7 @@ CREATE TABLE v1_runs_olap (
     additional_metadata JSONB,
     parent_task_external_id UUID,
     idempotency_key TEXT,
+    finished_at TIMESTAMPTZ,
 
     PRIMARY KEY (inserted_at, id)
 ) PARTITION BY RANGE(inserted_at);
@@ -292,6 +293,8 @@ CREATE INDEX ix_v1_runs_olap_idempotency_key ON v1_runs_olap (idempotency_key, i
 -- Backs additional_metadata containment filters (@> / @> ANY). jsonb_path_ops only
 -- supports containment, which is all the list/count queries use.
 CREATE INDEX ix_v1_runs_olap_additional_metadata_gin ON v1_runs_olap USING gin (additional_metadata jsonb_path_ops);
+
+CREATE INDEX ix_v1_runs_olap_tenant_failed_finished_at ON v1_runs_olap (tenant_id, finished_at) WHERE readable_status = 'FAILED';
 
 -- LOOKUP TABLES --
 CREATE TABLE v1_lookup_table_olap (
@@ -620,6 +623,26 @@ CREATE TABLE v1_cel_evaluation_failures_olap (
     PRIMARY KEY (inserted_at, id)
 ) PARTITION BY RANGE(inserted_at);
 
+CREATE TYPE v1_audit_log_actor_type AS ENUM ('user', 'api_key');
+
+CREATE TABLE v1_audit_log (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    tenant_id UUID NOT NULL,
+    actor_type v1_audit_log_actor_type NOT NULL,
+    actor_id UUID NOT NULL,
+    action TEXT NOT NULL,
+    correlation_id TEXT,
+    resource_id TEXT NOT NULL,
+    resource_type TEXT NOT NULL,
+    ip_address TEXT,
+    user_agent TEXT,
+
+    PRIMARY KEY (tenant_id, inserted_at, id)
+) PARTITION BY RANGE(inserted_at);
+
+CREATE INDEX v1_audit_log_tenant_id_correlation_id_idx ON v1_audit_log (tenant_id, correlation_id DESC);
+
 -- TRIGGERS TO LINK TASKS, DAGS AND EVENTS --
 CREATE OR REPLACE FUNCTION v1_tasks_olap_insert_function()
 RETURNS TRIGGER AS
@@ -636,7 +659,8 @@ BEGIN
         workflow_version_id,
         additional_metadata,
         parent_task_external_id,
-        idempotency_key
+        idempotency_key,
+        finished_at
     )
     SELECT
         tenant_id,
@@ -649,7 +673,8 @@ BEGIN
         workflow_version_id,
         additional_metadata,
         parent_task_external_id,
-        idempotency_key
+        idempotency_key,
+        CASE WHEN readable_status IN ('COMPLETED', 'FAILED', 'CANCELLED') THEN clock_timestamp() END
     FROM new_rows
     WHERE dag_id IS NULL
     ON CONFLICT (inserted_at, id) DO NOTHING;
@@ -726,8 +751,15 @@ BEGIN
     UPDATE
         v1_runs_olap r
     SET
-        readable_status = n.readable_status
+        readable_status = n.readable_status,
+        -- same status and attempt keeps finished_at, so unrelated updates never mark old rows newly finished
+        finished_at = CASE
+            WHEN n.readable_status = r.readable_status AND n.latest_retry_count = o.latest_retry_count THEN r.finished_at
+            WHEN n.readable_status IN ('COMPLETED', 'FAILED', 'CANCELLED') THEN clock_timestamp()
+            ELSE NULL
+        END
     FROM new_rows n
+    JOIN old_rows o ON o.id = n.id AND o.inserted_at = n.inserted_at
     WHERE
         r.id = n.id
         AND r.inserted_at = n.inserted_at
@@ -740,7 +772,7 @@ LANGUAGE plpgsql;
 
 CREATE TRIGGER v1_tasks_olap_status_update_trigger
 AFTER UPDATE ON v1_tasks_olap
-REFERENCING NEW TABLE AS new_rows
+REFERENCING OLD TABLE AS old_rows NEW TABLE AS new_rows
 FOR EACH STATEMENT
 EXECUTE FUNCTION v1_tasks_olap_status_update_function();
 
@@ -759,7 +791,8 @@ BEGIN
         workflow_version_id,
         additional_metadata,
         parent_task_external_id,
-        idempotency_key
+        idempotency_key,
+        finished_at
     )
     SELECT
         tenant_id,
@@ -772,7 +805,8 @@ BEGIN
         workflow_version_id,
         additional_metadata,
         parent_task_external_id,
-        idempotency_key
+        idempotency_key,
+        CASE WHEN readable_status IN ('COMPLETED', 'FAILED', 'CANCELLED') THEN clock_timestamp() END
     FROM new_rows
     ON CONFLICT (inserted_at, id) DO NOTHING;
 
@@ -833,8 +867,15 @@ BEGIN
     SET
         readable_status = n.readable_status,
         parent_task_external_id = n.parent_task_external_id,
-        idempotency_key = n.idempotency_key
+        idempotency_key = n.idempotency_key,
+        -- same status and attempt keeps finished_at, so unrelated updates never mark old rows newly finished
+        finished_at = CASE
+            WHEN n.readable_status = r.readable_status AND n.latest_retry_count = o.latest_retry_count THEN r.finished_at
+            WHEN n.readable_status IN ('COMPLETED', 'FAILED', 'CANCELLED') THEN clock_timestamp()
+            ELSE NULL
+        END
     FROM new_rows n
+    JOIN old_rows o ON o.id = n.id AND o.inserted_at = n.inserted_at
     WHERE
         r.id = n.id
         AND r.inserted_at = n.inserted_at
@@ -847,7 +888,7 @@ LANGUAGE plpgsql;
 
 CREATE TRIGGER v1_dags_olap_status_update_trigger
 AFTER UPDATE ON v1_dags_olap
-REFERENCING NEW TABLE AS new_rows
+REFERENCING OLD TABLE AS old_rows NEW TABLE AS new_rows
 FOR EACH STATEMENT
 EXECUTE FUNCTION v1_dags_olap_status_update_function();
 

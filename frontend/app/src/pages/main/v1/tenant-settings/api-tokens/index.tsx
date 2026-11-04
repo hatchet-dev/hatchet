@@ -8,10 +8,20 @@ import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table
 import { Button } from '@/components/v1/ui/button';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Dialog } from '@/components/v1/ui/dialog';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/v1/ui/tooltip';
 import useAuthDisabled from '@/hooks/use-auth-disabled';
-import useCanWrite from '@/hooks/use-can-write';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import api, { APIToken, CreateAPITokenRequest, queries } from '@/lib/api';
+import {
+  API_TOKEN_MANAGE_DISABLED_REASON,
+  canManageApiTokens,
+} from '@/lib/api-token-permissions';
+import { getErrorStatus } from '@/lib/error-utils';
 import { useApiError } from '@/lib/hooks';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -19,7 +29,8 @@ import { useState, useMemo } from 'react';
 
 export default function APITokens() {
   const { tenantId } = useCurrentTenantId();
-  const canWrite = useCanWrite();
+  const { membership } = useTenantDetails();
+  const canManageTokens = canManageApiTokens(membership);
   const authDisabled = useAuthDisabled();
   const { meta } = useApiMeta();
   const authDisabledToken =
@@ -31,6 +42,7 @@ export default function APITokens() {
     ...queries.tokens.list(tenantId),
     enabled: !authDisabled,
   });
+  const listForbidden = getErrorStatus(listTokensQuery.error) === 403;
 
   const tokenColumns = useMemo(
     () => [
@@ -100,21 +112,41 @@ export default function APITokens() {
           description="Create and revoke API tokens used by workers and external systems to authenticate with this tenant."
         />
 
-        {canWrite && (
-          <div className="mb-4 flex flex-row items-baseline justify-end">
+        <div className="mb-4 flex flex-row items-baseline justify-end">
+          {canManageTokens ? (
             <Button
               key="create-api-token"
               onClick={() => setShowTokenDialog(true)}
             >
               Create API Token
             </Button>
-          </div>
-        )}
+          ) : (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span tabIndex={0}>
+                    <Button key="create-api-token" disabled>
+                      Create API Token
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {API_TOKEN_MANAGE_DISABLED_REASON}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+        </div>
         {(listTokensQuery.data?.rows || []).length > 0 ? (
           <SimpleTable
             columns={tokenColumns}
             data={listTokensQuery.data?.rows || []}
             rowKey={(row) => row.metadata.id}
+          />
+        ) : listForbidden ? (
+          <EmptyState
+            title="API tokens unavailable"
+            description="Your role in this tenant doesn't allow viewing API tokens. Ask a tenant owner or admin if you need access."
           />
         ) : (
           <EmptyState

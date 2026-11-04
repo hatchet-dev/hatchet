@@ -606,7 +606,8 @@ SELECT
     create_v1_monthly_range_partition('v1_lookup_table_olap'::text, $2::date) AS v1_lookup_table_olap,
     create_v1_monthly_range_partition('v1_statuses_olap'::text, $2::date) AS v1_statuses_olap,
     create_v1_range_partition('v1_otel_trace_olap'::text, $2::date) AS v1_otel_trace_olap,
-    create_v1_range_partition('v1_otel_trace_lookup_olap'::text, $2::date) AS v1_otel_trace_lookup_olap
+    create_v1_range_partition('v1_otel_trace_lookup_olap'::text, $2::date) AS v1_otel_trace_lookup_olap,
+    create_v1_range_partition('v1_audit_log'::text, $2::date) AS v1_audit_log
 `
 
 type CreateOLAPPartitionsParams struct {
@@ -638,6 +639,7 @@ type CreateOLAPPartitionsRow struct {
 	V1StatusesOlap                          int32 `json:"v1_statuses_olap"`
 	V1OtelTraceOlap                         int32 `json:"v1_otel_trace_olap"`
 	V1OtelTraceLookupOlap                   int32 `json:"v1_otel_trace_lookup_olap"`
+	V1AuditLog                              int32 `json:"v1_audit_log"`
 }
 
 func (q *Queries) CreateOLAPPartitions(ctx context.Context, db DBTX, arg CreateOLAPPartitionsParams) (*CreateOLAPPartitionsRow, error) {
@@ -667,6 +669,7 @@ func (q *Queries) CreateOLAPPartitions(ctx context.Context, db DBTX, arg CreateO
 		&i.V1StatusesOlap,
 		&i.V1OtelTraceOlap,
 		&i.V1OtelTraceLookupOlap,
+		&i.V1AuditLog,
 	)
 	return &i, err
 }
@@ -1619,6 +1622,62 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 			&i.Scope,
 			&i.TriggeringWebhookName,
 			&i.PayloadReferenceID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listFailedWorkflowRunsByFinishedAt = `-- name: ListFailedWorkflowRunsByFinishedAt :many
+SELECT id, inserted_at, kind, external_id
+FROM v1_runs_olap
+WHERE
+    tenant_id = $1::uuid
+    AND readable_status = 'FAILED'
+    AND finished_at > $2::timestamptz
+    AND finished_at <= $3::timestamptz
+ORDER BY finished_at DESC
+LIMIT $4::integer
+`
+
+type ListFailedWorkflowRunsByFinishedAtParams struct {
+	Tenantid uuid.UUID          `json:"tenantid"`
+	Lower    pgtype.Timestamptz `json:"lower"`
+	Upper    pgtype.Timestamptz `json:"upper"`
+	Rowlimit int32              `json:"rowlimit"`
+}
+
+type ListFailedWorkflowRunsByFinishedAtRow struct {
+	ID         int64              `json:"id"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+	Kind       V1RunKind          `json:"kind"`
+	ExternalID uuid.UUID          `json:"external_id"`
+}
+
+func (q *Queries) ListFailedWorkflowRunsByFinishedAt(ctx context.Context, db DBTX, arg ListFailedWorkflowRunsByFinishedAtParams) ([]*ListFailedWorkflowRunsByFinishedAtRow, error) {
+	rows, err := db.Query(ctx, listFailedWorkflowRunsByFinishedAt,
+		arg.Tenantid,
+		arg.Lower,
+		arg.Upper,
+		arg.Rowlimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListFailedWorkflowRunsByFinishedAtRow
+	for rows.Next() {
+		var i ListFailedWorkflowRunsByFinishedAtRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.InsertedAt,
+			&i.Kind,
+			&i.ExternalID,
 		); err != nil {
 			return nil, err
 		}
