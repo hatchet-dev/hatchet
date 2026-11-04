@@ -14,12 +14,11 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
-func newAllocatedResourcesTestRepos(pool *pgxpool.Pool) (*workflowRepository, *workflowScheduleRepository, *sqlcv1.Queries) {
+func newAllocatedResourcesTestRepos(pool *pgxpool.Pool) (*workflowRepository, *workflowScheduleRepository, *webhookRepository) {
 	logger := zerolog.Nop()
 	shared := &sharedRepository{
 		pool:       fairpool.Ungated(pool),
@@ -31,7 +30,7 @@ func newAllocatedResourcesTestRepos(pool *pgxpool.Pool) (*workflowRepository, *w
 	}
 	return &workflowRepository{sharedRepository: shared},
 		&workflowScheduleRepository{sharedRepository: shared},
-		sqlcv1.New()
+		&webhookRepository{sharedRepository: shared}
 }
 
 func TestCountAllocatedResourcesByTenant(t *testing.T) {
@@ -39,7 +38,7 @@ func TestCountAllocatedResourcesByTenant(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	workflows, schedules, queries := newAllocatedResourcesTestRepos(pool)
+	workflows, schedules, webhooks := newAllocatedResourcesTestRepos(pool)
 
 	wf, err := workflows.PutWorkflowVersion(ctx, internalTenantId, minimalWorkflowOpts("allocated-resources-count", "v1", []string{"0 * * * *"}))
 	require.NoError(t, err)
@@ -79,14 +78,17 @@ func TestCountAllocatedResourcesByTenant(t *testing.T) {
 	`, uuid.New(), internalTenantId, fired.ID, runID)
 	require.NoError(t, err)
 
-	_, err = queries.CreateWebhook(ctx, pool, sqlcv1.CreateWebhookParams{
-		Tenantid:           internalTenantId,
+	_, err = webhooks.CreateWebhook(ctx, internalTenantId, CreateWebhookOpts{
 		Name:               "allocated-webhook",
 		Sourcename:         sqlcv1.V1IncomingWebhookSourceNameGENERIC,
 		Eventkeyexpression: "input.key",
-		Authmethod:         sqlcv1.V1IncomingWebhookAuthTypeBASIC,
-		AuthBasicUsername:  sqlchelpers.TextFromStr("user"),
-		Authbasicpassword:  []byte("secret"),
+		AuthConfig: AuthConfig{
+			Type: sqlcv1.V1IncomingWebhookAuthTypeBASIC,
+			BasicAuth: &BasicAuthCredentials{
+				Username:          "user",
+				EncryptedPassword: []byte("secret"),
+			},
+		},
 	})
 	require.NoError(t, err)
 

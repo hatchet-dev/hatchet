@@ -1146,6 +1146,16 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		}
 	}
 
+	var previousEnabledCrons int64
+
+	if oldWorkflowVersion != nil {
+		previousEnabledCrons, err = r.queries.CountEnabledCronsOnVersion(ctx, tx, oldWorkflowVersion.WorkflowVersion.ID)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not count enabled crons on previous version: %w", err)
+		}
+	}
+
 	for _, cronTrigger := range opts.CronTriggers {
 
 		var priority pgtype.Int4
@@ -1209,6 +1219,18 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		if err != nil {
 			return nil, fmt.Errorf("could not move existing scheduled triggers to new workflow triggers: %w", err)
 		}
+	}
+
+	nextEnabledCrons, err := r.queries.CountEnabledCronsOnVersion(ctx, tx, sqlcWorkflowVersion.ID)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not count enabled crons on new version: %w", err)
+	}
+
+	if err := adjustAllocatedResourceCounts(ctx, r.queries, tx, tenantId, allocatedResourceCountDelta{
+		Cron: nextEnabledCrons - previousEnabledCrons,
+	}); err != nil {
+		return nil, fmt.Errorf("could not adjust allocated cron count: %w", err)
 	}
 
 	if len(opts.DefaultFilters) > 0 {

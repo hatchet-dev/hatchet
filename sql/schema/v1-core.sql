@@ -3454,3 +3454,32 @@ AFTER UPDATE ON v1_concurrency_slot
 REFERENCING NEW TABLE AS new_table
 FOR EACH STATEMENT
 EXECUTE FUNCTION after_v1_concurrency_slot_update_outbox_function();
+
+-- Per-tenant allocated resource counts. Maintained on the write path and
+-- rebuilt by the hourly sync. A firing scheduled run decrements the schedule
+-- count here because that insert does not go through the schedule repository.
+CREATE TABLE tenant_allocated_resource_count (
+    tenant_id UUID PRIMARY KEY,
+    cron_count BIGINT NOT NULL DEFAULT 0,
+    scheduled_run_count BIGINT NOT NULL DEFAULT 0,
+    webhook_count BIGINT NOT NULL DEFAULT 0
+);
+
+CREATE OR REPLACE FUNCTION tenant_allocated_resource_count_on_schedule_fire()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    UPDATE tenant_allocated_resource_count
+    SET scheduled_run_count = GREATEST(scheduled_run_count - 1, 0)
+    WHERE tenant_id = NEW."tenantId";
+
+    RETURN NULL;
+END;
+$$;
+
+CREATE TRIGGER tenant_allocated_resource_count_schedule_fire
+AFTER INSERT ON "WorkflowRunTriggeredBy"
+FOR EACH ROW
+WHEN (NEW."scheduledId" IS NOT NULL)
+EXECUTE FUNCTION tenant_allocated_resource_count_on_schedule_fire();
