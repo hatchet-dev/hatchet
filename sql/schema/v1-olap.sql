@@ -220,7 +220,7 @@ CREATE TABLE v1_tasks_olap (
     desired_worker_id UUID,
     display_name TEXT NOT NULL,
     input JSONB NOT NULL,
-    additional_metadata JSONB,
+    additional_metadata JSONB, -- deprecated - access this through `v1_runs_olap.additional_metadata` instead
     readable_status v1_readable_status_olap NOT NULL DEFAULT 'QUEUED',
     latest_retry_count INT NOT NULL DEFAULT 0,
     latest_worker_id UUID,
@@ -253,7 +253,7 @@ CREATE TABLE v1_dags_olap (
     workflow_version_id UUID NOT NULL,
     readable_status v1_readable_status_olap NOT NULL DEFAULT 'QUEUED',
     input JSONB NOT NULL,
-    additional_metadata JSONB,
+    additional_metadata JSONB, -- deprecated - access this through `v1_runs_olap.additional_metadata` instead
     parent_task_external_id UUID,
     total_tasks INT NOT NULL DEFAULT 1,
     idempotency_key TEXT,
