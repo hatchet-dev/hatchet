@@ -8,10 +8,6 @@ Command-line interface for [Hatchet](https://hatchet.run) workflow orchestration
 npm i -g @hatchet-dev/cli
 ```
 
-Then run `hatchet`. You can also run it without a global install:
-
-```sh
-npx @hatchet-dev/cli
-```
+Then run `hatchet`.
 
 Documentation: https://docs.hatchet.run/reference/cli
