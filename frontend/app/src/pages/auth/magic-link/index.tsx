@@ -1,12 +1,13 @@
 import { AuthLayout } from '../components/auth-layout';
 import { AuthLegalText } from '../components/auth-legal-text';
-import { accountSwitchMessage, takeFragmentToken } from './magic-link';
+import { accountSwitchMessage } from './magic-link';
 import { Alert, AlertDescription } from '@/components/v1/ui/alert';
 import { Button } from '@/components/v1/ui/button';
 import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
 import { Spinner } from '@/components/v1/ui/loading.tsx';
 import { useUserApi } from '@/lib/api/user-wrapper';
 import { useApiError } from '@/lib/hooks';
+import { initialMagicLinkToken } from '@/lib/magic-link-bootstrap';
 import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -14,13 +15,7 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 
 export default function MagicLinkConfirm() {
-  const [{ token }] = useState(() => {
-    const taken = takeFragmentToken(window.location.href);
-    if (window.location.hash) {
-      window.history.replaceState(null, '', taken.urlWithoutFragment);
-    }
-    return taken;
-  });
+  const token = initialMagicLinkToken;
   const [errors, setErrors] = useState<string[]>(
     token ? [] : ['This login link is missing or invalid.'],
   );
