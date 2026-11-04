@@ -1,6 +1,6 @@
 import { AuthLayout } from '../components/auth-layout';
 import { AuthLegalText } from '../components/auth-legal-text';
-import { accountSwitchMessage } from './magic-link';
+import { accountSwitchMessage, isTerminalMagicLinkError } from './magic-link';
 import { Alert, AlertDescription } from '@/components/v1/ui/alert';
 import { Button } from '@/components/v1/ui/button';
 import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
@@ -10,8 +10,9 @@ import { useApiError } from '@/lib/hooks';
 import { initialMagicLinkToken } from '@/lib/magic-link-bootstrap';
 import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
+import { isAxiosError } from 'axios';
 import { useState } from 'react';
 
 export default function MagicLinkConfirm() {
@@ -19,8 +20,13 @@ export default function MagicLinkConfirm() {
   const [errors, setErrors] = useState<string[]>(
     token ? [] : ['This login link is missing or invalid.'],
   );
+  const [retryErrors, setRetryErrors] = useState<string[]>([]);
   const { handleApiError } = useApiError({ setErrors });
+  const { handleApiError: handleRetryableError } = useApiError({
+    setErrors: setRetryErrors,
+  });
   const { invalidate: invalidateUserUniverse } = useUserUniverse();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { userGetCurrentQuery, userUpdateMagicLinkMutation } = useUserApi();
   const currentUser = useQuery({
@@ -29,13 +35,34 @@ export default function MagicLinkConfirm() {
   });
   const confirm = useMutation({
     ...userUpdateMagicLinkMutation(),
-    onSuccess: async () => {
+    onMutate: () => setRetryErrors([]),
+    onSuccess: async (user) => {
+      // The signed-out lookup on this page leaves an error cached under the
+      // current-user key, and the app shell reads that key without refetching.
+      queryClient.setQueryData(userGetCurrentQuery().queryKey, user);
       await invalidateUserUniverse();
       await new Promise((resolve) => setTimeout(resolve, 0));
       navigate({ to: appRoutes.authenticatedRoute.to });
     },
-    onError: handleApiError,
+    onError: (error) => {
+      if (!isAxiosError(error)) {
+        setRetryErrors(['Something went wrong.']);
+        return;
+      }
+      if (isTerminalMagicLinkError(error.response?.status)) {
+        handleApiError(error);
+      } else {
+        handleRetryableError(error);
+      }
+    },
   });
+
+  const lookupStatus = isAxiosError(currentUser.error)
+    ? currentUser.error.response?.status
+    : undefined;
+  const signedOut =
+    currentUser.isError && (lookupStatus === 401 || lookupStatus === 403);
+  const lookupFailed = currentUser.isError && !signedOut;
   const warning = currentUser.isSuccess
     ? accountSwitchMessage(currentUser.data.email)
     : null;
@@ -82,8 +109,34 @@ export default function MagicLinkConfirm() {
           <AlertDescription>{warning}</AlertDescription>
         </Alert>
       )}
+      {lookupFailed && (
+        <Alert variant="destructive">
+          <AlertDescription className="flex flex-col gap-2">
+            We couldn't check whether this browser is already signed in.
+            <Button
+              variant="outline"
+              size="sm"
+              className="self-start"
+              disabled={currentUser.isFetching}
+              onClick={() => currentUser.refetch()}
+            >
+              {currentUser.isFetching && <Spinner />}
+              Try again
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+      {retryErrors.length > 0 && (
+        <Alert variant="destructive">
+          <AlertDescription>
+            {retryErrors.join(' ')} You can try again.
+          </AlertDescription>
+        </Alert>
+      )}
       <Button
-        disabled={!token || confirm.isPending}
+        disabled={
+          !token || confirm.isPending || currentUser.isPending || lookupFailed
+        }
         onClick={() => {
           if (!token) {
             return;
@@ -91,7 +144,7 @@ export default function MagicLinkConfirm() {
           confirm.mutate({ token });
         }}
       >
-        {confirm.isPending && <Spinner />}
+        {(confirm.isPending || currentUser.isPending) && <Spinner />}
         Sign in
       </Button>
       <AuthLegalText />

@@ -1,5 +1,6 @@
 import {
   accountSwitchMessage,
+  isTerminalMagicLinkError,
   showsMagicLinkLogin,
   takeFragmentToken,
 } from './magic-link';
@@ -57,5 +58,13 @@ describe('magic link confirmation', () => {
       accountSwitchMessage('owner@example.com') ?? '',
       /replaces this browser session/,
     );
+  });
+
+  test('only rejected or disabled links end the confirmation', () => {
+    assert.equal(isTerminalMagicLinkError(400), true);
+    assert.equal(isTerminalMagicLinkError(405), true);
+    assert.equal(isTerminalMagicLinkError(429), false);
+    assert.equal(isTerminalMagicLinkError(500), false);
+    assert.equal(isTerminalMagicLinkError(undefined), false);
   });
 });

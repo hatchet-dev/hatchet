@@ -25,6 +25,13 @@ export function takeFragmentToken(href: string): {
   };
 }
 
+// The confirm endpoint answers 400 when the token is invalid, expired, used, or
+// not allowed, and 405 when magic links are disabled. Anything else (network,
+// rate limit, server error) may succeed on retry.
+export function isTerminalMagicLinkError(status: number | undefined): boolean {
+  return status === 400 || status === 405;
+}
+
 export function accountSwitchMessage(
   currentEmail: string | null | undefined,
 ): string | null {
