@@ -126,19 +126,13 @@ func runUpgrade(ctx context.Context) error {
 	var upgrade *exec.Cmd
 	var describe string
 
-	// An npm install's binary lives inside node_modules, which npm owns. The
-	// install script would overwrite that file, so upgrade through npm instead.
-	// Checked before Windows: npm installs on Windows can upgrade.
+	// npm owns binaries inside node_modules. Let the user choose the install
+	// scope so upgrading a project dependency does not create a global install.
 	switch {
 	case npmInstallPath(exe):
 		spec := "@hatchet-dev/cli@" + strings.TrimPrefix(latest, "v")
-		npmBin, lookErr := exec.LookPath("npm")
-		if lookErr != nil {
-			fmt.Printf("This copy of hatchet was installed with npm, but npm is not on PATH. Upgrade it with:\n\n  npm i -g %s\n", spec)
-			return nil
-		}
-		upgrade = exec.CommandContext(ctx, npmBin, "i", "-g", spec)
-		describe = "npm i -g " + spec
+		fmt.Printf("This copy of hatchet is managed by npm. Upgrade it manually using the command for your installation:\n\n  Global install: npm i -g %s\n  Project dependency (from your project directory): npm i %s\n  Run with npx: npx %s\n", spec, spec, spec)
+		return nil
 	case runtime.GOOS == "windows":
 		fmt.Println("Automatic upgrades are not supported on Windows. Download the latest release from https://github.com/hatchet-dev/hatchet/releases")
 		return nil

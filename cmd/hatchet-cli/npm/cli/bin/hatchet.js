@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const { spawnSync } = require('child_process');
+const { spawn } = require('child_process');
 
 // npm package names use win32/x64, not the Go GOOS/GOARCH values.
 const platforms = {
@@ -44,12 +44,26 @@ try {
   process.exit(1);
 }
 
-const result = spawnSync(bin, process.argv.slice(2), { stdio: 'inherit' });
-if (result.error) {
-  console.error(result.error.message);
+const child = spawn(bin, process.argv.slice(2), { stdio: 'inherit' });
+const signalHandlers = new Map();
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+  const handler = () => child.kill(signal);
+  signalHandlers.set(signal, handler);
+  process.on(signal, handler);
+}
+
+child.on('error', (error) => {
+  console.error(error.message);
   process.exit(1);
-}
-if (result.signal) {
-  process.kill(process.pid, result.signal);
-}
-process.exit(result.status === null ? 1 : result.status);
+});
+child.on('close', (code, signal) => {
+  // Restore default signal handling before mirroring the child's termination.
+  for (const [name, handler] of signalHandlers) {
+    process.removeListener(name, handler);
+  }
+  if (signal) {
+    process.kill(process.pid, signal);
+  } else {
+    process.exit(code === null ? 1 : code);
+  }
+});

@@ -32,11 +32,13 @@ Alternatively, with Node.js (macOS, Linux, and Windows):
 npm i -g @hatchet-dev/cli
 ```
 
-Or run it without installing:
+Alternatively, use npx without a global install:
 
 ```bash
-npx @hatchet-dev/cli
+npx @hatchet-dev/cli --version
 ```
+
+This does not add `hatchet` to your PATH. For every subsequent command in this guide, replace `hatchet` with `npx @hatchet-dev/cli`; for example, run `npx @hatchet-dev/cli profile list` instead of `hatchet profile list`.
 
 After installation, verify it worked:
 
