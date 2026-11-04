@@ -1160,11 +1160,25 @@ func additionalMetadataFilterParamsFromOpts(additionalMetadata map[string]interf
 	return additionalMetadataFilterParams{Keys: keys, Values: values}, nil
 }
 
-func singlePairMetadataObjects(keys, values []string) ([][]byte, error) {
-	objects := make([][]byte, 0, len(keys))
+func taskMetadataContainmentObjects(additionalMetadata map[string]interface{}, operator AdditionalMetadataOperator) ([][]byte, error) {
+	if len(additionalMetadata) == 0 {
+		return nil, nil
+	}
 
-	for i, key := range keys {
-		object, err := json.Marshal(map[string]string{key: values[i]})
+	if operator == AdditionalMetadataOperatorAnd {
+		object, err := json.Marshal(additionalMetadata)
+
+		if err != nil {
+			return nil, err
+		}
+
+		return [][]byte{object}, nil
+	}
+
+	objects := make([][]byte, 0, len(additionalMetadata))
+
+	for key, value := range additionalMetadata {
+		object, err := json.Marshal(map[string]interface{}{key: value})
 
 		if err != nil {
 			return nil, err
@@ -1177,15 +1191,7 @@ func singlePairMetadataObjects(keys, values []string) ([][]byte, error) {
 }
 
 func listTasksParamsFromOpts(tenantId uuid.UUID, opts ListTaskRunOpts) (sqlcv1.ListTasksOlapParams, error) {
-	metadataFilters, err := additionalMetadataFilterParamsFromOpts(opts.AdditionalMetadata, opts.AdditionalMetadataOperator)
-
-	if err != nil {
-		return sqlcv1.ListTasksOlapParams{}, err
-	}
-
-	// task metadata lives on v1_runs_olap, so the key/value filter can't use an index on the task rows;
-	// the ContainsAny variant finds the matching runs through their GIN index instead
-	metadataContainsAny, err := singlePairMetadataObjects(metadataFilters.Keys, metadataFilters.Values)
+	metadataContainsAny, err := taskMetadataContainmentObjects(opts.AdditionalMetadata, opts.AdditionalMetadataOperator)
 
 	if err != nil {
 		return sqlcv1.ListTasksOlapParams{}, err
@@ -1200,7 +1206,6 @@ func listTasksParamsFromOpts(tenantId uuid.UUID, opts ListTaskRunOpts) (sqlcv1.L
 		TriggeringEventExternalId:     opts.TriggeringEventExternalId,
 		WorkerId:                      opts.WorkerId,
 		IdempotencyKeys:               opts.IdempotencyKeys,
-		AdditionalMetadataContainsAll: metadataFilters.ContainsAll,
 		AdditionalMetadataContainsAny: metadataContainsAny,
 	}
 
@@ -1223,11 +1228,8 @@ func countTasksParamsFromListTasksParams(listTasksParams sqlcv1.ListTasksOlapPar
 		Until:                         listTasksParams.Until,
 		WorkflowIds:                   listTasksParams.WorkflowIds,
 		WorkerId:                      listTasksParams.WorkerId,
-		Keys:                          listTasksParams.Keys,
-		Values:                        listTasksParams.Values,
 		TriggeringEventExternalId:     listTasksParams.TriggeringEventExternalId,
 		AdditionalMetadataContainsAny: listTasksParams.AdditionalMetadataContainsAny,
-		AdditionalMetadataContainsAll: listTasksParams.AdditionalMetadataContainsAll,
 		IdempotencyKeys:               listTasksParams.IdempotencyKeys,
 	}
 }
