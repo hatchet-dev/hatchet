@@ -156,7 +156,9 @@ func TestListFailedWorkflowRunsByFinishedAt_ReturnsRunFailedAfterInsert(t *testi
 	ctx, pool, repo := setupOLAPRepository(t)
 	f := seedDAGWithFinishedChildren(t, ctx, repo, 1)
 
-	beforeFailure := time.Now()
+	// finished_at is written from the database clock, which can lag the host clock by a millisecond or so under Docker
+	var beforeFailure time.Time
+	require.NoError(t, pool.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&beforeFailure))
 	_, err := pool.Exec(ctx, `UPDATE v1_dags_olap SET readable_status = 'FAILED' WHERE tenant_id = $1 AND id = $2 AND inserted_at = $3`, f.tenantId, f.dagId, f.insertedAt)
 	require.NoError(t, err)
 
