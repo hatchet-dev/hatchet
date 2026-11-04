@@ -214,6 +214,11 @@ export interface MagicLinkAccepted {
    * @example true
    */
   accepted: boolean;
+  /**
+   * Seconds to wait before requesting another link for the same address. The same value is returned for every request.
+   * @example 60
+   */
+  resendCooldownSeconds: number;
 }
 
 export interface Organization {

@@ -7,7 +7,7 @@ import { useUserApi } from '@/lib/api/user-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -19,8 +19,21 @@ export function MagicLinkLogin() {
   const [errors, setErrors] = useState<string[]>([]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [sentTo, setSentTo] = useState<string | null>(null);
+  const [resendAt, setResendAt] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
   const { handleApiError } = useApiError({ setFieldErrors, setErrors });
   const { userCreateMagicLinkMutation } = useUserApi();
+
+  const resendSecondsLeft = Math.max(0, Math.ceil((resendAt - now) / 1000));
+  const coolingDown = resendSecondsLeft > 0;
+
+  useEffect(() => {
+    if (!coolingDown) {
+      return;
+    }
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [coolingDown]);
   const {
     register,
     handleSubmit,
@@ -33,8 +46,11 @@ export function MagicLinkLogin() {
 
   const requestLink = useMutation({
     ...userCreateMagicLinkMutation(),
-    onSuccess: (_data, variables) => {
+    onSuccess: (data, variables) => {
+      const sentAt = Date.now();
       setSentTo(variables.email);
+      setNow(sentAt);
+      setResendAt(sentAt + data.resendCooldownSeconds * 1000);
     },
     onError: handleApiError,
   });
@@ -55,14 +71,16 @@ export function MagicLinkLogin() {
         <Button
           type="button"
           variant="outline"
-          disabled={requestLink.isPending}
+          disabled={requestLink.isPending || coolingDown}
           onClick={() => {
             setErrors([]);
             requestLink.mutate({ email: sentTo });
           }}
         >
           {requestLink.isPending && <Spinner />}
-          Send another link
+          {coolingDown
+            ? `Send another link in ${resendSecondsLeft}s`
+            : 'Send another link'}
         </Button>
         {errors.length > 0 && (
           <Alert variant="destructive">
