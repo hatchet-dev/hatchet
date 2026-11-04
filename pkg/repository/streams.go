@@ -203,7 +203,7 @@ type StreamsRepository interface {
 	// to is left as is.
 	ResetTopic(ctx context.Context, tenantId uuid.UUID, namespace, topic string, cursor *StreamCursor) error
 
-	// GetTopicInfo returns the topic's offsets and creation time, all zero for a topic never published to.
+	// GetTopicInfo returns the topic's offsets, zero for a topic never published to.
 	GetTopicInfo(ctx context.Context, tenantId uuid.UUID, namespace, topic string) (StreamTopicInfo, error)
 }
 
@@ -212,7 +212,6 @@ type StreamTopicInfo struct {
 	Topic          string
 	StartingOffset int64
 	LastOffset     int64
-	CreatedAt      time.Time
 }
 
 // StartCursor has no time, so it never expires.
@@ -708,6 +707,5 @@ func (r *streamsRepositoryImpl) GetTopicInfo(ctx context.Context, tenantId uuid.
 		Topic:          topic,
 		StartingOffset: row.StartingOffset,
 		LastOffset:     row.LastOffset,
-		CreatedAt:      row.TopicInsertedAt.Time,
 	}, nil
 }

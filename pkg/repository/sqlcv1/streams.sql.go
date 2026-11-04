@@ -244,8 +244,7 @@ func (q *Queries) GetStreamPayload(ctx context.Context, db DBTX, arg GetStreamPa
 const getStreamTopicInfo = `-- name: GetStreamTopicInfo :one
 SELECT
     COALESCE(t.starting_offset, 0)::bigint AS starting_offset,
-    COALESCE(t.last_offset, 0)::bigint AS last_offset,
-    t.inserted_at AS topic_inserted_at
+    COALESCE(t.last_offset, 0)::bigint AS last_offset
 FROM (SELECT 1) AS one
 LEFT JOIN v1_stream_topic t
     ON t.tenant_id = $1::uuid AND t.namespace = $2::text AND t.topic = $3::text
@@ -258,17 +257,15 @@ type GetStreamTopicInfoParams struct {
 }
 
 type GetStreamTopicInfoRow struct {
-	StartingOffset  int64              `json:"starting_offset"`
-	LastOffset      int64              `json:"last_offset"`
-	TopicInsertedAt pgtype.Timestamptz `json:"topic_inserted_at"`
+	StartingOffset int64 `json:"starting_offset"`
+	LastOffset     int64 `json:"last_offset"`
 }
 
-// Zeros and a NULL topic_inserted_at for a topic not yet published to. A
-// primary-key lookup, cheap enough to run every poll tick.
+// Zeros for a topic not yet published to. A primary-key lookup, cheap enough to run every poll tick.
 func (q *Queries) GetStreamTopicInfo(ctx context.Context, db DBTX, arg GetStreamTopicInfoParams) (*GetStreamTopicInfoRow, error) {
 	row := db.QueryRow(ctx, getStreamTopicInfo, arg.Tenantid, arg.Namespace, arg.Topic)
 	var i GetStreamTopicInfoRow
-	err := row.Scan(&i.StartingOffset, &i.LastOffset, &i.TopicInsertedAt)
+	err := row.Scan(&i.StartingOffset, &i.LastOffset)
 	return &i, err
 }
 
