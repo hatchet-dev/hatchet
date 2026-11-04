@@ -50,13 +50,27 @@ type Store struct {
 
 	mu sync.RWMutex // protects v
 	v  *viper.Viper
+
+	tokenStore string
+	secrets    Secrets
+
+	resolveOnce sync.Once
+	resolveErr  error
+}
+
+type Option func(*Store)
+
+// WithTokenStore selects where tokens are written: auto (default), keyring or
+// file. HATCHET_CLI_TOKEN_STORE overrides it.
+func WithTokenStore(mode string) Option {
+	return func(s *Store) { s.tokenStore = mode }
 }
 
 // NewStore opens the profile store in dir (the ~/.hatchet directory), using
 // fileName as the profile file name ("" means profiles.yaml). A missing
 // directory or file is fine: reads see an empty store and the first write
 // creates both. An unreadable or malformed file is an error.
-func NewStore(dir, fileName string) (*Store, error) {
+func NewStore(dir, fileName string, opts ...Option) (*Store, error) {
 	if dir == "" {
 		return nil, fmt.Errorf("profile store directory is required")
 	}
@@ -67,11 +81,189 @@ func NewStore(dir, fileName string) (*Store, error) {
 
 	s := &Store{dir: dir, fileName: fileName}
 
+	for _, opt := range opts {
+		opt(s)
+	}
+
 	if err := s.load(); err != nil {
 		return nil, err
 	}
 
 	return s, nil
+}
+
+// TokenStore reports where new tokens are written: "keyring" or "file".
+func (s *Store) TokenStore() (string, error) {
+	secrets, err := s.writeSecrets()
+	if err != nil {
+		return "", err
+	}
+	if secrets == nil {
+		return TokenStoreFile, nil
+	}
+	return TokenStoreKeyring, nil
+}
+
+func (s *Store) writeSecrets() (Secrets, error) {
+	s.resolveOnce.Do(func() {
+		if s.secrets == nil {
+			s.secrets, s.resolveErr = resolveSecrets(s.tokenStore)
+		}
+	})
+	return s.secrets, s.resolveErr
+}
+
+func (s *Store) readSecrets() Secrets {
+	if s.secrets != nil {
+		return s.secrets
+	}
+	if effectiveMode(s.tokenStore) == TokenStoreFile {
+		return nil
+	}
+	return systemKeyring{}
+}
+
+func (s *Store) secretKey(name string) string {
+	return s.fileName + ":" + strings.ToLower(name)
+}
+
+func (s *Store) lookupToken(name string) string {
+	secrets := s.readSecrets()
+	if secrets == nil {
+		return ""
+	}
+	token, _ := secrets.Get(s.secretKey(name))
+	return token
+}
+
+func (s *Store) deleteSecret(name string) {
+	if secrets := s.readSecrets(); secrets != nil {
+		_ = secrets.Delete(s.secretKey(name))
+	}
+}
+
+func (s *Store) setTokenNode(entry *yaml.Node, name, token string) error {
+	secrets, err := s.writeSecrets()
+	if err != nil {
+		return err
+	}
+	if secrets == nil {
+		node, err := yamlNodeFor(token)
+		if err != nil {
+			return err
+		}
+		setMappingValue(entry, "token", node)
+		return nil
+	}
+	if err := secrets.Set(s.secretKey(name), token); err != nil {
+		return fmt.Errorf("could not store token in %s: %w", KeyringName(), err)
+	}
+	deleteMappingKey(entry, "token")
+	return nil
+}
+
+// PlaintextProfiles returns the names of profiles whose token is stored in the
+// profile file itself.
+func (s *Store) PlaintextProfiles() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var names []string
+	for name := range s.v.GetStringMap("profiles") {
+		if s.v.GetString(fmt.Sprintf("profiles.%s.token", name)) != "" {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
+}
+
+// MigrateTokens moves every profile token to the keyring (to == "keyring") or
+// back into the profile file (to == "file") and returns the profiles it moved.
+func (s *Store) MigrateTokens(to string) ([]string, error) {
+	secrets := s.secrets
+	if secrets == nil {
+		if err := probeKeyring(); err != nil {
+			return nil, fmt.Errorf("%s is not available: %w", KeyringName(), err)
+		}
+		secrets = systemKeyring{}
+	}
+
+	var moved []string
+
+	err := s.mutate(func(d *document) (bool, error) {
+		profiles := mappingValue(d.root, "profiles")
+		if profiles == nil || profiles.Kind != yaml.MappingNode {
+			return false, nil
+		}
+
+		for i := 0; i+1 < len(profiles.Content); i += 2 {
+			name := profiles.Content[i].Value
+			entry := profiles.Content[i+1]
+			if entry.Kind != yaml.MappingNode {
+				continue
+			}
+			key := s.secretKey(name)
+			tokenNode := mappingValue(entry, "token")
+
+			switch to {
+			case TokenStoreKeyring:
+				if tokenNode == nil || tokenNode.Value == "" {
+					continue
+				}
+				if err := secrets.Set(key, tokenNode.Value); err != nil {
+					return false, fmt.Errorf("could not store token for profile '%s' in %s: %w", name, KeyringName(), err)
+				}
+				deleteMappingKey(entry, "token")
+			case TokenStoreFile:
+				if tokenNode != nil && tokenNode.Value != "" {
+					continue
+				}
+				token, err := secrets.Get(key)
+				if err != nil {
+					continue
+				}
+				node, err := yamlNodeFor(token)
+				if err != nil {
+					return false, err
+				}
+				setMappingValue(entry, "token", node)
+				_ = secrets.Delete(key)
+			default:
+				return false, fmt.Errorf("unknown token store %q", to)
+			}
+
+			entry.Style = 0
+			moved = append(moved, name)
+		}
+
+		return len(moved) > 0, nil
+	})
+
+	return moved, err
+}
+
+// WriteCLIConfigValue sets one top-level key in ~/.hatchet/config.yaml,
+// preserving the rest of the file.
+func WriteCLIConfigValue(dir, key string, value any) error {
+	unlock, err := acquireLock(dir)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
+	path := filepath.Join(dir, cliConfigFileName)
+	d, err := loadDocument(path)
+	if err != nil {
+		return err
+	}
+	node, err := yamlNodeFor(value)
+	if err != nil {
+		return err
+	}
+	setMappingValue(d.root, key, node)
+	d.root.Style = 0
+	return d.write(path)
 }
 
 // NewDefaultStore opens the profile store at the location the CLI uses:
@@ -99,7 +291,7 @@ func NewDefaultStore() (*Store, error) {
 		return nil, fmt.Errorf("could not load cli config file: %w", err)
 	}
 
-	return NewStore(dir, conf.ProfileFileName)
+	return NewStore(dir, conf.ProfileFileName, WithTokenStore(conf.TokenStore))
 }
 
 // Dir returns the directory containing the profile file (and its lock).
@@ -161,6 +353,9 @@ func (s *Store) GetProfiles() map[string]cli.Profile {
 			GrpcHostPort: s.v.GetString(fmt.Sprintf("profiles.%s.grpcHostPort", name)),
 			TLSStrategy:  tlsStrategy,
 		}
+		if profile.Token == "" {
+			profile.Token = s.lookupToken(name)
+		}
 		profiles[name] = profile
 	}
 
@@ -190,6 +385,9 @@ func (s *Store) GetProfile(name string) (*cli.Profile, error) {
 		ApiServerURL: s.v.GetString(fmt.Sprintf("%s.apiServerURL", key)),
 		GrpcHostPort: s.v.GetString(fmt.Sprintf("%s.grpcHostPort", key)),
 		TLSStrategy:  tlsStrategy,
+	}
+	if profile.Token == "" {
+		profile.Token = s.lookupToken(name)
 	}
 
 	return profile, nil
@@ -276,7 +474,6 @@ func (s *Store) UpsertProfile(name string, profile *cli.Profile, extraFields map
 		}{
 			{"tenantid", profile.TenantId},
 			{"name", profile.Name},
-			{"token", profile.Token},
 			{"expiresat", profile.ExpiresAt},
 			{"apiserverurl", profile.ApiServerURL},
 			{"grpchostport", profile.GrpcHostPort},
@@ -289,6 +486,10 @@ func (s *Store) UpsertProfile(name string, profile *cli.Profile, extraFields map
 				return false, err
 			}
 			setMappingValue(entry, f.key, node)
+		}
+
+		if err := s.setTokenNode(entry, name, profile.Token); err != nil {
+			return false, err
 		}
 
 		extraKeys := make([]string, 0, len(extraFields))
@@ -339,7 +540,6 @@ func (s *Store) UpdateProfile(name string, profile *cli.Profile) error {
 		}{
 			{"tenantid", profile.TenantId, profile.TenantId != ""},
 			{"name", profile.Name, profile.Name != ""},
-			{"token", profile.Token, profile.Token != ""},
 			{"expiresat", profile.ExpiresAt, !profile.ExpiresAt.IsZero()},
 			{"apiserverurl", profile.ApiServerURL, profile.ApiServerURL != ""},
 			{"grpchostport", profile.GrpcHostPort, profile.GrpcHostPort != ""},
@@ -357,6 +557,12 @@ func (s *Store) UpdateProfile(name string, profile *cli.Profile) error {
 			setMappingValue(entry, f.key, node)
 		}
 
+		if profile.Token != "" {
+			if err := s.setTokenNode(entry, name, profile.Token); err != nil {
+				return false, err
+			}
+		}
+
 		d.root.Style = 0
 		profiles.Style = 0
 		entry.Style = 0
@@ -368,7 +574,7 @@ func (s *Store) UpdateProfile(name string, profile *cli.Profile) error {
 // RemoveProfile removes a profile from the config. If the removed profile was
 // the default profile, the default is cleared.
 func (s *Store) RemoveProfile(name string) error {
-	return s.mutate(func(d *document) (bool, error) {
+	err := s.mutate(func(d *document) (bool, error) {
 		profiles := mappingValue(d.root, "profiles")
 
 		if mappingValue(profiles, name) == nil {
@@ -383,6 +589,11 @@ func (s *Store) RemoveProfile(name string) error {
 
 		return true, nil
 	})
+	if err != nil {
+		return err
+	}
+	s.deleteSecret(name)
+	return nil
 }
 
 // RemoveProfileIfTokenMatches removes the named profile only when its stored
@@ -408,8 +619,14 @@ func (s *Store) RemoveProfileIfTokenMatches(name, token string) (bool, error) {
 			return false, nil
 		}
 
-		entryToken := mappingValue(entry, "token")
-		if entryToken == nil || entryToken.Value != token {
+		current := ""
+		if entryToken := mappingValue(entry, "token"); entryToken != nil {
+			current = entryToken.Value
+		}
+		if current == "" {
+			current = s.lookupToken(name)
+		}
+		if current == "" || current != token {
 			return false, nil
 		}
 
@@ -418,6 +635,9 @@ func (s *Store) RemoveProfileIfTokenMatches(name, token string) (bool, error) {
 
 		return true, nil
 	})
+	if removed {
+		s.deleteSecret(name)
+	}
 
 	return removed, err
 }

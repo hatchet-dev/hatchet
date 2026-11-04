@@ -88,7 +88,7 @@ func init() {
 	}
 
 	// open the profile store (the shared public implementation)
-	Profiles, err = profilestore.NewStore(hatchetDir, cliConfig.ProfileFileName)
+	Profiles, err = profilestore.NewStore(hatchetDir, cliConfig.ProfileFileName, profilestore.WithTokenStore(cliConfig.TokenStore))
 
 	if err != nil {
 		log.Fatalf("could not load profiles config file: %v\n", err)

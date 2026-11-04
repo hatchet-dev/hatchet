@@ -24,6 +24,8 @@ var rootCmd = &cobra.Command{
 			fmt.Println(Version)
 			os.Exit(0)
 		}
+
+		offerTokenMigration(cmd)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		err := cmd.Help()
