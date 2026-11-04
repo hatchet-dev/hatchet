@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"testing"
 
 	"github.com/spf13/viper"
 	"go.yaml.in/yaml/v3"
@@ -51,26 +52,14 @@ type Store struct {
 	mu sync.RWMutex // protects v
 	v  *viper.Viper
 
-	tokenStore string
-	secrets    Secrets
-
-	resolveOnce sync.Once
-	resolveErr  error
-}
-
-type Option func(*Store)
-
-// WithTokenStore selects where tokens are written: auto (default), keyring or
-// file. HATCHET_CLI_TOKEN_STORE overrides it.
-func WithTokenStore(mode string) Option {
-	return func(s *Store) { s.tokenStore = mode }
+	secrets Secrets
 }
 
 // NewStore opens the profile store in dir (the ~/.hatchet directory), using
 // fileName as the profile file name ("" means profiles.yaml). A missing
 // directory or file is fine: reads see an empty store and the first write
 // creates both. An unreadable or malformed file is an error.
-func NewStore(dir, fileName string, opts ...Option) (*Store, error) {
+func NewStore(dir, fileName string) (*Store, error) {
 	if dir == "" {
 		return nil, fmt.Errorf("profile store directory is required")
 	}
@@ -81,10 +70,6 @@ func NewStore(dir, fileName string, opts ...Option) (*Store, error) {
 
 	s := &Store{dir: dir, fileName: fileName}
 
-	for _, opt := range opts {
-		opt(s)
-	}
-
 	if err := s.load(); err != nil {
 		return nil, err
 	}
@@ -92,33 +77,20 @@ func NewStore(dir, fileName string, opts ...Option) (*Store, error) {
 	return s, nil
 }
 
-// TokenStore reports where new tokens are written: "keyring" or "file".
-func (s *Store) TokenStore() (string, error) {
-	secrets, err := s.writeSecrets()
-	if err != nil {
-		return "", err
-	}
-	if secrets == nil {
-		return TokenStoreFile, nil
-	}
-	return TokenStoreKeyring, nil
-}
-
-func (s *Store) writeSecrets() (Secrets, error) {
-	s.resolveOnce.Do(func() {
-		if s.secrets == nil {
-			s.secrets, s.resolveErr = resolveSecrets(s.tokenStore)
-		}
-	})
-	return s.secrets, s.resolveErr
-}
-
-func (s *Store) readSecrets() Secrets {
-	if s.secrets != nil {
+// writeSecrets is the backend new tokens go to: the system keyring when it
+// passes the probe, otherwise nil, meaning the token stays in the profile file.
+func (s *Store) writeSecrets() Secrets {
+	if s.secrets != nil || !keyringAvailable() {
 		return s.secrets
 	}
-	if effectiveMode(s.tokenStore) == TokenStoreFile {
-		return nil
+	return systemKeyring{}
+}
+
+// readSecrets is the backend tokens are looked up in. It skips the probe so a
+// read costs one keyring call, not four.
+func (s *Store) readSecrets() Secrets {
+	if s.secrets != nil || testing.Testing() {
+		return s.secrets
 	}
 	return systemKeyring{}
 }
@@ -143,10 +115,7 @@ func (s *Store) deleteSecret(name string) {
 }
 
 func (s *Store) setTokenNode(entry *yaml.Node, name, token string) error {
-	secrets, err := s.writeSecrets()
-	if err != nil {
-		return err
-	}
+	secrets := s.writeSecrets()
 	if secrets == nil {
 		node, err := yamlNodeFor(token)
 		if err != nil {
@@ -178,15 +147,13 @@ func (s *Store) PlaintextProfiles() []string {
 	return names
 }
 
-// MigrateTokens moves every profile token to the keyring (to == "keyring") or
-// back into the profile file (to == "file") and returns the profiles it moved.
-func (s *Store) MigrateTokens(to string) ([]string, error) {
-	secrets := s.secrets
+// MigrateTokens moves every plain-text token from the profile file into the
+// keyring and returns the profiles it moved. It is a no-op when the keyring is
+// unavailable.
+func (s *Store) MigrateTokens() ([]string, error) {
+	secrets := s.writeSecrets()
 	if secrets == nil {
-		if err := probeKeyring(); err != nil {
-			return nil, fmt.Errorf("%s is not available: %w", KeyringName(), err)
-		}
-		secrets = systemKeyring{}
+		return nil, nil
 	}
 
 	var moved []string
@@ -203,36 +170,14 @@ func (s *Store) MigrateTokens(to string) ([]string, error) {
 			if entry.Kind != yaml.MappingNode {
 				continue
 			}
-			key := s.secretKey(name)
 			tokenNode := mappingValue(entry, "token")
-
-			switch to {
-			case TokenStoreKeyring:
-				if tokenNode == nil || tokenNode.Value == "" {
-					continue
-				}
-				if err := secrets.Set(key, tokenNode.Value); err != nil {
-					return false, fmt.Errorf("could not store token for profile '%s' in %s: %w", name, KeyringName(), err)
-				}
-				deleteMappingKey(entry, "token")
-			case TokenStoreFile:
-				if tokenNode != nil && tokenNode.Value != "" {
-					continue
-				}
-				token, err := secrets.Get(key)
-				if err != nil {
-					continue
-				}
-				node, err := yamlNodeFor(token)
-				if err != nil {
-					return false, err
-				}
-				setMappingValue(entry, "token", node)
-				_ = secrets.Delete(key)
-			default:
-				return false, fmt.Errorf("unknown token store %q", to)
+			if tokenNode == nil || tokenNode.Value == "" {
+				continue
 			}
-
+			if err := secrets.Set(s.secretKey(name), tokenNode.Value); err != nil {
+				return false, fmt.Errorf("could not store token for profile '%s' in %s: %w", name, KeyringName(), err)
+			}
+			deleteMappingKey(entry, "token")
 			entry.Style = 0
 			moved = append(moved, name)
 		}
@@ -241,29 +186,6 @@ func (s *Store) MigrateTokens(to string) ([]string, error) {
 	})
 
 	return moved, err
-}
-
-// WriteCLIConfigValue sets one top-level key in ~/.hatchet/config.yaml,
-// preserving the rest of the file.
-func WriteCLIConfigValue(dir, key string, value any) error {
-	unlock, err := acquireLock(dir)
-	if err != nil {
-		return err
-	}
-	defer unlock()
-
-	path := filepath.Join(dir, cliConfigFileName)
-	d, err := loadDocument(path)
-	if err != nil {
-		return err
-	}
-	node, err := yamlNodeFor(value)
-	if err != nil {
-		return err
-	}
-	setMappingValue(d.root, key, node)
-	d.root.Style = 0
-	return d.write(path)
 }
 
 // NewDefaultStore opens the profile store at the location the CLI uses:
@@ -291,7 +213,7 @@ func NewDefaultStore() (*Store, error) {
 		return nil, fmt.Errorf("could not load cli config file: %w", err)
 	}
 
-	return NewStore(dir, conf.ProfileFileName, WithTokenStore(conf.TokenStore))
+	return NewStore(dir, conf.ProfileFileName)
 }
 
 // Dir returns the directory containing the profile file (and its lock).

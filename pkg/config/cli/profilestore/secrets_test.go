@@ -35,7 +35,7 @@ func TestKeyringTokens_EndToEnd(t *testing.T) {
 	require.Equal(t, "new-token", p.Token)
 	require.Equal(t, "new-token", s.GetProfiles()["new"].Token)
 
-	moved, err := s.MigrateTokens(TokenStoreKeyring)
+	moved, err := s.MigrateTokens()
 	require.NoError(t, err)
 	require.Equal(t, []string{"legacy"}, moved)
 	require.Empty(t, s.PlaintextProfiles())
@@ -60,18 +60,20 @@ func TestKeyringTokens_EndToEnd(t *testing.T) {
 	_, err = secrets.Get(s.secretKey("new"))
 	require.Error(t, err)
 
-	moved, err = s.MigrateTokens(TokenStoreFile)
+	moved, err = s.MigrateTokens()
 	require.NoError(t, err)
-	require.Equal(t, []string{"legacy"}, moved)
-	require.Equal(t, []string{"legacy"}, s.PlaintextProfiles())
-	_, err = secrets.Get(s.secretKey("legacy"))
-	require.Error(t, err)
+	require.Empty(t, moved)
 
 	require.NoError(t, s.RemoveProfile("legacy"))
 	require.Empty(t, s.ListProfiles())
+	_, err = secrets.Get(s.secretKey("legacy"))
+	require.Error(t, err)
 
-	require.NoError(t, WriteCLIConfigValue(dir, "tokenStore", TokenStoreFile))
-	conf, err := os.ReadFile(filepath.Join(dir, "config.yaml"))
+	fileOnly, err := NewStore(dir, "profiles.yaml")
 	require.NoError(t, err)
-	require.Contains(t, string(conf), "tokenStore: file")
+	require.NoError(t, fileOnly.AddProfile("headless", makeTestProfile("headless", "headless-token")))
+	moved, err = fileOnly.MigrateTokens()
+	require.NoError(t, err)
+	require.Empty(t, moved)
+	require.Equal(t, []string{"headless"}, fileOnly.PlaintextProfiles())
 }

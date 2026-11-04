@@ -12,10 +12,6 @@ type CLIConfig struct {
 	// ProfileFileName is the name of the profile file, defaults to "profiles.yaml"
 	ProfileFileName string `mapstructure:"profileFileName" json:"profileFileName,omitempty" default:"profiles.yaml"`
 
-	// TokenStore is where profile tokens are kept: auto (system keyring when
-	// available, otherwise the profile file), keyring, or file.
-	TokenStore string `mapstructure:"tokenStore" json:"tokenStore,omitempty" default:"auto"`
-
 	// Logger is the logging configuration for the CLI
 	Logger CLIConfigLogger `mapstructure:"logger" json:"logger,omitempty"`
 
@@ -59,7 +55,6 @@ type CLIConfigLogger struct {
 
 func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("profileFileName", "HATCHET_CLI_PROFILE_FILE_NAME")
-	_ = v.BindEnv("tokenStore", "HATCHET_CLI_TOKEN_STORE")
 
 	// logger options
 	_ = v.BindEnv("logger.level", "HATCHET_CLI_LOGGER_LEVEL")

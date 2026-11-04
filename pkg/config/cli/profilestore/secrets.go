@@ -2,20 +2,11 @@ package profilestore
 
 import (
 	"errors"
-	"fmt"
-	"os"
 	"runtime"
-	"strings"
 	"sync"
 	"testing"
 
 	"github.com/zalando/go-keyring"
-)
-
-const (
-	TokenStoreAuto    = "auto"
-	TokenStoreKeyring = "keyring"
-	TokenStoreFile    = "file"
 )
 
 const keyringService = "hatchet"
@@ -55,46 +46,19 @@ func (m MemorySecrets) Get(key string) (string, error) {
 func (m MemorySecrets) Set(key, value string) error { m[key] = value; return nil }
 func (m MemorySecrets) Delete(key string) error     { delete(m, key); return nil }
 
-var probeKeyring = sync.OnceValue(func() error {
+// keyringAvailable probes the system keyring once per process with a set, get
+// and delete. Headless Linux without a Secret Service, a locked macOS Keychain
+// over SSH, and most containers fail here; tests never touch it.
+var keyringAvailable = sync.OnceValue(func() bool {
+	if testing.Testing() {
+		return false
+	}
 	k := systemKeyring{}
 	if err := k.Set("probe", "ok"); err != nil {
-		return err
+		return false
 	}
 	if _, err := k.Get("probe"); err != nil {
-		return err
+		return false
 	}
-	return k.Delete("probe")
+	return k.Delete("probe") == nil
 })
-
-func effectiveMode(mode string) string {
-	if env := os.Getenv("HATCHET_CLI_TOKEN_STORE"); env != "" {
-		mode = env
-	}
-	mode = strings.ToLower(mode)
-	if mode == "" {
-		mode = TokenStoreAuto
-	}
-	if mode == TokenStoreAuto && testing.Testing() {
-		mode = TokenStoreFile
-	}
-	return mode
-}
-
-func resolveSecrets(mode string) (Secrets, error) {
-	switch effectiveMode(mode) {
-	case TokenStoreFile:
-		return nil, nil
-	case TokenStoreKeyring:
-		if err := probeKeyring(); err != nil {
-			return nil, fmt.Errorf("%s is not available: %w", KeyringName(), err)
-		}
-		return systemKeyring{}, nil
-	case TokenStoreAuto:
-		if err := probeKeyring(); err != nil {
-			return nil, nil
-		}
-		return systemKeyring{}, nil
-	default:
-		return nil, fmt.Errorf("tokenStore must be one of auto, keyring, file (got %q)", mode)
-	}
-}

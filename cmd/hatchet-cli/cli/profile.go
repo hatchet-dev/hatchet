@@ -9,7 +9,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -213,157 +212,34 @@ var profileShowCmd = &cobra.Command{
 	},
 }
 
-var profileMigrateTokensCmd = &cobra.Command{
-	Use:   "migrate-tokens",
-	Short: "Move profile tokens between the system keyring and profiles.yaml",
-	Long: `Move every profile token into the system keyring (macOS Keychain, Windows Credential Manager, or the Linux Secret Service) so that profiles.yaml no longer contains credentials in plain text.
-
-Pass --to file to move tokens back into profiles.yaml, for example before copying the file to a machine without a keyring. This writes the tokens in plain text, so it asks for confirmation (or --yes in scripts).`,
-	Example: `  # Move all plain-text tokens into the system keyring
-  hatchet profile migrate-tokens
-
-  # Move tokens back into profiles.yaml (asks for confirmation)
-  hatchet profile migrate-tokens --to file
-
-  # Same, without the prompt
-  hatchet profile migrate-tokens --to file --yes`,
-	Run: func(cmd *cobra.Command, args []string) {
-		to, _ := cmd.Flags().GetString("to")
-		yes, _ := cmd.Flags().GetBool("yes")
-
-		if to == profilestore.TokenStoreFile && !yes && !confirmPlaintextTokens() {
-			fmt.Println(styles.InfoMessage("Aborted; tokens stay in the " + profilestore.KeyringName()))
-			return
-		}
-
-		moved, err := cli.Profiles.MigrateTokens(to)
-		if err != nil {
-			cli.Logger.Fatalf("could not migrate tokens: %v", err)
-		}
-
-		fmt.Println(migrateTokensView(to, moved))
-
-		if to == profilestore.TokenStoreFile {
-			if err := profilestore.WriteCLIConfigValue(cli.Profiles.Dir(), "tokenStore", profilestore.TokenStoreFile); err != nil {
-				cli.Logger.Fatalf("could not update config.yaml: %v", err)
-			}
-			fmt.Fprintln(os.Stderr, styles.Muted.Render("Set tokenStore: file in "+filepath.Join(cli.Profiles.Dir(), "config.yaml")+" so new tokens also stay in the file."))
-		} else if err := profilestore.WriteCLIConfigValue(cli.Profiles.Dir(), "tokenStore", profilestore.TokenStoreAuto); err != nil {
-			cli.Logger.Fatalf("could not update config.yaml: %v", err)
-		}
-	},
-}
-
-func confirmPlaintextTokens() bool {
-	path := cli.Profiles.Path()
-	warning := fmt.Sprintf("Tokens will be written in plain text to %s. Anyone who can read that file (other users, backups, dotfile syncs, pasted debug output) can act as you on your Hatchet tenants until the tokens expire or are revoked.", path)
-
-	if !term.IsTerminal(int(os.Stdin.Fd())) || !term.IsTerminal(int(os.Stderr.Fd())) {
-		fmt.Fprintln(os.Stderr, lipgloss.NewStyle().Foreground(styles.ErrorColor).Render("Warning: "+warning))
-		fmt.Fprintln(os.Stderr, "Re-run with --yes to confirm.")
-		return false
-	}
-
-	var ok bool
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewConfirm().
-				Title("Move tokens out of the " + profilestore.KeyringName() + " into plain text?").
-				Description(warning).
-				Affirmative("Yes, write them in plain text").
-				Negative("No, keep them in the " + profilestore.KeyringName()).
-				Value(&ok),
-		),
-	).WithTheme(styles.HatchetTheme())
-
-	if err := form.Run(); err != nil {
-		return false
-	}
-	return ok
-}
-
-func migrateTokensView(to string, moved []string) string {
-	dest := profilestore.KeyringName()
-	if to == profilestore.TokenStoreFile {
-		dest = "profiles.yaml"
-	}
-	if len(moved) == 0 {
-		return styles.InfoMessage("No tokens to move; everything is already in " + dest)
-	}
-	return styles.SuccessMessage(fmt.Sprintf("Moved tokens for %s to %s", strings.Join(moved, ", "), dest))
-}
-
-// offerTokenMigration runs before every command. With plain-text tokens in the
-// profile file it either prompts to move them (interactive terminal with a
-// working keyring) or prints a one-line warning.
-func offerTokenMigration(cmd *cobra.Command) {
-	for c := cmd; c != nil; c = c.Parent() {
-		if noMigrationPromptCommands[c.Name()] {
-			return
-		}
-	}
-
-	if cli.CLIConfig.TokenStore == profilestore.TokenStoreFile {
+// migratePlaintextTokens runs before every command. Plain-text tokens in the
+// profile file are moved into the keyring; when that is not possible a one-line
+// warning is printed instead.
+func migratePlaintextTokens(cmd *cobra.Command) {
+	if isQuietCommand(cmd) || len(cli.Profiles.PlaintextProfiles()) == 0 {
 		return
 	}
 
-	plaintext := cli.Profiles.PlaintextProfiles()
-	if len(plaintext) == 0 {
-		return
-	}
-
-	path := cli.Profiles.Path()
-	warn := func() {
-		fmt.Fprintln(os.Stderr, styles.Muted.Render(fmt.Sprintf("Warning: %d profile(s) store API tokens in plain text in %s. Run 'hatchet profile migrate-tokens' to move them to the %s, or set tokenStore: file in config.yaml to silence this.", len(plaintext), path, profilestore.KeyringName())))
-	}
-
-	if !term.IsTerminal(int(os.Stdin.Fd())) || !term.IsTerminal(int(os.Stderr.Fd())) {
-		warn()
-		return
-	}
-
-	if store, err := cli.Profiles.TokenStore(); err != nil || store != profilestore.TokenStoreKeyring {
-		warn()
-		return
-	}
-
-	var move bool
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewConfirm().
-				Title(fmt.Sprintf("%d profile(s) store API tokens in plain text in %s.", len(plaintext), path)).
-				Description(fmt.Sprintf("Move them to the %s? Anyone who can read the file can use the tokens.", profilestore.KeyringName())).
-				Affirmative("Yes, move them").
-				Negative("No, keep the file").
-				Value(&move),
-		),
-	).WithTheme(styles.HatchetTheme())
-
-	if err := form.Run(); err != nil {
-		return
-	}
-
-	if !move {
-		if err := profilestore.WriteCLIConfigValue(cli.Profiles.Dir(), "tokenStore", profilestore.TokenStoreFile); err != nil {
-			cli.Logger.Warnf("could not update config.yaml: %v", err)
-		}
-		fmt.Fprintln(os.Stderr, styles.Muted.Render("Keeping tokens in "+path+". Run 'hatchet profile migrate-tokens' any time to move them."))
-		return
-	}
-
-	moved, err := cli.Profiles.MigrateTokens(profilestore.TokenStoreKeyring)
+	moved, err := cli.Profiles.MigrateTokens()
 	if err != nil {
-		cli.Logger.Fatalf("could not migrate tokens: %v", err)
+		cli.Logger.Warnf("could not move tokens to the %s: %v", profilestore.KeyringName(), err)
 	}
-	fmt.Fprintln(os.Stderr, migrateTokensView(profilestore.TokenStoreKeyring, moved))
+	if len(moved) > 0 {
+		fmt.Fprintln(os.Stderr, styles.Muted.Render(fmt.Sprintf("Moved %d API token(s) from %s to the %s.", len(moved), cli.Profiles.Path(), profilestore.KeyringName())))
+	}
+
+	if w := plaintextTokenWarning(); w != "" {
+		fmt.Fprintln(os.Stderr, w)
+	}
 }
 
-var noMigrationPromptCommands = map[string]bool{
-	"env":            true,
-	"completion":     true,
-	"__complete":     true,
-	"help":           true,
-	"migrate-tokens": true,
+// plaintextTokenWarning is the one-line yellow warning shown while any profile
+// keeps its token in the profile file, or "" when none does.
+func plaintextTokenWarning() string {
+	if len(cli.Profiles.PlaintextProfiles()) == 0 {
+		return ""
+	}
+	return styles.Warning.Render(fmt.Sprintf("Warning: API tokens are stored in plain text in %s (%s unavailable).", cli.Profiles.Path(), profilestore.KeyringName()))
 }
 
 // profileEnvCmd exists so credentials can be loaded by command substitution,
@@ -556,10 +432,6 @@ func init() {
 	profileCmd.AddCommand(profileUpdateCmd)
 	profileCmd.AddCommand(profileSetDefaultCmd)
 	profileCmd.AddCommand(profileUnsetDefaultCmd)
-	profileCmd.AddCommand(profileMigrateTokensCmd)
-
-	profileMigrateTokensCmd.Flags().String("to", profilestore.TokenStoreKeyring, "Destination: 'keyring' or 'file'")
-	profileMigrateTokensCmd.Flags().BoolP("yes", "y", false, "Skip the confirmation when moving tokens to plain text with --to file")
 
 	// Add flags to profile add command
 	profileAddCmd.Flags().StringP("token", "t", "", "Authentication token (prompted if not provided)")
@@ -1008,7 +880,7 @@ func profileView(name, token, apiURL, grpcHost string, showToken, plaintext bool
 	case token == "":
 		tokenValue = styles.Muted.Render("(missing: not in profiles.yaml or the " + profilestore.KeyringName() + ")")
 	case plaintext:
-		tokenValue += " " + lipgloss.NewStyle().Foreground(styles.ErrorColor).Render("(plain text in profiles.yaml)")
+		tokenValue += " " + styles.Warning.Render("(plain text in profiles.yaml)")
 	default:
 		tokenValue += " " + styles.Muted.Render("("+profilestore.KeyringName()+")")
 	}
@@ -1040,13 +912,9 @@ func profileListView(profiles []string) string {
 			profileDisplay = profile + " " + styles.Muted.Render("(default)")
 		}
 		if slices.Contains(plaintext, profile) {
-			profileDisplay += " " + lipgloss.NewStyle().Foreground(styles.ErrorColor).Render("(token in plain text)")
+			profileDisplay += " " + styles.Warning.Render("(token in plain text)")
 		}
 		lines = append(lines, styles.ListItem.Render(styles.Accent.Render("• ")+profileDisplay))
-	}
-
-	if len(plaintext) > 0 {
-		lines = append(lines, "", styles.Muted.Render("Run 'hatchet profile migrate-tokens' to move plain-text tokens to the "+profilestore.KeyringName()+"."))
 	}
 
 	return strings.Join(lines, "\n")
