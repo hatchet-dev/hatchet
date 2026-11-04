@@ -90,7 +90,7 @@ var errPollerRetired = errors.New("topic poller retired")
 
 // topicPoller is one topic's tail loop, shared by every Subscribe RPC on it. It
 // starts with its first listener and retires for good once it has none, idles
-// out, or its topic is recreated; the registry then starts a new one.
+// out, or its topic row is replaced; the registry then starts a new one.
 type topicPoller struct {
 	streams           v1.StreamsRepository
 	l                 *zerolog.Logger
@@ -111,7 +111,7 @@ type topicPoller struct {
 	cursor    v1.StreamCursor
 	// every message up to this reserved offset has been fanned out
 	checkedOffset int64
-	// the topic incarnation this poller follows, zero until the topic exists
+	// identifies the topic row this poller follows, zero until the topic exists
 	topicCreatedAt time.Time
 	lastActivityAt time.Time
 }
@@ -137,9 +137,8 @@ func (p *topicPoller) wakeUp() {
 	}
 }
 
-// join attaches listener at startCursor, where its replay of the topic's
-// topicCreatedAt incarnation ended.
-func (p *topicPoller) join(ctx context.Context, topicCreatedAt time.Time, startCursor v1.StreamCursor, listener *topicListener) (int, error) {
+// join attaches listener at startCursor, where its replay ended.
+func (p *topicPoller) join(ctx context.Context, startCursor v1.StreamCursor, listener *topicListener) (int, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -148,22 +147,6 @@ func (p *topicPoller) join(ctx context.Context, topicCreatedAt time.Time, startC
 	}
 
 	first := p.cancel == nil
-
-	switch {
-	case first || p.topicCreatedAt.IsZero():
-		p.topicCreatedAt = topicCreatedAt
-	case topicCreatedAt.After(p.topicCreatedAt):
-		// recreated since this poller started: its listeners resume at the new topic's start
-		p.retireLocked(p.topicStart())
-		return 0, errPollerRetired
-	}
-
-	// a topic's messages are never inserted before its row, so an older cursor, or an
-	// untimed one read before this incarnation, points into an earlier one
-	if startCursor.CreatedAt.Before(p.topicCreatedAt) && (!startCursor.CreatedAt.IsZero() || topicCreatedAt.Before(p.topicCreatedAt)) {
-		startCursor = *p.topicStart()
-	}
-
 	q := startListenerQueue(listener)
 
 	if first {
@@ -209,8 +192,9 @@ func (p *topicPoller) startLocked(cursor v1.StreamCursor) {
 	go p.run(ctx)
 }
 
-// retireLocked hangs up every listener, sending resumeAt to resubscribe from if
-// given, and stops the poller for good.
+// retireLocked ends every listener's RPC and stops the poller for good. With
+// resumeAt, each gets a hangup, which ends the client's subscription; without it,
+// the RPC just ends, and the client resubscribes from the last cursor it received.
 func (p *topicPoller) retireLocked(resumeAt *v1.StreamCursor) {
 	if p.retired.Load() {
 		return
@@ -336,8 +320,9 @@ func (p *topicPoller) pollIfPublishedLocked(ctx context.Context) (sendStats, err
 	case p.topicCreatedAt.IsZero():
 		p.topicCreatedAt = info.CreatedAt
 	case !info.CreatedAt.Equal(p.topicCreatedAt):
-		// the idle sweep deleted the topic, which restarts its offsets at 1 if it's republished
-		p.retireLocked(p.topicStart())
+		// the idle sweep deleted the row, and a publish recreating it restarts its offsets
+		// at 1; each client resumes from its own last cursor on a new poller
+		p.retireLocked(nil)
 		return sendStats{}, nil
 	}
 
@@ -353,10 +338,6 @@ func (p *topicPoller) pollIfPublishedLocked(ctx context.Context) (sendStats, err
 	}
 
 	return stats, err
-}
-
-func (p *topicPoller) topicStart() *v1.StreamCursor {
-	return &v1.StreamCursor{Namespace: p.key.namespace, Topic: p.key.topic}
 }
 
 // pollLocked sends every listener the rows after the poller's cursor.
@@ -538,18 +519,11 @@ func (r *topicPollerRegistry) Join(ctx context.Context, key topicPollerKey, star
 		return nil, err
 	}
 
-	// read after the replay, so it names the incarnation the replay ended in or a later one
-	info, err := r.streams.GetTopicInfo(ctx, key.tenantId, key.namespace, key.topic)
-
-	if err != nil {
-		return nil, err
-	}
-
 	for {
 		p := r.livePoller(key)
 
 		// outside r.mu, so a poller busy with a slow read can't stall Joins on other topics
-		id, err := p.join(ctx, info.CreatedAt, startCursor, listener)
+		id, err := p.join(ctx, startCursor, listener)
 
 		if errors.Is(err, errPollerRetired) {
 			continue
