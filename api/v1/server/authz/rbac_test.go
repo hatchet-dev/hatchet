@@ -27,7 +27,7 @@ var adminAndOwnerOnly = []string{
 // anything that triggers, creates, updates, deletes, cancels, replays, or reruns tenant state.
 // Keep this in sync with the exclusions applied when building the VIEWER permission list in rbac.yaml.
 var memberOnlyOps = []string{
-	"ApiTokenList", // read-only, but tokens are not exposed to viewers
+	"ApiTokenList",
 	"StepRunUpdateCancel",
 	"TenantUpdate",
 	"WorkflowRunUpdateReplay",

@@ -124,7 +124,6 @@ export default function APITokens() {
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  {/* disabled buttons swallow pointer events, so the span carries the tooltip */}
                   <span tabIndex={0}>
                     <Button key="create-api-token" disabled>
                       Create API Token
