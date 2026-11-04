@@ -8,8 +8,12 @@ const taskNames = new WeakMap<HatchetClient, Promise<string>>();
 async function registered(client: HatchetClient, name: string): Promise<boolean> {
   const namespace = client.config.namespace ?? '';
   const full = name.startsWith(namespace) ? name : `${namespace}${name}`;
-  const { rows = [] } = await client.workflows.list({ name: full });
-  return rows.some((w) => w.name === full);
+  for (let offset = 0; ;) {
+    const { rows = [] } = await client.workflows.list({ name: full, limit: 100, offset });
+    if (rows.some((w) => w.name === full)) return true;
+    if (rows.length === 0) return false;
+    offset += rows.length;
+  }
 }
 
 async function probe(client: HatchetClient): Promise<string | undefined> {

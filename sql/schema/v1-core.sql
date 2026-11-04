@@ -3351,7 +3351,7 @@ CREATE TABLE v1_sandbox_provider (
     api_key_enc TEXT NOT NULL,
     config JSONB NOT NULL DEFAULT '{}'::jsonb,
     default_template TEXT,
-    max_idle_ttl_seconds INT NOT NULL DEFAULT 86400,
+    max_idle_ttl_seconds INT NOT NULL DEFAULT 3600,
     labels JSONB NOT NULL DEFAULT '{}'::jsonb,
     enabled BOOLEAN NOT NULL DEFAULT TRUE,
     provider_partition INT NOT NULL DEFAULT 0,

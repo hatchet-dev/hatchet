@@ -11,7 +11,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Eac
 ### Added
 
 - `create({ provider })` picks the sandbox provider by name when a tenant has more than one. It is sent as the `provider` metadata tag, so providers that already read that tag need no change.
-- The SDK works against any sandbox provider. On first use it checks whether the tenant serves the `hatchet-sandbox` task and uses that; otherwise it keeps using `brickie-sandbox`. Existing deployments need no change.
+- The SDK works against any sandbox provider. On first use it checks whether the tenant serves the `hatchet-sandbox` task and uses that; otherwise it keeps using `brickie-sandbox`. Existing deployments need no change. A tenant should serve one of the two: turning on `hatchet-sandbox` while durable tasks that already called `brickie-sandbox` are in flight makes those tasks fail on resume with a non-determinism error, so drain them first.
 - `HATCHET_SANDBOX_OTEL=false` turns the OpenTelemetry instrumentor off. `BRICKIE_OTEL=false` still works.
 
 ### Changed
