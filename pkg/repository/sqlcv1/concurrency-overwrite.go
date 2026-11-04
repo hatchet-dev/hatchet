@@ -184,12 +184,17 @@ WITH child_keys AS (
     SELECT DISTINCT key
     FROM (
         SELECT key
-        FROM v1_concurrency_slot
+        FROM v1_concurrency_slot cs
         WHERE
-            tenant_id = $1::uuid
-            AND strategy_id = $2::bigint
-            AND is_filled = FALSE
-        ORDER BY task_id, task_inserted_at
+            cs.tenant_id = $1::uuid
+            AND cs.strategy_id = $2::bigint
+            AND cs.is_filled = FALSE
+            AND EXISTS (
+                SELECT 1
+                FROM v1_workflow_concurrency_slot wcs
+                WHERE (wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id) = (cs.parent_strategy_id, cs.workflow_version_id, cs.workflow_run_id)
+            )
+        ORDER BY cs.task_id, cs.task_inserted_at
         LIMIT $3::int
     ) batch
 )

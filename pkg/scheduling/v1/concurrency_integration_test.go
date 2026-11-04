@@ -443,6 +443,99 @@ func TestConcurrency_CancelInProgress_ParentBacklogDrainsAcrossPasses(t *testing
 	})
 }
 
+func TestConcurrency_CancelInProgress_OrphanChildSlotsDoNotBlockLiveRun(t *testing.T) {
+	runWithDatabase(t, func(conf *database.Layer) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+		requireSchedulerSchema(t, ctx, conf)
+
+		const numOrphans = 1000
+
+		r := conf.V1
+		queries := sqlcv1.New()
+
+		tenantId := uuid.New()
+		_, err := r.Tenant().CreateTenant(ctx, &repo.CreateTenantOpts{
+			ID:   &tenantId,
+			Name: "cip-orphans",
+			Slug: fmt.Sprintf("cip-orphans-%s", tenantId.String()),
+		})
+		require.NoError(t, err)
+
+		strategy := "CANCEL_IN_PROGRESS"
+		maxRuns := int32(1)
+		desc := "orphan child slots test"
+
+		wfVersion, err := r.Workflows().PutWorkflowVersion(ctx, tenantId, &repo.CreateWorkflowVersionOpts{
+			Name:        "cip-orphans",
+			Description: &desc,
+			Tasks: []repo.CreateStepOpts{
+				{ReadableId: "task-a", Action: "test:run"},
+				{ReadableId: "task-b", Action: "test:run"},
+			},
+			Concurrency: []repo.CreateConcurrencyOpts{
+				{MaxRuns: &maxRuns, LimitStrategy: &strategy, Expression: "input.my_id"},
+			},
+		})
+		require.NoError(t, err)
+
+		strategies, err := queries.ListActiveConcurrencyStrategies(ctx, conf.Pool, tenantId)
+		require.NoError(t, err)
+
+		var child *sqlcv1.V1StepConcurrency
+		for _, st := range strategies {
+			if st.ParentStrategyID.Valid {
+				child = st
+				break
+			}
+		}
+		require.NotNil(t, child)
+
+		runIds := make([]uuid.UUID, numOrphans+1)
+		p := newCreateTasksParams(numOrphans + 1)
+		for i := range runIds {
+			runIds[i] = uuid.New()
+			p.Tenantids[i] = tenantId
+			p.Queues[i] = "default"
+			p.Actionids[i] = "test:run"
+			p.Stepids[i] = child.StepID
+			p.Stepreadableids[i] = "task-a"
+			p.Workflowids[i] = wfVersion.WorkflowVersion.WorkflowId
+			p.Scheduletimeouts[i] = "5m"
+			p.Priorities[i] = 1
+			p.Stickies[i] = string(sqlcv1.V1StickyStrategyNONE)
+			p.Externalids[i] = uuid.New()
+			p.Displaynames[i] = fmt.Sprintf("run-%d", i)
+			p.Additionalmetadatas[i] = []byte(`{}`)
+			p.InitialStates[i] = string(sqlcv1.V1TaskInitialStateQUEUED)
+			p.Concurrencyparentstrategyids[i] = []pgtype.Int8{child.ParentStrategyID}
+			p.ConcurrencyStrategyIds[i] = []int64{child.ID}
+			p.ConcurrencyKeys[i] = []string{fmt.Sprintf("key-%d", i)}
+			p.WorkflowVersionIds[i] = wfVersion.WorkflowVersion.ID
+			p.WorkflowRunIds[i] = runIds[i]
+		}
+
+		tasks, err := queries.CreateTasks(ctx, conf.Pool, p)
+		require.NoError(t, err)
+		require.Len(t, tasks, numOrphans+1)
+
+		_, err = conf.Pool.Exec(ctx,
+			`DELETE FROM v1_workflow_concurrency_slot WHERE strategy_id = $1 AND workflow_run_id = ANY($2::uuid[])`,
+			child.ParentStrategyID.Int64, runIds[:numOrphans],
+		)
+		require.NoError(t, err)
+
+		res, err := r.Scheduler().Concurrency().RunConcurrencyStrategy(ctx, tenantId, child)
+		require.NoError(t, err)
+		require.Len(t, res.Queued, 1)
+		queuedIdx := slices.IndexFunc(tasks, func(task *sqlcv1.V1Task) bool { return task.ID == res.Queued[0].Id })
+		require.GreaterOrEqual(t, queuedIdx, 0)
+		require.Equal(t, runIds[numOrphans], tasks[queuedIdx].WorkflowRunID)
+
+		return nil
+	})
+}
+
 // TestConcurrency_CancelInProgress_InMemory exercises the new outbox-backed in-memory index for
 // CANCEL_IN_PROGRESS: it keeps the newest maxRuns slots (highest priority, then latest) running and
 // cancels the older ones with CONCURRENCY_LIMIT. With equal-priority tasks this comes down to the
