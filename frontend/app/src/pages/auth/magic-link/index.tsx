@@ -40,6 +40,30 @@ export default function MagicLinkConfirm() {
     ? accountSwitchMessage(currentUser.data.email)
     : null;
 
+  if (errors.length > 0) {
+    return (
+      <AuthLayout>
+        <div className="flex flex-col gap-3 text-center lg:text-left">
+          <div className="flex justify-center pb-3 lg:hidden">
+            <HatchetLogo className="h-8 w-auto" />
+          </div>
+          <h2 className="text-2xl font-semibold tracking-tight">
+            This link can't be used
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Login links expire after a short time and work only once.
+          </p>
+        </div>
+        <Alert variant="destructive">
+          <AlertDescription>{errors.join(' ')}</AlertDescription>
+        </Alert>
+        <Button asChild>
+          <Link to={appRoutes.authLoginRoute.to}>Request a new link</Link>
+        </Button>
+      </AuthLayout>
+    );
+  }
+
   return (
     <AuthLayout>
       <div className="flex flex-col gap-3 text-center lg:text-left">
@@ -58,33 +82,18 @@ export default function MagicLinkConfirm() {
           <AlertDescription>{warning}</AlertDescription>
         </Alert>
       )}
-      {errors.length > 0 && (
-        <Alert variant="destructive">
-          <AlertDescription>{errors.join(' ')}</AlertDescription>
-        </Alert>
-      )}
       <Button
         disabled={!token || confirm.isPending}
         onClick={() => {
           if (!token) {
             return;
           }
-          setErrors([]);
           confirm.mutate({ token });
         }}
       >
         {confirm.isPending && <Spinner />}
         Sign in
       </Button>
-      <div className="text-sm text-muted-foreground">
-        Need a new link?{' '}
-        <Link
-          to={appRoutes.authLoginRoute.to}
-          className="font-semibold text-primary underline underline-offset-4 hover:text-primary/90"
-        >
-          Request another one
-        </Link>
-      </div>
       <AuthLegalText />
     </AuthLayout>
   );
