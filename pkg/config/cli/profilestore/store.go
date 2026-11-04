@@ -99,13 +99,12 @@ func (s *Store) secretKey(name string) string {
 	return s.fileName + ":" + strings.ToLower(name)
 }
 
-func (s *Store) lookupToken(name string) string {
+func (s *Store) lookupToken(name string) (string, error) {
 	secrets := s.readSecrets()
 	if secrets == nil {
-		return ""
+		return "", nil
 	}
-	token, _ := secrets.Get(s.secretKey(name))
-	return token
+	return secrets.Get(s.secretKey(name))
 }
 
 func (s *Store) deleteSecret(name string) {
@@ -276,7 +275,7 @@ func (s *Store) GetProfiles() map[string]cli.Profile {
 			TLSStrategy:  tlsStrategy,
 		}
 		if profile.Token == "" {
-			profile.Token = s.lookupToken(name)
+			profile.Token, _ = s.lookupToken(name)
 		}
 		profiles[name] = profile
 	}
@@ -309,7 +308,11 @@ func (s *Store) GetProfile(name string) (*cli.Profile, error) {
 		TLSStrategy:  tlsStrategy,
 	}
 	if profile.Token == "" {
-		profile.Token = s.lookupToken(name)
+		token, err := s.lookupToken(name)
+		if err != nil {
+			return nil, fmt.Errorf("could not read the token for profile '%s' from the %s", name, KeyringName())
+		}
+		profile.Token = token
 	}
 
 	return profile, nil
@@ -546,7 +549,7 @@ func (s *Store) RemoveProfileIfTokenMatches(name, token string) (bool, error) {
 			current = entryToken.Value
 		}
 		if current == "" {
-			current = s.lookupToken(name)
+			current, _ = s.lookupToken(name)
 		}
 		if current == "" || current != token {
 			return false, nil

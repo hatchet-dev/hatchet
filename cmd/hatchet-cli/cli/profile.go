@@ -132,6 +132,7 @@ var profileAddCmd = &cobra.Command{
 		}
 
 		fmt.Println(profileActionView("added", name))
+		printPlaintextTokenWarning()
 	},
 }
 
@@ -222,12 +223,18 @@ func migratePlaintextTokens(cmd *cobra.Command) {
 
 	moved, err := cli.Profiles.MigrateTokens()
 	if err != nil {
-		cli.Logger.Warnf("could not move tokens to the %s: %v", profilestore.KeyringName(), err)
+		cli.Logger.Warnf("could not move tokens to the %s; they remain in %s", profilestore.KeyringName(), cli.Profiles.Path())
 	}
 	if len(moved) > 0 {
 		fmt.Fprintln(os.Stderr, styles.Muted.Render(fmt.Sprintf("Moved %d API token(s) from %s to the %s.", len(moved), cli.Profiles.Path(), profilestore.KeyringName())))
 	}
 
+	printPlaintextTokenWarning()
+}
+
+// printPlaintextTokenWarning is called after every profile write and at
+// startup, so a token that just fell back to the file is reported right away.
+func printPlaintextTokenWarning() {
 	if w := plaintextTokenWarning(); w != "" {
 		fmt.Fprintln(os.Stderr, w)
 	}
@@ -361,6 +368,7 @@ var profileUpdateCmd = &cobra.Command{
 		}
 
 		fmt.Println(profileActionView("updated", name))
+		printPlaintextTokenWarning()
 	},
 }
 
@@ -561,6 +569,7 @@ func addProfileFromToken(cmd *cobra.Command) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("could not add profile: %w", err)
 	}
+	printPlaintextTokenWarning()
 
 	return name, nil
 }

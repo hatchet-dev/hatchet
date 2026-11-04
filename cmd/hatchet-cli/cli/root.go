@@ -24,8 +24,6 @@ var rootCmd = &cobra.Command{
 			fmt.Println(Version)
 			os.Exit(0)
 		}
-
-		migratePlaintextTokens(cmd)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		err := cmd.Help()
@@ -43,6 +41,12 @@ func Execute() {
 	defer waitForTelemetry()
 
 	updateNotice := startUpdateCheck()
+
+	// Resolve the target command up front: several subcommands replace the
+	// inherited PersistentPreRun, so a hook there would not run for them.
+	if target, _, err := rootCmd.Find(os.Args[1:]); err == nil {
+		migratePlaintextTokens(target)
+	}
 
 	cmd, err := rootCmd.ExecuteC()
 	if err != nil {
