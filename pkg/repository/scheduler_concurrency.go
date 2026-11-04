@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -18,6 +19,12 @@ import (
 const PARENT_STRATEGY_LOCK_OFFSET = 1000000000000 // 1 trillion
 
 const parentConcurrencyPassBatchSize = 1000
+
+// The batched parent pass groups runs by parent key, which is only safe when every task of a run
+// evaluates to the same key; workflow_run_id and parents differ per task.
+func childKeysMatchParentKeys(expression string) bool {
+	return !strings.Contains(expression, "workflow_run_id") && !strings.Contains(expression, "parents")
+}
 
 // Cancellation reasons surfaced on TaskWithCancelledReason. Kept as plain strings to match the
 // values the downstream consumer (notifyAfterConcurrency) and the legacy SQL paths compare against.
@@ -534,12 +541,19 @@ func (c *ConcurrencyRepositoryImpl) runCancelInProgress(
 			return nil, fmt.Errorf("failed to acquire parent advisory lock (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
 		}
 
-		err = c.queries.CreateParentTempTableForChildBatch(ctx, tx, sqlcv1.CreateParentTempTableForChildBatchParams{
-			Tenantid:        tenantId,
-			Strategyid:      strategy.ParentStrategyID.Int64,
-			Childstrategyid: strategy.ID,
-			Batchsize:       parentConcurrencyPassBatchSize,
-		})
+		if childKeysMatchParentKeys(strategy.Expression) {
+			err = c.queries.CreateParentTempTableForChildBatch(ctx, tx, sqlcv1.CreateParentTempTableForChildBatchParams{
+				Tenantid:        tenantId,
+				Strategyid:      strategy.ParentStrategyID.Int64,
+				Childstrategyid: strategy.ID,
+				Batchsize:       parentConcurrencyPassBatchSize,
+			})
+		} else {
+			err = c.queries.CreateParentTempTable(ctx, tx, sqlcv1.CreateParentTempTableParams{
+				Tenantid:   tenantId,
+				Strategyid: strategy.ParentStrategyID.Int64,
+			})
+		}
 
 		if err != nil {
 			return nil, fmt.Errorf("error creating parent temp table (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
