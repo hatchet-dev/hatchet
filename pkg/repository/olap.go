@@ -1160,8 +1160,32 @@ func additionalMetadataFilterParamsFromOpts(additionalMetadata map[string]interf
 	return additionalMetadataFilterParams{Keys: keys, Values: values}, nil
 }
 
+func singlePairMetadataObjects(keys, values []string) ([][]byte, error) {
+	objects := make([][]byte, 0, len(keys))
+
+	for i, key := range keys {
+		object, err := json.Marshal(map[string]string{key: values[i]})
+
+		if err != nil {
+			return nil, err
+		}
+
+		objects = append(objects, object)
+	}
+
+	return objects, nil
+}
+
 func listTasksParamsFromOpts(tenantId uuid.UUID, opts ListTaskRunOpts) (sqlcv1.ListTasksOlapParams, error) {
 	metadataFilters, err := additionalMetadataFilterParamsFromOpts(opts.AdditionalMetadata, opts.AdditionalMetadataOperator)
+
+	if err != nil {
+		return sqlcv1.ListTasksOlapParams{}, err
+	}
+
+	// task metadata lives on v1_runs_olap, so the key/value filter can't use an index on the task rows;
+	// the ContainsAny variant finds the matching runs through their GIN index instead
+	metadataContainsAny, err := singlePairMetadataObjects(metadataFilters.Keys, metadataFilters.Values)
 
 	if err != nil {
 		return sqlcv1.ListTasksOlapParams{}, err
@@ -1177,8 +1201,7 @@ func listTasksParamsFromOpts(tenantId uuid.UUID, opts ListTaskRunOpts) (sqlcv1.L
 		WorkerId:                      opts.WorkerId,
 		IdempotencyKeys:               opts.IdempotencyKeys,
 		AdditionalMetadataContainsAll: metadataFilters.ContainsAll,
-		Keys:                          metadataFilters.Keys,
-		Values:                        metadataFilters.Values,
+		AdditionalMetadataContainsAny: metadataContainsAny,
 	}
 
 	if len(opts.WorkflowIds) > 0 {

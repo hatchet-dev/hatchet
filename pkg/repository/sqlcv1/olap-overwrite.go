@@ -25,6 +25,11 @@ import (
 // the tenant's rows. Each variant must only run with its containment parameter set;
 // the functions select the text based on which params field is populated. Parameter
 // numbering is identical across variants so they share the same argument list.
+//
+// The task containment variants read metadata from v1_runs_olap, so they start from the
+// matching runs and look up their tasks by primary key. A DAG run can be older than the
+// task window, so the runs have no lower time bound. `MATERIALIZED` keeps Postgres from
+// hash joining the matching runs against every task in the window instead.
 
 const countTasks = `-- name: CountTasks :one
 WITH filtered AS (
@@ -93,24 +98,62 @@ FROM filtered
 `
 
 const countTasksMetadataContainsAll = `-- name: CountTasksMetadataContainsAll :one
-WITH filtered AS (
+WITH matching_runs AS MATERIALIZED (
     SELECT
-        tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, readable_status, latest_retry_count, latest_worker_id, dag_id, dag_inserted_at
+        r.id,
+        r.inserted_at,
+        r.kind
     FROM
-        v1_tasks_olap t
+        v1_runs_olap r
     WHERE
-        tenant_id = $1::uuid
-        AND inserted_at >= $2::timestamptz
-        AND readable_status = ANY($3::v1_readable_status_olap[])
+        r.tenant_id = $1::uuid
+        AND r.additional_metadata @> $10::jsonb
         AND (
             $4::timestamptz IS NULL
-            OR inserted_at <= $4::timestamptz
+            OR r.inserted_at <= $4::timestamptz
+        )
+), matching_task_keys AS (
+    SELECT
+        inserted_at,
+        id
+    FROM
+        matching_runs
+    WHERE
+        kind = 'TASK'
+        AND inserted_at >= $2::timestamptz
+
+    UNION ALL
+
+    SELECT
+        dt.task_inserted_at,
+        dt.task_id
+    FROM
+        matching_runs mr
+    JOIN
+        v1_dag_to_task_olap dt ON (dt.dag_id, dt.dag_inserted_at) = (mr.id, mr.inserted_at)
+    WHERE
+        mr.kind = 'DAG'
+        AND dt.task_inserted_at >= $2::timestamptz
+), filtered AS (
+    SELECT
+        t.id
+    FROM
+        matching_task_keys k
+    JOIN
+        v1_tasks_olap t ON (t.inserted_at, t.id) = (k.inserted_at, k.id)
+    WHERE
+        t.tenant_id = $1::uuid
+        AND t.inserted_at >= $2::timestamptz
+        AND t.readable_status = ANY($3::v1_readable_status_olap[])
+        AND (
+            $4::timestamptz IS NULL
+            OR t.inserted_at <= $4::timestamptz
         )
         AND (
-            $5::uuid[] IS NULL OR workflow_id = ANY($5::uuid[])
+            $5::uuid[] IS NULL OR t.workflow_id = ANY($5::uuid[])
         )
         AND (
-            $6::uuid IS NULL OR latest_worker_id = $6::uuid
+            $6::uuid IS NULL OR t.latest_worker_id = $6::uuid
         )
         AND (
             $7::text[] IS NULL
@@ -126,28 +169,23 @@ WITH filtered AS (
             )
         )
         AND (
-            SELECT r.additional_metadata
-            FROM v1_runs_olap r
-            WHERE (r.inserted_at, r.id) = (COALESCE(t.dag_inserted_at, t.inserted_at), COALESCE(t.dag_id, t.id))
-        ) @> $10::jsonb
-		AND (
-			$9::UUID IS NULL
-			OR (id, inserted_at) IN (
+            $9::UUID IS NULL
+            OR (t.id, t.inserted_at) IN (
                 SELECT etr.run_id, etr.run_inserted_at
                 FROM v1_event_lookup_table_olap lt
                 JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
                 JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
-    			WHERE
-					lt.tenant_id = $1::uuid
-					AND lt.external_id = $9::UUID
+                WHERE
+                    lt.tenant_id = $1::uuid
+                    AND lt.external_id = $9::UUID
             )
-		)
-		AND (
-			$11::TEXT[] IS NULL
-			OR idempotency_key = ANY($11::TEXT[])
-		)
+        )
+        AND (
+            $11::TEXT[] IS NULL
+            OR t.idempotency_key = ANY($11::TEXT[])
+        )
     ORDER BY
-        inserted_at DESC
+        t.inserted_at DESC
     LIMIT 20000
 )
 
@@ -156,24 +194,62 @@ FROM filtered
 `
 
 const countTasksMetadataContainsAny = `-- name: CountTasksMetadataContainsAny :one
-WITH filtered AS (
+WITH matching_runs AS MATERIALIZED (
     SELECT
-        tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, readable_status, latest_retry_count, latest_worker_id, dag_id, dag_inserted_at
+        r.id,
+        r.inserted_at,
+        r.kind
     FROM
-        v1_tasks_olap t
+        v1_runs_olap r
     WHERE
-        tenant_id = $1::uuid
-        AND inserted_at >= $2::timestamptz
-        AND readable_status = ANY($3::v1_readable_status_olap[])
+        r.tenant_id = $1::uuid
+        AND r.additional_metadata @> ANY($10::jsonb[])
         AND (
             $4::timestamptz IS NULL
-            OR inserted_at <= $4::timestamptz
+            OR r.inserted_at <= $4::timestamptz
+        )
+), matching_task_keys AS (
+    SELECT
+        inserted_at,
+        id
+    FROM
+        matching_runs
+    WHERE
+        kind = 'TASK'
+        AND inserted_at >= $2::timestamptz
+
+    UNION ALL
+
+    SELECT
+        dt.task_inserted_at,
+        dt.task_id
+    FROM
+        matching_runs mr
+    JOIN
+        v1_dag_to_task_olap dt ON (dt.dag_id, dt.dag_inserted_at) = (mr.id, mr.inserted_at)
+    WHERE
+        mr.kind = 'DAG'
+        AND dt.task_inserted_at >= $2::timestamptz
+), filtered AS (
+    SELECT
+        t.id
+    FROM
+        matching_task_keys k
+    JOIN
+        v1_tasks_olap t ON (t.inserted_at, t.id) = (k.inserted_at, k.id)
+    WHERE
+        t.tenant_id = $1::uuid
+        AND t.inserted_at >= $2::timestamptz
+        AND t.readable_status = ANY($3::v1_readable_status_olap[])
+        AND (
+            $4::timestamptz IS NULL
+            OR t.inserted_at <= $4::timestamptz
         )
         AND (
-            $5::uuid[] IS NULL OR workflow_id = ANY($5::uuid[])
+            $5::uuid[] IS NULL OR t.workflow_id = ANY($5::uuid[])
         )
         AND (
-            $6::uuid IS NULL OR latest_worker_id = $6::uuid
+            $6::uuid IS NULL OR t.latest_worker_id = $6::uuid
         )
         AND (
             $7::text[] IS NULL
@@ -189,28 +265,23 @@ WITH filtered AS (
             )
         )
         AND (
-            SELECT r.additional_metadata
-            FROM v1_runs_olap r
-            WHERE (r.inserted_at, r.id) = (COALESCE(t.dag_inserted_at, t.inserted_at), COALESCE(t.dag_id, t.id))
-        ) @> ANY($10::jsonb[])
-		AND (
-			$9::UUID IS NULL
-			OR (id, inserted_at) IN (
+            $9::UUID IS NULL
+            OR (t.id, t.inserted_at) IN (
                 SELECT etr.run_id, etr.run_inserted_at
                 FROM v1_event_lookup_table_olap lt
                 JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
                 JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
-    			WHERE
-					lt.tenant_id = $1::uuid
-					AND lt.external_id = $9::UUID
+                WHERE
+                    lt.tenant_id = $1::uuid
+                    AND lt.external_id = $9::UUID
             )
-		)
-		AND (
-			$11::TEXT[] IS NULL
-			OR idempotency_key = ANY($11::TEXT[])
-		)
+        )
+        AND (
+            $11::TEXT[] IS NULL
+            OR t.idempotency_key = ANY($11::TEXT[])
+        )
     ORDER BY
-        inserted_at DESC
+        t.inserted_at DESC
     LIMIT 20000
 )
 
@@ -803,24 +874,63 @@ OFFSET $9::integer
 `
 
 const listTasksOlapMetadataContainsAll = `-- name: ListTasksOlapMetadataContainsAll :many
+WITH matching_runs AS MATERIALIZED (
+    SELECT
+        r.id,
+        r.inserted_at,
+        r.kind
+    FROM
+        v1_runs_olap r
+    WHERE
+        r.tenant_id = $1::uuid
+        AND r.additional_metadata @> $12::jsonb
+        AND (
+            $4::timestamptz IS NULL
+            OR r.inserted_at <= $4::timestamptz
+        )
+), matching_task_keys AS (
+    SELECT
+        inserted_at,
+        id
+    FROM
+        matching_runs
+    WHERE
+        kind = 'TASK'
+        AND inserted_at >= $2::timestamptz
+
+    UNION ALL
+
+    SELECT
+        dt.task_inserted_at,
+        dt.task_id
+    FROM
+        matching_runs mr
+    JOIN
+        v1_dag_to_task_olap dt ON (dt.dag_id, dt.dag_inserted_at) = (mr.id, mr.inserted_at)
+    WHERE
+        mr.kind = 'DAG'
+        AND dt.task_inserted_at >= $2::timestamptz
+)
 SELECT
-    id,
-    inserted_at
+    t.id,
+    t.inserted_at
 FROM
-    v1_tasks_olap t
+    matching_task_keys k
+JOIN
+    v1_tasks_olap t ON (t.inserted_at, t.id) = (k.inserted_at, k.id)
 WHERE
-    tenant_id = $1::uuid
-    AND inserted_at >= $2::timestamptz
-    AND readable_status = ANY($3::v1_readable_status_olap[])
+    t.tenant_id = $1::uuid
+    AND t.inserted_at >= $2::timestamptz
+    AND t.readable_status = ANY($3::v1_readable_status_olap[])
     AND (
         $4::timestamptz IS NULL
-        OR inserted_at <= $4::timestamptz
+        OR t.inserted_at <= $4::timestamptz
     )
     AND (
-        $5::uuid[] IS NULL OR workflow_id = ANY($5::uuid[])
+        $5::uuid[] IS NULL OR t.workflow_id = ANY($5::uuid[])
     )
     AND (
-        $6::uuid IS NULL OR latest_worker_id = $6::uuid
+        $6::uuid IS NULL OR t.latest_worker_id = $6::uuid
     )
     AND (
         $7::text[] IS NULL
@@ -836,51 +946,85 @@ WHERE
         )
     )
     AND (
-        SELECT r.additional_metadata
-        FROM v1_runs_olap r
-        WHERE (r.inserted_at, r.id) = (COALESCE(t.dag_inserted_at, t.inserted_at), COALESCE(t.dag_id, t.id))
-    ) @> $12::jsonb
-    AND (
         $11::UUID IS NULL
-		OR (id, inserted_at) IN (
-			SELECT etr.run_id, etr.run_inserted_at
-			FROM v1_event_lookup_table_olap lt
-			JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
-			JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
-			WHERE
-				lt.tenant_id = $1::uuid
-				AND lt.external_id = $11::UUID
-		)
+        OR (t.id, t.inserted_at) IN (
+            SELECT etr.run_id, etr.run_inserted_at
+            FROM v1_event_lookup_table_olap lt
+            JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+            JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+            WHERE
+                lt.tenant_id = $1::uuid
+                AND lt.external_id = $11::UUID
+        )
     )
     AND (
         $13::TEXT[] IS NULL
-        OR idempotency_key = ANY($13::TEXT[])
+        OR t.idempotency_key = ANY($13::TEXT[])
     )
 ORDER BY
-    inserted_at DESC
+    t.inserted_at DESC
 LIMIT $10::integer
 OFFSET $9::integer
 `
 
 const listTasksOlapMetadataContainsAny = `-- name: ListTasksOlapMetadataContainsAny :many
+WITH matching_runs AS MATERIALIZED (
+    SELECT
+        r.id,
+        r.inserted_at,
+        r.kind
+    FROM
+        v1_runs_olap r
+    WHERE
+        r.tenant_id = $1::uuid
+        AND r.additional_metadata @> ANY($12::jsonb[])
+        AND (
+            $4::timestamptz IS NULL
+            OR r.inserted_at <= $4::timestamptz
+        )
+), matching_task_keys AS (
+    SELECT
+        inserted_at,
+        id
+    FROM
+        matching_runs
+    WHERE
+        kind = 'TASK'
+        AND inserted_at >= $2::timestamptz
+
+    UNION ALL
+
+    SELECT
+        dt.task_inserted_at,
+        dt.task_id
+    FROM
+        matching_runs mr
+    JOIN
+        v1_dag_to_task_olap dt ON (dt.dag_id, dt.dag_inserted_at) = (mr.id, mr.inserted_at)
+    WHERE
+        mr.kind = 'DAG'
+        AND dt.task_inserted_at >= $2::timestamptz
+)
 SELECT
-    id,
-    inserted_at
+    t.id,
+    t.inserted_at
 FROM
-    v1_tasks_olap t
+    matching_task_keys k
+JOIN
+    v1_tasks_olap t ON (t.inserted_at, t.id) = (k.inserted_at, k.id)
 WHERE
-    tenant_id = $1::uuid
-    AND inserted_at >= $2::timestamptz
-    AND readable_status = ANY($3::v1_readable_status_olap[])
+    t.tenant_id = $1::uuid
+    AND t.inserted_at >= $2::timestamptz
+    AND t.readable_status = ANY($3::v1_readable_status_olap[])
     AND (
         $4::timestamptz IS NULL
-        OR inserted_at <= $4::timestamptz
+        OR t.inserted_at <= $4::timestamptz
     )
     AND (
-        $5::uuid[] IS NULL OR workflow_id = ANY($5::uuid[])
+        $5::uuid[] IS NULL OR t.workflow_id = ANY($5::uuid[])
     )
     AND (
-        $6::uuid IS NULL OR latest_worker_id = $6::uuid
+        $6::uuid IS NULL OR t.latest_worker_id = $6::uuid
     )
     AND (
         $7::text[] IS NULL
@@ -896,28 +1040,23 @@ WHERE
         )
     )
     AND (
-        SELECT r.additional_metadata
-        FROM v1_runs_olap r
-        WHERE (r.inserted_at, r.id) = (COALESCE(t.dag_inserted_at, t.inserted_at), COALESCE(t.dag_id, t.id))
-    ) @> ANY($12::jsonb[])
-    AND (
         $11::UUID IS NULL
-		OR (id, inserted_at) IN (
-			SELECT etr.run_id, etr.run_inserted_at
-			FROM v1_event_lookup_table_olap lt
-			JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
-			JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
-			WHERE
-				lt.tenant_id = $1::uuid
-				AND lt.external_id = $11::UUID
-		)
+        OR (t.id, t.inserted_at) IN (
+            SELECT etr.run_id, etr.run_inserted_at
+            FROM v1_event_lookup_table_olap lt
+            JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+            JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+            WHERE
+                lt.tenant_id = $1::uuid
+                AND lt.external_id = $11::UUID
+        )
     )
-	AND (
-		$13::TEXT[] IS NULL
-		OR idempotency_key = ANY($13::TEXT[])
-	)
+    AND (
+        $13::TEXT[] IS NULL
+        OR t.idempotency_key = ANY($13::TEXT[])
+    )
 ORDER BY
-    inserted_at DESC
+    t.inserted_at DESC
 LIMIT $10::integer
 OFFSET $9::integer
 `
