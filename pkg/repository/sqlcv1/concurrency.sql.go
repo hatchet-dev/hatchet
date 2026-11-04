@@ -260,44 +260,24 @@ func (q *Queries) CreateParentTempTable(ctx context.Context, db DBTX, arg Create
 	return err
 }
 
-const createParentTempTableForChildBatch = `-- name: CreateParentTempTableForChildBatch :exec
+const createParentTempTableForKeys = `-- name: CreateParentTempTableForKeys :exec
 CREATE TEMP TABLE tmp_workflow_concurrency_slot ON COMMIT DROP AS
 SELECT sort_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, completed_child_strategy_ids, child_strategy_ids, priority, key, is_filled
 FROM v1_workflow_concurrency_slot
 WHERE
     tenant_id = $1::uuid
     AND strategy_id = $2::bigint
-    AND key IN (
-        SELECT wcs.key
-        FROM (
-            SELECT parent_strategy_id, workflow_version_id, workflow_run_id
-            FROM v1_concurrency_slot
-            WHERE
-                tenant_id = $1::uuid
-                AND strategy_id = $3::bigint
-                AND is_filled = FALSE
-            ORDER BY task_id, task_inserted_at
-            LIMIT $4::int
-        ) batch
-        JOIN v1_workflow_concurrency_slot wcs ON (wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id) = (batch.parent_strategy_id, batch.workflow_version_id, batch.workflow_run_id)
-    )
+    AND key = ANY($3::text[])
 `
 
-type CreateParentTempTableForChildBatchParams struct {
-	Tenantid        uuid.UUID `json:"tenantid"`
-	Strategyid      int64     `json:"strategyid"`
-	Childstrategyid int64     `json:"childstrategyid"`
-	Batchsize       int32     `json:"batchsize"`
+type CreateParentTempTableForKeysParams struct {
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Strategyid int64     `json:"strategyid"`
+	Keys       []string  `json:"keys"`
 }
 
-// Every slot of a selected key must be copied, since the parent pass ranks each key over the whole temp table.
-func (q *Queries) CreateParentTempTableForChildBatch(ctx context.Context, db DBTX, arg CreateParentTempTableForChildBatchParams) error {
-	_, err := db.Exec(ctx, createParentTempTableForChildBatch,
-		arg.Tenantid,
-		arg.Strategyid,
-		arg.Childstrategyid,
-		arg.Batchsize,
-	)
+func (q *Queries) CreateParentTempTableForKeys(ctx context.Context, db DBTX, arg CreateParentTempTableForKeysParams) error {
+	_, err := db.Exec(ctx, createParentTempTableForKeys, arg.Tenantid, arg.Strategyid, arg.Keys)
 	return err
 }
 

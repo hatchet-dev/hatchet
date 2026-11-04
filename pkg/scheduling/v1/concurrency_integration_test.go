@@ -259,8 +259,9 @@ func TestConcurrency_CancelInProgress_ParentBacklogDrainsAcrossPasses(t *testing
 		requireSchedulerSchema(t, ctx, conf)
 
 		const (
-			numKeys     = 1500
-			numTimedOut = 250
+			numKeys       = 1500
+			numTimedOut   = 250
+			numSharedKeys = 10
 		)
 
 		r := conf.V1
@@ -294,51 +295,59 @@ func TestConcurrency_CancelInProgress_ParentBacklogDrainsAcrossPasses(t *testing
 		strategies, err := queries.ListActiveConcurrencyStrategies(ctx, conf.Pool, tenantId)
 		require.NoError(t, err)
 
-		var child *sqlcv1.V1StepConcurrency
+		var children []*sqlcv1.V1StepConcurrency
 		for _, st := range strategies {
 			if st.ParentStrategyID.Valid {
-				child = st
-				break
+				children = append(children, st)
 			}
 		}
-		require.NotNil(t, child)
+		require.Len(t, children, 2)
+		child := children[0]
 
-		createRuns := func() map[int64]bool {
-			p := newCreateTasksParams(numKeys)
+		createRuns := func(keys func(run int) []string) map[int64]string {
+			perRun := len(keys(0))
+			p := newCreateTasksParams(numKeys * perRun)
 			for i := 0; i < numKeys; i++ {
-				p.Tenantids[i] = tenantId
-				p.Queues[i] = "default"
-				p.Actionids[i] = "test:run"
-				p.Stepids[i] = child.StepID
-				p.Stepreadableids[i] = "task-a"
-				p.Workflowids[i] = wfVersion.WorkflowVersion.WorkflowId
-				p.Scheduletimeouts[i] = "5m"
-				p.Priorities[i] = 1
-				p.Stickies[i] = string(sqlcv1.V1StickyStrategyNONE)
-				p.Externalids[i] = uuid.New()
-				p.Displaynames[i] = fmt.Sprintf("run-%d", i)
-				p.Additionalmetadatas[i] = []byte(`{}`)
-				p.InitialStates[i] = string(sqlcv1.V1TaskInitialStateQUEUED)
-				p.Concurrencyparentstrategyids[i] = []pgtype.Int8{child.ParentStrategyID}
-				p.ConcurrencyStrategyIds[i] = []int64{child.ID}
-				p.ConcurrencyKeys[i] = []string{fmt.Sprintf("key-%d", i)}
-				p.WorkflowVersionIds[i] = wfVersion.WorkflowVersion.ID
-				p.WorkflowRunIds[i] = uuid.New()
+				runId := uuid.New()
+				for j, key := range keys(i) {
+					k := i*perRun + j
+					p.Tenantids[k] = tenantId
+					p.Queues[k] = "default"
+					p.Actionids[k] = "test:run"
+					p.Stepids[k] = children[j].StepID
+					p.Stepreadableids[k] = fmt.Sprintf("task-%d", j)
+					p.Workflowids[k] = wfVersion.WorkflowVersion.WorkflowId
+					p.Scheduletimeouts[k] = "5m"
+					p.Priorities[k] = 1
+					p.Stickies[k] = string(sqlcv1.V1StickyStrategyNONE)
+					p.Externalids[k] = uuid.New()
+					p.Displaynames[k] = fmt.Sprintf("run-%d", i)
+					p.Additionalmetadatas[k] = []byte(`{}`)
+					p.InitialStates[k] = string(sqlcv1.V1TaskInitialStateQUEUED)
+					p.Concurrencyparentstrategyids[k] = []pgtype.Int8{children[j].ParentStrategyID}
+					p.ConcurrencyStrategyIds[k] = []int64{children[j].ID}
+					p.ConcurrencyKeys[k] = []string{key}
+					p.WorkflowVersionIds[k] = wfVersion.WorkflowVersion.ID
+					p.WorkflowRunIds[k] = runId
+				}
 			}
 
 			tasks, err := queries.CreateTasks(ctx, conf.Pool, p)
 			require.NoError(t, err)
-			require.Len(t, tasks, numKeys)
+			require.Len(t, tasks, numKeys*perRun)
 
-			ids := make(map[int64]bool, numKeys)
+			childKeys := make(map[int64]string, numKeys)
 			for _, task := range tasks {
-				ids[task.ID] = true
+				if task.StepID == child.StepID {
+					childKeys[task.ID] = task.ConcurrencyKeys[0]
+				}
 			}
-			return ids
+			return childKeys
 		}
 
-		olderRuns := createRuns()
-		newerRuns := createRuns()
+		uniqueKey := func(i int) []string { return []string{fmt.Sprintf("key-%d", i)} }
+		olderRuns := createRuns(uniqueKey)
+		newerRuns := createRuns(uniqueKey)
 
 		newerIds := slices.Sorted(maps.Keys(newerRuns))
 		timedOutIds := newerIds[numKeys-numTimedOut:]
@@ -370,7 +379,7 @@ func TestConcurrency_CancelInProgress_ParentBacklogDrainsAcrossPasses(t *testing
 			}
 
 			for _, q := range res.Queued {
-				require.True(t, newerRuns[q.Id] && !timedOut[q.Id], "only the newest run of a key may start")
+				require.True(t, newerRuns[q.Id] != "" && !timedOut[q.Id], "only the newest run of a key may start")
 				queued[q.Id] = true
 			}
 
@@ -381,7 +390,7 @@ func TestConcurrency_CancelInProgress_ParentBacklogDrainsAcrossPasses(t *testing
 				if timedOut[c.Id] {
 					require.Equal(t, repo.CancelledReasonSchedulingTimedOut, c.CancelledReason)
 				} else {
-					require.True(t, olderRuns[c.Id], "only older runs may be cancelled")
+					require.True(t, olderRuns[c.Id] != "", "only older runs may be cancelled")
 					require.Equal(t, repo.CancelledReasonConcurrencyLimit, c.CancelledReason)
 				}
 			}
@@ -393,6 +402,41 @@ func TestConcurrency_CancelInProgress_ParentBacklogDrainsAcrossPasses(t *testing
 
 		running, waiting := countConcurrencySlots(t, ctx, conf, child.ID)
 		require.Equal(t, numKeys-numTimedOut, running)
+		require.Equal(t, 0, waiting)
+
+		mixedRuns := createRuns(func(i int) []string {
+			return []string{fmt.Sprintf("shared-%d", i%numSharedKeys), fmt.Sprintf("unique-%d", i)}
+		})
+
+		queuedNow := map[int64]bool{}
+
+		for passes = 0; passes < 10; passes++ {
+			res, err := r.Scheduler().Concurrency().RunConcurrencyStrategy(ctx, tenantId, child)
+			require.NoError(t, err)
+
+			if len(res.Queued) == 0 && len(res.Cancelled) == 0 {
+				break
+			}
+
+			for _, q := range res.Queued {
+				queuedNow[q.Id] = true
+			}
+
+			for _, c := range res.Cancelled {
+				delete(queuedNow, c.Id)
+			}
+
+			perKey := map[string]int{}
+			for id := range queuedNow {
+				perKey[mixedRuns[id]]++
+				require.LessOrEqual(t, perKey[mixedRuns[id]], int(maxRuns), "key %s", mixedRuns[id])
+			}
+		}
+
+		require.Len(t, queuedNow, numSharedKeys)
+
+		running, waiting = countConcurrencySlots(t, ctx, conf, child.ID)
+		require.Equal(t, numKeys-numTimedOut+numSharedKeys, running)
 		require.Equal(t, 0, waiting)
 
 		return nil

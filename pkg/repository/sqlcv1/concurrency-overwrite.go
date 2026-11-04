@@ -179,6 +179,57 @@ func (q *Queries) RunChildGroupRoundRobin(ctx context.Context, db DBTX, arg RunC
 	return items, nil
 }
 
+const getChildBatchKeys = `-- name: GetChildBatchKeys :one
+WITH child_keys AS (
+    SELECT DISTINCT key
+    FROM (
+        SELECT key
+        FROM v1_concurrency_slot
+        WHERE
+            tenant_id = $1::uuid
+            AND strategy_id = $2::bigint
+            AND is_filled = FALSE
+        ORDER BY task_id, task_inserted_at
+        LIMIT $3::int
+    ) batch
+)
+SELECT
+    ARRAY(SELECT key FROM child_keys)::text[] AS child_keys,
+    ARRAY(
+        SELECT DISTINCT p.key
+        FROM v1_concurrency_slot cs
+        CROSS JOIN LATERAL (
+            SELECT wcs.key
+            FROM v1_workflow_concurrency_slot wcs
+            WHERE (wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id) = (cs.parent_strategy_id, cs.workflow_version_id, cs.workflow_run_id)
+            LIMIT 1
+        ) p
+        WHERE
+            cs.tenant_id = $1::uuid
+            AND cs.strategy_id = $2::bigint
+            AND cs.key = ANY(ARRAY(SELECT key FROM child_keys))
+    )::text[] AS parent_keys
+`
+
+type GetChildBatchKeysParams struct {
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Strategyid int64     `json:"strategyid"`
+	Batchsize  int32     `json:"batchsize"`
+}
+
+type GetChildBatchKeysRow struct {
+	ChildKeys  []string `json:"child_keys"`
+	ParentKeys []string `json:"parent_keys"`
+}
+
+// parent_keys spans every child slot of the batch keys, not only the batch, since a run's parent key can differ from its child keys and the child pass ranks each batch key over all of its slots.
+func (q *Queries) GetChildBatchKeys(ctx context.Context, db DBTX, arg GetChildBatchKeysParams) (*GetChildBatchKeysRow, error) {
+	row := db.QueryRow(ctx, getChildBatchKeys, forceCustomPlan, arg.Tenantid, arg.Strategyid, arg.Batchsize)
+	var i GetChildBatchKeysRow
+	err := row.Scan(&i.ChildKeys, &i.ParentKeys)
+	return &i, err
+}
+
 const runChildCancelInProgress = `-- name: RunChildCancelInProgress :many
 WITH slots AS (
     SELECT
@@ -199,6 +250,7 @@ WITH slots AS (
     WHERE
         cs.tenant_id = $1::uuid AND
         cs.strategy_id = $2::bigint AND
+        cs.key = ANY($4::text[]) AND
         (
             cs.parent_strategy_id IS NULL OR
             wcs.is_filled = TRUE
@@ -208,7 +260,6 @@ WITH slots AS (
             cs.is_filled = TRUE
         )
 ), schedule_timeout_slots AS (
-    -- limited to the batch so that every slot reported here is also deleted by this pass
     SELECT
         sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at
     FROM
@@ -216,12 +267,9 @@ WITH slots AS (
     WHERE
         tenant_id = $1::uuid AND
         strategy_id = $2::bigint AND
+        key = ANY($4::text[]) AND
         schedule_timeout_at < NOW() AND
-        is_filled = FALSE AND
-        (parent_strategy_id, workflow_version_id, workflow_run_id) IN (
-            SELECT wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
-            FROM tmp_workflow_concurrency_slot wcs
-        )
+        is_filled = FALSE
     LIMIT 1000
 ), eligible_running_slots AS (
     SELECT
@@ -279,6 +327,7 @@ WITH slots AS (
     WHERE
         tenant_id = $1::uuid AND
         strategy_id = $2::bigint AND
+        key = ANY($4::text[]) AND
         ((task_inserted_at, task_id, task_retry_count, tenant_id, strategy_id) IN (
             SELECT
                 ers.task_inserted_at,
@@ -372,6 +421,7 @@ type RunChildCancelInProgressParams struct {
 	Tenantid   uuid.UUID `json:"tenantid"`
 	Strategyid int64     `json:"strategyid"`
 	Maxruns    int32     `json:"maxruns"`
+	Keys       []string  `json:"keys"`
 }
 
 type RunChildCancelInProgressRow struct {
@@ -398,7 +448,7 @@ type RunChildCancelInProgressRow struct {
 }
 
 func (q *Queries) RunChildCancelInProgress(ctx context.Context, db DBTX, arg RunChildCancelInProgressParams) ([]*RunChildCancelInProgressRow, error) {
-	rows, err := db.Query(ctx, runChildCancelInProgress, arg.Tenantid, arg.Strategyid, arg.Maxruns)
+	rows, err := db.Query(ctx, runChildCancelInProgress, forceCustomPlan, arg.Tenantid, arg.Strategyid, arg.Maxruns, arg.Keys)
 	if err != nil {
 		return nil, err
 	}
