@@ -856,7 +856,7 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId uuid.
 			Priority:              taskRun.Priority,
 			Sticky:                taskRun.Sticky,
 			DisplayName:           taskRun.DisplayName,
-			AdditionalMetadata:    taskRun.AdditionalMetadata,
+			AdditionalMetadata:    taskRun.RunAdditionalMetadata,
 			ParentTaskExternalID:  taskRun.ParentTaskExternalID,
 			Status:                taskRun.Status,
 			WorkflowRunID:         workflowRunId,

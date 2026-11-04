@@ -1021,7 +1021,8 @@ INSERT INTO v1_runs_olap (
     workflow_version_id,
     additional_metadata,
     parent_task_external_id,
-    idempotency_key
+    idempotency_key,
+    finished_at
 )
 SELECT
     i.tenant_id,
@@ -1034,7 +1035,8 @@ SELECT
     i.workflow_version_id,
     i.additional_metadata,
     i.parent_task_external_id,
-    i.idempotency_key
+    i.idempotency_key,
+    CASE WHEN i.readable_status IN ('COMPLETED', 'FAILED', 'CANCELLED') THEN clock_timestamp() END
 FROM inputs i
 JOIN inserted_tasks t ON (i.id, i.inserted_at) = (t.id, t.inserted_at)
 WHERE i.dag_id IS NULL
@@ -1204,7 +1206,8 @@ INSERT INTO v1_runs_olap (
     workflow_version_id,
     additional_metadata,
     parent_task_external_id,
-    idempotency_key
+    idempotency_key,
+    finished_at
 )
 SELECT
     i.tenant_id,
@@ -1217,7 +1220,8 @@ SELECT
     i.workflow_version_id,
     i.additional_metadata,
     i.parent_task_external_id,
-    i.idempotency_key
+    i.idempotency_key,
+    CASE WHEN d.readable_status IN ('COMPLETED', 'FAILED', 'CANCELLED') THEN clock_timestamp() END
 FROM inputs i
 JOIN upserted_dags d ON (i.id, i.inserted_at) = (d.id, d.inserted_at)
 ON CONFLICT (inserted_at, id) DO NOTHING

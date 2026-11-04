@@ -563,6 +563,7 @@ WITH selected_retry_count AS (
 )
 SELECT
     t.*,
+    r.additional_metadata AS run_additional_metadata,
     (t.dag_id IS NULL)::BOOLEAN AS is_standalone,
     st.readable_status::v1_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
@@ -577,6 +578,8 @@ SELECT
     (SELECT retry_count FROM selected_retry_count) as retry_count
 FROM
     v1_tasks_olap t
+LEFT JOIN
+    v1_runs_olap r ON (r.id, r.inserted_at) = (COALESCE(t.dag_id, t.id), COALESCE(t.dag_inserted_at, t.inserted_at))
 LEFT JOIN
     finished_at f ON true
 LEFT JOIN
@@ -2528,7 +2531,8 @@ WITH inputs AS (
         kind,
         workflow_id,
         workflow_version_id,
-        additional_metadata
+        additional_metadata,
+        finished_at
     )
     SELECT
         @tenantId::UUID,
@@ -2539,7 +2543,8 @@ WITH inputs AS (
         'DAG',
         i.workflow_id,
         i.workflow_version_id,
-        i.additional_metadata
+        i.additional_metadata,
+        CASE WHEN i.new_readable_status IN ('COMPLETED', 'FAILED', 'CANCELLED') THEN clock_timestamp() END
     FROM inputs i
     JOIN upserted_dags d ON (i.dag_id, i.dag_inserted_at) = (d.dag_id, d.dag_inserted_at)
     ON CONFLICT (inserted_at, id) DO NOTHING

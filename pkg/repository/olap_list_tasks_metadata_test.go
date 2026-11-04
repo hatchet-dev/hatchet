@@ -23,6 +23,7 @@ type taskMetadataFixture struct {
 	prodTask           uuid.UUID
 	stagingTask        uuid.UUID
 	dagChildren        []uuid.UUID
+	dagExternalId      uuid.UUID
 }
 
 func seedTasksWithMetadata(t *testing.T, ctx context.Context, repo *OLAPRepositoryImpl) taskMetadataFixture {
@@ -36,6 +37,7 @@ func seedTasksWithMetadata(t *testing.T, ctx context.Context, repo *OLAPReposito
 		prodTask:           uuid.New(),
 		stagingTask:        uuid.New(),
 		dagChildren:        []uuid.UUID{uuid.New(), uuid.New()},
+		dagExternalId:      uuid.New(),
 	}
 
 	newTask := func(id int64, externalId uuid.UUID, workflowId uuid.UUID, metadata string) *V1TaskWithPayload {
@@ -69,14 +71,13 @@ func seedTasksWithMetadata(t *testing.T, ctx context.Context, repo *OLAPReposito
 	require.Empty(t, locksNotAcquired)
 
 	dagId := int64(10)
-	dagExternalId := uuid.New()
 
 	locksNotAcquired, err = repo.CreateDAGs(ctx, f.tenantId, []*DAGWithData{{
 		V1Dag: &sqlcv1.V1Dag{
 			ID:                dagId,
 			InsertedAt:        f.insertedAt,
 			TenantID:          f.tenantId,
-			ExternalID:        dagExternalId,
+			ExternalID:        f.dagExternalId,
 			DisplayName:       "metadata-dag",
 			WorkflowID:        f.dagWorkflow,
 			WorkflowVersionID: uuid.New(),
@@ -91,7 +92,7 @@ func seedTasksWithMetadata(t *testing.T, ctx context.Context, repo *OLAPReposito
 
 	for i, childExternalId := range f.dagChildren {
 		child := newTask(dagId+int64(i)+1, childExternalId, f.dagWorkflow, `{"env": "prod", "team": "c"}`)
-		child.WorkflowRunID = dagExternalId
+		child.WorkflowRunID = f.dagExternalId
 		child.DagID = pgtype.Int8{Int64: dagId, Valid: true}
 		child.DagInsertedAt = f.insertedAt
 		children = append(children, child)
@@ -208,5 +209,58 @@ func TestListTasks_DAGChildrenReadMetadataFromTheDAGRun(t *testing.T) {
 		var metadata map[string]string
 		require.NoError(t, json.Unmarshal(task.AdditionalMetadata, &metadata))
 		require.Equal(t, map[string]string{"env": "prod", "team": "c"}, metadata)
+
+		queuedEvent := sqlcv1.CreateTaskEventsOLAPParams{
+			TenantID:       f.tenantId,
+			TaskID:         task.ID,
+			TaskInsertedAt: task.InsertedAt,
+			EventType:      sqlcv1.V1EventTypeOlapQUEUED,
+			WorkflowID:     f.dagWorkflow,
+			EventTimestamp: pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
+			ReadableStatus: sqlcv1.V1ReadableStatusOlapQUEUED,
+			ExternalID:     uuid.New(),
+		}
+		_, locksNotAcquired, err := repo.CreateTaskEvents(ctx, f.tenantId, []sqlcv1.CreateTaskEventsOLAPParams{queuedEvent}, map[uuid.UUID]uuid.UUID{queuedEvent.ExternalID: f.dagExternalId}, nil, nil, nil)
+		require.NoError(t, err)
+		require.Empty(t, locksNotAcquired)
+
+		singleTask, _, err := repo.ReadTaskRunData(ctx, f.tenantId, task.ID, task.InsertedAt, nil)
+		require.NoError(t, err)
+		require.JSONEq(t, string(task.AdditionalMetadata), string(singleTask.AdditionalMetadata))
 	}
+}
+
+func TestCreateTasks_TaskCreatedAsFailedHasRunFinishedAt(t *testing.T) {
+	ctx, _, repo := setupOLAPRepository(t)
+
+	tenantId := uuid.New()
+	beforeCreate := time.Now().Add(-time.Second)
+
+	_, locksNotAcquired, err := repo.CreateTasks(ctx, tenantId, []*V1TaskWithPayload{{
+		V1Task: &sqlcv1.V1Task{
+			ID:                 1,
+			InsertedAt:         pgtype.Timestamptz{Time: time.Now().UTC().Truncate(time.Microsecond), Valid: true},
+			TenantID:           tenantId,
+			Queue:              "default",
+			ActionID:           "test:failed-at-creation",
+			StepID:             uuid.New(),
+			WorkflowID:         uuid.New(),
+			WorkflowVersionID:  uuid.New(),
+			WorkflowRunID:      uuid.New(),
+			ScheduleTimeout:    "5m",
+			Sticky:             sqlcv1.V1StickyStrategyNONE,
+			ExternalID:         uuid.New(),
+			DisplayName:        "failed-at-creation",
+			Input:              []byte(`{}`),
+			AdditionalMetadata: []byte(`{}`),
+			InitialState:       sqlcv1.V1TaskInitialStateFAILED,
+		},
+		Payload: []byte(`{}`),
+	}})
+	require.NoError(t, err)
+	require.Empty(t, locksNotAcquired)
+
+	failedRuns, err := repo.ListFailedWorkflowRunsByFinishedAt(ctx, tenantId, beforeCreate, time.Now().Add(time.Minute), 10)
+	require.NoError(t, err)
+	require.Len(t, failedRuns, 1)
 }

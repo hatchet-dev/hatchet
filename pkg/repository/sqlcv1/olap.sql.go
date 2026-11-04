@@ -2629,6 +2629,7 @@ WITH selected_retry_count AS (
 )
 SELECT
     t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.is_durable, t.idempotency_key, t.payload_reference_id,
+    r.additional_metadata AS run_additional_metadata,
     (t.dag_id IS NULL)::BOOLEAN AS is_standalone,
     st.readable_status::v1_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
@@ -2643,6 +2644,8 @@ SELECT
     (SELECT retry_count FROM selected_retry_count) as retry_count
 FROM
     v1_tasks_olap t
+LEFT JOIN
+    v1_runs_olap r ON (r.id, r.inserted_at) = (COALESCE(t.dag_id, t.id), COALESCE(t.dag_inserted_at, t.inserted_at))
 LEFT JOIN
     finished_at f ON true
 LEFT JOIN
@@ -2696,6 +2699,7 @@ type PopulateSingleTaskRunDataRow struct {
 	IsDurable                     bool                 `json:"is_durable"`
 	IdempotencyKey                pgtype.Text          `json:"idempotency_key"`
 	PayloadReferenceID            *uuid.UUID           `json:"payload_reference_id"`
+	RunAdditionalMetadata         []byte               `json:"run_additional_metadata"`
 	IsStandalone                  bool                 `json:"is_standalone"`
 	Status                        V1ReadableStatusOlap `json:"status"`
 	FinishedAt                    pgtype.Timestamptz   `json:"finished_at"`
@@ -2746,6 +2750,7 @@ func (q *Queries) PopulateSingleTaskRunData(ctx context.Context, db DBTX, arg Po
 		&i.IsDurable,
 		&i.IdempotencyKey,
 		&i.PayloadReferenceID,
+		&i.RunAdditionalMetadata,
 		&i.IsStandalone,
 		&i.Status,
 		&i.FinishedAt,
@@ -4171,7 +4176,8 @@ WITH inputs AS (
         kind,
         workflow_id,
         workflow_version_id,
-        additional_metadata
+        additional_metadata,
+        finished_at
     )
     SELECT
         $10::UUID,
@@ -4182,7 +4188,8 @@ WITH inputs AS (
         'DAG',
         i.workflow_id,
         i.workflow_version_id,
-        i.additional_metadata
+        i.additional_metadata,
+        CASE WHEN i.new_readable_status IN ('COMPLETED', 'FAILED', 'CANCELLED') THEN clock_timestamp() END
     FROM inputs i
     JOIN upserted_dags d ON (i.dag_id, i.dag_inserted_at) = (d.dag_id, d.dag_inserted_at)
     ON CONFLICT (inserted_at, id) DO NOTHING
