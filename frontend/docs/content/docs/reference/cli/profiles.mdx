@@ -93,7 +93,7 @@ If you remove a profile that is set as the default, the default profile setting 
 
 ## Where Tokens Are Stored
 
-Profile metadata lives in `~/.hatchet/profiles.yaml`. API tokens are stored in the system secret store instead of that file: the macOS Keychain, or the Secrets Service on Linux (GNOME Keyring, KWallet). `profiles.yaml` then contains no credentials, so it is safe to inspect, back up, or sync.
+Profile metadata lives in `~/.hatchet/profiles.yaml`. API tokens are stored in the system secret store instead of that file: the macOS Keychain, Windows Credential Manager, or the Secrets Service on Linux (GNOME Keyring, KWallet). `profiles.yaml` then contains no credentials, so it is safe to inspect, back up, or sync.
 
 When no secret store is available, for example on a headless Linux server, in a container, or in CI, the CLI falls back to writing tokens into `profiles.yaml` and prints a warning. Set `tokenStore` in `~/.hatchet/config.yaml` (or the `HATCHET_CLI_TOKEN_STORE` environment variable) to control this explicitly:
 
@@ -121,8 +121,8 @@ hatchet profile migrate-tokens --to file
   Moving tokens with <code>--to file</code> writes them in plain text. Anyone
   who can read <code>profiles.yaml</code>, including backups and dotfile syncs,
   can act as you on your tenants until the tokens expire or are revoked. The
-  command asks for confirmation in a terminal and requires <code>--yes</code>{" "}
-  when run from a script.
+  command asks for confirmation in a terminal and requires{" "}
+  <code>--yes</code> when run from a script.
 </Callout>
 
 <Callout type="info">
