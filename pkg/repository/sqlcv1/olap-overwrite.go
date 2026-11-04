@@ -29,7 +29,8 @@ import (
 const countTasks = `-- name: CountTasks :one
 WITH filtered AS (
     SELECT
-        id
+        id,
+        inserted_at
     FROM
         v1_tasks_olap
     WHERE
@@ -110,7 +111,8 @@ WITH matching_runs AS MATERIALIZED (
         AND dt.task_inserted_at >= $2::timestamptz
 ), filtered AS (
     SELECT
-        t.id
+        t.id,
+        t.inserted_at
     FROM
         matching_task_keys k
     JOIN
