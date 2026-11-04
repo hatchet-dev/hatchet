@@ -5,6 +5,12 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.45.0] - 2026-10-30
+
+### Removed
+
+- Removes the synchronous `hatchet.streams.reset`; use `aio_reset`, which now calls the engine asynchronously instead of from a worker thread.
+
 ## [1.44.0] - 2026-10-26
 
 ### Added
