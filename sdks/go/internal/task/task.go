@@ -314,41 +314,45 @@ func (t *TaskDeclaration[I]) Dump(workflowName string, taskDefaults *create.Task
 	base.Parents = make([]string, len(t.Parents))
 	copy(base.Parents, t.Parents)
 
+	base.Conditions = buildConditions(t.WaitFor, t.SkipIf, t.CancelIf)
+
+	return base
+}
+
+func buildConditions(waitFor, skipIf, cancelIf condition.Condition) *contracts.TaskConditions {
 	sleepConditions := make([]*contracts.SleepMatchCondition, 0)
 	userEventConditions := make([]*contracts.UserEventMatchCondition, 0)
 	parentOverrideConditions := make([]*contracts.ParentOverrideMatchCondition, 0)
 
-	if t.WaitFor != nil {
-		cs := t.WaitFor.ToPB(contracts.Action_QUEUE)
+	if waitFor != nil {
+		cs := waitFor.ToPB(contracts.Action_QUEUE)
 
 		sleepConditions = append(sleepConditions, cs.SleepConditions...)
 		userEventConditions = append(userEventConditions, cs.UserEventConditions...)
 		parentOverrideConditions = append(parentOverrideConditions, cs.ParentConditions...)
 	}
 
-	if t.SkipIf != nil {
-		cs := t.SkipIf.ToPB(contracts.Action_SKIP)
+	if skipIf != nil {
+		cs := skipIf.ToPB(contracts.Action_SKIP)
 
 		sleepConditions = append(sleepConditions, cs.SleepConditions...)
 		userEventConditions = append(userEventConditions, cs.UserEventConditions...)
 		parentOverrideConditions = append(parentOverrideConditions, cs.ParentConditions...)
 	}
 
-	if t.CancelIf != nil {
-		cs := t.CancelIf.ToPB(contracts.Action_CANCEL)
+	if cancelIf != nil {
+		cs := cancelIf.ToPB(contracts.Action_CANCEL)
 
 		sleepConditions = append(sleepConditions, cs.SleepConditions...)
 		userEventConditions = append(userEventConditions, cs.UserEventConditions...)
 		parentOverrideConditions = append(parentOverrideConditions, cs.ParentConditions...)
 	}
 
-	base.Conditions = &contracts.TaskConditions{
+	return &contracts.TaskConditions{
 		SleepConditions:          sleepConditions,
 		UserEventConditions:      userEventConditions,
 		ParentOverrideConditions: parentOverrideConditions,
 	}
-
-	return base
 }
 
 func durationToSeconds(d time.Duration) string {
@@ -369,6 +373,7 @@ func (t *DurableTaskDeclaration[I]) Dump(workflowName string, taskDefaults *crea
 	}
 	base.Parents = make([]string, len(t.Parents))
 	copy(base.Parents, t.Parents)
+	base.Conditions = buildConditions(t.WaitFor, t.SkipIf, t.CancelIf)
 	return base
 }
 
