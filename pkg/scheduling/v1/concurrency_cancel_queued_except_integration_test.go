@@ -4,17 +4,12 @@ package v1_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
-	repo "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 // countConcurrencySlots returns the number of filled (running) and unfilled (still-queued)
