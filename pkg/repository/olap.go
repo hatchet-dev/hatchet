@@ -1132,35 +1132,7 @@ func readableStatusesOrDefault(statuses []sqlcv1.V1ReadableStatusOlap) []string 
 	})
 }
 
-type additionalMetadataFilterParams struct {
-	ContainsAll []byte
-	Keys        []string
-	Values      []string
-}
-
-func additionalMetadataFilterParamsFromOpts(additionalMetadata map[string]interface{}, operator AdditionalMetadataOperator) (additionalMetadataFilterParams, error) {
-	if operator == AdditionalMetadataOperatorAnd && len(additionalMetadata) > 0 {
-		containsAll, err := json.Marshal(additionalMetadata)
-
-		if err != nil {
-			return additionalMetadataFilterParams{}, err
-		}
-
-		return additionalMetadataFilterParams{ContainsAll: containsAll}, nil
-	}
-
-	// Keys and Values must stay nil when there are no filters, since the queries skip the filter on `IS NULL`
-	var keys, values []string
-
-	for key, value := range additionalMetadata {
-		keys = append(keys, key)
-		values = append(values, value.(string))
-	}
-
-	return additionalMetadataFilterParams{Keys: keys, Values: values}, nil
-}
-
-func taskMetadataContainmentObjects(additionalMetadata map[string]interface{}, operator AdditionalMetadataOperator) ([][]byte, error) {
+func metadataContainmentObjects(additionalMetadata map[string]interface{}, operator AdditionalMetadataOperator) ([][]byte, error) {
 	if len(additionalMetadata) == 0 {
 		return nil, nil
 	}
@@ -1191,7 +1163,7 @@ func taskMetadataContainmentObjects(additionalMetadata map[string]interface{}, o
 }
 
 func listTasksParamsFromOpts(tenantId uuid.UUID, opts ListTaskRunOpts) (sqlcv1.ListTasksOlapParams, error) {
-	metadataContainsAny, err := taskMetadataContainmentObjects(opts.AdditionalMetadata, opts.AdditionalMetadataOperator)
+	metadataContainsAny, err := metadataContainmentObjects(opts.AdditionalMetadata, opts.AdditionalMetadataOperator)
 
 	if err != nil {
 		return sqlcv1.ListTasksOlapParams{}, err
@@ -1235,7 +1207,7 @@ func countTasksParamsFromListTasksParams(listTasksParams sqlcv1.ListTasksOlapPar
 }
 
 func fetchWorkflowRunIdsParamsFromOpts(tenantId uuid.UUID, opts ListWorkflowRunOpts) (sqlcv1.FetchWorkflowRunIdsParams, error) {
-	metadataFilters, err := additionalMetadataFilterParamsFromOpts(opts.AdditionalMetadata, opts.AdditionalMetadataOperator)
+	metadataContainsAny, err := metadataContainmentObjects(opts.AdditionalMetadata, opts.AdditionalMetadataOperator)
 
 	if err != nil {
 		return sqlcv1.FetchWorkflowRunIdsParams{}, err
@@ -1250,9 +1222,7 @@ func fetchWorkflowRunIdsParamsFromOpts(tenantId uuid.UUID, opts ListWorkflowRunO
 		ParentTaskExternalId:          opts.ParentTaskExternalId,
 		TriggeringEventExternalId:     opts.TriggeringEventExternalId,
 		IdempotencyKeys:               opts.IdempotencyKeys,
-		AdditionalMetadataContainsAll: metadataFilters.ContainsAll,
-		Keys:                          metadataFilters.Keys,
-		Values:                        metadataFilters.Values,
+		AdditionalMetadataContainsAny: metadataContainsAny,
 	}
 
 	if len(opts.WorkflowIds) > 0 {
