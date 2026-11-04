@@ -5,6 +5,7 @@ package v1_test
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 	"testing"
@@ -244,6 +245,155 @@ func TestConcurrency_CancelInProgress(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.Queued, 2, "CANCEL_IN_PROGRESS should queue maxRuns newest tasks")
 		require.Len(t, res.Cancelled, 3, "CANCEL_IN_PROGRESS should cancel excess oldest tasks")
+
+		return nil
+	})
+}
+
+// The older run of every key is inserted before any newer run, so a pass that only took the oldest
+// waiting slots, rather than whole keys, would start older runs.
+func TestConcurrency_CancelInProgress_ParentBacklogDrainsAcrossPasses(t *testing.T) {
+	runWithDatabase(t, func(conf *database.Layer) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+		requireSchedulerSchema(t, ctx, conf)
+
+		const (
+			numKeys     = 1500
+			numTimedOut = 250
+		)
+
+		r := conf.V1
+		queries := sqlcv1.New()
+
+		tenantId := uuid.New()
+		_, err := r.Tenant().CreateTenant(ctx, &repo.CreateTenantOpts{
+			ID:   &tenantId,
+			Name: "cip-parent-backlog",
+			Slug: fmt.Sprintf("cip-parent-backlog-%s", tenantId.String()),
+		})
+		require.NoError(t, err)
+
+		strategy := "CANCEL_IN_PROGRESS"
+		maxRuns := int32(1)
+		desc := "parent cancel in progress backlog test"
+
+		wfVersion, err := r.Workflows().PutWorkflowVersion(ctx, tenantId, &repo.CreateWorkflowVersionOpts{
+			Name:        "cip-parent-backlog",
+			Description: &desc,
+			Tasks: []repo.CreateStepOpts{
+				{ReadableId: "task-a", Action: "test:run"},
+				{ReadableId: "task-b", Action: "test:run"},
+			},
+			Concurrency: []repo.CreateConcurrencyOpts{
+				{MaxRuns: &maxRuns, LimitStrategy: &strategy, Expression: "input.my_id"},
+			},
+		})
+		require.NoError(t, err)
+
+		strategies, err := queries.ListActiveConcurrencyStrategies(ctx, conf.Pool, tenantId)
+		require.NoError(t, err)
+
+		var child *sqlcv1.V1StepConcurrency
+		for _, st := range strategies {
+			if st.ParentStrategyID.Valid {
+				child = st
+				break
+			}
+		}
+		require.NotNil(t, child)
+
+		createRuns := func() map[int64]bool {
+			p := newCreateTasksParams(numKeys)
+			for i := 0; i < numKeys; i++ {
+				p.Tenantids[i] = tenantId
+				p.Queues[i] = "default"
+				p.Actionids[i] = "test:run"
+				p.Stepids[i] = child.StepID
+				p.Stepreadableids[i] = "task-a"
+				p.Workflowids[i] = wfVersion.WorkflowVersion.WorkflowId
+				p.Scheduletimeouts[i] = "5m"
+				p.Priorities[i] = 1
+				p.Stickies[i] = string(sqlcv1.V1StickyStrategyNONE)
+				p.Externalids[i] = uuid.New()
+				p.Displaynames[i] = fmt.Sprintf("run-%d", i)
+				p.Additionalmetadatas[i] = []byte(`{}`)
+				p.InitialStates[i] = string(sqlcv1.V1TaskInitialStateQUEUED)
+				p.Concurrencyparentstrategyids[i] = []pgtype.Int8{child.ParentStrategyID}
+				p.ConcurrencyStrategyIds[i] = []int64{child.ID}
+				p.ConcurrencyKeys[i] = []string{fmt.Sprintf("key-%d", i)}
+				p.WorkflowVersionIds[i] = wfVersion.WorkflowVersion.ID
+				p.WorkflowRunIds[i] = uuid.New()
+			}
+
+			tasks, err := queries.CreateTasks(ctx, conf.Pool, p)
+			require.NoError(t, err)
+			require.Len(t, tasks, numKeys)
+
+			ids := make(map[int64]bool, numKeys)
+			for _, task := range tasks {
+				ids[task.ID] = true
+			}
+			return ids
+		}
+
+		olderRuns := createRuns()
+		newerRuns := createRuns()
+
+		newerIds := slices.Sorted(maps.Keys(newerRuns))
+		timedOutIds := newerIds[numKeys-numTimedOut:]
+		timedOut := map[int64]bool{}
+		for _, id := range timedOutIds {
+			timedOut[id] = true
+		}
+
+		_, err = conf.Pool.Exec(ctx,
+			`UPDATE v1_concurrency_slot SET schedule_timeout_at = NOW() - INTERVAL '1 minute' WHERE strategy_id = $1 AND task_id = ANY($2::bigint[])`,
+			child.ID, timedOutIds,
+		)
+		require.NoError(t, err)
+
+		queued := map[int64]bool{}
+		cancelled := map[int64]bool{}
+		passes := 0
+
+		for ; passes < 10; passes++ {
+			res, err := r.Scheduler().Concurrency().RunConcurrencyStrategy(ctx, tenantId, child)
+			require.NoError(t, err)
+
+			if passes == 0 {
+				require.Less(t, len(res.Queued), numKeys, "a single pass must not process the whole backlog")
+			}
+
+			if len(res.Queued) == 0 && len(res.Cancelled) == 0 {
+				break
+			}
+
+			for _, q := range res.Queued {
+				require.True(t, newerRuns[q.Id] && !timedOut[q.Id], "only the newest run of a key may start")
+				queued[q.Id] = true
+			}
+
+			for _, c := range res.Cancelled {
+				require.False(t, cancelled[c.Id], "a task must be reported cancelled once")
+				cancelled[c.Id] = true
+
+				if timedOut[c.Id] {
+					require.Equal(t, repo.CancelledReasonSchedulingTimedOut, c.CancelledReason)
+				} else {
+					require.True(t, olderRuns[c.Id], "only older runs may be cancelled")
+					require.Equal(t, repo.CancelledReasonConcurrencyLimit, c.CancelledReason)
+				}
+			}
+		}
+
+		require.Greater(t, passes, 1)
+		require.Len(t, queued, numKeys-numTimedOut)
+		require.Len(t, cancelled, numKeys+numTimedOut)
+
+		running, waiting := countConcurrencySlots(t, ctx, conf, child.ID)
+		require.Equal(t, numKeys-numTimedOut, running)
+		require.Equal(t, 0, waiting)
 
 		return nil
 	})

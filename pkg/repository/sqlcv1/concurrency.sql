@@ -4,6 +4,29 @@ SELECT *
 FROM v1_workflow_concurrency_slot
 WHERE tenant_id = @tenantId::uuid AND strategy_id = @strategyId::bigint;
 
+-- name: CreateParentTempTableForChildBatch :exec
+-- Every slot of a selected key must be copied, since the parent pass ranks each key over the whole temp table.
+CREATE TEMP TABLE tmp_workflow_concurrency_slot ON COMMIT DROP AS
+SELECT *
+FROM v1_workflow_concurrency_slot
+WHERE
+    tenant_id = @tenantId::uuid
+    AND strategy_id = @strategyId::bigint
+    AND key IN (
+        SELECT wcs.key
+        FROM (
+            SELECT parent_strategy_id, workflow_version_id, workflow_run_id
+            FROM v1_concurrency_slot
+            WHERE
+                tenant_id = @tenantId::uuid
+                AND strategy_id = @childStrategyId::bigint
+                AND is_filled = FALSE
+            ORDER BY task_id, task_inserted_at
+            LIMIT @batchSize::int
+        ) batch
+        JOIN v1_workflow_concurrency_slot wcs ON (wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id) = (batch.parent_strategy_id, batch.workflow_version_id, batch.workflow_run_id)
+    );
+
 -- name: ListActiveConcurrencyStrategies :many
 -- Rows referencing a tenant strategy (tenant_strategy_id set) are excluded: the tenant
 -- strategy itself (see ListActiveTenantConcurrencyStrategies) is what gets registered

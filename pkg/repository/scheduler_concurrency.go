@@ -17,6 +17,8 @@ import (
 
 const PARENT_STRATEGY_LOCK_OFFSET = 1000000000000 // 1 trillion
 
+const parentConcurrencyPassBatchSize = 1000
+
 // Cancellation reasons surfaced on TaskWithCancelledReason. Kept as plain strings to match the
 // values the downstream consumer (notifyAfterConcurrency) and the legacy SQL paths compare against.
 const (
@@ -532,9 +534,11 @@ func (c *ConcurrencyRepositoryImpl) runCancelInProgress(
 			return nil, fmt.Errorf("failed to acquire parent advisory lock (strategy ID: %d, parent: %d): %w", strategy.ID, strategy.ParentStrategyID.Int64, err)
 		}
 
-		err = c.queries.CreateParentTempTable(ctx, tx, sqlcv1.CreateParentTempTableParams{
-			Tenantid:   tenantId,
-			Strategyid: strategy.ParentStrategyID.Int64,
+		err = c.queries.CreateParentTempTableForChildBatch(ctx, tx, sqlcv1.CreateParentTempTableForChildBatchParams{
+			Tenantid:        tenantId,
+			Strategyid:      strategy.ParentStrategyID.Int64,
+			Childstrategyid: strategy.ID,
+			Batchsize:       parentConcurrencyPassBatchSize,
 		})
 
 		if err != nil {

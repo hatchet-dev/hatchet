@@ -208,6 +208,7 @@ WITH slots AS (
             cs.is_filled = TRUE
         )
 ), schedule_timeout_slots AS (
+    -- limited to the batch so that every slot reported here is also deleted by this pass
     SELECT
         sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at
     FROM
@@ -216,7 +217,11 @@ WITH slots AS (
         tenant_id = $1::uuid AND
         strategy_id = $2::bigint AND
         schedule_timeout_at < NOW() AND
-        is_filled = FALSE
+        is_filled = FALSE AND
+        (parent_strategy_id, workflow_version_id, workflow_run_id) IN (
+            SELECT wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
+            FROM tmp_workflow_concurrency_slot wcs
+        )
     LIMIT 1000
 ), eligible_running_slots AS (
     SELECT
