@@ -98,12 +98,6 @@ func newCancelEnv(t *testing.T) *cancelEnv {
 	token := os.Getenv("HATCHET_CLIENT_TOKEN")
 	tenantID := tenantIDFromToken(t, token)
 
-	// The entitlement is read when the workflow is registered, so it has to be on before the
-	// worker starts.
-	require.NoError(t, dl.V1.TenantEntitlement().SetEntitlements(ctx, tenantID, v1.TenantEntitlements{
-		DAGOperator: true,
-	}))
-
 	client, err := hatchet.NewClient()
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close(context.Background()) })

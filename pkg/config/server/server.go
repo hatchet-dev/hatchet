@@ -176,7 +176,6 @@ type DefaultTenantEntitlementsConfigFile struct {
 	AuditLogs                       bool `mapstructure:"auditLogs" json:"auditLogs,omitempty" default:"false"`
 	PrometheusMetrics               bool `mapstructure:"prometheusMetrics" json:"prometheusMetrics,omitempty" default:"false"`
 	StrictAdditionalMetadataFilters bool `mapstructure:"strictAdditionalMetadataFilters" json:"strictAdditionalMetadataFilters,omitempty" default:"false"`
-	DAGOperator                     bool `mapstructure:"dagOperator" json:"dagOperator,omitempty" default:"false"`
 	DurableStreams                  bool `mapstructure:"durableStreams" json:"durableStreams,omitempty" default:"false"`
 	ServerlessOperator              bool `mapstructure:"serverlessOperator" json:"serverlessOperator,omitempty" default:"false"`
 }

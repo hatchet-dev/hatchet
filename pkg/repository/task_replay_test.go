@@ -110,8 +110,6 @@ func TestConcurrentReplaysWithDagOperatorEnabledIncrementRetryCountOnce(t *testi
 
 	ctx := context.Background()
 
-	require.NoError(t, newTenantEntitlementRepository(shared).SetEntitlements(ctx, internalTenantId, TenantEntitlements{DAGOperator: true}))
-
 	workflowOpts := minimalWorkflowOpts("replay-concurrent-dag-operator", "v1", nil)
 	workflowOpts.Tasks = append(workflowOpts.Tasks, CreateStepOpts{
 		ReadableId: "step2",

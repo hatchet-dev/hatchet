@@ -31,7 +31,7 @@ func TestHasEntitlement(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, TenantEntitlements{}, none)
 
-	want := TenantEntitlements{DurableStreams: true, DAGOperator: true, ServerlessOperator: true}
+	want := TenantEntitlements{DurableStreams: true, ServerlessOperator: true}
 	require.NoError(t, repo.SetEntitlements(ctx, tenantID, want))
 
 	enabled, err = repo.HasEntitlement(ctx, tenantID, EntitlementDurableStreams)
