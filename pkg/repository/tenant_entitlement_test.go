@@ -42,6 +42,10 @@ func TestHasEntitlement(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, enabled)
 
+	enabled, err = repo.HasEntitlement(ctx, tenantID, EntitlementSandboxOperator)
+	require.NoError(t, err)
+	assert.True(t, enabled)
+
 	enabled, err = repo.HasEntitlement(ctx, tenantID, EntitlementAuditLogs)
 	require.NoError(t, err)
 	assert.False(t, enabled)

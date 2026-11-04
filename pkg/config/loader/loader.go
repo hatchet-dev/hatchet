@@ -429,6 +429,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 			DAGOperator:                     scf.Runtime.DefaultTenantEntitlements.DAGOperator,
 			DurableStreams:                  scf.Runtime.DefaultTenantEntitlements.DurableStreams,
 			ServerlessOperator:              scf.Runtime.DefaultTenantEntitlements.ServerlessOperator,
+			SandboxOperator:                 scf.Runtime.DefaultTenantEntitlements.SandboxOperator,
 		},
 	}, nil
 }

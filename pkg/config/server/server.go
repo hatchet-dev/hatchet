@@ -179,6 +179,7 @@ type DefaultTenantEntitlementsConfigFile struct {
 	DAGOperator                     bool `mapstructure:"dagOperator" json:"dagOperator,omitempty" default:"false"`
 	DurableStreams                  bool `mapstructure:"durableStreams" json:"durableStreams,omitempty" default:"false"`
 	ServerlessOperator              bool `mapstructure:"serverlessOperator" json:"serverlessOperator,omitempty" default:"false"`
+	SandboxOperator                 bool `mapstructure:"sandboxOperator" json:"sandboxOperator,omitempty" default:"false"`
 }
 
 // General server runtime options
@@ -1067,6 +1068,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.defaultTenantEntitlements.dagOperator", "SERVER_DEFAULT_TENANT_ENTITLEMENT_DAG_OPERATOR")
 	_ = v.BindEnv("runtime.defaultTenantEntitlements.durableStreams", "SERVER_DEFAULT_TENANT_ENTITLEMENT_DURABLE_STREAMS")
 	_ = v.BindEnv("runtime.defaultTenantEntitlements.serverlessOperator", "SERVER_DEFAULT_TENANT_ENTITLEMENT_SERVERLESS_OPERATOR")
+	_ = v.BindEnv("runtime.defaultTenantEntitlements.sandboxOperator", "SERVER_DEFAULT_TENANT_ENTITLEMENT_SANDBOX_OPERATOR")
 
 	// limit options
 	_ = v.BindEnv("runtime.limits.defaultTenantRetentionPeriod", "SERVER_LIMITS_DEFAULT_TENANT_RETENTION_PERIOD")

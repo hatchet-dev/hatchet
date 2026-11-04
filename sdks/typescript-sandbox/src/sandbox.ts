@@ -157,7 +157,7 @@ export class Sandbox {
 
   /** Starts a new sandbox. Prefer `hatchet.sandbox.create`. */
   static async create(client: HatchetClient, opts: SandboxOpts = {}): Promise<Sandbox> {
-    void setupTelemetry();
+    await setupTelemetry();
     const run = turnRunner(client);
     const metadata = opts.provider ? { ...opts.metadata, provider: opts.provider } : opts.metadata;
     const created = await run({
@@ -179,7 +179,7 @@ export class Sandbox {
     sandboxId: string,
     opts: ConnectOpts = {}
   ): Promise<Sandbox> {
-    void setupTelemetry();
+    await setupTelemetry();
     const run = turnRunner(client);
     await run({
       fn: '$connect',
