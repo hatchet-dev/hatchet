@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const anyTenantHasAuditLogs = `-- name: AnyTenantHasAuditLogs :one
@@ -54,29 +55,34 @@ func (q *Queries) GetTenantEntitlement(ctx context.Context, db DBTX, tenantid uu
 
 const updateTenantLabsEntitlements = `-- name: UpdateTenantLabsEntitlements :one
 INSERT INTO tenant_entitlement (tenant_id, durable_streams, serverless_operator, sandbox_operator)
-VALUES ($1::uuid, $2::boolean, $3::boolean, $4::boolean)
+VALUES (
+    $1::uuid,
+    COALESCE($2::boolean, FALSE),
+    COALESCE($3::boolean, FALSE),
+    COALESCE($4::boolean, FALSE)
+)
 ON CONFLICT (tenant_id) DO UPDATE
 SET
-    durable_streams = EXCLUDED.durable_streams,
-    serverless_operator = EXCLUDED.serverless_operator,
-    sandbox_operator = EXCLUDED.sandbox_operator,
+    durable_streams = COALESCE($2::boolean, tenant_entitlement.durable_streams),
+    serverless_operator = COALESCE($3::boolean, tenant_entitlement.serverless_operator),
+    sandbox_operator = COALESCE($4::boolean, tenant_entitlement.sandbox_operator),
     updated_at = NOW()
 RETURNING tenant_id, audit_logs, prometheus_metrics, strict_additional_metadata_filters, dag_operator, durable_streams, serverless_operator, sandbox_operator, created_at, updated_at
 `
 
 type UpdateTenantLabsEntitlementsParams struct {
-	Tenantid           uuid.UUID `json:"tenantid"`
-	Durablestreams     bool      `json:"durablestreams"`
-	Serverlessoperator bool      `json:"serverlessoperator"`
-	Sandboxoperator    bool      `json:"sandboxoperator"`
+	Tenantid           uuid.UUID   `json:"tenantid"`
+	DurableStreams     pgtype.Bool `json:"durableStreams"`
+	ServerlessOperator pgtype.Bool `json:"serverlessOperator"`
+	SandboxOperator    pgtype.Bool `json:"sandboxOperator"`
 }
 
 func (q *Queries) UpdateTenantLabsEntitlements(ctx context.Context, db DBTX, arg UpdateTenantLabsEntitlementsParams) (*TenantEntitlement, error) {
 	row := db.QueryRow(ctx, updateTenantLabsEntitlements,
 		arg.Tenantid,
-		arg.Durablestreams,
-		arg.Serverlessoperator,
-		arg.Sandboxoperator,
+		arg.DurableStreams,
+		arg.ServerlessOperator,
+		arg.SandboxOperator,
 	)
 	var i TenantEntitlement
 	err := row.Scan(

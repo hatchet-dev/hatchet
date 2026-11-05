@@ -10,11 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var ownerOnly = []string{
-	"TenantEntitlementsUpdate",
-}
-
 var adminAndOwnerOnly = []string{
+	"TenantEntitlementsUpdate",
 	"TenantInviteList",
 	"TenantInviteCreate",
 	"TenantInviteUpdate",
@@ -102,12 +99,6 @@ func TestAuthorizeTenantOperations(t *testing.T) {
 	assert.Nil(t, err)
 	allOperations := operationIdsFromSpec()
 	for _, operationId := range allOperations {
-		if rbac.OperationIn(operationId, ownerOnly) {
-			assert.False(t, r.IsAuthorized(string(sqlcv1.TenantMemberRoleADMIN), operationId), "operationId: %s", operationId)
-			assert.True(t, r.IsAuthorized(string(sqlcv1.TenantMemberRoleOWNER), operationId), "operationId: %s", operationId)
-			assert.False(t, r.IsAuthorized(string(sqlcv1.TenantMemberRoleMEMBER), operationId), "operationId: %s", operationId)
-			continue
-		}
 		assert.Equal(t, r.IsAuthorized(string(sqlcv1.TenantMemberRoleADMIN), operationId), true)
 		assert.Equal(t, r.IsAuthorized(string(sqlcv1.TenantMemberRoleOWNER), operationId), true)
 		if rbac.OperationIn(operationId, adminAndOwnerOnly) {
@@ -123,7 +114,7 @@ func TestAuthorizeTenantOperationsViewer(t *testing.T) {
 	assert.Nil(t, err)
 	allOperations := operationIdsFromSpec()
 	for _, operationId := range allOperations {
-		expectAuthorized := !rbac.OperationIn(operationId, adminAndOwnerOnly) && !rbac.OperationIn(operationId, memberOnlyOps) && !rbac.OperationIn(operationId, ownerOnly)
+		expectAuthorized := !rbac.OperationIn(operationId, adminAndOwnerOnly) && !rbac.OperationIn(operationId, memberOnlyOps)
 		assert.Equal(
 			t,
 			expectAuthorized,

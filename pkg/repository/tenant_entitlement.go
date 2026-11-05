@@ -10,6 +10,7 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -194,33 +195,16 @@ func (t *tenantEntitlementRepository) SetEntitlements(ctx context.Context, tenan
 }
 
 func (t *tenantEntitlementRepository) UpdateLabsEntitlements(ctx context.Context, tenantId uuid.UUID, patch LabsEntitlements) (TenantEntitlements, error) {
-	current, err := t.GetEntitlements(ctx, tenantId)
-
-	if err != nil {
-		return TenantEntitlements{}, err
-	}
-
 	if patch.DurableStreams == nil && patch.ServerlessOperator == nil && patch.SandboxOperator == nil {
-		return current, nil
+		return t.GetEntitlements(ctx, tenantId)
 	}
 
-	if patch.DurableStreams != nil {
-		current.DurableStreams = *patch.DurableStreams
-	}
-
-	if patch.ServerlessOperator != nil {
-		current.ServerlessOperator = *patch.ServerlessOperator
-	}
-
-	if patch.SandboxOperator != nil {
-		current.SandboxOperator = *patch.SandboxOperator
-	}
-
+	// The merge happens in SQL so concurrent patches to different flags do not overwrite each other.
 	row, err := t.queries.UpdateTenantLabsEntitlements(ctx, t.pool.ForTenant(tenantId), sqlcv1.UpdateTenantLabsEntitlementsParams{
 		Tenantid:           tenantId,
-		Durablestreams:     current.DurableStreams,
-		Serverlessoperator: current.ServerlessOperator,
-		Sandboxoperator:    current.SandboxOperator,
+		DurableStreams:     sqlchelpers.BoolFromMaybeBoolean(patch.DurableStreams),
+		ServerlessOperator: sqlchelpers.BoolFromMaybeBoolean(patch.ServerlessOperator),
+		SandboxOperator:    sqlchelpers.BoolFromMaybeBoolean(patch.SandboxOperator),
 	})
 
 	if err != nil {

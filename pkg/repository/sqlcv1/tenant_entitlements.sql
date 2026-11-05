@@ -20,12 +20,17 @@ RETURNING *;
 
 -- name: UpdateTenantLabsEntitlements :one
 INSERT INTO tenant_entitlement (tenant_id, durable_streams, serverless_operator, sandbox_operator)
-VALUES (@tenantId::uuid, @durableStreams::boolean, @serverlessOperator::boolean, @sandboxOperator::boolean)
+VALUES (
+    @tenantId::uuid,
+    COALESCE(sqlc.narg('durableStreams')::boolean, FALSE),
+    COALESCE(sqlc.narg('serverlessOperator')::boolean, FALSE),
+    COALESCE(sqlc.narg('sandboxOperator')::boolean, FALSE)
+)
 ON CONFLICT (tenant_id) DO UPDATE
 SET
-    durable_streams = EXCLUDED.durable_streams,
-    serverless_operator = EXCLUDED.serverless_operator,
-    sandbox_operator = EXCLUDED.sandbox_operator,
+    durable_streams = COALESCE(sqlc.narg('durableStreams')::boolean, tenant_entitlement.durable_streams),
+    serverless_operator = COALESCE(sqlc.narg('serverlessOperator')::boolean, tenant_entitlement.serverless_operator),
+    sandbox_operator = COALESCE(sqlc.narg('sandboxOperator')::boolean, tenant_entitlement.sandbox_operator),
     updated_at = NOW()
 RETURNING *;
 

@@ -11,3 +11,11 @@ func BoolFromBoolean(v bool) pgtype.Bool {
 
 	return bgBool
 }
+
+func BoolFromMaybeBoolean(v *bool) pgtype.Bool {
+	if v == nil {
+		return pgtype.Bool{}
+	}
+
+	return BoolFromBoolean(*v)
+}

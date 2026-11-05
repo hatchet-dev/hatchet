@@ -114,7 +114,10 @@ export default function LabsSettings() {
     );
   }
 
-  if (membership !== TenantMemberRole.OWNER) {
+  if (
+    membership !== TenantMemberRole.OWNER &&
+    membership !== TenantMemberRole.ADMIN
+  ) {
     return <LabsPreview status="gated" />;
   }
 

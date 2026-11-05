@@ -66,9 +66,9 @@ export function LabsPreview(props: LabsPreviewProps) {
     return (
       <div className="flex min-h-96 flex-1 items-center justify-center p-4">
         <div className="max-w-lg space-y-3 text-center">
-          <h3 className="text-lg font-semibold">Owner access required</h3>
+          <h3 className="text-lg font-semibold">Admin access required</h3>
           <p className="text-sm text-muted-foreground">
-            Ask a tenant owner to change Labs settings.
+            Ask a tenant admin to change Labs settings.
           </p>
         </div>
       </div>
