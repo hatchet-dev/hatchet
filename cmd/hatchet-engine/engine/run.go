@@ -1000,6 +1000,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			streamssvc.WithPubSub(sc.PubSubV1),
 			streamssvc.WithRepositoryV1(sc.V1),
 			streamssvc.WithLogger(sc.Logger),
+			streamssvc.WithUsage(o11yUsage),
 		)
 
 		if err != nil {

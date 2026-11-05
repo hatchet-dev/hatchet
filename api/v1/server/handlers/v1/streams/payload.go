@@ -104,6 +104,9 @@ func (s *V1StreamsService) V1StreamPayloadGet(ctx echo.Context, request gen.V1St
 		return nil, err
 	}
 
+	// a large payload's subscriber fetches it here instead of receiving it inline
+	s.usage.AddStreamDelivered(tenant.ID, int64(len(payload)))
+
 	return gen.V1StreamPayloadGet200ApplicationoctetStreamResponse{
 		Body:          bytes.NewReader(payload),
 		ContentLength: int64(len(payload)),
