@@ -2515,7 +2515,7 @@ WITH input AS (
             WHEN $1::BOOLEAN THEN d.input
             ELSE '{}'::JSONB
         END::JSONB AS input,
-        d.additional_metadata,
+        r.additional_metadata,
         d.workflow_version_id,
         d.parent_task_external_id,
         d.idempotency_key,
@@ -2836,6 +2836,7 @@ WITH selected_retry_count AS (
 )
 SELECT
     t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.is_durable, t.idempotency_key, t.payload_reference_id,
+    r.additional_metadata AS run_additional_metadata,
     (t.dag_id IS NULL)::BOOLEAN AS is_standalone,
     st.readable_status::v1_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
@@ -2850,6 +2851,8 @@ SELECT
     (SELECT retry_count FROM selected_retry_count) as retry_count
 FROM
     v1_tasks_olap t
+LEFT JOIN
+    v1_runs_olap r ON (r.id, r.inserted_at) = (COALESCE(t.dag_id, t.id), COALESCE(t.dag_inserted_at, t.inserted_at))
 LEFT JOIN
     finished_at f ON true
 LEFT JOIN
@@ -2903,6 +2906,7 @@ type PopulateSingleTaskRunDataRow struct {
 	IsDurable                     bool                 `json:"is_durable"`
 	IdempotencyKey                pgtype.Text          `json:"idempotency_key"`
 	PayloadReferenceID            *uuid.UUID           `json:"payload_reference_id"`
+	RunAdditionalMetadata         []byte               `json:"run_additional_metadata"`
 	IsStandalone                  bool                 `json:"is_standalone"`
 	Status                        V1ReadableStatusOlap `json:"status"`
 	FinishedAt                    pgtype.Timestamptz   `json:"finished_at"`
@@ -2953,6 +2957,7 @@ func (q *Queries) PopulateSingleTaskRunData(ctx context.Context, db DBTX, arg Po
 		&i.IsDurable,
 		&i.IdempotencyKey,
 		&i.PayloadReferenceID,
+		&i.RunAdditionalMetadata,
 		&i.IsStandalone,
 		&i.Status,
 		&i.FinishedAt,
@@ -2993,7 +2998,7 @@ WITH input AS (
         t.external_id,
         t.display_name,
         t.input,
-        t.additional_metadata,
+        r.additional_metadata,
         t.readable_status,
         t.parent_task_external_id,
         t.workflow_run_id,
@@ -3006,6 +3011,8 @@ WITH input AS (
         v1_tasks_olap t
     JOIN
         input i ON i.id = t.id AND i.inserted_at = t.inserted_at
+    LEFT JOIN
+        v1_runs_olap r ON (r.id, r.inserted_at) = (COALESCE(t.dag_id, t.id), COALESCE(t.dag_inserted_at, t.inserted_at))
     WHERE
         t.tenant_id = $4::uuid
 ), relevant_events AS (
@@ -3499,7 +3506,7 @@ WITH runs AS (
         r.workflow_id,
         d.display_name AS display_name,
         d.input AS input,
-        d.additional_metadata AS additional_metadata,
+        r.additional_metadata AS additional_metadata,
         d.workflow_version_id AS workflow_version_id,
         d.parent_task_external_id AS parent_task_external_id,
         d.payload_reference_id AS payload_reference_id
@@ -3527,7 +3534,7 @@ WITH runs AS (
         r.workflow_id,
         t.display_name AS display_name,
         t.input AS input,
-        t.additional_metadata AS additional_metadata,
+        r.additional_metadata AS additional_metadata,
         t.workflow_version_id AS workflow_version_id,
         NULL::UUID AS parent_task_external_id,
         t.payload_reference_id AS payload_reference_id
@@ -4296,82 +4303,115 @@ func (q *Queries) UpdateDAGStatusesFromMQ(ctx context.Context, db DBTX, arg Upda
 const updateDAGStatusesFromOrchestratorEvents = `-- name: UpdateDAGStatusesFromOrchestratorEvents :many
 WITH inputs AS (
     SELECT
-        UNNEST($2::BIGINT[]) AS dag_id,
-        UNNEST($3::TIMESTAMPTZ[]) AS dag_inserted_at,
-        UNNEST($4::v1_readable_status_olap[]) AS new_readable_status,
-        UNNEST($5::INTEGER[]) AS retry_count,
-        UNNEST($6::UUID[]) AS external_id,
-        UNNEST($7::TEXT[]) AS display_name,
-        UNNEST($8::UUID[]) AS workflow_id,
-        UNNEST($9::UUID[]) AS workflow_version_id,
-        UNNEST($10::JSONB[]) AS additional_metadata
-)
-INSERT INTO v1_dags_olap (
-    tenant_id,
-    id,
-    inserted_at,
-    external_id,
-    display_name,
-    workflow_id,
-    workflow_version_id,
-    input,
-    additional_metadata,
-    total_tasks,
-    readable_status,
-    latest_retry_count,
-    is_dag_operator
+        UNNEST($1::BIGINT[]) AS dag_id,
+        UNNEST($2::TIMESTAMPTZ[]) AS dag_inserted_at,
+        UNNEST($3::v1_readable_status_olap[]) AS new_readable_status,
+        UNNEST($4::INTEGER[]) AS retry_count,
+        UNNEST($5::UUID[]) AS external_id,
+        UNNEST($6::TEXT[]) AS display_name,
+        UNNEST($7::UUID[]) AS workflow_id,
+        UNNEST($8::UUID[]) AS workflow_version_id,
+        UNNEST($9::JSONB[]) AS additional_metadata
+), upserted_dags AS (
+    INSERT INTO v1_dags_olap (
+        tenant_id,
+        id,
+        inserted_at,
+        external_id,
+        display_name,
+        workflow_id,
+        workflow_version_id,
+        input,
+        total_tasks,
+        readable_status,
+        latest_retry_count,
+        is_dag_operator
+    )
+    SELECT
+        $10::UUID,
+        i.dag_id,
+        i.dag_inserted_at,
+        i.external_id,
+        i.display_name,
+        i.workflow_id,
+        i.workflow_version_id,
+        '{}'::JSONB,
+        0,
+        i.new_readable_status,
+        i.retry_count,
+        TRUE
+    FROM inputs i
+    ORDER BY i.dag_inserted_at, i.dag_id
+    ON CONFLICT (inserted_at, id) DO UPDATE SET
+        readable_status = EXCLUDED.readable_status,
+        latest_retry_count = EXCLUDED.latest_retry_count
+    WHERE
+        v1_dags_olap.tenant_id = $10::UUID
+        AND (
+            -- a newer attempt always applies, so a replay revives a terminal DAG and a straggler
+            -- from the previous attempt can no longer clobber it
+            (
+                EXCLUDED.latest_retry_count > v1_dags_olap.latest_retry_count
+            ) OR
+            -- within an attempt, only move forward through QUEUED -> RUNNING -> terminal
+            (
+                EXCLUDED.latest_retry_count = v1_dags_olap.latest_retry_count
+                AND v1_status_to_priority(EXCLUDED.readable_status) > v1_status_to_priority(v1_dags_olap.readable_status)
+            ) OR
+            -- EVICTED is reversible (a durable restore moves it back to RUNNING) but outranks
+            -- RUNNING by priority, so it needs an explicit escape hatch
+            (
+                EXCLUDED.latest_retry_count = v1_dags_olap.latest_retry_count
+                AND v1_dags_olap.readable_status = 'EVICTED'
+                AND EXCLUDED.readable_status != 'EVICTED'
+            )
+        )
+    RETURNING
+        tenant_id::UUID AS tenant_id,
+        id::BIGINT AS dag_id,
+        inserted_at::TIMESTAMPTZ AS dag_inserted_at,
+        external_id::UUID AS external_id,
+        readable_status::v1_readable_status_olap AS readable_status,
+        workflow_id::UUID AS workflow_id
+), inserted_runs AS (
+    INSERT INTO v1_runs_olap (
+        tenant_id,
+        id,
+        inserted_at,
+        external_id,
+        readable_status,
+        kind,
+        workflow_id,
+        workflow_version_id,
+        additional_metadata,
+        finished_at
+    )
+    SELECT
+        $10::UUID,
+        i.dag_id,
+        i.dag_inserted_at,
+        i.external_id,
+        i.new_readable_status,
+        'DAG',
+        i.workflow_id,
+        i.workflow_version_id,
+        i.additional_metadata,
+        CASE WHEN i.new_readable_status IN ('COMPLETED', 'FAILED', 'CANCELLED') THEN clock_timestamp() END
+    FROM inputs i
+    JOIN upserted_dags d ON (i.dag_id, i.dag_inserted_at) = (d.dag_id, d.dag_inserted_at)
+    ON CONFLICT (inserted_at, id) DO NOTHING
 )
 SELECT
-    $1::UUID,
-    i.dag_id,
-    i.dag_inserted_at,
-    i.external_id,
-    i.display_name,
-    i.workflow_id,
-    i.workflow_version_id,
-    '{}'::JSONB,
-    i.additional_metadata,
-    0,
-    i.new_readable_status,
-    i.retry_count,
-    TRUE
-FROM inputs i
-ORDER BY i.dag_inserted_at, i.dag_id
-ON CONFLICT (inserted_at, id) DO UPDATE SET
-    readable_status = EXCLUDED.readable_status,
-    latest_retry_count = EXCLUDED.latest_retry_count
-WHERE
-    v1_dags_olap.tenant_id = $1::UUID
-    AND (
-        -- a newer attempt always applies, so a replay revives a terminal DAG and a straggler
-        -- from the previous attempt can no longer clobber it
-        (
-            EXCLUDED.latest_retry_count > v1_dags_olap.latest_retry_count
-        ) OR
-        -- within an attempt, only move forward through QUEUED -> RUNNING -> terminal
-        (
-            EXCLUDED.latest_retry_count = v1_dags_olap.latest_retry_count
-            AND v1_status_to_priority(EXCLUDED.readable_status) > v1_status_to_priority(v1_dags_olap.readable_status)
-        ) OR
-        -- EVICTED is reversible (a durable restore moves it back to RUNNING) but outranks
-        -- RUNNING by priority, so it needs an explicit escape hatch
-        (
-            EXCLUDED.latest_retry_count = v1_dags_olap.latest_retry_count
-            AND v1_dags_olap.readable_status = 'EVICTED'
-            AND EXCLUDED.readable_status != 'EVICTED'
-        )
-    )
-RETURNING
-    tenant_id::UUID AS tenant_id,
-    id::BIGINT AS dag_id,
-    inserted_at::TIMESTAMPTZ AS dag_inserted_at,
-    external_id::UUID AS external_id,
-    readable_status::v1_readable_status_olap AS readable_status,
-    workflow_id::UUID AS workflow_id
+    tenant_id,
+    dag_id,
+    dag_inserted_at,
+    external_id,
+    readable_status,
+    workflow_id
+FROM upserted_dags
 `
 
 type UpdateDAGStatusesFromOrchestratorEventsParams struct {
-	Tenantid            uuid.UUID              `json:"tenantid"`
 	Dagids              []int64                `json:"dagids"`
 	Daginsertedats      []pgtype.Timestamptz   `json:"daginsertedats"`
 	Statuses            []V1ReadableStatusOlap `json:"statuses"`
@@ -4381,6 +4421,7 @@ type UpdateDAGStatusesFromOrchestratorEventsParams struct {
 	Workflowids         []uuid.UUID            `json:"workflowids"`
 	Workflowversionids  []uuid.UUID            `json:"workflowversionids"`
 	Additionalmetadatas [][]byte               `json:"additionalmetadatas"`
+	Tenantid            uuid.UUID              `json:"tenantid"`
 }
 
 type UpdateDAGStatusesFromOrchestratorEventsRow struct {
@@ -4396,7 +4437,6 @@ type UpdateDAGStatusesFromOrchestratorEventsRow struct {
 // sure each dag only gets one candidate update per call
 func (q *Queries) UpdateDAGStatusesFromOrchestratorEvents(ctx context.Context, db DBTX, arg UpdateDAGStatusesFromOrchestratorEventsParams) ([]*UpdateDAGStatusesFromOrchestratorEventsRow, error) {
 	rows, err := db.Query(ctx, updateDAGStatusesFromOrchestratorEvents,
-		arg.Tenantid,
 		arg.Dagids,
 		arg.Daginsertedats,
 		arg.Statuses,
@@ -4406,6 +4446,7 @@ func (q *Queries) UpdateDAGStatusesFromOrchestratorEvents(ctx context.Context, d
 		arg.Workflowids,
 		arg.Workflowversionids,
 		arg.Additionalmetadatas,
+		arg.Tenantid,
 	)
 	if err != nil {
 		return nil, err

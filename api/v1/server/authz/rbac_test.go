@@ -17,8 +17,8 @@ var adminAndOwnerOnly = []string{
 	"TenantInviteDelete",
 	"TenantMemberList",
 	"TenantMemberUpdate",
-	// members cannot create API tokens for a tenant, because they have admin permissions
-	"ApiTokenList",
+	// members can list API tokens (read-only) but cannot create or revoke them, because
+	// tokens carry admin-level permissions
 	"ApiTokenCreate",
 	"ApiTokenUpdateRevoke",
 }
@@ -27,6 +27,7 @@ var adminAndOwnerOnly = []string{
 // anything that triggers, creates, updates, deletes, cancels, replays, or reruns tenant state.
 // Keep this in sync with the exclusions applied when building the VIEWER permission list in rbac.yaml.
 var memberOnlyOps = []string{
+	"ApiTokenList",
 	"StepRunUpdateCancel",
 	"TenantUpdate",
 	"WorkflowRunUpdateReplay",
@@ -161,4 +162,28 @@ func TestAuthorizeTenantOperationsViewerRepresentativeSample(t *testing.T) {
 func TestValidateSpec(t *testing.T) {
 	_, err := newHatchetAuthorizer()
 	assert.Nil(t, err)
+}
+
+func TestAuthorizeApiTokenOperationsByRole(t *testing.T) {
+	r, err := newHatchetAuthorizer()
+	assert.Nil(t, err)
+
+	cases := []struct {
+		role   sqlcv1.TenantMemberRole
+		list   bool
+		create bool
+		revoke bool
+	}{
+		{sqlcv1.TenantMemberRoleOWNER, true, true, true},
+		{sqlcv1.TenantMemberRoleADMIN, true, true, true},
+		{sqlcv1.TenantMemberRoleMEMBER, true, false, false},
+		{sqlcv1.TenantMemberRoleVIEWER, false, false, false},
+	}
+
+	for _, c := range cases {
+		role := string(c.role)
+		assert.Equal(t, c.list, r.IsAuthorized(role, "ApiTokenList"), "role %s: ApiTokenList", role)
+		assert.Equal(t, c.create, r.IsAuthorized(role, "ApiTokenCreate"), "role %s: ApiTokenCreate", role)
+		assert.Equal(t, c.revoke, r.IsAuthorized(role, "ApiTokenUpdateRevoke"), "role %s: ApiTokenUpdateRevoke", role)
+	}
 }
