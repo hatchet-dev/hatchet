@@ -23,6 +23,6 @@ func (t *TenantService) TenantEntitlementsGet(ctx echo.Context, request gen.Tena
 		StrictAdditionalMetadataFilters: entitlements.StrictAdditionalMetadataFilters,
 		DurableStreams:                  entitlements.DurableStreams,
 		ServerlessOperator:              entitlements.ServerlessOperator,
-		SandboxOperator:                 &entitlements.SandboxOperator,
+		SandboxOperator:                 entitlements.SandboxOperator,
 	}, nil
 }

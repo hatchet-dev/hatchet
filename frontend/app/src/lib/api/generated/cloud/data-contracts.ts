@@ -1206,7 +1206,7 @@ export interface CreateSandboxProviderRequest {
   config?: Record<string, any>;
   defaultTemplate?: string;
   /**
-   * Defaults to 86400.
+   * Defaults to 3600.
    * @format int32
    */
   maxIdleTtlSeconds?: number;

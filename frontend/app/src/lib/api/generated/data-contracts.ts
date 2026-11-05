@@ -1827,7 +1827,7 @@ export interface TenantEntitlements {
   dagOperator: boolean;
   durableStreams: boolean;
   serverlessOperator: boolean;
-  sandboxOperator?: boolean;
+  sandboxOperator: boolean;
 }
 
 export interface UpdateTenantAlertEmailGroupRequest {

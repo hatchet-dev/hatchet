@@ -160,22 +160,24 @@ export class Files {
 
   /** Writes several files in one task. */
   async writeFiles(files: WriteEntry[]): Promise<EntryInfo[]> {
-    const encoded = await Promise.all(
-      files.map(async (f) => {
-        const bytes = await toBytes(f.data);
-        if (bytes.length <= STAGE_OVER_BYTES)
-          return { path: f.path, content: bytes.toString('base64') };
-        const { stagedKey, putUrl } = await this.call('presign', {});
-        try {
-          await putStaged(putUrl!, bytes);
-          return { path: f.path, stagedKey: stagedKey! };
-        } catch {
-          const again = await this.call('presign', {}, true);
-          await putStaged(again.putUrl!, bytes);
-          return { path: f.path, stagedKey: again.stagedKey! };
-        }
-      })
-    );
+    const bytes = await Promise.all(files.map((f) => toBytes(f.data)));
+    const encoded: Array<{ path: string; content?: string; stagedKey?: string }> = [];
+    for (const [i, f] of files.entries()) {
+      const b = bytes[i];
+      if (b.length <= STAGE_OVER_BYTES) {
+        encoded.push({ path: f.path, content: b.toString('base64') });
+        continue;
+      }
+      const { stagedKey, putUrl } = await this.call('presign', {});
+      try {
+        await putStaged(putUrl!, b);
+        encoded.push({ path: f.path, stagedKey: stagedKey! });
+      } catch {
+        const again = await this.call('presign', {}, true);
+        await putStaged(again.putUrl!, b);
+        encoded.push({ path: f.path, stagedKey: again.stagedKey! });
+      }
+    }
     const { entries = [] } = await this.call('write', { files: encoded });
     return entries.map(toEntry);
   }

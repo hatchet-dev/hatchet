@@ -1344,13 +1344,13 @@ type TenantAlertingSettings struct {
 
 // TenantEntitlements defines model for TenantEntitlements.
 type TenantEntitlements struct {
-	AuditLogs                       bool  `json:"auditLogs"`
-	DagOperator                     bool  `json:"dagOperator"`
-	DurableStreams                  bool  `json:"durableStreams"`
-	PrometheusMetrics               bool  `json:"prometheusMetrics"`
-	SandboxOperator                 *bool `json:"sandboxOperator,omitempty"`
-	ServerlessOperator              bool  `json:"serverlessOperator"`
-	StrictAdditionalMetadataFilters bool  `json:"strictAdditionalMetadataFilters"`
+	AuditLogs                       bool `json:"auditLogs"`
+	DagOperator                     bool `json:"dagOperator"`
+	DurableStreams                  bool `json:"durableStreams"`
+	PrometheusMetrics               bool `json:"prometheusMetrics"`
+	SandboxOperator                 bool `json:"sandboxOperator"`
+	ServerlessOperator              bool `json:"serverlessOperator"`
+	StrictAdditionalMetadataFilters bool `json:"strictAdditionalMetadataFilters"`
 }
 
 // TenantEnvironment defines model for TenantEnvironment.

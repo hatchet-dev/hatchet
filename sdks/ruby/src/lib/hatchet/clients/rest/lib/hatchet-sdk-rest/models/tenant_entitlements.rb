@@ -125,6 +125,8 @@ module HatchetSdkRest
 
       if attributes.key?(:'sandbox_operator')
         self.sandbox_operator = attributes[:'sandbox_operator']
+      else
+        self.sandbox_operator = nil
       end
     end
 
@@ -157,6 +159,10 @@ module HatchetSdkRest
         invalid_properties.push('invalid value for "serverless_operator", serverless_operator cannot be nil.')
       end
 
+      if @sandbox_operator.nil?
+        invalid_properties.push('invalid value for "sandbox_operator", sandbox_operator cannot be nil.')
+      end
+
       invalid_properties
     end
 
@@ -170,6 +176,7 @@ module HatchetSdkRest
       return false if @dag_operator.nil?
       return false if @durable_streams.nil?
       return false if @serverless_operator.nil?
+      return false if @sandbox_operator.nil?
       true
     end
 
@@ -231,6 +238,16 @@ module HatchetSdkRest
       end
 
       @serverless_operator = serverless_operator
+    end
+
+    # Custom attribute writer method with validation
+    # @param [Object] sandbox_operator Value to be assigned
+    def sandbox_operator=(sandbox_operator)
+      if sandbox_operator.nil?
+        fail ArgumentError, 'sandbox_operator cannot be nil'
+      end
+
+      @sandbox_operator = sandbox_operator
     end
 
     # Checks equality by comparing each attribute.

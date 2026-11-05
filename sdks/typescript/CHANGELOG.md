@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `TenantEntitlements.sandboxOperator`, the tenant's sandbox entitlement. It is optional, so responses from servers that predate it still parse.
+- `TenantEntitlements.sandboxOperator`, the tenant's sandbox entitlement.
 
 ## [1.46.0] - 2026-10-28
 
