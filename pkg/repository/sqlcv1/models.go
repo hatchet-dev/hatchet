@@ -3084,22 +3084,23 @@ type SlackAppWebhook struct {
 }
 
 type Step struct {
-	ID                 uuid.UUID        `json:"id"`
-	CreatedAt          pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt          pgtype.Timestamp `json:"deletedAt"`
-	ReadableId         pgtype.Text      `json:"readableId"`
-	TenantId           uuid.UUID        `json:"tenantId"`
-	JobId              uuid.UUID        `json:"jobId"`
-	ActionId           string           `json:"actionId"`
-	Timeout            pgtype.Text      `json:"timeout"`
-	CustomUserData     []byte           `json:"customUserData"`
-	Retries            int32            `json:"retries"`
-	RetryBackoffFactor pgtype.Float8    `json:"retryBackoffFactor"`
-	RetryMaxBackoff    pgtype.Int4      `json:"retryMaxBackoff"`
-	ScheduleTimeout    string           `json:"scheduleTimeout"`
-	IsDurable          bool             `json:"isDurable"`
-	IsDagOrchestrator  bool             `json:"isDagOrchestrator"`
+	ID                      uuid.UUID        `json:"id"`
+	CreatedAt               pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt               pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt               pgtype.Timestamp `json:"deletedAt"`
+	ReadableId              pgtype.Text      `json:"readableId"`
+	TenantId                uuid.UUID        `json:"tenantId"`
+	JobId                   uuid.UUID        `json:"jobId"`
+	ActionId                string           `json:"actionId"`
+	Timeout                 pgtype.Text      `json:"timeout"`
+	CustomUserData          []byte           `json:"customUserData"`
+	Retries                 int32            `json:"retries"`
+	RetryBackoffFactor      pgtype.Float8    `json:"retryBackoffFactor"`
+	RetryMaxBackoff         pgtype.Int4      `json:"retryMaxBackoff"`
+	ScheduleTimeout         string           `json:"scheduleTimeout"`
+	IsDurable               bool             `json:"isDurable"`
+	IsDagOrchestrator       bool             `json:"isDagOrchestrator"`
+	MaxReassignmentsAllowed pgtype.Int4      `json:"maxReassignmentsAllowed"`
 }
 
 type StepDesiredWorkerLabel struct {

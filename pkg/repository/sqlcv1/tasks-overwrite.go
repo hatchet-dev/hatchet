@@ -219,7 +219,7 @@ type CreateTasksParams struct {
 	DagParentTaskRunIds          [][]byte             `json:"dagParentTaskRunIds"`
 	ChildTaskDesiredWorkerLabels [][]byte             `json:"childTaskDesiredWorkerLabels"`
 	TaskInputPayloadVersions     []int16              `json:"taskInputPayloadVersions"`
-	MaxReassignmentsAlloweds     []int32              `json:"maxReassignmentsAlloweds"`
+	MaxReassignmentsAlloweds     []*int32             `json:"maxReassignmentsAlloweds"`
 }
 
 func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParams) ([]*V1Task, error) {
