@@ -167,13 +167,10 @@ export const LoadingOrganizations: Story = {
   },
 };
 
-// Customers and partners often belong to many organizations, each with many
-// tenants. Past five organizations, only the current one starts expanded.
 const manyOrganizations: SwitcherOrganization[] = [
   currentOrg,
   smallOrg,
   largeOrg,
-  // Tenant count of each generated organization.
   ...[14, 3, 9, 22, 5, 11].map((count, index): SwitcherOrganization => {
     const n = index + 1;
     return {
@@ -211,7 +208,6 @@ export const ManyOrganizations: Story = {
     );
     await expect(expanded).toHaveLength(1);
     await expect(expanded[0]).toHaveTextContent(currentOrg.name);
-    // Recent tenants from collapsed orgs are still one keystroke away.
     await expect(canvas.getByText('org-4-tenant-4')).toBeInTheDocument();
   },
 };

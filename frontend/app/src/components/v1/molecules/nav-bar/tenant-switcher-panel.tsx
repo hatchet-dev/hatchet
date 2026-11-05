@@ -42,8 +42,6 @@ import { flushSync } from 'react-dom';
 // and start collapsed unless they hold the current tenant.
 const ORG_VISIBLE_TENANTS = 6;
 
-// With more organizations than this, every org except the current one starts
-// collapsed, so the list stays short enough to scan.
 const MAX_EXPANDED_ORGANIZATIONS = 5;
 
 const isMac = detectPlatform() === 'mac';
@@ -91,7 +89,6 @@ type Section = {
   isOpen: boolean;
   rows: Tenant[];
   hiddenCount: number;
-  // First tenant revealed by "Show more", in display order.
   firstHidden?: Tenant;
 };
 
@@ -507,10 +504,8 @@ export function TenantSwitcherPanel({
           <CommandItem
             value={moreKey(org.id)}
             onSelect={() => {
-              // When the selected row unmounts, cmdk selects the first item
-              // of the list and scrolls up to it. Move the selection to the
-              // tenant above first, so "Show more" is no longer selected when
-              // it goes away.
+              // cmdk jumps to the first item if the selected row unmounts, so
+              // deselect "Show more" before it goes away.
               const lastVisible = section.rows.at(-1);
               if (lastVisible) {
                 flushSync(() =>
