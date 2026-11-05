@@ -858,6 +858,15 @@ func (e *ActionBudgetError) Error() string {
 
 func (e *ActionBudgetError) Unwrap() error { return ErrWorkerActionBudgetExceeded }
 
+// actionBudgetAlertNumerator and actionBudgetAlertDenominator set the share of the action
+// budget past which an accepted delta logs an error: 70%. A refused delta is the operator
+// already broken, so the alert has to fire on the way there, while there is time to raise the
+// cap or shrink the catalog.
+const (
+	actionBudgetAlertNumerator   = 7
+	actionBudgetAlertDenominator = 10
+)
+
 func (w *workerRepository) ApplyWorkerActionsDelta(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, add, remove []string, maxOperatorLinks int64) (int, int, error) {
 	db := w.pool.ForTenant(tenantId)
 
@@ -926,6 +935,16 @@ func (w *workerRepository) ApplyWorkerActionsDelta(ctx context.Context, tenantId
 
 		if linked > maxOperatorLinks {
 			return 0, 0, &ActionBudgetError{OperatorId: *operatorId, Linked: linked, Limit: maxOperatorLinks}
+		}
+
+		if linked*actionBudgetAlertDenominator >= maxOperatorLinks*actionBudgetAlertNumerator {
+			w.l.Error().Ctx(ctx).
+				Str("tenant_id", tenantId.String()).
+				Str("operator_id", operatorId.String()).
+				Str("worker_id", workerId.String()).
+				Int64("linked", linked).
+				Int64("limit", maxOperatorLinks).
+				Msg("operator action links are over 70% of the action budget")
 		}
 	}
 

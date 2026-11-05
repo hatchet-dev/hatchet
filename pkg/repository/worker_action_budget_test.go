@@ -3,7 +3,9 @@
 package repository
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -131,6 +133,44 @@ func TestOperatorActionBudgetSpansWorkers(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 5, added)
 	assert.Equal(t, 5, workerOperatorActionCount(t, ctx, pool, loose))
+}
+
+// An accepted delta that leaves the operator at 70% of its budget or more logs an error with
+// the operator's totals, so the budget can be alerted on before a delta is refused. Deltas
+// below that line, and refused deltas, log nothing.
+func TestOperatorActionBudgetAlertsAtSeventyPercent(t *testing.T) {
+	pool := workerActionsPool(t)
+	var logs bytes.Buffer
+	repo := createWorkerActionsRepositoryWithLogger(pool, &logs)
+	ctx := context.Background()
+	tenantId := seedTenantForActions(t, ctx, pool)
+	operatorId := seedOperator(t, ctx, pool, tenantId)
+	worker := seedOperatorWorker(t, ctx, pool, tenantId, operatorId)
+
+	const cap = 10
+
+	_, _, err := repo.ApplyWorkerActionsDelta(ctx, tenantId, worker, ids("a", 0, 6), nil, cap)
+	require.NoError(t, err)
+	assert.Empty(t, logs.String(), "60% of the budget is under the line")
+
+	_, _, err = repo.ApplyWorkerActionsDelta(ctx, tenantId, worker, ids("a", 6, 7), nil, cap)
+	require.NoError(t, err)
+
+	var line map[string]any
+	require.NoError(t, json.Unmarshal(logs.Bytes(), &line), "exactly one line is logged: %q", logs.String())
+	assert.Equal(t, "error", line["level"])
+	assert.Equal(t, "operator action links are over 70% of the action budget", line["message"])
+	assert.Equal(t, operatorId.String(), line["operator_id"])
+	assert.Equal(t, tenantId.String(), line["tenant_id"])
+	assert.Equal(t, worker.String(), line["worker_id"])
+	assert.EqualValues(t, 7, line["linked"])
+	assert.EqualValues(t, cap, line["limit"])
+
+	logs.Reset()
+
+	_, _, err = repo.ApplyWorkerActionsDelta(ctx, tenantId, worker, ids("b", 0, 4), nil, cap)
+	require.ErrorIs(t, err, ErrWorkerActionBudgetExceeded)
+	assert.Empty(t, logs.String(), "a refused delta is reported by its error, not the alert")
 }
 
 // Concurrent deltas on two workers of one operator never leave the operator over its cap, and
