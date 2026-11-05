@@ -2649,7 +2649,7 @@ func (r *sharedRepository) insertTasks(
 	desiredWorkerLabels := make([][]byte, len(tasks))
 	isDagOrchestrators := make([]bool, len(tasks))
 	batchKeys := make([]string, len(tasks))
-	maxReassignmentsAlloweds := make([]*int32, len(tasks))
+	maxReassignmentsAlloweds := make([]pgtype.Int4, len(tasks))
 
 	externalIdToStepRunData := make(map[uuid.UUID]*V1StepRunData, len(tasks))
 	taskInputPayloadVersionForNewTasks := r.taskInputPayloadVersionToWrite()
@@ -3036,7 +3036,7 @@ func (r *sharedRepository) insertTasks(
 				DagParentTaskRunIds:          make([][]byte, 0),
 				ChildTaskDesiredWorkerLabels: make([][]byte, 0),
 				TaskInputPayloadVersions:     make([]int16, 0),
-				MaxReassignmentsAlloweds:     make([]*int32, 0),
+				MaxReassignmentsAlloweds:     make([]pgtype.Int4, 0),
 			}
 		}
 

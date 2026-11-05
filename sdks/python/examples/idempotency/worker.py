@@ -27,6 +27,7 @@ class IdempotencyInput(BaseModel):
     ),
     input_validator=IdempotencyInput,
     on_events=[EVENT_KEY],
+    max_reassignments_allowed=0,
 )
 async def idempotent_task(input: IdempotencyInput, ctx: Context) -> dict[str, str]:
     return {"result": f"Hello, world from task {input.id}"}
