@@ -9,7 +9,7 @@
 
 Run sandboxes from [Hatchet](https://hatchet.run) tasks, on the sandbox vendor of your choice.
 
-A sandbox is a workspace with a shell. You run commands in it and read and write its files. Each call is a Hatchet task. Each call that changes files takes a snapshot. You can start a new sandbox from any snapshot, and you can come back to a sandbox later by its ID. If you use it inside a durable task, a crash picks up where it left off.
+A sandbox is a workspace with a shell. You run commands in it and read and write its files. Each call is a Hatchet task and corresponds to a snapshot. You can start a new sandbox from any snapshot, and you can come back to a sandbox later by its ID. If you use it inside a durable task, a crash picks up where it left off.
 
 Your code only talks to Hatchet. The sandbox itself runs on a provider you connect to your tenant.
 
@@ -56,11 +56,11 @@ const again = await hatchet.sandbox.connect('conv-42');
 await again.exec('cat haiku.txt');
 ```
 
-Set `HATCHET_CLIENT_TOKEN` like you would for any Hatchet client. That is all the app needs.
+Set `HATCHET_CLIENT_TOKEN` like you would for any Hatchet client.
 
 ## Providers
 
-A provider is a sandbox vendor connected to your Hatchet tenant, configured once in the dashboard under Sandboxes with the vendor's API key.
+A provider is a sandbox vendor connected to your Hatchet tenant, configured once in the dashboard under `Sandboxes` with the vendor's API key and optional configuration values.
 
 We currently support the following vendors:
 
@@ -68,10 +68,6 @@ We currently support the following vendors:
 - [E2B](https://e2b.dev)
 - [Archil](https://archil.com)
 - [Freestyle](https://freestyle.sh).
-
-The sandbox API is the same on all of them; only `template` (base image) is in the vendor's own terms.
-
-With one provider, `create` just uses it. With several, you can pass `provider` with the name you gave it.
 
 ```ts
 const sandbox = await hatchet.sandbox.create({ provider: 'e2b' });
