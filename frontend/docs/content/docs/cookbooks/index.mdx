@@ -50,7 +50,7 @@ Build practical end-to-end workflows with Hatchet’s durable execution, event h
 
 ## Agent Patterns
 
-Expose Hatchet workflows and tasks as tools for AI agents via MCP and agent SDKs.
+Expose Hatchet workflows and tasks as tools for AI agents via MCP and agent SDKs, and run agent code in Hatchet sandboxes.
 
 <Cards>
   <Cards.Card title="Hatchet Agent Tools" href="/cookbooks/hatchet-and-mcp">
@@ -70,5 +70,23 @@ Expose Hatchet workflows and tasks as tools for AI agents via MCP and agent SDKs
   >
     Use the OpenAI Agents SDK with Hatchet-backed tools in a trusted
     environment.
+  </Cards.Card>
+  <Cards.Card title="Agent Sandboxes" href="/cookbooks/agent-sandboxes">
+    Give an agent a shell in a Hatchet sandbox, so the commands the model
+    chooses never run on your workers.
+  </Cards.Card>
+  <Cards.Card
+    title="Credentials for Sandboxed Agents"
+    href="/cookbooks/agent-sandbox-credentials"
+  >
+    Run a whole agent inside a sandbox, with its API keys kept in a credential
+    proxy outside.
+  </Cards.Card>
+  <Cards.Card
+    title="Durable Coding Agent"
+    href="/cookbooks/pi-durable-coding-agent"
+  >
+    Run a pi-durable coding agent that survives worker crashes, with a sandbox
+    for every conversation.
   </Cards.Card>
 </Cards>
