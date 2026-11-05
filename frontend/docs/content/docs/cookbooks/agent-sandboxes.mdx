@@ -79,8 +79,9 @@ Leave it running. It registers the `brickie-sandbox` task with your tenant, so s
 
 <Callout type="info">
   A Docker sandbox is a plain container, not a VM. It is good for development
-  and CI. For agents you do not trust, run the provider on Kubernetes, as
-  described in the <a href="#isolation">isolation section</a> below.
+  and CI. For agents you do not trust, run the provider on Kubernetes with the
+  Kata or gVisor runtime, as described in the{" "}
+  <a href="#isolation">isolation section</a> below.
 </Callout>
 
 ### Create a sandbox for each conversation
@@ -94,11 +95,12 @@ import { HatchetClient } from "@hatchet-dev/typescript-sdk/v1";
 import "@hatchet-dev/sandbox";
 
 export const hatchet = HatchetClient.init();
+export const IMAGE = "node:24-alpine";
 
 export async function createWorkspace(conversationId: string) {
   const sandbox = await hatchet.sandbox.create({
     id: `conv-${conversationId}`,
-    template: "node:24-alpine",
+    template: IMAGE,
     metadata: { conversation: conversationId },
     idleTimeoutMs: 30 * 60 * 1000,
   });
@@ -132,11 +134,11 @@ A sandbox ID uses lowercase letters, digits and hyphens, starts with a letter or
 
 ### Define the sandbox tool
 
-Define a Hatchet task that runs one command in a conversation's sandbox. The task connects to the sandbox by ID, so any worker can run it, and the sandbox is started again from its snapshot if it stopped.
+Define a Hatchet task that runs one command in a conversation's sandbox. The task connects to the sandbox by ID, so any worker can run it, and the sandbox is started again from its snapshot if it stopped. Pass the same `template` to `connect` as to `create`: the provider does not store the image, and a stopped sandbox started without it comes back on the provider's default image.
 
 ```ts
 import { z } from "zod/v4";
-import { hatchet } from "./client";
+import { hatchet, IMAGE } from "./client";
 
 const RunCommandInput = z.object({
   sandboxId: z.string(),
@@ -150,7 +152,9 @@ export const runCommand = hatchet.task({
     "Run a shell command in the workspace of the current conversation and return its output. " +
     "The workspace is /workspace.",
   fn: async (input: z.infer<typeof RunCommandInput>) => {
-    const sandbox = await hatchet.sandbox.connect(input.sandboxId);
+    const sandbox = await hatchet.sandbox.connect(input.sandboxId, {
+      template: IMAGE,
+    });
     const result = await sandbox.exec(input.command, { timeoutMs: 120_000 });
     return {
       exitCode: result.exitCode,
@@ -231,7 +235,7 @@ The metadata filter matches the conversation's sandbox and its forks, because `i
 The sandbox is the agent's attack surface: everything it can reach, a prompt-injected agent can reach.
 
 - **Docker** (`--driver docker`, the default): a container on the local engine, with normal Docker networking. Use it for development and CI, not for untrusted agents.
-- **Kubernetes** (`--driver kubernetes`, or the `brickie` Helm chart from [hatchet-charts](https://github.com/hatchet-dev/hatchet-charts)): each sandbox is an [agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox) claim on a pre-started pod. The pod runs under gVisor or Kata Containers when the cluster has the runtime class (the `brickie` binary defaults to `--runtime auto`, which falls back to the default runtime with a warning; the Helm chart defaults to `sandbox.runtime: kata`; set `gvisor` or `kata` to require one). The pod has no service account token, no privilege escalation, and the runtime default seccomp profile.
+- **Kubernetes** (`--driver kubernetes`, or the `brickie` Helm chart from [hatchet-charts](https://github.com/hatchet-dev/hatchet-charts)): each sandbox is an [agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox) claim on a pre-started pod. The pod runs under gVisor or Kata Containers when the cluster has the runtime class (the `brickie` binary defaults to `--runtime auto`, which falls back to the default runtime with a warning; the Helm chart defaults to `sandbox.runtime: kata`; set `gvisor` or `kata` to require one). The pod has no service account token, no privilege escalation, and the runtime default seccomp profile. Linux capabilities are not dropped, because package managers in common images need them: the runtime class is the isolation layer. Without Kata or gVisor, a sandbox is a plain container on the node, so do not run untrusted agents there.
 - **Egress** (`--sandbox-egress`, Kubernetes only): `internet` allows public addresses and cluster DNS and blocks private ranges and the cloud metadata endpoint. `none` allows nothing. The Helm chart's `networkPolicy.egressCIDRs` adds an allow-list on top, so `none` with an allow-list lets sandboxes reach only the addresses you name. NetworkPolicy is only enforced by a CNI that implements it.
 
 The sandbox never holds your Hatchet token or your model API key: the harness and the worker hold them. If the agent's commands need credentials of their own, for example to push to git or call the model API from inside the sandbox, see [Credentials for Sandboxed Agents](/cookbooks/agent-sandbox-credentials).
