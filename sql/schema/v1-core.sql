@@ -3364,6 +3364,9 @@ CREATE TABLE tenant_entitlement (
     -- claims both require it.
     serverless_operator BOOLEAN NOT NULL DEFAULT FALSE,
 
+    -- Labs opt-in. Nothing else reads this until the sandboxes feature lands.
+    sandboxes BOOLEAN NOT NULL DEFAULT FALSE,
+
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 

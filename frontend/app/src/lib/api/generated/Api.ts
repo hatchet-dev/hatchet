@@ -83,6 +83,7 @@ import {
   UpdateCronWorkflowTriggerRequest,
   UpdateScheduledWorkflowRunRequest,
   UpdateTenantAlertEmailGroupRequest,
+  UpdateTenantEntitlementsRequest,
   UpdateTenantInviteRequest,
   UpdateTenantMemberRequest,
   UpdateTenantRequest,
@@ -2044,6 +2045,30 @@ export class Api<
       path: `/api/v1/tenants/${tenant}/entitlements`,
       method: "GET",
       secure: true,
+      format: "json",
+      ...params,
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
+  /**
+   * @description Updates the tenant's Labs preview opt-ins. Omitted fields are left unchanged. Only tenant owners can call this.
+   *
+   * @tags Tenant
+   * @name TenantEntitlementsUpdate
+   * @summary Update tenant entitlements
+   * @request PATCH:/api/v1/tenants/{tenant}/entitlements
+   * @secure
+   */
+  tenantEntitlementsUpdate = Object.assign((
+    tenant: string,
+    data: UpdateTenantEntitlementsRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<TenantEntitlements, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}/entitlements`,
+      method: "PATCH",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       format: "json",
       ...params,
       xResources: ["tenant"],

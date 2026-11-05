@@ -208,6 +208,8 @@ TenantEntitlements:
       type: boolean
     serverlessOperator:
       type: boolean
+    sandboxes:
+      type: boolean
   required:
     - auditLogs
     - prometheusMetrics
@@ -215,6 +217,20 @@ TenantEntitlements:
     - dagOperator
     - durableStreams
     - serverlessOperator
+    - sandboxes
+  type: object
+
+UpdateTenantEntitlementsRequest:
+  properties:
+    durableStreams:
+      type: boolean
+      description: Whether the tenant has opted into durable streams.
+    serverlessOperator:
+      type: boolean
+      description: Whether the tenant has opted into the serverless operator.
+    sandboxes:
+      type: boolean
+      description: Whether the tenant has opted into sandboxes.
   type: object
 
 TenantMember:

@@ -1827,6 +1827,16 @@ export interface TenantEntitlements {
   dagOperator: boolean;
   durableStreams: boolean;
   serverlessOperator: boolean;
+  sandboxes: boolean;
+}
+
+export interface UpdateTenantEntitlementsRequest {
+  /** Whether the tenant has opted into durable streams. */
+  durableStreams?: boolean;
+  /** Whether the tenant has opted into the serverless operator. */
+  serverlessOperator?: boolean;
+  /** Whether the tenant has opted into sandboxes. */
+  sandboxes?: boolean;
 }
 
 export interface UpdateTenantAlertEmailGroupRequest {

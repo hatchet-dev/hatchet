@@ -31,6 +31,10 @@ type TenantEntitlementRepository interface {
 
 	// SetEntitlements upserts the full set of feature entitlements for the tenant.
 	SetEntitlements(ctx context.Context, tenantId uuid.UUID, entitlements TenantEntitlements) error
+
+	// UpdateLabsEntitlements sets durable streams, the serverless operator, and sandboxes.
+	// Nil fields keep their current value. Other entitlements are left unchanged.
+	UpdateLabsEntitlements(ctx context.Context, tenantId uuid.UUID, patch LabsEntitlements) (TenantEntitlements, error)
 }
 
 // Entitlement names a per-tenant feature; values match the tenant_entitlement columns.
@@ -42,10 +46,19 @@ const (
 	EntitlementStrictAdditionalMetadataFilters Entitlement = "strict_additional_metadata_filters"
 	EntitlementDurableStreams                  Entitlement = "durable_streams"
 	EntitlementServerlessOperator              Entitlement = "serverless_operator"
+	EntitlementSandboxes                       Entitlement = "sandboxes"
 )
 
-// Entitlements only change on plan changes fanned out from the control plane,
-// so this bounds how long a change takes to apply on hot paths.
+// LabsEntitlements is a partial update of the Labs preview opt-ins.
+// A nil field keeps the tenant's current value.
+type LabsEntitlements struct {
+	DurableStreams     *bool
+	ServerlessOperator *bool
+	Sandboxes          *bool
+}
+
+// Entitlement reads are cached so hot paths do not hit the database. The writer
+// drops its own cache; other processes observe a change within entitlementCacheTTL.
 const entitlementCacheTTL = 5 * time.Minute
 
 const entitlementCacheSize = 10000
@@ -58,6 +71,7 @@ type TenantEntitlements struct {
 	StrictAdditionalMetadataFilters bool
 	DurableStreams                  bool
 	ServerlessOperator              bool
+	Sandboxes                       bool
 }
 
 // Has reports whether this set includes the named entitlement.
@@ -73,6 +87,8 @@ func (e TenantEntitlements) Has(entitlement Entitlement) (bool, error) {
 		return e.DurableStreams, nil
 	case EntitlementServerlessOperator:
 		return e.ServerlessOperator, nil
+	case EntitlementSandboxes:
+		return e.Sandboxes, nil
 	default:
 		return false, fmt.Errorf("unknown entitlement %q", entitlement)
 	}
@@ -141,13 +157,18 @@ func (t *tenantEntitlementRepository) GetEntitlements(ctx context.Context, tenan
 		return TenantEntitlements{}, err
 	}
 
+	return tenantEntitlementsFromRow(entitlement), nil
+}
+
+func tenantEntitlementsFromRow(entitlement *sqlcv1.TenantEntitlement) TenantEntitlements {
 	return TenantEntitlements{
 		AuditLogs:                       entitlement.AuditLogs,
 		PrometheusMetrics:               entitlement.PrometheusMetrics,
 		StrictAdditionalMetadataFilters: entitlement.StrictAdditionalMetadataFilters,
 		DurableStreams:                  entitlement.DurableStreams,
 		ServerlessOperator:              entitlement.ServerlessOperator,
-	}, nil
+		Sandboxes:                       entitlement.Sandboxes,
+	}
 }
 
 func (t *tenantEntitlementRepository) SetEntitlements(ctx context.Context, tenantId uuid.UUID, entitlements TenantEntitlements) error {
@@ -160,6 +181,7 @@ func (t *tenantEntitlementRepository) SetEntitlements(ctx context.Context, tenan
 		Strictadditionalmetadatafilters: entitlements.StrictAdditionalMetadataFilters,
 		Durablestreams:                  entitlements.DurableStreams,
 		Serverlessoperator:              entitlements.ServerlessOperator,
+		Sandboxes:                       entitlements.Sandboxes,
 	})
 
 	if err != nil {
@@ -169,4 +191,43 @@ func (t *tenantEntitlementRepository) SetEntitlements(ctx context.Context, tenan
 	t.cache.Remove(tenantId)
 
 	return nil
+}
+
+func (t *tenantEntitlementRepository) UpdateLabsEntitlements(ctx context.Context, tenantId uuid.UUID, patch LabsEntitlements) (TenantEntitlements, error) {
+	current, err := t.GetEntitlements(ctx, tenantId)
+
+	if err != nil {
+		return TenantEntitlements{}, err
+	}
+
+	if patch.DurableStreams == nil && patch.ServerlessOperator == nil && patch.Sandboxes == nil {
+		return current, nil
+	}
+
+	if patch.DurableStreams != nil {
+		current.DurableStreams = *patch.DurableStreams
+	}
+
+	if patch.ServerlessOperator != nil {
+		current.ServerlessOperator = *patch.ServerlessOperator
+	}
+
+	if patch.Sandboxes != nil {
+		current.Sandboxes = *patch.Sandboxes
+	}
+
+	row, err := t.queries.UpdateTenantLabsEntitlements(ctx, t.pool.ForTenant(tenantId), sqlcv1.UpdateTenantLabsEntitlementsParams{
+		Tenantid:           tenantId,
+		Durablestreams:     current.DurableStreams,
+		Serverlessoperator: current.ServerlessOperator,
+		Sandboxes:          current.Sandboxes,
+	})
+
+	if err != nil {
+		return TenantEntitlements{}, err
+	}
+
+	t.cache.Remove(tenantId)
+
+	return tenantEntitlementsFromRow(row), nil
 }

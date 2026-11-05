@@ -984,6 +984,15 @@ const tenantSettingsResourceLimitsRoute = createRoute({
   ),
 });
 
+const tenantSettingsLabsRoute = createRoute({
+  getParentRoute: () => tenantSettingsLayoutRoute,
+  path: 'labs',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/tenant-settings/labs'),
+    'default',
+  ),
+});
+
 const tenantLegacySettingsIngestorsRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'tenant-settings/ingestors',
@@ -1111,6 +1120,7 @@ const tenantSettingsSubpathRedirect = createRoute({
       tenantSettingsMembersRoute.path,
       tenantSettingsOrganizationRoute.path,
       tenantSettingsOverviewRoute.path,
+      tenantSettingsLabsRoute.path,
     ].map((p) => p.split('/').pop());
 
     if (!tenantId || !subpath || !allowedSubpaths.includes(subpath)) {
@@ -1169,6 +1179,7 @@ const tenantRoutes = [
     tenantSettingsAlertingRoute,
     tenantSettingsBillingRoute,
     tenantSettingsResourceLimitsRoute,
+    tenantSettingsLabsRoute,
     tenantSettingsIngestorsRoute,
     tenantSettingsIntegrationsRoute,
     tenantSettingsOrganizationRoute,
@@ -1315,6 +1326,7 @@ export const appRoutes = {
   tenantSettingsAlertingRoute,
   tenantSettingsBillingRoute,
   tenantSettingsResourceLimitsRoute,
+  tenantSettingsLabsRoute,
   tenantSettingsIngestorsRoute,
   tenantSettingsIntegrationsRoute,
   tenantSettingsOrganizationRoute,

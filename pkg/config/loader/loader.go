@@ -428,6 +428,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 			StrictAdditionalMetadataFilters: scf.Runtime.DefaultTenantEntitlements.StrictAdditionalMetadataFilters,
 			DurableStreams:                  scf.Runtime.DefaultTenantEntitlements.DurableStreams,
 			ServerlessOperator:              scf.Runtime.DefaultTenantEntitlements.ServerlessOperator,
+			Sandboxes:                       scf.Runtime.DefaultTenantEntitlements.Sandboxes,
 		},
 	}, nil
 }

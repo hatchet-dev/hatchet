@@ -3273,6 +3273,7 @@ type TenantEntitlement struct {
 	DagOperator                     bool               `json:"dag_operator"`
 	DurableStreams                  bool               `json:"durable_streams"`
 	ServerlessOperator              bool               `json:"serverless_operator"`
+	Sandboxes                       bool               `json:"sandboxes"`
 	CreatedAt                       pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                       pgtype.Timestamptz `json:"updated_at"`
 }

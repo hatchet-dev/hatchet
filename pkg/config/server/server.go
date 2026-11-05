@@ -178,6 +178,7 @@ type DefaultTenantEntitlementsConfigFile struct {
 	StrictAdditionalMetadataFilters bool `mapstructure:"strictAdditionalMetadataFilters" json:"strictAdditionalMetadataFilters,omitempty" default:"false"`
 	DurableStreams                  bool `mapstructure:"durableStreams" json:"durableStreams,omitempty" default:"false"`
 	ServerlessOperator              bool `mapstructure:"serverlessOperator" json:"serverlessOperator,omitempty" default:"false"`
+	Sandboxes                       bool `mapstructure:"sandboxes" json:"sandboxes,omitempty" default:"false"`
 }
 
 // General server runtime options
@@ -1065,6 +1066,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.defaultTenantEntitlements.strictAdditionalMetadataFilters", "SERVER_DEFAULT_TENANT_ENTITLEMENT_STRICT_ADDITIONAL_METADATA_FILTERS")
 	_ = v.BindEnv("runtime.defaultTenantEntitlements.durableStreams", "SERVER_DEFAULT_TENANT_ENTITLEMENT_DURABLE_STREAMS")
 	_ = v.BindEnv("runtime.defaultTenantEntitlements.serverlessOperator", "SERVER_DEFAULT_TENANT_ENTITLEMENT_SERVERLESS_OPERATOR")
+	_ = v.BindEnv("runtime.defaultTenantEntitlements.sandboxes", "SERVER_DEFAULT_TENANT_ENTITLEMENT_SANDBOXES")
 
 	// limit options
 	_ = v.BindEnv("runtime.limits.defaultTenantRetentionPeriod", "SERVER_LIMITS_DEFAULT_TENANT_RETENTION_PERIOD")

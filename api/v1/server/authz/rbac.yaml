@@ -1,6 +1,8 @@
 roles:
   OWNER:
     inherits: [ADMIN]
+    permissions:
+      - TenantEntitlementsUpdate
   NOAUTH:
     inherits: [MEMBER]
   ADMIN:
