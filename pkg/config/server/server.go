@@ -1,10 +1,12 @@
 package server
 
 import (
+	"context"
 	"crypto/tls"
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
@@ -27,6 +29,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/o11yusage"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/scheduling"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
@@ -931,6 +934,8 @@ type ServerConfig struct {
 
 	GRPCInterceptors []connect.UnaryInterceptorFunc
 
+	InprocOperators []InprocOperator
+
 	Version string
 
 	CronOperations CronOperationsConfigFile
@@ -973,6 +978,15 @@ func (c *ServerConfig) HasService(name string) bool {
 
 func (c *ServerConfig) AddGRPCUnaryInterceptor(interceptor connect.UnaryInterceptorFunc) {
 	c.GRPCInterceptors = append(c.GRPCInterceptors, interceptor)
+}
+
+type InprocOperator struct {
+	Name string
+	Run  func(ctx context.Context, processId uuid.UUID, host operator.Host) error
+}
+
+func (c *ServerConfig) AddInprocOperator(op InprocOperator) {
+	c.InprocOperators = append(c.InprocOperators, op)
 }
 
 func BindAllEnv(v *viper.Viper) {
