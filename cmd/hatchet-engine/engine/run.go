@@ -4,16 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-
 	"github.com/hatchet-dev/hatchet/pkg/cleanup"
-
-	"github.com/rs/zerolog"
+	hatchetprom "github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
 	adminv1 "github.com/hatchet-dev/hatchet/internal/services/admin/v1"
@@ -33,7 +29,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
-	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/o11yusage"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
@@ -184,7 +179,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 
 	if sc.Prometheus.Enabled {
 		cleanup.Add(
-			startPrometheus(l, sc.Prometheus),
+			hatchetprom.StartServer(l, sc.Prometheus.Address, sc.Prometheus.Path),
 			"prometheus",
 		)
 	}
@@ -683,7 +678,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	}()
 
 	if sc.Prometheus.Enabled {
-		cleanup.Add(startPrometheus(l, sc.Prometheus), "prometheus")
+		cleanup.Add(hatchetprom.StartServer(l, sc.Prometheus.Address, sc.Prometheus.Path), "prometheus")
 	}
 
 	p, err := partition.NewPartition(l, sc.V1.Tenant())
@@ -1193,37 +1188,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	}
 
 	return nil
-}
-
-func startPrometheus(l *zerolog.Logger, c shared.PrometheusConfigFile) func() error {
-	mux := http.NewServeMux()
-	mux.Handle(c.Path, promhttp.Handler())
-
-	srv := &http.Server{
-		Addr:              c.Address,
-		Handler:           mux,
-		ReadHeaderTimeout: 5 * time.Second,
-	}
-
-	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			l.Error().Err(err).Msg("failed to start prometheus server")
-		}
-	}()
-
-	l.Info().Msgf("Prometheus server started on %s", c.Address)
-
-	return func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		if err := srv.Shutdown(ctx); err != nil {
-			return fmt.Errorf("failed to shutdown prometheus server: %w", err)
-		}
-
-		l.Info().Msg("Prometheus server shutdown gracefully")
-		return nil
-	}
 }
 
 type ControllerName string

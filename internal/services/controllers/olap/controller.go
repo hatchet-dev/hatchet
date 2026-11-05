@@ -376,6 +376,19 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not schedule task table partition: %w", err)
 	}
 
+	_, err = o.s.NewJob(
+		gocron.DurationJob(time.Hour),
+		gocron.NewTask(
+			o.runArchiveAuditLogs(ctx),
+		),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule audit log archive: %w", err)
+	}
+
 	// Default poll interval
 	pollIntervalSec := 2
 

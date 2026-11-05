@@ -203,9 +203,20 @@ type StreamsRepository interface {
 	// to is left as is.
 	ResetTopic(ctx context.Context, tenantId uuid.UUID, namespace, topic string, cursor *StreamCursor) error
 
-	// TopicStartCursor is where a subscriber without a cursor starts: after the
-	// last reset, else the topic's beginning.
-	TopicStartCursor(ctx context.Context, tenantId uuid.UUID, namespace, topic string) (StreamCursor, error)
+	// GetTopicInfo returns the topic's offsets, zero for a topic never published to.
+	GetTopicInfo(ctx context.Context, tenantId uuid.UUID, namespace, topic string) (StreamTopicInfo, error)
+}
+
+type StreamTopicInfo struct {
+	Namespace      string
+	Topic          string
+	StartingOffset int64
+	LastOffset     int64
+}
+
+// StartCursor has no time, so it never expires.
+func (i StreamTopicInfo) StartCursor() StreamCursor {
+	return StreamCursor{Namespace: i.Namespace, Topic: i.Topic, ID: i.StartingOffset}
 }
 
 // StreamCursorExpiredError: resuming from the cursor would skip deleted messages.
@@ -680,18 +691,21 @@ func (r *streamsRepositoryImpl) ResetTopic(ctx context.Context, tenantId uuid.UU
 	return r.queries.ResetStreamTopic(ctx, r.pool.ForTenant(tenantId), params)
 }
 
-// TopicStartCursor returns a cursor at the topic's starting offset, 0 until it's
-// reset. It has no time, so it never expires.
-func (r *streamsRepositoryImpl) TopicStartCursor(ctx context.Context, tenantId uuid.UUID, namespace, topic string) (StreamCursor, error) {
-	startingOffset, err := r.queries.GetStreamTopicStartingOffset(ctx, r.pool.ForTenant(tenantId), sqlcv1.GetStreamTopicStartingOffsetParams{
+func (r *streamsRepositoryImpl) GetTopicInfo(ctx context.Context, tenantId uuid.UUID, namespace, topic string) (StreamTopicInfo, error) {
+	row, err := r.queries.GetStreamTopicInfo(ctx, r.pool.ForTenant(tenantId), sqlcv1.GetStreamTopicInfoParams{
 		Tenantid:  tenantId,
 		Namespace: namespace,
 		Topic:     topic,
 	})
 
 	if err != nil {
-		return StreamCursor{}, err
+		return StreamTopicInfo{}, err
 	}
 
-	return StreamCursor{Namespace: namespace, Topic: topic, ID: startingOffset}, nil
+	return StreamTopicInfo{
+		Namespace:      namespace,
+		Topic:          topic,
+		StartingOffset: row.StartingOffset,
+		LastOffset:     row.LastOffset,
+	}, nil
 }

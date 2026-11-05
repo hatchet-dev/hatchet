@@ -227,6 +227,94 @@ FROM partitioned_tables t, get_v1_monthly_partitions_before_date(t.parent_table,
 WHERE t.partition_frequency = 'monthly'
 ;
 
+-- name: ListAuditLogPartitionsBeforeDate :many
+WITH partitions AS (
+    SELECT
+        p::TEXT AS partition_name,
+        TO_DATE(RIGHT(p::TEXT, 8), 'YYYYMMDD') AS partition_date
+    FROM get_v1_partitions_before_date('v1_audit_log', @date::DATE) AS p
+)
+
+SELECT
+    partition_name,
+    partition_date,
+    partition_date::TIMESTAMPTZ AS lower_bound,
+    (partition_date + 1)::TIMESTAMPTZ AS upper_bound
+FROM partitions
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM v1_audit_log_archive_cursor c
+    WHERE c.is_completed AND c.partition_date = partitions.partition_date
+)
+ORDER BY partition_date ASC
+;
+
+-- name: ListAuditLogsInRangeAfterCursor :many
+SELECT *
+FROM v1_audit_log
+WHERE
+    inserted_at >= @lowerBound::TIMESTAMPTZ
+    AND inserted_at < @upperBound::TIMESTAMPTZ
+    AND (tenant_id, inserted_at, id) > (@cursorTenantId::UUID, @cursorInsertedAt::TIMESTAMPTZ, @cursorId::UUID)
+ORDER BY tenant_id, inserted_at, id
+LIMIT @batchSize::INTEGER
+;
+
+-- name: AcquireOrExtendAuditLogArchiveLease :one
+WITH inputs AS (
+    SELECT
+        @partitionDate::DATE AS partition_date,
+        @leaseProcessId::UUID AS lease_process_id,
+        @leaseExpiresAt::TIMESTAMPTZ AS lease_expires_at,
+        @nextFileIndex::INTEGER AS next_file_index,
+        @lastTenantId::UUID AS last_tenant_id,
+        @lastInsertedAt::TIMESTAMPTZ AS last_inserted_at,
+        @lastId::UUID AS last_id
+), any_lease_held_by_other_process AS (
+    SELECT COALESCE(BOOL_OR(lease_expires_at > NOW()), FALSE) AS lease_exists
+    FROM v1_audit_log_archive_cursor
+    WHERE lease_process_id != @leaseProcessId::UUID
+), to_insert AS (
+    SELECT *
+    FROM inputs
+    WHERE NOT (SELECT lease_exists FROM any_lease_held_by_other_process)
+)
+
+INSERT INTO v1_audit_log_archive_cursor (partition_date, lease_process_id, lease_expires_at, next_file_index, last_tenant_id, last_inserted_at, last_id)
+SELECT partition_date, lease_process_id, lease_expires_at, next_file_index, last_tenant_id, last_inserted_at, last_id
+FROM to_insert
+ON CONFLICT (partition_date)
+DO UPDATE SET
+    -- a process taking over an expired lease resumes from the cursor the previous holder saved
+    next_file_index = CASE
+        WHEN EXCLUDED.lease_process_id = v1_audit_log_archive_cursor.lease_process_id THEN EXCLUDED.next_file_index
+        ELSE v1_audit_log_archive_cursor.next_file_index
+    END,
+    last_tenant_id = CASE
+        WHEN EXCLUDED.lease_process_id = v1_audit_log_archive_cursor.lease_process_id THEN EXCLUDED.last_tenant_id
+        ELSE v1_audit_log_archive_cursor.last_tenant_id
+    END,
+    last_inserted_at = CASE
+        WHEN EXCLUDED.lease_process_id = v1_audit_log_archive_cursor.lease_process_id THEN EXCLUDED.last_inserted_at
+        ELSE v1_audit_log_archive_cursor.last_inserted_at
+    END,
+    last_id = CASE
+        WHEN EXCLUDED.lease_process_id = v1_audit_log_archive_cursor.lease_process_id THEN EXCLUDED.last_id
+        ELSE v1_audit_log_archive_cursor.last_id
+    END,
+
+    lease_process_id = EXCLUDED.lease_process_id,
+    lease_expires_at = EXCLUDED.lease_expires_at
+WHERE v1_audit_log_archive_cursor.lease_expires_at < NOW() OR v1_audit_log_archive_cursor.lease_process_id = @leaseProcessId::UUID
+RETURNING *
+;
+
+-- name: MarkAuditLogArchiveAsCompleted :exec
+UPDATE v1_audit_log_archive_cursor
+SET is_completed = TRUE
+WHERE partition_date = @partitionDate::DATE
+;
+
 -- name: CreateTaskEventsOLAP :copyfrom
 INSERT INTO v1_task_events_olap (
     tenant_id,
@@ -563,6 +651,7 @@ WITH selected_retry_count AS (
 )
 SELECT
     t.*,
+    r.additional_metadata AS run_additional_metadata,
     (t.dag_id IS NULL)::BOOLEAN AS is_standalone,
     st.readable_status::v1_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
@@ -577,6 +666,8 @@ SELECT
     (SELECT retry_count FROM selected_retry_count) as retry_count
 FROM
     v1_tasks_olap t
+LEFT JOIN
+    v1_runs_olap r ON (r.id, r.inserted_at) = (COALESCE(t.dag_id, t.id), COALESCE(t.dag_inserted_at, t.inserted_at))
 LEFT JOIN
     finished_at f ON true
 LEFT JOIN
@@ -618,7 +709,7 @@ WITH input AS (
         t.external_id,
         t.display_name,
         t.input,
-        t.additional_metadata,
+        r.additional_metadata,
         t.readable_status,
         t.parent_task_external_id,
         t.workflow_run_id,
@@ -631,6 +722,8 @@ WITH input AS (
         v1_tasks_olap t
     JOIN
         input i ON i.id = t.id AND i.inserted_at = t.inserted_at
+    LEFT JOIN
+        v1_runs_olap r ON (r.id, r.inserted_at) = (COALESCE(t.dag_id, t.id), COALESCE(t.dag_inserted_at, t.inserted_at))
     WHERE
         t.tenant_id = @tenantId::uuid
 ), relevant_events AS (
@@ -1508,7 +1601,7 @@ WITH input AS (
             WHEN @includePayloads::BOOLEAN THEN d.input
             ELSE '{}'::JSONB
         END::JSONB AS input,
-        d.additional_metadata,
+        r.additional_metadata,
         d.workflow_version_id,
         d.parent_task_external_id,
         d.idempotency_key,
@@ -1691,7 +1784,7 @@ WITH runs AS (
         r.workflow_id,
         d.display_name AS display_name,
         d.input AS input,
-        d.additional_metadata AS additional_metadata,
+        r.additional_metadata AS additional_metadata,
         d.workflow_version_id AS workflow_version_id,
         d.parent_task_external_id AS parent_task_external_id,
         d.payload_reference_id AS payload_reference_id
@@ -1719,7 +1812,7 @@ WITH runs AS (
         r.workflow_id,
         t.display_name AS display_name,
         t.input AS input,
-        t.additional_metadata AS additional_metadata,
+        r.additional_metadata AS additional_metadata,
         t.workflow_version_id AS workflow_version_id,
         NULL::UUID AS parent_task_external_id,
         t.payload_reference_id AS payload_reference_id
@@ -2455,69 +2548,103 @@ WITH inputs AS (
         UNNEST(@workflowIds::UUID[]) AS workflow_id,
         UNNEST(@workflowVersionIds::UUID[]) AS workflow_version_id,
         UNNEST(@additionalMetadatas::JSONB[]) AS additional_metadata
-)
-INSERT INTO v1_dags_olap (
-    tenant_id,
-    id,
-    inserted_at,
-    external_id,
-    display_name,
-    workflow_id,
-    workflow_version_id,
-    input,
-    additional_metadata,
-    total_tasks,
-    readable_status,
-    latest_retry_count,
-    is_dag_operator
+), upserted_dags AS (
+    INSERT INTO v1_dags_olap (
+        tenant_id,
+        id,
+        inserted_at,
+        external_id,
+        display_name,
+        workflow_id,
+        workflow_version_id,
+        input,
+        total_tasks,
+        readable_status,
+        latest_retry_count,
+        is_dag_operator
+    )
+    SELECT
+        @tenantId::UUID,
+        i.dag_id,
+        i.dag_inserted_at,
+        i.external_id,
+        i.display_name,
+        i.workflow_id,
+        i.workflow_version_id,
+        '{}'::JSONB,
+        0,
+        i.new_readable_status,
+        i.retry_count,
+        TRUE
+    FROM inputs i
+    ORDER BY i.dag_inserted_at, i.dag_id
+    ON CONFLICT (inserted_at, id) DO UPDATE SET
+        readable_status = EXCLUDED.readable_status,
+        latest_retry_count = EXCLUDED.latest_retry_count
+    WHERE
+        v1_dags_olap.tenant_id = @tenantId::UUID
+        AND (
+            -- a newer attempt always applies, so a replay revives a terminal DAG and a straggler
+            -- from the previous attempt can no longer clobber it
+            (
+                EXCLUDED.latest_retry_count > v1_dags_olap.latest_retry_count
+            ) OR
+            -- within an attempt, only move forward through QUEUED -> RUNNING -> terminal
+            (
+                EXCLUDED.latest_retry_count = v1_dags_olap.latest_retry_count
+                AND v1_status_to_priority(EXCLUDED.readable_status) > v1_status_to_priority(v1_dags_olap.readable_status)
+            ) OR
+            -- EVICTED is reversible (a durable restore moves it back to RUNNING) but outranks
+            -- RUNNING by priority, so it needs an explicit escape hatch
+            (
+                EXCLUDED.latest_retry_count = v1_dags_olap.latest_retry_count
+                AND v1_dags_olap.readable_status = 'EVICTED'
+                AND EXCLUDED.readable_status != 'EVICTED'
+            )
+        )
+    RETURNING
+        tenant_id::UUID AS tenant_id,
+        id::BIGINT AS dag_id,
+        inserted_at::TIMESTAMPTZ AS dag_inserted_at,
+        external_id::UUID AS external_id,
+        readable_status::v1_readable_status_olap AS readable_status,
+        workflow_id::UUID AS workflow_id
+), inserted_runs AS (
+    INSERT INTO v1_runs_olap (
+        tenant_id,
+        id,
+        inserted_at,
+        external_id,
+        readable_status,
+        kind,
+        workflow_id,
+        workflow_version_id,
+        additional_metadata,
+        finished_at
+    )
+    SELECT
+        @tenantId::UUID,
+        i.dag_id,
+        i.dag_inserted_at,
+        i.external_id,
+        i.new_readable_status,
+        'DAG',
+        i.workflow_id,
+        i.workflow_version_id,
+        i.additional_metadata,
+        CASE WHEN i.new_readable_status IN ('COMPLETED', 'FAILED', 'CANCELLED') THEN clock_timestamp() END
+    FROM inputs i
+    JOIN upserted_dags d ON (i.dag_id, i.dag_inserted_at) = (d.dag_id, d.dag_inserted_at)
+    ON CONFLICT (inserted_at, id) DO NOTHING
 )
 SELECT
-    @tenantId::UUID,
-    i.dag_id,
-    i.dag_inserted_at,
-    i.external_id,
-    i.display_name,
-    i.workflow_id,
-    i.workflow_version_id,
-    '{}'::JSONB,
-    i.additional_metadata,
-    0,
-    i.new_readable_status,
-    i.retry_count,
-    TRUE
-FROM inputs i
-ORDER BY i.dag_inserted_at, i.dag_id
-ON CONFLICT (inserted_at, id) DO UPDATE SET
-    readable_status = EXCLUDED.readable_status,
-    latest_retry_count = EXCLUDED.latest_retry_count
-WHERE
-    v1_dags_olap.tenant_id = @tenantId::UUID
-    AND (
-        -- a newer attempt always applies, so a replay revives a terminal DAG and a straggler
-        -- from the previous attempt can no longer clobber it
-        (
-            EXCLUDED.latest_retry_count > v1_dags_olap.latest_retry_count
-        ) OR
-        -- within an attempt, only move forward through QUEUED -> RUNNING -> terminal
-        (
-            EXCLUDED.latest_retry_count = v1_dags_olap.latest_retry_count
-            AND v1_status_to_priority(EXCLUDED.readable_status) > v1_status_to_priority(v1_dags_olap.readable_status)
-        ) OR
-        -- EVICTED is reversible (a durable restore moves it back to RUNNING) but outranks
-        -- RUNNING by priority, so it needs an explicit escape hatch
-        (
-            EXCLUDED.latest_retry_count = v1_dags_olap.latest_retry_count
-            AND v1_dags_olap.readable_status = 'EVICTED'
-            AND EXCLUDED.readable_status != 'EVICTED'
-        )
-    )
-RETURNING
-    tenant_id::UUID AS tenant_id,
-    id::BIGINT AS dag_id,
-    inserted_at::TIMESTAMPTZ AS dag_inserted_at,
-    external_id::UUID AS external_id,
-    readable_status::v1_readable_status_olap AS readable_status,
-    workflow_id::UUID AS workflow_id;
+    tenant_id,
+    dag_id,
+    dag_inserted_at,
+    external_id,
+    readable_status,
+    workflow_id
+FROM upserted_dags;
 
 -- name: CreateDagToTaskOLAPSelfMappings :exec
 -- For operator-managed DAGs, maps the DAG to its orchestrator task's events (the orchestrator

@@ -884,14 +884,8 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 
 	mergeWorkflowConcurrencyOntoSingleTask(opts)
 
-	dagOperatorEnabled, err := r.isDagOperatorEnabled(ctx, tx, tenantId)
-
-	if err != nil {
-		return nil, err
-	}
-
 	// todo: maybe don't need `len` check here?
-	isUsingDagOperator := dagOperatorEnabled && (len(opts.Tasks) > 1 || opts.OnFailure != nil)
+	isUsingDagOperator := (len(opts.Tasks) > 1 || opts.OnFailure != nil)
 
 	if isUsingDagOperator {
 		var retentionPeriod *string

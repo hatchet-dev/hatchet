@@ -165,6 +165,12 @@ type WorkerRepository interface {
 	// the per-worker counts.
 	CountOperatorWorkerActions(ctx context.Context, tenantId uuid.UUID, operatorId uuid.UUID) (int64, error)
 
+	// ReleaseWorkerActions unlinks every action from the worker and zeroes its link count,
+	// under the worker's row lock, and returns how many links it removed. It is for a worker
+	// its operator has moved on from: the links would otherwise count against the operator's
+	// budget forever. The worker must belong to tenantId.
+	ReleaseWorkerActions(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) (int64, error)
+
 	// UpdateWorker updates a worker for a given tenant.
 	UpdateWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, opts *UpdateWorkerOpts) (*sqlcv1.Worker, error)
 
@@ -852,6 +858,15 @@ func (e *ActionBudgetError) Error() string {
 
 func (e *ActionBudgetError) Unwrap() error { return ErrWorkerActionBudgetExceeded }
 
+// actionBudgetAlertNumerator and actionBudgetAlertDenominator set the share of the action
+// budget past which an accepted delta logs an error: 70%. A refused delta is the operator
+// already broken, so the alert has to fire on the way there, while there is time to raise the
+// cap or shrink the catalog.
+const (
+	actionBudgetAlertNumerator   = 7
+	actionBudgetAlertDenominator = 10
+)
+
 func (w *workerRepository) ApplyWorkerActionsDelta(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, add, remove []string, maxOperatorLinks int64) (int, int, error) {
 	db := w.pool.ForTenant(tenantId)
 
@@ -920,6 +935,16 @@ func (w *workerRepository) ApplyWorkerActionsDelta(ctx context.Context, tenantId
 
 		if linked > maxOperatorLinks {
 			return 0, 0, &ActionBudgetError{OperatorId: *operatorId, Linked: linked, Limit: maxOperatorLinks}
+		}
+
+		if linked*actionBudgetAlertDenominator >= maxOperatorLinks*actionBudgetAlertNumerator {
+			w.l.Error().Ctx(ctx).
+				Str("tenant_id", tenantId.String()).
+				Str("operator_id", operatorId.String()).
+				Str("worker_id", workerId.String()).
+				Int64("linked", linked).
+				Int64("limit", maxOperatorLinks).
+				Msg("operator action links are over 70% of the action budget")
 		}
 	}
 
@@ -1019,6 +1044,39 @@ func (w *workerRepository) unlinkActions(ctx context.Context, tx pgx.Tx, tenantI
 	}
 
 	return len(unlinked), nil
+}
+
+func (w *workerRepository) ReleaseWorkerActions(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) (int64, error) {
+	db := w.pool.ForTenant(tenantId)
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, w.l)
+
+	if err != nil {
+		return 0, err
+	}
+
+	defer rollback()
+
+	// the row lock orders this against any delta still in flight on the worker, so a delta
+	// that commits after cannot resurrect links this call has already counted as gone
+	if err := w.lockWorkerActions(ctx, tx, tenantId, workerId); err != nil {
+		return 0, err
+	}
+
+	released, err := w.queries.ReleaseWorkerActions(ctx, tx, sqlcv1.ReleaseWorkerActionsParams{
+		Workerid: workerId,
+		Tenantid: tenantId,
+	})
+
+	if err != nil {
+		return 0, fmt.Errorf("could not release worker actions: %w", err)
+	}
+
+	if err := commit(ctx); err != nil {
+		return 0, err
+	}
+
+	return released, nil
 }
 
 func (w *workerRepository) CountOperatorWorkerActions(ctx context.Context, tenantId uuid.UUID, operatorId uuid.UUID) (int64, error) {

@@ -1,14 +1,11 @@
 package repository
 
 import (
-	"context"
-	"errors"
 	"log"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/hashicorp/golang-lru/v2/expirable"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -161,21 +158,6 @@ func newSharedRepository(
 	s.m = tenantLimitRepository
 
 	return s, s.cleanup
-}
-
-func (s *sharedRepository) isDagOperatorEnabled(ctx context.Context, db sqlcv1.DBTX, tenantId uuid.UUID) (bool, error) {
-	// fixme: can probably cache this?
-	entitlement, err := s.queries.GetTenantEntitlement(ctx, db, tenantId)
-
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return false, nil
-		}
-
-		return false, err
-	}
-
-	return entitlement.DagOperator, nil
 }
 
 func (s *sharedRepository) cleanup() error {
