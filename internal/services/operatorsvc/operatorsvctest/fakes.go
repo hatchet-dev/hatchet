@@ -442,6 +442,26 @@ func (f *WorkerStore) Refreshes() []uuid.UUID {
 	return append([]uuid.UUID(nil), f.refreshes...)
 }
 
+// ReleaseWorkerActions records "release" so tests can tell a registration that cleaned up a
+// superseded worker from one that only pointed the operator at a new one.
+func (f *WorkerStore) ReleaseWorkerActions(_ context.Context, tenantId uuid.UUID, workerId uuid.UUID) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	w, ok := f.workers[workerId]
+
+	if !ok || w.TenantId != tenantId {
+		return 0, fmt.Errorf("worker %s does not belong to tenant %s: %w", workerId, tenantId, pgx.ErrNoRows)
+	}
+
+	released := int64(len(f.actions[workerId]))
+	f.actions[workerId] = map[string]struct{}{}
+	f.hashPending[workerId] = true
+	f.ops = append(f.ops, "release")
+
+	return released, nil
+}
+
 func (f *WorkerStore) CountOperatorWorkerActions(_ context.Context, tenantId uuid.UUID, operatorId uuid.UUID) (int64, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

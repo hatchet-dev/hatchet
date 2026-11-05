@@ -38,12 +38,17 @@ class V1StreamTopic(BaseModel):
         description="The number of messages within the tenant's retention",
         alias="messageCount",
     )
+    starting_offset: StrictInt = Field(
+        description="Subscribers without a cursor start after this offset, 0 to start from the oldest retained message",
+        alias="startingOffset",
+    )
     __properties: ClassVar[List[str]] = [
         "namespace",
         "topic",
         "createdAt",
         "lastPublishedAt",
         "messageCount",
+        "startingOffset",
     ]
 
     model_config = ConfigDict(
@@ -101,6 +106,7 @@ class V1StreamTopic(BaseModel):
                 "createdAt": obj.get("createdAt"),
                 "lastPublishedAt": obj.get("lastPublishedAt"),
                 "messageCount": obj.get("messageCount"),
+                "startingOffset": obj.get("startingOffset"),
             }
         )
         return _obj

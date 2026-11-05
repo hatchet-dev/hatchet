@@ -607,6 +607,28 @@ WHERE
     AND a."id" = ANY(@actionIds::uuid[])
 RETURNING aw."A";
 
+-- name: ReleaseWorkerActions :one
+-- Unlinks every action from the worker and zeroes its link count, so the worker no longer
+-- counts against its operator's action budget. For a worker the operator has moved on from;
+-- it is never registered under again.
+WITH unlinked AS (
+    DELETE FROM "_ActionToWorker" aw
+    USING "Worker" w
+    WHERE
+        aw."B" = w."id"
+        AND w."id" = @workerId::uuid
+        AND w."tenantId" = @tenantId::uuid
+    RETURNING aw."A"
+)
+UPDATE "Worker" w
+SET
+    "operatorActionCount" = 0,
+    "actionHash" = NULL
+WHERE
+    w."id" = @workerId::uuid
+    AND w."tenantId" = @tenantId::uuid
+RETURNING (SELECT count(*) FROM unlinked)::bigint AS released;
+
 -- name: RefreshWorkerActionHash :exec
 -- sha256 over the linked action ids sorted by byte order, each followed by ";", the same digest
 -- hashActions computes in Go.

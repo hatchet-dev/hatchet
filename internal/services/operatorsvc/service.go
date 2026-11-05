@@ -92,6 +92,7 @@ type WorkerStore interface {
 	ApplyWorkerActionsDelta(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, add, remove []string, maxOperatorLinks int64) (added, removed int, err error)
 	RefreshWorkerActionHash(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) error
 	CountOperatorWorkerActions(ctx context.Context, tenantId uuid.UUID, operatorId uuid.UUID) (int64, error)
+	ReleaseWorkerActions(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) (int64, error)
 }
 
 // ActionHandler receives assigned actions by direct call. It is the in-process delivery: the

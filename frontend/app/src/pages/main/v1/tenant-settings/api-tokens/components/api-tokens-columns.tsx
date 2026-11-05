@@ -1,6 +1,10 @@
 import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
-import useCanWrite from '@/hooks/use-can-write';
+import { useTenantDetails } from '@/hooks/use-tenant';
 import { APIToken } from '@/lib/api';
+import {
+  API_TOKEN_MANAGE_DISABLED_REASON,
+  canManageApiTokens,
+} from '@/lib/api-token-permissions';
 
 export function TokenActions({
   token,
@@ -9,21 +13,20 @@ export function TokenActions({
   token: APIToken;
   onRevokeClick: (token: APIToken) => void;
 }) {
-  const canWrite = useCanWrite();
+  const { membership } = useTenantDetails();
 
   return (
     <TableRowActions
       row={token}
-      actions={
-        canWrite
-          ? [
-              {
-                label: 'Revoke',
-                onClick: () => onRevokeClick(token),
-              },
-            ]
-          : []
-      }
+      actions={[
+        {
+          label: 'Revoke',
+          onClick: () => onRevokeClick(token),
+          disabled: canManageApiTokens(membership)
+            ? false
+            : API_TOKEN_MANAGE_DISABLED_REASON,
+        },
+      ]}
     />
   );
 }

@@ -508,6 +508,12 @@ export function OnboardingSteps({
               >
                 Homebrew
               </TabsTrigger>
+              <TabsTrigger
+                value={installMethodOptions.npm.value}
+                className={segmentedTabsTriggerClass}
+              >
+                npm
+              </TabsTrigger>
             </TabsList>
             <TabsContent
               value={installMethodOptions.native.value}
@@ -533,6 +539,20 @@ export function OnboardingSteps({
               <CodeHighlighter
                 className={codeBlockClass}
                 code={`brew install hatchet-dev/hatchet/hatchet --cask`}
+                language="shell"
+                copy
+              />
+            </TabsContent>
+            <TabsContent
+              value={installMethodOptions.npm.value}
+              className={`mt-4 space-y-3 rounded-sm ${focusRing}`}
+            >
+              <p className="text-sm">
+                <b>macOS, Linux, Windows</b>
+              </p>
+              <CodeHighlighter
+                className={codeBlockClass}
+                code={`npm i -g @hatchet-dev/cli`}
                 language="shell"
                 copy
               />

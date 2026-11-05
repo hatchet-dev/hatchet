@@ -40,7 +40,6 @@ const (
 	EntitlementAuditLogs                       Entitlement = "audit_logs"
 	EntitlementPrometheusMetrics               Entitlement = "prometheus_metrics"
 	EntitlementStrictAdditionalMetadataFilters Entitlement = "strict_additional_metadata_filters"
-	EntitlementDAGOperator                     Entitlement = "dag_operator"
 	EntitlementDurableStreams                  Entitlement = "durable_streams"
 	EntitlementServerlessOperator              Entitlement = "serverless_operator"
 	EntitlementSandboxOperator                 Entitlement = "sandbox_operator"
@@ -58,7 +57,6 @@ type TenantEntitlements struct {
 	AuditLogs                       bool
 	PrometheusMetrics               bool
 	StrictAdditionalMetadataFilters bool
-	DAGOperator                     bool
 	DurableStreams                  bool
 	ServerlessOperator              bool
 	SandboxOperator                 bool
@@ -73,8 +71,6 @@ func (e TenantEntitlements) Has(entitlement Entitlement) (bool, error) {
 		return e.PrometheusMetrics, nil
 	case EntitlementStrictAdditionalMetadataFilters:
 		return e.StrictAdditionalMetadataFilters, nil
-	case EntitlementDAGOperator:
-		return e.DAGOperator, nil
 	case EntitlementDurableStreams:
 		return e.DurableStreams, nil
 	case EntitlementServerlessOperator:
@@ -153,7 +149,6 @@ func (t *tenantEntitlementRepository) GetEntitlements(ctx context.Context, tenan
 		AuditLogs:                       entitlement.AuditLogs,
 		PrometheusMetrics:               entitlement.PrometheusMetrics,
 		StrictAdditionalMetadataFilters: entitlement.StrictAdditionalMetadataFilters,
-		DAGOperator:                     entitlement.DagOperator,
 		DurableStreams:                  entitlement.DurableStreams,
 		ServerlessOperator:              entitlement.ServerlessOperator,
 		SandboxOperator:                 entitlement.SandboxOperator,
@@ -168,7 +163,6 @@ func (t *tenantEntitlementRepository) SetEntitlements(ctx context.Context, tenan
 		Auditlogs:                       entitlements.AuditLogs,
 		Prometheusmetrics:               entitlements.PrometheusMetrics,
 		Strictadditionalmetadatafilters: entitlements.StrictAdditionalMetadataFilters,
-		Dagoperator:                     entitlements.DAGOperator,
 		Durablestreams:                  entitlements.DurableStreams,
 		Serverlessoperator:              entitlements.ServerlessOperator,
 		Sandboxoperator:                 entitlements.SandboxOperator,

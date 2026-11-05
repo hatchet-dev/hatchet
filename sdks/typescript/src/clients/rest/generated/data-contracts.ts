@@ -931,6 +931,11 @@ export interface V1StreamTopic {
    * @format int64
    */
   messageCount: number;
+  /**
+   * Subscribers without a cursor start after this offset, 0 to start from the oldest retained message
+   * @format int64
+   */
+  startingOffset: number;
 }
 
 export interface V1StreamTopicList {

@@ -1320,6 +1320,9 @@ CREATE INDEX v1_concurrency_slot_query_idx ON v1_concurrency_slot (tenant_id, st
 CREATE INDEX v1_concurrency_slot_timeout_idx ON v1_concurrency_slot (tenant_id, strategy_id, task_id, task_inserted_at)
     WHERE is_filled = FALSE;
 
+CREATE INDEX v1_concurrency_slot_workflow_unfilled_idx ON v1_concurrency_slot (tenant_id, workflow_id)
+    WHERE is_filled = FALSE;
+
 ALTER TABLE v1_concurrency_slot SET (
     autovacuum_vacuum_scale_factor = '0.1',
     autovacuum_analyze_scale_factor = '0.05',
@@ -3477,6 +3480,7 @@ CREATE TABLE tenant_entitlement (
     -- the GIN indexes on the OLAP runs/tasks tables (jsonb @> containment).
     strict_additional_metadata_filters BOOLEAN NOT NULL DEFAULT FALSE,
 
+    -- unused, turned on by default everywhere
     dag_operator BOOLEAN NOT NULL DEFAULT FALSE,
 
     durable_streams BOOLEAN NOT NULL DEFAULT FALSE,

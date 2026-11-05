@@ -270,7 +270,9 @@ func (s *ServiceImpl) subscribe(ctx context.Context, req *contracts.SubscribeStr
 	if resumed {
 		cursor, err = s.resolveCursor(ctx, tenantId, req.Namespace, req.Topic, *req.Cursor)
 	} else {
-		cursor, err = s.repo.Streams().TopicStartCursor(ctx, tenantId, req.Namespace, req.Topic)
+		var info v1.StreamTopicInfo
+		info, err = s.repo.Streams().GetTopicInfo(ctx, tenantId, req.Namespace, req.Topic)
+		cursor = info.StartCursor()
 	}
 
 	if err != nil {

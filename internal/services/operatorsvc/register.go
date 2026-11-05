@@ -122,8 +122,14 @@ func (s *Service) Register(ctx context.Context, tenant *sqlcv1.Tenant, opts Regi
 	}
 
 	if opts.OperatorId != nil {
+		previous := op.WorkerID
+
 		if err := s.pointOperatorAtWorker(ctx, op, workerId); err != nil {
 			return Registration{}, err
+		}
+
+		if previous != nil && *previous != workerId {
+			s.releaseSupersededWorker(ctx, op, *previous)
 		}
 	}
 
@@ -179,6 +185,34 @@ func (s *Service) pointOperatorAtWorker(ctx context.Context, op *sqlcv1.V1Operat
 	}
 
 	return nil
+}
+
+// releaseSupersededWorker drops the action links of the worker a claimed operator was pointed
+// at before this registration. A claimed row is only ever registered under a new worker, never
+// resumed, so the previous worker is finished: it was paused at teardown and nothing registers
+// under it again. Its links otherwise count against the operator's action budget for as long
+// as the row exists, and an operator with a large catalog runs out of budget after enough
+// restarts, at which point no worker of it can register anything. Failure is logged, not
+// returned: the registration is good, and the next registration tries this worker again only
+// if it is still the one on the row, so a leak here is bounded to one worker.
+func (s *Service) releaseSupersededWorker(ctx context.Context, op *sqlcv1.V1Operator, workerId uuid.UUID) {
+	released, err := s.workers.ReleaseWorkerActions(ctx, op.TenantID, workerId)
+
+	if err != nil {
+		s.l.Error().Ctx(ctx).Err(err).
+			Str("operator_id", op.ID.String()).
+			Str("worker_id", workerId.String()).
+			Msg("could not release the actions of the operator's previous worker")
+		return
+	}
+
+	if released > 0 {
+		s.l.Info().Ctx(ctx).
+			Str("operator_id", op.ID.String()).
+			Str("worker_id", workerId.String()).
+			Int64("released", released).
+			Msg("released the actions of the operator's previous worker")
+	}
 }
 
 // upsertOperator upserts the row a named registration stands for. Only contract operators are

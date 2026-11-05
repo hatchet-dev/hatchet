@@ -241,6 +241,34 @@ func (q *Queries) GetStreamPayload(ctx context.Context, db DBTX, arg GetStreamPa
 	return payload, err
 }
 
+const getStreamTopicInfo = `-- name: GetStreamTopicInfo :one
+SELECT
+    COALESCE(t.starting_offset, 0)::bigint AS starting_offset,
+    COALESCE(t.last_offset, 0)::bigint AS last_offset
+FROM (SELECT 1) AS one
+LEFT JOIN v1_stream_topic t
+    ON t.tenant_id = $1::uuid AND t.namespace = $2::text AND t.topic = $3::text
+`
+
+type GetStreamTopicInfoParams struct {
+	Tenantid  uuid.UUID `json:"tenantid"`
+	Namespace string    `json:"namespace"`
+	Topic     string    `json:"topic"`
+}
+
+type GetStreamTopicInfoRow struct {
+	StartingOffset int64 `json:"starting_offset"`
+	LastOffset     int64 `json:"last_offset"`
+}
+
+// Zeros for a topic not yet published to. A primary-key lookup, cheap enough to run every poll tick.
+func (q *Queries) GetStreamTopicInfo(ctx context.Context, db DBTX, arg GetStreamTopicInfoParams) (*GetStreamTopicInfoRow, error) {
+	row := db.QueryRow(ctx, getStreamTopicInfo, arg.Tenantid, arg.Namespace, arg.Topic)
+	var i GetStreamTopicInfoRow
+	err := row.Scan(&i.StartingOffset, &i.LastOffset)
+	return &i, err
+}
+
 const getStreamTopicMetadata = `-- name: GetStreamTopicMetadata :one
 WITH topic AS (
     SELECT 1
@@ -299,28 +327,6 @@ func (q *Queries) GetStreamTopicMetadata(ctx context.Context, db DBTX, arg GetSt
 	var i GetStreamTopicMetadataRow
 	err := row.Scan(&i.LatestID, &i.LatestInsertedAt, &i.MessageCount)
 	return &i, err
-}
-
-const getStreamTopicStartingOffset = `-- name: GetStreamTopicStartingOffset :one
-SELECT COALESCE((
-    SELECT starting_offset
-    FROM v1_stream_topic
-    WHERE tenant_id = $1::uuid AND namespace = $2::text AND topic = $3::text
-), 0)::bigint AS starting_offset
-`
-
-type GetStreamTopicStartingOffsetParams struct {
-	Tenantid  uuid.UUID `json:"tenantid"`
-	Namespace string    `json:"namespace"`
-	Topic     string    `json:"topic"`
-}
-
-// 0 for a topic not yet published to, so it starts at its beginning.
-func (q *Queries) GetStreamTopicStartingOffset(ctx context.Context, db DBTX, arg GetStreamTopicStartingOffsetParams) (int64, error) {
-	row := db.QueryRow(ctx, getStreamTopicStartingOffset, arg.Tenantid, arg.Namespace, arg.Topic)
-	var starting_offset int64
-	err := row.Scan(&starting_offset)
-	return starting_offset, err
 }
 
 const insertStreamPayload = `-- name: InsertStreamPayload :one
@@ -569,6 +575,7 @@ SELECT
     t.topic,
     t.inserted_at,
     t.last_published_at,
+    t.starting_offset,
     (
         SELECT COUNT(*)
         FROM v1_stream_message m
@@ -580,7 +587,7 @@ SELECT
 FROM v1_stream_topic t
 WHERE t.tenant_id = $2::uuid
     AND ($3::text IS NULL OR t.topic ILIKE '%' || $3::text || '%' OR t.namespace ILIKE '%' || $3::text || '%')
-ORDER BY t.namespace, t.topic
+ORDER BY t.last_published_at DESC, t.namespace, t.topic
 LIMIT $5::integer
 OFFSET $4::integer
 `
@@ -598,6 +605,7 @@ type ListStreamTopicsRow struct {
 	Topic           string             `json:"topic"`
 	InsertedAt      pgtype.Timestamptz `json:"inserted_at"`
 	LastPublishedAt pgtype.Timestamptz `json:"last_published_at"`
+	StartingOffset  int64              `json:"starting_offset"`
 	MessageCount    int64              `json:"message_count"`
 }
 
@@ -622,6 +630,7 @@ func (q *Queries) ListStreamTopics(ctx context.Context, db DBTX, arg ListStreamT
 			&i.Topic,
 			&i.InsertedAt,
 			&i.LastPublishedAt,
+			&i.StartingOffset,
 			&i.MessageCount,
 		); err != nil {
 			return nil, err

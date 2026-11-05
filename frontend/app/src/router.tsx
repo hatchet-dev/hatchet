@@ -71,6 +71,15 @@ const authRegisterRoute = createRoute({
   ),
 });
 
+const authMagicLinkRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'auth/magic-link',
+  component: lazyRouteComponent(
+    () => import('./pages/auth/magic-link'),
+    'default',
+  ),
+});
+
 const onboardingVerifyRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'onboarding/verify-email',
@@ -1192,6 +1201,7 @@ const tenantRoutes = [
 
 const routeTree = rootRoute.addChildren([
   authRoute.addChildren([authLoginRoute, authRegisterRoute]),
+  authMagicLinkRoute,
   onboardingVerifyRoute,
   authenticatedRoute.addChildren([
     onboardingCreateTenantRoute,
@@ -1251,6 +1261,7 @@ export const appRoutes = {
   authRoute,
   authLoginRoute,
   authRegisterRoute,
+  authMagicLinkRoute,
   onboardingVerifyRoute,
   redeemOffersRoute,
   organizationsRoute,
