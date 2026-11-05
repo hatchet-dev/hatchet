@@ -46,10 +46,15 @@ func (c *FiltersClient) List(ctx context.Context, opts *rest.V1FilterListParams)
 
 // Get gets a filter by its ID.
 func (c *FiltersClient) Get(ctx context.Context, filterID string) (*rest.V1Filter, error) {
+	filterUUID, err := uuid.Parse(filterID)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid filter ID")
+	}
+
 	resp, err := c.api.V1FilterGetWithResponse(
 		ctx,
 		c.tenantID,
-		uuid.MustParse(filterID),
+		filterUUID,
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get filter")
@@ -82,10 +87,15 @@ func (c *FiltersClient) Create(ctx context.Context, opts rest.V1CreateFilterRequ
 
 // Delete deletes a filter by its ID.
 func (c *FiltersClient) Delete(ctx context.Context, filterID string) (*rest.V1Filter, error) {
+	filterUUID, err := uuid.Parse(filterID)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid filter ID")
+	}
+
 	resp, err := c.api.V1FilterDeleteWithResponse(
 		ctx,
 		c.tenantID,
-		uuid.MustParse(filterID),
+		filterUUID,
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to delete filter")
@@ -100,10 +110,15 @@ func (c *FiltersClient) Delete(ctx context.Context, filterID string) (*rest.V1Fi
 
 // Update updates a filter by its ID.
 func (c *FiltersClient) Update(ctx context.Context, filterID string, opts rest.V1FilterUpdateJSONRequestBody) (*rest.V1Filter, error) {
+	filterUUID, err := uuid.Parse(filterID)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid filter ID")
+	}
+
 	resp, err := c.api.V1FilterUpdateWithResponse(
 		ctx,
 		c.tenantID,
-		uuid.MustParse(filterID),
+		filterUUID,
 		opts,
 	)
 	if err != nil {

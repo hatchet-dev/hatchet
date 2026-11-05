@@ -40,9 +40,14 @@ func NewRunsClient(
 
 // Get retrieves a workflow run by its ID.
 func (r *RunsClient) Get(ctx context.Context, runId string) (*rest.V1WorkflowRunDetails, error) {
+	runUUID, err := uuid.Parse(runId)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid workflow run ID")
+	}
+
 	resp, err := r.api.V1WorkflowRunGetWithResponse(
 		ctx,
-		uuid.MustParse(runId),
+		runUUID,
 		nil,
 	)
 	if err != nil {
@@ -58,9 +63,14 @@ func (r *RunsClient) Get(ctx context.Context, runId string) (*rest.V1WorkflowRun
 
 // GetStatus retrieves the status of a workflow run by its ID.
 func (r *RunsClient) GetStatus(ctx context.Context, runId string) (*rest.V1TaskStatus, error) {
+	runUUID, err := uuid.Parse(runId)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid workflow run ID")
+	}
+
 	resp, err := r.api.V1WorkflowRunGetStatusWithResponse(
 		ctx,
-		uuid.MustParse(runId),
+		runUUID,
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get workflow run status")
@@ -152,8 +162,13 @@ func (r *RunsClient) Cancel(ctx context.Context, opts rest.V1CancelTaskRequest) 
 
 // BranchDurableTask creates a branch from a durable task at the specified node.
 func (r *RunsClient) BranchDurableTask(ctx context.Context, taskExternalId string, nodeId, branchId int64) (*rest.V1BranchDurableTaskResponse, error) {
+	taskUUID, err := uuid.Parse(taskExternalId)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid task external ID")
+	}
+
 	body := rest.V1BranchDurableTaskRequest{
-		TaskExternalId: uuid.MustParse(taskExternalId),
+		TaskExternalId: taskUUID,
 		NodeId:         nodeId,
 		BranchId:       branchId,
 	}
@@ -182,9 +197,14 @@ func (r *RunsClient) BranchDurableTask(ctx context.Context, taskExternalId strin
 
 // Restore re-enqueues an evicted task so it can resume execution.
 func (r *RunsClient) Restore(ctx context.Context, taskExternalId string) (*rest.V1RestoreTaskResponse, error) {
+	taskUUID, err := uuid.Parse(taskExternalId)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid task external ID")
+	}
+
 	resp, err := r.api.V1TaskRestoreWithResponse(
 		ctx,
-		uuid.MustParse(taskExternalId),
+		taskUUID,
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to restore task")

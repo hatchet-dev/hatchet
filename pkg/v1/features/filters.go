@@ -4,6 +4,7 @@ package features
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
 
@@ -60,10 +61,15 @@ func (c *filtersClientImpl) List(ctx context.Context, opts *rest.V1FilterListPar
 // Deprecated: Get is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *filtersClientImpl) Get(ctx context.Context, filterID string) (*rest.V1Filter, error) {
+	filterUUID, err := uuid.Parse(filterID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid filter ID: %w", err)
+	}
+
 	resp, err := c.api.V1FilterGetWithResponse(
 		ctx,
 		c.tenantID,
-		uuid.MustParse(filterID),
+		filterUUID,
 	)
 
 	if err != nil {
@@ -92,10 +98,15 @@ func (c *filtersClientImpl) Create(ctx context.Context, opts rest.V1CreateFilter
 // Deprecated: Delete is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *filtersClientImpl) Delete(ctx context.Context, filterID string) (*rest.V1Filter, error) {
+	filterUUID, err := uuid.Parse(filterID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid filter ID: %w", err)
+	}
+
 	resp, err := c.api.V1FilterDeleteWithResponse(
 		ctx,
 		c.tenantID,
-		uuid.MustParse(filterID),
+		filterUUID,
 	)
 
 	if err != nil {
@@ -108,10 +119,15 @@ func (c *filtersClientImpl) Delete(ctx context.Context, filterID string) (*rest.
 // Deprecated: Update is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *filtersClientImpl) Update(ctx context.Context, filterID string, opts rest.V1FilterUpdateJSONRequestBody) (*rest.V1Filter, error) {
+	filterUUID, err := uuid.Parse(filterID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid filter ID: %w", err)
+	}
+
 	resp, err := c.api.V1FilterUpdateWithResponse(
 		ctx,
 		c.tenantID,
-		uuid.MustParse(filterID),
+		filterUUID,
 		opts,
 	)
 

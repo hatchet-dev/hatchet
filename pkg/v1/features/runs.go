@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
@@ -81,9 +82,14 @@ func NewRunsClient(
 //
 // Get retrieves a workflow run by its ID.
 func (r *runsClientImpl) Get(ctx context.Context, runId string) (*rest.V1WorkflowRunGetResponse, error) {
+	runUUID, err := uuid.Parse(runId)
+	if err != nil {
+		return nil, fmt.Errorf("invalid workflow run ID: %w", err)
+	}
+
 	return r.api.V1WorkflowRunGetWithResponse(
 		ctx,
-		uuid.MustParse(runId),
+		runUUID,
 		nil,
 	)
 }
@@ -93,9 +99,14 @@ func (r *runsClientImpl) Get(ctx context.Context, runId string) (*rest.V1Workflo
 //
 // GetStatus retrieves the status of a workflow run by its ID.
 func (r *runsClientImpl) GetStatus(ctx context.Context, runId string) (*rest.V1WorkflowRunGetStatusResponse, error) {
+	runUUID, err := uuid.Parse(runId)
+	if err != nil {
+		return nil, fmt.Errorf("invalid workflow run ID: %w", err)
+	}
+
 	return r.api.V1WorkflowRunGetStatusWithResponse(
 		ctx,
-		uuid.MustParse(runId),
+		runUUID,
 	)
 }
 
@@ -104,9 +115,14 @@ func (r *runsClientImpl) GetStatus(ctx context.Context, runId string) (*rest.V1W
 //
 // GetDetails retrieves detailed information about a workflow run by its ID. Use Get instead.
 func (r *runsClientImpl) GetDetails(ctx context.Context, runId string) (*rest.V1WorkflowRunGetResponse, error) {
+	runUUID, err := uuid.Parse(runId)
+	if err != nil {
+		return nil, fmt.Errorf("invalid workflow run ID: %w", err)
+	}
+
 	return r.api.V1WorkflowRunGetWithResponse(
 		ctx,
-		uuid.MustParse(runId),
+		runUUID,
 		nil,
 	)
 }

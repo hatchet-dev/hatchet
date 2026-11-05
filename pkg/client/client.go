@@ -116,7 +116,7 @@ type ClientOpts struct {
 	Embedded any
 }
 
-func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
+func defaultClientOpts(token *string, cf *client.ClientConfigFile) (*ClientOpts, error) {
 	var clientConfig *client.ClientConfig
 	var err error
 
@@ -128,7 +128,7 @@ func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
 		clientConfig, err = configLoader.LoadClientConfig(token)
 
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 
 	} else {
@@ -138,7 +138,7 @@ func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
 		clientConfig, err = loader.GetClientConfigFromConfigFile(token, cf)
 
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 	}
 
@@ -161,7 +161,7 @@ func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
 		sharedMeta:             make(map[string]string),
 		presetWorkerLabels:     clientConfig.PresetWorkerLabels,
 		disableGzipCompression: clientConfig.DisableGzipCompression,
-	}
+	}, nil
 }
 
 // Deprecated: use hatchet.WithClientLogLevel from github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
@@ -276,7 +276,10 @@ func New(fs ...ClientOpt) (Client, error) {
 		token = &initOpts.token
 	}
 
-	opts := defaultClientOpts(token, nil)
+	opts, err := defaultClientOpts(token, nil)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, f := range fs {
 		f(opts)
@@ -288,7 +291,10 @@ func New(fs ...ClientOpt) (Client, error) {
 // Deprecated: NewFromConfigFile is an internal function used by the new Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func NewFromConfigFile(cf *client.ClientConfigFile, fs ...ClientOpt) (Client, error) {
-	opts := defaultClientOpts(nil, cf)
+	opts, err := defaultClientOpts(nil, cf)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, f := range fs {
 		f(opts)
