@@ -17,25 +17,22 @@ const labsFeatures: {
   {
     key: 'durableStreams',
     label: 'Durable streams',
-    description:
-      'Keep a durable log of messages that workers and the dashboard can read back. Streams appears in the sidebar when this is on.',
+    description: 'Publish and subscribe to persistent topics from tasks.',
     disableDescription:
-      'Streams leaves the sidebar, and workers cannot read or write streams until you turn this back on. Existing stream data is kept.',
+      'Tasks can no longer publish or subscribe. Existing topics are kept.',
   },
   {
     key: 'sandboxes',
     label: 'Sandboxes',
-    description: 'Isolated environments for running untrusted code.',
-    disableDescription:
-      'Sandboxes turns off for this tenant. You can turn it back on at any time.',
+    description: 'Run untrusted code in isolated environments.',
+    disableDescription: 'Sandboxes will be unavailable for this tenant.',
   },
   {
     key: 'serverlessOperator',
     label: 'Serverless',
-    description:
-      'Run tasks without a long-lived worker. Endpoints appears in the sidebar when this is on.',
+    description: 'Run tasks on platforms like Vercel and Cloudflare Workers.',
     disableDescription:
-      'Endpoints leaves the sidebar, and serverless stops picking up work for this tenant until you turn this back on. Existing endpoints are kept.',
+      'Endpoints stop receiving tasks. Existing endpoints are kept.',
   },
 ];
 
@@ -68,11 +65,9 @@ export function LabsPreview(props: LabsPreviewProps) {
     return (
       <div className="flex min-h-96 flex-1 items-center justify-center p-4">
         <div className="max-w-lg space-y-3 text-center">
-          <h3 className="text-lg font-semibold">
-            Only tenant owners can manage Labs
-          </h3>
+          <h3 className="text-lg font-semibold">Owner access required</h3>
           <p className="text-sm text-muted-foreground">
-            Ask a tenant owner to opt this tenant into preview features.
+            Ask a tenant owner to change Labs settings.
           </p>
         </div>
       </div>
@@ -92,7 +87,7 @@ export function LabsPreview(props: LabsPreviewProps) {
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <SettingsPageHeader
           title="Labs Preview"
-          description="Opt in to features that are still in preview. You can turn them off at any time."
+          description="Early access features. These may change before general availability."
         />
 
         {props.status === 'upgrade' ? (
@@ -145,7 +140,7 @@ function LabsSwitches({
       {disablingFeature ? (
         <ConfirmDialog
           isOpen
-          title={`Turn off ${disablingFeature.label}?`}
+          title={`Turn off ${disablingFeature.label.toLowerCase()}?`}
           description={disablingFeature.disableDescription}
           submitLabel="Turn off"
           onSubmit={() => {
@@ -170,10 +165,9 @@ function UpgradeSurface({
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-brand/40 bg-brand/5 p-4">
       <div className="space-y-1">
-        <p className="text-sm font-medium">Labs is available on a paid plan</p>
+        <p className="text-sm font-medium">Labs requires a paid plan</p>
         <p className="text-sm text-muted-foreground">
-          Upgrade to opt this tenant into durable streams, sandboxes, and
-          serverless.
+          Upgrade to try durable streams, sandboxes, and serverless.
         </p>
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
       </div>

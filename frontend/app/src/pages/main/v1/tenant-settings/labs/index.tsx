@@ -73,7 +73,7 @@ export default function LabsSettings() {
         handleApiError(error);
         return;
       }
-      setErrorMessage('Could not update Labs settings.');
+      setErrorMessage('Failed to update Labs settings.');
     },
     onSuccess: (data) => {
       queryClient.setQueryData(queryKey, data);
@@ -88,7 +88,7 @@ export default function LabsSettings() {
     const upgradeError = upgrade.isError
       ? getPlanChangeErrorMessage(upgrade.error)
       : plansQuery.isError
-        ? 'We could not load plans. Refresh and try again.'
+        ? 'Failed to load plans.'
         : undefined;
 
     return (
@@ -110,7 +110,7 @@ export default function LabsSettings() {
 
   if (entitlementsError || !entitlements) {
     return (
-      <LabsPreview status="error" message="Could not load Labs settings." />
+      <LabsPreview status="error" message="Failed to load Labs settings." />
     );
   }
 
