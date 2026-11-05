@@ -272,6 +272,8 @@ type OLAPRepository interface {
 	UpdateTablePartitions(ctx context.Context) error
 	SetAuditLogArchiveStore(store AuditLogArchiveStore, rowsPerFile int32)
 	ArchiveAuditLogPartitions(ctx context.Context, opts ArchiveAuditLogPartitionsOpts) error
+	// CreateAuditLogs skips entries that already exist.
+	CreateAuditLogs(ctx context.Context, entries []AuditLogEntry) error
 	SetReadReplicaPool(pool *fairpool.Pool)
 	Aggregates() *olapagg.Aggregator
 	AddStreamBytes(ctx context.Context, usage []TenantStreamBytes) error
