@@ -639,6 +639,18 @@ CREATE TABLE v1_audit_log (
 
 CREATE INDEX v1_audit_log_tenant_id_correlation_id_idx ON v1_audit_log (tenant_id, correlation_id DESC);
 
+CREATE TABLE v1_audit_log_archive_cursor (
+    partition_date DATE PRIMARY KEY,
+    is_completed BOOLEAN NOT NULL DEFAULT FALSE,
+    lease_process_id UUID NOT NULL,
+    lease_expires_at TIMESTAMPTZ NOT NULL,
+
+    next_file_index INTEGER NOT NULL,
+    last_tenant_id UUID NOT NULL,
+    last_inserted_at TIMESTAMPTZ NOT NULL,
+    last_id UUID NOT NULL
+);
+
 -- TRIGGERS TO LINK TASKS, DAGS AND EVENTS --
 CREATE OR REPLACE FUNCTION v1_tasks_olap_insert_function()
 RETURNS TRIGGER AS

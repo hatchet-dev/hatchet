@@ -17,11 +17,6 @@ export enum TenantMemberRoleType {
   VIEWER = "VIEWER",
 }
 
-export enum AuditLogActorType {
-  User = "user",
-  ApiKey = "api_key",
-}
-
 export enum CouponFrequency {
   Once = "once",
   Recurring = "recurring",
@@ -190,6 +185,36 @@ import type { UserLoginRequest } from '@/lib/api/generated/data-contracts';
 import type { UserChangePasswordRequest } from '@/lib/api/generated/data-contracts';
 
 import type { UserRegisterRequest } from '@/lib/api/generated/data-contracts';
+
+export interface MagicLinkRequest {
+  /**
+   * The email address that should receive a one-time login link.
+   * @format email
+   */
+  email: string;
+}
+
+export interface MagicLinkConfirmRequest {
+  /**
+   * The single-use login token from the email link.
+   * @minLength 1
+   * @maxLength 512
+   */
+  token: string;
+}
+
+export interface MagicLinkAccepted {
+  /**
+   * Always true. The response does not reveal whether an account exists or whether an email was sent.
+   * @example true
+   */
+  accepted: boolean;
+  /**
+   * Seconds to wait before requesting another link for the same address. The same value is returned for every request.
+   * @example 60
+   */
+  resendCooldownSeconds: number;
+}
 
 export interface Organization {
   metadata: APIResourceMeta;
@@ -553,6 +578,8 @@ export interface APIToken {
   metadata: APIResourceMeta;
   /** The name of the API token */
   name: string;
+  /** Whether the token is limited to viewer access over REST and cannot use gRPC */
+  readOnly: boolean;
   /**
    * The timestamp at which the token expires
    * @format date-time
@@ -570,6 +597,8 @@ export interface CreateTenantAPITokenRequest {
   name: string;
   /** The duration for which the token should be valid (e.g., "30d", "90d") */
   expiresIn?: string;
+  /** Limit the token to viewer access over REST and deny all gRPC calls. Defaults to false. */
+  readOnly?: boolean;
 }
 
 export interface CreateTenantAPITokenResponse {
@@ -1124,47 +1153,6 @@ export interface AddOrgMembersToTenantRequest {
   memberIds: string[];
   /** Whether the added members can view payloads on this tenant. Defaults to true. */
   canViewPayloads?: boolean;
-}
-
-export interface AuditLog {
-  /**
-   * The ID of the audit log
-   * @format uuid
-   */
-  id: string;
-  /**
-   * The timestamp at which the audit log was inserted
-   * @format date-time
-   */
-  insertedAt: string;
-  /**
-   * The ID of the tenant
-   * @format uuid
-   */
-  tenantId: string;
-  /** The type of the actor */
-  actorType: AuditLogActorType;
-  /**
-   * The ID of the actor
-   * @format uuid
-   */
-  actorId: string;
-  /** The action that was performed */
-  action: string;
-  /** The correlation ID */
-  correlationId?: string;
-  /** The ID of the resource */
-  resourceId: string;
-  /** The type of the resource */
-  resourceType: string;
-  /** The IP address of the actor */
-  ipAddress?: string;
-  /** The user agent of the actor */
-  userAgent?: string;
-}
-
-export interface AuditLogList {
-  rows: AuditLog[];
 }
 
 export interface UserGroup {
