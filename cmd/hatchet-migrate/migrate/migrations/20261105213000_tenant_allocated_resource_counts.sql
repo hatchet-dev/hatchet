@@ -13,9 +13,19 @@ RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    UPDATE tenant_allocated_resource_count
-    SET scheduled_run_count = GREATEST(scheduled_run_count - 1, 0)
-    WHERE tenant_id = NEW."tenantId";
+    UPDATE tenant_allocated_resource_count AS c
+    SET scheduled_run_count = GREATEST(c.scheduled_run_count - 1, 0)
+    WHERE c.tenant_id = NEW."tenantId"
+      AND EXISTS (
+        SELECT 1
+        FROM "WorkflowTriggerScheduledRef" s
+        JOIN "WorkflowVersion" v ON s."parentId" = v."id"
+        JOIN "Workflow" w ON v."workflowId" = w."id"
+        WHERE s."id" = NEW."scheduledId"
+          AND s."deletedAt" IS NULL
+          AND v."deletedAt" IS NULL
+          AND w."deletedAt" IS NULL
+      );
 
     RETURN NULL;
 END;
@@ -27,7 +37,8 @@ FOR EACH ROW
 WHEN (NEW."scheduledId" IS NOT NULL)
 EXECUTE FUNCTION tenant_allocated_resource_count_on_schedule_fire();
 
--- One-time backfill. The hourly sync rebuilds this table from the same aggregation.
+-- One-time backfill. The unfiltered read replaces this table from live crons,
+-- pending schedules, and incoming webhooks.
 SET LOCAL statement_timeout = 0;
 
 WITH latest_versions AS (
