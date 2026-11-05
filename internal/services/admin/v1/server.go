@@ -1194,16 +1194,17 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 
 		// Create the step with minimal required fields
 		steps[j] = v1.CreateStepOpts{
-			ReadableId:          stepCp.ReadableId,
-			Action:              parsedAction.String(),
-			Parents:             nil, // Will be set safely below
-			Retries:             &retries,
-			DesiredWorkerLabels: affinity,
-			TriggerConditions:   make([]v1.CreateStepMatchConditionOpt, 0),
-			RateLimits:          make([]v1.CreateWorkflowStepRateLimitOpts, 0), // Initialize to avoid nil
-			ScheduleTimeout:     stepCp.ScheduleTimeout,
-			IsDurable:           stepCp.IsDurable,
-			SlotRequests:        nil,
+			ReadableId:              stepCp.ReadableId,
+			Action:                  parsedAction.String(),
+			Parents:                 nil, // Will be set safely below
+			Retries:                 &retries,
+			DesiredWorkerLabels:     affinity,
+			TriggerConditions:       make([]v1.CreateStepMatchConditionOpt, 0),
+			RateLimits:              make([]v1.CreateWorkflowStepRateLimitOpts, 0), // Initialize to avoid nil
+			ScheduleTimeout:         stepCp.ScheduleTimeout,
+			IsDurable:               stepCp.IsDurable,
+			SlotRequests:            nil,
+			MaxReassignmentsAllowed: stepCp.MaxReassignmentsAllowed,
 		}
 
 		if stepCp.SlotRequests != nil {

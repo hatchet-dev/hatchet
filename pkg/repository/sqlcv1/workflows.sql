@@ -304,7 +304,8 @@ INSERT INTO "Step" (
     "retryBackoffFactor",
     "retryMaxBackoff",
     "isDurable",
-    "isDagOrchestrator"
+    "isDagOrchestrator",
+    "maxReassignmentsAllowed"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -321,7 +322,8 @@ INSERT INTO "Step" (
     sqlc.narg('retryBackoffFactor'),
     sqlc.narg('retryMaxBackoff'),
     coalesce(sqlc.narg('isDurable')::boolean, false),
-    coalesce(sqlc.narg('isDagOrchestrator')::boolean, false)
+    coalesce(sqlc.narg('isDagOrchestrator')::boolean, false),
+    sqlc.narg('maxReassignmentsAllowed')::integer
 ) RETURNING *;
 
 -- name: CreateStepBatchConfig :exec

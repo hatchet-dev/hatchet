@@ -169,7 +169,8 @@ INSERT INTO "Step" (
     "retryBackoffFactor",
     "retryMaxBackoff",
     "isDurable",
-    "isDagOrchestrator"
+    "isDagOrchestrator",
+    "maxReassignmentsAllowed"
 ) VALUES (
     $1::uuid,
     coalesce($2::timestamp, CURRENT_TIMESTAMP),
@@ -186,27 +187,29 @@ INSERT INTO "Step" (
     $13,
     $14,
     coalesce($15::boolean, false),
-    coalesce($16::boolean, false)
+    coalesce($16::boolean, false),
+    $17::integer
 ) RETURNING id, "createdAt", "updatedAt", "deletedAt", "readableId", "tenantId", "jobId", "actionId", timeout, "customUserData", retries, "retryBackoffFactor", "retryMaxBackoff", "scheduleTimeout", "isDurable", "isDagOrchestrator", "maxReassignmentsAllowed"
 `
 
 type CreateStepParams struct {
-	ID                 uuid.UUID        `json:"id"`
-	CreatedAt          pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
-	Deletedat          pgtype.Timestamp `json:"deletedat"`
-	Readableid         string           `json:"readableid"`
-	Tenantid           uuid.UUID        `json:"tenantid"`
-	Jobid              uuid.UUID        `json:"jobid"`
-	Actionid           string           `json:"actionid"`
-	Timeout            pgtype.Text      `json:"timeout"`
-	CustomUserData     []byte           `json:"customUserData"`
-	Retries            pgtype.Int4      `json:"retries"`
-	ScheduleTimeout    pgtype.Text      `json:"scheduleTimeout"`
-	RetryBackoffFactor pgtype.Float8    `json:"retryBackoffFactor"`
-	RetryMaxBackoff    pgtype.Int4      `json:"retryMaxBackoff"`
-	IsDurable          pgtype.Bool      `json:"isDurable"`
-	IsDagOrchestrator  pgtype.Bool      `json:"isDagOrchestrator"`
+	ID                      uuid.UUID        `json:"id"`
+	CreatedAt               pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt               pgtype.Timestamp `json:"updatedAt"`
+	Deletedat               pgtype.Timestamp `json:"deletedat"`
+	Readableid              string           `json:"readableid"`
+	Tenantid                uuid.UUID        `json:"tenantid"`
+	Jobid                   uuid.UUID        `json:"jobid"`
+	Actionid                string           `json:"actionid"`
+	Timeout                 pgtype.Text      `json:"timeout"`
+	CustomUserData          []byte           `json:"customUserData"`
+	Retries                 pgtype.Int4      `json:"retries"`
+	ScheduleTimeout         pgtype.Text      `json:"scheduleTimeout"`
+	RetryBackoffFactor      pgtype.Float8    `json:"retryBackoffFactor"`
+	RetryMaxBackoff         pgtype.Int4      `json:"retryMaxBackoff"`
+	IsDurable               pgtype.Bool      `json:"isDurable"`
+	IsDagOrchestrator       pgtype.Bool      `json:"isDagOrchestrator"`
+	MaxReassignmentsAllowed pgtype.Int4      `json:"maxReassignmentsAllowed"`
 }
 
 func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams) (*Step, error) {
@@ -227,6 +230,7 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 		arg.RetryMaxBackoff,
 		arg.IsDurable,
 		arg.IsDagOrchestrator,
+		arg.MaxReassignmentsAllowed,
 	)
 	var i Step
 	err := row.Scan(
