@@ -1476,6 +1476,18 @@ type UpdateTenantAlertEmailGroupRequest struct {
 	Emails []string `json:"emails" validate:"required,dive,email"`
 }
 
+// UpdateTenantEntitlementsRequest defines model for UpdateTenantEntitlementsRequest.
+type UpdateTenantEntitlementsRequest struct {
+	// DurableStreams Whether the tenant has opted into durable streams.
+	DurableStreams *bool `json:"durableStreams,omitempty"`
+
+	// SandboxOperator Whether the tenant has opted into the sandbox operator.
+	SandboxOperator *bool `json:"sandboxOperator,omitempty"`
+
+	// ServerlessOperator Whether the tenant has opted into the serverless operator.
+	ServerlessOperator *bool `json:"serverlessOperator,omitempty"`
+}
+
 // UpdateTenantInviteRequest defines model for UpdateTenantInviteRequest.
 type UpdateTenantInviteRequest struct {
 	// CanViewPayloads Whether the invited user can view payloads.
@@ -3887,6 +3899,9 @@ type AlertEmailGroupCreateJSONRequestBody = CreateTenantAlertEmailGroupRequest
 // ApiTokenCreateJSONRequestBody defines body for ApiTokenCreate for application/json ContentType.
 type ApiTokenCreateJSONRequestBody = CreateAPITokenRequest
 
+// TenantEntitlementsUpdateJSONRequestBody defines body for TenantEntitlementsUpdate for application/json ContentType.
+type TenantEntitlementsUpdateJSONRequestBody = UpdateTenantEntitlementsRequest
+
 // EventCreateJSONRequestBody defines body for EventCreate for application/json ContentType.
 type EventCreateJSONRequestBody = CreateEventRequest
 
@@ -4441,6 +4456,11 @@ type ClientInterface interface {
 
 	// TenantEntitlementsGet request
 	TenantEntitlementsGet(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TenantEntitlementsUpdateWithBody request with any body
+	TenantEntitlementsUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	TenantEntitlementsUpdate(ctx context.Context, tenant openapi_types.UUID, body TenantEntitlementsUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// EventList request
 	EventList(ctx context.Context, tenant openapi_types.UUID, params *EventListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -5811,6 +5831,30 @@ func (c *Client) ApiTokenCreate(ctx context.Context, tenant openapi_types.UUID, 
 
 func (c *Client) TenantEntitlementsGet(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewTenantEntitlementsGetRequest(c.Server, tenant)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TenantEntitlementsUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTenantEntitlementsUpdateRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TenantEntitlementsUpdate(ctx context.Context, tenant openapi_types.UUID, body TenantEntitlementsUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTenantEntitlementsUpdateRequest(c.Server, tenant, body)
 	if err != nil {
 		return nil, err
 	}
@@ -11838,6 +11882,53 @@ func NewTenantEntitlementsGetRequest(server string, tenant openapi_types.UUID) (
 	return req, nil
 }
 
+// NewTenantEntitlementsUpdateRequest calls the generic TenantEntitlementsUpdate builder with application/json body
+func NewTenantEntitlementsUpdateRequest(server string, tenant openapi_types.UUID, body TenantEntitlementsUpdateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewTenantEntitlementsUpdateRequestWithBody(server, tenant, "application/json", bodyReader)
+}
+
+// NewTenantEntitlementsUpdateRequestWithBody generates requests for TenantEntitlementsUpdate with any type of body
+func NewTenantEntitlementsUpdateRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/entitlements", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewEventListRequest generates requests for EventList
 func NewEventListRequest(server string, tenant openapi_types.UUID, params *EventListParams) (*http.Request, error) {
 	var err error
@@ -16576,6 +16667,11 @@ type ClientWithResponsesInterface interface {
 	// TenantEntitlementsGetWithResponse request
 	TenantEntitlementsGetWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantEntitlementsGetResponse, error)
 
+	// TenantEntitlementsUpdateWithBodyWithResponse request with any body
+	TenantEntitlementsUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TenantEntitlementsUpdateResponse, error)
+
+	TenantEntitlementsUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, body TenantEntitlementsUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*TenantEntitlementsUpdateResponse, error)
+
 	// EventListWithResponse request
 	EventListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *EventListParams, reqEditors ...RequestEditorFn) (*EventListResponse, error)
 
@@ -18738,6 +18834,31 @@ func (r TenantEntitlementsGetResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r TenantEntitlementsGetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type TenantEntitlementsUpdateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *TenantEntitlements
+	JSON400      *APIErrors
+	JSON403      *APIError
+	JSON429      *TooManyRequests
+}
+
+// Status returns HTTPResponse.Status
+func (r TenantEntitlementsUpdateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TenantEntitlementsUpdateResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -21595,6 +21716,23 @@ func (c *ClientWithResponses) TenantEntitlementsGetWithResponse(ctx context.Cont
 		return nil, err
 	}
 	return ParseTenantEntitlementsGetResponse(rsp)
+}
+
+// TenantEntitlementsUpdateWithBodyWithResponse request with arbitrary body returning *TenantEntitlementsUpdateResponse
+func (c *ClientWithResponses) TenantEntitlementsUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TenantEntitlementsUpdateResponse, error) {
+	rsp, err := c.TenantEntitlementsUpdateWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTenantEntitlementsUpdateResponse(rsp)
+}
+
+func (c *ClientWithResponses) TenantEntitlementsUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, body TenantEntitlementsUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*TenantEntitlementsUpdateResponse, error) {
+	rsp, err := c.TenantEntitlementsUpdate(ctx, tenant, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTenantEntitlementsUpdateResponse(rsp)
 }
 
 // EventListWithResponse request returning *EventListResponse
@@ -26148,6 +26286,53 @@ func ParseTenantEntitlementsGetResponse(rsp *http.Response) (*TenantEntitlements
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTenantEntitlementsUpdateResponse parses an HTTP response from a TenantEntitlementsUpdateWithResponse call
+func ParseTenantEntitlementsUpdateResponse(rsp *http.Response) (*TenantEntitlementsUpdateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TenantEntitlementsUpdateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TenantEntitlements
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 

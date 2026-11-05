@@ -17,12 +17,5 @@ func (t *TenantService) TenantEntitlementsGet(ctx echo.Context, request gen.Tena
 		return nil, err
 	}
 
-	return gen.TenantEntitlementsGet200JSONResponse{
-		AuditLogs:                       entitlements.AuditLogs,
-		PrometheusMetrics:               entitlements.PrometheusMetrics,
-		StrictAdditionalMetadataFilters: entitlements.StrictAdditionalMetadataFilters,
-		DurableStreams:                  entitlements.DurableStreams,
-		ServerlessOperator:              entitlements.ServerlessOperator,
-		SandboxOperator:                 entitlements.SandboxOperator,
-	}, nil
+	return gen.TenantEntitlementsGet200JSONResponse(toAPITenantEntitlements(entitlements)), nil
 }

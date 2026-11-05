@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const anyTenantHasAuditLogs = `-- name: AnyTenantHasAuditLogs :one
@@ -36,6 +37,53 @@ WHERE tenant_id = $1::uuid
 
 func (q *Queries) GetTenantEntitlement(ctx context.Context, db DBTX, tenantid uuid.UUID) (*TenantEntitlement, error) {
 	row := db.QueryRow(ctx, getTenantEntitlement, tenantid)
+	var i TenantEntitlement
+	err := row.Scan(
+		&i.TenantID,
+		&i.AuditLogs,
+		&i.PrometheusMetrics,
+		&i.StrictAdditionalMetadataFilters,
+		&i.DagOperator,
+		&i.DurableStreams,
+		&i.ServerlessOperator,
+		&i.SandboxOperator,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return &i, err
+}
+
+const updateTenantLabsEntitlements = `-- name: UpdateTenantLabsEntitlements :one
+INSERT INTO tenant_entitlement (tenant_id, durable_streams, serverless_operator, sandbox_operator)
+VALUES (
+    $1::uuid,
+    COALESCE($2::boolean, FALSE),
+    COALESCE($3::boolean, FALSE),
+    COALESCE($4::boolean, FALSE)
+)
+ON CONFLICT (tenant_id) DO UPDATE
+SET
+    durable_streams = COALESCE($2::boolean, tenant_entitlement.durable_streams),
+    serverless_operator = COALESCE($3::boolean, tenant_entitlement.serverless_operator),
+    sandbox_operator = COALESCE($4::boolean, tenant_entitlement.sandbox_operator),
+    updated_at = NOW()
+RETURNING tenant_id, audit_logs, prometheus_metrics, strict_additional_metadata_filters, dag_operator, durable_streams, serverless_operator, sandbox_operator, created_at, updated_at
+`
+
+type UpdateTenantLabsEntitlementsParams struct {
+	Tenantid           uuid.UUID   `json:"tenantid"`
+	DurableStreams     pgtype.Bool `json:"durableStreams"`
+	ServerlessOperator pgtype.Bool `json:"serverlessOperator"`
+	SandboxOperator    pgtype.Bool `json:"sandboxOperator"`
+}
+
+func (q *Queries) UpdateTenantLabsEntitlements(ctx context.Context, db DBTX, arg UpdateTenantLabsEntitlementsParams) (*TenantEntitlement, error) {
+	row := db.QueryRow(ctx, updateTenantLabsEntitlements,
+		arg.Tenantid,
+		arg.DurableStreams,
+		arg.ServerlessOperator,
+		arg.SandboxOperator,
+	)
 	var i TenantEntitlement
 	err := row.Scan(
 		&i.TenantID,

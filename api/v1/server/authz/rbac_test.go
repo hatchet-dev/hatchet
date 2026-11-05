@@ -11,6 +11,7 @@ import (
 )
 
 var adminAndOwnerOnly = []string{
+	"TenantEntitlementsUpdate",
 	"TenantInviteList",
 	"TenantInviteCreate",
 	"TenantInviteUpdate",

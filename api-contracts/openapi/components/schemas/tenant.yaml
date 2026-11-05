@@ -220,6 +220,19 @@ TenantEntitlements:
     - sandboxOperator
   type: object
 
+UpdateTenantEntitlementsRequest:
+  properties:
+    durableStreams:
+      type: boolean
+      description: Whether the tenant has opted into durable streams.
+    serverlessOperator:
+      type: boolean
+      description: Whether the tenant has opted into the serverless operator.
+    sandboxOperator:
+      type: boolean
+      description: Whether the tenant has opted into the sandbox operator.
+  type: object
+
 TenantMember:
   properties:
     metadata:
