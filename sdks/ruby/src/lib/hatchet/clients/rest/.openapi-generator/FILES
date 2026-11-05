@@ -165,6 +165,7 @@ lib/hatchet-sdk-rest/models/trigger_workflow_run_request.rb
 lib/hatchet-sdk-rest/models/update_cron_workflow_trigger_request.rb
 lib/hatchet-sdk-rest/models/update_scheduled_workflow_run_request.rb
 lib/hatchet-sdk-rest/models/update_tenant_alert_email_group_request.rb
+lib/hatchet-sdk-rest/models/update_tenant_entitlements_request.rb
 lib/hatchet-sdk-rest/models/update_tenant_invite_request.rb
 lib/hatchet-sdk-rest/models/update_tenant_member_request.rb
 lib/hatchet-sdk-rest/models/update_tenant_request.rb

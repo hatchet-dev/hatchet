@@ -83,6 +83,7 @@ import {
   UpdateCronWorkflowTriggerRequest,
   UpdateScheduledWorkflowRunRequest,
   UpdateTenantAlertEmailGroupRequest,
+  UpdateTenantEntitlementsRequest,
   UpdateTenantInviteRequest,
   UpdateTenantMemberRequest,
   UpdateTenantRequest,
@@ -1921,6 +1922,29 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       path: `/api/v1/tenants/${tenant}/entitlements`,
       method: 'GET',
       secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Updates the tenant's Labs preview opt-ins. Omitted fields are left unchanged. Only tenant owners and admins can call this, and API tokens cannot.
+   *
+   * @tags Tenant
+   * @name TenantEntitlementsUpdate
+   * @summary Update tenant entitlements
+   * @request PATCH:/api/v1/tenants/{tenant}/entitlements
+   * @secure
+   */
+  tenantEntitlementsUpdate = (
+    tenant: string,
+    data: UpdateTenantEntitlementsRequest,
+    params: RequestParams = {}
+  ) =>
+    this.request<TenantEntitlements, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}/entitlements`,
+      method: 'PATCH',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       format: 'json',
       ...params,
     });
