@@ -91,7 +91,7 @@ const off = {
   serverlessOperator: false,
 };
 
-export const OwnerOff: Story = {
+export const AdminOff: Story = {
   args: {
     status: 'ready',
     flags: off,
@@ -101,7 +101,7 @@ export const OwnerOff: Story = {
   render: (args) => <InteractiveLabs {...args} />,
 };
 
-export const OwnerOn: Story = {
+export const AdminOn: Story = {
   args: {
     status: 'ready',
     flags: {
@@ -115,7 +115,7 @@ export const OwnerOn: Story = {
   render: (args) => <InteractiveLabs {...args} />,
 };
 
-export const NonOwner: Story = {
+export const Member: Story = {
   args: {
     status: 'gated',
   },
@@ -131,7 +131,7 @@ export const FreePlan: Story = {
   },
 };
 
-const ownerOffArgs: LabsPreviewProps = {
+const adminOffArgs: LabsPreviewProps = {
   status: 'ready',
   flags: off,
   pending: false,
@@ -139,7 +139,7 @@ const ownerOffArgs: LabsPreviewProps = {
 };
 
 export const SettingsNav: Story = {
-  args: ownerOffArgs,
+  args: adminOffArgs,
   render: (args) => (
     <SettingsFrame>
       <InteractiveLabs {...args} />

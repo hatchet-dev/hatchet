@@ -2050,7 +2050,7 @@ export class Api<
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
   /**
-   * @description Updates the tenant's Labs preview opt-ins. Omitted fields are left unchanged. Only tenant owners can call this.
+   * @description Updates the tenant's Labs preview opt-ins. Omitted fields are left unchanged. Only tenant owners and admins can call this, and API tokens cannot.
    *
    * @tags Tenant
    * @name TenantEntitlementsUpdate

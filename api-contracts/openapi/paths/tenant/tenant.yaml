@@ -418,7 +418,7 @@ tenantEntitlements:
       - Tenant
   patch:
     x-resources: ["tenant"]
-    description: Updates the tenant's Labs preview opt-ins. Omitted fields are left unchanged. Only tenant owners can call this.
+    description: Updates the tenant's Labs preview opt-ins. Omitted fields are left unchanged. Only tenant owners and admins can call this, and API tokens cannot.
     operationId: tenant-entitlements:update
     x-payloads: false
     parameters:
