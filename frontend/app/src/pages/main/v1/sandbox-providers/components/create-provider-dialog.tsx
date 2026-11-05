@@ -119,14 +119,12 @@ export const CreateProviderDialog = ({
                 <button
                   key={k}
                   type="button"
-                  disabled={!KINDS[k].available}
                   onClick={() => pickKind(k)}
-                  className="flex flex-col items-start gap-2 rounded-lg border border-border p-4 text-left transition-colors hover:border-primary hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border disabled:hover:bg-transparent"
+                  className="flex flex-col items-start gap-2 rounded-lg border border-border p-4 text-left transition-colors hover:border-primary hover:bg-muted/50"
                 >
                   <span className="text-sm font-medium">{KINDS[k].label}</span>
                   <span className="text-xs text-muted-foreground">
                     {KINDS[k].description}
-                    {!KINDS[k].available && ' Driver not available yet.'}
                   </span>
                 </button>
               ))}

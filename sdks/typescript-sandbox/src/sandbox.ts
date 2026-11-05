@@ -124,10 +124,10 @@ function turnRunner(client: HatchetClient): RunTurn {
   return async (input, opts) => {
     const name = await resolved;
     const additionalMetadata = {
-      'brickie.fn': input.fn,
-      ...(input.sandboxId ? { 'brickie.sandbox': input.sandboxId } : {}),
-      ...(input.image ? { 'brickie.image': input.image } : {}),
-      ...(input.snapshotId ? { 'brickie.from': input.snapshotId } : {}),
+      'hatchet.sandbox.fn': input.fn,
+      ...(input.sandboxId ? { 'hatchet.sandbox.id': input.sandboxId } : {}),
+      ...(input.image ? { 'hatchet.sandbox.image': input.image } : {}),
+      ...(input.snapshotId ? { 'hatchet.sandbox.from': input.snapshotId } : {}),
     };
     const result = opts?.fresh
       ? await (

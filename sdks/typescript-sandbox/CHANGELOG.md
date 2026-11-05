@@ -17,6 +17,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Eac
 ### Changed
 
 - The package declares `sideEffects: true` so bundlers keep the import that adds `hatchet.sandbox` to the client.
+- Run metadata tags are now `hatchet.sandbox.fn`, `hatchet.sandbox.id`, `hatchet.sandbox.image` and `hatchet.sandbox.from` (were `brickie.fn`, `brickie.sandbox`, `brickie.image`, `brickie.from`). Update any dashboard or run filter that keys on the old names.
 
 ### Fixed
 

@@ -14,7 +14,6 @@ export const KINDS: Record<
     description: string;
     keyHint: string;
     templatePlaceholder: string;
-    available: boolean;
   }
 > = {
   [SandboxProviderKind.DAYTONA]: {
@@ -23,7 +22,6 @@ export const KINDS: Record<
     keyHint:
       'An API key from the Daytona dashboard (Settings → API Keys). Leave the template empty for the default Daytona snapshot.',
     templatePlaceholder: 'daytonaio/sandbox:latest',
-    available: true,
   },
   [SandboxProviderKind.E2B]: {
     label: 'E2B',
@@ -31,7 +29,6 @@ export const KINDS: Record<
     keyHint:
       'An API key from the E2B dashboard (Team → API Keys). Leave the template empty for the E2B base template, or set a template name or snapshot id. Sessions are capped at one hour unless the provider config sets "maxTimeoutSeconds" for a plan that allows more.',
     templatePlaceholder: 'base',
-    available: true,
   },
   [SandboxProviderKind.ARCHIL]: {
     label: 'Archil',
@@ -39,7 +36,6 @@ export const KINDS: Record<
     keyHint:
       'An API key from the Archil console. Keys are scoped to one region; set "region" in the provider config (default aws-us-east-1). The template is an OCI image.',
     templatePlaceholder: 'node:24-bookworm',
-    available: true,
   },
   [SandboxProviderKind.FREESTYLE]: {
     label: 'Freestyle',
@@ -47,7 +43,6 @@ export const KINDS: Record<
     keyHint:
       'An API key from admin.freestyle.sh. Leave the template empty for the platform default image, or set a snapshot id or slug.',
     templatePlaceholder: 'sh-… or your-snapshot-slug',
-    available: true,
   },
 };
 
