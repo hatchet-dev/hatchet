@@ -165,6 +165,12 @@ type WorkerRepository interface {
 	// the per-worker counts.
 	CountOperatorWorkerActions(ctx context.Context, tenantId uuid.UUID, operatorId uuid.UUID) (int64, error)
 
+	// ReleaseWorkerActions unlinks every action from the worker and zeroes its link count,
+	// under the worker's row lock, and returns how many links it removed. It is for a worker
+	// its operator has moved on from: the links would otherwise count against the operator's
+	// budget forever. The worker must belong to tenantId.
+	ReleaseWorkerActions(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) (int64, error)
+
 	// UpdateWorker updates a worker for a given tenant.
 	UpdateWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, opts *UpdateWorkerOpts) (*sqlcv1.Worker, error)
 
@@ -1019,6 +1025,39 @@ func (w *workerRepository) unlinkActions(ctx context.Context, tx pgx.Tx, tenantI
 	}
 
 	return len(unlinked), nil
+}
+
+func (w *workerRepository) ReleaseWorkerActions(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) (int64, error) {
+	db := w.pool.ForTenant(tenantId)
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, w.l)
+
+	if err != nil {
+		return 0, err
+	}
+
+	defer rollback()
+
+	// the row lock orders this against any delta still in flight on the worker, so a delta
+	// that commits after cannot resurrect links this call has already counted as gone
+	if err := w.lockWorkerActions(ctx, tx, tenantId, workerId); err != nil {
+		return 0, err
+	}
+
+	released, err := w.queries.ReleaseWorkerActions(ctx, tx, sqlcv1.ReleaseWorkerActionsParams{
+		Workerid: workerId,
+		Tenantid: tenantId,
+	})
+
+	if err != nil {
+		return 0, fmt.Errorf("could not release worker actions: %w", err)
+	}
+
+	if err := commit(ctx); err != nil {
+		return 0, err
+	}
+
+	return released, nil
 }
 
 func (w *workerRepository) CountOperatorWorkerActions(ctx context.Context, tenantId uuid.UUID, operatorId uuid.UUID) (int64, error) {

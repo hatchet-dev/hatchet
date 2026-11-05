@@ -266,3 +266,46 @@ func TestRegisterClaimedRow(t *testing.T) {
 	_, err = svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{OperatorId: &missing})
 	assert.Equal(t, connect.CodeNotFound, connect.CodeOf(err))
 }
+
+// Re-registering a claimed row under a new worker releases the previous worker's links. The
+// previous worker is paused at teardown and never registered under again, so its links would
+// otherwise count against the operator's budget forever; with a catalog near the cap, the new
+// worker's first delta would then be refused and the operator could register nothing.
+func TestRegisterClaimedRowReleasesPreviousWorker(t *testing.T) {
+	tenant := &sqlcv1.Tenant{ID: uuid.New()}
+	svc := newTestService(t, nil, operatorsvc.WithMaxActionsPerOperator(3))
+
+	row := svc.operators.Put(&sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenant.ID, Name: "dag", Kind: sqlcv1.V1OperatorKindDAG})
+
+	first, err := svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{OperatorId: &row.ID})
+	require.NoError(t, err)
+
+	// the first worker fills the operator's budget, as a restart leaves it
+	catalog := []string{"a_orchestrator", "b_orchestrator", "c_orchestrator"}
+	_, err = svc.workers.AddWorkerActions(t.Context(), tenant.ID, first.WorkerId, catalog)
+	require.NoError(t, err)
+
+	second, err := svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{OperatorId: &row.ID})
+	require.NoError(t, err)
+	require.NotEqual(t, first.WorkerId, second.WorkerId)
+
+	assert.Empty(t, svc.workers.ActionSet(first.WorkerId), "the previous worker's links are released")
+	assert.Contains(t, svc.workers.Ops(), "release")
+
+	op, err := svc.operators.GetOperatorById(t.Context(), row.ID)
+	require.NoError(t, err)
+	require.NotNil(t, op.WorkerID)
+	assert.Equal(t, second.WorkerId, *op.WorkerID)
+
+	// the new worker can now take the whole catalog within the budget
+	added, _, err := svc.workers.ApplyWorkerActionsDelta(t.Context(), tenant.ID, second.WorkerId, catalog, nil, 3)
+	require.NoError(t, err)
+	assert.Equal(t, 3, added)
+
+	// registering the same worker again releases nothing: there is no previous worker to drop
+	ops := len(svc.workers.Ops())
+	_, err = svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{OperatorId: &row.ID, ResumeWorkerId: &second.WorkerId})
+	require.NoError(t, err)
+	assert.NotContains(t, svc.workers.Ops()[ops:], "release")
+	assert.Len(t, svc.workers.ActionSet(second.WorkerId), 3, "a resumed worker keeps its links")
+}
