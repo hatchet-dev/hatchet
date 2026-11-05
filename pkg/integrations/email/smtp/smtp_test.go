@@ -150,6 +150,26 @@ func TestSMTPServiceSendMail(t *testing.T) {
 	}
 }
 
+func TestSMTPMagicLinkEmail(t *testing.T) {
+	captured, service := setupTestServer(t)
+	const tokenURL = "https://cloud.example/auth/magic-link#one-time-token"
+
+	err := service.SendMagicLinkEmail(t.Context(), "user@example.com", email.MagicLinkEmailData{
+		ActionURL: tokenURL,
+		ExpiresIn: "15 minutes",
+	})
+	require.NoError(t, err)
+	require.Len(t, captured.Messages, 1)
+	require.Equal(t, []string{"user@example.com"}, captured.Rcpts)
+	require.Equal(t, "Sign in to Hatchet", captured.Messages[0].Header.Get("Subject"))
+	require.Contains(t, captured.Messages[0].Header.Get("Content-Type"), "text/html")
+
+	body, err := io.ReadAll(quotedprintable.NewReader(captured.Messages[0].Body))
+	require.NoError(t, err)
+	require.Contains(t, string(body), tokenURL)
+	require.Contains(t, string(body), "15 minutes")
+}
+
 func TestSMTPBasicAuth(t *testing.T) {
 	captured, service := setupTestServer(t)
 

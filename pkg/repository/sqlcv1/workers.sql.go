@@ -1991,6 +1991,41 @@ func (q *Queries) RefreshWorkerActionHash(ctx context.Context, db DBTX, workerid
 	return err
 }
 
+const releaseWorkerActions = `-- name: ReleaseWorkerActions :one
+WITH unlinked AS (
+    DELETE FROM "_ActionToWorker" aw
+    USING "Worker" w
+    WHERE
+        aw."B" = w."id"
+        AND w."id" = $1::uuid
+        AND w."tenantId" = $2::uuid
+    RETURNING aw."A"
+)
+UPDATE "Worker" w
+SET
+    "operatorActionCount" = 0,
+    "actionHash" = NULL
+WHERE
+    w."id" = $1::uuid
+    AND w."tenantId" = $2::uuid
+RETURNING (SELECT count(*) FROM unlinked)::bigint AS released
+`
+
+type ReleaseWorkerActionsParams struct {
+	Workerid uuid.UUID `json:"workerid"`
+	Tenantid uuid.UUID `json:"tenantid"`
+}
+
+// Unlinks every action from the worker and zeroes its link count, so the worker no longer
+// counts against its operator's action budget. For a worker the operator has moved on from;
+// it is never registered under again.
+func (q *Queries) ReleaseWorkerActions(ctx context.Context, db DBTX, arg ReleaseWorkerActionsParams) (int64, error) {
+	row := db.QueryRow(ctx, releaseWorkerActions, arg.Workerid, arg.Tenantid)
+	var released int64
+	err := row.Scan(&released)
+	return released, err
+}
+
 const settleWorkerActionsDelta = `-- name: SettleWorkerActionsDelta :one
 UPDATE "Worker" w
 SET

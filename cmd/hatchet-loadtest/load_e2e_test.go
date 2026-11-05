@@ -210,10 +210,6 @@ func TestLoadCLI(t *testing.T) {
 			testConfig := tt.config
 			testConfig.Namespace = namespace
 
-			if tt.dagOperator {
-				enableDAGOperator(t)
-			}
-
 			if err := do(testConfig); (err != nil) != tt.wantErr {
 				t.Errorf("do() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -227,35 +223,6 @@ func TestLoadCLI(t *testing.T) {
 	}
 
 	log.Printf("test complete")
-}
-
-// enableDAGOperator grants the harness tenant the DAG operator entitlement,
-// which registration reads on every call, so workflows registered after this
-// point that have more than one task run on the operator.
-func enableDAGOperator(t *testing.T) {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
-	defer cancel()
-
-	conn, err := pgx.Connect(ctx, os.Getenv("DATABASE_URL"))
-	if err != nil {
-		t.Fatalf("could not connect to the harness database: %v", err)
-	}
-	defer conn.Close(ctx)
-
-	_, err = conn.Exec(ctx, `
-		INSERT INTO tenant_entitlement (tenant_id)
-		SELECT id FROM "Tenant"
-		ON CONFLICT (tenant_id) DO NOTHING`)
-	if err != nil {
-		t.Fatalf("could not create tenant entitlements: %v", err)
-	}
-
-	_, err = conn.Exec(ctx, `UPDATE tenant_entitlement SET dag_operator = TRUE`)
-	if err != nil {
-		t.Fatalf("could not enable the DAG operator entitlement: %v", err)
-	}
 }
 
 // requireDAGOperatorWorkflow fails the test when the latest version of the

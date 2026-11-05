@@ -59,6 +59,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	hatchetprom "github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -187,6 +188,12 @@ func (t *APIServer) RunWithServer(e *echo.Echo) (func() error, error) {
 		t.config.Logger.Debug().Msgf("registered route: %s %s", route.Method, route.Path)
 	}
 
+	var stopPrometheus func() error
+
+	if t.config.Prometheus.Enabled {
+		stopPrometheus = hatchetprom.StartServer(t.config.Logger, t.config.Prometheus.Address, t.config.Prometheus.Path)
+	}
+
 	go func() {
 		if err := e.Start(fmt.Sprintf(":%d", t.config.Runtime.Port)); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			panic(err)
@@ -194,7 +201,13 @@ func (t *APIServer) RunWithServer(e *echo.Echo) (func() error, error) {
 	}()
 
 	cleanup := func() error {
-		return e.Shutdown(context.Background())
+		err := e.Shutdown(context.Background())
+
+		if stopPrometheus != nil {
+			err = errors.Join(err, stopPrometheus())
+		}
+
+		return err
 	}
 
 	return cleanup, nil

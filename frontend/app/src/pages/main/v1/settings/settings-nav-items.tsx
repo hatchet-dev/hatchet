@@ -61,6 +61,12 @@ export function settingsNavGroups(opts: {
           to: appRoutes.tenantSettingsResourceLimitsRoute.to,
           params,
         },
+        {
+          key: 'labs',
+          name: 'Labs Preview',
+          to: appRoutes.tenantSettingsLabsRoute.to,
+          params,
+        },
       ],
     });
   }

@@ -426,9 +426,9 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 			AuditLogs:                       scf.Runtime.DefaultTenantEntitlements.AuditLogs,
 			PrometheusMetrics:               scf.Runtime.DefaultTenantEntitlements.PrometheusMetrics,
 			StrictAdditionalMetadataFilters: scf.Runtime.DefaultTenantEntitlements.StrictAdditionalMetadataFilters,
-			DAGOperator:                     scf.Runtime.DefaultTenantEntitlements.DAGOperator,
 			DurableStreams:                  scf.Runtime.DefaultTenantEntitlements.DurableStreams,
 			ServerlessOperator:              scf.Runtime.DefaultTenantEntitlements.ServerlessOperator,
+			SandboxOperator:                 scf.Runtime.DefaultTenantEntitlements.SandboxOperator,
 		},
 	}, nil
 }

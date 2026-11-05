@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The worker `/metrics` endpoint now uses `@prometheus-io/client` instead of `prom-client`. If you use worker metrics, replace your `prom-client` dependency with `@prometheus-io/client` when upgrading.
 
+## [1.46.1] - 2026-11-02
+
+### Added
+
+- `TenantEntitlements.sandboxOperator`, the tenant's sandbox entitlement.
+
 ## [1.46.0] - 2026-10-28
 
 ### Added

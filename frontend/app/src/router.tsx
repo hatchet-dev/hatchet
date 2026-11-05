@@ -71,6 +71,15 @@ const authRegisterRoute = createRoute({
   ),
 });
 
+const authMagicLinkRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'auth/magic-link',
+  component: lazyRouteComponent(
+    () => import('./pages/auth/magic-link'),
+    'default',
+  ),
+});
+
 const onboardingVerifyRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'onboarding/verify-email',
@@ -714,6 +723,24 @@ const tenantEndpointRoute = createRoute({
   ),
 });
 
+const tenantSandboxProvidersRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'sandbox-providers',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/sandbox-providers'),
+    'default',
+  ),
+});
+
+const tenantSandboxProviderRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'sandbox-providers/$sandboxProvider',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/sandbox-providers/$sandboxProvider'),
+    'default',
+  ),
+});
+
 const tenantManagedWorkersRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'managed-workers',
@@ -975,6 +1002,15 @@ const tenantSettingsResourceLimitsRoute = createRoute({
   ),
 });
 
+const tenantSettingsLabsRoute = createRoute({
+  getParentRoute: () => tenantSettingsLayoutRoute,
+  path: 'labs',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/tenant-settings/labs'),
+    'default',
+  ),
+});
+
 const tenantLegacySettingsIngestorsRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'tenant-settings/ingestors',
@@ -1102,6 +1138,7 @@ const tenantSettingsSubpathRedirect = createRoute({
       tenantSettingsMembersRoute.path,
       tenantSettingsOrganizationRoute.path,
       tenantSettingsOverviewRoute.path,
+      tenantSettingsLabsRoute.path,
     ].map((p) => p.split('/').pop());
 
     if (!tenantId || !subpath || !allowedSubpaths.includes(subpath)) {
@@ -1136,6 +1173,8 @@ const tenantRoutes = [
   tenantWorkerRoute,
   tenantEndpointsRoute,
   tenantEndpointRoute,
+  tenantSandboxProvidersRoute,
+  tenantSandboxProviderRoute,
   tenantManagedWorkersRoute,
   tenantManagedWorkersTemplateRoute,
   tenantManagedWorkersCreateRoute,
@@ -1160,6 +1199,7 @@ const tenantRoutes = [
     tenantSettingsAlertingRoute,
     tenantSettingsBillingRoute,
     tenantSettingsResourceLimitsRoute,
+    tenantSettingsLabsRoute,
     tenantSettingsIngestorsRoute,
     tenantSettingsIntegrationsRoute,
     tenantSettingsOrganizationRoute,
@@ -1172,6 +1212,7 @@ const tenantRoutes = [
 
 const routeTree = rootRoute.addChildren([
   authRoute.addChildren([authLoginRoute, authRegisterRoute]),
+  authMagicLinkRoute,
   onboardingVerifyRoute,
   authenticatedRoute.addChildren([
     onboardingCreateTenantRoute,
@@ -1231,6 +1272,7 @@ export const appRoutes = {
   authRoute,
   authLoginRoute,
   authRegisterRoute,
+  authMagicLinkRoute,
   onboardingVerifyRoute,
   redeemOffersRoute,
   organizationsRoute,
@@ -1290,6 +1332,8 @@ export const appRoutes = {
   tenantWorkerRoute,
   tenantEndpointsRoute,
   tenantEndpointRoute,
+  tenantSandboxProvidersRoute,
+  tenantSandboxProviderRoute,
   tenantManagedWorkersRoute,
   tenantManagedWorkersTemplateRoute,
   tenantManagedWorkersCreateRoute,
@@ -1304,6 +1348,7 @@ export const appRoutes = {
   tenantSettingsAlertingRoute,
   tenantSettingsBillingRoute,
   tenantSettingsResourceLimitsRoute,
+  tenantSettingsLabsRoute,
   tenantSettingsIngestorsRoute,
   tenantSettingsIntegrationsRoute,
   tenantSettingsOrganizationRoute,

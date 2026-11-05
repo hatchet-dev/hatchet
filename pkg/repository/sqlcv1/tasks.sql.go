@@ -306,7 +306,8 @@ SELECT
     create_v1_range_partition('v1_task_expression_eval', $1::date) AS v1_task_expression_eval,
     create_v1_monthly_range_partition('v1_lookup_table', $1::date) AS v1_lookup_table,
     create_v1_range_partition('v1_stream_producer_cursor', $1::date, 80) AS v1_stream_producer_cursor,
-    create_v1_range_partition('v1_serverless_endpoint_event', $1::date) AS v1_serverless_endpoint_event
+    create_v1_range_partition('v1_serverless_endpoint_event', $1::date) AS v1_serverless_endpoint_event,
+    create_v1_range_partition('v1_sandbox_event', $1::date) AS v1_sandbox_event
 `
 
 type CreatePartitionsRow struct {
@@ -325,6 +326,7 @@ type CreatePartitionsRow struct {
 	V1LookupTable                int32 `json:"v1_lookup_table"`
 	V1StreamProducerCursor       int32 `json:"v1_stream_producer_cursor"`
 	V1ServerlessEndpointEvent    int32 `json:"v1_serverless_endpoint_event"`
+	V1SandboxEvent               int32 `json:"v1_sandbox_event"`
 }
 
 func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Date) (*CreatePartitionsRow, error) {
@@ -346,6 +348,7 @@ func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Dat
 		&i.V1LookupTable,
 		&i.V1StreamProducerCursor,
 		&i.V1ServerlessEndpointEvent,
+		&i.V1SandboxEvent,
 	)
 	return &i, err
 }
@@ -1965,6 +1968,8 @@ WITH task_partitions AS (
     SELECT 'v1_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_monthly_partitions_before_date('v1_lookup_table', $1::date) AS p
 ), serverless_endpoint_event_partitions AS (
     SELECT 'v1_serverless_endpoint_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_serverless_endpoint_event', $1::date) AS p
+), sandbox_event_partitions AS (
+    SELECT 'v1_sandbox_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_sandbox_event', $1::date) AS p
 )
 
 SELECT
@@ -2062,6 +2067,13 @@ SELECT
     parent_table, partition_name
 FROM
     serverless_endpoint_event_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    sandbox_event_partitions
 `
 
 type ListPartitionsBeforeDateRow struct {
