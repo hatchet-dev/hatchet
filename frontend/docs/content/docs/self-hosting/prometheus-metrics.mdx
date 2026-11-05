@@ -42,6 +42,15 @@ To enable Prometheus metrics for your Hatchet instance, you can set the followin
 
 If the API and the engine run as separate processes on the same host or network namespace, give each its own `SERVER_PROMETHEUS_ADDRESS`; only one of them can bind a given address.
 
+<Callout type="warning">
+  The metrics endpoint has no authentication, and many metrics carry a
+  `tenant_id` label, so anyone who can reach it can list your tenant IDs. Keep
+  the port reachable only by your scraper: don't route it through a public load
+  balancer or ingress, and on a host with a public interface bind
+  `SERVER_PROMETHEUS_ADDRESS` to a private address (for example
+  `127.0.0.1:9090`) or firewall the port.
+</Callout>
+
 Once enabled, you can setup any scraper that supports ingesting Prometheus metrics.
 
 ### Tenant metrics endpoint
