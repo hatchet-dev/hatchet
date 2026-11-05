@@ -723,6 +723,24 @@ const tenantEndpointRoute = createRoute({
   ),
 });
 
+const tenantSandboxProvidersRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'sandbox-providers',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/sandbox-providers'),
+    'default',
+  ),
+});
+
+const tenantSandboxProviderRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'sandbox-providers/$sandboxProvider',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/sandbox-providers/$sandboxProvider'),
+    'default',
+  ),
+});
+
 const tenantManagedWorkersRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'managed-workers',
@@ -1145,6 +1163,8 @@ const tenantRoutes = [
   tenantWorkerRoute,
   tenantEndpointsRoute,
   tenantEndpointRoute,
+  tenantSandboxProvidersRoute,
+  tenantSandboxProviderRoute,
   tenantManagedWorkersRoute,
   tenantManagedWorkersTemplateRoute,
   tenantManagedWorkersCreateRoute,
@@ -1301,6 +1321,8 @@ export const appRoutes = {
   tenantWorkerRoute,
   tenantEndpointsRoute,
   tenantEndpointRoute,
+  tenantSandboxProvidersRoute,
+  tenantSandboxProviderRoute,
   tenantManagedWorkersRoute,
   tenantManagedWorkersTemplateRoute,
   tenantManagedWorkersCreateRoute,

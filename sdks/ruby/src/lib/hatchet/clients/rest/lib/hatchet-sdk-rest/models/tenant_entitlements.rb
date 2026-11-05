@@ -27,6 +27,8 @@ module HatchetSdkRest
 
     attr_accessor :serverless_operator
 
+    attr_accessor :sandbox_operator
+
     # Attribute mapping from ruby-style variable name to JSON key.
     def self.attribute_map
       {
@@ -35,7 +37,8 @@ module HatchetSdkRest
         :'strict_additional_metadata_filters' => :'strictAdditionalMetadataFilters',
         :'dag_operator' => :'dagOperator',
         :'durable_streams' => :'durableStreams',
-        :'serverless_operator' => :'serverlessOperator'
+        :'serverless_operator' => :'serverlessOperator',
+        :'sandbox_operator' => :'sandboxOperator'
       }
     end
 
@@ -57,7 +60,8 @@ module HatchetSdkRest
         :'strict_additional_metadata_filters' => :'Boolean',
         :'dag_operator' => :'Boolean',
         :'durable_streams' => :'Boolean',
-        :'serverless_operator' => :'Boolean'
+        :'serverless_operator' => :'Boolean',
+        :'sandbox_operator' => :'Boolean'
       }
     end
 
@@ -118,6 +122,12 @@ module HatchetSdkRest
       else
         self.serverless_operator = nil
       end
+
+      if attributes.key?(:'sandbox_operator')
+        self.sandbox_operator = attributes[:'sandbox_operator']
+      else
+        self.sandbox_operator = nil
+      end
     end
 
     # Show invalid properties with the reasons. Usually used together with valid?
@@ -149,6 +159,10 @@ module HatchetSdkRest
         invalid_properties.push('invalid value for "serverless_operator", serverless_operator cannot be nil.')
       end
 
+      if @sandbox_operator.nil?
+        invalid_properties.push('invalid value for "sandbox_operator", sandbox_operator cannot be nil.')
+      end
+
       invalid_properties
     end
 
@@ -162,6 +176,7 @@ module HatchetSdkRest
       return false if @dag_operator.nil?
       return false if @durable_streams.nil?
       return false if @serverless_operator.nil?
+      return false if @sandbox_operator.nil?
       true
     end
 
@@ -225,6 +240,16 @@ module HatchetSdkRest
       @serverless_operator = serverless_operator
     end
 
+    # Custom attribute writer method with validation
+    # @param [Object] sandbox_operator Value to be assigned
+    def sandbox_operator=(sandbox_operator)
+      if sandbox_operator.nil?
+        fail ArgumentError, 'sandbox_operator cannot be nil'
+      end
+
+      @sandbox_operator = sandbox_operator
+    end
+
     # Checks equality by comparing each attribute.
     # @param [Object] Object to be compared
     def ==(o)
@@ -235,7 +260,8 @@ module HatchetSdkRest
           strict_additional_metadata_filters == o.strict_additional_metadata_filters &&
           dag_operator == o.dag_operator &&
           durable_streams == o.durable_streams &&
-          serverless_operator == o.serverless_operator
+          serverless_operator == o.serverless_operator &&
+          sandbox_operator == o.sandbox_operator
     end
 
     # @see the `==` method
@@ -247,7 +273,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [audit_logs, prometheus_metrics, strict_additional_metadata_filters, dag_operator, durable_streams, serverless_operator].hash
+      [audit_logs, prometheus_metrics, strict_additional_metadata_filters, dag_operator, durable_streams, serverless_operator, sandbox_operator].hash
     end
 
     # Builds the object from hash

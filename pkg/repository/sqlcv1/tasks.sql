@@ -14,7 +14,8 @@ SELECT
     create_v1_range_partition('v1_task_expression_eval', @date::date) AS v1_task_expression_eval,
     create_v1_monthly_range_partition('v1_lookup_table', @date::date) AS v1_lookup_table,
     create_v1_range_partition('v1_stream_producer_cursor', @date::date, 80) AS v1_stream_producer_cursor,
-    create_v1_range_partition('v1_serverless_endpoint_event', @date::date) AS v1_serverless_endpoint_event
+    create_v1_range_partition('v1_serverless_endpoint_event', @date::date) AS v1_serverless_endpoint_event,
+    create_v1_range_partition('v1_sandbox_event', @date::date) AS v1_sandbox_event
 ;
 
 -- name: EnsureTablePartitionsExist :one
@@ -82,6 +83,8 @@ WITH task_partitions AS (
     SELECT 'v1_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_monthly_partitions_before_date('v1_lookup_table', @date::date) AS p
 ), serverless_endpoint_event_partitions AS (
     SELECT 'v1_serverless_endpoint_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_serverless_endpoint_event', @date::date) AS p
+), sandbox_event_partitions AS (
+    SELECT 'v1_sandbox_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_sandbox_event', @date::date) AS p
 )
 
 SELECT
@@ -179,6 +182,13 @@ SELECT
     *
 FROM
     serverless_endpoint_event_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    sandbox_event_partitions
 ;
 
 -- name: DefaultTaskActivityGauge :one

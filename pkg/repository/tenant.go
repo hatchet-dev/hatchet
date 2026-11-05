@@ -346,6 +346,7 @@ func (r *tenantRepository) CreateTenant(ctx context.Context, opts *CreateTenantO
 		Strictadditionalmetadatafilters: entitlements.StrictAdditionalMetadataFilters,
 		Durablestreams:                  entitlements.DurableStreams,
 		Serverlessoperator:              entitlements.ServerlessOperator,
+		Sandboxoperator:                 entitlements.SandboxOperator,
 	})
 
 	if err != nil {

@@ -1,10 +1,12 @@
 package server
 
 import (
+	"context"
 	"crypto/tls"
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
@@ -27,6 +29,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/o11yusage"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/scheduling"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
@@ -178,6 +181,7 @@ type DefaultTenantEntitlementsConfigFile struct {
 	StrictAdditionalMetadataFilters bool `mapstructure:"strictAdditionalMetadataFilters" json:"strictAdditionalMetadataFilters,omitempty" default:"false"`
 	DurableStreams                  bool `mapstructure:"durableStreams" json:"durableStreams,omitempty" default:"false"`
 	ServerlessOperator              bool `mapstructure:"serverlessOperator" json:"serverlessOperator,omitempty" default:"false"`
+	SandboxOperator                 bool `mapstructure:"sandboxOperator" json:"sandboxOperator,omitempty" default:"false"`
 }
 
 // General server runtime options
@@ -929,6 +933,8 @@ type ServerConfig struct {
 
 	GRPCInterceptors []connect.UnaryInterceptorFunc
 
+	InprocOperators []InprocOperator
+
 	Version string
 
 	CronOperations CronOperationsConfigFile
@@ -971,6 +977,15 @@ func (c *ServerConfig) HasService(name string) bool {
 
 func (c *ServerConfig) AddGRPCUnaryInterceptor(interceptor connect.UnaryInterceptorFunc) {
 	c.GRPCInterceptors = append(c.GRPCInterceptors, interceptor)
+}
+
+type InprocOperator struct {
+	Name string
+	Run  func(ctx context.Context, processId uuid.UUID, host operator.Host) error
+}
+
+func (c *ServerConfig) AddInprocOperator(op InprocOperator) {
+	c.InprocOperators = append(c.InprocOperators, op)
 }
 
 func BindAllEnv(v *viper.Viper) {
@@ -1065,6 +1080,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.defaultTenantEntitlements.strictAdditionalMetadataFilters", "SERVER_DEFAULT_TENANT_ENTITLEMENT_STRICT_ADDITIONAL_METADATA_FILTERS")
 	_ = v.BindEnv("runtime.defaultTenantEntitlements.durableStreams", "SERVER_DEFAULT_TENANT_ENTITLEMENT_DURABLE_STREAMS")
 	_ = v.BindEnv("runtime.defaultTenantEntitlements.serverlessOperator", "SERVER_DEFAULT_TENANT_ENTITLEMENT_SERVERLESS_OPERATOR")
+	_ = v.BindEnv("runtime.defaultTenantEntitlements.sandboxOperator", "SERVER_DEFAULT_TENANT_ENTITLEMENT_SANDBOX_OPERATOR")
 
 	// limit options
 	_ = v.BindEnv("runtime.limits.defaultTenantRetentionPeriod", "SERVER_LIMITS_DEFAULT_TENANT_RETENTION_PERIOD")
