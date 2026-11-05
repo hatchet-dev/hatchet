@@ -110,10 +110,14 @@ export const session = defineSessionTask(hatchet, {
   sandbox: {
     template: TEMPLATE,
     // Fill each conversation's first sandbox, for example with a repository.
+    // The workspace is not empty on Kubernetes, so fetch into it rather than `git clone .`.
     seed: async (sandbox) => {
-      await sandbox.exec(
-        "git clone --depth 1 https://github.com/acme/app.git .",
+      const result = await sandbox.exec(
+        "git init -q && " +
+          "git fetch -q --depth 1 https://github.com/acme/app.git && " +
+          "git checkout -q FETCH_HEAD",
       );
+      if (result.exitCode !== 0) throw new Error(result.stderr);
     },
   },
   maxSessionCostUsd: 3,
@@ -211,7 +215,7 @@ A conversation's items are a window of its newest 50 to 100 entries. `before` is
 | ----------------------- | ------------ | --------------------------------------------------------------------------------------------------------- |
 | `name`                  | `pi-session` | The task's name, and the prefix of the session's stream topics. Give `SessionClient` the same `taskName`. |
 | `sandbox.workspace`     | `/workspace` | The sandbox's workspace. Tool paths outside it are refused.                                               |
-| `sandbox.idleTimeoutMs` | 30 min       | A sandbox with no calls for this long stops. The next call starts it again from its snapshot.             |
+| `sandbox.idleTimeoutMs` | 30 min       | A sandbox idle this long stops, and a running worker does not restart it. Set it above any pause.         |
 | `idleGraceMs`           | 20 s         | How long an idle session task waits for the next message before it returns.                               |
 | `retries`               | 3            | Retries of the session task after a crash.                                                                |
 | `executionTimeout`      | `60m`        | The longest one run may own the session.                                                                  |
