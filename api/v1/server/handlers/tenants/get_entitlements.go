@@ -21,7 +21,6 @@ func (t *TenantService) TenantEntitlementsGet(ctx echo.Context, request gen.Tena
 		AuditLogs:                       entitlements.AuditLogs,
 		PrometheusMetrics:               entitlements.PrometheusMetrics,
 		StrictAdditionalMetadataFilters: entitlements.StrictAdditionalMetadataFilters,
-		DagOperator:                     entitlements.DAGOperator,
 		DurableStreams:                  entitlements.DurableStreams,
 		ServerlessOperator:              entitlements.ServerlessOperator,
 	}, nil

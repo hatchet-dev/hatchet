@@ -176,7 +176,6 @@ type DefaultTenantEntitlementsConfigFile struct {
 	AuditLogs                       bool `mapstructure:"auditLogs" json:"auditLogs,omitempty" default:"false"`
 	PrometheusMetrics               bool `mapstructure:"prometheusMetrics" json:"prometheusMetrics,omitempty" default:"false"`
 	StrictAdditionalMetadataFilters bool `mapstructure:"strictAdditionalMetadataFilters" json:"strictAdditionalMetadataFilters,omitempty" default:"false"`
-	DAGOperator                     bool `mapstructure:"dagOperator" json:"dagOperator,omitempty" default:"false"`
 	DurableStreams                  bool `mapstructure:"durableStreams" json:"durableStreams,omitempty" default:"false"`
 	ServerlessOperator              bool `mapstructure:"serverlessOperator" json:"serverlessOperator,omitempty" default:"false"`
 }
@@ -1064,7 +1063,6 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.defaultTenantEntitlements.auditLogs", "SERVER_DEFAULT_TENANT_ENTITLEMENT_AUDIT_LOGS")
 	_ = v.BindEnv("runtime.defaultTenantEntitlements.prometheusMetrics", "SERVER_DEFAULT_TENANT_ENTITLEMENT_PROMETHEUS_METRICS")
 	_ = v.BindEnv("runtime.defaultTenantEntitlements.strictAdditionalMetadataFilters", "SERVER_DEFAULT_TENANT_ENTITLEMENT_STRICT_ADDITIONAL_METADATA_FILTERS")
-	_ = v.BindEnv("runtime.defaultTenantEntitlements.dagOperator", "SERVER_DEFAULT_TENANT_ENTITLEMENT_DAG_OPERATOR")
 	_ = v.BindEnv("runtime.defaultTenantEntitlements.durableStreams", "SERVER_DEFAULT_TENANT_ENTITLEMENT_DURABLE_STREAMS")
 	_ = v.BindEnv("runtime.defaultTenantEntitlements.serverlessOperator", "SERVER_DEFAULT_TENANT_ENTITLEMENT_SERVERLESS_OPERATOR")
 

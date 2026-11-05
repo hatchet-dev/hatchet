@@ -344,7 +344,6 @@ func (r *tenantRepository) CreateTenant(ctx context.Context, opts *CreateTenantO
 		Auditlogs:                       entitlements.AuditLogs,
 		Prometheusmetrics:               entitlements.PrometheusMetrics,
 		Strictadditionalmetadatafilters: entitlements.StrictAdditionalMetadataFilters,
-		Dagoperator:                     entitlements.DAGOperator,
 		Durablestreams:                  entitlements.DurableStreams,
 		Serverlessoperator:              entitlements.ServerlessOperator,
 	})
