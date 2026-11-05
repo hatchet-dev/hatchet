@@ -191,6 +191,36 @@ import type { UserChangePasswordRequest } from '@/lib/api/generated/data-contrac
 
 import type { UserRegisterRequest } from '@/lib/api/generated/data-contracts';
 
+export interface MagicLinkRequest {
+  /**
+   * The email address that should receive a one-time login link.
+   * @format email
+   */
+  email: string;
+}
+
+export interface MagicLinkConfirmRequest {
+  /**
+   * The single-use login token from the email link.
+   * @minLength 1
+   * @maxLength 512
+   */
+  token: string;
+}
+
+export interface MagicLinkAccepted {
+  /**
+   * Always true. The response does not reveal whether an account exists or whether an email was sent.
+   * @example true
+   */
+  accepted: boolean;
+  /**
+   * Seconds to wait before requesting another link for the same address. The same value is returned for every request.
+   * @example 60
+   */
+  resendCooldownSeconds: number;
+}
+
 export interface Organization {
   metadata: APIResourceMeta;
   /** Name of the organization */
@@ -553,6 +583,8 @@ export interface APIToken {
   metadata: APIResourceMeta;
   /** The name of the API token */
   name: string;
+  /** Whether the token is limited to viewer access over REST and cannot use gRPC */
+  readOnly: boolean;
   /**
    * The timestamp at which the token expires
    * @format date-time
@@ -570,6 +602,8 @@ export interface CreateTenantAPITokenRequest {
   name: string;
   /** The duration for which the token should be valid (e.g., "30d", "90d") */
   expiresIn?: string;
+  /** Limit the token to viewer access over REST and deny all gRPC calls. Defaults to false. */
+  readOnly?: boolean;
 }
 
 export interface CreateTenantAPITokenResponse {

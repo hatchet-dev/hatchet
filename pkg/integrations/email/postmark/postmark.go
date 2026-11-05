@@ -1,6 +1,7 @@
 package postmark
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -18,6 +19,7 @@ type PostmarkClient struct {
 	fromEmail    string
 	fromName     string
 	supportEmail string
+	apiURL       string
 
 	httpClient *http.Client
 }
@@ -28,7 +30,14 @@ func NewPostmarkClient(serverKey, fromEmail, fromName, supportEmail string) *Pos
 		Timeout: time.Minute,
 	}
 
-	return &PostmarkClient{serverKey, fromEmail, fromName, supportEmail, httpClient}
+	return &PostmarkClient{
+		serverKey:    serverKey,
+		fromEmail:    fromEmail,
+		fromName:     fromName,
+		supportEmail: supportEmail,
+		apiURL:       postmarkAPIURL,
+		httpClient:   httpClient,
+	}
 }
 
 const (
@@ -73,6 +82,10 @@ func (c *PostmarkClient) SendTemplateEmail(ctx context.Context, to, templateAlia
 	})
 }
 
+func (c *PostmarkClient) SendMagicLinkEmail(ctx context.Context, to string, data email.MagicLinkEmailData) error {
+	return c.SendTemplateEmail(ctx, to, email.MagicLinkTemplate, data, false)
+}
+
 func (c *PostmarkClient) SendTemplateEmailBCC(ctx context.Context, bcc, templateAlias string, templateModelData interface{}, bccSupport bool) error {
 
 	if bccSupport {
@@ -88,23 +101,27 @@ func (c *PostmarkClient) SendTemplateEmailBCC(ctx context.Context, bcc, template
 }
 
 func (c *PostmarkClient) sendPostmarkEmail(ctx context.Context, data *email.SendEmailFromTemplateRequest) error {
-	reqURL, err := url.Parse(postmarkAPIURL)
-	if err != nil {
-		return nil
-	}
-
-	reqURL.Path = postmarkEmailPath
-
-	strData, err := json.Marshal(data)
+	body, err := json.Marshal(data)
 	if err != nil {
 		return err
 	}
+
+	return c.post(ctx, postmarkEmailPath, body)
+}
+
+func (c *PostmarkClient) post(ctx context.Context, path string, body []byte) error {
+	reqURL, err := url.Parse(c.apiURL)
+	if err != nil {
+		return err
+	}
+
+	reqURL.Path = path
 
 	req, err := http.NewRequestWithContext(
 		ctx,
 		postmarkEmailMethod,
 		reqURL.String(),
-		strings.NewReader(string(strData)),
+		bytes.NewReader(body),
 	)
 	if err != nil {
 		return err

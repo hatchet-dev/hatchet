@@ -32,6 +32,9 @@ import {
   CreateTenantInviteRequest,
   CreateUserGroupRequest,
   ListAPIMetaIntegration,
+  MagicLinkAccepted,
+  MagicLinkConfirmRequest,
+  MagicLinkRequest,
   ManagementTokenList,
   Organization,
   OrganizationAvailableShardList,
@@ -154,6 +157,46 @@ export class Api<
   cloudUserUpdateLogin = (data: UserLoginRequest, params: RequestParams = {}) =>
     this.request<User, APIErrors>({
       path: `/api/v1/control-plane/users/login`,
+      method: "POST",
+      body: data,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Sends a one-time login link when the address is allowed to use one. The response is the same when the address is unknown, already registered, required to use SSO, cooling down, or when delivery fails.
+   *
+   * @tags User
+   * @name CloudUserCreateMagicLink
+   * @summary Request magic login link
+   * @request POST:/api/v1/control-plane/users/magic-link
+   */
+  cloudUserCreateMagicLink = (
+    data: MagicLinkRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<MagicLinkAccepted, APIErrors>({
+      path: `/api/v1/control-plane/users/magic-link`,
+      method: "POST",
+      body: data,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Confirms a one-time login link and creates a browser session. The link is consumed only by this request.
+   *
+   * @tags User
+   * @name CloudUserUpdateMagicLink
+   * @summary Confirm magic login link
+   * @request POST:/api/v1/control-plane/users/magic-link/confirm
+   */
+  cloudUserUpdateMagicLink = (
+    data: MagicLinkConfirmRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<User, APIErrors>({
+      path: `/api/v1/control-plane/users/magic-link/confirm`,
       method: "POST",
       body: data,
       type: ContentType.Json,
