@@ -3,6 +3,9 @@ import {
   dailyMeterSeverity,
   formatObservedUsage,
   formatTimeUntil,
+  formatBytes,
+  formatUsageValue,
+  isByteUsageFeature,
   meterPercent,
   nextRefillAt,
   selectDailyMeters,
@@ -11,6 +14,7 @@ import {
   sumUsageSeries,
   tenantUsageChart,
   tenantUsageColor,
+  usageMetric,
   type TenantChartPoint,
   type TenantChartSeries,
   type DailyMeter,
@@ -80,7 +84,12 @@ import {
   YAxis,
 } from 'recharts';
 
-const GRAPHABLE_FEATURES = new Set(['task_runs', 'events']);
+const GRAPHABLE_FEATURES = new Set([
+  'task_runs',
+  'events',
+  'stream_published_bytes',
+  'stream_delivered_bytes',
+]);
 const INVENTORY_FEATURES = new Set(['crons', 'scheduled_runs', 'webhooks']);
 
 type RangePreset = UsageRangePreset;
@@ -146,7 +155,7 @@ function formatUsageLabel(feature: OrganizationUsageFeature) {
 }
 
 function formatPeriodCount(feature: OrganizationUsageFeature) {
-  return `${formatUsageCount(feature.usage)} this period`;
+  return `${formatUsageValue(feature.featureId, feature.usage)} this period`;
 }
 
 function formatDailyMeterValue(meter: DailyMeter) {
@@ -249,13 +258,6 @@ function sumLoadedCount(
   return tenants.reduce((sum, tenant) => sum + (tenant[key] ?? 0), 0);
 }
 
-function metricValue(
-  featureId: string,
-  point: { taskRuns: number; events: number },
-) {
-  return featureId === 'events' ? point.events : point.taskRuns;
-}
-
 function inventoryCountKey(featureId: string) {
   switch (featureId) {
     case 'crons':
@@ -272,9 +274,11 @@ function inventoryCountKey(featureId: string) {
 function TenantUsageChart({
   points,
   series,
+  bytes,
 }: {
   points: TenantChartPoint[];
   series: TenantChartSeries[];
+  bytes: boolean;
 }) {
   const config: ChartConfig = Object.fromEntries(
     series.map((item) => [
@@ -308,6 +312,9 @@ function TenantUsageChart({
           axisLine={false}
           tickMargin={8}
           width={60}
+          tickFormatter={
+            bytes ? (value: number) => formatBytes(value) : undefined
+          }
           style={{ fontSize: '10px', userSelect: 'none' }}
         />
         <ChartTooltip
@@ -382,7 +389,7 @@ function UsageMeter({
   const { feature, dailyMeter, showPeriodAsCount, countOnly } = row;
   const periodCount =
     observedUsage !== undefined
-      ? formatObservedUsage(observedUsage, rangePreset)
+      ? formatObservedUsage(observedUsage, rangePreset, feature.featureId)
       : formatPeriodCount(feature);
   const percent = dailyMeter
     ? meterPercent(dailyMeter)
@@ -566,6 +573,16 @@ export function UsageThisPeriod({
         events: sumUsageSeries(
           (timeseries.data?.series ?? []).map((point) => point.events),
         ),
+        streamPublishedBytes: sumUsageSeries(
+          (timeseries.data?.series ?? []).map(
+            (point) => point.streamPublishedBytes,
+          ),
+        ),
+        streamDeliveredBytes: sumUsageSeries(
+          (timeseries.data?.series ?? []).map(
+            (point) => point.streamDeliveredBytes,
+          ),
+        ),
         crons: sumLoadedCount(shardTenants, 'crons'),
         scheduledRuns: sumLoadedCount(shardTenants, 'scheduledRuns'),
         webhooks: sumLoadedCount(shardTenants, 'webhooks'),
@@ -594,6 +611,8 @@ export function UsageThisPeriod({
     return {
       task_runs: series.map((point) => point.taskRuns),
       events: series.map((point) => point.events),
+      stream_published_bytes: series.map((point) => point.streamPublishedBytes),
+      stream_delivered_bytes: series.map((point) => point.streamDeliveredBytes),
     };
   }, [timeseries.data?.series]);
 
@@ -601,7 +620,7 @@ export function UsageThisPeriod({
     () =>
       (timeseries.data?.series ?? []).map((point) => ({
         date: `${point.date}T00:00:00.000Z`,
-        usage: metricValue(detailFeatureId ?? 'task_runs', point),
+        usage: usageMetric(detailFeatureId ?? 'task_runs', point),
       })),
     [detailFeatureId, timeseries.data?.series],
   );
@@ -617,7 +636,7 @@ export function UsageThisPeriod({
   );
   const tenantRows = timeseries.data?.tenants ?? [];
   const tenantTotal = tenantRows.reduce(
-    (sum, tenant) => sum + metricValue(detailFeatureId ?? 'task_runs', tenant),
+    (sum, tenant) => sum + usageMetric(detailFeatureId ?? 'task_runs', tenant),
     0,
   );
   const inventoryKey = inventoryCountKey(detailFeatureId ?? '');
@@ -811,7 +830,12 @@ export function UsageThisPeriod({
                   )
                     ? ` · ${formatRangeLabel(range.start.toISOString(), range.end.toISOString())}`
                     : ''}
-                  . Total {formatUsageCount(tenantChart?.total ?? chartTotal)}.
+                  . Total{' '}
+                  {formatUsageValue(
+                    detailFeatureId ?? 'task_runs',
+                    tenantChart?.total ?? chartTotal,
+                  )}
+                  .
                 </DialogDescription>
               )
             }
@@ -869,6 +893,7 @@ export function UsageThisPeriod({
               <TenantUsageChart
                 points={tenantChart.points}
                 series={tenantChart.series}
+                bytes={isByteUsageFeature(detailFeatureId ?? '')}
               />
             ) : (
               <ZoomableChart<'usage'>
@@ -887,7 +912,7 @@ export function UsageThisPeriod({
                 </p>
                 <div className="divide-y divide-border/40">
                   {tenantRows.map((tenant) => {
-                    const value = metricValue(
+                    const value = usageMetric(
                       detailFeatureId ?? 'task_runs',
                       tenant,
                     );
@@ -930,7 +955,10 @@ export function UsageThisPeriod({
                           </div>
                         </div>
                         <p className="shrink-0 whitespace-nowrap text-sm tabular-nums text-muted-foreground">
-                          {formatUsageCount(value)}
+                          {formatUsageValue(
+                            detailFeatureId ?? 'task_runs',
+                            value,
+                          )}
                           {tenantTotal > 0 ? ` · ${percent.toFixed(1)}%` : ''}
                         </p>
                       </button>

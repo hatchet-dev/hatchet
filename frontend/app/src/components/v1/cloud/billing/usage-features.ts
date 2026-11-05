@@ -6,7 +6,16 @@ import {
   TenantResourceLimit,
 } from '@/lib/api/generated/control-plane/data-contracts';
 
-const PERIOD_USAGE_FEATURE_IDS = new Set(['task_runs', 'events']);
+const BYTE_USAGE_FEATURE_IDS = new Set([
+  'stream_published_bytes',
+  'stream_delivered_bytes',
+]);
+
+const PERIOD_USAGE_FEATURE_IDS = new Set([
+  'task_runs',
+  'events',
+  ...BYTE_USAGE_FEATURE_IDS,
+]);
 
 // Plan allowances we do not meter. Showing them as 0 / limit reads as usage.
 const HIDDEN_USAGE_FEATURE_IDS = new Set([
@@ -64,6 +73,8 @@ type InventoryFeatureId = (typeof INVENTORY_FEATURE_IDS)[number];
 export type ShardUsageCounts = {
   taskRuns: number;
   events: number;
+  streamPublishedBytes?: number;
+  streamDeliveredBytes?: number;
   crons?: number;
   scheduledRuns?: number;
   webhooks?: number;
@@ -109,6 +120,16 @@ const SHARD_USAGE_ROWS: {
 }[] = [
   { id: 'task_runs', name: 'Task Runs', kind: 'period' },
   { id: 'events', name: 'Events', kind: 'period' },
+  {
+    id: 'stream_published_bytes',
+    name: 'Stream Bytes Published',
+    kind: 'period',
+  },
+  {
+    id: 'stream_delivered_bytes',
+    name: 'Stream Bytes Delivered',
+    kind: 'period',
+  },
   { id: 'crons', name: 'Crons', kind: 'inventory' },
   { id: 'scheduled_runs', name: 'Scheduled Runs', kind: 'inventory' },
   { id: 'webhooks', name: 'Webhook Endpoints', kind: 'inventory' },
@@ -122,6 +143,10 @@ function shardCount(counts: ShardUsageCounts, id: string): number | undefined {
       return counts.taskRuns;
     case 'events':
       return counts.events;
+    case 'stream_published_bytes':
+      return counts.streamPublishedBytes;
+    case 'stream_delivered_bytes':
+      return counts.streamDeliveredBytes;
     case 'crons':
       return counts.crons;
     case 'scheduled_runs':
@@ -146,6 +171,10 @@ export function shardUsageRows(
   for (const definition of SHARD_USAGE_ROWS) {
     const value = shardCount(counts, definition.id);
     if (value === undefined) {
+      continue;
+    }
+    // most organizations don't use streams, so their rows only appear once there's usage
+    if (BYTE_USAGE_FEATURE_IDS.has(definition.id) && value === 0) {
       continue;
     }
 
@@ -193,8 +222,59 @@ export function sumUsageSeries(values: number[]) {
   return values.reduce((sum, value) => sum + value, 0);
 }
 
-export function formatObservedUsage(count: number, preset: UsageRangePreset) {
-  const formatted = new Intl.NumberFormat('en-US').format(count);
+export function isByteUsageFeature(featureId: string) {
+  return BYTE_USAGE_FEATURE_IDS.has(featureId);
+}
+
+const BYTE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+
+export function formatBytes(bytes: number) {
+  let value = bytes;
+  let unit = 0;
+  while (Math.abs(value) >= 1000 && unit < BYTE_UNITS.length - 1) {
+    value /= 1000;
+    unit++;
+  }
+  const formatted = new Intl.NumberFormat('en-US', {
+    maximumFractionDigits: unit === 0 ? 0 : 1,
+  }).format(value);
+  return `${formatted} ${BYTE_UNITS[unit]}`;
+}
+
+export function formatUsageValue(featureId: string, value: number) {
+  return isByteUsageFeature(featureId)
+    ? formatBytes(value)
+    : new Intl.NumberFormat('en-US').format(value);
+}
+
+// the value of featureId in a daily point or a tenant's totals
+export function usageMetric(
+  featureId: string,
+  point: {
+    taskRuns: number;
+    events: number;
+    streamPublishedBytes?: number;
+    streamDeliveredBytes?: number;
+  },
+) {
+  switch (featureId) {
+    case 'events':
+      return point.events;
+    case 'stream_published_bytes':
+      return point.streamPublishedBytes ?? 0;
+    case 'stream_delivered_bytes':
+      return point.streamDeliveredBytes ?? 0;
+    default:
+      return point.taskRuns;
+  }
+}
+
+export function formatObservedUsage(
+  count: number,
+  preset: UsageRangePreset,
+  featureId = '',
+) {
+  const formatted = formatUsageValue(featureId, count);
   if (preset === '7d') {
     return `${formatted} in the last 7 days`;
   }
@@ -435,6 +515,8 @@ export type TenantDailyPoint = {
   date: string;
   taskRuns: number;
   events: number;
+  streamPublishedBytes?: number;
+  streamDeliveredBytes?: number;
 };
 
 export type TenantUsageBreakdown = {
@@ -495,8 +577,7 @@ export function tenantUsageChart(
     };
     for (const entry of shown) {
       const day = entry.tenant.series?.find((item) => item.date === point.date);
-      const value =
-        featureId === 'events' ? (day?.events ?? 0) : (day?.taskRuns ?? 0);
+      const value = day ? usageMetric(featureId, day) : 0;
       row[entry.tenant.tenantId] = value;
       total += value;
     }

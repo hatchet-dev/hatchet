@@ -1388,6 +1388,16 @@ CREATE TABLE v1_agg_events_minute_olap (
     PRIMARY KEY (tenant_id, bucket)
 ) PARTITION BY RANGE (bucket);
 
+-- Durable stream payload bytes, written by the usage flush rather than by triggers, so it has no
+-- delta table: each process upserts its totals once per flush interval.
+CREATE TABLE v1_agg_stream_bytes_minute_olap (
+    tenant_id UUID NOT NULL,
+    bucket TIMESTAMPTZ NOT NULL,
+    published_bytes BIGINT NOT NULL DEFAULT 0,
+    delivered_bytes BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (tenant_id, bucket)
+) PARTITION BY RANGE (bucket);
+
 -- Delta tables: the counts of each source statement, not yet folded into the aggregate. The
 -- columns match the aggregate's so the two can be read with UNION ALL. A key can have many
 -- delta rows.

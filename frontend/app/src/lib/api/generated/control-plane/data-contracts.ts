@@ -1048,6 +1048,16 @@ export interface OrganizationUsageTimeseriesPoint {
    * @format int64
    */
   events: number;
+  /**
+   * Payload bytes of durable stream messages stored on this day.
+   * @format int64
+   */
+  streamPublishedBytes: number;
+  /**
+   * Payload bytes of durable stream messages sent to subscribers on this day, once per subscriber.
+   * @format int64
+   */
+  streamDeliveredBytes: number;
 }
 
 export interface OrganizationUsageTimeseriesTenant {
@@ -1070,6 +1080,16 @@ export interface OrganizationUsageTimeseriesTenant {
    * @format int64
    */
   events: number;
+  /**
+   * Payload bytes of durable stream messages this tenant stored in the requested window.
+   * @format int64
+   */
+  streamPublishedBytes: number;
+  /**
+   * Payload bytes of durable stream messages sent to this tenant's subscribers in the requested window.
+   * @format int64
+   */
+  streamDeliveredBytes: number;
   /**
    * Live cron count on the shard. Omitted when the shard count could not be loaded.
    * @format int64
