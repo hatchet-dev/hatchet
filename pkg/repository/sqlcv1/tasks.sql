@@ -722,7 +722,7 @@ FROM
 JOIN
     tasks_to_reassign lrs ON lrs.task_id = t.id AND lrs.task_inserted_at = t.inserted_at
 WHERE
-    t.internal_retry_count < t.max_reassignments_allowed
+    t.max_reassignments_allowed IS NULL OR t.internal_retry_count < t.max_reassignments_allowed
 ;
 
 -- name: ProcessRetryQueueItems :many
