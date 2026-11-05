@@ -160,6 +160,21 @@ func GroupBy[T any, K comparable](xs []T, keyFn func(x T) K) map[K][]T {
 	return result
 }
 
+// inspiration: chunk_by/2 https://elixir.hexdocs.pm/Enum.html#chunk_by/2
+func ChunkBy[T any, K comparable](xs []T, keyFn func(x T) K) [][]T {
+	chunks := make([][]T, 0)
+	chunkStart := 0
+
+	for i := 1; i <= len(xs); i++ {
+		if i == len(xs) || keyFn(xs[i]) != keyFn(xs[chunkStart]) {
+			chunks = append(chunks, xs[chunkStart:i])
+			chunkStart = i
+		}
+	}
+
+	return chunks
+}
+
 // inspiration: MapSet.new/2 https://elixir.hexdocs.pm/MapSet.html#new/2
 func ToSet[T any, K comparable](xs []T, keyFn func(x T) K) map[K]struct{} {
 	result := make(map[K]struct{}, len(xs))
