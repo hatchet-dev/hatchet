@@ -3459,9 +3459,11 @@ REFERENCING NEW TABLE AS new_table
 FOR EACH STATEMENT
 EXECUTE FUNCTION after_v1_concurrency_slot_update_outbox_function();
 
--- Per-tenant allocated resource counts. Maintained on the write path and
--- rebuilt by the hourly sync. A firing scheduled run decrements the schedule
--- count here because that insert does not go through the schedule repository.
+-- Per-tenant allocated resource counts. Writes add their delta in the same
+-- transaction. The unfiltered read replaces the table from live rows.
+-- A firing scheduled run decrements the schedule count here when that insert
+-- does not go through the schedule repository. The schedule must still be on
+-- a live workflow; a workflow delete has already removed it from the count.
 CREATE TABLE tenant_allocated_resource_count (
     tenant_id UUID PRIMARY KEY,
     cron_count BIGINT NOT NULL DEFAULT 0,
@@ -3474,9 +3476,19 @@ RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    UPDATE tenant_allocated_resource_count
-    SET scheduled_run_count = GREATEST(scheduled_run_count - 1, 0)
-    WHERE tenant_id = NEW."tenantId";
+    UPDATE tenant_allocated_resource_count AS c
+    SET scheduled_run_count = GREATEST(c.scheduled_run_count - 1, 0)
+    WHERE c.tenant_id = NEW."tenantId"
+      AND EXISTS (
+        SELECT 1
+        FROM "WorkflowTriggerScheduledRef" s
+        JOIN "WorkflowVersion" v ON s."parentId" = v."id"
+        JOIN "Workflow" w ON v."workflowId" = w."id"
+        WHERE s."id" = NEW."scheduledId"
+          AND s."deletedAt" IS NULL
+          AND v."deletedAt" IS NULL
+          AND w."deletedAt" IS NULL
+      );
 
     RETURN NULL;
 END;

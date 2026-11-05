@@ -1897,7 +1897,53 @@ func (r *workflowRepository) GetWorkflowVersionById(ctx context.Context, tenantI
 func (r *workflowRepository) DeleteWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.Workflow, error) {
 	db := r.pool.ForTenant(tenantId)
 
-	return r.queries.SoftDeleteWorkflow(ctx, db, workflowId)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, r.l)
+	if err != nil {
+		return nil, err
+	}
+	defer rollback()
+
+	// The version lock is the same one cron and schedule writes take. Schedules
+	// are locked after it, which is also the order version registration uses
+	// when it moves them.
+	versionId, err := lockLatestWorkflowVersion(ctx, r.queries, tx, workflowId)
+	if err != nil && !errors.Is(err, errNoLiveWorkflowVersion) {
+		return nil, err
+	}
+
+	var cronCount int64
+	if err == nil {
+		cronCount, err = r.queries.CountEnabledCronsOnVersion(ctx, tx, versionId)
+		if err != nil {
+			return nil, fmt.Errorf("counting enabled crons for workflow delete: %w", err)
+		}
+	}
+
+	schedules, err := r.queries.LockWorkflowSchedulesTowardAllocation(ctx, tx, sqlcv1.LockWorkflowSchedulesTowardAllocationParams{
+		Workflowid: workflowId,
+		Tenantid:   tenantId,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("locking schedules for workflow delete: %w", err)
+	}
+
+	deleted, err := r.queries.SoftDeleteWorkflow(ctx, tx, workflowId)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := adjustAllocatedResourceCounts(ctx, r.queries, tx, tenantId, allocatedResourceCountDelta{
+		Cron:         -cronCount,
+		ScheduledRun: -int64(len(schedules)),
+	}); err != nil {
+		return nil, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return deleted, nil
 }
 
 func (r *workflowRepository) GetWorkflowByName(ctx context.Context, tenantId uuid.UUID, workflowName string) (*sqlcv1.Workflow, error) {
