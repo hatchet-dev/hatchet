@@ -219,10 +219,17 @@ func TestDeleteWorkflowDropsAllocatedCounts(t *testing.T) {
 	require.Equal(t, int64(1), rows[0].CronCount, "the deleted workflow's cron is gone and the other workflow's cron remains")
 	require.Equal(t, int64(1), rows[0].ScheduledRunCount, "the deleted workflow's pending schedule is gone and the other schedule remains")
 
+	lateRunID := uuid.New()
+	_, err = pool.Exec(ctx, `
+		INSERT INTO "WorkflowRun" ("id", "tenantId", "workflowVersionId")
+		VALUES ($1, $2, $3)
+	`, lateRunID, internalTenantId, wf.WorkflowVersion.ID)
+	require.NoError(t, err)
+
 	_, err = pool.Exec(ctx, `
 		INSERT INTO "WorkflowRunTriggeredBy" ("id", "tenantId", "scheduledId", "parentId")
 		VALUES ($1, $2, $3, $4)
-	`, uuid.New(), internalTenantId, pending.ID, runID)
+	`, uuid.New(), internalTenantId, pending.ID, lateRunID)
 	require.NoError(t, err)
 
 	rows, err = schedules.CountAllocatedResourcesByTenant(ctx, []uuid.UUID{internalTenantId})
