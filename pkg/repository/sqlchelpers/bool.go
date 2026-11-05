@@ -12,6 +12,7 @@ func BoolFromBoolean(v bool) pgtype.Bool {
 	return bgBool
 }
 
+// BoolFromMaybeBoolean maps nil to SQL NULL and keeps an explicit false as false.
 func BoolFromMaybeBoolean(v *bool) pgtype.Bool {
 	if v == nil {
 		return pgtype.Bool{}
