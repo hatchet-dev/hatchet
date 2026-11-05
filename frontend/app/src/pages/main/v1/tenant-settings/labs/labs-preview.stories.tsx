@@ -12,7 +12,7 @@ function InteractiveLabs(props: LabsPreviewProps) {
       ? props.flags
       : {
           durableStreams: false,
-          sandboxes: false,
+          sandboxOperator: false,
           serverlessOperator: false,
         },
   );
@@ -87,7 +87,7 @@ type Story = StoryObj<typeof meta>;
 
 const off = {
   durableStreams: false,
-  sandboxes: false,
+  sandboxOperator: false,
   serverlessOperator: false,
 };
 
@@ -106,7 +106,7 @@ export const OwnerOn: Story = {
     status: 'ready',
     flags: {
       durableStreams: true,
-      sandboxes: false,
+      sandboxOperator: false,
       serverlessOperator: true,
     },
     pending: false,

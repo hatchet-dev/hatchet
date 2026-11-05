@@ -27,7 +27,7 @@ func (t *TenantService) TenantEntitlementsUpdate(ctx echo.Context, request gen.T
 	updated, err := t.config.V1.TenantEntitlement().UpdateLabsEntitlements(ctx.Request().Context(), tenant.ID, v1.LabsEntitlements{
 		DurableStreams:     request.Body.DurableStreams,
 		ServerlessOperator: request.Body.ServerlessOperator,
-		Sandboxes:          request.Body.Sandboxes,
+		SandboxOperator:    request.Body.SandboxOperator,
 	})
 
 	if err != nil {

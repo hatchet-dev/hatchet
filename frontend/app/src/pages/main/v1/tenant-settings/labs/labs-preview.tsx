@@ -6,7 +6,8 @@ import { Loading, Spinner } from '@/components/v1/ui/loading';
 import { Switch } from '@/components/v1/ui/switch';
 import { useState } from 'react';
 
-export type LabsFlag = 'durableStreams' | 'sandboxes' | 'serverlessOperator';
+export type LabsFlag =
+  'durableStreams' | 'sandboxOperator' | 'serverlessOperator';
 
 const labsFeatures: {
   key: LabsFlag;
@@ -22,7 +23,7 @@ const labsFeatures: {
       'Tasks can no longer publish or subscribe. Existing topics are kept.',
   },
   {
-    key: 'sandboxes',
+    key: 'sandboxOperator',
     label: 'Sandboxes',
     description: 'Run untrusted code in isolated environments.',
     disableDescription: 'Sandboxes will be unavailable for this tenant.',

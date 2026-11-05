@@ -208,7 +208,7 @@ TenantEntitlements:
       type: boolean
     serverlessOperator:
       type: boolean
-    sandboxes:
+    sandboxOperator:
       type: boolean
   required:
     - auditLogs
@@ -217,7 +217,7 @@ TenantEntitlements:
     - dagOperator
     - durableStreams
     - serverlessOperator
-    - sandboxes
+    - sandboxOperator
   type: object
 
 UpdateTenantEntitlementsRequest:
@@ -228,9 +228,9 @@ UpdateTenantEntitlementsRequest:
     serverlessOperator:
       type: boolean
       description: Whether the tenant has opted into the serverless operator.
-    sandboxes:
+    sandboxOperator:
       type: boolean
-      description: Whether the tenant has opted into sandboxes.
+      description: Whether the tenant has opted into the sandbox operator.
   type: object
 
 TenantMember:

@@ -31,7 +31,7 @@ func TestHasEntitlement(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, TenantEntitlements{}, none)
 
-	want := TenantEntitlements{DurableStreams: true, ServerlessOperator: true}
+	want := TenantEntitlements{DurableStreams: true, ServerlessOperator: true, SandboxOperator: true}
 	require.NoError(t, repo.SetEntitlements(ctx, tenantID, want))
 
 	enabled, err = repo.HasEntitlement(ctx, tenantID, EntitlementDurableStreams)
@@ -39,6 +39,10 @@ func TestHasEntitlement(t *testing.T) {
 	assert.True(t, enabled)
 
 	enabled, err = repo.HasEntitlement(ctx, tenantID, EntitlementServerlessOperator)
+	require.NoError(t, err)
+	assert.True(t, enabled)
+
+	enabled, err = repo.HasEntitlement(ctx, tenantID, EntitlementSandboxOperator)
 	require.NoError(t, err)
 	assert.True(t, enabled)
 
@@ -72,13 +76,13 @@ func TestUpdateLabsEntitlementsPreservesOtherFlags(t *testing.T) {
 	durableStreams := true
 	sandboxes := true
 	got, err := repo.UpdateLabsEntitlements(ctx, tenantID, LabsEntitlements{
-		DurableStreams: &durableStreams,
-		Sandboxes:      &sandboxes,
+		DurableStreams:  &durableStreams,
+		SandboxOperator: &sandboxes,
 	})
 	require.NoError(t, err)
 	assert.True(t, got.AuditLogs)
 	assert.True(t, got.DurableStreams)
-	assert.True(t, got.Sandboxes)
+	assert.True(t, got.SandboxOperator)
 	assert.False(t, got.ServerlessOperator)
 
 	stored, err := repo.GetEntitlements(ctx, tenantID)
@@ -89,7 +93,7 @@ func TestUpdateLabsEntitlementsPreservesOtherFlags(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, enabled, "the writer drops its entitlement cache")
 
-	enabled, err = repo.HasEntitlement(ctx, tenantID, EntitlementSandboxes)
+	enabled, err = repo.HasEntitlement(ctx, tenantID, EntitlementSandboxOperator)
 	require.NoError(t, err)
 	assert.True(t, enabled)
 }

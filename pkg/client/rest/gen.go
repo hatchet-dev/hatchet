@@ -1348,7 +1348,7 @@ type TenantEntitlements struct {
 	DagOperator                     bool `json:"dagOperator"`
 	DurableStreams                  bool `json:"durableStreams"`
 	PrometheusMetrics               bool `json:"prometheusMetrics"`
-	Sandboxes                       bool `json:"sandboxes"`
+	SandboxOperator                 bool `json:"sandboxOperator"`
 	ServerlessOperator              bool `json:"serverlessOperator"`
 	StrictAdditionalMetadataFilters bool `json:"strictAdditionalMetadataFilters"`
 }
@@ -1481,8 +1481,8 @@ type UpdateTenantEntitlementsRequest struct {
 	// DurableStreams Whether the tenant has opted into durable streams.
 	DurableStreams *bool `json:"durableStreams,omitempty"`
 
-	// Sandboxes Whether the tenant has opted into sandboxes.
-	Sandboxes *bool `json:"sandboxes,omitempty"`
+	// SandboxOperator Whether the tenant has opted into the sandbox operator.
+	SandboxOperator *bool `json:"sandboxOperator,omitempty"`
 
 	// ServerlessOperator Whether the tenant has opted into the serverless operator.
 	ServerlessOperator *bool `json:"serverlessOperator,omitempty"`

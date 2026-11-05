@@ -12,6 +12,6 @@ func toAPITenantEntitlements(entitlements v1.TenantEntitlements) gen.TenantEntit
 		StrictAdditionalMetadataFilters: entitlements.StrictAdditionalMetadataFilters,
 		DurableStreams:                  entitlements.DurableStreams,
 		ServerlessOperator:              entitlements.ServerlessOperator,
-		Sandboxes:                       entitlements.Sandboxes,
+		SandboxOperator:                 entitlements.SandboxOperator,
 	}
 }

@@ -125,7 +125,7 @@ export default function LabsSettings() {
       error={errorMessage}
       flags={{
         durableStreams: entitlements.durableStreams,
-        sandboxes: entitlements.sandboxes,
+        sandboxOperator: entitlements.sandboxOperator,
         serverlessOperator: entitlements.serverlessOperator,
       }}
       onToggle={(flag: LabsFlag, enabled: boolean) =>
