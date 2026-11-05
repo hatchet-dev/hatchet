@@ -14,7 +14,10 @@
     "---Agent Patterns---",
     "hatchet-and-mcp",
     "hatchet-claude-agent-sdk-trusted-env",
-    "hatchet-openai-agents-sdk-trusted-env"
+    "hatchet-openai-agents-sdk-trusted-env",
+    "agent-sandboxes",
+    "agent-sandbox-credentials",
+    "pi-durable-coding-agent"
   ],
   "title": "Cookbooks",
   "root": true,
