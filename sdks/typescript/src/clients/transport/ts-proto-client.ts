@@ -32,9 +32,11 @@ type MethodCodec = TsProtoCodec<unknown>;
 /**
  * Builds the client a `ts-proto` service definition describes, with every method served by a
  * Connect client for the matching protobuf-es service on `transport`. The result has the exact
- * surface `nice-grpc`'s `ClientFactory.create(definition, channel)` produced: every RPC of the
- * service as `(request, options?) => Promise<response>` with the SDK's `ts-proto` message types,
- * so a caller holding one of the public client properties sees no difference.
+ * surface `nice-grpc`'s `ClientFactory.create(definition, channel)` produced: every unary RPC of
+ * the service as `(request, options?) => Promise<response>` and every server stream as
+ * `(request, options?) => AsyncIterable<response>`, with the SDK's `ts-proto` message types, so a
+ * caller holding one of the public client properties sees no difference. Client and
+ * bidirectional streams throw when called: a fetch transport cannot send a streaming request.
  *
  * Both bindings are generated from the same proto, so a method's client name is the same in
  * each and the protobuf-es descriptor can be looked up by it.
@@ -44,9 +46,9 @@ export function createTsProtoClient<Def extends TsProtoServiceDefinition>(
   service: DescService,
   transport: Transport
 ): Client<Def, UnaryCallOptionsExt> {
-  const connectClient = createClient(service, transport) as Record<
+  const connectClient = createClient(service, transport) as unknown as Record<
     string,
-    (input: unknown, options?: ConnectCallOptions) => Promise<unknown>
+    (input: unknown, options?: ConnectCallOptions) => Promise<unknown> & AsyncIterable<unknown>
   >;
 
   const client: Record<string, unknown> = {};
@@ -59,10 +61,10 @@ export function createTsProtoClient<Def extends TsProtoServiceDefinition>(
       );
     }
 
-    if (method.requestStream || method.responseStream) {
+    if (method.requestStream) {
       client[key] = () => {
         throw new Error(
-          `${definition.fullName}.${method.name} is a streaming RPC, which the unary transport does not serve`
+          `${definition.fullName}.${method.name} streams its requests, which this transport does not serve`
         );
       };
       continue;
@@ -70,6 +72,21 @@ export function createTsProtoClient<Def extends TsProtoServiceDefinition>(
 
     const requestCodec = method.requestType as MethodCodec;
     const responseCodec = method.responseType as MethodCodec;
+
+    if (method.responseStream) {
+      client[key] = (request: unknown, options?: UnaryCallOptions) =>
+        serverStreamCall(
+          (connectOptions) =>
+            connectClient[key](
+              toProtobufEs(desc.input, requestCodec, request as never),
+              connectOptions
+            ),
+          responseCodec,
+          desc.output,
+          options
+        );
+      continue;
+    }
 
     client[key] = (request: unknown, options?: UnaryCallOptions) =>
       unaryCall(
@@ -118,6 +135,45 @@ async function unaryCall<Res, S extends DescMessage>(
   }
 
   return fromProtobufEs(responseCodec, responseSchema, response as never);
+}
+
+/**
+ * Runs one server stream with the same cancellation and deadline semantics as `unaryCall`.
+ * The call gets its own signal, which follows the caller's and is aborted once the caller stops
+ * iterating, so breaking out of the loop cancels the request rather than leaving the response
+ * body open until the server's next message.
+ */
+async function* serverStreamCall<Res, S extends DescMessage>(
+  open: (options: ConnectCallOptions) => AsyncIterable<unknown>,
+  responseCodec: TsProtoCodec<Res>,
+  responseSchema: S,
+  options?: UnaryCallOptions
+): AsyncGenerator<Res> {
+  const signal = options?.signal;
+  if (signal?.aborted) {
+    throw abortReason(signal);
+  }
+  if (options?.deadline !== undefined && remainingMs(options.deadline) <= 0) {
+    throw new ConnectError('the operation timed out', Code.DeadlineExceeded);
+  }
+
+  const call = new AbortController();
+  const onAbort = () => call.abort(signal?.reason);
+  signal?.addEventListener('abort', onAbort, { once: true });
+
+  try {
+    for await (const message of open({ ...toConnectCallOptions(options), signal: call.signal })) {
+      yield fromProtobufEs(responseCodec, responseSchema, message as never);
+    }
+  } catch (e) {
+    if (signal?.aborted) {
+      throw abortReason(signal);
+    }
+    throw e;
+  } finally {
+    signal?.removeEventListener('abort', onAbort);
+    call.abort();
+  }
 }
 
 function abortReason(signal: AbortSignal): unknown {
