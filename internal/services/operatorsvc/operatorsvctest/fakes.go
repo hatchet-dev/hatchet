@@ -442,7 +442,8 @@ func (f *WorkerStore) Refreshes() []uuid.UUID {
 	return append([]uuid.UUID(nil), f.refreshes...)
 }
 
-// ReleaseWorkerActions drops every link of the worker and records the write as "release".
+// ReleaseWorkerActions records "release" so tests can tell a registration that cleaned up a
+// superseded worker from one that only pointed the operator at a new one.
 func (f *WorkerStore) ReleaseWorkerActions(_ context.Context, tenantId uuid.UUID, workerId uuid.UUID) (int64, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

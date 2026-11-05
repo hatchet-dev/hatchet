@@ -135,6 +135,50 @@ func TestOperatorActionBudgetSpansWorkers(t *testing.T) {
 	assert.Equal(t, 5, workerOperatorActionCount(t, ctx, pool, loose))
 }
 
+// Releasing a worker drops its links, zeroes the count the budget sum reads, clears the hash
+// so a later refresh recomputes it, and frees the budget for the operator's other workers. A
+// second release finds nothing, and a worker of another tenant is refused untouched.
+func TestReleaseWorkerActions(t *testing.T) {
+	pool := workerActionsPool(t)
+	repo := createWorkerActionsRepositoryForTest(pool)
+	ctx := context.Background()
+	tenantId := seedTenantForActions(t, ctx, pool)
+	operatorId := seedOperator(t, ctx, pool, tenantId)
+	previous := seedOperatorWorker(t, ctx, pool, tenantId, operatorId)
+	next := seedOperatorWorker(t, ctx, pool, tenantId, operatorId)
+
+	const cap = 10
+
+	_, _, err := repo.ApplyWorkerActionsDelta(ctx, tenantId, previous, ids("a", 0, 8), nil, cap)
+	require.NoError(t, err)
+	require.NoError(t, repo.RefreshWorkerActionHash(ctx, tenantId, previous))
+	require.NotNil(t, workerActionHash(t, ctx, pool, previous))
+
+	_, _, err = repo.ApplyWorkerActionsDelta(ctx, tenantId, next, ids("a", 0, 8), nil, cap)
+	require.ErrorIs(t, err, ErrWorkerActionBudgetExceeded, "the previous worker's links fill the budget")
+
+	released, err := repo.ReleaseWorkerActions(ctx, tenantId, previous)
+	require.NoError(t, err)
+	assert.EqualValues(t, 8, released)
+	assert.Empty(t, linkedActions(t, ctx, pool, previous))
+	assert.Equal(t, 0, workerOperatorActionCount(t, ctx, pool, previous))
+	assert.Nil(t, workerActionHash(t, ctx, pool, previous), "the hash is cleared, not left describing the old links")
+
+	added, _, err := repo.ApplyWorkerActionsDelta(ctx, tenantId, next, ids("a", 0, 8), nil, cap)
+	require.NoError(t, err, "the release freed the budget")
+	assert.Equal(t, 8, added)
+
+	released, err = repo.ReleaseWorkerActions(ctx, tenantId, previous)
+	require.NoError(t, err)
+	assert.Zero(t, released)
+
+	otherTenant := seedTenantForActions(t, ctx, pool)
+	_, err = repo.ReleaseWorkerActions(ctx, otherTenant, next)
+	require.ErrorIs(t, err, pgx.ErrNoRows)
+	assert.Len(t, linkedActions(t, ctx, pool, next), 8, "a refused release touches nothing")
+	assert.Equal(t, 8, workerOperatorActionCount(t, ctx, pool, next))
+}
+
 // An accepted delta that leaves the operator at 70% of its budget or more logs an error with
 // the operator's totals, so the budget can be alerted on before a delta is refused. Deltas
 // below that line, and refused deltas, log nothing.
