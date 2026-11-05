@@ -57,7 +57,7 @@ WITH input AS (
 		unnest($43::jsonb[]) AS dag_parent_task_run_ids,
 		unnest($44::jsonb[]) AS child_task_desired_worker_labels,
 		unnest($45::smallint[]) AS task_input_payload_version,
-		unnest($46::integer[]) AS max_reassignments_alloweds
+		unnest($46::integer[]) AS max_reassignments_allowed
 )
 INSERT INTO v1_task (
     tenant_id,
