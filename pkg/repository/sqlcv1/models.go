@@ -4228,6 +4228,7 @@ type V1Task struct {
 	DagParentTaskRunIds          []uuid.UUID        `json:"dag_parent_task_run_ids"`
 	ChildTaskDesiredWorkerLabels []byte             `json:"child_task_desired_worker_labels"`
 	TaskInputPayloadVersion      int16              `json:"task_input_payload_version"`
+	MaxReassignmentsAllowed      pgtype.Int4        `json:"max_reassignments_allowed"`
 }
 
 type V1TaskEvent struct {
