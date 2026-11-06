@@ -250,9 +250,10 @@ For production deployments:
 - Use [additional metadata](/v1/additional-metadata) to track which agent session triggered each run.
 - Run workers with restricted permissions.
 - Use network policies to limit what workers can reach.
-- Use external sandbox providers when tools may execute untrusted code.
+- Run tools that execute untrusted code in a sandbox, not on your workers.
 
 <Callout type="info">
-  Hatchet does not provide native code sandboxing. If you need isolation between
-  the agent and the execution environment, that is an infrastructure decision.
+  The workers that run your tools are not an isolation boundary. To run the
+  commands an agent chooses in an isolated environment, see{" "}
+  <a href="/cookbooks/agent-sandboxes">Agent Sandboxes</a>.
 </Callout>
