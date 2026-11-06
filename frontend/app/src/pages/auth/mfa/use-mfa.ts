@@ -14,6 +14,26 @@ import { useState } from 'react';
 export const leaveMfa = (path: string) =>
   window.location.assign(`${config.BASE_PATH.replace(/\/$/, '')}${path}`);
 
+// The control plane returns a same-origin path. Strip a base path that this
+// app will add again, and ignore anything that is not a single-slash path.
+export function mfaLoginPath(next: string | undefined): string {
+  if (
+    !next ||
+    !next.startsWith('/') ||
+    next.startsWith('//') ||
+    next.includes('\\') ||
+    /[\u0000-\u0020]/.test(next)
+  ) {
+    return '/';
+  }
+  const base = config.BASE_PATH.replace(/\/$/, '');
+  if (base && (next === base || next.startsWith(`${base}/`))) {
+    const stripped = next.slice(base.length);
+    return stripped.startsWith('/') ? stripped : '/';
+  }
+  return next;
+}
+
 export const EXPIRED_MESSAGE = "That code didn't work or has expired.";
 
 // Codes come from the control plane. The message strings stay as a fallback
@@ -69,7 +89,7 @@ export function useMfa() {
   const state = status.data;
 
   async function run(
-    action: () => Promise<{ recoveryCodes?: string[] } | void>,
+    action: () => Promise<{ recoveryCodes?: string[]; next?: string } | void>,
     login = false,
   ) {
     setBusy(true);
@@ -90,7 +110,7 @@ export function useMfa() {
         queryClient.removeQueries({
           predicate: (q) => q.queryKey[0] !== 'mfa:status',
         });
-        leaveMfa('/');
+        leaveMfa(mfaLoginPath(result?.next));
         return true;
       }
       // A factor proof on the settings page only needs a new shard token.

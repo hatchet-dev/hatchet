@@ -6,12 +6,14 @@ import { MagicLinkLogin } from './components/magic-link-login';
 import { UserLoginForm } from './components/user-login-form';
 import { Button } from '@/components/v1/ui/button';
 import useControlPlane from '@/hooks/use-control-plane';
+import { isMfaRequiredResponse } from '@/lib/api/api';
 import { useUserApi } from '@/lib/api/user-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
 import { useMutation } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
+import { isAxiosError } from 'axios';
 import { ArrowLeft, Mail } from 'lucide-react';
 import { useState } from 'react';
 
@@ -87,13 +89,17 @@ function BasicLogin() {
   const loginMutation = useMutation({
     ...userUpdateLoginMutation(),
     onSuccess: async () => {
-      // A pending session is sent to /auth/mfa by the response interceptor when
-      // the next control-plane call returns mfa_required.
       await invalidateUserUniverse();
       await new Promise((resolve) => setTimeout(resolve, 0));
       navigate({ to: appRoutes.authenticatedRoute.to });
     },
-    onError: handleApiError,
+    onError: (error) => {
+      // A pending factor is 403 mfa_required. The interceptor is already navigating.
+      if (isAxiosError(error) && isMfaRequiredResponse(error.response?.data)) {
+        return;
+      }
+      handleApiError(error);
+    },
   });
 
   return (

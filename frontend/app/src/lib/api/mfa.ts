@@ -15,7 +15,7 @@ export type MFAStatus = {
 };
 export const mfaStatus = async () =>
   (await controlPlaneApi.instance.get<MFAStatus>(path)).data;
-export const mfaPost = async <T = { recoveryCodes?: string[] }>(
+export const mfaPost = async <T = { recoveryCodes?: string[]; next?: string }>(
   endpoint: string,
   body: unknown = {},
 ): Promise<T> =>

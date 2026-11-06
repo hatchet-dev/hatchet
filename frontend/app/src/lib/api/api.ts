@@ -75,14 +75,21 @@ export const controlPlaneApi = new ControlPlaneApi({
   timeout: CONTROL_PLANE_REQUEST_TIMEOUT_MS,
 });
 
+export function isMfaRequiredResponse(data: unknown): boolean {
+  if (!data || typeof data !== 'object') {
+    return false;
+  }
+  const body = data as { code?: unknown; message?: unknown };
+  return body.code === 'mfa_required' || body.message === 'mfa_required';
+}
+
 // Pending primary logins have no access to user or tenant resources.
 controlPlaneApi.instance.interceptors.response.use(
   (response) => response,
   (error) => {
     const target = `${config.BASE_PATH.replace(/\/$/, '')}/auth/mfa`;
-    const data = error.response?.data;
     if (
-      (data?.code === 'mfa_required' || data?.message === 'mfa_required') &&
+      isMfaRequiredResponse(error.response?.data) &&
       window.location.pathname !== target
     ) {
       window.location.assign(target);

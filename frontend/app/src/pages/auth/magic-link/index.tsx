@@ -6,6 +6,7 @@ import { Button } from '@/components/v1/ui/button';
 import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
 import { Spinner } from '@/components/v1/ui/loading.tsx';
 import { type User } from '@/lib/api';
+import { isMfaRequiredResponse } from '@/lib/api/api';
 import { useUserApi } from '@/lib/api/user-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { initialMagicLinkToken } from '@/lib/magic-link-bootstrap';
@@ -67,6 +68,10 @@ export default function MagicLinkConfirm() {
     onError: (error) => {
       if (!isAxiosError(error)) {
         setRetryErrors(['Something went wrong.']);
+        return;
+      }
+      // The link is already spent. The interceptor sends a pending factor to /auth/mfa.
+      if (isMfaRequiredResponse(error.response?.data)) {
         return;
       }
       if (isTerminalMagicLinkError(error.response?.status)) {
