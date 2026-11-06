@@ -30,9 +30,10 @@ const AuditLogOutboxTopic = "v1_audit_log"
 // database, and its lock on the topic row, stay open until they finish.
 const auditLogFlushTimeout = 10 * time.Second
 
+// AuditLogEntry is one v1_audit_log row. Enqueue fills in a zero ID or InsertedAt, and both are
+// written as queued: with TenantID they form the table's key, so a batch delivered twice inserts
+// each row once.
 type AuditLogEntry struct {
-	// ID and InsertedAt form the v1_audit_log key together with TenantID. Enqueue sets them,
-	// so a batch delivered twice inserts each row once.
 	ID         uuid.UUID `json:"id"`
 	InsertedAt time.Time `json:"inserted_at"`
 

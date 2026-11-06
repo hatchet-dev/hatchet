@@ -4,6 +4,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -31,8 +32,9 @@ func TestAuditLogOutbox(t *testing.T) {
 	l := zerolog.Nop()
 	auditLogs := NewAuditLogOutbox(outbox, pool, &l)
 	olap := createOLAPRepository(pool)
+	sink := &failingAuditLogSink{AuditLogSink: olap}
 
-	outbox.AddFlusher(AuditLogOutboxTopic, &auditLogFlusher{sink: olap, l: &l})
+	outbox.AddFlusher(AuditLogOutboxTopic, &auditLogFlusher{sink: sink, l: &l})
 
 	t.Run("delivers queued entries with their original timestamps", func(t *testing.T) {
 		tenantId := uuid.New()
@@ -111,6 +113,39 @@ func TestAuditLogOutbox(t *testing.T) {
 		assert.Zero(t, countAuditLogOutboxMessages(t, ctx, pool))
 	})
 
+	t.Run("a failed write keeps the whole batch queued", func(t *testing.T) {
+		tenantId := uuid.New()
+
+		rejected := testAuditLogEntry(tenantId, "no-partition")
+		rejected.InsertedAt = time.Date(2001, 1, 1, 0, 0, 0, 0, time.UTC)
+
+		require.NoError(t, auditLogs.Enqueue(ctx, []AuditLogEntry{
+			testAuditLogEntry(tenantId, "run-1"),
+			testAuditLogEntry(tenantId, "run-2"),
+			rejected,
+			testAuditLogEntry(tenantId, "run-3"),
+		}))
+
+		// The rejected entry splits the batch: the first half is written, then the second half's
+		// write fails.
+		sink.writes, sink.failWrite = 0, 3
+		_, err := outbox.ProcessMessages(ctx, AuditLogOutboxTopic)
+		sink.failWrite = 0
+		require.Error(t, err)
+
+		assert.Equal(t, 4, countAuditLogOutboxMessages(t, ctx, pool))
+
+		drainAuditLogOutbox(t, ctx, outbox)
+
+		rows := listAuditLogs(t, ctx, pool, tenantId)
+		require.Len(t, rows, 3)
+		assert.Equal(t, "run-1", rows[0].resourceId)
+		assert.Equal(t, "run-2", rows[1].resourceId)
+		assert.Equal(t, "run-3", rows[2].resourceId)
+
+		assert.Zero(t, countAuditLogOutboxMessages(t, ctx, pool))
+	})
+
 	t.Run("a payload that isn't an entry is dropped", func(t *testing.T) {
 		tenantId := uuid.New()
 
@@ -167,6 +202,24 @@ func testAuditLogEntry(tenantId uuid.UUID, resourceId string) AuditLogEntry {
 		ResourceID:   resourceId,
 		ResourceType: "workflow-run",
 	}
+}
+
+// failingAuditLogSink fails its failWrite-th write (counting from 1) with an error that isn't
+// permanent.
+type failingAuditLogSink struct {
+	AuditLogSink
+	writes    int
+	failWrite int
+}
+
+func (s *failingAuditLogSink) CreateAuditLogs(ctx context.Context, entries []AuditLogEntry) error {
+	s.writes++
+
+	if s.writes == s.failWrite {
+		return errors.New("connection refused")
+	}
+
+	return s.AuditLogSink.CreateAuditLogs(ctx, entries)
 }
 
 func drainAuditLogOutbox(t *testing.T, ctx context.Context, outbox pgoutbox.Outbox) {
