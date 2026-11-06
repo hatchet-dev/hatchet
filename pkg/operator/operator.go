@@ -98,7 +98,10 @@ type TaskEventWriter interface {
 	// on the gRPC surface: an out-of-process operator has no equivalent.
 	CancelTaskWithReason(ctx context.Context, tenantId uuid.UUID, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error)
 
-	TriggerDAGStep(ctx context.Context, tenantId uuid.UUID, req *DAGStepTriggerRequest) (*DAGStepTriggerResult, error)
+	// TriggerDAGSteps triggers one orchestrator's ready steps in a single durable log append and
+	// trigger transaction. Every request names the same orchestrator and invocation; results are
+	// returned in request order.
+	TriggerDAGSteps(ctx context.Context, tenantId uuid.UUID, reqs []*DAGStepTriggerRequest) ([]*DAGStepTriggerResult, error)
 
 	// CancelDAGChildren cancels already-triggered children when the orchestrator is cancelled.
 	CancelDAGChildren(ctx context.Context, tenantId uuid.UUID, taskExternalIds []uuid.UUID) error
@@ -256,12 +259,12 @@ func (s *SharedOperator[T]) UpdateWorkerActions(ctx context.Context, actions []s
 	return true, nil
 }
 
-func (s *SharedOperator[T]) TriggerDAGStep(ctx context.Context, req *DAGStepTriggerRequest) (*DAGStepTriggerResult, error) {
+func (s *SharedOperator[T]) TriggerDAGSteps(ctx context.Context, reqs []*DAGStepTriggerRequest) ([]*DAGStepTriggerResult, error) {
 	if s.taskEventWriter == nil {
 		return nil, fmt.Errorf("operator has no task event writer configured")
 	}
 
-	return s.taskEventWriter.TriggerDAGStep(ctx, s.tenantId, req)
+	return s.taskEventWriter.TriggerDAGSteps(ctx, s.tenantId, reqs)
 }
 
 func (s *SharedOperator[T]) CancelDAGChildren(ctx context.Context, taskExternalIds []uuid.UUID) error {

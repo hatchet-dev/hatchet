@@ -22,6 +22,25 @@ import (
 // signature dagDurableTask expects.
 type triggerStepFn = func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error)
 
+// oneStepAtATime adapts a per-step trigger to the wave signature the dag calls.
+func oneStepAtATime(triggerStep triggerStepFn) triggerStepsFn {
+	return func(ctx context.Context, reqs []stepTriggerRequest) ([]*operator.DAGStepTriggerResult, error) {
+		results := make([]*operator.DAGStepTriggerResult, 0, len(reqs))
+
+		for _, req := range reqs {
+			result, err := triggerStep(ctx, req.actionId, req.workflowName, req.childIndex, req.parentTaskRunIds, req.isSkipped, req.isCancelled, req.parentReExecuted)
+
+			if err != nil {
+				return nil, err
+			}
+
+			results = append(results, result)
+		}
+
+		return results, nil
+	}
+}
+
 func newTestTask(readableId, actionId string, index int32, parents ...*task) *task {
 	return &task{
 		actionId:     actionId,
@@ -213,8 +232,9 @@ func sendEntryCompleted(t *testing.T, responseCh chan *v1contracts.DurableTaskRe
 	}
 }
 
-// like the dispatcher, delivers a satisfied trigger result as an EntryCompleted, in trigger order
-func deliverSatisfiedResults(triggerStep triggerStepFn, responseCh chan *v1contracts.DurableTaskResponse, stop <-chan struct{}) triggerStepFn {
+// like the dispatcher, delivers a satisfied trigger result as an EntryCompleted, in trigger order.
+// The per-step callback runs once per request of a wave, in request order.
+func deliverSatisfiedResults(triggerStep triggerStepFn, responseCh chan *v1contracts.DurableTaskResponse, stop <-chan struct{}) triggerStepsFn {
 	completions := make(chan *v1contracts.DurableTaskResponse, 64)
 
 	go func() {
@@ -232,25 +252,35 @@ func deliverSatisfiedResults(triggerStep triggerStepFn, responseCh chan *v1contr
 		}
 	}()
 
-	return func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
-		result, err := triggerStep(ctx, actionId, workflowName, childIndex, parentTaskRunIds, isSkipped, isCancelled, parentReExecuted)
+	return func(ctx context.Context, reqs []stepTriggerRequest) ([]*operator.DAGStepTriggerResult, error) {
+		results := make([]*operator.DAGStepTriggerResult, 0, len(reqs))
 
-		if err != nil || !result.IsSatisfied {
-			return result, err
-		}
+		for _, req := range reqs {
+			result, err := triggerStep(ctx, req.actionId, req.workflowName, req.childIndex, req.parentTaskRunIds, req.isSkipped, req.isCancelled, req.parentReExecuted)
 
-		completions <- &v1contracts.DurableTaskResponse{
-			Message: &v1contracts.DurableTaskResponse_EntryCompleted{
-				EntryCompleted: &v1contracts.DurableTaskEventLogEntryCompletedResponse{
-					Ref:          &v1contracts.DurableEventLogEntryRef{NodeId: result.NodeId, BranchId: result.BranchId},
-					Payload:      result.ResultPayload,
-					IsFailure:    result.IsFailure,
-					ErrorMessage: result.ErrorMessage,
+			if err != nil {
+				return nil, err
+			}
+
+			results = append(results, result)
+
+			if !result.IsSatisfied {
+				continue
+			}
+
+			completions <- &v1contracts.DurableTaskResponse{
+				Message: &v1contracts.DurableTaskResponse_EntryCompleted{
+					EntryCompleted: &v1contracts.DurableTaskEventLogEntryCompletedResponse{
+						Ref:          &v1contracts.DurableEventLogEntryRef{NodeId: result.NodeId, BranchId: result.BranchId},
+						Payload:      result.ResultPayload,
+						IsFailure:    result.IsFailure,
+						ErrorMessage: result.ErrorMessage,
+					},
 				},
-			},
+			}
 		}
 
-		return result, nil
+		return results, nil
 	}
 }
 

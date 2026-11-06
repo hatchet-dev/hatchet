@@ -1943,54 +1943,72 @@ func (d *DispatcherServiceImpl) replayDAGStepChild(ctx context.Context, tenantId
 	return nil
 }
 
-func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uuid.UUID, req *operator.DAGStepTriggerRequest) (*operator.DAGStepTriggerResult, error) {
-	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, req.ParentTaskExternalId, false)
+func (d *DispatcherServiceImpl) TriggerDAGSteps(ctx context.Context, tenantId uuid.UUID, reqs []*operator.DAGStepTriggerRequest) ([]*operator.DAGStepTriggerResult, error) {
+	if len(reqs) == 0 {
+		return nil, nil
+	}
+
+	first := reqs[0]
+
+	for _, req := range reqs[1:] {
+		if req.ParentTaskExternalId != first.ParentTaskExternalId || req.InvocationCount != first.InvocationCount {
+			return nil, fmt.Errorf("every step in a batch must belong to the same orchestrator invocation")
+		}
+	}
+
+	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, first.ParentTaskExternalId, false)
 	if err != nil {
 		return nil, fmt.Errorf("task not found: %w", err)
 	}
 
-	childIndex := int64(req.ChildIndex)
-	stepLabel := req.ActionId
-	if parts := strings.SplitN(req.ActionId, ":", 2); len(parts) == 2 {
-		stepLabel = parts[1]
-	}
-
 	orchestratorWorkflowRunId := task.ExternalID
-	workflowVersionId := req.WorkflowVersionId
-	triggerOpts := []*v1.WorkflowNameTriggerOpts{{
-		ReplayOrphanedChildren: true,
-		ParentReExecuted:       req.ParentReExecuted,
-		IsDagStepTrigger:       true,
-		TriggerTaskData: &v1.TriggerTaskData{
-			WorkflowName: req.WorkflowName,
-			// Pin to the DAG's original version so a mid-run deploy can't retarget the step.
-			WorkflowVersionId:    &workflowVersionId,
-			TargetActionId:       &req.ActionId,
-			UserMessage:          &stepLabel,
-			Data:                 []byte(req.Input),
-			AdditionalMetadata:   req.AdditionalMetadata,
-			ParentExternalId:     &task.ExternalID,
-			ParentTaskId:         &task.ID,
-			ParentTaskInsertedAt: &task.InsertedAt.Time,
-			ChildIndex:           &childIndex,
-			DagParentTaskRunIds:  req.DagParentTaskRunIds,
-			IsSkipped:            req.IsSkipped,
-			IsCancelled:          req.IsCancelled,
-			DesiredWorkerLabels:  req.DesiredWorkerLabels,
-			WorkflowRunId:        &orchestratorWorkflowRunId,
-			OlapDagId:            &task.ID,
-			OlapDagInsertedAt:    &task.InsertedAt.Time,
+	triggerOpts := make([]*v1.WorkflowNameTriggerOpts, len(reqs))
 
-			OrchestratorPayloadReferenceId: task.PayloadReferenceID,
-		},
-	}}
+	for i, req := range reqs {
+		childIndex := int64(req.ChildIndex)
+		stepLabel := req.ActionId
+		if parts := strings.SplitN(req.ActionId, ":", 2); len(parts) == 2 {
+			stepLabel = parts[1]
+		}
+
+		workflowVersionId := req.WorkflowVersionId
+		actionId := req.ActionId
+
+		triggerOpts[i] = &v1.WorkflowNameTriggerOpts{
+			ReplayOrphanedChildren: true,
+			ParentReExecuted:       req.ParentReExecuted,
+			IsDagStepTrigger:       true,
+			TriggerTaskData: &v1.TriggerTaskData{
+				WorkflowName: req.WorkflowName,
+				// Pin to the DAG's original version so a mid-run deploy can't retarget the step.
+				WorkflowVersionId:    &workflowVersionId,
+				TargetActionId:       &actionId,
+				UserMessage:          &stepLabel,
+				Data:                 []byte(req.Input),
+				AdditionalMetadata:   req.AdditionalMetadata,
+				ParentExternalId:     &task.ExternalID,
+				ParentTaskId:         &task.ID,
+				ParentTaskInsertedAt: &task.InsertedAt.Time,
+				ChildIndex:           &childIndex,
+				DagParentTaskRunIds:  req.DagParentTaskRunIds,
+				IsSkipped:            req.IsSkipped,
+				IsCancelled:          req.IsCancelled,
+				DesiredWorkerLabels:  req.DesiredWorkerLabels,
+				WorkflowRunId:        &orchestratorWorkflowRunId,
+				OlapDagId:            &task.ID,
+				OlapDagInsertedAt:    &task.InsertedAt.Time,
+
+				OrchestratorPayloadReferenceId: task.PayloadReferenceID,
+			},
+		}
+	}
 
 	ingestionResult, err := d.repo.DurableEvents().IngestDurableTaskEvent(ctx, v1.IngestDurableTaskEventOpts{
 		BaseIngestEventOpts: &v1.BaseIngestEventOpts{
 			TenantId:        tenantId,
 			Task:            task,
 			Kind:            sqlcv1.V1DurableEventLogKindRUN,
-			InvocationCount: req.InvocationCount,
+			InvocationCount: first.InvocationCount,
 		},
 		TriggerRuns: &v1.IngestTriggerRunsOpts{
 			TriggerOpts: triggerOpts,
@@ -2010,11 +2028,11 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 		}})
 
 		if triggerErr != nil {
-			return nil, fmt.Errorf("failed to trigger pending durable runs for dag step: %w", triggerErr)
+			return nil, fmt.Errorf("failed to trigger pending durable runs for dag steps: %w", triggerErr)
 		}
 
 		if len(celFailures) > 0 {
-			return nil, &operator.DAGStepCELFailureError{ActionId: req.ActionId, Message: celFailures[0].ErrorMessage}
+			return nil, &operator.DAGStepCELFailureError{ActionId: first.ActionId, Message: celFailures[0].ErrorMessage}
 		}
 
 		tasks = createdTasks
@@ -2027,57 +2045,72 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 		}
 	}
 
-	if len(ingestionResult.TriggerRunsResult.Entries) == 0 {
-		return nil, fmt.Errorf("no entries returned from durable event ingestion")
+	// the ingest resolves each request's child external id in place and returns entries ordered
+	// by node id, so results are matched back to requests through that id
+	entryByChildExternalId := make(map[uuid.UUID]*v1.IngestTriggerRunsEntry, len(ingestionResult.TriggerRunsResult.Entries))
+
+	for _, entry := range ingestionResult.TriggerRunsResult.Entries {
+		entryByChildExternalId[entry.WorkflowRunExternalId] = entry
 	}
 
-	entry := ingestionResult.TriggerRunsResult.Entries[0]
+	invocationCount := ingestionResult.TriggerRunsResult.InvocationCount
+	results := make([]*operator.DAGStepTriggerResult, len(reqs))
 
-	// the operator is blocked in this call and its session channel is unbuffered
-	if entry.IsSatisfied {
-		invocationCount := ingestionResult.TriggerRunsResult.InvocationCount
+	for i, req := range reqs {
+		entry, ok := entryByChildExternalId[triggerOpts[i].ExternalId]
 
-		go func() {
-			err := d.DeliverDurableEventLogEntryCompletion(
-				tenantId,
-				task.ExternalID,
-				invocationCount,
-				entry.BranchId,
-				entry.NodeId,
-				entry.ResultPayload,
-				entry.SatisfiedOrder,
-				entry.ChildTaskIsFailure,
-				entry.ChildTaskErrorMessage,
-			)
+		if !ok {
+			return nil, fmt.Errorf("no durable log entry returned for dag step %s", req.ActionId)
+		}
 
-			operatorSessionAlreadyEnded := errors.Is(err, errDurableTaskSessionClosed) || errors.Is(err, context.Canceled) || errors.Is(err, ErrNoActiveDurableInvocation)
+		// the operator is blocked in this call and its session channel is unbuffered
+		if entry.IsSatisfied {
+			go d.deliverSatisfiedDAGStep(tenantId, task.ExternalID, invocationCount, entry)
+		}
 
-			switch {
-			case err == nil:
-			case operatorSessionAlreadyEnded:
-				d.l.Debug().Err(err).Msgf("dag operator session ended before satisfied dag step completion was delivered for task %s node %d", task.ExternalID, entry.NodeId)
-			default:
-				d.l.Error().Err(err).Msgf("failed to deliver satisfied dag step completion for task %s node %d", task.ExternalID, entry.NodeId)
+		if entry.ChildNeedsReplay {
+			if err := d.replayDAGStepChild(ctx, tenantId, entry.WorkflowRunExternalId); err != nil {
+				return nil, err
 			}
-		}()
-	}
+		}
 
-	if entry.ChildNeedsReplay {
-		if err := d.replayDAGStepChild(ctx, tenantId, entry.WorkflowRunExternalId); err != nil {
-			return nil, err
+		results[i] = &operator.DAGStepTriggerResult{
+			NodeId:                entry.NodeId,
+			BranchId:              entry.BranchId,
+			WorkflowRunExternalId: entry.WorkflowRunExternalId,
+			IsSatisfied:           entry.IsSatisfied,
+			ResultPayload:         entry.ResultPayload,
+			IsFailure:             entry.ChildTaskIsFailure,
+			ErrorMessage:          entry.ChildTaskErrorMessage,
+			ReExecuted:            entry.ReExecuted,
 		}
 	}
 
-	return &operator.DAGStepTriggerResult{
-		NodeId:                entry.NodeId,
-		BranchId:              entry.BranchId,
-		WorkflowRunExternalId: entry.WorkflowRunExternalId,
-		IsSatisfied:           entry.IsSatisfied,
-		ResultPayload:         entry.ResultPayload,
-		IsFailure:             entry.ChildTaskIsFailure,
-		ErrorMessage:          entry.ChildTaskErrorMessage,
-		ReExecuted:            entry.ReExecuted,
-	}, nil
+	return results, nil
+}
+
+func (d *DispatcherServiceImpl) deliverSatisfiedDAGStep(tenantId, orchestratorExternalId uuid.UUID, invocationCount int32, entry *v1.IngestTriggerRunsEntry) {
+	err := d.DeliverDurableEventLogEntryCompletion(
+		tenantId,
+		orchestratorExternalId,
+		invocationCount,
+		entry.BranchId,
+		entry.NodeId,
+		entry.ResultPayload,
+		entry.SatisfiedOrder,
+		entry.ChildTaskIsFailure,
+		entry.ChildTaskErrorMessage,
+	)
+
+	operatorSessionAlreadyEnded := errors.Is(err, errDurableTaskSessionClosed) || errors.Is(err, context.Canceled) || errors.Is(err, ErrNoActiveDurableInvocation)
+
+	switch {
+	case err == nil:
+	case operatorSessionAlreadyEnded:
+		d.l.Debug().Err(err).Msgf("dag operator session ended before satisfied dag step completion was delivered for task %s node %d", orchestratorExternalId, entry.NodeId)
+	default:
+		d.l.Error().Err(err).Msgf("failed to deliver satisfied dag step completion for task %s node %d", orchestratorExternalId, entry.NodeId)
+	}
 }
 
 // CancelDAGChildren cancels already-triggered DAG children on the operator's behalf, since it

@@ -65,7 +65,7 @@ func (c *captureWriter) CancelTaskWithReason(_ context.Context, _ uuid.UUID, req
 	return &contracts.ActionEventResponse{}, nil
 }
 
-func (c *captureWriter) TriggerDAGStep(_ context.Context, _ uuid.UUID, _ *DAGStepTriggerRequest) (*DAGStepTriggerResult, error) {
+func (c *captureWriter) TriggerDAGSteps(_ context.Context, _ uuid.UUID, _ []*DAGStepTriggerRequest) ([]*DAGStepTriggerResult, error) {
 	return nil, nil
 }
 
