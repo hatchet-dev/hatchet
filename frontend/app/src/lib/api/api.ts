@@ -6,7 +6,16 @@ import {
 import { Api } from './generated/Api';
 import { Api as CloudApi } from './generated/cloud/Api';
 import { Api as ControlPlaneApi } from './generated/control-plane/Api';
+import { SupportSession } from '@/lib/api/generated/control-plane/data-contracts';
 import { isRetryableRequestError } from '@/lib/query-retry';
+import {
+  getSupportSession,
+  isSupportSessionMarkedExpired,
+} from '@/lib/support-session';
+import {
+  supportSessionNeedsRenewal,
+  supportSessionQueryOptions,
+} from '@/lib/support-session-renewal';
 import queryClient from '@/query-client';
 import { InternalAxiosRequestConfig } from 'axios';
 import qs from 'qs';
@@ -191,12 +200,50 @@ export const controlPlaneMetaQuery = {
  * loaders, plain async functions) instead of calling the two steps separately.
  */
 export async function fetchControlPlaneStatus() {
+  // A support session has one shard and no cookie session, so the app runs
+  // as if there were no control plane.
+  if (getSupportSession()) {
+    return { meta: null, isControlPlaneEnabled: false };
+  }
+
   const meta = await queryClient.fetchQuery(controlPlaneMetaQuery);
   return { meta, isControlPlaneEnabled: inferControlPlaneEnabled(meta?.data) };
 }
 
 async function resolveControlPlaneEnabled(): Promise<boolean> {
   return (await fetchControlPlaneStatus()).isControlPlaneEnabled;
+}
+
+/**
+ * The stored support token, renewed first when it is near or past expiry so a
+ * tab coming back from the background does not hit the shard with a dead
+ * token and get its session marked expired by the 401.
+ */
+async function currentSupportSession(): Promise<SupportSession | null> {
+  const session = getSupportSession();
+  if (
+    !session ||
+    isSupportSessionMarkedExpired() ||
+    !supportSessionNeedsRenewal(session)
+  ) {
+    return session;
+  }
+
+  try {
+    await queryClient.fetchQuery(
+      supportSessionQueryOptions(session.grant.id, (token) =>
+        controlPlaneApi
+          .supportSessionRenew({
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          .then((r) => r.data),
+      ),
+    );
+  } catch {
+    // the shard's answer decides what happens to the session
+  }
+
+  return getSupportSession();
 }
 
 /**
@@ -213,6 +260,17 @@ async function resolveControlPlaneEnabled(): Promise<boolean> {
 export async function exchangeTokenInterceptor(
   config: InternalAxiosRequestConfig,
 ) {
+  // Every request goes to the support session's shard, tenant-scoped or not:
+  // it is the only backend that accepts the token. controlPlaneApi has no interceptor.
+  const supportSession = await currentSupportSession();
+  if (supportSession) {
+    config.baseURL = supportSession.apiUrl;
+    config.withCredentials = false;
+    config.headers.set('Authorization', `Bearer ${supportSession.token}`);
+    config.headers.set('X-Support-Token', 'true');
+    return config;
+  }
+
   const resources = config.xResources ?? [];
   if (!resources.includes('tenant') && !config.useExchangeToken) {
     return config;

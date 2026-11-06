@@ -29,6 +29,7 @@ export function sideNavItems(opts: {
   hasSandboxProviders?: boolean;
   hasDurableStreams?: boolean;
   isConcurrencyEnabled?: boolean;
+  isSupport?: boolean;
 }): SideNavSection[] {
   return [
     {
@@ -336,7 +337,7 @@ export function sideNavItems(opts: {
             />
           ),
         },
-        ...(!opts.isControlPlaneEnabled
+        ...(!opts.isControlPlaneEnabled && !opts.isSupport
           ? [
               {
                 key: 'tenants',

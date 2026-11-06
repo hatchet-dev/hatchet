@@ -790,6 +790,49 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		}
 	}
 
+	if cf.Auth.SupportTokenConfig.Enabled {
+		supportCfg := cf.Auth.SupportTokenConfig
+
+		if supportCfg.JWTPublicKeyset == "" && supportCfg.JWTPublicKeysetFile == "" {
+			return nil, nil, fmt.Errorf("support token JWT public keyset is required when support token config is enabled (set jwtPublicKeyset or jwtPublicKeysetFile)")
+		}
+
+		if supportCfg.Audience == cf.Auth.ControlPlaneExchangeTokenConfig.Audience {
+			return nil, nil, fmt.Errorf("support token audience must differ from the control plane exchange token audience")
+		}
+
+		publicJwt := supportCfg.JWTPublicKeyset
+
+		if supportCfg.JWTPublicKeysetFile != "" {
+			keysetBytes, keyErr := os.ReadFile(supportCfg.JWTPublicKeysetFile)
+
+			if keyErr != nil {
+				return nil, nil, fmt.Errorf("could not read support token JWT public keyset file: %w", keyErr)
+			}
+
+			publicJwt = strings.TrimSpace(string(keysetBytes))
+		}
+
+		if publicJwt == cf.Auth.ControlPlaneExchangeTokenConfig.JWTPublicKeyset && publicJwt != "" {
+			return nil, nil, fmt.Errorf("support token JWT public keyset must differ from the control plane exchange token keyset")
+		}
+
+		publicJWTHandle, handleErr := encryption.InsecureHandleFromBytes([]byte(publicJwt))
+
+		if handleErr != nil {
+			return nil, nil, fmt.Errorf("could not create keyset handle from support token JWT public keyset: %w", handleErr)
+		}
+
+		auth.SupportTokenClient, err = exchangetoken.NewSupportTokenClient(publicJWTHandle, &exchangetoken.ExchangeTokenOpts{
+			Issuer:   supportCfg.Issuer,
+			Audience: supportCfg.Audience,
+		})
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not create support token client: %w", err)
+		}
+	}
+
 	var emailSvc email.EmailService = &email.NoOpService{}
 
 	switch strings.ToLower(cf.Email.Kind) {

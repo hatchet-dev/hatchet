@@ -62,6 +62,7 @@ type Repository interface {
 	UserSession() UserSessionRepository
 	WorkflowSchedules() WorkflowScheduleRepository
 	Sync() SyncRepository
+	SupportGrant() SupportGrantRepository
 }
 
 type repositoryImpl struct {
@@ -102,6 +103,7 @@ type repositoryImpl struct {
 	userSession         UserSessionRepository
 	workflowSchedules   WorkflowScheduleRepository
 	sync                SyncRepository
+	supportGrant        SupportGrantRepository
 }
 
 func NewRepository(
@@ -164,6 +166,7 @@ func NewRepository(
 		userSession:         newUserSessionRepository(shared),
 		workflowSchedules:   newWorkflowScheduleRepository(shared),
 		sync:                NewSyncRepository(pool, l),
+		supportGrant:        newSupportGrantRepository(shared),
 	}
 
 	return impl, func() error {
@@ -341,4 +344,8 @@ func (r *repositoryImpl) WorkflowSchedules() WorkflowScheduleRepository {
 
 func (r *repositoryImpl) Sync() SyncRepository {
 	return r.sync
+}
+
+func (r *repositoryImpl) SupportGrant() SupportGrantRepository {
+	return r.supportGrant
 }

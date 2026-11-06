@@ -10,6 +10,11 @@
  * ---------------------------------------------------------------
  */
 
+export enum SupportGrantRole {
+  SUPPORT_VIEWER = "SUPPORT_VIEWER",
+  SUPPORT_OPERATOR = "SUPPORT_OPERATOR",
+}
+
 export enum TenantMemberRoleType {
   OWNER = "OWNER",
   ADMIN = "ADMIN",
@@ -1205,4 +1210,47 @@ export interface AddUserGroupMemberRequest {
    * @format uuid
    */
   organizationMemberId: string;
+}
+
+export interface SupportSessionRedeemRequest {
+  /**
+   * The one-time code from the link that `hat support` opened
+   * @minLength 1
+   * @maxLength 256
+   */
+  code: string;
+}
+
+export interface SupportGrant {
+  /** @format uuid */
+  id: string;
+  /** @format uuid */
+  tenantId: string;
+  tenantName: string;
+  tenantSlug: string;
+  role: SupportGrantRole;
+  reason: string;
+  staffEmail: string;
+  /** @format date-time */
+  createdAt: string;
+  /**
+   * When the grant itself expires; tokens are renewed until then
+   * @format date-time
+   */
+  expiresAt: string;
+  /** @format date-time */
+  revokedAt?: string;
+}
+
+export interface SupportSession {
+  /** The support token to present to the tenant's API */
+  token: string;
+  /** The tenant's API URL */
+  apiUrl: string;
+  /**
+   * When the token expires; renew before then
+   * @format date-time
+   */
+  expiresAt: string;
+  grant: SupportGrant;
 }
