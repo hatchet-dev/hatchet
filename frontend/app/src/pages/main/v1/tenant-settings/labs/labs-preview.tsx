@@ -1,5 +1,6 @@
 import { SettingsPageHeader } from '../components/settings-page-header';
 import { SettingRow } from '../components/settings-row';
+import { BananaModeSwitch } from '@/banana-mode/banana-mode-switch';
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { Button } from '@/components/v1/ui/button';
 import { Loading, Spinner } from '@/components/v1/ui/loading';
@@ -136,6 +137,7 @@ function LabsSwitches({
             />
           </SettingRow>
         ))}
+        <BananaModeSwitch />
       </div>
       {error ? <p className="pt-4 text-sm text-destructive">{error}</p> : null}
       {disablingFeature ? (
