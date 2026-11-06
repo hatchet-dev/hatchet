@@ -24,6 +24,8 @@ const friendlyMessages: Record<string, string> = {
   [rejectedProof]: EXPIRED_MESSAGE,
   'too many MFA attempts; try again in ten minutes':
     'Too many attempts. Try again in 10 minutes.',
+  'authenticator codes are locked; use a passkey or recovery code':
+    'Authenticator codes are locked. Use a passkey or a recovery code.',
   'Verify an enrolled method before adding one':
     'Verify a method you already use first.',
   'Verify an enrolled method before removing one':

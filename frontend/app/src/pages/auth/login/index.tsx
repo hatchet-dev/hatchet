@@ -89,9 +89,18 @@ function BasicLogin() {
   const loginMutation = useMutation({
     ...userUpdateLoginMutation(),
     onSuccess: async () => {
-      if (isControlPlaneEnabled && (await mfaStatus()).pending) {
-        await navigate({ to: appRoutes.authMFARoute.to });
-        return;
+      // A missing MFA route means this frontend shipped before the control plane.
+      // The session is already signed in, and a pending session is redirected
+      // when a later call returns mfa_required.
+      if (isControlPlaneEnabled) {
+        try {
+          if ((await mfaStatus()).pending) {
+            await navigate({ to: appRoutes.authMFARoute.to });
+            return;
+          }
+        } catch {
+          // continue into the app
+        }
       }
       await invalidateUserUniverse();
       await new Promise((resolve) => setTimeout(resolve, 0));

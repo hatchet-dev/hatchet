@@ -152,11 +152,13 @@ func (a *AuthN) handleNoAuth(c echo.Context) error {
 }
 
 func (a *AuthN) handleCookieAuth(c echo.Context) error {
-	if a.config.Auth.ExchangeTokenClient != nil {
-		return echo.NewHTTPError(http.StatusForbidden, "Sign in through the control plane")
-	}
-
 	forbidden := echo.NewHTTPError(http.StatusForbidden, "Please provide valid credentials")
+
+	// A failed bearer token falls through to cookie auth. Keep the credential
+	// error; the control-plane sentence was showing up on API clients.
+	if a.config.Auth.ExchangeTokenClient != nil {
+		return forbidden
+	}
 
 	store := a.config.SessionStore
 

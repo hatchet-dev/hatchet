@@ -38,15 +38,21 @@ export default function MagicLinkConfirm() {
     retry: false,
   });
 
-  // The confirm request consumes the link. A later status or universe failure
-  // has to retry from the session that already exists, not from the token.
+  // The confirm request consumes the link. A later universe failure has to
+  // retry from the session that already exists, not from the token.
   async function finishSignIn(user: User) {
     setContinuing(true);
     setRetryErrors([]);
     try {
-      if ((await mfaStatus()).pending) {
-        await navigate({ to: appRoutes.authMFARoute.to });
-        return;
+      // The link is already consumed. A 404 here is an older control plane, and
+      // any other status failure is not a reason to strand the signed-in session.
+      try {
+        if ((await mfaStatus()).pending) {
+          await navigate({ to: appRoutes.authMFARoute.to });
+          return;
+        }
+      } catch {
+        // continue into the app
       }
       // The signed-out lookup on this page leaves an error cached under the
       // current-user key, and the app shell reads that key without refetching.
