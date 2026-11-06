@@ -300,6 +300,8 @@ export interface OrganizationMember {
    * @format email
    */
   email: string;
+  /** Whether the member has at least one MFA method. Only returned to organization owners. */
+  mfaEnabled?: boolean;
 }
 
 export interface OrganizationMemberList {
