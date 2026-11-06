@@ -1465,7 +1465,6 @@ func newOutbox(pool *pgxpool.Pool, l zerolog.Logger) (pgoutbox.Outbox, func(), e
 		pool,
 		pgoutbox.WithAutoMigrate(false),
 		pgoutbox.WithLogger(l),
-		// also how long audit log entries wait for the OLAP database, see repov1.AuditLogOutboxTopic
 		pgoutbox.WithDefaultExpiration(24*time.Hour),
 	)
 
