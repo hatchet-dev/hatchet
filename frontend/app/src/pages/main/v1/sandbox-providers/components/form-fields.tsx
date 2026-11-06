@@ -125,21 +125,6 @@ export const ProviderFields = ({
     <>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="defaultTemplate">
-            Default template <OptionalMark />
-          </Label>
-          <Input
-            id="defaultTemplate"
-            placeholder={KINDS[kind].templatePlaceholder}
-            className="h-10 font-mono text-sm"
-            {...register('defaultTemplate')}
-          />
-          <FieldErrorText error={errors.defaultTemplate} />
-          <p className="text-xs text-muted-foreground">
-            Used when the SDK creates a sandbox without a template.
-          </p>
-        </div>
-        <div className="space-y-2">
           <Label htmlFor="maxIdleTtlSeconds">Max idle time (seconds)</Label>
           <Input
             id="maxIdleTtlSeconds"
@@ -180,8 +165,8 @@ export const ProviderFields = ({
             />
             <FieldErrorText error={errors.configJson} />
             <p className="text-xs text-muted-foreground">
-              Vendor settings as JSON: apiUrl, template, workdir,
-              snapshotEveryTurn and, for Archil, region.
+              JSON with any of {KINDS[kind].configKeys.join(', ')}. Other keys
+              are rejected.
             </p>
           </div>
           <div className="space-y-2">
