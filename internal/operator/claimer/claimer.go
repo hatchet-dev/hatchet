@@ -8,8 +8,8 @@
 //
 // A factory is found by the row's kind, except for GRPC rows, contract operators, which are
 // found by the row's name: the kind says only that the row is a contract operator, the name
-// says which one the engine should build. A claimed row with no factory is logged once and
-// left alone.
+// says which one the engine should build. The claim asks only for rows the claimer has a
+// factory for; a row with no factory handed to Reconcile is logged once and left alone.
 //
 // It runs inside the dispatcher process, wired from cmd/hatchet-engine/engine next to the
 // dispatcher, and stops before the dispatcher drains so events reported during a drain still
@@ -20,6 +20,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"sync"
 	"time"
 
@@ -44,9 +46,10 @@ const (
 	defaultTeardownTimeout = 30 * time.Second
 )
 
-// Claims is the claim query: the operator rows this dispatcher should run.
+// Claims is the claim query: the operator rows this dispatcher should run, among the ones it
+// can build.
 type Claims interface {
-	ClaimOperators(ctx context.Context, dispatcherId uuid.UUID) ([]*sqlcv1.V1Operator, error)
+	ClaimOperators(ctx context.Context, dispatcherId uuid.UUID, opts repository.ClaimOperatorsOpts) ([]*sqlcv1.V1Operator, error)
 }
 
 // Factory builds the operator for a claimed row and the options its session is opened with.
@@ -156,6 +159,9 @@ type Claimer struct {
 	named        map[string]Factory
 	l            *zerolog.Logger
 
+	// buildable is what the claim asks for: the kinds and GRPC names there is a factory for.
+	buildable repository.ClaimOperatorsOpts
+
 	pollInterval    time.Duration
 	teardownTimeout time.Duration
 
@@ -196,6 +202,11 @@ func New(fs ...Opt) (*Claimer, error) {
 
 	cl := o.l.With().Str("service", "operator_claimer").Logger()
 
+	buildable := repository.ClaimOperatorsOpts{
+		Kinds:     slices.Collect(maps.Keys(o.factories)),
+		GRPCNames: slices.Collect(maps.Keys(o.named)),
+	}
+
 	return &Claimer{
 		host:            o.host,
 		claims:          o.claims,
@@ -203,6 +214,7 @@ func New(fs ...Opt) (*Claimer, error) {
 		factories:       o.factories,
 		named:           o.named,
 		l:               &cl,
+		buildable:       buildable,
 		pollInterval:    o.pollInterval,
 		teardownTimeout: o.teardownTimeout,
 		running:         map[uuid.UUID]*hosted{},
@@ -241,7 +253,7 @@ func (c *Claimer) poll(ctx context.Context) {
 // reconcile runs the claim query and treats its result as the desired state. A failed query
 // says nothing about which operators are still claimed, so it changes nothing.
 func (c *Claimer) reconcile(ctx context.Context) {
-	claimed, err := c.claims.ClaimOperators(ctx, c.dispatcherId)
+	claimed, err := c.claims.ClaimOperators(ctx, c.dispatcherId, c.buildable)
 
 	if err != nil {
 		if ctx.Err() == nil {

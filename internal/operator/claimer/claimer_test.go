@@ -18,6 +18,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/operator/operatortest"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -112,18 +113,33 @@ func (h *fakeHost) openCount() int {
 	return len(h.opens)
 }
 
-// fakeClaims answers the claim query with whatever the test set.
+// fakeClaims answers the claim query with whatever the test set, and remembers what it was
+// asked for.
 type fakeClaims struct {
-	mu   sync.Mutex
-	rows []*sqlcv1.V1Operator
-	err  error
+	mu    sync.Mutex
+	rows  []*sqlcv1.V1Operator
+	err   error
+	asked []repository.ClaimOperatorsOpts
 }
 
-func (c *fakeClaims) ClaimOperators(context.Context, uuid.UUID) ([]*sqlcv1.V1Operator, error) {
+func (c *fakeClaims) ClaimOperators(_ context.Context, _ uuid.UUID, opts repository.ClaimOperatorsOpts) ([]*sqlcv1.V1Operator, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	c.asked = append(c.asked, opts)
+
 	return c.rows, c.err
+}
+
+func (c *fakeClaims) lastAsked() (repository.ClaimOperatorsOpts, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if len(c.asked) == 0 {
+		return repository.ClaimOperatorsOpts{}, false
+	}
+
+	return c.asked[len(c.asked)-1], true
 }
 
 func (c *fakeClaims) set(rows ...*sqlcv1.V1Operator) {
@@ -376,4 +392,29 @@ func TestReconcileBuildsGRPCRowsByName(t *testing.T) {
 	h.Reconcile(t.Context(), []*sqlcv1.V1Operator{serverless, unknown, dag})
 	assert.Equal(t, []string{"serverless"}, built)
 	assert.Equal(t, 1, h.host.openCount())
+}
+
+// The claim asks for the kinds and GRPC names the claimer has a factory for, so the claim
+// query never hands it a row it cannot build.
+func TestClaimAsksForBuildableRows(t *testing.T) {
+	named := func(*sqlcv1.V1Operator) (operator.Operator, operator.OpenOpts, error) {
+		return &fakeOperator{}, operator.OpenOpts{}, nil
+	}
+
+	h := newHarness(t, claimer.WithNamedFactory("serverless", named))
+
+	h.Start(t.Context())
+	t.Cleanup(func() { h.Stop(context.Background()) })
+
+	var asked repository.ClaimOperatorsOpts
+
+	require.Eventually(t, func() bool {
+		var ok bool
+		asked, ok = h.claims.lastAsked()
+
+		return ok
+	}, eventually, time.Millisecond)
+
+	assert.Equal(t, []sqlcv1.V1OperatorKind{testKind}, asked.Kinds)
+	assert.Equal(t, []string{"serverless"}, asked.GRPCNames)
 }
