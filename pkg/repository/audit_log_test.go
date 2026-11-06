@@ -4,6 +4,7 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -33,14 +34,13 @@ func TestAuditLogOutbox(t *testing.T) {
 
 	outbox.AddFlusher(AuditLogOutboxTopic, &auditLogFlusher{olap: olap})
 
-	t.Run("delivers queued entries with their original timestamps", func(t *testing.T) {
+	t.Run("delivers queued entries with the time they were queued", func(t *testing.T) {
 		tenantId := uuid.New()
 		correlationId, ip, userAgent := "corr-1", "10.0.0.1", "test-agent"
-		queuedAt := time.Now().UTC().Add(-time.Minute).Truncate(time.Microsecond)
+		queuedFrom := time.Now()
 
 		require.NoError(t, auditLogs.Enqueue(ctx, []AuditLogEntry{
 			{
-				InsertedAt:    queuedAt,
 				TenantID:      tenantId,
 				ActorType:     sqlcv1.V1AuditLogActorTypeUser,
 				ActorID:       uuid.New(),
@@ -54,6 +54,8 @@ func TestAuditLogOutbox(t *testing.T) {
 			testAuditLogEntry(tenantId, "run-2"),
 		}))
 
+		queuedUntil := time.Now()
+
 		_, err := outbox.ProcessMessages(ctx, AuditLogOutboxTopic)
 		require.NoError(t, err)
 
@@ -61,7 +63,7 @@ func TestAuditLogOutbox(t *testing.T) {
 		require.Len(t, rows, 2)
 
 		assert.Equal(t, "run-1", rows[0].ResourceID)
-		assert.True(t, rows[0].InsertedAt.Time.Equal(queuedAt))
+		assert.WithinRange(t, rows[0].InsertedAt.Time, queuedFrom.Truncate(time.Microsecond), queuedUntil.Add(time.Microsecond))
 		assert.Equal(t, sqlcv1.V1AuditLogActorTypeUser, rows[0].ActorType)
 		assert.Equal(t, pgtype.Text{String: correlationId, Valid: true}, rows[0].CorrelationID)
 		assert.Equal(t, pgtype.Text{String: ip, Valid: true}, rows[0].IpAddress)
@@ -91,13 +93,21 @@ func TestAuditLogOutbox(t *testing.T) {
 	t.Run("a batch that can't be written stays queued", func(t *testing.T) {
 		tenantId := uuid.New()
 
-		// v1_audit_log has no partition this far back, so the insert fails a check constraint.
+		// Enqueue stamps the current time, so this entry is queued directly. v1_audit_log has no
+		// partition this far back, so the insert fails a check constraint.
 		noPartition := testAuditLogEntry(tenantId, "no-partition")
+		noPartition.ID = uuid.New()
 		noPartition.InsertedAt = time.Date(2001, 1, 1, 0, 0, 0, 0, time.UTC)
 
-		require.NoError(t, auditLogs.Enqueue(ctx, []AuditLogEntry{testAuditLogEntry(tenantId, "run-1"), noPartition}))
+		payload, err := json.Marshal(noPartition)
+		require.NoError(t, err)
 
-		_, err := outbox.ProcessMessages(ctx, AuditLogOutboxTopic)
+		require.NoError(t, auditLogs.Enqueue(ctx, []AuditLogEntry{testAuditLogEntry(tenantId, "run-1")}))
+		require.NoError(t, pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
+			return outbox.AddMessages(ctx, tx, AuditLogOutboxTopic, []pgoutbox.MessageOpts{{Payload: payload}})
+		}))
+
+		_, err = outbox.ProcessMessages(ctx, AuditLogOutboxTopic)
 		require.Error(t, err)
 
 		assert.Equal(t, 2, countAuditLogOutboxMessages(t, ctx, pool))

@@ -935,7 +935,7 @@ type ServerConfig struct {
 
 	SchedulingPoolV1 scheduling.Pool
 
-	AuditLogs *v1.AuditLogOutbox
+	AuditLogOutbox *v1.AuditLogOutbox
 
 	Sampling ConfigFileSampling
 

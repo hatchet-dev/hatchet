@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/hatchet-dev/hatchet/pkg/constants"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -26,20 +27,20 @@ const AuditLogOutboxTopic = "v1_audit_log"
 const auditLogFlushTimeout = 10 * time.Second
 
 // AuditLogEntry is one v1_audit_log row; its JSON field names are the table's column names.
-// Enqueue fills in a zero ID or InsertedAt before queueing, so redelivery keeps an entry's key.
+// Enqueue sets ID and InsertedAt before queueing, so redelivery keeps an entry's key.
 type AuditLogEntry struct {
 	ID         uuid.UUID `json:"id"`
 	InsertedAt time.Time `json:"inserted_at"`
 
-	TenantID      uuid.UUID                  `json:"tenant_id"`
-	ActorType     sqlcv1.V1AuditLogActorType `json:"actor_type"`
-	ActorID       uuid.UUID                  `json:"actor_id"`
-	Action        string                     `json:"action"`
-	CorrelationID *string                    `json:"correlation_id,omitempty"`
-	ResourceID    string                     `json:"resource_id"`
-	ResourceType  string                     `json:"resource_type"`
-	IPAddress     *string                    `json:"ip_address,omitempty"`
-	UserAgent     *string                    `json:"user_agent,omitempty"`
+	TenantID      uuid.UUID                   `json:"tenant_id"`
+	ActorType     sqlcv1.V1AuditLogActorType  `json:"actor_type"`
+	ActorID       uuid.UUID                   `json:"actor_id"`
+	Action        string                      `json:"action"`
+	CorrelationID *string                     `json:"correlation_id,omitempty"`
+	ResourceID    string                      `json:"resource_id"`
+	ResourceType  constants.ResourceTypeValue `json:"resource_type"`
+	IPAddress     *string                     `json:"ip_address,omitempty"`
+	UserAgent     *string                     `json:"user_agent,omitempty"`
 }
 
 func (e *AuditLogEntry) validate() error {
@@ -86,13 +87,8 @@ func (o *AuditLogOutbox) Enqueue(ctx context.Context, entries []AuditLogEntry) e
 	msgs := make([]pgoutbox.MessageOpts, len(entries))
 
 	for i, entry := range entries {
-		if entry.ID == uuid.Nil {
-			entry.ID = uuid.New()
-		}
-
-		if entry.InsertedAt.IsZero() {
-			entry.InsertedAt = now
-		}
+		entry.ID = uuid.New()
+		entry.InsertedAt = now
 
 		if err := entry.validate(); err != nil {
 			return fmt.Errorf("invalid audit log entry: %w", err)
