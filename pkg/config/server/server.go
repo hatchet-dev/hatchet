@@ -30,6 +30,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/o11yusage"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/scheduling"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
@@ -926,6 +927,8 @@ type ServerConfig struct {
 	AdditionalOAuthConfigs map[string]*oauth2.Config
 
 	SchedulingPoolV1 scheduling.Pool
+
+	AuditLogOutbox *v1.AuditLogOutbox
 
 	Sampling ConfigFileSampling
 
