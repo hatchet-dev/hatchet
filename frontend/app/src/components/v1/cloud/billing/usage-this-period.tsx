@@ -575,12 +575,12 @@ export function UsageThisPeriod({
         ),
         streamPublishedBytes: sumUsageSeries(
           (timeseries.data?.series ?? []).map(
-            (point) => point.streamPublishedBytes,
+            (point) => point.streamPublishedBytes ?? 0,
           ),
         ),
         streamDeliveredBytes: sumUsageSeries(
           (timeseries.data?.series ?? []).map(
-            (point) => point.streamDeliveredBytes,
+            (point) => point.streamDeliveredBytes ?? 0,
           ),
         ),
         crons: sumLoadedCount(shardTenants, 'crons'),
@@ -611,8 +611,12 @@ export function UsageThisPeriod({
     return {
       task_runs: series.map((point) => point.taskRuns),
       events: series.map((point) => point.events),
-      stream_published_bytes: series.map((point) => point.streamPublishedBytes),
-      stream_delivered_bytes: series.map((point) => point.streamDeliveredBytes),
+      stream_published_bytes: series.map(
+        (point) => point.streamPublishedBytes ?? 0,
+      ),
+      stream_delivered_bytes: series.map(
+        (point) => point.streamDeliveredBytes ?? 0,
+      ),
     };
   }, [timeseries.data?.series]);
 
