@@ -757,7 +757,26 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 		return err
 	}
 
-	return tc.signaler.SendInternalEvents(ctx, tenantId, res.InternalEvents)
+	if err := tc.signaler.SendInternalEvents(ctx, tenantId, res.InternalEvents); err != nil {
+		return err
+	}
+
+	tc.dispatchSatisfiedDurableEntries(ctx, tenantId, res.SatisfiedDurableEventLogEntries)
+
+	return nil
+}
+
+// dispatchSatisfiedDurableEntries delivers entries that operator step children satisfied in their
+// finalize transaction. Delivery is best-effort here as it is for match-satisfied entries: an evicted
+// or disconnected orchestrator picks the entry up from the log when it is restored.
+func (tc *TasksControllerImpl) dispatchSatisfiedDurableEntries(ctx context.Context, tenantId uuid.UUID, entries []v1.SatisfiedEntry) {
+	if len(entries) == 0 {
+		return
+	}
+
+	if err := tc.processSatisfiedEventLogEntry(ctx, tenantId, entries); err != nil {
+		tc.l.Error().Ctx(ctx).Err(err).Msg("could not dispatch durable entries satisfied by operator step children")
+	}
 }
 
 func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
@@ -915,6 +934,8 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 		return err
 	}
 
+	tc.dispatchSatisfiedDurableEntries(ctx, tenantId, res.SatisfiedDurableEventLogEntries)
+
 	var outerErr error
 
 	// send retried tasks to the olap repository
@@ -999,6 +1020,8 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		span.SetStatus(codes.Error, "could not send internal events")
 		return err
 	}
+
+	tc.dispatchSatisfiedDurableEntries(ctx, tenantId, res.SatisfiedDurableEventLogEntries)
 
 	var outerErr error
 

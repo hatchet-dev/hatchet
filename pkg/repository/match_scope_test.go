@@ -44,7 +44,7 @@ func newUserEventScopeTestRepositories(t *testing.T, pool *pgxpool.Pool) userEve
 	t.Cleanup(func() { _ = cleanup() })
 
 	return userEventScopeTestRepositories{
-		durable: newDurableEventsRepository(shared, DurableEventBufferOpts{
+		durable: newDurableEventsRepository(shared, newTenantEntitlementRepository(shared), DurableEventBufferOpts{
 			FlushInterval:        10 * time.Millisecond,
 			MaxBatchSize:         20,
 			MaxConcurrentFlushes: 16,
