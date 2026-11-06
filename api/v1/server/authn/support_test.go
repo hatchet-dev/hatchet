@@ -48,12 +48,25 @@ func (r supportUserRepo) GetUserByID(_ context.Context, _ uuid.UUID) (*sqlcv1.Us
 	panic("support tokens must not look up users on the shard")
 }
 
-type supportRepo struct {
-	repository.Repository
-	users supportUserRepo
+type supportGrantRepo struct {
+	repository.SupportGrantRepository
+	revoked map[uuid.UUID]bool
+	looked  []uuid.UUID
 }
 
-func (r supportRepo) User() repository.UserRepository { return r.users }
+func (r *supportGrantRepo) IsRevoked(_ context.Context, grantID uuid.UUID) (bool, error) {
+	r.looked = append(r.looked, grantID)
+	return r.revoked[grantID], nil
+}
+
+type supportRepo struct {
+	repository.Repository
+	users  supportUserRepo
+	grants *supportGrantRepo
+}
+
+func (r supportRepo) User() repository.UserRepository                 { return r.users }
+func (r supportRepo) SupportGrant() repository.SupportGrantRepository { return r.grants }
 
 type bearerOnly struct{ middleware.SecurityRequirement }
 
@@ -70,7 +83,7 @@ func newSupportAuthN(user *sqlcv1.User, support exchangetoken.SupportTokenClient
 	return &AuthN{
 		l: &logger,
 		config: &server.ServerConfig{
-			Layer: &database.Layer{V1: supportRepo{users: supportUserRepo{}}},
+			Layer: &database.Layer{V1: supportRepo{users: supportUserRepo{}, grants: &supportGrantRepo{revoked: map[uuid.UUID]bool{}}}},
 			Auth: server.AuthConfig{
 				SupportTokenClient:  support,
 				ExchangeTokenClient: stubExchangeClient{called: exchangeCalled},
@@ -122,6 +135,23 @@ func TestSupportTokenAuthn(t *testing.T) {
 		assert.Equal(t, claims.GrantID, ctx.Value(analytics.SupportGrantIDKey))
 		assert.Equal(t, analytics.SourceSupport, ctx.Value(analytics.SourceKey))
 		assert.Equal(t, user.ID, ctx.Value(analytics.UserIDKey))
+	})
+
+	t.Run("rejected once the grant is revoked on the shard", func(t *testing.T) {
+		exchangeCalled := false
+		a := newSupportAuthN(user, stubSupportClient{claims: claims}, &exchangeCalled)
+		grants := &supportGrantRepo{revoked: map[uuid.UUID]bool{claims.GrantID: true}}
+		a.config.V1 = supportRepo{users: supportUserRepo{}, grants: grants}
+		c := supportRequest(t, tenant)
+
+		err := a.authenticate(c, &middleware.RouteInfo{OperationID: "V1WorkflowRunList", Security: bearerOnly{}})
+
+		var httpErr *echo.HTTPError
+		require.ErrorAs(t, err, &httpErr)
+		assert.Equal(t, http.StatusForbidden, httpErr.Code)
+		assert.Equal(t, []uuid.UUID{claims.GrantID}, grants.looked)
+		assert.Nil(t, c.Get("user"))
+		assert.Nil(t, c.Get(middleware.IsSupportTokenContextKey))
 	})
 
 	t.Run("accepted for the current user outside a tenant", func(t *testing.T) {

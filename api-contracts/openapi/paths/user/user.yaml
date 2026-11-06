@@ -125,7 +125,9 @@ current:
         description: Method not allowed
       "429":
         $ref: "../../components/responses/_index.yaml#/TooManyRequests"
+    # bearerAuth admits support tokens: staff have no cookie session on the shard
     security:
+      - bearerAuth: []
       - cookieAuth: []
     summary: Get current user
     tags:

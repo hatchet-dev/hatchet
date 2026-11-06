@@ -45,6 +45,7 @@ sql:
       - maintenance.sql
       - serverless.sql
       - streams.sql
+      - support_grants.sql
     schema:
       - ../../../sql/schema/v0.sql
       - ../../../sql/schema/v1-core.sql
