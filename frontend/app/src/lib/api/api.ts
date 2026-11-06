@@ -6,8 +6,16 @@ import {
 import { Api } from './generated/Api';
 import { Api as CloudApi } from './generated/cloud/Api';
 import { Api as ControlPlaneApi } from './generated/control-plane/Api';
+import { SupportSession } from '@/lib/api/generated/control-plane/data-contracts';
 import { isRetryableRequestError } from '@/lib/query-retry';
-import { getSupportSession } from '@/lib/support-session';
+import {
+  getSupportSession,
+  isSupportSessionMarkedExpired,
+} from '@/lib/support-session';
+import {
+  supportSessionNeedsRenewal,
+  supportSessionQueryOptions,
+} from '@/lib/support-session-renewal';
 import queryClient from '@/query-client';
 import { InternalAxiosRequestConfig } from 'axios';
 import qs from 'qs';
@@ -207,6 +215,38 @@ async function resolveControlPlaneEnabled(): Promise<boolean> {
 }
 
 /**
+ * The stored support token, renewed first when it is near or past expiry so a
+ * tab coming back from the background does not hit the shard with a dead
+ * token and get its session marked expired by the 401.
+ */
+async function currentSupportSession(): Promise<SupportSession | null> {
+  const session = getSupportSession();
+  if (
+    !session ||
+    isSupportSessionMarkedExpired() ||
+    !supportSessionNeedsRenewal(session)
+  ) {
+    return session;
+  }
+
+  try {
+    await queryClient.fetchQuery(
+      supportSessionQueryOptions(session.grant.id, (token) =>
+        controlPlaneApi
+          .supportSessionRenew({
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          .then((r) => r.data),
+      ),
+    );
+  } catch {
+    // the shard's answer decides what happens to the session
+  }
+
+  return getSupportSession();
+}
+
+/**
  * Exchange-token request interceptor.
  *
  * When control plane is active, tenant-scoped OSS API requests are
@@ -222,7 +262,7 @@ export async function exchangeTokenInterceptor(
 ) {
   // Every request goes to the support session's shard, tenant-scoped or not:
   // it is the only backend that accepts the token. controlPlaneApi has no interceptor.
-  const supportSession = getSupportSession();
+  const supportSession = await currentSupportSession();
   if (supportSession) {
     config.baseURL = supportSession.apiUrl;
     config.withCredentials = false;

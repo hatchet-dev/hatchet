@@ -115,6 +115,12 @@ export function markSupportSessionExpired() {
   notify();
 }
 
+// A token past expiresAt is not final: the control plane renews it while the
+// grant is active. Only a rejection is.
+export function isSupportSessionMarkedExpired(): boolean {
+  return getStored()?.expired === true;
+}
+
 export function isSupportSessionExpired(
   session: SupportSession | null = getSupportSession(),
   now: number = Date.now(),

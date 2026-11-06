@@ -1,5 +1,6 @@
 import {
   CONTROL_PLANE_TENANT_STORAGE_KEY,
+  controlPlaneApi,
   exchangeTokenInterceptor,
   fetchControlPlaneStatus,
   getApiErrorStatus,
@@ -274,4 +275,96 @@ test('fetchControlPlaneStatus reports the control plane disabled in support mode
     assert.equal(status.isControlPlaneEnabled, false);
     assert.equal(status.meta, null);
   });
+});
+
+async function withMutableSupportSession(
+  session: typeof supportSession,
+  fn: () => Promise<void>,
+) {
+  const previousSessionStorage = globalThis.sessionStorage;
+  const store = new Map<string, string>([
+    [SUPPORT_SESSION_STORAGE_KEY, JSON.stringify({ session })],
+  ]);
+
+  Object.defineProperty(globalThis, 'sessionStorage', {
+    configurable: true,
+    value: {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => store.set(key, value),
+      removeItem: (key: string) => store.delete(key),
+    },
+  });
+
+  try {
+    await fn();
+  } finally {
+    if (previousSessionStorage) {
+      Object.defineProperty(globalThis, 'sessionStorage', {
+        configurable: true,
+        value: previousSessionStorage,
+      });
+    } else {
+      delete (globalThis as Partial<typeof globalThis>).sessionStorage;
+    }
+  }
+}
+
+test('exchangeTokenInterceptor renews a support token that is past expiry before sending', async () => {
+  const stale = {
+    ...supportSession,
+    token: 'stale-token',
+    expiresAt: new Date(Date.now() - 60_000).toISOString(),
+  };
+  const fresh = {
+    ...supportSession,
+    token: 'fresh-token',
+    expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+  };
+  const originalRenew = controlPlaneApi.supportSessionRenew;
+  const seen: string[] = [];
+  controlPlaneApi.supportSessionRenew = (async (params?: {
+    headers?: Record<string, string>;
+  }) => {
+    seen.push(params?.headers?.Authorization ?? '');
+    return { data: fresh };
+  }) as typeof controlPlaneApi.supportSessionRenew;
+
+  try {
+    await withMutableSupportSession(stale, async () => {
+      const config = await exchangeTokenInterceptor(
+        requestConfig({ xResources: [] }),
+      );
+
+      assert.deepEqual(seen, ['Bearer stale-token']);
+      assert.equal(config.headers.get('Authorization'), 'Bearer fresh-token');
+      assert.equal(config.baseURL, supportSession.apiUrl);
+    });
+  } finally {
+    controlPlaneApi.supportSessionRenew = originalRenew;
+  }
+});
+
+test('exchangeTokenInterceptor sends a fresh support token without renewing', async () => {
+  const originalRenew = controlPlaneApi.supportSessionRenew;
+  let calls = 0;
+  controlPlaneApi.supportSessionRenew = (async () => {
+    calls += 1;
+    return { data: supportSession };
+  }) as typeof controlPlaneApi.supportSessionRenew;
+
+  try {
+    await withSupportSession(async () => {
+      const config = await exchangeTokenInterceptor(
+        requestConfig({ xResources: [] }),
+      );
+
+      assert.equal(calls, 0);
+      assert.equal(
+        config.headers.get('Authorization'),
+        `Bearer ${supportSession.token}`,
+      );
+    });
+  } finally {
+    controlPlaneApi.supportSessionRenew = originalRenew;
+  }
 });
