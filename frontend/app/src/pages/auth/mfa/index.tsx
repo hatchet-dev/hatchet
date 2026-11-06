@@ -5,9 +5,11 @@ import { Button } from '@/components/v1/ui/button';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import { useTenantDetails } from '@/hooks/use-tenant';
+import { EXCHANGE_TOKEN_QUERY_KEY_PREFIX } from '@/lib/api/exchange-token';
+import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
 import { useNavigate } from '@tanstack/react-router';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 export default function MFA() {
   const navigate = useNavigate();
@@ -30,8 +32,10 @@ export default function MFA() {
     mfaPost,
   } = useMfa();
 
+  const prompted = useRef(false);
+
   useEffect(() => {
-    if (!state || state.pending || !organizationId) {
+    if (!state || state.pending || codes || !organizationId) {
       return;
     }
     void navigate({
@@ -39,7 +43,21 @@ export default function MFA() {
       params: { organization: organizationId },
       replace: true,
     });
-  }, [navigate, organizationId, state]);
+  }, [codes, navigate, organizationId, state]);
+
+  useEffect(() => {
+    if (
+      prompted.current ||
+      !state?.pending ||
+      codes ||
+      recovery ||
+      state.passkeys.length === 0
+    ) {
+      return;
+    }
+    prompted.current = true;
+    void run(() => passkeyCeremony(false), true);
+  }, [codes, recovery, run, state]);
 
   return (
     <div className="ph-no-capture ph-no-record h-full overflow-y-auto">
@@ -97,7 +115,15 @@ export default function MFA() {
             >
               Download codes
             </Button>
-            <Button variant="outline" onClick={() => setCodes(undefined)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setCodes(undefined);
+                queryClient.removeQueries({
+                  queryKey: [EXCHANGE_TOKEN_QUERY_KEY_PREFIX],
+                });
+              }}
+            >
               I have saved these codes
             </Button>
           </section>

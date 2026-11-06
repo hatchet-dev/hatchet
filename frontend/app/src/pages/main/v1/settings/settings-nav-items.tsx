@@ -152,7 +152,7 @@ export function settingsNavGroups(opts: {
       items: [
         {
           key: 'user-security',
-          name: 'Security',
+          name: 'MFA',
           to: appRoutes.organizationUserRoute.to,
           params,
         },

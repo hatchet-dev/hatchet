@@ -1,5 +1,10 @@
 import { config } from '@/config';
-import { mfaPost, mfaStatus, passkeyCeremony } from '@/lib/api/mfa';
+import {
+  mfaPost,
+  mfaStatus,
+  PasskeyCancelled,
+  passkeyCeremony,
+} from '@/lib/api/mfa';
 import queryClient from '@/query-client';
 import { useQuery } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
@@ -41,6 +46,10 @@ export function useMfa() {
       setRemoveFactor(undefined);
       if (result?.recoveryCodes) {
         setCodes(result.recoveryCodes);
+        // Leave the recovery codes on screen. Dropping the rest of the cache
+        // here makes the app shell replace this page with its loading state.
+        await status.refetch();
+        return 'recovery';
       }
       // Factor changes and login completion must discard cached exchange tokens.
       queryClient.removeQueries({
@@ -48,10 +57,14 @@ export function useMfa() {
       });
       if (login) {
         leaveMfa('/');
-        return;
+        return true;
       }
       await status.refetch();
+      return true;
     } catch (err) {
+      if (err instanceof PasskeyCancelled) {
+        return false;
+      }
       const message = isAxiosError(err)
         ? err.response?.data?.message
         : err instanceof Error
@@ -65,6 +78,7 @@ export function useMfa() {
       if (setup) {
         setSetup(undefined);
       }
+      return false;
     } finally {
       setBusy(false);
     }

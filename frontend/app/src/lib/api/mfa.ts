@@ -1,10 +1,15 @@
 import { controlPlaneApi } from './api';
 
 const path = '/api/v1/control-plane/users/mfa';
+export type MFAMethod = {
+  id: string;
+  kind: 'totp' | 'passkey';
+};
 export type MFAStatus = {
   pending: boolean;
   totp: boolean;
   passkeys: string[];
+  methods: MFAMethod[];
   recoveryRemaining: number;
   canManage: boolean;
 };
@@ -53,6 +58,31 @@ const descriptor = (item: DescriptorJSON): PublicKeyCredentialDescriptor => ({
   id: decode(item.id),
 });
 
+// Closing the browser prompt rejects with NotAllowedError and a link to the
+// WebAuthn spec. Callers treat this as a cancellation, not a shown error.
+export class PasskeyCancelled extends Error {
+  constructor() {
+    super('Passkey prompt was closed.');
+    this.name = 'PasskeyCancelled';
+  }
+}
+
+async function requestPasskey(
+  request: () => Promise<Credential | null>,
+): Promise<PublicKeyCredential | null> {
+  try {
+    return (await request()) as PublicKeyCredential | null;
+  } catch (err) {
+    if (
+      err instanceof DOMException &&
+      (err.name === 'NotAllowedError' || err.name === 'AbortError')
+    ) {
+      throw new PasskeyCancelled();
+    }
+    throw err;
+  }
+}
+
 export async function passkeyCeremony(enroll: boolean) {
   if (!window.PublicKeyCredential || !navigator.credentials) {
     throw new Error(
@@ -65,25 +95,29 @@ export async function passkeyCeremony(enroll: boolean) {
     const { publicKey } = await mfaPost<{ publicKey: CreationJSON }>(
       `${kind}/start`,
     );
-    credential = (await navigator.credentials.create({
-      publicKey: {
-        ...publicKey,
-        challenge: decode(publicKey.challenge),
-        user: { ...publicKey.user, id: decode(publicKey.user.id) },
-        excludeCredentials: publicKey.excludeCredentials?.map(descriptor),
-      },
-    })) as PublicKeyCredential | null;
+    credential = await requestPasskey(() =>
+      navigator.credentials.create({
+        publicKey: {
+          ...publicKey,
+          challenge: decode(publicKey.challenge),
+          user: { ...publicKey.user, id: decode(publicKey.user.id) },
+          excludeCredentials: publicKey.excludeCredentials?.map(descriptor),
+        },
+      }),
+    );
   } else {
     const { publicKey } = await mfaPost<{ publicKey: RequestJSON }>(
       `${kind}/start`,
     );
-    credential = (await navigator.credentials.get({
-      publicKey: {
-        ...publicKey,
-        challenge: decode(publicKey.challenge),
-        allowCredentials: publicKey.allowCredentials?.map(descriptor),
-      },
-    })) as PublicKeyCredential | null;
+    credential = await requestPasskey(() =>
+      navigator.credentials.get({
+        publicKey: {
+          ...publicKey,
+          challenge: decode(publicKey.challenge),
+          allowCredentials: publicKey.allowCredentials?.map(descriptor),
+        },
+      }),
+    );
   }
   if (!credential) {
     throw new Error('Passkey verification was cancelled.');
