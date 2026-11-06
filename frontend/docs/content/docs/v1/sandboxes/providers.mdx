@@ -16,13 +16,13 @@ import { Callout } from "@/components/nextra-compat";
 
 Each provider has its own meaning of a template which corresponds its own keys in the **Provider config** section.
 
-A template is chosen in the following order: the `template` passed to `create`, then the provider's **Default template** field, then the `template` key in the stored config, and lastly the provider's own default.
+A template is chosen in the following order. The `template` passed to `create` wins, then the provider's **Default template** field, then the `template` key in the stored config, and lastly the provider's own default.
 
 ## Daytona
 
 A template is a [Daytona snapshot](https://www.daytona.io/docs/snapshots) name. Snapshots Hatchet takes are Daytona snapshots, so they show up in the Daytona dashboard.
 
-The default **Provider config**:
+The default **Provider config** is
 
 ```json
 {
@@ -37,7 +37,7 @@ Set `template` to the snapshot new sandboxes should start from. Without it, Dayt
 
 A template is an [E2B template](https://e2b.dev/docs/sandbox-template) name or a snapshot ID. Snapshots Hatchet takes are filesystem-only templates.
 
-The default **Provider config**:
+The default **Provider config** is
 
 ```json
 {
@@ -52,7 +52,7 @@ The default **Provider config**:
 
 A template is an OCI image, for example `node:24-bookworm`. A snapshot is a stopped fork of the machine, so forks start fast, and a sandbox's snapshots keep that stopped machine at Archil until you delete them.
 
-The default **Provider config**:
+The default **Provider config** is
 
 ```json
 {
@@ -67,7 +67,7 @@ The default **Provider config**:
 
 A template is a [Freestyle snapshot](https://docs.freestyle.sh) ID or slug. Snapshots include memory, so a sandbox resumed from one continues where it stopped.
 
-The default **Provider config**:
+The default **Provider config** is
 
 ```json
 {

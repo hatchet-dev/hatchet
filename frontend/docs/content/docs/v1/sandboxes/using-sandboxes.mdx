@@ -38,7 +38,7 @@ pnpm add @hatchet-dev/sandbox @hatchet-dev/typescript-sdk
 
 <Snippet src={snippets.typescript_sandbox.hatchet_client.create_client} />
 
-Inside a durable task, create a sandbox, run a command, and stop it:
+Inside a [durable task](/v1/durable-tasks), create a sandbox, run a command, and stop it.
 
 <Snippet
   src={
@@ -143,11 +143,11 @@ Inside a durable task, create a sandbox, run a command, and stop it:
 </UniversalTabs>
 
 - `read`, `write`, `list`, `exists`, `getInfo`, `makeDir`, `rename`, `copy` and `remove` are the file operations. A path outside the workspace throws a `FilesystemError` with code `invalid_path`.
-- `read` and `write` carry up to 2 MiB per file. A larger file fails with code `too_large`. One workaround is to fetch it inside the sandbox and operate on it.
+- `read` and `write` carry up to 2 MiB per file. Larger files are not supported on Hatchet Cloud providers yet. A larger `read` fails with code `too_large` and a larger `write` with code `invalid`. One workaround is to fetch the file inside the sandbox and operate on it there.
 
 ## Resuming a paused sandbox
 
-Every sandbox has an ID. Pass your own with `create({ id })` or take `sandbox.sandboxId`. From anywhere with a Hatchet client:
+Every sandbox has an ID. Pass your own with `create({ id })` or take `sandbox.sandboxId`. From anywhere with a Hatchet client, connect by that ID.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
 <Tabs.Tab title="Python">
@@ -187,7 +187,7 @@ If the sandbox was stopped, because it was idle or you called `kill`, `connect` 
 
 ## Forks
 
-Start a new sandbox from any snapshot with `create({ from })`. Create two from the same snapshot and you have a fork, which is how you try two approaches from the same starting point.
+Start a new sandbox from any snapshot with `create({ from })`. A snapshot ID comes from the `snapshotId` on a call's result, or from `latestSnapshot` in `hatchet.sandbox.list()` once the sandbox was killed. Create two from the same snapshot and you have a fork, which is how you try two approaches from the same starting point.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
 <Tabs.Tab title="Python">

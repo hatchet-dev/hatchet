@@ -30,13 +30,13 @@ Hatchet does not run sandboxes. You connect a sandbox vendor to your tenant with
 
 ### Turn sandboxes on
 
-Open your tenant settings, go to **Labs Preview** and turn on **Sandboxes**. You need to be a tenant owner or admin to do this. A **Sandboxes** menu entry will appear in the sidebar.
+Open your tenant settings, go to **Labs Preview** and turn on **Sandboxes**. You need to be a tenant owner or admin to do this, and tenants on the free plan are asked to upgrade first. A **Sandboxes** menu entry will appear in the sidebar.
 
 ### Add a provider
 
-Under **Sandboxes**, choose **New provider** and pick a vendor. Give it a name, which is what your code passes as `provider`, and paste the vendor's API key.
+Under **Sandboxes**, choose **Connect provider** and pick a vendor. Give it a name, which is what your code passes as `provider`, and paste the vendor's API key.
 
-The optional fields:
+The optional fields are
 
 | Field                   | What it does                                                                                                     |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------- |
@@ -55,8 +55,8 @@ The provider page shows the credential check and an event log.
 
 A snapshot is what `connect` resumes from and what `create({ from })` forks from. The `snapshotEveryTurn` key in **Provider config** picks when they are taken. It applies to every provider.
 
-|                          | On `kill` only (default)         | After every change (`"snapshotEveryTurn": true`)                                     |
-| ------------------------ | -------------------------------- | ------------------------------------------------------------------------------------ |
-| When a snapshot is taken | When you call `kill`             | After `kill` and after every `exec`, `files.write` and other call that changes files |
-| What you can fork from   | The state at the last `kill`     | The state after any call, via the `snapshotId` on its result                         |
-| Cost                     | One snapshot per sandbox session | One snapshot per changing call                                                       |
+|                          | On `kill` only (default)         | After every change (`"snapshotEveryTurn": true`)                                        |
+| ------------------------ | -------------------------------- | --------------------------------------------------------------------------------------- |
+| When a snapshot is taken | When you call `kill`             | After `kill` and after every `exec`, `files.write` and other call that changes files    |
+| What you can fork from   | The state at the last `kill`     | The state after any call that changes the workspace, via the `snapshotId` on its result |
+| Cost                     | One snapshot per sandbox session | One snapshot per changing call                                                          |
