@@ -22,6 +22,8 @@ const nextConfig = {
       { source: '/get-started', destination: '/v1', permanent: true, basePath: false },
       { source: '/v1/migrating', destination: '/v1/migrating/v1-sdk-improvements', permanent: true, basePath: false },
       { source: '/v1/migrating/', destination: '/v1/migrating/v1-sdk-improvements', permanent: true, basePath: false },
+      { source: '/v1/sandboxes', destination: '/v1/sandboxes/setup', permanent: true, basePath: false },
+      { source: '/v1/sandboxes/', destination: '/v1/sandboxes/setup', permanent: true, basePath: false },
       { source: '/agent-instructions', destination: '/agent-instructions/setup-cli', permanent: true, basePath: false },
       { source: '/agent-instructions/', destination: '/agent-instructions/setup-cli', permanent: true, basePath: false },
       { source: '/reference/typescript/feature-clients', destination: '/reference/typescript/feature-clients/crons', permanent: true, basePath: false },
