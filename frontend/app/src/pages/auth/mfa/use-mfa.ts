@@ -26,6 +26,8 @@ const friendlyMessages: Record<string, string> = {
     'Verify a method you already use first.',
   'Verify an enrolled method before removing one':
     'Verify a method you already use first.',
+  'Verify an enrolled method before replacing recovery codes':
+    'Verify a method you already use first.',
   'Please sign in again': 'Your login expired. Log in again.',
   'Login expired. Please sign in again': 'Your login expired. Log in again.',
   'Verify your email before setting up MFA':

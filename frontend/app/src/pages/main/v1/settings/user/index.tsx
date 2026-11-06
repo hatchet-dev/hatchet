@@ -1,6 +1,5 @@
 import { SettingsPageHeader } from '../../tenant-settings/components/settings-page-header';
 import { SettingRow } from '../../tenant-settings/components/settings-row';
-import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { Alert, AlertDescription } from '@/components/v1/ui/alert';
 import { Button } from '@/components/v1/ui/button';
@@ -54,6 +53,82 @@ function methodName(method: MFAMethod, methods: MFAMethod[]) {
   return `${label} ${sameKind.findIndex((item) => item.id === method.id) + 1}`;
 }
 
+function StepUpForm({
+  id,
+  hasPasskey,
+  hasTotp,
+  recovery,
+  setRecovery,
+  code,
+  setCode,
+  busy,
+  onPasskey,
+  onSubmit,
+}: {
+  id: string;
+  hasPasskey: boolean;
+  hasTotp: boolean;
+  recovery: boolean;
+  setRecovery: (recovery: boolean) => void;
+  code: string;
+  setCode: (code: string) => void;
+  busy: boolean;
+  onPasskey: () => void;
+  onSubmit: (event: FormEvent) => void;
+}) {
+  return (
+    <form className="grid gap-3" onSubmit={onSubmit}>
+      {hasPasskey && !recovery && (
+        <Button type="button" disabled={busy} onClick={onPasskey}>
+          Use a passkey
+        </Button>
+      )}
+      {(hasTotp || recovery) && (
+        <>
+          <Label htmlFor={id}>
+            {recovery ? 'Recovery code' : 'Authenticator code'}
+          </Label>
+          <Input
+            id={id}
+            value={code}
+            onChange={(event) =>
+              setCode(
+                recovery
+                  ? event.target.value
+                  : event.target.value.replace(/\D/g, '').slice(0, 6),
+              )
+            }
+            autoComplete="one-time-code"
+            autoFocus
+            inputMode={recovery ? 'text' : 'numeric'}
+            maxLength={recovery ? 64 : 6}
+            placeholder={recovery ? undefined : '123456'}
+            disabled={busy}
+            className={
+              recovery ? undefined : 'w-40 font-mono text-lg tracking-[0.4em]'
+            }
+          />
+        </>
+      )}
+      <div className="flex flex-row justify-end gap-4">
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => {
+            setRecovery(!recovery);
+            setCode('');
+          }}
+        >
+          {recovery ? 'Use a passkey or app' : 'Use a recovery code'}
+        </Button>
+        <Button type="submit" disabled={busy || !code.trim()}>
+          Continue
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 export default function UserSecuritySettings() {
   const mfa = useMfa();
   const {
@@ -84,6 +159,7 @@ export default function UserSecuritySettings() {
   const [stepUpDone, setStepUpDone] = useState(false);
   const [removeProved, setRemoveProved] = useState(false);
   const [replacingCodes, setReplacingCodes] = useState(false);
+  const [replaceProved, setReplaceProved] = useState(false);
   const methods = state?.methods ?? [];
   const removing = methods.find((method) => method.id === removeFactor);
   const removingLast = methods.length === 1 && removing !== undefined;
@@ -94,6 +170,16 @@ export default function UserSecuritySettings() {
   const needsStepUp = enrolled && !stepUpDone && !setup;
   const removeNeedsChallenge =
     removeFactor !== undefined && enrolled && !removeProved;
+  const replaceNeedsChallenge = replacingCodes && enrolled && !replaceProved;
+  const stepUpProps = {
+    hasPasskey: (state?.passkeys.length ?? 0) > 0,
+    hasTotp: state?.totp ?? false,
+    recovery,
+    setRecovery,
+    code,
+    setCode,
+    busy,
+  };
 
   function closeAdd() {
     setAddKind(undefined);
@@ -108,6 +194,14 @@ export default function UserSecuritySettings() {
   function closeRemove() {
     setRemoveFactor(undefined);
     setRemoveProved(false);
+    setCode('');
+    setRecovery(false);
+    setError('');
+  }
+
+  function closeReplace() {
+    setReplacingCodes(false);
+    setReplaceProved(false);
     setCode('');
     setRecovery(false);
     setError('');
@@ -196,6 +290,14 @@ export default function UserSecuritySettings() {
     const ok = await proveFactor();
     if (ok) {
       setRemoveProved(true);
+    }
+  }
+
+  async function confirmReplaceStepUp(event: FormEvent) {
+    event.preventDefault();
+    const ok = await proveFactor();
+    if (ok) {
+      setReplaceProved(true);
     }
   }
 
@@ -359,70 +461,21 @@ export default function UserSecuritySettings() {
             </Alert>
           )}
           {needsStepUp && (
-            <form className="grid gap-3" onSubmit={confirmStepUp}>
-              {state && state.passkeys.length > 0 && !recovery && (
-                <Button
-                  type="button"
-                  disabled={busy}
-                  onClick={async () => {
-                    const ok = await run(() => passkeyCeremony(false));
-                    if (!ok) {
-                      return;
-                    }
-                    setStepUpDone(true);
-                    if (addKind === 'totp') {
-                      await startAuthenticator();
-                    }
-                  }}
-                >
-                  Use a passkey
-                </Button>
-              )}
-              {(state?.totp || recovery) && (
-                <>
-                  <Label htmlFor="mfa-step-up">
-                    {recovery ? 'Recovery code' : 'Authenticator code'}
-                  </Label>
-                  <Input
-                    id="mfa-step-up"
-                    value={code}
-                    onChange={(event) =>
-                      setCode(
-                        recovery
-                          ? event.target.value
-                          : event.target.value.replace(/\D/g, '').slice(0, 6),
-                      )
-                    }
-                    autoComplete="one-time-code"
-                    autoFocus
-                    inputMode={recovery ? 'text' : 'numeric'}
-                    maxLength={recovery ? 64 : 6}
-                    placeholder={recovery ? undefined : '123456'}
-                    disabled={busy}
-                    className={
-                      recovery
-                        ? undefined
-                        : 'w-40 font-mono text-lg tracking-[0.4em]'
-                    }
-                  />
-                </>
-              )}
-              <div className="flex flex-row justify-end gap-4">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    setRecovery(!recovery);
-                    setCode('');
-                  }}
-                >
-                  {recovery ? 'Use a passkey or app' : 'Use a recovery code'}
-                </Button>
-                <Button type="submit" disabled={busy || !code.trim()}>
-                  Continue
-                </Button>
-              </div>
-            </form>
+            <StepUpForm
+              id="mfa-step-up"
+              {...stepUpProps}
+              onSubmit={confirmStepUp}
+              onPasskey={async () => {
+                const ok = await run(() => passkeyCeremony(false));
+                if (!ok) {
+                  return;
+                }
+                setStepUpDone(true);
+                if (addKind === 'totp') {
+                  await startAuthenticator();
+                }
+              }}
+            />
           )}
           {!needsStepUp && addKind === 'passkey' && (
             <div className="flex flex-row justify-end gap-4">
@@ -606,66 +659,17 @@ export default function UserSecuritySettings() {
             </Alert>
           )}
           {removeNeedsChallenge && (
-            <form className="grid gap-3" onSubmit={confirmRemoveStepUp}>
-              {state && state.passkeys.length > 0 && !recovery && (
-                <Button
-                  type="button"
-                  disabled={busy}
-                  onClick={async () => {
-                    const ok = await run(() => passkeyCeremony(false));
-                    if (ok) {
-                      setRemoveProved(true);
-                    }
-                  }}
-                >
-                  Use a passkey
-                </Button>
-              )}
-              {(state?.totp || recovery) && (
-                <>
-                  <Label htmlFor="mfa-remove-step-up">
-                    {recovery ? 'Recovery code' : 'Authenticator code'}
-                  </Label>
-                  <Input
-                    id="mfa-remove-step-up"
-                    value={code}
-                    onChange={(event) =>
-                      setCode(
-                        recovery
-                          ? event.target.value
-                          : event.target.value.replace(/\D/g, '').slice(0, 6),
-                      )
-                    }
-                    autoComplete="one-time-code"
-                    autoFocus
-                    inputMode={recovery ? 'text' : 'numeric'}
-                    maxLength={recovery ? 64 : 6}
-                    placeholder={recovery ? undefined : '123456'}
-                    disabled={busy}
-                    className={
-                      recovery
-                        ? undefined
-                        : 'w-40 font-mono text-lg tracking-[0.4em]'
-                    }
-                  />
-                </>
-              )}
-              <div className="flex flex-row justify-end gap-4">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    setRecovery(!recovery);
-                    setCode('');
-                  }}
-                >
-                  {recovery ? 'Use a passkey or app' : 'Use a recovery code'}
-                </Button>
-                <Button type="submit" disabled={busy || !code.trim()}>
-                  Continue
-                </Button>
-              </div>
-            </form>
+            <StepUpForm
+              id="mfa-remove-step-up"
+              {...stepUpProps}
+              onSubmit={confirmRemoveStepUp}
+              onPasskey={async () => {
+                const ok = await run(() => passkeyCeremony(false));
+                if (ok) {
+                  setRemoveProved(true);
+                }
+              }}
+            />
           )}
           {!removeNeedsChallenge && (
             <div className="flex flex-row justify-end gap-4">
@@ -693,19 +697,67 @@ export default function UserSecuritySettings() {
         </DialogContent>
       </Dialog>
 
-      <ConfirmDialog
-        isOpen={replacingCodes}
-        title="Replace recovery codes?"
-        description="Your current codes will stop working."
-        submitLabel="Replace codes"
-        isLoading={busy}
-        onCancel={() => setReplacingCodes(false)}
-        onSubmit={() => {
-          void run(() => mfaPost('recovery')).then(() =>
-            setReplacingCodes(false),
-          );
+      <Dialog
+        open={replacingCodes}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeReplace();
+          }
         }}
-      />
+      >
+        <DialogContent className="ph-no-capture ph-no-record w-fit min-w-[500px] max-w-[80%]">
+          <DialogHeader className="text-left">
+            <DialogTitle>
+              {replaceNeedsChallenge
+                ? 'Confirm it\u2019s you'
+                : 'Replace recovery codes?'}
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-foreground">
+            {replaceNeedsChallenge
+              ? 'Verify with a method you already use before replacing your codes.'
+              : 'Your current codes will stop working.'}
+          </p>
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          {replaceNeedsChallenge && (
+            <StepUpForm
+              id="mfa-replace-step-up"
+              {...stepUpProps}
+              onSubmit={confirmReplaceStepUp}
+              onPasskey={async () => {
+                const ok = await run(() => passkeyCeremony(false));
+                if (ok) {
+                  setReplaceProved(true);
+                }
+              }}
+            />
+          )}
+          {!replaceNeedsChallenge && (
+            <div className="flex flex-row justify-end gap-4">
+              <Button type="button" variant="ghost" onClick={closeReplace}>
+                Cancel
+              </Button>
+              <Button
+                disabled={busy}
+                onClick={() => {
+                  void run(() => mfaPost('recovery')).then((ok) => {
+                    if (ok) {
+                      closeReplace();
+                    }
+                  });
+                }}
+              >
+                {busy && <Spinner />}
+                Replace codes
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
