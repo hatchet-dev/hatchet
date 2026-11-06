@@ -4,7 +4,6 @@ package repository
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -12,7 +11,6 @@ import (
 	"github.com/hatchet-dev/pgoutbox"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -29,12 +27,10 @@ func TestAuditLogOutbox(t *testing.T) {
 	outbox, err := pgoutbox.NewOutbox(ctx, pool, pgoutbox.WithAutoMigrate(false))
 	require.NoError(t, err)
 
-	l := zerolog.Nop()
-	auditLogs := NewAuditLogOutbox(outbox, pool, &l)
+	auditLogs := NewAuditLogOutbox(outbox, pool)
 	olap := createOLAPRepository(pool)
-	sink := &failingAuditLogSink{AuditLogSink: olap}
 
-	outbox.AddFlusher(AuditLogOutboxTopic, &auditLogFlusher{sink: sink, l: &l})
+	outbox.AddFlusher(AuditLogOutboxTopic, &auditLogFlusher{sink: olap})
 
 	t.Run("delivers queued entries with their original timestamps", func(t *testing.T) {
 		tenantId := uuid.New()
@@ -90,76 +86,23 @@ func TestAuditLogOutbox(t *testing.T) {
 		assert.Len(t, listAuditLogs(t, ctx, pool, tenantId), 1)
 	})
 
-	t.Run("an entry the database rejects doesn't block the rest", func(t *testing.T) {
+	t.Run("a batch that can't be written stays queued", func(t *testing.T) {
 		tenantId := uuid.New()
 
 		// v1_audit_log has no partition this far back, so the insert fails a check constraint.
-		rejected := testAuditLogEntry(tenantId, "no-partition")
-		rejected.InsertedAt = time.Date(2001, 1, 1, 0, 0, 0, 0, time.UTC)
+		noPartition := testAuditLogEntry(tenantId, "no-partition")
+		noPartition.InsertedAt = time.Date(2001, 1, 1, 0, 0, 0, 0, time.UTC)
 
-		require.NoError(t, auditLogs.Enqueue(ctx, []AuditLogEntry{
-			testAuditLogEntry(tenantId, "run-1"),
-			rejected,
-			testAuditLogEntry(tenantId, "run-2"),
-		}))
+		require.NoError(t, auditLogs.Enqueue(ctx, []AuditLogEntry{testAuditLogEntry(tenantId, "run-1"), noPartition}))
 
-		drainAuditLogOutbox(t, ctx, outbox)
-
-		rows := listAuditLogs(t, ctx, pool, tenantId)
-		require.Len(t, rows, 2)
-		assert.Equal(t, "run-1", rows[0].resourceId)
-		assert.Equal(t, "run-2", rows[1].resourceId)
-
-		assert.Zero(t, countAuditLogOutboxMessages(t, ctx, pool))
-	})
-
-	t.Run("a failed write keeps the whole batch queued", func(t *testing.T) {
-		tenantId := uuid.New()
-
-		rejected := testAuditLogEntry(tenantId, "no-partition")
-		rejected.InsertedAt = time.Date(2001, 1, 1, 0, 0, 0, 0, time.UTC)
-
-		require.NoError(t, auditLogs.Enqueue(ctx, []AuditLogEntry{
-			testAuditLogEntry(tenantId, "run-1"),
-			testAuditLogEntry(tenantId, "run-2"),
-			rejected,
-			testAuditLogEntry(tenantId, "run-3"),
-		}))
-
-		// The rejected entry splits the batch: the first half is written, then the second half's
-		// write fails.
-		sink.writes, sink.failWrite = 0, 3
 		_, err := outbox.ProcessMessages(ctx, AuditLogOutboxTopic)
-		sink.failWrite = 0
 		require.Error(t, err)
 
-		assert.Equal(t, 4, countAuditLogOutboxMessages(t, ctx, pool))
+		assert.Equal(t, 2, countAuditLogOutboxMessages(t, ctx, pool))
+		assert.Empty(t, listAuditLogs(t, ctx, pool, tenantId))
 
-		drainAuditLogOutbox(t, ctx, outbox)
-
-		rows := listAuditLogs(t, ctx, pool, tenantId)
-		require.Len(t, rows, 3)
-		assert.Equal(t, "run-1", rows[0].resourceId)
-		assert.Equal(t, "run-2", rows[1].resourceId)
-		assert.Equal(t, "run-3", rows[2].resourceId)
-
-		assert.Zero(t, countAuditLogOutboxMessages(t, ctx, pool))
-	})
-
-	t.Run("a payload that isn't an entry is dropped", func(t *testing.T) {
-		tenantId := uuid.New()
-
-		tx, err := pool.Begin(ctx)
+		_, err = pool.Exec(ctx, `DELETE FROM outbox.messages WHERE topic = $1`, AuditLogOutboxTopic)
 		require.NoError(t, err)
-		require.NoError(t, outbox.AddMessages(ctx, tx, AuditLogOutboxTopic, []pgoutbox.MessageOpts{{Payload: []byte(`{}`)}}))
-		require.NoError(t, tx.Commit(ctx))
-
-		require.NoError(t, auditLogs.Enqueue(ctx, []AuditLogEntry{testAuditLogEntry(tenantId, "run-1")}))
-
-		drainAuditLogOutbox(t, ctx, outbox)
-
-		assert.Len(t, listAuditLogs(t, ctx, pool, tenantId), 1)
-		assert.Zero(t, countAuditLogOutboxMessages(t, ctx, pool))
 	})
 
 	t.Run("an invalid entry fails the enqueue and queues nothing", func(t *testing.T) {
@@ -202,24 +145,6 @@ func testAuditLogEntry(tenantId uuid.UUID, resourceId string) AuditLogEntry {
 		ResourceID:   resourceId,
 		ResourceType: "workflow-run",
 	}
-}
-
-// failingAuditLogSink fails its failWrite-th write (counting from 1) with an error that isn't
-// permanent.
-type failingAuditLogSink struct {
-	AuditLogSink
-	writes    int
-	failWrite int
-}
-
-func (s *failingAuditLogSink) CreateAuditLogs(ctx context.Context, entries []AuditLogEntry) error {
-	s.writes++
-
-	if s.writes == s.failWrite {
-		return errors.New("connection refused")
-	}
-
-	return s.AuditLogSink.CreateAuditLogs(ctx, entries)
 }
 
 func drainAuditLogOutbox(t *testing.T, ctx context.Context, outbox pgoutbox.Outbox) {

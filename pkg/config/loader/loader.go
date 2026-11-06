@@ -970,7 +970,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		EnableDataRetention:    cf.EnableDataRetention,
 		EnableWorkerRetention:  cf.EnableWorkerRetention,
 		SchedulingPoolV1:       schedulingPoolV1,
-		AuditLogs:              repov1.NewAuditLogOutbox(outbox, dc.Pool, &l),
+		AuditLogs:              repov1.NewAuditLogOutbox(outbox, dc.Pool),
 		Version:                version,
 		Sampling:               cf.Sampling,
 		Operations:             cf.OLAP,
