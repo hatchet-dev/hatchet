@@ -1,4 +1,5 @@
 import { config } from '@/config';
+import { EXCHANGE_TOKEN_QUERY_KEY_PREFIX } from '@/lib/api/exchange-token';
 import {
   mfaPost,
   mfaStatus,
@@ -43,7 +44,6 @@ export function useMfa() {
       const result = await action();
       setCode('');
       setSetup(undefined);
-      setRemoveFactor(undefined);
       if (result?.recoveryCodes) {
         setCodes(result.recoveryCodes);
         // Leave the recovery codes on screen. Dropping the rest of the cache
@@ -51,14 +51,19 @@ export function useMfa() {
         await status.refetch();
         return 'recovery';
       }
-      // Factor changes and login completion must discard cached exchange tokens.
-      queryClient.removeQueries({
-        predicate: (q) => q.queryKey[0] !== 'mfa:status',
-      });
       if (login) {
+        // Login completion must discard cached exchange tokens before the app loads.
+        queryClient.removeQueries({
+          predicate: (q) => q.queryKey[0] !== 'mfa:status',
+        });
         leaveMfa('/');
         return true;
       }
+      // A factor proof on the settings page only needs a new shard token.
+      // Wiping the rest of the cache replaces this page with the shell loader.
+      queryClient.removeQueries({
+        queryKey: [EXCHANGE_TOKEN_QUERY_KEY_PREFIX],
+      });
       await status.refetch();
       return true;
     } catch (err) {

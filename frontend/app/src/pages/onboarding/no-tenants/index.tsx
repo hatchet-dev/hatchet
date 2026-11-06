@@ -2,22 +2,18 @@ import { SetupCard, SetupScreen } from '@/components/layout/setup-card';
 import { OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector';
 import { Button } from '@/components/v1/ui/button';
 import { useUserApi } from '@/lib/api/user-wrapper';
+import { reloadToLogin } from '@/lib/redirect';
 import { useUserUniverse } from '@/providers/user-universe';
-import queryClient from '@/query-client';
-import { appRoutes } from '@/router';
 import { useMutation } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
 
 export default function NoTenants() {
-  const navigate = useNavigate();
   const { userUpdateLogoutMutation } = useUserApi();
   const { organizations, tenantMemberships } = useUserUniverse();
 
   const logoutMutation = useMutation({
     ...userUpdateLogoutMutation(),
     onSettled: () => {
-      queryClient.clear();
-      navigate({ to: appRoutes.authLoginRoute.to });
+      reloadToLogin();
     },
   });
 

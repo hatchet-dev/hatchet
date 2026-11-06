@@ -152,7 +152,7 @@ export function settingsNavGroups(opts: {
       items: [
         {
           key: 'user-security',
-          name: 'MFA',
+          name: 'Multifactor Auth',
           to: appRoutes.organizationUserRoute.to,
           params,
         },

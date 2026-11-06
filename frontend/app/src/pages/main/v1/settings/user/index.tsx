@@ -1,6 +1,5 @@
 import { SettingsPageHeader } from '../../tenant-settings/components/settings-page-header';
 import { SettingRow } from '../../tenant-settings/components/settings-row';
-import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { Alert, AlertDescription } from '@/components/v1/ui/alert';
 import { Button } from '@/components/v1/ui/button';
 import {
@@ -86,17 +85,31 @@ export default function UserSecuritySettings() {
   } = mfa;
   const [addKind, setAddKind] = useState<MFAMethod['kind']>();
   const [showKey, setShowKey] = useState(false);
+  // A fresh dialog asks for an enrolled factor even when this session proved one recently.
+  const [stepUpDone, setStepUpDone] = useState(false);
+  const [removeProved, setRemoveProved] = useState(false);
   const methods = state?.methods ?? [];
   const totpCount = methods.filter((method) => method.kind === 'totp').length;
   const passkeyCount = methods.filter(
     (method) => method.kind === 'passkey',
   ).length;
-  const needsStepUp = enrolled && !state?.canManage && !setup;
+  const needsStepUp = enrolled && !stepUpDone && !setup;
+  const removeNeedsChallenge =
+    removeFactor !== undefined && enrolled && !removeProved;
 
   function closeAdd() {
     setAddKind(undefined);
     setSetup(undefined);
     setShowKey(false);
+    setStepUpDone(false);
+    setCode('');
+    setRecovery(false);
+    setError('');
+  }
+
+  function closeRemove() {
+    setRemoveFactor(undefined);
+    setRemoveProved(false);
     setCode('');
     setRecovery(false);
     setError('');
@@ -135,9 +148,17 @@ export default function UserSecuritySettings() {
     setRecovery(false);
     setSetup(undefined);
     setError('');
-    if (kind === 'totp' && !(enrolled && !state?.canManage)) {
+    if (kind === 'totp' && !enrolled) {
       void startAuthenticator();
     }
+  }
+
+  async function proveFactor() {
+    return run(() =>
+      mfaPost(`${recovery ? 'recovery' : 'totp'}/finish`, {
+        code: code.trim(),
+      }),
+    );
   }
 
   const verificationExpired = error === 'invalid or expired MFA verification';
@@ -162,13 +183,21 @@ export default function UserSecuritySettings() {
 
   async function confirmStepUp(event: FormEvent) {
     event.preventDefault();
-    const ok = await run(() =>
-      mfaPost(`${recovery ? 'recovery' : 'totp'}/finish`, {
-        code: code.trim(),
-      }),
-    );
-    if (ok && addKind === 'totp') {
+    const ok = await proveFactor();
+    if (!ok) {
+      return;
+    }
+    setStepUpDone(true);
+    if (addKind === 'totp') {
       await startAuthenticator();
+    }
+  }
+
+  async function confirmRemoveStepUp(event: FormEvent) {
+    event.preventDefault();
+    const ok = await proveFactor();
+    if (ok) {
+      setRemoveProved(true);
     }
   }
 
@@ -176,7 +205,7 @@ export default function UserSecuritySettings() {
     <div className="ph-no-capture ph-no-record h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <SettingsPageHeader
-          title="MFA"
+          title="Multifactor Auth"
           description="Add authenticator apps and passkeys. Any enrolled method can finish a Cloud login, including SSO and email links."
         />
 
@@ -226,16 +255,16 @@ export default function UserSecuritySettings() {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem
-                      disabled={totpCount >= methodLimit}
-                      onClick={() => choose('totp')}
-                    >
-                      Authenticator app
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
                       disabled={passkeyCount >= methodLimit}
                       onClick={() => choose('passkey')}
                     >
                       Passkey
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={totpCount >= methodLimit}
+                      onClick={() => choose('totp')}
+                    >
+                      Authenticator app
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -267,7 +296,13 @@ export default function UserSecuritySettings() {
                           variant="outline"
                           size="sm"
                           disabled={busy}
-                          onClick={() => setRemoveFactor(method.id)}
+                          onClick={() => {
+                            setCode('');
+                            setRecovery(false);
+                            setError('');
+                            setRemoveProved(false);
+                            setRemoveFactor(method.id);
+                          }}
                         >
                           Remove
                         </Button>
@@ -315,7 +350,7 @@ export default function UserSecuritySettings() {
           </DialogHeader>
           <p className="text-sm text-foreground">
             {needsStepUp
-              ? 'Enter a code from a method you already have. Then you can add another.'
+              ? 'Enter a code from a method you already have. This does not sign you out.'
               : addKind === 'passkey'
                 ? 'Your device will ask you to create a passkey. It does not replace your password or SSO login.'
                 : 'Works with Google Authenticator, 1Password, Authy, and any app that supports time-based codes.'}
@@ -346,7 +381,11 @@ export default function UserSecuritySettings() {
                   disabled={busy}
                   onClick={async () => {
                     const ok = await run(() => passkeyCeremony(false));
-                    if (ok && addKind === 'totp') {
+                    if (!ok) {
+                      return;
+                    }
+                    setStepUpDone(true);
+                    if (addKind === 'totp') {
                       await startAuthenticator();
                     }
                   }}
@@ -553,24 +592,119 @@ export default function UserSecuritySettings() {
         </DialogContent>
       </Dialog>
 
-      <ConfirmDialog
-        isOpen={removeFactor !== undefined}
-        title="Remove this method?"
-        description="Removing your last method turns MFA off. Other sessions will need to sign in again."
-        submitLabel="Remove"
-        cancelLabel="Keep it"
-        isLoading={busy}
-        onCancel={() => setRemoveFactor(undefined)}
-        onSubmit={() => {
-          void run(() => mfaPost('remove', { factor: removeFactor })).then(
-            (ok) => {
-              if (ok) {
-                setRemoveFactor(undefined);
-              }
-            },
-          );
+      <Dialog
+        open={removeFactor !== undefined}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeRemove();
+          }
         }}
-      />
+      >
+        <DialogContent className="ph-no-capture ph-no-record w-fit min-w-[500px] max-w-[80%]">
+          <DialogHeader className="text-left">
+            <DialogTitle>
+              {removeNeedsChallenge
+                ? 'Confirm it\u2019s you'
+                : 'Remove this method?'}
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-foreground">
+            {removeNeedsChallenge
+              ? 'Enter a code from a method you already have. This does not sign you out.'
+              : 'Removing your last method turns MFA off. Other sessions will need to sign in again.'}
+          </p>
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          {removeNeedsChallenge && (
+            <form className="grid gap-3" onSubmit={confirmRemoveStepUp}>
+              {state && state.passkeys.length > 0 && !recovery && (
+                <Button
+                  type="button"
+                  disabled={busy}
+                  onClick={async () => {
+                    const ok = await run(() => passkeyCeremony(false));
+                    if (ok) {
+                      setRemoveProved(true);
+                    }
+                  }}
+                >
+                  Use a passkey
+                </Button>
+              )}
+              {(state?.totp || recovery) && (
+                <>
+                  <Label htmlFor="mfa-remove-step-up">
+                    {recovery ? 'Recovery code' : 'Authenticator code'}
+                  </Label>
+                  <Input
+                    id="mfa-remove-step-up"
+                    value={code}
+                    onChange={(event) =>
+                      setCode(
+                        recovery
+                          ? event.target.value
+                          : event.target.value.replace(/\D/g, '').slice(0, 6),
+                      )
+                    }
+                    autoComplete="one-time-code"
+                    autoFocus
+                    inputMode={recovery ? 'text' : 'numeric'}
+                    maxLength={recovery ? 64 : 6}
+                    placeholder={recovery ? undefined : '123456'}
+                    disabled={busy}
+                    className={
+                      recovery
+                        ? undefined
+                        : 'w-40 font-mono text-lg tracking-[0.4em]'
+                    }
+                  />
+                </>
+              )}
+              <div className="flex flex-row justify-end gap-4">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    setRecovery(!recovery);
+                    setCode('');
+                  }}
+                >
+                  {recovery ? 'Use an enrolled method' : 'Use a recovery code'}
+                </Button>
+                <Button type="submit" disabled={busy || !code.trim()}>
+                  Continue
+                </Button>
+              </div>
+            </form>
+          )}
+          {!removeNeedsChallenge && (
+            <div className="flex flex-row justify-end gap-4">
+              <Button type="button" variant="ghost" onClick={closeRemove}>
+                Keep it
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={busy}
+                onClick={() => {
+                  void run(() =>
+                    mfaPost('remove', { factor: removeFactor }),
+                  ).then((ok) => {
+                    if (ok) {
+                      closeRemove();
+                    }
+                  });
+                }}
+              >
+                {busy && <Spinner />}
+                Remove
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

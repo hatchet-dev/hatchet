@@ -115,7 +115,7 @@ function AccountDropdown({ user }: { user?: User }) {
               to={appRoutes.organizationUserRoute.to}
               params={{ organization: organizationId }}
             >
-              MFA
+              Multifactor Auth
             </Link>
           </DropdownMenuItem>
         )}
