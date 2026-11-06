@@ -80,8 +80,9 @@ controlPlaneApi.instance.interceptors.response.use(
   (response) => response,
   (error) => {
     const target = `${config.BASE_PATH.replace(/\/$/, '')}/auth/mfa`;
+    const data = error.response?.data;
     if (
-      error.response?.data?.message === 'mfa_required' &&
+      (data?.code === 'mfa_required' || data?.message === 'mfa_required') &&
       window.location.pathname !== target
     ) {
       window.location.assign(target);

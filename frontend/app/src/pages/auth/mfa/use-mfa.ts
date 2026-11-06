@@ -16,26 +16,36 @@ export const leaveMfa = (path: string) =>
 
 export const EXPIRED_MESSAGE = "That code didn't work or has expired.";
 
-// The control plane returns its internal error strings. Keyed on the exact text
-// because the HTTP status alone doesn't separate these cases.
+// Codes come from the control plane. The message strings stay as a fallback
+// for a control plane that has not started sending codes yet.
+const rejectedCode = 'mfa_invalid';
 const rejectedProof = 'invalid or expired MFA verification';
+
+const friendlyCodes: Record<string, string> = {
+  [rejectedCode]: EXPIRED_MESSAGE,
+  mfa_rate_limited: 'Too many attempts. Try again in 10 minutes.',
+  mfa_totp_locked:
+    'Authenticator codes are locked. Use a passkey or a recovery code.',
+  mfa_step_up_required: 'Verify a method you already use first.',
+  mfa_login_expired: 'Your login expired. Log in again.',
+  mfa_email_unverified: 'Verify your email before adding a method.',
+};
 
 const friendlyMessages: Record<string, string> = {
   [rejectedProof]: EXPIRED_MESSAGE,
   'too many MFA attempts; try again in ten minutes':
-    'Too many attempts. Try again in 10 minutes.',
+    friendlyCodes.mfa_rate_limited,
   'authenticator codes are locked; use a passkey or recovery code':
-    'Authenticator codes are locked. Use a passkey or a recovery code.',
+    friendlyCodes.mfa_totp_locked,
   'Verify an enrolled method before adding one':
-    'Verify a method you already use first.',
+    friendlyCodes.mfa_step_up_required,
   'Verify an enrolled method before removing one':
-    'Verify a method you already use first.',
+    friendlyCodes.mfa_step_up_required,
   'Verify an enrolled method before replacing recovery codes':
-    'Verify a method you already use first.',
-  'Please sign in again': 'Your login expired. Log in again.',
-  'Login expired. Please sign in again': 'Your login expired. Log in again.',
-  'Verify your email before setting up MFA':
-    'Verify your email before adding a method.',
+    friendlyCodes.mfa_step_up_required,
+  'Please sign in again': friendlyCodes.mfa_login_expired,
+  'Login expired. Please sign in again': friendlyCodes.mfa_login_expired,
+  'Verify your email before setting up MFA': friendlyCodes.mfa_email_unverified,
 };
 
 export function useMfa() {
@@ -94,22 +104,25 @@ export function useMfa() {
       if (err instanceof PasskeyCancelled) {
         return false;
       }
-      const message = isAxiosError(err)
-        ? err.response?.data?.message
-        : err instanceof Error
-          ? err.message
-          : undefined;
+      const data = isAxiosError(err) ? err.response?.data : undefined;
+      const code = typeof data?.code === 'string' ? data.code : undefined;
+      const message =
+        typeof data?.message === 'string'
+          ? data.message
+          : err instanceof Error
+            ? err.message
+            : undefined;
       setError(
-        typeof message === 'string'
-          ? (friendlyMessages[message] ?? message)
-          : "That didn't work. Try again.",
+        (code && friendlyCodes[code]) ||
+          (message && (friendlyMessages[message] ?? message)) ||
+          "That didn't work. Try again.",
       );
       // A rejected proof commits consumption of the enrollment ceremony, so the
       // QR on screen cannot be submitted again. Other failures leave it in place.
       if (
         setup &&
         isAxiosError(err) &&
-        err.response?.data?.message === rejectedProof
+        (code === rejectedCode || message === rejectedProof)
       ) {
         setSetup(undefined);
       }

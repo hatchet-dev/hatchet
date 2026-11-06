@@ -6,7 +6,6 @@ import { MagicLinkLogin } from './components/magic-link-login';
 import { UserLoginForm } from './components/user-login-form';
 import { Button } from '@/components/v1/ui/button';
 import useControlPlane from '@/hooks/use-control-plane';
-import { mfaStatus } from '@/lib/api/mfa';
 import { useUserApi } from '@/lib/api/user-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { useUserUniverse } from '@/providers/user-universe';
@@ -78,7 +77,6 @@ export default function Login() {
 }
 
 function BasicLogin() {
-  const { isControlPlaneEnabled } = useControlPlane();
   const navigate = useNavigate();
   const [errors, setErrors] = useState<string[]>([]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -89,19 +87,8 @@ function BasicLogin() {
   const loginMutation = useMutation({
     ...userUpdateLoginMutation(),
     onSuccess: async () => {
-      // A missing MFA route means this frontend shipped before the control plane.
-      // The session is already signed in, and a pending session is redirected
-      // when a later call returns mfa_required.
-      if (isControlPlaneEnabled) {
-        try {
-          if ((await mfaStatus()).pending) {
-            await navigate({ to: appRoutes.authMFARoute.to });
-            return;
-          }
-        } catch {
-          // continue into the app
-        }
-      }
+      // A pending session is sent to /auth/mfa by the response interceptor when
+      // the next control-plane call returns mfa_required.
       await invalidateUserUniverse();
       await new Promise((resolve) => setTimeout(resolve, 0));
       navigate({ to: appRoutes.authenticatedRoute.to });

@@ -52,10 +52,6 @@ func (a *AuthN) Middleware(r *middleware.RouteInfo) echo.HandlerFunc {
 }
 
 func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
-	if a.config.Auth.ExchangeTokenClient != nil && isLocalLoginRoute(r) {
-		return echo.NewHTTPError(http.StatusForbidden, "Sign in through the control plane")
-	}
-
 	// if security is optional, continue
 	if r.Security.IsOptional() {
 		return nil
@@ -153,12 +149,6 @@ func (a *AuthN) handleNoAuth(c echo.Context) error {
 
 func (a *AuthN) handleCookieAuth(c echo.Context) error {
 	forbidden := echo.NewHTTPError(http.StatusForbidden, "Please provide valid credentials")
-
-	// A failed bearer token falls through to cookie auth. Keep the credential
-	// error; the control-plane sentence was showing up on API clients.
-	if a.config.Auth.ExchangeTokenClient != nil {
-		return forbidden
-	}
 
 	store := a.config.SessionStore
 
