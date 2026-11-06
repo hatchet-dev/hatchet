@@ -204,11 +204,11 @@ INSERT INTO v1_stream_payload (id, tenant_id, payload)
 VALUES (@id::uuid, @tenantId::uuid, @payload::bytea)
 RETURNING inserted_at;
 
--- name: StreamPayloadExists :one
-SELECT EXISTS (
-    SELECT 1 FROM v1_stream_payload
-    WHERE tenant_id = @tenantId::uuid AND id = @id::uuid AND inserted_at = @insertedAt::timestamptz
-) AS exists;
+-- name: GetStreamPayloadSize :one
+-- octet_length reads a TOASTed payload's size without loading it.
+SELECT octet_length(payload)::bigint AS size
+FROM v1_stream_payload
+WHERE tenant_id = @tenantId::uuid AND id = @id::uuid AND inserted_at = @insertedAt::timestamptz;
 
 -- name: CopyStreamPayload :one
 -- Copies an upload into a new row in the publishing transaction, so it lands

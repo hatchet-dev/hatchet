@@ -94,9 +94,10 @@ func (s *ServiceImpl) publish(ctx context.Context, namespace, topic, producerId 
 	}
 
 	msgs := make([]v1.TenantStreamMessage, len(entries))
+	payloadSizes := make([]int64, len(entries))
 
 	for i, e := range entries {
-		payloadRef, err := s.validatePublishEntry(ctx, tenantId, e)
+		payloadRef, payloadSize, err := s.validatePublishEntry(ctx, tenantId, e)
 
 		if err != nil {
 			if len(entries) > 1 {
@@ -117,6 +118,7 @@ func (s *ServiceImpl) publish(ctx context.Context, namespace, topic, producerId 
 				PayloadRef:  payloadRef,
 			},
 		}
+		payloadSizes[i] = payloadSize
 	}
 
 	ensureCtx, span := telemetry.NewSpan(ctx, "streams.publish.ensure-topic")
@@ -148,6 +150,17 @@ func (s *ServiceImpl) publish(ctx context.Context, namespace, topic, producerId 
 		return connect.NewError(connect.CodeUnavailable, fmt.Errorf("could not persist stream message"))
 	}
 
+	// before the gap check, since entries ahead of a gap are stored
+	var storedBytes int64
+
+	for i, res := range results {
+		if res.Inserted {
+			storedBytes += payloadSizes[i]
+		}
+	}
+
+	s.usage.AddStreamPublished(tenantId, storedBytes)
+
 	// a sequence at or below the watermark is a retry of a message already
 	// stored; once one entry hits a gap every later one does too
 	for i, res := range results {
@@ -163,45 +176,45 @@ func (s *ServiceImpl) publish(ctx context.Context, namespace, topic, producerId 
 	return nil
 }
 
-// validatePublishEntry returns the entry's payload ref, if it has one.
-func (s *ServiceImpl) validatePublishEntry(ctx context.Context, tenantId uuid.UUID, e *contracts.StreamPublishEntry) (*v1.StreamPayloadRef, error) {
+// validatePublishEntry returns the entry's payload ref, if it has one, and its payload's size.
+func (s *ServiceImpl) validatePublishEntry(ctx context.Context, tenantId uuid.UUID, e *contracts.StreamPublishEntry) (*v1.StreamPayloadRef, int64, error) {
 	if e.PayloadRef == "" {
 		if len(e.Payload) == 0 {
-			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("payload is required"))
+			return nil, 0, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("payload is required"))
 		}
 
 		if len(e.Payload) > v1.MaxStreamMessagePayloadBytes {
-			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("payload exceeds maximum size of %d bytes", v1.MaxStreamMessagePayloadBytes))
+			return nil, 0, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("payload exceeds maximum size of %d bytes", v1.MaxStreamMessagePayloadBytes))
 		}
 
-		return nil, nil
+		return nil, int64(len(e.Payload)), nil
 	}
 
 	if len(e.Payload) > 0 {
-		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("payload and payload_ref are mutually exclusive"))
+		return nil, 0, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("payload and payload_ref are mutually exclusive"))
 	}
 
 	ref, err := v1.DecodeStreamPayloadRef(e.PayloadRef)
 
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+		return nil, 0, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 
 	// readers would otherwise get a message whose payload can't be fetched
 	checkCtx, span := telemetry.NewSpan(ctx, "streams.publish.check-payload-ref")
-	err = s.repo.Streams().CheckStreamPayloadExists(checkCtx, tenantId, ref)
+	size, err := s.repo.Streams().StreamPayloadSize(checkCtx, tenantId, ref)
 	recordSpanError(span, err)
 	span.End()
 
 	if err != nil {
 		if errors.Is(err, v1.ErrStreamPayloadNotFound) {
-			return nil, connect.NewError(connect.CodeInvalidArgument, err)
+			return nil, 0, connect.NewError(connect.CodeInvalidArgument, err)
 		}
 
-		return nil, err
+		return nil, 0, err
 	}
 
-	return &ref, nil
+	return &ref, size, nil
 }
 
 // wrapEntryError names the batch entry err is about, keeping its code.
@@ -220,7 +233,32 @@ func (s *ServiceImpl) Subscribe(ctx context.Context, req *contracts.SubscribeStr
 	sender := rpcstream.NewSender[contracts.StreamMessage](ctx, connectStream)
 	defer sender.Close()
 
-	return s.subscribe(ctx, req, sender)
+	// metered here rather than in subscribe, so in-process subscribers aren't billed
+	return s.subscribe(ctx, req, s.meteredSend(ctx.Value("tenant").(*sqlcv1.Tenant).ID, sender.Send))
+}
+
+// meteredSend bills the payload bytes of each frame send delivers.
+func (s *ServiceImpl) meteredSend(tenantId uuid.UUID, send func(*contracts.StreamMessage) error) func(*contracts.StreamMessage) error {
+	return func(msg *contracts.StreamMessage) error {
+		if err := send(msg); err != nil {
+			return err
+		}
+
+		s.usage.AddStreamDelivered(tenantId, inlinePayloadBytes(msg))
+
+		return nil
+	}
+}
+
+// inlinePayloadBytes excludes payload refs, whose bytes are billed when the subscriber fetches them.
+func inlinePayloadBytes(msg *contracts.StreamMessage) int64 {
+	var n int64
+
+	for _, e := range msg.Entries {
+		n += int64(len(e.Payload))
+	}
+
+	return n
 }
 
 // RegisterSubscribe serves Subscribe over channels to a caller in the same process (the
@@ -233,13 +271,13 @@ func (s *ServiceImpl) RegisterSubscribe(ctx context.Context, req *contracts.Subs
 	}
 
 	return rpcstream.ServeServer(ctx, func(ctx context.Context, sender *rpcstream.Sender[contracts.StreamMessage]) error {
-		return s.subscribe(ctx, req, sender)
+		return s.subscribe(ctx, req, sender.Send)
 	}), nil
 }
 
 // subscribe is Subscribe over any sender: it holds the stream open on the topic's poller
 // until ctx ends, a send fails, the topic idles out or the service shuts down.
-func (s *ServiceImpl) subscribe(ctx context.Context, req *contracts.SubscribeStreamRequest, sender *rpcstream.Sender[contracts.StreamMessage]) error {
+func (s *ServiceImpl) subscribe(ctx context.Context, req *contracts.SubscribeStreamRequest, send func(*contracts.StreamMessage) error) error {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
@@ -300,7 +338,7 @@ func (s *ServiceImpl) subscribe(ctx context.Context, req *contracts.SubscribeStr
 		topic:     topic,
 	}
 	unregister, err := s.topicPollers.Join(ctx, key, cursor, &topicListener{
-		send:   sender.Send,
+		send:   send,
 		cancel: cancel,
 	})
 
