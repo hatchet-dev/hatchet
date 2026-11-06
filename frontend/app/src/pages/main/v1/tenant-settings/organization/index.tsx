@@ -44,7 +44,6 @@ import {
   ManagementToken,
   OrganizationInvite,
   OrganizationInviteStatus,
-  OrganizationMember,
   OrganizationTenant,
   TenantStatusType,
 } from '@/lib/api/generated/cloud/data-contracts';
@@ -53,6 +52,7 @@ import {
   OrganizationAvailableShard,
   OrganizationAvailableShardClass,
   OrganizationInviteTenant,
+  OrganizationMember,
   OrganizationTenant as ControlPlaneOrganizationTenant,
 } from '@/lib/api/generated/control-plane/data-contracts';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
@@ -518,7 +518,23 @@ export function CloudOrganizationSettings({
     ...(isOrganizationOwner
       ? [
           {
+            columnLabel: 'MFA',
+            cellRenderer: (row: OrganizationMember) =>
+              row.mfaEnabled === undefined ? null : row.mfaEnabled ? (
+                <CheckIcon
+                  className="size-4 text-green-600 dark:text-green-500"
+                  aria-label="MFA on"
+                />
+              ) : (
+                <XMarkIcon
+                  className="size-4 text-muted-foreground"
+                  aria-label="MFA off"
+                />
+              ),
+          },
+          {
             columnLabel: 'Actions',
+            align: 'right' as const,
             cellRenderer: (row: OrganizationMember) => (
               <MemberActions
                 row={row}
