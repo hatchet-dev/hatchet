@@ -59,8 +59,7 @@ type Identity struct {
 	TenantId uuid.UUID
 
 	// OperatorId is an existing operator row. The host takes the name, kind and leasing manager from
-	// the row and points the row's worker_id at the session's worker, so the claimer keeps
-	// recognising the assignment.
+	// the row; the claimer recognises the assignment through the worker's operatorId.
 	OperatorId *uuid.UUID
 
 	// Name, Kind and LeasingManager identify a row the host upserts. Kind defaults to GRPC, the only

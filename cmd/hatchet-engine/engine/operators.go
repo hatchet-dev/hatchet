@@ -70,6 +70,7 @@ func startOperatorClaimer(sc *server.ServerConfig, d *dispatcher.DispatcherImpl,
 		claimer.WithClaims(sc.V1.Operators()),
 		claimer.WithDispatcherId(d.DispatcherId()),
 		claimer.WithFactory(sqlcv1.V1OperatorKindDAG, claimer.DAGFactory(&l, sc.V1, d, sc.Runtime.DagOperatorDefaultSlots)),
+		claimer.WithDAGReplicas(int32(sc.Runtime.DagOperatorReplicas)), // nolint:gosec // a replica count is far below int32
 		claimer.WithLogger(&l),
 	)
 

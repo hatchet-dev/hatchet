@@ -130,11 +130,6 @@ func TestOpenClaimedRow(t *testing.T) {
 	assert.False(t, reg.Resumed)
 	assert.Equal(t, 1, h.operators.Count(), "a claimed row is not upserted")
 
-	op, err := h.operators.GetOperatorById(t.Context(), row.ID)
-	require.NoError(t, err)
-	require.NotNil(t, op.WorkerID)
-	assert.Equal(t, reg.WorkerId, *op.WorkerID, "the row points at the session's worker")
-
 	created := h.workers.Created()
 	require.Len(t, created, 1)
 	assert.Equal(t, "dag", created[0].Name)
@@ -155,7 +150,7 @@ func TestOpenClaimedRow(t *testing.T) {
 
 	require.NoError(t, s.Close(t.Context()))
 
-	assert.Equal(t, []string{"activate", "pause", "deactivate"}, h.workers.Ops(), "Close is pause then deactivate")
+	assert.Equal(t, []string{"release", "activate", "pause", "deactivate"}, h.workers.Ops(), "Close is pause then deactivate")
 	assert.False(t, h.workers.IsActive(reg.WorkerId))
 	assert.Equal(t, 1, h.dispatcher.ReleasedCount())
 	assert.Zero(t, h.SessionCount())
@@ -179,7 +174,6 @@ func TestOpenByName(t *testing.T) {
 	assert.Equal(t, "contract-op", op.Name)
 	assert.Equal(t, sqlcv1.V1OperatorKindGRPC, op.Kind, "the kind defaults to GRPC")
 	assert.Equal(t, sqlcv1.V1OperatorLeasingManagerSELF, op.LeasingManager, "the leasing defaults to SELF")
-	assert.Nil(t, op.WorkerID, "an upserted row is not pointed at its worker: the claimer never claims it")
 
 	created := h.workers.Created()
 	require.Len(t, created, 1)
@@ -239,7 +233,7 @@ func TestOpenInitialActionsChunkedAndBudgeted(t *testing.T) {
 	// the first worker held the whole budget; reopening the row frees it for the next worker
 	s, err = h.Open(t.Context(), operator.Identity{TenantId: h.tenant.ID, OperatorId: &row.ID}, operator.OpenOpts{Handler: nopHandler{}, Actions: actions[:1500]})
 	require.NoError(t, err)
-	assert.Empty(t, h.workers.ActionSet(first), "the superseded worker's links are released")
+	assert.Empty(t, h.workers.ActionSet(first), "the closed worker's links are released")
 	assert.Len(t, h.workers.ActionSet(s.Registration().WorkerId), 1500)
 
 	require.NoError(t, s.Close(t.Context()))
@@ -252,7 +246,7 @@ func TestOpenInitialActionsChunkedAndBudgeted(t *testing.T) {
 	assert.Zero(t, h.SessionCount())
 	assert.Equal(t, 3, h.dispatcher.ReleasedCount(), "the session opened for the refused worker is released")
 	assert.Equal(t, []string{
-		"activate", "pause", "deactivate",
+		"release", "activate", "pause", "deactivate",
 		"release", "activate", "pause", "deactivate",
 		"release", "activate", "pause", "deactivate",
 	}, h.workers.Ops(), "the refused worker is closed like any other")

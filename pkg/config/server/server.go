@@ -332,6 +332,10 @@ type ConfigFileRuntime struct {
 	// orchestrates concurrently)
 	DagOperatorDefaultSlots int `mapstructure:"dagOperatorDefaultSlots" json:"dagOperatorDefaultSlots,omitempty" default:"10000"`
 
+	// DagOperatorReplicas is how many dispatchers run each tenant's DAG operator at once, each with its own
+	// worker, so one tenant's DAG runs spread over that many engine pods.
+	DagOperatorReplicas int `mapstructure:"dagOperatorReplicas" json:"dagOperatorReplicas,omitempty" default:"1"`
+
 	// GRPCOperatorsEnabled registers the v1.OperatorService gRPC API for operators running outside the engine
 	// process. Off by default; when disabled the service is not registered and callers receive Unimplemented.
 	GRPCOperatorsEnabled bool `mapstructure:"grpcOperatorsEnabled" json:"grpcOperatorsEnabled,omitempty" default:"false"`
@@ -1044,6 +1048,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.allowedOriginsString", "SERVER_ALLOWED_ORIGINS")
 	_ = v.BindEnv("runtime.operatorInfraBlockedCIDRsString", "SERVER_OPERATOR_INFRA_BLOCKED_CIDRS")
 	_ = v.BindEnv("runtime.dagOperatorDefaultSlots", "SERVER_DAG_OPERATOR_DEFAULT_SLOTS")
+	_ = v.BindEnv("runtime.dagOperatorReplicas", "SERVER_DAG_OPERATOR_REPLICAS")
 	_ = v.BindEnv("runtime.grpcOperatorsEnabled", "SERVER_GRPC_OPERATORS_ENABLED")
 	_ = v.BindEnv("runtime.grpcOperatorMaxListenStreamsPerOperator", "SERVER_GRPC_OPERATOR_MAX_LISTEN_STREAMS_PER_OPERATOR")
 	_ = v.BindEnv("runtime.grpcOperatorMaxActionsPerOperator", "SERVER_GRPC_OPERATOR_MAX_ACTIONS_PER_OPERATOR")

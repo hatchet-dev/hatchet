@@ -7,11 +7,13 @@ import (
 	"context"
 	"io"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
@@ -93,11 +95,11 @@ func (f *claimFixture) claim(dispatcherId uuid.UUID, opts ClaimOperatorsOpts) []
 	claimed, err := f.operators.ClaimOperators(f.ctx, dispatcherId, opts)
 	require.NoError(f.t, err)
 
-	return enumerables.Map(claimed, func(op *sqlcv1.V1Operator) uuid.UUID { return op.ID })
+	return enumerables.Map(claimed, func(row *sqlcv1.ClaimOperatorsRow) uuid.UUID { return row.V1Operator.ID })
 }
 
-// host registers a worker on the dispatcher for each operator and points the operator at it,
-// as the claimer does for the rows it claimed.
+// host registers a worker on the dispatcher for each operator, releases the operator's dead
+// workers and opens the new worker's session, as the claimer does for the rows it claimed.
 func (f *claimFixture) host(dispatcherId uuid.UUID, operatorIds ...uuid.UUID) {
 	f.t.Helper()
 
@@ -114,9 +116,41 @@ func (f *claimFixture) host(dispatcherId uuid.UUID, operatorIds ...uuid.UUID) {
 		})
 		require.NoError(f.t, err)
 
-		_, err = f.operators.UpdateOperator(f.ctx, op.TenantID, op.ID, UpdateOperatorOpts{WorkerId: &worker.ID})
+		_, err = f.workers.ReleaseDeadOperatorWorkers(f.ctx, op.TenantID, op.ID, worker.ID)
+		require.NoError(f.t, err)
+
+		_, err = f.workers.ActivateWorkerListener(f.ctx, op.TenantID, worker.ID, uuid.New())
 		require.NoError(f.t, err)
 	}
+}
+
+// hosts reports whether the dispatcher has an active worker of the operator.
+func (f *claimFixture) hosts(dispatcherId, operatorId uuid.UUID) bool {
+	f.t.Helper()
+
+	var hosts bool
+
+	err := f.pool.QueryRow(f.ctx,
+		`SELECT EXISTS (SELECT 1 FROM "Worker" WHERE "dispatcherId" = $1 AND "operatorId" = $2 AND "isActive")`,
+		dispatcherId, operatorId,
+	).Scan(&hosts)
+	require.NoError(f.t, err)
+
+	return hosts
+}
+
+// unhost closes the session of the dispatcher's worker of the operator, as the claimer's
+// teardown does.
+func (f *claimFixture) unhost(dispatcherId, operatorId uuid.UUID) {
+	f.t.Helper()
+
+	_, err := f.pool.Exec(f.ctx, `UPDATE "Worker" SET "isActive" = FALSE WHERE "dispatcherId" = $1 AND "operatorId" = $2`, dispatcherId, operatorId)
+	require.NoError(f.t, err)
+}
+
+// replicas is what a dispatcher that runs each DAG row on n dispatchers claims with.
+func replicas(n int32) ClaimOperatorsOpts {
+	return ClaimOperatorsOpts{Kinds: buildsDAG.Kinds, DAGReplicas: n}
 }
 
 // A dispatcher that marks itself inactive at the start of its shutdown claims nothing more,
@@ -283,4 +317,167 @@ func TestClaimOperators_FailingRowDoesNotStarveTheRest(t *testing.T) {
 	}
 
 	require.True(t, claimed[ids[1]], "the row after one that never opens is still claimed")
+}
+
+// A DAG row runs on as many dispatchers as it has replicas, each with a worker of its own. A
+// dispatcher hosts a row once, and a replica whose worker is torn down is free again.
+func TestClaimOperators_DAGRowRunsOnItsReplicas(t *testing.T) {
+	pool := isolatedClaimPool(t)
+	f := newClaimFixture(t, pool)
+
+	first := seedDispatcher(t, f.ctx, pool)
+	second := seedDispatcher(t, f.ctx, pool)
+	third := seedDispatcher(t, f.ctx, pool)
+
+	operator := f.dagOperator()
+
+	require.Equal(t, []uuid.UUID{operator.ID}, f.claim(first, replicas(2)))
+	f.host(first, operator.ID)
+
+	require.Equal(t, []uuid.UUID{operator.ID}, f.claim(first, replicas(2)), "the first host keeps its replica")
+	require.Equal(t, []uuid.UUID{operator.ID}, f.claim(second, replicas(2)), "another dispatcher takes the second replica")
+	f.host(second, operator.ID)
+
+	require.Empty(t, f.claim(third, replicas(2)), "both replicas are taken")
+	require.Empty(t, f.claim(third, buildsDAG), "with one replica the row is held by one dispatcher only")
+
+	f.unhost(first, operator.ID)
+
+	require.Equal(t, []uuid.UUID{operator.ID}, f.claim(third, replicas(2)), "a torn-down replica is free again")
+}
+
+// Two dispatchers can both claim a row's last free replica before either registers a worker.
+// Once both host it, the one with the newer worker finds the row missing from its claim, which
+// tears its worker down, and does not claim the row back while the other holds it.
+func TestClaimOperators_ExtraHostWithNewerWorkerDropsTheRow(t *testing.T) {
+	pool := isolatedClaimPool(t)
+	f := newClaimFixture(t, pool)
+
+	older := seedDispatcher(t, f.ctx, pool)
+	newer := seedDispatcher(t, f.ctx, pool)
+
+	operator := f.dagOperator()
+
+	require.Equal(t, []uuid.UUID{operator.ID}, f.claim(older, buildsDAG))
+	require.Equal(t, []uuid.UUID{operator.ID}, f.claim(newer, buildsDAG), "the row looks free until a worker of it is registered")
+
+	f.host(older, operator.ID)
+	f.host(newer, operator.ID)
+
+	_, err := pool.Exec(f.ctx, `UPDATE "Worker" SET "createdAt" = NOW() - INTERVAL '1 minute' WHERE "dispatcherId" = $1`, older)
+	require.NoError(t, err)
+
+	require.Equal(t, []uuid.UUID{operator.ID}, f.claim(older, buildsDAG), "the dispatcher with the oldest worker keeps the row")
+	require.Empty(t, f.claim(newer, buildsDAG), "the other drops it")
+
+	f.unhost(newer, operator.ID)
+
+	require.Empty(t, f.claim(newer, buildsDAG), "and does not claim it back while the row's one replica is held")
+}
+
+// A dispatcher spends its share on rows short of a first replica before giving any row another,
+// so every row ends up on as many dispatchers as it has replicas.
+func TestClaimOperators_EveryRowGetsItsReplicas(t *testing.T) {
+	pool := isolatedClaimPool(t)
+	f := newClaimFixture(t, pool)
+
+	dispatchers := []uuid.UUID{seedDispatcher(t, f.ctx, pool), seedDispatcher(t, f.ctx, pool), seedDispatcher(t, f.ctx, pool)}
+	rows := f.dagOperators(3)
+
+	for range 2 {
+		for _, d := range dispatchers {
+			claimed := f.claim(d, replicas(2))
+			f.host(d, enumerables.Filter(claimed, func(id uuid.UUID) bool { return !f.hosts(d, id) })...)
+		}
+	}
+
+	for _, row := range rows {
+		hosts := 0
+
+		for _, d := range dispatchers {
+			if f.hosts(d, row) {
+				hosts++
+			}
+		}
+
+		require.Equal(t, 2, hosts, "row %s", row)
+	}
+}
+
+// A dispatcher whose heartbeat lags looks gone to the others, and one of them takes its row.
+// That registration releases the lagging dispatcher's worker, so once the heartbeat recovers
+// the row stays with the dispatcher whose worker still has its actions.
+func TestClaimOperators_LaggingHostLosesTheRowToTheNewOne(t *testing.T) {
+	pool := isolatedClaimPool(t)
+	f := newClaimFixture(t, pool)
+
+	lagging := seedDispatcher(t, f.ctx, pool)
+	other := seedDispatcher(t, f.ctx, pool)
+
+	operator := f.dagOperator()
+	f.host(lagging, operator.ID)
+
+	_, err := pool.Exec(f.ctx, `UPDATE "Dispatcher" SET "lastHeartbeatAt" = NOW() - INTERVAL '1 minute' WHERE "id" = $1`, lagging)
+	require.NoError(t, err)
+
+	require.Equal(t, []uuid.UUID{operator.ID}, f.claim(other, buildsDAG), "the row looks free while the heartbeat lags")
+	f.host(other, operator.ID)
+
+	_, err = pool.Exec(f.ctx, `UPDATE "Dispatcher" SET "lastHeartbeatAt" = NOW() WHERE "id" = $1`, lagging)
+	require.NoError(t, err)
+
+	require.Empty(t, f.claim(lagging, buildsDAG), "the lagging dispatcher's released worker no longer holds the row")
+	require.Equal(t, []uuid.UUID{operator.ID}, f.claim(other, buildsDAG))
+
+	// if the new host leaves too, the row comes back to the lagging dispatcher as newly taken,
+	// not held, so its claimer opens it on a new worker instead of running on the released one
+	require.NoError(t, f.dispatchers.MarkInactive(f.ctx, other))
+
+	claimed, err := f.operators.ClaimOperators(f.ctx, lagging, buildsDAG)
+	require.NoError(t, err)
+	require.Len(t, claimed, 1)
+	assert.Equal(t, operator.ID, claimed[0].V1Operator.ID)
+	assert.False(t, claimed[0].Held)
+}
+
+// When a dispatcher leaves, its rows are each one replica short. A short row can end up hosted
+// by every dispatcher still under its share while the others have reached theirs; a dispatcher at
+// its share then takes it anyway, one per poll, so the row does not stay short.
+func TestClaimOperators_StrandedRowIsTakenPastTheShare(t *testing.T) {
+	pool := isolatedClaimPool(t)
+	f := newClaimFixture(t, pool)
+
+	d := []uuid.UUID{seedDispatcher(t, f.ctx, pool), seedDispatcher(t, f.ctx, pool), seedDispatcher(t, f.ctx, pool), seedDispatcher(t, f.ctx, pool)}
+	r := f.dagOperators(5)
+	slices.SortFunc(r, func(a, b uuid.UUID) int { return strings.Compare(a.String(), b.String()) })
+
+	// every row on two of the four dispatchers
+	for row, hosts := range map[uuid.UUID][]uuid.UUID{r[0]: {d[0], d[1]}, r[1]: {d[0], d[2]}, r[2]: {d[0], d[2]}, r[3]: {d[1], d[2]}, r[4]: {d[1], d[3]}} {
+		for _, host := range hosts {
+			f.host(host, row)
+		}
+	}
+
+	require.NoError(t, f.dispatchers.MarkInactive(f.ctx, d[1]))
+
+	live := []uuid.UUID{d[0], d[2], d[3]}
+
+	for range 4 {
+		for _, dispatcherId := range live {
+			claimed := f.claim(dispatcherId, replicas(2))
+			f.host(dispatcherId, enumerables.Filter(claimed, func(id uuid.UUID) bool { return !f.hosts(dispatcherId, id) })...)
+		}
+	}
+
+	for _, row := range r {
+		hosts := 0
+
+		for _, dispatcherId := range live {
+			if f.hosts(dispatcherId, row) {
+				hosts++
+			}
+		}
+
+		require.Equal(t, 2, hosts, "row %s", row)
+	}
 }
