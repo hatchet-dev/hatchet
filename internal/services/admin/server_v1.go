@@ -111,16 +111,7 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *v1contrac
 		additionalMeta = *req.AdditionalMetadata
 	}
 
-	corrId := datautils.ExtractCorrelationId(additionalMeta)
-
-	if corrId != nil {
-		ctx = context.WithValue(ctx, constants.CorrelationIdKey, *corrId)
-	}
-
-	ctx = context.WithValue(ctx, constants.ResourceIdKey, opt.ExternalId.String())
-	ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeWorkflowRun)
-
-	grpcmiddleware.TriggerCallback(ctx)
+	grpcmiddleware.TriggerResourceCallback(ctx, constants.ResourceTypeWorkflowRun, opt.ExternalId.String(), datautils.ExtractCorrelationId(additionalMeta))
 
 	return &contracts.TriggerWorkflowResponse{
 		WorkflowRunId: opt.ExternalId.String(),
@@ -184,13 +175,8 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 		if req.Workflows[i].AdditionalMetadata != nil {
 			additionalMeta = *req.Workflows[i].AdditionalMetadata
 		}
-		corrId := datautils.ExtractCorrelationId(additionalMeta)
 
-		ctx = context.WithValue(ctx, constants.CorrelationIdKey, corrId)
-		ctx = context.WithValue(ctx, constants.ResourceIdKey, runId.String())
-		ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeWorkflowRun)
-
-		grpcmiddleware.TriggerCallback(ctx)
+		grpcmiddleware.TriggerResourceCallback(ctx, constants.ResourceTypeWorkflowRun, runId.String(), datautils.ExtractCorrelationId(additionalMeta))
 	}
 
 	if len(idempotencyKeyCollisions) > 0 {
