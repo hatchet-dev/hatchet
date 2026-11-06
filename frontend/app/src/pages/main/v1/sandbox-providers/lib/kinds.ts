@@ -23,7 +23,7 @@ export const KINDS: Record<
     keyHint:
       'An API key from the Daytona dashboard (Settings → API Keys). Leave the template empty for the default Daytona snapshot.',
     templatePlaceholder: 'daytonaio/sandbox:latest',
-    configKeys: ['apiUrl', 'template', 'workdir', 'snapshotEveryTurn'],
+    configKeys: ['template', 'workdir', 'snapshotEveryTurn'],
   },
   [SandboxProviderKind.E2B]: {
     label: 'E2B',
