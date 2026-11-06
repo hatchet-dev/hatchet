@@ -272,7 +272,8 @@ type OLAPRepository interface {
 	UpdateTablePartitions(ctx context.Context) error
 	SetAuditLogArchiveStore(store AuditLogArchiveStore, rowsPerFile int32)
 	ArchiveAuditLogPartitions(ctx context.Context, opts ArchiveAuditLogPartitionsOpts) error
-	// CreateAuditLogs skips entries that already exist.
+	// CreateAuditLogs inserts a batch from the audit log outbox. A batch can be delivered more than
+	// once, so an entry already stored with the same tenant ID, inserted-at and ID is skipped.
 	CreateAuditLogs(ctx context.Context, entries []AuditLogEntry) error
 	SetReadReplicaPool(pool *fairpool.Pool)
 	Aggregates() *olapagg.Aggregator
