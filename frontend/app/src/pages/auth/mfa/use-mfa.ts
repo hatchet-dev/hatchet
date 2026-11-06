@@ -18,8 +18,10 @@ export const EXPIRED_MESSAGE = "That code didn't work or has expired.";
 
 // The control plane returns its internal error strings. Keyed on the exact text
 // because the HTTP status alone doesn't separate these cases.
+const rejectedProof = 'invalid or expired MFA verification';
+
 const friendlyMessages: Record<string, string> = {
-  'invalid or expired MFA verification': EXPIRED_MESSAGE,
+  [rejectedProof]: EXPIRED_MESSAGE,
   'too many MFA attempts; try again in ten minutes':
     'Too many attempts. Try again in 10 minutes.',
   'Verify an enrolled method before adding one':
@@ -100,7 +102,13 @@ export function useMfa() {
           ? (friendlyMessages[message] ?? message)
           : "That didn't work. Try again.",
       );
-      if (setup) {
+      // A rejected proof commits consumption of the enrollment ceremony, so the
+      // QR on screen cannot be submitted again. Other failures leave it in place.
+      if (
+        setup &&
+        isAxiosError(err) &&
+        err.response?.data?.message === rejectedProof
+      ) {
         setSetup(undefined);
       }
       return false;

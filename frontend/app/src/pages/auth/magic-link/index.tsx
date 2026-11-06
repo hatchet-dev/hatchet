@@ -5,6 +5,7 @@ import { Alert, AlertDescription } from '@/components/v1/ui/alert';
 import { Button } from '@/components/v1/ui/button';
 import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
 import { Spinner } from '@/components/v1/ui/loading.tsx';
+import { type User } from '@/lib/api';
 import { mfaStatus } from '@/lib/api/mfa';
 import { useUserApi } from '@/lib/api/user-wrapper';
 import { useApiError } from '@/lib/hooks';
@@ -22,6 +23,8 @@ export default function MagicLinkConfirm() {
     token ? [] : ['This login link is missing or invalid.'],
   );
   const [retryErrors, setRetryErrors] = useState<string[]>([]);
+  const [signedInUser, setSignedInUser] = useState<User>();
+  const [continuing, setContinuing] = useState(false);
   const { handleApiError } = useApiError({ setErrors });
   const { handleApiError: handleRetryableError } = useApiError({
     setErrors: setRetryErrors,
@@ -34,10 +37,13 @@ export default function MagicLinkConfirm() {
     ...userGetCurrentQuery(),
     retry: false,
   });
-  const confirm = useMutation({
-    ...userUpdateMagicLinkMutation(),
-    onMutate: () => setRetryErrors([]),
-    onSuccess: async (user) => {
+
+  // The confirm request consumes the link. A later status or universe failure
+  // has to retry from the session that already exists, not from the token.
+  async function finishSignIn(user: User) {
+    setContinuing(true);
+    setRetryErrors([]);
+    try {
       if ((await mfaStatus()).pending) {
         await navigate({ to: appRoutes.authMFARoute.to });
         return;
@@ -47,7 +53,20 @@ export default function MagicLinkConfirm() {
       queryClient.setQueryData(userGetCurrentQuery().queryKey, user);
       await invalidateUserUniverse();
       await new Promise((resolve) => setTimeout(resolve, 0));
-      navigate({ to: appRoutes.authenticatedRoute.to });
+      await navigate({ to: appRoutes.authenticatedRoute.to });
+    } catch {
+      setRetryErrors(["Couldn't check whether another step is required."]);
+    } finally {
+      setContinuing(false);
+    }
+  }
+
+  const confirm = useMutation({
+    ...userUpdateMagicLinkMutation(),
+    onMutate: () => setRetryErrors([]),
+    onSuccess: async (user) => {
+      setSignedInUser(user);
+      await finishSignIn(user);
     },
     onError: (error) => {
       if (!isAxiosError(error)) {
@@ -140,17 +159,25 @@ export default function MagicLinkConfirm() {
       )}
       <Button
         disabled={
-          !token || confirm.isPending || currentUser.isPending || lookupFailed
+          continuing ||
+          confirm.isPending ||
+          (!signedInUser && (!token || currentUser.isPending || lookupFailed))
         }
         onClick={() => {
+          if (signedInUser) {
+            void finishSignIn(signedInUser);
+            return;
+          }
           if (!token) {
             return;
           }
           confirm.mutate({ token });
         }}
       >
-        {(confirm.isPending || currentUser.isPending) && <Spinner />}
-        Sign in
+        {(confirm.isPending ||
+          continuing ||
+          (!signedInUser && currentUser.isPending)) && <Spinner />}
+        {signedInUser && retryErrors.length > 0 ? 'Try again' : 'Sign in'}
       </Button>
       <AuthLegalText />
     </AuthLayout>

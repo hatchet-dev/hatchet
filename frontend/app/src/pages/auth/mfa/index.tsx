@@ -7,6 +7,7 @@ import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { EXCHANGE_TOKEN_QUERY_KEY_PREFIX } from '@/lib/api/exchange-token';
+import { useUserUniverse } from '@/providers/user-universe';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
 import { useNavigate } from '@tanstack/react-router';
@@ -15,6 +16,7 @@ import { useEffect, useRef } from 'react';
 export default function MFA() {
   const navigate = useNavigate();
   const { organizationId } = useTenantDetails();
+  const { isLoaded: universeLoaded } = useUserUniverse();
   const {
     status,
     state,
@@ -36,15 +38,24 @@ export default function MFA() {
   const prompted = useRef(false);
 
   useEffect(() => {
-    if (!state || state.pending || codes || !organizationId) {
+    if (!state || state.pending || codes) {
       return;
     }
-    void navigate({
-      to: appRoutes.organizationUserRoute.to,
-      params: { organization: organizationId },
-      replace: true,
-    });
-  }, [codes, navigate, organizationId, state]);
+    if (organizationId) {
+      void navigate({
+        to: appRoutes.organizationUserRoute.to,
+        params: { organization: organizationId },
+        replace: true,
+      });
+      return;
+    }
+    // organizationId stays empty both while memberships load and when this
+    // account has none. Only the second case should leave this page.
+    if (!universeLoaded) {
+      return;
+    }
+    void navigate({ to: appRoutes.authenticatedRoute.to, replace: true });
+  }, [codes, navigate, organizationId, state, universeLoaded]);
 
   useEffect(() => {
     if (

@@ -33,6 +33,10 @@ import { type FormEvent, useState } from 'react';
 
 const methodLimit = 10;
 
+// min-width would beat a smaller max-width and clip the dialog on a phone.
+const mfaDialogClassName =
+  'ph-no-capture ph-no-record w-full max-w-[min(500px,calc(100vw-2rem))]';
+
 const methodKindLabel: Record<MFAMethod['kind'], string> = {
   totp: 'Authenticator app',
   passkey: 'Passkey',
@@ -254,6 +258,10 @@ export default function UserSecuritySettings() {
   }
 
   const verificationExpired = error === EXPIRED_MESSAGE;
+  // Starting setup, or a rejected code, leaves the dialog with an error and no
+  // form. The dialog has no close icon, so this state needs its own actions.
+  const totpSetupFailed =
+    !needsStepUp && addKind === 'totp' && !setup && error !== '';
 
   async function retryVerification() {
     setCode('');
@@ -425,7 +433,7 @@ export default function UserSecuritySettings() {
           }
         }}
       >
-        <DialogContent className="ph-no-capture ph-no-record w-fit min-w-[500px] max-w-[80%]">
+        <DialogContent className={mfaDialogClassName}>
           <DialogHeader className="text-left">
             <DialogTitle>
               {needsStepUp
@@ -446,7 +454,7 @@ export default function UserSecuritySettings() {
             <Alert variant="destructive">
               <AlertDescription className="flex items-center justify-between gap-3">
                 <span>{error}</span>
-                {verificationExpired && (
+                {verificationExpired && !totpSetupFailed && (
                   <Button
                     type="button"
                     variant="outline"
@@ -499,6 +507,22 @@ export default function UserSecuritySettings() {
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Spinner />
               Generating your setup key…
+            </div>
+          )}
+          {totpSetupFailed && (
+            <div className="flex flex-row justify-end gap-4">
+              <Button type="button" variant="ghost" onClick={closeAdd}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy}
+                onClick={() => void retryVerification()}
+              >
+                {busy && <Spinner />}
+                Retry
+              </Button>
             </div>
           )}
           {!needsStepUp && addKind === 'totp' && setup && (
@@ -588,7 +612,7 @@ export default function UserSecuritySettings() {
 
       <Dialog open={!!codes}>
         <DialogContent
-          className="ph-no-capture ph-no-record w-fit min-w-[500px] max-w-[80%]"
+          className={mfaDialogClassName}
           onEscapeKeyDown={(event) => event.preventDefault()}
           onPointerDownOutside={(event) => event.preventDefault()}
           onInteractOutside={(event) => event.preventDefault()}
@@ -638,7 +662,7 @@ export default function UserSecuritySettings() {
           }
         }}
       >
-        <DialogContent className="ph-no-capture ph-no-record w-fit min-w-[500px] max-w-[80%]">
+        <DialogContent className={mfaDialogClassName}>
           <DialogHeader className="text-left">
             <DialogTitle>
               {removeNeedsChallenge
@@ -705,7 +729,7 @@ export default function UserSecuritySettings() {
           }
         }}
       >
-        <DialogContent className="ph-no-capture ph-no-record w-fit min-w-[500px] max-w-[80%]">
+        <DialogContent className={mfaDialogClassName}>
           <DialogHeader className="text-left">
             <DialogTitle>
               {replaceNeedsChallenge
