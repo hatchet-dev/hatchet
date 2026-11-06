@@ -4420,6 +4420,13 @@ type V1StreamTopic struct {
 	StartingOffset  int64              `json:"starting_offset"`
 }
 
+type V1SupportGrantRevocation struct {
+	GrantID   uuid.UUID          `json:"grant_id"`
+	TenantID  uuid.UUID          `json:"tenant_id"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+	RevokedAt pgtype.Timestamptz `json:"revoked_at"`
+}
+
 type V1Task struct {
 	ID                           int64              `json:"id"`
 	InsertedAt                   pgtype.Timestamptz `json:"inserted_at"`

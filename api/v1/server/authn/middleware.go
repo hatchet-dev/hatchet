@@ -429,6 +429,22 @@ func (a *AuthN) handleSupportToken(c echo.Context, r *middleware.RouteInfo, toke
 		return forbidden
 	}
 
+	// the control plane pushes early revocations to the shard; the token stays valid until exp otherwise
+	revoked, err := a.config.V1.SupportGrant().IsRevoked(ctx, claims.GrantID)
+
+	if err != nil {
+		return fmt.Errorf("error checking support grant revocation: %w", err)
+	}
+
+	if revoked {
+		a.l.Warn().Ctx(ctx).
+			Str("support_grant_id", claims.GrantID.String()).
+			Str("tenant_id", claims.TenantID.String()).
+			Msg("support token presented for a revoked grant")
+
+		return forbidden
+	}
+
 	// staff have no user row on the customer's shard and support access must not create one
 	user := &sqlcv1.User{
 		ID:            claims.UserID,
