@@ -11,7 +11,6 @@ import (
 	"github.com/hatchet-dev/pgoutbox"
 	outboxsqlc "github.com/hatchet-dev/pgoutbox/sqlc"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -27,7 +26,8 @@ const AuditLogOutboxTopic = "v1_audit_log"
 // database, and its lock on the topic row, stay open until they finish.
 const auditLogFlushTimeout = 10 * time.Second
 
-// AuditLogEntry is one v1_audit_log row. Enqueue fills in a zero ID or InsertedAt, and both are
+// AuditLogEntry is one v1_audit_log row; its JSON field names are the table's column names.
+// Enqueue fills in a zero ID or InsertedAt, and both are
 // written as queued: with TenantID they form the table's key, so a batch delivered twice inserts
 // each row once.
 type AuditLogEntry struct {
@@ -47,10 +47,6 @@ type AuditLogEntry struct {
 
 func (e *AuditLogEntry) validate() error {
 	switch {
-	case e.ID == uuid.Nil:
-		return errors.New("id is required")
-	case e.InsertedAt.IsZero():
-		return errors.New("inserted at is required")
 	case e.TenantID == uuid.Nil:
 		return errors.New("tenant id is required")
 	case e.ActorType != sqlcv1.V1AuditLogActorTypeUser && e.ActorType != sqlcv1.V1AuditLogActorTypeApiKey:
@@ -68,36 +64,23 @@ func (e *AuditLogEntry) validate() error {
 	return nil
 }
 
-// AuditLogSink writes audit log entries to v1_audit_log. A batch can be delivered more than
-// once, so the write must ignore entries that already exist.
-type AuditLogSink interface {
-	CreateAuditLogs(ctx context.Context, entries []AuditLogEntry) error
-}
-
 // AuditLogOutbox queues audit log entries in the core database, so recording them doesn't
 // depend on the OLAP database being reachable.
-type AuditLogOutbox interface {
-	// Enqueue writes the entries to the outbox in their own transaction on the core database.
-	Enqueue(ctx context.Context, entries []AuditLogEntry) error
-
-	// Run copies queued entries to sink until ctx is cancelled.
-	Run(ctx context.Context, sink AuditLogSink) error
-}
-
-type auditLogOutbox struct {
+type AuditLogOutbox struct {
 	outbox pgoutbox.Outbox
 	pool   *pgxpool.Pool
 }
 
 // NewAuditLogOutbox needs an outbox whose tables live in the database behind pool.
-func NewAuditLogOutbox(outbox pgoutbox.Outbox, pool *pgxpool.Pool) AuditLogOutbox {
-	return &auditLogOutbox{
+func NewAuditLogOutbox(outbox pgoutbox.Outbox, pool *pgxpool.Pool) *AuditLogOutbox {
+	return &AuditLogOutbox{
 		outbox: outbox,
 		pool:   pool,
 	}
 }
 
-func (o *auditLogOutbox) Enqueue(ctx context.Context, entries []AuditLogEntry) error {
+// Enqueue writes the entries to the outbox in their own transaction on the core database.
+func (o *AuditLogOutbox) Enqueue(ctx context.Context, entries []AuditLogEntry) error {
 	if len(entries) == 0 {
 		return nil
 	}
@@ -132,14 +115,15 @@ func (o *auditLogOutbox) Enqueue(ctx context.Context, entries []AuditLogEntry) e
 	})
 }
 
-func (o *auditLogOutbox) Run(ctx context.Context, sink AuditLogSink) error {
-	o.outbox.AddFlusher(AuditLogOutboxTopic, &auditLogFlusher{sink: sink})
+// Run copies queued entries into v1_audit_log until ctx is cancelled.
+func (o *AuditLogOutbox) Run(ctx context.Context, olap OLAPRepository) error {
+	o.outbox.AddFlusher(AuditLogOutboxTopic, &auditLogFlusher{olap: olap})
 
 	return o.outbox.Subscribe(ctx, AuditLogOutboxTopic)
 }
 
 type auditLogFlusher struct {
-	sink AuditLogSink
+	olap OLAPRepository
 }
 
 // Flush fails the whole batch on any error, so the outbox keeps every entry and retries it. An
@@ -156,7 +140,7 @@ func (f *auditLogFlusher) Flush(ctx pgoutbox.FlushContext, msgs []*outboxsqlc.Me
 	writeCtx, cancel := context.WithTimeout(ctx, auditLogFlushTimeout)
 	defer cancel()
 
-	return f.sink.CreateAuditLogs(writeCtx, entries)
+	return f.olap.CreateAuditLogs(writeCtx, entries)
 }
 
 func (r *OLAPRepositoryImpl) CreateAuditLogs(ctx context.Context, entries []AuditLogEntry) error {
@@ -164,41 +148,11 @@ func (r *OLAPRepositoryImpl) CreateAuditLogs(ctx context.Context, entries []Audi
 		return nil
 	}
 
-	params := sqlcv1.CreateAuditLogsParams{
-		Ids:            make([]uuid.UUID, len(entries)),
-		Insertedats:    make([]pgtype.Timestamptz, len(entries)),
-		Tenantids:      make([]uuid.UUID, len(entries)),
-		Actortypes:     make([]string, len(entries)),
-		Actorids:       make([]uuid.UUID, len(entries)),
-		Actions:        make([]string, len(entries)),
-		Correlationids: make([]pgtype.Text, len(entries)),
-		Resourceids:    make([]string, len(entries)),
-		Resourcetypes:  make([]string, len(entries)),
-		Ipaddresses:    make([]pgtype.Text, len(entries)),
-		Useragents:     make([]pgtype.Text, len(entries)),
+	payload, err := json.Marshal(entries)
+
+	if err != nil {
+		return fmt.Errorf("could not marshal audit log entries: %w", err)
 	}
 
-	for i, entry := range entries {
-		params.Ids[i] = entry.ID
-		params.Insertedats[i] = pgtype.Timestamptz{Time: entry.InsertedAt, Valid: true}
-		params.Tenantids[i] = entry.TenantID
-		params.Actortypes[i] = string(entry.ActorType)
-		params.Actorids[i] = entry.ActorID
-		params.Actions[i] = entry.Action
-		params.Correlationids[i] = optionalText(entry.CorrelationID)
-		params.Resourceids[i] = entry.ResourceID
-		params.Resourcetypes[i] = entry.ResourceType
-		params.Ipaddresses[i] = optionalText(entry.IPAddress)
-		params.Useragents[i] = optionalText(entry.UserAgent)
-	}
-
-	return r.queries.CreateAuditLogs(ctx, r.pool.ForShared(), params)
-}
-
-func optionalText(s *string) pgtype.Text {
-	if s == nil {
-		return pgtype.Text{}
-	}
-
-	return pgtype.Text{String: *s, Valid: true}
+	return r.queries.CreateAuditLogs(ctx, r.pool.ForShared(), payload)
 }
