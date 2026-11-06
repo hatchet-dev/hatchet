@@ -3491,6 +3491,11 @@ CREATE TABLE tenant_entitlement (
 
     sandbox_operator BOOLEAN NOT NULL DEFAULT FALSE,
 
+    -- Lets DAG operator step children skip the completion match: the finalize transaction
+    -- satisfies the orchestrator's log entry directly. Off keeps writing the match so engine pods
+    -- that still resolve completions through matching can finish steps during a rolling deploy.
+    operator_step_direct_completion BOOLEAN NOT NULL DEFAULT FALSE,
+
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 

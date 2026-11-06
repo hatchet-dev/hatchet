@@ -48,6 +48,7 @@ const (
 	EntitlementDurableStreams                  Entitlement = "durable_streams"
 	EntitlementServerlessOperator              Entitlement = "serverless_operator"
 	EntitlementSandboxOperator                 Entitlement = "sandbox_operator"
+	EntitlementOperatorStepDirectCompletion    Entitlement = "operator_step_direct_completion"
 )
 
 // LabsEntitlements is a partial update of the Labs preview opt-ins.
@@ -73,6 +74,7 @@ type TenantEntitlements struct {
 	DurableStreams                  bool
 	ServerlessOperator              bool
 	SandboxOperator                 bool
+	OperatorStepDirectCompletion    bool
 }
 
 // Has reports whether this set includes the named entitlement.
@@ -90,6 +92,8 @@ func (e TenantEntitlements) Has(entitlement Entitlement) (bool, error) {
 		return e.ServerlessOperator, nil
 	case EntitlementSandboxOperator:
 		return e.SandboxOperator, nil
+	case EntitlementOperatorStepDirectCompletion:
+		return e.OperatorStepDirectCompletion, nil
 	default:
 		return false, fmt.Errorf("unknown entitlement %q", entitlement)
 	}
@@ -169,6 +173,7 @@ func tenantEntitlementsFromRow(entitlement *sqlcv1.TenantEntitlement) TenantEnti
 		DurableStreams:                  entitlement.DurableStreams,
 		ServerlessOperator:              entitlement.ServerlessOperator,
 		SandboxOperator:                 entitlement.SandboxOperator,
+		OperatorStepDirectCompletion:    entitlement.OperatorStepDirectCompletion,
 	}
 }
 
@@ -183,6 +188,7 @@ func (t *tenantEntitlementRepository) SetEntitlements(ctx context.Context, tenan
 		Durablestreams:                  entitlements.DurableStreams,
 		Serverlessoperator:              entitlements.ServerlessOperator,
 		Sandboxoperator:                 entitlements.SandboxOperator,
+		Operatorstepdirectcompletion:    entitlements.OperatorStepDirectCompletion,
 	})
 
 	if err != nil {

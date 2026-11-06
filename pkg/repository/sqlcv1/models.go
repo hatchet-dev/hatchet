@@ -3410,6 +3410,7 @@ type TenantEntitlement struct {
 	DurableStreams                  bool               `json:"durable_streams"`
 	ServerlessOperator              bool               `json:"serverless_operator"`
 	SandboxOperator                 bool               `json:"sandbox_operator"`
+	OperatorStepDirectCompletion    bool               `json:"operator_step_direct_completion"`
 	CreatedAt                       pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                       pgtype.Timestamptz `json:"updated_at"`
 }
