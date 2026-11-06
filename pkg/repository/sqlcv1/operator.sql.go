@@ -13,55 +13,87 @@ import (
 )
 
 const claimOperators = `-- name: ClaimOperators :many
-WITH operators_on_inactive_dispatchers AS (
-    SELECT v1_operator.id
-    FROM v1_operator
-    JOIN "Worker" w ON w."id" = v1_operator.worker_id
+WITH live_dispatchers AS (
+    -- this dispatcher is live even with a late heartbeat, so that it keeps the rows it holds
+    SELECT "id"
+    FROM "Dispatcher"
     WHERE
-        w."dispatcherId" IS NULL OR
-        w."dispatcherId" IN (
-            SELECT "id"
-            FROM "Dispatcher"
-            WHERE
-                "lastHeartbeatAt" < NOW () - INTERVAL '15 seconds'
-                OR "isActive" = FALSE
+        "isActive" = TRUE
+        AND ("lastHeartbeatAt" > NOW() - INTERVAL '15 seconds' OR "id" = $1::UUID)
+), candidates AS (
+    SELECT
+        v1_operator.id,
+        ld."id" AS holder_id
+    FROM v1_operator
+    JOIN "Tenant" t ON t."id" = v1_operator.tenant_id AND t."deletedAt" IS NULL
+    LEFT JOIN "Worker" w ON w."id" = v1_operator.worker_id
+    LEFT JOIN live_dispatchers ld ON ld."id" = w."dispatcherId"
+    WHERE
+        -- Only DISPATCHER rows are claimed, whatever their kind. A SELF row keeps itself alive
+        -- (a Listen stream out of process, its own leaser in process) and registers its own
+        -- workers, so the claimer never claims or reconciles it.
+        v1_operator.leasing_manager = 'DISPATCHER'
+        -- Only rows the caller can build, GRPC rows by name and every other kind by kind. A row
+        -- no dispatcher builds is never registered, so it would stay free and use up every
+        -- dispatcher's share.
+        AND (
+            (v1_operator.kind <> 'GRPC' AND v1_operator.kind::TEXT = ANY($2::TEXT[]))
+            OR (v1_operator.kind = 'GRPC' AND v1_operator.name = ANY($3::TEXT[]))
         )
-), unassigned_operators AS (
+), held AS (
+    SELECT id
+    FROM candidates
+    WHERE holder_id = $1::UUID
+), taken AS (
+    -- Locked so that concurrent claims take disjoint free rows.
     SELECT v1_operator.id
     FROM v1_operator
-    WHERE v1_operator.worker_id IS NULL
-), operators_already_assigned_to_dispatcher AS (
-    SELECT v1_operator.id
-    FROM v1_operator
-    JOIN "Worker" w ON w."id" = v1_operator.worker_id
-    WHERE w."dispatcherId" = $1::UUID
+    WHERE v1_operator.id IN (SELECT id FROM candidates WHERE holder_id IS NULL)
+    ORDER BY v1_operator.id
+    LIMIT GREATEST(
+        CEIL(
+            (SELECT COUNT(*) FROM candidates)::NUMERIC
+            / GREATEST((SELECT COUNT(*) FROM live_dispatchers), 1)
+        )::BIGINT - (SELECT COUNT(*) FROM held),
+        0
+    )
+    FOR UPDATE OF v1_operator SKIP LOCKED
 )
 SELECT v1_operator.id, v1_operator.tenant_id, v1_operator.name, v1_operator.kind, v1_operator.leasing_manager, v1_operator.config, v1_operator.worker_id, v1_operator.created_at, v1_operator.updated_at
 FROM v1_operator
-JOIN "Tenant" t ON t."id" = v1_operator.tenant_id AND t."deletedAt" IS NULL
 WHERE
-    -- Only DISPATCHER rows are claimed, whatever their kind. A SELF row keeps itself alive
-    -- (a Listen stream out of process, its own leaser in process) and registers its own
-    -- workers, so the claimer never claims or reconciles it.
-    v1_operator.leasing_manager = 'DISPATCHER'
     -- A dispatcher that has started shutting down marks itself inactive and claims nothing
     -- more, so an operator released by another dispatcher never lands on one that is leaving.
-    AND EXISTS (
+    EXISTS (
         SELECT 1
         FROM "Dispatcher" d
         WHERE d."id" = $1::UUID AND d."isActive" = TRUE
     )
     AND (
-        v1_operator.id IN (SELECT id FROM operators_on_inactive_dispatchers) OR
-        v1_operator.id IN (SELECT id FROM unassigned_operators) OR
-        v1_operator.id IN (SELECT id FROM operators_already_assigned_to_dispatcher)
+        v1_operator.id IN (SELECT id FROM held)
+        OR v1_operator.id IN (SELECT id FROM taken)
     )
 ORDER BY v1_operator.id
-FOR UPDATE OF v1_operator SKIP LOCKED
 `
 
-func (q *Queries) ClaimOperators(ctx context.Context, db DBTX, dispatcherid uuid.UUID) ([]*V1Operator, error) {
-	rows, err := db.Query(ctx, claimOperators, dispatcherid)
+type ClaimOperatorsParams struct {
+	Dispatcherid uuid.UUID `json:"dispatcherid"`
+	Kinds        []string  `json:"kinds"`
+	Grpcnames    []string  `json:"grpcnames"`
+}
+
+// The DISPATCHER rows this dispatcher should run, among the ones it can build: every row it
+// holds, plus free rows up to its fair share, ceil(rows / live dispatchers), less what it holds.
+// A row is held by the dispatcher of the worker it points at while that dispatcher is live, and
+// free otherwise: unassigned, or its dispatcher stopped heartbeating or marked itself inactive.
+//
+// Held rows are always returned: the claimer tears down every running operator missing from the
+// result, and no other dispatcher can claim a row held here, so a held row left out would run
+// nowhere. They are not locked either, since SKIP LOCKED would leave out a held row whenever an
+// action delta holds its lock. A dispatcher over its share keeps its rows; the share only limits
+// new claims.
+func (q *Queries) ClaimOperators(ctx context.Context, db DBTX, arg ClaimOperatorsParams) ([]*V1Operator, error) {
+	rows, err := db.Query(ctx, claimOperators, arg.Dispatcherid, arg.Kinds, arg.Grpcnames)
 	if err != nil {
 		return nil, err
 	}
