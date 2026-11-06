@@ -145,6 +145,19 @@ export function settingsNavGroups(opts: {
           : []),
       ],
     });
+
+    groups.push({
+      key: 'user',
+      title: 'User',
+      items: [
+        {
+          key: 'user-security',
+          name: 'Security',
+          to: appRoutes.organizationUserRoute.to,
+          params,
+        },
+      ],
+    });
   }
 
   return groups;

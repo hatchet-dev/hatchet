@@ -5,6 +5,7 @@ import { Alert, AlertDescription } from '@/components/v1/ui/alert';
 import { Button } from '@/components/v1/ui/button';
 import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
 import { Spinner } from '@/components/v1/ui/loading.tsx';
+import { mfaStatus } from '@/lib/api/mfa';
 import { useUserApi } from '@/lib/api/user-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { initialMagicLinkToken } from '@/lib/magic-link-bootstrap';
@@ -37,6 +38,10 @@ export default function MagicLinkConfirm() {
     ...userUpdateMagicLinkMutation(),
     onMutate: () => setRetryErrors([]),
     onSuccess: async (user) => {
+      if ((await mfaStatus()).pending) {
+        await navigate({ to: appRoutes.authMFARoute.to });
+        return;
+      }
       // The signed-out lookup on this page leaves an error cached under the
       // current-user key, and the app shell reads that key without refetching.
       queryClient.setQueryData(userGetCurrentQuery().queryKey, user);
