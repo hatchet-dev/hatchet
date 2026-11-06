@@ -90,7 +90,7 @@ type OLAPControllerImpl struct {
 	statusUpdateBatchSizeLimits  v1.StatusUpdateBatchSizeLimits
 	mqQos                        int
 	promGate                     *prometheus.Gate
-	auditLogs                    v1.AuditLogOutbox
+	auditLogs                    *v1.AuditLogOutbox
 }
 
 type OLAPControllerOpt func(*OLAPControllerOpts)
@@ -112,7 +112,7 @@ type OLAPControllerOpts struct {
 	statusUpdateBatchSizeLimits v1.StatusUpdateBatchSizeLimits
 	mqQos                       int
 	promGate                    *prometheus.Gate
-	auditLogs                   v1.AuditLogOutbox
+	auditLogs                   *v1.AuditLogOutbox
 }
 
 func defaultOLAPControllerOpts() *OLAPControllerOpts {
@@ -235,7 +235,7 @@ func WithPrometheusGate(gate *prometheus.Gate) OLAPControllerOpt {
 }
 
 // WithAuditLogOutbox makes the controller copy queued audit log entries into the OLAP database.
-func WithAuditLogOutbox(auditLogs v1.AuditLogOutbox) OLAPControllerOpt {
+func WithAuditLogOutbox(auditLogs *v1.AuditLogOutbox) OLAPControllerOpt {
 	return func(opts *OLAPControllerOpts) {
 		opts.auditLogs = auditLogs
 	}

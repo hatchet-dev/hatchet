@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hatchet-dev/pgoutbox"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
@@ -30,7 +31,7 @@ func TestAuditLogOutbox(t *testing.T) {
 	auditLogs := NewAuditLogOutbox(outbox, pool)
 	olap := createOLAPRepository(pool)
 
-	outbox.AddFlusher(AuditLogOutboxTopic, &auditLogFlusher{sink: olap})
+	outbox.AddFlusher(AuditLogOutboxTopic, &auditLogFlusher{olap: olap})
 
 	t.Run("delivers queued entries with their original timestamps", func(t *testing.T) {
 		tenantId := uuid.New()
@@ -53,23 +54,24 @@ func TestAuditLogOutbox(t *testing.T) {
 			testAuditLogEntry(tenantId, "run-2"),
 		}))
 
-		drainAuditLogOutbox(t, ctx, outbox)
+		_, err := outbox.ProcessMessages(ctx, AuditLogOutboxTopic)
+		require.NoError(t, err)
 
 		rows := listAuditLogs(t, ctx, pool, tenantId)
 		require.Len(t, rows, 2)
 
-		assert.Equal(t, "run-1", rows[0].resourceId)
-		assert.True(t, rows[0].insertedAt.Equal(queuedAt))
-		assert.Equal(t, "user", rows[0].actorType)
-		assert.Equal(t, pgtype.Text{String: correlationId, Valid: true}, rows[0].correlationId)
-		assert.Equal(t, pgtype.Text{String: ip, Valid: true}, rows[0].ipAddress)
-		assert.Equal(t, pgtype.Text{String: userAgent, Valid: true}, rows[0].userAgent)
+		assert.Equal(t, "run-1", rows[0].ResourceID)
+		assert.True(t, rows[0].InsertedAt.Time.Equal(queuedAt))
+		assert.Equal(t, sqlcv1.V1AuditLogActorTypeUser, rows[0].ActorType)
+		assert.Equal(t, pgtype.Text{String: correlationId, Valid: true}, rows[0].CorrelationID)
+		assert.Equal(t, pgtype.Text{String: ip, Valid: true}, rows[0].IpAddress)
+		assert.Equal(t, pgtype.Text{String: userAgent, Valid: true}, rows[0].UserAgent)
 
-		assert.Equal(t, "run-2", rows[1].resourceId)
-		assert.Equal(t, "api_key", rows[1].actorType)
-		assert.False(t, rows[1].correlationId.Valid)
-		assert.False(t, rows[1].ipAddress.Valid)
-		assert.False(t, rows[1].userAgent.Valid)
+		assert.Equal(t, "run-2", rows[1].ResourceID)
+		assert.Equal(t, sqlcv1.V1AuditLogActorTypeApiKey, rows[1].ActorType)
+		assert.False(t, rows[1].CorrelationID.Valid)
+		assert.False(t, rows[1].IpAddress.Valid)
+		assert.False(t, rows[1].UserAgent.Valid)
 
 		assert.Zero(t, countAuditLogOutboxMessages(t, ctx, pool))
 	})
@@ -147,48 +149,14 @@ func testAuditLogEntry(tenantId uuid.UUID, resourceId string) AuditLogEntry {
 	}
 }
 
-func drainAuditLogOutbox(t *testing.T, ctx context.Context, outbox pgoutbox.Outbox) {
+func listAuditLogs(t *testing.T, ctx context.Context, pool *pgxpool.Pool, tenantId uuid.UUID) []sqlcv1.V1AuditLog {
 	t.Helper()
 
-	for {
-		msgs, err := outbox.ProcessMessages(ctx, AuditLogOutboxTopic)
-		require.NoError(t, err)
-
-		if len(msgs) == 0 {
-			return
-		}
-	}
-}
-
-type auditLogRow struct {
-	resourceId    string
-	actorType     string
-	insertedAt    time.Time
-	correlationId pgtype.Text
-	ipAddress     pgtype.Text
-	userAgent     pgtype.Text
-}
-
-func listAuditLogs(t *testing.T, ctx context.Context, pool *pgxpool.Pool, tenantId uuid.UUID) []auditLogRow {
-	t.Helper()
-
-	rows, err := pool.Query(ctx, `
-		SELECT resource_id, actor_type::TEXT, inserted_at, correlation_id, ip_address, user_agent
-		FROM v1_audit_log
-		WHERE tenant_id = $1
-		ORDER BY resource_id`, tenantId)
+	rows, err := pool.Query(ctx, `SELECT * FROM v1_audit_log WHERE tenant_id = $1 ORDER BY resource_id`, tenantId)
 	require.NoError(t, err)
-	defer rows.Close()
 
-	var res []auditLogRow
-
-	for rows.Next() {
-		var r auditLogRow
-		require.NoError(t, rows.Scan(&r.resourceId, &r.actorType, &r.insertedAt, &r.correlationId, &r.ipAddress, &r.userAgent))
-		res = append(res, r)
-	}
-
-	require.NoError(t, rows.Err())
+	res, err := pgx.CollectRows(rows, pgx.RowToStructByName[sqlcv1.V1AuditLog])
+	require.NoError(t, err)
 
 	return res
 }

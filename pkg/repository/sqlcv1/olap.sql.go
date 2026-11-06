@@ -609,6 +609,18 @@ func (q *Queries) CountOLAPTempTableSizeForTaskStatusUpdates(ctx context.Context
 	return total, err
 }
 
+const createAuditLogs = `-- name: CreateAuditLogs :exec
+INSERT INTO v1_audit_log (id, inserted_at, tenant_id, actor_type, actor_id, action, correlation_id, resource_id, resource_type, ip_address, user_agent)
+SELECT id, inserted_at, tenant_id, actor_type, actor_id, action, correlation_id, resource_id, resource_type, ip_address, user_agent
+FROM jsonb_populate_recordset(NULL::v1_audit_log, $1::JSONB)
+ON CONFLICT (tenant_id, inserted_at, id) DO NOTHING
+`
+
+func (q *Queries) CreateAuditLogs(ctx context.Context, db DBTX, entries []byte) error {
+	_, err := db.Exec(ctx, createAuditLogs, entries)
+	return err
+}
+
 const createDagToTaskOLAPSelfMappings = `-- name: CreateDagToTaskOLAPSelfMappings :exec
 WITH inputs AS (
     SELECT
