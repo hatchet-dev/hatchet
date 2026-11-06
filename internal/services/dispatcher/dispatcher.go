@@ -190,7 +190,7 @@ func defaultDispatcherOpts() *DispatcherOpts {
 		alerter:                             alerter,
 		analytics:                           analytics.NoOpAnalytics{},
 		payloadSizeThreshold:                3 * 1024 * 1024,
-		defaultMaxWorkerLockAcquisitionTime: 250 * time.Millisecond,
+		defaultMaxWorkerLockAcquisitionTime: time.Second,
 		workflowRunBufferSize:               1000,
 		streamEventBufferTimeout:            5 * time.Second,
 	}
