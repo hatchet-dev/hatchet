@@ -7,9 +7,6 @@ import { useCallback, useSyncExternalStore } from 'react';
 // Per-tab (sessionStorage) so a support session never leaks into the staff
 // member's own tabs, but survives a reload of the tab it was redeemed in.
 export const SUPPORT_SESSION_STORAGE_KEY = 'hatchet-support-session';
-// Kept after the session is cleared so the "ended" page can still link back
-// to the console the session was started from.
-const LAST_CONSOLE_URL_STORAGE_KEY = 'hatchet-support-last-console-url';
 
 export const SUPPORT_SESSION_QUERY_KEY_PREFIX = 'support-session';
 
@@ -101,13 +98,6 @@ export function getSupportSession(): SupportSession | null {
 
 export function setSupportSession(session: SupportSession) {
   writeStorage({ session });
-  try {
-    if (session.consoleUrl) {
-      sessionStorage.setItem(LAST_CONSOLE_URL_STORAGE_KEY, session.consoleUrl);
-    }
-  } catch {
-    /* empty */
-  }
   notify();
 }
 
@@ -137,14 +127,6 @@ export function isSupportSessionExpired(
   }
   const expiry = new Date(session.expiresAt).getTime();
   return Number.isNaN(expiry) || expiry <= now;
-}
-
-export function getLastSupportConsoleUrl(): string | null {
-  try {
-    return sessionStorage.getItem(LAST_CONSOLE_URL_STORAGE_KEY);
-  } catch {
-    return null;
-  }
 }
 
 export function supportRoleLabel(role: SupportGrantRole): string {

@@ -10,7 +10,6 @@ import {
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
 import {
-  ArrowTopRightOnSquareIcon,
   ClockIcon,
   ExclamationTriangleIcon,
   LifebuoyIcon,
@@ -28,9 +27,6 @@ function formatTimeLeft(expiresAt: string, now: number): string {
 
 const bannerClassName =
   'flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-red-700 bg-red-600 px-4 py-1.5 text-center text-sm font-medium text-white dark:border-red-800 dark:bg-red-700';
-
-const linkClassName =
-  'inline-flex items-center gap-1 underline underline-offset-4 hover:text-white/80';
 
 export function SupportSessionBanner() {
   const { session, isExpired } = useSupportSession();
@@ -60,26 +56,17 @@ export function SupportSessionBanner() {
     return null;
   }
 
-  const { grant, consoleUrl } = session;
+  const { grant } = session;
 
   if (isExpired) {
     return (
       <div role="alert" className={bannerClassName}>
         <ExclamationTriangleIcon className="h-4 w-4 flex-shrink-0" />
         <span>
-          Support session expired — reopen the tenant from the support console
+          Support session expired — run{' '}
+          <code className="font-mono font-normal">hat support</code> again to
+          reopen the tenant
         </span>
-        {consoleUrl && (
-          <a
-            href={consoleUrl}
-            className={linkClassName}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Open support console
-            <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
-          </a>
-        )}
       </div>
     );
   }

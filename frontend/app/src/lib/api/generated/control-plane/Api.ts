@@ -1447,7 +1447,7 @@ export class Api<
       ...params,
     });
   /**
-   * @description Exchanges a one-time code issued by the support console for a support session
+   * @description Exchanges a one-time code issued by the support API (`hat support`) for a support session
    *
    * @tags Support
    * @name SupportSessionRedeem

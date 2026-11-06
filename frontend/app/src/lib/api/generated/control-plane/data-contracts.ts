@@ -1214,7 +1214,7 @@ export interface AddUserGroupMemberRequest {
 
 export interface SupportSessionRedeemRequest {
   /**
-   * The one-time code from the support console link
+   * The one-time code from the link that `hat support` opened
    * @minLength 1
    * @maxLength 256
    */
@@ -1252,7 +1252,5 @@ export interface SupportSession {
    * @format date-time
    */
   expiresAt: string;
-  /** The support console the session was started from */
-  consoleUrl?: string;
   grant: SupportGrant;
 }

@@ -142,7 +142,6 @@ const supportSession = {
   token: 'support-token',
   apiUrl: 'https://shard.example.com',
   expiresAt: '2099-01-01T00:00:00Z',
-  consoleUrl: 'https://console.example.com',
   grant: {
     id: '44444444-4444-4444-8444-444444444444',
     tenantId: tenantA,
