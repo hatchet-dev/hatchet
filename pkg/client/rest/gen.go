@@ -1347,6 +1347,7 @@ type TenantEntitlements struct {
 	AuditLogs                       bool `json:"auditLogs"`
 	DagOperator                     bool `json:"dagOperator"`
 	DurableStreams                  bool `json:"durableStreams"`
+	OperatorStepDirectCompletion    bool `json:"operatorStepDirectCompletion"`
 	PrometheusMetrics               bool `json:"prometheusMetrics"`
 	SandboxOperator                 bool `json:"sandboxOperator"`
 	ServerlessOperator              bool `json:"serverlessOperator"`
