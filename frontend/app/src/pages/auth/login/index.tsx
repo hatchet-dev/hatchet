@@ -1,4 +1,5 @@
 import { AuthPage } from '../components/auth-page';
+import { DirectSignInDisabled } from '../components/direct-sign-in-disabled';
 import { OrContinueWith } from '../components/social-auth';
 import useApiMeta from '../hooks/use-api-meta';
 import { showsMagicLinkLogin } from '../magic-link/magic-link';
@@ -22,6 +23,10 @@ export default function Login() {
   const showBasic = schemes.includes('basic');
   const showMagicLink = showsMagicLinkLogin(isControlPlaneEnabled, schemes);
   const [magicLinkExpanded, setMagicLinkExpanded] = useState(false);
+
+  if (meta && schemes.length === 0) {
+    return <DirectSignInDisabled />;
+  }
 
   return (
     <AuthPage
