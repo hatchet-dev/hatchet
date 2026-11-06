@@ -63,7 +63,7 @@ export type AppContextValue = {
   tenantId: string | undefined;
 } & UserUniverseData;
 
-const AppContext = createContext<AppContextValue | null>(null);
+export const AppContext = createContext<AppContextValue | null>(null);
 
 interface AppContextProviderProps {
   children: ReactNode;
@@ -251,4 +251,8 @@ export function useAppContext() {
   }
 
   return context;
+}
+
+export function useOptionalAppContext() {
+  return useContext(AppContext);
 }
