@@ -68,18 +68,6 @@ function SandboxProvidersPageContent() {
         cell: ({ row }) => <ProviderStatusBadge provider={row.original} />,
       },
       {
-        id: 'template',
-        header: 'Default template',
-        cell: ({ row }) =>
-          row.original.defaultTemplate ? (
-            <code className="rounded bg-muted px-2 py-1 font-mono text-xs">
-              {row.original.defaultTemplate}
-            </code>
-          ) : (
-            <span className="text-xs text-muted-foreground">—</span>
-          ),
-      },
-      {
         id: 'created',
         header: 'Created',
         cell: ({ row }) => (
