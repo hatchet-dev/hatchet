@@ -88,6 +88,17 @@ func (t *WorkflowService) applyPauseWorkflowRequest(ctx context.Context, tenantI
 		return nil, fmt.Errorf("failed to create pause workflow message: %w", err)
 	}
 
+	// only a pause has to be durable: nothing else moves already-queued items
+	// into the paused table, while the paused-items sweep requeues unpaused
+	// workflows on its own
+	if !isPaused {
+		if err := t.config.PubSubV1.Pub(ctx, msgqueue.TaskControllerWakeTopic(), msg); err != nil {
+			t.config.Logger.Warn().Ctx(ctx).Err(err).Msg("could not publish workflow unpause wake")
+		}
+
+		return result, nil
+	}
+
 	if err = t.config.MessageQueueV1.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
 		return nil, fmt.Errorf("could not send workflow update message: %w", err)
 	}

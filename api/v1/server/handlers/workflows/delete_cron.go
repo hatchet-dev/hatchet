@@ -28,7 +28,7 @@ func (t *WorkflowService) WorkflowCronDelete(ctx echo.Context, request gen.Workf
 	}
 
 	msg := tasktypes.NewCronUpdateMessage(request.Tenant, msgqueue.MsgIDCronDelete)
-	err = t.config.MessageQueueV1.SendMessage(ctx.Request().Context(), msgqueue.TICKER_UPDATE_QUEUE, msg)
+	err = t.config.PubSubV1.Pub(ctx.Request().Context(), msgqueue.CronRefreshTopic(), msg)
 	if err != nil {
 		t.config.Logger.Err(err).Msg("could not send cron trigger update message")
 	}

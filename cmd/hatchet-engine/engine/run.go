@@ -262,6 +262,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	if sc.HasService("ticker") {
 		t, err := ticker.New(
 			ticker.WithMessageQueueV1(sc.MessageQueueV1),
+			ticker.WithPubSub(sc.PubSubV1),
 			ticker.WithRepositoryV1(sc.V1),
 			ticker.WithLogger(sc.Logger),
 			ticker.WithTenantAlerter(sc.TenantAlerter),
@@ -714,6 +715,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 
 		t, err := ticker.New(
 			ticker.WithMessageQueueV1(sc.MessageQueueV1),
+			ticker.WithPubSub(sc.PubSubV1),
 			ticker.WithRepositoryV1(sc.V1),
 			ticker.WithLogger(sc.Logger),
 			ticker.WithTenantAlerter(sc.TenantAlerter),

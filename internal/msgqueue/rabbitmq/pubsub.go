@@ -63,7 +63,7 @@ func defaultPubSubOpts() *PubSubOpts {
 	return &PubSubOpts{
 		l:              &l,
 		maxPubChannels: 10,
-		maxSubChannels: 20,
+		maxSubChannels: 22,
 	}
 }
 
@@ -421,10 +421,12 @@ func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() 
 	return cleanup, nil
 }
 
-// isFanout topics reach every subscriber; others are one queue whose
-// subscribers compete.
+// isFanout topics reach every subscriber through a fanout exchange. Only
+// scheduler partition topics, which have a single subscriber, consume a named
+// exclusive queue (the one older engines declare); a second subscriber to that
+// queue would fail.
 func isFanout(topic msgqueue.Topic) bool {
-	return topic.Kind() == msgqueue.TopicKindTenantStream || topic.Kind() == msgqueue.TopicKindStreamWake
+	return topic.Kind() != msgqueue.TopicKindSchedulerPartition
 }
 
 // declareSubQueue declares the consumer queue for a topic and returns its

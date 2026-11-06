@@ -626,7 +626,7 @@ type PubSubRabbitMQConfigFile struct {
 	URL string `mapstructure:"url" json:"url,omitempty"`
 
 	MaxPubChans int32 `mapstructure:"maxPubChans" json:"maxPubChans,omitempty" default:"10"`
-	MaxSubChans int32 `mapstructure:"maxSubChans" json:"maxSubChans,omitempty" default:"20"`
+	MaxSubChans int32 `mapstructure:"maxSubChans" json:"maxSubChans,omitempty" default:"22"`
 }
 
 type PubSubPostgresConfigFile struct {
