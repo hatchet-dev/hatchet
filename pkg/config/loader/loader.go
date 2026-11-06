@@ -1452,8 +1452,6 @@ func firstNWords(s string, n int) string {
 	return strings.ToUpper(strings.TrimSpace(s[:end]))
 }
 
-// newOutbox builds the process's only outbox instance. Instances share expiry work for every
-// topic in the table, so a topic's expiration must be set here rather than on a second instance.
 func newOutbox(pool *pgxpool.Pool, l zerolog.Logger) (pgoutbox.Outbox, func(), error) {
 	ctx, cancel := context.WithCancel(context.Background()) // nolint:govet
 
