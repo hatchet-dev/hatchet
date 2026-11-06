@@ -1,7 +1,10 @@
 import { SettingsPageHeader } from '../../tenant-settings/components/settings-page-header';
 import { SettingRow } from '../../tenant-settings/components/settings-row';
+import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { Alert, AlertDescription } from '@/components/v1/ui/alert';
 import { Button } from '@/components/v1/ui/button';
+import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
 import {
   Dialog,
   DialogContent,
@@ -14,7 +17,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
-import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import { Spinner } from '@/components/v1/ui/loading';
@@ -22,25 +24,18 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
-  TableHeader,
   TableRow,
 } from '@/components/v1/ui/table';
 import { EXCHANGE_TOKEN_QUERY_KEY_PREFIX } from '@/lib/api/exchange-token';
 import { type MFAMethod } from '@/lib/api/mfa';
+import { EXPIRED_MESSAGE, leaveMfa, useMfa } from '@/pages/auth/mfa/use-mfa';
 import queryClient from '@/query-client';
-import { leaveMfa, useMfa } from '@/pages/auth/mfa/use-mfa';
 import { type FormEvent, useState } from 'react';
 
 const methodLimit = 10;
 
 const methodKindLabel: Record<MFAMethod['kind'], string> = {
   totp: 'Authenticator app',
-  passkey: 'Passkey',
-};
-
-const methodTypeLabel: Record<MFAMethod['kind'], string> = {
-  totp: 'Authenticator',
   passkey: 'Passkey',
 };
 
@@ -88,7 +83,10 @@ export default function UserSecuritySettings() {
   // A fresh dialog asks for an enrolled factor even when this session proved one recently.
   const [stepUpDone, setStepUpDone] = useState(false);
   const [removeProved, setRemoveProved] = useState(false);
+  const [replacingCodes, setReplacingCodes] = useState(false);
   const methods = state?.methods ?? [];
+  const removing = methods.find((method) => method.id === removeFactor);
+  const removingLast = methods.length === 1 && removing !== undefined;
   const totpCount = methods.filter((method) => method.kind === 'totp').length;
   const passkeyCount = methods.filter(
     (method) => method.kind === 'passkey',
@@ -136,7 +134,7 @@ export default function UserSecuritySettings() {
         ),
       );
     } catch {
-      setError('Could not start authenticator setup.');
+      setError("Couldn't start setup. Try again.");
     } finally {
       setBusy(false);
     }
@@ -161,7 +159,7 @@ export default function UserSecuritySettings() {
     );
   }
 
-  const verificationExpired = error === 'invalid or expired MFA verification';
+  const verificationExpired = error === EXPIRED_MESSAGE;
 
   async function retryVerification() {
     setCode('');
@@ -206,13 +204,13 @@ export default function UserSecuritySettings() {
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <SettingsPageHeader
           title="Multifactor Auth"
-          description="Add authenticator apps and passkeys. Any enrolled method can finish a Cloud login, including SSO and email links."
+          description="Add a passkey or authenticator app to verify it's you after you log in."
         />
 
         {status.isError && (
           <Alert variant="destructive" className="mb-6">
             <AlertDescription>
-              {error || 'Sign in again to manage your MFA.'}
+              {error || 'Log in again to manage multifactor auth.'}
             </AlertDescription>
           </Alert>
         )}
@@ -227,20 +225,14 @@ export default function UserSecuritySettings() {
               })
             }
           >
-            Sign in again
+            Log in again
           </Button>
         )}
         {state && (
           <div className="divide-y divide-border">
             <div className="py-4">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-sm font-medium">MFA methods</h2>
-                  <p className="max-w-xl text-sm text-muted-foreground">
-                    Add as many authenticator apps and passkeys as you use.
-                    Passkeys do not replace your password or SSO login.
-                  </p>
-                </div>
+              <div className="flex items-center justify-between gap-3 border-b pb-3">
+                <h2 className="text-sm font-medium">Methods</h2>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -270,27 +262,20 @@ export default function UserSecuritySettings() {
                 </DropdownMenu>
               </div>
               <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Method</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead className="text-right">
-                      <span className="sr-only">Remove</span>
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
                 <TableBody>
                   {methods.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={3} className="text-muted-foreground">
-                        No MFA methods yet.
+                      <TableCell colSpan={2} className="py-8">
+                        <EmptyState
+                          title="No methods added"
+                          description="Add a passkey or authenticator app to turn on multifactor auth."
+                        />
                       </TableCell>
                     </TableRow>
                   )}
                   {methods.map((method) => (
                     <TableRow key={`${method.kind}:${method.id}`}>
                       <TableCell>{methodName(method, methods)}</TableCell>
-                      <TableCell>{methodTypeLabel[method.kind]}</TableCell>
                       <TableCell className="text-right">
                         <Button
                           variant="outline"
@@ -314,13 +299,13 @@ export default function UserSecuritySettings() {
             </div>
             {enrolled && (
               <SettingRow
-                label="Recovery codes"
-                description={`${state.recoveryRemaining} codes left. Each code works once, after your normal login.`}
+                label="Recovery Codes"
+                description={`${state.recoveryRemaining} unused. If you lose your other methods, each code works for one login.`}
               >
                 <Button
                   variant="outline"
                   disabled={busy}
-                  onClick={() => run(() => mfaPost('recovery'))}
+                  onClick={() => setReplacingCodes(true)}
                 >
                   Replace recovery codes
                 </Button>
@@ -350,9 +335,9 @@ export default function UserSecuritySettings() {
           </DialogHeader>
           <p className="text-sm text-foreground">
             {needsStepUp
-              ? 'Enter a code from a method you already have. This does not sign you out.'
+              ? 'Verify with a method you already use before adding another.'
               : addKind === 'passkey'
-                ? 'Your device will ask you to create a passkey. It does not replace your password or SSO login.'
+                ? 'Your browser will ask you to create a passkey on this device or a security key.'
                 : 'Works with Google Authenticator, 1Password, Authy, and any app that supports time-based codes.'}
           </p>
           {error && (
@@ -431,7 +416,7 @@ export default function UserSecuritySettings() {
                     setCode('');
                   }}
                 >
-                  {recovery ? 'Use an enrolled method' : 'Use a recovery code'}
+                  {recovery ? 'Use a passkey or app' : 'Use a recovery code'}
                 </Button>
                 <Button type="submit" disabled={busy || !code.trim()}>
                   Continue
@@ -559,8 +544,8 @@ export default function UserSecuritySettings() {
             <DialogTitle>Save your recovery codes</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-foreground">
-            Keep these somewhere safe outside Hatchet. Each code works once,
-            after your normal login. They will not be shown again.
+            Keep these somewhere safe outside Hatchet. Use them once each if you
+            lose your other methods. You won&apos;t see them again.
           </p>
           {codes && (
             <pre className="overflow-auto text-xs select-all">
@@ -605,13 +590,15 @@ export default function UserSecuritySettings() {
             <DialogTitle>
               {removeNeedsChallenge
                 ? 'Confirm it\u2019s you'
-                : 'Remove this method?'}
+                : `Remove ${removing ? methodName(removing, methods) : 'this method'}?`}
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-foreground">
             {removeNeedsChallenge
-              ? 'Enter a code from a method you already have. This does not sign you out.'
-              : 'Removing your last method turns MFA off. Other sessions will need to sign in again.'}
+              ? 'Verify with a method you already use before removing one.'
+              : removingLast
+                ? 'This turns off multifactor auth and logs out your other sessions.'
+                : 'Your other sessions will be logged out.'}
           </p>
           {error && (
             <Alert variant="destructive">
@@ -672,7 +659,7 @@ export default function UserSecuritySettings() {
                     setCode('');
                   }}
                 >
-                  {recovery ? 'Use an enrolled method' : 'Use a recovery code'}
+                  {recovery ? 'Use a passkey or app' : 'Use a recovery code'}
                 </Button>
                 <Button type="submit" disabled={busy || !code.trim()}>
                   Continue
@@ -683,7 +670,7 @@ export default function UserSecuritySettings() {
           {!removeNeedsChallenge && (
             <div className="flex flex-row justify-end gap-4">
               <Button type="button" variant="ghost" onClick={closeRemove}>
-                Keep it
+                Cancel
               </Button>
               <Button
                 variant="destructive"
@@ -705,6 +692,20 @@ export default function UserSecuritySettings() {
           )}
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        isOpen={replacingCodes}
+        title="Replace recovery codes?"
+        description="Your current codes will stop working."
+        submitLabel="Replace codes"
+        isLoading={busy}
+        onCancel={() => setReplacingCodes(false)}
+        onSubmit={() => {
+          void run(() => mfaPost('recovery')).then(() =>
+            setReplacingCodes(false),
+          );
+        }}
+      />
     </div>
   );
 }

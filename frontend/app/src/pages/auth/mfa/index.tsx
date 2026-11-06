@@ -2,6 +2,7 @@ import { AuthLayout } from '../components/auth-layout';
 import { leaveMfa, useMfa } from './use-mfa';
 import { Alert, AlertDescription } from '@/components/v1/ui/alert';
 import { Button } from '@/components/v1/ui/button';
+import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import { useTenantDetails } from '@/hooks/use-tenant';
@@ -57,23 +58,26 @@ export default function MFA() {
     }
     prompted.current = true;
     void run(() => passkeyCeremony(false), true);
-  }, [codes, recovery, run, state]);
+  }, [codes, passkeyCeremony, recovery, run, state]);
 
   return (
     <div className="ph-no-capture ph-no-record h-full overflow-y-auto">
       <AuthLayout>
-        <h1 className="text-2xl font-semibold">
-          {pending ? 'Verify your sign-in' : 'Account security'}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {pending
-            ? 'Use a passkey, authenticator code, or recovery code to finish signing in.'
-            : 'Account security is managed in Settings.'}
-        </p>
+        <div className="flex flex-col gap-3 text-center lg:text-left">
+          <div className="flex justify-center pb-3 lg:hidden">
+            <HatchetLogo className="h-8 w-auto" />
+          </div>
+          <h2 className="text-2xl font-semibold tracking-tight">
+            Verify it&apos;s you
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Use a passkey or authenticator app to finish logging in.
+          </p>
+        </div>
         {(error || status.error) && (
           <Alert variant="destructive">
             <AlertDescription>
-              {error || 'Sign in again to manage or verify your MFA.'}
+              {error || 'Your login expired. Log in again.'}
             </AlertDescription>
           </Alert>
         )}
@@ -87,15 +91,15 @@ export default function MFA() {
               })
             }
           >
-            Sign in again
+            Log in again
           </Button>
         )}
         {codes && (
           <section className="grid gap-3 rounded border p-4">
             <h2 className="font-semibold">Save your recovery codes</h2>
             <p className="text-sm">
-              Keep these somewhere safe outside Hatchet. Each code works once,
-              after your normal login. They will not be shown again.
+              Keep these somewhere safe outside Hatchet. Use them once each if
+              you lose your other methods. You won&apos;t see them again.
             </p>
             <pre className="overflow-auto text-xs select-all">
               {codes.join('\n')}
@@ -177,9 +181,7 @@ export default function MFA() {
                     setCode('');
                   }}
                 >
-                  {recovery
-                    ? 'Use an authenticator or passkey'
-                    : 'Use a recovery code'}
+                  {recovery ? 'Use a passkey or app' : 'Use a recovery code'}
                 </Button>
               </section>
             )}
@@ -193,7 +195,7 @@ export default function MFA() {
                 })
               }
             >
-              Cancel and sign in again
+              Back to login
             </Button>
           </div>
         )}
