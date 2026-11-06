@@ -94,8 +94,11 @@ function BasicLogin() {
       navigate({ to: appRoutes.authenticatedRoute.to });
     },
     onError: (error) => {
+      if (!isAxiosError(error)) {
+        return;
+      }
       // A pending factor is 403 mfa_required. The interceptor is already navigating.
-      if (isAxiosError(error) && isMfaRequiredResponse(error.response?.data)) {
+      if (isMfaRequiredResponse(error.response?.data)) {
         return;
       }
       handleApiError(error);

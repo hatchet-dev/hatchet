@@ -16,13 +16,22 @@ export const leaveMfa = (path: string) =>
 
 // The control plane returns a same-origin path. Strip a base path that this
 // app will add again, and ignore anything that is not a single-slash path.
+function hasControlOrSpace(value: string) {
+  for (let i = 0; i < value.length; i++) {
+    if (value.charCodeAt(i) <= 0x20) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function mfaLoginPath(next: string | undefined): string {
   if (
     !next ||
     !next.startsWith('/') ||
     next.startsWith('//') ||
     next.includes('\\') ||
-    /[\u0000-\u0020]/.test(next)
+    hasControlOrSpace(next)
   ) {
     return '/';
   }
