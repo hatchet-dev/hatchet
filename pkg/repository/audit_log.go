@@ -16,20 +16,17 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-// AuditLogOutboxTopic is the pgoutbox topic that holds audit log entries in the core database
-// until the OLAP controller copies them into v1_audit_log. Entries expire after the outbox's
-// default expiration (24h). That must not exceed the archiver's delay after a partition ends
-// (also 24h), so a queued entry expires before its partition can be archived.
+// AuditLogOutboxTopic holds audit log entries in the core database until the OLAP controller
+// copies them into v1_audit_log. The outbox's default expiration must not exceed the archiver's
+// delay after a partition ends, so no queued entry outlives its partition.
 const AuditLogOutboxTopic = "v1_audit_log"
 
-// auditLogFlushTimeout bounds the OLAP writes of one batch. The outbox transaction on the core
-// database, and its lock on the topic row, stay open until they finish.
+// auditLogFlushTimeout bounds the OLAP write of one batch. The outbox transaction on the core
+// database, and its lock on the topic row, stay open until it finishes.
 const auditLogFlushTimeout = 10 * time.Second
 
 // AuditLogEntry is one v1_audit_log row; its JSON field names are the table's column names.
-// Enqueue fills in a zero ID or InsertedAt, and both are
-// written as queued: with TenantID they form the table's key, so a batch delivered twice inserts
-// each row once.
+// Enqueue fills in a zero ID or InsertedAt before queueing, so redelivery keeps an entry's key.
 type AuditLogEntry struct {
 	ID         uuid.UUID `json:"id"`
 	InsertedAt time.Time `json:"inserted_at"`
