@@ -49,7 +49,7 @@ const (
 // Claims is the claim query: the operator rows this dispatcher should run, among the ones it
 // can build.
 type Claims interface {
-	ClaimOperators(ctx context.Context, dispatcherId uuid.UUID, opts repository.ClaimOperatorsOpts) ([]*sqlcv1.V1Operator, error)
+	ClaimOperators(ctx context.Context, dispatcherId uuid.UUID, opts repository.ClaimOperatorsOpts) ([]*sqlcv1.ClaimOperatorsRow, error)
 }
 
 // Factory builds the operator for a claimed row and the options its session is opened with.
@@ -82,6 +82,7 @@ type opts struct {
 	dispatcherId uuid.UUID
 	factories    map[sqlcv1.V1OperatorKind]Factory
 	named        map[string]Factory
+	dagReplicas  int32
 	l            *zerolog.Logger
 
 	pollInterval    time.Duration
@@ -130,6 +131,12 @@ func WithNamedFactory(name string, f Factory) Opt {
 	return func(o *opts) { o.named[name] = f }
 }
 
+// WithDAGReplicas sets how many dispatchers run each DAG row at once, each with its own
+// worker. Every other kind runs on one; the default is one.
+func WithDAGReplicas(n int32) Opt {
+	return func(o *opts) { o.dagReplicas = n }
+}
+
 func WithLogger(l *zerolog.Logger) Opt {
 	return func(o *opts) { o.l = l }
 }
@@ -159,7 +166,8 @@ type Claimer struct {
 	named        map[string]Factory
 	l            *zerolog.Logger
 
-	// buildable is what the claim asks for: the kinds and GRPC names there is a factory for.
+	// buildable is what the claim asks for: the kinds and GRPC names there is a factory for, and
+	// how many dispatchers run each DAG row.
 	buildable repository.ClaimOperatorsOpts
 
 	pollInterval    time.Duration
@@ -203,8 +211,9 @@ func New(fs ...Opt) (*Claimer, error) {
 	cl := o.l.With().Str("service", "operator_claimer").Logger()
 
 	buildable := repository.ClaimOperatorsOpts{
-		Kinds:     slices.Collect(maps.Keys(o.factories)),
-		GRPCNames: slices.Collect(maps.Keys(o.named)),
+		Kinds:       slices.Collect(maps.Keys(o.factories)),
+		GRPCNames:   slices.Collect(maps.Keys(o.named)),
+		DAGReplicas: o.dagReplicas,
 	}
 
 	return &Claimer{
@@ -267,22 +276,30 @@ func (c *Claimer) reconcile(ctx context.Context) {
 }
 
 // Reconcile hosts the claimed rows that are not running yet and tears down the running
-// operators that are no longer claimed: an operator assigned to this dispatcher cannot be
-// claimed by another live dispatcher, so an absence means it was deleted or this dispatcher
-// lost it.
-func (c *Claimer) Reconcile(ctx context.Context, claimed []*sqlcv1.V1Operator) {
+// operators that are no longer held: the row was deleted, this dispatcher lost it, or more
+// dispatchers host it than it has replicas and this one's worker is among the newest. A running
+// row the claim returns newly taken rather than held has lost its worker, released by another
+// dispatcher's registration while this one's heartbeat lagged, so it is torn down as well and
+// opened on a new worker on a later poll.
+func (c *Claimer) Reconcile(ctx context.Context, claimed []*sqlcv1.ClaimOperatorsRow) {
 	claimedIds := make(map[uuid.UUID]struct{}, len(claimed))
 
-	for _, op := range claimed {
-		claimedIds[op.ID] = struct{}{}
+	for _, row := range claimed {
+		op := &row.V1Operator
 
 		c.mu.Lock()
 		running := enumerables.HasKey(c.running, op.ID)
 		c.mu.Unlock()
 
 		if running {
+			if row.Held {
+				claimedIds[op.ID] = struct{}{}
+			}
+
 			continue
 		}
+
+		claimedIds[op.ID] = struct{}{}
 
 		h := c.open(ctx, op)
 
@@ -309,7 +326,7 @@ func (c *Claimer) Reconcile(ctx context.Context, claimed []*sqlcv1.V1Operator) {
 	c.mu.Unlock()
 
 	for id, h := range lost {
-		c.l.Info().Ctx(ctx).Msgf("operator %s is no longer claimed by this dispatcher, tearing down worker %s", id, h.session.Registration().WorkerId)
+		c.l.Info().Ctx(ctx).Msgf("operator %s is no longer held by this dispatcher, tearing down worker %s", id, h.session.Registration().WorkerId)
 
 		c.teardowns.Go(func() { c.teardown(h) })
 	}

@@ -98,29 +98,6 @@ func (f *OperatorStore) UpsertGRPCOperator(ctx context.Context, tenantId uuid.UU
 	})
 }
 
-// UpdateOperator applies the row changes a registration makes: pointing the row at a worker.
-func (f *OperatorStore) UpdateOperator(_ context.Context, tenantId, operatorId uuid.UUID, opts repository.UpdateOperatorOpts) (*sqlcv1.V1Operator, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	op, ok := f.operators[operatorId]
-
-	if !ok || op.TenantID != tenantId {
-		return nil, pgx.ErrNoRows
-	}
-
-	if opts.WorkerId != nil {
-		workerId := *opts.WorkerId
-		op.WorkerID = &workerId
-	}
-
-	if opts.Name != nil {
-		op.Name = *opts.Name
-	}
-
-	return op, nil
-}
-
 // Put adds an operator to the store, as a row created outside the service would be.
 func (f *OperatorStore) Put(op *sqlcv1.V1Operator) *sqlcv1.V1Operator {
 	f.mu.Lock()
@@ -442,21 +419,24 @@ func (f *WorkerStore) Refreshes() []uuid.UUID {
 	return append([]uuid.UUID(nil), f.refreshes...)
 }
 
-// ReleaseWorkerActions records "release" so tests can tell a registration that cleaned up a
-// superseded worker from one that only pointed the operator at a new one.
-func (f *WorkerStore) ReleaseWorkerActions(_ context.Context, tenantId uuid.UUID, workerId uuid.UUID) (int64, error) {
+// ReleaseDeadOperatorWorkers records "release" and releases every other worker of the operator
+// the store has inactive. The store has no dispatchers, so an active worker counts as live.
+func (f *WorkerStore) ReleaseDeadOperatorWorkers(_ context.Context, tenantId, operatorId, keepWorkerId uuid.UUID) (int64, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	w, ok := f.workers[workerId]
+	var released int64
 
-	if !ok || w.TenantId != tenantId {
-		return 0, fmt.Errorf("worker %s does not belong to tenant %s: %w", workerId, tenantId, pgx.ErrNoRows)
+	for id, w := range f.workers {
+		if id == keepWorkerId || f.active[id] || w.TenantId != tenantId || w.OperatorId == nil || *w.OperatorId != operatorId {
+			continue
+		}
+
+		released += int64(len(f.actions[id]))
+		f.actions[id] = map[string]struct{}{}
+		f.hashPending[id] = true
 	}
 
-	released := int64(len(f.actions[workerId]))
-	f.actions[workerId] = map[string]struct{}{}
-	f.hashPending[workerId] = true
 	f.ops = append(f.ops, "release")
 
 	return released, nil

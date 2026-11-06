@@ -23,11 +23,14 @@ WITH live_dispatchers AS (
 ), candidates AS (
     SELECT
         v1_operator.id,
-        ld."id" AS holder_id
+        v1_operator.tenant_id,
+        -- a dispatcher hosts a row once, so a row has no more replicas than live dispatchers
+        LEAST(
+            CASE WHEN v1_operator.kind = 'DAG' THEN GREATEST($2::INT, 1) ELSE 1 END,
+            (SELECT COUNT(*) FROM live_dispatchers)
+        ) AS replicas
     FROM v1_operator
     JOIN "Tenant" t ON t."id" = v1_operator.tenant_id AND t."deletedAt" IS NULL
-    LEFT JOIN "Worker" w ON w."id" = v1_operator.worker_id
-    LEFT JOIN live_dispatchers ld ON ld."id" = w."dispatcherId"
     WHERE
         -- Only DISPATCHER rows are claimed, whatever their kind. A SELF row keeps itself alive
         -- (a Listen stream out of process, its own leaser in process) and registers its own
@@ -37,29 +40,79 @@ WITH live_dispatchers AS (
         -- no dispatcher builds is never registered, so it would stay free and use up every
         -- dispatcher's share.
         AND (
-            (v1_operator.kind <> 'GRPC' AND v1_operator.kind::TEXT = ANY($2::TEXT[]))
-            OR (v1_operator.kind = 'GRPC' AND v1_operator.name = ANY($3::TEXT[]))
+            (v1_operator.kind <> 'GRPC' AND v1_operator.kind::TEXT = ANY($3::TEXT[]))
+            OR (v1_operator.kind = 'GRPC' AND v1_operator.name = ANY($4::TEXT[]))
         )
+), hosts AS (
+    -- the live dispatchers with an active worker of each row, ranked by their oldest one
+    SELECT
+        c.id,
+        h.dispatcher_id,
+        c.replicas,
+        ROW_NUMBER() OVER (PARTITION BY c.id ORDER BY h.created_at, h.worker_id) AS rank
+    FROM candidates c
+    JOIN LATERAL (
+        SELECT DISTINCT ON (w."dispatcherId")
+            w."dispatcherId" AS dispatcher_id,
+            w."createdAt" AS created_at,
+            w."id" AS worker_id
+        FROM "Worker" w
+        JOIN live_dispatchers ld ON ld."id" = w."dispatcherId"
+        WHERE
+            w."tenantId" = c.tenant_id
+            AND w."operatorId" = c.id
+            AND w."isActive" = TRUE
+        ORDER BY w."dispatcherId", w."createdAt", w."id"
+    ) h ON TRUE
 ), held AS (
     SELECT id
-    FROM candidates
-    WHERE holder_id = $1::UUID
+    FROM hosts
+    WHERE dispatcher_id = $1::UUID AND rank <= replicas
+), share AS (
+    SELECT CEIL(
+        (SELECT COALESCE(SUM(replicas), 0) FROM candidates)::NUMERIC
+        / GREATEST((SELECT COUNT(*) FROM live_dispatchers), 1)
+    )::BIGINT AS size
+), under_share AS (
+    -- the live dispatchers holding fewer rows than their share
+    SELECT ld."id" AS dispatcher_id
+    FROM live_dispatchers ld
+    LEFT JOIN hosts h ON h.dispatcher_id = ld."id" AND h.rank <= h.replicas
+    GROUP BY ld."id"
+    HAVING COUNT(h.id) < (SELECT size FROM share)
+), open_rows AS (
+    -- rows with a free replica that this dispatcher does not host, not even one it is about to
+    -- drop; stranded when every dispatcher under its share already hosts the row
+    SELECT
+        c.id,
+        COUNT(h.id) AS host_count,
+        NOT EXISTS (
+            SELECT 1
+            FROM under_share u
+            WHERE NOT EXISTS (SELECT 1 FROM hosts uh WHERE uh.id = c.id AND uh.dispatcher_id = u.dispatcher_id)
+        ) AS stranded
+    FROM candidates c
+    LEFT JOIN hosts h ON h.id = c.id
+    GROUP BY c.id, c.replicas
+    HAVING
+        COUNT(h.id) < c.replicas
+        AND COUNT(*) FILTER (WHERE h.dispatcher_id = $1::UUID) = 0
+), room AS (
+    SELECT (SELECT size FROM share) - (SELECT COUNT(*) FROM held) AS size
 ), taken AS (
-    -- Locked so that concurrent claims take disjoint free rows.
+    -- Fewest hosts first, so the share goes to rows short of a first replica before any row gets
+    -- another; at its share, one stranded row. Locked so that concurrent claims take disjoint rows.
     SELECT v1_operator.id
     FROM v1_operator
-    WHERE v1_operator.id IN (SELECT id FROM candidates WHERE holder_id IS NULL)
-    ORDER BY v1_operator.id
-    LIMIT GREATEST(
-        CEIL(
-            (SELECT COUNT(*) FROM candidates)::NUMERIC
-            / GREATEST((SELECT COUNT(*) FROM live_dispatchers), 1)
-        )::BIGINT - (SELECT COUNT(*) FROM held),
-        0
-    )
+    JOIN open_rows o ON o.id = v1_operator.id
+    WHERE (SELECT size FROM room) > 0 OR o.stranded
+    ORDER BY o.host_count, v1_operator.id
+    LIMIT GREATEST((SELECT size FROM room), 1)
     FOR UPDATE OF v1_operator SKIP LOCKED
 )
-SELECT v1_operator.id, v1_operator.tenant_id, v1_operator.name, v1_operator.kind, v1_operator.leasing_manager, v1_operator.config, v1_operator.worker_id, v1_operator.created_at, v1_operator.updated_at
+SELECT
+    v1_operator.id, v1_operator.tenant_id, v1_operator.name, v1_operator.kind, v1_operator.leasing_manager, v1_operator.config, v1_operator.worker_id, v1_operator.created_at, v1_operator.updated_at,
+    (v1_operator.id IN (SELECT id FROM held))::BOOLEAN AS held
 FROM v1_operator
 WHERE
     -- A dispatcher that has started shutting down marks itself inactive and claims nothing
@@ -78,39 +131,56 @@ ORDER BY v1_operator.id
 
 type ClaimOperatorsParams struct {
 	Dispatcherid uuid.UUID `json:"dispatcherid"`
+	Dagreplicas  int32     `json:"dagreplicas"`
 	Kinds        []string  `json:"kinds"`
 	Grpcnames    []string  `json:"grpcnames"`
 }
 
-// The DISPATCHER rows this dispatcher should run, among the ones it can build: every row it
-// holds, plus free rows up to its fair share, ceil(rows / live dispatchers), less what it holds.
-// A row is held by the dispatcher of the worker it points at while that dispatcher is live, and
-// free otherwise: unassigned, or its dispatcher stopped heartbeating or marked itself inactive.
+type ClaimOperatorsRow struct {
+	V1Operator V1Operator `json:"v1_operator"`
+	Held       bool       `json:"held"`
+}
+
+// The DISPATCHER rows this dispatcher should run, among the ones it can build. A row runs on up
+// to its replica count of dispatchers at once (@dagReplicas for DAG rows, one for every other
+// kind), each with a worker of its own. A dispatcher holds a row while it is live and has an
+// active worker of it. When more dispatchers hold a row than it has replicas, the ones with the
+// oldest workers keep it and the rest find it missing from their result and tear it down, which
+// is how two dispatchers that claimed the same free replica settle.
 //
-// Held rows are always returned: the claimer tears down every running operator missing from the
-// result, and no other dispatcher can claim a row held here, so a held row left out would run
-// nowhere. They are not locked either, since SKIP LOCKED would leave out a held row whenever an
-// action delta holds its lock. A dispatcher over its share keeps its rows; the share only limits
-// new claims.
-func (q *Queries) ClaimOperators(ctx context.Context, db DBTX, arg ClaimOperatorsParams) ([]*V1Operator, error) {
-	rows, err := db.Query(ctx, claimOperators, arg.Dispatcherid, arg.Kinds, arg.Grpcnames)
+// The result is every row this dispatcher holds, marked held, plus rows with a free replica it
+// does not host, up to its fair share of all replicas, ceil(replicas / live dispatchers), less
+// what it holds. Held rows are returned whatever the share and are not locked: the claimer tears
+// down every running operator missing from the result, and SKIP LOCKED would leave out a held
+// row whenever an action delta holds its lock. A dispatcher over its share keeps its rows; the
+// share only limits new claims, except that a dispatcher at its share still takes one row per
+// poll that is short of replicas and already hosted by every dispatcher under its share, which
+// nobody else could take.
+func (q *Queries) ClaimOperators(ctx context.Context, db DBTX, arg ClaimOperatorsParams) ([]*ClaimOperatorsRow, error) {
+	rows, err := db.Query(ctx, claimOperators,
+		arg.Dispatcherid,
+		arg.Dagreplicas,
+		arg.Kinds,
+		arg.Grpcnames,
+	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*V1Operator
+	var items []*ClaimOperatorsRow
 	for rows.Next() {
-		var i V1Operator
+		var i ClaimOperatorsRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.TenantID,
-			&i.Name,
-			&i.Kind,
-			&i.LeasingManager,
-			&i.Config,
-			&i.WorkerID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
+			&i.V1Operator.ID,
+			&i.V1Operator.TenantID,
+			&i.V1Operator.Name,
+			&i.V1Operator.Kind,
+			&i.V1Operator.LeasingManager,
+			&i.V1Operator.Config,
+			&i.V1Operator.WorkerID,
+			&i.V1Operator.CreatedAt,
+			&i.V1Operator.UpdatedAt,
+			&i.Held,
 		); err != nil {
 			return nil, err
 		}
@@ -384,18 +454,16 @@ UPDATE v1_operator
 SET
     name = COALESCE($1::TEXT, name),
     config = COALESCE($2::JSONB, config),
-    updated_at = NOW(),
-    worker_id = COALESCE($3::UUID, worker_id)
+    updated_at = NOW()
 WHERE
-    tenant_id = $4::UUID
-    AND id = $5::UUID
+    tenant_id = $3::UUID
+    AND id = $4::UUID
 RETURNING id, tenant_id, name, kind, leasing_manager, config, worker_id, created_at, updated_at
 `
 
 type UpdateOperatorParams struct {
 	Name     pgtype.Text `json:"name"`
 	Config   []byte      `json:"config"`
-	WorkerId *uuid.UUID  `json:"workerId"`
 	Tenantid uuid.UUID   `json:"tenantid"`
 	ID       uuid.UUID   `json:"id"`
 }
@@ -404,7 +472,6 @@ func (q *Queries) UpdateOperator(ctx context.Context, db DBTX, arg UpdateOperato
 	row := db.QueryRow(ctx, updateOperator,
 		arg.Name,
 		arg.Config,
-		arg.WorkerId,
 		arg.Tenantid,
 		arg.ID,
 	)
@@ -454,8 +521,8 @@ type UpsertOperatorParams struct {
 // Registers an operator by (tenant, name, kind), the row a session registers under by name. The
 // row carries no config. A repeat registration takes the leasing manager it names: a row a
 // dispatcher was claiming that registers as SELF leaves the claim set on the claimer's next poll,
-// and the other way round. A SELF row never gets a worker_id: each registration creates its own worker, linked
-// back via "Worker"."operatorId".
+// and the other way round. Each registration creates its own worker, linked back via
+// "Worker"."operatorId".
 func (q *Queries) UpsertOperator(ctx context.Context, db DBTX, arg UpsertOperatorParams) (*V1Operator, error) {
 	row := db.QueryRow(ctx, upsertOperator,
 		arg.Tenantid,

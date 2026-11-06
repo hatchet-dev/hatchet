@@ -19,17 +19,16 @@ type OperatorRepository interface {
 	DeleteOperator(ctx context.Context, tenantId, operatorId uuid.UUID) (*sqlcv1.V1Operator, error)
 
 	// ClaimOperators returns the DISPATCHER rows this dispatcher should run, among the ones opts
-	// says it can build: every row already assigned to it, plus rows that are unassigned or on an
-	// inactive dispatcher, up to its fair share of the rows across live dispatchers. It does not
-	// create workers; the claimer registers one per claimed row through the operator service,
-	// which points the row's worker_id at it so later polls see the assignment.
-	ClaimOperators(ctx context.Context, dispatcherId uuid.UUID, opts ClaimOperatorsOpts) ([]*sqlcv1.V1Operator, error)
+	// says it can build: every row it holds, through an active worker of the row on it, marked
+	// Held, plus rows with a free replica, up to its fair share of the replicas across live
+	// dispatchers. It does not create workers; the claimer registers one per claimed row through
+	// the operator service, and the worker's operatorId is what later polls see as the assignment.
+	ClaimOperators(ctx context.Context, dispatcherId uuid.UUID, opts ClaimOperatorsOpts) ([]*sqlcv1.ClaimOperatorsRow, error)
 
 	// UpsertOperator registers an operator by (tenant, name, kind), returning the existing row
-	// on repeat registrations with its leasing manager set to the one given. A SELF row never gets a
-	// worker_id on the operator row: each registration owns its own worker, created through
-	// WorkerRepository.CreateNewWorker with CreateWorkerOpts.OperatorId and linked via
-	// "Worker"."operatorId".
+	// on repeat registrations with its leasing manager set to the one given. Each registration
+	// owns its own worker, created through WorkerRepository.CreateNewWorker with
+	// CreateWorkerOpts.OperatorId and linked via "Worker"."operatorId".
 	UpsertOperator(ctx context.Context, tenantId uuid.UUID, opts UpsertOperatorOpts) (*sqlcv1.V1Operator, error)
 
 	// ListDAGOrchestrationActions returns the orchestration action IDs ("{name}_orchestrator")
@@ -156,10 +155,6 @@ func (r *operatorRepository) ListOperators(ctx context.Context, tenantId uuid.UU
 type UpdateOperatorOpts struct {
 	Name   *string `json:"name"`
 	Config []byte  `json:"config"`
-
-	// WorkerId points the operator row at the worker that runs it, which is how ClaimOperators
-	// recognises an operator as assigned to that worker's dispatcher.
-	WorkerId *uuid.UUID `json:"-"`
 }
 
 func (r *operatorRepository) UpdateOperator(ctx context.Context, tenantId, operatorId uuid.UUID, opts UpdateOperatorOpts) (*sqlcv1.V1Operator, error) {
@@ -169,7 +164,6 @@ func (r *operatorRepository) UpdateOperator(ctx context.Context, tenantId, opera
 		Tenantid: tenantId,
 		ID:       operatorId,
 		Config:   opts.Config,
-		WorkerId: opts.WorkerId,
 	}
 
 	if opts.Name != nil {
@@ -210,9 +204,13 @@ type ClaimOperatorsOpts struct {
 
 	// GRPCNames are the names of the GRPC rows, contract operators, built in process.
 	GRPCNames []string
+
+	// DAGReplicas is how many dispatchers run each DAG row at once, each with its own worker.
+	// Every other kind runs on one. Values below one mean one.
+	DAGReplicas int32
 }
 
-func (r *operatorRepository) ClaimOperators(ctx context.Context, dispatcherId uuid.UUID, opts ClaimOperatorsOpts) ([]*sqlcv1.V1Operator, error) {
+func (r *operatorRepository) ClaimOperators(ctx context.Context, dispatcherId uuid.UUID, opts ClaimOperatorsOpts) ([]*sqlcv1.ClaimOperatorsRow, error) {
 	kinds := make([]string, len(opts.Kinds))
 
 	for i, kind := range opts.Kinds {
@@ -221,6 +219,7 @@ func (r *operatorRepository) ClaimOperators(ctx context.Context, dispatcherId uu
 
 	return r.queries.ClaimOperators(ctx, r.pool.ForShared(), sqlcv1.ClaimOperatorsParams{
 		Dispatcherid: dispatcherId,
+		Dagreplicas:  opts.DAGReplicas,
 		Kinds:        kinds,
 		Grpcnames:    opts.GRPCNames,
 	})
