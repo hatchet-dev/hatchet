@@ -1,6 +1,5 @@
 import {
   clearSupportSession,
-  getLastSupportConsoleUrl,
   getSupportSession,
   isSupportSessionExpired,
   markSupportSessionExpired,
@@ -16,7 +15,6 @@ const session = {
   token: 'support-token',
   apiUrl: 'https://shard.example.com',
   expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
-  consoleUrl: 'https://console.example.com/grants/1',
   grant: {
     id: '44444444-4444-4444-8444-444444444444',
     tenantId: '11111111-1111-4111-8111-111111111111',
@@ -102,15 +100,6 @@ test('isSupportSessionExpired follows the token expiry', () => {
     assert.equal(isSupportSessionExpired(), true);
 
     clearSupportSession();
-  });
-});
-
-test('the console URL survives clearing the session', () => {
-  withSessionStorage(() => {
-    setSupportSession(session);
-    clearSupportSession();
-
-    assert.equal(getLastSupportConsoleUrl(), session.consoleUrl);
   });
 });
 

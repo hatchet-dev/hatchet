@@ -1,14 +1,9 @@
 import { SetupCard, SetupScreen } from '@/components/layout/setup-card';
-import { Button } from '@/components/v1/ui/button';
 import { Spinner } from '@/components/v1/ui/loading';
 import { controlPlaneApi } from '@/lib/api/api';
-import {
-  getLastSupportConsoleUrl,
-  setSupportSession,
-} from '@/lib/support-session';
+import { setSupportSession } from '@/lib/support-session';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
-import { ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
 import { redirect } from '@tanstack/react-router';
 
 /**
@@ -43,26 +38,13 @@ export function SupportRedeemPending() {
 }
 
 export function SupportRedeemError() {
-  const consoleUrl = getLastSupportConsoleUrl();
-
   return (
     <SetupScreen>
-      <SetupCard
-        title="Support link unavailable"
-        footer={
-          consoleUrl ? (
-            <Button asChild size="sm">
-              <a href={consoleUrl}>
-                Open support console
-                <ArrowTopRightOnSquareIcon className="ml-1.5 h-4 w-4" />
-              </a>
-            </Button>
-          ) : undefined
-        }
-      >
+      <SetupCard title="Support link unavailable">
         <p className="text-sm text-muted-foreground">
-          This support link is invalid or has expired. Open the tenant again
-          from the support console.
+          This support link is invalid or has expired. Run{' '}
+          <code className="font-mono">hat support</code> again to open the
+          tenant.
         </p>
       </SetupCard>
     </SetupScreen>
