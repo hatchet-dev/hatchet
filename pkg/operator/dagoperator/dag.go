@@ -112,11 +112,26 @@ func isDagEvictedErr(err error) bool {
 	return errors.As(err, &evicted) || errors.As(err, &staleInvocation)
 }
 
+// stepTriggerRequest is one ready step of the batch the dag hands to triggerSteps.
+type stepTriggerRequest struct {
+	actionId         string
+	workflowName     string
+	childIndex       int32
+	parentTaskRunIds []uuid.UUID
+	isSkipped        bool
+	isCancelled      bool
+	parentReExecuted bool
+}
+
+// triggerStepsFn triggers every step of one ready wave together and returns one result per
+// request, in request order.
+type triggerStepsFn = func(ctx context.Context, reqs []stepTriggerRequest) ([]*operator.DAGStepTriggerResult, error)
+
 type dag struct {
 	// ch is the invocation's pipe to the engine, opened by the host with the handshake done.
 	ch           operator.DurableChannel
 	evalBoolExpr func(ctx context.Context, expr string, vars map[string]interface{}) (bool, error)
-	triggerStep  func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error)
+	triggerSteps triggerStepsFn
 
 	tasks []*task
 
@@ -214,7 +229,7 @@ func dagDurableTask(
 	input string,
 	ch operator.DurableChannel,
 	evalBoolExpr func(ctx context.Context, expr string, vars map[string]interface{}) (bool, error),
-	triggerStep func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error),
+	triggerSteps triggerStepsFn,
 ) error {
 	ctx, span := telemetry.NewSpan(ctx, "dag.dagDurableTask")
 	defer span.End()
@@ -236,7 +251,7 @@ func dagDurableTask(
 		workerId:         workerId,
 		invocationCount:  invocationCount,
 		input:            input,
-		triggerStep:      triggerStep,
+		triggerSteps:     triggerSteps,
 		conditionMatches: make(map[*sqlcv1.V1StepMatchCondition]bool),
 	}
 
@@ -434,6 +449,7 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 	}
 
 	stillPending := d.pendingTasks[:0]
+	wave := make([]readyStep, 0)
 
 	for _, t := range d.pendingTasks {
 		if t.isTriggered || t.isSkipped {
@@ -536,8 +552,6 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 			continue
 		}
 
-		parentTaskRunIds := d.finishedTaskRunIds()
-
 		parentReExecuted := false
 		for _, p := range t.parents {
 			if p.reExecuted {
@@ -546,44 +560,86 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 			}
 		}
 
-		result, err := d.triggerStep(ctx, t.actionId, t.workflowName, t.index, parentTaskRunIds, skip, cancelled, parentReExecuted)
-		if err != nil {
-			d.err = fmt.Errorf("failed to trigger step %q: %w", t.actionId, err)
-			return progressed, d.err
-		}
-
-		t.reExecuted = result.ReExecuted
-
-		if cancelled {
-			t.isCancelled = true
-		} else if skip {
-			t.isSkipped = true
-			t.isCompleted = true
-			t.output = map[string]interface{}{"skipped": true}
-
-			if err := d.evaluateConditionsForParent(ctx, t); err != nil {
-				d.err = err
-				return progressed, d.err
-			}
-		}
-
-		t.nodeId = result.NodeId
-		t.branchId = result.BranchId
-		t.workflowRunExternalId = &result.WorkflowRunExternalId
-		t.isTriggered = true
-		progressed = true
-
-		// A satisfied entry (a replayed, skipped or cancelled step) is delivered on the channel
-		// like any other completion, so every triggered step is awaited there.
-		if err := d.expectChild(t); err != nil {
-			d.err = err
-			return progressed, d.err
-		}
+		wave = append(wave, readyStep{task: t, isSkipped: skip, isCancelled: cancelled, parentReExecuted: parentReExecuted})
 	}
 
 	d.pendingTasks = stillPending
 
-	return progressed, nil
+	if len(wave) == 0 {
+		return progressed, nil
+	}
+
+	// every step of the wave shares the parents that finished before it, so one trigger call
+	// appends and spawns the whole wave at once instead of a round trip per step
+	parentTaskRunIds := d.finishedTaskRunIds()
+	reqs := make([]stepTriggerRequest, len(wave))
+
+	for i, step := range wave {
+		reqs[i] = stepTriggerRequest{
+			actionId:         step.task.actionId,
+			workflowName:     step.task.workflowName,
+			childIndex:       step.task.index,
+			parentTaskRunIds: parentTaskRunIds,
+			isSkipped:        step.isSkipped,
+			isCancelled:      step.isCancelled,
+			parentReExecuted: step.parentReExecuted,
+		}
+	}
+
+	results, err := d.triggerSteps(ctx, reqs)
+	if err != nil {
+		d.err = fmt.Errorf("failed to trigger %d ready steps: %w", len(wave), err)
+		return progressed, d.err
+	}
+
+	if len(results) != len(wave) {
+		d.err = fmt.Errorf("triggered %d steps but received %d results", len(wave), len(results))
+		return progressed, d.err
+	}
+
+	for i, step := range wave {
+		if err := d.applyTriggerResult(ctx, step, results[i]); err != nil {
+			d.err = err
+			return true, d.err
+		}
+	}
+
+	return true, nil
+}
+
+// readyStep is a step whose parents all finished, together with the decision the dag took
+// for it from its parents' outcomes and its skip and cancel conditions.
+type readyStep struct {
+	task             *task
+	isSkipped        bool
+	isCancelled      bool
+	parentReExecuted bool
+}
+
+func (d *dag) applyTriggerResult(ctx context.Context, step readyStep, result *operator.DAGStepTriggerResult) error {
+	t := step.task
+	t.reExecuted = result.ReExecuted
+
+	if step.isCancelled {
+		t.isCancelled = true
+	} else if step.isSkipped {
+		t.isSkipped = true
+		t.isCompleted = true
+		t.output = map[string]interface{}{"skipped": true}
+
+		if err := d.evaluateConditionsForParent(ctx, t); err != nil {
+			return err
+		}
+	}
+
+	t.nodeId = result.NodeId
+	t.branchId = result.BranchId
+	t.workflowRunExternalId = &result.WorkflowRunExternalId
+	t.isTriggered = true
+
+	// A satisfied entry (a replayed, skipped or cancelled step) is delivered on the channel
+	// like any other completion, so every triggered step is awaited there.
+	return d.expectChild(t)
 }
 
 // expectChild tells the channel a child's completion is awaited. The child was created by the
@@ -875,11 +931,24 @@ func (d *dag) evaluateOnFailure(ctx context.Context) (bool, error) {
 		attribute.Bool("dag.on_failure_skipped", skip),
 	)
 
-	result, err := d.triggerStep(ctx, d.onFailureTask.actionId, d.onFailureTask.workflowName, d.onFailureTask.index, d.finishedTaskRunIds(), skip, false, false)
+	results, err := d.triggerSteps(ctx, []stepTriggerRequest{{
+		actionId:         d.onFailureTask.actionId,
+		workflowName:     d.onFailureTask.workflowName,
+		childIndex:       d.onFailureTask.index,
+		parentTaskRunIds: d.finishedTaskRunIds(),
+		isSkipped:        skip,
+	}})
 	if err != nil {
 		d.err = fmt.Errorf("failed to trigger on-failure step %q: %w", d.onFailureTask.actionId, err)
 		return false, d.err
 	}
+
+	if len(results) != 1 {
+		d.err = fmt.Errorf("triggered the on-failure step but received %d results", len(results))
+		return false, d.err
+	}
+
+	result := results[0]
 
 	d.onFailureTask.reExecuted = result.ReExecuted
 	d.onFailureTask.nodeId = result.NodeId
