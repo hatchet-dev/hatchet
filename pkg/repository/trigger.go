@@ -2056,6 +2056,11 @@ func (r *sharedRepository) registerChildWorkflows(
 			continue
 		}
 
+		// operator step children are deduped by the durable event log and notify the orchestrator directly
+		if tuple.targetActionId != nil {
+			continue
+		}
+
 		if tuple.parentExternalId == nil {
 			r.l.Error().Msg("could not find parent external id")
 			continue
@@ -2204,7 +2209,7 @@ func (r *sharedRepository) registerChildWorkflows(
 
 		// if this is a child workflow run, create a match condition for the parent for each
 		// step in the DAG
-		if tuple.parentTaskId != nil && tuple.parentExternalId != nil {
+		if tuple.parentTaskId != nil && tuple.parentExternalId != nil && tuple.targetActionId == nil {
 			steps, ok := workflowVersionToSteps[tuple.workflowVersionId]
 
 			if !ok {
