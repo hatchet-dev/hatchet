@@ -10,7 +10,20 @@ export function BananaModeSwitch() {
     <>
       <SettingRow
         label="Banana mode"
-        description="Paint the app yellow. This stays in this browser."
+        description={
+          <>
+            Paint the app yellow. This stays in this browser. See{' '}
+            <a
+              href="https://hatchet.run/bananas"
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              hatchet.run/bananas
+            </a>
+            .
+          </>
+        }
       >
         <Switch
           checked={enabled}
