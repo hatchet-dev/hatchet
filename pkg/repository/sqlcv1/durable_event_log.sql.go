@@ -1121,37 +1121,39 @@ func (q *Queries) ListSatisfiedEntries(ctx context.Context, db DBTX, arg ListSat
 	return items, nil
 }
 
-const listUnsatisfiedRunEntriesByChildTaskExternalIds = `-- name: ListUnsatisfiedRunEntriesByChildTaskExternalIds :many
+const listUnsatisfiedRunEntriesForChildTaskExternalIds = `-- name: ListUnsatisfiedRunEntriesForChildTaskExternalIds :many
 WITH inputs AS (
     SELECT
         UNNEST($2::BIGINT[]) AS durable_task_id,
         UNNEST($3::TIMESTAMPTZ[]) AS durable_task_inserted_at,
         UNNEST($4::UUID[]) AS child_task_external_id
 )
+
 SELECT
-    e.durable_task_id,
-    e.durable_task_inserted_at,
-    e.branch_id,
-    e.node_id,
-    e.child_task_external_id
-FROM v1_durable_event_log_entry e
-JOIN inputs i
-    ON (e.durable_task_id, e.durable_task_inserted_at) = (i.durable_task_id, i.durable_task_inserted_at)
-    AND e.child_task_external_id = i.child_task_external_id
+    durable_task_id,
+    durable_task_inserted_at,
+    branch_id,
+    node_id,
+    child_task_external_id
+FROM v1_durable_event_log_entry
 WHERE
-    e.kind = 'RUN'
-    AND NOT e.is_satisfied
-    AND e.durable_task_inserted_at >= $1::TIMESTAMPTZ
+    kind = 'RUN'
+    AND NOT is_satisfied
+    AND durable_task_inserted_at >= $1::TIMESTAMPTZ
+    AND (durable_task_id, durable_task_inserted_at, child_task_external_id) IN (
+        SELECT durable_task_id, durable_task_inserted_at, child_task_external_id
+        FROM inputs
+    )
 `
 
-type ListUnsatisfiedRunEntriesByChildTaskExternalIdsParams struct {
+type ListUnsatisfiedRunEntriesForChildTaskExternalIdsParams struct {
 	Mindurabletaskinsertedat pgtype.Timestamptz   `json:"mindurabletaskinsertedat"`
 	Durabletaskids           []int64              `json:"durabletaskids"`
 	Durabletaskinsertedats   []pgtype.Timestamptz `json:"durabletaskinsertedats"`
 	Childtaskexternalids     []uuid.UUID          `json:"childtaskexternalids"`
 }
 
-type ListUnsatisfiedRunEntriesByChildTaskExternalIdsRow struct {
+type ListUnsatisfiedRunEntriesForChildTaskExternalIdsRow struct {
 	DurableTaskID         int64              `json:"durable_task_id"`
 	DurableTaskInsertedAt pgtype.Timestamptz `json:"durable_task_inserted_at"`
 	BranchID              int64              `json:"branch_id"`
@@ -1159,8 +1161,8 @@ type ListUnsatisfiedRunEntriesByChildTaskExternalIdsRow struct {
 	ChildTaskExternalID   *uuid.UUID         `json:"child_task_external_id"`
 }
 
-func (q *Queries) ListUnsatisfiedRunEntriesByChildTaskExternalIds(ctx context.Context, db DBTX, arg ListUnsatisfiedRunEntriesByChildTaskExternalIdsParams) ([]*ListUnsatisfiedRunEntriesByChildTaskExternalIdsRow, error) {
-	rows, err := db.Query(ctx, listUnsatisfiedRunEntriesByChildTaskExternalIds,
+func (q *Queries) ListUnsatisfiedRunEntriesForChildTaskExternalIds(ctx context.Context, db DBTX, arg ListUnsatisfiedRunEntriesForChildTaskExternalIdsParams) ([]*ListUnsatisfiedRunEntriesForChildTaskExternalIdsRow, error) {
+	rows, err := db.Query(ctx, listUnsatisfiedRunEntriesForChildTaskExternalIds,
 		arg.Mindurabletaskinsertedat,
 		arg.Durabletaskids,
 		arg.Durabletaskinsertedats,
@@ -1170,9 +1172,9 @@ func (q *Queries) ListUnsatisfiedRunEntriesByChildTaskExternalIds(ctx context.Co
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*ListUnsatisfiedRunEntriesByChildTaskExternalIdsRow
+	var items []*ListUnsatisfiedRunEntriesForChildTaskExternalIdsRow
 	for rows.Next() {
-		var i ListUnsatisfiedRunEntriesByChildTaskExternalIdsRow
+		var i ListUnsatisfiedRunEntriesForChildTaskExternalIdsRow
 		if err := rows.Scan(
 			&i.DurableTaskID,
 			&i.DurableTaskInsertedAt,

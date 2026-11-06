@@ -3033,7 +3033,7 @@ func (r *sharedRepository) satisfyOperatorStepChildEntries(ctx context.Context, 
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "n_children", Value: len(completions)})
 
-	lookupParams := sqlcv1.ListUnsatisfiedRunEntriesByChildTaskExternalIdsParams{
+	lookupParams := sqlcv1.ListUnsatisfiedRunEntriesForChildTaskExternalIdsParams{
 		Durabletaskids:           make([]int64, 0, len(completions)),
 		Durabletaskinsertedats:   make([]pgtype.Timestamptz, 0, len(completions)),
 		Childtaskexternalids:     make([]uuid.UUID, 0, len(completions)),
@@ -3072,7 +3072,7 @@ func (r *sharedRepository) satisfyOperatorStepChildEntries(ctx context.Context, 
 		return nil, fmt.Errorf("failed to lock durable event log files: %w", err)
 	}
 
-	unsatisfiedEntries, err := r.queries.ListUnsatisfiedRunEntriesByChildTaskExternalIds(ctx, tx, lookupParams)
+	unsatisfiedEntries, err := r.queries.ListUnsatisfiedRunEntriesForChildTaskExternalIds(ctx, tx, lookupParams)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to list unsatisfied run entries for operator step children: %w", err)

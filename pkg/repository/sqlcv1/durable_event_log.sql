@@ -500,24 +500,27 @@ RETURNING
     v1_task_event.child_external_id
 ;
 
--- name: ListUnsatisfiedRunEntriesByChildTaskExternalIds :many
+-- name: ListUnsatisfiedRunEntriesForChildTaskExternalIds :many
 WITH inputs AS (
     SELECT
         UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
         UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
         UNNEST(@childTaskExternalIds::UUID[]) AS child_task_external_id
 )
+
 SELECT
-    e.durable_task_id,
-    e.durable_task_inserted_at,
-    e.branch_id,
-    e.node_id,
-    e.child_task_external_id
-FROM v1_durable_event_log_entry e
-JOIN inputs i
-    ON (e.durable_task_id, e.durable_task_inserted_at) = (i.durable_task_id, i.durable_task_inserted_at)
-    AND e.child_task_external_id = i.child_task_external_id
+    durable_task_id,
+    durable_task_inserted_at,
+    branch_id,
+    node_id,
+    child_task_external_id
+FROM v1_durable_event_log_entry
 WHERE
-    e.kind = 'RUN'
-    AND NOT e.is_satisfied
-    AND e.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ;
+    kind = 'RUN'
+    AND NOT is_satisfied
+    AND durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+    AND (durable_task_id, durable_task_inserted_at, child_task_external_id) IN (
+        SELECT durable_task_id, durable_task_inserted_at, child_task_external_id
+        FROM inputs
+    )
+;
