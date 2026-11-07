@@ -1828,6 +1828,7 @@ export interface TenantEntitlements {
   durableStreams: boolean;
   serverlessOperator: boolean;
   sandboxOperator: boolean;
+  operatorStepDirectCompletion: boolean;
 }
 
 export interface UpdateTenantEntitlementsRequest {
