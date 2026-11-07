@@ -1434,6 +1434,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
         slot_cost: int | None = None,
+        max_reassignments_allowed: int | None = None,
     ) -> Callable[
         [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],
@@ -1468,6 +1469,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param cancel_if: A list of conditions that, if met, will cause the task to be canceled.
 
         :param slot_cost: The number of default worker slots this task consumes. A normal task consumes one. Set it higher for a task that needs more memory or CPU, so a worker runs fewer of them at once. A single worker must have that many free slots to run it.
+
+        :param max_reassignments_allowed: An optional integer for the maximum number of times a task can be reassigned before it fails.
 
         :returns: A decorator which creates a `Task` object.
 
@@ -1524,6 +1527,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 skip_if=skip_if,
                 cancel_if=cancel_if,
                 slot_requests=slot_requests,
+                max_reassignments_allowed=max_reassignments_allowed,
             )
 
             self._default_tasks.append(task)

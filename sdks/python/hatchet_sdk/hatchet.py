@@ -480,6 +480,7 @@ class Hatchet:
         idempotency: (
             TTLBasedIdempotencyConfig | StatusBasedIdempotencyConfig | None
         ) = None,
+        max_reassignments_allowed: int | None = None,
     ) -> Callable[
         [Callable[Concatenate[EmptyModel, Context, P], R | CoroutineLike[R]]],
         Standalone[EmptyModel, R],
@@ -516,6 +517,7 @@ class Hatchet:
         idempotency: (
             TTLBasedIdempotencyConfig | StatusBasedIdempotencyConfig | None
         ) = None,
+        max_reassignments_allowed: int | None = None,
     ) -> Callable[
         [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Standalone[TWorkflowInput, R],
@@ -551,6 +553,7 @@ class Hatchet:
         idempotency: (
             TTLBasedIdempotencyConfig | StatusBasedIdempotencyConfig | None
         ) = None,
+        max_reassignments_allowed: int | None = None,
     ) -> (
         Callable[
             [Callable[Concatenate[EmptyModel, Context, P], R | CoroutineLike[R]]],
@@ -606,6 +609,8 @@ class Hatchet:
 
         :param idempotency: An optional idempotency configuration for the task, controlling how Hatchet should determine if two runs of this task are "the same" for the purposes of deduplication and idempotent execution.
 
+        :param max_reassignments_allowed: An optional integer for the maximum number of times a task can be reassigned before it fails.
+
         :returns: A decorator which creates a `Standalone` task object.
         """
 
@@ -657,6 +662,7 @@ class Hatchet:
                 backoff_max_seconds=backoff_max_seconds,
                 concurrency=_concurrency,
                 slot_cost=slot_cost,
+                max_reassignments_allowed=max_reassignments_allowed,
             )
 
             created_task = task_wrapper(func)

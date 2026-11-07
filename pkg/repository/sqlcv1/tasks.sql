@@ -721,15 +721,19 @@ WITH tasks_on_inactive_workers AS (
             AND inactive.retry_count = never_acked.retry_count
     )
 )
+
 SELECT
-    v1_task.id,
-    v1_task.inserted_at,
-    v1_task.retry_count,
+    t.id,
+    t.inserted_at,
+    t.retry_count,
     lrs.reason
 FROM
-    v1_task
+    v1_task t
 JOIN
-    tasks_to_reassign lrs ON lrs.task_id = v1_task.id AND lrs.task_inserted_at = v1_task.inserted_at;
+    tasks_to_reassign lrs ON lrs.task_id = t.id AND lrs.task_inserted_at = t.inserted_at
+WHERE
+    t.max_reassignments_allowed IS NULL OR t.internal_retry_count < t.max_reassignments_allowed
+;
 
 -- name: ProcessRetryQueueItems :many
 WITH rqis_to_delete AS (
