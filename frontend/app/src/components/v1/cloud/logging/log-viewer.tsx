@@ -27,7 +27,7 @@ import {
 import { V1LogLineLevel, V1TaskStatus } from '@/lib/api';
 import { cn, formatErrorForDisplay } from '@/lib/utils';
 import { Link } from '@tanstack/react-router';
-import { ExternalLink, Maximize2, XCircle } from 'lucide-react';
+import { ExternalLink, Maximize2, Minimize2, XCircle } from 'lucide-react';
 import { createElement, useCallback, useMemo, useRef, useState } from 'react';
 
 const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
@@ -222,11 +222,21 @@ function ErrorDetails({ error }: { error: string }) {
           className="w-[90vw] max-w-[90vw]"
           aria-describedby={undefined}
         >
-          <DialogHeader>
+          <DialogHeader className="flex-row items-center gap-2 space-y-0">
             <DialogTitle className="flex items-center gap-2">
               <XCircle className="h-5 w-5 text-destructive" />
               Error Details
             </DialogTitle>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="ml-auto h-7 w-7"
+              title="Collapse"
+              aria-label="Collapse error"
+              onClick={() => setView('popover')}
+            >
+              <Minimize2 className="h-4 w-4" />
+            </Button>
           </DialogHeader>
           <CodeHighlighter
             // min-w-0 keeps unwrapped lines from widening the dialog's grid.
