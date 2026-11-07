@@ -168,16 +168,18 @@ function isNonEmpty<TValue>(value: TValue | null | undefined): value is TValue {
   return value !== null && value !== undefined;
 }
 
-function ErrorPopover({ error }: { error: string }) {
+function ErrorDetails({ error }: { error: string }) {
   const { code, language } = formatErrorForDisplay(error);
-  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [view, setView] = useState<'closed' | 'popover' | 'dialog'>('closed');
 
   return (
     // Portaled clicks still bubble through the React tree, so keep them from
     // toggling the log row's expanded state.
     <span className="contents" onClick={(e) => e.stopPropagation()}>
-      <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+      <Popover
+        open={view === 'popover'}
+        onOpenChange={(open) => setView(open ? 'popover' : 'closed')}
+      >
         <PopoverTrigger className="ml-2 shrink-0 inline-flex items-center rounded border border-red-500/30 px-1.5 py-0.5 font-mono text-[10px] text-red-500 dark:text-red-400 hover:border-red-500/60 hover:bg-red-500/5 transition-colors cursor-pointer">
           View Error
         </PopoverTrigger>
@@ -196,11 +198,7 @@ function ErrorPopover({ error }: { error: string }) {
                   className="ml-auto h-7 w-7"
                   title="Expand"
                   aria-label="Expand error"
-                  onClick={() => {
-                    // Popovers stack above dialogs, so close this one first.
-                    setIsPopoverOpen(false);
-                    setIsExpanded(true);
-                  }}
+                  onClick={() => setView('dialog')}
                 >
                   <Maximize2 className="h-4 w-4" />
                 </Button>
@@ -209,16 +207,19 @@ function ErrorPopover({ error }: { error: string }) {
                 className="border border-border"
                 maxHeight="400px"
                 language={language}
-                code={code || 'No error message found'}
+                code={code}
                 copyCode={error}
               />
             </div>
           </div>
         </PopoverContent>
       </Popover>
-      <Dialog open={isExpanded} onOpenChange={setIsExpanded}>
+      <Dialog
+        open={view === 'dialog'}
+        onOpenChange={(open) => setView(open ? 'dialog' : 'closed')}
+      >
         <DialogContent
-          className="flex max-h-[90vh] w-[90vw] max-w-[90vw] flex-col"
+          className="w-[90vw] max-w-[90vw]"
           aria-describedby={undefined}
         >
           <DialogHeader>
@@ -228,10 +229,12 @@ function ErrorPopover({ error }: { error: string }) {
             </DialogTitle>
           </DialogHeader>
           <CodeHighlighter
-            className="min-h-0 flex-1 border border-border"
+            // min-w-0 keeps unwrapped lines from widening the dialog's grid.
+            className="min-w-0 border border-border"
+            // 7rem leaves room for the dialog padding and header within 90vh.
             maxHeight="calc(90vh - 7rem)"
             language={language}
-            code={code || 'No error message found'}
+            code={code}
             copyCode={error}
             wrapLines={false}
           />
@@ -566,7 +569,7 @@ export function LogViewer({
                 {hasLogMetadata(log.metadata) && (
                   <FieldsPopover metadata={log.metadata} />
                 )}
-                {log.error && <ErrorPopover error={log.error} />}
+                {log.error && <ErrorDetails error={log.error} />}
                 {log.linkTo && (
                   <TooltipProvider>
                     <Tooltip>
