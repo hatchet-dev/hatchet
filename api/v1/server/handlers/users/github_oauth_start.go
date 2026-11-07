@@ -10,6 +10,10 @@ import (
 
 // Note: we want all errors to redirect, otherwise the user will be greeted with raw JSON in the middle of the login flow.
 func (u *UserService) UserUpdateGithubOauthStart(ctx echo.Context, _ gen.UserUpdateGithubOauthStartRequestObject) (gen.UserUpdateGithubOauthStartResponseObject, error) {
+	if u.config.Auth.ConfigFile.DirectUserLoginDisabled() || !u.config.Auth.ConfigFile.Github.Enabled {
+		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, nil, "User signup is disabled.")
+	}
+
 	if !u.config.Runtime.AllowSignup {
 		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, nil, "User signup is disabled.")
 	}

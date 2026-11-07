@@ -387,8 +387,12 @@ func TestStreamsRepository(t *testing.T) {
 		ref, err := repo.InsertStreamPayload(ctx, tenantId, []byte("large"))
 		require.NoError(t, err)
 
-		require.NoError(t, repo.CheckStreamPayloadExists(ctx, tenantId, ref))
-		assert.ErrorIs(t, repo.CheckStreamPayloadExists(ctx, other, ref), ErrStreamPayloadNotFound, "another tenant's payload")
+		size, err := repo.StreamPayloadSize(ctx, tenantId, ref)
+		require.NoError(t, err)
+		assert.Equal(t, int64(len("large")), size)
+
+		_, err = repo.StreamPayloadSize(ctx, other, ref)
+		assert.ErrorIs(t, err, ErrStreamPayloadNotFound, "another tenant's payload")
 
 		res, err := repo.InsertOrderedStreamMessage(ctx, tenantId, CreateOrderedStreamMessageOpts{Topic: "t", ProducerID: "p1", ProducerSeq: 0, PayloadRef: &ref})
 		require.NoError(t, err)

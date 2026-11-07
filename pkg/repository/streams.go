@@ -182,8 +182,8 @@ type StreamsRepository interface {
 	// InsertStreamPayload stores a payload ahead of the publish that will reference it.
 	InsertStreamPayload(ctx context.Context, tenantId uuid.UUID, payload []byte) (StreamPayloadRef, error)
 
-	// CheckStreamPayloadExists returns ErrStreamPayloadNotFound unless ref is an uploaded payload of the tenant's.
-	CheckStreamPayloadExists(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) error
+	// StreamPayloadSize returns the size of an uploaded payload of the tenant's, or ErrStreamPayloadNotFound.
+	StreamPayloadSize(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) (int64, error)
 
 	// GetStreamPayload returns ErrStreamPayloadNotFound once it's past the tenant's retention.
 	GetStreamPayload(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) ([]byte, error)
@@ -530,22 +530,18 @@ func (r *streamsRepositoryImpl) InsertStreamPayload(ctx context.Context, tenantI
 	return StreamPayloadRef{ID: id, CreatedAt: insertedAt.Time}, nil
 }
 
-func (r *streamsRepositoryImpl) CheckStreamPayloadExists(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) error {
-	exists, err := r.queries.StreamPayloadExists(ctx, r.pool.ForTenant(tenantId), sqlcv1.StreamPayloadExistsParams{
+func (r *streamsRepositoryImpl) StreamPayloadSize(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) (int64, error) {
+	size, err := r.queries.GetStreamPayloadSize(ctx, r.pool.ForTenant(tenantId), sqlcv1.GetStreamPayloadSizeParams{
 		Tenantid:   tenantId,
 		ID:         ref.ID,
 		Insertedat: pgtype.Timestamptz{Time: ref.CreatedAt, Valid: true},
 	})
 
-	if err != nil {
-		return err
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, ErrStreamPayloadNotFound
 	}
 
-	if !exists {
-		return ErrStreamPayloadNotFound
-	}
-
-	return nil
+	return size, err
 }
 
 func (r *streamsRepositoryImpl) GetStreamPayload(ctx context.Context, tenantId uuid.UUID, ref StreamPayloadRef) ([]byte, error) {
