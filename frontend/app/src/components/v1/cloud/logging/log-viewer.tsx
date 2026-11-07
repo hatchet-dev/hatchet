@@ -5,7 +5,14 @@ import {
   V1LogLineLevelIncludingEvictionNotice,
 } from './log-search/use-logs';
 import RelativeDate from '@/components/v1/molecules/relative-date';
+import { Button } from '@/components/v1/ui/button';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/v1/ui/dialog';
 import {
   Popover,
   PopoverContent,
@@ -20,7 +27,7 @@ import {
 import { V1LogLineLevel, V1TaskStatus } from '@/lib/api';
 import { cn, formatErrorForDisplay } from '@/lib/utils';
 import { Link } from '@tanstack/react-router';
-import { ExternalLink, XCircle } from 'lucide-react';
+import { ExternalLink, Maximize2, XCircle } from 'lucide-react';
 import { createElement, useCallback, useMemo, useRef, useState } from 'react';
 
 const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
@@ -163,36 +170,74 @@ function isNonEmpty<TValue>(value: TValue | null | undefined): value is TValue {
 
 function ErrorPopover({ error }: { error: string }) {
   const { code, language } = formatErrorForDisplay(error);
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   return (
-    <Popover>
-      <PopoverTrigger
-        onClick={(e) => e.stopPropagation()}
-        className="ml-2 shrink-0 inline-flex items-center rounded border border-red-500/30 px-1.5 py-0.5 font-mono text-[10px] text-red-500 dark:text-red-400 hover:border-red-500/60 hover:bg-red-500/5 transition-colors cursor-pointer"
-      >
-        View Error
-      </PopoverTrigger>
-      <PopoverContent
-        className="w-[300px] max-w-[90vw] border-border bg-popover p-0 shadow-lg sm:w-[400px] md:w-[500px] lg:w-[600px]"
-        align="start"
-      >
-        <div className="w-[300px] max-w-[90vw] p-4 sm:w-[400px] md:w-[500px] lg:w-[600px]">
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 border-b border-border pb-2">
-              <XCircle className="h-5 w-5 text-destructive" />
-              <h3 className="font-medium text-foreground">Error Details</h3>
+    // Portaled clicks still bubble through the React tree, so keep them from
+    // toggling the log row's expanded state.
+    <span className="contents" onClick={(e) => e.stopPropagation()}>
+      <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+        <PopoverTrigger className="ml-2 shrink-0 inline-flex items-center rounded border border-red-500/30 px-1.5 py-0.5 font-mono text-[10px] text-red-500 dark:text-red-400 hover:border-red-500/60 hover:bg-red-500/5 transition-colors cursor-pointer">
+          View Error
+        </PopoverTrigger>
+        <PopoverContent
+          className="w-[300px] max-w-[90vw] border-border bg-popover p-0 shadow-lg sm:w-[400px] md:w-[500px] lg:w-[600px]"
+          align="start"
+        >
+          <div className="w-[300px] max-w-[90vw] p-4 sm:w-[400px] md:w-[500px] lg:w-[600px]">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 border-b border-border pb-2">
+                <XCircle className="h-5 w-5 text-destructive" />
+                <h3 className="font-medium text-foreground">Error Details</h3>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="ml-auto h-7 w-7"
+                  title="Expand"
+                  aria-label="Expand error"
+                  onClick={() => {
+                    // Popovers stack above dialogs, so close this one first.
+                    setIsPopoverOpen(false);
+                    setIsExpanded(true);
+                  }}
+                >
+                  <Maximize2 className="h-4 w-4" />
+                </Button>
+              </div>
+              <CodeHighlighter
+                className="border border-border"
+                maxHeight="400px"
+                language={language}
+                code={code || 'No error message found'}
+                copyCode={error}
+              />
             </div>
-            <CodeHighlighter
-              className="border border-border"
-              maxHeight="400px"
-              language={language}
-              code={code || 'No error message found'}
-              copyCode={error}
-            />
           </div>
-        </div>
-      </PopoverContent>
-    </Popover>
+        </PopoverContent>
+      </Popover>
+      <Dialog open={isExpanded} onOpenChange={setIsExpanded}>
+        <DialogContent
+          className="flex max-h-[90vh] w-[90vw] max-w-[90vw] flex-col"
+          aria-describedby={undefined}
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <XCircle className="h-5 w-5 text-destructive" />
+              Error Details
+            </DialogTitle>
+          </DialogHeader>
+          <CodeHighlighter
+            className="min-h-0 flex-1 border border-border"
+            maxHeight="calc(90vh - 7rem)"
+            language={language}
+            code={code || 'No error message found'}
+            copyCode={error}
+            wrapLines={false}
+          />
+        </DialogContent>
+      </Dialog>
+    </span>
   );
 }
 
