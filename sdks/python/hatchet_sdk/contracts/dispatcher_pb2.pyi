@@ -60,6 +60,17 @@ class ResourceEventType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
 class WorkflowRunEventType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     WORKFLOW_RUN_EVENT_TYPE_FINISHED: _ClassVar[WorkflowRunEventType]
+
+class TaskCancellationReason(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    TASK_CANCELLATION_REASON_UNSPECIFIED: _ClassVar[TaskCancellationReason]
+    TASK_CANCELLATION_REASON_CANCELLED_BY_USER: _ClassVar[TaskCancellationReason]
+    TASK_CANCELLATION_REASON_CANCELLED_BY_WORKER: _ClassVar[TaskCancellationReason]
+    TASK_CANCELLATION_REASON_CONCURRENCY_LIMIT: _ClassVar[TaskCancellationReason]
+    TASK_CANCELLATION_REASON_SCHEDULING_TIMED_OUT: _ClassVar[TaskCancellationReason]
+    TASK_CANCELLATION_REASON_UPSTREAM_TASK_FAILED_OR_CANCELLED: _ClassVar[TaskCancellationReason]
+    TASK_CANCELLATION_REASON_WORKFLOW_RUN_CANCELLED: _ClassVar[TaskCancellationReason]
+    TASK_CANCELLATION_REASON_PAUSED_QUEUE_ITEM_EXPIRED: _ClassVar[TaskCancellationReason]
 UNKNOWN: SDKS
 GO: SDKS
 PYTHON: SDKS
@@ -90,6 +101,14 @@ RESOURCE_EVENT_TYPE_CANCELLED: ResourceEventType
 RESOURCE_EVENT_TYPE_TIMED_OUT: ResourceEventType
 RESOURCE_EVENT_TYPE_STREAM: ResourceEventType
 WORKFLOW_RUN_EVENT_TYPE_FINISHED: WorkflowRunEventType
+TASK_CANCELLATION_REASON_UNSPECIFIED: TaskCancellationReason
+TASK_CANCELLATION_REASON_CANCELLED_BY_USER: TaskCancellationReason
+TASK_CANCELLATION_REASON_CANCELLED_BY_WORKER: TaskCancellationReason
+TASK_CANCELLATION_REASON_CONCURRENCY_LIMIT: TaskCancellationReason
+TASK_CANCELLATION_REASON_SCHEDULING_TIMED_OUT: TaskCancellationReason
+TASK_CANCELLATION_REASON_UPSTREAM_TASK_FAILED_OR_CANCELLED: TaskCancellationReason
+TASK_CANCELLATION_REASON_WORKFLOW_RUN_CANCELLED: TaskCancellationReason
+TASK_CANCELLATION_REASON_PAUSED_QUEUE_ITEM_EXPIRED: TaskCancellationReason
 
 class WorkerLabels(_message.Message):
     __slots__ = ("str_value", "int_value")
@@ -411,18 +430,20 @@ class WorkflowRunEvent(_message.Message):
     def __init__(self, workflow_run_id: _Optional[str] = ..., event_type: _Optional[_Union[WorkflowRunEventType, str]] = ..., event_timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., results: _Optional[_Iterable[_Union[StepRunResult, _Mapping]]] = ...) -> None: ...
 
 class StepRunResult(_message.Message):
-    __slots__ = ("task_run_external_id", "task_name", "job_run_id", "error", "output")
+    __slots__ = ("task_run_external_id", "task_name", "job_run_id", "error", "output", "cancellation_reason")
     TASK_RUN_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
     TASK_NAME_FIELD_NUMBER: _ClassVar[int]
     JOB_RUN_ID_FIELD_NUMBER: _ClassVar[int]
     ERROR_FIELD_NUMBER: _ClassVar[int]
     OUTPUT_FIELD_NUMBER: _ClassVar[int]
+    CANCELLATION_REASON_FIELD_NUMBER: _ClassVar[int]
     task_run_external_id: str
     task_name: str
     job_run_id: str
     error: str
     output: str
-    def __init__(self, task_run_external_id: _Optional[str] = ..., task_name: _Optional[str] = ..., job_run_id: _Optional[str] = ..., error: _Optional[str] = ..., output: _Optional[str] = ...) -> None: ...
+    cancellation_reason: TaskCancellationReason
+    def __init__(self, task_run_external_id: _Optional[str] = ..., task_name: _Optional[str] = ..., job_run_id: _Optional[str] = ..., error: _Optional[str] = ..., output: _Optional[str] = ..., cancellation_reason: _Optional[_Union[TaskCancellationReason, str]] = ...) -> None: ...
 
 class OverridesData(_message.Message):
     __slots__ = ("task_run_external_id", "path", "value", "caller_filename")

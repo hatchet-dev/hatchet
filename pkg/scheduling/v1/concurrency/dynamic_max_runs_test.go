@@ -205,7 +205,7 @@ func TestDynamicMaxRuns_LowerGrandfathersRunning_GroupRoundRobin(t *testing.T) {
 	if _, ok := sq.queued.get(4); !ok {
 		t.Fatalf("task 4 should stay queued until the group drains below the new limit")
 	}
-	if got := cancelledByReason(repo.lastCancelled, repository.CancelledReasonConcurrencyLimit); len(got) != 0 {
+	if got := cancelledByReason(repo.lastCancelled, repository.TaskCancellationReasonConcurrencyLimit); len(got) != 0 {
 		t.Fatalf("GROUP_ROUND_ROBIN must not cancel running work on a lowered limit: %v", got)
 	}
 }
@@ -243,7 +243,7 @@ func TestDynamicMaxRuns_LowerTrimsRunning_CancelInProgress(t *testing.T) {
 	if sq.running.len() != 1 {
 		t.Fatalf("running = %d after drop to 1, want 1 (CANCEL_IN_PROGRESS trims)", sq.running.len())
 	}
-	if got := cancelledByReason(repo.lastCancelled, repository.CancelledReasonConcurrencyLimit); len(got) == 0 {
+	if got := cancelledByReason(repo.lastCancelled, repository.TaskCancellationReasonConcurrencyLimit); len(got) == 0 {
 		t.Fatalf("expected CONCURRENCY_LIMIT cancellations when the limit dropped")
 	}
 }

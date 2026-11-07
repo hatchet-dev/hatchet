@@ -131,13 +131,16 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 		return nil, err
 	}
 
-	tasksToCancel := []v1.TaskIdInsertedAtRetryCount{}
+	tasksToCancel := []tasktypes.TaskToCancel{}
 
 	for _, task := range tasks {
-		tasksToCancel = append(tasksToCancel, v1.TaskIdInsertedAtRetryCount{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			RetryCount: task.RetryCount,
+		tasksToCancel = append(tasksToCancel, tasktypes.TaskToCancel{
+			TaskIdInsertedAtRetryCount: v1.TaskIdInsertedAtRetryCount{
+				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
+				RetryCount: task.RetryCount,
+			},
+			CancellationReason: v1.TaskCancellationReasonCancelledByUser,
 		})
 	}
 

@@ -17,13 +17,6 @@ import (
 
 const PARENT_STRATEGY_LOCK_OFFSET = 1000000000000 // 1 trillion
 
-// Cancellation reasons surfaced on TaskWithCancelledReason. Kept as plain strings to match the
-// values the downstream consumer (notifyAfterConcurrency) and the legacy SQL paths compare against.
-const (
-	CancelledReasonConcurrencyLimit   = "CONCURRENCY_LIMIT"
-	CancelledReasonSchedulingTimedOut = "SCHEDULING_TIMED_OUT"
-)
-
 type TaskWithQueue struct {
 	*TaskIdInsertedAtRetryCount
 
@@ -33,7 +26,7 @@ type TaskWithQueue struct {
 type TaskWithCancelledReason struct {
 	*TaskIdInsertedAtRetryCount
 
-	CancelledReason string
+	CancelledReason TaskCancellationReason
 
 	TaskExternalId uuid.UUID
 
@@ -49,7 +42,7 @@ type TaskWithCancelledReason struct {
 // CancelledSlotInput identifies a concurrency slot to cancel along with the reason it's being
 // cancelled, so UpdateConcurrencySlots can propagate the reason into the RunConcurrencyResult.
 type CancelledSlotInput struct {
-	CancelledReason string
+	CancelledReason TaskCancellationReason
 	TaskIdInsertedAtRetryCount
 }
 
@@ -395,7 +388,7 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 			case r.Operation == "SCHEDULING_TIMED_OUT":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
-					CancelledReason:            "SCHEDULING_TIMED_OUT",
+					CancelledReason:            TaskCancellationReasonSchedulingTimedOut,
 					TaskExternalId:             r.ExternalID,
 					WorkflowRunId:              r.WorkflowRunID,
 				})
@@ -438,7 +431,7 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 			case r.Operation == "SCHEDULING_TIMED_OUT":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
-					CancelledReason:            "SCHEDULING_TIMED_OUT",
+					CancelledReason:            TaskCancellationReasonSchedulingTimedOut,
 					TaskExternalId:             r.ExternalID,
 					WorkflowRunId:              r.WorkflowRunID,
 				})
@@ -576,14 +569,14 @@ func (c *ConcurrencyRepositoryImpl) runCancelInProgress(
 			case r.Operation == "CANCELLED":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
-					CancelledReason:            "CONCURRENCY_LIMIT",
+					CancelledReason:            TaskCancellationReasonConcurrencyLimit,
 					TaskExternalId:             r.ExternalID,
 					WorkflowRunId:              r.WorkflowRunID,
 				})
 			case r.Operation == "SCHEDULING_TIMED_OUT":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
-					CancelledReason:            "SCHEDULING_TIMED_OUT",
+					CancelledReason:            TaskCancellationReasonSchedulingTimedOut,
 					TaskExternalId:             r.ExternalID,
 					WorkflowRunId:              r.WorkflowRunID,
 				})
@@ -657,14 +650,14 @@ func (c *ConcurrencyRepositoryImpl) runCancelInProgress(
 			case r.Operation == "CANCELLED":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
-					CancelledReason:            "CONCURRENCY_LIMIT",
+					CancelledReason:            TaskCancellationReasonConcurrencyLimit,
 					TaskExternalId:             r.ExternalID,
 					WorkflowRunId:              r.WorkflowRunID,
 				})
 			case r.Operation == "SCHEDULING_TIMED_OUT":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
-					CancelledReason:            "SCHEDULING_TIMED_OUT",
+					CancelledReason:            TaskCancellationReasonSchedulingTimedOut,
 					TaskExternalId:             r.ExternalID,
 					WorkflowRunId:              r.WorkflowRunID,
 				})
@@ -836,14 +829,14 @@ func (c *ConcurrencyRepositoryImpl) runCancelQueuedExceptNewest(
 			case r.Operation == "CANCELLED":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
-					CancelledReason:            "CONCURRENCY_LIMIT",
+					CancelledReason:            TaskCancellationReasonConcurrencyLimit,
 					TaskExternalId:             r.ExternalID,
 					WorkflowRunId:              r.WorkflowRunID,
 				})
 			case r.Operation == "SCHEDULING_TIMED_OUT":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
-					CancelledReason:            "SCHEDULING_TIMED_OUT",
+					CancelledReason:            TaskCancellationReasonSchedulingTimedOut,
 					TaskExternalId:             r.ExternalID,
 					WorkflowRunId:              r.WorkflowRunID,
 				})
@@ -917,14 +910,14 @@ func (c *ConcurrencyRepositoryImpl) runCancelQueuedExceptNewest(
 			case r.Operation == "CANCELLED":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
-					CancelledReason:            "CONCURRENCY_LIMIT",
+					CancelledReason:            TaskCancellationReasonConcurrencyLimit,
 					TaskExternalId:             r.ExternalID,
 					WorkflowRunId:              r.WorkflowRunID,
 				})
 			case r.Operation == "SCHEDULING_TIMED_OUT":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
-					CancelledReason:            "SCHEDULING_TIMED_OUT",
+					CancelledReason:            TaskCancellationReasonSchedulingTimedOut,
 					TaskExternalId:             r.ExternalID,
 					WorkflowRunId:              r.WorkflowRunID,
 				})
@@ -1096,14 +1089,14 @@ func (c *ConcurrencyRepositoryImpl) runCancelQueuedExceptOldest(
 			case r.Operation == "CANCELLED":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
-					CancelledReason:            "CONCURRENCY_LIMIT",
+					CancelledReason:            TaskCancellationReasonConcurrencyLimit,
 					TaskExternalId:             r.ExternalID,
 					WorkflowRunId:              r.WorkflowRunID,
 				})
 			case r.Operation == "SCHEDULING_TIMED_OUT":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
-					CancelledReason:            "SCHEDULING_TIMED_OUT",
+					CancelledReason:            TaskCancellationReasonSchedulingTimedOut,
 					TaskExternalId:             r.ExternalID,
 					WorkflowRunId:              r.WorkflowRunID,
 				})
@@ -1177,14 +1170,14 @@ func (c *ConcurrencyRepositoryImpl) runCancelQueuedExceptOldest(
 			case r.Operation == "CANCELLED":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
-					CancelledReason:            "CONCURRENCY_LIMIT",
+					CancelledReason:            TaskCancellationReasonConcurrencyLimit,
 					TaskExternalId:             r.ExternalID,
 					WorkflowRunId:              r.WorkflowRunID,
 				})
 			case r.Operation == "SCHEDULING_TIMED_OUT":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
-					CancelledReason:            "SCHEDULING_TIMED_OUT",
+					CancelledReason:            TaskCancellationReasonSchedulingTimedOut,
 					TaskExternalId:             r.ExternalID,
 					WorkflowRunId:              r.WorkflowRunID,
 				})
@@ -1356,14 +1349,14 @@ func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 			case r.Operation == "CANCELLED":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
-					CancelledReason:            "CONCURRENCY_LIMIT",
+					CancelledReason:            TaskCancellationReasonConcurrencyLimit,
 					TaskExternalId:             r.ExternalID,
 					WorkflowRunId:              r.WorkflowRunID,
 				})
 			case r.Operation == "SCHEDULING_TIMED_OUT":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
-					CancelledReason:            "SCHEDULING_TIMED_OUT",
+					CancelledReason:            TaskCancellationReasonSchedulingTimedOut,
 					TaskExternalId:             r.ExternalID,
 					WorkflowRunId:              r.WorkflowRunID,
 				})
@@ -1437,14 +1430,14 @@ func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 			case r.Operation == "CANCELLED":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
-					CancelledReason:            "CONCURRENCY_LIMIT",
+					CancelledReason:            TaskCancellationReasonConcurrencyLimit,
 					TaskExternalId:             r.ExternalID,
 					WorkflowRunId:              r.WorkflowRunID,
 				})
 			case r.Operation == "SCHEDULING_TIMED_OUT":
 				cancelled = append(cancelled, TaskWithCancelledReason{
 					TaskIdInsertedAtRetryCount: idRetryCount,
-					CancelledReason:            "SCHEDULING_TIMED_OUT",
+					CancelledReason:            TaskCancellationReasonSchedulingTimedOut,
 					TaskExternalId:             r.ExternalID,
 					WorkflowRunId:              r.WorkflowRunID,
 				})
@@ -1630,7 +1623,7 @@ func (c *ConcurrencyRepositoryImpl) UpdateConcurrencySlotsTx(
 	}
 
 	tasksToCancel := make([]TaskIdInsertedAtRetryCount, 0, len(cancelledSlots))
-	reasonByTask := make(map[reasonKey]string, len(cancelledSlots))
+	reasonByTask := make(map[reasonKey]TaskCancellationReason, len(cancelledSlots))
 
 	for _, slot := range cancelledSlots {
 		tasksToCancel = append(tasksToCancel, slot.TaskIdInsertedAtRetryCount)
@@ -1654,7 +1647,7 @@ func (c *ConcurrencyRepositoryImpl) UpdateConcurrencySlotsTx(
 	for _, released := range releasedTasks {
 		reason, ok := reasonByTask[reasonKey{id: released.ID, retryCount: released.RetryCount}]
 		if !ok {
-			reason = CancelledReasonConcurrencyLimit
+			reason = TaskCancellationReasonConcurrencyLimit
 		}
 
 		cancelled = append(cancelled, TaskWithCancelledReason{

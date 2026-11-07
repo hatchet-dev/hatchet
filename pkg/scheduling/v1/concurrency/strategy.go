@@ -935,7 +935,7 @@ func buildSlotInputs(slotsToSetFilled, slotsToDelete, slotsToTimeout []slot) ([]
 				InsertedAt: sqlchelpers.TimestamptzFromTime(time.Unix(0, slot.taskInsertedAtNs).UTC()),
 				RetryCount: slot.taskRetryCount,
 			},
-			CancelledReason: repository.CancelledReasonConcurrencyLimit,
+			CancelledReason: repository.TaskCancellationReasonConcurrencyLimit,
 		})
 	}
 
@@ -946,7 +946,7 @@ func buildSlotInputs(slotsToSetFilled, slotsToDelete, slotsToTimeout []slot) ([]
 				InsertedAt: sqlchelpers.TimestamptzFromTime(time.Unix(0, slot.taskInsertedAtNs).UTC()),
 				RetryCount: slot.taskRetryCount,
 			},
-			CancelledReason: repository.CancelledReasonSchedulingTimedOut,
+			CancelledReason: repository.TaskCancellationReasonSchedulingTimedOut,
 		})
 	}
 

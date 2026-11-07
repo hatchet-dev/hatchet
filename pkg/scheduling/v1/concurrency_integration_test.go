@@ -283,7 +283,7 @@ func TestConcurrency_CancelInProgress_InMemory(t *testing.T) {
 		require.Len(t, res.Queued, 2, "CANCEL_IN_PROGRESS in-memory should queue maxRuns tasks")
 		require.Len(t, res.Cancelled, 3, "CANCEL_IN_PROGRESS in-memory should cancel the excess tasks")
 		for _, c := range res.Cancelled {
-			require.Equal(t, repo.CancelledReasonConcurrencyLimit, c.CancelledReason,
+			require.Equal(t, repo.TaskCancellationReasonConcurrencyLimit, c.CancelledReason,
 				"excess tasks should be cancelled with CONCURRENCY_LIMIT")
 		}
 
@@ -324,7 +324,7 @@ func TestConcurrency_CancelNewest_InMemory(t *testing.T) {
 		require.Len(t, res.Queued, 2, "CANCEL_NEWEST in-memory should queue maxRuns tasks")
 		require.Len(t, res.Cancelled, 3, "CANCEL_NEWEST in-memory should cancel the excess tasks")
 		for _, c := range res.Cancelled {
-			require.Equal(t, repo.CancelledReasonConcurrencyLimit, c.CancelledReason,
+			require.Equal(t, repo.TaskCancellationReasonConcurrencyLimit, c.CancelledReason,
 				"excess tasks should be cancelled with CONCURRENCY_LIMIT")
 		}
 
@@ -855,7 +855,7 @@ func TestConcurrency_RateLimitedFilledSlotTimesOutAndUnblocks(t *testing.T) {
 		res2, err := s.concurrencyRepo.RunConcurrencyStrategy(ctx, s.tenantId, s.strategy)
 		require.NoError(t, err)
 		require.Len(t, res2.Cancelled, 1, "filled rate-limited slot past schedule timeout must be cancelled")
-		require.Equal(t, repo.CancelledReasonSchedulingTimedOut, res2.Cancelled[0].CancelledReason)
+		require.Equal(t, repo.TaskCancellationReasonSchedulingTimedOut, res2.Cancelled[0].CancelledReason)
 
 		queued := res2.Queued
 		if len(queued) == 0 {

@@ -1378,10 +1378,11 @@ func (s *DispatcherImpl) taskEventsToWorkflowRunEvent(ctx context.Context, tenan
 		case sqlcv1.V1TaskEventTypeCANCELLED:
 			//FIXME: this should be more specific for schedule timeouts
 			return &contracts.StepRunResult{
-				TaskRunExternalId: event.TaskExternalId.String(),
-				TaskName:          event.StepReadableID,
-				JobRunId:          event.TaskExternalId.String(),
-				Error:             &event.ErrorMessage,
+				TaskRunExternalId:  event.TaskExternalId.String(),
+				TaskName:           event.StepReadableID,
+				JobRunId:           event.TaskExternalId.String(),
+				Error:              &event.ErrorMessage,
+				CancellationReason: new(event.CancellationReason.ToProto()),
 			}
 		case sqlcv1.V1TaskEventTypeSIGNALCREATED, sqlcv1.V1TaskEventTypeSIGNALCOMPLETED:
 			return nil
@@ -1530,11 +1531,14 @@ func (s *DispatcherImpl) handleTaskCancelledEvent(inputCtx context.Context, task
 		false,
 		true,
 		tasktypes.CancelTasksPayload{
-			Tasks: []v1.TaskIdInsertedAtRetryCount{
+			Tasks: []tasktypes.TaskToCancel{
 				{
-					Id:         task.ID,
-					InsertedAt: task.InsertedAt,
-					RetryCount: retryCount,
+					TaskIdInsertedAtRetryCount: v1.TaskIdInsertedAtRetryCount{
+						Id:         task.ID,
+						InsertedAt: task.InsertedAt,
+						RetryCount: retryCount,
+					},
+					CancellationReason: v1.TaskCancellationReasonCancelledByWorker,
 				},
 			},
 		},
@@ -1736,6 +1740,7 @@ func (d *DispatcherImpl) CancelTaskWithReason(ctx context.Context, tenantId uuid
 		retryCount,
 		sqlcv1.V1EventTypeOlapCANCELLED,
 		request.EventPayload,
+		v1.TaskCancellationReasonCancelledByWorker,
 		false,
 	)
 	if err != nil {
@@ -2167,13 +2172,16 @@ func (s *DispatcherImpl) handleBatchTaskCancelled(
 		WorkerId: request.WorkerId,
 	}
 
-	tasksToCancel := make([]v1.TaskIdInsertedAtRetryCount, 0, len(tasks))
+	tasksToCancel := make([]tasktypes.TaskToCancel, 0, len(tasks))
 
 	for _, task := range tasks {
-		tasksToCancel = append(tasksToCancel, v1.TaskIdInsertedAtRetryCount{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			RetryCount: task.RetryCount,
+		tasksToCancel = append(tasksToCancel, tasktypes.TaskToCancel{
+			TaskIdInsertedAtRetryCount: v1.TaskIdInsertedAtRetryCount{
+				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
+				RetryCount: task.RetryCount,
+			},
+			CancellationReason: v1.TaskCancellationReasonCancelledByWorker,
 		})
 	}
 
