@@ -190,6 +190,27 @@ Now that you have an API token, see the guide [here](/v1/quickstart) for how to 
 
 </Steps>
 
+## Verifying images
+
+Every image under `ghcr.io/hatchet-dev/hatchet/` is signed in CI with [cosign](https://docs.sigstore.dev/cosign/) keyless signing, so the signature is bound to the GitHub Actions workflow that built it rather than to a long-lived key. Each platform manifest also carries an SPDX SBOM, generated with syft and attached as a signed attestation.
+
+```sh
+cosign verify ghcr.io/hatchet-dev/hatchet/hatchet-engine:latest \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp '^https://github.com/hatchet-dev/hatchet/\.github/workflows/(pre-release|pre-release-fips|release)\.yaml@refs/'
+```
+
+SBOM attestations hang off the per-platform manifest, so resolve that digest first:
+
+```sh
+digest=$(docker buildx imagetools inspect ghcr.io/hatchet-dev/hatchet/hatchet-engine:latest --format '{{json .Manifest}}' \
+  | jq -r '.manifests[] | select(.platform.architecture == "amd64") | .digest')
+cosign verify-attestation --type spdxjson "ghcr.io/hatchet-dev/hatchet/hatchet-engine@$digest" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp '^https://github.com/hatchet-dev/hatchet/\.github/workflows/(pre-release|pre-release-fips)\.yaml@refs/tags/v' \
+  | jq -r .payload | base64 -d | jq .predicate > sbom.spdx.json
+```
+
 ## Repulling images
 
 The docker compose file above uses the `latest` tag for all images. This means that if you want to pull the latest version of the images, you can run the following command:
