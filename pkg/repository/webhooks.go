@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -180,10 +181,25 @@ func (r *webhookRepository) CreateWebhook(ctx context.Context, tenantId uuid.UUI
 		return nil, fmt.Errorf("unsupported auth type: %s", opts.AuthConfig.Type)
 	}
 
-	created, err := r.queries.CreateWebhook(ctx, db, params)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, r.l)
 	if err != nil {
 		return nil, err
 	}
+	defer rollback()
+
+	created, err := r.queries.CreateWebhook(ctx, tx, params)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := adjustAllocatedResourceCounts(ctx, r.queries, tx, tenantId, allocatedResourceCountDelta{Webhook: 1}); err != nil {
+		return nil, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, err
+	}
+
 	r.notifyAllocatedResourceChange(tenantId)
 	return created, nil
 }
@@ -232,13 +248,28 @@ func (r *webhookRepository) ListWebhooks(ctx context.Context, tenantId uuid.UUID
 func (r *webhookRepository) DeleteWebhook(ctx context.Context, tenantId uuid.UUID, name string) (*sqlcv1.V1IncomingWebhook, error) {
 	db := r.pool.ForTenant(tenantId)
 
-	deleted, err := r.queries.DeleteWebhook(ctx, db, sqlcv1.DeleteWebhookParams{
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, r.l)
+	if err != nil {
+		return nil, err
+	}
+	defer rollback()
+
+	deleted, err := r.queries.DeleteWebhook(ctx, tx, sqlcv1.DeleteWebhookParams{
 		Tenantid: tenantId,
 		Name:     name,
 	})
 	if err != nil {
 		return nil, err
 	}
+
+	if err := adjustAllocatedResourceCounts(ctx, r.queries, tx, tenantId, allocatedResourceCountDelta{Webhook: -1}); err != nil {
+		return nil, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, err
+	}
+
 	r.notifyAllocatedResourceChange(tenantId)
 	return deleted, nil
 }
