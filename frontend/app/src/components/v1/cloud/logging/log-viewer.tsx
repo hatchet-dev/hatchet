@@ -5,6 +5,7 @@ import {
   V1LogLineLevelIncludingEvictionNotice,
 } from './log-search/use-logs';
 import RelativeDate from '@/components/v1/molecules/relative-date';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import {
   Popover,
   PopoverContent,
@@ -17,7 +18,7 @@ import {
   TooltipTrigger,
 } from '@/components/v1/ui/tooltip';
 import { V1LogLineLevel, V1TaskStatus } from '@/lib/api';
-import { cn } from '@/lib/utils';
+import { cn, formatErrorForDisplay } from '@/lib/utils';
 import { Link } from '@tanstack/react-router';
 import { ExternalLink, XCircle } from 'lucide-react';
 import { createElement, useCallback, useMemo, useRef, useState } from 'react';
@@ -161,6 +162,8 @@ function isNonEmpty<TValue>(value: TValue | null | undefined): value is TValue {
 }
 
 function ErrorPopover({ error }: { error: string }) {
+  const { code, language } = formatErrorForDisplay(error);
+
   return (
     <Popover>
       <PopoverTrigger
@@ -179,13 +182,13 @@ function ErrorPopover({ error }: { error: string }) {
               <XCircle className="h-5 w-5 text-destructive" />
               <h3 className="font-medium text-foreground">Error Details</h3>
             </div>
-            <div className="h-[400px] overflow-hidden rounded-md border border-border bg-muted/50">
-              <div className="scrollbar-thin scrollbar-track-muted scrollbar-thumb-muted-foreground h-full overflow-x-hidden overflow-y-scroll p-4 font-mono text-sm text-foreground">
-                <pre className="min-h-[500px] whitespace-pre-wrap break-words">
-                  {error || 'No error message found'}
-                </pre>
-              </div>
-            </div>
+            <CodeHighlighter
+              className="border border-border"
+              maxHeight="400px"
+              language={language}
+              code={code || 'No error message found'}
+              copyCode={error}
+            />
           </div>
         </div>
       </PopoverContent>
