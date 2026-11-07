@@ -180,8 +180,8 @@ export const ProviderFields = ({
             />
             <FieldErrorText error={errors.configJson} />
             <p className="text-xs text-muted-foreground">
-              Vendor settings as JSON: apiUrl, template, workdir,
-              snapshotEveryTurn and, for Archil, region.
+              JSON with any of {KINDS[kind].configKeys.join(', ')}. Other keys
+              are rejected.
             </p>
           </div>
           <div className="space-y-2">

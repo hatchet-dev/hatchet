@@ -1,13 +1,12 @@
 import { CreateProviderDialog } from './components/create-provider-dialog';
 import { SandboxGate } from './components/gate';
 import { ProviderActionsMenu } from './components/provider-actions';
+import { ProviderName } from './components/provider-icon';
 import { ProviderStatusBadge } from './components/provider-status-badge';
 import { useSandboxProviders } from './hooks/use-sandbox-providers';
-import { KINDS } from './lib/kinds';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import RelativeDate from '@/components/v1/molecules/relative-date';
-import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import useCanWrite from '@/hooks/use-can-write';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
@@ -61,26 +60,12 @@ function SandboxProvidersPageContent() {
       {
         id: 'kind',
         header: 'Vendor',
-        cell: ({ row }) => (
-          <Badge variant="outline">{KINDS[row.original.kind].label}</Badge>
-        ),
+        cell: ({ row }) => <ProviderName kind={row.original.kind} />,
       },
       {
         id: 'status',
         header: 'Status',
         cell: ({ row }) => <ProviderStatusBadge provider={row.original} />,
-      },
-      {
-        id: 'template',
-        header: 'Default template',
-        cell: ({ row }) =>
-          row.original.defaultTemplate ? (
-            <code className="rounded bg-muted px-2 py-1 font-mono text-xs">
-              {row.original.defaultTemplate}
-            </code>
-          ) : (
-            <span className="text-xs text-muted-foreground">—</span>
-          ),
       },
       {
         id: 'created',
