@@ -149,14 +149,6 @@ export function formatDuration(ms: number): string {
 
 export const emptyGolangUUID = '00000000-0000-0000-0000-000000000000';
 
-export function prettyPrintIfValidJson(value: string): string {
-  try {
-    return JSON.stringify(JSON.parse(value), null, 2);
-  } catch {
-    return value;
-  }
-}
-
 // JSON escapes line breaks inside strings, so a stack trace nested in a JSON
 // error renders as one long line. This pretty-prints JSON errors and turns
 // `\n` escapes inside string values into real line breaks. The result is for
