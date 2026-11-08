@@ -132,20 +132,23 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig, cleanup *cleanu
 	return runV0Config(ctx, sc, cleanup)
 }
 
-func startO11yUsage(sc *server.ServerConfig, cleanup *cleanup.Cleanup) *o11yusage.Aggregator {
+// startO11yUsage returns a func, for the caller to defer, that registers the final flush after
+// every cleanup the caller registers, since the services stopped by those still add bytes.
+func startO11yUsage(sc *server.ServerConfig, cleanup *cleanup.Cleanup) (*o11yusage.Aggregator, func()) {
 	if sc.O11yUsageFlush == nil {
-		return nil
+		return nil, func() {}
 	}
 
 	agg := o11yusage.NewAggregator(sc.Logger, sc.Runtime.O11yUsageFlushInterval, sc.O11yUsageFlush)
 	agg.Start()
-	cleanup.Add(agg.Shutdown, "o11y-usage")
-	return agg
+
+	return agg, func() { cleanup.Add(agg.Shutdown, "o11y-usage") }
 }
 
 func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.Cleanup) (err error) {
 	var l = sc.Logger
-	o11yUsage := startO11yUsage(sc, cleanup)
+	o11yUsage, registerO11yUsageShutdown := startO11yUsage(sc, cleanup)
+	defer registerO11yUsageShutdown()
 
 	telemetryShutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
 		ServiceName:   sc.OpenTelemetry.ServiceName,
@@ -645,7 +648,8 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 
 func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.Cleanup) (err error) {
 	var l = sc.Logger
-	o11yUsage := startO11yUsage(sc, cleanup)
+	o11yUsage, registerO11yUsageShutdown := startO11yUsage(sc, cleanup)
+	defer registerO11yUsageShutdown()
 
 	telemetryShutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
 		ServiceName:   sc.OpenTelemetry.ServiceName,
@@ -1000,6 +1004,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			streamssvc.WithPubSub(sc.PubSubV1),
 			streamssvc.WithRepositoryV1(sc.V1),
 			streamssvc.WithLogger(sc.Logger),
+			streamssvc.WithUsage(o11yUsage),
 		)
 
 		if err != nil {

@@ -562,6 +562,13 @@ type ConfigFileAuthControlPlaneExchangeToken struct {
 	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
 }
 
+// DirectUserLoginDisabled reports whether password, OAuth, and session-cookie
+// login must be refused. Shards that accept control-plane exchange tokens are
+// reached through the control plane, so a direct user session is not a login.
+func (a ConfigFileAuth) DirectUserLoginDisabled() bool {
+	return a.ControlPlaneExchangeTokenConfig.Enabled
+}
+
 type ConfigFileTenantAlerting struct {
 	Slack ConfigFileSlack `mapstructure:"slack" json:"slack,omitempty"`
 }

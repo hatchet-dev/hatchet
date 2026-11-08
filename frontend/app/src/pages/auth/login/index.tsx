@@ -1,4 +1,5 @@
 import { AuthPage } from '../components/auth-page';
+import { DirectSignInDisabled } from '../components/direct-sign-in-disabled';
 import { OrContinueWith } from '../components/social-auth';
 import useApiMeta from '../hooks/use-api-meta';
 import { showsMagicLinkLogin } from '../magic-link/magic-link';
@@ -6,12 +7,14 @@ import { MagicLinkLogin } from './components/magic-link-login';
 import { UserLoginForm } from './components/user-login-form';
 import { Button } from '@/components/v1/ui/button';
 import useControlPlane from '@/hooks/use-control-plane';
+import { isMfaRequiredResponse } from '@/lib/api/api';
 import { useUserApi } from '@/lib/api/user-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
 import { useMutation } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
+import { isAxiosError } from 'axios';
 import { ArrowLeft, Mail } from 'lucide-react';
 import { useState } from 'react';
 
@@ -22,6 +25,10 @@ export default function Login() {
   const showBasic = schemes.includes('basic');
   const showMagicLink = showsMagicLinkLogin(isControlPlaneEnabled, schemes);
   const [magicLinkExpanded, setMagicLinkExpanded] = useState(false);
+
+  if (meta && schemes.length === 0) {
+    return <DirectSignInDisabled />;
+  }
 
   return (
     <AuthPage
@@ -91,7 +98,16 @@ function BasicLogin() {
       await new Promise((resolve) => setTimeout(resolve, 0));
       navigate({ to: appRoutes.authenticatedRoute.to });
     },
-    onError: handleApiError,
+    onError: (error) => {
+      if (!isAxiosError(error)) {
+        return;
+      }
+      // A pending factor is 403 mfa_required. The interceptor is already navigating.
+      if (isMfaRequiredResponse(error.response?.data)) {
+        return;
+      }
+      handleApiError(error);
+    },
   });
 
   return (

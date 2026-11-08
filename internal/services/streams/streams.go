@@ -14,6 +14,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/streams"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
+	"github.com/hatchet-dev/hatchet/pkg/o11yusage"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
@@ -33,6 +34,7 @@ type ServiceOpts struct {
 	pubsub msgqueue.PubSub
 	repov1 v1.Repository
 	l      *zerolog.Logger
+	usage  *o11yusage.Aggregator
 }
 
 func WithPubSub(pubsub msgqueue.PubSub) ServiceOptFunc {
@@ -44,6 +46,13 @@ func WithPubSub(pubsub msgqueue.PubSub) ServiceOptFunc {
 func WithRepositoryV1(r v1.Repository) ServiceOptFunc {
 	return func(opts *ServiceOpts) {
 		opts.repov1 = r
+	}
+}
+
+// WithUsage meters billable payload bytes; nil meters nothing.
+func WithUsage(usage *o11yusage.Aggregator) ServiceOptFunc {
+	return func(opts *ServiceOpts) {
+		opts.usage = usage
 	}
 }
 
@@ -67,6 +76,7 @@ type ServiceImpl struct {
 	pubsub msgqueue.PubSub
 	repo   v1.Repository
 	l      *zerolog.Logger
+	usage  *o11yusage.Aggregator
 
 	publisher      *publishBatcher
 	streamSessions *streams.Registry
@@ -84,6 +94,7 @@ func NewService(fs ...ServiceOptFunc) (Service, error) {
 		pubsub:         opts.pubsub,
 		repo:           opts.repov1,
 		l:              opts.l,
+		usage:          opts.usage,
 		publisher:      newPublishBatcher(opts.repov1.Streams(), opts.pubsub, opts.l, publishBatchWorkers),
 		streamSessions: streams.NewRegistry(),
 		topicPollers:   newTopicPollerRegistry(opts.repov1.Streams(), opts.pubsub, opts.l, subscribeTailPollInterval, subscribeIdleHangupTimeout),
