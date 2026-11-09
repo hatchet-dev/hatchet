@@ -331,7 +331,7 @@ type ConfigFileRuntime struct {
 	// DagOperatorDefaultSlots is how many DAG runs one DAG operator worker orchestrates at once.
 	// Every engine pod runs a DAG worker for each tenant, so a tenant gets this many per pod, and
 	// the scheduler rebuilds one entry per free slot about every second, even for idle tenants.
-	DagOperatorDefaultSlots int `mapstructure:"dagOperatorDefaultSlots" json:"dagOperatorDefaultSlots,omitempty" default:"2000"`
+	DagOperatorDefaultSlots int `mapstructure:"dagOperatorDefaultSlots" json:"dagOperatorDefaultSlots,omitempty" default:"5000"`
 
 	// GRPCOperatorsEnabled registers the v1.OperatorService gRPC API for operators running outside the engine
 	// process. Off by default; when disabled the service is not registered and callers receive Unimplemented.
