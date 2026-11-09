@@ -229,6 +229,12 @@ FROM partitioned_tables t, get_v1_monthly_partitions_before_date(t.parent_table,
 WHERE t.partition_frequency = 'monthly'
 ;
 
+-- name: CreateAuditLogs :exec
+INSERT INTO v1_audit_log (id, inserted_at, tenant_id, actor_type, actor_id, action, correlation_id, resource_id, resource_type, ip_address, user_agent)
+SELECT id, inserted_at, tenant_id, actor_type, actor_id, action, correlation_id, resource_id, resource_type, ip_address, user_agent
+FROM jsonb_populate_recordset(NULL::v1_audit_log, @entries::JSONB)
+ON CONFLICT (tenant_id, inserted_at, id) DO NOTHING;
+
 -- name: ListAuditLogPartitionsBeforeDate :many
 WITH partitions AS (
     SELECT

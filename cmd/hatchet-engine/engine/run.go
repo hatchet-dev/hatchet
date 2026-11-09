@@ -340,6 +340,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			olap.WithMQQos(sc.Operations.OLAPMQQos),
 			olap.WithMaxRequeueCount(sc.MQMaxDeathCount),
 			olap.WithPrometheusGate(sc.PrometheusGate),
+			olap.WithAuditLogOutbox(sc.AuditLogOutbox),
 		)
 
 		if err != nil {
@@ -819,6 +820,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				olap.WithMQQos(sc.Operations.OLAPMQQos),
 				olap.WithMaxRequeueCount(sc.MQMaxDeathCount),
 				olap.WithPrometheusGate(sc.PrometheusGate),
+				olap.WithAuditLogOutbox(sc.AuditLogOutbox),
 			)
 
 			if err != nil {
