@@ -1943,9 +1943,8 @@ type LockDeadOperatorWorkersParams struct {
 	Keepworkerid uuid.UUID `json:"keepworkerid"`
 }
 
-// The workers of the operator, other than @keepWorkerId, that no longer serve it but still hold
-// links or count as active: inactive, or on a dispatcher that is inactive or stopped
-// heartbeating. Locked in id order, so concurrent releases of one operator queue instead of
+// The operator's workers, other than @keepWorkerId, that no longer serve it but still hold links
+// or count as active. Locked in id order, so concurrent releases of one operator queue instead of
 // deadlocking, and a delta still in flight on one of them commits before its links are released.
 func (q *Queries) LockDeadOperatorWorkers(ctx context.Context, db DBTX, arg LockDeadOperatorWorkersParams) ([]uuid.UUID, error) {
 	rows, err := db.Query(ctx, lockDeadOperatorWorkers, arg.Tenantid, arg.Operatorid, arg.Keepworkerid)

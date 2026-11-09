@@ -608,9 +608,8 @@ WHERE
 RETURNING aw."A";
 
 -- name: LockDeadOperatorWorkers :many
--- The workers of the operator, other than @keepWorkerId, that no longer serve it but still hold
--- links or count as active: inactive, or on a dispatcher that is inactive or stopped
--- heartbeating. Locked in id order, so concurrent releases of one operator queue instead of
+-- The operator's workers, other than @keepWorkerId, that no longer serve it but still hold links
+-- or count as active. Locked in id order, so concurrent releases of one operator queue instead of
 -- deadlocking, and a delta still in flight on one of them commits before its links are released.
 SELECT w."id"
 FROM "Worker" w

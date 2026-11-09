@@ -203,7 +203,6 @@ func TestReleaseDeadOperatorWorkers(t *testing.T) {
 	assert.Len(t, linkedActions(t, ctx, pool, registering), 9)
 }
 
-// workerIsActive reads the worker's active flag.
 func workerIsActive(t *testing.T, ctx context.Context, pool *pgxpool.Pool, workerId uuid.UUID) bool {
 	t.Helper()
 

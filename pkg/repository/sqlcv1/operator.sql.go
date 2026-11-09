@@ -14,7 +14,8 @@ import (
 
 const claimOperators = `-- name: ClaimOperators :many
 WITH live_dispatchers AS (
-    -- this dispatcher is live even with a late heartbeat, so that it keeps the rows it holds
+    -- self counts as live despite a late heartbeat, so it keeps its rows until another
+    -- dispatcher's registration releases its worker of one (ReleaseDeadOperatorWorkers)
     SELECT "id"
     FROM "Dispatcher"
     WHERE
@@ -24,7 +25,7 @@ WITH live_dispatchers AS (
     SELECT
         v1_operator.id,
         v1_operator.tenant_id,
-        -- a dispatcher hosts a row once, so a row has no more replicas than live dispatchers
+        -- a dispatcher hosts a row once, and a replica nobody can fill would inflate every share
         LEAST(
             CASE WHEN v1_operator.kind = 'DAG' THEN GREATEST($2::INT, 1) ELSE 1 END,
             (SELECT COUNT(*) FROM live_dispatchers)
@@ -36,15 +37,15 @@ WITH live_dispatchers AS (
         -- (a Listen stream out of process, its own leaser in process) and registers its own
         -- workers, so the claimer never claims or reconciles it.
         v1_operator.leasing_manager = 'DISPATCHER'
-        -- Only rows the caller can build, GRPC rows by name and every other kind by kind. A row
-        -- no dispatcher builds is never registered, so it would stay free and use up every
-        -- dispatcher's share.
+        -- A row no dispatcher builds is never registered, so it would stay free and use up
+        -- every dispatcher's share.
         AND (
             (v1_operator.kind <> 'GRPC' AND v1_operator.kind::TEXT = ANY($3::TEXT[]))
             OR (v1_operator.kind = 'GRPC' AND v1_operator.name = ANY($4::TEXT[]))
         )
 ), hosts AS (
-    -- the live dispatchers with an active worker of each row, ranked by their oldest one
+    -- DISTINCT ON: a dispatcher can briefly have two active workers of a row, one still tearing
+    -- down while it registers the next, and it hosts the row once
     SELECT
         c.id,
         h.dispatcher_id,
@@ -74,15 +75,14 @@ WITH live_dispatchers AS (
         / GREATEST((SELECT COUNT(*) FROM live_dispatchers), 1)
     )::BIGINT AS size
 ), under_share AS (
-    -- the live dispatchers holding fewer rows than their share
     SELECT ld."id" AS dispatcher_id
     FROM live_dispatchers ld
     LEFT JOIN hosts h ON h.dispatcher_id = ld."id" AND h.rank <= h.replicas
     GROUP BY ld."id"
     HAVING COUNT(h.id) < (SELECT size FROM share)
 ), open_rows AS (
-    -- rows with a free replica that this dispatcher does not host, not even one it is about to
-    -- drop; stranded when every dispatcher under its share already hosts the row
+    -- stranded: every dispatcher under its share already hosts the row, so only a dispatcher at
+    -- its share can add a replica
     SELECT
         c.id,
         COUNT(h.id) AS host_count,
@@ -100,8 +100,8 @@ WITH live_dispatchers AS (
 ), room AS (
     SELECT (SELECT size FROM share) - (SELECT COUNT(*) FROM held) AS size
 ), taken AS (
-    -- Fewest hosts first, so the share goes to rows short of a first replica before any row gets
-    -- another; at its share, one stranded row. Locked so that concurrent claims take disjoint rows.
+    -- Fewest hosts first, so every row gets a first replica before any gets a second. Locked so
+    -- that claims running at the same instant take disjoint rows.
     SELECT v1_operator.id
     FROM v1_operator
     JOIN open_rows o ON o.id = v1_operator.id
@@ -143,19 +143,19 @@ type ClaimOperatorsRow struct {
 
 // The DISPATCHER rows this dispatcher should run, among the ones it can build. A row runs on up
 // to its replica count of dispatchers at once (@dagReplicas for DAG rows, one for every other
-// kind), each with a worker of its own. A dispatcher holds a row while it is live and has an
-// active worker of it. When more dispatchers hold a row than it has replicas, the ones with the
-// oldest workers keep it and the rest find it missing from their result and tear it down, which
-// is how two dispatchers that claimed the same free replica settle.
+// kind), each with a worker of its own. A dispatcher hosts a row while it is live and has an
+// active worker of it, and the hosts with the oldest workers, up to the replica count, hold it.
+// A host that does not hold the row finds it missing from its result and tears it down, which is
+// how two dispatchers that took the same free replica settle.
 //
 // The result is every row this dispatcher holds, marked held, plus rows with a free replica it
 // does not host, up to its fair share of all replicas, ceil(replicas / live dispatchers), less
-// what it holds. Held rows are returned whatever the share and are not locked: the claimer tears
-// down every running operator missing from the result, and SKIP LOCKED would leave out a held
-// row whenever an action delta holds its lock. A dispatcher over its share keeps its rows; the
-// share only limits new claims, except that a dispatcher at its share still takes one row per
-// poll that is short of replicas and already hosted by every dispatcher under its share, which
-// nobody else could take.
+// what it holds. Held rows are returned unlocked and whatever the share: the claimer tears down
+// every running operator the result does not mark held, and SKIP LOCKED would leave out a held
+// row whenever an action delta holds its lock (LockOperator). The share only limits new claims,
+// so no running operator is interrupted to even out the load. The exception is a stranded row,
+// short of replicas and already hosted by every dispatcher under its share: nobody else can take
+// it, so a dispatcher at its share takes one per poll.
 func (q *Queries) ClaimOperators(ctx context.Context, db DBTX, arg ClaimOperatorsParams) ([]*ClaimOperatorsRow, error) {
 	rows, err := db.Query(ctx, claimOperators,
 		arg.Dispatcherid,
