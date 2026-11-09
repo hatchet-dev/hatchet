@@ -76,10 +76,11 @@ RETURNING *;
 -- name: ClaimOperators :many
 -- The DISPATCHER rows this dispatcher should run, among the ones it can build. A DAG row runs on
 -- every live dispatcher and any other row on one, each host with a worker of its own. A
--- dispatcher hosts a row while it is live and has an active worker of it, and the hosts with the
--- oldest workers, up to the row's replica count, hold it. A host that does not hold the row finds
--- it missing from its result and tears it down, which is how two dispatchers that took the same
--- free replica settle.
+-- dispatcher hosts a row while it is live and has an active worker of it.
+--
+-- Two dispatchers can both take the last free replica of a row, but only one keeps it: the hosts
+-- with the oldest workers, up to the row's replica count, hold the row, and any other host finds
+-- it missing from its next result and tears its operator down.
 --
 -- The result is every row this dispatcher holds, marked held, plus rows with a free replica it
 -- does not host, up to its fair share of all replicas, ceil(replicas / live dispatchers), less
