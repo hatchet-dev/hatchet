@@ -12,7 +12,10 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "paths": {
+      "@hatchet-dev/sandbox": ["./src/index.ts"]
+    }
   },
-  "include": ["src"]
+  "include": ["src", "examples"]
 }
