@@ -45,11 +45,12 @@ WITH live_dispatchers AS (
     FROM candidates
     WHERE holder_id = $1::UUID
 ), taken AS (
-    -- Locked so that claims running at the same instant take disjoint rows.
+    -- Random order, so a row that fails to open on every poll does not take the last free slot
+    -- every time. Locked so that claims running at the same instant take disjoint rows.
     SELECT v1_operator.id
     FROM v1_operator
     WHERE v1_operator.id IN (SELECT id FROM candidates WHERE holder_id IS NULL)
-    ORDER BY v1_operator.id
+    ORDER BY random()
     LIMIT GREATEST(
         CEIL(
             (SELECT COUNT(*) FROM candidates)::NUMERIC

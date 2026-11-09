@@ -3,8 +3,10 @@
 package repository
 
 import (
+	"bytes"
 	"context"
 	"io"
+	"slices"
 	"testing"
 
 	"github.com/google/uuid"
@@ -226,11 +228,10 @@ func TestClaimOperators_OnlyBuildableRows(t *testing.T) {
 	f := newClaimFixture(t, pool)
 
 	first := seedDispatcher(t, f.ctx, pool)
-	seedDispatcher(t, f.ctx, pool)
+	second := seedDispatcher(t, f.ctx, pool)
 
 	dag := f.dagOperators(2)
 
-	// GRPC rows that sort before every DAG row, so they would be the first free rows taken
 	tenantId := seedTenantForActions(t, f.ctx, pool)
 	unbuilt := uuid.MustParse("00000000-0000-0000-0000-000000000001")
 	contract := uuid.MustParse("00000000-0000-0000-0000-000000000002")
@@ -250,6 +251,36 @@ func TestClaimOperators_OnlyBuildableRows(t *testing.T) {
 	withGRPC := ClaimOperatorsOpts{Kinds: []sqlcv1.V1OperatorKind{sqlcv1.V1OperatorKindDAG, sqlcv1.V1OperatorKindGRPC}}
 	require.NotContains(t, f.claim(first, withGRPC), unbuilt, "GRPC rows are built by name, not by kind")
 
+	// with the DAG rows hosted elsewhere, the contract row is the only free one
+	f.host(second, dag...)
+
 	withContract := ClaimOperatorsOpts{Kinds: buildsDAG.Kinds, GRPCNames: []string{"contract"}}
 	require.Contains(t, f.claim(first, withContract), contract, "a GRPC row of a name the dispatcher builds is claimed")
+}
+
+// A row that fails to open on every poll is never hosted, so it stays free. It must not take
+// the dispatcher's last free slot on every poll and leave the row behind it unclaimed.
+func TestClaimOperators_FailingRowDoesNotStarveTheRest(t *testing.T) {
+	pool := isolatedClaimPool(t)
+	f := newClaimFixture(t, pool)
+
+	first := seedDispatcher(t, f.ctx, pool)
+	second := seedDispatcher(t, f.ctx, pool)
+
+	ids := f.dagOperators(4)
+	slices.SortFunc(ids, func(a, b uuid.UUID) int { return bytes.Compare(a[:], b[:]) })
+
+	// a share of 2 each, one held each: the first has room for one of the free ids[0] and ids[1]
+	f.host(first, ids[2])
+	f.host(second, ids[3])
+
+	claimed := map[uuid.UUID]bool{}
+
+	for range 50 {
+		for _, id := range f.claim(first, buildsDAG) {
+			claimed[id] = true
+		}
+	}
+
+	require.True(t, claimed[ids[1]], "the row after one that never opens is still claimed")
 }
