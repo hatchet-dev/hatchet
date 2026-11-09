@@ -176,13 +176,14 @@ WITH live_dispatchers AS (
 ), room AS (
     SELECT (SELECT size FROM share) - (SELECT COUNT(*) FROM held) AS size
 ), taken AS (
-    -- Fewest hosts first, so every row gets a first replica before any gets a second. Locked so
-    -- that claims running at the same instant take disjoint rows.
+    -- Fewest hosts first, so every row gets a first replica before any gets a second, and random
+    -- among equals, so a row that fails to open on every poll does not take the last free slot
+    -- every time. Locked so that claims running at the same instant take disjoint rows.
     SELECT v1_operator.id
     FROM v1_operator
     JOIN open_rows o ON o.id = v1_operator.id
     WHERE (SELECT size FROM room) > 0 OR o.stranded
-    ORDER BY o.host_count, v1_operator.id
+    ORDER BY o.host_count, random()
     LIMIT GREATEST((SELECT size FROM room), 1)
     FOR UPDATE OF v1_operator SKIP LOCKED
 )
