@@ -75,51 +75,81 @@ WHERE
 RETURNING *;
 
 -- name: ClaimOperators :many
-WITH operators_on_inactive_dispatchers AS (
-    SELECT v1_operator.id
-    FROM v1_operator
-    JOIN "Worker" w ON w."id" = v1_operator.worker_id
+-- The DISPATCHER rows this dispatcher should run, among the ones it can build: every row it
+-- holds, plus free rows up to its fair share, ceil(rows / live dispatchers), less what it holds.
+-- A row is held by the dispatcher of the worker its worker_id points at while that dispatcher is
+-- live. worker_id is written by the registration the claimer makes for each row it opens.
+--
+-- Held rows are returned unlocked and whatever the share: the claimer tears down every running
+-- operator missing from the result, and SKIP LOCKED would leave out a held row whenever an
+-- action delta holds its lock (LockOperator). The share only limits new claims, so no running
+-- operator is interrupted to even out the load.
+--
+-- A row stays free until its registration writes worker_id, so two dispatchers can both take
+-- it. The one that registers first loses: the row is missing from its next result and it tears
+-- the operator down.
+WITH live_dispatchers AS (
+    -- self counts as live despite a late heartbeat, so it keeps its rows until another
+    -- dispatcher takes one over and moves its worker_id
+    SELECT "id"
+    FROM "Dispatcher"
     WHERE
-        w."dispatcherId" IS NULL OR
-        w."dispatcherId" IN (
-            SELECT "id"
-            FROM "Dispatcher"
-            WHERE
-                "lastHeartbeatAt" < NOW () - INTERVAL '15 seconds'
-                OR "isActive" = FALSE
+        "isActive" = TRUE
+        AND ("lastHeartbeatAt" > NOW() - INTERVAL '15 seconds' OR "id" = @dispatcherId::UUID)
+), candidates AS (
+    SELECT
+        v1_operator.id,
+        ld."id" AS holder_id
+    FROM v1_operator
+    JOIN "Tenant" t ON t."id" = v1_operator.tenant_id AND t."deletedAt" IS NULL
+    LEFT JOIN "Worker" w ON w."id" = v1_operator.worker_id
+    LEFT JOIN live_dispatchers ld ON ld."id" = w."dispatcherId"
+    WHERE
+        -- Only DISPATCHER rows are claimed, whatever their kind. A SELF row keeps itself alive
+        -- (a Listen stream out of process, its own leaser in process) and registers its own
+        -- workers, so the claimer never claims or reconciles it.
+        v1_operator.leasing_manager = 'DISPATCHER'
+        -- A row no dispatcher builds is never registered, so it would stay free and use up
+        -- every dispatcher's share.
+        AND (
+            (v1_operator.kind <> 'GRPC' AND v1_operator.kind::TEXT = ANY(@kinds::TEXT[]))
+            OR (v1_operator.kind = 'GRPC' AND v1_operator.name = ANY(@grpcNames::TEXT[]))
         )
-), unassigned_operators AS (
+), held AS (
+    SELECT id
+    FROM candidates
+    WHERE holder_id = @dispatcherId::UUID
+), taken AS (
+    -- Random order, so a row that fails to open on every poll does not take the last free slot
+    -- every time. Locked so that claims running at the same instant take disjoint rows.
     SELECT v1_operator.id
     FROM v1_operator
-    WHERE v1_operator.worker_id IS NULL
-), operators_already_assigned_to_dispatcher AS (
-    SELECT v1_operator.id
-    FROM v1_operator
-    JOIN "Worker" w ON w."id" = v1_operator.worker_id
-    WHERE w."dispatcherId" = @dispatcherId::UUID
+    WHERE v1_operator.id IN (SELECT id FROM candidates WHERE holder_id IS NULL)
+    ORDER BY random()
+    LIMIT GREATEST(
+        CEIL(
+            (SELECT COUNT(*) FROM candidates)::NUMERIC
+            / GREATEST((SELECT COUNT(*) FROM live_dispatchers), 1)
+        )::BIGINT - (SELECT COUNT(*) FROM held),
+        0
+    )
+    FOR UPDATE OF v1_operator SKIP LOCKED
 )
 SELECT v1_operator.*
 FROM v1_operator
-JOIN "Tenant" t ON t."id" = v1_operator.tenant_id AND t."deletedAt" IS NULL
 WHERE
-    -- Only DISPATCHER rows are claimed, whatever their kind. A SELF row keeps itself alive
-    -- (a Listen stream out of process, its own leaser in process) and registers its own
-    -- workers, so the claimer never claims or reconciles it.
-    v1_operator.leasing_manager = 'DISPATCHER'
     -- A dispatcher that has started shutting down marks itself inactive and claims nothing
     -- more, so an operator released by another dispatcher never lands on one that is leaving.
-    AND EXISTS (
+    EXISTS (
         SELECT 1
         FROM "Dispatcher" d
         WHERE d."id" = @dispatcherId::UUID AND d."isActive" = TRUE
     )
     AND (
-        v1_operator.id IN (SELECT id FROM operators_on_inactive_dispatchers) OR
-        v1_operator.id IN (SELECT id FROM unassigned_operators) OR
-        v1_operator.id IN (SELECT id FROM operators_already_assigned_to_dispatcher)
+        v1_operator.id IN (SELECT id FROM held)
+        OR v1_operator.id IN (SELECT id FROM taken)
     )
-ORDER BY v1_operator.id
-FOR UPDATE OF v1_operator SKIP LOCKED;
+ORDER BY v1_operator.id;
 
 -- name: UpsertOperator :one
 -- Registers an operator by (tenant, name, kind), the row a session registers under by name. The
