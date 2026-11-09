@@ -1,11 +1,18 @@
 ---
-title: Serverless Endpoints
+title: "About"
 description: Run Hatchet tasks in serverless or edge environments, like Cloudflare Workers or Vercel Functions, instead of a long-lived worker.
 ---
 
 import { Callout } from "@/components/nextra-compat";
 
 # Serverless Endpoints
+
+<Callout type="warning">
+  Serverless endpoints are a Labs feature and may change in future releases. In
+  the dashboard, open <strong>Settings</strong>, go to{" "}
+  <strong>Labs Preview</strong> and turn on <strong>Serverless</strong>. Tenants
+  on the free plan are asked to upgrade first.
+</Callout>
 
 A serverless endpoint lets Hatchet run your tasks by calling an HTTPS function you deploy in serverless or edge environments, instead of you running a long-lived [worker](/v1/workers). After registering the endpoint with Hatchet, Hatchet will discover the workflows the endpoint serves and deliver each task to the endpoint as a signed HTTPS request. See the guides for setup instructions:
 
@@ -15,10 +22,10 @@ A serverless endpoint lets Hatchet run your tasks by calling an HTTPS function y
 - [Managing endpoints](/v1/serverless/managing-endpoints): create, update and delete endpoints from the dashboard, the REST API or an SDK
 - [Troubleshooting](/v1/serverless/troubleshooting): investigate endpoint statuses, healthchecks, and delivery failures
 
-<Callout type="warning">
-  Serverless endpoints must be enabled for your tenant. Until they are, creating
-  an endpoint fails with `403` and the message `the serverless operator is not
-  enabled for this tenant`.
+<Callout type="info">
+  Until serverless endpoints are turned on for your tenant, creating an endpoint
+  fails with `403` and the message `the serverless operator is not enabled for
+  this tenant`.
 </Callout>
 
 ## How it works
