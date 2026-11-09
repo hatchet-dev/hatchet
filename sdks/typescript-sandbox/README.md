@@ -86,15 +86,16 @@ const sandbox = await hatchet.sandbox.create({ provider: 'e2b' });
 
 Options for `create`:
 
-| Option                  | What it does                                                                                                                 |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `provider`              | Which sandbox provider to create on, by its name. Needed when the tenant has several; a fork always uses its snapshot's.     |
-| `id`                    | Pick your own sandbox ID. Lowercase letters, digits, and hyphens. It must not exist yet.                                     |
-| `template`              | The image or template, in the provider's own terms. Defaults to the provider's default.                                      |
-| `from`                  | Start from this snapshot. Create two sandboxes from the same snapshot and you have a fork.                                   |
-| `metadata`              | Tags you can search for with `list`.                                                                                         |
-| `inheritParentMetadata` | With `from`, copy the tags of the sandbox that made the snapshot onto the new one. Tags given in `metadata` take precedence. |
-| `idleTimeoutMs`         | Stop the sandbox after this long with no calls. The provider sets the maximum.                                               |
+| Option                  | What it does                                                                                                                                                                    |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `provider`              | Which sandbox provider to create on, by its name. Needed when the tenant has several; a fork always uses its snapshot's.                                                        |
+| `id`                    | Pick your own sandbox ID. Lowercase letters, digits, and hyphens. It must not exist yet.                                                                                        |
+| `template`              | The image or template, in the provider's own terms. Defaults to the provider's default.                                                                                         |
+| `from`                  | Start from this snapshot. Create two sandboxes from the same snapshot and you have a fork.                                                                                      |
+| `metadata`              | Tags you can search for with `list`.                                                                                                                                            |
+| `inheritParentMetadata` | With `from`, copy the tags of the sandbox that made the snapshot onto the new one. Tags given in `metadata` take precedence.                                                    |
+| `idleTimeoutMs`         | Stop the sandbox after this long with no calls. The provider sets the maximum.                                                                                                  |
+| `resources`             | Machine size as `{ vcpu, memory, disk }`. `memory` and `disk` take MiB or a quantity like `'4Gi'`. Providers that cannot honour a field fail the create with their own message. |
 
 ### `Sandbox`
 

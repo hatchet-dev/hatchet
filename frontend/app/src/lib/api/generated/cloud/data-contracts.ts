@@ -1167,7 +1167,7 @@ export interface SandboxProvider {
   name: string;
   /** The sandbox vendor a provider connects to. */
   kind: SandboxProviderKind;
-  /** Vendor-specific settings, such as a base URL or a snapshot policy. The API key is never included. */
+  /** Provider settings as JSON. */
   config: Record<string, any>;
   /** The template or image a sandbox is created from when the SDK names none. */
   defaultTemplate?: string;
@@ -1202,11 +1202,11 @@ export interface CreateSandboxProviderRequest {
    * @minLength 1
    */
   apiKey: string;
-  /** Vendor-specific settings. Every kind reads apiUrl, template, workdir and snapshotEveryTurn. */
+  /** Provider settings as JSON. Unknown keys are rejected. */
   config?: Record<string, any>;
   defaultTemplate?: string;
   /**
-   * Defaults to 3600.
+   * Defaults to 900.
    * @format int32
    */
   maxIdleTtlSeconds?: number;

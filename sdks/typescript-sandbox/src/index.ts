@@ -2,6 +2,7 @@ export {
   Sandbox,
   type SandboxNamespace,
   type SandboxOpts,
+  type Resources,
   type ConnectOpts,
   type ExecOpts,
   type SandboxListOpts,
