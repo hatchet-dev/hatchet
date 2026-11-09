@@ -28,7 +28,9 @@ What differs is what sits underneath.
 
 ## Templates and config
 
-Each provider has its own meaning of a template which corresponds its own keys in the **Provider config** section. Keys that a provider does not list below are rejected when you save it.
+Each provider has its own meaning of a template which corresponds its own keys in the **Provider config** section.
+
+Every provider also accepts `snapshotEveryTurn`, described under [Snapshots](/v1/sandboxes/setup#snapshots). Any other key that a provider does not list below is rejected when you save it.
 
 A template is chosen in the following order. The `template` passed to `create` wins, then the provider's **Default template** field, then the `template` key in the stored config, and lastly the provider's own default.
 
