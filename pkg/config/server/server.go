@@ -30,6 +30,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/o11yusage"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/scheduling"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
@@ -558,6 +559,13 @@ type ConfigFileAuthControlPlaneExchangeToken struct {
 	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
 }
 
+// DirectUserLoginDisabled reports whether password, OAuth, and session-cookie
+// login must be refused. Shards that accept control-plane exchange tokens are
+// reached through the control plane, so a direct user session is not a login.
+func (a ConfigFileAuth) DirectUserLoginDisabled() bool {
+	return a.ControlPlaneExchangeTokenConfig.Enabled
+}
+
 type ConfigFileTenantAlerting struct {
 	Slack ConfigFileSlack `mapstructure:"slack" json:"slack,omitempty"`
 }
@@ -926,6 +934,8 @@ type ServerConfig struct {
 	AdditionalOAuthConfigs map[string]*oauth2.Config
 
 	SchedulingPoolV1 scheduling.Pool
+
+	AuditLogOutbox *v1.AuditLogOutbox
 
 	Sampling ConfigFileSampling
 

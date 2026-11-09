@@ -840,16 +840,16 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		return dc.V1.TenantEntitlement().HasEntitlement(ctx, tenantId, repov1.EntitlementPrometheusMetrics)
 	}, cf.Prometheus.TenantScoped, &l)
 
-	concurrencyOutbox, cleanupConcurrencyOutbox, err := newConcurrencyOutbox(dc.Pool, l)
+	outbox, cleanupOutbox, err := newOutbox(dc.Pool, l)
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("could not create concurrency outbox: %w", err)
+		return nil, nil, fmt.Errorf("could not create outbox: %w", err)
 	}
 
 	schedulingPoolV1, cleanupSchedulingPoolV1, err := v1.NewSchedulingPool(
 		dc.V1.Scheduler(),
 		dc.V1.Tasks(),
-		concurrencyOutbox,
+		outbox,
 		&queueLogger,
 		cf.Runtime.SingleQueueLimit,
 		cf.Runtime.SchedulerConcurrencyRateLimit,
@@ -875,7 +875,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 		cleanupSecurityCheck()
 
-		cleanupConcurrencyOutbox()
+		cleanupOutbox()
 
 		if err := cleanupSchedulingPoolV1(); err != nil {
 			return fmt.Errorf("error cleaning up scheduling pool (v1): %w", err)
@@ -970,6 +970,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		EnableDataRetention:    cf.EnableDataRetention,
 		EnableWorkerRetention:  cf.EnableWorkerRetention,
 		SchedulingPoolV1:       schedulingPoolV1,
+		AuditLogOutbox:         repov1.NewAuditLogOutbox(outbox, dc.Pool),
 		Version:                version,
 		Sampling:               cf.Sampling,
 		Operations:             cf.OLAP,
@@ -1451,13 +1452,13 @@ func firstNWords(s string, n int) string {
 	return strings.ToUpper(strings.TrimSpace(s[:end]))
 }
 
-func newConcurrencyOutbox(pool *pgxpool.Pool, l zerolog.Logger) (pgoutbox.Outbox, func(), error) {
+func newOutbox(pool *pgxpool.Pool, l zerolog.Logger) (pgoutbox.Outbox, func(), error) {
 	ctx, cancel := context.WithCancel(context.Background()) // nolint:govet
 
-	// the scheduler's outbox shares the same database connection pool, this means that we need to be
+	// the outbox shares the engine's database connection pool, this means that we need to be
 	// careful not to cause deadlocks by opening a tx inside of a tx. The outbox methods all have a tx-scoped
 	// method which should be used instead of the non-scoped versions.
-	concurrencyOutbox, err := pgoutbox.NewOutbox(
+	outbox, err := pgoutbox.NewOutbox(
 		ctx,
 		pool,
 		pgoutbox.WithAutoMigrate(false),
@@ -1466,8 +1467,8 @@ func newConcurrencyOutbox(pool *pgxpool.Pool, l zerolog.Logger) (pgoutbox.Outbox
 	)
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("could not create concurrency outbox: %w", err) // nolint:govet
+		return nil, nil, fmt.Errorf("could not create outbox: %w", err) // nolint:govet
 	}
 
-	return concurrencyOutbox, cancel, nil
+	return outbox, cancel, nil
 }

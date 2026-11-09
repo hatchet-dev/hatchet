@@ -10,6 +10,10 @@ import (
 
 // Note: we want all errors to redirect, otherwise the user will be greeted with raw JSON in the middle of the login flow.
 func (u *UserService) UserUpdateGoogleOauthStart(ctx echo.Context, _ gen.UserUpdateGoogleOauthStartRequestObject) (gen.UserUpdateGoogleOauthStartResponseObject, error) {
+	if u.config.Auth.ConfigFile.DirectUserLoginDisabled() || !u.config.Auth.ConfigFile.Google.Enabled {
+		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, nil, "User signup is disabled.")
+	}
+
 	if !u.config.Runtime.AllowSignup {
 		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, nil, "User signup is disabled.")
 	}

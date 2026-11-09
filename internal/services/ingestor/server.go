@@ -69,16 +69,7 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 		additionalMetaStr = *req.AdditionalMetadata
 	}
 
-	corrId := datautils.ExtractCorrelationId(additionalMetaStr)
-
-	if corrId != nil {
-		ctx = context.WithValue(ctx, constants.CorrelationIdKey, *corrId)
-	}
-
-	ctx = context.WithValue(ctx, constants.ResourceIdKey, event.ID.String())
-	ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeEvent)
-
-	grpcmiddleware.TriggerCallback(ctx)
+	grpcmiddleware.TriggerResourceCallback(ctx, constants.ResourceTypeEvent, event.ID.String(), datautils.ExtractCorrelationId(additionalMetaStr))
 
 	return e, nil
 }
@@ -178,17 +169,7 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 			additionalMetaStr = string(e.AdditionalMetadata)
 		}
 
-		corrId := datautils.ExtractCorrelationId(additionalMetaStr)
-
-		if corrId != nil {
-			ctx = context.WithValue(ctx, constants.CorrelationIdKey, *corrId)
-		}
-
-		ctx = context.WithValue(ctx, constants.ResourceIdKey, e.ID.String())
-		ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeEvent)
-
-		grpcmiddleware.TriggerCallback(ctx)
-
+		grpcmiddleware.TriggerResourceCallback(ctx, constants.ResourceTypeEvent, e.ID.String(), datautils.ExtractCorrelationId(additionalMetaStr))
 	}
 
 	return &contracts.Events{Events: contractEvents}, nil

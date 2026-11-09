@@ -3561,6 +3561,13 @@ type V1AggEventsMinuteOlap struct {
 	EventCount int64              `json:"event_count"`
 }
 
+type V1AggStreamBytesMinuteOlap struct {
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	Bucket         pgtype.Timestamptz `json:"bucket"`
+	PublishedBytes int64              `json:"published_bytes"`
+	DeliveredBytes int64              `json:"delivered_bytes"`
+}
+
 type V1AggTaskEventsMinuteDeltaOlap struct {
 	ID             int64              `json:"id"`
 	TenantID       uuid.UUID          `json:"tenant_id"`

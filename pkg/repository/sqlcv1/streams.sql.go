@@ -241,6 +241,26 @@ func (q *Queries) GetStreamPayload(ctx context.Context, db DBTX, arg GetStreamPa
 	return payload, err
 }
 
+const getStreamPayloadSize = `-- name: GetStreamPayloadSize :one
+SELECT octet_length(payload)::bigint AS size
+FROM v1_stream_payload
+WHERE tenant_id = $1::uuid AND id = $2::uuid AND inserted_at = $3::timestamptz
+`
+
+type GetStreamPayloadSizeParams struct {
+	Tenantid   uuid.UUID          `json:"tenantid"`
+	ID         uuid.UUID          `json:"id"`
+	Insertedat pgtype.Timestamptz `json:"insertedat"`
+}
+
+// octet_length reads a TOASTed payload's size without loading it.
+func (q *Queries) GetStreamPayloadSize(ctx context.Context, db DBTX, arg GetStreamPayloadSizeParams) (int64, error) {
+	row := db.QueryRow(ctx, getStreamPayloadSize, arg.Tenantid, arg.ID, arg.Insertedat)
+	var size int64
+	err := row.Scan(&size)
+	return size, err
+}
+
 const getStreamTopicInfo = `-- name: GetStreamTopicInfo :one
 SELECT
     COALESCE(t.starting_offset, 0)::bigint AS starting_offset,
@@ -701,26 +721,6 @@ func (q *Queries) SetStreamMessagePayloadRef(ctx context.Context, db DBTX, arg S
 		arg.Insertedat,
 	)
 	return err
-}
-
-const streamPayloadExists = `-- name: StreamPayloadExists :one
-SELECT EXISTS (
-    SELECT 1 FROM v1_stream_payload
-    WHERE tenant_id = $1::uuid AND id = $2::uuid AND inserted_at = $3::timestamptz
-) AS exists
-`
-
-type StreamPayloadExistsParams struct {
-	Tenantid   uuid.UUID          `json:"tenantid"`
-	ID         uuid.UUID          `json:"id"`
-	Insertedat pgtype.Timestamptz `json:"insertedat"`
-}
-
-func (q *Queries) StreamPayloadExists(ctx context.Context, db DBTX, arg StreamPayloadExistsParams) (bool, error) {
-	row := db.QueryRow(ctx, streamPayloadExists, arg.Tenantid, arg.ID, arg.Insertedat)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
 }
 
 const upsertStreamTopic = `-- name: UpsertStreamTopic :one

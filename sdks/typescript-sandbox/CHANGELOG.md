@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Eac
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-11-09
+
+### Added
+
+- `create({ resources })` asks the provider for a machine size, `{ vcpu, memory, disk }`. `memory` and `disk` take a number of MiB or a Kubernetes quantity such as `'512Mi'`, `'4Gi'` or `'8G'`, and travel as `memoryMib` and `diskMib` on the wire. A provider that cannot honour a field fails the create with its own message, so plan limits show up as the task error. A provider that does not know the option ignores it. On Hatchet Cloud, Archil sizes the sandbox on create and forks keep the source's size, so `resources` with `from` is rejected there. Daytona and Freestyle resize after create, which on Daytona needs resizing enabled for the organization and on Freestyle can only grow. E2B sizes on the template and rejects the option.
+
 ## [0.1.2] - 2026-11-03
 
 ### Added

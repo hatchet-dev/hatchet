@@ -41,6 +41,8 @@ func TestFlushKeepsKindsSeparate(t *testing.T) {
 	a.AddLogs(tenantA, 50)
 	a.AddOtel(tenantA, 7)
 	a.AddOtel(tenantB, 3)
+	a.AddStreamPublished(tenantA, 11)
+	a.AddStreamDelivered(tenantA, 22)
 	a.flush()
 
 	select {
@@ -53,8 +55,8 @@ func TestFlushKeepsKindsSeparate(t *testing.T) {
 	if !ok {
 		t.Fatal("expected tenant map")
 	}
-	if tenants[tenantA] != (TenantBytes{Logs: 150, Otel: 7}) {
-		t.Fatalf("tenant A = %+v, want logs=150 otel=7", tenants[tenantA])
+	if tenants[tenantA] != (TenantBytes{Logs: 150, Otel: 7, StreamPublished: 11, StreamDelivered: 22}) {
+		t.Fatalf("tenant A = %+v, want logs=150 otel=7 streamPublished=11 streamDelivered=22", tenants[tenantA])
 	}
 	if tenants[tenantB] != (TenantBytes{Otel: 3}) {
 		t.Fatalf("tenant B = %+v, want otel=3", tenants[tenantB])
