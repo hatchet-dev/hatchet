@@ -70,7 +70,7 @@ export const useWebhooks = (onDeleteSuccess?: () => void) => {
       return `${tenant.serverUrl}${suffix}`;
     }
 
-    return `${window.location.protocol}//${window.location.hostname}${suffix}`;
+    return `${window.location.origin}${suffix}`;
   };
 
   return {
