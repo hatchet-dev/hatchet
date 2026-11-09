@@ -49,7 +49,7 @@ const (
 // Claims is the claim query: the operator rows this dispatcher should run, among the ones it
 // can build.
 type Claims interface {
-	ClaimOperators(ctx context.Context, dispatcherId uuid.UUID, opts repository.ClaimOperatorsOpts) ([]*sqlcv1.V1Operator, error)
+	ClaimOperators(ctx context.Context, dispatcherId uuid.UUID, opts repository.ClaimOperatorsOpts) ([]*sqlcv1.ClaimOperatorsRow, error)
 }
 
 // Factory builds the operator for a claimed row and the options its session is opened with.
@@ -265,21 +265,28 @@ func (c *Claimer) reconcile(ctx context.Context) {
 }
 
 // Reconcile hosts the claimed rows that are not running yet and tears down the running
-// operators missing from claimed: the claim returns every row this dispatcher should keep
-// running.
-func (c *Claimer) Reconcile(ctx context.Context, claimed []*sqlcv1.V1Operator) {
+// operators the claim does not mark held. A running row returned as taken rather than held has
+// lost its worker: another dispatcher's registration released it while this dispatcher's
+// heartbeat lagged. It is opened again on a new worker on a later poll.
+func (c *Claimer) Reconcile(ctx context.Context, claimed []*sqlcv1.ClaimOperatorsRow) {
 	claimedIds := make(map[uuid.UUID]struct{}, len(claimed))
 
-	for _, op := range claimed {
-		claimedIds[op.ID] = struct{}{}
+	for _, row := range claimed {
+		op := &row.V1Operator
 
 		c.mu.Lock()
 		running := enumerables.HasKey(c.running, op.ID)
 		c.mu.Unlock()
 
 		if running {
+			if row.Held {
+				claimedIds[op.ID] = struct{}{}
+			}
+
 			continue
 		}
+
+		claimedIds[op.ID] = struct{}{}
 
 		h := c.open(ctx, op)
 
@@ -306,7 +313,7 @@ func (c *Claimer) Reconcile(ctx context.Context, claimed []*sqlcv1.V1Operator) {
 	c.mu.Unlock()
 
 	for id, h := range lost {
-		c.l.Info().Ctx(ctx).Msgf("operator %s is no longer claimed by this dispatcher, tearing down worker %s", id, h.session.Registration().WorkerId)
+		c.l.Info().Ctx(ctx).Msgf("operator %s is no longer held by this dispatcher, tearing down worker %s", id, h.session.Registration().WorkerId)
 
 		c.teardowns.Go(func() { c.teardown(h) })
 	}

@@ -117,12 +117,12 @@ func (h *fakeHost) openCount() int {
 // asked for.
 type fakeClaims struct {
 	mu    sync.Mutex
-	rows  []*sqlcv1.V1Operator
+	rows  []*sqlcv1.ClaimOperatorsRow
 	err   error
 	asked []repository.ClaimOperatorsOpts
 }
 
-func (c *fakeClaims) ClaimOperators(_ context.Context, _ uuid.UUID, opts repository.ClaimOperatorsOpts) ([]*sqlcv1.V1Operator, error) {
+func (c *fakeClaims) ClaimOperators(_ context.Context, _ uuid.UUID, opts repository.ClaimOperatorsOpts) ([]*sqlcv1.ClaimOperatorsRow, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -142,11 +142,33 @@ func (c *fakeClaims) lastAsked() (repository.ClaimOperatorsOpts, bool) {
 	return c.asked[len(c.asked)-1], true
 }
 
+// set makes the claim return the rows as held, which is how it returns a row from the first poll
+// after the claimer opened it.
 func (c *fakeClaims) set(rows ...*sqlcv1.V1Operator) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.rows = rows
+	c.rows = held(rows...)
+}
+
+// held is a claim result of rows this dispatcher holds.
+func held(ops ...*sqlcv1.V1Operator) []*sqlcv1.ClaimOperatorsRow {
+	return claimRows(true, ops)
+}
+
+// taken is a claim result of rows this dispatcher newly took.
+func taken(ops ...*sqlcv1.V1Operator) []*sqlcv1.ClaimOperatorsRow {
+	return claimRows(false, ops)
+}
+
+func claimRows(isHeld bool, ops []*sqlcv1.V1Operator) []*sqlcv1.ClaimOperatorsRow {
+	rows := make([]*sqlcv1.ClaimOperatorsRow, len(ops))
+
+	for i, op := range ops {
+		rows[i] = &sqlcv1.ClaimOperatorsRow{V1Operator: *op, Held: isHeld}
+	}
+
+	return rows
 }
 
 type harness struct {
@@ -209,7 +231,7 @@ func TestReconcileHostsClaimedRows(t *testing.T) {
 	h := newHarness(t)
 	op := row()
 
-	h.Reconcile(t.Context(), []*sqlcv1.V1Operator{op})
+	h.Reconcile(t.Context(), held(op))
 
 	require.Equal(t, 1, h.host.openCount())
 	assert.Equal(t, op.TenantID, h.host.opens[0].TenantId)
@@ -223,11 +245,11 @@ func TestReconcileHostsClaimedRows(t *testing.T) {
 	assert.Equal(t, h.host.session(op.ID), fake.session)
 	assert.Equal(t, 1, h.Running())
 
-	h.Reconcile(t.Context(), []*sqlcv1.V1Operator{op})
+	h.Reconcile(t.Context(), held(op))
 	assert.Equal(t, 1, h.host.openCount(), "a row already hosted is not opened again")
 
 	// a kind with no factory is left alone
-	h.Reconcile(t.Context(), []*sqlcv1.V1Operator{op, {ID: uuid.New(), Kind: sqlcv1.V1OperatorKindGRPC}})
+	h.Reconcile(t.Context(), held(op, &sqlcv1.V1Operator{ID: uuid.New(), Kind: sqlcv1.V1OperatorKindGRPC}))
 	assert.Equal(t, 1, h.host.openCount())
 	assert.Equal(t, 1, h.Running())
 }
@@ -237,7 +259,7 @@ func TestReconcileTearsDownLostRows(t *testing.T) {
 	h := newHarness(t)
 	op := row()
 
-	h.Reconcile(t.Context(), []*sqlcv1.V1Operator{op})
+	h.Reconcile(t.Context(), held(op))
 	require.Equal(t, 1, h.Running())
 
 	h.Reconcile(t.Context(), nil)
@@ -251,7 +273,29 @@ func TestReconcileTearsDownLostRows(t *testing.T) {
 	assert.True(t, fake.isDrained())
 
 	// the row coming back is hosted on a new session
-	h.Reconcile(t.Context(), []*sqlcv1.V1Operator{op})
+	h.Reconcile(t.Context(), held(op))
+	assert.Equal(t, 2, h.host.openCount())
+	assert.NotEqual(t, session, h.host.session(op.ID))
+}
+
+// A running row the claim returns newly taken rather than held has lost its worker: another
+// dispatcher's registration released it while this one's heartbeat lagged. It is torn down, and
+// the next result opens it again on a new session.
+func TestReconcileReopensARowItNoLongerHolds(t *testing.T) {
+	h := newHarness(t)
+	op := row()
+
+	h.Reconcile(t.Context(), taken(op))
+	require.Equal(t, 1, h.Running())
+
+	session := h.host.session(op.ID)
+
+	h.Reconcile(t.Context(), taken(op))
+	assert.Zero(t, h.Running(), "the row is torn down")
+	require.Eventually(t, session.Closed, eventually, time.Millisecond)
+	assert.Equal(t, 1, h.host.openCount(), "and not opened again in the same pass")
+
+	h.Reconcile(t.Context(), taken(op))
 	assert.Equal(t, 2, h.host.openCount())
 	assert.NotEqual(t, session, h.host.session(op.ID))
 }
@@ -266,7 +310,7 @@ func TestTeardownPausesBeforeDrainAndClosesAfter(t *testing.T) {
 	h.operators[op.ID] = &fakeOperator{release: make(chan struct{})}
 	h.mu.Unlock()
 
-	h.Reconcile(t.Context(), []*sqlcv1.V1Operator{op})
+	h.Reconcile(t.Context(), held(op))
 	h.Reconcile(t.Context(), nil)
 
 	session := h.host.session(op.ID)
@@ -291,7 +335,7 @@ func TestReconcileFailuresAreRetried(t *testing.T) {
 	op := row()
 
 	h.host.openErr = errors.New("no tenant")
-	h.Reconcile(t.Context(), []*sqlcv1.V1Operator{op})
+	h.Reconcile(t.Context(), held(op))
 	assert.Zero(t, h.Running())
 
 	h.host.openErr = nil
@@ -299,7 +343,7 @@ func TestReconcileFailuresAreRetried(t *testing.T) {
 	h.operators[op.ID] = &fakeOperator{startErr: errors.New("no workflows")}
 	h.mu.Unlock()
 
-	h.Reconcile(t.Context(), []*sqlcv1.V1Operator{op})
+	h.Reconcile(t.Context(), held(op))
 	assert.Zero(t, h.Running())
 	assert.True(t, h.host.session(op.ID).Closed(), "the session of an operator that did not start is closed")
 
@@ -307,7 +351,7 @@ func TestReconcileFailuresAreRetried(t *testing.T) {
 	h.operators[op.ID] = &fakeOperator{}
 	h.mu.Unlock()
 
-	h.Reconcile(t.Context(), []*sqlcv1.V1Operator{op})
+	h.Reconcile(t.Context(), held(op))
 	assert.Equal(t, 1, h.Running())
 }
 
@@ -357,7 +401,7 @@ func TestTeardownTimeout(t *testing.T) {
 	h.operators[op.ID] = &fakeOperator{release: make(chan struct{})}
 	h.mu.Unlock()
 
-	h.Reconcile(t.Context(), []*sqlcv1.V1Operator{op})
+	h.Reconcile(t.Context(), held(op))
 
 	h.Stop(t.Context())
 
@@ -381,7 +425,7 @@ func TestReconcileBuildsGRPCRowsByName(t *testing.T) {
 	unknown := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: uuid.New(), Name: "nobody-builds-this", Kind: sqlcv1.V1OperatorKindGRPC, LeasingManager: sqlcv1.V1OperatorLeasingManagerDISPATCHER}
 	dag := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: uuid.New(), Name: "serverless", Kind: sqlcv1.V1OperatorKindDAG, LeasingManager: sqlcv1.V1OperatorLeasingManagerDISPATCHER}
 
-	h.Reconcile(t.Context(), []*sqlcv1.V1Operator{serverless, unknown, dag})
+	h.Reconcile(t.Context(), held(serverless, unknown, dag))
 
 	assert.Equal(t, []string{"serverless"}, built, "the named factory builds GRPC rows of its name only")
 	require.Equal(t, 1, h.host.openCount())
@@ -389,7 +433,7 @@ func TestReconcileBuildsGRPCRowsByName(t *testing.T) {
 	assert.Equal(t, 1, h.Running())
 
 	// the rows with no factory stay unhosted on later polls without being retried
-	h.Reconcile(t.Context(), []*sqlcv1.V1Operator{serverless, unknown, dag})
+	h.Reconcile(t.Context(), held(serverless, unknown, dag))
 	assert.Equal(t, []string{"serverless"}, built)
 	assert.Equal(t, 1, h.host.openCount())
 }
