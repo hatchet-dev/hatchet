@@ -4,6 +4,7 @@ description: Run Hatchet tasks in serverless or edge environments, like Cloudfla
 ---
 
 import { Callout } from "@/components/nextra-compat";
+import { ServerlessEndpoints } from "@/components/flow-animations/ServerlessEndpoints";
 
 # Serverless Endpoints
 
@@ -36,21 +37,7 @@ Each endpoint is registered with the following information:
 - The **trigger URL**, which receives each task the engine assigns to the endpoint.
 - The **signing secret** (at least 32 characters), which the operator uses to sign every request. Your endpoint verifies the signature before doing any work.
 
-```mermaid
-sequenceDiagram
-    participant E as Hatchet engine
-    participant O as Serverless operator
-    participant F as Your endpoint
-    loop every poll interval (default 30s)
-        O->>F: POST healthcheck URL (signed)
-        F-->>O: workflows and actions served
-        O->>E: register changed workflows and actions
-    end
-    E->>O: assign task
-    O->>F: POST trigger URL (signed task envelope)
-    F-->>O: 2xx JSON output, or an error
-    O->>E: task completed or failed
-```
+<ServerlessEndpoints />
 
 1. **Discovery.** Hatchet sends a signed `POST` to the healthcheck URL every poll interval, 30 seconds by default. The endpoint responds with the list of workflows which are able to run on that endpoint.
 2. **Delivery.** when a task is sent to Hatchet, the Hatchet engine will send a signed `POST` to the trigger URL with the task's input. The endpoint returns with the task's output.

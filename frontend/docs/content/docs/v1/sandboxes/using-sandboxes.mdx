@@ -20,15 +20,13 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 Durable tasks can use the Hatchet Sandbox SDK to create and manage the lifecycle of sandboxes and carry out operations inside them.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
-<Tabs.Tab title="Python">
-
 <Callout type="info">
-  Sandboxes for the Python SDK are coming soon. Join our{" "}
-  <a href="https://hatchet.run/discord">Discord</a> to stay up to date.
+  The sandbox SDK is available for TypeScript. Python, Go and Ruby are coming
+  soon. Join our <a href="https://hatchet.run/discord">Discord</a> to stay up to
+  date.
 </Callout>
 
-</Tabs.Tab>
+<UniversalTabs items={["Typescript"]}>
 <Tabs.Tab title="Typescript">
 
 Install `@hatchet-dev/sandbox` next to the Hatchet SDK and import it once. It adds `hatchet.sandbox` to your Hatchet client.
@@ -50,56 +48,16 @@ Inside a [durable task](/v1/durable-tasks), create a sandbox, run a command, and
 `provider` is required when the tenant has more than one provider.
 
 </Tabs.Tab>
-<Tabs.Tab title="Go">
-
-<Callout type="info">
-  Sandboxes for the Go SDK are coming soon. Join our{" "}
-  <a href="https://hatchet.run/discord">Discord</a> to stay up to date.
-</Callout>
-
-</Tabs.Tab>
-<Tabs.Tab title="Ruby">
-
-<Callout type="info">
-  Sandboxes for the Ruby SDK are coming soon. Join our{" "}
-  <a href="https://hatchet.run/discord">Discord</a> to stay up to date.
-</Callout>
-
-</Tabs.Tab>
 </UniversalTabs>
 
 ## Running commands
 
 `exec` runs a shell command in the workspace and returns its output once it finishes.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
-<Tabs.Tab title="Python">
-
-<Callout type="info">
-  Sandboxes for the Python SDK are coming soon. Join our{" "}
-  <a href="https://hatchet.run/discord">Discord</a> to stay up to date.
-</Callout>
-
-</Tabs.Tab>
+<UniversalTabs items={["Typescript"]}>
 <Tabs.Tab title="Typescript">
 
 <Snippet src={snippets.typescript_sandbox.sandbox.commands.run_a_command} />
-
-</Tabs.Tab>
-<Tabs.Tab title="Go">
-
-<Callout type="info">
-  Sandboxes for the Go SDK are coming soon. Join our{" "}
-  <a href="https://hatchet.run/discord">Discord</a> to stay up to date.
-</Callout>
-
-</Tabs.Tab>
-<Tabs.Tab title="Ruby">
-
-<Callout type="info">
-  Sandboxes for the Ruby SDK are coming soon. Join our{" "}
-  <a href="https://hatchet.run/discord">Discord</a> to stay up to date.
-</Callout>
 
 </Tabs.Tab>
 </UniversalTabs>
@@ -111,34 +69,10 @@ Inside a [durable task](/v1/durable-tasks), create a sandbox, run a command, and
 
 `sandbox.files` reads and writes the workspace. Paths are relative to it.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
-<Tabs.Tab title="Python">
-
-<Callout type="info">
-  Sandboxes for the Python SDK are coming soon. Join our{" "}
-  <a href="https://hatchet.run/discord">Discord</a> to stay up to date.
-</Callout>
-
-</Tabs.Tab>
+<UniversalTabs items={["Typescript"]}>
 <Tabs.Tab title="Typescript">
 
 <Snippet src={snippets.typescript_sandbox.sandbox.files.work_with_files} />
-
-</Tabs.Tab>
-<Tabs.Tab title="Go">
-
-<Callout type="info">
-  Sandboxes for the Go SDK are coming soon. Join our{" "}
-  <a href="https://hatchet.run/discord">Discord</a> to stay up to date.
-</Callout>
-
-</Tabs.Tab>
-<Tabs.Tab title="Ruby">
-
-<Callout type="info">
-  Sandboxes for the Ruby SDK are coming soon. Join our{" "}
-  <a href="https://hatchet.run/discord">Discord</a> to stay up to date.
-</Callout>
 
 </Tabs.Tab>
 </UniversalTabs>
@@ -150,36 +84,12 @@ Inside a [durable task](/v1/durable-tasks), create a sandbox, run a command, and
 
 Every sandbox has an ID. Pass your own with `create({ id })` or take `sandbox.sandboxId`. From anywhere with a Hatchet client, connect by that ID.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
-<Tabs.Tab title="Python">
-
-<Callout type="info">
-  Sandboxes for the Python SDK are coming soon. Join our{" "}
-  <a href="https://hatchet.run/discord">Discord</a> to stay up to date.
-</Callout>
-
-</Tabs.Tab>
+<UniversalTabs items={["Typescript"]}>
 <Tabs.Tab title="Typescript">
 
 <Snippet
   src={snippets.typescript_sandbox.sandbox.connect.connect_to_a_sandbox}
 />
-
-</Tabs.Tab>
-<Tabs.Tab title="Go">
-
-<Callout type="info">
-  Sandboxes for the Go SDK are coming soon. Join our{" "}
-  <a href="https://hatchet.run/discord">Discord</a> to stay up to date.
-</Callout>
-
-</Tabs.Tab>
-<Tabs.Tab title="Ruby">
-
-<Callout type="info">
-  Sandboxes for the Ruby SDK are coming soon. Join our{" "}
-  <a href="https://hatchet.run/discord">Discord</a> to stay up to date.
-</Callout>
 
 </Tabs.Tab>
 </UniversalTabs>
@@ -190,34 +100,10 @@ If the sandbox was stopped, because it was idle or you called `kill`, `connect` 
 
 Start a new sandbox from any snapshot with `create({ from })`. A snapshot ID comes from the `snapshotId` on a call's result, or from `latestSnapshot` in `hatchet.sandbox.list()` once the sandbox was killed. Create two from the same snapshot and you have a fork, which is how you try two approaches from the same starting point.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
-<Tabs.Tab title="Python">
-
-<Callout type="info">
-  Sandboxes for the Python SDK are coming soon. Join our{" "}
-  <a href="https://hatchet.run/discord">Discord</a> to stay up to date.
-</Callout>
-
-</Tabs.Tab>
+<UniversalTabs items={["Typescript"]}>
 <Tabs.Tab title="Typescript">
 
 <Snippet src={snippets.typescript_sandbox.sandbox.fork.fork_a_sandbox} />
-
-</Tabs.Tab>
-<Tabs.Tab title="Go">
-
-<Callout type="info">
-  Sandboxes for the Go SDK are coming soon. Join our{" "}
-  <a href="https://hatchet.run/discord">Discord</a> to stay up to date.
-</Callout>
-
-</Tabs.Tab>
-<Tabs.Tab title="Ruby">
-
-<Callout type="info">
-  Sandboxes for the Ruby SDK are coming soon. Join our{" "}
-  <a href="https://hatchet.run/discord">Discord</a> to stay up to date.
-</Callout>
 
 </Tabs.Tab>
 </UniversalTabs>
@@ -228,36 +114,12 @@ A fork always runs on the provider that holds its snapshot.
 
 `hatchet.sandbox.list({ metadata })` returns the sandboxes whose tags include every pair you pass. `hatchet.sandbox.delete({ metadata })` deletes every match with all of its snapshots, and returns their IDs. Both filters are subset matches, so `{ conversation: "42" }` matches a sandbox tagged `{ conversation: "42", user: "ada" }`.
 
-<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
-<Tabs.Tab title="Python">
-
-<Callout type="info">
-  Sandboxes for the Python SDK are coming soon. Join our{" "}
-  <a href="https://hatchet.run/discord">Discord</a> to stay up to date.
-</Callout>
-
-</Tabs.Tab>
+<UniversalTabs items={["Typescript"]}>
 <Tabs.Tab title="Typescript">
 
 <Snippet
   src={snippets.typescript_sandbox.sandbox.cleanup.list_and_delete_sandboxes}
 />
-
-</Tabs.Tab>
-<Tabs.Tab title="Go">
-
-<Callout type="info">
-  Sandboxes for the Go SDK are coming soon. Join our{" "}
-  <a href="https://hatchet.run/discord">Discord</a> to stay up to date.
-</Callout>
-
-</Tabs.Tab>
-<Tabs.Tab title="Ruby">
-
-<Callout type="info">
-  Sandboxes for the Ruby SDK are coming soon. Join our{" "}
-  <a href="https://hatchet.run/discord">Discord</a> to stay up to date.
-</Callout>
 
 </Tabs.Tab>
 </UniversalTabs>

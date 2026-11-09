@@ -15,7 +15,20 @@ import { Callout } from "@/components/nextra-compat";
   and turn on <strong>Sandboxes</strong>.
 </Callout>
 
-Each provider has its own meaning of a template which corresponds its own keys in the **Provider config** section.
+A provider is a sandbox vendor account connected to your tenant. Every sandbox runs in your own account at the vendor, on your plan and within your limits, and Hatchet drives it through the vendor's API with the key you saved.
+
+The SDK is the same on every provider. `create`, `exec`, the file operations, `kill`, `connect` and forks behave the same way, so moving to another vendor means changing the `provider` name and nothing else. A tenant can connect several providers at once and pick one for each sandbox.
+
+What differs is what sits underneath.
+
+- [Daytona](#daytona) starts sandboxes from named snapshots that you manage in the Daytona dashboard.
+- [E2B](#e2b) starts them from templates and saves the filesystem when it takes a snapshot.
+- [Archil](#archil) starts them from any OCI image and takes a snapshot by forking the whole machine.
+- [Freestyle](#freestyle) includes memory in its snapshots, so a resumed sandbox continues where it stopped.
+
+## Templates and config
+
+Each provider has its own meaning of a template which corresponds its own keys in the **Provider config** section. Keys that a provider does not list below are rejected when you save it.
 
 A template is chosen in the following order. The `template` passed to `create` wins, then the provider's **Default template** field, then the `template` key in the stored config, and lastly the provider's own default.
 
@@ -27,7 +40,6 @@ The default **Provider config** is
 
 ```json
 {
-  "apiUrl": "https://app.daytona.io/api",
   "workdir": "/home/daytona"
 }
 ```
