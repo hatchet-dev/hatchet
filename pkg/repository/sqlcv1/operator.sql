@@ -152,19 +152,23 @@ WITH live_dispatchers AS (
     LEFT JOIN hosts h ON h.dispatcher_id = ld."id" AND h.rank <= h.replicas
     GROUP BY ld."id"
     HAVING COUNT(h.id) < (SELECT size FROM share)
+), under_share_hosts AS (
+    -- a join rather than a NOT EXISTS per row: a joining dispatcher sees every DAG row open, and
+    -- scanning hosts once per open row grows with the square of the DAG rows
+    SELECT h.id, COUNT(*) AS n
+    FROM hosts h
+    JOIN under_share u ON u.dispatcher_id = h.dispatcher_id
+    GROUP BY h.id
 ), open_rows AS (
     -- stranded: every dispatcher under its share already hosts the row, so only a dispatcher at
     -- its share can add a replica
     SELECT
         c.id,
         COUNT(h.id) AS host_count,
-        NOT EXISTS (
-            SELECT 1
-            FROM under_share u
-            WHERE NOT EXISTS (SELECT 1 FROM hosts uh WHERE uh.id = c.id AND uh.dispatcher_id = u.dispatcher_id)
-        ) AS stranded
+        COALESCE(MAX(ush.n), 0) = (SELECT COUNT(*) FROM under_share) AS stranded
     FROM candidates c
     LEFT JOIN hosts h ON h.id = c.id
+    LEFT JOIN under_share_hosts ush ON ush.id = c.id
     GROUP BY c.id, c.replicas
     HAVING
         COUNT(h.id) < c.replicas
