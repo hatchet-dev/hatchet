@@ -204,10 +204,6 @@ type ClaimOperatorsOpts struct {
 
 	// GRPCNames are the names of the GRPC rows, contract operators, built in process.
 	GRPCNames []string
-
-	// DAGReplicas is how many dispatchers run each DAG row at once, each with its own worker.
-	// Every other kind runs on one. Values below one mean one.
-	DAGReplicas int32
 }
 
 func (r *operatorRepository) ClaimOperators(ctx context.Context, dispatcherId uuid.UUID, opts ClaimOperatorsOpts) ([]*sqlcv1.ClaimOperatorsRow, error) {
@@ -219,7 +215,6 @@ func (r *operatorRepository) ClaimOperators(ctx context.Context, dispatcherId uu
 
 	return r.queries.ClaimOperators(ctx, r.pool.ForShared(), sqlcv1.ClaimOperatorsParams{
 		Dispatcherid: dispatcherId,
-		Dagreplicas:  opts.DAGReplicas,
 		Kinds:        kinds,
 		Grpcnames:    opts.GRPCNames,
 	})

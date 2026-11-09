@@ -82,7 +82,6 @@ type opts struct {
 	dispatcherId uuid.UUID
 	factories    map[sqlcv1.V1OperatorKind]Factory
 	named        map[string]Factory
-	dagReplicas  int32
 	l            *zerolog.Logger
 
 	pollInterval    time.Duration
@@ -129,12 +128,6 @@ func WithFactory(kind sqlcv1.V1OperatorKind, f Factory) Opt {
 // of its name is left alone.
 func WithNamedFactory(name string, f Factory) Opt {
 	return func(o *opts) { o.named[name] = f }
-}
-
-// WithDAGReplicas sets how many dispatchers run each DAG row at once, each with its own
-// worker. Every other kind runs on one; the default is one.
-func WithDAGReplicas(n int32) Opt {
-	return func(o *opts) { o.dagReplicas = n }
 }
 
 func WithLogger(l *zerolog.Logger) Opt {
@@ -208,9 +201,8 @@ func New(fs ...Opt) (*Claimer, error) {
 	cl := o.l.With().Str("service", "operator_claimer").Logger()
 
 	buildable := repository.ClaimOperatorsOpts{
-		Kinds:       slices.Collect(maps.Keys(o.factories)),
-		GRPCNames:   slices.Collect(maps.Keys(o.named)),
-		DAGReplicas: o.dagReplicas,
+		Kinds:     slices.Collect(maps.Keys(o.factories)),
+		GRPCNames: slices.Collect(maps.Keys(o.named)),
 	}
 
 	return &Claimer{

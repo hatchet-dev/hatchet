@@ -328,14 +328,10 @@ type ConfigFileRuntime struct {
 	// The loader splits this into OperatorInfraBlockedCIDRs at startup.
 	OperatorInfraBlockedCIDRsString string `mapstructure:"operatorInfraBlockedCIDRsString" json:"operatorInfraBlockedCIDRsString,omitempty"`
 
-	// DagOperatorDefaultSlots is the worker slot count for the dag operator (i.e. how many DAG runs a single DAG operator worker
-	// orchestrates concurrently)
-	DagOperatorDefaultSlots int `mapstructure:"dagOperatorDefaultSlots" json:"dagOperatorDefaultSlots,omitempty" default:"10000"`
-
-	// DagOperatorReplicas is how many dispatchers run each tenant's DAG operator at once, each with
-	// its own worker, capped at the live dispatchers. Above the minimum engine pod count, a replica
-	// lands on a pod the autoscaler removes later, interrupting the DAG runs it orchestrates.
-	DagOperatorReplicas int `mapstructure:"dagOperatorReplicas" json:"dagOperatorReplicas,omitempty" default:"1"`
+	// DagOperatorDefaultSlots is how many DAG runs one DAG operator worker orchestrates at once.
+	// Every engine pod runs a DAG worker for each tenant, so a tenant gets this many per pod, and
+	// the scheduler rebuilds one entry per free slot about every second, even for idle tenants.
+	DagOperatorDefaultSlots int `mapstructure:"dagOperatorDefaultSlots" json:"dagOperatorDefaultSlots,omitempty" default:"2000"`
 
 	// GRPCOperatorsEnabled registers the v1.OperatorService gRPC API for operators running outside the engine
 	// process. Off by default; when disabled the service is not registered and callers receive Unimplemented.
@@ -1049,7 +1045,6 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.allowedOriginsString", "SERVER_ALLOWED_ORIGINS")
 	_ = v.BindEnv("runtime.operatorInfraBlockedCIDRsString", "SERVER_OPERATOR_INFRA_BLOCKED_CIDRS")
 	_ = v.BindEnv("runtime.dagOperatorDefaultSlots", "SERVER_DAG_OPERATOR_DEFAULT_SLOTS")
-	_ = v.BindEnv("runtime.dagOperatorReplicas", "SERVER_DAG_OPERATOR_REPLICAS")
 	_ = v.BindEnv("runtime.grpcOperatorsEnabled", "SERVER_GRPC_OPERATORS_ENABLED")
 	_ = v.BindEnv("runtime.grpcOperatorMaxListenStreamsPerOperator", "SERVER_GRPC_OPERATOR_MAX_LISTEN_STREAMS_PER_OPERATOR")
 	_ = v.BindEnv("runtime.grpcOperatorMaxActionsPerOperator", "SERVER_GRPC_OPERATOR_MAX_ACTIONS_PER_OPERATOR")

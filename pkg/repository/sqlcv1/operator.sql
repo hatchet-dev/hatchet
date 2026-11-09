@@ -74,12 +74,12 @@ WHERE
 RETURNING *;
 
 -- name: ClaimOperators :many
--- The DISPATCHER rows this dispatcher should run, among the ones it can build. A row runs on up
--- to its replica count of dispatchers at once (@dagReplicas for DAG rows, one for every other
--- kind), each with a worker of its own. A dispatcher hosts a row while it is live and has an
--- active worker of it, and the hosts with the oldest workers, up to the replica count, hold it.
--- A host that does not hold the row finds it missing from its result and tears it down, which is
--- how two dispatchers that took the same free replica settle.
+-- The DISPATCHER rows this dispatcher should run, among the ones it can build. A DAG row runs on
+-- every live dispatcher and any other row on one, each host with a worker of its own. A
+-- dispatcher hosts a row while it is live and has an active worker of it, and the hosts with the
+-- oldest workers, up to the row's replica count, hold it. A host that does not hold the row finds
+-- it missing from its result and tears it down, which is how two dispatchers that took the same
+-- free replica settle.
 --
 -- The result is every row this dispatcher holds, marked held, plus rows with a free replica it
 -- does not host, up to its fair share of all replicas, ceil(replicas / live dispatchers), less
@@ -101,11 +101,7 @@ WITH live_dispatchers AS (
     SELECT
         v1_operator.id,
         v1_operator.tenant_id,
-        -- a dispatcher hosts a row once, and a replica nobody can fill would inflate every share
-        LEAST(
-            CASE WHEN v1_operator.kind = 'DAG' THEN GREATEST(@dagReplicas::INT, 1) ELSE 1 END,
-            (SELECT COUNT(*) FROM live_dispatchers)
-        ) AS replicas
+        CASE WHEN v1_operator.kind = 'DAG' THEN (SELECT COUNT(*) FROM live_dispatchers) ELSE 1 END AS replicas
     FROM v1_operator
     JOIN "Tenant" t ON t."id" = v1_operator.tenant_id AND t."deletedAt" IS NULL
     WHERE
