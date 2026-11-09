@@ -37,6 +37,11 @@ type SchedulesClient struct {
 	namespace *string
 }
 
+type BulkUpdateScheduledRunItem struct {
+	ScheduledRunId string    `json:"scheduledRunId"`
+	TriggerAt      time.Time `json:"triggerAt"`
+}
+
 // NewSchedulesClient creates a new SchedulesClient
 func NewSchedulesClient(
 	api *rest.ClientWithResponses,
@@ -156,6 +161,103 @@ func (s *SchedulesClient) Get(ctx context.Context, scheduledRunId string) (*rest
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get scheduled workflow run")
+	}
+
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
+	}
+
+	return resp.JSON200, nil
+}
+
+// Update reschedules a specific scheduled workflow run by its ID.
+func (s *SchedulesClient) Update(ctx context.Context, scheduledRunId string, trigger CreateScheduledRunTrigger) (*rest.ScheduledWorkflows, error) {
+	scheduledRunIdUUID, err := uuid.Parse(scheduledRunId)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse scheduled run id")
+	}
+
+	request := rest.UpdateScheduledWorkflowRunRequest{
+		TriggerAt: trigger.TriggerAt,
+	}
+
+	resp, err := s.api.WorkflowScheduledUpdateWithResponse(
+		ctx,
+		s.tenantId,
+		scheduledRunIdUUID,
+		request,
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to update scheduled workflow run")
+	}
+
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
+	}
+
+	return resp.JSON200, nil
+}
+
+// BulkDelete deletes scheduled workflows by a list of their IDs.
+func (s *SchedulesClient) BulkDelete(ctx context.Context, scheduledWorkflowRunIds []string, filter *rest.ScheduledWorkflowsBulkDeleteFilter) (*rest.ScheduledWorkflowsBulkDeleteResponse, error) {
+	if len(scheduledWorkflowRunIds) == 0 && filter == nil {
+		return nil, errors.New("BulkDelete requires either scheduledRunIds or a filter")
+	}
+
+	var ids *[]uuid.UUID
+	if len(scheduledWorkflowRunIds) > 0 {
+		parsed := make([]uuid.UUID, 0, len(scheduledWorkflowRunIds))
+		for _, id := range scheduledWorkflowRunIds {
+			u, err := uuid.Parse(id)
+			if err != nil {
+				return nil, errors.Wrapf(err, "Failed to parse scheduled run id %q", id)
+			}
+			parsed = append(parsed, u)
+		}
+		ids = &parsed
+	}
+
+	resp, err := s.api.WorkflowScheduledBulkDeleteWithResponse(ctx, s.tenantId,
+		rest.ScheduledWorkflowsBulkDeleteRequest{
+			ScheduledWorkflowRunIds: ids,
+			Filter:                  filter,
+		},
+	)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to bulk delete scheduled workflow runs")
+	}
+
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
+	}
+
+	return resp.JSON200, nil
+}
+
+// BulkUpdate reschedules scheduled workflows by a list of their IDs.
+func (s *SchedulesClient) BulkUpdate(ctx context.Context, updates []BulkUpdateScheduledRunItem) (*rest.ScheduledWorkflowsBulkUpdateResponse, error) {
+	items := make([]rest.ScheduledWorkflowsBulkUpdateItem, 0, len(updates))
+	for _, u := range updates {
+		id, err := uuid.Parse(u.ScheduledRunId)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to parse scheduled run id %q", u.ScheduledRunId)
+		}
+
+		items = append(items, rest.ScheduledWorkflowsBulkUpdateItem{
+			Id:        id,
+			TriggerAt: u.TriggerAt,
+		})
+	}
+
+	resp, err := s.api.WorkflowScheduledBulkUpdateWithResponse(ctx, s.tenantId,
+		rest.ScheduledWorkflowsBulkUpdateRequest{
+			Updates: items,
+		},
+	)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to bulk update scheduled workflow runs")
 	}
 
 	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
