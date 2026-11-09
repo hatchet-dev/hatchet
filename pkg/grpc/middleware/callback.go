@@ -22,6 +22,19 @@ func TriggerCallback(ctx context.Context) {
 	}
 }
 
+// TriggerResourceCallback reports one committed resource to the request's callback. Each call
+// builds its own context, so resources reported in a loop don't share values.
+func TriggerResourceCallback(ctx context.Context, resourceType constants.ResourceTypeValue, resourceID string, correlationID *string) {
+	ctx = context.WithValue(ctx, constants.ResourceIdKey, resourceID)
+	ctx = context.WithValue(ctx, constants.ResourceTypeKey, resourceType)
+
+	if correlationID != nil {
+		ctx = context.WithValue(ctx, constants.CorrelationIdKey, *correlationID)
+	}
+
+	TriggerCallback(ctx)
+}
+
 // CallbackInterceptor creates an interceptor that can receive callbacks from handlers
 func CallbackInterceptor(logger *zerolog.Logger, onCallback func(ctx context.Context) error) connect.UnaryInterceptorFunc {
 	return func(next connect.UnaryFunc) connect.UnaryFunc {
