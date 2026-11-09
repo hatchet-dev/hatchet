@@ -77,16 +77,20 @@ RETURNING *;
 -- name: ClaimOperators :many
 -- The DISPATCHER rows this dispatcher should run, among the ones it can build: every row it
 -- holds, plus free rows up to its fair share, ceil(rows / live dispatchers), less what it holds.
--- A row is held by the dispatcher of the worker it points at while that dispatcher is live, and
--- free otherwise: unassigned, or its dispatcher stopped heartbeating or marked itself inactive.
+-- A row is held by the dispatcher of the worker its worker_id points at while that dispatcher is
+-- live. worker_id is written by the registration the claimer makes for each row it opens.
 --
--- Held rows are always returned: the claimer tears down every running operator missing from the
--- result, and no other dispatcher can claim a row held here, so a held row left out would run
--- nowhere. They are not locked either, since SKIP LOCKED would leave out a held row whenever an
--- action delta holds its lock. A dispatcher over its share keeps its rows; the share only limits
--- new claims.
+-- Held rows are returned unlocked and whatever the share: the claimer tears down every running
+-- operator missing from the result, and SKIP LOCKED would leave out a held row whenever an
+-- action delta holds its lock (LockOperator). The share only limits new claims, so no running
+-- operator is interrupted to even out the load.
+--
+-- A row stays free until its registration writes worker_id, so two dispatchers can both take
+-- it. The one that registers first loses: the row is missing from its next result and it tears
+-- the operator down.
 WITH live_dispatchers AS (
-    -- this dispatcher is live even with a late heartbeat, so that it keeps the rows it holds
+    -- self counts as live despite a late heartbeat, so it keeps its rows until another
+    -- dispatcher takes one over and moves its worker_id
     SELECT "id"
     FROM "Dispatcher"
     WHERE
@@ -105,9 +109,8 @@ WITH live_dispatchers AS (
         -- (a Listen stream out of process, its own leaser in process) and registers its own
         -- workers, so the claimer never claims or reconciles it.
         v1_operator.leasing_manager = 'DISPATCHER'
-        -- Only rows the caller can build, GRPC rows by name and every other kind by kind. A row
-        -- no dispatcher builds is never registered, so it would stay free and use up every
-        -- dispatcher's share.
+        -- A row no dispatcher builds is never registered, so it would stay free and use up
+        -- every dispatcher's share.
         AND (
             (v1_operator.kind <> 'GRPC' AND v1_operator.kind::TEXT = ANY(@kinds::TEXT[]))
             OR (v1_operator.kind = 'GRPC' AND v1_operator.name = ANY(@grpcNames::TEXT[]))
@@ -117,7 +120,7 @@ WITH live_dispatchers AS (
     FROM candidates
     WHERE holder_id = @dispatcherId::UUID
 ), taken AS (
-    -- Locked so that concurrent claims take disjoint free rows.
+    -- Locked so that claims running at the same instant take disjoint rows.
     SELECT v1_operator.id
     FROM v1_operator
     WHERE v1_operator.id IN (SELECT id FROM candidates WHERE holder_id IS NULL)

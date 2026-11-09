@@ -19,10 +19,10 @@ type OperatorRepository interface {
 	DeleteOperator(ctx context.Context, tenantId, operatorId uuid.UUID) (*sqlcv1.V1Operator, error)
 
 	// ClaimOperators returns the DISPATCHER rows this dispatcher should run, among the ones opts
-	// says it can build: every row already assigned to it, plus rows that are unassigned or on an
-	// inactive dispatcher, up to its fair share of the rows across live dispatchers. It does not
-	// create workers; the claimer registers one per claimed row through the operator service,
-	// which points the row's worker_id at it so later polls see the assignment.
+	// says it can build: every row already assigned to it, plus rows that are unassigned or whose
+	// dispatcher is no longer live, up to its fair share of the rows across live dispatchers. It
+	// does not create workers; the claimer registers one per claimed row through the operator
+	// service, which points the row's worker_id at it so later polls see the assignment.
 	ClaimOperators(ctx context.Context, dispatcherId uuid.UUID, opts ClaimOperatorsOpts) ([]*sqlcv1.V1Operator, error)
 
 	// UpsertOperator registers an operator by (tenant, name, kind), returning the existing row

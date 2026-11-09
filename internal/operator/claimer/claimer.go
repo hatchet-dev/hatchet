@@ -1,7 +1,7 @@
 // Package claimer hosts the operators a dispatcher claims. It polls ClaimOperators for the
-// rows the dispatcher claims (leasing manager DISPATCHER) assigned to it, builds each one from a
-// factory, opens it through the in-process host with the row as its identity, and starts the
-// operator on the session. An operator that leaves the claim result is torn down the way every
+// rows this dispatcher should run (leasing manager DISPATCHER), builds each one from a factory,
+// opens it through the in-process host with the row as its identity, and starts the operator
+// on the session. An operator that leaves the claim result is torn down the way every
 // host tears an operator down: pause the worker, drain the operator, close the session. Worker
 // rows, heartbeats and the dispatcher's routing table are the host's; the claimer owns
 // placement and lifecycle only.
@@ -158,9 +158,7 @@ type Claimer struct {
 	factories    map[sqlcv1.V1OperatorKind]Factory
 	named        map[string]Factory
 	l            *zerolog.Logger
-
-	// buildable is what the claim asks for: the kinds and GRPC names there is a factory for.
-	buildable repository.ClaimOperatorsOpts
+	buildable    repository.ClaimOperatorsOpts
 
 	pollInterval    time.Duration
 	teardownTimeout time.Duration
@@ -267,9 +265,8 @@ func (c *Claimer) reconcile(ctx context.Context) {
 }
 
 // Reconcile hosts the claimed rows that are not running yet and tears down the running
-// operators that are no longer claimed: an operator assigned to this dispatcher cannot be
-// claimed by another live dispatcher, so an absence means it was deleted or this dispatcher
-// lost it.
+// operators missing from claimed: the claim returns every row this dispatcher should keep
+// running.
 func (c *Claimer) Reconcile(ctx context.Context, claimed []*sqlcv1.V1Operator) {
 	claimedIds := make(map[uuid.UUID]struct{}, len(claimed))
 
