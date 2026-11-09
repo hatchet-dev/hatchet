@@ -5,9 +5,8 @@ export default function SupportEnded() {
     <SetupScreen>
       <SetupCard title="Support session ended.">
         <p className="text-sm text-muted-foreground">
-          Your access to the tenant has been revoked. You can close this tab.
-          Run <code className="font-mono">hat support</code> to open a tenant
-          again.
+          Your access to the tenant has been revoked. Run{' '}
+          <code className="font-mono">hat support</code> to open a tenant again.
         </p>
       </SetupCard>
     </SetupScreen>

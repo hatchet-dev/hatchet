@@ -1,5 +1,5 @@
 import useControlPlane from '@/hooks/use-control-plane';
-import api, { controlPlaneApi } from '@/lib/api/api';
+import api, { controlPlaneApi, supportGrantsQuery } from '@/lib/api/api';
 import { OrganizationForUserList } from '@/lib/api/generated/cloud/data-contracts';
 import {
   SupportGrant,
@@ -13,9 +13,7 @@ import {
 } from '@/lib/api/generated/data-contracts';
 import { useApiError } from '@/lib/hooks';
 import { reloadToLogin } from '@/lib/redirect';
-import { getSupportSession } from '@/lib/support-session';
 import queryClient from '@/query-client';
-import { appRoutes } from '@/router';
 import {
   useMutation,
   UseMutationResult,
@@ -81,8 +79,9 @@ type PossibleQueryResponses =
       tenantMemberships: TenantMember[];
     };
 
-// The grant stands in for the staff member's only membership; operators map to
-// MEMBER for the dashboard's own gating.
+// A grant stands in for a membership of the customer's tenant, so the app
+// shell, the tenant page and the onboarding checks treat it as a tenant the
+// user can open; operators map to MEMBER for the dashboard's own gating.
 export function supportGrantTenantMember(
   grant: SupportGrant,
   tenant?: Tenant,
@@ -112,48 +111,46 @@ export function supportGrantTenantMember(
   };
 }
 
-async function fetchSupportTenant(
-  tenantId: string,
-): Promise<Tenant | undefined> {
-  try {
-    return await queryClient.fetchQuery({
-      queryKey: ['tenant:get', tenantId],
-      queryFn: async () => (await api.tenantGet(tenantId)).data,
-      staleTime: 30_000,
-      retry: false,
-    });
-  } catch {
-    return undefined;
-  }
+function supportMemberships(
+  grants: SupportGrant[],
+  memberships: TenantMember[],
+): TenantMember[] {
+  return grants
+    .filter(
+      (grant) =>
+        !memberships.some((m) => m.tenant?.metadata.id === grant.tenantId),
+    )
+    .map((grant) =>
+      supportGrantTenantMember(
+        grant,
+        queryClient.getQueryData<Tenant>(['tenant:get', grant.tenantId]),
+      ),
+    );
 }
 
 export const userUniverseQuery = (isControlPlaneEnabled: boolean) => ({
   queryKey: ['user-universe', isControlPlaneEnabled],
   queryFn: async (): Promise<PossibleQueryResponses> => {
-    const supportSession = getSupportSession();
-    if (supportSession) {
-      const tenant = await fetchSupportTenant(supportSession.grant.tenantId);
-      return {
-        isControlPlaneEnabled: false,
-        organizations: null,
-        tenantMemberships: [
-          supportGrantTenantMember(supportSession.grant, tenant),
-        ],
-      };
-    }
-
-    const [organizationsResult, tenantMemberships] = await Promise.all([
-      isControlPlaneEnabled ? controlPlaneApi.organizationList() : null,
-      isControlPlaneEnabled
-        ? controlPlaneApi.tenantMembershipsList()
-        : api.tenantMembershipsList(),
-    ]);
+    const [organizationsResult, tenantMemberships, supportGrants] =
+      await Promise.all([
+        isControlPlaneEnabled ? controlPlaneApi.organizationList() : null,
+        isControlPlaneEnabled
+          ? controlPlaneApi.tenantMembershipsList()
+          : api.tenantMembershipsList(),
+        isControlPlaneEnabled
+          ? queryClient.fetchQuery(supportGrantsQuery).catch(() => [])
+          : [],
+      ]);
 
     const organizations = (organizationsResult?.data.rows || []).map((org) => ({
       ...org,
       tenants: org.tenants || [],
     }));
-    const membershipRows = tenantMemberships.data.rows || [];
+    const memberRows = tenantMemberships.data.rows || [];
+    const membershipRows = [
+      ...memberRows,
+      ...supportMemberships(supportGrants, memberRows),
+    ];
 
     return isControlPlaneEnabled
       ? {

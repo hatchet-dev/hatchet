@@ -3,7 +3,6 @@ import api, { TenantInvite } from '@/lib/api';
 import { controlPlaneApi } from '@/lib/api/api';
 import { OrganizationInvite } from '@/lib/api/generated/cloud/data-contracts';
 import { OrganizationInviteTenant } from '@/lib/api/generated/control-plane/data-contracts';
-import { getSupportSession } from '@/lib/support-session';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 
@@ -17,15 +16,6 @@ export type PendingOrganizationInvite = OrganizationInvite & {
 export const pendingInvitesQuery = (isControlPlaneEnabled: boolean) => ({
   queryKey: ['pending-invites', isControlPlaneEnabled],
   queryFn: async () => {
-    // Invite routes are user-scoped and reject a support token.
-    if (getSupportSession()) {
-      return {
-        inviteCount: 0,
-        tenantInvites: [] as TenantInvite[],
-        organizationInvites: [] as PendingOrganizationInvite[],
-      };
-    }
-
     const [tenantInvitesRes, orgInvitesRes] = await Promise.allSettled([
       isControlPlaneEnabled
         ? controlPlaneApi.userListTenantInvites()

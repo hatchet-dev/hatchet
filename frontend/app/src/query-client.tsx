@@ -1,7 +1,7 @@
 import { EXCHANGE_TOKEN_QUERY_KEY_PREFIX } from '@/lib/api/exchange-token';
 import { forgetFetchDurationOnQueryRemoval } from '@/lib/api/polling';
 import { defaultQueryRetry } from '@/lib/query-retry';
-import { SUPPORT_SESSION_QUERY_KEY_PREFIX } from '@/lib/support-session';
+import { SUPPORT_TOKEN_QUERY_KEY_PREFIX } from '@/lib/support-session';
 import { QueryClient } from '@tanstack/react-query';
 
 const queryClient: QueryClient = new QueryClient({
@@ -18,7 +18,7 @@ type NetworkInformationLike = EventTarget;
 
 const TOKEN_QUERY_KEY_PREFIXES = [
   EXCHANGE_TOKEN_QUERY_KEY_PREFIX,
-  SUPPORT_SESSION_QUERY_KEY_PREFIX,
+  SUPPORT_TOKEN_QUERY_KEY_PREFIX,
 ] as const;
 
 type NavigatorWithConnection = Navigator & {

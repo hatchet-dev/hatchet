@@ -7,18 +7,20 @@ import { Api } from './generated/Api';
 import { Api as CloudApi } from './generated/cloud/Api';
 import { Api as ControlPlaneApi } from './generated/control-plane/Api';
 import { config } from '@/config';
-import { SupportSession } from '@/lib/api/generated/control-plane/data-contracts';
+import {
+  SupportGrant,
+  SupportSession,
+} from '@/lib/api/generated/control-plane/data-contracts';
 import { isRetryableRequestError } from '@/lib/query-retry';
 import {
-  getSupportSession,
-  isSupportSessionMarkedExpired,
+  findSupportGrant,
+  SUPPORT_GRANTS_QUERY_KEY,
+  supportGrantsQueryOptions,
+  supportTokenQueryKey,
+  supportTokenQueryOptions,
 } from '@/lib/support-session';
-import {
-  supportSessionNeedsRenewal,
-  supportSessionQueryOptions,
-} from '@/lib/support-session-renewal';
 import queryClient from '@/query-client';
-import { InternalAxiosRequestConfig } from 'axios';
+import { AxiosHeaders, InternalAxiosRequestConfig, isAxiosError } from 'axios';
 import qs from 'qs';
 import { validate as validateUuid } from 'uuid';
 
@@ -110,8 +112,65 @@ controlPlaneApi.instance.interceptors.response.use(
 export const SELF_HOSTED_LIST_TIMEOUT_MS =
   api.instance.defaults.timeout || 30_000;
 
+// The signed-in user's active support grants: staff open customer tenants with
+// a support token instead of an exchange token. Empty for everyone else.
+export const supportGrantsQuery = supportGrantsQueryOptions(
+  async (): Promise<SupportGrant[]> =>
+    (await controlPlaneApi.supportSessionList()).data.rows,
+);
+
+export function supportTokenQuery(grant: SupportGrant) {
+  return supportTokenQueryOptions(
+    grant,
+    async (): Promise<SupportSession> =>
+      (await controlPlaneApi.supportSessionToken({ tenantId: grant.tenantId }))
+        .data,
+  );
+}
+
+// The grant list is normally loaded by the app shell; a route loader on a cold
+// tab fetches it. A failed list means no support tenants for this request.
+async function cachedSupportGrants(): Promise<SupportGrant[]> {
+  const cached = queryClient.getQueryData<SupportGrant[]>(
+    SUPPORT_GRANTS_QUERY_KEY,
+  );
+  if (cached) {
+    return cached;
+  }
+  try {
+    return await queryClient.fetchQuery(supportGrantsQuery);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * A shard that refuses a support token (revoked grant, token past expiry)
+ * drops the cached token, so the next request asks the control plane, whose
+ * answer settles whether the grant still stands.
+ */
+export function supportTokenRejected(error: unknown) {
+  if (isAxiosError(error) && error.config) {
+    const status = error.response?.status;
+    const marked =
+      AxiosHeaders.from(error.config.headers).get('X-Support-Token') === 'true';
+    if (marked && (status === 401 || status === 403)) {
+      const tenantId = resolveExchangeTokenTenantId(error.config);
+      if (tenantId) {
+        queryClient.removeQueries({ queryKey: supportTokenQueryKey(tenantId) });
+      }
+      void queryClient.invalidateQueries({
+        queryKey: SUPPORT_GRANTS_QUERY_KEY,
+      });
+    }
+  }
+  return Promise.reject(error);
+}
+
 api.instance.interceptors.request.use(exchangeTokenInterceptor);
 cloudApi.instance.interceptors.request.use(exchangeTokenInterceptor);
+api.instance.interceptors.response.use(undefined, supportTokenRejected);
+cloudApi.instance.interceptors.response.use(undefined, supportTokenRejected);
 
 export const CONTROL_PLANE_TENANT_STORAGE_KEY = 'controlPlaneLastTenant';
 
@@ -224,50 +283,12 @@ export const controlPlaneMetaQuery = {
  * loaders, plain async functions) instead of calling the two steps separately.
  */
 export async function fetchControlPlaneStatus() {
-  // A support session has one shard and no cookie session, so the app runs
-  // as if there were no control plane.
-  if (getSupportSession()) {
-    return { meta: null, isControlPlaneEnabled: false };
-  }
-
   const meta = await queryClient.fetchQuery(controlPlaneMetaQuery);
   return { meta, isControlPlaneEnabled: inferControlPlaneEnabled(meta?.data) };
 }
 
 async function resolveControlPlaneEnabled(): Promise<boolean> {
   return (await fetchControlPlaneStatus()).isControlPlaneEnabled;
-}
-
-/**
- * The stored support token, renewed first when it is near or past expiry so a
- * tab coming back from the background does not hit the shard with a dead
- * token and get its session marked expired by the 401.
- */
-async function currentSupportSession(): Promise<SupportSession | null> {
-  const session = getSupportSession();
-  if (
-    !session ||
-    isSupportSessionMarkedExpired() ||
-    !supportSessionNeedsRenewal(session)
-  ) {
-    return session;
-  }
-
-  try {
-    await queryClient.fetchQuery(
-      supportSessionQueryOptions(session.grant.id, (token) =>
-        controlPlaneApi
-          .supportSessionRenew({
-            headers: { Authorization: `Bearer ${token}` },
-          })
-          .then((r) => r.data),
-      ),
-    );
-  } catch {
-    // the shard's answer decides what happens to the session
-  }
-
-  return getSupportSession();
 }
 
 /**
@@ -284,17 +305,6 @@ async function currentSupportSession(): Promise<SupportSession | null> {
 export async function exchangeTokenInterceptor(
   config: InternalAxiosRequestConfig,
 ) {
-  // Every request goes to the support session's shard, tenant-scoped or not:
-  // it is the only backend that accepts the token. controlPlaneApi has no interceptor.
-  const supportSession = await currentSupportSession();
-  if (supportSession) {
-    config.baseURL = supportSession.apiUrl;
-    config.withCredentials = false;
-    config.headers.set('Authorization', `Bearer ${supportSession.token}`);
-    config.headers.set('X-Support-Token', 'true');
-    return config;
-  }
-
   const resources = config.xResources ?? [];
   if (!resources.includes('tenant') && !config.useExchangeToken) {
     return config;
@@ -312,6 +322,22 @@ export async function exchangeTokenInterceptor(
   }
   if (!tenantId) {
     return config;
+  }
+
+  const supportGrant = findSupportGrant(await cachedSupportGrants(), tenantId);
+  if (supportGrant) {
+    try {
+      const session = await queryClient.fetchQuery(
+        supportTokenQuery(supportGrant),
+      );
+      config.baseURL = session.apiUrl;
+      config.withCredentials = false;
+      config.headers.set('Authorization', `Bearer ${session.token}`);
+      config.headers.set('X-Support-Token', 'true');
+      return config;
+    } catch (err) {
+      throw new ExchangeTokenFetchError(tenantId, err);
+    }
   }
 
   try {

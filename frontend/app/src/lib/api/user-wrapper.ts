@@ -7,7 +7,7 @@ type UserCreateRequest = Parameters<typeof api.userCreate>[0];
 type UserUpdatePasswordRequest = Parameters<typeof api.userUpdatePassword>[0];
 
 export function useUserApi() {
-  const { isControlPlaneEnabled } = useControlPlane();
+  const { isControlPlaneEnabled, isControlPlaneLoading } = useControlPlane();
 
   return useMemo(
     () => ({
@@ -21,6 +21,10 @@ export function useUserApi() {
               ? controlPlaneApi.cloudUserGetCurrent()
               : api.userGetCurrent())
           ).data,
+        // Not before the control plane answers: under a control plane the
+        // shard does not know its sessions, and the 403 it returns replaces
+        // the session cookie with an anonymous one.
+        enabled: !isControlPlaneLoading,
       }),
 
       userUpdateGoogleOauthStartQuery: () => ({
@@ -117,6 +121,6 @@ export function useUserApi() {
           ).data,
       }),
     }),
-    [isControlPlaneEnabled],
+    [isControlPlaneEnabled, isControlPlaneLoading],
   );
 }

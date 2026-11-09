@@ -6,6 +6,7 @@ import { Loading } from '@/components/v1/ui/loading';
 import useControlPlane from '@/hooks/use-control-plane';
 import { FeatureFlagId, useIsFeatureEnabled } from '@/hooks/use-feature-flags';
 import { useOrganizations } from '@/hooks/use-organizations';
+import { useSupportSession } from '@/hooks/use-support-session';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { useTenantEntitlements } from '@/hooks/use-tenant-entitlements';
 import { queries } from '@/lib/api';
@@ -15,7 +16,6 @@ import {
   useContextFromParent,
 } from '@/lib/outlet';
 import { OutletWithContext, useOutletContext } from '@/lib/router-helpers';
-import { useSupportSession } from '@/lib/support-session';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ReactNode, useEffect, useMemo } from 'react';
 
@@ -59,7 +59,7 @@ export function MainShell({ children }: { children?: ReactNode }) {
     FeatureFlagId.ConcurrencyPageEnabled,
     false,
   );
-  const { isSupport } = useSupportSession();
+  const { isSupport } = useSupportSession(tenantId);
 
   const navSections = useMemo(
     () =>

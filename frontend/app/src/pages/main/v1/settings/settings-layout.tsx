@@ -2,12 +2,12 @@ import { settingsNavGroups } from './settings-nav-items';
 import { Button } from '@/components/v1/ui/button';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useOrganizations } from '@/hooks/use-organizations';
+import { useSupportSession } from '@/hooks/use-support-session';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import {
   getOptionalStringParam,
   OutletWithContext,
 } from '@/lib/router-helpers';
-import { useSupportSession } from '@/lib/support-session';
 import { cn } from '@/lib/utils';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { Link, useMatchRoute, useParams } from '@tanstack/react-router';
@@ -18,7 +18,7 @@ export default function SettingsLayout() {
   const { isControlPlaneEnabled, canBill } = useControlPlane();
   const { organizations } = useOrganizations();
   const { meta } = useApiMeta();
-  const { isSupport } = useSupportSession();
+  const { isSupport } = useSupportSession(tenantId);
   const matchRoute = useMatchRoute();
 
   // On /organizations/* routes, prefer the org from the URL over the one

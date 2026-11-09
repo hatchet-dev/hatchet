@@ -27,10 +27,10 @@ import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
 import useAuthDisabled from '@/hooks/use-auth-disabled';
 import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
 import useControlPlane from '@/hooks/use-control-plane';
+import { useSupportSession } from '@/hooks/use-support-session';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { useTenantHomeRoute } from '@/hooks/use-tenant-home-route';
 import { TenantMember, User } from '@/lib/api';
-import { useSupportSession } from '@/lib/support-session';
 import { cn } from '@/lib/utils';
 import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
@@ -74,8 +74,6 @@ function AccountDropdown({ user }: { user?: User }) {
   const authDisabled = useAuthDisabled();
   const { isControlPlaneEnabled } = useControlPlane();
   const { organizationId } = useTenantDetails();
-  // the logout route is user-scoped and rejects the support token; sessions end from the banner
-  const { isSupport } = useSupportSession();
 
   if (!user) {
     return null;
@@ -143,7 +141,7 @@ function AccountDropdown({ user }: { user?: User }) {
             ))}
           </DropdownMenuSubContent>
         </DropdownMenuSub>
-        {!authDisabled && !isSupport && (
+        {!authDisabled && (
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem
@@ -215,7 +213,8 @@ export default function TopNav({
 
   const { isControlPlaneEnabled } = useControlPlane();
   const { tenant } = useTenantDetails();
-  const { isSupport } = useSupportSession();
+  // a support tenant is not in the switcher: it belongs to the customer's organization
+  const { isSupport } = useSupportSession(tenant?.metadata.id);
   const showTenantSwitcher =
     !!user && tenantMemberships?.length > 0 && !!tenant;
 

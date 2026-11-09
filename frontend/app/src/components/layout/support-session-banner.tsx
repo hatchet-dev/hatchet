@@ -1,11 +1,13 @@
 import { Button } from '@/components/v1/ui/button';
 import { useNow } from '@/hooks/use-now';
+import { useSupportSession } from '@/hooks/use-support-session';
+import { useTenantDetails } from '@/hooks/use-tenant';
 import { controlPlaneApi } from '@/lib/api/api';
 import {
-  clearSupportSession,
-  getSupportSession,
+  markSupportSessionEnded,
+  SUPPORT_GRANTS_QUERY_KEY,
   supportRoleLabel,
-  useSupportSession,
+  supportTokenQueryKey,
 } from '@/lib/support-session';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
@@ -20,43 +22,49 @@ import { useNavigate } from '@tanstack/react-router';
 function formatTimeLeft(expiresAt: string, now: number): string {
   const msLeft = Math.max(0, new Date(expiresAt).getTime() - now);
   const totalSeconds = Math.floor(msLeft / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+  const mmss = `${minutes}:${String(seconds).padStart(2, '0')}`;
+  return hours > 0
+    ? `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+    : mmss;
 }
 
 const bannerClassName =
   'flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-red-700 bg-red-600 px-4 py-1.5 text-center text-sm font-medium text-white dark:border-red-800 dark:bg-red-700';
 
 export function SupportSessionBanner() {
-  const { session, isExpired } = useSupportSession();
+  const { tenant } = useTenantDetails();
+  const { grant, isExpired } = useSupportSession(tenant?.metadata.id);
   const now = useNow(1000);
   const navigate = useNavigate();
 
   const endMutation = useMutation({
     mutationKey: ['support-session:end'],
     mutationFn: async () => {
-      // Read the token at call time: the renewal may have rotated it.
-      const current = getSupportSession();
-      if (!current) {
+      if (!grant) {
         return;
       }
-      await controlPlaneApi.supportSessionEnd({
-        headers: { Authorization: `Bearer ${current.token}` },
-      });
+      await controlPlaneApi.supportSessionEnd({ grantId: grant.id });
     },
     onSettled: () => {
-      clearSupportSession();
-      queryClient.clear();
+      if (grant) {
+        markSupportSessionEnded(grant);
+        queryClient.removeQueries({
+          queryKey: supportTokenQueryKey(grant.tenantId),
+        });
+      }
+      void queryClient.invalidateQueries({
+        queryKey: SUPPORT_GRANTS_QUERY_KEY,
+      });
       navigate({ to: appRoutes.supportEndedRoute.to, replace: true });
     },
   });
 
-  if (!session) {
+  if (!grant) {
     return null;
   }
-
-  const { grant } = session;
 
   if (isExpired) {
     return (
@@ -88,7 +96,7 @@ export function SupportSessionBanner() {
       <span aria-hidden="true">·</span>
       <span className="inline-flex items-center gap-1 tabular-nums">
         <ClockIcon className="h-4 w-4" />
-        {formatTimeLeft(session.expiresAt, now)} left
+        {formatTimeLeft(grant.expiresAt, now)} left
       </span>
       <Button
         type="button"

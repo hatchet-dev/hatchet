@@ -1,106 +1,135 @@
 import {
-  clearSupportSession,
-  getSupportSession,
-  isSupportSessionExpired,
-  markSupportSessionExpired,
-  setSupportSession,
-  SUPPORT_SESSION_STORAGE_KEY,
+  SupportGrant,
+  SupportGrantRole,
+} from '@/lib/api/generated/control-plane/data-contracts';
+import {
+  clearEndedSupportGrants,
+  findSupportGrant,
+  getEndedSupportGrant,
+  markSupportSessionEnded,
+  resolveSupportSession,
   supportRoleLabel,
-} from './support-session';
-import { SupportGrantRole } from '@/lib/api/generated/control-plane/data-contracts';
+  supportTokenQueryOptions,
+} from '@/lib/support-session';
+import { AxiosError, AxiosHeaders, InternalAxiosRequestConfig } from 'axios';
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { afterEach, test } from 'node:test';
+
+const tenantA = '11111111-1111-4111-8111-111111111111';
+const tenantB = '22222222-2222-4222-8222-222222222222';
+
+const grant: SupportGrant = {
+  id: '44444444-4444-4444-8444-444444444444',
+  tenantId: tenantA,
+  tenantName: 'Tenant A',
+  tenantSlug: 'tenant-a',
+  role: SupportGrantRole.SUPPORT_VIEWER,
+  reason: 'incident',
+  staffEmail: 'staff@example.com',
+  createdAt: '2099-01-01T00:00:00Z',
+  expiresAt: '2099-01-02T00:00:00Z',
+};
 
 const session = {
   token: 'support-token',
   apiUrl: 'https://shard.example.com',
-  expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
-  grant: {
-    id: '44444444-4444-4444-8444-444444444444',
-    tenantId: '11111111-1111-4111-8111-111111111111',
-    tenantName: 'Tenant A',
-    tenantSlug: 'tenant-a',
-    role: SupportGrantRole.SUPPORT_OPERATOR,
-    reason: 'incident',
-    staffEmail: 'staff@example.com',
-    createdAt: new Date().toISOString(),
-    expiresAt: new Date(Date.now() + 4 * 60 * 60_000).toISOString(),
-  },
+  expiresAt: '2099-01-01T00:00:00Z',
+  grant,
 };
 
-function withSessionStorage(fn: () => void) {
-  const previousSessionStorage = globalThis.sessionStorage;
-  const store = new Map<string, string>();
-
-  Object.defineProperty(globalThis, 'sessionStorage', {
-    configurable: true,
-    value: {
-      getItem: (key: string) => store.get(key) ?? null,
-      setItem: (key: string, value: string) => {
-        store.set(key, value);
-      },
-      removeItem: (key: string) => {
-        store.delete(key);
-      },
+function httpError(status: number) {
+  return new AxiosError(
+    'rejected',
+    'ERR_BAD_REQUEST',
+    { headers: new AxiosHeaders() } as InternalAxiosRequestConfig,
+    null,
+    {
+      status,
+      statusText: '',
+      headers: {},
+      config: { headers: new AxiosHeaders() } as InternalAxiosRequestConfig,
+      data: {},
     },
-  });
-
-  try {
-    fn();
-  } finally {
-    if (previousSessionStorage) {
-      Object.defineProperty(globalThis, 'sessionStorage', {
-        configurable: true,
-        value: previousSessionStorage,
-      });
-    } else {
-      delete (globalThis as Partial<typeof globalThis>).sessionStorage;
-    }
-  }
+  );
 }
 
-test('getSupportSession returns null without storage', () => {
-  assert.equal(getSupportSession(), null);
-  assert.equal(isSupportSessionExpired(), false);
+afterEach(() => {
+  clearEndedSupportGrants();
 });
 
-test('setSupportSession stores the session per tab and returns a stable snapshot', () => {
-  withSessionStorage(() => {
-    setSupportSession(session);
+test('findSupportGrant matches on the tenant', () => {
+  assert.equal(findSupportGrant([grant], tenantA), grant);
+  assert.equal(findSupportGrant([grant], tenantB), null);
+  assert.equal(findSupportGrant(undefined, tenantA), null);
+  assert.equal(findSupportGrant([grant], undefined), null);
+});
 
-    assert.deepEqual(getSupportSession(), session);
-    assert.equal(getSupportSession(), getSupportSession());
-    assert.equal(isSupportSessionExpired(), false);
-    assert.ok(sessionStorage.getItem(SUPPORT_SESSION_STORAGE_KEY));
-
-    clearSupportSession();
-    assert.equal(getSupportSession(), null);
+test('resolveSupportSession reports a live grant', () => {
+  assert.deepEqual(resolveSupportSession(tenantA, [grant]), {
+    grant,
+    isSupport: true,
+    isExpired: false,
+  });
+  assert.deepEqual(resolveSupportSession(tenantB, [grant]), {
+    grant: null,
+    isSupport: false,
+    isExpired: false,
   });
 });
 
-test('markSupportSessionExpired keeps the session but reports it expired', () => {
-  withSessionStorage(() => {
-    setSupportSession(session);
-    markSupportSessionExpired();
+test('an ended grant stays visible as expired until a newer grant replaces it', () => {
+  markSupportSessionEnded(grant);
 
-    assert.deepEqual(getSupportSession(), session);
-    assert.equal(isSupportSessionExpired(), true);
+  assert.deepEqual(resolveSupportSession(tenantA, []), {
+    grant,
+    isSupport: true,
+    isExpired: true,
+  });
+  assert.deepEqual(resolveSupportSession(tenantA, [grant]), {
+    grant,
+    isSupport: true,
+    isExpired: true,
+  });
 
-    clearSupportSession();
+  const renewed = { ...grant, id: '55555555-5555-4555-8555-555555555555' };
+  assert.deepEqual(resolveSupportSession(tenantA, [renewed]), {
+    grant: renewed,
+    isSupport: true,
+    isExpired: false,
   });
 });
 
-test('isSupportSessionExpired follows the token expiry', () => {
-  withSessionStorage(() => {
-    setSupportSession({
-      ...session,
-      expiresAt: new Date(Date.now() - 1000).toISOString(),
-    });
+test('supportTokenQueryOptions marks the grant ended when the control plane refuses a token', async () => {
+  const refused = supportTokenQueryOptions(grant, () =>
+    Promise.reject(httpError(403)),
+  );
+  await assert.rejects(refused.queryFn());
+  assert.equal(getEndedSupportGrant(tenantA), grant);
 
-    assert.equal(isSupportSessionExpired(), true);
+  clearEndedSupportGrants();
 
-    clearSupportSession();
-  });
+  const flaky = supportTokenQueryOptions(grant, () =>
+    Promise.reject(httpError(503)),
+  );
+  await assert.rejects(flaky.queryFn());
+  assert.equal(getEndedSupportGrant(tenantA), null);
+});
+
+test('supportTokenQueryOptions goes stale a minute before the token expires', async () => {
+  const options = supportTokenQueryOptions(grant, () =>
+    Promise.resolve(session),
+  );
+  assert.equal(await options.queryFn(), session);
+
+  const dataUpdatedAt = new Date('2098-12-31T23:50:00Z').getTime();
+  assert.equal(
+    options.staleTime({ state: { data: session, dataUpdatedAt } } as never),
+    9 * 60_000,
+  );
+  assert.equal(
+    options.staleTime({ state: { data: undefined, dataUpdatedAt } } as never),
+    0,
+  );
 });
 
 test('supportRoleLabel maps grant roles to banner labels', () => {

@@ -19,7 +19,7 @@ import {
   pendingInvitesQuery,
   usePendingInvites,
 } from '@/hooks/use-pending-invites.ts';
-import { useSupportSessionRenewal } from '@/hooks/use-support-session-renewal';
+import { useSupportSession } from '@/hooks/use-support-session';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { User, queries } from '@/lib/api';
 import {
@@ -35,10 +35,6 @@ import { useContextFromParent } from '@/lib/outlet';
 import { REDIRECT_TARGET_KEY, reloadToLogin } from '@/lib/redirect';
 import { getResourceLimitStatus } from '@/lib/resource-limit-status';
 import { OutletWithContext } from '@/lib/router-helpers';
-import {
-  markSupportSessionExpired,
-  useSupportSession,
-} from '@/lib/support-session';
 import { cn } from '@/lib/utils';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
@@ -107,8 +103,9 @@ function AuthenticatedInner() {
   >();
   const [showWelcome, setShowWelcome] = useState(false);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
-  const { isSupport, isExpired: isSupportExpired } = useSupportSession();
-  useSupportSessionRenewal();
+  const { isSupport, hasSupportGrants } = useSupportSession(
+    tenant?.metadata.id,
+  );
 
   const loaderData = useLoaderData({ from: '/' });
 
@@ -244,30 +241,20 @@ function AuthenticatedInner() {
       return;
     }
 
-    // A support session has no login or onboarding to fall back to; the banner
-    // explains the expiry.
-    if (isSupport) {
-      if (userQueryError?.status === 401 || userQueryError?.status === 403) {
-        markSupportSessionExpired();
-        return;
-      }
-    } else {
-      // If we definitively have no user, always go to login.
-      if (!isUserLoading && !currentUser && !isAuthPage) {
-        storeRedirectPath();
-        navigate({ to: appRoutes.authLoginRoute.to, replace: true });
-        return;
-      }
+    // If we definitively have no user, always go to login.
+    if (!isUserLoading && !currentUser && !isAuthPage) {
+      storeRedirectPath();
+      navigate({ to: appRoutes.authLoginRoute.to, replace: true });
+      return;
+    }
 
-      if (userQueryError?.status === 401 || userQueryError?.status === 403) {
-        storeRedirectPath();
-        navigate({ to: appRoutes.authLoginRoute.to, replace: true });
-        return;
-      }
+    if (userQueryError?.status === 401 || userQueryError?.status === 403) {
+      storeRedirectPath();
+      navigate({ to: appRoutes.authLoginRoute.to, replace: true });
+      return;
     }
 
     if (
-      !isSupport &&
       currentUser &&
       !currentUser.emailVerified &&
       !isOnboardingVerifyEmailPage
@@ -281,16 +268,17 @@ function AuthenticatedInner() {
       : null;
 
     const okayToMakeOnboardingRedirectDecisions =
-      !isSupport &&
       pendingInvitesQuery.isSuccess &&
       !isOnboardingPage &&
       isUserUniverseLoaded &&
       !isUserUniverseFetching;
 
+    // Staff opening customer tenants need no organization of their own.
     const shouldHaveAnOrganizationButDoesnt =
       isControlPlaneEnabled &&
       isUserUniverseLoaded &&
-      organizations?.length === 0;
+      organizations?.length === 0 &&
+      !hasSupportGrants;
 
     // Redirect to invites page only for users with no memberships yet (new users).
     // Existing users with memberships see the InviteModal overlay instead.
@@ -424,7 +412,7 @@ function AuthenticatedInner() {
     isOnboardingCreateOrganizationPage,
     isOnboardingCreateTenantPage,
     loaderData.isControlPlaneEnabled,
-    isSupport,
+    hasSupportGrants,
   ]);
 
   useEffect(
@@ -552,8 +540,7 @@ function AuthenticatedInner() {
     tenantMemberships?.length,
   ]);
 
-  // Render the shell for an expired support session so the banner can explain.
-  if (!currentUser && !(isSupport && isSupportExpired)) {
+  if (!currentUser) {
     return <Loading />;
   }
 

@@ -10,6 +10,7 @@ import useCanWrite from '@/hooks/use-can-write';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useOrganizations } from '@/hooks/use-organizations';
+import { useSupportSession } from '@/hooks/use-support-session';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import api, { UpdateTenantRequest } from '@/lib/api';
 import { TenantStatusType } from '@/lib/api/generated/cloud/data-contracts';
@@ -17,7 +18,6 @@ import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { MembershipsContextType } from '@/lib/outlet';
 import { useOutletContext } from '@/lib/router-helpers';
-import { useSupportSession } from '@/lib/support-session';
 import {
   defaultOnboardingState,
   onboardingStorageKey,
@@ -34,8 +34,8 @@ import { useNavigate, useParams } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 
 export default function TenantSettings() {
-  const { isSupport } = useSupportSession();
   const { tenant } = useTenantDetails();
+  const { isSupport } = useSupportSession(tenant?.metadata.id);
 
   return (
     <div className="h-full w-full flex-grow">

@@ -20,6 +20,7 @@ import {
   APIErrors,
   APIMetaAuth,
   APITokenList,
+  AuditLogList,
   CreateManagementTokenRequest,
   CreateManagementTokenResponse,
   CreateNewTenantForOrganizationRequest,
@@ -56,8 +57,11 @@ import {
   SsoConfig,
   SsoDomainArray,
   SubscriptionPlanList,
+  SupportGrantList,
   SupportSession,
+  SupportSessionEndRequest,
   SupportSessionRedeemRequest,
+  SupportSessionTokenRequest,
   TagList,
   TenantExchangeToken,
   TenantInvite,
@@ -517,6 +521,61 @@ export class Api<
     this.request<OrganizationAvailableShardList, APIError>({
       path: `/api/v1/control-plane/organizations/${organization}/available-shards`,
       method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description List audit logs across the organization's tenants (federated across shards)
+   *
+   * @tags Management
+   * @name OrganizationListAuditLogs
+   * @summary List Audit Logs for Organization
+   * @request GET:/api/v1/control-plane/organizations/{organization}/audit-logs
+   * @secure
+   */
+  organizationListAuditLogs = (
+    organization: string,
+    query?: {
+      /**
+       * Optional tenant ID to scope results to a single tenant
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      tenant?: string;
+      /**
+       * The maximum number of rows to return
+       * @format int32
+       * @min 1
+       * @max 1000
+       * @default 1000
+       */
+      limit?: number;
+      /**
+       * The number of rows to skip for pagination
+       * @format int32
+       * @min 0
+       * @default 0
+       */
+      offset?: number;
+      /**
+       * The start of the time range (RFC3339). When omitted, defaults to the beginning of the retained audit history (i.e. results are not limited to a recent window); the response is still bounded by limit and offset, returning the most recent rows first.
+       * @format date-time
+       */
+      since?: string;
+      /**
+       * The end of the time range (RFC3339). When omitted, defaults to the current time.
+       * @format date-time
+       */
+      until?: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<AuditLogList, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/audit-logs`,
+      method: "GET",
+      query: query,
       secure: true,
       format: "json",
       ...params,
@@ -1447,7 +1506,7 @@ export class Api<
       ...params,
     });
   /**
-   * @description Exchanges a one-time code issued by the support API (`hat support`) for a support session
+   * @description Exchanges a one-time code issued by the support API (`hat support`) for a support session and signs the browser in as the staff member
    *
    * @tags Support
    * @name SupportSessionRedeem
@@ -1467,32 +1526,63 @@ export class Api<
       ...params,
     });
   /**
-   * @description Issues a fresh support token for the grant behind the support token in the Authorization header
+   * @description Lists the active support grants of the signed-in staff member; empty for everyone else
    *
    * @tags Support
-   * @name SupportSessionRenew
-   * @summary Renew a support session
-   * @request POST:/api/v1/control-plane/support/sessions/renew
+   * @name SupportSessionList
+   * @summary List active support grants
+   * @request GET:/api/v1/control-plane/support/sessions
+   * @secure
    */
-  supportSessionRenew = (params: RequestParams = {}) =>
-    this.request<SupportSession, APIErrors>({
-      path: `/api/v1/control-plane/support/sessions/renew`,
-      method: "POST",
+  supportSessionList = (params: RequestParams = {}) =>
+    this.request<SupportGrantList, any>({
+      path: `/api/v1/control-plane/support/sessions`,
+      method: "GET",
+      secure: true,
       format: "json",
       ...params,
     });
   /**
-   * @description Revokes the grant behind the support token in the Authorization header
+   * @description Issues a support token for the signed-in staff member's active grant on the tenant
+   *
+   * @tags Support
+   * @name SupportSessionToken
+   * @summary Issue a support token
+   * @request POST:/api/v1/control-plane/support/sessions/token
+   * @secure
+   */
+  supportSessionToken = (
+    data: SupportSessionTokenRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<SupportSession, APIErrors>({
+      path: `/api/v1/control-plane/support/sessions/token`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Revokes one of the signed-in staff member's own grants
    *
    * @tags Support
    * @name SupportSessionEnd
    * @summary End a support session
    * @request POST:/api/v1/control-plane/support/sessions/end
+   * @secure
    */
-  supportSessionEnd = (params: RequestParams = {}) =>
+  supportSessionEnd = (
+    data: SupportSessionEndRequest,
+    params: RequestParams = {},
+  ) =>
     this.request<void, APIErrors>({
       path: `/api/v1/control-plane/support/sessions/end`,
       method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       ...params,
     });
   /**

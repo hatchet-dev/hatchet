@@ -22,6 +22,11 @@ export enum TenantMemberRoleType {
   VIEWER = "VIEWER",
 }
 
+export enum AuditLogActorType {
+  User = "user",
+  ApiKey = "api_key",
+}
+
 export enum CouponFrequency {
   Once = "once",
   Recurring = "recurring",
@@ -1182,6 +1187,47 @@ export interface AddOrgMembersToTenantRequest {
   canViewPayloads?: boolean;
 }
 
+export interface AuditLog {
+  /**
+   * The ID of the audit log
+   * @format uuid
+   */
+  id: string;
+  /**
+   * The timestamp at which the audit log was inserted
+   * @format date-time
+   */
+  insertedAt: string;
+  /**
+   * The ID of the tenant
+   * @format uuid
+   */
+  tenantId: string;
+  /** The type of the actor */
+  actorType: AuditLogActorType;
+  /**
+   * The ID of the actor
+   * @format uuid
+   */
+  actorId: string;
+  /** The action that was performed */
+  action: string;
+  /** The correlation ID */
+  correlationId?: string;
+  /** The ID of the resource */
+  resourceId: string;
+  /** The type of the resource */
+  resourceType: string;
+  /** The IP address of the actor */
+  ipAddress?: string;
+  /** The user agent of the actor */
+  userAgent?: string;
+}
+
+export interface AuditLogList {
+  rows: AuditLog[];
+}
+
 export interface UserGroup {
   metadata: APIResourceMeta;
   /** Name of the user group */
@@ -1270,9 +1316,23 @@ export interface SupportSession {
   /** The tenant's API URL */
   apiUrl: string;
   /**
-   * When the token expires; renew before then
+   * When the token expires; request a new one after that
    * @format date-time
    */
   expiresAt: string;
   grant: SupportGrant;
+}
+
+export interface SupportSessionTokenRequest {
+  /** @format uuid */
+  tenantId: string;
+}
+
+export interface SupportSessionEndRequest {
+  /** @format uuid */
+  grantId: string;
+}
+
+export interface SupportGrantList {
+  rows: SupportGrant[];
 }

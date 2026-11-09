@@ -1,159 +1,160 @@
 import {
+  SupportGrant,
   SupportGrantRole,
   SupportSession,
 } from '@/lib/api/generated/control-plane/data-contracts';
-import { useCallback, useSyncExternalStore } from 'react';
+import { isRetryableRequestError } from '@/lib/query-retry';
+import { Query } from '@tanstack/react-query';
+import { isAxiosError } from 'axios';
+import { useSyncExternalStore } from 'react';
 
-// Per-tab (sessionStorage) so a support session never leaks into the staff
-// member's own tabs, but survives a reload of the tab it was redeemed in.
-export const SUPPORT_SESSION_STORAGE_KEY = 'hatchet-support-session';
+// Redeeming a support link signs the staff member in with a control-plane
+// cookie session. From there support tokens are fetched per tenant like
+// exchange tokens and cached in memory, so a support tenant opens in any tab
+// and nothing about the session touches browser storage.
 
-export const SUPPORT_SESSION_QUERY_KEY_PREFIX = 'support-session';
+export const SUPPORT_GRANTS_QUERY_KEY = ['support-grants'] as const;
+export const SUPPORT_TOKEN_QUERY_KEY_PREFIX = 'support-token';
 
-export const SUPPORT_SESSION_RENEW_BEFORE_MS = 3 * 60_000;
+// Refresh the token 60 seconds before it actually expires.
+const TOKEN_EXPIRY_BUFFER_MS = 60_000;
 
-type StoredSupportSession = {
-  session: SupportSession;
-  // Set once the token was rejected, so renewal is not retried.
-  expired?: boolean;
-};
-
-type Listener = () => void;
-
-const listeners = new Set<Listener>();
-
-// Parsed view of the storage value, keyed by the raw string so repeated reads
-// return the same reference (useSyncExternalStore needs a stable snapshot).
-let lastRaw: string | null = null;
-let lastParsed: StoredSupportSession | null = null;
-
-function readStorage(): string | null {
-  try {
-    return sessionStorage.getItem(SUPPORT_SESSION_STORAGE_KEY);
-  } catch {
-    return null;
-  }
+export function supportGrantsQueryOptions(
+  fetchFn: () => Promise<SupportGrant[]>,
+) {
+  return {
+    queryKey: SUPPORT_GRANTS_QUERY_KEY,
+    queryFn: fetchFn,
+    staleTime: 30_000,
+    gcTime: 60 * 60 * 1000,
+  };
 }
 
-function writeStorage(value: StoredSupportSession | null) {
-  try {
-    if (value) {
-      sessionStorage.setItem(
-        SUPPORT_SESSION_STORAGE_KEY,
-        JSON.stringify(value),
+export function findSupportGrant(
+  grants: readonly SupportGrant[] | undefined,
+  tenantId: string | undefined,
+): SupportGrant | null {
+  if (!grants || !tenantId) {
+    return null;
+  }
+  return grants.find((grant) => grant.tenantId === tenantId) ?? null;
+}
+
+export function supportTokenQueryKey(tenantId: string) {
+  return [SUPPORT_TOKEN_QUERY_KEY_PREFIX, tenantId] as const;
+}
+
+/**
+ * Token fetch for one grant. A 401/403 means the grant is revoked or expired,
+ * which is remembered so the banner can explain instead of the tenant
+ * silently vanishing.
+ */
+export function supportTokenQueryOptions(
+  grant: SupportGrant,
+  fetchFn: () => Promise<SupportSession>,
+) {
+  return {
+    queryKey: supportTokenQueryKey(grant.tenantId),
+    queryFn: async (): Promise<SupportSession> => {
+      try {
+        return await fetchFn();
+      } catch (err) {
+        const status = isAxiosError(err) ? err.response?.status : undefined;
+        if (status === 401 || status === 403) {
+          markSupportSessionEnded(grant);
+        }
+        throw err;
+      }
+    },
+    staleTime: (query: Query<SupportSession>) => {
+      const data = query.state.data;
+      if (!data) {
+        return 0;
+      }
+      const expiry = new Date(data.expiresAt).getTime();
+      return Math.max(
+        0,
+        expiry - query.state.dataUpdatedAt - TOKEN_EXPIRY_BUFFER_MS,
       );
-    } else {
-      sessionStorage.removeItem(SUPPORT_SESSION_STORAGE_KEY);
-    }
-  } catch {
-    /* empty */
-  }
+    },
+    gcTime: 60 * 60 * 1000,
+    retry: (failureCount: number, error: unknown) =>
+      failureCount < 3 && isRetryableRequestError(error),
+  };
 }
 
-function parseStored(raw: string): StoredSupportSession | null {
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') {
-      return null;
-    }
-    const stored = parsed as Partial<StoredSupportSession>;
-    if (
-      !stored.session ||
-      typeof stored.session.token !== 'string' ||
-      typeof stored.session.apiUrl !== 'string' ||
-      typeof stored.session.expiresAt !== 'string' ||
-      !stored.session.grant
-    ) {
-      return null;
-    }
-    return { session: stored.session, expired: stored.expired === true };
-  } catch {
-    return null;
-  }
-}
-
-function getStored(): StoredSupportSession | null {
-  const raw = readStorage();
-  if (raw !== lastRaw) {
-    lastRaw = raw;
-    lastParsed = raw ? parseStored(raw) : null;
-  }
-  return lastParsed;
-}
+// Grants that ended while the tab was on their tenant, by tenant id. Kept in
+// memory only: a reload re-reads the live grant list.
+const ended = new Map<string, SupportGrant>();
+const listeners = new Set<() => void>();
+let endedVersion = 0;
 
 function notify() {
+  endedVersion += 1;
   listeners.forEach((listener) => listener());
 }
 
-function subscribe(listener: Listener) {
+function subscribe(listener: () => void) {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
   };
 }
 
-export function getSupportSession(): SupportSession | null {
-  return getStored()?.session ?? null;
-}
-
-export function setSupportSession(session: SupportSession) {
-  writeStorage({ session });
-  notify();
-}
-
-export function clearSupportSession() {
-  writeStorage(null);
-  notify();
-}
-
-export function markSupportSessionExpired() {
-  const stored = getStored();
-  if (!stored || stored.expired) {
+export function markSupportSessionEnded(grant: SupportGrant) {
+  const current = ended.get(grant.tenantId);
+  if (current?.id === grant.id) {
     return;
   }
-  writeStorage({ ...stored, expired: true });
+  ended.set(grant.tenantId, grant);
   notify();
 }
 
-// A token past expiresAt is not final: the control plane renews it while the
-// grant is active. Only a rejection is.
-export function isSupportSessionMarkedExpired(): boolean {
-  return getStored()?.expired === true;
+export function getEndedSupportGrant(
+  tenantId: string | undefined,
+): SupportGrant | null {
+  return (tenantId && ended.get(tenantId)) || null;
 }
 
-export function isSupportSessionExpired(
-  session: SupportSession | null = getSupportSession(),
-  now: number = Date.now(),
-): boolean {
-  if (!session) {
-    return false;
+export function clearEndedSupportGrants() {
+  if (ended.size === 0) {
+    return;
   }
-  if (getStored()?.expired) {
-    return true;
+  ended.clear();
+  notify();
+}
+
+/**
+ * The support session on a tenant, from the live grants and the ended ones.
+ * A newer grant on the same tenant (hat support run again) supersedes an
+ * ended one.
+ */
+export function resolveSupportSession(
+  tenantId: string | undefined,
+  grants: readonly SupportGrant[] | undefined,
+):
+  | { grant: SupportGrant; isSupport: true; isExpired: boolean }
+  | { grant: null; isSupport: false; isExpired: false } {
+  const live = findSupportGrant(grants, tenantId);
+  const lapsed = getEndedSupportGrant(tenantId);
+
+  if (live && live.id !== lapsed?.id) {
+    return { grant: live, isSupport: true, isExpired: false };
   }
-  const expiry = new Date(session.expiresAt).getTime();
-  return Number.isNaN(expiry) || expiry <= now;
+  if (lapsed) {
+    return { grant: lapsed, isSupport: true, isExpired: true };
+  }
+  return { grant: null, isSupport: false, isExpired: false };
+}
+
+export function useEndedSupportGrants() {
+  return useSyncExternalStore(
+    subscribe,
+    () => endedVersion,
+    () => endedVersion,
+  );
 }
 
 export function supportRoleLabel(role: SupportGrantRole): string {
   return role === SupportGrantRole.SUPPORT_OPERATOR ? 'operator' : 'viewer';
-}
-
-export function useSupportSession() {
-  const stored = useSyncExternalStore(subscribe, getStored, getStored);
-  const session = stored?.session ?? null;
-
-  const setSession = useCallback(
-    (next: SupportSession) => setSupportSession(next),
-    [],
-  );
-  const clear = useCallback(() => clearSupportSession(), []);
-
-  return {
-    session,
-    isSupport: session !== null,
-    isExpired: isSupportSessionExpired(session),
-    setSession,
-    clear,
-  };
 }
