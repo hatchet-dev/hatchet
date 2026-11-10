@@ -15,7 +15,7 @@ import {
   useContextFromParent,
 } from '@/lib/outlet';
 import { OutletWithContext, useOutletContext } from '@/lib/router-helpers';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { ReactNode, useEffect, useMemo } from 'react';
 
 export function MainShell({ children }: { children?: ReactNode }) {
@@ -41,14 +41,6 @@ export function MainShell({ children }: { children?: ReactNode }) {
     );
   }, [queryClient, tenantId]);
 
-  const listManagedWorkersQuery = useQuery({
-    ...queries.cloud.listManagedWorkers(tenantId ?? ''),
-    enabled: isControlPlaneEnabled && !!tenantId,
-  });
-
-  const hasManagedWorkers =
-    (listManagedWorkersQuery.data?.rows?.length || 0) > 0;
-
   const { entitlements } = useTenantEntitlements();
   const hasDurableStreams = !!entitlements?.durableStreams;
   const hasServerlessEndpoints = !!entitlements?.serverlessOperator;
@@ -65,7 +57,6 @@ export function MainShell({ children }: { children?: ReactNode }) {
         canBill,
         isControlPlaneEnabled,
         orgId,
-        hasManagedWorkers,
         hasServerlessEndpoints,
         hasSandboxProviders,
         hasDurableStreams,
@@ -75,7 +66,6 @@ export function MainShell({ children }: { children?: ReactNode }) {
       canBill,
       isControlPlaneEnabled,
       orgId,
-      hasManagedWorkers,
       hasServerlessEndpoints,
       hasSandboxProviders,
       hasDurableStreams,

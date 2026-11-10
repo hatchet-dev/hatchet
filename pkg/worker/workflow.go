@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/client/compute"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/config/client"
 )
@@ -317,8 +316,7 @@ func (j *WorkflowJob) ToWorkflowTrigger() triggerConverter {
 // Deprecated: ActionWithCompute is an internal type used by the new Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type ActionWithCompute struct {
-	fn      any
-	compute *compute.Compute
+	fn any
 }
 
 // Deprecated: ActionMap is an internal type used by the new Go SDK.
@@ -334,15 +332,13 @@ func (j *WorkflowJob) ToActionMap(svcName string) ActionMap {
 		actionId := step.GetActionId(svcName, i)
 
 		res[actionId] = ActionWithCompute{
-			fn:      step.Function,
-			compute: step.Compute,
+			fn: step.Function,
 		}
 	}
 
 	if j.Concurrency != nil && j.Concurrency.fn != nil {
 		res["concurrency:"+getFnName(j.Concurrency.fn)] = ActionWithCompute{
-			fn:      j.Concurrency.fn,
-			compute: nil, // FIXME add compute to concurrency
+			fn: j.Concurrency.fn,
 		}
 	}
 
@@ -381,8 +377,6 @@ type WorkflowStep struct {
 	RateLimit []RateLimit
 
 	DesiredLabels map[string]*types.DesiredWorkerLabel
-
-	Compute *compute.Compute
 }
 
 // Deprecated: RateLimit is part of the legacy v0 workflow definition system.
@@ -415,13 +409,6 @@ func Fn(f any) *WorkflowStep {
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *WorkflowStep) SetName(name string) *WorkflowStep {
 	w.Name = name
-	return w
-}
-
-// Deprecated: SetCompute is part of the legacy v0 workflow definition system.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
-func (w *WorkflowStep) SetCompute(compute *compute.Compute) *WorkflowStep {
-	w.Compute = compute
 	return w
 }
 
@@ -505,8 +492,7 @@ func (w *WorkflowStep) ToActionMap(svcName string) ActionMap {
 
 	return ActionMap{
 		step.GetActionId(svcName, 0): ActionWithCompute{
-			fn:      w.Function,
-			compute: w.Compute,
+			fn: w.Function,
 		},
 	}
 }

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"reflect"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -17,7 +16,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
-	"github.com/hatchet-dev/hatchet/pkg/client/compute"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	clientconfig "github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
@@ -49,8 +47,6 @@ type Action interface {
 
 	// Service returns the service that the action belongs to
 	Service() string
-
-	Compute() *compute.Compute
 }
 
 type actionImpl struct {
@@ -59,8 +55,6 @@ type actionImpl struct {
 	runConcurrencyAction GetWorkflowConcurrencyGroupFn
 	method               any
 	service              string
-
-	compute *compute.Compute
 }
 
 // Deprecated: Name is an internal method used by the new Go SDK.
@@ -91,12 +85,6 @@ func (j *actionImpl) ConcurrencyFn() GetWorkflowConcurrencyGroupFn {
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (j *actionImpl) Service() string {
 	return j.service
-}
-
-// Deprecated: Compute is an internal method used by the new Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
-func (j *actionImpl) Compute() *compute.Compute {
-	return j.compute
 }
 
 // Deprecated: ActionRegistry is an internal type used by the new Go SDK.
@@ -376,7 +364,7 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 		for _, integrationAction := range actions {
 			action := fmt.Sprintf("%s:%s", integrationId, integrationAction)
 
-			err := w.registerAction(integrationId, action, integration.ActionHandler(integrationAction), nil)
+			err := w.registerAction(integrationId, action, integration.ActionHandler(integrationAction))
 
 			if err != nil {
 				return nil, fmt.Errorf("could not register integration action %s: %w", action, err)
@@ -485,10 +473,10 @@ func (w *Worker) RegisterAction(actionId string, method any) error {
 		w.NewService(action.Service)
 	}
 
-	return w.registerAction(action.Service, action.Verb, method, nil)
+	return w.registerAction(action.Service, action.Verb, method)
 }
 
-func (w *Worker) registerAction(service, verb string, method any, compute *compute.Compute) error {
+func (w *Worker) registerAction(service, verb string, method any) error {
 	actionID := strings.ToLower(fmt.Sprintf("%s:%s", service, verb))
 
 	// if the service is "concurrency", then this is a special action
@@ -498,7 +486,6 @@ func (w *Worker) registerAction(service, verb string, method any, compute *compu
 			runConcurrencyAction: method.(GetWorkflowConcurrencyGroupFn),
 			method:               method,
 			service:              service,
-			compute:              compute,
 		}
 
 		return nil
@@ -523,7 +510,6 @@ func (w *Worker) registerAction(service, verb string, method any, compute *compu
 		run:     actionFunc,
 		method:  method,
 		service: service,
-		compute: compute,
 	}
 
 	return nil
@@ -576,18 +562,10 @@ func (w *Worker) startBlocking(ctx context.Context) error {
 	actionNames := []string{}
 
 	for _, action := range w.actions {
-		if w.client.RunnableActions() != nil {
-			if !slices.Contains(w.client.RunnableActions(), action.Name()) {
-				continue
-			}
-		}
-
 		actionNames = append(actionNames, action.Name())
 	}
 
 	w.l.Debug().Msgf("worker %s is listening for actions: %v", w.name, actionNames)
-
-	_ = NewManagedCompute(&w.actions, w.client, 1)
 
 	listener, id, err := w.client.Dispatcher().GetActionListener(ctx, &client.GetActionListenerRequest{
 		WorkerName:  w.name,

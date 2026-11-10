@@ -750,42 +750,6 @@ const tenantSandboxProviderRoute = createRoute({
   ),
 });
 
-const tenantManagedWorkersRoute = createRoute({
-  getParentRoute: () => tenantRoute,
-  path: 'managed-workers',
-  component: lazyRouteComponent(
-    () => import('./pages/main/v1/managed-workers/index.tsx'),
-    'default',
-  ),
-});
-
-const tenantManagedWorkersTemplateRoute = createRoute({
-  getParentRoute: () => tenantRoute,
-  path: 'managed-workers/demo-template',
-  component: lazyRouteComponent(
-    () => import('./pages/main/v1/managed-workers/demo-template/index.tsx'),
-    'default',
-  ),
-});
-
-const tenantManagedWorkersCreateRoute = createRoute({
-  getParentRoute: () => tenantRoute,
-  path: 'managed-workers/create',
-  component: lazyRouteComponent(
-    () => import('./pages/main/v1/managed-workers/create/index.tsx'),
-    'default',
-  ),
-});
-
-const tenantManagedWorkerRoute = createRoute({
-  getParentRoute: () => tenantRoute,
-  path: 'managed-workers/$managedWorker',
-  component: lazyRouteComponent(
-    () => import('./pages/main/v1/managed-workers/$managed-worker/index.tsx'),
-    'default',
-  ),
-});
-
 const tenantOrganizationsAndTenantsRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'organizations-and-tenants',
@@ -1184,10 +1148,6 @@ const tenantRoutes = [
   tenantEndpointRoute,
   tenantSandboxProvidersRoute,
   tenantSandboxProviderRoute,
-  tenantManagedWorkersRoute,
-  tenantManagedWorkersTemplateRoute,
-  tenantManagedWorkersCreateRoute,
-  tenantManagedWorkerRoute,
   tenantOrganizationsAndTenantsRoute,
   tenantLegacySettingsIndexRoute,
   tenantLegacySettingsOverviewRoute,
@@ -1345,10 +1305,6 @@ export const appRoutes = {
   tenantEndpointRoute,
   tenantSandboxProvidersRoute,
   tenantSandboxProviderRoute,
-  tenantManagedWorkersRoute,
-  tenantManagedWorkersTemplateRoute,
-  tenantManagedWorkersCreateRoute,
-  tenantManagedWorkerRoute,
   tenantOrganizationsAndTenantsRoute,
   tenantSettingsLayoutRoute,
   tenantSettingsIndexRoute,
