@@ -193,7 +193,7 @@ type TriggerRepository interface {
 	NewTriggerTaskData(ctx context.Context, tenantId uuid.UUID, req *v1contracts.TriggerWorkflowRequest, parentTask *sqlcv1.FlattenExternalIdsRow) (*TriggerTaskData, error)
 
 	// InvalidateEventKeyWorkflows drops the cached lists of workflows that the tenant's event
-	// keys trigger, for when another engine has created a workflow version for the tenant.
+	// keys trigger, for when any engine has created a workflow version for the tenant.
 	InvalidateEventKeyWorkflows(tenantId uuid.UUID)
 }
 
