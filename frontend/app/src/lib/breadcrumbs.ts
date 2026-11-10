@@ -14,10 +14,6 @@ type TenantedPath =
   | '/tenants/:tenant/workers'
   | '/tenants/:tenant/workers/all'
   | '/tenants/:tenant/workers/:worker'
-  | '/tenants/:tenant/managed-workers'
-  | '/tenants/:tenant/managed-workers/create'
-  | '/tenants/:tenant/managed-workers/demo-template'
-  | '/tenants/:tenant/managed-workers/:managed-worker'
   | '/tenants/:tenant/settings/overview'
   | '/tenants/:tenant/settings/resource-limits'
   | '/tenants/:tenant/settings/api-tokens'
@@ -88,14 +84,6 @@ const createRouteLabel = (
       return 'All Workers';
     case '/tenants/:tenant/workers/:worker':
       return 'Worker Detail';
-    case '/tenants/:tenant/managed-workers':
-      return 'Managed Workers';
-    case '/tenants/:tenant/managed-workers/create':
-      return 'Create';
-    case '/tenants/:tenant/managed-workers/demo-template':
-      return 'Demo Template';
-    case '/tenants/:tenant/managed-workers/:managed-worker':
-      return 'Managed Worker Detail';
     case '/tenants/:tenant/settings/overview':
       return 'General';
     case '/tenants/:tenant/settings/resource-limits':
@@ -280,11 +268,6 @@ export function generateBreadcrumbs(
       dynamicLabel = params.run;
     } else if (params?.worker && currentSegment === params.worker) {
       dynamicLabel = params.worker;
-    } else if (
-      params?.['managed-worker'] &&
-      currentSegment === params['managed-worker']
-    ) {
-      dynamicLabel = params['managed-worker'];
     }
 
     if (dynamicLabel) {

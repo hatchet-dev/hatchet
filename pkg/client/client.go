@@ -21,8 +21,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/client/retry"
 
-	cloudrest "github.com/hatchet-dev/hatchet/pkg/client/cloud/rest"
-
 	"github.com/hatchet-dev/hatchet/pkg/client/operatorclient"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/config/client"
@@ -42,12 +40,9 @@ type Client interface {
 	Streams() sharedcontracts.V1StreamsClient
 	Subscribe() SubscribeClient
 	API() *rest.ClientWithResponses
-	CloudAPI() *cloudrest.ClientWithResponses
 	Logger() *zerolog.Logger
 	TenantId() string
 	Namespace() string
-	CloudRegisterID() *string
-	RunnableActions() []string
 
 	// Close closes the client's gRPC connection. Streams and calls in flight on it fail, so
 	// call it once the workers and listeners built on the client are stopped.
@@ -66,15 +61,11 @@ type clientImpl struct {
 	streams    sharedcontracts.V1StreamsClient
 	subscribe  SubscribeClient
 	rest       *rest.ClientWithResponses
-	cloudrest  *cloudrest.ClientWithResponses
 
 	// the tenant id
 	tenantId string
 
 	namespace string
-
-	cloudRegisterID *string
-	runnableActions []string
 
 	l *zerolog.Logger
 
@@ -100,9 +91,6 @@ type ClientOpts struct {
 	noGrpcRetry bool
 	noRetry     bool
 	sharedMeta  map[string]string
-
-	cloudRegisterID *string
-	runnableActions []string
 
 	filesLoader        filesLoaderFunc
 	initWorkflows      bool
@@ -154,8 +142,6 @@ func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
 		serverURL:              clientConfig.ServerURL,
 		filesLoader:            types.DefaultLoader,
 		namespace:              clientConfig.Namespace,
-		cloudRegisterID:        clientConfig.CloudRegisterID,
-		runnableActions:        clientConfig.RunnableActions,
 		noGrpcRetry:            clientConfig.NoGrpcRetry,
 		noRetry:                clientConfig.NoRetry,
 		sharedMeta:             make(map[string]string),
@@ -316,8 +302,6 @@ func NewFromConfig(cfg *client.ClientConfig, fs ...ClientOpt) (Client, error) {
 		serverURL:              cfg.ServerURL,
 		filesLoader:            types.DefaultLoader,
 		namespace:              cfg.Namespace,
-		cloudRegisterID:        cfg.CloudRegisterID,
-		runnableActions:        cfg.RunnableActions,
 		noGrpcRetry:            cfg.NoGrpcRetry,
 		noRetry:                cfg.NoRetry,
 		sharedMeta:             make(map[string]string),
@@ -412,26 +396,18 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 	}
 
 	restOpts := []rest.ClientOption{rest.WithRequestEditorFn(authEditor)}
-	cloudRestOpts := []cloudrest.ClientOption{cloudrest.WithRequestEditorFn(authEditor)}
 	if restRetryEnabled {
 		restDoer, retryErr := retry.NewRestDoer(&http.Client{})
 		if retryErr != nil {
 			return nil, fmt.Errorf("could not create rest retry doer: %w", retryErr)
 		}
 		restOpts = append(restOpts, rest.WithHTTPClient(restDoer))
-		cloudRestOpts = append(cloudRestOpts, cloudrest.WithHTTPClient(restDoer))
 	}
 
 	rest, err := rest.NewClientWithResponses(opts.serverURL, restOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create rest client: %w", err)
-	}
-
-	cloudrest, err := cloudrest.NewClientWithResponses(opts.serverURL, cloudRestOpts...)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not create cloud REST client: %w", err)
 	}
 
 	cronClient, err := NewCronClient(rest, opts.l, opts.v, opts.tenantId, opts.namespace)
@@ -454,23 +430,20 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 	}
 
 	return &clientImpl{
-		conn:            conn,
-		tenantId:        opts.tenantId,
-		l:               opts.l,
-		admin:           admin,
-		cron:            cronClient,
-		schedule:        scheduleClient,
-		dispatcher:      dispatcher,
-		operator:        operator,
-		subscribe:       subscribe,
-		event:           event,
-		streams:         streams,
-		v:               opts.v,
-		rest:            rest,
-		cloudrest:       cloudrest,
-		namespace:       opts.namespace,
-		cloudRegisterID: opts.cloudRegisterID,
-		runnableActions: opts.runnableActions,
+		conn:       conn,
+		tenantId:   opts.tenantId,
+		l:          opts.l,
+		admin:      admin,
+		cron:       cronClient,
+		schedule:   scheduleClient,
+		dispatcher: dispatcher,
+		operator:   operator,
+		subscribe:  subscribe,
+		event:      event,
+		streams:    streams,
+		v:          opts.v,
+		rest:       rest,
+		namespace:  opts.namespace,
 	}, nil
 }
 
@@ -514,10 +487,6 @@ func (c *clientImpl) API() *rest.ClientWithResponses {
 	return c.rest
 }
 
-func (c *clientImpl) CloudAPI() *cloudrest.ClientWithResponses {
-	return c.cloudrest
-}
-
 func (c *clientImpl) TenantId() string {
 	return c.tenantId
 }
@@ -533,14 +502,6 @@ func (c *clientImpl) Close() error {
 	}
 
 	return c.conn.Close()
-}
-
-func (c *clientImpl) CloudRegisterID() *string {
-	return c.cloudRegisterID
-}
-
-func (c *clientImpl) RunnableActions() []string {
-	return c.runnableActions
 }
 
 func initWorkflows(fl filesLoaderFunc, adminClient AdminClient) error {
