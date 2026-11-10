@@ -112,12 +112,12 @@ RSpec.describe "Idempotency" do
   it "deduplicates event-triggered runs" do
     test_run_id = SecureRandom.uuid
     e1 = hatchet.events.push(
-      EVENT_KEY,
+      IDEMPOTENCY_EVENT_KEY,
       { "id" => test_run_id },
       additional_metadata: { "test_run_id" => test_run_id }
     )
     e2 = hatchet.events.push(
-      EVENT_KEY,
+      IDEMPOTENCY_EVENT_KEY,
       { "id" => test_run_id },
       additional_metadata: { "test_run_id" => test_run_id }
     )
