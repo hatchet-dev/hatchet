@@ -67,8 +67,8 @@ Claude may call independent tools in the same turn instead of waiting for each r
   architecture. The agent process runs in your own infrastructure with direct
   access to Hatchet credentials. The in-process MCP server is not an isolation
   boundary. To run the agent's commands in a sandbox, see{" "}
-  <a href="/cookbooks/agent-sandboxes">Agent Sandboxes</a>. To run the whole
-  agent in a sandbox with its credentials kept outside, see{" "}
+  <a href="/v1/sandboxes">Sandboxes</a>. To run the whole agent in a sandbox
+  with its credentials kept outside, see{" "}
   <a href="/cookbooks/agent-sandbox-credentials">
     Credentials for Sandboxed Agents
   </a>
@@ -312,8 +312,10 @@ When successful, you should see tool calls for all three agent tools. Given the 
 The example prints only Claude's final summary. To show progress while the agent works, for example in a web page, publish each step to a [durable stream](/v1/durable-streams) topic. A consumer can subscribe from anywhere, and one that connects late, or reconnects, still reads the steps from the start of the topic.
 
 <Callout type="warning">
-  Durable streams are in alpha. To enable them for your tenant,{" "}
-  <a href="mailto:support@hatchet.run">contact us</a>.
+  Durable streams are a Labs feature and may change in future releases. In the
+  dashboard, open <strong>Settings</strong>, go to <strong>Labs Preview</strong>{" "}
+  and turn on <strong>Durable streams</strong>. Tenants on the free plan are
+  asked to upgrade first.
 </Callout>
 
 In the agent, publish the text and tool calls of each assistant message, and the final result. `prompt` and `options` are the ones from the agent above:
@@ -408,13 +410,12 @@ MCP is a protocol for exposing tools to agents. It is not a security boundary. T
 
 The agent process has direct access to Hatchet client credentials and runs in your own infrastructure. Do not rely on the agent prompt or allowed tools alone to enforce security rules.
 
-The tools in this cookbook are code you wrote. If the agent needs to write files and run commands that the model chooses, do not run them in the agent process or on your workers. Run them in a Hatchet sandbox, as shown in [Agent Sandboxes](/cookbooks/agent-sandboxes). If the agent itself has to run in a sandbox, keep its credentials in a proxy outside, as shown in [Credentials for Sandboxed Agents](/cookbooks/agent-sandbox-credentials).
+The tools in this cookbook are code you wrote. If the agent needs to write files and run commands that the model chooses, do not run them in the agent process or on your workers. Run them in a Hatchet sandbox, as described in [Sandboxes](/v1/sandboxes). If the agent itself has to run in a sandbox, keep its credentials in a proxy outside, as shown in [Credentials for Sandboxed Agents](/cookbooks/agent-sandbox-credentials).
 
 ## Next steps
 
 - [Hatchet Agent Tools](/cookbooks/hatchet-and-mcp): the prerequisite guide for exposing tasks and workflows as MCP tools.
-- [Agent Sandboxes](/cookbooks/agent-sandboxes): give the agent a shell in a Hatchet sandbox.
-- [Durable Coding Agent with pi-durable](/cookbooks/pi-durable-coding-agent): a coding agent that survives worker crashes, with a sandbox for every conversation.
+- [Sandboxes](/v1/sandboxes): give the agent a shell in a Hatchet sandbox.
 - [OpenAI Agents SDK](/cookbooks/hatchet-openai-agents-sdk-trusted-env): the same support scenario using the OpenAI Agents SDK.
 - [How to Create a Support Agent Using Hatchet](/cookbooks/workflow-support-agent): a workflow-first support-agent pattern with durable waits and escalation.
 - [Python SDK reference](/reference/python/client) and [TypeScript SDK reference](/reference/typescript/client): full SDK references.
