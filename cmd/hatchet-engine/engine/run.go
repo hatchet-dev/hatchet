@@ -1009,6 +1009,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			streamssvc.WithRepositoryV1(sc.V1),
 			streamssvc.WithLogger(sc.Logger),
 			streamssvc.WithUsage(o11yUsage),
+			streamssvc.WithAnalytics(sc.Analytics),
 		)
 
 		if err != nil {
