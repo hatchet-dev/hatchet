@@ -29,6 +29,21 @@ const (
 	TopicKindCronRefresh TopicKind = "cron-refresh"
 )
 
+// Fanout reports whether every subscriber of a topic of this kind gets its own
+// copy of each message. A scheduler partition topic has a single subscriber.
+//
+// The switch names every kind so that the exhaustive linter flags a new one.
+func (k TopicKind) Fanout() bool {
+	switch k {
+	case TopicKindTenantStream, TopicKindStreamWake, TopicKindCronRefresh:
+		return true
+	case TopicKindSchedulerPartition:
+		return false
+	}
+
+	return true
+}
+
 // Topic identifies a best-effort pub/sub destination.
 type Topic struct {
 	name string
