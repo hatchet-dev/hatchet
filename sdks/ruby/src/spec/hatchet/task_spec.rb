@@ -124,6 +124,27 @@ RSpec.describe Hatchet::Task do
     expect(sleep_base.or_group_id).to eq(event_base.or_group_id)
   end
 
+  it "registers a nested or_ group in the group that contains it" do
+    task = described_class.new(
+      name: "waits_for_nested_or",
+      wait_for: [
+        Hatchet.or_(
+          Hatchet::SleepCondition.new(1),
+          Hatchet.or_(
+            Hatchet::SleepCondition.new(2),
+            Hatchet::UserEventCondition.new(event_key: "go"),
+          ),
+        ),
+      ],
+    ) { |_input, _ctx| nil }
+
+    conditions = task.to_proto("test-service", config: config).conditions
+    bases = conditions.sleep_conditions.map(&:base) + conditions.user_event_conditions.map(&:base)
+
+    expect(bases.length).to eq(3)
+    expect(bases.map(&:or_group_id).uniq.length).to eq(1)
+  end
+
   it "registers a parent condition as a parent override condition" do
     parent = described_class.new(name: "start") { |_input, _ctx| nil }
     task = described_class.new(

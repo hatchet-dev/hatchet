@@ -28,10 +28,9 @@ module Hatchet
                           parent_override_conditions: nil,
                           or_group_id: nil, readable_data_key: nil,
                           proto_method: :to_proto, proto_arg: nil, config: nil)
-      or_group_id ||= SecureRandom.uuid
-
       if cond.is_a?(Hatchet::OrCondition)
-        group_id = SecureRandom.uuid
+        # A nested or_ joins the group it sits in; the engine ANDs separate groups.
+        group_id = or_group_id || SecureRandom.uuid
         cond.conditions.each do |inner|
           convert_condition(inner, action: action, sleep_conditions: sleep_conditions,
                                    user_event_conditions: user_event_conditions,
@@ -39,7 +38,12 @@ module Hatchet
                                    or_group_id: group_id, readable_data_key: readable_data_key,
                                    proto_method: proto_method, proto_arg: proto_arg, config: config,)
         end
-      elsif cond.is_a?(Hatchet::ParentCondition)
+        return
+      end
+
+      or_group_id ||= SecureRandom.uuid
+
+      if cond.is_a?(Hatchet::ParentCondition)
         msg = "ParentCondition is only supported in a task's wait_for or skip_if"
         raise ArgumentError, msg if parent_override_conditions.nil?
 
