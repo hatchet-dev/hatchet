@@ -421,10 +421,9 @@ func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() 
 	return cleanup, nil
 }
 
-// isFanout topics reach every subscriber through a fanout exchange. Only
-// scheduler partition topics, which have a single subscriber, consume a named
-// exclusive queue (the one older engines declare); a second subscriber to that
-// queue would fail.
+// isFanout reports whether every subscriber of the topic gets its own copy of
+// each message. Only scheduler partition topics don't fan out: each has a
+// single subscriber, which reads an exclusive queue named after the topic.
 func isFanout(topic msgqueue.Topic) bool {
 	return topic.Kind() != msgqueue.TopicKindSchedulerPartition
 }
