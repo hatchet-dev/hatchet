@@ -11,6 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/cleanup"
 	hatchetprom "github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
 	adminv1 "github.com/hatchet-dev/hatchet/internal/services/admin/v1"
 	metricscontroller "github.com/hatchet-dev/hatchet/internal/services/controllers/metrics"
@@ -34,6 +35,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 
+	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -124,12 +126,42 @@ func Run(
 }
 
 func RunWithConfig(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.Cleanup) error {
+	if err := syncEventKeyWorkflows(sc, cleanup); err != nil {
+		return err
+	}
+
 	isV1 := sc.HasService("all") || sc.HasService("scheduler") || sc.HasService("controllers") || sc.HasService("grpc-api")
 
 	if isV1 {
 		return runV1Config(ctx, sc, cleanup)
 	}
 	return runV0Config(ctx, sc, cleanup)
+}
+
+// syncEventKeyWorkflows keeps each engine's cached lists of the workflows an event key triggers
+// in step with workflow versions created on any engine. This engine announces every version it
+// creates, and drops a tenant's cached lists whenever any engine announces one for the tenant.
+func syncEventKeyWorkflows(sc *server.ServerConfig, cleanup *cleanup.Cleanup) error {
+	sc.V1.Workflows().RegisterVersionCreatedCallback(func(ctx context.Context, tenantId uuid.UUID) {
+		msg := &msgqueue.Message{ID: msgqueue.MsgIDWorkflowVersionCreated, TenantID: tenantId}
+
+		if err := sc.PubSubV1.Pub(ctx, msgqueue.WorkflowVersionCreatedTopic(), msg); err != nil {
+			sc.Logger.Warn().Ctx(ctx).Err(err).Msg("could not announce new workflow version")
+		}
+	})
+
+	unsub, err := sc.PubSubV1.Sub(msgqueue.WorkflowVersionCreatedTopic(), func(msg *msgqueue.Message) error {
+		sc.V1.Triggers().InvalidateEventKeyWorkflows(msg.TenantID)
+		return nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("could not subscribe to new workflow versions: %w", err)
+	}
+
+	cleanup.Add(unsub, "workflow version subscription")
+
+	return nil
 }
 
 // startO11yUsage returns a func, for the caller to defer, that registers the final flush after

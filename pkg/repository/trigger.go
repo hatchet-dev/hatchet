@@ -191,6 +191,10 @@ type TriggerRepository interface {
 	PreflightVerifyWorkflowNameOpts(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error
 
 	NewTriggerTaskData(ctx context.Context, tenantId uuid.UUID, req *v1contracts.TriggerWorkflowRequest, parentTask *sqlcv1.FlattenExternalIdsRow) (*TriggerTaskData, error)
+
+	// InvalidateEventKeyWorkflows drops the cached lists of workflows that the tenant's event
+	// keys trigger, for when another engine has created a workflow version for the tenant.
+	InvalidateEventKeyWorkflows(tenantId uuid.UUID)
 }
 
 type TriggerRepositoryImpl struct {
@@ -2696,6 +2700,14 @@ func (r *sharedRepository) listWorkflowsForEvents(ctx context.Context, tx sqlcv1
 	}
 
 	return res, nil
+}
+
+func (r *sharedRepository) InvalidateEventKeyWorkflows(tenantId uuid.UUID) {
+	for _, key := range r.eventKeyWorkflowsCache.Keys() {
+		if key.tenantId == tenantId {
+			r.eventKeyWorkflowsCache.Remove(key)
+		}
+	}
 }
 
 func (r *sharedRepository) listStepMatchConditions(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, stepIds []uuid.UUID) ([]*sqlcv1.V1StepMatchCondition, error) {
