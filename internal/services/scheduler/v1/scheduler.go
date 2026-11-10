@@ -472,8 +472,7 @@ func (s *Scheduler) handleRateLimitsChanged(ctx context.Context, msg *msgqueue.M
 	return nil
 }
 
-// notifyRateLimitPausesEnded wakes the task controller to release the runs held by the ended pauses; its paused-items
-// sweep releases them anyway, so the wake is best-effort
+// notifyRateLimitPausesEnded asks the task controller to release the runs held by the ended pauses
 func (s *Scheduler) notifyRateLimitPausesEnded(ctx context.Context, tenantId uuid.UUID) {
 	msg, err := tasktypes.NewRateLimitPausesChangedMessage(tenantId, false)
 
@@ -482,8 +481,8 @@ func (s *Scheduler) notifyRateLimitPausesEnded(ctx context.Context, tenantId uui
 		return
 	}
 
-	if err := s.pubsub.Pub(ctx, msgqueue.TaskControllerWakeTopic(), msg); err != nil {
-		s.l.Warn().Ctx(ctx).Err(err).Msg("could not publish rate limit pauses ended wake")
+	if err := s.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+		s.l.Error().Ctx(ctx).Err(err).Msg("could not send rate limit pauses ended message")
 	}
 }
 

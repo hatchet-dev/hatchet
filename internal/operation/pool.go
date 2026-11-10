@@ -137,20 +137,6 @@ func (p *TenantOperationPool) RunOrContinue(id uuid.UUID) {
 	p.getOperation(id).RunOrContinue(p.ql)
 }
 
-// RunOrContinueIfOwned runs the tenant's operation only if the tenant is on
-// this pool's controller partition, and reports whether it did.
-func (p *TenantOperationPool) RunOrContinueIfOwned(id uuid.UUID) bool {
-	op, ok := p.ops.Load(id)
-
-	if !ok {
-		return false
-	}
-
-	op.RunOrContinue(p.ql)
-
-	return true
-}
-
 func (p *TenantOperationPool) getOperation(id uuid.UUID) *SerialOperation {
 	op, ok := p.ops.Load(id)
 

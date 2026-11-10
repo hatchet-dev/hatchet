@@ -241,7 +241,12 @@ func (t *TickerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not schedule tenant resource limit alert polling: %w", err)
 	}
 
-	cleanupCronRefresh := t.subscribeCronRefresh(ctx)
+	cleanupCronRefresh, err := t.subscribeCronRefresh(ctx)
+
+	if err != nil {
+		cancel()
+		return nil, err
+	}
 
 	t.s.Start()
 	t.userCronScheduler.Start()
@@ -280,13 +285,9 @@ func (t *TickerImpl) Start() (func() error, error) {
 	return cleanup, nil
 }
 
-// subscribeCronRefresh refreshes the cron schedules when a cron changes. A
-// failed subscription is logged rather than fatal: the 15s poll still picks up
-// the change.
-func (t *TickerImpl) subscribeCronRefresh(ctx context.Context) func() error {
+// subscribeCronRefresh refreshes the cron schedules when a cron changes.
+func (t *TickerImpl) subscribeCronRefresh(ctx context.Context) (func() error, error) {
 	requests := make(chan struct{}, 1)
-
-	go t.runCronRefreshes(ctx, requests)
 
 	handler := func(*msgqueue.Message) error {
 		select {
@@ -297,30 +298,24 @@ func (t *TickerImpl) subscribeCronRefresh(ctx context.Context) func() error {
 		return nil
 	}
 
-	cleanups := make([]func() error, 0, 2)
+	cleanupTopic, err := t.pubsub.Sub(msgqueue.CronRefreshTopic(), handler)
 
-	if cleanup, err := t.pubsub.Sub(msgqueue.CronRefreshTopic(), handler); err != nil {
-		t.l.Err(err).Ctx(ctx).Msg("could not subscribe to cron refresh topic")
-	} else {
-		cleanups = append(cleanups, cleanup)
+	if err != nil {
+		return nil, fmt.Errorf("could not subscribe to cron refresh topic: %w", err)
 	}
 
 	// older API and engine versions send cron changes to this queue instead
-	if cleanup, err := t.mqv1.Subscribe(msgqueue.TICKER_UPDATE_QUEUE, handler, msgqueue.NoOpHook); err != nil {
-		t.l.Err(err).Ctx(ctx).Msg("could not subscribe to cron trigger update queue")
-	} else {
-		cleanups = append(cleanups, cleanup)
+	cleanupQueue, err := t.mqv1.Subscribe(msgqueue.TICKER_UPDATE_QUEUE, handler, msgqueue.NoOpHook)
+
+	if err != nil {
+		return nil, errors.Join(fmt.Errorf("could not subscribe to cron trigger update queue: %w", err), cleanupTopic())
 	}
+
+	go t.runCronRefreshes(ctx, requests)
 
 	return func() error {
-		var errs error
-
-		for _, cleanup := range cleanups {
-			errs = errors.Join(errs, cleanup())
-		}
-
-		return errs
-	}
+		return errors.Join(cleanupTopic(), cleanupQueue())
+	}, nil
 }
 
 // runCronRefreshes refreshes once per request, at most once per

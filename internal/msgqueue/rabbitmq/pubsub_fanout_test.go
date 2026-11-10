@@ -16,7 +16,6 @@ func TestIsFanout(t *testing.T) {
 		msgqueue.TenantTopic(uuid.New()),
 		msgqueue.StreamWakeTopic(),
 		msgqueue.CronRefreshTopic(),
-		msgqueue.TaskControllerWakeTopic(),
 	} {
 		assert.True(t, isFanout(topic), topic.Name())
 	}
