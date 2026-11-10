@@ -119,8 +119,8 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 		return err
 	}
 
-	// one NOTIFY per payload; a message without payloads is a bare signal and
-	// is sent whole
+	// send one notification per payload. A message with no payloads is still
+	// sent, once: its ID alone is the signal.
 	msgs := []*msgqueue.Message{msg}
 
 	if len(msg.Payloads) > 0 {
