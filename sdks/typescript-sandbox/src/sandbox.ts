@@ -95,7 +95,7 @@ export interface SandboxOpts {
 export interface Resources {
   /** Whole cores. */
   vcpu?: number;
-  /** A number is MiB. A string takes a Kubernetes quantity such as `'512Mi'`, `'4Gi'` or `'8G'`. */
+  /** A number is MiB. A string takes a Kubernetes quantity with a unit, such as `'512Mi'`, `'4Gi'` or `'8G'`. A string without a unit is rejected. */
   memory?: number | string;
   /** Same format as `memory`. */
   disk?: number | string;
@@ -118,12 +118,12 @@ function toMib(value: number | string, field: string): number {
       throw new Error(`resources.${field}: expected a positive whole number of MiB`);
     return value;
   }
-  const m = /^(\d+(?:\.\d+)?)\s*([KMGT]i?)?B?$/.exec(value.trim());
+  const m = /^(\d+(?:\.\d+)?)\s*([KMGT]i?)B?$/.exec(value.trim());
   if (!m)
     throw new Error(
-      `resources.${field}: expected a quantity like '512Mi', '4Gi' or '8G', got ${JSON.stringify(value)}`
+      `resources.${field}: expected a quantity with a unit like '512Mi', '4Gi' or '8G', or a number of MiB, got ${JSON.stringify(value)}`
     );
-  const bytes = Number(m[1]) * (m[2] ? UNITS[m[2]] : UNITS.Mi);
+  const bytes = Number(m[1]) * UNITS[m[2]];
   const mib = Math.ceil(bytes / UNITS.Mi);
   if (mib <= 0) throw new Error(`resources.${field}: must be at least 1Mi`);
   return mib;

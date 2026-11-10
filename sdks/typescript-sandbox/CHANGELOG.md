@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Eac
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-11-09
+
+### Fixed
+
+- `resources.memory` and `resources.disk` strings without a unit were read as MiB, so a byte count such as `'1073741824'` asked for a billion MiB. A string now has to carry a unit (`Ki`, `Mi`, `Gi`, `Ti`, `K`, `M`, `G`, `T`) and is rejected otherwise. Pass a number for MiB.
+
 ## [0.1.3] - 2026-11-09
 
 ### Added
