@@ -343,7 +343,10 @@ func TestRetiredQueueDeletedOnceUnused(t *testing.T) {
 	// each check gets its own channel: a passive declare of a missing queue closes it
 	inspect := func(name string) (amqp.Queue, error) {
 		ch, err := conn.Channel()
-		require.NoError(t, err)
+
+		if err != nil {
+			return amqp.Queue{}, err
+		}
 
 		defer ch.Close() // nolint: errcheck
 
@@ -401,14 +404,56 @@ func TestRetiredQueueDeletedOnceUnused(t *testing.T) {
 		return mainErr == nil && procErr == nil && main.Consumers == 0 && proc.Consumers == 0
 	}, 10*time.Second, 100*time.Millisecond)
 
-	newest := start()
+	start()
 
 	for _, name := range names {
 		_, err := inspect(name)
 		assert.Error(t, err, "%s should be deleted", name)
 	}
 
-	require.NoError(t, newest.deleteRetiredQueue(ctx, q), "deleting queues that are already gone should succeed")
+	require.NoError(t, deleteRetiredQueue(url, q), "deleting queues that are already gone should succeed")
+}
+
+func TestRetiredQuorumQueueDoesNotBreakStartup(t *testing.T) {
+	url := "amqp://user:password@localhost:5672/"
+
+	conn, err := amqp.Dial(url)
+	require.NoError(t, err)
+
+	ch, err := conn.Channel()
+	require.NoError(t, err)
+
+	q := msgqueue.NewRandomStaticQueue()
+
+	_, err = ch.QueueDeclare(q.Name(), true, false, false, false, amqp.Table{"x-queue-type": "quorum"})
+	require.NoError(t, err)
+
+	retired := msgqueue.RetiredQueues
+	msgqueue.RetiredQueues = []msgqueue.Queue{q}
+
+	t.Cleanup(func() {
+		msgqueue.RetiredQueues = retired
+
+		_, err := ch.QueueDelete(q.Name(), false, false, false)
+		assert.NoError(t, err)
+		assert.NoError(t, conn.Close())
+	})
+
+	// the broker refuses to delete a quorum queue only if unused, and closes the connection that asked
+	cleanup, mq, err := New(WithURL(url), WithQos(100))
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		assert.NoError(t, cleanup())
+	})
+
+	other := msgqueue.NewRandomStaticQueue()
+
+	cleanupSub, err := mq.Subscribe(other, msgqueue.NoOpHook, msgqueue.NoOpHook)
+	require.NoError(t, err, "subscribing right after startup should work")
+
+	require.NoError(t, cleanupSub())
+	require.NoError(t, mq.deleteQueue(other))
 }
 
 // deleteQueue is a helper function for removing durable queues which are used for tests.

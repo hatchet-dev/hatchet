@@ -231,7 +231,7 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl, error) {
 
 	for _, q := range msgqueue.RetiredQueues {
 		// a queue that cannot be deleted yet is left for a later start
-		if err := t.deleteRetiredQueue(ctx, q); err != nil {
+		if err := deleteRetiredQueue(opts.url, q); err != nil {
 			t.l.Info().Msgf("not deleting retired queue %s: %v", q.Name(), err)
 		}
 	}
@@ -242,26 +242,34 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl, error) {
 	}, t, nil
 }
 
-// deleteRetiredQueue deletes a queue and then its dead letter queues. It stops
-// at the first one that still has consumers, so nothing changes for an older
-// version that reads the queue during a rolling upgrade.
-func (t *MessageQueueImpl) deleteRetiredQueue(ctx context.Context, q msgqueue.Queue) error {
+// deleteRetiredQueue deletes a queue and then its dead letter queues, stopping
+// at the first one the broker refuses. A queue with consumers is refused: an
+// older version may still read it during a rolling upgrade.
+//
+// It uses its own connection because a refusal closes the channel, and for a
+// quorum queue the whole connection. Quorum queues are always refused, since
+// they cannot be deleted only if unused.
+func deleteRetiredQueue(url string, q msgqueue.Queue) error {
+	conn, err := amqp.Dial(url)
+
+	if err != nil {
+		return err
+	}
+
+	defer conn.Close() // nolint: errcheck
+
+	ch, err := conn.Channel()
+
+	if err != nil {
+		return err
+	}
+
 	dlq := q.DLQ().Name()
 
 	for _, name := range []string{q.Name(), getTmpDLQName(dlq), getProcDLQName(dlq)} {
-		poolCh, err := t.subChannels.Acquire(ctx)
-
-		if err != nil {
+		if _, err := ch.QueueDelete(name, true, false, false); err != nil {
 			return err
 		}
-
-		// the broker closes the channel when it refuses a delete
-		if _, err := poolCh.Value().QueueDelete(name, true, false, false); err != nil {
-			poolCh.Destroy()
-			return err
-		}
-
-		poolCh.Release()
 	}
 
 	return nil
