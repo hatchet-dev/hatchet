@@ -75,35 +75,49 @@ func newTestPubSub(t *testing.T) (*PubSub, *pgxpool.Pool) {
 }
 
 func TestPostgresPubSubNotifyRoundtrip(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	ps, _ := newTestPubSub(t)
-
 	tenantId := uuid.New()
-	topic := msgqueue.TenantTopic(tenantId)
 
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-
-	msg, err := msgqueue.NewTenantMessage(tenantId, "task-completed", true, false, map[string]interface{}{"key": "value"})
+	withPayload, err := msgqueue.NewTenantMessage(tenantId, "task-completed", true, false, map[string]interface{}{"key": "value"})
 	require.NoError(t, err)
 
-	cleanupSub, err := ps.Sub(topic, func(received *msgqueue.Message) error {
-		defer wg.Done()
-		assert.Equal(t, msg.ID, received.ID)
-		return nil
-	})
-	require.NoError(t, err)
+	tests := []struct {
+		name string
+		msg  *msgqueue.Message
+	}{
+		{name: "with a payload", msg: withPayload},
+		// a cron change is sent like this: the message ID alone is the signal
+		{name: "without payloads", msg: &msgqueue.Message{ID: msgqueue.MsgIDCronUpdate, TenantID: tenantId}},
+	}
 
-	// give the LISTEN connection time to establish
-	time.Sleep(1 * time.Second)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
 
-	require.NoError(t, ps.Pub(ctx, topic, msg))
+			ps, _ := newTestPubSub(t)
 
-	wg.Wait()
+			topic := msgqueue.TenantTopic(uuid.New())
 
-	require.NoError(t, cleanupSub())
+			wg := &sync.WaitGroup{}
+			wg.Add(1)
+
+			cleanupSub, err := ps.Sub(topic, func(received *msgqueue.Message) error {
+				defer wg.Done()
+				assert.Equal(t, tt.msg.ID, received.ID)
+				return nil
+			})
+			require.NoError(t, err)
+
+			// give the LISTEN connection time to establish
+			time.Sleep(1 * time.Second)
+
+			require.NoError(t, ps.Pub(ctx, topic, tt.msg))
+
+			wg.Wait()
+
+			require.NoError(t, cleanupSub())
+		})
+	}
 }
 
 func TestPostgresPubSubLargePayloadFallback(t *testing.T) {
