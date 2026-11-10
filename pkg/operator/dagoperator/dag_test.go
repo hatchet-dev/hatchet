@@ -1546,8 +1546,9 @@ func TestDag_EntryCompletedRacesAheadOfWaitForAck(t *testing.T) {
 	// Drive the dispatcher side ourselves (instead of using newFakeDispatcher) so we can choose
 	// to deliver the skip watch's EntryCompleted before the WaitForAck that would normally
 	// precede it. b registers its skip watch first and holds its wait watch until that
-	// registration is acknowledged (one registration is in flight at a time); the skip fires
-	// with the ack, so the wait watch is never registered.
+	// registration is acknowledged (one registration is in flight at a time). Completions are
+	// applied only once no registration is in flight and nothing more can be emitted, so b
+	// registers its wait watch before the held skip is applied.
 	recvWaitFor := func() *v1contracts.DurableTaskWaitForRequest {
 		t.Helper()
 		select {
@@ -1572,15 +1573,28 @@ func TestDag_EntryCompletedRacesAheadOfWaitForAck(t *testing.T) {
 
 	sendEntryCompleted(t, responseCh, ref, nil)
 
-	select {
-	case responseCh <- &v1contracts.DurableTaskResponse{
-		Message: &v1contracts.DurableTaskResponse_WaitForAck{
-			WaitForAck: &v1contracts.DurableTaskEventWaitForAckResponse{Ref: ref},
-		},
-	}:
-	case <-time.After(5 * time.Second):
-		t.Fatal("timed out sending WaitForAck")
+	sendAck := func(ref *v1contracts.DurableEventLogEntryRef) {
+		t.Helper()
+		select {
+		case responseCh <- &v1contracts.DurableTaskResponse{
+			Message: &v1contracts.DurableTaskResponse_WaitForAck{
+				WaitForAck: &v1contracts.DurableTaskEventWaitForAckResponse{Ref: ref},
+			},
+		}:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out sending WaitForAck")
+		}
 	}
+
+	sendAck(ref)
+
+	waitWaitFor := recvWaitFor()
+	sendAck(&v1contracts.DurableEventLogEntryRef{
+		DurableTaskExternalId: waitWaitFor.DurableTaskExternalId,
+		InvocationCount:       waitWaitFor.InvocationCount,
+		NodeId:                4343,
+		BranchId:              4343,
+	})
 
 	select {
 	case err := <-errCh:
@@ -1594,7 +1608,6 @@ func TestDag_EntryCompletedRacesAheadOfWaitForAck(t *testing.T) {
 	require.True(t, b.isSkipped)
 	require.True(t, b.isCompleted)
 	require.False(t, b.isCancelled)
-	require.False(t, b.isWaiting, "the wait watch was held behind the skip registration and never needed")
 }
 
 func shortenBlockedStatusReportInterval(t *testing.T, interval time.Duration) {

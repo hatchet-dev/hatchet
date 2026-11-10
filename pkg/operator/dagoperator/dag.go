@@ -133,8 +133,8 @@ type dag struct {
 
 	pendingWaitAcks []*pendingWaitAck
 
-	// pendingEntryCompletions buffers EntryCompleted refs that raced ahead of their WaitForAck
-	// (its condition is committed to the DB before the ack is sent); rechecked on each ack.
+	// pendingEntryCompletions holds completions in arrival order until they are applied, one at a
+	// time and only while no registration is in flight (see applyNextEntryCompletion).
 	pendingEntryCompletions []pendingEntryCompletion
 
 	// cache of the result of each parent override condition, evaluated once when the
@@ -254,6 +254,10 @@ func dagDurableTask(
 
 		if d.isDone() {
 			break
+		}
+
+		if len(d.pendingWaitAcks) == 0 && d.applyNextEntryCompletion(ctx) {
+			continue
 		}
 
 		resp, err := d.awaitResponse(ctx)
@@ -597,7 +601,7 @@ func (d *dag) expectChild(t *task) error {
 }
 
 func (d *dag) taskConsumer(ctx context.Context, resp *v1contracts.DurableTaskResponse) {
-	ctx, span := telemetry.NewSpan(ctx, "dag.taskConsumer")
+	_, span := telemetry.NewSpan(ctx, "dag.taskConsumer")
 	defer span.End()
 
 	if resp == nil || resp.Message == nil {
@@ -628,27 +632,19 @@ func (d *dag) taskConsumer(ctx context.Context, resp *v1contracts.DurableTaskRes
 			ack.task.waitBranchId = ref.GetBranchId()
 		}
 
-		// Its completion may already be buffered as unmatched (see pendingEntryCompletions).
-		d.drainPendingEntryCompletions(ctx)
-
 	case *v1contracts.DurableTaskResponse_EntryCompleted:
 		ref := m.EntryCompleted.GetRef()
 		if ref == nil {
 			return
 		}
 
-		entry := pendingEntryCompletion{
+		d.pendingEntryCompletions = append(d.pendingEntryCompletions, pendingEntryCompletion{
 			nodeId:       ref.GetNodeId(),
 			branchId:     ref.GetBranchId(),
 			isFailure:    m.EntryCompleted.GetIsFailure(),
 			errorMessage: m.EntryCompleted.GetErrorMessage(),
 			payload:      m.EntryCompleted.GetPayload(),
-		}
-
-		if !d.tryApplyEntryCompletion(ctx, entry) {
-			// Raced ahead of its own WaitForAck; retry once that ack lands.
-			d.pendingEntryCompletions = append(d.pendingEntryCompletions, entry)
-		}
+		})
 
 	case *v1contracts.DurableTaskResponse_ServerEvict:
 		if m.ServerEvict.GetDurableTaskExternalId() != d.externalId.String() ||
@@ -703,22 +699,18 @@ func (d *dag) tryApplyEntryCompletion(ctx context.Context, entry pendingEntryCom
 	return false
 }
 
-// drainPendingEntryCompletions retries buffered completions that couldn't be matched when they
-// first arrived, keeping any that still don't match.
-func (d *dag) drainPendingEntryCompletions(ctx context.Context) {
-	if len(d.pendingEntryCompletions) == 0 {
-		return
-	}
-
-	remaining := d.pendingEntryCompletions[:0]
-
-	for _, entry := range d.pendingEntryCompletions {
-		if !d.tryApplyEntryCompletion(ctx, entry) {
-			remaining = append(remaining, entry)
+// applyNextEntryCompletion applies the oldest held completion that matches a known entry. It is
+// only called with no registration in flight and nothing left to emit, so the log's order depends
+// only on the order of completions, and a replay, which receives them early, writes the same log.
+func (d *dag) applyNextEntryCompletion(ctx context.Context) bool {
+	for i, entry := range d.pendingEntryCompletions {
+		if d.tryApplyEntryCompletion(ctx, entry) {
+			d.pendingEntryCompletions = append(d.pendingEntryCompletions[:i], d.pendingEntryCompletions[i+1:]...)
+			return true
 		}
 	}
 
-	d.pendingEntryCompletions = remaining
+	return false
 }
 
 // finishedTaskRunIds lists every task that has reached a terminal state, including failed ones. The

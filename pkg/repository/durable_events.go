@@ -1114,7 +1114,9 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 				state.newEntryByKey[key] = o
 				continue
 			}
-			if !o.idempotencyKeyMatches(e.IdempotencyKey) {
+			// a DAG step trigger skips the key check, so only the kind check stops it from taking
+			// over another kind's entry
+			if o.Kind != e.Kind || !o.idempotencyKeyMatches(e.IdempotencyKey) {
 				nonDeterminismErr = &NonDeterminismError{
 					BranchId:                o.BranchId,
 					NodeId:                  o.NodeId,
