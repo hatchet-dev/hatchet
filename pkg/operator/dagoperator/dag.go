@@ -150,8 +150,7 @@ const (
 	conditionKindCancel
 )
 
-// pendingEntryCompletion is a buffered EntryCompleted that didn't match any known node/branch id
-// at the time it arrived.
+// pendingEntryCompletion is an EntryCompleted held until applyNextEntryCompletion applies it.
 type pendingEntryCompletion struct {
 	nodeId       int64
 	branchId     int64
@@ -701,7 +700,8 @@ func (d *dag) tryApplyEntryCompletion(ctx context.Context, entry pendingEntryCom
 
 // applyNextEntryCompletion applies the oldest held completion that matches a known entry. It is
 // only called with no registration in flight and nothing left to emit, so the log's order depends
-// only on the order of completions, and a replay, which receives them early, writes the same log.
+// only on the order completions arrive in, and a replay that receives them early in that same
+// order writes the same log.
 func (d *dag) applyNextEntryCompletion(ctx context.Context) bool {
 	for i, entry := range d.pendingEntryCompletions {
 		if d.tryApplyEntryCompletion(ctx, entry) {
