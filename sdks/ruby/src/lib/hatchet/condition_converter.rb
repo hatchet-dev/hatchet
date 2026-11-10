@@ -14,7 +14,7 @@ module Hatchet
     # Convert a single condition into the appropriate protobuf message and
     # append it to the provided accumulator arrays.
     #
-    # @param cond [Object] The condition (SleepCondition, UserEventCondition, Hash, or duck-typed)
+    # @param cond [Object] The condition (SleepCondition, UserEventCondition, ParentCondition, OrCondition, Hash, or duck-typed)
     # @param action [Symbol] Proto action (:QUEUE or :SKIP)
     # @param sleep_conditions [Array] Accumulator for sleep condition protos
     # @param user_event_conditions [Array] Accumulator for user event condition protos
@@ -22,12 +22,30 @@ module Hatchet
     # @param readable_data_key [String, nil] Override for Hash readable_data_key (used by durable context)
     # @param proto_method [Symbol] Method to check for self-converting conditions (:to_proto or :to_durable_proto)
     # @param proto_arg [Object, nil] Argument to pass to proto_method (action for :to_proto, key for :to_durable_proto)
+    # @param parent_override_conditions [Array, nil] Accumulator for parent override condition protos;
+    #   nil where parent conditions are not supported (durable waits)
     def convert_condition(cond, action:, sleep_conditions:, user_event_conditions:,
+                          parent_override_conditions: nil,
                           or_group_id: nil, readable_data_key: nil,
                           proto_method: :to_proto, proto_arg: nil, config: nil)
       or_group_id ||= SecureRandom.uuid
 
-      if cond.respond_to?(proto_method)
+      if cond.is_a?(Hatchet::OrCondition)
+        group_id = SecureRandom.uuid
+        cond.conditions.each do |inner|
+          convert_condition(inner, action: action, sleep_conditions: sleep_conditions,
+                                   user_event_conditions: user_event_conditions,
+                                   parent_override_conditions: parent_override_conditions,
+                                   or_group_id: group_id, readable_data_key: readable_data_key,
+                                   proto_method: proto_method, proto_arg: proto_arg, config: config,)
+        end
+      elsif cond.is_a?(Hatchet::ParentCondition)
+        msg = "ParentCondition is only supported in a task's wait_for or skip_if"
+        raise ArgumentError, msg if parent_override_conditions.nil?
+
+        convert_parent_condition(cond, action: action, or_group_id: or_group_id,
+                                       parent_override_conditions: parent_override_conditions,)
+      elsif cond.respond_to?(proto_method)
         # Condition object knows how to convert itself
         proto = cond.public_send(proto_method, proto_arg || action)
         case proto
@@ -60,6 +78,24 @@ module Hatchet
         convert_sleep_condition(cond.duration, action: action, or_group_id: or_group_id,
                                                sleep_conditions: sleep_conditions,)
       end
+    end
+
+    # @param cond [Hatchet::ParentCondition]
+    def convert_parent_condition(cond, action:, or_group_id:, parent_override_conditions:)
+      parent = cond.parent
+      parent_name = parent.respond_to?(:name) ? parent.name.to_s : parent.to_s
+
+      base_args = {
+        readable_data_key: "#{parent_name}:#{cond.expression}",
+        or_group_id: or_group_id,
+        expression: cond.expression || "",
+      }
+      base_args[:action] = action if action
+
+      parent_override_conditions << ::V1::ParentOverrideMatchCondition.new(
+        base: ::V1::BaseMatchCondition.new(base_args),
+        parent_readable_id: parent_name,
+      )
     end
 
     # @param duration [Integer, String] Sleep duration (seconds as Integer, or Go duration string like "15s")
