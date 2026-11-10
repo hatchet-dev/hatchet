@@ -33,14 +33,10 @@ repos:
         exclude: (^examples/|^pkg/authmode/keyset/)
       - id: check-yaml
         exclude: (^examples/|^cmd/hatchet-cli/cli/templates/)
-  # A local hook rather than the upstream one, so golangci-lint uses go.mod's
-  # Go toolchain; see the script.
-  - repo: local
+  - repo: https://github.com/golangci/golangci-lint
+    rev: v2.15.0
     hooks:
       - id: golangci-lint
-        name: golangci-lint
         entry: bash hack/dev/golangci-lint-changed-packages.sh
-        language: system
-        types: [go]
-        require_serial: true
+        pass_filenames: true
         exclude: ^(examples/|sdks/guides/go/|sdks/go/examples/)
