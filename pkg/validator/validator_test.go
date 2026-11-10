@@ -86,6 +86,19 @@ func TestValidatorCron(t *testing.T) {
 			input:      "*/5 * * *",
 			wantErrTag: "cron",
 		},
+		{
+			name:       "invalid cron expression (day of week 7)",
+			input:      "0 9 * * 1-7",
+			wantErrTag: "cron",
+		},
+		{
+			name:  "valid cron expression (descriptor)",
+			input: "@daily",
+		},
+		{
+			name:  "valid cron expression (timezone prefix)",
+			input: "CRON_TZ=Europe/Lisbon 0 9 * * 1-5",
+		},
 	}
 
 	v := newValidator()

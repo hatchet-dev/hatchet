@@ -56,16 +56,23 @@ func (t *WorkflowService) CronWorkflowTriggerCreate(ctx echo.Context, request ge
 		return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors(err.Error())), nil
 	}
 
-	cronTrigger, err := t.config.V1.WorkflowSchedules().CreateCronWorkflow(
-		ctx.Request().Context(), tenantId, &v1.CreateCronWorkflowTriggerOpts{
-			Name:               request.Body.CronName,
-			Cron:               request.Body.CronExpression,
-			Input:              request.Body.Input,
-			AdditionalMetadata: request.Body.AdditionalMetadata,
-			WorkflowId:         workflow.ID,
-			Priority:           &priority,
-		},
-	)
+	opts := &v1.CreateCronWorkflowTriggerOpts{
+		Name:               request.Body.CronName,
+		Cron:               request.Body.CronExpression,
+		Input:              request.Body.Input,
+		AdditionalMetadata: request.Body.AdditionalMetadata,
+		WorkflowId:         workflow.ID,
+		Priority:           &priority,
+	}
+
+	// The ticker deletes crons it cannot parse, so an invalid expression must be rejected here.
+	if apiErrors, err := t.config.Validator.ValidateAPI(opts); err != nil {
+		return nil, err
+	} else if apiErrors != nil {
+		return gen.CronWorkflowTriggerCreate400JSONResponse(*apiErrors), nil
+	}
+
+	cronTrigger, err := t.config.V1.WorkflowSchedules().CreateCronWorkflow(ctx.Request().Context(), tenantId, opts)
 	if err != nil {
 		if strings.Contains(err.Error(), "unique constraint") {
 			return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors("cron trigger with that name-expression pair already exists")), nil
