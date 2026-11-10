@@ -1,0 +1,93 @@
+---
+title: "Providers"
+description: What a template means for each sandbox provider, and the keys each one accepts in Provider config.
+---
+
+import { Callout } from "@/components/nextra-compat";
+
+# Sandbox Providers
+
+<Callout type="info">Sandboxes are available on Hatchet Cloud only.</Callout>
+
+<Callout type="warning">
+  Sandboxes are a Labs feature and may change in future releases. In the
+  dashboard, open <strong>Settings</strong>, go to <strong>Labs Preview</strong>{" "}
+  and turn on <strong>Sandboxes</strong>.
+</Callout>
+
+A provider is a sandbox vendor account connected to your tenant. Every sandbox runs in your own account at the vendor, on your plan and within your limits, and Hatchet drives it through the vendor's API with the key you saved.
+
+The SDK is the same on every provider. `create`, `exec`, the file operations, `kill`, `connect` and forks behave the same way, so moving to another vendor means changing the `provider` name and nothing else. A tenant can connect several providers at once and pick one for each sandbox.
+
+What differs is what sits underneath.
+
+- [Daytona](#daytona) starts sandboxes from named snapshots that you manage in the Daytona dashboard.
+- [E2B](#e2b) starts them from templates and saves the filesystem when it takes a snapshot.
+- [Archil](#archil) starts them from any OCI image and takes a snapshot by forking the whole machine.
+- [Freestyle](#freestyle) includes memory in its snapshots, so a resumed sandbox continues where it stopped.
+
+## Templates and config
+
+Each provider has its own meaning of a template which corresponds its own keys in the **Provider config** section.
+
+Every provider also accepts `snapshotEveryTurn`, described under [Snapshots](/v1/sandboxes/setup#snapshots). Any other key that a provider does not list below is rejected when you save it.
+
+A template is chosen in the following order. The `template` passed to `create` wins, then the provider's **Default template** field, then the `template` key in the stored config, and lastly the provider's own default.
+
+## Daytona
+
+A template is a [Daytona snapshot](https://www.daytona.io/docs/snapshots) name. Snapshots Hatchet takes are Daytona snapshots, so they show up in the Daytona dashboard.
+
+The default **Provider config** is
+
+```json
+{
+  "workdir": "/home/daytona"
+}
+```
+
+Set `template` to the snapshot new sandboxes should start from. Without it, Daytona's default snapshot is used.
+
+## E2B
+
+A template is an [E2B template](https://e2b.dev/docs/sandbox-template) name or a snapshot ID. Snapshots Hatchet takes are filesystem-only templates.
+
+The default **Provider config** is
+
+```json
+{
+  "apiUrl": "https://api.e2b.app",
+  "template": "base",
+  "workdir": "/home/user",
+  "maxTimeoutSeconds": 3600
+}
+```
+
+## Archil
+
+A template is an OCI image, for example `node:24-bookworm`. A snapshot is a stopped fork of the machine, so forks start fast, and a sandbox's snapshots keep that stopped machine at Archil until you delete them.
+
+The default **Provider config** is
+
+```json
+{
+  "region": "aws-us-east-1",
+  "workdir": "/workspace"
+}
+```
+
+`region` is one of `aws-us-east-1`, `aws-us-west-2`, `aws-eu-west-1` or `gcp-us-central1`, and must match the region the API key was created in. Set `template` to the image new sandboxes should start from. Without it, Archil's default image is used.
+
+## Freestyle
+
+A template is a [Freestyle snapshot](https://docs.freestyle.sh) ID or slug. Snapshots include memory, so a sandbox resumed from one continues where it stopped.
+
+The default **Provider config** is
+
+```json
+{
+  "workdir": "/workspace"
+}
+```
+
+Set `template` to the snapshot new sandboxes should start from. Without it, Freestyle's default image is used.

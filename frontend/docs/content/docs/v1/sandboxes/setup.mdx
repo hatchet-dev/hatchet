@@ -1,0 +1,51 @@
+---
+title: "Setup"
+description: Turn sandboxes on for your tenant, connect a sandbox provider and choose when snapshots are taken.
+---
+
+import { Callout, Steps } from "@/components/nextra-compat";
+
+# Sandbox Setup
+
+<Callout type="info">Sandboxes are available on Hatchet Cloud only.</Callout>
+
+<Callout type="warning">
+  Sandboxes are a Labs feature and may change in future releases. In the
+  dashboard, open <strong>Settings</strong>, go to <strong>Labs Preview</strong>{" "}
+  and turn on <strong>Sandboxes</strong>.
+</Callout>
+
+<Steps>
+
+### Turn sandboxes on
+
+Open your tenant settings, go to **Labs Preview** and turn on **Sandboxes**. You need to be a tenant owner or admin to do this, and tenants on the free plan are asked to upgrade first. A **Sandboxes** menu entry will appear in the sidebar.
+
+### Add a provider
+
+Under **Sandboxes**, choose **Connect provider** and pick a vendor. Give it a name, which is what your code passes as `provider`, and paste the vendor's API key.
+
+The optional fields are
+
+| Field                   | What it does                                                                                                     |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Default template        | The image, template or snapshot new sandboxes start from when `create` does not name one.                        |
+| Max idle time (seconds) | How long a sandbox with no calls stays running before the vendor stops it.                                       |
+| Provider config         | JSON for vendor-specific settings. See [Providers](/v1/sandboxes/providers).                                     |
+| Labels                  | Free-form tags for your own bookkeeping, passed to the vendor and saved as additional metadata in Hatchet tasks. |
+
+### Wait for the connection to be healthy
+
+The provider page shows the credential check and an event log.
+
+</Steps>
+
+## Snapshots
+
+A snapshot is what `connect` resumes from and what `create({ from })` forks from. The `snapshotEveryTurn` key in **Provider config** picks when they are taken. It applies to every provider.
+
+|                          | On `kill` only (default)         | After every change (`"snapshotEveryTurn": true`)                                        |
+| ------------------------ | -------------------------------- | --------------------------------------------------------------------------------------- |
+| When a snapshot is taken | When you call `kill`             | After `kill` and after every `exec`, `files.write` and other call that changes files    |
+| What you can fork from   | The state at the last `kill`     | The state after any call that changes the workspace, via the `snapshotId` on its result |
+| Cost                     | One snapshot per sandbox session | One snapshot per changing call                                                          |

@@ -21,6 +21,7 @@ const (
 	subjectTemplateAlias   = "subject"
 	inviteSubjectTemplate  = `{{.InviteSenderName}} invited you to join {{.TenantName}} on Hatchet`
 	defaultSubjectTemplate = `[{{.TenantName}}] {{.Subject}}`
+	magicLinkSubject       = `Sign in to Hatchet`
 )
 
 func init() {
@@ -33,6 +34,7 @@ func init() {
 		email.TokenAlertExpiringTemplate: {"templates/expiring_token.html", defaultSubjectTemplate},
 		email.ResourceLimitAlertTemplate: {"templates/resource_limit_alert.html", defaultSubjectTemplate},
 		email.WorkflowRunsFailedTemplate: {"templates/workflow_runs_failed.html", defaultSubjectTemplate},
+		email.MagicLinkTemplate:          {"templates/magic_link.html", magicLinkSubject},
 	}
 
 	for alias, tmpl := range templates {

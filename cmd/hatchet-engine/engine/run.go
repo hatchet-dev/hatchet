@@ -4,16 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-
 	"github.com/hatchet-dev/hatchet/pkg/cleanup"
-
-	"github.com/rs/zerolog"
+	hatchetprom "github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
 	adminv1 "github.com/hatchet-dev/hatchet/internal/services/admin/v1"
@@ -33,7 +29,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
-	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/o11yusage"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
@@ -137,20 +132,23 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig, cleanup *cleanu
 	return runV0Config(ctx, sc, cleanup)
 }
 
-func startO11yUsage(sc *server.ServerConfig, cleanup *cleanup.Cleanup) *o11yusage.Aggregator {
+// startO11yUsage returns a func, for the caller to defer, that registers the final flush after
+// every cleanup the caller registers, since the services stopped by those still add bytes.
+func startO11yUsage(sc *server.ServerConfig, cleanup *cleanup.Cleanup) (*o11yusage.Aggregator, func()) {
 	if sc.O11yUsageFlush == nil {
-		return nil
+		return nil, func() {}
 	}
 
 	agg := o11yusage.NewAggregator(sc.Logger, sc.Runtime.O11yUsageFlushInterval, sc.O11yUsageFlush)
 	agg.Start()
-	cleanup.Add(agg.Shutdown, "o11y-usage")
-	return agg
+
+	return agg, func() { cleanup.Add(agg.Shutdown, "o11y-usage") }
 }
 
 func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.Cleanup) (err error) {
 	var l = sc.Logger
-	o11yUsage := startO11yUsage(sc, cleanup)
+	o11yUsage, registerO11yUsageShutdown := startO11yUsage(sc, cleanup)
+	defer registerO11yUsageShutdown()
 
 	telemetryShutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
 		ServiceName:   sc.OpenTelemetry.ServiceName,
@@ -184,7 +182,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 
 	if sc.Prometheus.Enabled {
 		cleanup.Add(
-			startPrometheus(l, sc.Prometheus),
+			hatchetprom.StartServer(l, sc.Prometheus.Address, sc.Prometheus.Path),
 			"prometheus",
 		)
 	}
@@ -343,6 +341,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			olap.WithMQQos(sc.Operations.OLAPMQQos),
 			olap.WithMaxRequeueCount(sc.MQMaxDeathCount),
 			olap.WithPrometheusGate(sc.PrometheusGate),
+			olap.WithAuditLogOutbox(sc.AuditLogOutbox),
 		)
 
 		if err != nil {
@@ -651,7 +650,8 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 
 func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.Cleanup) (err error) {
 	var l = sc.Logger
-	o11yUsage := startO11yUsage(sc, cleanup)
+	o11yUsage, registerO11yUsageShutdown := startO11yUsage(sc, cleanup)
+	defer registerO11yUsageShutdown()
 
 	telemetryShutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
 		ServiceName:   sc.OpenTelemetry.ServiceName,
@@ -684,7 +684,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	}()
 
 	if sc.Prometheus.Enabled {
-		cleanup.Add(startPrometheus(l, sc.Prometheus), "prometheus")
+		cleanup.Add(hatchetprom.StartServer(l, sc.Prometheus.Address, sc.Prometheus.Path), "prometheus")
 	}
 
 	p, err := partition.NewPartition(l, sc.V1.Tenant())
@@ -822,6 +822,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				olap.WithMQQos(sc.Operations.OLAPMQQos),
 				olap.WithMaxRequeueCount(sc.MQMaxDeathCount),
 				olap.WithPrometheusGate(sc.PrometheusGate),
+				olap.WithAuditLogOutbox(sc.AuditLogOutbox),
 			)
 
 			if err != nil {
@@ -1007,6 +1008,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			streamssvc.WithPubSub(sc.PubSubV1),
 			streamssvc.WithRepositoryV1(sc.V1),
 			streamssvc.WithLogger(sc.Logger),
+			streamssvc.WithUsage(o11yUsage),
 		)
 
 		if err != nil {
@@ -1195,37 +1197,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	}
 
 	return nil
-}
-
-func startPrometheus(l *zerolog.Logger, c shared.PrometheusConfigFile) func() error {
-	mux := http.NewServeMux()
-	mux.Handle(c.Path, promhttp.Handler())
-
-	srv := &http.Server{
-		Addr:              c.Address,
-		Handler:           mux,
-		ReadHeaderTimeout: 5 * time.Second,
-	}
-
-	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			l.Error().Err(err).Msg("failed to start prometheus server")
-		}
-	}()
-
-	l.Info().Msgf("Prometheus server started on %s", c.Address)
-
-	return func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		if err := srv.Shutdown(ctx); err != nil {
-			return fmt.Errorf("failed to shutdown prometheus server: %w", err)
-		}
-
-		l.Info().Msg("Prometheus server shutdown gracefully")
-		return nil
-	}
 }
 
 type ControllerName string

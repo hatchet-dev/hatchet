@@ -90,3 +90,27 @@ hatchet profile remove
 ```
 
 If you remove a profile that is set as the default, the default profile setting will be automatically cleared.
+
+## Where Tokens Are Stored
+
+Profile metadata lives in `~/.hatchet/profiles.yaml`. API tokens are stored in the system secret store instead of that file: the macOS Keychain, Windows Credential Manager, or the Secrets Service on Linux (GNOME Keyring, KWallet). `profiles.yaml` then contains no credentials, so it is safe to inspect, back up, or sync.
+
+Profiles created by older CLI versions keep their tokens in `profiles.yaml`. The next time you run any command, the CLI moves them into the secret store automatically and prints a one-line note. Nothing is ever written back to `profiles.yaml` in plain text.
+
+When no secret store is available, for example on a headless Linux server, in a container, or in CI, the CLI falls back to keeping tokens in `profiles.yaml` and prints a warning on every command. `hatchet profile list` and `hatchet profile show` also mark any profile whose token is stored in plain text.
+
+To get a token out again, for example to configure a worker, use the read-only commands rather than the file:
+
+```sh
+# Shell exports for the SDKs
+eval "$(hatchet profile env --name [name])"
+
+# Print the full token
+hatchet profile show --name [name] --show-token
+```
+
+<Callout type="info">
+  A migrated `profiles.yaml` has no tokens in it, so CLI versions that predate
+  this feature cannot read those profiles. Re-add them on the older version with{" "}
+  <code>hatchet profile add --token</code>.
+</Callout>

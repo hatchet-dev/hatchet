@@ -1,10 +1,12 @@
 package server
 
 import (
+	"context"
 	"crypto/tls"
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
@@ -27,6 +29,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/o11yusage"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/scheduling"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
@@ -176,9 +180,9 @@ type DefaultTenantEntitlementsConfigFile struct {
 	AuditLogs                       bool `mapstructure:"auditLogs" json:"auditLogs,omitempty" default:"false"`
 	PrometheusMetrics               bool `mapstructure:"prometheusMetrics" json:"prometheusMetrics,omitempty" default:"false"`
 	StrictAdditionalMetadataFilters bool `mapstructure:"strictAdditionalMetadataFilters" json:"strictAdditionalMetadataFilters,omitempty" default:"false"`
-	DAGOperator                     bool `mapstructure:"dagOperator" json:"dagOperator,omitempty" default:"false"`
 	DurableStreams                  bool `mapstructure:"durableStreams" json:"durableStreams,omitempty" default:"false"`
 	ServerlessOperator              bool `mapstructure:"serverlessOperator" json:"serverlessOperator,omitempty" default:"false"`
+	SandboxOperator                 bool `mapstructure:"sandboxOperator" json:"sandboxOperator,omitempty" default:"false"`
 }
 
 // General server runtime options
@@ -324,9 +328,10 @@ type ConfigFileRuntime struct {
 	// The loader splits this into OperatorInfraBlockedCIDRs at startup.
 	OperatorInfraBlockedCIDRsString string `mapstructure:"operatorInfraBlockedCIDRsString" json:"operatorInfraBlockedCIDRsString,omitempty"`
 
-	// DagOperatorDefaultSlots is the worker slot count for the dag operator (i.e. how many DAG runs a single DAG operator worker
-	// orchestrates concurrently)
-	DagOperatorDefaultSlots int `mapstructure:"dagOperatorDefaultSlots" json:"dagOperatorDefaultSlots,omitempty" default:"10000"`
+	// DagOperatorDefaultSlots is how many DAG runs one DAG operator worker orchestrates at once.
+	// Every engine pod runs a DAG worker for each tenant, so a tenant gets this many per pod, and
+	// the scheduler rebuilds one entry per free slot about every second, even for idle tenants.
+	DagOperatorDefaultSlots int `mapstructure:"dagOperatorDefaultSlots" json:"dagOperatorDefaultSlots,omitempty" default:"5000"`
 
 	// GRPCOperatorsEnabled registers the v1.OperatorService gRPC API for operators running outside the engine
 	// process. Off by default; when disabled the service is not registered and callers receive Unimplemented.
@@ -553,6 +558,13 @@ type ConfigFileAuthControlPlaneExchangeToken struct {
 
 	// Enabled controls whether the control plane exchange token authentication method is enabled for this Hatchet instance.
 	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
+}
+
+// DirectUserLoginDisabled reports whether password, OAuth, and session-cookie
+// login must be refused. Shards that accept control-plane exchange tokens are
+// reached through the control plane, so a direct user session is not a login.
+func (a ConfigFileAuth) DirectUserLoginDisabled() bool {
+	return a.ControlPlaneExchangeTokenConfig.Enabled
 }
 
 type ConfigFileTenantAlerting struct {
@@ -924,11 +936,15 @@ type ServerConfig struct {
 
 	SchedulingPoolV1 scheduling.Pool
 
+	AuditLogOutbox *v1.AuditLogOutbox
+
 	Sampling ConfigFileSampling
 
 	Operations ConfigFileOperations
 
 	GRPCInterceptors []connect.UnaryInterceptorFunc
+
+	InprocOperators []InprocOperator
 
 	Version string
 
@@ -972,6 +988,15 @@ func (c *ServerConfig) HasService(name string) bool {
 
 func (c *ServerConfig) AddGRPCUnaryInterceptor(interceptor connect.UnaryInterceptorFunc) {
 	c.GRPCInterceptors = append(c.GRPCInterceptors, interceptor)
+}
+
+type InprocOperator struct {
+	Name string
+	Run  func(ctx context.Context, processId uuid.UUID, host operator.Host) error
+}
+
+func (c *ServerConfig) AddInprocOperator(op InprocOperator) {
+	c.InprocOperators = append(c.InprocOperators, op)
 }
 
 func BindAllEnv(v *viper.Viper) {
@@ -1064,9 +1089,9 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.defaultTenantEntitlements.auditLogs", "SERVER_DEFAULT_TENANT_ENTITLEMENT_AUDIT_LOGS")
 	_ = v.BindEnv("runtime.defaultTenantEntitlements.prometheusMetrics", "SERVER_DEFAULT_TENANT_ENTITLEMENT_PROMETHEUS_METRICS")
 	_ = v.BindEnv("runtime.defaultTenantEntitlements.strictAdditionalMetadataFilters", "SERVER_DEFAULT_TENANT_ENTITLEMENT_STRICT_ADDITIONAL_METADATA_FILTERS")
-	_ = v.BindEnv("runtime.defaultTenantEntitlements.dagOperator", "SERVER_DEFAULT_TENANT_ENTITLEMENT_DAG_OPERATOR")
 	_ = v.BindEnv("runtime.defaultTenantEntitlements.durableStreams", "SERVER_DEFAULT_TENANT_ENTITLEMENT_DURABLE_STREAMS")
 	_ = v.BindEnv("runtime.defaultTenantEntitlements.serverlessOperator", "SERVER_DEFAULT_TENANT_ENTITLEMENT_SERVERLESS_OPERATOR")
+	_ = v.BindEnv("runtime.defaultTenantEntitlements.sandboxOperator", "SERVER_DEFAULT_TENANT_ENTITLEMENT_SANDBOX_OPERATOR")
 
 	// limit options
 	_ = v.BindEnv("runtime.limits.defaultTenantRetentionPeriod", "SERVER_LIMITS_DEFAULT_TENANT_RETENTION_PERIOD")
@@ -1304,7 +1329,6 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("statusUpdates.dagBatchSizeLimit", "SERVER_OLAP_STATUS_UPDATE_DAG_BATCH_SIZE_LIMIT")
 	_ = v.BindEnv("statusUpdates.taskBatchSizeLimit", "SERVER_OLAP_STATUS_UPDATE_TASK_BATCH_SIZE_LIMIT")
 	_ = v.BindEnv("olap.olapMqQos", "SERVER_OLAP_MQ_QOS")
-
 	// exchange token options
 	_ = v.BindEnv("auth.controlPlaneExchangeToken.enabled", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_ENABLED")
 	_ = v.BindEnv("auth.controlPlaneExchangeToken.jwtPublicKeyset", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_JWT_PUBLIC_KEYSET")

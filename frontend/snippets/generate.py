@@ -32,6 +32,7 @@ class ParsingContext:
     example_path: str
     extension: str
     comment_prefix: str
+    output_name: str | None = None
 
 
 class SDKParsingContext(Enum):
@@ -42,6 +43,12 @@ class SDKParsingContext(Enum):
         example_path="sdks/typescript/src/v1/examples",
         extension=".ts",
         comment_prefix="//",
+    )
+    TYPESCRIPT_SANDBOX = ParsingContext(
+        example_path="sdks/typescript-sandbox/examples",
+        extension=".ts",
+        comment_prefix="//",
+        output_name="typescript-sandbox",
     )
     GO = ParsingContext(
         example_path="sdks/go/examples", extension=".go", comment_prefix="//"
@@ -123,7 +130,7 @@ def parse_snippets(ctx: SDKParsingContext, filename: str) -> list[Snippet]:
     with open(filename) as f:
         content = f.read()
 
-    code_path = f"examples/{ctx.name.lower()}{filename.replace(base_path, '')}"
+    code_path = f"examples/{ctx.value.output_name or ctx.name.lower()}{filename.replace(base_path, '')}"
 
     github_url = f"https://github.com/{OUTPUT_GITHUB_ORG}/{OUTPUT_GITHUB_REPO}/tree/main/{code_path}"
 
@@ -159,7 +166,7 @@ def process_example(ctx: SDKParsingContext, filename: str) -> ProcessedExample:
         return ProcessedExample(
             context=ctx,
             filepath=filename,
-            output_path=f"examples/{ctx.name.lower()}{filename.replace(ROOT + ctx.value.example_path, '')}",
+            output_path=f"examples/{ctx.value.output_name or ctx.name.lower()}{filename.replace(ROOT + ctx.value.example_path, '')}",
             snippets=parse_snippets(ctx, filename),
             raw_content=content,
         )
