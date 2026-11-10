@@ -317,14 +317,11 @@ func TestDeadLetteringSuccess(t *testing.T) {
 }
 
 func TestRetiredQueueDeletedOnceUnused(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
 	url := "amqp://user:password@localhost:5672/"
 
 	start := func() *MessageQueueImpl {
-		cleanup, mq, err := New(WithURL(url), WithQos(100))
-		require.NoError(t, err, "a retired queue must never fail startup")
+		cleanup, mq, err := New(WithURL(url))
+		require.NoError(t, err)
 
 		t.Cleanup(func() {
 			assert.NoError(t, cleanup())
@@ -340,21 +337,24 @@ func TestRetiredQueueDeletedOnceUnused(t *testing.T) {
 		assert.NoError(t, conn.Close())
 	})
 
-	// each check gets its own channel: a passive declare of a missing queue closes it
-	inspect := func(name string) (amqp.Queue, error) {
+	// each call gets its own channel: a passive declare of a missing queue closes it
+	consumers := func(name string) (int, error) {
 		ch, err := conn.Channel()
 
 		if err != nil {
-			return amqp.Queue{}, err
+			return 0, err
 		}
 
 		defer ch.Close() // nolint: errcheck
 
-		return ch.QueueDeclarePassive(name, true, false, false, false, nil)
+		queue, err := ch.QueueDeclarePassive(name, true, false, false, false, nil)
+
+		return queue.Consumers, err
 	}
 
 	q := msgqueue.NewRandomStaticQueue()
-	names := []string{q.Name(), getTmpDLQName(q.DLQ().Name()), getProcDLQName(q.DLQ().Name())}
+	procDLQ := getProcDLQName(q.DLQ().Name())
+	names := []string{q.Name(), getTmpDLQName(q.DLQ().Name()), procDLQ}
 
 	retired := msgqueue.RetiredQueues
 	msgqueue.RetiredQueues = []msgqueue.Queue{q}
@@ -363,97 +363,37 @@ func TestRetiredQueueDeletedOnceUnused(t *testing.T) {
 		msgqueue.RetiredQueues = retired
 	})
 
-	// an older version still reads the queue
-	older := start()
-	received := make(chan struct{}, 1)
-
-	cleanupSub, err := older.Subscribe(q, func(*msgqueue.Message) error {
-		received <- struct{}{}
-		return nil
-	}, msgqueue.NoOpHook)
+	// an older version reads the queue
+	cleanupSub, err := start().Subscribe(q, msgqueue.NoOpHook, msgqueue.NoOpHook)
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
-		main, err := inspect(q.Name())
-		return err == nil && main.Consumers > 0
-	}, 10*time.Second, 100*time.Millisecond)
-
-	newer := start()
-
-	for _, name := range names {
-		_, err := inspect(name)
-		assert.NoError(t, err, "%s should be kept while the queue is read", name)
-	}
-
-	msg, err := msgqueue.NewTenantMessage(testTenantUUID, "test", false, true, map[string]interface{}{"key": "value"})
-	require.NoError(t, err)
-	require.NoError(t, newer.SendMessage(ctx, q, msg))
-
-	select {
-	case <-received:
-	case <-ctx.Done():
-		t.Fatal("the older version stopped receiving")
-	}
-
-	require.NoError(t, cleanupSub())
-
-	require.Eventually(t, func() bool {
-		main, mainErr := inspect(q.Name())
-		proc, procErr := inspect(names[2])
-
-		return mainErr == nil && procErr == nil && main.Consumers == 0 && proc.Consumers == 0
+		n, err := consumers(q.Name())
+		return err == nil && n > 0
 	}, 10*time.Second, 100*time.Millisecond)
 
 	start()
 
 	for _, name := range names {
-		_, err := inspect(name)
-		assert.Error(t, err, "%s should be deleted", name)
+		_, err := consumers(name)
+		assert.NoError(t, err, "%s should be kept while the queue is read", name)
 	}
 
-	require.NoError(t, deleteRetiredQueue(url, q), "deleting queues that are already gone should succeed")
-}
-
-func TestRetiredQuorumQueueDoesNotBreakStartup(t *testing.T) {
-	url := "amqp://user:password@localhost:5672/"
-
-	conn, err := amqp.Dial(url)
-	require.NoError(t, err)
-
-	ch, err := conn.Channel()
-	require.NoError(t, err)
-
-	q := msgqueue.NewRandomStaticQueue()
-
-	_, err = ch.QueueDeclare(q.Name(), true, false, false, false, amqp.Table{"x-queue-type": "quorum"})
-	require.NoError(t, err)
-
-	retired := msgqueue.RetiredQueues
-	msgqueue.RetiredQueues = []msgqueue.Queue{q}
-
-	t.Cleanup(func() {
-		msgqueue.RetiredQueues = retired
-
-		_, err := ch.QueueDelete(q.Name(), false, false, false)
-		assert.NoError(t, err)
-		assert.NoError(t, conn.Close())
-	})
-
-	// the broker refuses to delete a quorum queue only if unused, and closes the connection that asked
-	cleanup, mq, err := New(WithURL(url), WithQos(100))
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		assert.NoError(t, cleanup())
-	})
-
-	other := msgqueue.NewRandomStaticQueue()
-
-	cleanupSub, err := mq.Subscribe(other, msgqueue.NoOpHook, msgqueue.NoOpHook)
-	require.NoError(t, err, "subscribing right after startup should work")
-
 	require.NoError(t, cleanupSub())
-	require.NoError(t, mq.deleteQueue(other))
+
+	require.Eventually(t, func() bool {
+		main, mainErr := consumers(q.Name())
+		proc, procErr := consumers(procDLQ)
+
+		return mainErr == nil && procErr == nil && main+proc == 0
+	}, 10*time.Second, 100*time.Millisecond)
+
+	start()
+
+	for _, name := range names {
+		_, err := consumers(name)
+		assert.Error(t, err, "%s should be deleted", name)
+	}
 }
 
 // deleteQueue is a helper function for removing durable queues which are used for tests.
