@@ -80,13 +80,15 @@ func TestPostgresPubSubNotifyRoundtrip(t *testing.T) {
 	withPayload, err := msgqueue.NewTenantMessage(tenantId, "task-completed", true, false, map[string]interface{}{"key": "value"})
 	require.NoError(t, err)
 
+	// a cron change is sent like this: the message ID alone is the signal
+	withoutPayloads := &msgqueue.Message{ID: msgqueue.MsgIDCronUpdate, TenantID: tenantId}
+
 	tests := []struct {
 		name string
 		msg  *msgqueue.Message
 	}{
 		{name: "with a payload", msg: withPayload},
-		// a cron change is sent like this: the message ID alone is the signal
-		{name: "without payloads", msg: &msgqueue.Message{ID: msgqueue.MsgIDCronUpdate, TenantID: tenantId}},
+		{name: "without payloads", msg: withoutPayloads},
 	}
 
 	for _, tt := range tests {
