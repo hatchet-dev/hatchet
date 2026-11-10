@@ -63,7 +63,7 @@ func defaultPubSubOpts() *PubSubOpts {
 	return &PubSubOpts{
 		l:              &l,
 		maxPubChannels: 10,
-		maxSubChannels: 21,
+		maxSubChannels: 20,
 	}
 }
 

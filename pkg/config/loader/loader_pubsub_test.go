@@ -36,7 +36,7 @@ func TestPubSubSettingsInheritance(t *testing.T) {
 			wantKind:   "rabbitmq",
 			wantURL:    "amqp://user:password@rabbit:5672/",
 			wantMaxPub: 10,
-			wantMaxSub: 21,
+			wantMaxSub: 20,
 		},
 		{
 			name: "legacy taskqueue aliases only",
@@ -47,7 +47,7 @@ func TestPubSubSettingsInheritance(t *testing.T) {
 			wantKind:   "rabbitmq",
 			wantURL:    "amqp://legacy:password@rabbit:5672/",
 			wantMaxPub: 10,
-			wantMaxSub: 21,
+			wantMaxSub: 20,
 		},
 		{
 			name: "postgres durable only",
@@ -57,7 +57,7 @@ func TestPubSubSettingsInheritance(t *testing.T) {
 			wantKind:   "postgres",
 			wantURL:    "",
 			wantMaxPub: 10,
-			wantMaxSub: 21,
+			wantMaxSub: 20,
 		},
 		{
 			name: "explicit pubsub overrides",
@@ -85,7 +85,7 @@ func TestPubSubSettingsInheritance(t *testing.T) {
 			wantURL:     "amqp://user:password@rabbit:5672/",
 			wantNatsURL: "nats://nats:4222",
 			wantMaxPub:  10,
-			wantMaxSub:  21,
+			wantMaxSub:  20,
 		},
 		{
 			name: "nats pubsub with postgres durable",
@@ -98,7 +98,7 @@ func TestPubSubSettingsInheritance(t *testing.T) {
 			wantURL:     "",
 			wantNatsURL: "nats://127.0.0.1:4222,nats://127.0.0.1:4223",
 			wantMaxPub:  10,
-			wantMaxSub:  21,
+			wantMaxSub:  20,
 		},
 		{
 			name: "nats pubsub with username and password",
@@ -116,7 +116,7 @@ func TestPubSubSettingsInheritance(t *testing.T) {
 			wantNatsUsername: "hatchet",
 			wantNatsPassword: "s3cret",
 			wantMaxPub:       10,
-			wantMaxSub:       21,
+			wantMaxSub:       20,
 		},
 		{
 			name: "nats pubsub with tls enabled and root ca file",
@@ -134,7 +134,7 @@ func TestPubSubSettingsInheritance(t *testing.T) {
 			wantNatsTLSEnabled:    true,
 			wantNatsTLSRootCAFile: "/etc/hatchet/nats-ca.pem",
 			wantMaxPub:            10,
-			wantMaxSub:            21,
+			wantMaxSub:            20,
 		},
 		{
 			name: "nats pubsub with subject prefix",
@@ -150,7 +150,7 @@ func TestPubSubSettingsInheritance(t *testing.T) {
 			wantNatsURL:           "nats://nats:4222",
 			wantNatsSubjectPrefix: "my.prefix",
 			wantMaxPub:            10,
-			wantMaxSub:            21,
+			wantMaxSub:            20,
 		},
 	}
 

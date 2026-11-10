@@ -2,7 +2,6 @@ package ticker
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -42,7 +41,6 @@ type TickerImpl struct {
 	userCronSchedulerLock sync.Mutex
 
 	userCronRefreshLock sync.Mutex
-	cronRefreshInterval time.Duration
 
 	// maps a unique key for the cron schedule to a UUID, because the gocron library depends on uuids
 	// as unique identifiers for scheduled jobs
@@ -151,7 +149,6 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 		ta:                     opts.ta,
 		userCronScheduler:      userCronScheduler,
 		userCronSchedulesToIds: make(map[string]string),
-		cronRefreshInterval:    time.Second,
 	}, nil
 }
 
@@ -172,6 +169,17 @@ func (t *TickerImpl) Start() (func() error, error) {
 	// initialize the cron schedules, so no need to wait for 15 seconds or
 	// a cron to be created
 	t.refreshCronSchedules(ctx)()
+
+	// add a handler to update the cron schedule on-demand when crons change
+	cronUpdateHandler := func(task *msgqueue.Message) error {
+		t.refreshCronSchedules(ctx)()
+		return nil
+	}
+	cleanupCronRefresh, err := t.pubsub.Sub(msgqueue.CronRefreshTopic(), cronUpdateHandler)
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not subscribe to cron refresh topic: %w", err)
+	}
 
 	_, err = t.s.NewJob(
 		gocron.DurationJob(time.Second*5),
@@ -241,13 +249,6 @@ func (t *TickerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not schedule tenant resource limit alert polling: %w", err)
 	}
 
-	cleanupCronRefresh, err := t.subscribeCronRefresh(ctx)
-
-	if err != nil {
-		cancel()
-		return nil, err
-	}
-
 	t.s.Start()
 	t.userCronScheduler.Start()
 
@@ -256,8 +257,8 @@ func (t *TickerImpl) Start() (func() error, error) {
 
 		cancel()
 
-		if err := cleanupCronRefresh(); err != nil {
-			t.l.Err(err).Ctx(ctx).Msg("could not clean up cron refresh subscriptions")
+		if err = cleanupCronRefresh(); err != nil {
+			t.l.Err(err).Ctx(ctx).Msg("Could not cleanup cron refresh subscription")
 		}
 
 		if err := t.s.Shutdown(); err != nil {
@@ -283,62 +284,6 @@ func (t *TickerImpl) Start() (func() error, error) {
 	}
 
 	return cleanup, nil
-}
-
-// subscribeCronRefresh refreshes the cron schedules when a cron changes.
-func (t *TickerImpl) subscribeCronRefresh(ctx context.Context) (func() error, error) {
-	requests := make(chan struct{}, 1)
-
-	handler := func(*msgqueue.Message) error {
-		select {
-		case requests <- struct{}{}:
-		default:
-		}
-
-		return nil
-	}
-
-	cleanupTopic, err := t.pubsub.Sub(msgqueue.CronRefreshTopic(), handler)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not subscribe to cron refresh topic: %w", err)
-	}
-
-	// older API and engine versions send cron changes to this queue instead
-	cleanupQueue, err := t.mqv1.Subscribe(msgqueue.TICKER_UPDATE_QUEUE, handler, msgqueue.NoOpHook)
-
-	if err != nil {
-		return nil, errors.Join(fmt.Errorf("could not subscribe to cron trigger update queue: %w", err), cleanupTopic())
-	}
-
-	go t.runCronRefreshes(ctx, requests)
-
-	return func() error {
-		return errors.Join(cleanupTopic(), cleanupQueue())
-	}, nil
-}
-
-// runCronRefreshes refreshes once per request, at most once per
-// cronRefreshInterval. Every ticker receives every cron change, and workers
-// re-register their crons on startup, so a burst of changes must not turn into
-// one full cron poll per message on each ticker. Requests that arrive during a
-// refresh or its cooldown fold into one more refresh.
-func (t *TickerImpl) runCronRefreshes(ctx context.Context, requests <-chan struct{}) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-requests:
-		}
-
-		t.refreshCronSchedules(ctx)()
-
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(t.cronRefreshInterval):
-		}
-	}
 }
 
 func (t *TickerImpl) runUpdateHeartbeat(ctx context.Context) func() {
