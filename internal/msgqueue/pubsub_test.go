@@ -19,6 +19,9 @@ func TestTopicNames(t *testing.T) {
 	schedulerTopic := SchedulerPartitionTopic("mypartition")
 	assert.Equal(t, "mypartition_scheduler_v1", schedulerTopic.Name())
 	assert.Equal(t, TopicKindSchedulerPartition, schedulerTopic.Kind())
+
+	assert.Equal(t, "cron_refresh_v1", CronRefreshTopic().Name())
+	assert.Equal(t, TopicKindCronRefresh, CronRefreshTopic().Kind())
 }
 
 type recordingPubSub struct {

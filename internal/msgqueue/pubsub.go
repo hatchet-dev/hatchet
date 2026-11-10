@@ -24,7 +24,25 @@ const (
 
 	// TopicKindStreamWake fans durable-stream wakes out to every engine.
 	TopicKindStreamWake TopicKind = "stream-wake"
+
+	// TopicKindCronRefresh fans cron changes out to every ticker.
+	TopicKindCronRefresh TopicKind = "cron-refresh"
 )
+
+// Fanout reports whether every subscriber of a topic of this kind gets its own
+// copy of each message. A scheduler partition topic has a single subscriber.
+//
+// The switch names every kind so that the exhaustive linter flags a new one.
+func (k TopicKind) Fanout() bool {
+	switch k {
+	case TopicKindTenantStream, TopicKindStreamWake, TopicKindCronRefresh:
+		return true
+	case TopicKindSchedulerPartition:
+		return false
+	}
+
+	return true
+}
 
 // Topic identifies a best-effort pub/sub destination.
 type Topic struct {
@@ -66,6 +84,15 @@ func StreamWakeTopic() Topic {
 	return Topic{
 		name: "stream_wake_v1",
 		kind: TopicKindStreamWake,
+	}
+}
+
+// CronRefreshTopic tells every ticker that a tenant's crons changed. Tickers
+// also re-read their crons every 15s, so a lost message only delays the change.
+func CronRefreshTopic() Topic {
+	return Topic{
+		name: "cron_refresh_v1",
+		kind: TopicKindCronRefresh,
 	}
 }
 
