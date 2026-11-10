@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -313,6 +314,101 @@ func TestDeadLetteringSuccess(t *testing.T) {
 	if err := cleanupQueue(); err != nil {
 		t.Fatalf("error cleaning up queue: %v", err)
 	}
+}
+
+func TestRetiredQueueDeletedOnceUnused(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	url := "amqp://user:password@localhost:5672/"
+
+	start := func() *MessageQueueImpl {
+		cleanup, mq, err := New(WithURL(url), WithQos(100))
+		require.NoError(t, err, "a retired queue must never fail startup")
+
+		t.Cleanup(func() {
+			assert.NoError(t, cleanup())
+		})
+
+		return mq
+	}
+
+	conn, err := amqp.Dial(url)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		assert.NoError(t, conn.Close())
+	})
+
+	// each check gets its own channel: a passive declare of a missing queue closes it
+	inspect := func(name string) (amqp.Queue, error) {
+		ch, err := conn.Channel()
+		require.NoError(t, err)
+
+		defer ch.Close() // nolint: errcheck
+
+		return ch.QueueDeclarePassive(name, true, false, false, false, nil)
+	}
+
+	q := msgqueue.NewRandomStaticQueue()
+	names := []string{q.Name(), getTmpDLQName(q.DLQ().Name()), getProcDLQName(q.DLQ().Name())}
+
+	retired := msgqueue.RetiredQueues
+	msgqueue.RetiredQueues = []msgqueue.Queue{q}
+
+	t.Cleanup(func() {
+		msgqueue.RetiredQueues = retired
+	})
+
+	// an older version still reads the queue
+	older := start()
+	received := make(chan struct{}, 1)
+
+	cleanupSub, err := older.Subscribe(q, func(*msgqueue.Message) error {
+		received <- struct{}{}
+		return nil
+	}, msgqueue.NoOpHook)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		main, err := inspect(q.Name())
+		return err == nil && main.Consumers > 0
+	}, 10*time.Second, 100*time.Millisecond)
+
+	newer := start()
+
+	for _, name := range names {
+		_, err := inspect(name)
+		assert.NoError(t, err, "%s should be kept while the queue is read", name)
+	}
+
+	msg, err := msgqueue.NewTenantMessage(testTenantUUID, "test", false, true, map[string]interface{}{"key": "value"})
+	require.NoError(t, err)
+	require.NoError(t, newer.SendMessage(ctx, q, msg))
+
+	select {
+	case <-received:
+	case <-ctx.Done():
+		t.Fatal("the older version stopped receiving")
+	}
+
+	require.NoError(t, cleanupSub())
+
+	require.Eventually(t, func() bool {
+		main, mainErr := inspect(q.Name())
+		proc, procErr := inspect(names[2])
+
+		return mainErr == nil && procErr == nil && main.Consumers == 0 && proc.Consumers == 0
+	}, 10*time.Second, 100*time.Millisecond)
+
+	newest := start()
+
+	for _, name := range names {
+		_, err := inspect(name)
+		assert.Error(t, err, "%s should be deleted", name)
+	}
+
+	require.NoError(t, newest.deleteRetiredQueue(ctx, q), "deleting queues that are already gone should succeed")
 }
 
 // deleteQueue is a helper function for removing durable queues which are used for tests.
