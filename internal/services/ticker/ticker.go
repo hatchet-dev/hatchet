@@ -76,6 +76,7 @@ func WithMessageQueueV1(mq msgqueue.MessageQueue) TickerOpt {
 	}
 }
 
+// WithPubSub supplies the pubsub the ticker receives cron refresh notifications on.
 func WithPubSub(pubsub msgqueue.PubSub) TickerOpt {
 	return func(opts *TickerOpts) {
 		opts.pubsub = pubsub
