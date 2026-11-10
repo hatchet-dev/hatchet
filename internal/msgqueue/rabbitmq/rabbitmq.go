@@ -232,7 +232,7 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl, error) {
 	for _, q := range msgqueue.RetiredQueues {
 		// a queue that cannot be deleted yet is left for a later start
 		if err := deleteRetiredQueue(opts.url, q); err != nil {
-			t.l.Info().Msgf("not deleting retired queue %s: %v", q.Name(), err)
+			t.l.Info().Err(err).Str("queue_name", q.Name()).Msg("not deleting retired queue")
 		}
 	}
 
