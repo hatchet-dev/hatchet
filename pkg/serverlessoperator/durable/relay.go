@@ -240,6 +240,7 @@ func Run(ctx context.Context, p Params) Outcome {
 	conn, err := dial(ctx, &p)
 
 	if err != nil {
+		p.Logger.Warn().Err(err).Str("task_id", p.TaskId).Msg("could not open websocket")
 		return classifyDialError(ctx, &p, err)
 	}
 
@@ -490,6 +491,8 @@ func (r *relay) onReadError(err error) {
 
 		return
 	}
+
+	r.l.Warn().Err(err).Str("task_id", r.p.TaskId).Msg("websocket read failed")
 
 	var netErr net.Error
 
@@ -798,6 +801,7 @@ func (r *relay) writeLoop() {
 
 			if err := r.conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(closeWriteTimeout)); err != nil {
 				if !r.stopped() {
+					r.l.Warn().Err(err).Str("task_id", r.p.TaskId).Msg("websocket ping failed")
 					r.closedWithoutDone(fmt.Sprintf("websocket ping failed: %s", transportMessage(r.p.TriggerURL, err)))
 				}
 
@@ -819,6 +823,7 @@ func (r *relay) writeQueued(frame []byte) bool {
 
 	if err := r.write(frame); err != nil {
 		if !r.stopped() {
+			r.l.Warn().Err(err).Str("task_id", r.p.TaskId).Msg("websocket write failed")
 			r.closedWithoutDone(fmt.Sprintf("websocket write failed: %s", transportMessage(r.p.TriggerURL, err)))
 		}
 

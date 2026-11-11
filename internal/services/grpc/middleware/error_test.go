@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -96,6 +97,40 @@ func TestErrorInterceptorUnknownStillInternalAndAlerts(t *testing.T) {
 	assert.Equal(t, connect.CodeInternal, connect.CodeOf(err))
 	assert.NotContains(t, err.Error(), "boom")
 	assert.Equal(t, 1, alerter.n)
+}
+
+func TestErrorInterceptorLogsWrappedCauseWithoutExposingIt(t *testing.T) {
+	for _, streaming := range []bool{false, true} {
+		name := "unary"
+		if streaming {
+			name = "streaming"
+		}
+		t.Run(name, func(t *testing.T) {
+			var logs bytes.Buffer
+			l := zerolog.New(&logs)
+			alerter := &countingAlerter{}
+			interceptor := NewErrorInterceptor(alerter, &l).Interceptor()
+			cause := fmt.Errorf("failed to ingest memo event: %w", errors.New("private database failure"))
+
+			var err error
+			if streaming {
+				err = interceptor.WrapStreamingHandler(func(context.Context, connect.StreamingHandlerConn) error {
+					return cause
+				})(context.Background(), stubHandlerConn{})
+			} else {
+				_, err = interceptor.WrapUnary(func(context.Context, connect.AnyRequest) (connect.AnyResponse, error) {
+					return nil, cause
+				})(context.Background(), connect.NewRequest(&struct{}{}))
+			}
+
+			require.Error(t, err)
+			assert.Equal(t, connect.CodeInternal, connect.CodeOf(err))
+			assert.NotContains(t, err.Error(), "private database failure")
+			assert.NotContains(t, err.Error(), "failed to ingest memo event")
+			assert.Contains(t, logs.String(), cause.Error())
+			assert.Equal(t, 1, alerter.n)
+		})
+	}
 }
 
 func TestErrorInterceptorPassesThroughExistingCode(t *testing.T) {
