@@ -26,8 +26,11 @@ func TestEventTriggersWorkflowCreatedRightAfterItsKeyWasLookedUp(t *testing.T) {
 	registering := newBatchTestRepository(pool).sharedRepository
 	other := newBatchTestRepository(pool).sharedRepository
 
+	announcements := 0
+
 	workflows := &workflowRepository{sharedRepository: registering}
 	workflows.RegisterVersionCreatedCallback(func(_ context.Context, tenantId uuid.UUID) {
+		announcements++
 		other.InvalidateEventKeyWorkflows(tenantId)
 	})
 
@@ -60,4 +63,9 @@ func TestEventTriggersWorkflowCreatedRightAfterItsKeyWasLookedUp(t *testing.T) {
 	for name, shared := range engines {
 		assert.Len(t, pushEvent(shared), 1, "%s should trigger the workflow registered after the last event", name)
 	}
+
+	// Every worker start re-registers its workflows; an unchanged one must not flush every engine's cache.
+	_, err = workflows.PutWorkflowVersion(ctx, internalTenantId, opts)
+	require.NoError(t, err)
+	assert.Equal(t, 1, announcements, "re-registering an unchanged workflow should not announce a new version")
 }
