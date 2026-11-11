@@ -9,7 +9,16 @@ import LatestImageTags from "@/components/LatestImageTags";
 
 # Docker Compose Deployment
 
-This guide shows how to deploy Hatchet using Docker Compose for a production-ready deployment. If you'd like to get up and running quickly, you can also deploy Hatchet using the `hatchet-lite` image following the tutorial here: [Hatchet Lite Deployment](/self-hosting/hatchet-lite).
+This guide runs Hatchet as separate containers: Postgres, an optional RabbitMQ broker, the engine, and the dashboard. For a single container, see [Hatchet Lite](/self-hosting/hatchet-lite).
+
+<Callout type="warning">
+  The compose file below is a local quickstart. It uses published default
+  credentials, publishes Postgres and RabbitMQ on host ports, and serves gRPC
+  without TLS. Change the admin email and password, the database and RabbitMQ
+  credentials, and set `SERVER_GRPC_INSECURE` to `false` before exposing this
+  stack on a reachable network. See{" "}
+  <a href="/self-hosting/configuration-options">configuration options</a>.
+</Callout>
 
 This guide uses RabbitMQ as a message broker for Hatchet. This is optional: if you'd like to use Postgres as a message broker, modify the `setup-config` service in the `docker-compose.yml` file with the following env var, and delete all RabbitMQ references:
 
@@ -167,6 +176,8 @@ By default, a user is created with the following credentials:
 Email: admin@example.com
 Password: Admin123!!
 ```
+
+Change this email and password before exposing the instance beyond your machine.
 
 ## Run tasks against the Hatchet instance
 
