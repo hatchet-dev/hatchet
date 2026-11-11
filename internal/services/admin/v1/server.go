@@ -567,7 +567,7 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 			)
 
 			if err != nil {
-				return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to build idempotency collision error: %v", err))
+				return nil, err
 			}
 
 			collisionErr := connect.NewError(connect.CodeAlreadyExists, errors.New("idempotency key collision"))
@@ -618,7 +618,7 @@ func (a *AdminServiceImpl) BranchDurableTask(ctx context.Context, req *contracts
 
 	msg, err := msgqueue.NewTenantMessage(tenantId, msgqueue.MsgIDReplayTasks, false, true, replayPayload)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to create replay message: %v", err))
+		return nil, err
 	}
 
 	if err := a.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {

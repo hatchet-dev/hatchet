@@ -1183,7 +1183,7 @@ func (d *DispatcherServiceImpl) handleMemo(
 		},
 	})
 	if err != nil {
-		return connect.NewError(connect.CodeInternal, fmt.Errorf("failed to send memo ack: %v", err))
+		return err
 	}
 
 	return d.deliverSatisfiedEntries(invocation.tenantId, req.DurableTaskExternalId, ingestionResult)
@@ -1291,7 +1291,7 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 			Entries:               entries,
 		})
 		if msgErr != nil {
-			return connect.NewError(connect.CodeInternal, fmt.Errorf("failed to build durable run trigger message: %v", msgErr))
+			return msgErr
 		}
 
 		// publish before acking: if this is lost, the child task never gets created and the
@@ -1308,7 +1308,7 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 		},
 	})
 	if err != nil {
-		return connect.NewError(connect.CodeInternal, fmt.Errorf("failed to send trigger runs ack: %v", err))
+		return err
 	}
 
 	return d.deliverSatisfiedEntries(invocation.tenantId, req.DurableTaskExternalId, ingestionResult)
@@ -1429,7 +1429,7 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 		},
 	})
 	if err != nil {
-		return connect.NewError(connect.CodeInternal, fmt.Errorf("failed to send wait_for ack: %v", err))
+		return err
 	}
 
 	return d.deliverSatisfiedEntries(invocation.tenantId, req.DurableTaskExternalId, ingestionResult)

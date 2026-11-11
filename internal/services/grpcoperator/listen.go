@@ -169,7 +169,7 @@ func (s *OperatorServiceImpl) listen(ctx context.Context, stream listenStream, t
 						Message: &v1contracts.OperatorListenResponse_Ack{Ack: &v1contracts.OperatorActionsAck{Sequence: seq}},
 					}); err != nil {
 						l.Error().Ctx(ctx).Err(err).Uint64("sequence", seq).Msg("could not acknowledge operator actions delta")
-						return connect.NewError(connect.CodeUnavailable, fmt.Errorf("could not acknowledge actions delta %d: %w", seq, err))
+						return connect.NewError(connect.CodeUnavailable, fmt.Errorf("could not acknowledge actions delta %d", seq))
 					}
 				}
 			case *v1contracts.OperatorListenRequest_Pause:
@@ -183,7 +183,7 @@ func (s *OperatorServiceImpl) listen(ctx context.Context, stream listenStream, t
 					Message: &v1contracts.OperatorListenResponse_PauseAck{PauseAck: &v1contracts.OperatorPauseAck{IsPaused: msg.Pause.IsPaused}},
 				}); err != nil {
 					l.Error().Ctx(ctx).Err(err).Bool("paused", msg.Pause.IsPaused).Msg("could not acknowledge operator pause")
-					return connect.NewError(connect.CodeUnavailable, fmt.Errorf("could not acknowledge pause: %w", err))
+					return connect.NewError(connect.CodeUnavailable, errors.New("could not acknowledge pause"))
 				}
 
 				l.Info().Ctx(ctx).Bool("paused", msg.Pause.IsPaused).Msg("operator worker pause state changed")
