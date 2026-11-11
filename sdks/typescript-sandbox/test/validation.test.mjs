@@ -60,8 +60,7 @@ test('file operations validate input and parse provider output', async () => {
   assert.equal(await noEntry.exists('a'), false);
 
   const failing = new Files(async () => ({ error: { code: 'not_found', message: 'nope' } }));
-  await assert.rejects(
-    failing.exists('a'),
-    (e) => e instanceof FilesystemError && e.code === 'not_found'
-  );
+  const isNotFound = (e) => e instanceof FilesystemError && e.code === 'not_found';
+  await assert.rejects(failing.exists('a'), isNotFound);
+  await assert.rejects(failing.rename('a', 'b'), isNotFound);
 });

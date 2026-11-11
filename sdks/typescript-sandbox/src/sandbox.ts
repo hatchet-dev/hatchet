@@ -2,6 +2,15 @@ import { HatchetClient, JsonObject } from '@hatchet-dev/typescript-sdk/v1';
 import { z } from 'zod';
 import { Files } from './files.js';
 import { setupTelemetry } from './otel.js';
+import {
+  commandOutput,
+  metadata,
+  sandboxInfo,
+  turnInput,
+  turnResult,
+  type TurnInput,
+  type TurnResult,
+} from './wire.js';
 
 const TASK_NAMES = ['hatchet-sandbox', 'brickie-sandbox'];
 const taskNames = new WeakMap<HatchetClient, Promise<string>>();
@@ -42,29 +51,8 @@ function resolveTaskName(client: HatchetClient): Promise<string> {
   return pending;
 }
 
-interface TurnInput extends JsonObject {
-  sandboxId?: string;
-  image?: string;
-  fn: string;
-  input: JsonObject;
-  snapshotId?: string;
-  metadata?: Record<string, string>;
-  idleTtlMs?: number;
-  inheritMetadata?: boolean;
-}
-
 const positiveInt = z.int().positive();
 const nonEmpty = z.string().min(1);
-const metadata = z.record(z.string(), z.string());
-const timings = z.record(z.string(), z.number());
-
-const turnResult = z.looseObject({
-  output: z.looseObject({}),
-  sandboxId: z.string(),
-  snapshotId: z.string().optional(),
-  timings: timings.optional(),
-});
-type TurnResult = z.infer<typeof turnResult>;
 
 export interface Timings {
   /** Snapshot made after this turn. Absent for turns that do not change the workspace. */
@@ -80,13 +68,9 @@ export interface CommandResult extends Timings {
   exitCode: number;
 }
 
-const commandResult = z.looseObject({
-  stdout: z.string(),
-  stderr: z.string(),
-  exitCode: z.int(),
-  snapshotId: z.string().optional(),
-  timings: timings.optional(),
-});
+const commandResult = commandOutput.extend(
+  turnResult.pick({ snapshotId: true, timings: true }).shape
+);
 
 export interface SandboxOpts {
   /** Sandbox ID to use instead of a generated one. Lowercase letters, digits, and hyphens; must be new on the provider. */
@@ -157,7 +141,7 @@ const resources = z
     (r) => r.vcpu !== undefined || r.memory !== undefined || r.disk !== undefined,
     'set at least one of vcpu, memory, disk'
   )
-  .transform(({ vcpu, memory, disk }): JsonObject => ({ vcpu, memoryMib: memory, diskMib: disk }));
+  .transform(({ vcpu, memory, disk }) => ({ vcpu, memoryMib: memory, diskMib: disk }));
 
 const sandboxOpts = z
   .strictObject({
@@ -219,20 +203,13 @@ export interface SandboxInfo {
   lastUsed?: Date;
 }
 
-const sandboxInfo = z.looseObject({
-  sandboxId: z.string(),
-  metadata: metadata.optional(),
-  live: z.boolean(),
-  latestSnapshot: z.string().optional(),
-  createdAt: z.coerce.date(),
-  lastUsed: z.coerce.date().optional(),
-});
-
 type RunTurn = (input: TurnInput, opts?: { fresh?: boolean }) => Promise<TurnResult>;
 
 function turnRunner(client: HatchetClient): RunTurn {
   const resolved = resolveTaskName(client);
-  return async (input, opts) => {
+  return async (raw, opts) => {
+    const input = turnInput.parse(raw);
+    const payload = input as JsonObject;
     const name = await resolved;
     const additionalMetadata = {
       'hatchet.sandbox.fn': input.fn,
@@ -242,13 +219,13 @@ function turnRunner(client: HatchetClient): RunTurn {
     };
     const result = opts?.fresh
       ? await (
-          await client.admin.runWorkflow<TurnInput, Record<string, JsonObject>>(name, input, {
+          await client.admin.runWorkflow<JsonObject, Record<string, JsonObject>>(name, payload, {
             additionalMetadata,
           })
         ).result()
       : await client
-          .workflow<TurnInput, Record<string, JsonObject>>({ name })
-          .run(input, { additionalMetadata });
+          .workflow<JsonObject, Record<string, JsonObject>>({ name })
+          .run(payload, { additionalMetadata });
     return turnResult.parse(result[name] ?? result);
   };
 }

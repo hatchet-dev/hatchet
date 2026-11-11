@@ -8,6 +8,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Eac
 
 ## [0.1.5] - 2026-11-11
 
+### Added
+
+- `@hatchet-dev/sandbox/wire` exports the Zod schemas and types of the sandbox task protocol, `turnInput`, `turnResult`, `commandOutput`, `sandboxInfo`, `resources` and `metadata`. It imports nothing but `zod`, so code that spawns the sandbox task itself, such as a serverless durable task on an edge runtime where the main entry cannot load, can share the wire types instead of writing its own.
+
 ### Changed
 
 - Every option the SDK accepts is now checked with Zod before a task is sent. Unknown option keys, an empty sandbox ID, path, or command, a non-positive `idleTimeoutMs`, `timeoutMs`, or `depth`, a sandbox `id` outside lowercase letters, digits, and hyphens, `inheritParentMetadata` without `from`, and a `download` or `upload` URL that is not https are rejected with a `ZodError`. The `resources` and `delete` checks that already existed throw a `ZodError` instead of a plain `Error`. Provider responses are checked the same way, so a malformed result fails the call instead of surfacing later as a missing field. `zod` 4 is a dependency of the package.

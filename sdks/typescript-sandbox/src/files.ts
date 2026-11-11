@@ -148,10 +148,10 @@ export class Files {
     fresh = false,
     schema: z.ZodType<FsOutput> = fsOutput
   ): Promise<FsOutput> {
-    const out = schema.parse(await this.turn(`$fs.${fn}`, input, fresh));
+    const out = fsOutput.parse(await this.turn(`$fs.${fn}`, input, fresh));
     if (out.error)
       throw new FilesystemError(out.error.code as FilesystemErrorCode, out.error.message);
-    return out;
+    return schema.parse(out);
   }
 
   /** Reads a file as text (default), bytes, or a Blob. Files over the provider's `--max-file-bytes` (2 MiB) come through the provider's `--store` instead of Hatchet. */
