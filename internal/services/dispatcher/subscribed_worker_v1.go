@@ -57,8 +57,10 @@ func (worker *subscribedWorker) StartTaskFromBulk(
 	err := worker.sendToWorker(ctx, action)
 
 	if err != nil {
-		// Only an in-flight send has uncertain delivery. An action whose context expires
-		// before admission must be retried. Direct operator handlers retain their deadline policy.
+		// An in-flight send stays assigned: the worker may already be running it, and a
+		// later Send error is dropped. A deadline before admission is returned so the
+		// caller requeues. An operator handler has no stream, so its deadline stays
+		// assigned too.
 		if errors.Is(err, errWorkerSendInterrupted) || (worker.handler != nil && errors.Is(err, context.DeadlineExceeded)) {
 			return nil
 		}
@@ -75,6 +77,8 @@ func (worker *subscribedWorker) StartBatch(ctx context.Context, action *contract
 	}
 
 	err := worker.sendToWorker(ctx, action)
+	// An in-flight send stays assigned so a retry cannot run the batch twice; see
+	// StartTaskFromBulk.
 	if errors.Is(err, errWorkerSendInterrupted) {
 		return nil
 	}
@@ -254,6 +258,8 @@ func (worker *subscribedWorker) CancelTask(
 	err := worker.sendToWorker(ctx, action)
 
 	if err != nil {
+		// An in-flight cancel may already have been delivered, so it stays assigned; see
+		// StartTaskFromBulk.
 		if errors.Is(err, errWorkerSendInterrupted) || (worker.handler != nil && errors.Is(err, context.DeadlineExceeded)) {
 			return nil
 		}
