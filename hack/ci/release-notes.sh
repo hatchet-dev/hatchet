@@ -75,6 +75,11 @@ generate_release_notes() {
       pattern='"version"'
       sdk_dir="sdks/typescript-serverless/"
       ;;
+    sandbox)
+      file="sdks/typescript-sandbox/package.json"
+      pattern='"version"'
+      sdk_dir="sdks/typescript-sandbox/"
+      ;;
     *)
       echo "Unknown SDK: $sdk" >&2
       return 1

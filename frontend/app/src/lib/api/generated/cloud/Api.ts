@@ -17,7 +17,6 @@ import {
   APIError,
   APIErrors,
   APITokenList,
-  AuditLogList,
   Build,
   CreateManagedWorkerFromTemplateRequest,
   CreateManagedWorkerRequest,
@@ -27,6 +26,7 @@ import {
   CreateOrganizationInviteRequest,
   CreateOrganizationRequest,
   CreateOrUpdateAutoscalingRequest,
+  CreateSandboxProviderRequest,
   CreateTenantAPITokenRequest,
   CreateTenantAPITokenResponse,
   FeatureFlags,
@@ -50,9 +50,13 @@ import {
   RejectOrganizationInviteRequest,
   RemoveOrganizationMembersRequest,
   RuntimeConfigActionsResponse,
+  SandboxProvider,
+  SandboxProviderEventList,
+  SandboxProviderList,
   UpdateManagedWorkerRequest,
   UpdateOrganizationRequest,
   UpdateOrganizationTenantRequest,
+  UpdateSandboxProviderRequest,
   UserOffer,
   VectorPushRequest,
   WorkflowRunEventsMetricsCounts,
@@ -275,6 +279,161 @@ export class Api<
       ...params,
       xResources: ["gh-installation"],
     }), { resources: new Set<string>(["gh-installation"]) });
+  /**
+   * @description List the sandbox providers of the tenant
+   *
+   * @tags Sandbox Provider
+   * @name SandboxProviderList
+   * @summary List Sandbox Providers
+   * @request GET:/api/v1/cloud/tenants/{tenant}/sandbox-providers
+   * @secure
+   */
+  sandboxProviderList = Object.assign((
+    tenant: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<SandboxProviderList, APIErrors>({
+      path: `/api/v1/cloud/tenants/${tenant}/sandbox-providers`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
+  /**
+   * @description Create a sandbox provider for the tenant. Requires the sandbox operator entitlement.
+   *
+   * @tags Sandbox Provider
+   * @name SandboxProviderCreate
+   * @summary Create Sandbox Provider
+   * @request POST:/api/v1/cloud/tenants/{tenant}/sandbox-providers
+   * @secure
+   */
+  sandboxProviderCreate = Object.assign((
+    tenant: string,
+    data: CreateSandboxProviderRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<SandboxProvider, APIErrors>({
+      path: `/api/v1/cloud/tenants/${tenant}/sandbox-providers`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
+  /**
+   * @description Get a sandbox provider
+   *
+   * @tags Sandbox Provider
+   * @name SandboxProviderGet
+   * @summary Get Sandbox Provider
+   * @request GET:/api/v1/cloud/sandbox-providers/{sandbox-provider}
+   * @secure
+   */
+  sandboxProviderGet = Object.assign((sandboxProvider: string, params: RequestParams = {}) =>
+    this.request<SandboxProvider, APIErrors>({
+      path: `/api/v1/cloud/sandbox-providers/${sandboxProvider}`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+      xResources: ["tenant", "sandbox-provider"],
+    }), { resources: new Set<string>(["tenant", "sandbox-provider"]) });
+  /**
+   * @description Update a sandbox provider
+   *
+   * @tags Sandbox Provider
+   * @name SandboxProviderUpdate
+   * @summary Update Sandbox Provider
+   * @request PATCH:/api/v1/cloud/sandbox-providers/{sandbox-provider}
+   * @secure
+   */
+  sandboxProviderUpdate = Object.assign((
+    sandboxProvider: string,
+    data: UpdateSandboxProviderRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<SandboxProvider, APIErrors>({
+      path: `/api/v1/cloud/sandbox-providers/${sandboxProvider}`,
+      method: "PATCH",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+      xResources: ["tenant", "sandbox-provider"],
+    }), { resources: new Set<string>(["tenant", "sandbox-provider"]) });
+  /**
+   * @description Delete a sandbox provider. Its sandboxes can no longer be reached.
+   *
+   * @tags Sandbox Provider
+   * @name SandboxProviderDelete
+   * @summary Delete Sandbox Provider
+   * @request DELETE:/api/v1/cloud/sandbox-providers/{sandbox-provider}
+   * @secure
+   */
+  sandboxProviderDelete = Object.assign((
+    sandboxProvider: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<SandboxProvider, APIErrors>({
+      path: `/api/v1/cloud/sandbox-providers/${sandboxProvider}`,
+      method: "DELETE",
+      secure: true,
+      format: "json",
+      ...params,
+      xResources: ["tenant", "sandbox-provider"],
+    }), { resources: new Set<string>(["tenant", "sandbox-provider"]) });
+  /**
+   * @description List what the sandbox operator observed about the provider, newest first, within the tenant's retention window.
+   *
+   * @tags Sandbox Provider
+   * @name SandboxProviderEventsList
+   * @summary List Sandbox Provider Events
+   * @request GET:/api/v1/cloud/sandbox-providers/{sandbox-provider}/events
+   * @secure
+   */
+  sandboxProviderEventsList = Object.assign((
+    sandboxProvider: string,
+    query?: {
+      /**
+       * The number of events to return, at most 500. Defaults to 100.
+       * @format int64
+       */
+      limit?: number;
+      /**
+       * Only return events created after this time
+       * @format date-time
+       */
+      since?: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<SandboxProviderEventList, APIErrors>({
+      path: `/api/v1/cloud/sandbox-providers/${sandboxProvider}/events`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+      xResources: ["tenant", "sandbox-provider"],
+    }), { resources: new Set<string>(["tenant", "sandbox-provider"]) });
   /**
    * @description Get all managed workers for the tenant
    *
@@ -1245,62 +1404,6 @@ export class Api<
       ...params,
       xResources: ["organization", "organization-invite"],
     }), { resources: new Set<string>(["organization", "organization-invite"]) });
-  /**
-   * @description List all audit logs for an organization
-   *
-   * @tags Management
-   * @name OrganizationListAuditLogs
-   * @summary List Audit Logs for Organization
-   * @request GET:/api/v1/management/organizations/{organization}/audit-logs
-   * @secure
-   */
-  organizationListAuditLogs = Object.assign((
-    organization: string,
-    query?: {
-      /**
-       * The tenant ID belonging to the organization
-       * @format uuid
-       * @minLength 36
-       * @maxLength 36
-       */
-      tenant?: string;
-      /**
-       * The maximum number of audit logs to return
-       * @format int32
-       * @min 1
-       * @max 1000
-       * @default 1000
-       */
-      limit?: number;
-      /**
-       * The number of audit logs to skip
-       * @format int32
-       * @min 0
-       * @default 0
-       */
-      offset?: number;
-      /**
-       * The start of the time range to filter audit logs (defaults to 24 hours ago)
-       * @format date-time
-       */
-      since?: string;
-      /**
-       * The end of the time range to filter audit logs (defaults to now)
-       * @format date-time
-       */
-      until?: string;
-    },
-    params: RequestParams = {},
-  ) =>
-    this.request<AuditLogList, APIError>({
-      path: `/api/v1/management/organizations/${organization}/audit-logs`,
-      method: "GET",
-      query: query,
-      secure: true,
-      format: "json",
-      ...params,
-      xResources: ["organization"],
-    }), { resources: new Set<string>(["organization"]) });
   /**
    * @description Directly add one or more org members to a tenant, bypassing tag matching. Only org OWNERs can call this endpoint.
    *

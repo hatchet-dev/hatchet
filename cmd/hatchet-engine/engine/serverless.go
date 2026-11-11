@@ -46,8 +46,10 @@ const serverlessRestartBackoffMax = 30 * time.Second
 // The core runs on its own context rather than the engine's so that shutdown is ordered by
 // the cleanup chain, not by the engine context's cancellation.
 func startServerlessOperator(sc *server.ServerConfig, d *dispatcher.DispatcherImpl, host operator.Host) (stop func() error, err error) {
+	stopInproc := startInprocOperators(sc, d, host)
+
 	if !sc.Runtime.ServerlessOperatorEnabled {
-		return func() error { return nil }, nil
+		return stopInproc, nil
 	}
 
 	if err := serverlessoperator.CheckRuntimeSupport(); err != nil {
@@ -94,8 +96,28 @@ func startServerlessOperator(sc *server.ServerConfig, d *dispatcher.DispatcherIm
 		// the engine still needs.
 		sender.CloseIdleConnections()
 
-		return err
+		return errors.Join(err, stopInproc())
 	}, nil
+}
+
+func startInprocOperators(sc *server.ServerConfig, d *dispatcher.DispatcherImpl, host operator.Host) func() error {
+	sups := make([]*serverlessSupervisor, 0, len(sc.InprocOperators))
+
+	for _, op := range sc.InprocOperators {
+		l := sc.Logger.With().Str("service", op.Name).Logger()
+
+		sups = append(sups, superviseServerless(context.Background(), &l, func(ctx context.Context) error {
+			return op.Run(ctx, d.DispatcherId(), host)
+		}))
+	}
+
+	return func() error {
+		for _, sup := range sups {
+			_ = sup.stop()
+		}
+
+		return nil
+	}
 }
 
 // serverlessSupervisor keeps the core running until stopped. Running reports whether the core

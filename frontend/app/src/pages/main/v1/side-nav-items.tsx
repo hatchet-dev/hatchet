@@ -9,6 +9,7 @@ import {
   RiWebhookLine,
   RiCpuLine,
   RiCloudLine,
+  RiBox3Line,
   RiEqualizer3Line,
   RiLock2Line,
   RiFunctionLine,
@@ -25,6 +26,7 @@ export function sideNavItems(opts: {
   orgId?: string;
   hasManagedWorkers?: boolean;
   hasServerlessEndpoints?: boolean;
+  hasSandboxProviders?: boolean;
   hasDurableStreams?: boolean;
   isConcurrencyEnabled?: boolean;
 }): SideNavSection[] {
@@ -227,6 +229,20 @@ export function sideNavItems(opts: {
                 to: appRoutes.tenantEndpointsRoute.to,
                 icon: ({ collapsed }: { collapsed: boolean }) => (
                   <RiCloudLine
+                    className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+                  />
+                ),
+              },
+            ]
+          : []),
+        ...(opts.hasSandboxProviders
+          ? [
+              {
+                key: 'sandbox-providers',
+                name: 'Sandboxes',
+                to: appRoutes.tenantSandboxProvidersRoute.to,
+                icon: ({ collapsed }: { collapsed: boolean }) => (
+                  <RiBox3Line
                     className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
                   />
                 ),

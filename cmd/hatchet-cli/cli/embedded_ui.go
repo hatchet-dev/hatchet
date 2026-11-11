@@ -143,7 +143,7 @@ func resolveUITarget(apiURLFlag, profileFlag string) (target *url.URL, insecureS
 
 	selectedProfile := profileFlag
 
-	profile, err := configcli.Profiles.GetProfile(selectedProfile)
+	profile, err := configcli.Profiles.GetProfileMetadata(selectedProfile)
 	if err != nil {
 		configcli.Logger.Fatalf("could not get profile '%s': %v", selectedProfile, err)
 	}

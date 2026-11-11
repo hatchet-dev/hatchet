@@ -149,12 +149,35 @@ export function formatDuration(ms: number): string {
 
 export const emptyGolangUUID = '00000000-0000-0000-0000-000000000000';
 
-export function prettyPrintIfValidJson(value: string): string {
+// JSON escapes line breaks inside strings, so a stack trace nested in a JSON
+// error renders as one long line. This pretty-prints JSON errors and turns
+// `\n` escapes inside string values into real line breaks. The result is for
+// reading only and is not always valid JSON.
+export function formatErrorForDisplay(error: string): {
+  code: string;
+  language: 'json' | 'text';
+} {
+  let parsed: unknown;
+
   try {
-    return JSON.stringify(JSON.parse(value), null, 2);
+    parsed = JSON.parse(error);
   } catch {
-    return value;
+    return { code: error, language: 'text' };
   }
+
+  if (parsed === null || typeof parsed !== 'object') {
+    return { code: error, language: 'text' };
+  }
+
+  const code = JSON.stringify(parsed, null, 2).replace(
+    /"(?:[^"\\]|\\.)*"/g,
+    (literal) =>
+      literal.replace(/\\(.)/g, (escape, char) =>
+        char === 'n' ? '\n' : escape,
+      ),
+  );
+
+  return { code, language: 'json' };
 }
 
 export function parseDuration(input: string): number | null {

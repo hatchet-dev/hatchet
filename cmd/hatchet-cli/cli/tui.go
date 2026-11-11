@@ -62,14 +62,15 @@ var tuiCmd = &cobra.Command{
 		}
 
 		// Start the TUI with optional run navigation
-		var model tea.Model
+		base := newTUIModel(selectedProfile, hatchetClient)
+		base.banner = plaintextTokenWarning()
+
+		var model tea.Model = base
 		if runFlag != "" {
 			model = tuiModelWithInitialRun{
-				tuiModel:     newTUIModel(selectedProfile, hatchetClient),
+				tuiModel:     base,
 				initialRunID: runFlag,
 			}
-		} else {
-			model = newTUIModel(selectedProfile, hatchetClient)
 		}
 
 		p := tea.NewProgram(
@@ -134,6 +135,16 @@ type tuiModel struct {
 	showViewSelector     bool
 	showProfileSelector  bool
 	showQuitConfirmation bool
+	banner               string
+}
+
+// viewHeight is the terminal height left for the current view once the
+// one-line banner, if any, is drawn above it.
+func (m tuiModel) viewHeight() int {
+	if m.banner == "" {
+		return m.height
+	}
+	return m.height - 1
 }
 
 func newTUIModel(profileName string, hatchetClient client.Client) tuiModel {
@@ -177,7 +188,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.currentView.SetSize(msg.Width, msg.Height)
+		m.currentView.SetSize(msg.Width, m.viewHeight())
 
 	case tea.KeyMsg:
 		// Handle quit confirmation modal input
@@ -258,7 +269,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if m.isInPrimaryView() {
 						m.currentViewType = selectedType
 						m.currentView = m.createViewForType(selectedType)
-						m.currentView.SetSize(m.width, m.height)
+						m.currentView.SetSize(m.width, m.viewHeight())
 						m.showViewSelector = false
 						return m, m.currentView.Init()
 					}
@@ -310,7 +321,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				// Create and initialize help view
 				helpView := tui.NewHelpView(m.ctx)
-				helpView.SetSize(m.width, m.height)
+				helpView.SetSize(m.width, m.viewHeight())
 				m.currentView = helpView
 
 				return m, helpView.Init()
@@ -349,12 +360,12 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case msg.Type == "task" && msg.TaskData != nil:
 			// Single task view
 			taskView := tui.NewSingleTaskView(m.ctx, msg.TaskData.Metadata.Id)
-			taskView.SetSize(m.width, m.height)
+			taskView.SetSize(m.width, m.viewHeight())
 			newView = taskView
 		case msg.Type == "dag" && msg.DAGData != nil:
 			// DAG workflow run view
 			dagView := tui.NewRunDetailsView(m.ctx, msg.DAGData.Run.Metadata.Id)
-			dagView.SetSize(m.width, m.height)
+			dagView.SetSize(m.width, m.viewHeight())
 			newView = dagView
 		default:
 			// Unknown type or missing data — stay on current view
@@ -371,7 +382,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Create and initialize run details view
 		runView := tui.NewRunDetailsView(m.ctx, msg.WorkflowRunID)
-		runView.SetSize(m.width, m.height)
+		runView.SetSize(m.width, m.viewHeight())
 		m.currentView = runView
 
 		return m, runView.Init()
@@ -381,7 +392,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if len(m.viewStack) > 0 {
 			m.currentView = m.viewStack[len(m.viewStack)-1]
 			m.viewStack = m.viewStack[:len(m.viewStack)-1]
-			m.currentView.SetSize(m.width, m.height)
+			m.currentView.SetSize(m.width, m.viewHeight())
 		}
 		return m, nil
 
@@ -391,7 +402,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Create and initialize workflow details view
 		workflowView := tui.NewWorkflowDetailsView(m.ctx, msg.WorkflowID)
-		workflowView.SetSize(m.width, m.height)
+		workflowView.SetSize(m.width, m.viewHeight())
 		m.currentView = workflowView
 
 		return m, workflowView.Init()
@@ -402,7 +413,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Create and initialize worker details view
 		workerView := tui.NewWorkerDetailsView(m.ctx, msg.WorkerID)
-		workerView.SetSize(m.width, m.height)
+		workerView.SetSize(m.width, m.viewHeight())
 		m.currentView = workerView
 
 		return m, workerView.Init()
@@ -416,7 +427,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.viewStack = []tui.View{}
 		m.currentViewType = ViewTypeRuns
 		m.currentView = m.createViewForType(ViewTypeRuns)
-		m.currentView.SetSize(m.width, m.height)
+		m.currentView.SetSize(m.width, m.viewHeight())
 
 		return m, m.currentView.Init()
 
@@ -451,6 +462,10 @@ func (m tuiModel) View() string {
 	// Show view selector modal if open
 	if m.showViewSelector {
 		return m.renderViewSelector()
+	}
+
+	if m.banner != "" {
+		return lipgloss.NewStyle().MaxWidth(m.width).Render(m.banner) + "\n" + m.currentView.View()
 	}
 
 	return m.currentView.View()

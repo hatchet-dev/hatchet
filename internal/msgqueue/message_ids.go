@@ -8,6 +8,7 @@ const (
 	MsgIDCELEvaluationFailure         = "cel-evaluation-failure"
 	MsgIDCheckTenantQueue             = "check-tenant-queue"
 	MsgIDNewWorker                    = "new-worker"
+	MsgIDWorkerDispatcherChanged      = "worker-dispatcher-changed"
 	MsgIDNewQueue                     = "new-queue"
 	MsgIDNewConcurrencyStrategy       = "new-concurrency-strategy"
 	MsgIDRateLimitsChanged            = "rate-limits-changed"
@@ -36,4 +37,5 @@ const (
 	MsgIDTogglePauseWorkflow          = "toggle-pause-workflow"
 	MsgIDRateLimitPausesChanged       = "rate-limit-pauses-changed"
 	MsgIDStreamMessage                = "stream-message"
+	MsgIDWorkflowVersionCreated       = "workflow-version-created"
 )

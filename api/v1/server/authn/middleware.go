@@ -135,10 +135,14 @@ func (a *AuthN) handleNoAuth(c echo.Context) error {
 		return redirect.GetRedirectWithError(c, a.l, err, "Could not log in. Please try again and make sure cookies are enabled.")
 	}
 
-	if auth, ok := session.Values["authenticated"].(bool); ok && auth {
-		a.l.Debug().Ctx(ctx).Msgf("user was authenticated when no security schemes permit auth")
+	// A leftover session cookie is not a login on a control-plane shard, so don't
+	// send the request into the app.
+	if !a.config.Auth.ConfigFile.DirectUserLoginDisabled() {
+		if auth, ok := session.Values["authenticated"].(bool); ok && auth {
+			a.l.Debug().Ctx(ctx).Msgf("user was authenticated when no security schemes permit auth")
 
-		return redirect.GetRedirectNoError(c, a.config.Runtime.ServerURL)
+			return redirect.GetRedirectNoError(c, a.config.Runtime.ServerURL)
+		}
 	}
 
 	// set unauthenticated session in context
@@ -149,6 +153,12 @@ func (a *AuthN) handleNoAuth(c echo.Context) error {
 
 func (a *AuthN) handleCookieAuth(c echo.Context) error {
 	forbidden := echo.NewHTTPError(http.StatusForbidden, "Please provide valid credentials")
+
+	// Control-plane shards authenticate the dashboard with exchange tokens.
+	// Reject the cookie before touching the session store.
+	if a.config.Auth.ConfigFile.DirectUserLoginDisabled() {
+		return forbidden
+	}
 
 	store := a.config.SessionStore
 

@@ -237,6 +237,14 @@ func (c *ConcurrencyStrategy) buildIndexLoop(ctx context.Context) {
 	}
 }
 
+// Topic returns the outbox topic this strategy consumes under an exclusive lease. Cancelling the
+// lifecycle context passed to NewConcurrencyStrategy leaves that lease valid for a full lease
+// duration, so whoever tears the strategy down must release the topic for another scheduler to
+// take the strategy over promptly.
+func (c *ConcurrencyStrategy) Topic() string {
+	return c.topic
+}
+
 // Run drains the strategy's outbox topic, replaying every WAL message into the in-memory
 // index and flushing the resulting slot decisions to the database. It returns the merged
 // *repository.RunConcurrencyResult across all batches processed this tick. If a batch fails, the

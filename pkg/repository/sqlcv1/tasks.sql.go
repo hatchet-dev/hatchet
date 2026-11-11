@@ -306,7 +306,8 @@ SELECT
     create_v1_range_partition('v1_task_expression_eval', $1::date) AS v1_task_expression_eval,
     create_v1_monthly_range_partition('v1_lookup_table', $1::date) AS v1_lookup_table,
     create_v1_range_partition('v1_stream_producer_cursor', $1::date, 80) AS v1_stream_producer_cursor,
-    create_v1_range_partition('v1_serverless_endpoint_event', $1::date) AS v1_serverless_endpoint_event
+    create_v1_range_partition('v1_serverless_endpoint_event', $1::date) AS v1_serverless_endpoint_event,
+    create_v1_range_partition('v1_sandbox_event', $1::date) AS v1_sandbox_event
 `
 
 type CreatePartitionsRow struct {
@@ -325,6 +326,7 @@ type CreatePartitionsRow struct {
 	V1LookupTable                int32 `json:"v1_lookup_table"`
 	V1StreamProducerCursor       int32 `json:"v1_stream_producer_cursor"`
 	V1ServerlessEndpointEvent    int32 `json:"v1_serverless_endpoint_event"`
+	V1SandboxEvent               int32 `json:"v1_sandbox_event"`
 }
 
 func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Date) (*CreatePartitionsRow, error) {
@@ -346,6 +348,7 @@ func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Dat
 		&i.V1LookupTable,
 		&i.V1StreamProducerCursor,
 		&i.V1ServerlessEndpointEvent,
+		&i.V1SandboxEvent,
 	)
 	return &i, err
 }
@@ -1965,6 +1968,8 @@ WITH task_partitions AS (
     SELECT 'v1_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_monthly_partitions_before_date('v1_lookup_table', $1::date) AS p
 ), serverless_endpoint_event_partitions AS (
     SELECT 'v1_serverless_endpoint_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_serverless_endpoint_event', $1::date) AS p
+), sandbox_event_partitions AS (
+    SELECT 'v1_sandbox_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_sandbox_event', $1::date) AS p
 )
 
 SELECT
@@ -2062,6 +2067,13 @@ SELECT
     parent_table, partition_name
 FROM
     serverless_endpoint_event_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    sandbox_event_partitions
 `
 
 type ListPartitionsBeforeDateRow struct {
@@ -2480,71 +2492,6 @@ func (q *Queries) ListTaskRunningStatuses(ctx context.Context, db DBTX, arg List
 	for rows.Next() {
 		var i ListTaskRunningStatusesRow
 		if err := rows.Scan(&i.ExternalID, &i.IsRunning, &i.IsEvicted); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listTaskRuntimes = `-- name: ListTaskRuntimes :many
-WITH inputs AS (
-    SELECT
-        UNNEST($2::bigint[]) AS task_id,
-        UNNEST($3::timestamptz[]) AS task_inserted_at,
-        UNNEST($4::integer[]) AS retry_count
-)
-SELECT
-    tr.task_id, tr.task_inserted_at, tr.retry_count, tr.worker_id, tr.batch_id, tr.batch_size, tr.batch_index, tr.batch_key, tr.tenant_id, tr.timeout_at, tr.evicted_at, tr.assigned_at, tr.acked_at
-FROM
-    v1_task_runtime tr
-JOIN
-    inputs i ON tr.task_id = i.task_id
-    AND tr.task_inserted_at = i.task_inserted_at
-    AND tr.retry_count = i.retry_count
-WHERE
-    tr.tenant_id = $1::uuid
-`
-
-type ListTaskRuntimesParams struct {
-	Tenantid        uuid.UUID            `json:"tenantid"`
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Taskretrycounts []int32              `json:"taskretrycounts"`
-}
-
-func (q *Queries) ListTaskRuntimes(ctx context.Context, db DBTX, arg ListTaskRuntimesParams) ([]*V1TaskRuntime, error) {
-	rows, err := db.Query(ctx, listTaskRuntimes,
-		arg.Tenantid,
-		arg.Taskids,
-		arg.Taskinsertedats,
-		arg.Taskretrycounts,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*V1TaskRuntime
-	for rows.Next() {
-		var i V1TaskRuntime
-		if err := rows.Scan(
-			&i.TaskID,
-			&i.TaskInsertedAt,
-			&i.RetryCount,
-			&i.WorkerID,
-			&i.BatchID,
-			&i.BatchSize,
-			&i.BatchIndex,
-			&i.BatchKey,
-			&i.TenantID,
-			&i.TimeoutAt,
-			&i.EvictedAt,
-			&i.AssignedAt,
-			&i.AckedAt,
-		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

@@ -1,0 +1,13 @@
+packages:
+  - .
+
+# Installs refuse packages published less than a day ago, matching the SDK's policy.
+minimumReleaseAge: 1440
+
+# Dependency install scripts are opt-in under pnpm 10. esbuild fetches its platform binary;
+# the SDK's postinstall only prints upgrade notes and protobufjs needs nothing at install time.
+onlyBuiltDependencies:
+  - esbuild
+ignoredBuiltDependencies:
+  - "@hatchet-dev/typescript-sdk"
+  - protobufjs

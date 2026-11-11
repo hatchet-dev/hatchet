@@ -113,6 +113,24 @@ export const queries = createQueryKeyStore({
         ).data,
     }),
 
+    listSandboxProviders: (
+      tenant: string,
+      query: { offset: number; limit: number },
+    ) => ({
+      queryKey: ['sandbox-provider:list', tenant, query],
+      queryFn: async () =>
+        (await cloudApi.sandboxProviderList(tenant, query)).data,
+    }),
+    getSandboxProvider: (provider: string) => ({
+      queryKey: ['sandbox-provider:get', provider],
+      queryFn: async () => (await cloudApi.sandboxProviderGet(provider)).data,
+    }),
+    listSandboxProviderEvents: (provider: string) => ({
+      queryKey: ['sandbox-provider:events', provider],
+      queryFn: async () =>
+        (await cloudApi.sandboxProviderEventsList(provider, { limit: 200 }))
+          .data,
+    }),
     getManagedWorker: (worker: string) => ({
       queryKey: ['managed-worker:get', worker],
       queryFn: async () => (await cloudApi.managedWorkerGet(worker)).data,

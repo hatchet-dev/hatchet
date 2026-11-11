@@ -7,13 +7,21 @@ $$
 BEGIN
     RETURN QUERY
     SELECT
-        inhrelid::regclass::text AS partition_name
-    FROM
-        pg_inherits
+        partition_bounds.child_name
+    FROM (
+        SELECT
+            i.inhrelid::regclass::text AS child_name,
+            (regexp_match(pg_get_expr(c.relpartbound, c.oid), 'TO \(''([^'']+)''\)'))[1] AS upper_bound
+        FROM
+            pg_inherits i
+        JOIN
+            pg_class c ON c.oid = i.inhrelid
+        WHERE
+            i.inhparent = targetTableName::regclass
+            AND substring(i.inhrelid::regclass::text, format('%s_(\d{8})', targetTableName)) ~ '^\d{8}'
+    ) partition_bounds
     WHERE
-        inhparent = targetTableName::regclass
-        AND substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName)) ~ '^\d{8}'
-        AND (substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName))::date) < targetDate;
+        partition_bounds.upper_bound::timestamptz <= targetDate::timestamptz;
 END;
 $$;
 
@@ -25,16 +33,7 @@ CREATE OR REPLACE FUNCTION get_v1_weekly_partitions_before_date(
 $$
 BEGIN
     RETURN QUERY
-    SELECT
-        inhrelid::regclass::text AS partition_name
-    FROM
-        pg_inherits
-    WHERE
-        inhparent = targetTableName::regclass
-        AND substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName)) ~ '^\d{8}'
-        AND (substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName))::date) < targetDate
-        AND (substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName))::date) < NOW() - INTERVAL '1 week'
-    ;
+    SELECT * FROM get_v1_partitions_before_date(targetTableName, targetDate);
 END;
 $$;
 
@@ -46,15 +45,7 @@ CREATE OR REPLACE FUNCTION get_v1_monthly_partitions_before_date(
 $$
 BEGIN
     RETURN QUERY
-    SELECT
-        inhrelid::regclass::text AS partition_name
-    FROM
-        pg_inherits
-    WHERE
-        inhparent = targetTableName::regclass
-        AND substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName)) ~ '^\d{8}'
-        AND (substring(inhrelid::regclass::text, format('%s_(\d{8})', targetTableName))::date + INTERVAL '1 month') <= targetDate
-    ;
+    SELECT * FROM get_v1_partitions_before_date(targetTableName, targetDate);
 END;
 $$;
 
@@ -1327,6 +1318,9 @@ CREATE TABLE v1_concurrency_slot (
 CREATE INDEX v1_concurrency_slot_query_idx ON v1_concurrency_slot (tenant_id, strategy_id ASC, key ASC, sort_id ASC);
 
 CREATE INDEX v1_concurrency_slot_timeout_idx ON v1_concurrency_slot (tenant_id, strategy_id, task_id, task_inserted_at)
+    WHERE is_filled = FALSE;
+
+CREATE INDEX v1_concurrency_slot_workflow_unfilled_idx ON v1_concurrency_slot (tenant_id, workflow_id)
     WHERE is_filled = FALSE;
 
 ALTER TABLE v1_concurrency_slot SET (
@@ -3350,6 +3344,131 @@ CREATE INDEX v1_serverless_lease_owner_idx ON v1_serverless_lease (process_id, t
 -- claimable count is index only. Empty units are never claimed, so they are not in the index.
 CREATE INDEX v1_serverless_lease_claimable_idx ON v1_serverless_lease (tenant_id, endpoint_partition) INCLUDE (endpoint_count) WHERE process_id IS NULL AND endpoint_count > 0;
 
+CREATE TYPE v1_sandbox_provider_kind AS ENUM ('DAYTONA', 'E2B', 'ARCHIL', 'FREESTYLE');
+
+CREATE TABLE v1_sandbox_provider (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL,
+    name TEXT NOT NULL,
+    kind v1_sandbox_provider_kind NOT NULL,
+    api_key_enc TEXT NOT NULL,
+    config JSONB NOT NULL DEFAULT '{}'::jsonb,
+    default_template TEXT,
+    max_idle_ttl_seconds INT NOT NULL DEFAULT 900,
+    labels JSONB NOT NULL DEFAULT '{}'::jsonb,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    provider_partition INT NOT NULL DEFAULT 0,
+    healthy BOOLEAN,
+    status_error TEXT,
+    status_changed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMPTZ,
+    CONSTRAINT v1_sandbox_provider_pkey PRIMARY KEY (id)
+);
+
+CREATE UNIQUE INDEX v1_sandbox_provider_tenant_name_key ON v1_sandbox_provider (tenant_id, name) WHERE deleted_at IS NULL;
+
+CREATE INDEX v1_sandbox_provider_unit_idx ON v1_sandbox_provider (tenant_id, provider_partition, id);
+
+CREATE TYPE v1_sandbox_status AS ENUM ('CREATING', 'RUNNING', 'DESTROYED', 'FAILED');
+
+CREATE TABLE v1_sandbox (
+    id TEXT NOT NULL,
+    tenant_id UUID NOT NULL,
+    provider_id UUID NOT NULL,
+    external_id TEXT,
+    template TEXT,
+    status v1_sandbox_status NOT NULL DEFAULT 'CREATING',
+    status_error TEXT,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    idle_ttl_ms BIGINT NOT NULL DEFAULT 0,
+    latest_snapshot_id TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_used_at TIMESTAMPTZ,
+    deleted_at TIMESTAMPTZ,
+    CONSTRAINT v1_sandbox_pkey PRIMARY KEY (tenant_id, id)
+);
+
+CREATE INDEX v1_sandbox_tenant_created_idx ON v1_sandbox (tenant_id, created_at DESC, id DESC);
+
+CREATE TABLE v1_sandbox_snapshot (
+    id TEXT NOT NULL,
+    tenant_id UUID NOT NULL,
+    sandbox_id TEXT NOT NULL,
+    parent_id TEXT,
+    external_id TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT v1_sandbox_snapshot_pkey PRIMARY KEY (tenant_id, id)
+);
+
+CREATE INDEX v1_sandbox_snapshot_sandbox_idx ON v1_sandbox_snapshot (tenant_id, sandbox_id, created_at DESC);
+
+CREATE TABLE v1_sandbox_turn (
+    run_id TEXT NOT NULL,
+    tenant_id UUID NOT NULL,
+    sandbox_id TEXT NOT NULL,
+    prev_snapshot_id TEXT,
+    result JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT v1_sandbox_turn_pkey PRIMARY KEY (tenant_id, run_id)
+);
+
+CREATE INDEX v1_sandbox_turn_created_at_idx ON v1_sandbox_turn (created_at);
+
+CREATE TYPE v1_sandbox_event_kind AS ENUM (
+    'HEALTHCHECK_FAILED',
+    'UNHEALTHY',
+    'HEALTHY',
+    'SANDBOX_CREATED',
+    'SANDBOX_CREATE_FAILED',
+    'TURN_FAILED',
+    'SNAPSHOT_FAILED',
+    'SANDBOX_DESTROYED'
+);
+
+CREATE TABLE v1_sandbox_event (
+    id BIGINT GENERATED ALWAYS AS IDENTITY,
+    tenant_id UUID NOT NULL,
+    provider_id UUID NOT NULL,
+    sandbox_id TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    kind v1_sandbox_event_kind NOT NULL,
+    message TEXT NOT NULL,
+    details JSONB NOT NULL DEFAULT '{}'::jsonb,
+    CONSTRAINT v1_sandbox_event_pkey PRIMARY KEY (tenant_id, provider_id, created_at, id)
+) PARTITION BY RANGE(created_at);
+
+CREATE TABLE v1_sandbox_tenant (
+    tenant_id UUID NOT NULL,
+    provider_partition_count INT NOT NULL DEFAULT 1,
+    CONSTRAINT v1_sandbox_tenant_pkey PRIMARY KEY (tenant_id)
+);
+
+CREATE TABLE v1_sandbox_process (
+    process_id UUID NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    unit_count INT NOT NULL DEFAULT 0,
+    provider_count INT NOT NULL DEFAULT 0,
+    hostname TEXT,
+    version TEXT,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT v1_sandbox_process_pkey PRIMARY KEY (process_id)
+);
+
+CREATE TABLE v1_sandbox_lease (
+    tenant_id UUID NOT NULL,
+    provider_partition INT NOT NULL DEFAULT 0,
+    process_id UUID,
+    claimed_at TIMESTAMPTZ,
+    provider_count INT NOT NULL DEFAULT 0,
+    CONSTRAINT v1_sandbox_lease_pkey PRIMARY KEY (tenant_id, provider_partition)
+);
+
+CREATE INDEX v1_sandbox_lease_owner_idx ON v1_sandbox_lease (process_id, tenant_id, provider_partition);
+
+CREATE INDEX v1_sandbox_lease_claimable_idx ON v1_sandbox_lease (tenant_id, provider_partition) INCLUDE (provider_count) WHERE process_id IS NULL AND provider_count > 0;
+
 CREATE TABLE tenant_entitlement (
     tenant_id UUID NOT NULL,
 
@@ -3361,6 +3480,7 @@ CREATE TABLE tenant_entitlement (
     -- the GIN indexes on the OLAP runs/tasks tables (jsonb @> containment).
     strict_additional_metadata_filters BOOLEAN NOT NULL DEFAULT FALSE,
 
+    -- unused, turned on by default everywhere
     dag_operator BOOLEAN NOT NULL DEFAULT FALSE,
 
     durable_streams BOOLEAN NOT NULL DEFAULT FALSE,
@@ -3368,6 +3488,8 @@ CREATE TABLE tenant_entitlement (
     -- Gates the serverless operator: endpoint creation over the API and the operator's lease
     -- claims both require it.
     serverless_operator BOOLEAN NOT NULL DEFAULT FALSE,
+
+    sandbox_operator BOOLEAN NOT NULL DEFAULT FALSE,
 
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

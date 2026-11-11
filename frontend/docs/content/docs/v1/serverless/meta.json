@@ -1,5 +1,6 @@
 {
   "pages": [
+    "index",
     "cloudflare-workers",
     "vercel",
     "http",

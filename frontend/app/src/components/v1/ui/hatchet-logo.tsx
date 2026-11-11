@@ -1,3 +1,5 @@
+import { BananaLogo } from '@/banana-mode/banana-logo';
+import { useBananaMode } from '@/banana-mode/use-banana-mode';
 import { cn } from '@/lib/utils';
 import React from 'react';
 
@@ -18,8 +20,20 @@ export function HatchetLogo({
   className,
   ...props
 }: HatchetLogoProps) {
+  const [bananaMode] = useBananaMode();
   const isMarkOnly = variant === 'mark';
   const isWordmarkOnly = variant === 'wordmark';
+
+  if (bananaMode) {
+    return (
+      <BananaLogo
+        title={title === 'Hatchet' ? 'Banáchet' : title}
+        variant={variant}
+        className={className}
+        {...props}
+      />
+    );
+  }
 
   return (
     <svg

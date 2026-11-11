@@ -11,7 +11,7 @@ This document provides an overview of the Prometheus metrics exposed by Hatchet,
 
 ## Setup
 
-To enable Prometheus metrics for your Hatchet instance, you can set the following environment variables. The corresponding configuration YAML values are mentioned in parentheses. If you are deploying [Hatchet in HA mode](/self-hosting/high-availability), these should be set on the `grpc`, `controllers`, and `scheduler` deployments.
+To enable Prometheus metrics for your Hatchet instance, you can set the following environment variables. The corresponding configuration YAML values are mentioned in parentheses. If you are deploying [Hatchet in HA mode](/self-hosting/high-availability), these should be set on the `grpc`, `controllers`, and `scheduler` deployments, and on the API deployment to collect its metrics as well.
 
 <Callout type="warning">
   The [global metrics](#global-metrics) are per-process counters — every engine
@@ -39,6 +39,17 @@ To enable Prometheus metrics for your Hatchet instance, you can set the followin
   - **`SERVER_PROMETHEUS_PATH`** (`prometheus.path`)
     - Default: `"/metrics"`
     - Description: The HTTP path at which metrics will be exposed.
+
+If the API and the engine run as separate processes on the same host or network namespace, give each its own `SERVER_PROMETHEUS_ADDRESS`; only one of them can bind a given address.
+
+<Callout type="warning">
+  The metrics endpoint has no authentication, and many metrics carry a
+  `tenant_id` label, so anyone who can reach it can list your tenant IDs. Keep
+  the port reachable only by your scraper: don't route it through a public load
+  balancer or ingress, and on a host with a public interface bind
+  `SERVER_PROMETHEUS_ADDRESS` to a private address (for example
+  `127.0.0.1:9090`) or firewall the port.
+</Callout>
 
 Once enabled, you can setup any scraper that supports ingesting Prometheus metrics.
 
@@ -104,7 +115,7 @@ Restart your Hatchet server after setting these variables to apply the changes.
 | `hatchet_fairpool_wait_seconds`                            | Histogram | Time an acquire waited for a fairpool connection slot                                              |
 | `hatchet_fairpool_rejections_total`                        | Counter   | Acquires rejected because a fairpool bucket was at its cap for `DATABASE_FAIRPOOL_TENANT_MAX_WAIT` |
 
-The `hatchet_fairpool_*` metrics are reported per engine process, and only for
+The `hatchet_fairpool_*` metrics are reported per engine or API process, and only for
 buckets with a cap: `DATABASE_FAIRPOOL_TENANT_MAX_PERCENT` or
 `DATABASE_FAIRPOOL_SHARED_MAX_PERCENT` from `1` to `99`. `pool` is `main` or
 `read-replica`. `bucket` is `tenant` or `shared`; the `tenant` limit applies to
@@ -161,8 +172,8 @@ not after delivery to a subscriber. Like transit latency, the age is subject to
 clock skew between pods.
 
 The NATS backend runs each subscription's handlers concurrently, up to a fixed
-limit per subscription: 128 for `scheduler-partition` and 32 for
-`tenant-stream`. When a subscription reaches its limit, further deliveries wait
+limit per subscription: 128 for `scheduler-partition` and 32 for every other
+topic kind. When a subscription reaches its limit, further deliveries wait
 in the NATS client's buffer (`hatchet_pubsub_nats_scheduler_partition_pending_messages`
 for the scheduler partition) until a handler returns.
 `hatchet_pubsub_handlers_in_flight`, `hatchet_pubsub_handler_pool_full_total`
@@ -277,7 +288,7 @@ rate(hatchet_reassigned_tasks[5m])
 #### 14. Fairpool Shared Bucket Saturation
 
 ```promql
-# Share of the shared cap in use, per engine process (1 = at the cap)
+# Share of the shared cap in use, per process (1 = at the cap)
 hatchet_fairpool_held_connections{tenant_id="shared"}
   / ignoring(tenant_id, bucket)
 hatchet_fairpool_connection_limit{bucket="shared"}

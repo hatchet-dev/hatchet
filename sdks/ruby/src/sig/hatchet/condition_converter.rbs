@@ -5,10 +5,18 @@ module Hatchet
       action: Symbol,
       sleep_conditions: Array[untyped],
       user_event_conditions: Array[untyped],
+      ?parent_override_conditions: Array[untyped]?,
       ?or_group_id: String?,
       ?readable_data_key: String?,
       ?proto_method: Symbol,
       ?proto_arg: untyped
+    ) -> void
+
+    def self.convert_parent_condition: (
+      ParentCondition cond,
+      action: Symbol?,
+      or_group_id: String,
+      parent_override_conditions: Array[untyped]
     ) -> void
 
     def self.convert_sleep_condition: (

@@ -20,7 +20,6 @@ import {
   APIErrors,
   APIMetaAuth,
   APITokenList,
-  AuditLogList,
   CreateManagementTokenRequest,
   CreateManagementTokenResponse,
   CreateNewTenantForOrganizationRequest,
@@ -32,6 +31,9 @@ import {
   CreateTenantInviteRequest,
   CreateUserGroupRequest,
   ListAPIMetaIntegration,
+  MagicLinkAccepted,
+  MagicLinkConfirmRequest,
+  MagicLinkRequest,
   ManagementTokenList,
   Organization,
   OrganizationAvailableShardList,
@@ -154,6 +156,46 @@ export class Api<
   cloudUserUpdateLogin = (data: UserLoginRequest, params: RequestParams = {}) =>
     this.request<User, APIErrors>({
       path: `/api/v1/control-plane/users/login`,
+      method: "POST",
+      body: data,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Sends a one-time login link when the address is allowed to use one. The response is the same when the address is unknown, already registered, required to use SSO, cooling down, or when delivery fails.
+   *
+   * @tags User
+   * @name CloudUserCreateMagicLink
+   * @summary Request magic login link
+   * @request POST:/api/v1/control-plane/users/magic-link
+   */
+  cloudUserCreateMagicLink = (
+    data: MagicLinkRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<MagicLinkAccepted, APIErrors>({
+      path: `/api/v1/control-plane/users/magic-link`,
+      method: "POST",
+      body: data,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Confirms a one-time login link and creates a browser session. The link is consumed only by this request.
+   *
+   * @tags User
+   * @name CloudUserUpdateMagicLink
+   * @summary Confirm magic login link
+   * @request POST:/api/v1/control-plane/users/magic-link/confirm
+   */
+  cloudUserUpdateMagicLink = (
+    data: MagicLinkConfirmRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<User, APIErrors>({
+      path: `/api/v1/control-plane/users/magic-link/confirm`,
       method: "POST",
       body: data,
       type: ContentType.Json,
@@ -473,61 +515,6 @@ export class Api<
     this.request<OrganizationAvailableShardList, APIError>({
       path: `/api/v1/control-plane/organizations/${organization}/available-shards`,
       method: "GET",
-      secure: true,
-      format: "json",
-      ...params,
-    });
-  /**
-   * @description List audit logs across the organization's tenants (federated across shards)
-   *
-   * @tags Management
-   * @name OrganizationListAuditLogs
-   * @summary List Audit Logs for Organization
-   * @request GET:/api/v1/control-plane/organizations/{organization}/audit-logs
-   * @secure
-   */
-  organizationListAuditLogs = (
-    organization: string,
-    query?: {
-      /**
-       * Optional tenant ID to scope results to a single tenant
-       * @format uuid
-       * @minLength 36
-       * @maxLength 36
-       */
-      tenant?: string;
-      /**
-       * The maximum number of rows to return
-       * @format int32
-       * @min 1
-       * @max 1000
-       * @default 1000
-       */
-      limit?: number;
-      /**
-       * The number of rows to skip for pagination
-       * @format int32
-       * @min 0
-       * @default 0
-       */
-      offset?: number;
-      /**
-       * The start of the time range (RFC3339). When omitted, defaults to the beginning of the retained audit history (i.e. results are not limited to a recent window); the response is still bounded by limit and offset, returning the most recent rows first.
-       * @format date-time
-       */
-      since?: string;
-      /**
-       * The end of the time range (RFC3339). When omitted, defaults to the current time.
-       * @format date-time
-       */
-      until?: string;
-    },
-    params: RequestParams = {},
-  ) =>
-    this.request<AuditLogList, APIError>({
-      path: `/api/v1/control-plane/organizations/${organization}/audit-logs`,
-      method: "GET",
-      query: query,
       secure: true,
       format: "json",
       ...params,
