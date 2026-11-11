@@ -3,6 +3,10 @@ on:
     tags:
       - "v*" # Push events to matching v*, i.e. v1.0, v20.15.10
 name: Create prerelease w/ binaries and static assets
+permissions:
+  contents: read
+  packages: write
+  id-token: write
 jobs:
   build-push-hatchet-api-amd:
     name: hatchet-api
@@ -39,6 +43,9 @@ jobs:
       - name: Push to GHCR
         run: |
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-amd64
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-api-arm:
     name: hatchet-api
     runs-on: hatchet-arm64-2
@@ -65,6 +72,9 @@ jobs:
       - name: Push to GHCR
         run: |
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-arm64
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-arm64
   build-push-hatchet-api:
     name: Combine hatchet-api
     runs-on: ubuntu-latest
@@ -95,6 +105,10 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-amd64 \
             ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-arm64
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}
+          sbom: false
   build-push-hatchet-api-dev-amd:
     name: hatchet-api-dev
     runs-on: ubuntu-latest
@@ -121,6 +135,9 @@ jobs:
             .
       - name: Push to GHCR
         run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-api-dev:${{steps.tag_name.outputs.tag}}-amd64
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-api-dev:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-api-dev-arm:
     name: hatchet-api-dev
     runs-on: hatchet-arm64-2
@@ -147,6 +164,9 @@ jobs:
             .
       - name: Push to GHCR
         run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-api-dev:${{steps.tag_name.outputs.tag}}-arm64
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-api-dev:${{steps.tag_name.outputs.tag}}-arm64
   build-push-hatchet-api-dev:
     name: Combine hatchet-api-dev
     runs-on: ubuntu-latest
@@ -160,6 +180,8 @@ jobs:
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
         env:
           GITHUB_TAG: ${{ github.ref }}
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -171,6 +193,10 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-api-dev:${{steps.tag_name.outputs.tag}}-amd64 \
             ghcr.io/hatchet-dev/hatchet/hatchet-api-dev:${{steps.tag_name.outputs.tag}}-arm64
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-api-dev:${{steps.tag_name.outputs.tag}}
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-api-dev:${{steps.tag_name.outputs.tag}}
+          sbom: false
   build-push-hatchet-admin-amd:
     name: hatchet-admin
     runs-on: ubuntu-latest
@@ -196,6 +222,9 @@ jobs:
             .
       - name: Push to GHCR
         run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-amd64
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-admin-arm:
     name: hatchet-admin
     runs-on: hatchet-arm64-2
@@ -221,6 +250,9 @@ jobs:
             .
       - name: Push to GHCR
         run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-arm64
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-arm64
   build-push-hatchet-admin:
     name: Combine hatchet-admin
     runs-on: ubuntu-latest
@@ -250,6 +282,10 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-amd64 \
             ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-arm64
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}
+          sbom: false
   build-push-hatchet-admin-dev-amd:
     name: hatchet-admin-dev
     runs-on: ubuntu-latest
@@ -276,6 +312,9 @@ jobs:
             .
       - name: Push to GHCR
         run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:${{steps.tag_name.outputs.tag}}-amd64
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-admin-dev-arm:
     name: hatchet-admin-dev
     runs-on: hatchet-arm64-2
@@ -302,6 +341,9 @@ jobs:
             .
       - name: Push to GHCR
         run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:${{steps.tag_name.outputs.tag}}-arm64
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:${{steps.tag_name.outputs.tag}}-arm64
   build-push-hatchet-admin-dev:
     name: Combine hatchet-admin-dev
     runs-on: ubuntu-latest
@@ -315,6 +357,8 @@ jobs:
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
         env:
           GITHUB_TAG: ${{ github.ref }}
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -326,6 +370,10 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:${{steps.tag_name.outputs.tag}}-amd64 \
             ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:${{steps.tag_name.outputs.tag}}-arm64
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:${{steps.tag_name.outputs.tag}}
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:${{steps.tag_name.outputs.tag}}
+          sbom: false
   build-push-hatchet-engine-amd:
     name: hatchet-engine
     runs-on: ubuntu-latest
@@ -351,6 +399,9 @@ jobs:
             .
       - name: Push to GHCR
         run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-amd64
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-engine-arm:
     name: hatchet-engine
     runs-on: hatchet-arm64-2
@@ -376,6 +427,9 @@ jobs:
             .
       - name: Push to GHCR
         run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-arm64
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-arm64
   build-push-hatchet-engine:
     name: Combine hatchet-engine
     runs-on: ubuntu-latest
@@ -405,6 +459,10 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-amd64 \
             ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-arm64
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}
+          sbom: false
   build-push-hatchet-engine-dev-amd:
     name: hatchet-engine-dev
     runs-on: ubuntu-latest
@@ -431,6 +489,9 @@ jobs:
             .
       - name: Push to GHCR
         run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:${{steps.tag_name.outputs.tag}}-amd64
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-engine-dev-arm:
     name: hatchet-engine-dev
     runs-on: hatchet-arm64-2
@@ -457,6 +518,9 @@ jobs:
             .
       - name: Push to GHCR
         run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:${{steps.tag_name.outputs.tag}}-arm64
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:${{steps.tag_name.outputs.tag}}-arm64
   build-push-hatchet-engine-dev:
     name: Combine hatchet-engine-dev
     runs-on: ubuntu-latest
@@ -470,6 +534,8 @@ jobs:
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
         env:
           GITHUB_TAG: ${{ github.ref }}
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -481,6 +547,10 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:${{steps.tag_name.outputs.tag}}-amd64 \
             ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:${{steps.tag_name.outputs.tag}}-arm64
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:${{steps.tag_name.outputs.tag}}
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:${{steps.tag_name.outputs.tag}}
+          sbom: false
   build-push-hatchet-migrate-amd:
     name: hatchet-migrate
     runs-on: ubuntu-latest
@@ -507,6 +577,9 @@ jobs:
       - name: Push to GHCR
         run: |
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-amd64
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-migrate-arm:
     name: hatchet-migrate
     runs-on: hatchet-arm64-2
@@ -533,6 +606,9 @@ jobs:
       - name: Push to GHCR
         run: |
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-arm64
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-arm64
   build-push-hatchet-migrate:
     name: Combine hatchet-migrate
     runs-on: ubuntu-latest
@@ -562,6 +638,10 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-amd64 \
             ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-arm64
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}
+          sbom: false
   build-push-hatchet-frontend-amd:
     name: hatchet-frontend
     runs-on: ubuntu-latest
@@ -592,6 +672,9 @@ jobs:
       - name: Push to GHCR
         run: |
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-amd64
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-frontend-arm:
     name: hatchet-frontend
     runs-on: hatchet-arm64-2
@@ -622,6 +705,9 @@ jobs:
       - name: Push to GHCR
         run: |
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-arm64
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-arm64
   build-push-hatchet-frontend:
     name: Combine hatchet-frontend
     runs-on: ubuntu-latest
@@ -651,6 +737,10 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-amd64 \
             ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-arm64
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}
+          sbom: false
   build-push-hatchet-lite-amd:
     name: hatchet-lite-amd
     runs-on: ubuntu-latest
@@ -710,6 +800,9 @@ jobs:
             .
       - name: Push to GHCR
         run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-amd64
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-lite-arm:
     name: hatchet-lite-arm
     runs-on: hatchet-arm64-2
@@ -769,6 +862,9 @@ jobs:
             .
       - name: Push to GHCR
         run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-arm64
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-arm64
   auth-enabled:
     name: Verify auth enabled (non-dev)
     runs-on: ubuntu-latest
@@ -872,6 +968,10 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-amd64 \
             ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-arm64
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}
+          sbom: false
   build-push-hatchet-lite-dev-amd:
     name: hatchet-lite-dev-amd
     runs-on: ubuntu-latest
@@ -933,6 +1033,9 @@ jobs:
             .
       - name: Push to GHCR
         run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev:${{steps.tag_name.outputs.tag}}-amd64
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-lite-dev-arm:
     name: hatchet-lite-dev-arm
     runs-on: hatchet-arm64-2
@@ -994,6 +1097,9 @@ jobs:
             .
       - name: Push to GHCR
         run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev:${{steps.tag_name.outputs.tag}}-arm64
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev:${{steps.tag_name.outputs.tag}}-arm64
   combine-hatchet-lite-dev:
     name: Combine hatchet-lite-dev
     runs-on: ubuntu-latest
@@ -1007,6 +1113,8 @@ jobs:
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
         env:
           GITHUB_TAG: ${{ github.ref }}
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -1018,6 +1126,10 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev:${{steps.tag_name.outputs.tag}}-amd64 \
             ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev:${{steps.tag_name.outputs.tag}}-arm64
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev:${{steps.tag_name.outputs.tag}}
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev:${{steps.tag_name.outputs.tag}}
+          sbom: false
   build-push-hatchet-dashboard-amd:
     name: hatchet-dashboard-amd
     runs-on: ubuntu-latest
@@ -1060,6 +1172,9 @@ jobs:
       - name: Push to GHCR
         run: |
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-amd64
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-dashboard-arm:
     name: hatchet-dashboard-arm
     runs-on: hatchet-arm64-2
@@ -1102,6 +1217,9 @@ jobs:
       - name: Push to GHCR
         run: |
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-arm64
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-arm64
   combine-hatchet-dashboard:
     name: Combine hatchet-dashboard
     runs-on: ubuntu-latest
@@ -1132,6 +1250,10 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-amd64 \
             ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-arm64
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}
+          sbom: false
   build-push-hatchet-dashboard-dev-amd:
     name: hatchet-dashboard-dev-amd
     runs-on: ubuntu-latest
@@ -1174,6 +1296,9 @@ jobs:
             .
       - name: Push to GHCR
         run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-dashboard-dev:${{steps.tag_name.outputs.tag}}-amd64
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-dashboard-dev:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-dashboard-dev-arm:
     name: hatchet-dashboard-dev-arm
     runs-on: hatchet-arm64-2
@@ -1216,6 +1341,9 @@ jobs:
             .
       - name: Push to GHCR
         run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-dashboard-dev:${{steps.tag_name.outputs.tag}}-arm64
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-dashboard-dev:${{steps.tag_name.outputs.tag}}-arm64
   combine-hatchet-dashboard-dev:
     name: Combine hatchet-dashboard-dev
     runs-on: ubuntu-latest
@@ -1229,6 +1357,8 @@ jobs:
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
         env:
           GITHUB_TAG: ${{ github.ref }}
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -1240,6 +1370,10 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-dashboard-dev:${{steps.tag_name.outputs.tag}}-amd64 \
             ghcr.io/hatchet-dev/hatchet/hatchet-dashboard-dev:${{steps.tag_name.outputs.tag}}-arm64
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-dashboard-dev:${{steps.tag_name.outputs.tag}}
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-dashboard-dev:${{steps.tag_name.outputs.tag}}
+          sbom: false
   build-push-hatchet-loadtest-amd:
     name: hatchet-loadtest
     runs-on: ubuntu-latest
@@ -1264,6 +1398,9 @@ jobs:
       - name: Push to GHCR
         run: |
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-amd64
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-loadtest-arm:
     name: hatchet-loadtest
     runs-on: hatchet-arm64-2
@@ -1288,6 +1425,9 @@ jobs:
       - name: Push to GHCR
         run: |
           docker push ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-arm64
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-arm64
   build-push-hatchet-loadtest:
     name: Combine hatchet-loadtest
     runs-on: ubuntu-latest
@@ -1316,3 +1456,7 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-amd64 \
             ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-arm64
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}
+          sbom: false
