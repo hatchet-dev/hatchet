@@ -77,6 +77,10 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 			), nil
 		}
 
+		if apierrors.DriverError(err) {
+			return nil, err
+		}
+
 		return gen.TenantInviteCreate403JSONResponse{
 			Description: err.Error(),
 		}, nil

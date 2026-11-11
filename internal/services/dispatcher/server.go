@@ -1457,7 +1457,7 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 	task, err := s.repov1.Tasks().GetTaskByExternalId(ctx, tenant.ID, taskExternalId, skipCache)
 
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid task external run id %s: %v", request.TaskRunExternalId, err))
+		return nil, err
 	}
 
 	retryCount := task.RetryCount
@@ -1719,7 +1719,7 @@ func (d *DispatcherImpl) CancelTaskWithReason(ctx context.Context, tenantId uuid
 
 	task, err := d.repov1.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, false)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("could not get task %s: %v", request.TaskRunExternalId, err))
+		return nil, err
 	}
 
 	retryCount := task.RetryCount

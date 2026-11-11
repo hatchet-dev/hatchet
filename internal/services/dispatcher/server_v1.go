@@ -1008,7 +1008,7 @@ func (d *DispatcherServiceImpl) handleRegisterWorker(
 
 	err = d.repo.Workers().UpdateWorkerDurableTaskDispatcherId(ctx, invocation.tenantId, workerId, d.dispatcherId)
 	if err != nil {
-		return connect.NewError(connect.CodeInternal, fmt.Errorf("failed to update worker durable task dispatcher id: %v", err))
+		return err
 	}
 
 	return invocation.send(&contracts.DurableTaskResponse{
@@ -1142,7 +1142,7 @@ func (d *DispatcherServiceImpl) handleMemo(
 
 	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, invocation.tenantId, taskExternalId, false)
 	if err != nil {
-		return connect.NewError(connect.CodeNotFound, fmt.Errorf("task not found: %v", err))
+		return err
 	}
 
 	ingestionResult, err := d.repo.DurableEvents().IngestDurableTaskEvent(ctx, v1.IngestDurableTaskEventOpts{
@@ -1167,7 +1167,7 @@ func (d *DispatcherServiceImpl) handleMemo(
 	case err != nil && errors.As(err, &sie):
 		return d.sendStaleInvocationEviction(invocation, sie)
 	case err != nil:
-		return connect.NewError(connect.CodeInternal, fmt.Errorf("failed to ingest memo event: %v", err))
+		return err
 	}
 
 	err = invocation.send(&contracts.DurableTaskResponse{
@@ -1222,7 +1222,7 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 
 	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, invocation.tenantId, taskExternalId, false)
 	if err != nil {
-		return connect.NewError(connect.CodeNotFound, fmt.Errorf("task not found: %v", err))
+		return err
 	}
 
 	triggerOpts := make([]*v1.WorkflowNameTriggerOpts, 0, len(req.TriggerOpts))
@@ -1257,7 +1257,7 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 	case err != nil && errors.As(err, &sie):
 		return d.sendStaleInvocationEviction(invocation, sie)
 	case err != nil:
-		return connect.NewError(connect.CodeInternal, fmt.Errorf("failed to ingest trigger runs event: %v", err))
+		return err
 	}
 
 	ackResp := &contracts.DurableTaskEventTriggerRunsAckResponse{
@@ -1298,7 +1298,7 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 		// durable task would hang forever with no other recovery path, so treat it as fatal
 		// to the RPC rather than best-effort
 		if sendErr := d.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); sendErr != nil {
-			return connect.NewError(connect.CodeInternal, fmt.Errorf("failed to enqueue durable run trigger: %v", sendErr))
+			return sendErr
 		}
 	}
 
@@ -1345,7 +1345,7 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 
 	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, invocation.tenantId, taskExternalId, false)
 	if err != nil {
-		return connect.NewError(connect.CodeNotFound, fmt.Errorf("task not found: %v", err))
+		return err
 	}
 
 	var createConditionOpts []v1.CreateExternalSignalConditionOpt
@@ -1415,7 +1415,7 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 	case err != nil && errors.As(err, &sie):
 		return d.sendStaleInvocationEviction(invocation, sie)
 	case err != nil:
-		return connect.NewError(connect.CodeInternal, fmt.Errorf("failed to ingest wait_for event: %v", err))
+		return err
 	}
 
 	err = invocation.send(&contracts.DurableTaskResponse{
@@ -1466,7 +1466,7 @@ func (d *DispatcherServiceImpl) handleCompleteMemo(
 		Payload:         req.Payload,
 	})
 	if err != nil {
-		return connect.NewError(connect.CodeInternal, fmt.Errorf("failed to complete memo entry: %v", err))
+		return err
 	}
 
 	return nil
@@ -1507,7 +1507,8 @@ func (d *DispatcherServiceImpl) handleEvictInvocation(
 	}
 
 	if _, err := d.evictDurableTask(ctx, invocation.tenantId, taskExternalId, req.InvocationCount, durableEvictionMessage(req)); err != nil {
-		return d.sendEvictionError(invocation, req, err.Error())
+		d.l.Error().Err(err).Msg("failed to evict durable task")
+		return d.sendEvictionError(invocation, req, "failed to evict task")
 	}
 
 	return invocation.send(&contracts.DurableTaskResponse{

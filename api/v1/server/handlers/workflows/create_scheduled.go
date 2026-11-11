@@ -61,6 +61,10 @@ func (t *WorkflowService) ScheduledWorkflowRunCreate(ctx echo.Context, request g
 	})
 
 	if err != nil {
+		if apierrors.DriverError(err) {
+			return nil, err
+		}
+
 		return gen.ScheduledWorkflowRunCreate400JSONResponse(
 			apierrors.NewAPIErrors(err.Error()),
 		), nil
