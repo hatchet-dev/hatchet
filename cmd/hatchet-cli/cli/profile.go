@@ -25,6 +25,7 @@ import (
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/config/cli/profilestore"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader/loaderutils"
 
 	cliconfig "github.com/hatchet-dev/hatchet/pkg/config/cli"
@@ -131,6 +132,7 @@ var profileAddCmd = &cobra.Command{
 		}
 
 		fmt.Println(profileActionView("added", name))
+		printPlaintextTokenWarning()
 	},
 }
 
@@ -207,8 +209,44 @@ var profileShowCmd = &cobra.Command{
 			cli.Logger.Fatalf("could not get profile: %v", err)
 		}
 
-		fmt.Println(profileView(name, profile.Token, profile.ApiServerURL, profile.GrpcHostPort, showToken))
+		fmt.Println(profileView(name, profile.Token, profile.ApiServerURL, profile.GrpcHostPort, showToken, slices.Contains(cli.Profiles.PlaintextProfiles(), strings.ToLower(name))))
 	},
+}
+
+// migratePlaintextTokens runs before every command. Plain-text tokens in the
+// profile file are moved into the keyring; when that is not possible a one-line
+// warning is printed instead.
+func migratePlaintextTokens(cmd *cobra.Command) {
+	if isQuietCommand(cmd) || len(cli.Profiles.PlaintextProfiles()) == 0 {
+		return
+	}
+
+	moved, err := cli.Profiles.MigrateTokens()
+	if err != nil {
+		cli.Logger.Warnf("could not move tokens to the %s; they remain in %s", profilestore.KeyringName(), cli.Profiles.Path())
+	}
+	if len(moved) > 0 {
+		fmt.Fprintln(os.Stderr, styles.Muted.Render(fmt.Sprintf("Moved %d API token(s) from %s to the %s.", len(moved), cli.Profiles.Path(), profilestore.KeyringName())))
+	}
+
+	printPlaintextTokenWarning()
+}
+
+// printPlaintextTokenWarning is called after every profile write and at
+// startup, so a token that just fell back to the file is reported right away.
+func printPlaintextTokenWarning() {
+	if w := plaintextTokenWarning(); w != "" {
+		fmt.Fprintln(os.Stderr, w)
+	}
+}
+
+// plaintextTokenWarning is the one-line yellow warning shown while any profile
+// keeps its token in the profile file, or "" when none does.
+func plaintextTokenWarning() string {
+	if len(cli.Profiles.PlaintextProfiles()) == 0 {
+		return ""
+	}
+	return styles.Warning.Render(fmt.Sprintf("Warning: API tokens are stored in plain text in %s (%s unavailable).", cli.Profiles.Path(), profilestore.KeyringName()))
 }
 
 // profileEnvCmd exists so credentials can be loaded by command substitution,
@@ -330,6 +368,7 @@ var profileUpdateCmd = &cobra.Command{
 		}
 
 		fmt.Println(profileActionView("updated", name))
+		printPlaintextTokenWarning()
 	},
 }
 
@@ -530,6 +569,7 @@ func addProfileFromToken(cmd *cobra.Command) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("could not add profile: %w", err)
 	}
+	printPlaintextTokenWarning()
 
 	return name, nil
 }
@@ -833,7 +873,7 @@ func shellSingleQuote(v string) string {
 }
 
 // profileView renders a profile view with details
-func profileView(name, token, apiURL, grpcHost string, showToken bool) string {
+func profileView(name, token, apiURL, grpcHost string, showToken, plaintext bool) string {
 	var lines []string
 
 	// Title
@@ -844,6 +884,14 @@ func profileView(name, token, apiURL, grpcHost string, showToken bool) string {
 	tokenValue := token
 	if !showToken && len(token) > 4 {
 		tokenValue = token[:4] + "****"
+	}
+	switch {
+	case token == "":
+		tokenValue = styles.Muted.Render("(missing: not in profiles.yaml or the " + profilestore.KeyringName() + ")")
+	case plaintext:
+		tokenValue += " " + styles.Warning.Render("(plain text in profiles.yaml)")
+	default:
+		tokenValue += " " + styles.Muted.Render("("+profilestore.KeyringName()+")")
 	}
 	lines = append(lines, styles.KeyValue("Token", tokenValue))
 
@@ -861,6 +909,7 @@ func profileListView(profiles []string) string {
 	}
 
 	defaultProfile := cli.Profiles.GetDefaultProfile()
+	plaintext := cli.Profiles.PlaintextProfiles()
 
 	var lines []string
 	// Use Primary.Bold instead of Section to avoid the MarginBottom spacing
@@ -870,6 +919,9 @@ func profileListView(profiles []string) string {
 		profileDisplay := profile
 		if profile == defaultProfile {
 			profileDisplay = profile + " " + styles.Muted.Render("(default)")
+		}
+		if slices.Contains(plaintext, profile) {
+			profileDisplay += " " + styles.Warning.Render("(token in plain text)")
 		}
 		lines = append(lines, styles.ListItem.Render(styles.Accent.Render("• ")+profileDisplay))
 	}

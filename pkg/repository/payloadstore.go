@@ -177,6 +177,25 @@ func (s TypedPayloadStore[S]) Retrieve(ctx context.Context, tx sqlcv1.DBTX, refs
 		return nil, err
 	}
 
+	return typedPayloadsFromBytes[S](refs, optsToBytes), nil
+}
+
+// Resolve is Retrieve for callers that already read the v1_payload rows.
+func (s TypedPayloadStore[S]) Resolve(ctx context.Context, tx sqlcv1.DBTX, rows []*sqlcv1.V1Payload, refs ...PayloadRef[S]) (map[PayloadRef[S]]Payload[S], error) {
+	opts := enumerables.Map(refs, func(ref PayloadRef[S]) RetrievePayloadOpts {
+		return ref.retrieveOpts()
+	})
+
+	optsToBytes, err := s.store.Resolve(ctx, tx, rows, opts...)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return typedPayloadsFromBytes[S](refs, optsToBytes), nil
+}
+
+func typedPayloadsFromBytes[S PayloadShape](refs []PayloadRef[S], optsToBytes map[RetrievePayloadOpts][]byte) map[PayloadRef[S]]Payload[S] {
 	result := make(map[PayloadRef[S]]Payload[S], len(optsToBytes))
 
 	for _, ref := range refs {
@@ -185,7 +204,7 @@ func (s TypedPayloadStore[S]) Retrieve(ctx context.Context, tx sqlcv1.DBTX, refs
 		}
 	}
 
-	return result, nil
+	return result
 }
 
 func RetrievePayloadOrFallback[S PayloadShape](payloads map[PayloadRef[S]]Payload[S], ref PayloadRef[S], fallback []byte) Payload[S] {
@@ -266,6 +285,7 @@ type PayloadStoreRepository interface {
 	Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
 	OverwriteExisting(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
 	Retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
+	Resolve(ctx context.Context, tx sqlcv1.DBTX, rows []*sqlcv1.V1Payload, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
 	TaskInputs() TypedPayloadStore[TaskInputShape]
 	DAGInputs() TypedPayloadStore[DAGInputShape]
 	UserEventInputs() TypedPayloadStore[UserEventInputShape]
@@ -558,6 +578,22 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to read payload metadata: %w", err)
+	}
+
+	return p.resolve(ctx, tx, payloads, opts...)
+}
+
+func (p *payloadStoreRepositoryImpl) Resolve(ctx context.Context, tx sqlcv1.DBTX, rows []*sqlcv1.V1Payload, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
+	if tx == nil {
+		tx = p.defaultRetrieveHandle(opts)
+	}
+
+	return p.resolve(ctx, tx, rows, opts...)
+}
+
+func (p *payloadStoreRepositoryImpl) resolve(ctx context.Context, tx sqlcv1.DBTX, payloads []*sqlcv1.V1Payload, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
+	if len(opts) == 0 {
+		return make(map[RetrievePayloadOpts][]byte), nil
 	}
 
 	optsToPayload := make(map[RetrievePayloadOpts][]byte)

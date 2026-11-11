@@ -379,6 +379,27 @@ func (s *Scheduler) addWorker(newWorker *v1.ListActiveWorkersResult) {
 	})
 }
 
+// removeWorker drops a worker and its slot pools from the in-memory view so no
+// further assignments land on it before the next worker lease refresh. The
+// worker's unacked assignments are left alone: their acks and nacks still
+// resolve through unackedSlots. Action worker lists are rebuilt on the next
+// replenish; until then, a lookup of the removed worker finds no pools and is
+// skipped by assignment.
+func (s *Scheduler) removeWorker(workerId uuid.UUID) {
+	s.mustDo(func() {
+		delete(s.workers, workerId)
+
+		for slotType := range s.poolsByWorker[workerId] {
+			delete(s.pools, poolKey{workerId: workerId, slotType: slotType})
+		}
+
+		delete(s.poolsByWorker, workerId)
+		delete(s.warmedSlotTypes, workerId)
+
+		s.markWorkerCapacityUpdated()
+	})
+}
+
 // endReplenishCycle runs on the run loop when an in-flight replenish cycle
 // finishes (applied, skipped as empty, or failed).
 func (s *Scheduler) endReplenishCycle() {

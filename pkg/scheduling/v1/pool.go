@@ -184,11 +184,9 @@ func (p *SchedulingPool) SetTenants(tenants []*sqlcv1.Tenant) {
 		p.tenants.Delete(tm.tenantId)
 	}
 
-	go func() {
-		// it is safe to cleanup tenants in a separate goroutine because we no longer have pointers to
-		// any cleaned up tenants in the map
-		p.cleanupTenants(toCleanup)
-	}()
+	// Hold setMu through cleanup so a subsequent reconciliation cannot recreate a
+	// tenant before its old manager releases leases on the shared outbox.
+	p.cleanupTenants(toCleanup)
 
 	go p.Extensions.SetTenants(tenants)
 }
@@ -243,6 +241,12 @@ func (p *SchedulingPool) NotifyRateLimitsChanged(ctx context.Context, tenantId u
 func (p *SchedulingPool) NotifyNewWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) {
 	if tm := p.getTenantManager(tenantId, false); tm != nil {
 		tm.notifyNewWorker(ctx, workerId)
+	}
+}
+
+func (p *SchedulingPool) RemoveWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) {
+	if tm := p.getTenantManager(tenantId, false); tm != nil {
+		tm.removeWorker(ctx, workerId)
 	}
 }
 

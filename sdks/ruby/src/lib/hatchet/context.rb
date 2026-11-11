@@ -108,7 +108,8 @@ module Hatchet
     # @param task_ref [Task, Symbol, String] Reference to the parent task
     # @return [Boolean] true if the task was skipped
     def was_skipped?(task_ref)
-      task_output(task_ref).nil?
+      output = task_output(task_ref)
+      output.is_a?(Hash) && (output["skipped"] == true || output[:skipped] == true)
     end
 
     # Log a message via the Hatchet logging system.

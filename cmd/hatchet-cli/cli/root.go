@@ -42,16 +42,20 @@ func Execute() {
 
 	updateNotice := startUpdateCheck()
 
+	// Resolve the target command up front: several subcommands replace the
+	// inherited PersistentPreRun, so a hook there would not run for them.
+	if target, _, err := rootCmd.Find(os.Args[1:]); err == nil {
+		migratePlaintextTokens(target)
+	}
+
 	cmd, err := rootCmd.ExecuteC()
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	for c := cmd; c != nil; c = c.Parent() {
-		if noUpdateNoticeCommands[c.Name()] {
-			return
-		}
+	if isQuietCommand(cmd) {
+		return
 	}
 
 	if msg := updateNotice(); msg != "" {
@@ -59,12 +63,26 @@ func Execute() {
 	}
 }
 
-var noUpdateNoticeCommands = map[string]bool{
+// quietCommands never receive out-of-band output such as the update notice or
+// the token migration note: their output is consumed by a shell or they are
+// the command the notice would point to.
+var quietCommands = map[string]bool{
 	"upgrade":                       true,
 	"version":                       true,
+	"help":                          true,
+	"env":                           true,
 	"completion":                    true,
 	cobra.ShellCompRequestCmd:       true,
 	cobra.ShellCompNoDescRequestCmd: true,
+}
+
+func isQuietCommand(cmd *cobra.Command) bool {
+	for c := cmd; c != nil; c = c.Parent() {
+		if quietCommands[c.Name()] {
+			return true
+		}
+	}
+	return false
 }
 
 func init() {

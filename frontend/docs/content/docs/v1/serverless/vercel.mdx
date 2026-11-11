@@ -7,6 +7,13 @@ import { Callout } from "@/components/nextra-compat";
 
 # Vercel
 
+<Callout type="warning">
+  Serverless endpoints are a Labs feature and may change in future releases. In
+  the dashboard, open <strong>Settings</strong>, go to{" "}
+  <strong>Labs Preview</strong> and turn on <strong>Serverless</strong>. Tenants
+  on the free plan are asked to upgrade first.
+</Callout>
+
 `@hatchet-dev/serverless` turns a Next.js route into a [serverless endpoint](/v1/serverless): the route answers Hatchet's healthcheck with the workflows it serves, verifies the signature on every request, and runs each task it's assigned. Your task code is the same code you'd run on a [worker](/v1/workers), declared with the same `hatchet.task` and `hatchet.durableTask` calls.
 
 You need Node 22, the [Vercel CLI](https://vercel.com/docs/cli), and a Vercel project. Durable tasks and tasks that wait for child runs need [Fluid compute](https://vercel.com/docs/fluid-compute), which is on by default for new projects; see [platform notes](#platform-notes).

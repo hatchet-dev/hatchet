@@ -5,6 +5,14 @@ import {
   V1LogLineLevelIncludingEvictionNotice,
 } from './log-search/use-logs';
 import RelativeDate from '@/components/v1/molecules/relative-date';
+import { Button } from '@/components/v1/ui/button';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/v1/ui/dialog';
 import {
   Popover,
   PopoverContent,
@@ -17,9 +25,9 @@ import {
   TooltipTrigger,
 } from '@/components/v1/ui/tooltip';
 import { V1LogLineLevel, V1TaskStatus } from '@/lib/api';
-import { cn } from '@/lib/utils';
+import { cn, formatErrorForDisplay } from '@/lib/utils';
 import { Link } from '@tanstack/react-router';
-import { ExternalLink, XCircle } from 'lucide-react';
+import { ExternalLink, Maximize2, Minimize2, XCircle } from 'lucide-react';
 import { createElement, useCallback, useMemo, useRef, useState } from 'react';
 
 const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
@@ -160,36 +168,89 @@ function isNonEmpty<TValue>(value: TValue | null | undefined): value is TValue {
   return value !== null && value !== undefined;
 }
 
-function ErrorPopover({ error }: { error: string }) {
+function ErrorDetails({ error }: { error: string }) {
+  const { code, language } = formatErrorForDisplay(error);
+  const [view, setView] = useState<'closed' | 'popover' | 'dialog'>('closed');
+
   return (
-    <Popover>
-      <PopoverTrigger
-        onClick={(e) => e.stopPropagation()}
-        className="ml-2 shrink-0 inline-flex items-center rounded border border-red-500/30 px-1.5 py-0.5 font-mono text-[10px] text-red-500 dark:text-red-400 hover:border-red-500/60 hover:bg-red-500/5 transition-colors cursor-pointer"
+    // Portaled clicks still bubble through the React tree, so keep them from
+    // toggling the log row's expanded state.
+    <span className="contents" onClick={(e) => e.stopPropagation()}>
+      <Popover
+        open={view === 'popover'}
+        onOpenChange={(open) => setView(open ? 'popover' : 'closed')}
       >
-        View Error
-      </PopoverTrigger>
-      <PopoverContent
-        className="w-[300px] max-w-[90vw] border-border bg-popover p-0 shadow-lg sm:w-[400px] md:w-[500px] lg:w-[600px]"
-        align="start"
-      >
-        <div className="w-[300px] max-w-[90vw] p-4 sm:w-[400px] md:w-[500px] lg:w-[600px]">
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 border-b border-border pb-2">
-              <XCircle className="h-5 w-5 text-destructive" />
-              <h3 className="font-medium text-foreground">Error Details</h3>
-            </div>
-            <div className="h-[400px] overflow-hidden rounded-md border border-border bg-muted/50">
-              <div className="scrollbar-thin scrollbar-track-muted scrollbar-thumb-muted-foreground h-full overflow-x-hidden overflow-y-scroll p-4 font-mono text-sm text-foreground">
-                <pre className="min-h-[500px] whitespace-pre-wrap break-words">
-                  {error || 'No error message found'}
-                </pre>
+        <PopoverTrigger className="ml-2 shrink-0 inline-flex items-center rounded border border-red-500/30 px-1.5 py-0.5 font-mono text-[10px] text-red-500 dark:text-red-400 hover:border-red-500/60 hover:bg-red-500/5 transition-colors cursor-pointer">
+          View Error
+        </PopoverTrigger>
+        <PopoverContent
+          className="w-[300px] max-w-[90vw] border-border bg-popover p-0 shadow-lg sm:w-[400px] md:w-[500px] lg:w-[600px]"
+          align="start"
+        >
+          <div className="w-[300px] max-w-[90vw] p-4 sm:w-[400px] md:w-[500px] lg:w-[600px]">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 border-b border-border pb-2">
+                <XCircle className="h-5 w-5 text-destructive" />
+                <h3 className="font-medium text-foreground">Error Details</h3>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="ml-auto h-7 w-7"
+                  title="Expand"
+                  aria-label="Expand error"
+                  onClick={() => setView('dialog')}
+                >
+                  <Maximize2 className="h-4 w-4" />
+                </Button>
               </div>
+              <CodeHighlighter
+                className="border border-border"
+                maxHeight="400px"
+                language={language}
+                code={code}
+                copyCode={error}
+              />
             </div>
           </div>
-        </div>
-      </PopoverContent>
-    </Popover>
+        </PopoverContent>
+      </Popover>
+      <Dialog
+        open={view === 'dialog'}
+        onOpenChange={(open) => setView(open ? 'dialog' : 'closed')}
+      >
+        <DialogContent
+          className="w-[90vw] max-w-[90vw]"
+          aria-describedby={undefined}
+        >
+          <DialogHeader className="flex-row items-center gap-2 space-y-0">
+            <DialogTitle className="flex items-center gap-2">
+              <XCircle className="h-5 w-5 text-destructive" />
+              Error Details
+            </DialogTitle>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="ml-auto h-7 w-7"
+              title="Collapse"
+              aria-label="Collapse error"
+              onClick={() => setView('popover')}
+            >
+              <Minimize2 className="h-4 w-4" />
+            </Button>
+          </DialogHeader>
+          <CodeHighlighter
+            // min-w-0 keeps unwrapped lines from widening the dialog's grid.
+            className="min-w-0 border border-border"
+            // 7rem leaves room for the dialog padding and header within 90vh.
+            maxHeight="calc(90vh - 7rem)"
+            language={language}
+            code={code}
+            copyCode={error}
+            wrapLines={false}
+          />
+        </DialogContent>
+      </Dialog>
+    </span>
   );
 }
 
@@ -518,7 +579,7 @@ export function LogViewer({
                 {hasLogMetadata(log.metadata) && (
                   <FieldsPopover metadata={log.metadata} />
                 )}
-                {log.error && <ErrorPopover error={log.error} />}
+                {log.error && <ErrorDetails error={log.error} />}
                 {log.linkTo && (
                   <TooltipProvider>
                     <Tooltip>

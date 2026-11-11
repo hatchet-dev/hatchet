@@ -191,6 +191,10 @@ type TriggerRepository interface {
 	PreflightVerifyWorkflowNameOpts(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error
 
 	NewTriggerTaskData(ctx context.Context, tenantId uuid.UUID, req *v1contracts.TriggerWorkflowRequest, parentTask *sqlcv1.FlattenExternalIdsRow) (*TriggerTaskData, error)
+
+	// InvalidateEventKeyWorkflows drops the cached lists of workflows that the tenant's event
+	// keys trigger, for when any engine has created a workflow version for the tenant.
+	InvalidateEventKeyWorkflows(tenantId uuid.UUID)
 }
 
 type TriggerRepositoryImpl struct {
@@ -2667,6 +2671,10 @@ func (r *sharedRepository) listWorkflowsForEvents(ctx context.Context, tx sqlcv1
 	}
 
 	if len(keysToLookup) > 0 {
+		r.eventKeyWorkflowsMu.Lock()
+		dropsBefore := r.eventKeyWorkflowsDrops
+		r.eventKeyWorkflowsMu.Unlock()
+
 		rows, err := r.queries.ListWorkflowsForEvents(ctx, tx, sqlcv1.ListWorkflowsForEventsParams{
 			Eventkeys: keysToLookup,
 			Tenantid:  tenantId,
@@ -2684,9 +2692,13 @@ func (r *sharedRepository) listWorkflowsForEvents(ctx context.Context, tx sqlcv1
 			byEventKey[row.IncomingEventKey] = append(byEventKey[row.IncomingEventKey], row)
 		}
 
-		for _, eventKey := range keysToLookup {
-			r.eventKeyWorkflowsCache.Add(eventKeyTenantIdTuple{tenantId: tenantId, eventKey: eventKey}, byEventKey[eventKey])
+		r.eventKeyWorkflowsMu.Lock()
+		if r.eventKeyWorkflowsDrops == dropsBefore {
+			for _, eventKey := range keysToLookup {
+				r.eventKeyWorkflowsCache.Add(eventKeyTenantIdTuple{tenantId: tenantId, eventKey: eventKey}, byEventKey[eventKey])
+			}
 		}
+		r.eventKeyWorkflowsMu.Unlock()
 	}
 
 	res := make([]*sqlcv1.ListWorkflowsForEventsRow, 0, len(eventKeys))
@@ -2696,6 +2708,19 @@ func (r *sharedRepository) listWorkflowsForEvents(ctx context.Context, tx sqlcv1
 	}
 
 	return res, nil
+}
+
+func (r *sharedRepository) InvalidateEventKeyWorkflows(tenantId uuid.UUID) {
+	r.eventKeyWorkflowsMu.Lock()
+	defer r.eventKeyWorkflowsMu.Unlock()
+
+	r.eventKeyWorkflowsDrops++
+
+	for _, key := range r.eventKeyWorkflowsCache.Keys() {
+		if key.tenantId == tenantId {
+			r.eventKeyWorkflowsCache.Remove(key)
+		}
+	}
 }
 
 func (r *sharedRepository) listStepMatchConditions(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, stepIds []uuid.UUID) ([]*sqlcv1.V1StepMatchCondition, error) {

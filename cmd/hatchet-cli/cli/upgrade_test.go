@@ -8,6 +8,26 @@ import (
 	"testing"
 )
 
+func TestNpmInstallPath(t *testing.T) {
+	cases := []struct {
+		path string
+		want bool
+	}{
+		{"/usr/local/lib/node_modules/@hatchet-dev/cli-darwin-arm64/bin/hatchet", true},
+		{"/usr/local/lib/node_modules/@hatchet-dev/cli-linux-x64/bin/hatchet", true},
+		{`C:\Users\me\AppData\Roaming\npm\node_modules\@hatchet-dev\cli-win32-x64\bin\hatchet.exe`, true},
+		{"/usr/local/lib/node_modules/@hatchet-dev/cli/bin/hatchet.js", false},
+		{"/opt/homebrew/Caskroom/hatchet/0.114.2/hatchet", false},
+		{"/home/dev/.local/bin/hatchet", false},
+		{"", false},
+	}
+	for _, c := range cases {
+		if got := npmInstallPath(c.path); got != c.want {
+			t.Errorf("npmInstallPath(%q) = %v, want %v", c.path, got, c.want)
+		}
+	}
+}
+
 func TestUpgradeVersionAndInstallDetection(t *testing.T) {
 	cases := []struct {
 		latest, current string

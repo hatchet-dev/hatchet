@@ -204,11 +204,11 @@ INSERT INTO v1_stream_payload (id, tenant_id, payload)
 VALUES (@id::uuid, @tenantId::uuid, @payload::bytea)
 RETURNING inserted_at;
 
--- name: StreamPayloadExists :one
-SELECT EXISTS (
-    SELECT 1 FROM v1_stream_payload
-    WHERE tenant_id = @tenantId::uuid AND id = @id::uuid AND inserted_at = @insertedAt::timestamptz
-) AS exists;
+-- name: GetStreamPayloadSize :one
+-- octet_length reads a TOASTed payload's size without loading it.
+SELECT octet_length(payload)::bigint AS size
+FROM v1_stream_payload
+WHERE tenant_id = @tenantId::uuid AND id = @id::uuid AND inserted_at = @insertedAt::timestamptz;
 
 -- name: CopyStreamPayload :one
 -- Copies an upload into a new row in the publishing transaction, so it lands
@@ -282,13 +282,14 @@ UPDATE v1_stream_topic
 SET starting_offset = LEAST(sqlc.narg('startingOffset')::bigint, last_offset)
 WHERE tenant_id = @tenantId::uuid AND namespace = @namespace::text AND topic = @topic::text;
 
--- name: GetStreamTopicStartingOffset :one
--- 0 for a topic not yet published to, so it starts at its beginning.
-SELECT COALESCE((
-    SELECT starting_offset
-    FROM v1_stream_topic
-    WHERE tenant_id = @tenantId::uuid AND namespace = @namespace::text AND topic = @topic::text
-), 0)::bigint AS starting_offset;
+-- name: GetStreamTopicInfo :one
+-- Zeros for a topic not yet published to. A primary-key lookup, cheap enough to run every poll tick.
+SELECT
+    COALESCE(t.starting_offset, 0)::bigint AS starting_offset,
+    COALESCE(t.last_offset, 0)::bigint AS last_offset
+FROM (SELECT 1) AS one
+LEFT JOIN v1_stream_topic t
+    ON t.tenant_id = @tenantId::uuid AND t.namespace = @namespace::text AND t.topic = @topic::text;
 
 -- name: ListStreamTopics :many
 -- message_count covers only messages within the tenant's retention.
@@ -297,6 +298,7 @@ SELECT
     t.topic,
     t.inserted_at,
     t.last_published_at,
+    t.starting_offset,
     (
         SELECT COUNT(*)
         FROM v1_stream_message m
@@ -308,7 +310,7 @@ SELECT
 FROM v1_stream_topic t
 WHERE t.tenant_id = @tenantId::uuid
     AND (sqlc.narg('search')::text IS NULL OR t.topic ILIKE '%' || sqlc.narg('search')::text || '%' OR t.namespace ILIKE '%' || sqlc.narg('search')::text || '%')
-ORDER BY t.namespace, t.topic
+ORDER BY t.last_published_at DESC, t.namespace, t.topic
 LIMIT @topicLimit::integer
 OFFSET @topicOffset::integer;
 
