@@ -1477,5 +1477,85 @@ describe('HatchetCore.streams', () => {
       expect(seen).toEqual(['one']);
       expect(engine.subscribes).toHaveLength(1);
     });
+
+    it('stops yielding a message’s remaining entries once its signal aborts', async () => {
+      const engine = fakeEngine();
+      const client = makeClient(engine);
+      const controller = new AbortController();
+      engine.scriptSubscribe(
+        { entries: [entry('c1', 'one'), entry('c2', 'two'), entry('c3', 'three')] },
+        { hangup: true }
+      );
+
+      const seen: string[] = [];
+      for await (const event of client.streams.subscribe('progress', {
+        signal: controller.signal,
+      })) {
+        seen.push(text(event.payload));
+        controller.abort();
+      }
+
+      expect(seen).toEqual(['one']);
+    });
+
+    it('does not fetch a payload by ref once its signal aborts', async () => {
+      const engine = fakeEngine();
+      const fetches: string[] = [];
+      const client = new HatchetCore({
+        token: TOKEN,
+        transport: engine.transport,
+        logLevel: 'OFF',
+        fetch: async (input) => {
+          fetches.push(String(input));
+          return new Response(new TextEncoder().encode('stored'));
+        },
+      });
+      const controller = new AbortController();
+      engine.scriptSubscribe(
+        {
+          entries: [
+            entry('c1', 'one'),
+            { cursor: 'c2', payloadRef: 'ref-2', createdAt: entry('c2', '').createdAt },
+          ],
+        },
+        { hangup: true }
+      );
+
+      for await (const _ of client.streams.subscribe('progress', { signal: controller.signal })) {
+        controller.abort();
+      }
+
+      expect(fetches).toEqual([]);
+    });
+
+    it('rereads a payload whose download fails after its headers, instead of yielding it empty', async () => {
+      const engine = fakeEngine();
+      let downloads = 0;
+      const client = new HatchetCore({
+        token: TOKEN,
+        transport: engine.transport,
+        logLevel: 'OFF',
+        fetch: async () => {
+          downloads += 1;
+          if (downloads <= 3) {
+            // 200 and headers, then the connection drops mid-body
+            const body = new ReadableStream<Uint8Array>({
+              start(c) {
+                c.error(new TypeError('connection reset'));
+              },
+            });
+            return new Response(body, { status: 200 });
+          }
+          return new Response(new TextEncoder().encode('stored'));
+        },
+      });
+      const stored = { cursor: 'c1', payloadRef: 'ref-1', createdAt: entry('c1', '').createdAt };
+      // every attempt fails on the first subscription, so it resubscribes from the same cursor
+      engine.scriptSubscribe({ entries: [stored] }, { hangup: true });
+      engine.scriptSubscribe({ entries: [stored] }, { hangup: true });
+
+      expect(await read(client.streams.subscribe('progress'))).toEqual([['stored', 'c1']]);
+      expect(engine.subscribes.map((r) => r.cursor)).toEqual([undefined, undefined]);
+    });
   });
 });

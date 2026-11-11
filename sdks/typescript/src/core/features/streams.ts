@@ -280,9 +280,16 @@ export class StreamsClient {
           }
 
           for (const entry of msg.entries) {
+            // aborting cancels the request, but a message's remaining entries are already here
+            if (signal?.aborted) {
+              return;
+            }
             const payload = entry.payloadRef
               ? await this.fetchPayload(entry.payloadRef, signal)
               : entry.payload;
+            if (signal?.aborted) {
+              return;
+            }
             ({ cursor } = entry);
             // reset only on delivery, so a payload fetch failing on every reconnect still backs off
             failures = 0;

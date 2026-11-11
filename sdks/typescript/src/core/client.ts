@@ -208,7 +208,15 @@ export class HatchetCore {
           { ref },
           { format: 'arrayBuffer', signal }
         );
-        return new Uint8Array(res.data as unknown as ArrayBuffer);
+        // a body that fails to read after a 2xx (e.g. the connection drops mid-download) comes
+        // back as `error` with no `data`, not as a throw
+        if (res.error) {
+          throw res.error;
+        }
+        if (!(res.data instanceof ArrayBuffer)) {
+          throw new HatchetError(`stream payload ${ref}: the response had no body`);
+        }
+        return new Uint8Array(res.data);
       },
     });
     this.tasks = new TasksClient(this.dispatcherRpc);
