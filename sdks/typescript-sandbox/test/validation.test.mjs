@@ -55,6 +55,10 @@ test('file operations validate input and parse provider output', async () => {
   assert.equal(sent.fn, '$fs.download');
   assert.deepEqual(sent.input, { url: 'https://example.com/x', path: 'a', timeoutMs: 5 });
 
+  const noEntry = new Files(async () => ({}));
+  await rejectsZod(noEntry.rename('a', 'b'), /entry/);
+  assert.equal(await noEntry.exists('a'), false);
+
   const failing = new Files(async () => ({ error: { code: 'not_found', message: 'nope' } }));
   await assert.rejects(
     failing.exists('a'),

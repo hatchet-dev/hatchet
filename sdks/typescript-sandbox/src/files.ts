@@ -93,6 +93,7 @@ const fsOutput = z.looseObject({
   error: z.object({ code: z.string(), message: z.string() }).optional(),
 });
 type FsOutput = z.infer<typeof fsOutput>;
+const fsOutputWithEntry = fsOutput.extend({ entry });
 
 /** @internal */
 export type FsTurn = (fn: string, input: JsonObject, fresh?: boolean) => Promise<JsonObject>;
@@ -134,8 +135,20 @@ export class Files {
   /** @internal */
   constructor(private readonly turn: FsTurn) {}
 
-  private async call(fn: string, input: JsonObject, fresh = false): Promise<FsOutput> {
-    const out = fsOutput.parse(await this.turn(`$fs.${fn}`, input, fresh));
+  private call(fn: string, input: JsonObject, fresh?: boolean): Promise<FsOutput>;
+  private call<S extends z.ZodType<FsOutput>>(
+    fn: string,
+    input: JsonObject,
+    fresh: boolean,
+    schema: S
+  ): Promise<z.infer<S>>;
+  private async call(
+    fn: string,
+    input: JsonObject,
+    fresh = false,
+    schema: z.ZodType<FsOutput> = fsOutput
+  ): Promise<FsOutput> {
+    const out = schema.parse(await this.turn(`$fs.${fn}`, input, fresh));
     if (out.error)
       throw new FilesystemError(out.error.code as FilesystemErrorCode, out.error.message);
     return out;
@@ -232,20 +245,24 @@ export class Files {
 
   /** Renames or moves a file or directory. */
   async rename(oldPath: string, newPath: string): Promise<EntryInfo> {
-    const { entry } = await this.call('rename', {
-      path: path.parse(oldPath),
-      newPath: path.parse(newPath),
-    });
-    return entry!;
+    const { entry } = await this.call(
+      'rename',
+      { path: path.parse(oldPath), newPath: path.parse(newPath) },
+      false,
+      fsOutputWithEntry
+    );
+    return entry;
   }
 
   /** Copies a file or directory tree. */
   async copy(srcPath: string, dstPath: string): Promise<EntryInfo> {
-    const { entry } = await this.call('copy', {
-      path: path.parse(srcPath),
-      newPath: path.parse(dstPath),
-    });
-    return entry!;
+    const { entry } = await this.call(
+      'copy',
+      { path: path.parse(srcPath), newPath: path.parse(dstPath) },
+      false,
+      fsOutputWithEntry
+    );
+    return entry;
   }
 
   /** Deletes a file or directory tree. */
@@ -254,12 +271,13 @@ export class Files {
   }
   /** The provider fetches an https URL into the workspace. The sandbox needs no network. Private and loopback addresses are refused. */
   async download(url: string, p: string, opts: TransferOpts = {}): Promise<EntryInfo> {
-    const { entry } = await this.call('download', {
-      url: httpsUrl.parse(url),
-      path: path.parse(p),
-      ...transferOpts.parse(opts),
-    });
-    return entry!;
+    const { entry } = await this.call(
+      'download',
+      { url: httpsUrl.parse(url), path: path.parse(p), ...transferOpts.parse(opts) },
+      false,
+      fsOutputWithEntry
+    );
+    return entry;
   }
   /** The provider sends a workspace file to an https URL with HTTP PUT, for example a presigned URL. */
   async upload(p: string, url: string, opts: TransferOpts = {}): Promise<void> {
