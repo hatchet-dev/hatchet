@@ -271,7 +271,8 @@ func Run(ctx context.Context, p Params) Outcome {
 	})
 
 	if err := r.write(first); err != nil {
-		r.finish(exit{kind: exitClosedWithoutDone, closeCode: CloseInternalError, msg: fmt.Sprintf("could not send action frame: %s", err.Error())})
+		r.l.Warn().Err(err).Str("task_id", r.p.TaskId).Msg("could not send action frame")
+		r.finish(exit{kind: exitClosedWithoutDone, closeCode: CloseInternalError, msg: fmt.Sprintf("could not send action frame: %s", transportMessage(r.p.TriggerURL, err))})
 		_ = conn.Close()
 
 		return r.result
