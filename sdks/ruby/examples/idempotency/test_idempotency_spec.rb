@@ -111,13 +111,14 @@ RSpec.describe "Idempotency" do
 
   it "deduplicates event-triggered runs" do
     test_run_id = SecureRandom.uuid
+    event_key = IDEMPOTENT_TASK.workflow.on_events.first
     e1 = hatchet.events.push(
-      IDEMPOTENCY_EVENT_KEY,
+      event_key,
       { "id" => test_run_id },
       additional_metadata: { "test_run_id" => test_run_id }
     )
     e2 = hatchet.events.push(
-      IDEMPOTENCY_EVENT_KEY,
+      event_key,
       { "id" => test_run_id },
       additional_metadata: { "test_run_id" => test_run_id }
     )
