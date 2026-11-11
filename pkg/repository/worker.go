@@ -165,11 +165,13 @@ type WorkerRepository interface {
 	// the per-worker counts.
 	CountOperatorWorkerActions(ctx context.Context, tenantId uuid.UUID, operatorId uuid.UUID) (int64, error)
 
-	// ReleaseWorkerActions unlinks every action from the worker and zeroes its link count,
-	// under the worker's row lock, and returns how many links it removed. It is for a worker
-	// its operator has moved on from: the links would otherwise count against the operator's
-	// budget forever. The worker must belong to tenantId.
-	ReleaseWorkerActions(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) (int64, error)
+	// ReleaseDeadOperatorWorkers unlinks the actions of every worker of the operator, other than
+	// keepWorkerId, that no longer serves it: inactive, or on a dispatcher that is inactive or
+	// stopped heartbeating. Their links would otherwise count against the operator's budget until
+	// the workers are cleaned up. They are marked inactive too, so a dispatcher whose heartbeat
+	// only lagged stops holding the operator instead of keeping it through a worker with no
+	// actions left. It returns how many links it removed.
+	ReleaseDeadOperatorWorkers(ctx context.Context, tenantId, operatorId, keepWorkerId uuid.UUID) (int64, error)
 
 	// UpdateWorker updates a worker for a given tenant.
 	UpdateWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, opts *UpdateWorkerOpts) (*sqlcv1.Worker, error)
@@ -1046,10 +1048,8 @@ func (w *workerRepository) unlinkActions(ctx context.Context, tx pgx.Tx, tenantI
 	return len(unlinked), nil
 }
 
-func (w *workerRepository) ReleaseWorkerActions(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) (int64, error) {
-	db := w.pool.ForTenant(tenantId)
-
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, w.l)
+func (w *workerRepository) ReleaseDeadOperatorWorkers(ctx context.Context, tenantId, operatorId, keepWorkerId uuid.UUID) (int64, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool.ForTenant(tenantId), w.l)
 
 	if err != nil {
 		return 0, err
@@ -1057,19 +1057,29 @@ func (w *workerRepository) ReleaseWorkerActions(ctx context.Context, tenantId uu
 
 	defer rollback()
 
-	// the row lock orders this against any delta still in flight on the worker, so a delta
-	// that commits after cannot resurrect links this call has already counted as gone
-	if err := w.lockWorkerActions(ctx, tx, tenantId, workerId); err != nil {
-		return 0, err
-	}
-
-	released, err := w.queries.ReleaseWorkerActions(ctx, tx, sqlcv1.ReleaseWorkerActionsParams{
-		Workerid: workerId,
-		Tenantid: tenantId,
+	// the row locks are taken in a statement of their own, so the release reads every link a
+	// delta committed while this waited for them
+	workerIds, err := w.queries.LockDeadOperatorWorkers(ctx, tx, sqlcv1.LockDeadOperatorWorkersParams{
+		Tenantid:     tenantId,
+		Operatorid:   operatorId,
+		Keepworkerid: keepWorkerId,
 	})
 
 	if err != nil {
-		return 0, fmt.Errorf("could not release worker actions: %w", err)
+		return 0, fmt.Errorf("could not lock the operator's dead workers: %w", err)
+	}
+
+	if len(workerIds) == 0 {
+		return 0, nil
+	}
+
+	released, err := w.queries.ReleaseWorkers(ctx, tx, sqlcv1.ReleaseWorkersParams{
+		Workerids: workerIds,
+		Tenantid:  tenantId,
+	})
+
+	if err != nil {
+		return 0, fmt.Errorf("could not release the operator's dead workers: %w", err)
 	}
 
 	if err := commit(ctx); err != nil {

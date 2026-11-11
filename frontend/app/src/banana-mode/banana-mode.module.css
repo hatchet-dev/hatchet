@@ -1,0 +1,99 @@
+:global(html[data-banana-mode='on']) {
+  --background: 48 100% 96%;
+  --foreground: 36 70% 14%;
+  --brand: 42 96% 46%;
+  --card: 48 100% 99%;
+  --card-foreground: 36 70% 14%;
+  --popover: 48 100% 99%;
+  --popover-foreground: 36 70% 14%;
+  --primary: 40 90% 28%;
+  --primary-foreground: 48 100% 96%;
+  --secondary: 46 80% 88%;
+  --secondary-foreground: 36 70% 16%;
+  --muted: 46 60% 90%;
+  --muted-foreground: 36 30% 32%;
+  --accent: 46 90% 80%;
+  --accent-foreground: 36 70% 14%;
+  --border: 44 50% 78%;
+  --input: 44 50% 78%;
+  --ring: 42 96% 46%;
+  --chart-1: 42 96% 46%;
+  --chart-2: 32 90% 48%;
+  --chart-3: 54 90% 48%;
+  --chart-4: 78 50% 36%;
+  --chart-5: 22 85% 52%;
+  cursor:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ctext y='24' font-size='24'%3E%F0%9F%8D%8C%3C/text%3E%3C/svg%3E")
+      8 8,
+    auto;
+}
+
+:global(html[data-banana-mode='on'].dark) {
+  --background: 42 88% 10%;
+  --foreground: 50 100% 88%;
+  --brand: 46 100% 50%;
+  --card: 40 70% 8%;
+  --card-foreground: 50 100% 88%;
+  --popover: 40 70% 8%;
+  --popover-foreground: 50 100% 88%;
+  --primary: 48 100% 62%;
+  --primary-foreground: 36 82% 10%;
+  --secondary: 40 36% 18%;
+  --secondary-foreground: 50 100% 88%;
+  --muted: 40 28% 16%;
+  --muted-foreground: 46 40% 72%;
+  --accent: 42 50% 22%;
+  --accent-foreground: 50 100% 92%;
+  --border: 42 32% 22%;
+  --input: 42 32% 22%;
+  --ring: 48 100% 62%;
+  --chart-1: 46 100% 50%;
+  --chart-2: 36 96% 52%;
+  --chart-3: 54 100% 62%;
+  --chart-4: 78 55% 46%;
+  --chart-5: 28 90% 56%;
+}
+
+/* These utilities hardcode navy instead of theme tokens. */
+:global(html[data-banana-mode='on'].dark) :global([class*='#050A23']),
+:global(html[data-banana-mode='on'].dark) :global([class*='#050c1c']) {
+  background-color: hsl(36 48% 13%);
+}
+
+:global(html[data-banana-mode='on'].dark) :global([class*='dark:bg-slate-800']) {
+  background-color: hsl(var(--accent));
+}
+
+.overlay {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  overflow: hidden;
+}
+
+.banana {
+  position: absolute;
+  top: -4rem;
+  left: var(--left);
+  font-size: var(--size);
+  line-height: 1;
+  animation: fall var(--duration) var(--delay) linear infinite;
+  user-select: none;
+}
+
+@keyframes fall {
+  0% {
+    transform: translateY(0) rotate(-20deg);
+  }
+  100% {
+    transform: translateY(110vh) rotate(340deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .banana {
+    animation: none;
+    top: 18%;
+  }
+}

@@ -1,12 +1,12 @@
 import { EventsLog } from '../components/events-log';
 import { SandboxGate } from '../components/gate';
 import { ProviderActionsMenu } from '../components/provider-actions';
+import { ProviderName } from '../components/provider-icon';
 import { ProviderStatusBadge } from '../components/provider-status-badge';
 import {
   SANDBOX_PROVIDERS_REFETCH_INTERVAL_MS,
   useSandboxProviderMutations,
 } from '../hooks/use-sandbox-providers';
-import { KINDS } from '../lib/kinds';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Badge } from '@/components/v1/ui/badge';
 import {
@@ -116,7 +116,9 @@ function SandboxProviderDetailContent() {
       <div className="mx-auto space-y-6 p-4">
         <div className="flex flex-row flex-wrap items-center justify-between gap-4">
           <div className="flex min-w-0 flex-row items-center gap-3">
-            <Badge variant="outline">{KINDS[provider.kind].label}</Badge>
+            <Badge variant="outline">
+              <ProviderName kind={provider.kind} />
+            </Badge>
             <h2 className="truncate text-2xl font-bold leading-tight text-foreground">
               {provider.name}
             </h2>

@@ -178,7 +178,7 @@ export const defaultCreateValues = (
   name: '',
   apiKey: '',
   defaultTemplate: '',
-  maxIdleTtlSeconds: 3600,
+  maxIdleTtlSeconds: 900,
   configJson: '',
   labels: [],
   enabled: true,

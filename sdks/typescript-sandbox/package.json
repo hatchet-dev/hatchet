@@ -1,6 +1,6 @@
 {
   "name": "@hatchet-dev/sandbox",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "private": false,
   "description": "Hatchet Sandbox TypeScript SDK",
   "license": "MIT",
@@ -35,10 +35,10 @@
     "typecheck": "tsc --noEmit",
     "lint": "pnpm run eslint:check && pnpm run prettier:check",
     "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix",
-    "eslint:check": "eslint \"src/**/*.ts\"",
-    "eslint:fix": "eslint \"src/**/*.ts\" --fix",
-    "prettier:check": "prettier \"src/**/*.ts\" \"*.md\" --list-different",
-    "prettier:fix": "prettier \"src/**/*.ts\" \"*.md\" --write",
+    "eslint:check": "eslint \"src/**/*.ts\" \"examples/**/*.ts\"",
+    "eslint:fix": "eslint \"src/**/*.ts\" \"examples/**/*.ts\" --fix",
+    "prettier:check": "prettier \"src/**/*.ts\" \"examples/**/*.ts\" \"*.md\" --list-different",
+    "prettier:fix": "prettier \"src/**/*.ts\" \"examples/**/*.ts\" \"*.md\" --write",
     "publish:ci": "pnpm run build && pnpm publish --access public --no-git-checks",
     "publish:ci:alpha": "pnpm run build && pnpm publish --access public --no-git-checks --tag alpha",
     "release:local": "pnpm run build:sdk && pnpm install && pnpm run lint && pnpm run build && pnpm publish --access public --no-git-checks"

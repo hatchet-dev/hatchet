@@ -4,12 +4,11 @@ import { Button } from '@/components/v1/ui/button';
 import { queries } from '@/lib/api';
 import { useUserApi } from '@/lib/api/user-wrapper';
 import freeEmailDomains from '@/lib/free-email-domains.json';
-import { useRedirectOrNavigate } from '@/lib/redirect';
+import { reloadToLogin, useRedirectOrNavigate } from '@/lib/redirect';
 import { useAppContext } from '@/providers/app-context';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
 import { useMutation } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
 
 const FREE_EMAIL_DOMAIN_SET = new Set(freeEmailDomains);
 
@@ -25,15 +24,13 @@ function deriveDefaultOrgName(user: { name?: string; email: string }): string {
 
 export default function CreateOrganization() {
   const redirectOrNavigate = useRedirectOrNavigate();
-  const navigate = useNavigate();
   const { userUpdateLogoutMutation } = useUserApi();
   const { user, isUserLoaded } = useAppContext();
 
   const logoutMutation = useMutation({
     ...userUpdateLogoutMutation(),
     onSettled: () => {
-      queryClient.clear();
-      navigate({ to: appRoutes.authLoginRoute.to });
+      reloadToLogin();
     },
   });
 

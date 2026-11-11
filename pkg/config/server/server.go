@@ -30,6 +30,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/o11yusage"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/scheduling"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
@@ -328,9 +329,10 @@ type ConfigFileRuntime struct {
 	// The loader splits this into OperatorInfraBlockedCIDRs at startup.
 	OperatorInfraBlockedCIDRsString string `mapstructure:"operatorInfraBlockedCIDRsString" json:"operatorInfraBlockedCIDRsString,omitempty"`
 
-	// DagOperatorDefaultSlots is the worker slot count for the dag operator (i.e. how many DAG runs a single DAG operator worker
-	// orchestrates concurrently)
-	DagOperatorDefaultSlots int `mapstructure:"dagOperatorDefaultSlots" json:"dagOperatorDefaultSlots,omitempty" default:"10000"`
+	// DagOperatorDefaultSlots is how many DAG runs one DAG operator worker orchestrates at once.
+	// Every engine pod runs a DAG worker for each tenant, so a tenant gets this many per pod, and
+	// the scheduler rebuilds one entry per free slot about every second, even for idle tenants.
+	DagOperatorDefaultSlots int `mapstructure:"dagOperatorDefaultSlots" json:"dagOperatorDefaultSlots,omitempty" default:"5000"`
 
 	// GRPCOperatorsEnabled registers the v1.OperatorService gRPC API for operators running outside the engine
 	// process. Off by default; when disabled the service is not registered and callers receive Unimplemented.
@@ -557,6 +559,13 @@ type ConfigFileAuthControlPlaneExchangeToken struct {
 
 	// Enabled controls whether the control plane exchange token authentication method is enabled for this Hatchet instance.
 	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
+}
+
+// DirectUserLoginDisabled reports whether password, OAuth, and session-cookie
+// login must be refused. Shards that accept control-plane exchange tokens are
+// reached through the control plane, so a direct user session is not a login.
+func (a ConfigFileAuth) DirectUserLoginDisabled() bool {
+	return a.ControlPlaneExchangeTokenConfig.Enabled
 }
 
 type ConfigFileTenantAlerting struct {
@@ -927,6 +936,8 @@ type ServerConfig struct {
 	AdditionalOAuthConfigs map[string]*oauth2.Config
 
 	SchedulingPoolV1 scheduling.Pool
+
+	AuditLogOutbox *v1.AuditLogOutbox
 
 	Sampling ConfigFileSampling
 

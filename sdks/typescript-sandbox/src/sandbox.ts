@@ -88,6 +88,59 @@ export interface SandboxOpts {
   inheritParentMetadata?: boolean;
   /** Name of the sandbox provider to create on. Required when the tenant has more than one; with `from`, it must be the provider that holds the snapshot. */
   provider?: string;
+  /** Machine size. Providers that cannot honour a field fail the create with their own message. Providers that do not know the option ignore it. */
+  resources?: Resources;
+}
+
+export interface Resources {
+  /** Whole cores. */
+  vcpu?: number;
+  /** A number is MiB. A string takes a Kubernetes quantity with a unit, such as `'512Mi'`, `'4Gi'` or `'8G'`. A string without a unit is rejected. */
+  memory?: number | string;
+  /** Same format as `memory`. */
+  disk?: number | string;
+}
+
+const UNITS: Record<string, number> = {
+  K: 1e3,
+  M: 1e6,
+  G: 1e9,
+  T: 1e12,
+  Ki: 2 ** 10,
+  Mi: 2 ** 20,
+  Gi: 2 ** 30,
+  Ti: 2 ** 40,
+};
+
+function toMib(value: number | string, field: string): number {
+  if (typeof value === 'number') {
+    if (!Number.isInteger(value) || value <= 0)
+      throw new Error(`resources.${field}: expected a positive whole number of MiB`);
+    return value;
+  }
+  const m = /^(\d+(?:\.\d+)?)\s*([KMGT]i?)B?$/.exec(value.trim());
+  if (!m)
+    throw new Error(
+      `resources.${field}: expected a quantity with a unit like '512Mi', '4Gi' or '8G', or a number of MiB, got ${JSON.stringify(value)}`
+    );
+  const bytes = Number(m[1]) * UNITS[m[2]];
+  const mib = Math.ceil(bytes / UNITS.Mi);
+  if (mib <= 0) throw new Error(`resources.${field}: must be at least 1Mi`);
+  return mib;
+}
+
+function wireResources(r: Resources): JsonObject {
+  const out: JsonObject = {};
+  if (r.vcpu !== undefined) {
+    if (!Number.isInteger(r.vcpu) || r.vcpu <= 0)
+      throw new Error('resources.vcpu: expected a positive whole number of cores');
+    out.vcpu = r.vcpu;
+  }
+  if (r.memory !== undefined) out.memoryMib = toMib(r.memory, 'memory');
+  if (r.disk !== undefined) out.diskMib = toMib(r.disk, 'disk');
+  if (Object.keys(out).length === 0)
+    throw new Error('resources: set at least one of vcpu, memory, disk');
+  return out;
 }
 
 export interface ExecOpts {
@@ -169,6 +222,7 @@ export class Sandbox {
       ...(metadata ? { metadata } : {}),
       ...(opts.idleTimeoutMs ? { idleTtlMs: opts.idleTimeoutMs } : {}),
       ...(opts.inheritParentMetadata ? { inheritMetadata: true } : {}),
+      ...(opts.resources ? { resources: wireResources(opts.resources) } : {}),
     });
     return new Sandbox(run, created.sandboxId, opts.template);
   }

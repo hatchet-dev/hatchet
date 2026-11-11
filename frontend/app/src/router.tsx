@@ -71,6 +71,12 @@ const authRegisterRoute = createRoute({
   ),
 });
 
+const authMFARoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'auth/mfa',
+  component: lazyRouteComponent(() => import('./pages/auth/mfa'), 'default'),
+});
+
 const authMagicLinkRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'auth/magic-link',
@@ -211,6 +217,15 @@ const organizationComplianceRoute = createRoute({
   component: lazyRouteComponent(
     () => import('./pages/organizations/$organization/sections'),
     'OrganizationCompliancePage',
+  ),
+});
+
+const organizationUserRoute = createRoute({
+  getParentRoute: () => organizationSettingsLayoutRoute,
+  path: 'user',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/settings/user'),
+    'default',
   ),
 });
 
@@ -1213,6 +1228,7 @@ const tenantRoutes = [
 const routeTree = rootRoute.addChildren([
   authRoute.addChildren([authLoginRoute, authRegisterRoute]),
   authMagicLinkRoute,
+  authMFARoute,
   onboardingVerifyRoute,
   authenticatedRoute.addChildren([
     onboardingCreateTenantRoute,
@@ -1232,6 +1248,7 @@ const routeTree = rootRoute.addChildren([
         organizationSsoRoute,
         organizationAuditLogRoute,
         organizationComplianceRoute,
+        organizationUserRoute,
         organizationUserGroupsRoute,
       ]),
       organizationsIndexRedirectRoute,
@@ -1273,6 +1290,7 @@ export const appRoutes = {
   authLoginRoute,
   authRegisterRoute,
   authMagicLinkRoute,
+  authMFARoute,
   onboardingVerifyRoute,
   redeemOffersRoute,
   organizationsRoute,
@@ -1287,6 +1305,7 @@ export const appRoutes = {
   organizationSsoRoute,
   organizationAuditLogRoute,
   organizationComplianceRoute,
+  organizationUserRoute,
   organizationUserGroupsRoute,
   organizationsIndexRedirectRoute,
   organizationLegacyBillingRoute,

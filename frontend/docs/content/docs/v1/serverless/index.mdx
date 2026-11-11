@@ -1,11 +1,19 @@
 ---
-title: Serverless Endpoints
+title: "About"
 description: Run Hatchet tasks in serverless or edge environments, like Cloudflare Workers or Vercel Functions, instead of a long-lived worker.
 ---
 
 import { Callout } from "@/components/nextra-compat";
+import { ServerlessEndpoints } from "@/components/flow-animations/ServerlessEndpoints";
 
 # Serverless Endpoints
+
+<Callout type="warning">
+  Serverless endpoints are a Labs feature and may change in future releases. In
+  the dashboard, open <strong>Settings</strong>, go to{" "}
+  <strong>Labs Preview</strong> and turn on <strong>Serverless</strong>. Tenants
+  on the free plan are asked to upgrade first.
+</Callout>
 
 A serverless endpoint lets Hatchet run your tasks by calling an HTTPS function you deploy in serverless or edge environments, instead of you running a long-lived [worker](/v1/workers). After registering the endpoint with Hatchet, Hatchet will discover the workflows the endpoint serves and deliver each task to the endpoint as a signed HTTPS request. See the guides for setup instructions:
 
@@ -15,10 +23,10 @@ A serverless endpoint lets Hatchet run your tasks by calling an HTTPS function y
 - [Managing endpoints](/v1/serverless/managing-endpoints): create, update and delete endpoints from the dashboard, the REST API or an SDK
 - [Troubleshooting](/v1/serverless/troubleshooting): investigate endpoint statuses, healthchecks, and delivery failures
 
-<Callout type="warning">
-  Serverless endpoints must be enabled for your tenant. Until they are, creating
-  an endpoint fails with `403` and the message `the serverless operator is not
-  enabled for this tenant`.
+<Callout type="info">
+  Until serverless endpoints are turned on for your tenant, creating an endpoint
+  fails with `403` and the message `the serverless operator is not enabled for
+  this tenant`.
 </Callout>
 
 ## How it works
@@ -29,21 +37,7 @@ Each endpoint is registered with the following information:
 - The **trigger URL**, which receives each task the engine assigns to the endpoint.
 - The **signing secret** (at least 32 characters), which the operator uses to sign every request. Your endpoint verifies the signature before doing any work.
 
-```mermaid
-sequenceDiagram
-    participant E as Hatchet engine
-    participant O as Serverless operator
-    participant F as Your endpoint
-    loop every poll interval (default 30s)
-        O->>F: POST healthcheck URL (signed)
-        F-->>O: workflows and actions served
-        O->>E: register changed workflows and actions
-    end
-    E->>O: assign task
-    O->>F: POST trigger URL (signed task envelope)
-    F-->>O: 2xx JSON output, or an error
-    O->>E: task completed or failed
-```
+<ServerlessEndpoints />
 
 1. **Discovery.** Hatchet sends a signed `POST` to the healthcheck URL every poll interval, 30 seconds by default. The endpoint responds with the list of workflows which are able to run on that endpoint.
 2. **Delivery.** when a task is sent to Hatchet, the Hatchet engine will send a signed `POST` to the trigger URL with the task's input. The endpoint returns with the task's output.

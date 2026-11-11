@@ -95,6 +95,30 @@ func (q *Queries) AcquireOrExtendAuditLogArchiveLease(ctx context.Context, db DB
 	return &i, err
 }
 
+const addStreamBytes = `-- name: AddStreamBytes :exec
+INSERT INTO v1_agg_stream_bytes_minute_olap AS a (tenant_id, bucket, published_bytes, delivered_bytes)
+SELECT
+    UNNEST($1::UUID[]),
+    date_bin('1 minute', NOW(), TIMESTAMPTZ '1970-01-01 00:00:00+00'),
+    UNNEST($2::BIGINT[]),
+    UNNEST($3::BIGINT[])
+ON CONFLICT (tenant_id, bucket) DO UPDATE SET
+    published_bytes = a.published_bytes + EXCLUDED.published_bytes,
+    delivered_bytes = a.delivered_bytes + EXCLUDED.delivered_bytes
+`
+
+type AddStreamBytesParams struct {
+	Tenantids      []uuid.UUID `json:"tenantids"`
+	Publishedbytes []int64     `json:"publishedbytes"`
+	Deliveredbytes []int64     `json:"deliveredbytes"`
+}
+
+// callers sort by tenant, so concurrent flushes lock rows in the same order
+func (q *Queries) AddStreamBytes(ctx context.Context, db DBTX, arg AddStreamBytesParams) error {
+	_, err := db.Exec(ctx, addStreamBytes, arg.Tenantids, arg.Publishedbytes, arg.Deliveredbytes)
+	return err
+}
+
 const analyzeV1AggEventsMinuteDeltaOLAP = `-- name: AnalyzeV1AggEventsMinuteDeltaOLAP :exec
 ANALYZE v1_agg_events_minute_delta_olap
 `
@@ -609,6 +633,18 @@ func (q *Queries) CountOLAPTempTableSizeForTaskStatusUpdates(ctx context.Context
 	return total, err
 }
 
+const createAuditLogs = `-- name: CreateAuditLogs :exec
+INSERT INTO v1_audit_log (id, inserted_at, tenant_id, actor_type, actor_id, action, correlation_id, resource_id, resource_type, ip_address, user_agent)
+SELECT id, inserted_at, tenant_id, actor_type, actor_id, action, correlation_id, resource_id, resource_type, ip_address, user_agent
+FROM jsonb_populate_recordset(NULL::v1_audit_log, $1::JSONB)
+ON CONFLICT (tenant_id, inserted_at, id) DO NOTHING
+`
+
+func (q *Queries) CreateAuditLogs(ctx context.Context, db DBTX, entries []byte) error {
+	_, err := db.Exec(ctx, createAuditLogs, entries)
+	return err
+}
+
 const createDagToTaskOLAPSelfMappings = `-- name: CreateDagToTaskOLAPSelfMappings :exec
 WITH inputs AS (
     SELECT
@@ -679,6 +715,7 @@ SELECT
     create_v1_range_partition('v1_agg_task_statuses_minute_olap'::text, $2::date, 70) AS v1_agg_task_statuses_minute_olap,
     create_v1_range_partition('v1_agg_task_events_minute_olap'::text, $2::date, 70) AS v1_agg_task_events_minute_olap,
     create_v1_range_partition('v1_agg_events_minute_olap'::text, $2::date, 70) AS v1_agg_events_minute_olap,
+    create_v1_range_partition('v1_agg_stream_bytes_minute_olap'::text, $2::date, 70) AS v1_agg_stream_bytes_minute_olap,
     create_v1_range_partition('v1_events_olap'::text, $2::date) AS v1_events_olap,
     create_v1_range_partition('v1_event_to_run_olap'::text, $2::date) AS v1_event_to_run_olap,
     create_v1_weekly_range_partition('v1_event_lookup_table_olap'::text, $2::date) AS v1_event_lookup_table_olap,
@@ -711,6 +748,7 @@ type CreateOLAPPartitionsRow struct {
 	V1AggTaskStatusesMinuteOlap             int32 `json:"v1_agg_task_statuses_minute_olap"`
 	V1AggTaskEventsMinuteOlap               int32 `json:"v1_agg_task_events_minute_olap"`
 	V1AggEventsMinuteOlap                   int32 `json:"v1_agg_events_minute_olap"`
+	V1AggStreamBytesMinuteOlap              int32 `json:"v1_agg_stream_bytes_minute_olap"`
 	V1EventsOlap                            int32 `json:"v1_events_olap"`
 	V1EventToRunOlap                        int32 `json:"v1_event_to_run_olap"`
 	V1EventLookupTableOlap                  int32 `json:"v1_event_lookup_table_olap"`
@@ -741,6 +779,7 @@ func (q *Queries) CreateOLAPPartitions(ctx context.Context, db DBTX, arg CreateO
 		&i.V1AggTaskStatusesMinuteOlap,
 		&i.V1AggTaskEventsMinuteOlap,
 		&i.V1AggEventsMinuteOlap,
+		&i.V1AggStreamBytesMinuteOlap,
 		&i.V1EventsOlap,
 		&i.V1EventToRunOlap,
 		&i.V1EventLookupTableOlap,
@@ -1908,7 +1947,8 @@ WITH partitioned_tables AS (
         'v1_statuses_olap:monthly',
         'v1_agg_task_statuses_minute_olap:daily',
         'v1_agg_task_events_minute_olap:daily',
-        'v1_agg_events_minute_olap:daily'
+        'v1_agg_events_minute_olap:daily',
+        'v1_agg_stream_bytes_minute_olap:daily'
     ]::TEXT[]) AS entry
 )
 

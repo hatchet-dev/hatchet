@@ -13,6 +13,7 @@ import {
   RequiredMark,
   SharedFormFields,
 } from './form-fields';
+import { ProviderIcon } from './provider-icon';
 import { Alert, AlertDescription } from '@/components/v1/ui/alert';
 import { Button } from '@/components/v1/ui/button';
 import {
@@ -99,7 +100,11 @@ export const CreateProviderDialog = ({
         <DialogHeader>
           <DialogTitle className="flex flex-row items-center gap-x-3">
             <div className="flex size-8 items-center justify-center rounded-full bg-blue-100">
-              <Box className="size-4 text-indigo-700" />
+              {kind ? (
+                <ProviderIcon kind={kind} className="size-4 text-indigo-700" />
+              ) : (
+                <Box className="size-4 text-indigo-700" />
+              )}
             </div>
             {kind
               ? `Connect ${KINDS[kind].label}`
@@ -122,7 +127,10 @@ export const CreateProviderDialog = ({
                   onClick={() => pickKind(k)}
                   className="flex flex-col items-start gap-2 rounded-lg border border-border p-4 text-left transition-colors hover:border-primary hover:bg-muted/50"
                 >
-                  <span className="text-sm font-medium">{KINDS[k].label}</span>
+                  <span className="flex items-center gap-x-2 text-sm font-medium">
+                    <ProviderIcon kind={k} className="size-5" />
+                    {KINDS[k].label}
+                  </span>
                   <span className="text-xs text-muted-foreground">
                     {KINDS[k].description}
                   </span>

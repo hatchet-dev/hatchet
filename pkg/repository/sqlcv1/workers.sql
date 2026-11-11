@@ -607,27 +607,53 @@ WHERE
     AND a."id" = ANY(@actionIds::uuid[])
 RETURNING aw."A";
 
--- name: ReleaseWorkerActions :one
--- Unlinks every action from the worker and zeroes its link count, so the worker no longer
--- counts against its operator's action budget. For a worker the operator has moved on from;
--- it is never registered under again.
+-- name: LockDeadOperatorWorkers :many
+-- The operator's workers, other than @keepWorkerId, that no longer serve it but still hold links
+-- or count as active. Locked in id order, so concurrent releases of one operator queue instead of
+-- deadlocking, and a delta still in flight on one of them commits before its links are released.
+SELECT w."id"
+FROM "Worker" w
+WHERE
+    w."tenantId" = @tenantId::uuid
+    AND w."operatorId" = @operatorId::uuid
+    AND w."id" <> @keepWorkerId::uuid
+    AND (w."isActive" OR w."operatorActionCount" > 0)
+    AND NOT (
+        w."isActive"
+        AND EXISTS (
+            SELECT 1
+            FROM "Dispatcher" d
+            WHERE
+                d."id" = w."dispatcherId"
+                AND d."isActive" = TRUE
+                AND d."lastHeartbeatAt" > NOW() - INTERVAL '15 seconds'
+        )
+    )
+ORDER BY w."id"
+FOR UPDATE;
+
+-- name: ReleaseWorkers :one
+-- Unlinks every action from the workers, zeroes their link counts and marks them inactive, so
+-- they no longer count against their operator's action budget or hold the operator.
 WITH unlinked AS (
     DELETE FROM "_ActionToWorker" aw
     USING "Worker" w
     WHERE
         aw."B" = w."id"
-        AND w."id" = @workerId::uuid
+        AND w."id" = ANY(@workerIds::uuid[])
         AND w."tenantId" = @tenantId::uuid
     RETURNING aw."A"
+), released AS (
+    UPDATE "Worker" w
+    SET
+        "operatorActionCount" = 0,
+        "actionHash" = NULL,
+        "isActive" = FALSE
+    WHERE
+        w."id" = ANY(@workerIds::uuid[])
+        AND w."tenantId" = @tenantId::uuid
 )
-UPDATE "Worker" w
-SET
-    "operatorActionCount" = 0,
-    "actionHash" = NULL
-WHERE
-    w."id" = @workerId::uuid
-    AND w."tenantId" = @tenantId::uuid
-RETURNING (SELECT count(*) FROM unlinked)::bigint AS released;
+SELECT count(*)::bigint AS released FROM unlinked;
 
 -- name: RefreshWorkerActionHash :exec
 -- sha256 over the linked action ids sorted by byte order, each followed by ";", the same digest
