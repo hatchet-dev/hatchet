@@ -8,8 +8,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 // Each engine caches the workflows an event key triggers, including that it triggers none. Two
@@ -68,4 +71,37 @@ func TestEventTriggersWorkflowCreatedRightAfterItsKeyWasLookedUp(t *testing.T) {
 	_, err = workflows.PutWorkflowVersion(ctx, internalTenantId, opts)
 	require.NoError(t, err)
 	assert.Equal(t, 1, announcements, "re-registering an unchanged workflow should not announce a new version")
+
+	// A lookup whose query started before a registration commits must not cache what it read.
+	const laterEventKey = "user:deleted"
+
+	laterOpts := minimalWorkflowOpts("event-key-workflows-later", "v1", nil)
+	laterOpts.EventTriggers = []string{laterEventKey}
+
+	overlapping := registerDuringQuery{DBTX: pool, register: func() {
+		_, err := workflows.PutWorkflowVersion(ctx, internalTenantId, laterOpts)
+		require.NoError(t, err)
+	}}
+
+	rows, err := other.listWorkflowsForEvents(ctx, overlapping, internalTenantId, []string{laterEventKey})
+	require.NoError(t, err)
+	require.Empty(t, rows, "the lookup read Postgres before the workflow was committed")
+
+	rows, err = other.listWorkflowsForEvents(ctx, pool, internalTenantId, []string{laterEventKey})
+	require.NoError(t, err)
+	assert.Len(t, rows, 1, "the next lookup should read Postgres rather than the overlapping lookup's result")
+}
+
+// registerDuringQuery registers a workflow after a query has started, so the query's result
+// predates the commit.
+type registerDuringQuery struct {
+	sqlcv1.DBTX
+	register func()
+}
+
+func (r registerDuringQuery) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+	rows, err := r.DBTX.Query(ctx, sql, args...)
+	r.register()
+
+	return rows, err
 }

@@ -2671,6 +2671,10 @@ func (r *sharedRepository) listWorkflowsForEvents(ctx context.Context, tx sqlcv1
 	}
 
 	if len(keysToLookup) > 0 {
+		r.eventKeyWorkflowsMu.Lock()
+		dropsBefore := r.eventKeyWorkflowsDrops
+		r.eventKeyWorkflowsMu.Unlock()
+
 		rows, err := r.queries.ListWorkflowsForEvents(ctx, tx, sqlcv1.ListWorkflowsForEventsParams{
 			Eventkeys: keysToLookup,
 			Tenantid:  tenantId,
@@ -2688,9 +2692,13 @@ func (r *sharedRepository) listWorkflowsForEvents(ctx context.Context, tx sqlcv1
 			byEventKey[row.IncomingEventKey] = append(byEventKey[row.IncomingEventKey], row)
 		}
 
-		for _, eventKey := range keysToLookup {
-			r.eventKeyWorkflowsCache.Add(eventKeyTenantIdTuple{tenantId: tenantId, eventKey: eventKey}, byEventKey[eventKey])
+		r.eventKeyWorkflowsMu.Lock()
+		if r.eventKeyWorkflowsDrops == dropsBefore {
+			for _, eventKey := range keysToLookup {
+				r.eventKeyWorkflowsCache.Add(eventKeyTenantIdTuple{tenantId: tenantId, eventKey: eventKey}, byEventKey[eventKey])
+			}
 		}
+		r.eventKeyWorkflowsMu.Unlock()
 	}
 
 	res := make([]*sqlcv1.ListWorkflowsForEventsRow, 0, len(eventKeys))
@@ -2703,6 +2711,11 @@ func (r *sharedRepository) listWorkflowsForEvents(ctx context.Context, tx sqlcv1
 }
 
 func (r *sharedRepository) InvalidateEventKeyWorkflows(tenantId uuid.UUID) {
+	r.eventKeyWorkflowsMu.Lock()
+	defer r.eventKeyWorkflowsMu.Unlock()
+
+	r.eventKeyWorkflowsDrops++
+
 	for _, key := range r.eventKeyWorkflowsCache.Keys() {
 		if key.tenantId == tenantId {
 			r.eventKeyWorkflowsCache.Remove(key)
