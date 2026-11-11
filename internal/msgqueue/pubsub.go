@@ -27,6 +27,9 @@ const (
 
 	// TopicKindCronRefresh fans cron changes out to every ticker.
 	TopicKindCronRefresh TopicKind = "cron-refresh"
+
+	// TopicKindWorkflowVersionCreated fans new workflow versions out to every engine.
+	TopicKindWorkflowVersionCreated TopicKind = "workflow-version-created"
 )
 
 // Fanout reports whether every subscriber of a topic of this kind gets its own
@@ -35,7 +38,7 @@ const (
 // The switch names every kind so that the exhaustive linter flags a new one.
 func (k TopicKind) Fanout() bool {
 	switch k {
-	case TopicKindTenantStream, TopicKindStreamWake, TopicKindCronRefresh:
+	case TopicKindTenantStream, TopicKindStreamWake, TopicKindCronRefresh, TopicKindWorkflowVersionCreated:
 		return true
 	case TopicKindSchedulerPartition:
 		return false
@@ -93,6 +96,16 @@ func CronRefreshTopic() Topic {
 	return Topic{
 		name: "cron_refresh_v1",
 		kind: TopicKindCronRefresh,
+	}
+}
+
+// WorkflowVersionCreatedTopic tells every engine that a tenant has a new workflow
+// version, so each drops the event key lookups it cached for the tenant. Those
+// lookups also expire after 5s, so a lost message only delays the change.
+func WorkflowVersionCreatedTopic() Topic {
+	return Topic{
+		name: "workflow_version_created_v1",
+		kind: TopicKindWorkflowVersionCreated,
 	}
 }
 
