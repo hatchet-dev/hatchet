@@ -2,6 +2,7 @@ package workflows
 
 import (
 	"encoding/json"
+	"errors"
 
 	"github.com/labstack/echo/v4"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
+	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -61,13 +63,14 @@ func (t *WorkflowService) ScheduledWorkflowRunCreate(ctx echo.Context, request g
 	})
 
 	if err != nil {
-		if apierrors.DriverError(err) {
-			return nil, err
+		var validationErr *hatcheterrors.DetailedError
+		if errors.As(err, &validationErr) && validationErr.Code == 400 {
+			return gen.ScheduledWorkflowRunCreate400JSONResponse(
+				apierrors.NewAPIErrors(validationErr.Error()),
+			), nil
 		}
 
-		return gen.ScheduledWorkflowRunCreate400JSONResponse(
-			apierrors.NewAPIErrors(err.Error()),
-		), nil
+		return nil, err
 	}
 
 	correlationIdInterface, ok := (request.Body.AdditionalMetadata)[string(constants.CorrelationIdKey)]
