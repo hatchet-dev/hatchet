@@ -1,5 +1,6 @@
 import * as fs from 'node:fs/promises';
 import type { JsonObject } from '@hatchet-dev/typescript-sdk/v1';
+import { z } from 'zod';
 
 export type FileType = 'file' | 'dir';
 
@@ -56,27 +57,45 @@ export class FilesystemError extends Error {
   }
 }
 
-type RawEntry = Omit<EntryInfo, 'modifiedTime'> & { modifiedTime?: string };
+const path = z.string().min(1);
+const positiveInt = z.int().positive();
+const httpsUrl = z.url({ protocol: /^https$/ });
+const fileData = z.union([
+  z.string(),
+  z.instanceof(Uint8Array),
+  z.instanceof(ArrayBuffer),
+  z.instanceof(Blob),
+]);
+const writeEntries = z.strictObject({ path, data: fileData }).array();
+const readOpts = z.strictObject({ format: z.enum(['text', 'bytes', 'blob']).optional() });
+const listOpts = z.strictObject({ depth: positiveInt.optional() });
+const transferOpts = z.strictObject({ timeoutMs: positiveInt.optional() });
 
-interface FsOutput extends JsonObject {
-  content?: string;
-  stagedKey?: string;
-  url?: string;
-  putUrl?: string;
-  getUrl?: string;
-  entry?: RawEntry | null;
-  entries?: RawEntry[];
-  created?: boolean;
-  error?: { code: FilesystemErrorCode; message: string };
-}
+const entry = z.looseObject({
+  name: z.string(),
+  path: z.string(),
+  type: z.enum(['file', 'dir']),
+  size: z.number(),
+  mode: z.number(),
+  permissions: z.string(),
+  modifiedTime: z.coerce.date().optional(),
+});
+
+const fsOutput = z.looseObject({
+  content: z.string().optional(),
+  stagedKey: z.string().optional(),
+  url: z.string().optional(),
+  putUrl: z.string().optional(),
+  getUrl: z.string().optional(),
+  entry: entry.nullish(),
+  entries: entry.array().optional(),
+  created: z.boolean().optional(),
+  error: z.object({ code: z.string(), message: z.string() }).optional(),
+});
+type FsOutput = z.infer<typeof fsOutput>;
 
 /** @internal */
-export type FsTurn = (fn: string, input: JsonObject, fresh?: boolean) => Promise<FsOutput>;
-
-const toEntry = (e: RawEntry): EntryInfo => ({
-  ...e,
-  modifiedTime: e.modifiedTime ? new Date(e.modifiedTime) : undefined,
-});
+export type FsTurn = (fn: string, input: JsonObject, fresh?: boolean) => Promise<JsonObject>;
 
 const STAGE_OVER_BYTES = 2 << 20;
 
@@ -116,8 +135,9 @@ export class Files {
   constructor(private readonly turn: FsTurn) {}
 
   private async call(fn: string, input: JsonObject, fresh = false): Promise<FsOutput> {
-    const out = await this.turn(`$fs.${fn}`, input, fresh);
-    if (out.error) throw new FilesystemError(out.error.code, out.error.message);
+    const out = fsOutput.parse(await this.turn(`$fs.${fn}`, input, fresh));
+    if (out.error)
+      throw new FilesystemError(out.error.code as FilesystemErrorCode, out.error.message);
     return out;
   }
 
@@ -125,13 +145,14 @@ export class Files {
   read(path: string, opts?: ReadOpts & { format?: 'text' }): Promise<string>;
   read(path: string, opts: ReadOpts & { format: 'bytes' }): Promise<Uint8Array>;
   read(path: string, opts: ReadOpts & { format: 'blob' }): Promise<Blob>;
-  async read(path: string, opts: ReadOpts = {}): Promise<string | Uint8Array | Blob> {
-    const out = await this.call('read', { path });
+  async read(p: string, opts: ReadOpts = {}): Promise<string | Uint8Array | Blob> {
+    const { format } = readOpts.parse(opts);
+    const out = await this.call('read', { path: path.parse(p) });
     const bytes = out.url
       ? await this.readStaged(out.url, out.stagedKey!)
       : Buffer.from(out.content ?? '', 'base64');
-    if (opts.format === 'bytes') return new Uint8Array(bytes);
-    if (opts.format === 'blob') return new Blob([new Uint8Array(bytes)]);
+    if (format === 'bytes') return new Uint8Array(bytes);
+    if (format === 'blob') return new Blob([new Uint8Array(bytes)]);
     return bytes.toString('utf8');
   }
 
@@ -160,6 +181,7 @@ export class Files {
 
   /** Writes several files in one task. */
   async writeFiles(files: WriteEntry[]): Promise<EntryInfo[]> {
+    writeEntries.parse(files);
     const bytes = await Promise.all(files.map((f) => toBytes(f.data)));
     const encoded: Array<{ path: string; content?: string; stagedKey?: string }> = [];
     for (const [i, f] of files.entries()) {
@@ -179,65 +201,72 @@ export class Files {
       }
     }
     const { entries = [] } = await this.call('write', { files: encoded });
-    return entries.map(toEntry);
+    return entries;
   }
 
   /** Lists a directory. `depth` 1 (default) is the directory itself; higher values recurse. No snapshot is made. */
-  async list(path = '.', opts: ListOpts = {}): Promise<EntryInfo[]> {
-    const { entries = [] } = await this.call('list', { path, depth: opts.depth ?? 1 });
-    return entries.map(toEntry);
+  async list(p = '.', opts: ListOpts = {}): Promise<EntryInfo[]> {
+    const { depth = 1 } = listOpts.parse(opts);
+    const { entries = [] } = await this.call('list', { path: path.parse(p), depth });
+    return entries;
   }
 
   /** True if the path exists. No snapshot is made. */
-  async exists(path: string): Promise<boolean> {
-    const { entry } = await this.call('stat', { path });
+  async exists(p: string): Promise<boolean> {
+    const { entry } = await this.call('stat', { path: path.parse(p) });
     return entry != null;
   }
 
   /** Metadata of a file or directory. Throws `FilesystemError` with code `not_found` if absent. */
-  async getInfo(path: string): Promise<EntryInfo> {
-    const { entry } = await this.call('stat', { path });
-    if (!entry) throw new FilesystemError('not_found', `${path} does not exist`);
-    return toEntry(entry);
+  async getInfo(p: string): Promise<EntryInfo> {
+    const { entry } = await this.call('stat', { path: path.parse(p) });
+    if (!entry) throw new FilesystemError('not_found', `${p} does not exist`);
+    return entry;
   }
 
   /** Creates a directory and its parents. Returns false if it already existed. */
-  async makeDir(path: string): Promise<boolean> {
-    const { created } = await this.call('mkdir', { path });
+  async makeDir(p: string): Promise<boolean> {
+    const { created } = await this.call('mkdir', { path: path.parse(p) });
     return created === true;
   }
 
   /** Renames or moves a file or directory. */
   async rename(oldPath: string, newPath: string): Promise<EntryInfo> {
-    const { entry } = await this.call('rename', { path: oldPath, newPath });
-    return toEntry(entry!);
+    const { entry } = await this.call('rename', {
+      path: path.parse(oldPath),
+      newPath: path.parse(newPath),
+    });
+    return entry!;
   }
 
   /** Copies a file or directory tree. */
   async copy(srcPath: string, dstPath: string): Promise<EntryInfo> {
-    const { entry } = await this.call('copy', { path: srcPath, newPath: dstPath });
-    return toEntry(entry!);
+    const { entry } = await this.call('copy', {
+      path: path.parse(srcPath),
+      newPath: path.parse(dstPath),
+    });
+    return entry!;
   }
 
   /** Deletes a file or directory tree. */
-  async remove(path: string): Promise<void> {
-    await this.call('remove', { path });
+  async remove(p: string): Promise<void> {
+    await this.call('remove', { path: path.parse(p) });
   }
   /** The provider fetches an https URL into the workspace. The sandbox needs no network. Private and loopback addresses are refused. */
-  async download(url: string, path: string, opts: TransferOpts = {}): Promise<EntryInfo> {
+  async download(url: string, p: string, opts: TransferOpts = {}): Promise<EntryInfo> {
     const { entry } = await this.call('download', {
-      url,
-      path,
-      ...(opts.timeoutMs ? { timeoutMs: opts.timeoutMs } : {}),
+      url: httpsUrl.parse(url),
+      path: path.parse(p),
+      ...transferOpts.parse(opts),
     });
-    return toEntry(entry!);
+    return entry!;
   }
   /** The provider sends a workspace file to an https URL with HTTP PUT, for example a presigned URL. */
-  async upload(path: string, url: string, opts: TransferOpts = {}): Promise<void> {
+  async upload(p: string, url: string, opts: TransferOpts = {}): Promise<void> {
     await this.call('upload', {
-      path,
-      url,
-      ...(opts.timeoutMs ? { timeoutMs: opts.timeoutMs } : {}),
+      path: path.parse(p),
+      url: httpsUrl.parse(url),
+      ...transferOpts.parse(opts),
     });
   }
 }
