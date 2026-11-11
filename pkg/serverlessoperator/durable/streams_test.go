@@ -3,6 +3,7 @@
 package durable
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/gorilla/websocket"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -528,6 +530,16 @@ func TestPublicStreamErrorRedactsEngineText(t *testing.T) {
 	for code := connect.CodeCanceled; code <= connect.CodeUnauthenticated; code++ {
 		assert.Contains(t, publicStreamMessages, code, "every connect code has a public message")
 	}
+}
+
+func TestStreamFailureLogsCauseAtWarningLevel(t *testing.T) {
+	var logs bytes.Buffer
+	l := zerolog.New(&logs).Level(zerolog.InfoLevel)
+	table := &streamTable{r: &relay{l: &l, p: &Params{TaskId: testTaskId}}}
+	err := table.streamError("stream", errors.New("private engine address"))
+	assert.NotContains(t, err.Error(), "private engine address")
+	assert.Contains(t, logs.String(), "private engine address")
+	assert.Contains(t, logs.String(), `"level":"warn"`)
 }
 
 // A topic subscription (V1Streams.Subscribe) is a server stream over the socket: its request

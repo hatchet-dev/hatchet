@@ -310,6 +310,7 @@ func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 	}
 
 	e := echo.New()
+	e.Binder = &requestBinder{Binder: e.Binder, l: t.config.Logger}
 
 	e.Use(cors.Middleware(t.config))
 

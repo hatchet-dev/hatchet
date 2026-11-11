@@ -506,7 +506,7 @@ func TestGRPCClientCompatibility(t *testing.T) {
 
 				_, err := client.Register(authCtx(t, validToken), &dispatchercontracts.WorkerRegisterRequest{WorkerName: "panic"})
 				assert.Equal(t, codes.Internal, status.Code(err))
-				assert.Equal(t, "An internal error occurred", status.Convert(err).Message())
+				assert.Equal(t, "An internal error occurred.", status.Convert(err).Message())
 				assert.Equal(t, before+1, env.alerter.n.Load())
 
 				_, err = client.Register(authCtx(t, validToken), &dispatchercontracts.WorkerRegisterRequest{WorkerName: "w"})
