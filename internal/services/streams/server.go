@@ -14,6 +14,7 @@ import (
 
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -152,14 +153,17 @@ func (s *ServiceImpl) publish(ctx context.Context, namespace, topic, producerId 
 
 	// before the gap check, since entries ahead of a gap are stored
 	var storedBytes int64
+	var storedMessages int64
 
 	for i, res := range results {
 		if res.Inserted {
 			storedBytes += payloadSizes[i]
+			storedMessages++
 		}
 	}
 
 	s.usage.AddStreamPublished(tenantId, storedBytes)
+	s.recordPublished(ctx, tenantId, storedMessages, storedBytes)
 
 	// a sequence at or below the watermark is a retry of a message already
 	// stored; once one entry hits a gap every later one does too
@@ -174,6 +178,26 @@ func (s *ServiceImpl) publish(ctx context.Context, namespace, topic, producerId 
 	post()
 
 	return nil
+}
+
+// recordPublished counts stored messages and their payload bytes for the tenant.
+// The token is left off the context: a publish can come from many workers, and
+// those keys share the analytics cap with every other event.
+func (s *ServiceImpl) recordPublished(ctx context.Context, tenantId uuid.UUID, messages, bytes int64) {
+	if messages <= 0 || s.analytics == nil {
+		return
+	}
+
+	actx := context.WithValue(context.Background(), analytics.TenantIDKey, tenantId)
+	if source := analytics.SourceFromContext(ctx); source != "" {
+		actx = context.WithValue(actx, analytics.SourceKey, source)
+	}
+
+	var totals analytics.Totals
+	if bytes > 0 {
+		totals = analytics.Totals{"bytes": bytes}
+	}
+	s.analytics.CountN(actx, analytics.DurableStream, analytics.Publish, messages, totals)
 }
 
 // validatePublishEntry returns the entry's payload ref, if it has one, and its payload's size.

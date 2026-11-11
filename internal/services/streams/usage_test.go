@@ -14,6 +14,7 @@ import (
 
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/streams"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/o11yusage"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -123,12 +124,14 @@ func TestPublishBillsTheStoredMessagesPayloadBytes(t *testing.T) {
 	streams := &meteringStreamsRepository{uploadedSizes: map[uuid.UUID]int64{uploaded.ID: 1000}}
 	usage, flushed := recordingUsage(t)
 
+	recorded := &recordingAnalytics{}
 	s := &ServiceImpl{
 		repo: &meteringRepository{
 			streams:      streams,
 			entitlements: &fakeEntitlements{entitled: map[uuid.UUID]bool{tenantId: true}},
 		},
 		usage:     usage,
+		analytics: recorded,
 		publisher: newPublishBatcher(streams, fakePubSub{}, testLogger(), 1),
 	}
 	t.Cleanup(s.publisher.stop)
@@ -136,7 +139,10 @@ func TestPublishBillsTheStoredMessagesPayloadBytes(t *testing.T) {
 	ref, err := v1.EncodeStreamPayloadRef(uploaded)
 	require.NoError(t, err)
 
+	tokenID := uuid.New()
 	ctx := context.WithValue(context.Background(), "tenant", &sqlcv1.Tenant{ID: tenantId}) // nolint:staticcheck
+	ctx = context.WithValue(ctx, analytics.APITokenIDKey, tokenID)
+	ctx = context.WithValue(ctx, analytics.SourceKey, analytics.SourceGRPC)
 
 	err = s.publish(ctx, "", "topic", "producer", 0, []*contracts.StreamPublishEntry{
 		{Payload: []byte("inline")},
@@ -147,8 +153,62 @@ func TestPublishBillsTheStoredMessagesPayloadBytes(t *testing.T) {
 	})
 	assert.Equal(t, connect.CodeFailedPrecondition, connect.CodeOf(err), "the gap fails the publish after the messages ahead of it are stored")
 
+	err = s.publish(ctx, "", "topic", "producer", 1, []*contracts.StreamPublishEntry{
+		{Payload: []byte("duplicate")},
+	})
+	assert.NoError(t, err)
+
 	assert.Equal(t, o11yusage.TenantBytes{StreamPublished: int64(len("inline")) + 1000}, flushed()[tenantId],
 		"only stored messages are billed, an uploaded payload at its uploaded size")
+
+	recorded.mu.Lock()
+	defer recorded.mu.Unlock()
+	require.Len(t, recorded.events, 1, "a retry of a stored message is not counted again")
+	assert.Equal(t, recordedCount{
+		resource: analytics.DurableStream,
+		action:   analytics.Publish,
+		tenant:   tenantId,
+		source:   analytics.SourceGRPC,
+		n:        2,
+		bytes:    int64(len("inline")) + 1000,
+	}, recorded.events[0], "only stored messages are counted, aggregated for the tenant rather than the token")
+}
+
+type recordedCount struct {
+	resource analytics.Resource
+	action   analytics.Action
+	tenant   uuid.UUID
+	source   analytics.Source
+	n        int64
+	bytes    int64
+	hasToken bool
+}
+
+type recordingAnalytics struct {
+	analytics.NoOpAnalytics
+
+	mu     sync.Mutex
+	events []recordedCount
+}
+
+func (r *recordingAnalytics) CountN(ctx context.Context, resource analytics.Resource, action analytics.Action, n int64, totals analytics.Totals, _ ...analytics.Properties) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	var tenant uuid.UUID
+	if id := analytics.TenantIDFromContext(ctx); id != nil {
+		tenant = *id
+	}
+
+	r.events = append(r.events, recordedCount{
+		resource: resource,
+		action:   action,
+		tenant:   tenant,
+		source:   analytics.SourceFromContext(ctx),
+		n:        n,
+		bytes:    totals["bytes"],
+		hasToken: analytics.TokenIDFromContext(ctx) != nil,
+	})
 }
 
 type subscribableRepository struct {
