@@ -8,11 +8,12 @@ on:
       - "sdks/python/**"
       - "sdks/typescript/**"
       - "sdks/ruby/**"
-
+      - "sdks/linux-xarm92/**"
+      - "sdks/pikes/**"
 jobs:
   build-push-e2e-go:
     name: hatchet-e2e-go
-    runs-on: ubuntu-latest
+    runs-on: linux-xarm92
     steps:
       - &update-ca-certificates
         name: Update CA certificates
@@ -25,7 +26,7 @@ jobs:
           # dockerd keeps the roots it loaded at first use.
           sudo systemctl restart docker
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@ # v8.0.1
       - name: Login to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build and push
@@ -40,11 +41,11 @@ jobs:
 
   build-push-e2e-python:
     name: hatchet-e2e-python
-    runs-on: ubuntu-latest
+    runs-on: linux-xarm92
     steps:
       - *update-ca-certificates
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@ # v8.0.1
       - name: Login to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build and push
@@ -59,11 +60,11 @@ jobs:
 
   build-push-e2e-typescript:
     name: hatchet-e2e-typescript
-    runs-on: ubuntu-latest
+    runs-on: linux-xarm92
     steps:
       - *update-ca-certificates
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@ # v8.0.1
       - name: Login to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build and push
@@ -78,7 +79,7 @@ jobs:
 
   build-push-e2e-ruby:
     name: hatchet-e2e-ruby
-    runs-on: ubuntu-latest
+    runs-on: linux-xarm92
     steps:
       - *update-ca-certificates
       - name: Checkout
