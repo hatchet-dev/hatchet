@@ -210,8 +210,6 @@ TenantEntitlements:
       type: boolean
     sandboxOperator:
       type: boolean
-    operatorStepDirectCompletion:
-      type: boolean
   required:
     - auditLogs
     - prometheusMetrics
@@ -220,7 +218,6 @@ TenantEntitlements:
     - durableStreams
     - serverlessOperator
     - sandboxOperator
-    - operatorStepDirectCompletion
   type: object
 
 UpdateTenantEntitlementsRequest:
