@@ -20,6 +20,8 @@ type finishedDAGFixture struct {
 	dagId               int64
 	insertedAt          pgtype.Timestamptz
 	lastFinishedEventId uuid.UUID
+	dagExternalId       uuid.UUID
+	childExternalIds    []uuid.UUID
 }
 
 func setupOLAPRepository(t *testing.T) (context.Context, *pgxpool.Pool, *OLAPRepositoryImpl) {
@@ -53,6 +55,7 @@ func seedDAGWithFinishedChildren(t *testing.T, ctx context.Context, repo *OLAPRe
 	workflowId := uuid.New()
 	workflowVersionId := uuid.New()
 	dagExternalId := uuid.New()
+	f.dagExternalId = dagExternalId
 
 	locksNotAcquired, err := repo.CreateDAGs(ctx, f.tenantId, []*DAGWithData{{
 		V1Dag: &sqlcv1.V1Dag{
@@ -95,6 +98,10 @@ func seedDAGWithFinishedChildren(t *testing.T, ctx context.Context, repo *OLAPRe
 			},
 			Payload: []byte(`{}`),
 		})
+	}
+
+	for _, child := range children {
+		f.childExternalIds = append(f.childExternalIds, child.ExternalID)
 	}
 
 	_, locksNotAcquired, err = repo.CreateTasks(ctx, f.tenantId, children)

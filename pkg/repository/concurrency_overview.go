@@ -116,11 +116,14 @@ type ConcurrencyOverviewRepository interface {
 // dropped unless a key's max runs is above the cap.
 const maxConcurrencySlotExternalIds = 10_000
 
+// ListConcurrencySlotExternalIdsOpts filters the slots read by ListSlotExternalIds.
 type ListConcurrencySlotExternalIdsOpts struct {
 	// nil returns both holding and queued slots
 	IsFilled *bool
 }
 
+// ConcurrencySlotExternalIds are the runs and tasks using a key. Run ids filter the runs list and
+// task ids filter the task-only list.
 type ConcurrencySlotExternalIds struct {
 	RunExternalIds []uuid.UUID
 
