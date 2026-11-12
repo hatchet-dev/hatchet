@@ -232,8 +232,8 @@ func TestRegisterExemptsWorkerOnRequest(t *testing.T) {
 	assert.True(t, created[1].IsExemptFromLimits)
 }
 
-// A claimed row is registered by id: nothing is upserted, the worker is named after the row and
-// the row is pointed at the worker so ClaimOperators keeps seeing the assignment.
+// A claimed row is registered by id: nothing is upserted, and the worker is named after the row
+// and linked to it, which is how ClaimOperators sees the assignment.
 func TestRegisterClaimedRow(t *testing.T) {
 	tenant := &sqlcv1.Tenant{ID: uuid.New()}
 	svc := newTestService(t, nil)
@@ -251,11 +251,6 @@ func TestRegisterClaimedRow(t *testing.T) {
 	assert.Equal(t, "dag", created[0].Name)
 	assert.Equal(t, map[string]int32{"durable": 3}, created[0].SlotConfig)
 
-	op, err := svc.operators.GetOperatorById(t.Context(), row.ID)
-	require.NoError(t, err)
-	require.NotNil(t, op.WorkerID)
-	assert.Equal(t, reg.WorkerId, *op.WorkerID, "the row points at the session's worker")
-
 	// a row of another tenant, or no row at all, is refused the same way
 	other := svc.operators.Put(&sqlcv1.V1Operator{ID: uuid.New(), TenantID: uuid.New(), Name: "dag", Kind: sqlcv1.V1OperatorKindDAG})
 
@@ -265,4 +260,40 @@ func TestRegisterClaimedRow(t *testing.T) {
 	missing := uuid.New()
 	_, err = svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{OperatorId: &missing})
 	assert.Equal(t, connect.CodeNotFound, connect.CodeOf(err))
+}
+
+// Re-registering a claimed row under a new worker releases the links of the operator's dead
+// workers. A torn-down worker is never registered under again, so its links would otherwise
+// count against the operator's budget until it is cleaned up; with a catalog near the cap, the
+// new worker's first delta would then be refused and the operator could register nothing.
+func TestRegisterClaimedRowReleasesDeadWorkers(t *testing.T) {
+	tenant := &sqlcv1.Tenant{ID: uuid.New()}
+	svc := newTestService(t, nil, operatorsvc.WithMaxActionsPerOperator(3))
+
+	row := svc.operators.Put(&sqlcv1.V1Operator{ID: uuid.New(), TenantID: tenant.ID, Name: "dag", Kind: sqlcv1.V1OperatorKindDAG})
+
+	first, err := svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{OperatorId: &row.ID})
+	require.NoError(t, err)
+
+	// the first worker fills the operator's budget, as a restart leaves it
+	catalog := []string{"a_orchestrator", "b_orchestrator", "c_orchestrator"}
+	_, err = svc.workers.AddWorkerActions(t.Context(), tenant.ID, first.WorkerId, catalog)
+	require.NoError(t, err)
+
+	second, err := svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{OperatorId: &row.ID})
+	require.NoError(t, err)
+	require.NotEqual(t, first.WorkerId, second.WorkerId)
+
+	assert.Empty(t, svc.workers.ActionSet(first.WorkerId), "the dead worker's links are released")
+	assert.Contains(t, svc.workers.Ops(), "release")
+
+	// the new worker can now take the whole catalog within the budget
+	added, _, err := svc.workers.ApplyWorkerActionsDelta(t.Context(), tenant.ID, second.WorkerId, catalog, nil, 3)
+	require.NoError(t, err)
+	assert.Equal(t, 3, added)
+
+	// the worker a registration is for is never released, even when it is resumed while inactive
+	_, err = svc.Register(t.Context(), tenant, operatorsvc.RegisterOpts{OperatorId: &row.ID, ResumeWorkerId: &second.WorkerId})
+	require.NoError(t, err)
+	assert.Len(t, svc.workers.ActionSet(second.WorkerId), 3, "a resumed worker keeps its links")
 }

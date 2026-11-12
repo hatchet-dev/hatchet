@@ -300,16 +300,26 @@ type WorkflowRepository interface {
 
 	// RequeueRateLimitPausedQueueItems releases held items whose rate limit pauses have all ended
 	RequeueRateLimitPausedQueueItems(ctx context.Context, tenantId uuid.UUID) (queueNames []string, concurrencyStrategyIds []int64, err error)
+
+	// RegisterVersionCreatedCallback adds a callback that PutWorkflowVersion runs, before it
+	// returns, each time it commits a new workflow version.
+	RegisterVersionCreatedCallback(callback func(ctx context.Context, tenantId uuid.UUID))
 }
 
 type workflowRepository struct {
 	*sharedRepository
+
+	versionCreatedCallbacks []func(ctx context.Context, tenantId uuid.UUID)
 }
 
 func newWorkflowRepository(shared *sharedRepository) WorkflowRepository {
 	return &workflowRepository{
 		sharedRepository: shared,
 	}
+}
+
+func (r *workflowRepository) RegisterVersionCreatedCallback(callback func(ctx context.Context, tenantId uuid.UUID)) {
+	r.versionCreatedCallbacks = append(r.versionCreatedCallbacks, callback)
 }
 
 func (r *workflowRepository) ListWorkflowNamesByIds(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) (map[uuid.UUID]string, error) {
@@ -850,6 +860,14 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 		return nil, err
 	}
 
+	if oldWorkflowVersion == nil || oldWorkflowVersion.WorkflowVersion.ID != *workflowVersionId {
+		r.InvalidateEventKeyWorkflows(tenantId)
+
+		for _, callback := range r.versionCreatedCallbacks {
+			callback(ctx, tenantId)
+		}
+	}
+
 	return workflowVersion[0], nil
 }
 
@@ -887,14 +905,8 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 
 	mergeWorkflowConcurrencyOntoSingleTask(opts)
 
-	dagOperatorEnabled, err := r.isDagOperatorEnabled(ctx, tx, tenantId)
-
-	if err != nil {
-		return nil, err
-	}
-
 	// todo: maybe don't need `len` check here?
-	isUsingDagOperator := dagOperatorEnabled && (len(opts.Tasks) > 1 || opts.OnFailure != nil)
+	isUsingDagOperator := (len(opts.Tasks) > 1 || opts.OnFailure != nil)
 
 	if isUsingDagOperator {
 		var retentionPeriod *string

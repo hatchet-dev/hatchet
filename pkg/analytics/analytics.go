@@ -15,16 +15,17 @@ const (
 	Token    Resource = "api-token"
 	Workflow Resource = "workflow"
 
-	Event       Resource = "event"
-	WorkflowRun Resource = "workflow-run"
-	TaskRun     Resource = "task-run"
-	DurableTask Resource = "durable-task"
-	Worker      Resource = "worker"
-	RateLimit   Resource = "rate-limit"
-	Webhook     Resource = "webhook"
-	Log         Resource = "log"
-	StreamEvent Resource = "stream-event"
-	OtelSpan    Resource = "otel-span"
+	Event         Resource = "event"
+	WorkflowRun   Resource = "workflow-run"
+	TaskRun       Resource = "task-run"
+	DurableTask   Resource = "durable-task"
+	Worker        Resource = "worker"
+	RateLimit     Resource = "rate-limit"
+	Webhook       Resource = "webhook"
+	Log           Resource = "log"
+	StreamEvent   Resource = "stream-event"
+	DurableStream Resource = "durable-stream"
+	OtelSpan      Resource = "otel-span"
 )
 
 type Action string
@@ -53,7 +54,13 @@ const (
 	Memo      Action = "memo"
 	WaitFor   Action = "wait-for"
 	Connect   Action = "connect"
+	Publish   Action = "publish"
 )
+
+// Totals are additive integers summed into one aggregated event. They are flushed
+// as properties and are not part of the bucket key, so calls that differ only in
+// their totals share a bucket.
+type Totals map[string]int64
 
 type Properties map[string]interface{}
 
@@ -94,6 +101,8 @@ type FeatureFlagUser struct {
 type Analytics interface {
 	Enqueue(ctx context.Context, resource Resource, action Action, resourceId string, properties Properties)
 	Count(ctx context.Context, resource Resource, action Action, props ...Properties)
+	// CountN records n occurrences, plus totals summed into the same bucket as Count.
+	CountN(ctx context.Context, resource Resource, action Action, n int64, totals Totals, props ...Properties)
 	Identify(userId uuid.UUID, properties Properties)
 	Tenant(tenantId uuid.UUID, data Properties)
 	Group(groupType string, groupKey string, data Properties)
@@ -192,6 +201,9 @@ func (a NoOpAnalytics) Enqueue(ctx context.Context, resource Resource, action Ac
 }
 
 func (a NoOpAnalytics) Count(ctx context.Context, resource Resource, action Action, props ...Properties) {
+}
+
+func (a NoOpAnalytics) CountN(ctx context.Context, resource Resource, action Action, n int64, totals Totals, props ...Properties) {
 }
 
 func (a NoOpAnalytics) Identify(userId uuid.UUID, properties Properties) {}

@@ -1916,6 +1916,58 @@ func (q *Queries) ListWorkers(ctx context.Context, db DBTX, arg ListWorkersParam
 	return items, nil
 }
 
+const lockDeadOperatorWorkers = `-- name: LockDeadOperatorWorkers :many
+SELECT w."id"
+FROM "Worker" w
+WHERE
+    w."tenantId" = $1::uuid
+    AND w."operatorId" = $2::uuid
+    AND w."id" <> $3::uuid
+    AND (w."isActive" OR w."operatorActionCount" > 0)
+    AND NOT (
+        w."isActive"
+        AND EXISTS (
+            SELECT 1
+            FROM "Dispatcher" d
+            WHERE
+                d."id" = w."dispatcherId"
+                AND d."isActive" = TRUE
+                AND d."lastHeartbeatAt" > NOW() - INTERVAL '15 seconds'
+        )
+    )
+ORDER BY w."id"
+FOR UPDATE
+`
+
+type LockDeadOperatorWorkersParams struct {
+	Tenantid     uuid.UUID `json:"tenantid"`
+	Operatorid   uuid.UUID `json:"operatorid"`
+	Keepworkerid uuid.UUID `json:"keepworkerid"`
+}
+
+// The operator's workers, other than @keepWorkerId, that no longer serve it but still hold links
+// or count as active. Locked in id order, so concurrent releases of one operator queue instead of
+// deadlocking, and a delta still in flight on one of them commits before its links are released.
+func (q *Queries) LockDeadOperatorWorkers(ctx context.Context, db DBTX, arg LockDeadOperatorWorkersParams) ([]uuid.UUID, error) {
+	rows, err := db.Query(ctx, lockDeadOperatorWorkers, arg.Tenantid, arg.Operatorid, arg.Keepworkerid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockWorkerActionHash = `-- name: LockWorkerActionHash :one
 SELECT "actionHash"
 FROM "Worker"
@@ -1991,6 +2043,42 @@ WHERE w."id" = $1::uuid
 func (q *Queries) RefreshWorkerActionHash(ctx context.Context, db DBTX, workerid uuid.UUID) error {
 	_, err := db.Exec(ctx, refreshWorkerActionHash, workerid)
 	return err
+}
+
+const releaseWorkers = `-- name: ReleaseWorkers :one
+WITH unlinked AS (
+    DELETE FROM "_ActionToWorker" aw
+    USING "Worker" w
+    WHERE
+        aw."B" = w."id"
+        AND w."id" = ANY($1::uuid[])
+        AND w."tenantId" = $2::uuid
+    RETURNING aw."A"
+), released AS (
+    UPDATE "Worker" w
+    SET
+        "operatorActionCount" = 0,
+        "actionHash" = NULL,
+        "isActive" = FALSE
+    WHERE
+        w."id" = ANY($1::uuid[])
+        AND w."tenantId" = $2::uuid
+)
+SELECT count(*)::bigint AS released FROM unlinked
+`
+
+type ReleaseWorkersParams struct {
+	Workerids []uuid.UUID `json:"workerids"`
+	Tenantid  uuid.UUID   `json:"tenantid"`
+}
+
+// Unlinks every action from the workers, zeroes their link counts and marks them inactive, so
+// they no longer count against their operator's action budget or hold the operator.
+func (q *Queries) ReleaseWorkers(ctx context.Context, db DBTX, arg ReleaseWorkersParams) (int64, error) {
+	row := db.QueryRow(ctx, releaseWorkers, arg.Workerids, arg.Tenantid)
+	var released int64
+	err := row.Scan(&released)
+	return released, err
 }
 
 const settleWorkerActionsDelta = `-- name: SettleWorkerActionsDelta :one

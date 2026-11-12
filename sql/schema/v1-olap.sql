@@ -639,6 +639,18 @@ CREATE TABLE v1_audit_log (
 
 CREATE INDEX v1_audit_log_tenant_id_correlation_id_idx ON v1_audit_log (tenant_id, correlation_id DESC);
 
+CREATE TABLE v1_audit_log_archive_cursor (
+    partition_date DATE PRIMARY KEY,
+    is_completed BOOLEAN NOT NULL DEFAULT FALSE,
+    lease_process_id UUID NOT NULL,
+    lease_expires_at TIMESTAMPTZ NOT NULL,
+
+    next_file_index INTEGER NOT NULL,
+    last_tenant_id UUID NOT NULL,
+    last_inserted_at TIMESTAMPTZ NOT NULL,
+    last_id UUID NOT NULL
+);
+
 -- TRIGGERS TO LINK TASKS, DAGS AND EVENTS --
 CREATE OR REPLACE FUNCTION v1_tasks_olap_insert_function()
 RETURNS TRIGGER AS
@@ -1373,6 +1385,16 @@ CREATE TABLE v1_agg_events_minute_olap (
     tenant_id UUID NOT NULL,
     bucket TIMESTAMPTZ NOT NULL,
     event_count BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (tenant_id, bucket)
+) PARTITION BY RANGE (bucket);
+
+-- Durable stream payload bytes, written by the usage flush rather than by triggers, so it has no
+-- delta table: each process upserts its totals once per flush interval.
+CREATE TABLE v1_agg_stream_bytes_minute_olap (
+    tenant_id UUID NOT NULL,
+    bucket TIMESTAMPTZ NOT NULL,
+    published_bytes BIGINT NOT NULL DEFAULT 0,
+    delivered_bytes BIGINT NOT NULL DEFAULT 0,
     PRIMARY KEY (tenant_id, bucket)
 ) PARTITION BY RANGE (bucket);
 

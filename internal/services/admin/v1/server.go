@@ -897,7 +897,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 
 	if len(createOpts.CronTriggers) > 0 {
 		msg := tasktypes.NewCronUpdateMessage(tenantId, msgqueue.MsgIDCronUpdate)
-		err = a.mq.SendMessage(ctx, msgqueue.TICKER_UPDATE_QUEUE, msg)
+		err = a.pubsub.Pub(ctx, msgqueue.CronRefreshTopic(), msg)
 		if err != nil {
 			a.l.Err(err).Ctx(ctx).Msg("could not send cron trigger update message")
 		}

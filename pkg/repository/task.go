@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -234,6 +235,10 @@ type FinalizedTaskResponse struct {
 	ReleasedTasks []*sqlcv1.ReleaseTasksRow
 
 	InternalEvents []InternalTaskEvent
+
+	// Durable RUN entries of DAG orchestrators whose step children were finalized here. Operator
+	// step children satisfy their entries directly instead of through internal event matches.
+	SatisfiedDurableEventLogEntries []SatisfiedEntry
 }
 
 type RetriedTask struct {
@@ -972,7 +977,7 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 		payloadReferenceIds[i] = report.PayloadReferenceId
 	}
 
-	internalEvents, err := r.createTaskEventsAfterRelease(
+	internalEvents, satisfiedEntries, err := r.createTaskEventsAfterRelease(
 		ctx,
 		tx,
 		tenantId,
@@ -999,8 +1004,9 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 	}
 
 	return &FinalizedTaskResponse{
-		ReleasedTasks:  releasedTasks,
-		InternalEvents: internalEvents,
+		ReleasedTasks:                   releasedTasks,
+		InternalEvents:                  internalEvents,
+		SatisfiedDurableEventLogEntries: satisfiedEntries,
 	}, nil
 }
 
@@ -1215,7 +1221,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 		outputs[i] = out
 	}
 
-	internalEvents, err := r.createTaskEventsAfterRelease(
+	internalEvents, satisfiedEntries, err := r.createTaskEventsAfterRelease(
 		ctx,
 		tx,
 		tenantId,
@@ -1232,8 +1238,9 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 
 	return &FailTasksResponse{
 		FinalizedTaskResponse: &FinalizedTaskResponse{
-			ReleasedTasks:  releasedTasks,
-			InternalEvents: internalEvents,
+			ReleasedTasks:                   releasedTasks,
+			InternalEvents:                  internalEvents,
+			SatisfiedDurableEventLogEntries: satisfiedEntries,
 		},
 		RetriedTasks: retriedTasks,
 	}, nil
@@ -1448,7 +1455,7 @@ func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, te
 		outputs[i] = out
 	}
 
-	internalEvents, err := r.createTaskEventsAfterRelease(
+	internalEvents, satisfiedEntries, err := r.createTaskEventsAfterRelease(
 		ctx,
 		dbtx,
 		tenantId,
@@ -1464,8 +1471,9 @@ func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, te
 	}
 
 	return &FinalizedTaskResponse{
-		ReleasedTasks:  releasedTasks,
-		InternalEvents: internalEvents,
+		ReleasedTasks:                   releasedTasks,
+		InternalEvents:                  internalEvents,
+		SatisfiedDurableEventLogEntries: satisfiedEntries,
 	}, nil
 }
 
@@ -3770,13 +3778,13 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 	payloadReferenceIds []*uuid.UUID,
 	releasedTasks []*sqlcv1.ReleaseTasksRow,
 	eventType sqlcv1.V1TaskEventType,
-) ([]InternalTaskEvent, error) {
+) ([]InternalTaskEvent, []SatisfiedEntry, error) {
 	if len(taskIdRetryCounts) != len(releasedTasks) || len(taskIdRetryCounts) != len(outputs) {
-		return nil, fmt.Errorf("failed to release all tasks")
+		return nil, nil, fmt.Errorf("failed to release all tasks")
 	}
 
 	if payloadReferenceIds != nil && len(payloadReferenceIds) != len(releasedTasks) {
-		return nil, fmt.Errorf("mismatched task and payload reference id lengths")
+		return nil, nil, fmt.Errorf("mismatched task and payload reference id lengths")
 	}
 
 	datas := make([][]byte, len(releasedTasks))
@@ -3800,6 +3808,9 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 
 	var filteredPayloadReferenceIds []*uuid.UUID
 
+	operatorStepChildCompletions := make([]OperatorStepChildCompletion, 0)
+	operatorStepChildTaskIds := make(map[int64]struct{})
+
 	for i := range len(datas) {
 		if !isCurrentRetry[i] {
 			continue
@@ -3812,9 +3823,23 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 		if payloadReferenceIds != nil {
 			filteredPayloadReferenceIds = append(filteredPayloadReferenceIds, payloadReferenceIds[i])
 		}
+
+		if IsOperatorStepChild(releasedTasks[i]) {
+			outputEvent := &TaskOutputEvent{}
+
+			if err := json.Unmarshal(datas[i], outputEvent); err != nil {
+				return nil, nil, fmt.Errorf("failed to decode output event for operator step child %s: %w", releasedTasks[i].ExternalID, err)
+			}
+
+			operatorStepChildCompletions = append(operatorStepChildCompletions, OperatorStepChildCompletion{
+				ReleasedTask: releasedTasks[i],
+				OutputEvent:  outputEvent,
+			})
+			operatorStepChildTaskIds[releasedTasks[i].ID] = struct{}{}
+		}
 	}
 
-	return r.createTaskEvents(
+	internalEvents, err := r.createTaskEvents(
 		ctx,
 		tx,
 		tenantId,
@@ -3827,6 +3852,24 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 		nil,
 		filteredPayloadReferenceIds,
 	)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	satisfiedEntries, err := r.satisfyOperatorStepChildEntries(ctx, tx, tenantId, operatorStepChildCompletions)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// nothing waits on an internal event for an operator step child: its orchestrator was notified above
+	internalEvents = slices.DeleteFunc(internalEvents, func(event InternalTaskEvent) bool {
+		_, isOperatorStepChild := operatorStepChildTaskIds[event.TaskID]
+		return isOperatorStepChild
+	})
+
+	return internalEvents, satisfiedEntries, nil
 }
 
 type ReleaseIdempotencyKeysOpt struct {
@@ -4048,26 +4091,6 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	}
 
 	defer rollback()
-
-	dagOperatorEnabled, err := r.isDagOperatorEnabled(ctx, tx, tenantId)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to check dag operator entitlement for replaying tasks: %w", err)
-	}
-
-	// Operator-managed runs replay a single orchestrator task, so the FOR UPDATE row locks below are
-	// enough to serialize concurrent replays. Native DAG replays still take the tenant-wide lock.
-	if !dagOperatorEnabled {
-		acquired, err := r.queries.TryAdvisoryLock(ctx, tx, sqlchelpers.AdvisoryLockKey("replay_"+tenantId.String()))
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to try advisory lock for replaying tasks: %w", err)
-		}
-
-		if !acquired {
-			return nil, fmt.Errorf("could not acquire advisory lock for replaying tasks")
-		}
-	}
 
 	taskIds := make([]int64, len(tasks))
 	taskInsertedAts := make([]pgtype.Timestamptz, len(tasks))

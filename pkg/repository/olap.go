@@ -270,8 +270,14 @@ type TaskEventWithPayloads struct {
 
 type OLAPRepository interface {
 	UpdateTablePartitions(ctx context.Context) error
+	SetAuditLogArchiveStore(store AuditLogArchiveStore, rowsPerFile int32)
+	ArchiveAuditLogPartitions(ctx context.Context, opts ArchiveAuditLogPartitionsOpts) error
+	// CreateAuditLogs inserts a batch from the audit log outbox. A batch can be delivered more than
+	// once, so an entry already stored with the same tenant ID, inserted-at and ID is skipped.
+	CreateAuditLogs(ctx context.Context, entries []AuditLogEntry) error
 	SetReadReplicaPool(pool *fairpool.Pool)
 	Aggregates() *olapagg.Aggregator
+	AddStreamBytes(ctx context.Context, usage []TenantStreamBytes) error
 	SetPayloadStoreOnSeparateDatabase(store PayloadStoreRepository)
 
 	ReadTaskRun(ctx context.Context, taskExternalId uuid.UUID) (*sqlcv1.V1TasksOlap, error)
@@ -355,6 +361,9 @@ type OLAPRepositoryImpl struct {
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits
 
 	aggregates *olapagg.Aggregator
+
+	auditLogArchiveStore       AuditLogArchiveStore
+	auditLogArchiveRowsPerFile int32
 }
 
 func NewOLAPRepositoryFromPool(

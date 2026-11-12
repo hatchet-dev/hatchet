@@ -27,7 +27,7 @@ func (f *fakeTaskEventWriter) CancelTaskWithReason(_ context.Context, _ uuid.UUI
 	return &contracts.ActionEventResponse{}, nil
 }
 
-func (f *fakeTaskEventWriter) TriggerDAGStep(_ context.Context, _ uuid.UUID, _ *operator.DAGStepTriggerRequest) (*operator.DAGStepTriggerResult, error) {
+func (f *fakeTaskEventWriter) TriggerDAGSteps(_ context.Context, _ uuid.UUID, _ []*operator.DAGStepTriggerRequest) ([]*operator.DAGStepTriggerResult, error) {
 	return nil, nil
 }
 

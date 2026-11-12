@@ -167,6 +167,51 @@ export const LoadingOrganizations: Story = {
   },
 };
 
+const manyOrganizations: SwitcherOrganization[] = [
+  currentOrg,
+  smallOrg,
+  largeOrg,
+  ...[14, 3, 9, 22, 5, 11].map((count, index): SwitcherOrganization => {
+    const n = index + 1;
+    return {
+      id: `org-${n}`,
+      name: `Organization ${n}`,
+      isOwner: n !== 2,
+      tenants: Array.from({ length: count }, (_, i) =>
+        tenant(
+          `org-${n}-${i + 1}`,
+          i % 3 === 0 ? 'aws:eu-west-1' : 'aws:us-east-1',
+          `org-${n}-tenant-${i + 1}`,
+        ),
+      ),
+    };
+  }),
+];
+
+export const ManyOrganizations: Story = {
+  args: {
+    organizations: manyOrganizations,
+    recentTenantIds: [
+      'tenant-org-4-4',
+      'tenant-small-sandbox',
+      'tenant-org-1-2',
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const headers = canvasElement.querySelectorAll(
+      '[role="option"][aria-expanded]',
+    );
+    await expect(headers).toHaveLength(manyOrganizations.length);
+    const expanded = [...headers].filter(
+      (header) => header.getAttribute('aria-expanded') === 'true',
+    );
+    await expect(expanded).toHaveLength(1);
+    await expect(expanded[0]).toHaveTextContent(currentOrg.name);
+    await expect(canvas.getByText('org-4-tenant-4')).toBeInTheDocument();
+  },
+};
+
 export const FlatList: Story = {
   name: 'Flat list (OSS)',
   args: {

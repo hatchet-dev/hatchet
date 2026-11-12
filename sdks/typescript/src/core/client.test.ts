@@ -23,7 +23,12 @@ import {
   PushEventRequest,
   PutLogRequest,
 } from '@hatchet/protoc-es/events/events_pb';
-import { V1Streams, type ResetStreamTopicRequest } from '@hatchet/protoc-es/v1/streams_pb';
+import {
+  V1Streams,
+  type ResetStreamTopicRequest,
+  StreamMessageSchema,
+  type SubscribeStreamRequest,
+} from '@hatchet/protoc-es/v1/streams_pb';
 import { declarations } from '@hatchet/edge/declarations';
 import { V1TaskStatus } from '@hatchet/clients/rest/generated/data-contracts';
 import HatchetError from '@util/errors/hatchet-error';
@@ -100,6 +105,11 @@ function fakeEngine() {
   // an engine from before PublishBatch, which serves only single Publish
   let withoutPublishBatch = false;
   const resets: ResetStreamTopicRequest[] = [];
+  const subscribes: SubscribeStreamRequest[] = [];
+  // what each Subscribe call sends, in order; a call with no script left hangs up
+  const subscribeScripts: Array<
+    Array<MessageInitShape<typeof StreamMessageSchema> | ConnectError>
+  > = [];
   const publishErrors: ConnectError[] = [];
   const publishGates: Array<Promise<void>> = [];
   const cancels: CancelTasksRequest[] = [];
@@ -227,6 +237,13 @@ function fakeEngine() {
         resets.push(req);
         return {};
       },
+      async *subscribe(req) {
+        subscribes.push(req);
+        for (const step of subscribeScripts.shift() ?? [{ hangup: true }]) {
+          if (step instanceof ConnectError) throw step;
+          yield step;
+        }
+      },
     });
   });
 
@@ -239,6 +256,7 @@ function fakeEngine() {
     publishes,
     publishBatches,
     resets,
+    subscribes,
     cancels,
     pauses,
     detailsQueue,
@@ -257,6 +275,10 @@ function fakeEngine() {
     },
     failNextPublishWith(error: ConnectError) {
       publishErrors.push(error);
+    },
+    /** Queues what the next Subscribe call sends: messages, then optionally an error. */
+    scriptSubscribe(...steps: Array<MessageInitShape<typeof StreamMessageSchema> | ConnectError>) {
+      subscribeScripts.push(steps);
     },
     servePublishBatch(served: boolean) {
       withoutPublishBatch = !served;
@@ -1232,7 +1254,7 @@ describe('HatchetCore.streams', () => {
   it('still takes the events service alone, which serves put and refuses durable streams', async () => {
     const engine = fakeEngine();
     const client = makeClient(engine);
-    const legacy = new StreamsClient(client.streams['events'] as never);
+    const legacy = new StreamsClient(client.streams['eventsService'] as never);
 
     // the fake engine has no PutStreamEvent, so reaching it is the proof the events
     // service was wired
@@ -1364,5 +1386,176 @@ describe('HatchetCore.streams', () => {
       expect.not.objectContaining({ cursor: expect.anything() }),
       expect.objectContaining({ namespace: 'ns', topic: 'progress', cursor: 'cursor-1' }),
     ]);
+  });
+
+  describe('subscribe', () => {
+    const entry = (cursor: string, body: string) => ({
+      cursor,
+      payload: new TextEncoder().encode(body),
+      createdAt: timestampFromDate(new Date('2026-10-21T00:00:00Z')),
+    });
+
+    async function read(iterable: AsyncIterable<{ payload: Uint8Array; cursor: string }>) {
+      const seen: Array<[string, string]> = [];
+      for await (const event of iterable) seen.push([text(event.payload), event.cursor]);
+      return seen;
+    }
+
+    it('yields every entry of every message, from the given cursor, and ends on a hangup', async () => {
+      const engine = fakeEngine();
+      const client = makeClient(engine);
+      engine.scriptSubscribe(
+        { entries: [entry('c1', 'one'), entry('c2', 'two')] },
+        { entries: [entry('c3', 'three')] },
+        { hangup: true }
+      );
+
+      const events = [];
+      for await (const event of client.streams.subscribe('progress', {
+        namespace: 'ns',
+        cursor: 'c0',
+      })) {
+        events.push(event);
+      }
+
+      expect(events.map((e) => [text(e.payload), e.cursor])).toEqual([
+        ['one', 'c1'],
+        ['two', 'c2'],
+        ['three', 'c3'],
+      ]);
+      expect(events[0].createdAt).toEqual(new Date('2026-10-21T00:00:00Z'));
+      expect(engine.subscribes).toEqual([
+        expect.objectContaining({ namespace: 'ns', topic: 'progress', cursor: 'c0' }),
+      ]);
+    });
+
+    it('resubscribes after the last cursor it yielded when the connection drops', async () => {
+      const engine = fakeEngine();
+      const client = makeClient(engine);
+      engine.scriptSubscribe(
+        { entries: [entry('c1', 'one')] },
+        new ConnectError('connection reset', Code.Unavailable)
+      );
+      engine.scriptSubscribe({ entries: [entry('c2', 'two')] }, { hangup: true });
+
+      expect(await read(client.streams.subscribe('progress'))).toEqual([
+        ['one', 'c1'],
+        ['two', 'c2'],
+      ]);
+      expect(engine.subscribes.map((r) => r.cursor)).toEqual([undefined, 'c1']);
+    });
+
+    it('throws an error a retry cannot fix, such as an expired cursor', async () => {
+      const engine = fakeEngine();
+      const client = makeClient(engine);
+      engine.scriptSubscribe(new ConnectError('cursor expired', Code.OutOfRange));
+
+      await expect(read(client.streams.subscribe('progress', { cursor: 'old' }))).rejects.toThrow(
+        /cursor expired/
+      );
+      expect(engine.subscribes).toHaveLength(1);
+    });
+
+    it('ends without throwing once its signal aborts', async () => {
+      const engine = fakeEngine();
+      const client = makeClient(engine);
+      const controller = new AbortController();
+      engine.scriptSubscribe(
+        { entries: [entry('c1', 'one')] },
+        new ConnectError('connection reset', Code.Unavailable)
+      );
+
+      const seen: string[] = [];
+      for await (const event of client.streams.subscribe('progress', {
+        signal: controller.signal,
+      })) {
+        seen.push(text(event.payload));
+        // aborted before the resubscribe's backoff ends
+        controller.abort();
+      }
+
+      expect(seen).toEqual(['one']);
+      expect(engine.subscribes).toHaveLength(1);
+    });
+
+    it('stops yielding a message’s remaining entries once its signal aborts', async () => {
+      const engine = fakeEngine();
+      const client = makeClient(engine);
+      const controller = new AbortController();
+      engine.scriptSubscribe(
+        { entries: [entry('c1', 'one'), entry('c2', 'two'), entry('c3', 'three')] },
+        { hangup: true }
+      );
+
+      const seen: string[] = [];
+      for await (const event of client.streams.subscribe('progress', {
+        signal: controller.signal,
+      })) {
+        seen.push(text(event.payload));
+        controller.abort();
+      }
+
+      expect(seen).toEqual(['one']);
+    });
+
+    it('does not fetch a payload by ref once its signal aborts', async () => {
+      const engine = fakeEngine();
+      const fetches: string[] = [];
+      const client = new HatchetCore({
+        token: TOKEN,
+        transport: engine.transport,
+        logLevel: 'OFF',
+        fetch: async (input) => {
+          fetches.push(String(input));
+          return new Response(new TextEncoder().encode('stored'));
+        },
+      });
+      const controller = new AbortController();
+      engine.scriptSubscribe(
+        {
+          entries: [
+            entry('c1', 'one'),
+            { cursor: 'c2', payloadRef: 'ref-2', createdAt: entry('c2', '').createdAt },
+          ],
+        },
+        { hangup: true }
+      );
+
+      for await (const _ of client.streams.subscribe('progress', { signal: controller.signal })) {
+        controller.abort();
+      }
+
+      expect(fetches).toEqual([]);
+    });
+
+    it('rereads a payload whose download fails after its headers, instead of yielding it empty', async () => {
+      const engine = fakeEngine();
+      let downloads = 0;
+      const client = new HatchetCore({
+        token: TOKEN,
+        transport: engine.transport,
+        logLevel: 'OFF',
+        fetch: async () => {
+          downloads += 1;
+          if (downloads <= 3) {
+            // 200 and headers, then the connection drops mid-body
+            const body = new ReadableStream<Uint8Array>({
+              start(c) {
+                c.error(new TypeError('connection reset'));
+              },
+            });
+            return new Response(body, { status: 200 });
+          }
+          return new Response(new TextEncoder().encode('stored'));
+        },
+      });
+      const stored = { cursor: 'c1', payloadRef: 'ref-1', createdAt: entry('c1', '').createdAt };
+      // every attempt fails on the first subscription, so it resubscribes from the same cursor
+      engine.scriptSubscribe({ entries: [stored] }, { hangup: true });
+      engine.scriptSubscribe({ entries: [stored] }, { hangup: true });
+
+      expect(await read(client.streams.subscribe('progress'))).toEqual([['stored', 'c1']]);
+      expect(engine.subscribes.map((r) => r.cursor)).toEqual([undefined, undefined]);
+    });
   });
 });

@@ -5,6 +5,29 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.47.0] - 2026-11-11
+
+### Added
+
+- `@hatchet-dev/typescript-sdk/core` can read durable streams: `hatchet.streams.subscribe(topic, { cursor, signal })` yields a topic's messages over the fetch transport, resubscribing from the last cursor if the connection drops, the way the Node client's `subscribe` does. A payload published by upload is read from the REST API. This lets a browser, or any runtime with only `fetch`, follow a topic.
+- `StreamEvent` is exported from `@hatchet-dev/typescript-sdk/core`.
+
+### Fixed
+
+- The fetch transport limits a streaming response's size per message rather than in total, so a server stream is no longer cancelled once 4 MiB of messages have passed through it.
+
+## [1.46.2] - 2026-11-06
+
+### Fixed
+
+- Increase the gRPC receive stream and connection windows to 4MiB so bounded assignment bursts can arrive while the worker event loop is briefly busy.
+
+## [1.46.1] - 2026-11-02
+
+### Added
+
+- `TenantEntitlements.sandboxOperator`, the tenant's sandbox entitlement.
+
 ## [1.46.0] - 2026-10-28
 
 ### Added

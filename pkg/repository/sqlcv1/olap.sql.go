@@ -12,6 +12,113 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const acquireOrExtendAuditLogArchiveLease = `-- name: AcquireOrExtendAuditLogArchiveLease :one
+WITH inputs AS (
+    SELECT
+        $2::DATE AS partition_date,
+        $1::UUID AS lease_process_id,
+        $3::TIMESTAMPTZ AS lease_expires_at,
+        $4::INTEGER AS next_file_index,
+        $5::UUID AS last_tenant_id,
+        $6::TIMESTAMPTZ AS last_inserted_at,
+        $7::UUID AS last_id
+), any_lease_held_by_other_process AS (
+    SELECT COALESCE(BOOL_OR(lease_expires_at > NOW()), FALSE) AS lease_exists
+    FROM v1_audit_log_archive_cursor
+    WHERE lease_process_id != $1::UUID
+), to_insert AS (
+    SELECT partition_date, lease_process_id, lease_expires_at, next_file_index, last_tenant_id, last_inserted_at, last_id
+    FROM inputs
+    WHERE NOT (SELECT lease_exists FROM any_lease_held_by_other_process)
+)
+
+INSERT INTO v1_audit_log_archive_cursor (partition_date, lease_process_id, lease_expires_at, next_file_index, last_tenant_id, last_inserted_at, last_id)
+SELECT partition_date, lease_process_id, lease_expires_at, next_file_index, last_tenant_id, last_inserted_at, last_id
+FROM to_insert
+ON CONFLICT (partition_date)
+DO UPDATE SET
+    -- a process taking over an expired lease resumes from the cursor the previous holder saved
+    next_file_index = CASE
+        WHEN EXCLUDED.lease_process_id = v1_audit_log_archive_cursor.lease_process_id THEN EXCLUDED.next_file_index
+        ELSE v1_audit_log_archive_cursor.next_file_index
+    END,
+    last_tenant_id = CASE
+        WHEN EXCLUDED.lease_process_id = v1_audit_log_archive_cursor.lease_process_id THEN EXCLUDED.last_tenant_id
+        ELSE v1_audit_log_archive_cursor.last_tenant_id
+    END,
+    last_inserted_at = CASE
+        WHEN EXCLUDED.lease_process_id = v1_audit_log_archive_cursor.lease_process_id THEN EXCLUDED.last_inserted_at
+        ELSE v1_audit_log_archive_cursor.last_inserted_at
+    END,
+    last_id = CASE
+        WHEN EXCLUDED.lease_process_id = v1_audit_log_archive_cursor.lease_process_id THEN EXCLUDED.last_id
+        ELSE v1_audit_log_archive_cursor.last_id
+    END,
+
+    lease_process_id = EXCLUDED.lease_process_id,
+    lease_expires_at = EXCLUDED.lease_expires_at
+WHERE v1_audit_log_archive_cursor.lease_expires_at < NOW() OR v1_audit_log_archive_cursor.lease_process_id = $1::UUID
+RETURNING partition_date, is_completed, lease_process_id, lease_expires_at, next_file_index, last_tenant_id, last_inserted_at, last_id
+`
+
+type AcquireOrExtendAuditLogArchiveLeaseParams struct {
+	Leaseprocessid uuid.UUID          `json:"leaseprocessid"`
+	Partitiondate  pgtype.Date        `json:"partitiondate"`
+	Leaseexpiresat pgtype.Timestamptz `json:"leaseexpiresat"`
+	Nextfileindex  int32              `json:"nextfileindex"`
+	Lasttenantid   uuid.UUID          `json:"lasttenantid"`
+	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
+	Lastid         uuid.UUID          `json:"lastid"`
+}
+
+func (q *Queries) AcquireOrExtendAuditLogArchiveLease(ctx context.Context, db DBTX, arg AcquireOrExtendAuditLogArchiveLeaseParams) (*V1AuditLogArchiveCursor, error) {
+	row := db.QueryRow(ctx, acquireOrExtendAuditLogArchiveLease,
+		arg.Leaseprocessid,
+		arg.Partitiondate,
+		arg.Leaseexpiresat,
+		arg.Nextfileindex,
+		arg.Lasttenantid,
+		arg.Lastinsertedat,
+		arg.Lastid,
+	)
+	var i V1AuditLogArchiveCursor
+	err := row.Scan(
+		&i.PartitionDate,
+		&i.IsCompleted,
+		&i.LeaseProcessID,
+		&i.LeaseExpiresAt,
+		&i.NextFileIndex,
+		&i.LastTenantID,
+		&i.LastInsertedAt,
+		&i.LastID,
+	)
+	return &i, err
+}
+
+const addStreamBytes = `-- name: AddStreamBytes :exec
+INSERT INTO v1_agg_stream_bytes_minute_olap AS a (tenant_id, bucket, published_bytes, delivered_bytes)
+SELECT
+    UNNEST($1::UUID[]),
+    date_bin('1 minute', NOW(), TIMESTAMPTZ '1970-01-01 00:00:00+00'),
+    UNNEST($2::BIGINT[]),
+    UNNEST($3::BIGINT[])
+ON CONFLICT (tenant_id, bucket) DO UPDATE SET
+    published_bytes = a.published_bytes + EXCLUDED.published_bytes,
+    delivered_bytes = a.delivered_bytes + EXCLUDED.delivered_bytes
+`
+
+type AddStreamBytesParams struct {
+	Tenantids      []uuid.UUID `json:"tenantids"`
+	Publishedbytes []int64     `json:"publishedbytes"`
+	Deliveredbytes []int64     `json:"deliveredbytes"`
+}
+
+// callers sort by tenant, so concurrent flushes lock rows in the same order
+func (q *Queries) AddStreamBytes(ctx context.Context, db DBTX, arg AddStreamBytesParams) error {
+	_, err := db.Exec(ctx, addStreamBytes, arg.Tenantids, arg.Publishedbytes, arg.Deliveredbytes)
+	return err
+}
+
 const analyzeV1AggEventsMinuteDeltaOLAP = `-- name: AnalyzeV1AggEventsMinuteDeltaOLAP :exec
 ANALYZE v1_agg_events_minute_delta_olap
 `
@@ -526,6 +633,18 @@ func (q *Queries) CountOLAPTempTableSizeForTaskStatusUpdates(ctx context.Context
 	return total, err
 }
 
+const createAuditLogs = `-- name: CreateAuditLogs :exec
+INSERT INTO v1_audit_log (id, inserted_at, tenant_id, actor_type, actor_id, action, correlation_id, resource_id, resource_type, ip_address, user_agent)
+SELECT id, inserted_at, tenant_id, actor_type, actor_id, action, correlation_id, resource_id, resource_type, ip_address, user_agent
+FROM jsonb_populate_recordset(NULL::v1_audit_log, $1::JSONB)
+ON CONFLICT (tenant_id, inserted_at, id) DO NOTHING
+`
+
+func (q *Queries) CreateAuditLogs(ctx context.Context, db DBTX, entries []byte) error {
+	_, err := db.Exec(ctx, createAuditLogs, entries)
+	return err
+}
+
 const createDagToTaskOLAPSelfMappings = `-- name: CreateDagToTaskOLAPSelfMappings :exec
 WITH inputs AS (
     SELECT
@@ -596,6 +715,7 @@ SELECT
     create_v1_range_partition('v1_agg_task_statuses_minute_olap'::text, $2::date, 70) AS v1_agg_task_statuses_minute_olap,
     create_v1_range_partition('v1_agg_task_events_minute_olap'::text, $2::date, 70) AS v1_agg_task_events_minute_olap,
     create_v1_range_partition('v1_agg_events_minute_olap'::text, $2::date, 70) AS v1_agg_events_minute_olap,
+    create_v1_range_partition('v1_agg_stream_bytes_minute_olap'::text, $2::date, 70) AS v1_agg_stream_bytes_minute_olap,
     create_v1_range_partition('v1_events_olap'::text, $2::date) AS v1_events_olap,
     create_v1_range_partition('v1_event_to_run_olap'::text, $2::date) AS v1_event_to_run_olap,
     create_v1_weekly_range_partition('v1_event_lookup_table_olap'::text, $2::date) AS v1_event_lookup_table_olap,
@@ -628,6 +748,7 @@ type CreateOLAPPartitionsRow struct {
 	V1AggTaskStatusesMinuteOlap             int32 `json:"v1_agg_task_statuses_minute_olap"`
 	V1AggTaskEventsMinuteOlap               int32 `json:"v1_agg_task_events_minute_olap"`
 	V1AggEventsMinuteOlap                   int32 `json:"v1_agg_events_minute_olap"`
+	V1AggStreamBytesMinuteOlap              int32 `json:"v1_agg_stream_bytes_minute_olap"`
 	V1EventsOlap                            int32 `json:"v1_events_olap"`
 	V1EventToRunOlap                        int32 `json:"v1_event_to_run_olap"`
 	V1EventLookupTableOlap                  int32 `json:"v1_event_lookup_table_olap"`
@@ -658,6 +779,7 @@ func (q *Queries) CreateOLAPPartitions(ctx context.Context, db DBTX, arg CreateO
 		&i.V1AggTaskStatusesMinuteOlap,
 		&i.V1AggTaskEventsMinuteOlap,
 		&i.V1AggEventsMinuteOlap,
+		&i.V1AggStreamBytesMinuteOlap,
 		&i.V1EventsOlap,
 		&i.V1EventToRunOlap,
 		&i.V1EventLookupTableOlap,
@@ -1486,6 +1608,119 @@ func (q *Queries) GetWorkflowRunIdFromDagIdInsertedAt(ctx context.Context, db DB
 	return &i, err
 }
 
+const listAuditLogPartitionsBeforeDate = `-- name: ListAuditLogPartitionsBeforeDate :many
+WITH partitions AS (
+    SELECT
+        p::TEXT AS partition_name,
+        TO_DATE(RIGHT(p::TEXT, 8), 'YYYYMMDD') AS partition_date
+    FROM get_v1_partitions_before_date('v1_audit_log', $1::DATE) AS p
+)
+
+SELECT
+    partition_name,
+    partition_date,
+    partition_date::TIMESTAMPTZ AS lower_bound,
+    (partition_date + 1)::TIMESTAMPTZ AS upper_bound
+FROM partitions
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM v1_audit_log_archive_cursor c
+    WHERE c.is_completed AND c.partition_date = partitions.partition_date
+)
+ORDER BY partition_date ASC
+`
+
+type ListAuditLogPartitionsBeforeDateRow struct {
+	PartitionName string             `json:"partition_name"`
+	PartitionDate pgtype.Date        `json:"partition_date"`
+	LowerBound    pgtype.Timestamptz `json:"lower_bound"`
+	UpperBound    pgtype.Timestamptz `json:"upper_bound"`
+}
+
+func (q *Queries) ListAuditLogPartitionsBeforeDate(ctx context.Context, db DBTX, date pgtype.Date) ([]*ListAuditLogPartitionsBeforeDateRow, error) {
+	rows, err := db.Query(ctx, listAuditLogPartitionsBeforeDate, date)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListAuditLogPartitionsBeforeDateRow
+	for rows.Next() {
+		var i ListAuditLogPartitionsBeforeDateRow
+		if err := rows.Scan(
+			&i.PartitionName,
+			&i.PartitionDate,
+			&i.LowerBound,
+			&i.UpperBound,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAuditLogsInRangeAfterCursor = `-- name: ListAuditLogsInRangeAfterCursor :many
+SELECT id, inserted_at, tenant_id, actor_type, actor_id, action, correlation_id, resource_id, resource_type, ip_address, user_agent
+FROM v1_audit_log
+WHERE
+    inserted_at >= $1::TIMESTAMPTZ
+    AND inserted_at < $2::TIMESTAMPTZ
+    AND (tenant_id, inserted_at, id) > ($3::UUID, $4::TIMESTAMPTZ, $5::UUID)
+ORDER BY tenant_id, inserted_at, id
+LIMIT $6::INTEGER
+`
+
+type ListAuditLogsInRangeAfterCursorParams struct {
+	Lowerbound       pgtype.Timestamptz `json:"lowerbound"`
+	Upperbound       pgtype.Timestamptz `json:"upperbound"`
+	Cursortenantid   uuid.UUID          `json:"cursortenantid"`
+	Cursorinsertedat pgtype.Timestamptz `json:"cursorinsertedat"`
+	Cursorid         uuid.UUID          `json:"cursorid"`
+	Batchsize        int32              `json:"batchsize"`
+}
+
+func (q *Queries) ListAuditLogsInRangeAfterCursor(ctx context.Context, db DBTX, arg ListAuditLogsInRangeAfterCursorParams) ([]*V1AuditLog, error) {
+	rows, err := db.Query(ctx, listAuditLogsInRangeAfterCursor,
+		arg.Lowerbound,
+		arg.Upperbound,
+		arg.Cursortenantid,
+		arg.Cursorinsertedat,
+		arg.Cursorid,
+		arg.Batchsize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1AuditLog
+	for rows.Next() {
+		var i V1AuditLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.InsertedAt,
+			&i.TenantID,
+			&i.ActorType,
+			&i.ActorID,
+			&i.Action,
+			&i.CorrelationID,
+			&i.ResourceID,
+			&i.ResourceType,
+			&i.IpAddress,
+			&i.UserAgent,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listEventKeys = `-- name: ListEventKeys :many
 SELECT DISTINCT key
 FROM
@@ -1712,7 +1947,8 @@ WITH partitioned_tables AS (
         'v1_statuses_olap:monthly',
         'v1_agg_task_statuses_minute_olap:daily',
         'v1_agg_task_events_minute_olap:daily',
-        'v1_agg_events_minute_olap:daily'
+        'v1_agg_events_minute_olap:daily',
+        'v1_agg_stream_bytes_minute_olap:daily'
     ]::TEXT[]) AS entry
 )
 
@@ -2286,6 +2522,17 @@ func (q *Queries) ListYesterdayRunCountsByStatus(ctx context.Context, db DBTX) (
 		return nil, err
 	}
 	return items, nil
+}
+
+const markAuditLogArchiveAsCompleted = `-- name: MarkAuditLogArchiveAsCompleted :exec
+UPDATE v1_audit_log_archive_cursor
+SET is_completed = TRUE
+WHERE partition_date = $1::DATE
+`
+
+func (q *Queries) MarkAuditLogArchiveAsCompleted(ctx context.Context, db DBTX, partitiondate pgtype.Date) error {
+	_, err := db.Exec(ctx, markAuditLogArchiveAsCompleted, partitiondate)
+	return err
 }
 
 const populateDAGMetadata = `-- name: PopulateDAGMetadata :many

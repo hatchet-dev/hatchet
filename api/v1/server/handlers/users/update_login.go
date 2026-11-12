@@ -17,7 +17,7 @@ import (
 
 func (u *UserService) UserUpdateLogin(ctx echo.Context, request gen.UserUpdateLoginRequestObject) (gen.UserUpdateLoginResponseObject, error) {
 	// check that the server supports local registration
-	if !u.config.Auth.ConfigFile.BasicAuthEnabled {
+	if !u.config.Auth.ConfigFile.BasicAuthEnabled || u.config.Auth.ConfigFile.DirectUserLoginDisabled() {
 		return gen.UserUpdateLogin405JSONResponse(
 			apierrors.NewAPIErrors("local registration is not enabled"),
 		), nil

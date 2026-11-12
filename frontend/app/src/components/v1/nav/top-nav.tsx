@@ -70,6 +70,8 @@ function AccountDropdown({ user }: { user?: User }) {
   const { logoutMutation } = useUserUniverse();
   const { theme, setTheme } = useTheme();
   const authDisabled = useAuthDisabled();
+  const { isControlPlaneEnabled } = useControlPlane();
+  const { organizationId } = useTenantDetails();
 
   if (!user) {
     return null;
@@ -107,6 +109,16 @@ function AccountDropdown({ user }: { user?: User }) {
           <p className="truncate text-xs text-muted-foreground">{user.email}</p>
         </div>
         <DropdownMenuSeparator />
+        {isControlPlaneEnabled && organizationId && (
+          <DropdownMenuItem asChild>
+            <Link
+              to={appRoutes.organizationUserRoute.to}
+              params={{ organization: organizationId }}
+            >
+              Multifactor Auth
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSub>
           <DropdownMenuSubTrigger className="cursor-pointer">
             <ThemeIcon className="mr-2 size-4" />

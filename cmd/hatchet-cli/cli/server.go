@@ -186,6 +186,7 @@ func startLocalServer(cmd *cobra.Command, profileName string, opts ...docker.Hat
 	if err != nil {
 		return nil, fmt.Errorf("could not add profile: %w", err)
 	}
+	printPlaintextTokenWarning()
 
 	// A non-interactive session cannot answer the profile-selection form, so the profile
 	// created here becomes the default unless the user already chose one.

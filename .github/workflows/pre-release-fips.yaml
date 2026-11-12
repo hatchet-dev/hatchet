@@ -3,6 +3,10 @@ on:
     tags:
       - "v*" # Push events to matching v*, i.e. v1.0, v20.15.10
 name: Create prerelease FIPS images
+permissions:
+  contents: read
+  packages: write
+  id-token: write
 env:
   REGISTRY: ghcr.io/hatchet-dev/hatchet
 jobs:
@@ -50,6 +54,9 @@ jobs:
             .
       - name: Push to GHCR
         run: docker push $REGISTRY/hatchet-${{ matrix.target }}-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }}
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ${{ env.REGISTRY }}/hatchet-${{ matrix.target }}-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }}
 
   frontend:
     name: hatchet-frontend-fips-${{ matrix.arch }}
@@ -88,6 +95,9 @@ jobs:
             .
       - name: Push to GHCR
         run: docker push $REGISTRY/hatchet-frontend-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }}
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ${{ env.REGISTRY }}/hatchet-frontend-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }}
 
   lite:
     name: hatchet-lite-fips-${{ matrix.arch }}
@@ -140,6 +150,9 @@ jobs:
             .
       - name: Push to GHCR
         run: docker push $REGISTRY/hatchet-lite-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }}
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ${{ env.REGISTRY }}/hatchet-lite-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }}
 
   dashboard:
     name: hatchet-dashboard-fips-${{ matrix.arch }}
@@ -187,6 +200,9 @@ jobs:
             .
       - name: Push to GHCR
         run: docker push $REGISTRY/hatchet-dashboard-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }}
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ${{ env.REGISTRY }}/hatchet-dashboard-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }}
 
   fips-enabled:
     name: Verify fips images link the validated module
@@ -235,6 +251,8 @@ jobs:
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
         env:
           GITHUB_TAG: ${{ github.ref }}
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Login to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Combine
@@ -245,3 +263,7 @@ jobs:
           docker pull $img:$tag-arm64
           docker manifest create $img:$tag $img:$tag-amd64 $img:$tag-arm64
           docker manifest push $img:$tag
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ${{ env.REGISTRY }}/hatchet-${{ matrix.image }}-fips:${{ steps.tag_name.outputs.tag }}
+          sbom: false

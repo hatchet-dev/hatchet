@@ -905,7 +905,10 @@ SELECT
     t.retry_count = i.retry_count AS is_current_retry,
     t.concurrency_strategy_ids,
 	t.idempotency_key,
-    t.is_dag_orchestrator
+    t.is_dag_orchestrator,
+    t.parent_task_external_id,
+    t.parent_task_id,
+    t.parent_task_inserted_at
 FROM
     v1_task t
 JOIN
@@ -935,6 +938,9 @@ type ReleaseTasksRow struct {
 	ConcurrencyStrategyIds []int64            `json:"concurrency_strategy_ids"`
 	IdempotencyKey         pgtype.Text        `json:"idempotency_key"`
 	IsDagOrchestrator      bool               `json:"is_dag_orchestrator"`
+	ParentTaskExternalID   *uuid.UUID         `json:"parent_task_external_id"`
+	ParentTaskID           pgtype.Int8        `json:"parent_task_id"`
+	ParentTaskInsertedAt   pgtype.Timestamptz `json:"parent_task_inserted_at"`
 }
 
 func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksParams) ([]*ReleaseTasksRow, error) {
@@ -968,6 +974,9 @@ func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksPar
 				&i.ConcurrencyStrategyIds,
 				&i.IdempotencyKey,
 				&i.IsDagOrchestrator,
+				&i.ParentTaskExternalID,
+				&i.ParentTaskID,
+				&i.ParentTaskInsertedAt,
 			); err != nil {
 				errCh <- err
 				close(rowsCh)

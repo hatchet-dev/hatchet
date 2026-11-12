@@ -71,7 +71,7 @@ linters:
           - staticcheck
         text: "SA1019:"
       - path: "internal/cel/cel.go"
-        text: "SA1019: cel.Declarations is deprecated"
+        text: "SA1019: (.*/)?cel\\.Declarations is deprecated"
       - path: "internal/msgqueue/rabbitmq/rabbitmq.go"
         text: "SA1019: msg.Retries is deprecated"
       - path: "^(cmd|sdks/go|pkg/client|pkg/v1)/(.+)\\.go$"

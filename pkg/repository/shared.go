@@ -1,14 +1,12 @@
 package repository
 
 import (
-	"context"
-	"errors"
 	"log"
+	"sync"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/hashicorp/golang-lru/v2/expirable"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -66,6 +64,11 @@ type sharedRepository struct {
 	streamTopicSeenCache *expirable.LRU[streamTopicKey, struct{}]
 
 	eventKeyWorkflowsCache *expirable.LRU[eventKeyTenantIdTuple, []*sqlcv1.ListWorkflowsForEventsRow]
+
+	// eventKeyWorkflowsDrops counts InvalidateEventKeyWorkflows calls. A lookup caches its result
+	// only if no drop happened while it ran, since it may have read Postgres before the commit.
+	eventKeyWorkflowsMu    sync.Mutex
+	eventKeyWorkflowsDrops uint64
 
 	rateLimitPauseCache *expirable.LRU[uuid.UUID, bool]
 
@@ -161,21 +164,6 @@ func newSharedRepository(
 	s.m = tenantLimitRepository
 
 	return s, s.cleanup
-}
-
-func (s *sharedRepository) isDagOperatorEnabled(ctx context.Context, db sqlcv1.DBTX, tenantId uuid.UUID) (bool, error) {
-	// fixme: can probably cache this?
-	entitlement, err := s.queries.GetTenantEntitlement(ctx, db, tenantId)
-
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return false, nil
-		}
-
-		return false, err
-	}
-
-	return entitlement.DagOperator, nil
 }
 
 func (s *sharedRepository) cleanup() error {

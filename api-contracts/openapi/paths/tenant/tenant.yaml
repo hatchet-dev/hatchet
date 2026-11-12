@@ -416,6 +416,52 @@ tenantEntitlements:
     summary: Get tenant entitlements
     tags:
       - Tenant
+  patch:
+    x-resources: ["tenant"]
+    description: Updates the tenant's Labs preview opt-ins. Omitted fields are left unchanged. Only tenant owners and admins can call this, and API tokens cannot.
+    operationId: tenant-entitlements:update
+    x-payloads: false
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../components/schemas/_index.yaml#/UpdateTenantEntitlementsRequest"
+      description: The Labs preview flags to update
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/TenantEntitlements"
+        description: Successfully updated the tenant entitlements
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIError"
+        description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
+    summary: Update tenant entitlements
+    tags:
+      - Tenant
 
 invites:
   post:

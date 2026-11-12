@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const anyTenantHasAuditLogs = `-- name: AnyTenantHasAuditLogs :one
@@ -29,7 +30,7 @@ func (q *Queries) AnyTenantHasAuditLogs(ctx context.Context, db DBTX, tenantids 
 }
 
 const getTenantEntitlement = `-- name: GetTenantEntitlement :one
-SELECT tenant_id, audit_logs, prometheus_metrics, strict_additional_metadata_filters, dag_operator, durable_streams, serverless_operator, created_at, updated_at
+SELECT tenant_id, audit_logs, prometheus_metrics, strict_additional_metadata_filters, dag_operator, durable_streams, serverless_operator, sandbox_operator, operator_step_direct_completion, created_at, updated_at
 FROM tenant_entitlement
 WHERE tenant_id = $1::uuid
 `
@@ -45,6 +46,56 @@ func (q *Queries) GetTenantEntitlement(ctx context.Context, db DBTX, tenantid uu
 		&i.DagOperator,
 		&i.DurableStreams,
 		&i.ServerlessOperator,
+		&i.SandboxOperator,
+		&i.OperatorStepDirectCompletion,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return &i, err
+}
+
+const updateTenantLabsEntitlements = `-- name: UpdateTenantLabsEntitlements :one
+INSERT INTO tenant_entitlement (tenant_id, durable_streams, serverless_operator, sandbox_operator)
+VALUES (
+    $1::uuid,
+    COALESCE($2::boolean, FALSE),
+    COALESCE($3::boolean, FALSE),
+    COALESCE($4::boolean, FALSE)
+)
+ON CONFLICT (tenant_id) DO UPDATE
+SET
+    durable_streams = COALESCE($2::boolean, tenant_entitlement.durable_streams),
+    serverless_operator = COALESCE($3::boolean, tenant_entitlement.serverless_operator),
+    sandbox_operator = COALESCE($4::boolean, tenant_entitlement.sandbox_operator),
+    updated_at = NOW()
+RETURNING tenant_id, audit_logs, prometheus_metrics, strict_additional_metadata_filters, dag_operator, durable_streams, serverless_operator, sandbox_operator, operator_step_direct_completion, created_at, updated_at
+`
+
+type UpdateTenantLabsEntitlementsParams struct {
+	Tenantid           uuid.UUID   `json:"tenantid"`
+	DurableStreams     pgtype.Bool `json:"durableStreams"`
+	ServerlessOperator pgtype.Bool `json:"serverlessOperator"`
+	SandboxOperator    pgtype.Bool `json:"sandboxOperator"`
+}
+
+func (q *Queries) UpdateTenantLabsEntitlements(ctx context.Context, db DBTX, arg UpdateTenantLabsEntitlementsParams) (*TenantEntitlement, error) {
+	row := db.QueryRow(ctx, updateTenantLabsEntitlements,
+		arg.Tenantid,
+		arg.DurableStreams,
+		arg.ServerlessOperator,
+		arg.SandboxOperator,
+	)
+	var i TenantEntitlement
+	err := row.Scan(
+		&i.TenantID,
+		&i.AuditLogs,
+		&i.PrometheusMetrics,
+		&i.StrictAdditionalMetadataFilters,
+		&i.DagOperator,
+		&i.DurableStreams,
+		&i.ServerlessOperator,
+		&i.SandboxOperator,
+		&i.OperatorStepDirectCompletion,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -52,8 +103,8 @@ func (q *Queries) GetTenantEntitlement(ctx context.Context, db DBTX, tenantid uu
 }
 
 const upsertTenantEntitlement = `-- name: UpsertTenantEntitlement :one
-INSERT INTO tenant_entitlement (tenant_id, audit_logs, prometheus_metrics, strict_additional_metadata_filters, dag_operator, durable_streams, serverless_operator)
-VALUES ($1::uuid, $2::boolean, $3::boolean, $4::boolean, $5::boolean, $6::boolean, $7::boolean)
+INSERT INTO tenant_entitlement (tenant_id, audit_logs, prometheus_metrics, strict_additional_metadata_filters, dag_operator, durable_streams, serverless_operator, sandbox_operator, operator_step_direct_completion)
+VALUES ($1::uuid, $2::boolean, $3::boolean, $4::boolean, $5::boolean, $6::boolean, $7::boolean, $8::boolean, $9::boolean)
 ON CONFLICT (tenant_id) DO UPDATE
 SET
     audit_logs = EXCLUDED.audit_logs,
@@ -62,8 +113,10 @@ SET
     dag_operator = EXCLUDED.dag_operator,
     durable_streams = EXCLUDED.durable_streams,
     serverless_operator = EXCLUDED.serverless_operator,
+    sandbox_operator = EXCLUDED.sandbox_operator,
+    operator_step_direct_completion = EXCLUDED.operator_step_direct_completion,
     updated_at = NOW()
-RETURNING tenant_id, audit_logs, prometheus_metrics, strict_additional_metadata_filters, dag_operator, durable_streams, serverless_operator, created_at, updated_at
+RETURNING tenant_id, audit_logs, prometheus_metrics, strict_additional_metadata_filters, dag_operator, durable_streams, serverless_operator, sandbox_operator, operator_step_direct_completion, created_at, updated_at
 `
 
 type UpsertTenantEntitlementParams struct {
@@ -74,6 +127,8 @@ type UpsertTenantEntitlementParams struct {
 	Dagoperator                     bool      `json:"dagoperator"`
 	Durablestreams                  bool      `json:"durablestreams"`
 	Serverlessoperator              bool      `json:"serverlessoperator"`
+	Sandboxoperator                 bool      `json:"sandboxoperator"`
+	Operatorstepdirectcompletion    bool      `json:"operatorstepdirectcompletion"`
 }
 
 func (q *Queries) UpsertTenantEntitlement(ctx context.Context, db DBTX, arg UpsertTenantEntitlementParams) (*TenantEntitlement, error) {
@@ -85,6 +140,8 @@ func (q *Queries) UpsertTenantEntitlement(ctx context.Context, db DBTX, arg Upse
 		arg.Dagoperator,
 		arg.Durablestreams,
 		arg.Serverlessoperator,
+		arg.Sandboxoperator,
+		arg.Operatorstepdirectcompletion,
 	)
 	var i TenantEntitlement
 	err := row.Scan(
@@ -95,6 +152,8 @@ func (q *Queries) UpsertTenantEntitlement(ctx context.Context, db DBTX, arg Upse
 		&i.DagOperator,
 		&i.DurableStreams,
 		&i.ServerlessOperator,
+		&i.SandboxOperator,
+		&i.OperatorStepDirectCompletion,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
