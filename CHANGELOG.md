@@ -22,7 +22,7 @@ Hatchet v0.120.3 brings durable streams to every SDK, a serverless TypeScript SD
 - Auth: the session ID is rotated on login and password change, a password change revokes the user's other sessions, and a deleted session is never re-created under its old ID ([#5406](https://github.com/hatchet-dev/hatchet/pull/5406)).
 - Auth: Google logins with an unverified email are rejected before any write ([#5398](https://github.com/hatchet-dev/hatchet/pull/5398)).
 - Auth: instances that accept control-plane exchange tokens refuse password, OAuth, and session-cookie login ([#5455](https://github.com/hatchet-dev/hatchet/pull/5455)).
-- Engine: in-flight durable task requests are bounded per stream and per tenant, so a client that stops reading can no longer grow engine memory without limit ([#5379](https://github.com/hatchet-dev/hatchet/pull/5379)).
+- Engine: in-flight [durable task](https://docs.hatchet.run/v1/durable-tasks?utm_source=changelog&utm_campaign=v0.120.3) requests are bounded per stream and per tenant, so a client that stops reading can no longer grow engine memory without limit ([#5379](https://github.com/hatchet-dev/hatchet/pull/5379)).
 - Engine: stream message persistence failures no longer leak the internal error to the caller ([#5365](https://github.com/hatchet-dev/hatchet/pull/5365)).
 
 ### Fixed
