@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - A dependency used more than once in a task's dependency tree is now resolved once per run and its value is shared, matching FastAPI's `Depends`.
-- Context manager dependencies now receive the task's exception when the task fails, so they can e.g. roll back a transaction. A dependency that catches the exception without re-raising it no longer makes the task succeed.
+- Context manager dependencies now receive the task's exception when the task fails, so they can e.g. roll back a transaction. A dependency that catches the exception without re-raising it no longer makes the task succeed or hides the exception from the other dependencies.
 - The REST client can read workflow versions whose concurrency uses `CANCEL_NEWEST`, `CANCEL_QUEUED_EXCEPT_NEWEST`, or `CANCEL_QUEUED_EXCEPT_OLDEST`.
 
 ### Removed

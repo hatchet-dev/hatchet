@@ -148,24 +148,37 @@ def find_dependency_in_annotation(param: Parameter) -> Depends[Any, Any] | None:
     )
 
 
+## the exit callbacks return None so that a dependency can never suppress the task's exception,
+## which would hide it from the dependencies exited after it and make a failed task look successful
 async def enter_if_context_manager(value: Any, exit_stack: AsyncExitStack) -> Any:
     if is_async_context_manager(value):
-        return await exit_stack.enter_async_context(value)
+        async_context_manager = value
+
+        async def exit_without_suppressing(
+            exc_type: type[BaseException] | None,
+            exc: BaseException | None,
+            traceback: TracebackType | None,
+        ) -> None:
+            await async_context_manager.__aexit__(exc_type, exc, traceback)
+
+        entered_value = await async_context_manager.__aenter__()
+        exit_stack.push_async_exit(exit_without_suppressing)
+        return entered_value
 
     if is_sync_context_manager(value):
         sync_context_manager = value
 
-        async def exit_in_thread(
+        async def exit_in_thread_without_suppressing(
             exc_type: type[BaseException] | None,
             exc: BaseException | None,
             traceback: TracebackType | None,
-        ) -> bool | None:
-            return await asyncio.to_thread(
+        ) -> None:
+            await asyncio.to_thread(
                 sync_context_manager.__exit__, exc_type, exc, traceback
             )
 
         entered_value = await asyncio.to_thread(sync_context_manager.__enter__)
-        exit_stack.push_async_exit(exit_in_thread)
+        exit_stack.push_async_exit(exit_in_thread_without_suppressing)
         return entered_value
 
     return value
@@ -394,23 +407,11 @@ class Task(Generic[TWorkflowInput, R]):
         self, ctx: Context | DurableContext
     ) -> AsyncIterator[dict[str, Any]]:
         input = self._workflow._get_workflow_input(ctx)
-        task_exception: BaseException | None = None
 
         async with AsyncExitStack() as exit_stack:
-            dependencies = await self._resolve_dependencies(
+            yield await self._resolve_dependencies(
                 self._fn, input, ctx, exit_stack, {}, ()
             )
-
-            try:
-                yield dependencies
-            except BaseException as e:
-                task_exception = e
-                raise
-
-        ## a dependency that catches the task's exception without re-raising it
-        ## must not turn a failed task into a successful one
-        if task_exception is not None:
-            raise task_exception
 
     def call(
         self, ctx: Context | DurableContext, dependencies: dict[str, Any] | None = None

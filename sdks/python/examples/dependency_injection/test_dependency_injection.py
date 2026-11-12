@@ -17,6 +17,7 @@ from examples.dependency_injection.worker import (
     failing_task_with_async_transaction,
     failing_task_with_exception_swallowing_dependency,
     failing_task_with_sync_transaction,
+    failing_task_with_transaction_entered_before_exception_swallowing_dependency,
     sync_task_with_dependencies,
     task_with_shared_dependency,
     task_with_type_aliases,
@@ -90,7 +91,11 @@ async def test_shared_dependency_is_resolved_once_per_run() -> None:
 
 @pytest.mark.parametrize(
     "task",
-    [failing_task_with_sync_transaction, failing_task_with_async_transaction],
+    [
+        failing_task_with_sync_transaction,
+        failing_task_with_async_transaction,
+        failing_task_with_transaction_entered_before_exception_swallowing_dependency,
+    ],
 )
 @pytest.mark.asyncio(loop_scope="session")
 async def test_context_manager_dependency_sees_task_exception(
