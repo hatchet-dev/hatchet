@@ -2,6 +2,7 @@ package repository
 
 import (
 	"log"
+	"sync"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -63,6 +64,11 @@ type sharedRepository struct {
 	streamTopicSeenCache *expirable.LRU[streamTopicKey, struct{}]
 
 	eventKeyWorkflowsCache *expirable.LRU[eventKeyTenantIdTuple, []*sqlcv1.ListWorkflowsForEventsRow]
+
+	// eventKeyWorkflowsDrops counts InvalidateEventKeyWorkflows calls. A lookup caches its result
+	// only if no drop happened while it ran, since it may have read Postgres before the commit.
+	eventKeyWorkflowsMu    sync.Mutex
+	eventKeyWorkflowsDrops uint64
 
 	rateLimitPauseCache *expirable.LRU[uuid.UUID, bool]
 

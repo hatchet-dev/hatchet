@@ -3,13 +3,12 @@
 require 'hatchet-sdk'
 
 HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
-EVENT_KEY = 'ruby-e2e:idempotency-example'
 
 # > idempotency
 IDEMPOTENT_TASK = HATCHET.task(
   name: 'ruby-e2e-idempotent-task',
   idempotency: Hatchet::TTLBasedIdempotencyConfig.new(expression: 'input.id', ttl_ms: 60_000),
-  on_events: [EVENT_KEY]
+  on_events: ['ruby-e2e:idempotency-example']
 ) do |input, _ctx|
   { 'result' => "Hello from task #{input['id']}" }
 end
