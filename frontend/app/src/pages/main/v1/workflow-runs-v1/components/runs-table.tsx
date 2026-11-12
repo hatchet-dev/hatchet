@@ -134,11 +134,9 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
     fetchTimedOut,
   } = useRunsContext();
 
-  // While the flag is loading, main's layout renders so a slow flag request
-  // never hides the runs.
   const { isEnabled: isSidebarEnabled } = useIsFeatureEnabled(
     FeatureFlagId.RunsFilterSidebarEnabled,
-    true,
+    false,
   );
   const sidebarLayout = isSidebarEnabled === true;
 
