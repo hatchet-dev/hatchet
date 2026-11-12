@@ -125,7 +125,11 @@ from examples.dependency_injection.worker import (
     async_task_with_dependencies,
     di_workflow,
     durable_async_task_with_dependencies,
+    failing_task_with_async_transaction,
+    failing_task_with_exception_swallowing_dependency,
+    failing_task_with_sync_transaction,
     sync_task_with_dependencies,
+    task_with_shared_dependency,
     task_with_type_aliases,
 )
 from examples.dict_input.worker import say_hello_unsafely
@@ -321,6 +325,10 @@ def main() -> None:
             sync_task_with_dependencies,
             durable_async_task_with_dependencies,
             task_with_type_aliases,
+            task_with_shared_dependency,
+            failing_task_with_sync_transaction,
+            failing_task_with_async_transaction,
+            failing_task_with_exception_swallowing_dependency,
             say_hello,
             say_hello_unsafely,
             serde_workflow,

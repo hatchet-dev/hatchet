@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager, contextmanager
 from typing import Annotated, AsyncGenerator, Generator
+from uuid import uuid4
 import sys
 
 from pydantic import BaseModel
@@ -262,6 +263,113 @@ async def wf_durable_async_task_with_dependencies(
     )
 
 
+@contextmanager
+def shared_resource_dep(input: EmptyModel, ctx: Context) -> Generator[str, None, None]:
+    yield str(uuid4())
+
+
+def first_consumer_of_shared_resource_dep(
+    input: EmptyModel,
+    ctx: Context,
+    shared_resource: Annotated[str, Depends(shared_resource_dep)],
+) -> str:
+    return shared_resource
+
+
+async def second_consumer_of_shared_resource_dep(
+    input: EmptyModel,
+    ctx: Context,
+    shared_resource: Annotated[str, Depends(shared_resource_dep)],
+) -> str:
+    return shared_resource
+
+
+class SharedDependencyOutput(BaseModel):
+    direct: str
+    first_consumer: str
+    second_consumer: str
+
+
+@hatchet.task()
+async def task_with_shared_dependency(
+    _i: EmptyModel,
+    ctx: Context,
+    direct: Annotated[str, Depends(shared_resource_dep)],
+    first_consumer: Annotated[str, Depends(first_consumer_of_shared_resource_dep)],
+    second_consumer: Annotated[str, Depends(second_consumer_of_shared_resource_dep)],
+) -> SharedDependencyOutput:
+    return SharedDependencyOutput(
+        direct=direct,
+        first_consumer=first_consumer,
+        second_consumer=second_consumer,
+    )
+
+
+TASK_ERROR_MESSAGE = "task failed"
+ROLLBACK_ERROR_PREFIX = "rolled back after"
+
+
+class TransactionRolledBackError(Exception):
+    pass
+
+
+@contextmanager
+def sync_transaction_dep(
+    input: EmptyModel, ctx: Context
+) -> Generator[None, None, None]:
+    try:
+        yield
+    except Exception as e:
+        raise TransactionRolledBackError(f"{ROLLBACK_ERROR_PREFIX}: {e}") from e
+
+
+@asynccontextmanager
+async def async_transaction_dep(
+    input: EmptyModel, ctx: Context
+) -> AsyncGenerator[None, None]:
+    try:
+        yield
+    except Exception as e:
+        raise TransactionRolledBackError(f"{ROLLBACK_ERROR_PREFIX}: {e}") from e
+
+
+@asynccontextmanager
+async def exception_swallowing_dep(
+    input: EmptyModel, ctx: Context
+) -> AsyncGenerator[None, None]:
+    try:
+        yield
+    except Exception:
+        pass
+
+
+@hatchet.task()
+def failing_task_with_sync_transaction(
+    _i: EmptyModel,
+    ctx: Context,
+    transaction: Annotated[None, Depends(sync_transaction_dep)],
+) -> None:
+    raise RuntimeError(TASK_ERROR_MESSAGE)
+
+
+@hatchet.task()
+async def failing_task_with_async_transaction(
+    _i: EmptyModel,
+    ctx: Context,
+    transaction: Annotated[None, Depends(async_transaction_dep)],
+) -> None:
+    raise RuntimeError(TASK_ERROR_MESSAGE)
+
+
+@hatchet.task()
+async def failing_task_with_exception_swallowing_dependency(
+    _i: EmptyModel,
+    ctx: Context,
+    swallower: Annotated[None, Depends(exception_swallowing_dep)],
+) -> None:
+    raise RuntimeError(TASK_ERROR_MESSAGE)
+
+
 def main() -> None:
     worker = hatchet.worker(
         "dependency-injection-worker",
@@ -271,6 +379,10 @@ def main() -> None:
             durable_async_task_with_dependencies,
             di_workflow,
             task_with_type_aliases,
+            task_with_shared_dependency,
+            failing_task_with_sync_transaction,
+            failing_task_with_async_transaction,
+            failing_task_with_exception_swallowing_dependency,
         ],
     )
     worker.start()
