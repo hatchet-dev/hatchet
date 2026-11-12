@@ -370,6 +370,16 @@ async def failing_task_with_exception_swallowing_dependency(
     raise RuntimeError(TASK_ERROR_MESSAGE)
 
 
+@hatchet.task()
+async def failing_task_with_transaction_entered_before_exception_swallowing_dependency(
+    _i: EmptyModel,
+    ctx: Context,
+    transaction: Annotated[None, Depends(async_transaction_dep)],
+    swallower: Annotated[None, Depends(exception_swallowing_dep)],
+) -> None:
+    raise RuntimeError(TASK_ERROR_MESSAGE)
+
+
 def main() -> None:
     worker = hatchet.worker(
         "dependency-injection-worker",
@@ -383,6 +393,7 @@ def main() -> None:
             failing_task_with_sync_transaction,
             failing_task_with_async_transaction,
             failing_task_with_exception_swallowing_dependency,
+            failing_task_with_transaction_entered_before_exception_swallowing_dependency,
         ],
     )
     worker.start()

@@ -15,8 +15,12 @@ description: "Release notes for every Hatchet Python SDK release, newest first."
 ### Fixed
 
 - A dependency used more than once in a task's dependency tree is now resolved once per run and its value is shared, matching FastAPI's `Depends`.
-- Context manager dependencies now receive the task's exception when the task fails, so they can e.g. roll back a transaction. A dependency that catches the exception without re-raising it no longer makes the task succeed.
+- Context manager dependencies now receive the task's exception when the task fails, so they can e.g. roll back a transaction. A dependency that catches the exception without re-raising it no longer makes the task succeed or hides the exception from the other dependencies.
 - The REST client can read workflow versions whose concurrency uses `CANCEL_NEWEST`, `CANCEL_QUEUED_EXCEPT_NEWEST`, or `CANCEL_QUEUED_EXCEPT_OLDEST`.
+
+### Removed
+
+- `grpcio-tools` is no longer a runtime dependency, since the SDK only uses it to generate protobuf code. This avoids building it from source on Python 3.15, where the newest `grpcio-tools` versions compatible with `protobuf<7` have no prebuilt wheels.
 
 ## v1.45.1 - 2026-11-05
 
