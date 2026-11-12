@@ -1445,10 +1445,12 @@ func (r *sharedRepository) triggerWorkflowsWrite(
 						TriggerEventKey:             triggeringEventKey,
 					})
 				} else {
-					labels := tuple.desiredWorkerLabels
+					labels := make([]*sqlcv1.GetDesiredLabelsRow, len(tuple.desiredWorkerLabels))
 
-					for i := range labels {
-						labels[i].StepId = stepId
+					for i, label := range tuple.desiredWorkerLabels {
+						labelForStep := *label
+						labelForStep.StepId = stepId
+						labels[i] = &labelForStep
 					}
 
 					initialState := sqlcv1.V1TaskInitialStateQUEUED

@@ -363,22 +363,28 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 		additionalMetadata = []byte(meta)
 	}
 
-	triggerStep := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
-		return d.TriggerDAGStep(ctx, &operator.DAGStepTriggerRequest{
-			ParentTaskExternalId: externalId,
-			InvocationCount:      action.GetDurableTaskInvocationCount(),
-			WorkflowName:         workflowName,
-			WorkflowVersionId:    workflowVersionId,
-			ActionId:             actionId,
-			ChildIndex:           childIndex,
-			Input:                workflowInput,
-			AdditionalMetadata:   additionalMetadata,
-			DagParentTaskRunIds:  parentTaskRunIds,
-			IsSkipped:            isSkipped,
-			IsCancelled:          isCancelled,
-			DesiredWorkerLabels:  payloadWrapper.DesiredWorkerLabels,
-			ParentReExecuted:     parentReExecuted,
-		})
+	triggerSteps := func(ctx context.Context, reqs []stepTriggerRequest) ([]*operator.DAGStepTriggerResult, error) {
+		triggerRequests := make([]*operator.DAGStepTriggerRequest, len(reqs))
+
+		for i, req := range reqs {
+			triggerRequests[i] = &operator.DAGStepTriggerRequest{
+				ParentTaskExternalId: externalId,
+				InvocationCount:      action.GetDurableTaskInvocationCount(),
+				WorkflowName:         req.workflowName,
+				WorkflowVersionId:    workflowVersionId,
+				ActionId:             req.actionId,
+				ChildIndex:           req.childIndex,
+				Input:                workflowInput,
+				AdditionalMetadata:   additionalMetadata,
+				DagParentTaskRunIds:  req.parentTaskRunIds,
+				IsSkipped:            req.isSkipped,
+				IsCancelled:          req.isCancelled,
+				DesiredWorkerLabels:  payloadWrapper.DesiredWorkerLabels,
+				ParentReExecuted:     req.parentReExecuted,
+			}
+		}
+
+		return d.TriggerDAGSteps(ctx, triggerRequests)
 	}
 
 	dagErr := dagDurableTask(
@@ -391,7 +397,7 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 		action.ActionPayload,
 		ch,
 		d.evalBoolExprLoggingErrors(action),
-		triggerStep,
+		triggerSteps,
 	)
 
 	// Fold in if triggered, so output collection and cancellation below see it too.
