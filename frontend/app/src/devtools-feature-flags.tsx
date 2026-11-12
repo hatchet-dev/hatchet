@@ -34,6 +34,9 @@ function useEvaluatedFlags(tenantId: string | undefined) {
       const data = query.state.data as { isEnabled?: boolean } | undefined;
       if (data?.isEnabled !== undefined) {
         values[flag] = data.isEnabled;
+      } else if (query.state.status === 'error') {
+        // Mirrors useIsFeatureEnabled, which falls back to isEnabledIfNoPosthog on failure.
+        values[flag] = query.queryKey[3] as boolean;
       }
     }
     return JSON.stringify(values);

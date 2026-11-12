@@ -14,6 +14,14 @@ const FEATURE_FLAG_OVERRIDES_KEY = 'hatchet:dev-feature-flag-overrides';
 export const useFeatureFlagOverrides = () =>
   useLocalStorageState<FeatureFlagOverrides>(FEATURE_FLAG_OVERRIDES_KEY, {});
 
+// Chosen once per build so the hook call order is stable. Production gets a
+// no-op: a stray localStorage entry can't enable unreleased features there, and
+// flag checks don't pay for storage reads or window listeners.
+const useFeatureFlagOverride: (flag: FeatureFlagId) => boolean | undefined =
+  import.meta.env.DEV
+    ? (flag) => useFeatureFlagOverrides()[0][flag]
+    : () => undefined;
+
 type UseIsFeatureEnabledResult =
   | {
       isEnabled: boolean;
@@ -32,9 +40,7 @@ export const useIsFeatureEnabled = (
   isEnabledIfNoPosthog: boolean,
 ): UseIsFeatureEnabledResult => {
   const { tenantId } = useAppContext();
-  const [overrides] = useFeatureFlagOverrides();
-  // Gated on DEV so a localStorage entry can't enable unreleased features in production builds.
-  const override = import.meta.env.DEV ? overrides[flagName] : undefined;
+  const override = useFeatureFlagOverride(flagName);
 
   const { data, isError } = useQuery({
     queryKey: ['feature-flag', tenantId, flagName, isEnabledIfNoPosthog],
