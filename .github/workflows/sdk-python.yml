@@ -137,7 +137,7 @@ jobs:
           ON CONFLICT (tenant_id) DO NOTHING;
 
           UPDATE tenant_entitlement
-          SET durable_streams = TRUE;
+          SET durable_streams = TRUE, operator_step_direct_completion = TRUE;
           SQL
 
           go run ./cmd/hatchet-engine --config ./generated/ > engine.log 2>&1 &
