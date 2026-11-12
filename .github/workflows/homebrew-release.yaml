@@ -1,0 +1,44 @@
+name: Update Homebrew Tap
+
+on:
+  # The CLI release is created as a draft, and its asset URLs 404 until it is published.
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Published release tag to point the tap at (e.g. v0.89.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  update-tap:
+    name: Update hatchet-dev/homebrew-hatchet
+    runs-on: ubuntu-latest
+    # SDK releases (py/*, ts/*) also fire release events.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (startsWith(github.event.release.tag_name, 'v') && !github.event.release.prerelease)
+    env:
+      GITHUB_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+    steps:
+      - name: Download the cask GoReleaser generated
+        run: gh release download "$GITHUB_TAG" --repo "$GITHUB_REPOSITORY" --pattern hatchet.rb --dir "$RUNNER_TEMP"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push cask to tap
+        run: |
+          path=Casks/hatchet.rb
+          sha=$(gh api "repos/hatchet-dev/homebrew-hatchet/contents/$path" --jq .sha)
+          gh api --method PUT "repos/hatchet-dev/homebrew-hatchet/contents/$path" \
+            -f message="Brew cask update for hatchet version $GITHUB_TAG" \
+            -f content="$(base64 -w0 "$RUNNER_TEMP/hatchet.rb")" \
+            -f sha="$sha" \
+            -f "committer[name]=goreleaserbot" \
+            -f "committer[email]=bot@goreleaser.com"
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
