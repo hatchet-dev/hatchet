@@ -3585,3 +3585,14 @@ AFTER UPDATE ON v1_concurrency_slot
 REFERENCING NEW TABLE AS new_table
 FOR EACH STATEMENT
 EXECUTE FUNCTION after_v1_concurrency_slot_update_outbox_function();
+
+-- Support grants revoked on the control plane before their last token expires. The token itself is
+-- still trusted until exp; this table lets the shard refuse it sooner.
+CREATE TABLE v1_support_grant_revocation (
+    grant_id UUID NOT NULL,
+    tenant_id UUID NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    revoked_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (grant_id)
+);

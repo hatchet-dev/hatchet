@@ -9,8 +9,12 @@ import {
   controlPlaneApi,
   fetchControlPlaneStatus,
   CONTROL_PLANE_TENANT_STORAGE_KEY,
+  getApiErrorStatus,
+  supportGrantsQuery,
+  supportTokenQuery,
 } from '@/lib/api/api';
 import { exchangeTokenQueryOptions } from '@/lib/api/exchange-token';
+import { findSupportGrant } from '@/lib/support-session';
 import queryClient from '@/query-client';
 import {
   RouterProvider,
@@ -101,6 +105,26 @@ const onboardingVerifyRoute = createRoute({
   },
   component: lazyRouteComponent(
     () => import('./pages/onboarding/verify-email'),
+    'default',
+  ),
+});
+
+// The code is in the URL fragment, captured before the app boots (see
+// magic-link-bootstrap), so the route itself carries nothing.
+const supportRedeemRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'support/redeem',
+  component: lazyRouteComponent(
+    () => import('./pages/support/redeem'),
+    'default',
+  ),
+});
+
+const supportEndedRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'support/ended',
+  component: lazyRouteComponent(
+    () => import('./pages/support/ended'),
     'default',
   ),
 });
@@ -473,26 +497,48 @@ const tenantRoute = createRoute({
       ? controlPlaneApi.tenantMembershipsList()
       : api.tenantMembershipsList());
 
-    const hasAccess = Boolean(
+    const isMember = Boolean(
       memberships.rows?.some(
         (m: TenantMember) => m.tenant?.metadata.id === params.tenant,
       ),
     );
 
-    if (!hasAccess) {
+    // Staff open customer tenants through a support grant, not a membership.
+    const supportGrant =
+      !isMember && isControlPlaneEnabled
+        ? findSupportGrant(
+            await queryClient.fetchQuery(supportGrantsQuery),
+            params.tenant,
+          )
+        : null;
+
+    if (!isMember && !supportGrant) {
       throw new Response('Forbidden', { status: 403, statusText: 'Forbidden' });
     }
 
     if (isControlPlaneEnabled) {
-      // Fetch the exchange token for this tenant using the authoritative ID
-      // from route params
-      await queryClient.fetchQuery(
-        exchangeTokenQueryOptions(params.tenant, () =>
-          controlPlaneApi
-            .exchangeTokenCreate(params.tenant)
-            .then((r) => r.data),
-        ),
-      );
+      // Fetch the token for this tenant using the authoritative ID from route
+      // params
+      try {
+        if (supportGrant) {
+          await queryClient.fetchQuery(supportTokenQuery(supportGrant));
+        } else {
+          await queryClient.fetchQuery(
+            exchangeTokenQueryOptions(params.tenant, () =>
+              controlPlaneApi
+                .exchangeTokenCreate(params.tenant)
+                .then((r) => r.data),
+            ),
+          );
+        }
+      } catch (err) {
+        // An ended grant renders the shell; the banner explains it.
+        const status = getApiErrorStatus(err);
+        if (supportGrant && (status === 401 || status === 403)) {
+          return null;
+        }
+        throw err;
+      }
 
       // Place the full tenant object in localStorage, this is required by the interceptor
       // before any subsequent API calls for this tenant
@@ -1230,6 +1276,8 @@ const routeTree = rootRoute.addChildren([
   authMagicLinkRoute,
   authMFARoute,
   onboardingVerifyRoute,
+  supportRedeemRoute,
+  supportEndedRoute,
   authenticatedRoute.addChildren([
     onboardingCreateTenantRoute,
     onboardingCreateOrganizationRoute,
@@ -1292,6 +1340,8 @@ export const appRoutes = {
   authMagicLinkRoute,
   authMFARoute,
   onboardingVerifyRoute,
+  supportRedeemRoute,
+  supportEndedRoute,
   redeemOffersRoute,
   organizationsRoute,
   organizationSettingsLayoutRoute,

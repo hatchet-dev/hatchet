@@ -2,6 +2,7 @@ import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
 import { AppLayout } from '@/components/layout/app-layout';
 import { AuthDisabledBanner } from '@/components/layout/auth-disabled-banner';
 import { setupCardDialogClassName } from '@/components/layout/setup-card';
+import { SupportSessionBanner } from '@/components/layout/support-session-banner';
 import { CreateTenantInviteModal } from '@/components/modals/create-tenant-invite-modal';
 import { InviteModal } from '@/components/modals/invite-modal';
 import { OrganizationInviteMemberModal } from '@/components/modals/organization-invite-member-modal';
@@ -18,6 +19,7 @@ import {
   pendingInvitesQuery,
   usePendingInvites,
 } from '@/hooks/use-pending-invites.ts';
+import { useSupportSession } from '@/hooks/use-support-session';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { User, queries } from '@/lib/api';
 import {
@@ -101,6 +103,9 @@ function AuthenticatedInner() {
   >();
   const [showWelcome, setShowWelcome] = useState(false);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const { isSupport, hasSupportGrants } = useSupportSession(
+    tenant?.metadata.id,
+  );
 
   const loaderData = useLoaderData({ from: '/' });
 
@@ -268,10 +273,12 @@ function AuthenticatedInner() {
       isUserUniverseLoaded &&
       !isUserUniverseFetching;
 
+    // Staff opening customer tenants need no organization of their own.
     const shouldHaveAnOrganizationButDoesnt =
       isControlPlaneEnabled &&
       isUserUniverseLoaded &&
-      organizations?.length === 0;
+      organizations?.length === 0 &&
+      !hasSupportGrants;
 
     // Redirect to invites page only for users with no memberships yet (new users).
     // Existing users with memberships see the InviteModal overlay instead.
@@ -405,6 +412,7 @@ function AuthenticatedInner() {
     isOnboardingCreateOrganizationPage,
     isOnboardingCreateTenantPage,
     loaderData.isControlPlaneEnabled,
+    hasSupportGrants,
   ]);
 
   useEffect(
@@ -536,29 +544,31 @@ function AuthenticatedInner() {
     return <Loading />;
   }
 
+  const showAuthDisabledBanner =
+    meta && 'authDisabled' in meta && meta.authDisabled && !authBannerDismissed;
+  const banner =
+    isSupport || showAuthDisabledBanner ? (
+      <div>
+        {isSupport && <SupportSessionBanner />}
+        {showAuthDisabledBanner && (
+          <AuthDisabledBanner
+            onDismiss={() => {
+              try {
+                localStorage.setItem('auth-disabled-banner-dismissed', 'true');
+              } catch {
+                /* empty */
+              }
+              setAuthBannerDismissed(true);
+            }}
+          />
+        )}
+      </div>
+    ) : undefined;
+
   return (
     <SupportChat user={currentUser}>
       <AppLayout
-        banner={
-          meta &&
-          'authDisabled' in meta &&
-          meta.authDisabled &&
-          !authBannerDismissed ? (
-            <AuthDisabledBanner
-              onDismiss={() => {
-                try {
-                  localStorage.setItem(
-                    'auth-disabled-banner-dismissed',
-                    'true',
-                  );
-                } catch {
-                  /* empty */
-                }
-                setAuthBannerDismissed(true);
-              }}
-            />
-          ) : undefined
-        }
+        banner={banner}
         header={
           <TopNav
             user={currentUser}

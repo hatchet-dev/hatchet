@@ -768,7 +768,7 @@ class UserApi:
             )
 
         # authentication setting
-        _auth_settings: List[str] = ["cookieAuth"]
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
 
         return self.api_client.param_serialize(
             method="GET",

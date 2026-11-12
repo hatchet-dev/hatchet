@@ -537,6 +537,25 @@ type ConfigFileAuth struct {
 	Github ConfigFileAuthGithub `mapstructure:"github" json:"github,omitempty"`
 
 	ControlPlaneExchangeTokenConfig ConfigFileAuthControlPlaneExchangeToken `mapstructure:"controlPlaneExchangeToken" json:"controlPlaneExchangeToken,omitempty"`
+
+	SupportTokenConfig ConfigFileAuthSupportToken `mapstructure:"supportToken" json:"supportToken,omitempty"`
+}
+
+// ConfigFileAuthSupportToken configures the support tokens the control plane issues to Hatchet staff. They
+// use their own keyset and audience, separate from the exchange token, so neither can be swapped for the other.
+type ConfigFileAuthSupportToken struct {
+	// JWTPublicKeyset[File]: base64 raw-encoded JSON Tink public keyset, like the exchange token keyset
+	JWTPublicKeyset     string `mapstructure:"jwtPublicKeyset" json:"jwtPublicKeyset,omitempty"`
+	JWTPublicKeysetFile string `mapstructure:"jwtPublicKeysetFile" json:"jwtPublicKeysetFile,omitempty"`
+
+	// Issuer is the expected issuer for support tokens. This should be set to the URL of the control plane instance.
+	Issuer string `mapstructure:"issuer" json:"issuer,omitempty"`
+
+	// Audience is the expected audience for support tokens. It must differ from the exchange token audience.
+	Audience string `mapstructure:"audience" json:"audience,omitempty" default:"hatchet-support"`
+
+	// Enabled controls whether support tokens are accepted by this Hatchet instance.
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
 }
 
 type ConfigFileAuthControlPlaneExchangeToken struct {
@@ -842,6 +861,13 @@ type AuthConfig struct {
 	JWTManager token.JWTManager
 
 	ExchangeTokenClient exchangetoken.ExchangeTokenClient
+
+	// SupportTokenClient is nil when support tokens are disabled
+	SupportTokenClient exchangetoken.SupportTokenClient
+
+	// SupportRoleOperations lists per support role the extension operations it may perform. Support roles
+	// never use AllowedOperations or AllowedWriteOperations.
+	SupportRoleOperations map[string][]string
 
 	CustomAuthenticator CustomAuthenticator
 
@@ -1336,6 +1362,13 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("auth.controlPlaneExchangeToken.jwtPublicKeysetFile", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_JWT_PUBLIC_KEYSET_FILE")
 	_ = v.BindEnv("auth.controlPlaneExchangeToken.issuer", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_ISSUER")
 	_ = v.BindEnv("auth.controlPlaneExchangeToken.audience", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_AUDIENCE")
+
+	// support token options
+	_ = v.BindEnv("auth.supportToken.enabled", "SERVER_AUTH_SUPPORT_TOKEN_ENABLED")
+	_ = v.BindEnv("auth.supportToken.jwtPublicKeyset", "SERVER_AUTH_SUPPORT_TOKEN_JWT_PUBLIC_KEYSET")
+	_ = v.BindEnv("auth.supportToken.jwtPublicKeysetFile", "SERVER_AUTH_SUPPORT_TOKEN_JWT_PUBLIC_KEYSET_FILE")
+	_ = v.BindEnv("auth.supportToken.issuer", "SERVER_AUTH_SUPPORT_TOKEN_ISSUER")
+	_ = v.BindEnv("auth.supportToken.audience", "SERVER_AUTH_SUPPORT_TOKEN_AUDIENCE")
 
 	// misc options
 	_ = v.BindEnv("versionOverride", "SERVER_VERSION_OVERRIDE")

@@ -10,11 +10,21 @@
  * ---------------------------------------------------------------
  */
 
+export enum SupportGrantRole {
+  SUPPORT_VIEWER = "SUPPORT_VIEWER",
+  SUPPORT_OPERATOR = "SUPPORT_OPERATOR",
+}
+
 export enum TenantMemberRoleType {
   OWNER = "OWNER",
   ADMIN = "ADMIN",
   MEMBER = "MEMBER",
   VIEWER = "VIEWER",
+}
+
+export enum AuditLogActorType {
+  User = "user",
+  ApiKey = "api_key",
 }
 
 export enum CouponFrequency {
@@ -1177,6 +1187,47 @@ export interface AddOrgMembersToTenantRequest {
   canViewPayloads?: boolean;
 }
 
+export interface AuditLog {
+  /**
+   * The ID of the audit log
+   * @format uuid
+   */
+  id: string;
+  /**
+   * The timestamp at which the audit log was inserted
+   * @format date-time
+   */
+  insertedAt: string;
+  /**
+   * The ID of the tenant
+   * @format uuid
+   */
+  tenantId: string;
+  /** The type of the actor */
+  actorType: AuditLogActorType;
+  /**
+   * The ID of the actor
+   * @format uuid
+   */
+  actorId: string;
+  /** The action that was performed */
+  action: string;
+  /** The correlation ID */
+  correlationId?: string;
+  /** The ID of the resource */
+  resourceId: string;
+  /** The type of the resource */
+  resourceType: string;
+  /** The IP address of the actor */
+  ipAddress?: string;
+  /** The user agent of the actor */
+  userAgent?: string;
+}
+
+export interface AuditLogList {
+  rows: AuditLog[];
+}
+
 export interface UserGroup {
   metadata: APIResourceMeta;
   /** Name of the user group */
@@ -1227,4 +1278,61 @@ export interface AddUserGroupMemberRequest {
    * @format uuid
    */
   organizationMemberId: string;
+}
+
+export interface SupportSessionRedeemRequest {
+  /**
+   * The one-time code from the link that `hat support` opened
+   * @minLength 1
+   * @maxLength 256
+   */
+  code: string;
+}
+
+export interface SupportGrant {
+  /** @format uuid */
+  id: string;
+  /** @format uuid */
+  tenantId: string;
+  tenantName: string;
+  tenantSlug: string;
+  role: SupportGrantRole;
+  reason: string;
+  staffEmail: string;
+  /** @format date-time */
+  createdAt: string;
+  /**
+   * When the grant itself expires; tokens are renewed until then
+   * @format date-time
+   */
+  expiresAt: string;
+  /** @format date-time */
+  revokedAt?: string;
+}
+
+export interface SupportSession {
+  /** The support token to present to the tenant's API */
+  token: string;
+  /** The tenant's API URL */
+  apiUrl: string;
+  /**
+   * When the token expires; request a new one after that
+   * @format date-time
+   */
+  expiresAt: string;
+  grant: SupportGrant;
+}
+
+export interface SupportSessionTokenRequest {
+  /** @format uuid */
+  tenantId: string;
+}
+
+export interface SupportSessionEndRequest {
+  /** @format uuid */
+  grantId: string;
+}
+
+export interface SupportGrantList {
+  rows: SupportGrant[];
 }

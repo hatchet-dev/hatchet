@@ -178,7 +178,7 @@ module HatchetSdkRest
       return_type = opts[:debug_return_type] || 'User'
 
       # auth_names
-      auth_names = opts[:debug_auth_names] || ['cookieAuth']
+      auth_names = opts[:debug_auth_names] || ['cookieAuth', 'bearerAuth']
 
       new_options = opts.merge(
         :operation => :"UserApi.user_get_current",

@@ -1,6 +1,7 @@
 import { EXCHANGE_TOKEN_QUERY_KEY_PREFIX } from '@/lib/api/exchange-token';
 import { forgetFetchDurationOnQueryRemoval } from '@/lib/api/polling';
 import { defaultQueryRetry } from '@/lib/query-retry';
+import { SUPPORT_TOKEN_QUERY_KEY_PREFIX } from '@/lib/support-session';
 import { QueryClient } from '@tanstack/react-query';
 
 const queryClient: QueryClient = new QueryClient({
@@ -14,6 +15,11 @@ const queryClient: QueryClient = new QueryClient({
 queryClient.getQueryCache().subscribe(forgetFetchDurationOnQueryRemoval);
 
 type NetworkInformationLike = EventTarget;
+
+const TOKEN_QUERY_KEY_PREFIXES = [
+  EXCHANGE_TOKEN_QUERY_KEY_PREFIX,
+  SUPPORT_TOKEN_QUERY_KEY_PREFIX,
+] as const;
 
 type NavigatorWithConnection = Navigator & {
   connection?: NetworkInformationLike;
@@ -44,24 +50,28 @@ function setupExchangeTokenRefreshTriggers() {
       // cancelRefetch: false — a token fetch mid-retry-backoff must not be
       // cancelled and restarted from attempt one by the next trigger.
       if (shouldForceRefresh) {
-        void queryClient.invalidateQueries(
-          {
-            queryKey: [EXCHANGE_TOKEN_QUERY_KEY_PREFIX],
-            refetchType: 'all',
-          },
-          { cancelRefetch: false },
-        );
+        for (const prefix of TOKEN_QUERY_KEY_PREFIXES) {
+          void queryClient.invalidateQueries(
+            {
+              queryKey: [prefix],
+              refetchType: 'all',
+            },
+            { cancelRefetch: false },
+          );
+        }
         return;
       }
 
-      void queryClient.refetchQueries(
-        {
-          queryKey: [EXCHANGE_TOKEN_QUERY_KEY_PREFIX],
-          stale: true,
-          type: 'all',
-        },
-        { cancelRefetch: false },
-      );
+      for (const prefix of TOKEN_QUERY_KEY_PREFIXES) {
+        void queryClient.refetchQueries(
+          {
+            queryKey: [prefix],
+            stale: true,
+            type: 'all',
+          },
+          { cancelRefetch: false },
+        );
+      }
     }, 250);
   };
 

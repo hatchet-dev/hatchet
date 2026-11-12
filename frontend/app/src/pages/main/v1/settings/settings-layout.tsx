@@ -2,6 +2,7 @@ import { settingsNavGroups } from './settings-nav-items';
 import { Button } from '@/components/v1/ui/button';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useOrganizations } from '@/hooks/use-organizations';
+import { useSupportSession } from '@/hooks/use-support-session';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import {
   getOptionalStringParam,
@@ -17,6 +18,7 @@ export default function SettingsLayout() {
   const { isControlPlaneEnabled, canBill } = useControlPlane();
   const { organizations } = useOrganizations();
   const { meta } = useApiMeta();
+  const { isSupport } = useSupportSession(tenantId);
   const matchRoute = useMatchRoute();
 
   // On /organizations/* routes, prefer the org from the URL over the one
@@ -36,6 +38,7 @@ export default function SettingsLayout() {
     isControlPlaneEnabled,
     isOrganizationOwner,
     canManageSso,
+    isSupport,
   });
 
   return (

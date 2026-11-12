@@ -1,9 +1,19 @@
 import useControlPlane from '@/hooks/use-control-plane';
-import api, { controlPlaneApi } from '@/lib/api/api';
+import api, { controlPlaneApi, supportGrantsQuery } from '@/lib/api/api';
 import { OrganizationForUserList } from '@/lib/api/generated/cloud/data-contracts';
-import { TenantMember } from '@/lib/api/generated/data-contracts';
+import {
+  SupportGrant,
+  SupportGrantRole,
+} from '@/lib/api/generated/control-plane/data-contracts';
+import {
+  Tenant,
+  TenantMember,
+  TenantMemberRole,
+  TenantVersion,
+} from '@/lib/api/generated/data-contracts';
 import { useApiError } from '@/lib/hooks';
 import { reloadToLogin } from '@/lib/redirect';
+import queryClient from '@/query-client';
 import {
   useMutation,
   UseMutationResult,
@@ -69,21 +79,78 @@ type PossibleQueryResponses =
       tenantMemberships: TenantMember[];
     };
 
+// A grant stands in for a membership of the customer's tenant, so the app
+// shell, the tenant page and the onboarding checks treat it as a tenant the
+// user can open; operators map to MEMBER for the dashboard's own gating.
+export function supportGrantTenantMember(
+  grant: SupportGrant,
+  tenant?: Tenant,
+): TenantMember {
+  return {
+    metadata: {
+      id: grant.id,
+      createdAt: grant.createdAt,
+      updatedAt: grant.createdAt,
+    },
+    role:
+      grant.role === SupportGrantRole.SUPPORT_OPERATOR
+        ? TenantMemberRole.MEMBER
+        : TenantMemberRole.VIEWER,
+    canViewPayloads: grant.role === SupportGrantRole.SUPPORT_OPERATOR,
+    user: { email: grant.staffEmail },
+    tenant: tenant ?? {
+      metadata: {
+        id: grant.tenantId,
+        createdAt: grant.createdAt,
+        updatedAt: grant.createdAt,
+      },
+      name: grant.tenantName,
+      slug: grant.tenantSlug,
+      version: TenantVersion.V1,
+    },
+  };
+}
+
+function supportMemberships(
+  grants: SupportGrant[],
+  memberships: TenantMember[],
+): TenantMember[] {
+  return grants
+    .filter(
+      (grant) =>
+        !memberships.some((m) => m.tenant?.metadata.id === grant.tenantId),
+    )
+    .map((grant) =>
+      supportGrantTenantMember(
+        grant,
+        queryClient.getQueryData<Tenant>(['tenant:get', grant.tenantId]),
+      ),
+    );
+}
+
 export const userUniverseQuery = (isControlPlaneEnabled: boolean) => ({
   queryKey: ['user-universe', isControlPlaneEnabled],
   queryFn: async (): Promise<PossibleQueryResponses> => {
-    const [organizationsResult, tenantMemberships] = await Promise.all([
-      isControlPlaneEnabled ? controlPlaneApi.organizationList() : null,
-      isControlPlaneEnabled
-        ? controlPlaneApi.tenantMembershipsList()
-        : api.tenantMembershipsList(),
-    ]);
+    const [organizationsResult, tenantMemberships, supportGrants] =
+      await Promise.all([
+        isControlPlaneEnabled ? controlPlaneApi.organizationList() : null,
+        isControlPlaneEnabled
+          ? controlPlaneApi.tenantMembershipsList()
+          : api.tenantMembershipsList(),
+        isControlPlaneEnabled
+          ? queryClient.fetchQuery(supportGrantsQuery).catch(() => [])
+          : [],
+      ]);
 
     const organizations = (organizationsResult?.data.rows || []).map((org) => ({
       ...org,
       tenants: org.tenants || [],
     }));
-    const membershipRows = tenantMemberships.data.rows || [];
+    const memberRows = tenantMemberships.data.rows || [];
+    const membershipRows = [
+      ...memberRows,
+      ...supportMemberships(supportGrants, memberRows),
+    ];
 
     return isControlPlaneEnabled
       ? {
