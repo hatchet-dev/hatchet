@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/require"
@@ -101,7 +102,7 @@ func TestCronCreationDistinguishesStorageFailuresFromDuplicates(t *testing.T) {
 	for _, duplicate := range []bool{false, true} {
 		var cause error = errors.New("private database marker")
 		if duplicate {
-			cause = &pgconn.PgError{Code: "23505", Message: "private constraint marker"}
+			cause = &pgconn.PgError{Code: pgerrcode.UniqueViolation, Message: "private constraint marker"}
 		}
 		var created string
 		svc := NewWorkflowService(&server.ServerConfig{
