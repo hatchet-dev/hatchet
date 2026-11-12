@@ -444,6 +444,7 @@ func init() {
 	// Add flags to profile add command
 	profileAddCmd.Flags().StringP("token", "t", "", "Authentication token (prompted if not provided)")
 	profileAddCmd.Flags().StringP("name", "n", "", "Name of the profile (defaults to tenant name)")
+	profileAddCmd.Flags().String("tls-strategy", "", "TLS strategy for the gRPC endpoint: tls, mtls, or none (auto-detected if not provided)")
 
 	// Add flags to profile remove command
 	profileRemoveCmd.Flags().StringP("name", "n", "", "Name of the profile to remove (prompted if not provided)")
@@ -459,6 +460,7 @@ func init() {
 	// Add flags to profile update command
 	profileUpdateCmd.Flags().StringP("token", "t", "", "Authentication token (prompted if not provided)")
 	profileUpdateCmd.Flags().StringP("name", "n", "", "Name of the profile to update (prompted if not provided)")
+	profileUpdateCmd.Flags().String("tls-strategy", "", "TLS strategy for the gRPC endpoint: tls, mtls, or none (auto-detected if not provided)")
 
 	// Add flags to profile set-default command
 	profileSetDefaultCmd.Flags().StringP("name", "n", "", "Name of the profile to set as default (prompted if not provided)")
@@ -647,33 +649,40 @@ func getProfileFromToken(cmd *cobra.Command, token, nameOverride, tlsOverride st
 func determineTLSStrategy(grpcHostPort string) string {
 	// Try to auto-detect TLS by probing the endpoint
 	strategy, err := probeTLSEndpoint(grpcHostPort)
-	if err != nil {
-		cli.Logger.Warnf("could not auto-detect TLS for %s: %v", grpcHostPort, err)
-		cli.Logger.Info("falling back to user prompt")
-
-		// Fall back to asking the user
-		var useTLS bool
-		form := huh.NewForm(
-			huh.NewGroup(
-				huh.NewConfirm().
-					Title(fmt.Sprintf("Does the gRPC endpoint %s use TLS?", grpcHostPort)).
-					Description("Auto-detection failed.").
-					Value(&useTLS),
-			),
-		).WithTheme(styles.HatchetTheme())
-
-		err := form.Run()
-		if err != nil {
-			cli.Logger.Fatalf("could not run TLS confirmation form: %v", err)
-		}
-
-		if useTLS {
-			return "tls"
-		}
-		return "none"
+	if err == nil && strategy == "tls" {
+		return strategy
 	}
 
-	return strategy
+	// A plaintext detection is never trusted on its own: a peer on the path can
+	// answer the TLS probe with non-TLS bytes and would otherwise switch the
+	// profile, and every SDK that loads it, to sending the token in the clear.
+	description := "Auto-detection failed."
+	if err != nil {
+		cli.Logger.Warnf("could not auto-detect TLS for %s: %v", grpcHostPort, err)
+	} else {
+		cli.Logger.Warnf("%s did not answer the TLS probe; disabling TLS sends the API token in cleartext", grpcHostPort)
+		description = "The endpoint appears to speak plaintext. Answer no only if you trust this network."
+	}
+	cli.Logger.Info("falling back to user prompt")
+
+	useTLS := true
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewConfirm().
+				Title(fmt.Sprintf("Does the gRPC endpoint %s use TLS?", grpcHostPort)).
+				Description(description).
+				Value(&useTLS),
+		),
+	).WithTheme(styles.HatchetTheme())
+
+	if err := form.Run(); err != nil {
+		cli.Logger.Fatalf("could not run TLS confirmation form: %v", err)
+	}
+
+	if useTLS {
+		return "tls"
+	}
+	return "none"
 }
 
 // probeTLSEndpoint attempts to detect if an endpoint uses TLS by probing it
