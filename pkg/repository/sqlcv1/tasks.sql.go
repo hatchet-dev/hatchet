@@ -3365,8 +3365,12 @@ UPDATE
 SET
     worker_id = NULL
 FROM
-    task
+    task,
+    -- Consume slot deletion before updating the locked runtime row.
+    -- The aggregate still yields a row when slots have already been released.
+    (SELECT count(*) AS removed FROM deleted_slots) AS released
 WHERE
+    released.removed >= 0 AND
     (v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count) IN (SELECT id, inserted_at, retry_count FROM task)
 RETURNING
     v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count, v1_task_runtime.worker_id, v1_task_runtime.batch_id, v1_task_runtime.batch_size, v1_task_runtime.batch_index, v1_task_runtime.batch_key, v1_task_runtime.tenant_id, v1_task_runtime.timeout_at, v1_task_runtime.evicted_at, v1_task_runtime.assigned_at, v1_task_runtime.acked_at
