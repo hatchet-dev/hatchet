@@ -757,7 +757,26 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 		return err
 	}
 
-	return tc.signaler.SendInternalEvents(ctx, tenantId, res.InternalEvents)
+	if err := tc.signaler.SendInternalEvents(ctx, tenantId, res.InternalEvents); err != nil {
+		return err
+	}
+
+	tc.dispatchSatisfiedDurableEntries(ctx, tenantId, res.SatisfiedDurableEventLogEntries)
+
+	return nil
+}
+
+// dispatchSatisfiedDurableEntries delivers entries that operator step children satisfied in their
+// finalize transaction. Delivery is best-effort here as it is for match-satisfied entries: an evicted
+// or disconnected orchestrator picks the entry up from the log when it is restored.
+func (tc *TasksControllerImpl) dispatchSatisfiedDurableEntries(ctx context.Context, tenantId uuid.UUID, entries []v1.SatisfiedEntry) {
+	if len(entries) == 0 {
+		return
+	}
+
+	if err := tc.processSatisfiedEventLogEntry(ctx, tenantId, entries); err != nil {
+		tc.l.Error().Ctx(ctx).Err(err).Msg("could not dispatch durable entries satisfied by operator step children")
+	}
 }
 
 func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
@@ -886,6 +905,13 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 
 	tenantMetricsEnabled := tc.promGate.Enabled(ctx, tenantId)
 
+	recordFailedTask := func() {
+		prometheus.FailedTasks.Inc()
+		if tenantMetricsEnabled {
+			prometheus.TenantFailedTasks.WithLabelValues(tenantId.String()).Inc()
+		}
+	}
+
 	for _, e := range res.InternalEvents {
 		// if the task is retried, don't send a message to the trigger queue
 		if _, ok := retriedTaskIds[e.TaskID]; ok {
@@ -897,10 +923,16 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 		}
 
 		internalEventsWithoutRetries = append(internalEventsWithoutRetries, e)
-		prometheus.FailedTasks.Inc()
-		if tenantMetricsEnabled {
-			prometheus.TenantFailedTasks.WithLabelValues(tenantId.String()).Inc()
+		recordFailedTask()
+	}
+
+	// operator step children have no internal event, they satisfy their orchestrator's entry directly
+	for _, task := range res.ReleasedTasks {
+		if _, isRetried := retriedTaskIds[task.ID]; isRetried || !task.IsCurrentRetry || !v1.IsOperatorStepChild(task) {
+			continue
 		}
+
+		recordFailedTask()
 	}
 
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
@@ -914,6 +946,8 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 		span.SetStatus(codes.Error, "could not send internal events")
 		return err
 	}
+
+	tc.dispatchSatisfiedDurableEntries(ctx, tenantId, res.SatisfiedDurableEventLogEntries)
 
 	var outerErr error
 
@@ -999,6 +1033,8 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		span.SetStatus(codes.Error, "could not send internal events")
 		return err
 	}
+
+	tc.dispatchSatisfiedDurableEntries(ctx, tenantId, res.SatisfiedDurableEventLogEntries)
 
 	var outerErr error
 
