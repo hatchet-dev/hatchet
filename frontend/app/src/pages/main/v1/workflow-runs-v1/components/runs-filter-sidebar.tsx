@@ -6,6 +6,7 @@ import {
   flattenDAGsKey,
   idempotencyKeyKey,
   statusKey,
+  TaskRunColumn,
   workflowKey,
 } from './v1/task-runs-columns';
 import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
@@ -350,30 +351,29 @@ function StatusBlock() {
   );
 }
 
-function ShowBlock() {
+function FlattenDAGsBlock() {
   const { filters } = useRunsContext();
   const { setFilter } = useRunFilterActions();
-  const scope = filters.apiFilters.flattenDAGs ? 'all' : 'root';
+  const id = 'runs-sidebar-flatten-dags';
 
   return (
-    <FilterBlock title="Show">
-      <Segmented
-        label="Run scope"
-        value={scope}
-        options={[
-          { value: 'root', label: 'Root runs' },
-          { value: 'all', label: 'All tasks' },
-        ]}
-        onChange={(value) =>
-          setFilter(flattenDAGsKey, value === 'all' ? true : undefined)
-        }
-      />
-      <p className="mt-1.5 text-[11.5px] leading-snug text-muted-foreground">
-        {scope === 'root'
-          ? 'Top-level runs. DAG steps and child runs open from their parent.'
-          : 'Every task, including DAG steps and spawned children, as flat rows.'}
-      </p>
-    </FilterBlock>
+    <section className="border-b px-3.5 py-3">
+      <div className="flex h-7 items-center gap-2 rounded px-1 hover:bg-muted/50">
+        <Checkbox
+          id={id}
+          checked={!!filters.apiFilters.flattenDAGs}
+          onCheckedChange={(checked) =>
+            setFilter(flattenDAGsKey, checked === true ? true : undefined)
+          }
+        />
+        <Label
+          htmlFor={id}
+          className="flex-1 cursor-pointer text-[13px] font-normal"
+        >
+          {TaskRunColumn.flattenDAGs}
+        </Label>
+      </div>
+    </section>
   );
 }
 
@@ -658,7 +658,7 @@ export function RunsFilterSidebar() {
       {visible(workflowKey) && <WorkflowBlock />}
       {visible(additionalMetadataKey) && <MetadataBlock />}
       {visible(idempotencyKeyKey) && <IdempotencyKeyBlock />}
-      {visible(flattenDAGsKey) && <ShowBlock />}
+      {visible(flattenDAGsKey) && <FlattenDAGsBlock />}
     </aside>
   );
 }
