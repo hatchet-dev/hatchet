@@ -79,15 +79,23 @@ export function formatRetentionPeriod(period: string): string {
 
 export type TimeWindowPreset = '1h' | '6h' | '1d' | '7d';
 
-export const TIME_WINDOW_HOURS: Record<TimeWindowPreset, number> = {
+// Short windows only the runs list offers; kept out of TimeWindowPreset so the
+// logs and events schemas, which index by that type, stay unchanged.
+export type RunsTimeWindowPreset = TimeWindowPreset | '15m' | '4h';
+
+export const TIME_WINDOW_HOURS: Record<RunsTimeWindowPreset, number> = {
+  '15m': 0.25,
   '1h': 1,
+  '4h': 4,
   '6h': 6,
   '1d': 24,
   '7d': 168,
 };
 
-export const TIME_WINDOW_LABELS: Record<TimeWindowPreset, string> = {
+export const TIME_WINDOW_LABELS: Record<RunsTimeWindowPreset, string> = {
+  '15m': '15 minutes',
   '1h': '1 hour',
+  '4h': '4 hours',
   '6h': '6 hours',
   '1d': '1 day',
   '7d': '7 days',
@@ -95,7 +103,9 @@ export const TIME_WINDOW_LABELS: Record<TimeWindowPreset, string> = {
 
 const TIME_WINDOWS_DESC: TimeWindowPreset[] = ['7d', '1d', '6h', '1h'];
 
-export function isTimeWindowPreset(value: string): value is TimeWindowPreset {
+export function isTimeWindowPreset(
+  value: string,
+): value is RunsTimeWindowPreset {
   return value in TIME_WINDOW_HOURS;
 }
 

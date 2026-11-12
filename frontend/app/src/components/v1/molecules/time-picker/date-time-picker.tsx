@@ -80,12 +80,10 @@ export function DateTimePicker({
             triggerClassName,
           )}
         >
-          <CalendarIcon className="mr-2 size-4" />
-          {date ? (
-            label + ':  ' + format(date, 'PPP HH:mm:ss')
-          ) : (
-            <span>{label}</span>
-          )}
+          <CalendarIcon className="mr-2 size-4 shrink-0" />
+          <span className="truncate">
+            {date ? label + ':  ' + format(date, 'PPP HH:mm:ss') : label}
+          </span>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0">

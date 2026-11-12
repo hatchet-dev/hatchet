@@ -20,9 +20,10 @@ module HatchetSdkRest
     ORGANIZATION_SSO_ENABLED = "organization-sso-enabled".freeze
     OPERATOR_DETAILS_ENABLED = "operator-details-enabled".freeze
     CONCURRENCY_PAGE_ENABLED = "concurrency-page-enabled".freeze
+    RUNS_FILTER_SIDEBAR_ENABLED = "runs-filter-sidebar-enabled".freeze
 
     def self.all_vars
-      @all_vars ||= [TENANT_LOG_WORKFLOW_FILTER_ENABLED, TRACE_MINIMAP_ENABLED, ORGANIZATION_SSO_ENABLED, OPERATOR_DETAILS_ENABLED, CONCURRENCY_PAGE_ENABLED].freeze
+      @all_vars ||= [TENANT_LOG_WORKFLOW_FILTER_ENABLED, TRACE_MINIMAP_ENABLED, ORGANIZATION_SSO_ENABLED, OPERATOR_DETAILS_ENABLED, CONCURRENCY_PAGE_ENABLED, RUNS_FILTER_SIDEBAR_ENABLED].freeze
     end
 
     # Builds the enum from string

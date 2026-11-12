@@ -8,6 +8,7 @@
       "cypress/support/e2e.ts"
     ]
   },
+  "ignore": [".storybook/public/mockServiceWorker.js"],
   "ignoreUnresolved": [
     "@/lib/generated/docs",
     "./seeded-users.generated",

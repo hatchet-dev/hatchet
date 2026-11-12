@@ -45,6 +45,7 @@ export enum FeatureFlagId {
   OrganizationSsoEnabled = 'organization-sso-enabled',
   OperatorDetailsEnabled = 'operator-details-enabled',
   ConcurrencyPageEnabled = 'concurrency-page-enabled',
+  RunsFilterSidebarEnabled = 'runs-filter-sidebar-enabled',
 }
 
 export enum WebhookWorkerRequestMethod {
