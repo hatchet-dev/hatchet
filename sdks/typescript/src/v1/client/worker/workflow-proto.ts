@@ -266,6 +266,7 @@ export function workflowToProto(
       isDurable: durableTaskSet.has(task),
       slotRequests: mapSlotRequestsPb(task, durableTaskSet.has(task)),
       batch: mapBatchConfigPb(batchOf(task)),
+      maxReassignmentsAllowed: validatedMaxReassignmentsAllowed(task.maxReassignmentsAllowed),
       concurrency: (() => {
         const taskConcurrency = taskConcurrencyArr(task, workflow);
         assertValidConcurrencyArr(taskConcurrency);
@@ -518,6 +519,21 @@ export function assertValidConcurrencyArr(concurrency: Concurrency[] | undefined
       );
     }
   });
+}
+
+export function validatedMaxReassignmentsAllowed(
+  maxReassignmentsAllowed: number | undefined
+): number | undefined {
+  if (
+    maxReassignmentsAllowed !== undefined &&
+    (!Number.isInteger(maxReassignmentsAllowed) || maxReassignmentsAllowed < 0)
+  ) {
+    throw new Error(
+      `maxReassignmentsAllowed must be a non-negative integer, got: ${maxReassignmentsAllowed}`
+    );
+  }
+
+  return maxReassignmentsAllowed;
 }
 
 export function mapBatchConfigPb(

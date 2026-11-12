@@ -497,6 +497,8 @@ export interface CreateTaskOpts {
   slotRequests: { [key: string]: number };
   /** (optional) batch execution configuration */
   batch?: TaskBatchConfig | undefined;
+  /** (optional) the max number of times the task can be reassigned before failing */
+  maxReassignmentsAllowed?: number | undefined;
 }
 
 export interface CreateTaskOpts_WorkerLabelsEntry {
@@ -2561,6 +2563,7 @@ function createBaseCreateTaskOpts(): CreateTaskOpts {
     isDurable: false,
     slotRequests: {},
     batch: undefined,
+    maxReassignmentsAllowed: undefined,
   };
 }
 
@@ -2613,6 +2616,9 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
     });
     if (message.batch !== undefined) {
       TaskBatchConfig.encode(message.batch, writer.uint32(130).fork()).join();
+    }
+    if (message.maxReassignmentsAllowed !== undefined) {
+      writer.uint32(136).int32(message.maxReassignmentsAllowed);
     }
     return writer;
   },
@@ -2758,6 +2764,14 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
           message.batch = TaskBatchConfig.decode(reader, reader.uint32());
           continue;
         }
+        case 17: {
+          if (tag !== 136) {
+            break;
+          }
+
+          message.maxReassignmentsAllowed = reader.int32();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2843,6 +2857,11 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
         )
         : {},
       batch: isSet(object.batch) ? TaskBatchConfig.fromJSON(object.batch) : undefined,
+      maxReassignmentsAllowed: isSet(object.maxReassignmentsAllowed)
+        ? globalThis.Number(object.maxReassignmentsAllowed)
+        : isSet(object.max_reassignments_allowed)
+        ? globalThis.Number(object.max_reassignments_allowed)
+        : undefined,
     };
   },
 
@@ -2908,6 +2927,9 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
     if (message.batch !== undefined) {
       obj.batch = TaskBatchConfig.toJSON(message.batch);
     }
+    if (message.maxReassignmentsAllowed !== undefined) {
+      obj.maxReassignmentsAllowed = Math.round(message.maxReassignmentsAllowed);
+    }
     return obj;
   },
 
@@ -2950,6 +2972,7 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
     message.batch = (object.batch !== undefined && object.batch !== null)
       ? TaskBatchConfig.fromPartial(object.batch)
       : undefined;
+    message.maxReassignmentsAllowed = object.maxReassignmentsAllowed ?? undefined;
     return message;
   },
 };

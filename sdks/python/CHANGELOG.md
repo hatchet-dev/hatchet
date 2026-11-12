@@ -5,6 +5,12 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.46.0] - 2026-11-12
+
+### Added
+
+- `max_reassignments_allowed` on `task` and `durable_task`, the maximum number of times Hatchet reassigns a task to a new worker after its worker stops heartbeating or never acknowledges it. Once reached, the task fails instead of being reassigned; `0` disables reassignment entirely. Older engines ignore it.
+
 ## [1.45.1] - 2026-11-05
 
 ### Added

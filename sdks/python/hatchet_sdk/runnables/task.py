@@ -212,6 +212,9 @@ class Task(Generic[TWorkflowInput, R]):
         self.backoff_factor = backoff_factor
         self.backoff_max_seconds = backoff_max_seconds
         self.concurrency = concurrency or []
+        if max_reassignments_allowed is not None and max_reassignments_allowed < 0:
+            raise ValueError("max_reassignments_allowed must be a non-negative integer")
+
         self.max_reassignments_allowed = max_reassignments_allowed
 
         self.wait_for = flatten_conditions(wait_for or [])

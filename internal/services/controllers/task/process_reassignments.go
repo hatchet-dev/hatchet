@@ -80,8 +80,8 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 					RetryCount:     task.RetryCount,
 					EventType:      sqlcv1.V1EventTypeOlapFAILED,
 					EventTimestamp: time.Now(),
-					EventMessage:   "Task reached its maximum reassignment count",
-					EventPayload:   "Task reached its maximum reassignment count",
+					EventMessage:   v1.ReachedMaxReassignmentsErrorMessage,
+					EventPayload:   v1.ReachedMaxReassignmentsErrorMessage,
 					WorkerId:       workerId,
 				},
 			)

@@ -109,6 +109,7 @@ module Hatchet
     # @option opts [Integer, nil] :retries (nil) The number of times to retry the task before failing
     # @option opts [Float, nil] :backoff_factor (nil) The backoff factor for controlling exponential backoff in retries
     # @option opts [Integer, nil] :backoff_max_seconds (nil) The maximum number of seconds to allow retries with exponential backoff to continue
+    # @option opts [Integer, nil] :max_reassignments_allowed (nil) The maximum number of times the task can be reassigned to a new worker (when its worker stops heartbeating or never acknowledges the assignment) before failing. +0+ means the task is never reassigned. Defaults to the server's limit, which also caps this value
     # @option opts [Array<RateLimit>] :rate_limits ([]) A list of rate limit configurations for the task
     # @option opts [ConcurrencyExpression, Array<ConcurrencyExpression>, nil] :concurrency (nil) A concurrency expression (or list of them) controlling the concurrency settings for this task
     # @option opts [Hash, nil] :desired_worker_labels (nil) A hash of desired worker labels that determine to which worker the task should be assigned

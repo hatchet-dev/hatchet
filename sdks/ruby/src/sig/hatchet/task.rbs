@@ -7,6 +7,7 @@ module Hatchet
     attr_reader retries: Integer?
     attr_reader backoff_max_seconds: Integer?
     attr_reader backoff_factor: Float?
+    attr_reader max_reassignments_allowed: Integer?
     attr_reader rate_limits: Array[RateLimit]
     attr_reader concurrency: Array[ConcurrencyExpression] | ConcurrencyExpression | nil
     attr_reader desired_worker_labels: Hash[Symbol, untyped]?
@@ -28,6 +29,7 @@ module Hatchet
       ?retries: Integer?,
       ?backoff_max_seconds: Integer?,
       ?backoff_factor: Float?,
+      ?max_reassignments_allowed: Integer?,
       ?rate_limits: Array[RateLimit],
       ?concurrency: Array[ConcurrencyExpression] | ConcurrencyExpression | nil,
       ?desired_worker_labels: Hash[Symbol, untyped]?,

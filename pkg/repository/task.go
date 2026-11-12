@@ -1823,6 +1823,8 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId u
 	}, len(toTimeout) == limit, nil
 }
 
+const ReachedMaxReassignmentsErrorMessage = "Task reached its maximum reassignment count"
+
 func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenantId uuid.UUID) (*FailTasksResponse, bool, error) {
 	db := r.pool.ForTenant(tenantId)
 
@@ -1871,6 +1873,7 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 			},
 			IsAppError:     false,
 			IsNonRetryable: false,
+			ErrorMessage:   ReachedMaxReassignmentsErrorMessage,
 		})
 
 		reasonByTaskId[task.ID] = task.Reason

@@ -409,22 +409,23 @@ func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOptio
 type TaskOption func(*taskConfig)
 
 type taskConfig struct {
-	retries                int32
-	retryBackoffFactor     float32
-	retryMaxBackoffSeconds int32
-	executionTimeout       time.Duration
-	scheduleTimeout        time.Duration
-	onCron                 []string
-	onEvents               []string
-	concurrency            []*types.Concurrency
-	rateLimits             []*types.RateLimit
-	isDurable              bool
-	parents                []create.NamedTask
-	waitFor                condition.Condition
-	skipIf                 condition.Condition
-	description            string
-	evictionPolicy         *EvictionPolicy
-	slotCost               *int32
+	retries                 int32
+	retryBackoffFactor      float32
+	retryMaxBackoffSeconds  int32
+	executionTimeout        time.Duration
+	scheduleTimeout         time.Duration
+	onCron                  []string
+	onEvents                []string
+	concurrency             []*types.Concurrency
+	rateLimits              []*types.RateLimit
+	isDurable               bool
+	parents                 []create.NamedTask
+	waitFor                 condition.Condition
+	skipIf                  condition.Condition
+	description             string
+	evictionPolicy          *EvictionPolicy
+	slotCost                *int32
+	maxReassignmentsAllowed *int32
 }
 
 // WithRetries sets the number of retry attempts for failed tasks.
@@ -455,6 +456,24 @@ func WithSlotCost(cost int) TaskOption {
 
 	return func(config *taskConfig) {
 		config.slotCost = &c
+	}
+}
+
+// WithMaxReassignmentsAllowed sets how many times Hatchet may reassign this task to a new worker
+// when its worker stops heartbeating or never acknowledges the assignment. Once the task has been
+// reassigned that many times, it fails instead of being reassigned again. Set it to zero to never
+// reassign, for example when re-running the task is unsafe or the task tends to crash its worker.
+// When unset, the server's default limit applies, and the server's limit also caps this value.
+// Batch tasks ignore it. Panics if count is negative.
+func WithMaxReassignmentsAllowed(count int) TaskOption {
+	if count < 0 || count > math.MaxInt32 {
+		panic("max reassignments allowed must be a non-negative integer")
+	}
+
+	maxReassignmentsAllowed := int32(count)
+
+	return func(config *taskConfig) {
+		config.maxReassignmentsAllowed = &maxReassignmentsAllowed
 	}
 }
 
@@ -668,6 +687,7 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
 			return wrapper(ctx, input)
 		}
 		durableDecl := w.declaration.DurableTask(taskOpts, durableWrapper)
+		durableDecl.MaxReassignmentsAllowed = config.maxReassignmentsAllowed
 		if config.evictionPolicy != nil {
 			durableDecl.EvictionPolicy = &internal.EvictionPolicyOpts{
 				TTL:                   config.evictionPolicy.TTL,
@@ -676,7 +696,8 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
 			}
 		}
 	} else {
-		w.declaration.Task(taskOpts, wrapper)
+		taskDecl := w.declaration.Task(taskOpts, wrapper)
+		taskDecl.MaxReassignmentsAllowed = config.maxReassignmentsAllowed
 	}
 
 	return &Task{name: name}

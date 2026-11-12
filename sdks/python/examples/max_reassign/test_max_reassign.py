@@ -1,110 +1,56 @@
-from subprocess import Popen
-from typing import Any
+import os
 
+import psutil
 import pytest
 
 from examples.max_reassign.worker import (
-    no_reassigns_allowed,
-    WorkerIdEnvelope,
-    worker_id_returner,
+    FIRST_WORKER_NAME,
+    non_reassignable_task,
+    reassignable_task,
 )
-from hatchet_sdk import (
-    Hatchet,
-    DesiredWorkerLabel,
-    FailedTaskRunExceptionGroup,
-)
-import pytest
-from subprocess import Popen
-from typing import Any, Generator
-from conftest import _on_demand_worker_fixture
+from examples.test_utils import wait_for_running_status
+from hatchet_sdk import FailedTaskRunExceptionGroup, Hatchet
+from tests.worker_fixture import get_free_port, hatchet_worker
+
+SECOND_WORKER_NAME = "max-reassign-worker-b"
+
+COMMAND = ["poetry", "run", "python", "examples/max_reassign/worker.py"]
 
 
-@pytest.fixture(scope="session")
-def on_demand_worker_max_reassign_a(
-    request: pytest.FixtureRequest,
-) -> Generator[Popen[bytes], None, None]:
-    yield from _on_demand_worker_fixture(request)
+def kill_process_tree(pid: int) -> None:
+    process = psutil.Process(pid)
+
+    for child in process.children(recursive=True):
+        child.kill()
+
+    process.kill()
 
 
-@pytest.fixture(scope="session")
-def on_demand_worker_max_reassign_b(
-    request: pytest.FixtureRequest,
-) -> Generator[Popen[bytes], None, None]:
-    yield from _on_demand_worker_fixture(request)
-
-
-@pytest.mark.parametrize(
-    "on_demand_worker_max_reassign_a",
-    [
-        [
-            "poetry",
-            "run",
-            "python",
-            "examples/max_reassign/worker.py",
-            "--label",
-            "a",
-        ]
-    ],
-    indirect=True,
-)
-@pytest.mark.parametrize(
-    "on_demand_worker_max_reassign_b",
-    [
-        [
-            "poetry",
-            "run",
-            "python",
-            "examples/max_reassign/worker.py",
-            "--label",
-            "b",
-        ]
-    ],
-    indirect=True,
-)
 @pytest.mark.asyncio(loop_scope="session")
-async def test_late_join_mid_stream_stays_open(
+async def test_task_fails_instead_of_being_reassigned_after_max_reassignments(
     hatchet: Hatchet,
-    on_demand_worker_max_reassign_a: Popen[Any],
-    on_demand_worker_max_reassign_b: Popen[Any],
 ) -> None:
-    worker_a = await worker_id_returner.aio_run(
-        desired_worker_labels=[
-            DesiredWorkerLabel(key="no-reassign", value="a", required=True)
-        ],
-        wait_for_result=True,
-    )
+    os.environ["HATCHET_TEST_WORKER_NAME"] = FIRST_WORKER_NAME
 
-    worker_b = await worker_id_returner.aio_run(
-        desired_worker_labels=[
-            DesiredWorkerLabel(key="no-reassign", value="b", required=True)
-        ],
-        wait_for_result=True,
-    )
+    with hatchet_worker(COMMAND, get_free_port()) as first_worker:
+        reassignable_ref = await reassignable_task.aio_run(wait_for_result=False)
+        non_reassignable_ref = await non_reassignable_task.aio_run(
+            wait_for_result=False
+        )
 
-    worker_id_to_pid = {
-        worker_a.worker_id: on_demand_worker_max_reassign_a.pid,
-        worker_b.worker_id: on_demand_worker_max_reassign_b.pid,
-    }
+        await wait_for_running_status(hatchet, reassignable_ref.workflow_run_id)
+        await wait_for_running_status(hatchet, non_reassignable_ref.workflow_run_id)
 
-    ref = await no_reassigns_allowed.aio_run(wait_for_result=False)
+        os.environ["HATCHET_TEST_WORKER_NAME"] = SECOND_WORKER_NAME
 
-    data: WorkerIdEnvelope | None = None
+        with hatchet_worker(COMMAND, get_free_port()):
+            kill_process_tree(first_worker.pid)
 
-    async for e in hatchet.runs.subscribe_to_stream(ref.workflow_run_id):
-        data = WorkerIdEnvelope.model_validate_json(e)
-        break
+            reassigned_result = await reassignable_ref.aio_result()
+            assert reassigned_result.worker_name == SECOND_WORKER_NAME
 
-    assert data is not None, "worker id was not streamed back from the worker"
-
-    pid = worker_id_to_pid[data.worker_id]
-
-    if pid == on_demand_worker_max_reassign_a.pid:
-        on_demand_worker_max_reassign_a.kill()
-
-    if pid == on_demand_worker_max_reassign_b.pid:
-        on_demand_worker_max_reassign_b.kill()
-
-    with pytest.raises(
-        FailedTaskRunExceptionGroup, match="Task exceeded timeout of 1m"
-    ):
-        await ref.aio_result()
+            with pytest.raises(
+                FailedTaskRunExceptionGroup,
+                match="Task reached its maximum reassignment count",
+            ):
+                await non_reassignable_ref.aio_result()

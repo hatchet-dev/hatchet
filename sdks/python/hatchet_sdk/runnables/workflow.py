@@ -1470,11 +1470,11 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param slot_cost: The number of default worker slots this task consumes. A normal task consumes one. Set it higher for a task that needs more memory or CPU, so a worker runs fewer of them at once. A single worker must have that many free slots to run it.
 
-        :param max_reassignments_allowed: An optional integer for the maximum number of times a task can be reassigned before it fails.
+        :param max_reassignments_allowed: The maximum number of times Hatchet will reassign the task to a new worker when the worker running it stops heartbeating or never acknowledges it. Once reached, the task fails instead of being reassigned. Set to `0` to never reassign the task, e.g. if re-running it would be unsafe. If not set, the server's default limit applies. The server's limit also caps this value.
 
         :returns: A decorator which creates a `Task` object.
 
-        :raises ValueError: If `slot_cost` is not positive.
+        :raises ValueError: If `slot_cost` is not positive or `max_reassignments_allowed` is negative.
         """
 
         _warn_if_str_duration(schedule_timeout, execution_timeout)
@@ -1727,6 +1727,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
         eviction_policy: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
+        max_reassignments_allowed: int | None = None,
     ) -> Callable[
         [
             Callable[
@@ -1769,6 +1770,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param cancel_if: A list of conditions that, if met, will cause the task to be canceled.
 
         :param eviction_policy: An optional eviction policy controlling when this durable task can be evicted from a worker slot while waiting.
+
+        :param max_reassignments_allowed: The maximum number of times Hatchet will reassign the task to a new worker when the worker running it stops heartbeating or never acknowledges it. Once reached, the task fails instead of being reassigned. Set to `0` to never reassign the task, e.g. if re-running it would be unsafe. If not set, the server's default limit applies. The server's limit also caps this value.
 
         :returns: A decorator which creates a `Task` object.
         """
@@ -1818,6 +1821,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 skip_if=skip_if,
                 cancel_if=cancel_if,
                 eviction_policy=eviction_policy,
+                max_reassignments_allowed=max_reassignments_allowed,
             )
 
             self._durable_tasks.append(task)

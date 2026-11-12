@@ -1,43 +1,47 @@
-import argparse
-from hatchet_sdk import Hatchet, Context, EmptyModel
 import asyncio
+import os
+from datetime import timedelta
+
 from pydantic import BaseModel
+
+from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet()
 
-
-class WorkerIdEnvelope(BaseModel):
-    worker_id: str
+FIRST_WORKER_NAME = "max-reassign-worker-a"
 
 
-@hatchet.task()
-async def worker_id_returner(_i: EmptyModel, ctx: Context) -> WorkerIdEnvelope:
-    return WorkerIdEnvelope(worker_id=ctx.worker_id)
+class WorkerNameOutput(BaseModel):
+    worker_name: str
 
 
-@hatchet.task(max_reassignments_allowed=0)
-async def no_reassigns_allowed(_i: EmptyModel, ctx: Context) -> None:
-    await asyncio.sleep(3)
+async def wait_forever_on_first_worker() -> WorkerNameOutput:
+    worker_name = os.environ["HATCHET_TEST_WORKER_NAME"]
 
-    await ctx.aio_put_stream(
-        WorkerIdEnvelope(worker_id=ctx.worker_id).model_dump_json()
-    )
+    if worker_name == FIRST_WORKER_NAME:
+        await asyncio.sleep(timedelta(minutes=10).total_seconds())
 
-    for _ in range(10):
-        await asyncio.sleep(1)
+    return WorkerNameOutput(worker_name=worker_name)
 
-    return None
+
+@hatchet.task(execution_timeout=timedelta(minutes=3))
+async def reassignable_task(input: EmptyModel, ctx: Context) -> WorkerNameOutput:
+    return await wait_forever_on_first_worker()
+
+
+# > Disallowing reassignment
+@hatchet.task(execution_timeout=timedelta(minutes=3), max_reassignments_allowed=0)
+async def non_reassignable_task(input: EmptyModel, ctx: Context) -> WorkerNameOutput:
+    return await wait_forever_on_first_worker()
+
+
+# !!
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--label", type=str, required=True)
-    args = parser.parse_args()
-
     worker = hatchet.worker(
-        name="max_reassign_worker",
-        workflows=[no_reassigns_allowed, worker_id_returner],
-        labels={"no-reassign": args.label},
+        name=os.environ["HATCHET_TEST_WORKER_NAME"],
+        workflows=[reassignable_task, non_reassignable_task],
     )
     worker.start()
 

@@ -158,8 +158,8 @@ type CreateStepOpts struct {
 	// (optional) batch execution configuration
 	BatchConfig *StepBatchConfig `json:"batchConfig,omitempty"`
 
-	// (optional) the maximum number of reassignments we're allowing to happen
-	MaxReassignmentsAllowed *int32 `json:"maxReassignmentsAllowed,omitempty"`
+	// (optional) the maximum number of times the task can be reassigned, capped by the server's max internal retry count
+	MaxReassignmentsAllowed *int32 `json:"maxReassignmentsAllowed,omitempty" validate:"omitnil,min=0"`
 }
 
 type StepBatchConfig struct {
