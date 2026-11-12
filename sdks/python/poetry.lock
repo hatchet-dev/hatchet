@@ -1148,9 +1148,10 @@ protobuf = ">=6.33.5,<8.0.0"
 name = "grpcio-tools"
 version = "1.81.1"
 description = "Protobuf code generator for gRPC"
-optional = false
+optional = true
 python-versions = ">=3.10"
 groups = ["main"]
+markers = "extra == \"codegen\""
 files = [
     {file = "grpcio_tools-1.81.1-cp310-cp310-linux_armv7l.whl", hash = "sha256:9b6ba8a72cfda576508701a7c0bbeebe6f6f9843320d4f12e74efd19ddccd965"},
     {file = "grpcio_tools-1.81.1-cp310-cp310-macosx_11_0_universal2.whl", hash = "sha256:ac47a9ea1224df8b653072614e6f0207e9fbfe63fdabaa5918a60ca5fc931b88"},
@@ -3570,9 +3571,10 @@ crt = ["botocore[crt] (>=1.37.4,<2.0a0)"]
 name = "setuptools"
 version = "82.0.1"
 description = "Most extensible Python build backend with support for C/C++ extension modules"
-optional = false
+optional = true
 python-versions = ">=3.9"
 groups = ["main"]
+markers = "extra == \"codegen\""
 files = [
     {file = "setuptools-82.0.1-py3-none-any.whl", hash = "sha256:a59e362652f08dcd477c78bb6e7bd9d80a7995bc73ce773050228a348ce2e5bb"},
     {file = "setuptools-82.0.1.tar.gz", hash = "sha256:7d872682c5d01cfde07da7bccc7b65469d3dca203318515ada1de5eda35efbf9"},
@@ -4263,6 +4265,7 @@ type = ["pytest-mypy"]
 
 [extras]
 claude = ["claude-agent-sdk", "mcp"]
+codegen = ["grpcio-tools"]
 docs = ["bs4", "fastapi", "griffe-pydantic", "markdownify", "mkdocs", "mkdocstrings", "pydoclint", "types-beautifulsoup4", "uvicorn"]
 lint = ["black", "click", "mypy", "psutil", "ruff", "types-grpcio", "types-grpcio-status", "types-protobuf", "types-psutil", "types-requests"]
 openai = ["openai-agents"]
@@ -4272,4 +4275,4 @@ test = ["boto3", "botocore", "psycopg", "pytest", "pytest-asyncio", "pytest-env"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4"
-content-hash = "a2ba943b623acf34cef5e0affb81f92bdc745869abfc688d5af104bc37831d3a"
+content-hash = "e2273327f54fae381702b7c890a95ee5aa9343f56b6d350c0ae2de2c208da00c"

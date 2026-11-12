@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Context manager dependencies now receive the task's exception when the task fails, so they can e.g. roll back a transaction. A dependency that catches the exception without re-raising it no longer makes the task succeed.
 - The REST client can read workflow versions whose concurrency uses `CANCEL_NEWEST`, `CANCEL_QUEUED_EXCEPT_NEWEST`, or `CANCEL_QUEUED_EXCEPT_OLDEST`.
 
+### Removed
+
+- `grpcio-tools` is no longer a runtime dependency, since the SDK only uses it to generate protobuf code. This avoids building it from source on Python 3.15, where the newest `grpcio-tools` versions compatible with `protobuf<7` have no prebuilt wheels.
+
 ## [1.45.1] - 2026-11-05
 
 ### Added
