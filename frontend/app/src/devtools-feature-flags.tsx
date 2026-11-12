@@ -28,7 +28,7 @@ function useEvaluatedFlags(tenantId: string | undefined) {
     const values: Partial<Record<FeatureFlagId, boolean>> = {};
     const queries = queryCache
       .findAll({ queryKey: ['feature-flag', tenantId] })
-      .sort((a, b) => a.state.dataUpdatedAt - b.state.dataUpdatedAt);
+      .sort((a, b) => lastUpdatedAt(a.state) - lastUpdatedAt(b.state));
     for (const query of queries) {
       const flag = query.queryKey[2] as FeatureFlagId;
       const data = query.state.data as { isEnabled?: boolean } | undefined;
@@ -44,6 +44,13 @@ function useEvaluatedFlags(tenantId: string | undefined) {
 
   return JSON.parse(snapshot) as Partial<Record<FeatureFlagId, boolean>>;
 }
+
+// A query that only ever failed has dataUpdatedAt = 0, which would sort it
+// before an older success for the same flag.
+const lastUpdatedAt = (state: {
+  dataUpdatedAt: number;
+  errorUpdatedAt: number;
+}) => Math.max(state.dataUpdatedAt, state.errorUpdatedAt);
 
 export function FeatureFlagsPanel() {
   const { tenantId } = useAppContext();
