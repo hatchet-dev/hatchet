@@ -166,6 +166,7 @@ HatchetSdkRest.autoload :V1ConcurrencyKey, 'hatchet-sdk-rest/models/v1_concurren
 HatchetSdkRest.autoload :V1ConcurrencyKeyList, 'hatchet-sdk-rest/models/v1_concurrency_key_list'
 HatchetSdkRest.autoload :V1ConcurrencyLimitStrategy, 'hatchet-sdk-rest/models/v1_concurrency_limit_strategy'
 HatchetSdkRest.autoload :V1ConcurrencyScope, 'hatchet-sdk-rest/models/v1_concurrency_scope'
+HatchetSdkRest.autoload :V1ConcurrencySlotState, 'hatchet-sdk-rest/models/v1_concurrency_slot_state'
 HatchetSdkRest.autoload :V1ConcurrencyStrategy, 'hatchet-sdk-rest/models/v1_concurrency_strategy'
 HatchetSdkRest.autoload :V1ConcurrencyStrategyList, 'hatchet-sdk-rest/models/v1_concurrency_strategy_list'
 HatchetSdkRest.autoload :V1ConcurrencyStrategyUsage, 'hatchet-sdk-rest/models/v1_concurrency_strategy_usage'

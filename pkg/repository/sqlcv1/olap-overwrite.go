@@ -63,6 +63,27 @@ WITH filtered AS (
             $8::TEXT[] IS NULL
             OR idempotency_key = ANY($8::TEXT[])
         )
+        AND (
+            $9::UUID[] IS NULL
+            OR (id, inserted_at) IN (
+                SELECT lkp.task_id, lkp.inserted_at
+                FROM v1_lookup_table_olap lkp
+                WHERE
+                    lkp.tenant_id = $1::uuid
+                    AND lkp.external_id = ANY($9::UUID[])
+                    AND lkp.task_id IS NOT NULL
+
+                UNION ALL
+
+                SELECT dt.task_id, dt.task_inserted_at
+                FROM v1_lookup_table_olap lkp
+                JOIN v1_dag_to_task_olap dt ON (dt.dag_id, dt.dag_inserted_at) = (lkp.dag_id, lkp.inserted_at)
+                WHERE
+                    lkp.tenant_id = $1::uuid
+                    AND lkp.external_id = ANY($9::UUID[])
+                    AND lkp.dag_id IS NOT NULL
+            )
+        )
     ORDER BY
         inserted_at DESC
     LIMIT 20000
@@ -82,7 +103,7 @@ WITH matching_runs AS MATERIALIZED (
         v1_runs_olap r
     WHERE
         r.tenant_id = $1::uuid
-        AND r.additional_metadata @> ANY($9::jsonb[])
+        AND r.additional_metadata @> ANY($10::jsonb[])
         AND (
             $4::timestamptz IS NULL
             OR r.inserted_at <= $4::timestamptz
@@ -147,6 +168,27 @@ WITH matching_runs AS MATERIALIZED (
             $8::TEXT[] IS NULL
             OR t.idempotency_key = ANY($8::TEXT[])
         )
+        AND (
+            $9::UUID[] IS NULL
+            OR (t.id, t.inserted_at) IN (
+                SELECT lkp.task_id, lkp.inserted_at
+                FROM v1_lookup_table_olap lkp
+                WHERE
+                    lkp.tenant_id = $1::uuid
+                    AND lkp.external_id = ANY($9::UUID[])
+                    AND lkp.task_id IS NOT NULL
+
+                UNION ALL
+
+                SELECT dt.task_id, dt.task_inserted_at
+                FROM v1_lookup_table_olap lkp
+                JOIN v1_dag_to_task_olap dt ON (dt.dag_id, dt.dag_inserted_at) = (lkp.dag_id, lkp.inserted_at)
+                WHERE
+                    lkp.tenant_id = $1::uuid
+                    AND lkp.external_id = ANY($9::UUID[])
+                    AND lkp.dag_id IS NOT NULL
+            )
+        )
     ORDER BY
         t.inserted_at DESC
     LIMIT 20000
@@ -165,6 +207,7 @@ type CountTasksParams struct {
 	WorkerId                      *uuid.UUID         `json:"workerId"`
 	TriggeringEventExternalId     *uuid.UUID         `json:"triggeringEventExternalId"`
 	IdempotencyKeys               *[]string          `json:"idempotencyKeys"`
+	ExternalIds                   *[]uuid.UUID       `json:"externalIds"`
 	AdditionalMetadataContainsAny [][]byte           `json:"additionalMetadataContainsAny"`
 }
 
@@ -179,6 +222,7 @@ func (q *Queries) CountTasks(ctx context.Context, db DBTX, arg CountTasksParams)
 		arg.WorkerId,
 		arg.TriggeringEventExternalId,
 		arg.IdempotencyKeys,
+		arg.ExternalIds,
 	}
 
 	if len(arg.AdditionalMetadataContainsAny) > 0 {
@@ -244,6 +288,16 @@ WITH filtered AS (
 			$11::TEXT[] IS NULL
 			OR idempotency_key = ANY($11::TEXT[])
 		)
+		AND (
+			$12::UUID[] IS NULL
+			OR (id, inserted_at) IN (
+				SELECT COALESCE(lkp.dag_id, lkp.task_id), lkp.inserted_at
+				FROM v1_lookup_table_olap lkp
+				WHERE
+					lkp.tenant_id = $1::uuid
+					AND lkp.external_id = ANY($12::UUID[])
+			)
+		)
     LIMIT 20000
 )
 
@@ -299,6 +353,16 @@ WITH filtered AS (
 		AND (
 			$11::TEXT[] IS NULL
 			OR idempotency_key = ANY($11::TEXT[])
+		)
+		AND (
+			$12::UUID[] IS NULL
+			OR (id, inserted_at) IN (
+				SELECT COALESCE(lkp.dag_id, lkp.task_id), lkp.inserted_at
+				FROM v1_lookup_table_olap lkp
+				WHERE
+					lkp.tenant_id = $1::uuid
+					AND lkp.external_id = ANY($12::UUID[])
+			)
 		)
     LIMIT 20000
 )
@@ -356,6 +420,16 @@ WITH filtered AS (
 			$11::TEXT[] IS NULL
 			OR idempotency_key = ANY($11::TEXT[])
 		)
+		AND (
+			$12::UUID[] IS NULL
+			OR (id, inserted_at) IN (
+				SELECT COALESCE(lkp.dag_id, lkp.task_id), lkp.inserted_at
+				FROM v1_lookup_table_olap lkp
+				WHERE
+					lkp.tenant_id = $1::uuid
+					AND lkp.external_id = ANY($12::UUID[])
+			)
+		)
     LIMIT 20000
 )
 
@@ -399,6 +473,7 @@ type CountWorkflowRunsParams struct {
 	AdditionalMetadataContainsAny [][]byte           `json:"additionalMetadataContainsAny"`
 	AdditionalMetadataContainsAll []byte             `json:"additionalMetadataContainsAll"`
 	IdempotencyKeys               *[]string          `json:"idempotencyKeys"`
+	ExternalIds                   *[]uuid.UUID       `json:"externalIds"`
 }
 
 func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkflowRunsParams) (int64, error) {
@@ -426,6 +501,7 @@ func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkf
 		arg.TriggeringEventExternalId,
 		metadataContains,
 		arg.IdempotencyKeys,
+		arg.ExternalIds,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -482,6 +558,16 @@ WHERE
         $13::TEXT[] IS NULL
         OR idempotency_key = ANY($13::TEXT[])
     )
+    AND (
+        $14::UUID[] IS NULL
+        OR (id, inserted_at) IN (
+            SELECT COALESCE(lkp.dag_id, lkp.task_id), lkp.inserted_at
+            FROM v1_lookup_table_olap lkp
+            WHERE
+                lkp.tenant_id = $1::uuid
+                AND lkp.external_id = ANY($14::UUID[])
+        )
+    )
 ORDER BY inserted_at DESC, id DESC
 LIMIT $9::integer
 OFFSET $8::integer
@@ -533,6 +619,16 @@ WHERE
     AND (
         $13::TEXT[] IS NULL
         OR idempotency_key = ANY($13::TEXT[])
+    )
+    AND (
+        $14::UUID[] IS NULL
+        OR (id, inserted_at) IN (
+            SELECT COALESCE(lkp.dag_id, lkp.task_id), lkp.inserted_at
+            FROM v1_lookup_table_olap lkp
+            WHERE
+                lkp.tenant_id = $1::uuid
+                AND lkp.external_id = ANY($14::UUID[])
+        )
     )
 ORDER BY inserted_at DESC, id DESC
 LIMIT $9::integer
@@ -586,6 +682,16 @@ WHERE
         $13::TEXT[] IS NULL
         OR idempotency_key = ANY($13::TEXT[])
     )
+    AND (
+        $14::UUID[] IS NULL
+        OR (id, inserted_at) IN (
+            SELECT COALESCE(lkp.dag_id, lkp.task_id), lkp.inserted_at
+            FROM v1_lookup_table_olap lkp
+            WHERE
+                lkp.tenant_id = $1::uuid
+                AND lkp.external_id = ANY($14::UUID[])
+        )
+    )
 ORDER BY inserted_at DESC, id DESC
 LIMIT $9::integer
 OFFSET $8::integer
@@ -606,6 +712,7 @@ type FetchWorkflowRunIdsParams struct {
 	AdditionalMetadataContainsAny [][]byte           `json:"additionalMetadataContainsAny"`
 	AdditionalMetadataContainsAll []byte             `json:"additionalMetadataContainsAll"`
 	IdempotencyKeys               *[]string          `json:"idempotencyKeys"`
+	ExternalIds                   *[]uuid.UUID       `json:"externalIds"`
 }
 
 type FetchWorkflowRunIdsRow struct {
@@ -642,6 +749,7 @@ func (q *Queries) FetchWorkflowRunIds(ctx context.Context, db DBTX, arg FetchWor
 		arg.TriggeringEventExternalId,
 		metadataContains,
 		arg.IdempotencyKeys,
+		arg.ExternalIds,
 	)
 
 	if err != nil {
@@ -703,6 +811,27 @@ WHERE
         $10::TEXT[] IS NULL
         OR idempotency_key = ANY($10::TEXT[])
     )
+    AND (
+        $11::UUID[] IS NULL
+        OR (id, inserted_at) IN (
+            SELECT lkp.task_id, lkp.inserted_at
+            FROM v1_lookup_table_olap lkp
+            WHERE
+                lkp.tenant_id = $1::uuid
+                AND lkp.external_id = ANY($11::UUID[])
+                AND lkp.task_id IS NOT NULL
+
+            UNION ALL
+
+            SELECT dt.task_id, dt.task_inserted_at
+            FROM v1_lookup_table_olap lkp
+            JOIN v1_dag_to_task_olap dt ON (dt.dag_id, dt.dag_inserted_at) = (lkp.dag_id, lkp.inserted_at)
+            WHERE
+                lkp.tenant_id = $1::uuid
+                AND lkp.external_id = ANY($11::UUID[])
+                AND lkp.dag_id IS NOT NULL
+        )
+    )
 ORDER BY
     inserted_at DESC
 LIMIT $8::integer
@@ -719,7 +848,7 @@ WITH matching_runs AS MATERIALIZED (
         v1_runs_olap r
     WHERE
         r.tenant_id = $1::uuid
-        AND r.additional_metadata @> ANY($11::jsonb[])
+        AND r.additional_metadata @> ANY($12::jsonb[])
         AND (
             $4::timestamptz IS NULL
             OR r.inserted_at <= $4::timestamptz
@@ -784,6 +913,27 @@ WHERE
         $10::TEXT[] IS NULL
         OR t.idempotency_key = ANY($10::TEXT[])
     )
+    AND (
+        $11::UUID[] IS NULL
+        OR (t.id, t.inserted_at) IN (
+            SELECT lkp.task_id, lkp.inserted_at
+            FROM v1_lookup_table_olap lkp
+            WHERE
+                lkp.tenant_id = $1::uuid
+                AND lkp.external_id = ANY($11::UUID[])
+                AND lkp.task_id IS NOT NULL
+
+            UNION ALL
+
+            SELECT dt.task_id, dt.task_inserted_at
+            FROM v1_lookup_table_olap lkp
+            JOIN v1_dag_to_task_olap dt ON (dt.dag_id, dt.dag_inserted_at) = (lkp.dag_id, lkp.inserted_at)
+            WHERE
+                lkp.tenant_id = $1::uuid
+                AND lkp.external_id = ANY($11::UUID[])
+                AND lkp.dag_id IS NOT NULL
+        )
+    )
 ORDER BY
     t.inserted_at DESC
 LIMIT $8::integer
@@ -801,6 +951,7 @@ type ListTasksOlapParams struct {
 	Tasklimit                     int32              `json:"tasklimit"`
 	TriggeringEventExternalId     *uuid.UUID         `json:"triggeringEventExternalId"`
 	IdempotencyKeys               *[]string          `json:"idempotencyKeys"`
+	ExternalIds                   *[]uuid.UUID       `json:"externalIds"`
 	AdditionalMetadataContainsAny [][]byte           `json:"additionalMetadataContainsAny"`
 }
 
@@ -822,6 +973,7 @@ func (q *Queries) ListTasksOlap(ctx context.Context, db DBTX, arg ListTasksOlapP
 		arg.Tasklimit,
 		arg.TriggeringEventExternalId,
 		arg.IdempotencyKeys,
+		arg.ExternalIds,
 	}
 
 	if len(arg.AdditionalMetadataContainsAny) > 0 {

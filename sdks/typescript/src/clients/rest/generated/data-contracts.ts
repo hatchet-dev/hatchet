@@ -300,13 +300,6 @@ export enum V1ConcurrencyLimitStrategy {
   V1ConcurrencyLimitStrategyCancelQueuedExceptOldest = 'CANCEL_QUEUED_EXCEPT_OLDEST',
 }
 
-/** Where a concurrency strategy is defined. SHARED strategies are named, tenant-wide and can be used by tasks in several workflows. */
-export enum V1ConcurrencyScope {
-  V1ConcurrencyScopeShared = 'SHARED',
-  V1ConcurrencyScopeWorkflow = 'WORKFLOW',
-  V1ConcurrencyScopeTask = 'TASK',
-}
-
 export enum TenantEnvironment {
   Local = 'local',
   Development = 'development',
@@ -343,6 +336,19 @@ export enum V1DurableEventLogKind {
   RUN = 'RUN',
   WAIT_FOR = 'WAIT_FOR',
   MEMO = 'MEMO',
+}
+
+/** Whether a run holds a concurrency key (it counts towards the key's max runs) or is queued waiting for it. */
+export enum V1ConcurrencySlotState {
+  V1ConcurrencySlotStateHolding = 'HOLDING',
+  V1ConcurrencySlotStateQueued = 'QUEUED',
+}
+
+/** Where a concurrency strategy is defined. SHARED strategies are named, tenant-wide and can be used by tasks in several workflows. */
+export enum V1ConcurrencyScope {
+  V1ConcurrencyScopeShared = 'SHARED',
+  V1ConcurrencyScopeWorkflow = 'WORKFLOW',
+  V1ConcurrencyScopeTask = 'TASK',
 }
 
 export enum V1RunningFilter {

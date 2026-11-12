@@ -105,6 +105,30 @@ type ConcurrencyOverviewRepository interface {
 	// ListKeys returns a page of a strategy's keys and the total number of matching keys.
 	// Returns ErrConcurrencyStrategyNotFound if the strategy does not exist in the given scope.
 	ListKeys(ctx context.Context, tenantId uuid.UUID, scope ConcurrencyScope, strategyId int64, opts ListConcurrencyKeysOpts) ([]*ConcurrencyKey, int64, error)
+
+	// ListSlotExternalIds returns the runs and tasks holding or queued on a key of a strategy.
+	// A strategy that does not exist in the scope has no slots, so it returns no ids.
+	ListSlotExternalIds(ctx context.Context, tenantId uuid.UUID, scope ConcurrencyScope, strategyId int64, key string, opts ListConcurrencySlotExternalIdsOpts) (*ConcurrencySlotExternalIds, error)
+}
+
+// The ids are sent to the OLAP database as one array parameter, and a hot key can have far more
+// queued runs than a dashboard needs. Holding slots are read first, so only queued runs are
+// dropped unless a key's max runs is above the cap.
+const maxConcurrencySlotExternalIds = 10_000
+
+// ListConcurrencySlotExternalIdsOpts filters the slots read by ListSlotExternalIds.
+type ListConcurrencySlotExternalIdsOpts struct {
+	// nil returns both holding and queued slots
+	IsFilled *bool
+}
+
+// ConcurrencySlotExternalIds are the runs and tasks using a key. Run ids filter the runs list and
+// task ids filter the task-only list.
+type ConcurrencySlotExternalIds struct {
+	RunExternalIds []uuid.UUID
+
+	// Nil for workflow strategies, whose slots are held by the run as a whole.
+	TaskExternalIds []uuid.UUID
 }
 
 type concurrencyOverviewRepository struct {
@@ -549,4 +573,62 @@ func textPtr(t pgtype.Text) *string {
 	}
 
 	return &t.String
+}
+
+func (r *concurrencyOverviewRepository) ListSlotExternalIds(ctx context.Context, tenantId uuid.UUID, scope ConcurrencyScope, strategyId int64, key string, opts ListConcurrencySlotExternalIdsOpts) (*ConcurrencySlotExternalIds, error) {
+	isFilled := pgtype.Bool{}
+
+	if opts.IsFilled != nil {
+		isFilled = pgtype.Bool{Bool: *opts.IsFilled, Valid: true}
+	}
+
+	switch scope {
+	case ConcurrencyScopeWorkflow:
+		runIds, err := r.queries.ListWorkflowConcurrencySlotRunIds(ctx, r.pool.ForTenant(tenantId), sqlcv1.ListWorkflowConcurrencySlotRunIdsParams{
+			Tenantid:   tenantId,
+			Strategyid: strategyId,
+			Key:        key,
+			IsFilled:   isFilled,
+			Maxids:     maxConcurrencySlotExternalIds,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to list workflow concurrency slot run ids: %w", err)
+		}
+
+		return &ConcurrencySlotExternalIds{RunExternalIds: runIds}, nil
+	case ConcurrencyScopeTask, ConcurrencyScopeShared:
+		rows, err := r.queries.ListConcurrencySlotExternalIds(ctx, r.pool.ForTenant(tenantId), sqlcv1.ListConcurrencySlotExternalIdsParams{
+			Tenantid:   tenantId,
+			Strategyid: strategyId,
+			Key:        key,
+			IsFilled:   isFilled,
+			Maxids:     maxConcurrencySlotExternalIds,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to list concurrency slot external ids: %w", err)
+		}
+
+		res := &ConcurrencySlotExternalIds{
+			RunExternalIds:  make([]uuid.UUID, 0, len(rows)),
+			TaskExternalIds: make([]uuid.UUID, 0, len(rows)),
+		}
+
+		// tasks of the same DAG run hold separate slots
+		seenRuns := make(map[uuid.UUID]struct{}, len(rows))
+
+		for _, row := range rows {
+			res.TaskExternalIds = append(res.TaskExternalIds, row.ExternalID)
+
+			if _, ok := seenRuns[row.WorkflowRunID]; !ok {
+				seenRuns[row.WorkflowRunID] = struct{}{}
+				res.RunExternalIds = append(res.RunExternalIds, row.WorkflowRunID)
+			}
+		}
+
+		return res, nil
+	default:
+		return nil, fmt.Errorf("invalid concurrency scope %q", scope)
+	}
 }

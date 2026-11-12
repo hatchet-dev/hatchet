@@ -10,6 +10,16 @@ V1ConcurrencyScope:
     - V1ConcurrencyScopeWorkflow
     - V1ConcurrencyScopeTask
 
+V1ConcurrencySlotState:
+  type: string
+  description: Whether a run holds a concurrency key (it counts towards the key's max runs) or is queued waiting for it.
+  enum:
+    - HOLDING
+    - QUEUED
+  x-enum-varnames:
+    - V1ConcurrencySlotStateHolding
+    - V1ConcurrencySlotStateQueued
+
 V1ConcurrencyLimitStrategy:
   type: string
   description: What happens to a run when its key has no free slot. NONE is the database default and is not set on registered strategies.

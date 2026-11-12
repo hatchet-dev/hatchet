@@ -102,6 +102,7 @@ import {
   V1CancelledTasks,
   V1ConcurrencyKeyList,
   V1ConcurrencyScope,
+  V1ConcurrencySlotState,
   V1ConcurrencyStrategyList,
   V1CreateFilterRequest,
   V1CreateServerlessEndpointRequest,
@@ -545,6 +546,17 @@ export class Api<
       running_filter?: V1RunningFilter;
       /** The idempotency key(s) to filter for */
       idempotency_keys?: string[];
+      /** The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`. */
+      concurrency_scope?: V1ConcurrencyScope;
+      /**
+       * The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`.
+       * @format int64
+       */
+      concurrency_strategy_id?: number;
+      /** Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`. */
+      concurrency_key?: string;
+      /** Narrows the concurrency key filter to runs holding the key or to runs queued on it. Returns both if unset. */
+      concurrency_slot_state?: V1ConcurrencySlotState;
       /** A flag for whether or not to count the matching runs in order to populate `pagination.num_pages`. Defaults to `true` if unset. When `false`, `pagination.num_pages` is `0`, and the count can be fetched separately from the count endpoint. */
       include_num_pages?: boolean;
     },
@@ -616,6 +628,17 @@ export class Api<
       running_filter?: V1RunningFilter;
       /** The idempotency key(s) to filter for */
       idempotency_keys?: string[];
+      /** The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`. */
+      concurrency_scope?: V1ConcurrencyScope;
+      /**
+       * The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`.
+       * @format int64
+       */
+      concurrency_strategy_id?: number;
+      /** Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`. */
+      concurrency_key?: string;
+      /** Narrows the concurrency key filter to runs holding the key or to runs queued on it. Returns both if unset. */
+      concurrency_slot_state?: V1ConcurrencySlotState;
     },
     params: RequestParams = {},
   ) =>

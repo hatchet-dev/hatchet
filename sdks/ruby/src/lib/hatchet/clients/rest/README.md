@@ -406,6 +406,7 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::V1ConcurrencyKeyList](docs/V1ConcurrencyKeyList.md)
  - [HatchetSdkRest::V1ConcurrencyLimitStrategy](docs/V1ConcurrencyLimitStrategy.md)
  - [HatchetSdkRest::V1ConcurrencyScope](docs/V1ConcurrencyScope.md)
+ - [HatchetSdkRest::V1ConcurrencySlotState](docs/V1ConcurrencySlotState.md)
  - [HatchetSdkRest::V1ConcurrencyStrategy](docs/V1ConcurrencyStrategy.md)
  - [HatchetSdkRest::V1ConcurrencyStrategyList](docs/V1ConcurrencyStrategyList.md)
  - [HatchetSdkRest::V1ConcurrencyStrategyUsage](docs/V1ConcurrencyStrategyUsage.md)

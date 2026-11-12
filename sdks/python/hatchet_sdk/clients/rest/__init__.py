@@ -313,6 +313,9 @@ from hatchet_sdk.clients.rest.models.v1_concurrency_limit_strategy import (
     V1ConcurrencyLimitStrategy,
 )
 from hatchet_sdk.clients.rest.models.v1_concurrency_scope import V1ConcurrencyScope
+from hatchet_sdk.clients.rest.models.v1_concurrency_slot_state import (
+    V1ConcurrencySlotState,
+)
 from hatchet_sdk.clients.rest.models.v1_concurrency_strategy import (
     V1ConcurrencyStrategy,
 )

@@ -124,6 +124,8 @@ V1EventList:
   $ref: "./v1/event.yaml#/V1EventList"
 V1ConcurrencyScope:
   $ref: "./v1/concurrency.yaml#/V1ConcurrencyScope"
+V1ConcurrencySlotState:
+  $ref: "./v1/concurrency.yaml#/V1ConcurrencySlotState"
 V1ConcurrencyLimitStrategy:
   $ref: "./v1/concurrency.yaml#/V1ConcurrencyLimitStrategy"
 V1ConcurrencyStrategyUsage:
