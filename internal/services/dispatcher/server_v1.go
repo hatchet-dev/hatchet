@@ -2055,6 +2055,9 @@ func (d *DispatcherServiceImpl) TriggerDAGSteps(ctx context.Context, tenantId uu
 
 	invocationCount := ingestionResult.TriggerRunsResult.InvocationCount
 	results := make([]*operator.DAGStepTriggerResult, len(reqs))
+	satisfiedEntries := make([]*v1.IngestTriggerRunsEntry, 0, len(reqs))
+
+	var replayErr error
 
 	for i, req := range reqs {
 		entry, ok := entryByChildExternalId[triggerOpts[i].ExternalId]
@@ -2063,15 +2066,12 @@ func (d *DispatcherServiceImpl) TriggerDAGSteps(ctx context.Context, tenantId uu
 			return nil, fmt.Errorf("no durable log entry returned for dag step %s", req.ActionId)
 		}
 
-		// the operator is blocked in this call and its session channel is unbuffered
 		if entry.IsSatisfied {
-			go d.deliverSatisfiedDAGStep(tenantId, task.ExternalID, invocationCount, entry)
+			satisfiedEntries = append(satisfiedEntries, entry)
 		}
 
 		if entry.ChildNeedsReplay {
-			if err := d.replayDAGStepChild(ctx, tenantId, entry.WorkflowRunExternalId); err != nil {
-				return nil, err
-			}
+			replayErr = errors.Join(replayErr, d.replayDAGStepChild(ctx, tenantId, entry.WorkflowRunExternalId))
 		}
 
 		results[i] = &operator.DAGStepTriggerResult{
@@ -2086,7 +2086,14 @@ func (d *DispatcherServiceImpl) TriggerDAGSteps(ctx context.Context, tenantId uu
 		}
 	}
 
-	return results, nil
+	// the operator is blocked in this call and its session channel is unbuffered
+	go func() {
+		for _, entry := range satisfiedEntries {
+			d.deliverSatisfiedDAGStep(tenantId, task.ExternalID, invocationCount, entry)
+		}
+	}()
+
+	return results, replayErr
 }
 
 func (d *DispatcherServiceImpl) deliverSatisfiedDAGStep(tenantId, orchestratorExternalId uuid.UUID, invocationCount int32, entry *v1.IngestTriggerRunsEntry) {

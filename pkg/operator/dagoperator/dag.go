@@ -123,7 +123,7 @@ type stepTriggerRequest struct {
 	parentReExecuted bool
 }
 
-// triggerStepsFn triggers every step of one ready wave together and returns one result per
+// triggerStepsFn triggers a batch of ready steps together and returns one result per
 // request, in request order.
 type triggerStepsFn = func(ctx context.Context, reqs []stepTriggerRequest) ([]*operator.DAGStepTriggerResult, error)
 
@@ -449,7 +449,20 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 	}
 
 	stillPending := d.pendingTasks[:0]
-	wave := make([]readyStep, 0)
+	readySteps := make([]readyStep, 0)
+
+	registerConditionAfterTriggeringReadySteps := func(t *task, kind conditionKind, satisfiedGroups ...map[uuid.UUID]bool) error {
+		if len(readySteps) > 0 {
+			if err := d.triggerReadySteps(ctx, readySteps); err != nil {
+				return err
+			}
+
+			readySteps = readySteps[:0]
+			progressed = true
+		}
+
+		return d.registerCondition(ctx, t, kind, satisfiedGroups...)
+	}
 
 	for _, t := range d.pendingTasks {
 		if t.isTriggered || t.isSkipped {
@@ -489,7 +502,7 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 						continue
 					}
 
-					if err := d.registerCondition(ctx, t, conditionKindSkip); err != nil {
+					if err := registerConditionAfterTriggeringReadySteps(t, conditionKindSkip); err != nil {
 						d.err = err
 						return progressed, d.err
 					}
@@ -502,7 +515,7 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 						continue
 					}
 
-					if err := d.registerCondition(ctx, t, conditionKindCancel); err != nil {
+					if err := registerConditionAfterTriggeringReadySteps(t, conditionKindCancel); err != nil {
 						d.err = err
 						return progressed, d.err
 					}
@@ -527,7 +540,7 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 								continue
 							}
 
-							if err := d.registerCondition(ctx, t, conditionKindWait, satisfiedGroups); err != nil {
+							if err := registerConditionAfterTriggeringReadySteps(t, conditionKindWait, satisfiedGroups); err != nil {
 								d.err = err
 								return progressed, d.err
 							}
@@ -560,21 +573,30 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 			}
 		}
 
-		wave = append(wave, readyStep{task: t, isSkipped: skip, isCancelled: cancelled, parentReExecuted: parentReExecuted})
+		readySteps = append(readySteps, readyStep{task: t, isSkipped: skip, isCancelled: cancelled, parentReExecuted: parentReExecuted})
 	}
 
 	d.pendingTasks = stillPending
 
-	if len(wave) == 0 {
+	if len(readySteps) == 0 {
 		return progressed, nil
 	}
 
-	// every step of the wave shares the parents that finished before it, so one trigger call
-	// appends and spawns the whole wave at once instead of a round trip per step
-	parentTaskRunIds := d.finishedTaskRunIds()
-	reqs := make([]stepTriggerRequest, len(wave))
+	if err := d.triggerReadySteps(ctx, readySteps); err != nil {
+		d.err = err
+		return progressed, d.err
+	}
 
-	for i, step := range wave {
+	return true, nil
+}
+
+func (d *dag) triggerReadySteps(ctx context.Context, readySteps []readyStep) error {
+	// every ready step shares the parents that finished before it, so one trigger call
+	// appends and spawns all of them at once instead of a round trip per step
+	parentTaskRunIds := d.finishedTaskRunIds()
+	reqs := make([]stepTriggerRequest, len(readySteps))
+
+	for i, step := range readySteps {
 		reqs[i] = stepTriggerRequest{
 			actionId:         step.task.actionId,
 			workflowName:     step.task.workflowName,
@@ -588,23 +610,33 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 
 	results, err := d.triggerSteps(ctx, reqs)
 	if err != nil {
-		d.err = fmt.Errorf("failed to trigger %d ready steps: %w", len(wave), err)
-		return progressed, d.err
+		recordChildrenCreatedBeforeTriggerFailure(readySteps, results)
+
+		return fmt.Errorf("failed to trigger %d ready steps: %w", len(readySteps), err)
 	}
 
-	if len(results) != len(wave) {
-		d.err = fmt.Errorf("triggered %d steps but received %d results", len(wave), len(results))
-		return progressed, d.err
+	if len(results) != len(readySteps) {
+		return fmt.Errorf("triggered %d steps but received %d results", len(readySteps), len(results))
 	}
 
-	for i, step := range wave {
+	for i, step := range readySteps {
 		if err := d.applyTriggerResult(ctx, step, results[i]); err != nil {
-			d.err = err
-			return true, d.err
+			return err
 		}
 	}
 
-	return true, nil
+	return nil
+}
+
+func recordChildrenCreatedBeforeTriggerFailure(readySteps []readyStep, results []*operator.DAGStepTriggerResult) {
+	if len(results) != len(readySteps) {
+		return
+	}
+
+	for i, step := range readySteps {
+		step.task.workflowRunExternalId = &results[i].WorkflowRunExternalId
+		step.task.isTriggered = true
+	}
 }
 
 // readyStep is a step whose parents all finished, together with the decision the dag took
