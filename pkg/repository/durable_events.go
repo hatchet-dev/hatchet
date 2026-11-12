@@ -1927,7 +1927,6 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 	// the previous completion match was consumed when the old entry was satisfied, so a fresh
 	// match tied to the new entry must be registered before the caller replays the task.
 	replayMatchOptsByTenantId := make(map[uuid.UUID][]CreateMatchOpts)
-	stepChildrenSkipMatchByTenantId := make(map[uuid.UUID]bool)
 
 	for _, taskId := range taskIds {
 		plan, ok := planByTaskId[taskId]
@@ -1937,11 +1936,6 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 		}
 
 		task := plan.opts.Task
-		tenantId := plan.opts.TenantId
-
-		if _, checked := stepChildrenSkipMatchByTenantId[tenantId]; !checked {
-			stepChildrenSkipMatchByTenantId[tenantId] = r.operatorStepChildrenSkipCompletionMatch(ctx, tenantId)
-		}
 
 		for _, le := range logEntriesByTaskId[taskId] {
 			if le.AlreadyExisted || le.Entry.IsSatisfied || !le.Entry.TriggeredAt.Valid || le.Entry.ChildTaskExternalID == nil {
@@ -1950,11 +1944,8 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 
 			childExternalId := *le.Entry.ChildTaskExternalID
 
-			// a re-executed operator step child satisfies its new entry in its own finalize transaction
-			if triggerOpts, ok := plan.childExternalIdToTriggerOpts[childExternalId]; ok && triggerOpts.IsDagStepTrigger && stepChildrenSkipMatchByTenantId[tenantId] {
-				continue
-			}
-
+			// re-executed operator step children keep this match even with direct completion: the replay
+			// can create the child already FAILED, which is never finalized and only emits a FAILED event
 			childHint := childExternalId.String()
 			orGroupId := uuid.New()
 
@@ -2357,8 +2348,9 @@ func (r *durableEventsRepository) TriggerPendingRunEntries(ctx context.Context, 
 			continue
 		}
 
-		// an operator step child satisfies its entry in its own finalize transaction, see satisfyOperatorStepChildEntries
-		if _, isDagStepChild := dagStepChildExternalIds[ct.ExternalID]; isDagStepChild {
+		// an operator step child satisfies its entry in its own finalize transaction, see satisfyOperatorStepChildEntries.
+		// a child created already FAILED is never finalized, so its FAILED internal event still needs this match.
+		if _, isDagStepChild := dagStepChildExternalIds[ct.ExternalID]; isDagStepChild && ct.InitialState == sqlcv1.V1TaskInitialStateQUEUED {
 			continue
 		}
 

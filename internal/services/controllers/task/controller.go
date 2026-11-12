@@ -905,6 +905,13 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 
 	tenantMetricsEnabled := tc.promGate.Enabled(ctx, tenantId)
 
+	recordFailedTask := func() {
+		prometheus.FailedTasks.Inc()
+		if tenantMetricsEnabled {
+			prometheus.TenantFailedTasks.WithLabelValues(tenantId.String()).Inc()
+		}
+	}
+
 	for _, e := range res.InternalEvents {
 		// if the task is retried, don't send a message to the trigger queue
 		if _, ok := retriedTaskIds[e.TaskID]; ok {
@@ -916,10 +923,16 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 		}
 
 		internalEventsWithoutRetries = append(internalEventsWithoutRetries, e)
-		prometheus.FailedTasks.Inc()
-		if tenantMetricsEnabled {
-			prometheus.TenantFailedTasks.WithLabelValues(tenantId.String()).Inc()
+		recordFailedTask()
+	}
+
+	// operator step children have no internal event, they satisfy their orchestrator's entry directly
+	for _, task := range res.ReleasedTasks {
+		if _, isRetried := retriedTaskIds[task.ID]; isRetried || !task.IsCurrentRetry || !v1.IsOperatorStepChild(task) {
+			continue
 		}
+
+		recordFailedTask()
 	}
 
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
