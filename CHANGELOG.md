@@ -1,3 +1,53 @@
+## [0.120.3] - 2026-11-12
+
+Hatchet v0.120.3 brings durable streams to every SDK, a serverless TypeScript SDK, read-only API tokens, and signed container images. It also includes per-tenant database connection caps, and a large batch of engine, auth, and dashboard fixes.
+
+### Highlights
+
+- **Durable streams**: publish and subscribe to durable stream topics from the Go, Python, Ruby, and TypeScript SDKs, reset a subscription to any cursor, and inspect topics in the dashboard Streams page. See [Durable Streams](https://docs.hatchet.run/v1/durable-streams?utm_source=changelog&utm_campaign=v0.120.3) ([#5348](https://github.com/hatchet-dev/hatchet/pull/5348), [#5335](https://github.com/hatchet-dev/hatchet/pull/5335), [#5285](https://github.com/hatchet-dev/hatchet/pull/5285), [#5410](https://github.com/hatchet-dev/hatchet/pull/5410), [#5248](https://github.com/hatchet-dev/hatchet/pull/5248)).
+- **Serverless TypeScript SDK**: `@hatchet-dev/serverless` runs tasks on Cloudflare Workers and Vercel behind signed HTTP and websocket endpoints, and the dashboard has an Endpoints tab for them. See [Serverless](https://docs.hatchet.run/v1/serverless?utm_source=changelog&utm_campaign=v0.120.3) ([#4949](https://github.com/hatchet-dev/hatchet/pull/4949), [#5334](https://github.com/hatchet-dev/hatchet/pull/5334)).
+- **Read-only API tokens**: a token can be created read-only. It is rejected on every gRPC call and authorized as VIEWER on REST. See [API Tokens](https://docs.hatchet.run/v1/api-tokens?utm_source=changelog&utm_campaign=v0.120.3) ([#5152](https://github.com/hatchet-dev/hatchet/pull/5152)).
+- **Signed images**: every GHCR image is signed with cosign keyless signing and carries an SPDX SBOM attestation. See [Verifying images](https://docs.hatchet.run/self-hosting/docker-compose?utm_source=changelog&utm_campaign=v0.120.3#verifying-images) ([#5382](https://github.com/hatchet-dev/hatchet/pull/5382)).
+- **Per-tenant connection caps**: `DATABASE_FAIRPOOL_TENANT_MAX_PERCENT` and `DATABASE_FAIRPOOL_SHARED_MAX_PERCENT` cap how many pool connections one tenant can hold. A rejected request gets gRPC `ResourceExhausted` or HTTP 429 with `Retry-After`, and `hatchet_fairpool_*` metrics report usage. Caps are off by default ([#5166](https://github.com/hatchet-dev/hatchet/pull/5166), [#5027](https://github.com/hatchet-dev/hatchet/pull/5027), [#5165](https://github.com/hatchet-dev/hatchet/pull/5165), [#5168](https://github.com/hatchet-dev/hatchet/pull/5168)).
+- **Worker acks**: with `SERVER_REASSIGN_UNACKED_TASKS` set, a task whose worker never acknowledged it within a minute is reassigned instead of hanging until its timeout ([#5277](https://github.com/hatchet-dev/hatchet/pull/5277), [#5336](https://github.com/hatchet-dev/hatchet/pull/5336)).
+- **Run count aggregates**: dashboard run counts read from new aggregate tables maintained by triggers, so the counts no longer scan the runs table ([#5351](https://github.com/hatchet-dev/hatchet/pull/5351), [#5363](https://github.com/hatchet-dev/hatchet/pull/5363)).
+- **CLI**: `hatchet upgrade` updates the CLI, the CLI is published on npm as `@hatchet-dev/cli`, and API tokens are stored in the system keyring ([#5352](https://github.com/hatchet-dev/hatchet/pull/5352), [#5422](https://github.com/hatchet-dev/hatchet/pull/5422), [#5414](https://github.com/hatchet-dev/hatchet/pull/5414)).
+- Dashboard: a Concurrency page shows every strategy and its keys, the tenant switcher is searchable with recents and keyboard navigation, and JSON errors render with readable stack traces ([#5278](https://github.com/hatchet-dev/hatchet/pull/5278), [#5380](https://github.com/hatchet-dev/hatchet/pull/5380), [#5463](https://github.com/hatchet-dev/hatchet/pull/5463)).
+- Self-hosting: the API process serves Prometheus metrics when `SERVER_PROMETHEUS_ENABLED` is set. Set distinct addresses when the API and engine run on one host. See [Prometheus Metrics](https://docs.hatchet.run/self-hosting/prometheus-metrics?utm_source=changelog&utm_campaign=v0.120.3) ([#5433](https://github.com/hatchet-dev/hatchet/pull/5433)).
+- Self-hosting: audit log tables, an outbox that queues entries in the core database, and a daily job that offloads them to S3 as parquet. Only engine extensions such as Hatchet Cloud write entries ([#5389](https://github.com/hatchet-dev/hatchet/pull/5389), [#5441](https://github.com/hatchet-dev/hatchet/pull/5441), [#5407](https://github.com/hatchet-dev/hatchet/pull/5407)).
+- Engine: cron changes are delivered over pub/sub instead of a RabbitMQ queue, and the retired `ticker_update_queue_v2` queue is deleted at startup ([#5411](https://github.com/hatchet-dev/hatchet/pull/5411)).
+
+### Security
+
+- Auth: a crafted URL-encoded path could let a VIEWER read ADMIN-only lists. Authorization now uses the route echo matched, and linking a Slack webhook requires MEMBER ([#5372](https://github.com/hatchet-dev/hatchet/pull/5372)).
+- Auth: the session ID is rotated on login and password change, a password change revokes the user's other sessions, and a deleted session is never re-created under its old ID ([#5406](https://github.com/hatchet-dev/hatchet/pull/5406)).
+- Auth: Google logins with an unverified email are rejected before any write ([#5398](https://github.com/hatchet-dev/hatchet/pull/5398)).
+- Auth: instances that accept control-plane exchange tokens refuse password, OAuth, and session-cookie login ([#5455](https://github.com/hatchet-dev/hatchet/pull/5455)).
+- Engine: in-flight durable task requests are bounded per stream and per tenant, so a client that stops reading can no longer grow engine memory without limit ([#5379](https://github.com/hatchet-dev/hatchet/pull/5379)).
+- Engine: stream message persistence failures no longer leak the internal error to the caller ([#5365](https://github.com/hatchet-dev/hatchet/pull/5365)).
+
+### Fixed
+
+- Engine: a durable task no longer hangs until eviction when its stream disconnects ([#5307](https://github.com/hatchet-dev/hatchet/pull/5307)).
+- Engine: a DAG child receives its parent's output after the parent is replayed, DAG replays no longer take a tenant-wide advisory lock, and noisy DAG operator errors are gone ([#5338](https://github.com/hatchet-dev/hatchet/pull/5338), [#5283](https://github.com/hatchet-dev/hatchet/pull/5283), [#5353](https://github.com/hatchet-dev/hatchet/pull/5353)).
+- Engine: a dispatcher releases its operators on shutdown and stops claiming new ones, so DAGs no longer fail with 20 retries into a worker that is gone ([#5366](https://github.com/hatchet-dev/hatchet/pull/5366)).
+- Engine: a claimed operator releases its superseded worker's action links. Each restart previously leaked a copy of the action catalog until the budget ran out and every run of the tenant stayed queued ([#5438](https://github.com/hatchet-dev/hatchet/pull/5438)).
+- Engine: an event that arrives just before a worker registers a workflow on its key no longer silently creates no runs for 5s. Creating a workflow version drops the cached event-key lists on every engine ([#5480](https://github.com/hatchet-dev/hatchet/pull/5480)).
+- Engine: a scheduler releases its concurrency topic leases when it hands a tenant off, so the next scheduler no longer waits out the full lease ([#5485](https://github.com/hatchet-dev/hatchet/pull/5485)).
+- Engine: short worker stream stalls no longer trigger bulk assignment retries. The send-lock wait is 1s and slow sends are reported as events ([#5457](https://github.com/hatchet-dev/hatchet/pull/5457)).
+- Engine: the dispatcher reads tasks, inputs, and runtimes in one statement, caches worker lookups on the scheduler, and no longer publishes empty bulk assignment messages ([#5290](https://github.com/hatchet-dev/hatchet/pull/5290)).
+- Engine: stream subscribers poll only when the topic has new messages, and one slow subscriber no longer blocks the others on the same topic ([#5412](https://github.com/hatchet-dev/hatchet/pull/5412)).
+- Engine: deadlocks on DAG creation, task acks, and the aggregate migration are fixed ([#5345](https://github.com/hatchet-dev/hatchet/pull/5345), [#5337](https://github.com/hatchet-dev/hatchet/pull/5337), [#5357](https://github.com/hatchet-dev/hatchet/pull/5357)).
+- Engine: partition drops use the partition's real upper bound instead of its name suffix, writes into dropped partitions are no longer retried forever, and the task status update query prunes partitions ([#5388](https://github.com/hatchet-dev/hatchet/pull/5388), [#5344](https://github.com/hatchet-dev/hatchet/pull/5344), [#5343](https://github.com/hatchet-dev/hatchet/pull/5343)).
+- Engine: a partial index on unfilled concurrency slots stops a paused workflow from capping trigger throughput, new aggregate tables are analyzed, and unused indexes and the `v1_statuses_olap` triggers are dropped ([#5418](https://github.com/hatchet-dev/hatchet/pull/5418), [#5373](https://github.com/hatchet-dev/hatchet/pull/5373), [#5428](https://github.com/hatchet-dev/hatchet/pull/5428), [#5371](https://github.com/hatchet-dev/hatchet/pull/5371)).
+- Engine: `additional_metadata` is read and written only on the OLAP runs table ([#5391](https://github.com/hatchet-dev/hatchet/pull/5391), [#5392](https://github.com/hatchet-dev/hatchet/pull/5392)).
+- Engine: a `ResourceExhausted` reply is no longer retried in a loop ([#5369](https://github.com/hatchet-dev/hatchet/pull/5369)).
+- Engine: bulk gRPC handlers report each item's own correlation ID to callbacks ([#5450](https://github.com/hatchet-dev/hatchet/pull/5450)).
+- Alerts: failure alerts select runs by finish time, so a run that was queued before one alert and failed after it is no longer missed ([#5405](https://github.com/hatchet-dev/hatchet/pull/5405)).
+- API: creating a cron trigger with an invalid expression returns 400 instead of storing a cron that the ticker later deleted ([#5471](https://github.com/hatchet-dev/hatchet/pull/5471)).
+- API: tenant members can list API tokens read-only, and the dashboard disables create and revoke for roles below ADMIN ([#5413](https://github.com/hatchet-dev/hatchet/pull/5413)).
+- Dashboard: the concurrency strategies table scrolls inside its panel, and the tenant switcher collapses organizations when there are more than 5 ([#5375](https://github.com/hatchet-dev/hatchet/pull/5375), [#5439](https://github.com/hatchet-dev/hatchet/pull/5439)).
+
 ## [0.114.2] - 2026-10-26
 
 Hatchet v0.114.2 adds rate limit pausing, `RetryAfter` errors, and FIPS images. It also includes a set of security fixes and a large batch of DAG, scheduler, and database fixes.
