@@ -1917,3 +1917,42 @@ FROM (
     HAVING
         NOT @onlyQueued::BOOLEAN OR COUNT(*) FILTER (WHERE NOT is_filled) > 0
 ) k;
+
+-- name: ListConcurrencySlotExternalIds :many
+-- Runs and tasks holding or queued on a key of a task-scoped or shared strategy. Holding slots
+-- sort first so the limit drops queued runs before it drops the ones using the key.
+SELECT
+    workflow_run_id,
+    external_id
+FROM
+    v1_concurrency_slot
+WHERE
+    tenant_id = @tenantId::uuid
+    AND strategy_id = @strategyId::bigint
+    AND key = @key::TEXT
+    AND (
+        sqlc.narg('isFilled')::BOOLEAN IS NULL
+        OR is_filled = sqlc.narg('isFilled')::BOOLEAN
+    )
+ORDER BY
+    is_filled DESC, sort_id ASC
+LIMIT @maxIds::BIGINT;
+
+-- name: ListWorkflowConcurrencySlotRunIds :many
+-- Runs holding or queued on a key of a workflow strategy, ordered as in
+-- ListConcurrencySlotExternalIds.
+SELECT
+    workflow_run_id
+FROM
+    v1_workflow_concurrency_slot
+WHERE
+    tenant_id = @tenantId::uuid
+    AND strategy_id = @strategyId::bigint
+    AND key = @key::TEXT
+    AND (
+        sqlc.narg('isFilled')::BOOLEAN IS NULL
+        OR is_filled = sqlc.narg('isFilled')::BOOLEAN
+    )
+ORDER BY
+    is_filled DESC, sort_id ASC
+LIMIT @maxIds::BIGINT;

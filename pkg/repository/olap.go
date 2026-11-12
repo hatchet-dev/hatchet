@@ -93,6 +93,9 @@ type ListTaskRunOpts struct {
 	IncludeTotalCount bool
 
 	IdempotencyKeys *[]string
+
+	// Task or workflow run external ids. A DAG run's id matches all of its tasks.
+	ExternalIds *[]uuid.UUID
 }
 
 type ListWorkflowRunOpts struct {
@@ -123,6 +126,8 @@ type ListWorkflowRunOpts struct {
 	IncludeTotalCount bool
 
 	IdempotencyKeys *[]string
+
+	ExternalIds *[]uuid.UUID
 }
 
 type ReadTaskRunMetricsOpts struct {
@@ -886,6 +891,10 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId uuid.
 }
 
 func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, opts ListTaskRunOpts) ([]*TaskWithPayloads, int, error) {
+	if matchesNoExternalIds(opts.ExternalIds) {
+		return []*TaskWithPayloads{}, 0, nil
+	}
+
 	readDB := r.readPool.ForTenant(tenantId)
 
 	ctx, span := telemetry.NewSpan(ctx, "list-tasks-olap")
@@ -1171,6 +1180,12 @@ func metadataContainmentObjects(additionalMetadata map[string]interface{}, opera
 	return objects, nil
 }
 
+// matchesNoExternalIds reports whether an external id filter is set but empty. The list and count
+// queries are skipped then, because Postgres would still scan the whole time window to find nothing.
+func matchesNoExternalIds(ids *[]uuid.UUID) bool {
+	return ids != nil && len(*ids) == 0
+}
+
 func listTasksParamsFromOpts(tenantId uuid.UUID, opts ListTaskRunOpts) (sqlcv1.ListTasksOlapParams, error) {
 	metadataContainsAny, err := metadataContainmentObjects(opts.AdditionalMetadata, opts.AdditionalMetadataOperator)
 
@@ -1187,6 +1202,7 @@ func listTasksParamsFromOpts(tenantId uuid.UUID, opts ListTaskRunOpts) (sqlcv1.L
 		TriggeringEventExternalId:     opts.TriggeringEventExternalId,
 		WorkerId:                      opts.WorkerId,
 		IdempotencyKeys:               opts.IdempotencyKeys,
+		ExternalIds:                   opts.ExternalIds,
 		AdditionalMetadataContainsAny: metadataContainsAny,
 	}
 
@@ -1212,6 +1228,7 @@ func countTasksParamsFromListTasksParams(listTasksParams sqlcv1.ListTasksOlapPar
 		TriggeringEventExternalId:     listTasksParams.TriggeringEventExternalId,
 		AdditionalMetadataContainsAny: listTasksParams.AdditionalMetadataContainsAny,
 		IdempotencyKeys:               listTasksParams.IdempotencyKeys,
+		ExternalIds:                   listTasksParams.ExternalIds,
 	}
 }
 
@@ -1231,6 +1248,7 @@ func fetchWorkflowRunIdsParamsFromOpts(tenantId uuid.UUID, opts ListWorkflowRunO
 		ParentTaskExternalId:          opts.ParentTaskExternalId,
 		TriggeringEventExternalId:     opts.TriggeringEventExternalId,
 		IdempotencyKeys:               opts.IdempotencyKeys,
+		ExternalIds:                   opts.ExternalIds,
 		AdditionalMetadataContainsAny: metadataContainsAny,
 	}
 
@@ -1259,10 +1277,15 @@ func countWorkflowRunsParamsFromFetchWorkflowRunIdsParams(fetchWorkflowRunIdsPar
 		AdditionalMetadataContainsAny: fetchWorkflowRunIdsParams.AdditionalMetadataContainsAny,
 		AdditionalMetadataContainsAll: fetchWorkflowRunIdsParams.AdditionalMetadataContainsAll,
 		IdempotencyKeys:               fetchWorkflowRunIdsParams.IdempotencyKeys,
+		ExternalIds:                   fetchWorkflowRunIdsParams.ExternalIds,
 	}
 }
 
 func (r *OLAPRepositoryImpl) CountTasks(ctx context.Context, tenantId uuid.UUID, opts ListTaskRunOpts) (int, error) {
+	if matchesNoExternalIds(opts.ExternalIds) {
+		return 0, nil
+	}
+
 	ctx, span := telemetry.NewSpan(ctx, "count-tasks-olap")
 	defer span.End()
 
@@ -1282,6 +1305,10 @@ func (r *OLAPRepositoryImpl) CountTasks(ctx context.Context, tenantId uuid.UUID,
 }
 
 func (r *OLAPRepositoryImpl) CountWorkflowRuns(ctx context.Context, tenantId uuid.UUID, opts ListWorkflowRunOpts) (int, error) {
+	if matchesNoExternalIds(opts.ExternalIds) {
+		return 0, nil
+	}
+
 	ctx, span := telemetry.NewSpan(ctx, "count-workflow-runs-olap")
 	defer span.End()
 
@@ -1301,6 +1328,10 @@ func (r *OLAPRepositoryImpl) CountWorkflowRuns(ctx context.Context, tenantId uui
 }
 
 func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid.UUID, opts ListWorkflowRunOpts) ([]*WorkflowRunData, int, error) {
+	if matchesNoExternalIds(opts.ExternalIds) {
+		return []*WorkflowRunData{}, 0, nil
+	}
+
 	readDB := r.readPool.ForTenant(tenantId)
 
 	ctx, span := telemetry.NewSpan(ctx, "list-workflow-runs-olap")

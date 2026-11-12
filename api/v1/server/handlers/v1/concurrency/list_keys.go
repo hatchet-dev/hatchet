@@ -16,16 +16,9 @@ import (
 func (t *V1ConcurrencyService) V1ConcurrencyKeyList(ctx echo.Context, request gen.V1ConcurrencyKeyListRequestObject) (gen.V1ConcurrencyKeyListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 
-	var scope repository.ConcurrencyScope
+	scope, ok := transformers.FromV1ConcurrencyScope(request.Scope)
 
-	switch request.Scope {
-	case gen.V1ConcurrencyScopeShared:
-		scope = repository.ConcurrencyScopeShared
-	case gen.V1ConcurrencyScopeWorkflow:
-		scope = repository.ConcurrencyScopeWorkflow
-	case gen.V1ConcurrencyScopeTask:
-		scope = repository.ConcurrencyScopeTask
-	default:
+	if !ok {
 		return gen.V1ConcurrencyKeyList400JSONResponse(apierrors.NewAPIErrors("invalid scope")), nil
 	}
 

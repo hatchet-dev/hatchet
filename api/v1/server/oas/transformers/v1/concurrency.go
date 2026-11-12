@@ -7,6 +7,20 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
+// FromV1ConcurrencyScope returns false for a scope the API does not define.
+func FromV1ConcurrencyScope(scope gen.V1ConcurrencyScope) (repository.ConcurrencyScope, bool) {
+	switch scope {
+	case gen.V1ConcurrencyScopeShared:
+		return repository.ConcurrencyScopeShared, true
+	case gen.V1ConcurrencyScopeWorkflow:
+		return repository.ConcurrencyScopeWorkflow, true
+	case gen.V1ConcurrencyScopeTask:
+		return repository.ConcurrencyScopeTask, true
+	default:
+		return "", false
+	}
+}
+
 // ToV1ConcurrencyStrategy converts a strategy summary to its API representation.
 func ToV1ConcurrencyStrategy(s *repository.ConcurrencyStrategySummary) gen.V1ConcurrencyStrategy {
 	res := gen.V1ConcurrencyStrategy{

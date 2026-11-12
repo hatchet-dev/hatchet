@@ -709,6 +709,66 @@ func (q *Queries) ListConcurrencyKeys(ctx context.Context, db DBTX, arg ListConc
 	return items, nil
 }
 
+const listConcurrencySlotExternalIds = `-- name: ListConcurrencySlotExternalIds :many
+SELECT
+    workflow_run_id,
+    external_id
+FROM
+    v1_concurrency_slot
+WHERE
+    tenant_id = $1::uuid
+    AND strategy_id = $2::bigint
+    AND key = $3::TEXT
+    AND (
+        $4::BOOLEAN IS NULL
+        OR is_filled = $4::BOOLEAN
+    )
+ORDER BY
+    is_filled DESC, sort_id ASC
+LIMIT $5::BIGINT
+`
+
+type ListConcurrencySlotExternalIdsParams struct {
+	Tenantid   uuid.UUID   `json:"tenantid"`
+	Strategyid int64       `json:"strategyid"`
+	Key        string      `json:"key"`
+	IsFilled   pgtype.Bool `json:"isFilled"`
+	Maxids     int64       `json:"maxids"`
+}
+
+type ListConcurrencySlotExternalIdsRow struct {
+	WorkflowRunID uuid.UUID `json:"workflow_run_id"`
+	ExternalID    uuid.UUID `json:"external_id"`
+}
+
+// Runs and tasks holding or queued on a key of a task-scoped or shared strategy. Holding slots
+// sort first so the limit drops queued runs before it drops the ones using the key.
+func (q *Queries) ListConcurrencySlotExternalIds(ctx context.Context, db DBTX, arg ListConcurrencySlotExternalIdsParams) ([]*ListConcurrencySlotExternalIdsRow, error) {
+	rows, err := db.Query(ctx, listConcurrencySlotExternalIds,
+		arg.Tenantid,
+		arg.Strategyid,
+		arg.Key,
+		arg.IsFilled,
+		arg.Maxids,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListConcurrencySlotExternalIdsRow
+	for rows.Next() {
+		var i ListConcurrencySlotExternalIdsRow
+		if err := rows.Scan(&i.WorkflowRunID, &i.ExternalID); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listConcurrencySlotStatsForTenant = `-- name: ListConcurrencySlotStatsForTenant :many
 WITH per_key AS (
     SELECT
@@ -1452,6 +1512,60 @@ func (q *Queries) ListWorkflowConcurrencyKeys(ctx context.Context, db DBTX, arg 
 			return nil, err
 		}
 		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkflowConcurrencySlotRunIds = `-- name: ListWorkflowConcurrencySlotRunIds :many
+SELECT
+    workflow_run_id
+FROM
+    v1_workflow_concurrency_slot
+WHERE
+    tenant_id = $1::uuid
+    AND strategy_id = $2::bigint
+    AND key = $3::TEXT
+    AND (
+        $4::BOOLEAN IS NULL
+        OR is_filled = $4::BOOLEAN
+    )
+ORDER BY
+    is_filled DESC, sort_id ASC
+LIMIT $5::BIGINT
+`
+
+type ListWorkflowConcurrencySlotRunIdsParams struct {
+	Tenantid   uuid.UUID   `json:"tenantid"`
+	Strategyid int64       `json:"strategyid"`
+	Key        string      `json:"key"`
+	IsFilled   pgtype.Bool `json:"isFilled"`
+	Maxids     int64       `json:"maxids"`
+}
+
+// Runs holding or queued on a key of a workflow strategy, ordered as in
+// ListConcurrencySlotExternalIds.
+func (q *Queries) ListWorkflowConcurrencySlotRunIds(ctx context.Context, db DBTX, arg ListWorkflowConcurrencySlotRunIdsParams) ([]uuid.UUID, error) {
+	rows, err := db.Query(ctx, listWorkflowConcurrencySlotRunIds,
+		arg.Tenantid,
+		arg.Strategyid,
+		arg.Key,
+		arg.IsFilled,
+		arg.Maxids,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var workflow_run_id uuid.UUID
+		if err := rows.Scan(&workflow_run_id); err != nil {
+			return nil, err
+		}
+		items = append(items, workflow_run_id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

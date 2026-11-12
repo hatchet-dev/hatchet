@@ -128,6 +128,31 @@ listWorkflowRuns:
           type: array
           items:
             type: string
+      - description: The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`.
+        in: query
+        name: concurrency_scope
+        required: false
+        schema:
+          $ref: "../../../components/schemas/_index.yaml#/V1ConcurrencyScope"
+      - description: The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`.
+        in: query
+        name: concurrency_strategy_id
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`.
+        in: query
+        name: concurrency_key
+        required: false
+        schema:
+          type: string
+      - description: Narrows the concurrency key filter to runs holding the key or to runs queued on it. Returns both if unset.
+        in: query
+        name: concurrency_slot_state
+        required: false
+        schema:
+          $ref: "../../../components/schemas/_index.yaml#/V1ConcurrencySlotState"
       - description: A flag for whether or not to count the matching runs in order to populate `pagination.num_pages`. Defaults to `true` if unset. When `false`, `pagination.num_pages` is `0`, and the count can be fetched separately from the count endpoint.
         in: query
         name: include_num_pages
@@ -275,6 +300,31 @@ countWorkflowRuns:
           type: array
           items:
             type: string
+      - description: The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`.
+        in: query
+        name: concurrency_scope
+        required: false
+        schema:
+          $ref: "../../../components/schemas/_index.yaml#/V1ConcurrencyScope"
+      - description: The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`.
+        in: query
+        name: concurrency_strategy_id
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`.
+        in: query
+        name: concurrency_key
+        required: false
+        schema:
+          type: string
+      - description: Narrows the concurrency key filter to runs holding the key or to runs queued on it. Returns both if unset.
+        in: query
+        name: concurrency_slot_state
+        required: false
+        schema:
+          $ref: "../../../components/schemas/_index.yaml#/V1ConcurrencySlotState"
     responses:
       "200":
         content:

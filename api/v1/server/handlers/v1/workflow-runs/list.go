@@ -3,6 +3,7 @@ package workflowruns
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -126,6 +127,10 @@ type workflowRunFilters struct {
 	ParentTaskExternalId       *uuid.UUID
 	TriggeringEventExternalId  *uuid.UUID
 	IdempotencyKeys            *[]string
+	ConcurrencyScope           *gen.V1ConcurrencyScope
+	ConcurrencyStrategyId      *int64
+	ConcurrencyKey             *string
+	ConcurrencySlotState       *gen.V1ConcurrencySlotState
 }
 
 func workflowRunFiltersFromListParams(params gen.V1WorkflowRunListParams) workflowRunFilters {
@@ -141,6 +146,10 @@ func workflowRunFiltersFromListParams(params gen.V1WorkflowRunListParams) workfl
 		ParentTaskExternalId:       params.ParentTaskExternalId,
 		TriggeringEventExternalId:  params.TriggeringEventExternalId,
 		IdempotencyKeys:            params.IdempotencyKeys,
+		ConcurrencyScope:           params.ConcurrencyScope,
+		ConcurrencyStrategyId:      params.ConcurrencyStrategyId,
+		ConcurrencyKey:             params.ConcurrencyKey,
+		ConcurrencySlotState:       params.ConcurrencySlotState,
 	}
 }
 
@@ -157,7 +166,74 @@ func workflowRunFiltersFromCountParams(params gen.V1WorkflowRunCountGetParams) w
 		ParentTaskExternalId:       params.ParentTaskExternalId,
 		TriggeringEventExternalId:  params.TriggeringEventExternalId,
 		IdempotencyKeys:            params.IdempotencyKeys,
+		ConcurrencyScope:           params.ConcurrencyScope,
+		ConcurrencyStrategyId:      params.ConcurrencyStrategyId,
+		ConcurrencyKey:             params.ConcurrencyKey,
+		ConcurrencySlotState:       params.ConcurrencySlotState,
 	}
+}
+
+var errInvalidConcurrencyFilter = errors.New("invalid concurrency filter")
+
+// concurrencySlotExternalIds resolves the concurrency key filter to the runs and tasks using the
+// key. Slots live in the core database and the runs list reads OLAP, so the ids are looked up
+// first and passed to the OLAP query.
+func (t *V1WorkflowRunsService) concurrencySlotExternalIds(ctx context.Context, tenantId uuid.UUID, filters workflowRunFilters) (*v1.ConcurrencySlotExternalIds, error) {
+	if filters.ConcurrencyScope == nil && filters.ConcurrencyStrategyId == nil && filters.ConcurrencyKey == nil && filters.ConcurrencySlotState == nil {
+		return nil, nil
+	}
+
+	// A key is only indexed together with its strategy, and key values repeat across strategies.
+	if filters.ConcurrencyScope == nil || filters.ConcurrencyStrategyId == nil || filters.ConcurrencyKey == nil {
+		return nil, fmt.Errorf("%w: concurrency_scope, concurrency_strategy_id and concurrency_key must be set together", errInvalidConcurrencyFilter)
+	}
+
+	scope, ok := transformers.FromV1ConcurrencyScope(*filters.ConcurrencyScope)
+
+	if !ok {
+		return nil, fmt.Errorf("%w: invalid concurrency_scope", errInvalidConcurrencyFilter)
+	}
+
+	opts := v1.ListConcurrencySlotExternalIdsOpts{}
+
+	if filters.ConcurrencySlotState != nil {
+		var isFilled bool
+
+		switch *filters.ConcurrencySlotState {
+		case gen.V1ConcurrencySlotStateHolding:
+			isFilled = true
+		case gen.V1ConcurrencySlotStateQueued:
+			isFilled = false
+		default:
+			return nil, fmt.Errorf("%w: invalid concurrency_slot_state", errInvalidConcurrencyFilter)
+		}
+
+		opts.IsFilled = &isFilled
+	}
+
+	return t.config.V1.ConcurrencyOverview().ListSlotExternalIds(ctx, tenantId, scope, *filters.ConcurrencyStrategyId, *filters.ConcurrencyKey, opts)
+}
+
+func runExternalIds(ids *v1.ConcurrencySlotExternalIds) *[]uuid.UUID {
+	if ids == nil {
+		return nil
+	}
+
+	return &ids.RunExternalIds
+}
+
+// taskExternalIds falls back to run ids for workflow strategies, whose slots are held by the
+// run; the OLAP query expands a run id to all of its tasks.
+func taskExternalIds(ids *v1.ConcurrencySlotExternalIds) *[]uuid.UUID {
+	if ids == nil {
+		return nil
+	}
+
+	if ids.TaskExternalIds != nil {
+		return &ids.TaskExternalIds
+	}
+
+	return &ids.RunExternalIds
 }
 
 func includeNumPages(params gen.V1WorkflowRunListParams) bool {
@@ -261,11 +337,20 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		offset = *request.Params.Offset
 	}
 
-	opts := listWorkflowRunOptsFromFilters(workflowRunFiltersFromListParams(request.Params), useGinIndex)
+	filters := workflowRunFiltersFromListParams(request.Params)
+
+	slotIds, err := t.concurrencySlotExternalIds(ctx, tenantId, filters)
+
+	if err != nil {
+		return nil, err
+	}
+
+	opts := listWorkflowRunOptsFromFilters(filters, useGinIndex)
 	opts.Limit = limit
 	opts.Offset = offset
 	opts.IncludePayloads = includePayloads
 	opts.IncludeTotalCount = includeNumPages(request.Params)
+	opts.ExternalIds = runExternalIds(slotIds)
 
 	dags, total, err := t.config.V1.OLAP().ListWorkflowRuns(
 		ctx,
@@ -362,11 +447,20 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 		offset = *request.Params.Offset
 	}
 
-	opts := listTaskRunOptsFromFilters(workflowRunFiltersFromListParams(request.Params), useGinIndex)
+	filters := workflowRunFiltersFromListParams(request.Params)
+
+	slotIds, err := t.concurrencySlotExternalIds(ctx, tenantId, filters)
+
+	if err != nil {
+		return nil, err
+	}
+
+	opts := listTaskRunOptsFromFilters(filters, useGinIndex)
 	opts.Limit = limit
 	opts.Offset = offset
 	opts.IncludePayloads = includePayloads
 	opts.IncludeTotalCount = includeNumPages(request.Params)
+	opts.ExternalIds = taskExternalIds(slotIds)
 
 	tasks, total, err := t.config.V1.OLAP().ListTasks(
 		ctx,
@@ -439,7 +533,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.
 		res, err = t.WithDags(spanContext, request, tenantId, useGinIndex, includePayloads, canViewPayloads)
 	}
 
-	if errors.Is(err, v1.ErrTooManyTasksWithPayloads) {
+	if errors.Is(err, v1.ErrTooManyTasksWithPayloads) || errors.Is(err, errInvalidConcurrencyFilter) {
 		return gen.V1WorkflowRunList400JSONResponse(apierrors.NewAPIErrors(err.Error())), nil
 	}
 
@@ -463,6 +557,10 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCountGet(ctx echo.Context, request 
 
 	count, err := t.countWorkflowRunsOrTasks(spanContext, tenantId, filters, request.Params.OnlyTasks, useGinIndex)
 
+	if errors.Is(err, errInvalidConcurrencyFilter) {
+		return gen.V1WorkflowRunCountGet400JSONResponse(apierrors.NewAPIErrors(err.Error())), nil
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -473,11 +571,23 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCountGet(ctx echo.Context, request 
 }
 
 func (t *V1WorkflowRunsService) countWorkflowRunsOrTasks(ctx context.Context, tenantId uuid.UUID, filters workflowRunFilters, onlyTasks bool, useGinIndex bool) (int, error) {
-	if onlyTasks {
-		return t.config.V1.OLAP().CountTasks(ctx, tenantId, listTaskRunOptsFromFilters(filters, useGinIndex))
+	slotIds, err := t.concurrencySlotExternalIds(ctx, tenantId, filters)
+
+	if err != nil {
+		return 0, err
 	}
 
-	return t.config.V1.OLAP().CountWorkflowRuns(ctx, tenantId, listWorkflowRunOptsFromFilters(filters, useGinIndex))
+	if onlyTasks {
+		opts := listTaskRunOptsFromFilters(filters, useGinIndex)
+		opts.ExternalIds = taskExternalIds(slotIds)
+
+		return t.config.V1.OLAP().CountTasks(ctx, tenantId, opts)
+	}
+
+	opts := listWorkflowRunOptsFromFilters(filters, useGinIndex)
+	opts.ExternalIds = runExternalIds(slotIds)
+
+	return t.config.V1.OLAP().CountWorkflowRuns(ctx, tenantId, opts)
 }
 
 // additionalMetadataOperator maps the optional additional_metadata_operator query

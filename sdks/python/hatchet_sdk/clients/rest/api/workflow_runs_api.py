@@ -29,6 +29,10 @@ from hatchet_sdk.clients.rest.models.v1_branch_durable_task_request import (
 from hatchet_sdk.clients.rest.models.v1_branch_durable_task_response import (
     V1BranchDurableTaskResponse,
 )
+from hatchet_sdk.clients.rest.models.v1_concurrency_scope import V1ConcurrencyScope
+from hatchet_sdk.clients.rest.models.v1_concurrency_slot_state import (
+    V1ConcurrencySlotState,
+)
 from hatchet_sdk.clients.rest.models.v1_running_filter import V1RunningFilter
 from hatchet_sdk.clients.rest.models.v1_task_event_list import V1TaskEventList
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
@@ -418,6 +422,30 @@ class WorkflowRunsApi:
             Optional[List[StrictStr]],
             Field(description="The idempotency key(s) to filter for"),
         ] = None,
+        concurrency_scope: Annotated[
+            Optional[V1ConcurrencyScope],
+            Field(
+                description="The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`."
+            ),
+        ] = None,
+        concurrency_strategy_id: Annotated[
+            Optional[StrictInt],
+            Field(
+                description="The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`."
+            ),
+        ] = None,
+        concurrency_key: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`."
+            ),
+        ] = None,
+        concurrency_slot_state: Annotated[
+            Optional[V1ConcurrencySlotState],
+            Field(
+                description="Narrows the concurrency key filter to runs holding the key or to runs queued on it. Returns both if unset."
+            ),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -460,6 +488,14 @@ class WorkflowRunsApi:
         :type running_filter: V1RunningFilter
         :param idempotency_keys: The idempotency key(s) to filter for
         :type idempotency_keys: List[str]
+        :param concurrency_scope: The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`.
+        :type concurrency_scope: V1ConcurrencyScope
+        :param concurrency_strategy_id: The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`.
+        :type concurrency_strategy_id: int
+        :param concurrency_key: Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`.
+        :type concurrency_key: str
+        :param concurrency_slot_state: Narrows the concurrency key filter to runs holding the key or to runs queued on it. Returns both if unset.
+        :type concurrency_slot_state: V1ConcurrencySlotState
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -496,6 +532,10 @@ class WorkflowRunsApi:
             triggering_event_external_id=triggering_event_external_id,
             running_filter=running_filter,
             idempotency_keys=idempotency_keys,
+            concurrency_scope=concurrency_scope,
+            concurrency_strategy_id=concurrency_strategy_id,
+            concurrency_key=concurrency_key,
+            concurrency_slot_state=concurrency_slot_state,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -578,6 +618,30 @@ class WorkflowRunsApi:
             Optional[List[StrictStr]],
             Field(description="The idempotency key(s) to filter for"),
         ] = None,
+        concurrency_scope: Annotated[
+            Optional[V1ConcurrencyScope],
+            Field(
+                description="The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`."
+            ),
+        ] = None,
+        concurrency_strategy_id: Annotated[
+            Optional[StrictInt],
+            Field(
+                description="The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`."
+            ),
+        ] = None,
+        concurrency_key: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`."
+            ),
+        ] = None,
+        concurrency_slot_state: Annotated[
+            Optional[V1ConcurrencySlotState],
+            Field(
+                description="Narrows the concurrency key filter to runs holding the key or to runs queued on it. Returns both if unset."
+            ),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -620,6 +684,14 @@ class WorkflowRunsApi:
         :type running_filter: V1RunningFilter
         :param idempotency_keys: The idempotency key(s) to filter for
         :type idempotency_keys: List[str]
+        :param concurrency_scope: The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`.
+        :type concurrency_scope: V1ConcurrencyScope
+        :param concurrency_strategy_id: The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`.
+        :type concurrency_strategy_id: int
+        :param concurrency_key: Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`.
+        :type concurrency_key: str
+        :param concurrency_slot_state: Narrows the concurrency key filter to runs holding the key or to runs queued on it. Returns both if unset.
+        :type concurrency_slot_state: V1ConcurrencySlotState
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -656,6 +728,10 @@ class WorkflowRunsApi:
             triggering_event_external_id=triggering_event_external_id,
             running_filter=running_filter,
             idempotency_keys=idempotency_keys,
+            concurrency_scope=concurrency_scope,
+            concurrency_strategy_id=concurrency_strategy_id,
+            concurrency_key=concurrency_key,
+            concurrency_slot_state=concurrency_slot_state,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -738,6 +814,30 @@ class WorkflowRunsApi:
             Optional[List[StrictStr]],
             Field(description="The idempotency key(s) to filter for"),
         ] = None,
+        concurrency_scope: Annotated[
+            Optional[V1ConcurrencyScope],
+            Field(
+                description="The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`."
+            ),
+        ] = None,
+        concurrency_strategy_id: Annotated[
+            Optional[StrictInt],
+            Field(
+                description="The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`."
+            ),
+        ] = None,
+        concurrency_key: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`."
+            ),
+        ] = None,
+        concurrency_slot_state: Annotated[
+            Optional[V1ConcurrencySlotState],
+            Field(
+                description="Narrows the concurrency key filter to runs holding the key or to runs queued on it. Returns both if unset."
+            ),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -780,6 +880,14 @@ class WorkflowRunsApi:
         :type running_filter: V1RunningFilter
         :param idempotency_keys: The idempotency key(s) to filter for
         :type idempotency_keys: List[str]
+        :param concurrency_scope: The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`.
+        :type concurrency_scope: V1ConcurrencyScope
+        :param concurrency_strategy_id: The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`.
+        :type concurrency_strategy_id: int
+        :param concurrency_key: Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`.
+        :type concurrency_key: str
+        :param concurrency_slot_state: Narrows the concurrency key filter to runs holding the key or to runs queued on it. Returns both if unset.
+        :type concurrency_slot_state: V1ConcurrencySlotState
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -816,6 +924,10 @@ class WorkflowRunsApi:
             triggering_event_external_id=triggering_event_external_id,
             running_filter=running_filter,
             idempotency_keys=idempotency_keys,
+            concurrency_scope=concurrency_scope,
+            concurrency_strategy_id=concurrency_strategy_id,
+            concurrency_key=concurrency_key,
+            concurrency_slot_state=concurrency_slot_state,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -848,6 +960,10 @@ class WorkflowRunsApi:
         triggering_event_external_id,
         running_filter,
         idempotency_keys,
+        concurrency_scope,
+        concurrency_strategy_id,
+        concurrency_key,
+        concurrency_slot_state,
         _request_auth,
         _content_type,
         _headers,
@@ -941,6 +1057,24 @@ class WorkflowRunsApi:
         if idempotency_keys is not None:
 
             _query_params.append(("idempotency_keys", idempotency_keys))
+
+        if concurrency_scope is not None:
+
+            _query_params.append(("concurrency_scope", concurrency_scope.value))
+
+        if concurrency_strategy_id is not None:
+
+            _query_params.append(("concurrency_strategy_id", concurrency_strategy_id))
+
+        if concurrency_key is not None:
+
+            _query_params.append(("concurrency_key", concurrency_key))
+
+        if concurrency_slot_state is not None:
+
+            _query_params.append(
+                ("concurrency_slot_state", concurrency_slot_state.value)
+            )
 
         # process the header parameters
         # process the form parameters
@@ -2980,6 +3114,30 @@ class WorkflowRunsApi:
             Optional[List[StrictStr]],
             Field(description="The idempotency key(s) to filter for"),
         ] = None,
+        concurrency_scope: Annotated[
+            Optional[V1ConcurrencyScope],
+            Field(
+                description="The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`."
+            ),
+        ] = None,
+        concurrency_strategy_id: Annotated[
+            Optional[StrictInt],
+            Field(
+                description="The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`."
+            ),
+        ] = None,
+        concurrency_key: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`."
+            ),
+        ] = None,
+        concurrency_slot_state: Annotated[
+            Optional[V1ConcurrencySlotState],
+            Field(
+                description="Narrows the concurrency key filter to runs holding the key or to runs queued on it. Returns both if unset."
+            ),
+        ] = None,
         include_num_pages: Annotated[
             Optional[StrictBool],
             Field(
@@ -3034,6 +3192,14 @@ class WorkflowRunsApi:
         :type running_filter: V1RunningFilter
         :param idempotency_keys: The idempotency key(s) to filter for
         :type idempotency_keys: List[str]
+        :param concurrency_scope: The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`.
+        :type concurrency_scope: V1ConcurrencyScope
+        :param concurrency_strategy_id: The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`.
+        :type concurrency_strategy_id: int
+        :param concurrency_key: Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`.
+        :type concurrency_key: str
+        :param concurrency_slot_state: Narrows the concurrency key filter to runs holding the key or to runs queued on it. Returns both if unset.
+        :type concurrency_slot_state: V1ConcurrencySlotState
         :param include_num_pages: A flag for whether or not to count the matching runs in order to populate `pagination.num_pages`. Defaults to `true` if unset. When `false`, `pagination.num_pages` is `0`, and the count can be fetched separately from the count endpoint.
         :type include_num_pages: bool
         :param _request_timeout: timeout setting for this request. If one
@@ -3075,6 +3241,10 @@ class WorkflowRunsApi:
             include_payloads=include_payloads,
             running_filter=running_filter,
             idempotency_keys=idempotency_keys,
+            concurrency_scope=concurrency_scope,
+            concurrency_strategy_id=concurrency_strategy_id,
+            concurrency_key=concurrency_key,
+            concurrency_slot_state=concurrency_slot_state,
             include_num_pages=include_num_pages,
             _request_auth=_request_auth,
             _content_type=_content_type,
@@ -3171,6 +3341,30 @@ class WorkflowRunsApi:
             Optional[List[StrictStr]],
             Field(description="The idempotency key(s) to filter for"),
         ] = None,
+        concurrency_scope: Annotated[
+            Optional[V1ConcurrencyScope],
+            Field(
+                description="The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`."
+            ),
+        ] = None,
+        concurrency_strategy_id: Annotated[
+            Optional[StrictInt],
+            Field(
+                description="The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`."
+            ),
+        ] = None,
+        concurrency_key: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`."
+            ),
+        ] = None,
+        concurrency_slot_state: Annotated[
+            Optional[V1ConcurrencySlotState],
+            Field(
+                description="Narrows the concurrency key filter to runs holding the key or to runs queued on it. Returns both if unset."
+            ),
+        ] = None,
         include_num_pages: Annotated[
             Optional[StrictBool],
             Field(
@@ -3225,6 +3419,14 @@ class WorkflowRunsApi:
         :type running_filter: V1RunningFilter
         :param idempotency_keys: The idempotency key(s) to filter for
         :type idempotency_keys: List[str]
+        :param concurrency_scope: The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`.
+        :type concurrency_scope: V1ConcurrencyScope
+        :param concurrency_strategy_id: The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`.
+        :type concurrency_strategy_id: int
+        :param concurrency_key: Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`.
+        :type concurrency_key: str
+        :param concurrency_slot_state: Narrows the concurrency key filter to runs holding the key or to runs queued on it. Returns both if unset.
+        :type concurrency_slot_state: V1ConcurrencySlotState
         :param include_num_pages: A flag for whether or not to count the matching runs in order to populate `pagination.num_pages`. Defaults to `true` if unset. When `false`, `pagination.num_pages` is `0`, and the count can be fetched separately from the count endpoint.
         :type include_num_pages: bool
         :param _request_timeout: timeout setting for this request. If one
@@ -3266,6 +3468,10 @@ class WorkflowRunsApi:
             include_payloads=include_payloads,
             running_filter=running_filter,
             idempotency_keys=idempotency_keys,
+            concurrency_scope=concurrency_scope,
+            concurrency_strategy_id=concurrency_strategy_id,
+            concurrency_key=concurrency_key,
+            concurrency_slot_state=concurrency_slot_state,
             include_num_pages=include_num_pages,
             _request_auth=_request_auth,
             _content_type=_content_type,
@@ -3362,6 +3568,30 @@ class WorkflowRunsApi:
             Optional[List[StrictStr]],
             Field(description="The idempotency key(s) to filter for"),
         ] = None,
+        concurrency_scope: Annotated[
+            Optional[V1ConcurrencyScope],
+            Field(
+                description="The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`."
+            ),
+        ] = None,
+        concurrency_strategy_id: Annotated[
+            Optional[StrictInt],
+            Field(
+                description="The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`."
+            ),
+        ] = None,
+        concurrency_key: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`."
+            ),
+        ] = None,
+        concurrency_slot_state: Annotated[
+            Optional[V1ConcurrencySlotState],
+            Field(
+                description="Narrows the concurrency key filter to runs holding the key or to runs queued on it. Returns both if unset."
+            ),
+        ] = None,
         include_num_pages: Annotated[
             Optional[StrictBool],
             Field(
@@ -3416,6 +3646,14 @@ class WorkflowRunsApi:
         :type running_filter: V1RunningFilter
         :param idempotency_keys: The idempotency key(s) to filter for
         :type idempotency_keys: List[str]
+        :param concurrency_scope: The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`.
+        :type concurrency_scope: V1ConcurrencyScope
+        :param concurrency_strategy_id: The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`.
+        :type concurrency_strategy_id: int
+        :param concurrency_key: Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`.
+        :type concurrency_key: str
+        :param concurrency_slot_state: Narrows the concurrency key filter to runs holding the key or to runs queued on it. Returns both if unset.
+        :type concurrency_slot_state: V1ConcurrencySlotState
         :param include_num_pages: A flag for whether or not to count the matching runs in order to populate `pagination.num_pages`. Defaults to `true` if unset. When `false`, `pagination.num_pages` is `0`, and the count can be fetched separately from the count endpoint.
         :type include_num_pages: bool
         :param _request_timeout: timeout setting for this request. If one
@@ -3457,6 +3695,10 @@ class WorkflowRunsApi:
             include_payloads=include_payloads,
             running_filter=running_filter,
             idempotency_keys=idempotency_keys,
+            concurrency_scope=concurrency_scope,
+            concurrency_strategy_id=concurrency_strategy_id,
+            concurrency_key=concurrency_key,
+            concurrency_slot_state=concurrency_slot_state,
             include_num_pages=include_num_pages,
             _request_auth=_request_auth,
             _content_type=_content_type,
@@ -3494,6 +3736,10 @@ class WorkflowRunsApi:
         include_payloads,
         running_filter,
         idempotency_keys,
+        concurrency_scope,
+        concurrency_strategy_id,
+        concurrency_key,
+        concurrency_slot_state,
         include_num_pages,
         _request_auth,
         _content_type,
@@ -3600,6 +3846,24 @@ class WorkflowRunsApi:
         if idempotency_keys is not None:
 
             _query_params.append(("idempotency_keys", idempotency_keys))
+
+        if concurrency_scope is not None:
+
+            _query_params.append(("concurrency_scope", concurrency_scope.value))
+
+        if concurrency_strategy_id is not None:
+
+            _query_params.append(("concurrency_strategy_id", concurrency_strategy_id))
+
+        if concurrency_key is not None:
+
+            _query_params.append(("concurrency_key", concurrency_key))
+
+        if concurrency_slot_state is not None:
+
+            _query_params.append(
+                ("concurrency_slot_state", concurrency_slot_state.value)
+            )
 
         if include_num_pages is not None:
 

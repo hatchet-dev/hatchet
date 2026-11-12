@@ -188,6 +188,7 @@ lib/hatchet-sdk-rest/models/v1_concurrency_key.rb
 lib/hatchet-sdk-rest/models/v1_concurrency_key_list.rb
 lib/hatchet-sdk-rest/models/v1_concurrency_limit_strategy.rb
 lib/hatchet-sdk-rest/models/v1_concurrency_scope.rb
+lib/hatchet-sdk-rest/models/v1_concurrency_slot_state.rb
 lib/hatchet-sdk-rest/models/v1_concurrency_strategy.rb
 lib/hatchet-sdk-rest/models/v1_concurrency_strategy_list.rb
 lib/hatchet-sdk-rest/models/v1_concurrency_strategy_usage.rb

@@ -245,6 +245,12 @@ const (
 	V1ConcurrencyScopeWorkflow V1ConcurrencyScope = "WORKFLOW"
 )
 
+// Defines values for V1ConcurrencySlotState.
+const (
+	V1ConcurrencySlotStateHolding V1ConcurrencySlotState = "HOLDING"
+	V1ConcurrencySlotStateQueued  V1ConcurrencySlotState = "QUEUED"
+)
+
 // Defines values for V1CreateWebhookRequestAPIKeyAuthType.
 const (
 	V1CreateWebhookRequestAPIKeyAuthTypeAPIKEY V1CreateWebhookRequestAPIKeyAuthType = "API_KEY"
@@ -1694,6 +1700,9 @@ type V1ConcurrencyLimitStrategy string
 
 // V1ConcurrencyScope Where a concurrency strategy is defined. SHARED strategies are named, tenant-wide and can be used by tasks in several workflows.
 type V1ConcurrencyScope string
+
+// V1ConcurrencySlotState Whether a run holds a concurrency key (it counts towards the key's max runs) or is queued waiting for it.
+type V1ConcurrencySlotState string
 
 // V1ConcurrencyStrategy defines model for V1ConcurrencyStrategy.
 type V1ConcurrencyStrategy struct {
@@ -3472,6 +3481,18 @@ type V1WorkflowRunListParams struct {
 	// IdempotencyKeys The idempotency key(s) to filter for
 	IdempotencyKeys *[]string `form:"idempotency_keys,omitempty" json:"idempotency_keys,omitempty"`
 
+	// ConcurrencyScope The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`.
+	ConcurrencyScope *V1ConcurrencyScope `form:"concurrency_scope,omitempty" json:"concurrency_scope,omitempty"`
+
+	// ConcurrencyStrategyId The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`.
+	ConcurrencyStrategyId *int64 `form:"concurrency_strategy_id,omitempty" json:"concurrency_strategy_id,omitempty"`
+
+	// ConcurrencyKey Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`.
+	ConcurrencyKey *string `form:"concurrency_key,omitempty" json:"concurrency_key,omitempty"`
+
+	// ConcurrencySlotState Narrows the concurrency key filter to runs holding the key or to runs queued on it. Returns both if unset.
+	ConcurrencySlotState *V1ConcurrencySlotState `form:"concurrency_slot_state,omitempty" json:"concurrency_slot_state,omitempty"`
+
 	// IncludeNumPages A flag for whether or not to count the matching runs in order to populate `pagination.num_pages`. Defaults to `true` if unset. When `false`, `pagination.num_pages` is `0`, and the count can be fetched separately from the count endpoint.
 	IncludeNumPages *bool `form:"include_num_pages,omitempty" json:"include_num_pages,omitempty"`
 }
@@ -3513,6 +3534,18 @@ type V1WorkflowRunCountGetParams struct {
 
 	// IdempotencyKeys The idempotency key(s) to filter for
 	IdempotencyKeys *[]string `form:"idempotency_keys,omitempty" json:"idempotency_keys,omitempty"`
+
+	// ConcurrencyScope The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`.
+	ConcurrencyScope *V1ConcurrencyScope `form:"concurrency_scope,omitempty" json:"concurrency_scope,omitempty"`
+
+	// ConcurrencyStrategyId The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`.
+	ConcurrencyStrategyId *int64 `form:"concurrency_strategy_id,omitempty" json:"concurrency_strategy_id,omitempty"`
+
+	// ConcurrencyKey Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`.
+	ConcurrencyKey *string `form:"concurrency_key,omitempty" json:"concurrency_key,omitempty"`
+
+	// ConcurrencySlotState Narrows the concurrency key filter to runs holding the key or to runs queued on it. Returns both if unset.
+	ConcurrencySlotState *V1ConcurrencySlotState `form:"concurrency_slot_state,omitempty" json:"concurrency_slot_state,omitempty"`
 }
 
 // V1WorkflowRunDisplayNamesListParams defines parameters for V1WorkflowRunDisplayNamesList.
@@ -10687,6 +10720,70 @@ func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, param
 
 		}
 
+		if params.ConcurrencyScope != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "concurrency_scope", runtime.ParamLocationQuery, *params.ConcurrencyScope); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.ConcurrencyStrategyId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "concurrency_strategy_id", runtime.ParamLocationQuery, *params.ConcurrencyStrategyId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.ConcurrencyKey != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "concurrency_key", runtime.ParamLocationQuery, *params.ConcurrencyKey); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.ConcurrencySlotState != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "concurrency_slot_state", runtime.ParamLocationQuery, *params.ConcurrencySlotState); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		if params.IncludeNumPages != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "include_num_pages", runtime.ParamLocationQuery, *params.IncludeNumPages); err != nil {
@@ -10914,6 +11011,70 @@ func NewV1WorkflowRunCountGetRequest(server string, tenant openapi_types.UUID, p
 		if params.IdempotencyKeys != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "idempotency_keys", runtime.ParamLocationQuery, *params.IdempotencyKeys); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.ConcurrencyScope != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "concurrency_scope", runtime.ParamLocationQuery, *params.ConcurrencyScope); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.ConcurrencyStrategyId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "concurrency_strategy_id", runtime.ParamLocationQuery, *params.ConcurrencyStrategyId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.ConcurrencyKey != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "concurrency_key", runtime.ParamLocationQuery, *params.ConcurrencyKey); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.ConcurrencySlotState != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "concurrency_slot_state", runtime.ParamLocationQuery, *params.ConcurrencySlotState); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
