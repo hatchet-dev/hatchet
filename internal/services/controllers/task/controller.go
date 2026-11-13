@@ -930,12 +930,13 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 		return event.TaskID
 	})
 
-	// operator step children that satisfy their orchestrator's entry directly have no internal event
+	// operator step children have no internal event, they satisfy their orchestrator's entry directly
 	for _, task := range res.ReleasedTasks {
-		_, isRetried := retriedTaskIds[task.ID]
-		_, hasInternalEvent := taskIdsWithInternalEvent[task.ID]
+		if _, isRetried := retriedTaskIds[task.ID]; isRetried || !task.IsCurrentRetry || !v1.IsOperatorStepChild(task) {
+			continue
+		}
 
-		if isRetried || hasInternalEvent || !task.IsCurrentRetry || !v1.IsOperatorStepChild(task) {
+		if _, hasInternalEvent := taskIdsWithInternalEvent[task.ID]; hasInternalEvent {
 			continue
 		}
 

@@ -3867,7 +3867,7 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 		return completion.ReleasedTask.ID
 	})
 
-	// nothing waits on an internal event for a directly completed child: its orchestrator was notified above
+	// nothing waits on an internal event for an operator step child: its orchestrator was notified above
 	internalEvents = slices.DeleteFunc(internalEvents, func(event InternalTaskEvent) bool {
 		_, isDirectlyCompleted := directlyCompletedTaskIds[event.TaskID]
 		return isDirectlyCompleted
@@ -4390,8 +4390,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		return nil, err
 	}
 
-	// for any tasks which are child tasks, we need to reset the match signals for the parent tasks.
-	// an operator step child's orchestrator waits on a durable log entry, never on a child signal.
+	// for any tasks which are child tasks, we need to reset the match signals for the parent tasks
 	spawnedChildTasks := enumerables.Filter(lockedTasks, func(task *sqlcv1.ListTasksForReplayRow) bool {
 		return task.ParentTaskID.Valid && !isOperatorStepChild(task.ParentTaskID, task.ParentTaskInsertedAt, task.ParentTaskExternalID, task.WorkflowRunID)
 	})
@@ -4616,9 +4615,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	}, nil
 }
 
-// A re-queued operator step child reports to its orchestrator in its own finalize transaction,
-// so nothing would consume the match its re-executed step registered. A child replayed straight
-// into a terminal state is never finalized and still needs that match for the event it emits.
+// A child replayed straight into a terminal state is never finalized, so it keeps its match.
 func (r *TaskRepositoryImpl) deleteCompletionMatchesForRequeuedOperatorStepChildren(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, lockedTasks []*sqlcv1.ListTasksForReplayRow, upsertedTasks []*V1TaskWithPayload) error {
 	initialStateByTaskId := enumerables.ToMap(
 		upsertedTasks,

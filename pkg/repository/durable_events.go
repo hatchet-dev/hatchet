@@ -1944,7 +1944,6 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 
 			// re-executed operator step children keep this match even with direct completion: the replay
 			// can create the child already FAILED, which is never finalized and only emits a FAILED event
-			// (ReplayTasks deletes the match once it knows the child was re-queued instead)
 			childHint := childExternalId.String()
 			orGroupId := uuid.New()
 
@@ -3016,10 +3015,8 @@ func isOperatorStepChild(parentTaskId pgtype.Int8, parentTaskInsertedAt pgtype.T
 		*parentTaskExternalId == workflowRunId
 }
 
-// operatorStepChildrenCompletingDirectly keeps the pre-entitlement behavior for tenants without
-// direct completion: a child whose orchestrator holds a completion match reports through that
-// match. A child without one was spawned while the tenant was entitled, and reporting directly is
-// the only way its orchestrator hears of it.
+// A child without a completion match was spawned while the tenant was entitled, so it can only
+// report directly.
 func (r *sharedRepository) operatorStepChildrenCompletingDirectly(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, completions []OperatorStepChildCompletion) ([]OperatorStepChildCompletion, error) {
 	if len(completions) == 0 || r.operatorStepChildrenSkipCompletionMatch(ctx, tenantId) {
 		return completions, nil
