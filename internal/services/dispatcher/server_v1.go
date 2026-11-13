@@ -730,6 +730,9 @@ func (d *DispatcherServiceImpl) durableTask(
 				taskId:   taskExtId,
 			}, invocation)
 			registeredTasks[taskExtId] = struct{}{}
+		} else {
+			// the stale invocation check in handleWorkerStatus may have deleted this task's entry
+			d.durableInvocations.LoadOrStore(durableInvocationsKey{tenantId: tenantId, taskId: taskExtId}, invocation)
 		}
 	}
 
@@ -1116,14 +1119,14 @@ func (d *DispatcherServiceImpl) sendStaleInvocationEviction(invocation *durableT
 // deliverSatisfiedEntries runs after the ack, so it logs its failures instead of returning them:
 // a returned error would answer the request a second time (see sendRequestFailure). An entry it
 // fails to deliver is delivered again when the worker reports it as waiting.
-func (d *DispatcherServiceImpl) deliverSatisfiedEntries(tenantId uuid.UUID, taskExternalId string, result *v1.IngestDurableTaskEventResult) {
+func (d *DispatcherServiceImpl) deliverSatisfiedEntries(invocation *durableTaskInvocation, taskExternalId string, result *v1.IngestDurableTaskEventResult) {
 	switch result.Kind {
 	case sqlcv1.V1DurableEventLogKindRUN:
 		for _, entry := range result.TriggerRunsResult.Entries {
 			if entry.IsSatisfied {
 				taskExtId, _ := uuid.Parse(taskExternalId)
-				if err := d.DeliverDurableEventLogEntryCompletion(
-					tenantId,
+				if err := deliverDurableEventLogEntryCompletionToSession(
+					invocation,
 					taskExtId,
 					result.TriggerRunsResult.InvocationCount,
 					entry.BranchId,
@@ -1141,8 +1144,8 @@ func (d *DispatcherServiceImpl) deliverSatisfiedEntries(tenantId uuid.UUID, task
 	case sqlcv1.V1DurableEventLogKindMEMO:
 		if result.MemoResult.IsSatisfied {
 			taskExtId, _ := uuid.Parse(taskExternalId)
-			if err := d.DeliverDurableEventLogEntryCompletion(
-				tenantId,
+			if err := deliverDurableEventLogEntryCompletionToSession(
+				invocation,
 				taskExtId,
 				result.MemoResult.InvocationCount,
 				result.MemoResult.BranchId,
@@ -1158,8 +1161,8 @@ func (d *DispatcherServiceImpl) deliverSatisfiedEntries(tenantId uuid.UUID, task
 	case sqlcv1.V1DurableEventLogKindWAITFOR:
 		if result.WaitForResult.IsSatisfied {
 			taskExtId, _ := uuid.Parse(taskExternalId)
-			if err := d.DeliverDurableEventLogEntryCompletion(
-				tenantId,
+			if err := deliverDurableEventLogEntryCompletionToSession(
+				invocation,
 				taskExtId,
 				result.WaitForResult.InvocationCount,
 				result.WaitForResult.BranchId,
@@ -1244,7 +1247,7 @@ func (d *DispatcherServiceImpl) handleMemo(
 		return fmt.Errorf("failed to send memo ack: %w", err)
 	}
 
-	d.deliverSatisfiedEntries(invocation.tenantId, req.DurableTaskExternalId, ingestionResult)
+	d.deliverSatisfiedEntries(invocation, req.DurableTaskExternalId, ingestionResult)
 
 	return nil
 }
@@ -1371,7 +1374,7 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 		return fmt.Errorf("failed to send trigger runs ack: %w", err)
 	}
 
-	d.deliverSatisfiedEntries(invocation.tenantId, req.DurableTaskExternalId, ingestionResult)
+	d.deliverSatisfiedEntries(invocation, req.DurableTaskExternalId, ingestionResult)
 
 	return nil
 }
@@ -1494,7 +1497,7 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 		return fmt.Errorf("failed to send wait_for ack: %w", err)
 	}
 
-	d.deliverSatisfiedEntries(invocation.tenantId, req.DurableTaskExternalId, ingestionResult)
+	d.deliverSatisfiedEntries(invocation, req.DurableTaskExternalId, ingestionResult)
 
 	return nil
 }
@@ -1941,6 +1944,10 @@ func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(tenantId u
 		return fmt.Errorf("%w for task %s", ErrNoActiveDurableInvocation, taskExternalId)
 	}
 
+	return deliverDurableEventLogEntryCompletionToSession(inv, taskExternalId, invocationCount, branchId, nodeId, payload, satisfiedOrder, isFailure, errorMessage)
+}
+
+func deliverDurableEventLogEntryCompletionToSession(inv *durableTaskInvocation, taskExternalId uuid.UUID, invocationCount int32, branchId, nodeId int64, payload []byte, satisfiedOrder *int64, isFailure bool, errorMessage *string) error {
 	ref := &contracts.DurableEventLogEntryRef{
 		DurableTaskExternalId: taskExternalId.String(),
 		InvocationCount:       invocationCount,
