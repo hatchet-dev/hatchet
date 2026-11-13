@@ -303,6 +303,12 @@ type TaskRepository interface {
 	// This is non-cacheable because tasks can be added to a workflow run as it executes.
 	FlattenExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.FlattenExternalIdsRow, error)
 
+	// ResolveTaskExternalIds is a heavily cached method to map task external ids to the tasks' primary keys.
+	// External ids which do not belong to a task (including those of DAGs) are left out of the result.
+	// A key in the result does not prove the task row still exists, because v1_lookup_table rows and
+	// cache entries outlive the v1_task partition the task was stored in.
+	ResolveTaskExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) (map[uuid.UUID]IdInsertedAt, error)
+
 	ListDurableOrchestratorChildExternalIds(ctx context.Context, tenantId, orchestratorExternalId uuid.UUID) ([]uuid.UUID, error)
 
 	ListUnfinishedDurableOrchestratorChildren(ctx context.Context, tenantId uuid.UUID, orchestratorExternalIds []uuid.UUID) ([]TaskIdInsertedAtRetryCount, error)
@@ -758,6 +764,67 @@ func (r *TaskRepositoryImpl) FlattenExternalIds(ctx context.Context, tenantId uu
 	db := r.pool.ForTenant(tenantId)
 
 	return r.lookupExternalIds(ctx, db, tenantId, externalIds)
+}
+
+// ResolveTaskExternalIds maps task external ids to the tasks' primary keys, reading only the cache and
+// v1_lookup_table. A returned key does not prove the task row still exists.
+func (r *sharedRepository) ResolveTaskExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) (map[uuid.UUID]IdInsertedAt, error) {
+	res := make(map[uuid.UUID]IdInsertedAt, len(externalIds))
+	uncached := make(map[uuid.UUID]struct{})
+
+	for _, externalId := range externalIds {
+		key := taskExternalIdTenantIdTuple{
+			externalId: externalId,
+			tenantId:   tenantId,
+		}
+
+		if val, ok := r.taskKeyCache.Get(key); ok {
+			res[externalId] = val
+			continue
+		}
+
+		uncached[externalId] = struct{}{}
+	}
+
+	if len(uncached) == 0 {
+		return res, nil
+	}
+
+	externalIdsToLookup := make([]uuid.UUID, 0, len(uncached))
+
+	for externalId := range uncached {
+		externalIdsToLookup = append(externalIdsToLookup, externalId)
+	}
+
+	// NOTE: the lookup table row carries the task's primary key, so this never has to read v1_task
+	lookups, err := r.queries.LookupExternalIds(ctx, r.pool.ForTenant(tenantId), sqlcv1.LookupExternalIdsParams{
+		Tenantid:    tenantId,
+		Externalids: externalIdsToLookup,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, lookup := range lookups {
+		if !lookup.TaskID.Valid {
+			continue
+		}
+
+		val := IdInsertedAt{
+			ID:                   lookup.TaskID.Int64,
+			InsertedAtUnixMicros: lookup.InsertedAt.Time.UnixMicro(),
+		}
+
+		r.taskKeyCache.Add(taskExternalIdTenantIdTuple{
+			externalId: lookup.ExternalID,
+			tenantId:   tenantId,
+		}, val)
+
+		res[lookup.ExternalID] = val
+	}
+
+	return res, nil
 }
 
 func (r *sharedRepository) lookupExternalIds(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.FlattenExternalIdsRow, error) {
