@@ -128,20 +128,28 @@ listWorkflowRuns:
           type: array
           items:
             type: string
-      - description: The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`.
+      - description: The name of the shared concurrency strategy to filter by. Cannot be combined with `concurrency_workflow_id` or `concurrency_task_name`.
         in: query
-        name: concurrency_scope
+        name: concurrency_strategy_name
         required: false
         schema:
-          $ref: "../../../components/schemas/_index.yaml#/V1ConcurrencyScope"
-      - description: The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`.
+          type: string
+      - description: The workflow whose concurrency strategy to filter by. Without `concurrency_task_name`, this is the workflow-level strategy.
         in: query
-        name: concurrency_strategy_id
+        name: concurrency_workflow_id
         required: false
         schema:
-          type: integer
-          format: int64
-      - description: Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`.
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The task whose concurrency strategy to filter by. Requires `concurrency_workflow_id`.
+        in: query
+        name: concurrency_task_name
+        required: false
+        schema:
+          type: string
+      - description: Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Requires the strategy, given by `concurrency_strategy_name` or `concurrency_workflow_id`.
         in: query
         name: concurrency_key
         required: false
@@ -300,20 +308,28 @@ countWorkflowRuns:
           type: array
           items:
             type: string
-      - description: The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`.
+      - description: The name of the shared concurrency strategy to filter by. Cannot be combined with `concurrency_workflow_id` or `concurrency_task_name`.
         in: query
-        name: concurrency_scope
+        name: concurrency_strategy_name
         required: false
         schema:
-          $ref: "../../../components/schemas/_index.yaml#/V1ConcurrencyScope"
-      - description: The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`.
+          type: string
+      - description: The workflow whose concurrency strategy to filter by. Without `concurrency_task_name`, this is the workflow-level strategy.
         in: query
-        name: concurrency_strategy_id
+        name: concurrency_workflow_id
         required: false
         schema:
-          type: integer
-          format: int64
-      - description: Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`.
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The task whose concurrency strategy to filter by. Requires `concurrency_workflow_id`.
+        in: query
+        name: concurrency_task_name
+        required: false
+        schema:
+          type: string
+      - description: Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Requires the strategy, given by `concurrency_strategy_name` or `concurrency_workflow_id`.
         in: query
         name: concurrency_key
         required: false

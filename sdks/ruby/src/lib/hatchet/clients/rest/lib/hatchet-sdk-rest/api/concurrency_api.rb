@@ -20,33 +20,35 @@ module HatchetSdkRest
       @api_client = api_client
     end
     # List concurrency keys
-    # Lists the keys of a concurrency strategy that have running or queued runs, sorted by queued count, then oldest queued run.
+    # Lists the keys of a concurrency strategy that have running or queued runs, sorted by queued count, then oldest queued run. The strategy is given either by `strategyName` for a shared strategy, or by `workflowId` and an optional `taskName`. Keys from all versions of the workflow, and from every strategy on the task, are combined.
     # @param tenant [String] The tenant id
-    # @param scope [V1ConcurrencyScope] The strategy scope
-    # @param strategy [Integer] The strategy id
     # @param [Hash] opts the optional parameters
+    # @option opts [String] :strategy_name The name of the shared strategy. Cannot be combined with &#x60;workflowId&#x60; or &#x60;taskName&#x60;.
+    # @option opts [String] :workflow_id The workflow the strategy is defined on. Without &#x60;taskName&#x60;, this is the workflow-level strategy.
+    # @option opts [String] :task_name The task the strategy is defined on. Requires &#x60;workflowId&#x60;.
     # @option opts [String] :search Only return keys containing this string (case-insensitive)
     # @option opts [Boolean] :only_queued Only return keys with at least one queued run
     # @option opts [Integer] :offset The number to skip
     # @option opts [Integer] :limit The number to limit by
     # @return [V1ConcurrencyKeyList]
-    def v1_concurrency_key_list(tenant, scope, strategy, opts = {})
-      data, _status_code, _headers = v1_concurrency_key_list_with_http_info(tenant, scope, strategy, opts)
+    def v1_concurrency_key_list(tenant, opts = {})
+      data, _status_code, _headers = v1_concurrency_key_list_with_http_info(tenant, opts)
       data
     end
 
     # List concurrency keys
-    # Lists the keys of a concurrency strategy that have running or queued runs, sorted by queued count, then oldest queued run.
+    # Lists the keys of a concurrency strategy that have running or queued runs, sorted by queued count, then oldest queued run. The strategy is given either by &#x60;strategyName&#x60; for a shared strategy, or by &#x60;workflowId&#x60; and an optional &#x60;taskName&#x60;. Keys from all versions of the workflow, and from every strategy on the task, are combined.
     # @param tenant [String] The tenant id
-    # @param scope [V1ConcurrencyScope] The strategy scope
-    # @param strategy [Integer] The strategy id
     # @param [Hash] opts the optional parameters
+    # @option opts [String] :strategy_name The name of the shared strategy. Cannot be combined with &#x60;workflowId&#x60; or &#x60;taskName&#x60;.
+    # @option opts [String] :workflow_id The workflow the strategy is defined on. Without &#x60;taskName&#x60;, this is the workflow-level strategy.
+    # @option opts [String] :task_name The task the strategy is defined on. Requires &#x60;workflowId&#x60;.
     # @option opts [String] :search Only return keys containing this string (case-insensitive)
     # @option opts [Boolean] :only_queued Only return keys with at least one queued run
     # @option opts [Integer] :offset The number to skip
     # @option opts [Integer] :limit The number to limit by
     # @return [Array<(V1ConcurrencyKeyList, Integer, Hash)>] V1ConcurrencyKeyList data, response status code and response headers
-    def v1_concurrency_key_list_with_http_info(tenant, scope, strategy, opts = {})
+    def v1_concurrency_key_list_with_http_info(tenant, opts = {})
       if @api_client.config.debugging
         @api_client.config.logger.debug 'Calling API: ConcurrencyApi.v1_concurrency_key_list ...'
       end
@@ -62,19 +64,22 @@ module HatchetSdkRest
         fail ArgumentError, 'invalid value for "tenant" when calling ConcurrencyApi.v1_concurrency_key_list, the character length must be greater than or equal to 36.'
       end
 
-      # verify the required parameter 'scope' is set
-      if @api_client.config.client_side_validation && scope.nil?
-        fail ArgumentError, "Missing the required parameter 'scope' when calling ConcurrencyApi.v1_concurrency_key_list"
+      if @api_client.config.client_side_validation && !opts[:'workflow_id'].nil? && opts[:'workflow_id'].to_s.length > 36
+        fail ArgumentError, 'invalid value for "opts[:"workflow_id"]" when calling ConcurrencyApi.v1_concurrency_key_list, the character length must be smaller than or equal to 36.'
       end
-      # verify the required parameter 'strategy' is set
-      if @api_client.config.client_side_validation && strategy.nil?
-        fail ArgumentError, "Missing the required parameter 'strategy' when calling ConcurrencyApi.v1_concurrency_key_list"
+
+      if @api_client.config.client_side_validation && !opts[:'workflow_id'].nil? && opts[:'workflow_id'].to_s.length < 36
+        fail ArgumentError, 'invalid value for "opts[:"workflow_id"]" when calling ConcurrencyApi.v1_concurrency_key_list, the character length must be greater than or equal to 36.'
       end
+
       # resource path
-      local_var_path = '/api/v1/stable/tenants/{tenant}/concurrency/strategies/{scope}/{strategy}/keys'.sub('{' + 'tenant' + '}', CGI.escape(tenant.to_s)).sub('{' + 'scope' + '}', CGI.escape(scope.to_s)).sub('{' + 'strategy' + '}', CGI.escape(strategy.to_s))
+      local_var_path = '/api/v1/stable/tenants/{tenant}/concurrency/keys'.sub('{' + 'tenant' + '}', CGI.escape(tenant.to_s))
 
       # query parameters
       query_params = opts[:query_params] || {}
+      query_params[:'strategyName'] = opts[:'strategy_name'] if !opts[:'strategy_name'].nil?
+      query_params[:'workflowId'] = opts[:'workflow_id'] if !opts[:'workflow_id'].nil?
+      query_params[:'taskName'] = opts[:'task_name'] if !opts[:'task_name'].nil?
       query_params[:'search'] = opts[:'search'] if !opts[:'search'].nil?
       query_params[:'onlyQueued'] = opts[:'only_queued'] if !opts[:'only_queued'].nil?
       query_params[:'offset'] = opts[:'offset'] if !opts[:'offset'].nil?

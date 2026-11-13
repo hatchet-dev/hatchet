@@ -57,11 +57,8 @@ V1ConcurrencyStrategyUsage:
 
 V1ConcurrencyStrategy:
   type: object
+  description: A concurrency strategy, identified by its shared name, its workflow, or its workflow and task. Versions of a workflow and strategies on the same task are combined into one; the definition fields come from the newest of them.
   properties:
-    id:
-      type: integer
-      format: int64
-      description: The strategy id. Unique within a scope; WORKFLOW ids can collide with SHARED and TASK ids.
     scope:
       $ref: "#/V1ConcurrencyScope"
     name:
@@ -81,10 +78,10 @@ V1ConcurrencyStrategy:
       format: uuid
       minLength: 36
       maxLength: 36
-      description: The workflow version the strategy is attached to. Unset for SHARED strategies.
+      description: The newest workflow version the strategy is attached to. Unset for SHARED strategies.
     workflowVersion:
       type: string
-      description: The workflow version's user-defined label, when one was set. Unset for SHARED strategies.
+      description: The newest workflow version's user-defined label, when one was set. Unset for SHARED strategies.
     taskName:
       type: string
       description: The task the strategy is defined on. Only set for TASK strategies.
@@ -95,7 +92,7 @@ V1ConcurrencyStrategy:
         $ref: "#/V1ConcurrencyStrategyUsage"
     isDraining:
       type: boolean
-      description: Whether no latest workflow version uses this strategy, and it is only listed because runs of an older version still hold or wait for its slots.
+      description: Whether no latest workflow version uses this strategy, and it is only listed because runs of older versions still hold or wait for its slots.
     expression:
       type: string
       description: The CEL expression that computes a run's key.
@@ -111,11 +108,11 @@ V1ConcurrencyStrategy:
     keyCount:
       type: integer
       format: int64
-      description: Keys with at least one run running or queued.
+      description: Keys with at least one run running or queued. A key used by several versions or strategies of a task is counted once for each.
     queuedKeyCount:
       type: integer
       format: int64
-      description: Keys with at least one queued run.
+      description: Keys with at least one queued run, counted like keyCount.
     runningCount:
       type: integer
       format: int64
@@ -132,7 +129,6 @@ V1ConcurrencyStrategy:
       type: string
       description: The key of the longest-queued run. Unset when nothing is queued.
   required:
-    - id
     - scope
     - name
     - expression

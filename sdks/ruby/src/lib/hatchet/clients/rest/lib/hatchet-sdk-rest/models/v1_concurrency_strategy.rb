@@ -14,16 +14,14 @@ require 'date'
 require 'time'
 
 module HatchetSdkRest
+  # A concurrency strategy, identified by its shared name, its workflow, or its workflow and task. Versions of a workflow and strategies on the same task are combined into one; the definition fields come from the newest of them.
   class V1ConcurrencyStrategy
-    # The strategy id. Unique within a scope; WORKFLOW ids can collide with SHARED and TASK ids.
-    attr_accessor :id
-
     attr_accessor :scope
 
     # The shared strategy's name, the workflow name for WORKFLOW strategies, or the task name for TASK strategies.
     attr_accessor :name
 
-    # Whether no latest workflow version uses this strategy, and it is only listed because runs of an older version still hold or wait for its slots.
+    # Whether no latest workflow version uses this strategy, and it is only listed because runs of older versions still hold or wait for its slots.
     attr_accessor :is_draining
 
     # The CEL expression that computes a run's key.
@@ -34,10 +32,10 @@ module HatchetSdkRest
     # The static max runs per key.
     attr_accessor :max_runs
 
-    # Keys with at least one run running or queued.
+    # Keys with at least one run running or queued. A key used by several versions or strategies of a task is counted once for each.
     attr_accessor :key_count
 
-    # Keys with at least one queued run.
+    # Keys with at least one queued run, counted like keyCount.
     attr_accessor :queued_key_count
 
     # Running runs, each holding a slot.
@@ -52,10 +50,10 @@ module HatchetSdkRest
     # Unset for SHARED strategies.
     attr_accessor :workflow_name
 
-    # The workflow version the strategy is attached to. Unset for SHARED strategies.
+    # The newest workflow version the strategy is attached to. Unset for SHARED strategies.
     attr_accessor :workflow_version_id
 
-    # The workflow version's user-defined label, when one was set. Unset for SHARED strategies.
+    # The newest workflow version's user-defined label, when one was set. Unset for SHARED strategies.
     attr_accessor :workflow_version
 
     # The task the strategy is defined on. Only set for TASK strategies.
@@ -98,7 +96,6 @@ module HatchetSdkRest
     # Attribute mapping from ruby-style variable name to JSON key.
     def self.attribute_map
       {
-        :'id' => :'id',
         :'scope' => :'scope',
         :'name' => :'name',
         :'is_draining' => :'isDraining',
@@ -134,7 +131,6 @@ module HatchetSdkRest
     # Attribute type mapping.
     def self.openapi_types
       {
-        :'id' => :'Integer',
         :'scope' => :'V1ConcurrencyScope',
         :'name' => :'String',
         :'is_draining' => :'Boolean',
@@ -178,12 +174,6 @@ module HatchetSdkRest
         end
         h[k.to_sym] = v
       }
-
-      if attributes.key?(:'id')
-        self.id = attributes[:'id']
-      else
-        self.id = nil
-      end
 
       if attributes.key?(:'scope')
         self.scope = attributes[:'scope']
@@ -289,10 +279,6 @@ module HatchetSdkRest
     def list_invalid_properties
       warn '[DEPRECATED] the `list_invalid_properties` method is obsolete'
       invalid_properties = Array.new
-      if @id.nil?
-        invalid_properties.push('invalid value for "id", id cannot be nil.')
-      end
-
       if @scope.nil?
         invalid_properties.push('invalid value for "scope", scope cannot be nil.')
       end
@@ -356,7 +342,6 @@ module HatchetSdkRest
     # @return true if the model is valid
     def valid?
       warn '[DEPRECATED] the `valid?` method is obsolete'
-      return false if @id.nil?
       return false if @scope.nil?
       return false if @name.nil?
       return false if @is_draining.nil?
@@ -372,16 +357,6 @@ module HatchetSdkRest
       return false if !@workflow_version_id.nil? && @workflow_version_id.to_s.length > 36
       return false if !@workflow_version_id.nil? && @workflow_version_id.to_s.length < 36
       true
-    end
-
-    # Custom attribute writer method with validation
-    # @param [Object] id Value to be assigned
-    def id=(id)
-      if id.nil?
-        fail ArgumentError, 'id cannot be nil'
-      end
-
-      @id = id
     end
 
     # Custom attribute writer method with validation
@@ -525,7 +500,6 @@ module HatchetSdkRest
     def ==(o)
       return true if self.equal?(o)
       self.class == o.class &&
-          id == o.id &&
           scope == o.scope &&
           name == o.name &&
           is_draining == o.is_draining &&
@@ -556,7 +530,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [id, scope, name, is_draining, expression, limit_strategy, max_runs, key_count, queued_key_count, running_count, queued_count, workflow_id, workflow_name, workflow_version_id, workflow_version, task_name, used_by, max_runs_expression, oldest_queued_at, oldest_queued_key].hash
+      [scope, name, is_draining, expression, limit_strategy, max_runs, key_count, queued_key_count, running_count, queued_count, workflow_id, workflow_name, workflow_version_id, workflow_version, task_name, used_by, max_runs_expression, oldest_queued_at, oldest_queued_key].hash
     end
 
     # Builds the object from hash

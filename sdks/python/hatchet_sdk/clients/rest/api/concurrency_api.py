@@ -20,7 +20,6 @@ from pydantic import Field, StrictBool, StrictInt, StrictStr
 from typing import Optional
 from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.models.v1_concurrency_key_list import V1ConcurrencyKeyList
-from hatchet_sdk.clients.rest.models.v1_concurrency_scope import V1ConcurrencyScope
 from hatchet_sdk.clients.rest.models.v1_concurrency_strategy_list import (
     V1ConcurrencyStrategyList,
 )
@@ -51,8 +50,24 @@ class ConcurrencyApi:
                 min_length=36, strict=True, max_length=36, description="The tenant id"
             ),
         ],
-        scope: Annotated[V1ConcurrencyScope, Field(description="The strategy scope")],
-        strategy: Annotated[StrictInt, Field(description="The strategy id")],
+        strategy_name: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="The name of the shared strategy. Cannot be combined with `workflowId` or `taskName`."
+            ),
+        ] = None,
+        workflow_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(
+                description="The workflow the strategy is defined on. Without `taskName`, this is the workflow-level strategy."
+            ),
+        ] = None,
+        task_name: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="The task the strategy is defined on. Requires `workflowId`."
+            ),
+        ] = None,
         search: Annotated[
             Optional[StrictStr],
             Field(
@@ -83,14 +98,16 @@ class ConcurrencyApi:
     ) -> V1ConcurrencyKeyList:
         """List concurrency keys
 
-        Lists the keys of a concurrency strategy that have running or queued runs, sorted by queued count, then oldest queued run.
+        Lists the keys of a concurrency strategy that have running or queued runs, sorted by queued count, then oldest queued run. The strategy is given either by `strategyName` for a shared strategy, or by `workflowId` and an optional `taskName`. Keys from all versions of the workflow, and from every strategy on the task, are combined.
 
         :param tenant: The tenant id (required)
         :type tenant: str
-        :param scope: The strategy scope (required)
-        :type scope: V1ConcurrencyScope
-        :param strategy: The strategy id (required)
-        :type strategy: int
+        :param strategy_name: The name of the shared strategy. Cannot be combined with `workflowId` or `taskName`.
+        :type strategy_name: str
+        :param workflow_id: The workflow the strategy is defined on. Without `taskName`, this is the workflow-level strategy.
+        :type workflow_id: str
+        :param task_name: The task the strategy is defined on. Requires `workflowId`.
+        :type task_name: str
         :param search: Only return keys containing this string (case-insensitive)
         :type search: str
         :param only_queued: Only return keys with at least one queued run
@@ -123,8 +140,9 @@ class ConcurrencyApi:
 
         _param = self._v1_concurrency_key_list_serialize(
             tenant=tenant,
-            scope=scope,
-            strategy=strategy,
+            strategy_name=strategy_name,
+            workflow_id=workflow_id,
+            task_name=task_name,
             search=search,
             only_queued=only_queued,
             offset=offset,
@@ -159,8 +177,24 @@ class ConcurrencyApi:
                 min_length=36, strict=True, max_length=36, description="The tenant id"
             ),
         ],
-        scope: Annotated[V1ConcurrencyScope, Field(description="The strategy scope")],
-        strategy: Annotated[StrictInt, Field(description="The strategy id")],
+        strategy_name: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="The name of the shared strategy. Cannot be combined with `workflowId` or `taskName`."
+            ),
+        ] = None,
+        workflow_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(
+                description="The workflow the strategy is defined on. Without `taskName`, this is the workflow-level strategy."
+            ),
+        ] = None,
+        task_name: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="The task the strategy is defined on. Requires `workflowId`."
+            ),
+        ] = None,
         search: Annotated[
             Optional[StrictStr],
             Field(
@@ -191,14 +225,16 @@ class ConcurrencyApi:
     ) -> ApiResponse[V1ConcurrencyKeyList]:
         """List concurrency keys
 
-        Lists the keys of a concurrency strategy that have running or queued runs, sorted by queued count, then oldest queued run.
+        Lists the keys of a concurrency strategy that have running or queued runs, sorted by queued count, then oldest queued run. The strategy is given either by `strategyName` for a shared strategy, or by `workflowId` and an optional `taskName`. Keys from all versions of the workflow, and from every strategy on the task, are combined.
 
         :param tenant: The tenant id (required)
         :type tenant: str
-        :param scope: The strategy scope (required)
-        :type scope: V1ConcurrencyScope
-        :param strategy: The strategy id (required)
-        :type strategy: int
+        :param strategy_name: The name of the shared strategy. Cannot be combined with `workflowId` or `taskName`.
+        :type strategy_name: str
+        :param workflow_id: The workflow the strategy is defined on. Without `taskName`, this is the workflow-level strategy.
+        :type workflow_id: str
+        :param task_name: The task the strategy is defined on. Requires `workflowId`.
+        :type task_name: str
         :param search: Only return keys containing this string (case-insensitive)
         :type search: str
         :param only_queued: Only return keys with at least one queued run
@@ -231,8 +267,9 @@ class ConcurrencyApi:
 
         _param = self._v1_concurrency_key_list_serialize(
             tenant=tenant,
-            scope=scope,
-            strategy=strategy,
+            strategy_name=strategy_name,
+            workflow_id=workflow_id,
+            task_name=task_name,
             search=search,
             only_queued=only_queued,
             offset=offset,
@@ -267,8 +304,24 @@ class ConcurrencyApi:
                 min_length=36, strict=True, max_length=36, description="The tenant id"
             ),
         ],
-        scope: Annotated[V1ConcurrencyScope, Field(description="The strategy scope")],
-        strategy: Annotated[StrictInt, Field(description="The strategy id")],
+        strategy_name: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="The name of the shared strategy. Cannot be combined with `workflowId` or `taskName`."
+            ),
+        ] = None,
+        workflow_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
+            Field(
+                description="The workflow the strategy is defined on. Without `taskName`, this is the workflow-level strategy."
+            ),
+        ] = None,
+        task_name: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="The task the strategy is defined on. Requires `workflowId`."
+            ),
+        ] = None,
         search: Annotated[
             Optional[StrictStr],
             Field(
@@ -299,14 +352,16 @@ class ConcurrencyApi:
     ) -> RESTResponseType:
         """List concurrency keys
 
-        Lists the keys of a concurrency strategy that have running or queued runs, sorted by queued count, then oldest queued run.
+        Lists the keys of a concurrency strategy that have running or queued runs, sorted by queued count, then oldest queued run. The strategy is given either by `strategyName` for a shared strategy, or by `workflowId` and an optional `taskName`. Keys from all versions of the workflow, and from every strategy on the task, are combined.
 
         :param tenant: The tenant id (required)
         :type tenant: str
-        :param scope: The strategy scope (required)
-        :type scope: V1ConcurrencyScope
-        :param strategy: The strategy id (required)
-        :type strategy: int
+        :param strategy_name: The name of the shared strategy. Cannot be combined with `workflowId` or `taskName`.
+        :type strategy_name: str
+        :param workflow_id: The workflow the strategy is defined on. Without `taskName`, this is the workflow-level strategy.
+        :type workflow_id: str
+        :param task_name: The task the strategy is defined on. Requires `workflowId`.
+        :type task_name: str
         :param search: Only return keys containing this string (case-insensitive)
         :type search: str
         :param only_queued: Only return keys with at least one queued run
@@ -339,8 +394,9 @@ class ConcurrencyApi:
 
         _param = self._v1_concurrency_key_list_serialize(
             tenant=tenant,
-            scope=scope,
-            strategy=strategy,
+            strategy_name=strategy_name,
+            workflow_id=workflow_id,
+            task_name=task_name,
             search=search,
             only_queued=only_queued,
             offset=offset,
@@ -365,8 +421,9 @@ class ConcurrencyApi:
     def _v1_concurrency_key_list_serialize(
         self,
         tenant,
-        scope,
-        strategy,
+        strategy_name,
+        workflow_id,
+        task_name,
         search,
         only_queued,
         offset,
@@ -393,11 +450,19 @@ class ConcurrencyApi:
         # process the path parameters
         if tenant is not None:
             _path_params["tenant"] = tenant
-        if scope is not None:
-            _path_params["scope"] = scope.value
-        if strategy is not None:
-            _path_params["strategy"] = strategy
         # process the query parameters
+        if strategy_name is not None:
+
+            _query_params.append(("strategyName", strategy_name))
+
+        if workflow_id is not None:
+
+            _query_params.append(("workflowId", workflow_id))
+
+        if task_name is not None:
+
+            _query_params.append(("taskName", task_name))
+
         if search is not None:
 
             _query_params.append(("search", search))
@@ -429,7 +494,7 @@ class ConcurrencyApi:
 
         return self.api_client.param_serialize(
             method="GET",
-            resource_path="/api/v1/stable/tenants/{tenant}/concurrency/strategies/{scope}/{strategy}/keys",
+            resource_path="/api/v1/stable/tenants/{tenant}/concurrency/keys",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,

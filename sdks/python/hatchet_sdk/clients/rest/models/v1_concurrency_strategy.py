@@ -33,12 +33,9 @@ from typing_extensions import Self
 
 class V1ConcurrencyStrategy(BaseModel):
     """
-    V1ConcurrencyStrategy
+    A concurrency strategy, identified by its shared name, its workflow, or its workflow and task. Versions of a workflow and strategies on the same task are combined into one; the definition fields come from the newest of them.
     """  # noqa: E501
 
-    id: StrictInt = Field(
-        description="The strategy id. Unique within a scope; WORKFLOW ids can collide with SHARED and TASK ids."
-    )
     scope: V1ConcurrencyScope
     name: StrictStr = Field(
         description="The shared strategy's name, the workflow name for WORKFLOW strategies, or the task name for TASK strategies."
@@ -57,12 +54,12 @@ class V1ConcurrencyStrategy(BaseModel):
         Annotated[str, Field(min_length=36, strict=True, max_length=36)]
     ] = Field(
         default=None,
-        description="The workflow version the strategy is attached to. Unset for SHARED strategies.",
+        description="The newest workflow version the strategy is attached to. Unset for SHARED strategies.",
         alias="workflowVersionId",
     )
     workflow_version: Optional[StrictStr] = Field(
         default=None,
-        description="The workflow version's user-defined label, when one was set. Unset for SHARED strategies.",
+        description="The newest workflow version's user-defined label, when one was set. Unset for SHARED strategies.",
         alias="workflowVersion",
     )
     task_name: Optional[StrictStr] = Field(
@@ -76,7 +73,7 @@ class V1ConcurrencyStrategy(BaseModel):
         alias="usedBy",
     )
     is_draining: StrictBool = Field(
-        description="Whether no latest workflow version uses this strategy, and it is only listed because runs of an older version still hold or wait for its slots.",
+        description="Whether no latest workflow version uses this strategy, and it is only listed because runs of older versions still hold or wait for its slots.",
         alias="isDraining",
     )
     expression: StrictStr = Field(
@@ -92,10 +89,12 @@ class V1ConcurrencyStrategy(BaseModel):
         alias="maxRunsExpression",
     )
     key_count: StrictInt = Field(
-        description="Keys with at least one run running or queued.", alias="keyCount"
+        description="Keys with at least one run running or queued. A key used by several versions or strategies of a task is counted once for each.",
+        alias="keyCount",
     )
     queued_key_count: StrictInt = Field(
-        description="Keys with at least one queued run.", alias="queuedKeyCount"
+        description="Keys with at least one queued run, counted like keyCount.",
+        alias="queuedKeyCount",
     )
     running_count: StrictInt = Field(
         description="Running runs, each holding a slot.", alias="runningCount"
@@ -112,7 +111,6 @@ class V1ConcurrencyStrategy(BaseModel):
         alias="oldestQueuedKey",
     )
     __properties: ClassVar[List[str]] = [
-        "id",
         "scope",
         "name",
         "workflowId",
@@ -191,7 +189,6 @@ class V1ConcurrencyStrategy(BaseModel):
 
         _obj = cls.model_validate(
             {
-                "id": obj.get("id"),
                 "scope": obj.get("scope"),
                 "name": obj.get("name"),
                 "workflowId": obj.get("workflowId"),

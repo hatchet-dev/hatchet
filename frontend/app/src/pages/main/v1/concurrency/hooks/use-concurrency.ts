@@ -1,5 +1,6 @@
+import { strategyKeysQuery } from '../components/concurrency-format';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
-import { queries, V1ConcurrencyScope, V1ConcurrencyStrategy } from '@/lib/api';
+import { queries, V1ConcurrencyStrategy } from '@/lib/api';
 import { withPolling } from '@/lib/api/polling';
 import { useQuery } from '@tanstack/react-query';
 
@@ -30,16 +31,12 @@ export function useConcurrencyKeys({
 
   return useQuery({
     ...withPolling(
-      queries.v1Concurrency.keys(
-        tenantId,
-        strategy?.scope ?? V1ConcurrencyScope.V1ConcurrencyScopeTask,
-        strategy?.id ?? 0,
-        {
-          search: search || undefined,
-          limit: KEYS_PAGE_SIZE,
-          offset: page * KEYS_PAGE_SIZE,
-        },
-      ),
+      queries.v1Concurrency.keys(tenantId, {
+        ...(strategy && strategyKeysQuery(strategy)),
+        search: search || undefined,
+        limit: KEYS_PAGE_SIZE,
+        offset: page * KEYS_PAGE_SIZE,
+      }),
       refetchInterval,
     ),
     enabled: !!strategy,

@@ -117,9 +117,10 @@ module HatchetSdkRest
     # @option opts [String] :triggering_event_external_id The external id of the event that triggered the workflow run
     # @option opts [V1RunningFilter] :running_filter Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
     # @option opts [Array<String>] :idempotency_keys The idempotency key(s) to filter for
-    # @option opts [V1ConcurrencyScope] :concurrency_scope The scope of the concurrency strategy to filter by. Must be set together with &#x60;concurrency_strategy_id&#x60; and &#x60;concurrency_key&#x60;.
-    # @option opts [Integer] :concurrency_strategy_id The id of the concurrency strategy to filter by. Must be set together with &#x60;concurrency_scope&#x60; and &#x60;concurrency_key&#x60;.
-    # @option opts [String] :concurrency_key Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with &#x60;concurrency_scope&#x60; and &#x60;concurrency_strategy_id&#x60;.
+    # @option opts [String] :concurrency_strategy_name The name of the shared concurrency strategy to filter by. Cannot be combined with &#x60;concurrency_workflow_id&#x60; or &#x60;concurrency_task_name&#x60;.
+    # @option opts [String] :concurrency_workflow_id The workflow whose concurrency strategy to filter by. Without &#x60;concurrency_task_name&#x60;, this is the workflow-level strategy.
+    # @option opts [String] :concurrency_task_name The task whose concurrency strategy to filter by. Requires &#x60;concurrency_workflow_id&#x60;.
+    # @option opts [String] :concurrency_key Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Requires the strategy, given by &#x60;concurrency_strategy_name&#x60; or &#x60;concurrency_workflow_id&#x60;.
     # @option opts [V1ConcurrencySlotState] :concurrency_slot_state Narrows the concurrency key filter to runs holding the key or to runs queued on it. Returns both if unset.
     # @return [V1WorkflowRunCount]
     def v1_workflow_run_count_get(tenant, since, only_tasks, opts = {})
@@ -143,9 +144,10 @@ module HatchetSdkRest
     # @option opts [String] :triggering_event_external_id The external id of the event that triggered the workflow run
     # @option opts [V1RunningFilter] :running_filter Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
     # @option opts [Array<String>] :idempotency_keys The idempotency key(s) to filter for
-    # @option opts [V1ConcurrencyScope] :concurrency_scope The scope of the concurrency strategy to filter by. Must be set together with &#x60;concurrency_strategy_id&#x60; and &#x60;concurrency_key&#x60;.
-    # @option opts [Integer] :concurrency_strategy_id The id of the concurrency strategy to filter by. Must be set together with &#x60;concurrency_scope&#x60; and &#x60;concurrency_key&#x60;.
-    # @option opts [String] :concurrency_key Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with &#x60;concurrency_scope&#x60; and &#x60;concurrency_strategy_id&#x60;.
+    # @option opts [String] :concurrency_strategy_name The name of the shared concurrency strategy to filter by. Cannot be combined with &#x60;concurrency_workflow_id&#x60; or &#x60;concurrency_task_name&#x60;.
+    # @option opts [String] :concurrency_workflow_id The workflow whose concurrency strategy to filter by. Without &#x60;concurrency_task_name&#x60;, this is the workflow-level strategy.
+    # @option opts [String] :concurrency_task_name The task whose concurrency strategy to filter by. Requires &#x60;concurrency_workflow_id&#x60;.
+    # @option opts [String] :concurrency_key Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Requires the strategy, given by &#x60;concurrency_strategy_name&#x60; or &#x60;concurrency_workflow_id&#x60;.
     # @option opts [V1ConcurrencySlotState] :concurrency_slot_state Narrows the concurrency key filter to runs holding the key or to runs queued on it. Returns both if unset.
     # @return [Array<(V1WorkflowRunCount, Integer, Hash)>] V1WorkflowRunCount data, response status code and response headers
     def v1_workflow_run_count_get_with_http_info(tenant, since, only_tasks, opts = {})
@@ -196,6 +198,14 @@ module HatchetSdkRest
         fail ArgumentError, 'invalid value for "opts[:"triggering_event_external_id"]" when calling WorkflowRunsApi.v1_workflow_run_count_get, the character length must be greater than or equal to 36.'
       end
 
+      if @api_client.config.client_side_validation && !opts[:'concurrency_workflow_id'].nil? && opts[:'concurrency_workflow_id'].to_s.length > 36
+        fail ArgumentError, 'invalid value for "opts[:"concurrency_workflow_id"]" when calling WorkflowRunsApi.v1_workflow_run_count_get, the character length must be smaller than or equal to 36.'
+      end
+
+      if @api_client.config.client_side_validation && !opts[:'concurrency_workflow_id'].nil? && opts[:'concurrency_workflow_id'].to_s.length < 36
+        fail ArgumentError, 'invalid value for "opts[:"concurrency_workflow_id"]" when calling WorkflowRunsApi.v1_workflow_run_count_get, the character length must be greater than or equal to 36.'
+      end
+
       # resource path
       local_var_path = '/api/v1/stable/tenants/{tenant}/workflow-runs/count'.sub('{' + 'tenant' + '}', CGI.escape(tenant.to_s))
 
@@ -213,8 +223,9 @@ module HatchetSdkRest
       query_params[:'triggering_event_external_id'] = opts[:'triggering_event_external_id'] if !opts[:'triggering_event_external_id'].nil?
       query_params[:'running_filter'] = opts[:'running_filter'] if !opts[:'running_filter'].nil?
       query_params[:'idempotency_keys'] = @api_client.build_collection_param(opts[:'idempotency_keys'], :multi) if !opts[:'idempotency_keys'].nil?
-      query_params[:'concurrency_scope'] = opts[:'concurrency_scope'] if !opts[:'concurrency_scope'].nil?
-      query_params[:'concurrency_strategy_id'] = opts[:'concurrency_strategy_id'] if !opts[:'concurrency_strategy_id'].nil?
+      query_params[:'concurrency_strategy_name'] = opts[:'concurrency_strategy_name'] if !opts[:'concurrency_strategy_name'].nil?
+      query_params[:'concurrency_workflow_id'] = opts[:'concurrency_workflow_id'] if !opts[:'concurrency_workflow_id'].nil?
+      query_params[:'concurrency_task_name'] = opts[:'concurrency_task_name'] if !opts[:'concurrency_task_name'].nil?
       query_params[:'concurrency_key'] = opts[:'concurrency_key'] if !opts[:'concurrency_key'].nil?
       query_params[:'concurrency_slot_state'] = opts[:'concurrency_slot_state'] if !opts[:'concurrency_slot_state'].nil?
 
@@ -743,9 +754,10 @@ module HatchetSdkRest
     # @option opts [Boolean] :include_payloads A flag for whether or not to include the input and output payloads in the response. Defaults to &#x60;true&#x60; if unset.
     # @option opts [V1RunningFilter] :running_filter Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
     # @option opts [Array<String>] :idempotency_keys The idempotency key(s) to filter for
-    # @option opts [V1ConcurrencyScope] :concurrency_scope The scope of the concurrency strategy to filter by. Must be set together with &#x60;concurrency_strategy_id&#x60; and &#x60;concurrency_key&#x60;.
-    # @option opts [Integer] :concurrency_strategy_id The id of the concurrency strategy to filter by. Must be set together with &#x60;concurrency_scope&#x60; and &#x60;concurrency_key&#x60;.
-    # @option opts [String] :concurrency_key Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with &#x60;concurrency_scope&#x60; and &#x60;concurrency_strategy_id&#x60;.
+    # @option opts [String] :concurrency_strategy_name The name of the shared concurrency strategy to filter by. Cannot be combined with &#x60;concurrency_workflow_id&#x60; or &#x60;concurrency_task_name&#x60;.
+    # @option opts [String] :concurrency_workflow_id The workflow whose concurrency strategy to filter by. Without &#x60;concurrency_task_name&#x60;, this is the workflow-level strategy.
+    # @option opts [String] :concurrency_task_name The task whose concurrency strategy to filter by. Requires &#x60;concurrency_workflow_id&#x60;.
+    # @option opts [String] :concurrency_key Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Requires the strategy, given by &#x60;concurrency_strategy_name&#x60; or &#x60;concurrency_workflow_id&#x60;.
     # @option opts [V1ConcurrencySlotState] :concurrency_slot_state Narrows the concurrency key filter to runs holding the key or to runs queued on it. Returns both if unset.
     # @option opts [Boolean] :include_num_pages A flag for whether or not to count the matching runs in order to populate &#x60;pagination.num_pages&#x60;. Defaults to &#x60;true&#x60; if unset. When &#x60;false&#x60;, &#x60;pagination.num_pages&#x60; is &#x60;0&#x60;, and the count can be fetched separately from the count endpoint.
     # @return [V1TaskSummaryList]
@@ -773,9 +785,10 @@ module HatchetSdkRest
     # @option opts [Boolean] :include_payloads A flag for whether or not to include the input and output payloads in the response. Defaults to &#x60;true&#x60; if unset.
     # @option opts [V1RunningFilter] :running_filter Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
     # @option opts [Array<String>] :idempotency_keys The idempotency key(s) to filter for
-    # @option opts [V1ConcurrencyScope] :concurrency_scope The scope of the concurrency strategy to filter by. Must be set together with &#x60;concurrency_strategy_id&#x60; and &#x60;concurrency_key&#x60;.
-    # @option opts [Integer] :concurrency_strategy_id The id of the concurrency strategy to filter by. Must be set together with &#x60;concurrency_scope&#x60; and &#x60;concurrency_key&#x60;.
-    # @option opts [String] :concurrency_key Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with &#x60;concurrency_scope&#x60; and &#x60;concurrency_strategy_id&#x60;.
+    # @option opts [String] :concurrency_strategy_name The name of the shared concurrency strategy to filter by. Cannot be combined with &#x60;concurrency_workflow_id&#x60; or &#x60;concurrency_task_name&#x60;.
+    # @option opts [String] :concurrency_workflow_id The workflow whose concurrency strategy to filter by. Without &#x60;concurrency_task_name&#x60;, this is the workflow-level strategy.
+    # @option opts [String] :concurrency_task_name The task whose concurrency strategy to filter by. Requires &#x60;concurrency_workflow_id&#x60;.
+    # @option opts [String] :concurrency_key Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Requires the strategy, given by &#x60;concurrency_strategy_name&#x60; or &#x60;concurrency_workflow_id&#x60;.
     # @option opts [V1ConcurrencySlotState] :concurrency_slot_state Narrows the concurrency key filter to runs holding the key or to runs queued on it. Returns both if unset.
     # @option opts [Boolean] :include_num_pages A flag for whether or not to count the matching runs in order to populate &#x60;pagination.num_pages&#x60;. Defaults to &#x60;true&#x60; if unset. When &#x60;false&#x60;, &#x60;pagination.num_pages&#x60; is &#x60;0&#x60;, and the count can be fetched separately from the count endpoint.
     # @return [Array<(V1TaskSummaryList, Integer, Hash)>] V1TaskSummaryList data, response status code and response headers
@@ -827,6 +840,14 @@ module HatchetSdkRest
         fail ArgumentError, 'invalid value for "opts[:"triggering_event_external_id"]" when calling WorkflowRunsApi.v1_workflow_run_list, the character length must be greater than or equal to 36.'
       end
 
+      if @api_client.config.client_side_validation && !opts[:'concurrency_workflow_id'].nil? && opts[:'concurrency_workflow_id'].to_s.length > 36
+        fail ArgumentError, 'invalid value for "opts[:"concurrency_workflow_id"]" when calling WorkflowRunsApi.v1_workflow_run_list, the character length must be smaller than or equal to 36.'
+      end
+
+      if @api_client.config.client_side_validation && !opts[:'concurrency_workflow_id'].nil? && opts[:'concurrency_workflow_id'].to_s.length < 36
+        fail ArgumentError, 'invalid value for "opts[:"concurrency_workflow_id"]" when calling WorkflowRunsApi.v1_workflow_run_list, the character length must be greater than or equal to 36.'
+      end
+
       # resource path
       local_var_path = '/api/v1/stable/tenants/{tenant}/workflow-runs'.sub('{' + 'tenant' + '}', CGI.escape(tenant.to_s))
 
@@ -847,8 +868,9 @@ module HatchetSdkRest
       query_params[:'include_payloads'] = opts[:'include_payloads'] if !opts[:'include_payloads'].nil?
       query_params[:'running_filter'] = opts[:'running_filter'] if !opts[:'running_filter'].nil?
       query_params[:'idempotency_keys'] = @api_client.build_collection_param(opts[:'idempotency_keys'], :multi) if !opts[:'idempotency_keys'].nil?
-      query_params[:'concurrency_scope'] = opts[:'concurrency_scope'] if !opts[:'concurrency_scope'].nil?
-      query_params[:'concurrency_strategy_id'] = opts[:'concurrency_strategy_id'] if !opts[:'concurrency_strategy_id'].nil?
+      query_params[:'concurrency_strategy_name'] = opts[:'concurrency_strategy_name'] if !opts[:'concurrency_strategy_name'].nil?
+      query_params[:'concurrency_workflow_id'] = opts[:'concurrency_workflow_id'] if !opts[:'concurrency_workflow_id'].nil?
+      query_params[:'concurrency_task_name'] = opts[:'concurrency_task_name'] if !opts[:'concurrency_task_name'].nil?
       query_params[:'concurrency_key'] = opts[:'concurrency_key'] if !opts[:'concurrency_key'].nil?
       query_params[:'concurrency_slot_state'] = opts[:'concurrency_slot_state'] if !opts[:'concurrency_slot_state'].nil?
       query_params[:'include_num_pages'] = opts[:'include_num_pages'] if !opts[:'include_num_pages'].nil?

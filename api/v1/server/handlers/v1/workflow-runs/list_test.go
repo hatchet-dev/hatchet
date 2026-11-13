@@ -12,9 +12,10 @@ import (
 )
 
 func TestConcurrencySlotExternalIdsValidation(t *testing.T) {
-	scope := gen.V1ConcurrencyScopeTask
-	badScope := gen.V1ConcurrencyScope("BOGUS")
-	strategyId := int64(1)
+	sharedName := "per-customer"
+	empty := ""
+	workflowId := uuid.New()
+	taskName := "process"
 	key := "alpha"
 	badState := gen.V1ConcurrencySlotState("BOGUS")
 	holding := gen.V1ConcurrencySlotStateHolding
@@ -26,10 +27,12 @@ func TestConcurrencySlotExternalIdsValidation(t *testing.T) {
 	}{
 		{name: "unset", filters: workflowRunFilters{}},
 		{name: "key only", filters: workflowRunFilters{ConcurrencyKey: &key}, wantErr: true},
-		{name: "strategy without key", filters: workflowRunFilters{ConcurrencyScope: &scope, ConcurrencyStrategyId: &strategyId}, wantErr: true},
+		{name: "strategy without key", filters: workflowRunFilters{ConcurrencyWorkflowId: &workflowId, ConcurrencyTaskName: &taskName}, wantErr: true},
 		{name: "state only", filters: workflowRunFilters{ConcurrencySlotState: &holding}, wantErr: true},
-		{name: "invalid scope", filters: workflowRunFilters{ConcurrencyScope: &badScope, ConcurrencyStrategyId: &strategyId, ConcurrencyKey: &key}, wantErr: true},
-		{name: "invalid state", filters: workflowRunFilters{ConcurrencyScope: &scope, ConcurrencyStrategyId: &strategyId, ConcurrencyKey: &key, ConcurrencySlotState: &badState}, wantErr: true},
+		{name: "task without workflow", filters: workflowRunFilters{ConcurrencyTaskName: &taskName, ConcurrencyKey: &key}, wantErr: true},
+		{name: "shared and workflow", filters: workflowRunFilters{ConcurrencyStrategyName: &sharedName, ConcurrencyWorkflowId: &workflowId, ConcurrencyKey: &key}, wantErr: true},
+		{name: "empty shared name", filters: workflowRunFilters{ConcurrencyStrategyName: &empty, ConcurrencyKey: &key}, wantErr: true},
+		{name: "invalid state", filters: workflowRunFilters{ConcurrencyWorkflowId: &workflowId, ConcurrencyKey: &key, ConcurrencySlotState: &badState}, wantErr: true},
 	}
 
 	// validation fails before the repository is used, so the service needs no config

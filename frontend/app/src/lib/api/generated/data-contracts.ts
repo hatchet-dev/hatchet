@@ -300,6 +300,13 @@ export enum V1ConcurrencyLimitStrategy {
   V1ConcurrencyLimitStrategyCancelQueuedExceptOldest = "CANCEL_QUEUED_EXCEPT_OLDEST",
 }
 
+/** Where a concurrency strategy is defined. SHARED strategies are named, tenant-wide and can be used by tasks in several workflows. */
+export enum V1ConcurrencyScope {
+  V1ConcurrencyScopeShared = "SHARED",
+  V1ConcurrencyScopeWorkflow = "WORKFLOW",
+  V1ConcurrencyScopeTask = "TASK",
+}
+
 export enum TenantEnvironment {
   Local = "local",
   Development = "development",
@@ -342,13 +349,6 @@ export enum V1DurableEventLogKind {
 export enum V1ConcurrencySlotState {
   V1ConcurrencySlotStateHolding = "HOLDING",
   V1ConcurrencySlotStateQueued = "QUEUED",
-}
-
-/** Where a concurrency strategy is defined. SHARED strategies are named, tenant-wide and can be used by tasks in several workflows. */
-export enum V1ConcurrencyScope {
-  V1ConcurrencyScopeShared = "SHARED",
-  V1ConcurrencyScopeWorkflow = "WORKFLOW",
-  V1ConcurrencyScopeTask = "TASK",
 }
 
 export enum V1RunningFilter {
@@ -1193,12 +1193,8 @@ export interface V1ConcurrencyStrategyUsage {
   taskName: string;
 }
 
+/** A concurrency strategy, identified by its shared name, its workflow, or its workflow and task. Versions of a workflow and strategies on the same task are combined into one; the definition fields come from the newest of them. */
 export interface V1ConcurrencyStrategy {
-  /**
-   * The strategy id. Unique within a scope; WORKFLOW ids can collide with SHARED and TASK ids.
-   * @format int64
-   */
-  id: number;
   /** Where a concurrency strategy is defined. SHARED strategies are named, tenant-wide and can be used by tasks in several workflows. */
   scope: V1ConcurrencyScope;
   /** The shared strategy's name, the workflow name for WORKFLOW strategies, or the task name for TASK strategies. */
@@ -1213,19 +1209,19 @@ export interface V1ConcurrencyStrategy {
   /** Unset for SHARED strategies. */
   workflowName?: string;
   /**
-   * The workflow version the strategy is attached to. Unset for SHARED strategies.
+   * The newest workflow version the strategy is attached to. Unset for SHARED strategies.
    * @format uuid
    * @minLength 36
    * @maxLength 36
    */
   workflowVersionId?: string;
-  /** The workflow version's user-defined label, when one was set. Unset for SHARED strategies. */
+  /** The newest workflow version's user-defined label, when one was set. Unset for SHARED strategies. */
   workflowVersion?: string;
   /** The task the strategy is defined on. Only set for TASK strategies. */
   taskName?: string;
   /** Tasks on their workflow's latest version that use this strategy. Only set for SHARED strategies. */
   usedBy?: V1ConcurrencyStrategyUsage[];
-  /** Whether no latest workflow version uses this strategy, and it is only listed because runs of an older version still hold or wait for its slots. */
+  /** Whether no latest workflow version uses this strategy, and it is only listed because runs of older versions still hold or wait for its slots. */
   isDraining: boolean;
   /** The CEL expression that computes a run's key. */
   expression: string;
@@ -1239,12 +1235,12 @@ export interface V1ConcurrencyStrategy {
   /** CEL expression computing max runs per key from the task input, when set. Overrides maxRuns. */
   maxRunsExpression?: string;
   /**
-   * Keys with at least one run running or queued.
+   * Keys with at least one run running or queued. A key used by several versions or strategies of a task is counted once for each.
    * @format int64
    */
   keyCount: number;
   /**
-   * Keys with at least one queued run.
+   * Keys with at least one queued run, counted like keyCount.
    * @format int64
    */
   queuedKeyCount: number;

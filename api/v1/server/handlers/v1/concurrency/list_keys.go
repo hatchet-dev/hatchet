@@ -16,10 +16,10 @@ import (
 func (t *V1ConcurrencyService) V1ConcurrencyKeyList(ctx echo.Context, request gen.V1ConcurrencyKeyListRequestObject) (gen.V1ConcurrencyKeyListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 
-	scope, ok := transformers.FromV1ConcurrencyScope(request.Scope)
+	ref, ok := transformers.FromV1ConcurrencyStrategyRef(request.Params.StrategyName, request.Params.WorkflowId, request.Params.TaskName)
 
 	if !ok {
-		return gen.V1ConcurrencyKeyList400JSONResponse(apierrors.NewAPIErrors("invalid scope")), nil
+		return gen.V1ConcurrencyKeyList400JSONResponse(apierrors.NewAPIErrors("set either strategyName, or workflowId with an optional taskName")), nil
 	}
 
 	limit := int64(50)
@@ -47,7 +47,7 @@ func (t *V1ConcurrencyService) V1ConcurrencyKeyList(ctx echo.Context, request ge
 		opts.OnlyQueued = *request.Params.OnlyQueued
 	}
 
-	keys, total, err := t.config.V1.ConcurrencyOverview().ListKeys(ctx.Request().Context(), tenant.ID, scope, request.Strategy, opts)
+	keys, total, err := t.config.V1.ConcurrencyOverview().ListKeys(ctx.Request().Context(), tenant.ID, ref, opts)
 
 	if errors.Is(err, repository.ErrConcurrencyStrategyNotFound) {
 		return gen.V1ConcurrencyKeyList404JSONResponse(apierrors.NewAPIErrors("concurrency strategy not found")), nil

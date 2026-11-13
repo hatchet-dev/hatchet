@@ -29,7 +29,6 @@ from hatchet_sdk.clients.rest.models.v1_branch_durable_task_request import (
 from hatchet_sdk.clients.rest.models.v1_branch_durable_task_response import (
     V1BranchDurableTaskResponse,
 )
-from hatchet_sdk.clients.rest.models.v1_concurrency_scope import V1ConcurrencyScope
 from hatchet_sdk.clients.rest.models.v1_concurrency_slot_state import (
     V1ConcurrencySlotState,
 )
@@ -422,22 +421,28 @@ class WorkflowRunsApi:
             Optional[List[StrictStr]],
             Field(description="The idempotency key(s) to filter for"),
         ] = None,
-        concurrency_scope: Annotated[
-            Optional[V1ConcurrencyScope],
+        concurrency_strategy_name: Annotated[
+            Optional[StrictStr],
             Field(
-                description="The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`."
+                description="The name of the shared concurrency strategy to filter by. Cannot be combined with `concurrency_workflow_id` or `concurrency_task_name`."
             ),
         ] = None,
-        concurrency_strategy_id: Annotated[
-            Optional[StrictInt],
+        concurrency_workflow_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
             Field(
-                description="The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`."
+                description="The workflow whose concurrency strategy to filter by. Without `concurrency_task_name`, this is the workflow-level strategy."
+            ),
+        ] = None,
+        concurrency_task_name: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="The task whose concurrency strategy to filter by. Requires `concurrency_workflow_id`."
             ),
         ] = None,
         concurrency_key: Annotated[
             Optional[StrictStr],
             Field(
-                description="Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`."
+                description="Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Requires the strategy, given by `concurrency_strategy_name` or `concurrency_workflow_id`."
             ),
         ] = None,
         concurrency_slot_state: Annotated[
@@ -488,11 +493,13 @@ class WorkflowRunsApi:
         :type running_filter: V1RunningFilter
         :param idempotency_keys: The idempotency key(s) to filter for
         :type idempotency_keys: List[str]
-        :param concurrency_scope: The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`.
-        :type concurrency_scope: V1ConcurrencyScope
-        :param concurrency_strategy_id: The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`.
-        :type concurrency_strategy_id: int
-        :param concurrency_key: Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`.
+        :param concurrency_strategy_name: The name of the shared concurrency strategy to filter by. Cannot be combined with `concurrency_workflow_id` or `concurrency_task_name`.
+        :type concurrency_strategy_name: str
+        :param concurrency_workflow_id: The workflow whose concurrency strategy to filter by. Without `concurrency_task_name`, this is the workflow-level strategy.
+        :type concurrency_workflow_id: str
+        :param concurrency_task_name: The task whose concurrency strategy to filter by. Requires `concurrency_workflow_id`.
+        :type concurrency_task_name: str
+        :param concurrency_key: Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Requires the strategy, given by `concurrency_strategy_name` or `concurrency_workflow_id`.
         :type concurrency_key: str
         :param concurrency_slot_state: Narrows the concurrency key filter to runs holding the key or to runs queued on it. Returns both if unset.
         :type concurrency_slot_state: V1ConcurrencySlotState
@@ -532,8 +539,9 @@ class WorkflowRunsApi:
             triggering_event_external_id=triggering_event_external_id,
             running_filter=running_filter,
             idempotency_keys=idempotency_keys,
-            concurrency_scope=concurrency_scope,
-            concurrency_strategy_id=concurrency_strategy_id,
+            concurrency_strategy_name=concurrency_strategy_name,
+            concurrency_workflow_id=concurrency_workflow_id,
+            concurrency_task_name=concurrency_task_name,
             concurrency_key=concurrency_key,
             concurrency_slot_state=concurrency_slot_state,
             _request_auth=_request_auth,
@@ -618,22 +626,28 @@ class WorkflowRunsApi:
             Optional[List[StrictStr]],
             Field(description="The idempotency key(s) to filter for"),
         ] = None,
-        concurrency_scope: Annotated[
-            Optional[V1ConcurrencyScope],
+        concurrency_strategy_name: Annotated[
+            Optional[StrictStr],
             Field(
-                description="The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`."
+                description="The name of the shared concurrency strategy to filter by. Cannot be combined with `concurrency_workflow_id` or `concurrency_task_name`."
             ),
         ] = None,
-        concurrency_strategy_id: Annotated[
-            Optional[StrictInt],
+        concurrency_workflow_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
             Field(
-                description="The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`."
+                description="The workflow whose concurrency strategy to filter by. Without `concurrency_task_name`, this is the workflow-level strategy."
+            ),
+        ] = None,
+        concurrency_task_name: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="The task whose concurrency strategy to filter by. Requires `concurrency_workflow_id`."
             ),
         ] = None,
         concurrency_key: Annotated[
             Optional[StrictStr],
             Field(
-                description="Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`."
+                description="Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Requires the strategy, given by `concurrency_strategy_name` or `concurrency_workflow_id`."
             ),
         ] = None,
         concurrency_slot_state: Annotated[
@@ -684,11 +698,13 @@ class WorkflowRunsApi:
         :type running_filter: V1RunningFilter
         :param idempotency_keys: The idempotency key(s) to filter for
         :type idempotency_keys: List[str]
-        :param concurrency_scope: The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`.
-        :type concurrency_scope: V1ConcurrencyScope
-        :param concurrency_strategy_id: The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`.
-        :type concurrency_strategy_id: int
-        :param concurrency_key: Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`.
+        :param concurrency_strategy_name: The name of the shared concurrency strategy to filter by. Cannot be combined with `concurrency_workflow_id` or `concurrency_task_name`.
+        :type concurrency_strategy_name: str
+        :param concurrency_workflow_id: The workflow whose concurrency strategy to filter by. Without `concurrency_task_name`, this is the workflow-level strategy.
+        :type concurrency_workflow_id: str
+        :param concurrency_task_name: The task whose concurrency strategy to filter by. Requires `concurrency_workflow_id`.
+        :type concurrency_task_name: str
+        :param concurrency_key: Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Requires the strategy, given by `concurrency_strategy_name` or `concurrency_workflow_id`.
         :type concurrency_key: str
         :param concurrency_slot_state: Narrows the concurrency key filter to runs holding the key or to runs queued on it. Returns both if unset.
         :type concurrency_slot_state: V1ConcurrencySlotState
@@ -728,8 +744,9 @@ class WorkflowRunsApi:
             triggering_event_external_id=triggering_event_external_id,
             running_filter=running_filter,
             idempotency_keys=idempotency_keys,
-            concurrency_scope=concurrency_scope,
-            concurrency_strategy_id=concurrency_strategy_id,
+            concurrency_strategy_name=concurrency_strategy_name,
+            concurrency_workflow_id=concurrency_workflow_id,
+            concurrency_task_name=concurrency_task_name,
             concurrency_key=concurrency_key,
             concurrency_slot_state=concurrency_slot_state,
             _request_auth=_request_auth,
@@ -814,22 +831,28 @@ class WorkflowRunsApi:
             Optional[List[StrictStr]],
             Field(description="The idempotency key(s) to filter for"),
         ] = None,
-        concurrency_scope: Annotated[
-            Optional[V1ConcurrencyScope],
+        concurrency_strategy_name: Annotated[
+            Optional[StrictStr],
             Field(
-                description="The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`."
+                description="The name of the shared concurrency strategy to filter by. Cannot be combined with `concurrency_workflow_id` or `concurrency_task_name`."
             ),
         ] = None,
-        concurrency_strategy_id: Annotated[
-            Optional[StrictInt],
+        concurrency_workflow_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
             Field(
-                description="The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`."
+                description="The workflow whose concurrency strategy to filter by. Without `concurrency_task_name`, this is the workflow-level strategy."
+            ),
+        ] = None,
+        concurrency_task_name: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="The task whose concurrency strategy to filter by. Requires `concurrency_workflow_id`."
             ),
         ] = None,
         concurrency_key: Annotated[
             Optional[StrictStr],
             Field(
-                description="Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`."
+                description="Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Requires the strategy, given by `concurrency_strategy_name` or `concurrency_workflow_id`."
             ),
         ] = None,
         concurrency_slot_state: Annotated[
@@ -880,11 +903,13 @@ class WorkflowRunsApi:
         :type running_filter: V1RunningFilter
         :param idempotency_keys: The idempotency key(s) to filter for
         :type idempotency_keys: List[str]
-        :param concurrency_scope: The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`.
-        :type concurrency_scope: V1ConcurrencyScope
-        :param concurrency_strategy_id: The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`.
-        :type concurrency_strategy_id: int
-        :param concurrency_key: Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`.
+        :param concurrency_strategy_name: The name of the shared concurrency strategy to filter by. Cannot be combined with `concurrency_workflow_id` or `concurrency_task_name`.
+        :type concurrency_strategy_name: str
+        :param concurrency_workflow_id: The workflow whose concurrency strategy to filter by. Without `concurrency_task_name`, this is the workflow-level strategy.
+        :type concurrency_workflow_id: str
+        :param concurrency_task_name: The task whose concurrency strategy to filter by. Requires `concurrency_workflow_id`.
+        :type concurrency_task_name: str
+        :param concurrency_key: Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Requires the strategy, given by `concurrency_strategy_name` or `concurrency_workflow_id`.
         :type concurrency_key: str
         :param concurrency_slot_state: Narrows the concurrency key filter to runs holding the key or to runs queued on it. Returns both if unset.
         :type concurrency_slot_state: V1ConcurrencySlotState
@@ -924,8 +949,9 @@ class WorkflowRunsApi:
             triggering_event_external_id=triggering_event_external_id,
             running_filter=running_filter,
             idempotency_keys=idempotency_keys,
-            concurrency_scope=concurrency_scope,
-            concurrency_strategy_id=concurrency_strategy_id,
+            concurrency_strategy_name=concurrency_strategy_name,
+            concurrency_workflow_id=concurrency_workflow_id,
+            concurrency_task_name=concurrency_task_name,
             concurrency_key=concurrency_key,
             concurrency_slot_state=concurrency_slot_state,
             _request_auth=_request_auth,
@@ -960,8 +986,9 @@ class WorkflowRunsApi:
         triggering_event_external_id,
         running_filter,
         idempotency_keys,
-        concurrency_scope,
-        concurrency_strategy_id,
+        concurrency_strategy_name,
+        concurrency_workflow_id,
+        concurrency_task_name,
         concurrency_key,
         concurrency_slot_state,
         _request_auth,
@@ -1058,13 +1085,19 @@ class WorkflowRunsApi:
 
             _query_params.append(("idempotency_keys", idempotency_keys))
 
-        if concurrency_scope is not None:
+        if concurrency_strategy_name is not None:
 
-            _query_params.append(("concurrency_scope", concurrency_scope.value))
+            _query_params.append(
+                ("concurrency_strategy_name", concurrency_strategy_name)
+            )
 
-        if concurrency_strategy_id is not None:
+        if concurrency_workflow_id is not None:
 
-            _query_params.append(("concurrency_strategy_id", concurrency_strategy_id))
+            _query_params.append(("concurrency_workflow_id", concurrency_workflow_id))
+
+        if concurrency_task_name is not None:
+
+            _query_params.append(("concurrency_task_name", concurrency_task_name))
 
         if concurrency_key is not None:
 
@@ -3114,22 +3147,28 @@ class WorkflowRunsApi:
             Optional[List[StrictStr]],
             Field(description="The idempotency key(s) to filter for"),
         ] = None,
-        concurrency_scope: Annotated[
-            Optional[V1ConcurrencyScope],
+        concurrency_strategy_name: Annotated[
+            Optional[StrictStr],
             Field(
-                description="The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`."
+                description="The name of the shared concurrency strategy to filter by. Cannot be combined with `concurrency_workflow_id` or `concurrency_task_name`."
             ),
         ] = None,
-        concurrency_strategy_id: Annotated[
-            Optional[StrictInt],
+        concurrency_workflow_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
             Field(
-                description="The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`."
+                description="The workflow whose concurrency strategy to filter by. Without `concurrency_task_name`, this is the workflow-level strategy."
+            ),
+        ] = None,
+        concurrency_task_name: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="The task whose concurrency strategy to filter by. Requires `concurrency_workflow_id`."
             ),
         ] = None,
         concurrency_key: Annotated[
             Optional[StrictStr],
             Field(
-                description="Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`."
+                description="Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Requires the strategy, given by `concurrency_strategy_name` or `concurrency_workflow_id`."
             ),
         ] = None,
         concurrency_slot_state: Annotated[
@@ -3192,11 +3231,13 @@ class WorkflowRunsApi:
         :type running_filter: V1RunningFilter
         :param idempotency_keys: The idempotency key(s) to filter for
         :type idempotency_keys: List[str]
-        :param concurrency_scope: The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`.
-        :type concurrency_scope: V1ConcurrencyScope
-        :param concurrency_strategy_id: The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`.
-        :type concurrency_strategy_id: int
-        :param concurrency_key: Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`.
+        :param concurrency_strategy_name: The name of the shared concurrency strategy to filter by. Cannot be combined with `concurrency_workflow_id` or `concurrency_task_name`.
+        :type concurrency_strategy_name: str
+        :param concurrency_workflow_id: The workflow whose concurrency strategy to filter by. Without `concurrency_task_name`, this is the workflow-level strategy.
+        :type concurrency_workflow_id: str
+        :param concurrency_task_name: The task whose concurrency strategy to filter by. Requires `concurrency_workflow_id`.
+        :type concurrency_task_name: str
+        :param concurrency_key: Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Requires the strategy, given by `concurrency_strategy_name` or `concurrency_workflow_id`.
         :type concurrency_key: str
         :param concurrency_slot_state: Narrows the concurrency key filter to runs holding the key or to runs queued on it. Returns both if unset.
         :type concurrency_slot_state: V1ConcurrencySlotState
@@ -3241,8 +3282,9 @@ class WorkflowRunsApi:
             include_payloads=include_payloads,
             running_filter=running_filter,
             idempotency_keys=idempotency_keys,
-            concurrency_scope=concurrency_scope,
-            concurrency_strategy_id=concurrency_strategy_id,
+            concurrency_strategy_name=concurrency_strategy_name,
+            concurrency_workflow_id=concurrency_workflow_id,
+            concurrency_task_name=concurrency_task_name,
             concurrency_key=concurrency_key,
             concurrency_slot_state=concurrency_slot_state,
             include_num_pages=include_num_pages,
@@ -3341,22 +3383,28 @@ class WorkflowRunsApi:
             Optional[List[StrictStr]],
             Field(description="The idempotency key(s) to filter for"),
         ] = None,
-        concurrency_scope: Annotated[
-            Optional[V1ConcurrencyScope],
+        concurrency_strategy_name: Annotated[
+            Optional[StrictStr],
             Field(
-                description="The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`."
+                description="The name of the shared concurrency strategy to filter by. Cannot be combined with `concurrency_workflow_id` or `concurrency_task_name`."
             ),
         ] = None,
-        concurrency_strategy_id: Annotated[
-            Optional[StrictInt],
+        concurrency_workflow_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
             Field(
-                description="The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`."
+                description="The workflow whose concurrency strategy to filter by. Without `concurrency_task_name`, this is the workflow-level strategy."
+            ),
+        ] = None,
+        concurrency_task_name: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="The task whose concurrency strategy to filter by. Requires `concurrency_workflow_id`."
             ),
         ] = None,
         concurrency_key: Annotated[
             Optional[StrictStr],
             Field(
-                description="Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`."
+                description="Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Requires the strategy, given by `concurrency_strategy_name` or `concurrency_workflow_id`."
             ),
         ] = None,
         concurrency_slot_state: Annotated[
@@ -3419,11 +3467,13 @@ class WorkflowRunsApi:
         :type running_filter: V1RunningFilter
         :param idempotency_keys: The idempotency key(s) to filter for
         :type idempotency_keys: List[str]
-        :param concurrency_scope: The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`.
-        :type concurrency_scope: V1ConcurrencyScope
-        :param concurrency_strategy_id: The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`.
-        :type concurrency_strategy_id: int
-        :param concurrency_key: Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`.
+        :param concurrency_strategy_name: The name of the shared concurrency strategy to filter by. Cannot be combined with `concurrency_workflow_id` or `concurrency_task_name`.
+        :type concurrency_strategy_name: str
+        :param concurrency_workflow_id: The workflow whose concurrency strategy to filter by. Without `concurrency_task_name`, this is the workflow-level strategy.
+        :type concurrency_workflow_id: str
+        :param concurrency_task_name: The task whose concurrency strategy to filter by. Requires `concurrency_workflow_id`.
+        :type concurrency_task_name: str
+        :param concurrency_key: Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Requires the strategy, given by `concurrency_strategy_name` or `concurrency_workflow_id`.
         :type concurrency_key: str
         :param concurrency_slot_state: Narrows the concurrency key filter to runs holding the key or to runs queued on it. Returns both if unset.
         :type concurrency_slot_state: V1ConcurrencySlotState
@@ -3468,8 +3518,9 @@ class WorkflowRunsApi:
             include_payloads=include_payloads,
             running_filter=running_filter,
             idempotency_keys=idempotency_keys,
-            concurrency_scope=concurrency_scope,
-            concurrency_strategy_id=concurrency_strategy_id,
+            concurrency_strategy_name=concurrency_strategy_name,
+            concurrency_workflow_id=concurrency_workflow_id,
+            concurrency_task_name=concurrency_task_name,
             concurrency_key=concurrency_key,
             concurrency_slot_state=concurrency_slot_state,
             include_num_pages=include_num_pages,
@@ -3568,22 +3619,28 @@ class WorkflowRunsApi:
             Optional[List[StrictStr]],
             Field(description="The idempotency key(s) to filter for"),
         ] = None,
-        concurrency_scope: Annotated[
-            Optional[V1ConcurrencyScope],
+        concurrency_strategy_name: Annotated[
+            Optional[StrictStr],
             Field(
-                description="The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`."
+                description="The name of the shared concurrency strategy to filter by. Cannot be combined with `concurrency_workflow_id` or `concurrency_task_name`."
             ),
         ] = None,
-        concurrency_strategy_id: Annotated[
-            Optional[StrictInt],
+        concurrency_workflow_id: Annotated[
+            Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]],
             Field(
-                description="The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`."
+                description="The workflow whose concurrency strategy to filter by. Without `concurrency_task_name`, this is the workflow-level strategy."
+            ),
+        ] = None,
+        concurrency_task_name: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="The task whose concurrency strategy to filter by. Requires `concurrency_workflow_id`."
             ),
         ] = None,
         concurrency_key: Annotated[
             Optional[StrictStr],
             Field(
-                description="Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`."
+                description="Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Requires the strategy, given by `concurrency_strategy_name` or `concurrency_workflow_id`."
             ),
         ] = None,
         concurrency_slot_state: Annotated[
@@ -3646,11 +3703,13 @@ class WorkflowRunsApi:
         :type running_filter: V1RunningFilter
         :param idempotency_keys: The idempotency key(s) to filter for
         :type idempotency_keys: List[str]
-        :param concurrency_scope: The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`.
-        :type concurrency_scope: V1ConcurrencyScope
-        :param concurrency_strategy_id: The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`.
-        :type concurrency_strategy_id: int
-        :param concurrency_key: Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`.
+        :param concurrency_strategy_name: The name of the shared concurrency strategy to filter by. Cannot be combined with `concurrency_workflow_id` or `concurrency_task_name`.
+        :type concurrency_strategy_name: str
+        :param concurrency_workflow_id: The workflow whose concurrency strategy to filter by. Without `concurrency_task_name`, this is the workflow-level strategy.
+        :type concurrency_workflow_id: str
+        :param concurrency_task_name: The task whose concurrency strategy to filter by. Requires `concurrency_workflow_id`.
+        :type concurrency_task_name: str
+        :param concurrency_key: Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Requires the strategy, given by `concurrency_strategy_name` or `concurrency_workflow_id`.
         :type concurrency_key: str
         :param concurrency_slot_state: Narrows the concurrency key filter to runs holding the key or to runs queued on it. Returns both if unset.
         :type concurrency_slot_state: V1ConcurrencySlotState
@@ -3695,8 +3754,9 @@ class WorkflowRunsApi:
             include_payloads=include_payloads,
             running_filter=running_filter,
             idempotency_keys=idempotency_keys,
-            concurrency_scope=concurrency_scope,
-            concurrency_strategy_id=concurrency_strategy_id,
+            concurrency_strategy_name=concurrency_strategy_name,
+            concurrency_workflow_id=concurrency_workflow_id,
+            concurrency_task_name=concurrency_task_name,
             concurrency_key=concurrency_key,
             concurrency_slot_state=concurrency_slot_state,
             include_num_pages=include_num_pages,
@@ -3736,8 +3796,9 @@ class WorkflowRunsApi:
         include_payloads,
         running_filter,
         idempotency_keys,
-        concurrency_scope,
-        concurrency_strategy_id,
+        concurrency_strategy_name,
+        concurrency_workflow_id,
+        concurrency_task_name,
         concurrency_key,
         concurrency_slot_state,
         include_num_pages,
@@ -3847,13 +3908,19 @@ class WorkflowRunsApi:
 
             _query_params.append(("idempotency_keys", idempotency_keys))
 
-        if concurrency_scope is not None:
+        if concurrency_strategy_name is not None:
 
-            _query_params.append(("concurrency_scope", concurrency_scope.value))
+            _query_params.append(
+                ("concurrency_strategy_name", concurrency_strategy_name)
+            )
 
-        if concurrency_strategy_id is not None:
+        if concurrency_workflow_id is not None:
 
-            _query_params.append(("concurrency_strategy_id", concurrency_strategy_id))
+            _query_params.append(("concurrency_workflow_id", concurrency_workflow_id))
+
+        if concurrency_task_name is not None:
+
+            _query_params.append(("concurrency_task_name", concurrency_task_name))
 
         if concurrency_key is not None:
 

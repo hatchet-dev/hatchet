@@ -3,28 +3,39 @@ package transformers
 import (
 	"math"
 
+	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
-// FromV1ConcurrencyScope returns false for a scope the API does not define.
-func FromV1ConcurrencyScope(scope gen.V1ConcurrencyScope) (repository.ConcurrencyScope, bool) {
-	switch scope {
-	case gen.V1ConcurrencyScopeShared:
-		return repository.ConcurrencyScopeShared, true
-	case gen.V1ConcurrencyScopeWorkflow:
-		return repository.ConcurrencyScopeWorkflow, true
-	case gen.V1ConcurrencyScopeTask:
-		return repository.ConcurrencyScopeTask, true
-	default:
-		return "", false
+// FromV1ConcurrencyStrategyRef returns false unless the parameters name exactly one strategy: a
+// shared strategy by name, or a workflow with an optional task.
+func FromV1ConcurrencyStrategyRef(strategyName *string, workflowId *uuid.UUID, taskName *string) (repository.ConcurrencyStrategyRef, bool) {
+	if strategyName != nil {
+		if *strategyName == "" || workflowId != nil || taskName != nil {
+			return repository.ConcurrencyStrategyRef{}, false
+		}
+
+		return repository.ConcurrencyStrategyRef{SharedName: *strategyName}, true
 	}
+
+	if workflowId == nil || (taskName != nil && *taskName == "") {
+		return repository.ConcurrencyStrategyRef{}, false
+	}
+
+	ref := repository.ConcurrencyStrategyRef{WorkflowID: *workflowId}
+
+	if taskName != nil {
+		ref.TaskName = *taskName
+	}
+
+	return ref, true
 }
 
 // ToV1ConcurrencyStrategy converts a strategy summary to its API representation.
 func ToV1ConcurrencyStrategy(s *repository.ConcurrencyStrategySummary) gen.V1ConcurrencyStrategy {
 	res := gen.V1ConcurrencyStrategy{
-		Id:                s.ID,
 		Scope:             gen.V1ConcurrencyScope(s.Scope),
 		Name:              s.Name,
 		WorkflowId:        s.WorkflowID,

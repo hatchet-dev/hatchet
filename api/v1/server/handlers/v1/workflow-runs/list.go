@@ -127,8 +127,9 @@ type workflowRunFilters struct {
 	ParentTaskExternalId       *uuid.UUID
 	TriggeringEventExternalId  *uuid.UUID
 	IdempotencyKeys            *[]string
-	ConcurrencyScope           *gen.V1ConcurrencyScope
-	ConcurrencyStrategyId      *int64
+	ConcurrencyStrategyName    *string
+	ConcurrencyWorkflowId      *uuid.UUID
+	ConcurrencyTaskName        *string
 	ConcurrencyKey             *string
 	ConcurrencySlotState       *gen.V1ConcurrencySlotState
 }
@@ -146,8 +147,9 @@ func workflowRunFiltersFromListParams(params gen.V1WorkflowRunListParams) workfl
 		ParentTaskExternalId:       params.ParentTaskExternalId,
 		TriggeringEventExternalId:  params.TriggeringEventExternalId,
 		IdempotencyKeys:            params.IdempotencyKeys,
-		ConcurrencyScope:           params.ConcurrencyScope,
-		ConcurrencyStrategyId:      params.ConcurrencyStrategyId,
+		ConcurrencyStrategyName:    params.ConcurrencyStrategyName,
+		ConcurrencyWorkflowId:      params.ConcurrencyWorkflowId,
+		ConcurrencyTaskName:        params.ConcurrencyTaskName,
 		ConcurrencyKey:             params.ConcurrencyKey,
 		ConcurrencySlotState:       params.ConcurrencySlotState,
 	}
@@ -166,8 +168,9 @@ func workflowRunFiltersFromCountParams(params gen.V1WorkflowRunCountGetParams) w
 		ParentTaskExternalId:       params.ParentTaskExternalId,
 		TriggeringEventExternalId:  params.TriggeringEventExternalId,
 		IdempotencyKeys:            params.IdempotencyKeys,
-		ConcurrencyScope:           params.ConcurrencyScope,
-		ConcurrencyStrategyId:      params.ConcurrencyStrategyId,
+		ConcurrencyStrategyName:    params.ConcurrencyStrategyName,
+		ConcurrencyWorkflowId:      params.ConcurrencyWorkflowId,
+		ConcurrencyTaskName:        params.ConcurrencyTaskName,
 		ConcurrencyKey:             params.ConcurrencyKey,
 		ConcurrencySlotState:       params.ConcurrencySlotState,
 	}
@@ -179,19 +182,19 @@ var errInvalidConcurrencyFilter = errors.New("invalid concurrency filter")
 // key. Slots live in the core database and the runs list reads OLAP, so the ids are looked up
 // first and passed to the OLAP query.
 func (t *V1WorkflowRunsService) concurrencySlotExternalIds(ctx context.Context, tenantId uuid.UUID, filters workflowRunFilters) (*v1.ConcurrencySlotExternalIds, error) {
-	if filters.ConcurrencyScope == nil && filters.ConcurrencyStrategyId == nil && filters.ConcurrencyKey == nil && filters.ConcurrencySlotState == nil {
+	if filters.ConcurrencyStrategyName == nil && filters.ConcurrencyWorkflowId == nil && filters.ConcurrencyTaskName == nil && filters.ConcurrencyKey == nil && filters.ConcurrencySlotState == nil {
 		return nil, nil
 	}
 
 	// A key is only indexed together with its strategy, and key values repeat across strategies.
-	if filters.ConcurrencyScope == nil || filters.ConcurrencyStrategyId == nil || filters.ConcurrencyKey == nil {
-		return nil, fmt.Errorf("%w: concurrency_scope, concurrency_strategy_id and concurrency_key must be set together", errInvalidConcurrencyFilter)
+	if filters.ConcurrencyKey == nil {
+		return nil, fmt.Errorf("%w: concurrency_key must be set with the strategy", errInvalidConcurrencyFilter)
 	}
 
-	scope, ok := transformers.FromV1ConcurrencyScope(*filters.ConcurrencyScope)
+	ref, ok := transformers.FromV1ConcurrencyStrategyRef(filters.ConcurrencyStrategyName, filters.ConcurrencyWorkflowId, filters.ConcurrencyTaskName)
 
 	if !ok {
-		return nil, fmt.Errorf("%w: invalid concurrency_scope", errInvalidConcurrencyFilter)
+		return nil, fmt.Errorf("%w: set either concurrency_strategy_name, or concurrency_workflow_id with an optional concurrency_task_name", errInvalidConcurrencyFilter)
 	}
 
 	opts := v1.ListConcurrencySlotExternalIdsOpts{}
@@ -211,7 +214,7 @@ func (t *V1WorkflowRunsService) concurrencySlotExternalIds(ctx context.Context, 
 		opts.IsFilled = &isFilled
 	}
 
-	return t.config.V1.ConcurrencyOverview().ListSlotExternalIds(ctx, tenantId, scope, *filters.ConcurrencyStrategyId, *filters.ConcurrencyKey, opts)
+	return t.config.V1.ConcurrencyOverview().ListSlotExternalIds(ctx, tenantId, ref, *filters.ConcurrencyKey, opts)
 }
 
 func runExternalIds(ids *v1.ConcurrencySlotExternalIds) *[]uuid.UUID {

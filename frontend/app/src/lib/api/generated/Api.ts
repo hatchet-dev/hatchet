@@ -101,7 +101,6 @@ import {
   V1CancelTaskRequest,
   V1CancelledTasks,
   V1ConcurrencyKeyList,
-  V1ConcurrencyScope,
   V1ConcurrencySlotState,
   V1ConcurrencyStrategyList,
   V1CreateFilterRequest,
@@ -546,14 +545,18 @@ export class Api<
       running_filter?: V1RunningFilter;
       /** The idempotency key(s) to filter for */
       idempotency_keys?: string[];
-      /** The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`. */
-      concurrency_scope?: V1ConcurrencyScope;
+      /** The name of the shared concurrency strategy to filter by. Cannot be combined with `concurrency_workflow_id` or `concurrency_task_name`. */
+      concurrency_strategy_name?: string;
       /**
-       * The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`.
-       * @format int64
+       * The workflow whose concurrency strategy to filter by. Without `concurrency_task_name`, this is the workflow-level strategy.
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
        */
-      concurrency_strategy_id?: number;
-      /** Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`. */
+      concurrency_workflow_id?: string;
+      /** The task whose concurrency strategy to filter by. Requires `concurrency_workflow_id`. */
+      concurrency_task_name?: string;
+      /** Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Requires the strategy, given by `concurrency_strategy_name` or `concurrency_workflow_id`. */
       concurrency_key?: string;
       /** Narrows the concurrency key filter to runs holding the key or to runs queued on it. Returns both if unset. */
       concurrency_slot_state?: V1ConcurrencySlotState;
@@ -628,14 +631,18 @@ export class Api<
       running_filter?: V1RunningFilter;
       /** The idempotency key(s) to filter for */
       idempotency_keys?: string[];
-      /** The scope of the concurrency strategy to filter by. Must be set together with `concurrency_strategy_id` and `concurrency_key`. */
-      concurrency_scope?: V1ConcurrencyScope;
+      /** The name of the shared concurrency strategy to filter by. Cannot be combined with `concurrency_workflow_id` or `concurrency_task_name`. */
+      concurrency_strategy_name?: string;
       /**
-       * The id of the concurrency strategy to filter by. Must be set together with `concurrency_scope` and `concurrency_key`.
-       * @format int64
+       * The workflow whose concurrency strategy to filter by. Without `concurrency_task_name`, this is the workflow-level strategy.
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
        */
-      concurrency_strategy_id?: number;
-      /** Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Must be set together with `concurrency_scope` and `concurrency_strategy_id`. */
+      concurrency_workflow_id?: string;
+      /** The task whose concurrency strategy to filter by. Requires `concurrency_workflow_id`. */
+      concurrency_task_name?: string;
+      /** Only return runs that are holding or queued on this concurrency key of the strategy. Finished runs no longer hold a key and are not returned. Requires the strategy, given by `concurrency_strategy_name` or `concurrency_workflow_id`. */
       concurrency_key?: string;
       /** Narrows the concurrency key filter to runs holding the key or to runs queued on it. Returns both if unset. */
       concurrency_slot_state?: V1ConcurrencySlotState;
@@ -1240,19 +1247,28 @@ export class Api<
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
   /**
-   * @description Lists the keys of a concurrency strategy that have running or queued runs, sorted by queued count, then oldest queued run.
+   * @description Lists the keys of a concurrency strategy that have running or queued runs, sorted by queued count, then oldest queued run. The strategy is given either by `strategyName` for a shared strategy, or by `workflowId` and an optional `taskName`. Keys from all versions of the workflow, and from every strategy on the task, are combined.
    *
    * @tags Concurrency
    * @name V1ConcurrencyKeyList
    * @summary List concurrency keys
-   * @request GET:/api/v1/stable/tenants/{tenant}/concurrency/strategies/{scope}/{strategy}/keys
+   * @request GET:/api/v1/stable/tenants/{tenant}/concurrency/keys
    * @secure
    */
   v1ConcurrencyKeyList = Object.assign((
     tenant: string,
-    scope: V1ConcurrencyScope,
-    strategy: number,
     query?: {
+      /** The name of the shared strategy. Cannot be combined with `workflowId` or `taskName`. */
+      strategyName?: string;
+      /**
+       * The workflow the strategy is defined on. Without `taskName`, this is the workflow-level strategy.
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      workflowId?: string;
+      /** The task the strategy is defined on. Requires `workflowId`. */
+      taskName?: string;
       /** Only return keys containing this string (case-insensitive) */
       search?: string;
       /** Only return keys with at least one queued run */
@@ -1271,7 +1287,7 @@ export class Api<
     params: RequestParams = {},
   ) =>
     this.request<V1ConcurrencyKeyList, APIErrors>({
-      path: `/api/v1/stable/tenants/${tenant}/concurrency/strategies/${scope}/${strategy}/keys`,
+      path: `/api/v1/stable/tenants/${tenant}/concurrency/keys`,
       method: "GET",
       query: query,
       secure: true,

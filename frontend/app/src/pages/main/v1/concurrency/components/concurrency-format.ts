@@ -3,9 +3,31 @@ import {
   V1ConcurrencyScope,
   V1ConcurrencyStrategy,
 } from '@/lib/api';
+import type { V1ConcurrencyKeyListQuery } from '@/lib/api/queries';
 
-export function strategyRef(s: Pick<V1ConcurrencyStrategy, 'scope' | 'id'>) {
-  return `${s.scope}:${s.id}`;
+type StrategyIdentity = Pick<
+  V1ConcurrencyStrategy,
+  'scope' | 'name' | 'workflowId' | 'taskName'
+>;
+
+// Identifies a strategy in the page URL by the same fields the API uses, so the link
+// survives new workflow versions.
+export function strategyRef(s: StrategyIdentity) {
+  if (s.scope === V1ConcurrencyScope.V1ConcurrencyScopeShared) {
+    return `shared:${s.name}`;
+  }
+
+  return s.taskName ? `${s.workflowId}:${s.taskName}` : `${s.workflowId}`;
+}
+
+export function strategyKeysQuery(
+  s: StrategyIdentity,
+): Pick<V1ConcurrencyKeyListQuery, 'strategyName' | 'workflowId' | 'taskName'> {
+  if (s.scope === V1ConcurrencyScope.V1ConcurrencyScopeShared) {
+    return { strategyName: s.name };
+  }
+
+  return { workflowId: s.workflowId, taskName: s.taskName };
 }
 
 export const scopeLabel: Record<V1ConcurrencyScope, string> = {

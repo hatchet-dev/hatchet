@@ -40,7 +40,7 @@ V1ConcurrencyStrategyList:
 V1ConcurrencyKeyList:
   get:
     x-resources: ["tenant"]
-    description: Lists the keys of a concurrency strategy that have running or queued runs, sorted by queued count, then oldest queued run.
+    description: Lists the keys of a concurrency strategy that have running or queued runs, sorted by queued count, then oldest queued run. The strategy is given either by `strategyName` for a shared strategy, or by `workflowId` and an optional `taskName`. Keys from all versions of the workflow, and from every strategy on the task, are combined.
     operationId: v1-concurrency-key:list
     x-payloads: false
     parameters:
@@ -53,19 +53,27 @@ V1ConcurrencyKeyList:
           format: uuid
           minLength: 36
           maxLength: 36
-      - description: The strategy scope
-        in: path
-        name: scope
-        required: true
+      - description: The name of the shared strategy. Cannot be combined with `workflowId` or `taskName`.
+        in: query
+        name: strategyName
+        required: false
         schema:
-          $ref: "../../../components/schemas/_index.yaml#/V1ConcurrencyScope"
-      - description: The strategy id
-        in: path
-        name: strategy
-        required: true
+          type: string
+      - description: The workflow the strategy is defined on. Without `taskName`, this is the workflow-level strategy.
+        in: query
+        name: workflowId
+        required: false
         schema:
-          type: integer
-          format: int64
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The task the strategy is defined on. Requires `workflowId`.
+        in: query
+        name: taskName
+        required: false
+        schema:
+          type: string
       - description: Only return keys containing this string (case-insensitive)
         in: query
         name: search

@@ -1799,7 +1799,7 @@ GROUP BY
     strategy_id;
 
 -- name: ListConcurrencyKeys :many
--- Keys of a task-scoped or tenant strategy, most queued first. A key's effective max runs
+-- Keys of task-scoped or tenant strategies, combined, most queued first. A key's effective max runs
 -- is the max_runs of its most recently created slot, falling back to the strategy's static
 -- limit.
 WITH keys AS (
@@ -1813,7 +1813,7 @@ WITH keys AS (
         v1_concurrency_slot
     WHERE
         tenant_id = @tenantId::uuid
-        AND strategy_id = @strategyId::bigint
+        AND strategy_id = ANY(@strategyIds::bigint[])
         AND (
             sqlc.narg('search')::TEXT IS NULL
             OR strpos(lower(key), lower(sqlc.narg('search')::TEXT)) > 0
@@ -1837,7 +1837,7 @@ OFFSET @keyOffset::BIGINT
 LIMIT @keyLimit::BIGINT;
 
 -- name: ListWorkflowConcurrencyKeys :many
--- Keys of a workflow strategy, most queued first. Queue start is derived as in
+-- Keys of workflow strategies, combined, most queued first. Queue start is derived as in
 -- ListWorkflowConcurrencySlotStatsForTenant.
 WITH keys AS (
     SELECT
@@ -1855,7 +1855,7 @@ WITH keys AS (
             AND cs.sort_id = wcs.sort_id
     WHERE
         wcs.tenant_id = @tenantId::uuid
-        AND wcs.strategy_id = @strategyId::bigint
+        AND wcs.strategy_id = ANY(@strategyIds::bigint[])
         AND (
             sqlc.narg('search')::TEXT IS NULL
             OR strpos(lower(wcs.key), lower(sqlc.narg('search')::TEXT)) > 0
@@ -1885,7 +1885,7 @@ FROM (
         v1_concurrency_slot
     WHERE
         tenant_id = @tenantId::uuid
-        AND strategy_id = @strategyId::bigint
+        AND strategy_id = ANY(@strategyIds::bigint[])
         AND (
             sqlc.narg('search')::TEXT IS NULL
             OR strpos(lower(key), lower(sqlc.narg('search')::TEXT)) > 0
@@ -1907,7 +1907,7 @@ FROM (
         v1_workflow_concurrency_slot
     WHERE
         tenant_id = @tenantId::uuid
-        AND strategy_id = @strategyId::bigint
+        AND strategy_id = ANY(@strategyIds::bigint[])
         AND (
             sqlc.narg('search')::TEXT IS NULL
             OR strpos(lower(key), lower(sqlc.narg('search')::TEXT)) > 0
@@ -1919,7 +1919,7 @@ FROM (
 ) k;
 
 -- name: ListConcurrencySlotExternalIds :many
--- Runs and tasks holding or queued on a key of a task-scoped or shared strategy. Holding slots
+-- Runs and tasks holding or queued on a key of task-scoped or shared strategies. Holding slots
 -- sort first so the limit drops queued runs before it drops the ones using the key.
 SELECT
     workflow_run_id,
@@ -1928,7 +1928,7 @@ FROM
     v1_concurrency_slot
 WHERE
     tenant_id = @tenantId::uuid
-    AND strategy_id = @strategyId::bigint
+    AND strategy_id = ANY(@strategyIds::bigint[])
     AND key = @key::TEXT
     AND (
         sqlc.narg('isFilled')::BOOLEAN IS NULL
@@ -1939,7 +1939,7 @@ ORDER BY
 LIMIT @maxIds::BIGINT;
 
 -- name: ListWorkflowConcurrencySlotRunIds :many
--- Runs holding or queued on a key of a workflow strategy, ordered as in
+-- Runs holding or queued on a key of workflow strategies, ordered as in
 -- ListConcurrencySlotExternalIds.
 SELECT
     workflow_run_id
@@ -1947,7 +1947,7 @@ FROM
     v1_workflow_concurrency_slot
 WHERE
     tenant_id = @tenantId::uuid
-    AND strategy_id = @strategyId::bigint
+    AND strategy_id = ANY(@strategyIds::bigint[])
     AND key = @key::TEXT
     AND (
         sqlc.narg('isFilled')::BOOLEAN IS NULL

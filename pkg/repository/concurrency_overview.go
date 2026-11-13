@@ -32,8 +32,20 @@ const (
 	ConcurrencyScopeTask     ConcurrencyScope = "TASK"
 )
 
-// ErrConcurrencyStrategyNotFound is returned when a strategy does not exist in the given scope.
+// ErrConcurrencyStrategyNotFound is returned when no strategy matches a reference.
 var ErrConcurrencyStrategyNotFound = errors.New("concurrency strategy not found")
+
+// ConcurrencyStrategyRef names a strategy the way it was defined rather than by id, because
+// task and workflow strategies get new ids with every workflow version.
+type ConcurrencyStrategyRef struct {
+	// Only set for shared strategies.
+	SharedName string
+
+	WorkflowID uuid.UUID
+
+	// Unset for workflow strategies.
+	TaskName string
+}
 
 // ConcurrencyStrategyUsage is a task that uses a shared strategy.
 type ConcurrencyStrategyUsage struct {
@@ -44,7 +56,10 @@ type ConcurrencyStrategyUsage struct {
 
 // ConcurrencyStrategySummary is a concurrency strategy with its live slot counts.
 type ConcurrencyStrategySummary struct {
-	ID    int64
+	// The strategies combined into this summary: every version of it that has slots or is on a
+	// latest workflow version, and every strategy on the same task.
+	StrategyIDs []int64
+
 	Scope ConcurrencyScope
 
 	Name string
@@ -64,6 +79,10 @@ type ConcurrencyStrategySummary struct {
 	// The strategy is not used by any latest workflow version, but still has slots from runs
 	// of an older version. It is listed until those runs finish.
 	IsDraining bool
+
+	// The strategy whose definition the summary shows: the newest one, preferring one on a
+	// latest workflow version.
+	definitionID int64
 
 	Expression        string
 	Strategy          sqlcv1.V1ConcurrencyStrategy
@@ -103,12 +122,12 @@ type ConcurrencyOverviewRepository interface {
 	ListStrategySummaries(ctx context.Context, tenantId uuid.UUID) ([]*ConcurrencyStrategySummary, error)
 
 	// ListKeys returns a page of a strategy's keys and the total number of matching keys.
-	// Returns ErrConcurrencyStrategyNotFound if the strategy does not exist in the given scope.
-	ListKeys(ctx context.Context, tenantId uuid.UUID, scope ConcurrencyScope, strategyId int64, opts ListConcurrencyKeysOpts) ([]*ConcurrencyKey, int64, error)
+	// Returns ErrConcurrencyStrategyNotFound if no strategy matches the reference.
+	ListKeys(ctx context.Context, tenantId uuid.UUID, ref ConcurrencyStrategyRef, opts ListConcurrencyKeysOpts) ([]*ConcurrencyKey, int64, error)
 
 	// ListSlotExternalIds returns the runs and tasks holding or queued on a key of a strategy.
-	// A strategy that does not exist in the scope has no slots, so it returns no ids.
-	ListSlotExternalIds(ctx context.Context, tenantId uuid.UUID, scope ConcurrencyScope, strategyId int64, key string, opts ListConcurrencySlotExternalIdsOpts) (*ConcurrencySlotExternalIds, error)
+	// A reference that matches no strategy has no slots, so it returns no ids.
+	ListSlotExternalIds(ctx context.Context, tenantId uuid.UUID, ref ConcurrencyStrategyRef, key string, opts ListConcurrencySlotExternalIdsOpts) (*ConcurrencySlotExternalIds, error)
 }
 
 // The ids are sent to the OLAP database as one array parameter, and a hot key can have far more
@@ -319,7 +338,8 @@ func (r *concurrencyOverviewRepository) listStrategySummaries(ctx context.Contex
 
 	for _, s := range sharedStrategies {
 		sum := &ConcurrencyStrategySummary{
-			ID:                s.ID,
+			StrategyIDs:       []int64{s.ID},
+			definitionID:      s.ID,
 			Scope:             ConcurrencyScopeShared,
 			Name:              s.Name,
 			UsedBy:            usedBy[s.ID],
@@ -364,6 +384,8 @@ func (r *concurrencyOverviewRepository) listStrategySummaries(ctx context.Contex
 		res = append(res, sum)
 	}
 
+	res = combineStrategySummaries(res)
+
 	sort.SliceStable(res, func(i, j int) bool {
 		a, b := res[i], res[j]
 
@@ -390,7 +412,7 @@ type concurrencyKeysPage struct {
 	total int64
 }
 
-func (r *concurrencyOverviewRepository) ListKeys(ctx context.Context, tenantId uuid.UUID, scope ConcurrencyScope, strategyId int64, opts ListConcurrencyKeysOpts) ([]*ConcurrencyKey, int64, error) {
+func (r *concurrencyOverviewRepository) ListKeys(ctx context.Context, tenantId uuid.UUID, ref ConcurrencyStrategyRef, opts ListConcurrencyKeysOpts) ([]*ConcurrencyKey, int64, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, 0, err
 	}
@@ -401,11 +423,11 @@ func (r *concurrencyOverviewRepository) ListKeys(ctx context.Context, tenantId u
 		search = *opts.Search
 	}
 
-	// search goes last so a separator inside it cannot make two requests share an id
-	id := fmt.Sprintf("%s|%s|%d|%t|%d|%d|%s", tenantId, scope, strategyId, opts.OnlyQueued, opts.Limit, opts.Offset, search)
+	// strings are quoted so a separator inside one cannot make two requests share an id
+	id := fmt.Sprintf("%s|%q|%s|%q|%t|%d|%d|%q", tenantId, ref.SharedName, ref.WorkflowID, ref.TaskName, opts.OnlyQueued, opts.Limit, opts.Offset, search)
 
 	page, err := cache.MakeCacheable(r.keysCache, id, func() (*concurrencyKeysPage, error) {
-		keys, total, err := r.listKeys(ctx, tenantId, scope, strategyId, opts)
+		keys, total, err := r.listKeys(ctx, tenantId, ref, opts)
 		if err != nil {
 			return nil, err
 		}
@@ -420,25 +442,27 @@ func (r *concurrencyOverviewRepository) ListKeys(ctx context.Context, tenantId u
 	return page.keys, page.total, nil
 }
 
-func (r *concurrencyOverviewRepository) listKeys(ctx context.Context, tenantId uuid.UUID, scope ConcurrencyScope, strategyId int64, opts ListConcurrencyKeysOpts) ([]*ConcurrencyKey, int64, error) {
-	// The strategy tables have no index for a (tenant, id) lookup, so the strategy is
-	// resolved from the cached summaries.
+// findStrategy resolves a reference from the cached summaries, which already map every version
+// of a strategy to its ids. The strategy tables have no index for a tenant-wide lookup by name.
+func (r *concurrencyOverviewRepository) findStrategy(ctx context.Context, tenantId uuid.UUID, ref ConcurrencyStrategyRef) (*ConcurrencyStrategySummary, error) {
 	summaries, err := r.ListStrategySummaries(ctx, tenantId)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
-	var strategy *ConcurrencyStrategySummary
-
 	for _, s := range summaries {
-		if s.Scope == scope && s.ID == strategyId {
-			strategy = s
-			break
+		if s.Ref() == ref {
+			return s, nil
 		}
 	}
 
-	if strategy == nil {
-		return nil, 0, ErrConcurrencyStrategyNotFound
+	return nil, ErrConcurrencyStrategyNotFound
+}
+
+func (r *concurrencyOverviewRepository) listKeys(ctx context.Context, tenantId uuid.UUID, ref ConcurrencyStrategyRef, opts ListConcurrencyKeysOpts) ([]*ConcurrencyKey, int64, error) {
+	strategy, err := r.findStrategy(ctx, tenantId, ref)
+	if err != nil {
+		return nil, 0, err
 	}
 
 	search := pgtype.Text{}
@@ -447,14 +471,14 @@ func (r *concurrencyOverviewRepository) listKeys(ctx context.Context, tenantId u
 		search = pgtype.Text{String: *opts.Search, Valid: true}
 	}
 
-	if scope == ConcurrencyScopeWorkflow {
+	if strategy.Scope == ConcurrencyScopeWorkflow {
 		rows, err := r.queries.ListWorkflowConcurrencyKeys(ctx, r.pool.ForTenant(tenantId), sqlcv1.ListWorkflowConcurrencyKeysParams{
-			Tenantid:   tenantId,
-			Strategyid: strategyId,
-			Search:     search,
-			Onlyqueued: opts.OnlyQueued,
-			Keyoffset:  opts.Offset,
-			Keylimit:   opts.Limit,
+			Tenantid:    tenantId,
+			Strategyids: strategy.StrategyIDs,
+			Search:      search,
+			Onlyqueued:  opts.OnlyQueued,
+			Keyoffset:   opts.Offset,
+			Keylimit:    opts.Limit,
 		})
 
 		if err != nil {
@@ -462,10 +486,10 @@ func (r *concurrencyOverviewRepository) listKeys(ctx context.Context, tenantId u
 		}
 
 		total, err := r.queries.CountWorkflowConcurrencyKeys(ctx, r.pool.ForTenant(tenantId), sqlcv1.CountWorkflowConcurrencyKeysParams{
-			Tenantid:   tenantId,
-			Strategyid: strategyId,
-			Search:     search,
-			Onlyqueued: opts.OnlyQueued,
+			Tenantid:    tenantId,
+			Strategyids: strategy.StrategyIDs,
+			Search:      search,
+			Onlyqueued:  opts.OnlyQueued,
 		})
 
 		if err != nil {
@@ -489,7 +513,7 @@ func (r *concurrencyOverviewRepository) listKeys(ctx context.Context, tenantId u
 
 	rows, err := r.queries.ListConcurrencyKeys(ctx, r.pool.ForTenant(tenantId), sqlcv1.ListConcurrencyKeysParams{
 		Tenantid:       tenantId,
-		Strategyid:     strategyId,
+		Strategyids:    strategy.StrategyIDs,
 		Defaultmaxruns: strategy.MaxRuns,
 		Search:         search,
 		Onlyqueued:     opts.OnlyQueued,
@@ -502,10 +526,10 @@ func (r *concurrencyOverviewRepository) listKeys(ctx context.Context, tenantId u
 	}
 
 	total, err := r.queries.CountConcurrencyKeys(ctx, r.pool.ForTenant(tenantId), sqlcv1.CountConcurrencyKeysParams{
-		Tenantid:   tenantId,
-		Strategyid: strategyId,
-		Search:     search,
-		Onlyqueued: opts.OnlyQueued,
+		Tenantid:    tenantId,
+		Strategyids: strategy.StrategyIDs,
+		Search:      search,
+		Onlyqueued:  opts.OnlyQueued,
 	})
 
 	if err != nil {
@@ -529,7 +553,8 @@ func (r *concurrencyOverviewRepository) listKeys(ctx context.Context, tenantId u
 
 func workflowStrategySummary(id int64, workflowId, workflowVersionId uuid.UUID, workflowName string, workflowVersion pgtype.Text, strategy sqlcv1.V1ConcurrencyStrategy, expression string, maxRuns int32) *ConcurrencyStrategySummary {
 	return &ConcurrencyStrategySummary{
-		ID:                id,
+		StrategyIDs:       []int64{id},
+		definitionID:      id,
 		Scope:             ConcurrencyScopeWorkflow,
 		Name:              workflowName,
 		WorkflowID:        &workflowId,
@@ -544,7 +569,8 @@ func workflowStrategySummary(id int64, workflowId, workflowVersionId uuid.UUID, 
 
 func taskStrategySummary(id int64, workflowId, workflowVersionId uuid.UUID, workflowName string, workflowVersion pgtype.Text, taskName string, strategy sqlcv1.V1ConcurrencyStrategy, expression string, maxRuns int32, maxRunsExpression pgtype.Text) *ConcurrencyStrategySummary {
 	return &ConcurrencyStrategySummary{
-		ID:                id,
+		StrategyIDs:       []int64{id},
+		definitionID:      id,
 		Scope:             ConcurrencyScopeTask,
 		Name:              taskName,
 		WorkflowID:        &workflowId,
@@ -575,21 +601,30 @@ func textPtr(t pgtype.Text) *string {
 	return &t.String
 }
 
-func (r *concurrencyOverviewRepository) ListSlotExternalIds(ctx context.Context, tenantId uuid.UUID, scope ConcurrencyScope, strategyId int64, key string, opts ListConcurrencySlotExternalIdsOpts) (*ConcurrencySlotExternalIds, error) {
+func (r *concurrencyOverviewRepository) ListSlotExternalIds(ctx context.Context, tenantId uuid.UUID, ref ConcurrencyStrategyRef, key string, opts ListConcurrencySlotExternalIdsOpts) (*ConcurrencySlotExternalIds, error) {
+	strategy, err := r.findStrategy(ctx, tenantId, ref)
+
+	if errors.Is(err, ErrConcurrencyStrategyNotFound) {
+		return &ConcurrencySlotExternalIds{RunExternalIds: []uuid.UUID{}, TaskExternalIds: []uuid.UUID{}}, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
 	isFilled := pgtype.Bool{}
 
 	if opts.IsFilled != nil {
 		isFilled = pgtype.Bool{Bool: *opts.IsFilled, Valid: true}
 	}
 
-	switch scope {
-	case ConcurrencyScopeWorkflow:
+	if strategy.Scope == ConcurrencyScopeWorkflow {
 		runIds, err := r.queries.ListWorkflowConcurrencySlotRunIds(ctx, r.pool.ForTenant(tenantId), sqlcv1.ListWorkflowConcurrencySlotRunIdsParams{
-			Tenantid:   tenantId,
-			Strategyid: strategyId,
-			Key:        key,
-			IsFilled:   isFilled,
-			Maxids:     maxConcurrencySlotExternalIds,
+			Tenantid:    tenantId,
+			Strategyids: strategy.StrategyIDs,
+			Key:         key,
+			IsFilled:    isFilled,
+			Maxids:      maxConcurrencySlotExternalIds,
 		})
 
 		if err != nil {
@@ -597,38 +632,94 @@ func (r *concurrencyOverviewRepository) ListSlotExternalIds(ctx context.Context,
 		}
 
 		return &ConcurrencySlotExternalIds{RunExternalIds: runIds}, nil
-	case ConcurrencyScopeTask, ConcurrencyScopeShared:
-		rows, err := r.queries.ListConcurrencySlotExternalIds(ctx, r.pool.ForTenant(tenantId), sqlcv1.ListConcurrencySlotExternalIdsParams{
-			Tenantid:   tenantId,
-			Strategyid: strategyId,
-			Key:        key,
-			IsFilled:   isFilled,
-			Maxids:     maxConcurrencySlotExternalIds,
-		})
+	}
 
-		if err != nil {
-			return nil, fmt.Errorf("failed to list concurrency slot external ids: %w", err)
-		}
+	rows, err := r.queries.ListConcurrencySlotExternalIds(ctx, r.pool.ForTenant(tenantId), sqlcv1.ListConcurrencySlotExternalIdsParams{
+		Tenantid:    tenantId,
+		Strategyids: strategy.StrategyIDs,
+		Key:         key,
+		IsFilled:    isFilled,
+		Maxids:      maxConcurrencySlotExternalIds,
+	})
 
-		res := &ConcurrencySlotExternalIds{
-			RunExternalIds:  make([]uuid.UUID, 0, len(rows)),
-			TaskExternalIds: make([]uuid.UUID, 0, len(rows)),
-		}
+	if err != nil {
+		return nil, fmt.Errorf("failed to list concurrency slot external ids: %w", err)
+	}
 
-		// tasks of the same DAG run hold separate slots
-		seenRuns := make(map[uuid.UUID]struct{}, len(rows))
+	res := &ConcurrencySlotExternalIds{
+		RunExternalIds:  make([]uuid.UUID, 0, len(rows)),
+		TaskExternalIds: make([]uuid.UUID, 0, len(rows)),
+	}
 
-		for _, row := range rows {
+	// tasks of the same DAG run hold separate slots, and a task holds one slot per strategy
+	seenRuns := make(map[uuid.UUID]struct{}, len(rows))
+	seenTasks := make(map[uuid.UUID]struct{}, len(rows))
+
+	for _, row := range rows {
+		if _, ok := seenTasks[row.ExternalID]; !ok {
+			seenTasks[row.ExternalID] = struct{}{}
 			res.TaskExternalIds = append(res.TaskExternalIds, row.ExternalID)
-
-			if _, ok := seenRuns[row.WorkflowRunID]; !ok {
-				seenRuns[row.WorkflowRunID] = struct{}{}
-				res.RunExternalIds = append(res.RunExternalIds, row.WorkflowRunID)
-			}
 		}
 
-		return res, nil
-	default:
-		return nil, fmt.Errorf("invalid concurrency scope %q", scope)
+		if _, ok := seenRuns[row.WorkflowRunID]; !ok {
+			seenRuns[row.WorkflowRunID] = struct{}{}
+			res.RunExternalIds = append(res.RunExternalIds, row.WorkflowRunID)
+		}
+	}
+
+	return res, nil
+}
+
+// Ref returns the reference that resolves to this summary.
+func (s *ConcurrencyStrategySummary) Ref() ConcurrencyStrategyRef {
+	if s.Scope == ConcurrencyScopeShared {
+		return ConcurrencyStrategyRef{SharedName: s.Name}
+	}
+
+	return ConcurrencyStrategyRef{WorkflowID: *s.WorkflowID, TaskName: s.TaskName}
+}
+
+// combineStrategySummaries merges summaries with the same reference, keeping the order of the
+// first of each.
+func combineStrategySummaries(summaries []*ConcurrencyStrategySummary) []*ConcurrencyStrategySummary {
+	byRef := make(map[ConcurrencyStrategyRef]*ConcurrencyStrategySummary, len(summaries))
+	res := make([]*ConcurrencyStrategySummary, 0, len(summaries))
+
+	for _, s := range summaries {
+		if combined, ok := byRef[s.Ref()]; ok {
+			combined.combine(s)
+			continue
+		}
+
+		byRef[s.Ref()] = s
+		res = append(res, s)
+	}
+
+	return res
+}
+
+// Ids grow with each version, so the highest id is the newest definition.
+func (s *ConcurrencyStrategySummary) combine(o *ConcurrencyStrategySummary) {
+	if (s.IsDraining && !o.IsDraining) || (s.IsDraining == o.IsDraining && o.definitionID > s.definitionID) {
+		s.definitionID = o.definitionID
+		s.WorkflowVersionID = o.WorkflowVersionID
+		s.WorkflowVersion = o.WorkflowVersion
+		s.Expression = o.Expression
+		s.Strategy = o.Strategy
+		s.MaxRuns = o.MaxRuns
+		s.MaxRunsExpression = o.MaxRunsExpression
+	}
+
+	s.StrategyIDs = append(s.StrategyIDs, o.StrategyIDs...)
+	s.IsDraining = s.IsDraining && o.IsDraining
+
+	s.KeyCount += o.KeyCount
+	s.QueuedKeyCount += o.QueuedKeyCount
+	s.RunningCount += o.RunningCount
+	s.QueuedCount += o.QueuedCount
+
+	if o.OldestQueuedAt != nil && (s.OldestQueuedAt == nil || o.OldestQueuedAt.Before(*s.OldestQueuedAt)) {
+		s.OldestQueuedAt = o.OldestQueuedAt
+		s.OldestQueuedKey = o.OldestQueuedKey
 	}
 }

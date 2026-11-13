@@ -169,7 +169,7 @@ FROM (
         v1_concurrency_slot
     WHERE
         tenant_id = $1::uuid
-        AND strategy_id = $2::bigint
+        AND strategy_id = ANY($2::bigint[])
         AND (
             $3::TEXT IS NULL
             OR strpos(lower(key), lower($3::TEXT)) > 0
@@ -182,17 +182,17 @@ FROM (
 `
 
 type CountConcurrencyKeysParams struct {
-	Tenantid   uuid.UUID   `json:"tenantid"`
-	Strategyid int64       `json:"strategyid"`
-	Search     pgtype.Text `json:"search"`
-	Onlyqueued bool        `json:"onlyqueued"`
+	Tenantid    uuid.UUID   `json:"tenantid"`
+	Strategyids []int64     `json:"strategyids"`
+	Search      pgtype.Text `json:"search"`
+	Onlyqueued  bool        `json:"onlyqueued"`
 }
 
 // Number of keys matching ListConcurrencyKeys' filters, across all pages.
 func (q *Queries) CountConcurrencyKeys(ctx context.Context, db DBTX, arg CountConcurrencyKeysParams) (int64, error) {
 	row := db.QueryRow(ctx, countConcurrencyKeys,
 		arg.Tenantid,
-		arg.Strategyid,
+		arg.Strategyids,
 		arg.Search,
 		arg.Onlyqueued,
 	)
@@ -211,7 +211,7 @@ FROM (
         v1_workflow_concurrency_slot
     WHERE
         tenant_id = $1::uuid
-        AND strategy_id = $2::bigint
+        AND strategy_id = ANY($2::bigint[])
         AND (
             $3::TEXT IS NULL
             OR strpos(lower(key), lower($3::TEXT)) > 0
@@ -224,17 +224,17 @@ FROM (
 `
 
 type CountWorkflowConcurrencyKeysParams struct {
-	Tenantid   uuid.UUID   `json:"tenantid"`
-	Strategyid int64       `json:"strategyid"`
-	Search     pgtype.Text `json:"search"`
-	Onlyqueued bool        `json:"onlyqueued"`
+	Tenantid    uuid.UUID   `json:"tenantid"`
+	Strategyids []int64     `json:"strategyids"`
+	Search      pgtype.Text `json:"search"`
+	Onlyqueued  bool        `json:"onlyqueued"`
 }
 
 // Number of keys matching ListWorkflowConcurrencyKeys' filters, across all pages.
 func (q *Queries) CountWorkflowConcurrencyKeys(ctx context.Context, db DBTX, arg CountWorkflowConcurrencyKeysParams) (int64, error) {
 	row := db.QueryRow(ctx, countWorkflowConcurrencyKeys,
 		arg.Tenantid,
-		arg.Strategyid,
+		arg.Strategyids,
 		arg.Search,
 		arg.Onlyqueued,
 	)
@@ -630,7 +630,7 @@ WITH keys AS (
         v1_concurrency_slot
     WHERE
         tenant_id = $5::uuid
-        AND strategy_id = $6::bigint
+        AND strategy_id = ANY($6::bigint[])
         AND (
             $7::TEXT IS NULL
             OR strpos(lower(key), lower($7::TEXT)) > 0
@@ -660,7 +660,7 @@ type ListConcurrencyKeysParams struct {
 	Keyoffset      int64       `json:"keyoffset"`
 	Keylimit       int64       `json:"keylimit"`
 	Tenantid       uuid.UUID   `json:"tenantid"`
-	Strategyid     int64       `json:"strategyid"`
+	Strategyids    []int64     `json:"strategyids"`
 	Search         pgtype.Text `json:"search"`
 }
 
@@ -672,7 +672,7 @@ type ListConcurrencyKeysRow struct {
 	MaxRuns        int32              `json:"max_runs"`
 }
 
-// Keys of a task-scoped or tenant strategy, most queued first. A key's effective max runs
+// Keys of task-scoped or tenant strategies, combined, most queued first. A key's effective max runs
 // is the max_runs of its most recently created slot, falling back to the strategy's static
 // limit.
 func (q *Queries) ListConcurrencyKeys(ctx context.Context, db DBTX, arg ListConcurrencyKeysParams) ([]*ListConcurrencyKeysRow, error) {
@@ -682,7 +682,7 @@ func (q *Queries) ListConcurrencyKeys(ctx context.Context, db DBTX, arg ListConc
 		arg.Keyoffset,
 		arg.Keylimit,
 		arg.Tenantid,
-		arg.Strategyid,
+		arg.Strategyids,
 		arg.Search,
 	)
 	if err != nil {
@@ -717,7 +717,7 @@ FROM
     v1_concurrency_slot
 WHERE
     tenant_id = $1::uuid
-    AND strategy_id = $2::bigint
+    AND strategy_id = ANY($2::bigint[])
     AND key = $3::TEXT
     AND (
         $4::BOOLEAN IS NULL
@@ -729,11 +729,11 @@ LIMIT $5::BIGINT
 `
 
 type ListConcurrencySlotExternalIdsParams struct {
-	Tenantid   uuid.UUID   `json:"tenantid"`
-	Strategyid int64       `json:"strategyid"`
-	Key        string      `json:"key"`
-	IsFilled   pgtype.Bool `json:"isFilled"`
-	Maxids     int64       `json:"maxids"`
+	Tenantid    uuid.UUID   `json:"tenantid"`
+	Strategyids []int64     `json:"strategyids"`
+	Key         string      `json:"key"`
+	IsFilled    pgtype.Bool `json:"isFilled"`
+	Maxids      int64       `json:"maxids"`
 }
 
 type ListConcurrencySlotExternalIdsRow struct {
@@ -741,12 +741,12 @@ type ListConcurrencySlotExternalIdsRow struct {
 	ExternalID    uuid.UUID `json:"external_id"`
 }
 
-// Runs and tasks holding or queued on a key of a task-scoped or shared strategy. Holding slots
+// Runs and tasks holding or queued on a key of task-scoped or shared strategies. Holding slots
 // sort first so the limit drops queued runs before it drops the ones using the key.
 func (q *Queries) ListConcurrencySlotExternalIds(ctx context.Context, db DBTX, arg ListConcurrencySlotExternalIdsParams) ([]*ListConcurrencySlotExternalIdsRow, error) {
 	rows, err := db.Query(ctx, listConcurrencySlotExternalIds,
 		arg.Tenantid,
-		arg.Strategyid,
+		arg.Strategyids,
 		arg.Key,
 		arg.IsFilled,
 		arg.Maxids,
@@ -1449,7 +1449,7 @@ WITH keys AS (
             AND cs.sort_id = wcs.sort_id
     WHERE
         wcs.tenant_id = $4::uuid
-        AND wcs.strategy_id = $5::bigint
+        AND wcs.strategy_id = ANY($5::bigint[])
         AND (
             $6::TEXT IS NULL
             OR strpos(lower(wcs.key), lower($6::TEXT)) > 0
@@ -1470,12 +1470,12 @@ LIMIT $3::BIGINT
 `
 
 type ListWorkflowConcurrencyKeysParams struct {
-	Onlyqueued bool        `json:"onlyqueued"`
-	Keyoffset  int64       `json:"keyoffset"`
-	Keylimit   int64       `json:"keylimit"`
-	Tenantid   uuid.UUID   `json:"tenantid"`
-	Strategyid int64       `json:"strategyid"`
-	Search     pgtype.Text `json:"search"`
+	Onlyqueued  bool        `json:"onlyqueued"`
+	Keyoffset   int64       `json:"keyoffset"`
+	Keylimit    int64       `json:"keylimit"`
+	Tenantid    uuid.UUID   `json:"tenantid"`
+	Strategyids []int64     `json:"strategyids"`
+	Search      pgtype.Text `json:"search"`
 }
 
 type ListWorkflowConcurrencyKeysRow struct {
@@ -1485,7 +1485,7 @@ type ListWorkflowConcurrencyKeysRow struct {
 	OldestQueuedAt pgtype.Timestamptz `json:"oldest_queued_at"`
 }
 
-// Keys of a workflow strategy, most queued first. Queue start is derived as in
+// Keys of workflow strategies, combined, most queued first. Queue start is derived as in
 // ListWorkflowConcurrencySlotStatsForTenant.
 func (q *Queries) ListWorkflowConcurrencyKeys(ctx context.Context, db DBTX, arg ListWorkflowConcurrencyKeysParams) ([]*ListWorkflowConcurrencyKeysRow, error) {
 	rows, err := db.Query(ctx, listWorkflowConcurrencyKeys,
@@ -1493,7 +1493,7 @@ func (q *Queries) ListWorkflowConcurrencyKeys(ctx context.Context, db DBTX, arg 
 		arg.Keyoffset,
 		arg.Keylimit,
 		arg.Tenantid,
-		arg.Strategyid,
+		arg.Strategyids,
 		arg.Search,
 	)
 	if err != nil {
@@ -1526,7 +1526,7 @@ FROM
     v1_workflow_concurrency_slot
 WHERE
     tenant_id = $1::uuid
-    AND strategy_id = $2::bigint
+    AND strategy_id = ANY($2::bigint[])
     AND key = $3::TEXT
     AND (
         $4::BOOLEAN IS NULL
@@ -1538,19 +1538,19 @@ LIMIT $5::BIGINT
 `
 
 type ListWorkflowConcurrencySlotRunIdsParams struct {
-	Tenantid   uuid.UUID   `json:"tenantid"`
-	Strategyid int64       `json:"strategyid"`
-	Key        string      `json:"key"`
-	IsFilled   pgtype.Bool `json:"isFilled"`
-	Maxids     int64       `json:"maxids"`
+	Tenantid    uuid.UUID   `json:"tenantid"`
+	Strategyids []int64     `json:"strategyids"`
+	Key         string      `json:"key"`
+	IsFilled    pgtype.Bool `json:"isFilled"`
+	Maxids      int64       `json:"maxids"`
 }
 
-// Runs holding or queued on a key of a workflow strategy, ordered as in
+// Runs holding or queued on a key of workflow strategies, ordered as in
 // ListConcurrencySlotExternalIds.
 func (q *Queries) ListWorkflowConcurrencySlotRunIds(ctx context.Context, db DBTX, arg ListWorkflowConcurrencySlotRunIdsParams) ([]uuid.UUID, error) {
 	rows, err := db.Query(ctx, listWorkflowConcurrencySlotRunIds,
 		arg.Tenantid,
-		arg.Strategyid,
+		arg.Strategyids,
 		arg.Key,
 		arg.IsFilled,
 		arg.Maxids,
