@@ -18,11 +18,11 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - The `parent_id`, `parent_step_run_id`, `child_index`, `key`, and `namespace` fields on `TriggerWorkflowOptions` and `ScheduleTriggerWorkflowOptions`, and the `key` field on `WorkflowRunTriggerConfig`.
 - The `desired_worker_id` parameter on `run`, `aio_run`, and `create_bulk_run_item`, and the `desired_worker_id` field on `TriggerWorkflowOptions`. Pass `sticky=True` to run a child on the same worker as the task that triggers it.
 - `EmptyModel`. Tasks and workflows with no input validator now receive `None` as their input, and running a task that returns nothing gives `None`.
-- The `ConcurrencyLimitStrategy`, `StickyStrategy`, `RateLimitDuration`, and `MCPProvider` enums. Pass the member name as a string instead (for example `"CANCEL_IN_PROGRESS"`, `"SOFT"`, `"MINUTE"`, `"CLAUDE"`). `QUEUE_NEWEST` and `QUEUE_OLDEST` have no replacement, since the engine no longer supports them.
+- Every SDK enum. Fixed sets of choices are plain strings typed as `Literal`s: `RunStatus` (`"QUEUED"`, `"RUNNING"`, `"COMPLETED"`, `"CANCELLED"`, `"FAILED"`), `Priority` (`"LOW"`, `"MEDIUM"`, `"HIGH"`), `WorkerLabelComparator` (`"EQUAL"`, `"LESS_THAN"`, ...), `SlotType` (`"default"`, `"durable"`), `HTTPMethod`, `OTelAttribute` (the span attribute name, such as `"step_name"`), and `WorkerStatus`. These names survive as `Literal` type aliases. `ConcurrencyLimitStrategy`, `StickyStrategy`, `RateLimitDuration`, and `MCPProvider` are gone entirely; pass the member name as a string (for example `"CANCEL_IN_PROGRESS"`, `"SOFT"`, `"MINUTE"`, `"CLAUDE"`). `QUEUE_NEWEST` and `QUEUE_OLDEST` have no replacement, since the engine no longer supports them.
 - String durations such as `"10s"`. `execution_timeout`, `schedule_timeout`, `ctx.refresh_timeout`, `ctx.aio_sleep_for`, and `SleepCondition` only accept a `timedelta`.
-- Integer priorities. Every `priority` and `default_priority` parameter and field only accepts a `Priority`.
+- Integer priorities. Every `priority` and `default_priority` parameter and field only accepts `"LOW"`, `"MEDIUM"`, or `"HIGH"`. Use `priority_to_int` from `hatchet_sdk.types.priority` to compare them.
 - `TaskDefaults.priority`, which was never read. Set `default_priority` on the workflow instead.
-- `dict` values for `desired_worker_labels`, and integer `comparator` values on `DesiredWorkerLabel`. Use a `list[DesiredWorkerLabel]` and `WorkerLabelComparator`.
+- `dict` values for `desired_worker_labels`, and integer `comparator` values on `DesiredWorkerLabel`. Use a `list[DesiredWorkerLabel]` and a comparator name such as `"EQUAL"`.
 - `dict` values for the `labels` argument to `hatchet.worker` and the `Worker` constructor. Use a `list[WorkerLabel]`.
 - Synchronous durable tasks. Declaring one raises a `TypeError`.
 - `ctx.step_run_id`, `ctx.workflow_input`, `ctx.input`, `ctx.done`, `ctx.exit_flag`, `ctx.aio_task_output`, `ctx.fetch_task_run_error`, and `ctx.worker`, along with the `WorkerContext` class. Use `ctx.task_run_id`, the task's `input` argument, `ctx.is_cancelled`, `ctx.task_output`, `ctx.get_task_run_error`, `ctx.worker_id`, `ctx.worker_labels`, and `ctx.upsert_worker_labels`.
@@ -36,7 +36,7 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - `runs.list_with_pagination` and `runs.aio_list_with_pagination`. `runs.list` and `runs.aio_list` now paginate internally.
 - `workers.update` and `workers.aio_update`. Use `workers.pause` and `workers.unpause`, or their `aio_` variants.
 - The `statuses` parameter on `scheduled.bulk_delete` and `scheduled.aio_bulk_delete`. The API has no status filter for bulk deletes, so it was ignored.
-- The `stream` method on `WorkflowRunRef` and `TaskRunRef`. Use `hatchet.runs.aio_subscribe_to_stream(ref.workflow_run_id)`.
+- The `stream` method on `WorkflowRunRef` and `TaskRunRef`. Use `hatchet.streams`, or the deprecated `hatchet.runs.aio_subscribe_to_stream(ref.workflow_run_id)`.
 - The `create_traceparent`, `parse_carrier_from_metadata`, and `inject_traceparent_into_metadata` functions in `hatchet_sdk.opentelemetry.instrumentor`. `HatchetInstrumentor` has propagated the traceparent automatically since 1.11.0.
 - `WorkerStartOptions` and the `options` parameter on `Worker.start`, and `Worker.register_workflow_from_opts`.
 - Internal `Worker`, `Workflow`, `Task`, and condition attributes and methods, including `worker.config`, `worker.slot_config`, `worker.labels`, `worker.action_registry`, `worker.exit_gracefully`, `workflow.config`, `workflow.client`, `workflow.service_name`, `workflow.create_action_name`, `workflow.to_proto`, `task.fn`, `task.slot_requests`, `task.call`, `task.aio_call`, `task.to_proto`, the task settings (`task.type`, `task.retries`, `task.execution_timeout`, `task.schedule_timeout`, `task.parents`, `task.rate_limits`, `task.desired_worker_labels`, `task.backoff_factor`, `task.backoff_max_seconds`, `task.concurrency`, `task.wait_for`, `task.skip_if`, `task.cancel_if`, `task.batch`, and `task.eviction_policy`), `Standalone.is_async_function`, the `base` attribute and `to_proto` method on conditions, the `hatchet_sdk.conditions.Action` enum, and `Depends(...).fn`. `task.name` is still public.
@@ -51,6 +51,8 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - The `hatchet.namespace` and `hatchet.key` attributes on the run, bulk run, and schedule spans. The child key is still reported as `hatchet.child_key`. The run, bulk run, and durable spawn spans also no longer set `hatchet.desired_worker_id`.
 - The `V1TaskStatus` export from `hatchet_sdk`. Use `RunStatus` instead.
 - `RunStatus.from_proto`, `RunStatus.from_v1_task_status`, and `RunStatus.to_v1_task_status`.
+- `ctx.pause_rate_limit` and `ctx.aio_pause_rate_limit`. Use `hatchet.rate_limits.pause` and `hatchet.rate_limits.aio_pause`.
+- The `ScheduledRunStatus`, `CronWorkflowsOrderByField`, `ScheduledWorkflowsOrderByField`, `RateLimitOrderByField`, `RateLimitOrderByDirection`, `WorkflowRunOrderByDirection`, `V1WebhookSourceName`, `V1WebhookHMACAlgorithm`, `V1WebhookHMACEncoding`, `V1WebhookBasicAuth`, `V1WebhookAPIKeyAuth`, and `V1WebhookHMACAuth` exports from `hatchet_sdk`.
 - The `TriggerWorkflowOptions`, `ScheduleTriggerWorkflowOptions`, `RunEventListener`, and `WorkflowConfig` exports from `hatchet_sdk`. No public method accepts them now that the `options` parameters are gone. To build a `WorkflowRunTriggerConfig`, use `create_bulk_run_item` instead of constructing one by hand.
 
 ### Changed
@@ -72,7 +74,8 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - `ctx.aio_wait_for` returns a `list[SleepResult | EventWaitResult | OrGroupResult]` instead of a `dict`, and `ctx.aio_wait_for_event` returns an `EventWaitResult` whose `.payload` holds the event data.
 - `ctx.aio_wait_for` no longer takes a signal key as its first argument. Pass the conditions directly, and pass `signal_key=` by keyword if you need a specific key. When it is left out, the key is generated from the order of the wait within the task run, which is stable across replays.
 - `ctx.refresh_timeout`, `ctx.aio_refresh_timeout`, `ctx.put_stream`, and `ctx.aio_put_stream` raise when the request fails, instead of logging the error and returning.
-- `ctx.priority` now returns `Priority | None` instead of `int | None`.
+- `ctx.priority` now returns `"LOW"`, `"MEDIUM"`, `"HIGH"`, or `None` instead of `int | None`.
+- `ctx.worker_labels` is a `list[WorkerLabel]` instead of a `dict`, and `ctx.upsert_worker_labels` and `ctx.aio_upsert_worker_labels` take a `list[WorkerLabel]`, matching the `labels` argument to `hatchet.worker`.
 - The `task_run_errors` parameter on `mock_run` and `aio_mock_run` takes a `dict[str, TaskRunError]` instead of serialized error strings, matching `ctx.task_run_errors`. Their `trigger_data` parameter has been replaced by `filter_payload`, which sets `ctx.filter_payload`.
 - `from hatchet_sdk import Event` now resolves to the SDK's own event class instead of the V0 REST model. Every method on the events client returns it: `push`, `bulk_push`, `get`, and `list`, along with their `aio_` variants. `get` and `list` previously returned the `V1Event` REST model, so read `event.id` instead of `event.metadata.id`.
 - `Event.event_id` has been renamed to `Event.id`.
@@ -93,11 +96,13 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - `TaskDefaults` rejects unknown fields, so a leftover field such as `backoff_max_seconds` or `priority` raises a `ValidationError` instead of being ignored.
 - `WorkerLabel.key` is required, and `DesiredWorkerLabel` no longer subclasses `WorkerLabel`.
 - The default `readable_data_key` of a `ParentCondition` is the parent task's name, followed by `:` and the expression when one is set. It previously also included the time the condition was created, so the workflow definition changed every time the worker started. Two `ParentCondition`s on the same task with the same parent and expression now need distinct `readable_data_key` values, or registering the workflow raises a `ValueError`.
-- String-mixin enums (`RunStatus`, `HTTPMethod`, `SlotType`, `OTelAttribute`, and others) are now `enum.StrEnum` subclasses, so `str(member)` returns the raw value.
-- `RunStatus` is now the only run status enum. Every status the SDK accepts or returns is a `RunStatus`, including `TaskRunSummary.status`, `ScheduledRun.workflow_run_status`, the `status` field on REST models, and the `statuses` filters on `runs.list` and `events.list`.
+- `RunStatus` is now the only run status type. Every status the SDK accepts or returns is a `RunStatus`, including `TaskRunSummary.status`, `ScheduledRun.workflow_run_status`, the `status` field on REST models, and the `statuses` filters on `runs.list` and `events.list`.
+- The `statuses` filter on `scheduled.list` and `scheduled.aio_list` takes `RunStatus` values, plus `"SCHEDULED"` for schedules that have not triggered yet, instead of `ScheduledRunStatus`.
+- The `order_by_field` and `order_by_direction` parameters on `crons.list`, `scheduled.list`, `rate_limits.list`, and their `aio_` variants take snake_case strings (`"created_at"`, `"trigger_at"`, `"limit_value"`, ...) and `"asc"` or `"desc"`, instead of the REST ordering enums.
+- `webhooks.create` and `webhooks.aio_create` take `WebhookBasicAuth`, `WebhookAPIKeyAuth`, or `WebhookHMACAuth`, with snake_case fields and string HMAC algorithms and encodings, instead of the `V1Webhook*Auth` REST models. `source_name` on `webhooks.create` and `source_names` on `webhooks.list` are strings.
+- `NotFoundException` has been renamed to `NotFoundError`.
 - The events client module has moved from `hatchet_sdk.clients.events` to `hatchet_sdk.features.events`, alongside the other feature clients.
 - The `parent_step_run_id` parameter on `scheduled.bulk_delete` and `scheduled.aio_bulk_delete` has been renamed to `parent_task_run_id`.
-- The `STEP_NAME`, `STEP_ID`, and `STEP_RUN_ID` members of `OTelAttribute` have been renamed to `TASK_NAME`, `TASK_ID`, and `TASK_RUN_ID`. The span attribute names they produce are unchanged.
 - Worker log messages and error messages refer to tasks instead of steps.
 - `NonRetryableException` has been renamed to `NonRetryableError`, and `RetryAfterException` has been renamed to `RetryAfterError`.
 - `ctx.task_run_errors` returns a `dict[str, TaskRunError]` instead of a dictionary of serialized error strings, and no longer logs an error when there are no upstream errors.
@@ -121,11 +126,15 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 
 - `result` and `aio_result` on `WorkflowRunRef` and `TaskRunRef` accept an optional `timeout` (a `timedelta`) and raise `TimeoutError` when it elapses.
 - `CronTrigger`, `ScheduledRun`, and `TaskRunSummary`, the SDK's own models for cron triggers, scheduled runs, and task run summaries.
-- `SleepResult`, `EventWaitResult`, `OrGroupResult`, `HTTPMethod`, `CronTrigger`, `ScheduledRun`, `TaskRunSummary`, `TaskRunDetail`, `WorkflowRunDetail`, `TaskMetrics`, `NotFoundException`, `V1WebhookBasicAuth`, `V1WebhookAPIKeyAuth`, `V1WebhookHMACAuth`, `ScheduledRunStatus`, `CronWorkflowsOrderByField`, `ScheduledWorkflowsOrderByField`, `RateLimitOrderByField`, `RateLimitOrderByDirection`, and `WorkflowRunOrderByDirection` are exported from `hatchet_sdk`, so every type a public method accepts or returns can be imported from the top level.
+- `SleepResult`, `EventWaitResult`, `OrGroupResult`, `HTTPMethod`, `CronTrigger`, `ScheduledRun`, `TaskRunSummary`, `TaskRunDetail`, `WorkflowRunDetail`, `TaskMetrics`, `NotFoundError`, `WebhookBasicAuth`, `WebhookAPIKeyAuth`, `WebhookHMACAuth`, `WebhookSourceName`, `WebhookHMACAlgorithm`, and `WebhookHMACEncoding` are exported from `hatchet_sdk`, so every type a public method accepts or returns can be imported from the top level.
 - `durable_task` decorators accept `slot_cost`, controlling how many durable slots the task consumes.
 - `hatchet.batch_task` accepts `on_events`, `on_crons`, `cron_input`, and `default_additional_metadata`, matching the other standalone task decorators.
 - `hatchet.tenant`, a client for reading details about the current tenant.
 - `Standalone`, the class returned by the `hatchet.task`, `hatchet.durable_task`, and `hatchet.batch_task` decorators, is exported from `hatchet_sdk`.
+
+### Deprecated
+
+- `ctx.put_stream`, `ctx.aio_put_stream`, and `hatchet.runs.aio_subscribe_to_stream`, which now emit a `DeprecationWarning`. Use durable streams (`hatchet.streams.aio_publish` and `hatchet.streams.aio_subscribe`) instead.
 
 ### Fixed
 
@@ -139,6 +148,7 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - `TaskRunError` sets `args`, so it can be pickled.
 - The `hatchet.durable.wait_for` span reports the actual number of conditions in `hatchet.num_conditions` instead of always 2, and leaves out `hatchet.signal_key` when the key was generated.
 - `HatchetInstrumentor.uninstrument()` now also unwraps `events.aio_push` and `events.aio_bulk_push`.
+
 ## v1.46.0 - 2026-11-12
 
 ### Added
