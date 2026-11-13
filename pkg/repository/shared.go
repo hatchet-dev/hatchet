@@ -77,6 +77,7 @@ type sharedRepository struct {
 	taskLookupCache   *lru.Cache[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow]
 	payloadStore      PayloadStoreRepository
 	m                 TenantLimitRepository
+	entitlements      TenantEntitlementRepository
 
 	wrapTaskInputInStepRunData bool
 	enablePayloadConsolidation bool
@@ -162,6 +163,7 @@ func newSharedRepository(
 	tenantLimitRepository := newTenantLimitRepository(s, c, shouldEnforceLimits, cacheDuration)
 
 	s.m = tenantLimitRepository
+	s.entitlements = newTenantEntitlementRepository(s)
 
 	return s, s.cleanup
 }

@@ -2654,6 +2654,7 @@ WITH RECURSIVE input_tasks AS MATERIALIZED (
         t.step_id,
         t.workflow_id,
         t.external_id,
+        t.workflow_run_id,
         t.input,
         t.additional_metadata,
         t.parent_task_external_id,
@@ -2705,6 +2706,7 @@ SELECT
     t.step_id,
     t.workflow_id,
     t.external_id,
+    t.workflow_run_id,
     t.input,
     t.additional_metadata,
     t.parent_task_external_id,
@@ -2747,6 +2749,7 @@ type ListTasksForReplayRow struct {
 	StepID                    uuid.UUID          `json:"step_id"`
 	WorkflowID                uuid.UUID          `json:"workflow_id"`
 	ExternalID                uuid.UUID          `json:"external_id"`
+	WorkflowRunID             uuid.UUID          `json:"workflow_run_id"`
 	Input                     []byte             `json:"input"`
 	AdditionalMetadata        []byte             `json:"additional_metadata"`
 	ParentTaskExternalID      *uuid.UUID         `json:"parent_task_external_id"`
@@ -2790,6 +2793,7 @@ func (q *Queries) ListTasksForReplay(ctx context.Context, db DBTX, arg ListTasks
 			&i.StepID,
 			&i.WorkflowID,
 			&i.ExternalID,
+			&i.WorkflowRunID,
 			&i.Input,
 			&i.AdditionalMetadata,
 			&i.ParentTaskExternalID,

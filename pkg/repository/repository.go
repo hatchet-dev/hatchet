@@ -126,12 +126,10 @@ func NewRepository(
 
 	concurrencyOverview, cleanupConcurrencyOverview := newConcurrencyOverviewRepository(shared)
 
-	tenantEntitlement := newTenantEntitlementRepository(shared)
-
 	impl := &repositoryImpl{
 		apiToken:            newAPITokenRepository(shared, cacheDuration),
 		dispatcher:          newDispatcherRepository(shared),
-		durableEvents:       newDurableEventsRepository(shared, tenantEntitlement, durableEventBufferOpts),
+		durableEvents:       newDurableEventsRepository(shared, durableEventBufferOpts),
 		health:              newHealthRepository(shared),
 		messageQueue:        mq,
 		rateLimit:           newRateLimitRepository(shared),
@@ -159,7 +157,7 @@ func NewRepository(
 		sns:                 newSNSRepository(shared),
 		tenantInvite:        newTenantInviteRepository(shared),
 		tenantLimit:         shared.m,
-		tenantEntitlement:   tenantEntitlement,
+		tenantEntitlement:   shared.entitlements,
 		tenantAlerting:      newTenantAlertingRepository(shared, cacheDuration),
 		tenant:              newTenantRepository(shared, cacheDuration),
 		user:                newUserRepository(shared),
