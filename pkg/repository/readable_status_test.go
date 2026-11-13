@@ -74,3 +74,10 @@ func TestReadableStatusesForFilter(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateReadableStatuses(t *testing.T) {
+	assert.NoError(t, ValidateReadableStatuses(nil))
+	assert.NoError(t, ValidateReadableStatuses([]string{"QUEUED", "RUNNING", "FAILED", "COMPLETED", "CANCELLED", "EVICTED"}))
+	assert.Error(t, ValidateReadableStatuses([]string{"running"}))
+	assert.Error(t, ValidateReadableStatuses([]string{"FAILED", "BOGUS"}))
+}

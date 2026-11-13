@@ -1,6 +1,10 @@
 package repository
 
-import "github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+import (
+	"fmt"
+
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+)
 
 type RunningStatusFilter string
 
@@ -9,6 +13,24 @@ const (
 	RunningStatusFilterOnWorker RunningStatusFilter = "ON_WORKER"
 	RunningStatusFilterEvicted  RunningStatusFilter = "EVICTED"
 )
+
+// ValidateReadableStatuses rejects unknown statuses, since ReadableStatusesForFilter silently drops them.
+func ValidateReadableStatuses(statuses []string) error {
+	for _, status := range statuses {
+		switch sqlcv1.V1ReadableStatusOlap(status) {
+		case sqlcv1.V1ReadableStatusOlapQUEUED,
+			sqlcv1.V1ReadableStatusOlapRUNNING,
+			sqlcv1.V1ReadableStatusOlapFAILED,
+			sqlcv1.V1ReadableStatusOlapCOMPLETED,
+			sqlcv1.V1ReadableStatusOlapCANCELLED,
+			sqlcv1.V1ReadableStatusOlapEVICTED:
+		default:
+			return fmt.Errorf("invalid status: %q", status)
+		}
+	}
+
+	return nil
+}
 
 // ReadableStatusesForFilter maps public run statuses to OLAP statuses, expanding RUNNING into the
 // separately stored RUNNING and EVICTED statuses. Empty statuses means all statuses; unknown ones are dropped.
