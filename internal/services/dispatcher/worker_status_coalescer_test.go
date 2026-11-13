@@ -358,7 +358,7 @@ func (f *fakeSatisfiedEvents) snapshot() [][]v1.TaskExternalIdNodeIdBranchId {
 
 type fakeNoTasks struct{ v1.TaskRepository }
 
-func (fakeNoTasks) ResolveTaskExternalIds(context.Context, uuid.UUID, []uuid.UUID) (map[uuid.UUID]v1.TaskIdInsertedAt, error) {
+func (fakeNoTasks) ResolveTaskExternalIds(context.Context, uuid.UUID, []uuid.UUID) (map[uuid.UUID]v1.IdInsertedAt, error) {
 	return nil, nil
 }
 

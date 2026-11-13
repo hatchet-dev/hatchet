@@ -35,7 +35,7 @@ func newBatchTestRepository(pool *pgxpool.Pool) *TaskRepositoryImpl {
 
 	queueCache := cache.New(5 * time.Minute)
 	taskLookupCache, _ := lru.New[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow](1024)
-	taskKeyCache, _ := lru.New[taskExternalIdTenantIdTuple, TaskIdInsertedAt](1024)
+	taskKeyCache, _ := lru.New[taskExternalIdTenantIdTuple, IdInsertedAt](1024)
 
 	boolExprEvaluator, err := cel.NewBoolExprEvaluator()
 

@@ -306,8 +306,8 @@ func TestResolveTaskExternalIds(t *testing.T) {
 	for _, expected := range []*V1TaskWithPayload{task, dagTask} {
 		key, ok := resolved[expected.ExternalID]
 		require.True(t, ok)
-		require.Equal(t, expected.ID, key.Id)
-		require.True(t, expected.InsertedAt.Time.Equal(key.InsertedAt.Time))
+		require.Equal(t, expected.ID, key.ID)
+		require.Equal(t, expected.InsertedAt.Time.UnixMicro(), key.InsertedAtUnixMicros)
 	}
 
 	otherTenant, err := f.repo.ResolveTaskExternalIds(ctx, uuid.New(), []uuid.UUID{task.ExternalID})

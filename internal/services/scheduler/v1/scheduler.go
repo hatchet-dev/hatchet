@@ -27,6 +27,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	repov1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/scheduling"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
@@ -1576,8 +1577,8 @@ func (s *Scheduler) handleDeadLetteredDurableCallbackCompleted(ctx context.Conte
 		}
 
 		callbacks = append(callbacks, repov1.SatisfiedEntry{
-			DurableTaskId:         t.Id,
-			DurableTaskInsertedAt: t.InsertedAt,
+			DurableTaskId:         t.ID,
+			DurableTaskInsertedAt: sqlchelpers.TimestamptzFromUnixMicros(t.InsertedAtUnixMicros),
 			DurableTaskExternalId: p.TaskExternalId,
 			InvocationCount:       p.InvocationCount,
 			BranchId:              p.BranchId,

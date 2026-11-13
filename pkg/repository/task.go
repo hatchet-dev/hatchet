@@ -164,15 +164,6 @@ type ReplayTaskOpts struct {
 	TriggeringEventKey *string
 }
 
-// TaskIdInsertedAt is the primary key of a task.
-type TaskIdInsertedAt struct {
-	// (required) the id
-	Id int64
-
-	// (required) the inserted at time
-	InsertedAt pgtype.Timestamptz
-}
-
 type TaskIdInsertedAtRetryCount struct {
 	// (required) the id
 	Id int64 `validate:"required"`
@@ -316,7 +307,7 @@ type TaskRepository interface {
 	// External ids which do not belong to a task (including those of DAGs) are left out of the result.
 	// A key in the result does not prove the task row still exists, because v1_lookup_table rows and
 	// cache entries outlive the v1_task partition the task was stored in.
-	ResolveTaskExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) (map[uuid.UUID]TaskIdInsertedAt, error)
+	ResolveTaskExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) (map[uuid.UUID]IdInsertedAt, error)
 
 	ListDurableOrchestratorChildExternalIds(ctx context.Context, tenantId, orchestratorExternalId uuid.UUID) ([]uuid.UUID, error)
 
@@ -775,8 +766,10 @@ func (r *TaskRepositoryImpl) FlattenExternalIds(ctx context.Context, tenantId uu
 	return r.lookupExternalIds(ctx, db, tenantId, externalIds)
 }
 
-func (r *sharedRepository) ResolveTaskExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) (map[uuid.UUID]TaskIdInsertedAt, error) {
-	res := make(map[uuid.UUID]TaskIdInsertedAt, len(externalIds))
+// ResolveTaskExternalIds maps task external ids to the tasks' primary keys, reading only the cache and
+// v1_lookup_table. A returned key does not prove the task row still exists.
+func (r *sharedRepository) ResolveTaskExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) (map[uuid.UUID]IdInsertedAt, error) {
+	res := make(map[uuid.UUID]IdInsertedAt, len(externalIds))
 	uncached := make(map[uuid.UUID]struct{})
 
 	for _, externalId := range externalIds {
@@ -818,9 +811,9 @@ func (r *sharedRepository) ResolveTaskExternalIds(ctx context.Context, tenantId 
 			continue
 		}
 
-		val := TaskIdInsertedAt{
-			Id:         lookup.TaskID.Int64,
-			InsertedAt: lookup.InsertedAt,
+		val := IdInsertedAt{
+			ID:                   lookup.TaskID.Int64,
+			InsertedAtUnixMicros: lookup.InsertedAt.Time.UnixMicro(),
 		}
 
 		r.taskKeyCache.Add(taskExternalIdTenantIdTuple{

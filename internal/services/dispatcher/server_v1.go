@@ -28,6 +28,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -1680,11 +1681,10 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 			idInsertedAts := make([]v1.IdInsertedAt, 0, len(tasks))
 			taskIdToExternalId := make(map[v1.IdInsertedAt]uuid.UUID, len(tasks))
 
-			for externalId, t := range tasks {
-				key := v1.IdInsertedAt{ID: t.Id, InsertedAtUnixMicros: t.InsertedAt.Time.UnixMicro()}
+			for externalId, key := range tasks {
 				idInsertedAts = append(idInsertedAts, key)
 				taskIdToExternalId[key] = externalId
-				taskInsertedAtRange.Extend(t.InsertedAt)
+				taskInsertedAtRange.Extend(sqlchelpers.TimestamptzFromUnixMicros(key.InsertedAtUnixMicros))
 			}
 
 			idInsertedAtToInvocationCount, err := d.repo.DurableEvents().GetDurableTaskInvocationCounts(ctx, invocation.tenantId, idInsertedAts)
