@@ -123,20 +123,7 @@ func GetClientConfigFromConfigFile(tokenOverride *string, cf *client.ClientConfi
 		namespace = strings.ToLower(namespace + "_")
 	}
 
-	var rawRunnableActions []string
-	if cf.RawRunnableActions != nil {
-		rawRunnableActions = []string{}
-
-		for _, action := range cf.RawRunnableActions {
-			rawRunnableActions = append(rawRunnableActions, namespace+strings.TrimSpace(action))
-		}
-	}
-
 	presetLabels := make(map[string]string)
-
-	if cf.AutoscalingTarget != "" {
-		presetLabels["hatchet-autoscaling-target"] = cf.AutoscalingTarget
-	}
 
 	return &client.ClientConfig{
 		TenantId:               cf.TenantId,
@@ -146,8 +133,6 @@ func GetClientConfigFromConfigFile(tokenOverride *string, cf *client.ClientConfi
 		ServerURL:              serverURL,
 		GRPCBroadcastAddress:   grpcBroadcastAddress,
 		Namespace:              namespace,
-		CloudRegisterID:        cf.CloudRegisterID,
-		RunnableActions:        rawRunnableActions,
 		NoGrpcRetry:            cf.NoGrpcRetry,
 		NoRetry:                cf.NoRetry,
 		PresetWorkerLabels:     presetLabels,

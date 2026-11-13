@@ -9,11 +9,6 @@ import {
 import { SlackActions } from '../alerting/components/slack-webhooks-columns';
 import { UpdateTenantAlertingSettings } from '../alerting/components/update-tenant-alerting-settings-form';
 import { SettingsPageHeader } from '../components/settings-page-header';
-import {
-  GithubAccountCell,
-  GithubLinkCell,
-  GithubSettingsCell,
-} from '../github/components/github-installations-columns';
 import { CreateSNSDialog } from '../ingestors/components/create-sns-dialog';
 import { DeleteSNSForm } from '../ingestors/components/delete-sns-form';
 import {
@@ -21,7 +16,6 @@ import {
   SNSActions,
 } from '../ingestors/components/sns-integrations-columns';
 import { PrometheusMetricsSettings } from './components/prometheus-metrics-settings';
-import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
@@ -46,31 +40,16 @@ import api, {
   UpdateTenantRequest,
   queries,
 } from '@/lib/api';
-import { cloudApi } from '@/lib/api/api';
-import { GithubAppInstallation } from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError, useApiMetaIntegrations } from '@/lib/hooks';
-import { appRoutes } from '@/router';
 import { Dialog } from '@radix-ui/react-dialog';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useParams } from '@tanstack/react-router';
 import { ReactNode, useMemo, useState } from 'react';
-import invariant from 'tiny-invariant';
 
 export default function Integrations() {
-  const { isControlPlaneEnabled } = useControlPlane();
   const integrations = useApiMetaIntegrations();
-  const { tenant } = useParams({ from: appRoutes.tenantRoute.to });
-
-  const listManagedWorkersQuery = useQuery({
-    ...queries.cloud.listManagedWorkers(tenant),
-    enabled: isControlPlaneEnabled,
-  });
 
   const hasEmailIntegration = integrations?.find((i) => i.name === 'email');
   const hasSlackIntegration = integrations?.find((i) => i.name === 'slack');
-
-  const hasExistingManagedWorkers =
-    (listManagedWorkersQuery.data?.rows?.length || 0) > 0;
 
   return (
     <div className="h-full w-full flex-grow">
@@ -91,11 +70,6 @@ export default function Integrations() {
             <TabsTrigger value="metrics" variant="underlined">
               Metrics
             </TabsTrigger>
-            {isControlPlaneEnabled && hasExistingManagedWorkers && (
-              <TabsTrigger value="github" variant="underlined">
-                GitHub
-              </TabsTrigger>
-            )}
           </TabsList>
 
           <TabsContent value="alerting">
@@ -113,12 +87,6 @@ export default function Integrations() {
           <TabsContent value="metrics">
             <PrometheusMetricsSettings />
           </TabsContent>
-
-          {isControlPlaneEnabled && hasExistingManagedWorkers && (
-            <TabsContent value="github">
-              <GithubInstallationsList />
-            </TabsContent>
-          )}
         </Tabs>
       </div>
     </div>
@@ -692,118 +660,5 @@ function DeleteSNSIntegration({
         onCancel={() => setShowSNSDelete(false)}
       />
     </Dialog>
-  );
-}
-
-function GithubInstallationsList() {
-  const canWrite = useCanWrite();
-  const { tenantId } = useCurrentTenantId();
-  const { tenant } = useTenantDetails();
-
-  const [installationToLink, setInstallationToLink] = useState<
-    string | undefined
-  >();
-
-  const listInstallationsQuery = useQuery({
-    ...queries.github.listInstallations(tenantId),
-  });
-
-  const { handleApiError } = useApiError({});
-
-  const linkInstallationToTenantMutation = useMutation({
-    mutationKey: [
-      'github-app:update:installation',
-      tenantId,
-      installationToLink,
-    ],
-    mutationFn: async () => {
-      invariant(installationToLink, 'installationToLink should be set');
-      const res = await cloudApi.githubAppUpdateInstallation(
-        installationToLink,
-        {
-          tenant: tenantId,
-        },
-      );
-      return res.data;
-    },
-    onSuccess: () => {
-      setInstallationToLink(undefined);
-      listInstallationsQuery.refetch();
-    },
-    onError: handleApiError,
-  });
-
-  const githubColumns = useMemo(
-    () => [
-      {
-        columnLabel: 'Account name',
-        cellRenderer: (installation: GithubAppInstallation) => (
-          <GithubAccountCell installation={installation} />
-        ),
-      },
-      {
-        columnLabel: 'Link to tenant?',
-        cellRenderer: (installation: GithubAppInstallation) => (
-          <GithubLinkCell
-            installation={installation}
-            onLinkToTenant={(installationId: string) => {
-              setInstallationToLink(installationId);
-            }}
-          />
-        ),
-      },
-      {
-        columnLabel: 'GitHub Settings',
-        cellRenderer: (installation: GithubAppInstallation) => (
-          <GithubSettingsCell installation={installation} />
-        ),
-      },
-    ],
-    [],
-  );
-
-  const currentPath = window.location.pathname;
-
-  return (
-    <div>
-      <SettingsSectionHeader
-        title="GitHub Accounts"
-        description="Link GitHub accounts and installations that this tenant can use for connected repository workflows."
-        action={
-          canWrite ? (
-            <a
-              href={`/api/v1/cloud/users/github-app/start?redirect_to=${encodeURIComponent(currentPath)}&with_repo_installation=false`}
-            >
-              <Button>Link new account</Button>
-            </a>
-          ) : undefined
-        }
-      />
-      <Separator className="my-4" />
-      {(listInstallationsQuery.data?.rows || []).length > 0 ? (
-        <SimpleTable
-          columns={githubColumns}
-          data={listInstallationsQuery.data?.rows || []}
-          rowKey={(row) => row.metadata.id}
-        />
-      ) : (
-        <div className="py-8">
-          <EmptyState
-            title="No GitHub accounts linked"
-            description="Link a GitHub account to integrate Hatchet with your CI/CD workflows."
-          />
-        </div>
-      )}
-      <ConfirmDialog
-        title={`Are you sure?`}
-        description={`Linking this app to ${tenant?.name} will allow other members of the tenant to view this installation. Users will only be able to deploy to repositories that they have access to.`}
-        submitLabel={'Yes, link to tenant'}
-        submitVariant={'default'}
-        onSubmit={linkInstallationToTenantMutation.mutate}
-        onCancel={() => setInstallationToLink(undefined)}
-        isLoading={linkInstallationToTenantMutation.isPending}
-        isOpen={installationToLink !== undefined}
-      />
-    </div>
   );
 }

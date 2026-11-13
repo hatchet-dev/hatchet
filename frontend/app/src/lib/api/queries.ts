@@ -9,10 +9,8 @@ import api, {
   controlPlaneApi,
   SELF_HOSTED_LIST_TIMEOUT_MS,
 } from './api';
-import { TemplateOptions } from './generated/cloud/data-contracts';
 import { createQueryKeyStore } from '@lukemorales/query-key-factory';
 import { AxiosError } from 'axios';
-import invariant from 'tiny-invariant';
 
 type ListEventQuery = Parameters<typeof api.eventList>[1];
 type ListRateLimitsQuery = Parameters<typeof api.rateLimitList>[1];
@@ -22,8 +20,6 @@ type ListWorkersQuery = Parameters<typeof api.workerList>[1];
 type ListLogLineQuery = Parameters<typeof api.v1LogLineList>[1];
 type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
 type ListWorkflowsQuery = Parameters<typeof api.workflowList>[1];
-export type ListCloudLogsQuery = Parameters<typeof cloudApi.logList>[1];
-type GetCloudMetricsQuery = Parameters<typeof cloudApi.metricsCpuGet>[1];
 type WorkflowRunMetrics = Parameters<typeof api.workflowRunGetMetrics>[1];
 type WorkflowRunEventsMetrics = Parameters<
   typeof cloudApi.workflowRunEventsGetMetrics
@@ -103,16 +99,6 @@ export const queries = createQueryKeyStore({
     }),
   },
   cloud: {
-    createComputeDemoTemplate: (tenant: string, template: TemplateOptions) => ({
-      queryKey: ['compute-demo-template:create', tenant, template],
-      queryFn: async () =>
-        (
-          await cloudApi.managedWorkerTemplateCreate(tenant, {
-            name: template,
-          })
-        ).data,
-    }),
-
     listSandboxProviders: (
       tenant: string,
       query: { offset: number; limit: number },
@@ -130,73 +116,6 @@ export const queries = createQueryKeyStore({
       queryFn: async () =>
         (await cloudApi.sandboxProviderEventsList(provider, { limit: 200 }))
           .data,
-    }),
-    getManagedWorker: (worker: string) => ({
-      queryKey: ['managed-worker:get', worker],
-      queryFn: async () => (await cloudApi.managedWorkerGet(worker)).data,
-    }),
-    listManagedWorkers: (tenant: string) => ({
-      queryKey: ['managed-worker:list', tenant],
-      queryFn: async () => (await cloudApi.managedWorkerList(tenant)).data,
-    }),
-    listManagedWorkerInstances: (managedWorkerId: string) => ({
-      queryKey: ['managed-worker:list:instances', managedWorkerId],
-      queryFn: async () =>
-        (await cloudApi.managedWorkerInstancesList(managedWorkerId)).data,
-    }),
-    getManagedWorkerLogs: (
-      managedWorkerId: string,
-      query: ListCloudLogsQuery,
-    ) => ({
-      queryKey: ['managed-worker:get:logs', managedWorkerId, query],
-      queryFn: async () =>
-        (await cloudApi.logList(managedWorkerId, query)).data,
-    }),
-    getBuild: (buildId: string) => ({
-      queryKey: ['build:get', buildId],
-      queryFn: async () => (await cloudApi.buildGet(buildId)).data,
-    }),
-    getBuildLogs: (buildId: string) => ({
-      queryKey: ['build-logs:list', buildId],
-      queryFn: async () => (await cloudApi.buildLogsList(buildId)).data,
-    }),
-    getIacLogs: (managedWorkerId: string, deployKey: string) => ({
-      queryKey: ['iac-logs:list', managedWorkerId, deployKey],
-      queryFn: async () =>
-        (
-          await cloudApi.iacLogsList(managedWorkerId, {
-            deployKey,
-          })
-        ).data,
-    }),
-    getManagedWorkerCpuMetrics: (
-      managedWorkerId: string,
-      query: GetCloudMetricsQuery,
-    ) => ({
-      queryKey: ['managed-worker:get:cpu-metrics', managedWorkerId, query],
-      queryFn: async () =>
-        (await cloudApi.metricsCpuGet(managedWorkerId, query)).data,
-    }),
-    getManagedWorkerMemoryMetrics: (
-      managedWorkerId: string,
-      query: GetCloudMetricsQuery,
-    ) => ({
-      queryKey: ['managed-worker:get:memory-metrics', managedWorkerId, query],
-      queryFn: async () =>
-        (await cloudApi.metricsMemoryGet(managedWorkerId, query)).data,
-    }),
-    getManagedWorkerDiskMetrics: (
-      managedWorkerId: string,
-      query: GetCloudMetricsQuery,
-    ) => ({
-      queryKey: ['managed-worker:get:disk-metrics', managedWorkerId, query],
-      queryFn: async () =>
-        (await cloudApi.metricsDiskGet(managedWorkerId, query)).data,
-    }),
-    listManagedWorkerEvents: (managedWorkerId: string) => ({
-      queryKey: ['managed-worker:get:events', managedWorkerId],
-      queryFn: async () =>
-        (await cloudApi.managedWorkerEventsList(managedWorkerId)).data,
     }),
     workflowRunMetrics: (tenant: string, query: WorkflowRunEventsMetrics) => ({
       queryKey: ['workflow-run:metrics', tenant, query],
@@ -614,61 +533,6 @@ export const queries = createQueryKeyStore({
     get: (worker: string) => ({
       queryKey: ['worker:get', worker],
       queryFn: async () => (await api.workerGet(worker)).data,
-    }),
-  },
-  github: {
-    listInstallations: (tenant: string) => ({
-      queryKey: ['github-app:list:installations'],
-      queryFn: async () =>
-        (
-          await cloudApi.githubAppListInstallations({
-            tenant,
-          })
-        ).data,
-    }),
-    listRepos: (tenant: string, installation?: string) => ({
-      queryKey: ['github-app:list:repos', tenant, installation],
-      queryFn: async () => {
-        invariant(installation, 'Installation must be set');
-        const res = (
-          await cloudApi.githubAppListRepos(installation, {
-            tenant,
-          })
-        ).data;
-        return res;
-      },
-      enabled: !!installation,
-    }),
-    listBranches: (
-      tenant: string,
-      installation?: string,
-      repoOwner?: string,
-      repoName?: string,
-    ) => ({
-      queryKey: [
-        'github-app:list:branches',
-        tenant,
-        installation,
-        repoOwner,
-        repoName,
-      ],
-      queryFn: async () => {
-        invariant(installation, 'Installation must be set');
-        invariant(repoOwner, 'Repo owner must be set');
-        invariant(repoName, 'Repo name must be set');
-        const res = (
-          await cloudApi.githubAppListBranches(
-            installation,
-            repoOwner,
-            repoName,
-            {
-              tenant,
-            },
-          )
-        ).data;
-        return res;
-      },
-      enabled: !!installation && !!repoOwner && !!repoName,
     }),
   },
   webhookWorkers: {

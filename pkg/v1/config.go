@@ -13,18 +13,15 @@ import (
 // Deprecated: Config is part of the old generics-based v1 Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type Config struct {
-	TenantId           uuid.UUID
-	Token              string
-	HostPort           string
-	ServerURL          string
-	Namespace          string
-	NoGrpcRetry        bool
-	NoRetry            bool
-	CloudRegisterID    string
-	RawRunnableActions []string
-	AutoscalingTarget  string
-	TLS                *TLSConfig
-	Logger             *zerolog.Logger
+	TenantId    uuid.UUID
+	Token       string
+	HostPort    string
+	ServerURL   string
+	Namespace   string
+	NoGrpcRetry bool
+	NoRetry     bool
+	TLS         *TLSConfig
+	Logger      *zerolog.Logger
 }
 
 // Deprecated: TLSConfig is part of the old generics-based v1 Go SDK.
@@ -46,9 +43,6 @@ func mapConfigToCF(opts Config) *v0Config.ClientConfigFile {
 	cf.Namespace = opts.Namespace
 	cf.NoGrpcRetry = opts.NoGrpcRetry
 	cf.NoRetry = opts.NoRetry
-	cf.CloudRegisterID = &opts.CloudRegisterID
-	cf.RawRunnableActions = opts.RawRunnableActions
-	cf.AutoscalingTarget = opts.AutoscalingTarget
 
 	if opts.TLS != nil {
 		cf.TLS = v0Config.ClientTLSConfigFile{

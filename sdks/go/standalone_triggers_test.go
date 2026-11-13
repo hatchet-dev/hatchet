@@ -10,7 +10,6 @@ import (
 
 	sharedcontracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
-	cloudrest "github.com/hatchet-dev/hatchet/pkg/client/cloud/rest"
 	"github.com/hatchet-dev/hatchet/pkg/client/operatorclient"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 )
@@ -28,12 +27,9 @@ func (s *stubV0Client) Event() v0Client.EventClient              { return nil }
 func (s *stubV0Client) Streams() sharedcontracts.V1StreamsClient { return nil }
 func (s *stubV0Client) Subscribe() v0Client.SubscribeClient      { return nil }
 func (s *stubV0Client) API() *rest.ClientWithResponses           { return nil }
-func (s *stubV0Client) CloudAPI() *cloudrest.ClientWithResponses { return nil }
 func (s *stubV0Client) Logger() *zerolog.Logger                  { l := zerolog.Nop(); return &l }
 func (s *stubV0Client) TenantId() string                         { return "00000000-0000-0000-0000-000000000000" }
 func (s *stubV0Client) Namespace() string                        { return "" }
-func (s *stubV0Client) CloudRegisterID() *string                 { return nil }
-func (s *stubV0Client) RunnableActions() []string                { return nil }
 func (s *stubV0Client) Close() error                             { return nil }
 
 // newTestClient returns a Client backed by a stub, suitable for
