@@ -17,7 +17,6 @@ import (
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type statusEntry struct {
@@ -359,7 +358,7 @@ func (f *fakeSatisfiedEvents) snapshot() [][]v1.TaskExternalIdNodeIdBranchId {
 
 type fakeNoTasks struct{ v1.TaskRepository }
 
-func (fakeNoTasks) FlattenExternalIds(context.Context, uuid.UUID, []uuid.UUID) ([]*sqlcv1.FlattenExternalIdsRow, error) {
+func (fakeNoTasks) ResolveTaskExternalIds(context.Context, uuid.UUID, []uuid.UUID) (map[uuid.UUID]v1.TaskIdInsertedAt, error) {
 	return nil, nil
 }
 

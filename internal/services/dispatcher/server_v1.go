@@ -1672,7 +1672,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 			externalIds = append(externalIds, extId)
 		}
 
-		tasks, err := d.repo.Tasks().FlattenExternalIds(ctx, invocation.tenantId, externalIds)
+		tasks, err := d.repo.Tasks().ResolveTaskExternalIds(ctx, invocation.tenantId, externalIds)
 		if err != nil {
 			return fmt.Errorf("failed to look up tasks for invocation count check in worker_status: %w", err)
 		}
@@ -1680,10 +1680,10 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 			idInsertedAts := make([]v1.IdInsertedAt, 0, len(tasks))
 			taskIdToExternalId := make(map[v1.IdInsertedAt]uuid.UUID, len(tasks))
 
-			for _, t := range tasks {
-				key := v1.IdInsertedAt{ID: t.ID, InsertedAtUnixMicros: t.InsertedAt.Time.UnixMicro()}
+			for externalId, t := range tasks {
+				key := v1.IdInsertedAt{ID: t.Id, InsertedAtUnixMicros: t.InsertedAt.Time.UnixMicro()}
 				idInsertedAts = append(idInsertedAts, key)
-				taskIdToExternalId[key] = t.ExternalID
+				taskIdToExternalId[key] = externalId
 				taskInsertedAtRange.Extend(t.InsertedAt)
 			}
 

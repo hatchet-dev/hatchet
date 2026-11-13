@@ -78,6 +78,9 @@ type sharedRepository struct {
 	payloadStore      PayloadStoreRepository
 	m                 TenantLimitRepository
 
+	// taskKeyCache has no TTL because a task's external id maps to the same primary key for as long as the task exists
+	taskKeyCache *lru.Cache[taskExternalIdTenantIdTuple, TaskIdInsertedAt]
+
 	wrapTaskInputInStepRunData bool
 	enablePayloadConsolidation bool
 	reassignUnackedTasks       bool
@@ -129,6 +132,12 @@ func newSharedRepository(
 		log.Fatalf("failed to create LRU cache: %v", err)
 	}
 
+	taskKeyCache, err := lru.New[taskExternalIdTenantIdTuple, TaskIdInsertedAt](100000)
+
+	if err != nil {
+		log.Fatalf("failed to create LRU cache: %v", err)
+	}
+
 	s := &sharedRepository{
 		pool:                        pool,
 		ddlPool:                     ddlPool,
@@ -153,6 +162,7 @@ func newSharedRepository(
 		celParser:                   celParser,
 		boolExprEvaluator:           boolExprEvaluator,
 		taskLookupCache:             lookupCache,
+		taskKeyCache:                taskKeyCache,
 		payloadStore:                payloadStore,
 		wrapTaskInputInStepRunData:  payloadStoreOpts.WrapTaskInputInStepRunData,
 		enablePayloadConsolidation:  payloadStoreOpts.EnablePayloadConsolidation,

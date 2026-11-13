@@ -35,6 +35,7 @@ func newBatchTestRepository(pool *pgxpool.Pool) *TaskRepositoryImpl {
 
 	queueCache := cache.New(5 * time.Minute)
 	taskLookupCache, _ := lru.New[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow](1024)
+	taskKeyCache, _ := lru.New[taskExternalIdTenantIdTuple, TaskIdInsertedAt](1024)
 
 	boolExprEvaluator, err := cel.NewBoolExprEvaluator()
 
@@ -53,6 +54,7 @@ func newBatchTestRepository(pool *pgxpool.Pool) *TaskRepositoryImpl {
 		celParser:                   cel.NewCELParser(),
 		boolExprEvaluator:           boolExprEvaluator,
 		taskLookupCache:             taskLookupCache,
+		taskKeyCache:                taskKeyCache,
 		payloadStore:                payloadStore,
 		tenantIdWorkflowNameCache:   expirable.NewLRU(10000, func(key string, value *sqlcv1.ListWorkflowsByNamesRow) {}, 5*time.Second),
 		workflowIdNameCache:         expirable.NewLRU(10000, func(key uuid.UUID, value string) {}, time.Hour),

@@ -1556,17 +1556,15 @@ func (s *Scheduler) handleDeadLetteredDurableCallbackCompleted(ctx context.Conte
 		externalIds = append(externalIds, p.TaskExternalId)
 	}
 
-	flatTasks, err := s.repov1.Tasks().FlattenExternalIds(ctx, msg.TenantID, externalIds)
+	tasks, err := s.repov1.Tasks().ResolveTaskExternalIds(ctx, msg.TenantID, externalIds)
 	if err != nil {
 		return fmt.Errorf("could not resolve tasks for undelivered durable callbacks: %w", err)
 	}
 
-	flatByExternalId := enumerables.KeyBy(flatTasks, func(t *sqlcv1.FlattenExternalIdsRow) uuid.UUID { return t.ExternalID })
-
 	callbacks := make([]repov1.SatisfiedEntry, 0, len(payloads))
 
 	for _, p := range payloads {
-		t, ok := flatByExternalId[p.TaskExternalId]
+		t, ok := tasks[p.TaskExternalId]
 		if !ok {
 			s.l.Warn().Ctx(ctx).Msgf("no task found for undelivered durable callback %s, skipping", p.TaskExternalId)
 			continue
@@ -1578,7 +1576,7 @@ func (s *Scheduler) handleDeadLetteredDurableCallbackCompleted(ctx context.Conte
 		}
 
 		callbacks = append(callbacks, repov1.SatisfiedEntry{
-			DurableTaskId:         t.ID,
+			DurableTaskId:         t.Id,
 			DurableTaskInsertedAt: t.InsertedAt,
 			DurableTaskExternalId: p.TaskExternalId,
 			InvocationCount:       p.InvocationCount,
