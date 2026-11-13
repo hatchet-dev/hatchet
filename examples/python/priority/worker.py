@@ -5,7 +5,7 @@ from hatchet_sdk import Context, Hatchet, Priority
 hatchet = Hatchet()
 
 # > Default priority
-DEFAULT_PRIORITY = Priority.LOW
+DEFAULT_PRIORITY: Priority = "LOW"
 SLEEP_TIME = 0.25
 
 priority_workflow = hatchet.workflow(

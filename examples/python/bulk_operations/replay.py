@@ -28,7 +28,7 @@ bulk_replay_by_filters = BulkCancelReplayOptions(
     filters=RunFilter(
         since=datetime.today() - timedelta(days=1),
         until=datetime.now(tz=timezone.utc),
-        statuses=[RunStatus.RUNNING],
+        statuses=["RUNNING"],
         workflow_ids=[workflow.metadata.id],
         additional_metadata={"key": "value"},
     )
