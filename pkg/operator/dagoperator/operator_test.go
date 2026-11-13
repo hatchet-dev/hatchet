@@ -89,6 +89,31 @@ func TestHandleAction_CancelStepRun_ReportsCancelledWithoutRunning(t *testing.T)
 	assert.Empty(t, writer.events, "the plain cancel does not use the engine-internal writer")
 }
 
+func TestHandleAction_CancelStepRun_ReachesOverlappingInvocation(t *testing.T) {
+	d, session := newTestDAGOperator(t, &fakeTaskEventWriter{})
+
+	action := testAction()
+
+	firstCtx, firstCancel := context.WithCancel(context.Background())
+	defer firstCancel()
+	untrackFirst := d.trackRun(action.TaskRunExternalId, firstCancel)
+
+	secondCtx, secondCancel := context.WithCancel(context.Background())
+	defer secondCancel()
+	untrackSecond := d.trackRun(action.TaskRunExternalId, secondCancel)
+	defer untrackSecond()
+
+	// The first invocation finishes while the second is still running.
+	untrackFirst()
+
+	action.ActionType = contracts.ActionType_CANCEL_STEP_RUN
+	require.NoError(t, d.HandleAction(context.Background(), action))
+
+	assert.ErrorIs(t, secondCtx.Err(), context.Canceled, "the cancel must reach the invocation still running")
+	assert.NoError(t, firstCtx.Err(), "the finished invocation's cancel is no longer tracked")
+	assert.Empty(t, session.Events(), "the running invocation reports the cancellation itself")
+}
+
 func TestHandleAction_UnsupportedActionType_AcknowledgesWithoutReporting(t *testing.T) {
 	writer := &fakeTaskEventWriter{}
 
