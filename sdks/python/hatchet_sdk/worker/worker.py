@@ -8,10 +8,9 @@ from collections.abc import AsyncGenerator, Callable
 from concurrent.futures import Future
 from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from datetime import UTC, datetime
-from enum import Enum
 from multiprocessing import Queue
 from types import FrameType
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, Literal, TypeVar
 
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
@@ -38,7 +37,6 @@ from hatchet_sdk.worker.action_listener_process import (
     worker_action_listener_process,
 )
 from hatchet_sdk.worker.runner.run_loop_manager import WorkerActionRunLoopManager
-from hatchet_sdk.worker.slot_types import SlotType
 from hatchet_sdk.worker.slot_usage import create_shared_slot_usage_by_pool
 
 if TYPE_CHECKING:
@@ -50,11 +48,7 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 
 
-class WorkerStatus(Enum):
-    INITIALIZED = 1
-    STARTING = 2
-    HEALTHY = 3
-    UNHEALTHY = 4
+WorkerStatus = Literal["INITIALIZED", "STARTING", "HEALTHY", "UNHEALTHY"]
 
 
 LifespanGenerator = AsyncGenerator[Any, Any]
@@ -94,7 +88,7 @@ class Worker:
         self._action_registry: dict[str, Task[Any, Any]] = {}
 
         self._killing: bool = False
-        self._status: WorkerStatus = WorkerStatus.INITIALIZED
+        self._status: WorkerStatus = "INITIALIZED"
 
         self._action_listener_process: BaseProcess | None = None
         self._durable_action_listener_process: BaseProcess | None = None
@@ -296,7 +290,7 @@ class Worker:
         logger.info("starting hatchet...")
         logger.debug(f"worker starting on PID: {main_pid}")
 
-        self._status = WorkerStatus.STARTING
+        self._status = "STARTING"
 
         self._raise_for_duped_action_ids()
 
@@ -359,7 +353,7 @@ class Worker:
                 self.name,
                 self._action_registry,
                 sum(self._slot_config.values()),
-                self._slot_config.get(SlotType.DURABLE.value, 0),
+                self._slot_config.get("durable", 0),
                 self._config,
                 self._action_queue,
                 self._event_queue,
@@ -442,7 +436,7 @@ class Worker:
                         f"action listener process exited unexpectedly (exit code: {exitcode})"
                     )
                     logger.error(str(self._aio_start_exception))
-                    self._status = WorkerStatus.UNHEALTHY
+                    self._status = "UNHEALTHY"
                     if self._loop:
                         self._loop.create_task(self._exit_gracefully())
                     break
@@ -456,7 +450,7 @@ class Worker:
                         self._loop.create_task(self._exit_gracefully())
                     break
 
-                self._status = WorkerStatus.HEALTHY
+                self._status = "HEALTHY"
                 await asyncio.sleep(1)
         except Exception:
             logger.exception("error checking listener health")

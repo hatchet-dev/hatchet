@@ -36,4 +36,4 @@ async def test_spawn_caching_on_retry(
 
     run = runs[0]
 
-    assert run.status == RunStatus.COMPLETED
+    assert run.status == "COMPLETED"

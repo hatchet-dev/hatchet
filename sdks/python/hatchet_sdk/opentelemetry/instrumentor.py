@@ -3,7 +3,7 @@ from collections.abc import Callable, Collection, Coroutine, Iterator, Sequence
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from importlib.metadata import version
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import grpc
 
@@ -67,9 +67,11 @@ from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.runnables.contextvars import ctx_hatchet_span_attributes
 from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.types.trigger import TriggerWorkflowOptions
-from hatchet_sdk.utils.opentelemetry import OTelAttribute
 from hatchet_sdk.worker.runner.runner import Runner
 from hatchet_sdk.workflow_run import WorkflowRunRef
+
+if TYPE_CHECKING:
+    from hatchet_sdk.utils.opentelemetry import OTelAttribute
 
 hatchet_sdk_version = version("hatchet-sdk")
 
@@ -541,13 +543,11 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         scope = cast("str | None", params[4])
 
         attributes = {
-            OTelAttribute.EVENT_KEY: event_key,
-            OTelAttribute.ACTION_PAYLOAD: json.dumps(payload, default=str),
-            OTelAttribute.ADDITIONAL_METADATA: json.dumps(
-                additional_metadata, default=str
-            ),
-            OTelAttribute.PRIORITY: priority,
-            OTelAttribute.FILTER_SCOPE: scope,
+            "event_key": event_key,
+            "payload": json.dumps(payload, default=str),
+            "additional_metadata": json.dumps(additional_metadata, default=str),
+            "priority": priority,
+            "scope": scope,
         }
 
         with self._tracer.start_as_current_span(
@@ -555,7 +555,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             attributes={
                 "instrumentor": "hatchet",
                 **{
-                    f"hatchet.{k.value}": v
+                    f"hatchet.{k}": v
                     for k, v in attributes.items()
                     if v
                     and k not in self._config.otel.excluded_attributes
@@ -639,13 +639,11 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         scope = cast("str | None", params[4])
 
         attributes = {
-            OTelAttribute.EVENT_KEY: event_key,
-            OTelAttribute.ACTION_PAYLOAD: json.dumps(payload, default=str),
-            OTelAttribute.ADDITIONAL_METADATA: json.dumps(
-                additional_metadata, default=str
-            ),
-            OTelAttribute.PRIORITY: priority,
-            OTelAttribute.FILTER_SCOPE: scope,
+            "event_key": event_key,
+            "payload": json.dumps(payload, default=str),
+            "additional_metadata": json.dumps(additional_metadata, default=str),
+            "priority": priority,
+            "scope": scope,
         }
 
         with self._tracer.start_as_current_span(
@@ -653,7 +651,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             attributes={
                 "instrumentor": "hatchet",
                 **{
-                    f"hatchet.{k.value}": v
+                    f"hatchet.{k}": v
                     for k, v in attributes.items()
                     if v
                     and k not in self._config.otel.excluded_attributes
@@ -719,19 +717,19 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         self, config: WorkflowRunTriggerConfig
     ) -> dict[str, Any]:
         attributes = {
-            OTelAttribute.WORKFLOW_NAME: config.workflow_name,
-            OTelAttribute.ACTION_PAYLOAD: config.input,
-            OTelAttribute.CHILD_KEY: config.options.child_key,
-            OTelAttribute.ADDITIONAL_METADATA: json.dumps(
+            "workflow_name": config.workflow_name,
+            "payload": config.input,
+            "child_key": config.options.child_key,
+            "additional_metadata": json.dumps(
                 config.options.additional_metadata, default=str
             ),
-            OTelAttribute.PRIORITY: config.options.priority,
-            OTelAttribute.STICKY: config.options.sticky,
+            "priority": config.options.priority,
+            "sticky": config.options.sticky,
         }
         return {
             "instrumentor": "hatchet",
             **{
-                f"hatchet.{k.value}": v
+                f"hatchet.{k}": v
                 for k, v in attributes.items()
                 if v
                 and k not in self._config.otel.excluded_attributes
@@ -819,14 +817,12 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         )
 
         attributes = {
-            OTelAttribute.WORKFLOW_NAME: workflow_name,
-            OTelAttribute.ACTION_PAYLOAD: payload,
-            OTelAttribute.CHILD_KEY: options.child_key,
-            OTelAttribute.ADDITIONAL_METADATA: json.dumps(
-                options.additional_metadata, default=str
-            ),
-            OTelAttribute.PRIORITY: options.priority,
-            OTelAttribute.STICKY: options.sticky,
+            "workflow_name": workflow_name,
+            "payload": payload,
+            "child_key": options.child_key,
+            "additional_metadata": json.dumps(options.additional_metadata, default=str),
+            "priority": options.priority,
+            "sticky": options.sticky,
         }
 
         with self._tracer.start_as_current_span(
@@ -834,7 +830,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             attributes={
                 "instrumentor": "hatchet",
                 **{
-                    f"hatchet.{k.value}": v
+                    f"hatchet.{k}": v
                     for k, v in attributes.items()
                     if v
                     and k not in self._config.otel.excluded_attributes
@@ -873,14 +869,12 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         )
 
         attributes = {
-            OTelAttribute.WORKFLOW_NAME: workflow_name,
-            OTelAttribute.ACTION_PAYLOAD: payload,
-            OTelAttribute.CHILD_KEY: options.child_key,
-            OTelAttribute.ADDITIONAL_METADATA: json.dumps(
-                options.additional_metadata, default=str
-            ),
-            OTelAttribute.PRIORITY: options.priority,
-            OTelAttribute.STICKY: options.sticky,
+            "workflow_name": workflow_name,
+            "payload": payload,
+            "child_key": options.child_key,
+            "additional_metadata": json.dumps(options.additional_metadata, default=str),
+            "priority": options.priority,
+            "sticky": options.sticky,
         }
 
         with self._tracer.start_as_current_span(
@@ -888,7 +882,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             attributes={
                 "instrumentor": "hatchet",
                 **{
-                    f"hatchet.{k.value}": v
+                    f"hatchet.{k}": v
                     for k, v in attributes.items()
                     if v
                     and k not in self._config.otel.excluded_attributes
@@ -941,16 +935,12 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         )
 
         attributes = {
-            OTelAttribute.WORKFLOW_NAME: workflow_name,
-            OTelAttribute.RUN_AT_TIMESTAMPS: json.dumps(
-                [ts.isoformat() for ts in schedules]
-            ),
-            OTelAttribute.ACTION_PAYLOAD: input,
-            OTelAttribute.CHILD_KEY: options.child_key,
-            OTelAttribute.ADDITIONAL_METADATA: json.dumps(
-                options.additional_metadata, default=str
-            ),
-            OTelAttribute.PRIORITY: options.priority,
+            "workflow_name": workflow_name,
+            "run_at_timestamps": json.dumps([ts.isoformat() for ts in schedules]),
+            "payload": input,
+            "child_key": options.child_key,
+            "additional_metadata": json.dumps(options.additional_metadata, default=str),
+            "priority": options.priority,
         }
 
         with self._tracer.start_as_current_span(
@@ -958,7 +948,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             attributes={
                 "instrumentor": "hatchet",
                 **{
-                    f"hatchet.{k.value}": v
+                    f"hatchet.{k}": v
                     for k, v in attributes.items()
                     if v
                     and k not in self._config.otel.excluded_attributes
@@ -1063,9 +1053,9 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         traceparent = _parse_carrier_from_metadata(instance._action.additional_metadata)
 
         attributes: dict[OTelAttribute, str | int | None] = {
-            OTelAttribute.SIGNAL_KEY: signal_key,
-            OTelAttribute.NUM_CONDITIONS: len(conditions),
-            OTelAttribute.TASK_RUN_ID: instance._task_run_external_id,
+            "signal_key": signal_key,
+            "num_conditions": len(conditions),
+            "step_run_id": instance._task_run_external_id,
         }
 
         with self._tracer.start_as_current_span(
@@ -1073,7 +1063,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             attributes={
                 "instrumentor": "hatchet",
                 **{
-                    f"hatchet.{k.value}": v
+                    f"hatchet.{k}": v
                     for k, v in attributes.items()
                     if v is not None and k not in self._config.otel.excluded_attributes
                 },
@@ -1106,16 +1096,16 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             span_attributes: dict[str, str | int] = {
                 "instrumentor": "hatchet",
                 **{
-                    f"hatchet.{k.value}": v
+                    f"hatchet.{k}": v
                     for k, v in {
-                        OTelAttribute.WORKFLOW_NAME: config.workflow_name,
-                        OTelAttribute.ACTION_PAYLOAD: config.input,
-                        OTelAttribute.CHILD_KEY: config.options.child_key,
-                        OTelAttribute.ADDITIONAL_METADATA: json.dumps(
+                        "workflow_name": config.workflow_name,
+                        "payload": config.input,
+                        "child_key": config.options.child_key,
+                        "additional_metadata": json.dumps(
                             config.options.additional_metadata, default=str
                         ),
-                        OTelAttribute.PRIORITY: config.options.priority,
-                        OTelAttribute.STICKY: config.options.sticky,
+                        "priority": config.options.priority,
+                        "sticky": config.options.sticky,
                     }.items()
                     if v
                     and k not in self._config.otel.excluded_attributes

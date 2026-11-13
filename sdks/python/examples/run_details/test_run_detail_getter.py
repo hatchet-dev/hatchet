@@ -21,7 +21,7 @@ async def test_run(hatchet: Hatchet, test_run_id: str) -> None:
     await wait_for_running_status(hatchet, ref.workflow_run_id, min_task_runs=3)
     details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
 
-    assert details.status == RunStatus.RUNNING
+    assert details.status == "RUNNING"
     assert details.input == mock_input.model_dump()
     assert details.additional_metadata is not None
     assert meta.items() <= details.additional_metadata.items()
@@ -35,18 +35,18 @@ async def test_run(hatchet: Hatchet, test_run_id: str) -> None:
 
     details = hatchet.runs.get_details(ref.workflow_run_id)
 
-    assert details.status == RunStatus.FAILED
+    assert details.status == "FAILED"
     assert details.input == mock_input.model_dump()
     assert details.additional_metadata is not None
     assert meta.items() <= details.additional_metadata.items()
     assert len(details.task_runs) == 6
 
-    assert details.task_runs["step1"].status == RunStatus.COMPLETED
-    assert details.task_runs["step2"].status == RunStatus.COMPLETED
-    assert details.task_runs["step3"].status == RunStatus.COMPLETED
-    assert details.task_runs["step4"].status == RunStatus.COMPLETED
-    assert details.task_runs["fail_step"].status == RunStatus.FAILED
-    assert details.task_runs["cancel_step"].status == RunStatus.CANCELLED
+    assert details.task_runs["step1"].status == "COMPLETED"
+    assert details.task_runs["step2"].status == "COMPLETED"
+    assert details.task_runs["step3"].status == "COMPLETED"
+    assert details.task_runs["step4"].status == "COMPLETED"
+    assert details.task_runs["fail_step"].status == "FAILED"
+    assert details.task_runs["cancel_step"].status == "CANCELLED"
 
     assert (
         details.task_runs["step1"].output["random_number"]  # type: ignore[index]

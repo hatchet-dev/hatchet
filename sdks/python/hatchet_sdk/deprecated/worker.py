@@ -39,7 +39,6 @@ async def legacy_aio_start(worker: Worker) -> None:
     into separate processes, for engines that don't understand slot_config.
     """
     from hatchet_sdk.exceptions import LifespanSetupError
-    from hatchet_sdk.worker.worker import WorkerStatus
 
     main_pid = os.getpid()
 
@@ -47,7 +46,7 @@ async def legacy_aio_start(worker: Worker) -> None:
     logger.info("starting hatchet (legacy mode)...")
     logger.debug(f"worker runtime starting on PID: {main_pid}")
 
-    worker._status = WorkerStatus.STARTING
+    worker._status = "STARTING"
 
     if len(worker._action_registry.keys()) == 0:
         raise ValueError(
@@ -221,7 +220,6 @@ async def _legacy_check_listener_health(
     worker: Worker,
     durable_action_listener_process: multiprocessing.context.SpawnProcess | None,
 ) -> None:
-    from hatchet_sdk.worker.worker import WorkerStatus
 
     logger.debug("starting legacy action listener health check...")
     try:
@@ -236,7 +234,7 @@ async def _legacy_check_listener_health(
                 and not durable_action_listener_process.is_alive()
             ):
                 logger.debug("child action listener process killed...")
-                worker._status = WorkerStatus.UNHEALTHY
+                worker._status = "UNHEALTHY"
                 if worker._loop:
                     worker._loop.create_task(worker._exit_gracefully())
                 break
@@ -249,7 +247,7 @@ async def _legacy_check_listener_health(
                     worker._loop.create_task(worker._exit_gracefully())
                 break
 
-            worker._status = WorkerStatus.HEALTHY
+            worker._status = "HEALTHY"
             await asyncio.sleep(1)
     except Exception:
         logger.exception("error checking listener health")

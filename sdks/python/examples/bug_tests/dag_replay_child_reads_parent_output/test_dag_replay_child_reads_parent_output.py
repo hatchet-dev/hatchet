@@ -34,14 +34,8 @@ async def run_until_parent_fails(hatchet: Hatchet) -> str:
 
     details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
 
-    assert (
-        details.task_runs[parent_failing_on_first_attempt.name].status
-        == RunStatus.FAILED
-    )
-    assert (
-        details.task_runs[child_reading_parent_output.name].status
-        == RunStatus.CANCELLED
-    )
+    assert details.task_runs[parent_failing_on_first_attempt.name].status == "FAILED"
+    assert details.task_runs[child_reading_parent_output.name].status == "CANCELLED"
 
     return ref.workflow_run_id
 
@@ -54,7 +48,7 @@ async def replay_and_assert_child_received_parent_output(
     expected_child_retry_count: int,
 ) -> None:
     await hatchet.runs.aio_replay(replay_target_id)
-    await wait_for_run_status(hatchet, run_id, RunStatus.COMPLETED, timeout=90)
+    await wait_for_run_status(hatchet, run_id, "COMPLETED", timeout=90)
 
     details = await hatchet.runs.aio_get_details(run_id)
 

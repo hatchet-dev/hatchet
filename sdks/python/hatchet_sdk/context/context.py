@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, Generic, ParamSpec, TypeVar, cast, overload
 
 from pydantic import BaseModel, TypeAdapter
+from typing_extensions import deprecated
 
 from hatchet_sdk.clients.listeners.durable_event_listener import (
     DurableEventListener,
@@ -40,8 +41,7 @@ from hatchet_sdk.runnables.types import (
     ValidTaskReturnType,
 )
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
-from hatchet_sdk.types.labels import WorkerLabel
-from hatchet_sdk.types.priority import Priority
+from hatchet_sdk.types.priority import Priority, priority_from_int
 from hatchet_sdk.utils.timedelta_to_expression import (
     expr_to_timedelta,
     timedelta_to_expr,
@@ -78,6 +78,7 @@ if TYPE_CHECKING:
     from hatchet_sdk.features.events import EventClient
     from hatchet_sdk.features.runs import RunsClient
     from hatchet_sdk.runnables.task import Task
+    from hatchet_sdk.types.labels import WorkerLabel
     from hatchet_sdk.worker.durable_eviction.manager import DurableEvictionManager
 
 
@@ -102,6 +103,16 @@ class OrGroupResult(BaseModel):
 
 
 OrGroupResult.model_rebuild()
+
+
+def _merge_worker_labels(
+    existing_labels: list[WorkerLabel], upserted_labels: list[WorkerLabel]
+) -> list[WorkerLabel]:
+    upserted_keys = {label.key for label in upserted_labels}
+
+    return [
+        label for label in existing_labels if label.key not in upserted_keys
+    ] + upserted_labels
 
 
 @dataclass
@@ -216,24 +227,16 @@ class Context:
         return self._action.worker_id
 
     @property
-    def worker_labels(self) -> dict[str, str | int]:
-        return {label.key: label.value for label in self._worker_labels if label.key}
+    def worker_labels(self) -> list[WorkerLabel]:
+        return self._worker_labels
 
-    def upsert_worker_labels(self, labels: dict[str, str | int]) -> None:
-        self._dispatcher_client.upsert_worker_labels(
-            self.worker_id, [WorkerLabel(key=k, value=v) for k, v in labels.items()]
-        )
+    def upsert_worker_labels(self, labels: list[WorkerLabel]) -> None:
+        self._dispatcher_client.upsert_worker_labels(self.worker_id, labels)
+        self._worker_labels = _merge_worker_labels(self._worker_labels, labels)
 
-        prior_label_dict = {label.key: label.value for label in self._worker_labels}
-
-        prior_label_dict.update(labels)
-
-        self._worker_labels = [
-            WorkerLabel(key=key, value=value) for key, value in prior_label_dict.items()
-        ]
-
-    async def aio_upsert_worker_labels(self, labels: dict[str, str | int]) -> None:
-        await asyncio.to_thread(self.upsert_worker_labels, labels)
+    async def aio_upsert_worker_labels(self, labels: list[WorkerLabel]) -> None:
+        await self._dispatcher_client.async_upsert_worker_labels(self.worker_id, labels)
+        self._worker_labels = _merge_worker_labels(self._worker_labels, labels)
 
     @property
     def filter_payload(self) -> JSONSerializableMapping:
@@ -435,28 +438,9 @@ class Context:
         await self._dispatcher_client.aio_release_slot(self.task_run_id)
         self._on_slot_released()
 
-    def pause_rate_limit(self, key: str, until: datetime) -> datetime:
-        """
-        Pause a rate limit key, so queued runs that consume it stay queued until the given time. Runs that are already executing, including this one, are unaffected.
-
-        :param key: The rendered rate limit key to pause.
-        :param until: The time to pause the key until. Naive datetimes are treated as UTC. An earlier time never shortens an existing pause.
-
-        :return: The time the key is paused until.
-        """
-        return self._admin_client.pause_rate_limit(key, until)
-
-    async def aio_pause_rate_limit(self, key: str, until: datetime) -> datetime:
-        """
-        Pause a rate limit key, so queued runs that consume it stay queued until the given time. Runs that are already executing, including this one, are unaffected.
-
-        :param key: The rendered rate limit key to pause.
-        :param until: The time to pause the key until. Naive datetimes are treated as UTC. An earlier time never shortens an existing pause.
-
-        :return: The time the key is paused until.
-        """
-        return await asyncio.to_thread(self.pause_rate_limit, key, until)
-
+    @deprecated(
+        "`ctx.put_stream` is deprecated. Use `hatchet.streams.aio_publish` instead."
+    )
     def put_stream(self, data: str | bytes) -> None:
         """
         Put a stream event to the Hatchet API. This will send the data to the Hatchet API and return immediately. You can then subscribe to the stream from a separate consumer.
@@ -470,6 +454,9 @@ class Context:
             index=self._increment_stream_index(),
         )
 
+    @deprecated(
+        "`ctx.aio_put_stream` is deprecated. Use `hatchet.streams.aio_publish` instead."
+    )
     async def aio_put_stream(self, data: str | bytes) -> None:
         """
         Put a stream event to the Hatchet API. This will send the data to the Hatchet API and return immediately. You can then subscribe to the stream from a separate consumer.
@@ -574,7 +561,7 @@ class Context:
             return None
 
         try:
-            return Priority(raw_priority)
+            return priority_from_int(raw_priority)
         except ValueError:
             return None
 

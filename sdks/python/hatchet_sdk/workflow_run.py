@@ -9,7 +9,6 @@ from hatchet_sdk.clients.listeners.run_event_listener import (
 )
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.exceptions import FailedTaskRunExceptionGroup, TaskRunError
-from hatchet_sdk.types.run_status import RunStatus
 
 if TYPE_CHECKING:
     from hatchet_sdk.clients.admin import AdminClient
@@ -123,14 +122,11 @@ class WorkflowRunRef:
                 time.sleep(_seconds_until_next_poll(interval_seconds, deadline))
                 continue
 
-            if (
-                details.status in [RunStatus.QUEUED, RunStatus.RUNNING]
-                or details.done is False
-            ):
+            if details.status in ["QUEUED", "RUNNING"] or details.done is False:
                 time.sleep(_seconds_until_next_poll(interval_seconds, deadline))
                 continue
 
-            if details.status == RunStatus.FAILED:
+            if details.status == "FAILED":
                 raise FailedTaskRunExceptionGroup(
                     f"Workflow run {self.workflow_run_id} failed.",
                     [
@@ -140,13 +136,13 @@ class WorkflowRunRef:
                     ],
                 )
 
-            if details.status == RunStatus.COMPLETED:
+            if details.status == "COMPLETED":
                 return {
                     readable_id: run.output
                     for readable_id, run in details.task_runs.items()
                 } or {}
 
-            if details.status == RunStatus.CANCELLED:
+            if details.status == "CANCELLED":
                 raise ValueError(f"Workflow run {self.workflow_run_id} was cancelled.")
 
             raise ValueError(

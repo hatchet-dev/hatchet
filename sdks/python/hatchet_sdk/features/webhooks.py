@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
+
+from pydantic import BaseModel
 
 from hatchet_sdk.clients.rest.models.v1_create_webhook_request import (
     V1CreateWebhookRequest,
@@ -24,8 +26,15 @@ from hatchet_sdk.clients.rest.models.v1_update_webhook_request import (
 from hatchet_sdk.clients.rest.models.v1_webhook_api_key_auth import V1WebhookAPIKeyAuth
 from hatchet_sdk.clients.rest.models.v1_webhook_auth_type import V1WebhookAuthType
 from hatchet_sdk.clients.rest.models.v1_webhook_basic_auth import V1WebhookBasicAuth
-from hatchet_sdk.clients.rest.models.v1_webhook_hmac_auth import (
-    V1WebhookHMACAuth,  # noqa: TC001
+from hatchet_sdk.clients.rest.models.v1_webhook_hmac_algorithm import (
+    V1WebhookHMACAlgorithm,
+)
+from hatchet_sdk.clients.rest.models.v1_webhook_hmac_auth import V1WebhookHMACAuth
+from hatchet_sdk.clients.rest.models.v1_webhook_hmac_encoding import (
+    V1WebhookHMACEncoding,
+)
+from hatchet_sdk.clients.rest.models.v1_webhook_source_name import (
+    V1WebhookSourceName,
 )
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.clients.v1.api_client import BaseRestClient
@@ -34,9 +43,44 @@ if TYPE_CHECKING:
     from hatchet_sdk.clients.rest.api.webhook_api import WebhookApi
     from hatchet_sdk.clients.rest.api_client import ApiClient
     from hatchet_sdk.clients.rest.models.v1_webhook import V1Webhook
-    from hatchet_sdk.clients.rest.models.v1_webhook_source_name import (
-        V1WebhookSourceName,
-    )
+
+WebhookSourceName = Literal["GENERIC", "GITHUB", "STRIPE", "SLACK", "LINEAR", "SVIX"]
+WebhookHMACAlgorithm = Literal["SHA1", "SHA256", "SHA512", "MD5"]
+WebhookHMACEncoding = Literal["HEX", "BASE64", "BASE64URL"]
+
+
+class WebhookBasicAuth(BaseModel):
+    username: str
+    password: str
+
+    def _to_rest_model(self) -> V1WebhookBasicAuth:
+        return V1WebhookBasicAuth(username=self.username, password=self.password)
+
+
+class WebhookAPIKeyAuth(BaseModel):
+    header_name: str
+    api_key: str
+
+    def _to_rest_model(self) -> V1WebhookAPIKeyAuth:
+        return V1WebhookAPIKeyAuth(headerName=self.header_name, apiKey=self.api_key)
+
+
+class WebhookHMACAuth(BaseModel):
+    algorithm: WebhookHMACAlgorithm
+    encoding: WebhookHMACEncoding
+    signature_header_name: str
+    signing_secret: str
+
+    def _to_rest_model(self) -> V1WebhookHMACAuth:
+        return V1WebhookHMACAuth(
+            algorithm=V1WebhookHMACAlgorithm(self.algorithm),
+            encoding=V1WebhookHMACEncoding(self.encoding),
+            signatureHeaderName=self.signature_header_name,
+            signingSecret=self.signing_secret,
+        )
+
+
+WebhookAuth = WebhookBasicAuth | WebhookAPIKeyAuth | WebhookHMACAuth
 
 
 class CreateWebhookRequest(V1CreateWebhookRequestBase):
@@ -86,7 +130,7 @@ class WebhooksClient(BaseRestClient):
         limit: int | None = None,
         offset: int | None = None,
         webhook_names: list[str] | None = None,
-        source_names: list[V1WebhookSourceName] | None = None,
+        source_names: list[WebhookSourceName] | None = None,
     ) -> list[V1Webhook]:
         """
         List webhooks for a given tenant.
@@ -112,7 +156,7 @@ class WebhooksClient(BaseRestClient):
         limit: int | None = None,
         offset: int | None = None,
         webhook_names: list[str] | None = None,
-        source_names: list[V1WebhookSourceName] | None = None,
+        source_names: list[WebhookSourceName] | None = None,
     ) -> list[V1Webhook]:
         """
         List webhooks for a given tenant.
@@ -133,7 +177,11 @@ class WebhooksClient(BaseRestClient):
                 limit=limit,
                 offset=offset,
                 webhook_names=webhook_names,
-                source_names=source_names,
+                source_names=(
+                    [V1WebhookSourceName(name) for name in source_names]
+                    if source_names is not None
+                    else None
+                ),
             )
 
             return wl.rows or []
@@ -167,11 +215,11 @@ class WebhooksClient(BaseRestClient):
 
     def create(
         self,
-        source_name: V1WebhookSourceName,
+        source_name: WebhookSourceName,
         name: str,
         *,
         event_key_expression: str,
-        auth: V1WebhookBasicAuth | V1WebhookAPIKeyAuth | V1WebhookHMACAuth,
+        auth: WebhookAuth,
         scope_expression: str | None = None,
         static_payload: dict[str, Any] | None = None,
         return_event_as_response_payload: bool = True,
@@ -190,12 +238,12 @@ class WebhooksClient(BaseRestClient):
         :return: The created webhook.
         """
         validated_payload = CreateWebhookRequest(
-            sourceName=source_name,
+            sourceName=V1WebhookSourceName(source_name),
             name=name,
             eventKeyExpression=event_key_expression,
             scopeExpression=scope_expression,
             staticPayload=static_payload,
-            auth=auth,
+            auth=auth._to_rest_model(),
             returnEventAsResponsePayload=return_event_as_response_payload,
         )
         with self.client() as client:
@@ -206,11 +254,11 @@ class WebhooksClient(BaseRestClient):
 
     async def aio_create(
         self,
-        source_name: V1WebhookSourceName,
+        source_name: WebhookSourceName,
         name: str,
         *,
         event_key_expression: str,
-        auth: V1WebhookBasicAuth | V1WebhookAPIKeyAuth | V1WebhookHMACAuth,
+        auth: WebhookAuth,
         scope_expression: str | None = None,
         static_payload: dict[str, Any] | None = None,
         return_event_as_response_payload: bool = True,

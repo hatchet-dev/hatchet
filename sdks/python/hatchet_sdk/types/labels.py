@@ -1,18 +1,22 @@
-from enum import Enum
+from typing import Literal
 
 from pydantic import BaseModel
 
 from hatchet_sdk.contracts.dispatcher_pb2 import WorkerLabels
 from hatchet_sdk.contracts.v1.shared.trigger_pb2 import DesiredWorkerLabels
+from hatchet_sdk.contracts.v1.shared.trigger_pb2 import (
+    WorkerLabelComparator as WorkerLabelComparatorProto,
+)
+from hatchet_sdk.utils.proto_enums import convert_python_literal_to_proto
 
-
-class WorkerLabelComparator(int, Enum):
-    EQUAL = 0
-    NOT_EQUAL = 1
-    GREATER_THAN = 2
-    GREATER_THAN_OR_EQUAL = 3
-    LESS_THAN = 4
-    LESS_THAN_OR_EQUAL = 5
+WorkerLabelComparator = Literal[
+    "EQUAL",
+    "NOT_EQUAL",
+    "GREATER_THAN",
+    "GREATER_THAN_OR_EQUAL",
+    "LESS_THAN",
+    "LESS_THAN_OR_EQUAL",
+]
 
 
 class WorkerLabel(BaseModel):
@@ -38,5 +42,7 @@ class DesiredWorkerLabel(BaseModel):
             int_value=self.value if isinstance(self.value, int) else None,
             required=self.required,
             weight=self.weight,
-            comparator=self.comparator,  # type: ignore[arg-type]
+            comparator=convert_python_literal_to_proto(
+                self.comparator, WorkerLabelComparatorProto
+            ),
         )

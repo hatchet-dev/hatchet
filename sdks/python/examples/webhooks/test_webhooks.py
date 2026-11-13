@@ -13,19 +13,17 @@ import pytest
 
 from examples.test_utils import wait_for_event, wait_for_workflow_run
 from examples.webhooks.worker import WebhookInput
-from hatchet_sdk import Hatchet
+from hatchet_sdk import (
+    Hatchet,
+    WebhookAPIKeyAuth,
+    WebhookBasicAuth,
+    WebhookHMACAlgorithm,
+    WebhookHMACAuth,
+    WebhookHMACEncoding,
+    WebhookSourceName,
+)
 from hatchet_sdk.types.run_status import RunStatus
 from hatchet_sdk.clients.rest.models.v1_webhook import V1Webhook
-from hatchet_sdk.clients.rest.models.v1_webhook_api_key_auth import V1WebhookAPIKeyAuth
-from hatchet_sdk.clients.rest.models.v1_webhook_basic_auth import V1WebhookBasicAuth
-from hatchet_sdk.clients.rest.models.v1_webhook_hmac_algorithm import (
-    V1WebhookHMACAlgorithm,
-)
-from hatchet_sdk.clients.rest.models.v1_webhook_hmac_auth import V1WebhookHMACAuth
-from hatchet_sdk.clients.rest.models.v1_webhook_hmac_encoding import (
-    V1WebhookHMACEncoding,
-)
-from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSourceName
 
 TEST_BASIC_USERNAME = "test_user"
 TEST_BASIC_PASSWORD = "test_password"
@@ -56,24 +54,24 @@ def test_start() -> datetime:
 def create_hmac_signature(
     payload: bytes,
     secret: str,
-    algorithm: V1WebhookHMACAlgorithm = V1WebhookHMACAlgorithm.SHA256,
-    encoding: V1WebhookHMACEncoding = V1WebhookHMACEncoding.HEX,
+    algorithm: WebhookHMACAlgorithm = "SHA256",
+    encoding: WebhookHMACEncoding = "HEX",
 ) -> str:
     algorithm_map = {
-        V1WebhookHMACAlgorithm.SHA1: hashlib.sha1,
-        V1WebhookHMACAlgorithm.SHA256: hashlib.sha256,
-        V1WebhookHMACAlgorithm.SHA512: hashlib.sha512,
-        V1WebhookHMACAlgorithm.MD5: hashlib.md5,
+        "SHA1": hashlib.sha1,
+        "SHA256": hashlib.sha256,
+        "SHA512": hashlib.sha512,
+        "MD5": hashlib.md5,
     }
 
     hash_func = algorithm_map[algorithm]
     signature = hmac.new(secret.encode(), payload, hash_func).digest()
 
-    if encoding == V1WebhookHMACEncoding.HEX:
+    if encoding == "HEX":
         return signature.hex()
-    if encoding == V1WebhookHMACEncoding.BASE64:
+    if encoding == "BASE64":
         return base64.b64encode(signature).decode()
-    if encoding == V1WebhookHMACEncoding.BASE64URL:
+    if encoding == "BASE64URL":
         return base64.urlsafe_b64encode(signature).decode()
 
     raise ValueError(f"Unsupported encoding: {encoding}")
@@ -99,8 +97,8 @@ async def send_webhook_request(
         signature = create_hmac_signature(
             payload,
             auth_data["secret"],
-            auth_data.get("algorithm", V1WebhookHMACAlgorithm.SHA256),
-            auth_data.get("encoding", V1WebhookHMACEncoding.HEX),
+            auth_data.get("algorithm", "SHA256"),
+            auth_data.get("encoding", "HEX"),
         )
         request_headers[auth_data["header_name"]] = signature
 
@@ -117,14 +115,14 @@ async def basic_auth_webhook(
     test_run_id: str,
     username: str = TEST_BASIC_USERNAME,
     password: str = TEST_BASIC_PASSWORD,
-    source_name: V1WebhookSourceName = V1WebhookSourceName.GENERIC,
+    source_name: WebhookSourceName = "GENERIC",
 ) -> AsyncGenerator[V1Webhook, None]:
 
     incoming_webhook = hatchet.webhooks.create(
         source_name=source_name,
         name=f"test-webhook-basic-{test_run_id}",
         event_key_expression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
-        auth=V1WebhookBasicAuth(username=username, password=password),
+        auth=WebhookBasicAuth(username=username, password=password),
     )
 
     try:
@@ -139,16 +137,16 @@ async def api_key_webhook(
     test_run_id: str,
     header_name: str = TEST_API_KEY_HEADER,
     api_key: str = TEST_API_KEY_VALUE,
-    source_name: V1WebhookSourceName = V1WebhookSourceName.GENERIC,
+    source_name: WebhookSourceName = "GENERIC",
 ) -> AsyncGenerator[V1Webhook, None]:
 
     incoming_webhook = hatchet.webhooks.create(
         source_name=source_name,
         name=f"test-webhook-apikey-{test_run_id}",
         event_key_expression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
-        auth=V1WebhookAPIKeyAuth(
-            headerName=header_name,
-            apiKey=api_key,
+        auth=WebhookAPIKeyAuth(
+            header_name=header_name,
+            api_key=api_key,
         ),
     )
 
@@ -164,20 +162,20 @@ async def hmac_webhook(
     test_run_id: str,
     signature_header_name: str = TEST_HMAC_SIGNATURE_HEADER,
     signing_secret: str = TEST_HMAC_SECRET,
-    algorithm: V1WebhookHMACAlgorithm = V1WebhookHMACAlgorithm.SHA256,
-    encoding: V1WebhookHMACEncoding = V1WebhookHMACEncoding.HEX,
-    source_name: V1WebhookSourceName = V1WebhookSourceName.GENERIC,
+    algorithm: WebhookHMACAlgorithm = "SHA256",
+    encoding: WebhookHMACEncoding = "HEX",
+    source_name: WebhookSourceName = "GENERIC",
 ) -> AsyncGenerator[V1Webhook, None]:
 
     incoming_webhook = hatchet.webhooks.create(
         source_name=source_name,
         name=f"test-webhook-hmac-{test_run_id}",
         event_key_expression=f"'{hatchet.config.apply_namespace('webhook')}:' + input.type",
-        auth=V1WebhookHMACAuth(
+        auth=WebhookHMACAuth(
             algorithm=algorithm,
             encoding=encoding,
-            signatureHeaderName=signature_header_name,
-            signingSecret=signing_secret,
+            signature_header_name=signature_header_name,
+            signing_secret=signing_secret,
         ),
     )
 
@@ -207,12 +205,12 @@ async def assert_has_runs(
 
     workflow_run = await wait_for_workflow_run(hatchet, triggered_event.id, test_start)
     assert workflow_run is not None
-    assert workflow_run.status == RunStatus.COMPLETED
+    assert workflow_run.status == "COMPLETED"
     assert workflow_run.additional_metadata is not None
 
     assert workflow_run.additional_metadata["hatchet__event_id"] == triggered_event.id
     assert workflow_run.additional_metadata["hatchet__event_key"] == triggered_event.key
-    assert workflow_run.status == RunStatus.COMPLETED
+    assert workflow_run.status == "COMPLETED"
 
 
 async def assert_event_not_created(
@@ -400,8 +398,8 @@ async def test_hmac_success(
             {
                 "header_name": TEST_HMAC_SIGNATURE_HEADER,
                 "secret": TEST_HMAC_SECRET,
-                "algorithm": V1WebhookHMACAlgorithm.SHA256,
-                "encoding": V1WebhookHMACEncoding.HEX,
+                "algorithm": "SHA256",
+                "encoding": "HEX",
             },
         ) as response:
             assert response.status == 200
@@ -420,10 +418,10 @@ async def test_hmac_success(
 @pytest.mark.parametrize(
     "algorithm,encoding",
     [
-        (V1WebhookHMACAlgorithm.SHA1, V1WebhookHMACEncoding.HEX),
-        (V1WebhookHMACAlgorithm.SHA256, V1WebhookHMACEncoding.BASE64),
-        (V1WebhookHMACAlgorithm.SHA512, V1WebhookHMACEncoding.BASE64URL),
-        (V1WebhookHMACAlgorithm.MD5, V1WebhookHMACEncoding.HEX),
+        ("SHA1", "HEX"),
+        ("SHA256", "BASE64"),
+        ("SHA512", "BASE64URL"),
+        ("MD5", "HEX"),
     ],
 )
 @pytest.mark.asyncio(loop_scope="session")
@@ -432,8 +430,8 @@ async def test_hmac_different_algorithms_and_encodings(
     test_run_id: str,
     test_start: datetime,
     webhook_body: WebhookInput,
-    algorithm: V1WebhookHMACAlgorithm,
-    encoding: V1WebhookHMACEncoding,
+    algorithm: WebhookHMACAlgorithm,
+    encoding: WebhookHMACEncoding,
 ) -> None:
     async with hmac_webhook(
         hatchet, test_run_id, algorithm=algorithm, encoding=encoding
@@ -486,8 +484,8 @@ async def test_hmac_signature_failure(
             {
                 "header_name": TEST_HMAC_SIGNATURE_HEADER,
                 "secret": secret,
-                "algorithm": V1WebhookHMACAlgorithm.SHA256,
-                "encoding": V1WebhookHMACEncoding.HEX,
+                "algorithm": "SHA256",
+                "encoding": "HEX",
             },
         ) as response:
             assert response.status == 403
@@ -522,8 +520,8 @@ async def test_hmac_missing_signature_header(
 @pytest.mark.parametrize(
     "source_name",
     [
-        V1WebhookSourceName.GENERIC,
-        V1WebhookSourceName.GITHUB,
+        "GENERIC",
+        "GITHUB",
     ],
 )
 @pytest.mark.asyncio(loop_scope="session")
@@ -532,7 +530,7 @@ async def test_different_source_types(
     test_run_id: str,
     test_start: datetime,
     webhook_body: WebhookInput,
-    source_name: V1WebhookSourceName,
+    source_name: WebhookSourceName,
 ) -> None:
     async with basic_auth_webhook(
         hatchet, test_run_id, source_name=source_name

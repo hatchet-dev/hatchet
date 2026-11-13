@@ -71,7 +71,7 @@ async def test_in_flight_task_completes_on_original_worker_without_reassignment(
 
             for _ in range(SLEEP_SECONDS + 60):
                 run = await hatchet.runs.aio_get_details(ref.workflow_run_id)
-                if run.status == RunStatus.COMPLETED:
+                if run.status == "COMPLETED":
                     break
                 await asyncio.sleep(1)
             else:
@@ -88,6 +88,6 @@ async def test_in_flight_task_completes_on_original_worker_without_reassignment(
     assert len(completed_run.tasks) == 1
 
     task = completed_run.tasks[0]
-    assert task.status == RunStatus.COMPLETED
+    assert task.status == "COMPLETED"
     assert task.attempt == 1, "task must not have been retried/reassigned"
     assert task.retry_count == 0, "task must not have been retried/reassigned"

@@ -35,4 +35,4 @@ async def test_spawn_index_self_dedupe_returns_cached_result(hatchet: Hatchet) -
     runs = await hatchet.runs.aio_list(parent_task_run_id=ref.workflow_run_id)
 
     assert len(runs) == 2, "the deduped spawn must not create a third child"
-    assert all(run.status == RunStatus.COMPLETED for run in runs)
+    assert all(run.status == "COMPLETED" for run in runs)

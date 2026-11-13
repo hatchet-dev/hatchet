@@ -4,7 +4,7 @@ import pytest
 
 from hatchet_sdk.clients.rest.exceptions import (
     ApiException,
-    NotFoundException,
+    NotFoundError,
     ServiceException,
     TooManyRequestsException,
 )
@@ -56,8 +56,8 @@ def test_regression__service_exception_still_retried() -> None:
 
 
 def test_regression__not_found_exception_still_retried() -> None:
-    """NotFoundException (404) should still be retried."""
-    exc = NotFoundException(status=404, reason="Not Found")
+    """NotFoundError (404) should still be retried."""
+    exc = NotFoundError(status=404, reason="Not Found")
     assert tenacity_should_retry(exc) is True
 
 

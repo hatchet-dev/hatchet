@@ -32,7 +32,7 @@ async def test_worker_pauses_when_only_parent_receives_sigterm(
     run = await hatchet.runs.aio_get_details(ref.workflow_run_id)
     for _ in range(30):
         run = await hatchet.runs.aio_get_details(ref.workflow_run_id)
-        if run.status == RunStatus.RUNNING:
+        if run.status == "RUNNING":
             break
         await asyncio.sleep(1)
     else:
@@ -62,7 +62,7 @@ async def test_worker_pauses_when_only_parent_receives_sigterm(
 
     for _ in range(30):
         run = await hatchet.runs.aio_get_details(ref.workflow_run_id)
-        if run.status == RunStatus.COMPLETED:
+        if run.status == "COMPLETED":
             break
         await asyncio.sleep(1)
     else:

@@ -61,7 +61,7 @@ from hatchet_sdk.types.concurrency import (
     normalize_concurrency_to_strategies,
 )
 from hatchet_sdk.types.labels import DesiredWorkerLabel
-from hatchet_sdk.types.priority import Priority
+from hatchet_sdk.types.priority import Priority, priority_to_int
 from hatchet_sdk.types.rate_limit import RateLimit
 from hatchet_sdk.types.run_status import RunStatus
 from hatchet_sdk.types.trigger import (
@@ -261,7 +261,11 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             ),
             concurrency=_concurrency,
             concurrency_arr=_concurrency_arr,
-            default_priority=self._config.default_priority,
+            default_priority=(
+                priority_to_int(self._config.default_priority)
+                if self._config.default_priority is not None
+                else None
+            ),
             default_filters=[f.to_proto() for f in self._config.default_filters],
             input_json_schema=json_schema,
             idempotency=(

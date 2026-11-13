@@ -1,6 +1,6 @@
 import asyncio
 import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, Field
 
@@ -50,18 +50,40 @@ from hatchet_sdk.clients.v1.api_client import (
     BaseRestClient,
     maybe_additional_metadata_to_kv,
 )
-from hatchet_sdk.types.priority import Priority
+from hatchet_sdk.types.ordering import OrderByDirection
+from hatchet_sdk.types.priority import Priority, priority_from_int
 from hatchet_sdk.types.run_status import RunStatus
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 _WORKFLOW_RUN_STATUS_TO_RUN_STATUS: dict[WorkflowRunStatus, RunStatus] = {
-    WorkflowRunStatus.PENDING: RunStatus.QUEUED,
-    WorkflowRunStatus.QUEUED: RunStatus.QUEUED,
-    WorkflowRunStatus.BACKOFF: RunStatus.QUEUED,
-    WorkflowRunStatus.RUNNING: RunStatus.RUNNING,
-    WorkflowRunStatus.SUCCEEDED: RunStatus.COMPLETED,
-    WorkflowRunStatus.FAILED: RunStatus.FAILED,
-    WorkflowRunStatus.CANCELLED: RunStatus.CANCELLED,
+    WorkflowRunStatus.PENDING: "QUEUED",
+    WorkflowRunStatus.QUEUED: "QUEUED",
+    WorkflowRunStatus.BACKOFF: "QUEUED",
+    WorkflowRunStatus.RUNNING: "RUNNING",
+    WorkflowRunStatus.SUCCEEDED: "COMPLETED",
+    WorkflowRunStatus.FAILED: "FAILED",
+    WorkflowRunStatus.CANCELLED: "CANCELLED",
+}
+
+_RUN_STATUS_TO_SCHEDULED_RUN_STATUSES: dict[
+    RunStatus | Literal["SCHEDULED"], list[ScheduledRunStatus]
+] = {
+    "SCHEDULED": [ScheduledRunStatus.SCHEDULED],
+    "QUEUED": [ScheduledRunStatus.PENDING, ScheduledRunStatus.QUEUED],
+    "RUNNING": [ScheduledRunStatus.RUNNING],
+    "COMPLETED": [ScheduledRunStatus.SUCCEEDED],
+    "FAILED": [ScheduledRunStatus.FAILED],
+    "CANCELLED": [ScheduledRunStatus.CANCELLED],
+}
+
+
+_ORDER_BY_FIELD_TO_REST = {
+    "trigger_at": ScheduledWorkflowsOrderByField.TRIGGERAT,
+    "created_at": ScheduledWorkflowsOrderByField.CREATEDAT,
+}
+_ORDER_BY_DIRECTION_TO_REST: dict[OrderByDirection, WorkflowRunOrderByDirection] = {
+    "asc": WorkflowRunOrderByDirection.ASC,
+    "desc": WorkflowRunOrderByDirection.DESC,
 }
 
 
@@ -106,7 +128,7 @@ class ScheduledRun(BaseModel):
             additional_metadata=rest_scheduled.additional_metadata or {},
             method=rest_scheduled.method,
             priority=(
-                Priority(rest_scheduled.priority)
+                priority_from_int(rest_scheduled.priority)
                 if rest_scheduled.priority is not None
                 else None
             ),
@@ -401,10 +423,10 @@ class ScheduledClient(BaseRestClient):
         limit: int | None = None,
         workflow_id: str | None = None,
         parent_workflow_run_id: str | None = None,
-        statuses: list[ScheduledRunStatus] | None = None,
+        statuses: list[RunStatus | Literal["SCHEDULED"]] | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
-        order_by_field: ScheduledWorkflowsOrderByField | None = None,
-        order_by_direction: WorkflowRunOrderByDirection | None = None,
+        order_by_field: Literal["trigger_at", "created_at"] | None = None,
+        order_by_direction: OrderByDirection | None = None,
     ) -> list[ScheduledRun]:
         """
         Retrieves a list of scheduled workflows based on provided filters.
@@ -413,7 +435,7 @@ class ScheduledClient(BaseRestClient):
         :param limit: The maximum number of scheduled workflows to return.
         :param workflow_id: The ID of the workflow to filter by.
         :param parent_workflow_run_id: The ID of the parent workflow run to filter by.
-        :param statuses: A list of statuses to filter by.
+        :param statuses: The statuses of the triggered runs to filter by. `SCHEDULED` matches schedules that have not triggered a run yet.
         :param additional_metadata: Additional metadata to filter by.
         :param order_by_field: The field to order the results by.
         :param order_by_direction: The direction to order the results by.
@@ -439,10 +461,10 @@ class ScheduledClient(BaseRestClient):
         limit: int | None = None,
         workflow_id: str | None = None,
         parent_workflow_run_id: str | None = None,
-        statuses: list[ScheduledRunStatus] | None = None,
+        statuses: list[RunStatus | Literal["SCHEDULED"]] | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
-        order_by_field: ScheduledWorkflowsOrderByField | None = None,
-        order_by_direction: WorkflowRunOrderByDirection | None = None,
+        order_by_field: Literal["trigger_at", "created_at"] | None = None,
+        order_by_direction: OrderByDirection | None = None,
     ) -> list[ScheduledRun]:
         """
         Retrieves a list of scheduled workflows based on provided filters.
@@ -451,7 +473,7 @@ class ScheduledClient(BaseRestClient):
         :param limit: The maximum number of scheduled workflows to return.
         :param workflow_id: The ID of the workflow to filter by.
         :param parent_workflow_run_id: The ID of the parent workflow run to filter by.
-        :param statuses: A list of statuses to filter by.
+        :param statuses: The statuses of the triggered runs to filter by. `SCHEDULED` matches schedules that have not triggered a run yet.
         :param additional_metadata: Additional metadata to filter by.
         :param order_by_field: The field to order the results by.
         :param order_by_direction: The direction to order the results by.
@@ -466,14 +488,32 @@ class ScheduledClient(BaseRestClient):
                 tenant=self.client_config.tenant_id,
                 offset=offset,
                 limit=limit,
-                order_by_field=order_by_field,
-                order_by_direction=order_by_direction,
+                order_by_field=(
+                    _ORDER_BY_FIELD_TO_REST[order_by_field]
+                    if order_by_field is not None
+                    else None
+                ),
+                order_by_direction=(
+                    _ORDER_BY_DIRECTION_TO_REST[order_by_direction]
+                    if order_by_direction is not None
+                    else None
+                ),
                 workflow_id=workflow_id,
                 additional_metadata=maybe_additional_metadata_to_kv(
                     additional_metadata
                 ),
                 parent_workflow_run_id=parent_workflow_run_id,
-                statuses=statuses,
+                statuses=(
+                    [
+                        scheduled_run_status
+                        for status in statuses
+                        for scheduled_run_status in _RUN_STATUS_TO_SCHEDULED_RUN_STATUSES[
+                            status
+                        ]
+                    ]
+                    if statuses is not None
+                    else None
+                ),
             )
 
             return [

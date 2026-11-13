@@ -36,7 +36,7 @@ from hatchet_sdk.clients.rest.exceptions import (
     BadRequestException,
     UnauthorizedException,
     ForbiddenException,
-    NotFoundException,
+    NotFoundError,
     ServiceException,
 )
 

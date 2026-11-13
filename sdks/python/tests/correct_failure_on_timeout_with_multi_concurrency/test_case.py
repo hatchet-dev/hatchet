@@ -49,12 +49,12 @@ async def test_failure_on_timeout(
             for r in runs
         }
         if all(
-            run.run.status == RunStatus.FAILED and len(run.task_events) > 1
+            run.run.status == "FAILED" and len(run.task_events) > 1
             for run in results.values()
         ):
             break
         await asyncio.sleep(0.5)
 
     for run in results.values():
-        assert run.run.status == RunStatus.FAILED
+        assert run.run.status == "FAILED"
         assert len(run.task_events) > 1

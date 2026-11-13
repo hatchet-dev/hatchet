@@ -155,11 +155,8 @@ async def test_shared_concurrency_multi_strategy_chain(hatchet: Hatchet) -> None
         old_run = await hatchet.runs.aio_get(ref_old.workflow_run_id)
         new_run = await hatchet.runs.aio_get(ref_new.workflow_run_id)
 
-        if (
-            old_run.run.status == RunStatus.CANCELLED
-            and new_run.run.status == RunStatus.COMPLETED
-        ):
+        if old_run.run.status == "CANCELLED" and new_run.run.status == "COMPLETED":
             break
 
-    assert old_run.run.status == RunStatus.CANCELLED, old_run.run.status
-    assert new_run.run.status == RunStatus.COMPLETED, new_run.run.status
+    assert old_run.run.status == "CANCELLED", old_run.run.status
+    assert new_run.run.status == "COMPLETED", new_run.run.status

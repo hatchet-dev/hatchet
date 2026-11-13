@@ -1,6 +1,6 @@
 import asyncio
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -25,8 +25,18 @@ from hatchet_sdk.clients.v1.api_client import (
     BaseRestClient,
     maybe_additional_metadata_to_kv,
 )
-from hatchet_sdk.types.priority import Priority
+from hatchet_sdk.types.ordering import OrderByDirection
+from hatchet_sdk.types.priority import Priority, priority_from_int, priority_to_int
 from hatchet_sdk.utils.typing import JSONSerializableMapping
+
+_ORDER_BY_FIELD_TO_REST = {
+    "name": CronWorkflowsOrderByField.NAME,
+    "created_at": CronWorkflowsOrderByField.CREATEDAT,
+}
+_ORDER_BY_DIRECTION_TO_REST: dict[OrderByDirection, WorkflowRunOrderByDirection] = {
+    "asc": WorkflowRunOrderByDirection.ASC,
+    "desc": WorkflowRunOrderByDirection.DESC,
+}
 
 
 class CreateCronTriggerConfig(BaseModel):
@@ -108,7 +118,9 @@ class CronTrigger(BaseModel):
             enabled=rest_cron.enabled,
             method=rest_cron.method,
             priority=(
-                Priority(rest_cron.priority) if rest_cron.priority is not None else None
+                priority_from_int(rest_cron.priority)
+                if rest_cron.priority is not None
+                else None
             ),
         )
 
@@ -164,7 +176,9 @@ class CronClient(BaseRestClient):
                     cronExpression=validated_input.expression,
                     input=validated_input.input,
                     additionalMetadata=validated_input.additional_metadata,
-                    priority=priority,
+                    priority=(
+                        priority_to_int(priority) if priority is not None else None
+                    ),
                 ),
             )
 
@@ -230,8 +244,8 @@ class CronClient(BaseRestClient):
         limit: int | None = None,
         workflow_id: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
-        order_by_field: CronWorkflowsOrderByField | None = None,
-        order_by_direction: WorkflowRunOrderByDirection | None = None,
+        order_by_field: Literal["name", "created_at"] | None = None,
+        order_by_direction: OrderByDirection | None = None,
         workflow_name: str | None = None,
         cron_name: str | None = None,
     ) -> list[CronTrigger]:
@@ -268,8 +282,8 @@ class CronClient(BaseRestClient):
         limit: int | None = None,
         workflow_id: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
-        order_by_field: CronWorkflowsOrderByField | None = None,
-        order_by_direction: WorkflowRunOrderByDirection | None = None,
+        order_by_field: Literal["name", "created_at"] | None = None,
+        order_by_direction: OrderByDirection | None = None,
         workflow_name: str | None = None,
         cron_name: str | None = None,
     ) -> list[CronTrigger]:
@@ -300,8 +314,16 @@ class CronClient(BaseRestClient):
                 additional_metadata=maybe_additional_metadata_to_kv(
                     additional_metadata
                 ),
-                order_by_field=order_by_field,
-                order_by_direction=order_by_direction,
+                order_by_field=(
+                    _ORDER_BY_FIELD_TO_REST[order_by_field]
+                    if order_by_field is not None
+                    else None
+                ),
+                order_by_direction=(
+                    _ORDER_BY_DIRECTION_TO_REST[order_by_direction]
+                    if order_by_direction is not None
+                    else None
+                ),
                 workflow_name=workflow_name,
                 cron_name=cron_name,
             )

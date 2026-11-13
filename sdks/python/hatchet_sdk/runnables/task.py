@@ -65,7 +65,7 @@ from hatchet_sdk.runnables.types import (
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.types.concurrency import ConcurrencyStrategy
 from hatchet_sdk.types.labels import DesiredWorkerLabel
-from hatchet_sdk.types.priority import Priority
+from hatchet_sdk.types.priority import priority_to_int
 from hatchet_sdk.utils.timedelta_to_expression import timedelta_to_expr
 from hatchet_sdk.utils.typing import (
     AwaitableLike,
@@ -532,7 +532,7 @@ class Task(Generic[TWorkflowInput, R]):
             child_workflow_index=None,
             child_workflow_key=None,
             parent_workflow_run_id=None,
-            priority=Priority.LOW,
+            priority=priority_to_int("LOW"),
             workflow_version_id=str(uuid4()),
             workflow_id=str(uuid4()),
         )

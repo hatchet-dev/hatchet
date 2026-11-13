@@ -1,7 +1,7 @@
 import asyncio
 import json
 from collections.abc import Generator
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any, TypeVar, cast
 
 import grpc
@@ -37,7 +37,7 @@ from hatchet_sdk.runnables.contextvars import (
 from hatchet_sdk.types.labels import (
     DesiredWorkerLabel,
 )
-from hatchet_sdk.types.priority import Priority
+from hatchet_sdk.types.priority import Priority, priority_to_int
 from hatchet_sdk.types.run_status import RunStatus
 from hatchet_sdk.types.trigger import (
     ScheduleTriggerWorkflowOptions as ScheduleTriggerWorkflowOptions,
@@ -49,7 +49,6 @@ from hatchet_sdk.types.trigger import (
     WorkflowRunTriggerConfig as WorkflowRunTriggerConfig,
 )
 from hatchet_sdk.utils.api_auth import create_authorization_header
-from hatchet_sdk.utils.proto_enums import convert_proto_enum_to_python
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
@@ -153,14 +152,7 @@ class AdminClient:
         if _options.desired_worker_labels:
             labels_dict = {d.key: d for d in _options.desired_worker_labels}
             desired_worker_labels = {
-                key: trigger_protos.DesiredWorkerLabels(
-                    str_value=d.value if not isinstance(d.value, int) else None,
-                    int_value=d.value if isinstance(d.value, int) else None,
-                    required=d.required,
-                    weight=d.weight,
-                    comparator=d.comparator,  # type: ignore[arg-type]
-                )
-                for key, d in labels_dict.items()
+                key: d.to_proto() for key, d in labels_dict.items()
             }
 
         return trigger_protos.TriggerWorkflowRequest(
@@ -172,7 +164,11 @@ class AdminClient:
             child_key=_options.child_key,
             additional_metadata=_options.additional_metadata,
             desired_worker_id=_options.desired_worker_id,
-            priority=_options.priority,
+            priority=(
+                priority_to_int(_options.priority)
+                if _options.priority is not None
+                else None
+            ),
             desired_worker_labels=desired_worker_labels,
         )
 
@@ -213,7 +209,11 @@ class AdminClient:
             child_index=spawn_index,
             child_key=options.child_key,
             additional_metadata=json.dumps(options.additional_metadata),
-            priority=options.priority,
+            priority=(
+                priority_to_int(options.priority)
+                if options.priority is not None
+                else None
+            ),
         )
 
     async def aio_put_workflow(
@@ -246,26 +246,6 @@ class AdminClient:
                 metadata=create_authorization_header(self.token),
             ),
         )
-
-    def pause_rate_limit(self, key: str, until: datetime) -> datetime:
-        paused_until = timestamp_pb2.Timestamp()
-        paused_until.FromDatetime(until)
-
-        client = self._get_or_create_v0_client()
-        pause_rate_limit = tenacity_retry(client.PauseRateLimit, self.config.tenacity)
-
-        response = cast(
-            "v0_workflow_protos.PauseRateLimitResponse",
-            pause_rate_limit(
-                v0_workflow_protos.PauseRateLimitRequest(
-                    key=key,
-                    paused_until=paused_until,
-                ),
-                metadata=create_authorization_header(self.token),
-            ),
-        )
-
-        return response.paused_until.ToDatetime(tzinfo=UTC)
 
     def schedule_workflow(
         self,
@@ -635,9 +615,7 @@ class AdminClient:
                 if response.additional_metadata
                 else None
             ),
-            status=convert_proto_enum_to_python(
-                response.status, RunStatus, workflow_protos.RunStatus
-            ),
+            status=cast("RunStatus", workflow_protos.RunStatus.Name(response.status)),
             task_runs={
                 readable_id: TaskRunDetail(
                     readable_id=readable_id,
@@ -648,8 +626,8 @@ class AdminClient:
                         else None
                     ),
                     error=details.error if details.error else None,
-                    status=convert_proto_enum_to_python(
-                        details.status, RunStatus, workflow_protos.RunStatus
+                    status=cast(
+                        "RunStatus", workflow_protos.RunStatus.Name(details.status)
                     ),
                     is_evicted=getattr(details, "is_evicted", False),
                 )

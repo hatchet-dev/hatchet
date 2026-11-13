@@ -30,7 +30,7 @@ async def get_on_failure_task(hatchet: Hatchet, run_id: str) -> V1TaskSummary:
             f"{[t.display_name for t in details.tasks]}"
         )
 
-    if task.status in (RunStatus.QUEUED, RunStatus.RUNNING):
+    if task.status in ("QUEUED", "RUNNING"):
         raise Exception(f"on-failure task has not finished yet: {task.status}")
 
     return task
@@ -50,7 +50,7 @@ async def test_on_failure_task_is_skipped_not_stuck(hatchet: Hatchet) -> None:
         hatchet=hatchet, run_id=ref.workflow_run_id
     )
 
-    assert on_failure_task.status == RunStatus.COMPLETED
+    assert on_failure_task.status == "COMPLETED"
     assert on_failure_task.output == {}
 
 
@@ -68,5 +68,5 @@ async def test_on_failure_task_is_runs_on_failure(hatchet: Hatchet) -> None:
         hatchet=hatchet, run_id=ref.workflow_run_id
     )
 
-    assert on_failure_task.status == RunStatus.COMPLETED
+    assert on_failure_task.status == "COMPLETED"
     assert on_failure_task.output == {"ran": True}

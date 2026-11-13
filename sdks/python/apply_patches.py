@@ -638,6 +638,10 @@ def replace_generated_task_status_enum_with_run_status(content: str) -> str:
     )
 
 
+def rename_not_found_exception_to_not_found_error(content: str) -> str:
+    return re.sub(r"\bNotFoundException\b", "NotFoundError", content)
+
+
 def rewrite_generated_init_with_lazy_imports(content: str) -> str:
     """Rewrite a generated `__init__.py` so each re-exported name is imported on
     first attribute access (PEP 562) instead of eagerly at package import.
@@ -747,6 +751,12 @@ if __name__ == "__main__":
     atomically_patch_file(
         "hatchet_sdk/contracts/workflows_pb2.pyi",
         [patch_workflows_pyi_reexport],
+    )
+
+    apply_patches_to_matching_files(
+        "hatchet_sdk/clients/rest",
+        "*.py",
+        [rename_not_found_exception_to_not_found_error],
     )
 
     for generated_init in (

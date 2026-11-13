@@ -94,9 +94,9 @@ async def test_bulk_replay(hatchet: Hatchet, test_run_id: str) -> None:
         settled_count = sum(
             1
             for row in rows
-            if row.status == RunStatus.FAILED
+            if row.status == "FAILED"
             or (
-                row.status == RunStatus.COMPLETED
+                row.status == "COMPLETED"
                 and row.retry_count is not None
                 and row.retry_count >= 1
             )
@@ -110,9 +110,7 @@ async def test_bulk_replay(hatchet: Hatchet, test_run_id: str) -> None:
             )
 
         first_attempt_completed = [
-            row
-            for row in rows
-            if row.status == RunStatus.COMPLETED and not row.retry_count
+            row for row in rows if row.status == "COMPLETED" and not row.retry_count
         ]
         assert (
             not first_attempt_completed
@@ -152,7 +150,7 @@ async def test_bulk_replay(hatchet: Hatchet, test_run_id: str) -> None:
         ready_count = sum(
             1
             for row in rows
-            if row.status == RunStatus.COMPLETED
+            if row.status == "COMPLETED"
             and row.retry_count is not None
             and row.retry_count >= 1
             and row.attempt is not None
@@ -182,7 +180,7 @@ async def test_bulk_replay(hatchet: Hatchet, test_run_id: str) -> None:
     ), f"{len(not_replayed)} runs were not re-run by the bulk replay: {not_replayed}"
 
     for run in runs:
-        assert run.status == RunStatus.COMPLETED
+        assert run.status == "COMPLETED"
         assert run.retry_count and run.retry_count >= 1
         assert run.attempt and run.attempt >= 2
 

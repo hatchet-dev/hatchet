@@ -154,7 +154,7 @@ async def test_otel_spans_on_event_triggered_run(
     run_id = None
     for _ in range(15):
         runs = await hatchet.runs.aio_list(triggering_event_id=event.id)
-        completed = [r for r in runs if r.status == RunStatus.COMPLETED]
+        completed = [r for r in runs if r.status == "COMPLETED"]
         if completed:
             run_id = completed[0].task_run_id
             break

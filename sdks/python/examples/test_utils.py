@@ -18,7 +18,7 @@ async def wait_for_running_status(
     max_iters = int(timeout / interval)
     for _ in range(max_iters):
         run = await hatchet.runs.aio_get_details(run_id)
-        if run.status == RunStatus.RUNNING and len(run.task_runs) >= min_task_runs:
+        if run.status == "RUNNING" and len(run.task_runs) >= min_task_runs:
             return
         await asyncio.sleep(interval)
 
@@ -36,9 +36,9 @@ async def poll_for_runs(
     interval: float = 0.5,
 ) -> list[TaskRunSummary]:
     terminal = statuses or [
-        RunStatus.COMPLETED,
-        RunStatus.FAILED,
-        RunStatus.CANCELLED,
+        "COMPLETED",
+        "FAILED",
+        "CANCELLED",
     ]
     max_iters = int(timeout / interval)
     runs: list[TaskRunSummary] = []
@@ -61,7 +61,7 @@ async def wait_for_replay(hatchet: Hatchet, run_id: str, timeout: float = 30.0) 
     max_iters = int(timeout / interval)
     for _ in range(max_iters):
         run = await hatchet.runs.aio_get_details(run_id)
-        if run.status != RunStatus.COMPLETED:
+        if run.status != "COMPLETED":
             return
 
         await asyncio.sleep(interval)
@@ -129,7 +129,7 @@ async def wait_for_workflow_run(
             },
         )
         for row in runs:
-            if row.status == RunStatus.COMPLETED:
+            if row.status == "COMPLETED":
                 return row
         raise Exception()
 

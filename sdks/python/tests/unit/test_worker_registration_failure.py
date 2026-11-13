@@ -154,7 +154,7 @@ def test_worker_start_propagates_listener_death_after_cleanup(
                 RuntimeError, match="action listener process exited unexpectedly"
             ):
                 worker.start()
-        assert worker.status == WorkerStatus.UNHEALTHY
+        assert worker.status == "UNHEALTHY"
         cast(MagicMock, worker._action_runner).exit_gracefully.assert_awaited_once()
         cast(MagicMock, worker._action_runner).cleanup.assert_called_once()
         cast(AsyncMock, worker._cleanup_lifespan).assert_awaited_once()

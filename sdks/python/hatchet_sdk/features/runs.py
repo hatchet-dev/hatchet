@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Literal, overload
 
 from pydantic import BaseModel, Field, model_validator
+from typing_extensions import deprecated
 
 from hatchet_sdk.clients.listeners.run_event_listener import (
     RunEventListenerClient,
@@ -28,7 +29,7 @@ from hatchet_sdk.clients.v1.api_client import (
     BaseRestClient,
     maybe_additional_metadata_to_kv,
 )
-from hatchet_sdk.types.run_status import RunStatus
+from hatchet_sdk.types.priority import priority_to_int
 from hatchet_sdk.utils.aio import gather_max_concurrency
 from hatchet_sdk.utils.datetimes import partition_date_range
 from hatchet_sdk.utils.iterables import create_chunks
@@ -53,6 +54,7 @@ if TYPE_CHECKING:
     )
     from hatchet_sdk.config import ClientConfig
     from hatchet_sdk.types.priority import Priority
+    from hatchet_sdk.types.run_status import RunStatus
     from hatchet_sdk.workflow_run import WorkflowRunRef
 
 
@@ -408,7 +410,7 @@ class RunsClient(BaseRestClient):
             delay_between_chunks=delay_between_chunks,
             chunk_size=chunk_size,
             until=until,
-            statuses=statuses or [RunStatus.FAILED, RunStatus.CANCELLED],
+            statuses=statuses or ["FAILED", "CANCELLED"],
             additional_metadata=additional_metadata,
             workflow_ids=workflow_ids,
         )
@@ -447,7 +449,7 @@ class RunsClient(BaseRestClient):
             delay_between_chunks=delay_between_chunks,
             chunk_size=chunk_size,
             until=until,
-            statuses=statuses or [RunStatus.RUNNING, RunStatus.QUEUED],
+            statuses=statuses or ["RUNNING", "QUEUED"],
             additional_metadata=additional_metadata,
             workflow_ids=workflow_ids,
         )
@@ -487,7 +489,7 @@ class RunsClient(BaseRestClient):
             delay_between_chunks=delay_between_chunks,
             chunk_size=chunk_size,
             until=until,
-            statuses=statuses or [RunStatus.FAILED, RunStatus.CANCELLED],
+            statuses=statuses or ["FAILED", "CANCELLED"],
             additional_metadata=additional_metadata,
             workflow_ids=workflow_ids,
         )
@@ -527,7 +529,7 @@ class RunsClient(BaseRestClient):
             delay_between_chunks=delay_between_chunks,
             chunk_size=chunk_size,
             until=until,
-            statuses=statuses or [RunStatus.RUNNING, RunStatus.QUEUED],
+            statuses=statuses or ["RUNNING", "QUEUED"],
             additional_metadata=additional_metadata,
             workflow_ids=workflow_ids,
         )
@@ -728,7 +730,9 @@ class RunsClient(BaseRestClient):
                     workflowName=self.client_config.apply_namespace(workflow_name),
                     input=input,
                     additionalMetadata=additional_metadata,
-                    priority=priority,
+                    priority=(
+                        priority_to_int(priority) if priority is not None else None
+                    ),
                 ),
             )
 
@@ -878,6 +882,9 @@ class RunsClient(BaseRestClient):
             admin_client=self._admin_client,
         )
 
+    @deprecated(
+        "`runs.aio_subscribe_to_stream` is deprecated. Use `hatchet.streams.aio_subscribe` instead."
+    )
     async def aio_subscribe_to_stream(
         self,
         workflow_run_id: str,

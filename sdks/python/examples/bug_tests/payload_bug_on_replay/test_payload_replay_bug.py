@@ -75,9 +75,7 @@ async def test_payload_replay_bug(hatchet: Hatchet, test_run_id: str) -> None:
         ref.workflow_run_id,
         lambda tasks: (
             len(tasks) >= 2
-            and all(
-                t.status in [RunStatus.COMPLETED, RunStatus.CANCELLED] for t in tasks
-            )
+            and all(t.status in ["COMPLETED", "CANCELLED"] for t in tasks)
         ),
     )
 
@@ -85,8 +83,8 @@ async def test_payload_replay_bug(hatchet: Hatchet, test_run_id: str) -> None:
 
     assert len(tasks) == 2
 
-    assert tasks[0].status == RunStatus.COMPLETED
-    assert tasks[1].status == RunStatus.CANCELLED
+    assert tasks[0].status == "COMPLETED"
+    assert tasks[1].status == "CANCELLED"
 
     await hatchet.runs.aio_replay(run_id=ref.workflow_run_id)
 
@@ -101,13 +99,11 @@ async def test_payload_replay_bug(hatchet: Hatchet, test_run_id: str) -> None:
     run = await _poll_run_until_tasks(
         hatchet,
         ref.workflow_run_id,
-        lambda tasks: (
-            len(tasks) >= 2 and all(t.status == RunStatus.COMPLETED for t in tasks)
-        ),
+        lambda tasks: len(tasks) >= 2 and all(t.status == "COMPLETED" for t in tasks),
     )
 
     tasks = sorted(run.tasks, key=lambda t: t.metadata.created_at)
 
     assert len(tasks) == 2
-    assert tasks[0].status == RunStatus.COMPLETED
-    assert tasks[1].status == RunStatus.COMPLETED
+    assert tasks[0].status == "COMPLETED"
+    assert tasks[1].status == "COMPLETED"

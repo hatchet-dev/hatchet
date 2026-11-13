@@ -245,7 +245,9 @@ class FailedTaskRunExceptionGroup(ExceptionGroup[TaskRunError]):
         return group
 
     def __init__(
-        self, message: str, exceptions: Sequence[TaskRunError]  # noqa: ARG002
+        self,
+        message: str,  # noqa: ARG002
+        exceptions: Sequence[TaskRunError],  # noqa: ARG002
     ) -> None:
         super().__init__(self.message, cast("Sequence[TaskRunError]", self.exceptions))
 

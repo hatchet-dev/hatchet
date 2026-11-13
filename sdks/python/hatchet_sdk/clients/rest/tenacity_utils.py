@@ -6,7 +6,7 @@ import grpc
 import tenacity
 
 from hatchet_sdk.clients.rest.exceptions import (
-    NotFoundException,
+    NotFoundError,
     RestTransportError,
     ServiceException,
     TooManyRequestsException,
@@ -41,7 +41,7 @@ def tenacity_should_retry(
     ex: BaseException, config: TenacityConfig | None = None
 ) -> bool:
     """Return True when the exception should be retried."""
-    if isinstance(ex, (ServiceException, NotFoundException)):
+    if isinstance(ex, (ServiceException, NotFoundError)):
         return True
 
     if isinstance(ex, TooManyRequestsException):

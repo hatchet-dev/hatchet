@@ -532,10 +532,12 @@ class StreamsClient(BaseRestClient):
         with self.client() as client:
             api = StreamsApi(client)
             return self._with_retries(
-                lambda: api.v1_stream_payload_upload(
-                    tenant=self.client_config.tenant_id,
-                    payload=("payload", payload),
-                ).ref
+                lambda: (
+                    api.v1_stream_payload_upload(
+                        tenant=self.client_config.tenant_id,
+                        payload=("payload", payload),
+                    ).ref
+                )
             )
 
     def _fetch_payload(self, payload_ref: str) -> bytes:

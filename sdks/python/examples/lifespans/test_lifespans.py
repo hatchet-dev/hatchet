@@ -38,7 +38,7 @@ async def test_lifespan_drain_on_sigterm(
 
     for _ in range(30):
         run = await hatchet.runs.aio_get_details(ref.workflow_run_id)
-        if run.status == RunStatus.RUNNING:
+        if run.status == "RUNNING":
             break
 
         await asyncio.sleep(1)

@@ -57,8 +57,7 @@ async def _wait_for_task_to_complete(
 
         # a task's display name is "<step readable id>-<unix timestamp>"
         if any(
-            t.status == RunStatus.COMPLETED
-            and t.display_name.startswith(f"{task_name}-")
+            t.status == "COMPLETED" and t.display_name.startswith(f"{task_name}-")
             for t in details.tasks
         ):
             return
@@ -571,5 +570,5 @@ async def test_durable_error_on_error_in_child(
 
     assert parent
     assert child
-    assert parent.status == RunStatus.COMPLETED
-    assert child.status == RunStatus.FAILED
+    assert parent.status == "COMPLETED"
+    assert child.status == "FAILED"

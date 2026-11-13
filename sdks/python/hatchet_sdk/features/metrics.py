@@ -145,7 +145,7 @@ class MetricsClient(BaseRestClient):
                 self.client_config.tenacity,
             )
             metrics = {
-                m.status.name.lower(): m.count
+                m.status.lower(): m.count
                 for m in v1_task_list_status_metrics(
                     tenant=self.client_config.tenant_id,
                     since=since,

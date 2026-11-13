@@ -55,7 +55,7 @@ from hatchet_sdk.types.idempotency import (
 from hatchet_sdk.types.labels import DesiredWorkerLabel, WorkerLabel
 from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.types.rate_limit import RateLimit
-from hatchet_sdk.utils.slots import normalize_slot_config, resolve_worker_slot_config
+from hatchet_sdk.utils.slots import resolve_worker_slot_config
 from hatchet_sdk.utils.typing import CoroutineLike, JSONSerializableMapping
 from hatchet_sdk.worker.worker import LifespanFn, Worker
 
@@ -323,7 +323,7 @@ class Hatchet:
 
         return Worker(
             name=name,
-            slot_config=normalize_slot_config(resolved_config),
+            slot_config=resolved_config,
             labels=labels,
             config=self._config,
             workflows=workflows,
@@ -342,7 +342,7 @@ class Hatchet:
         cron_input: None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: Priority = Priority.LOW,
+        default_priority: Priority = "LOW",
         concurrency: (
             int | ConcurrencyStrategy | Sequence[ConcurrencyStrategy] | None
         ) = None,
@@ -366,7 +366,7 @@ class Hatchet:
         cron_input: TWorkflowInput | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: Priority = Priority.LOW,
+        default_priority: Priority = "LOW",
         concurrency: (
             int | ConcurrencyStrategy | Sequence[ConcurrencyStrategy] | None
         ) = None,
@@ -389,7 +389,7 @@ class Hatchet:
         cron_input: TWorkflowInput | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: Priority = Priority.LOW,
+        default_priority: Priority = "LOW",
         concurrency: (
             int | ConcurrencyStrategy | Sequence[ConcurrencyStrategy] | None
         ) = None,
@@ -470,7 +470,7 @@ class Hatchet:
         cron_input: None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: Priority = Priority.LOW,
+        default_priority: Priority = "LOW",
         concurrency: (
             int | ConcurrencyStrategy | Sequence[ConcurrencyStrategy] | None
         ) = None,
@@ -504,7 +504,7 @@ class Hatchet:
         cron_input: TWorkflowInput | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: Priority = Priority.LOW,
+        default_priority: Priority = "LOW",
         concurrency: (
             int | ConcurrencyStrategy | Sequence[ConcurrencyStrategy] | None
         ) = None,
@@ -537,7 +537,7 @@ class Hatchet:
         cron_input: TWorkflowInput | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: Priority = Priority.LOW,
+        default_priority: Priority = "LOW",
         concurrency: (
             int | ConcurrencyStrategy | Sequence[ConcurrencyStrategy] | None
         ) = None,
@@ -678,7 +678,7 @@ class Hatchet:
         cron_input: None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: Priority = Priority.LOW,
+        default_priority: Priority = "LOW",
         schedule_timeout: timedelta = timedelta(minutes=5),
         execution_timeout: timedelta = timedelta(seconds=60),
         rate_limits: list[RateLimit] | None = None,
@@ -714,7 +714,7 @@ class Hatchet:
         cron_input: None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: Priority = Priority.LOW,
+        default_priority: Priority = "LOW",
         schedule_timeout: timedelta = timedelta(minutes=5),
         execution_timeout: timedelta = timedelta(seconds=60),
         rate_limits: list[RateLimit] | None = None,
@@ -750,7 +750,7 @@ class Hatchet:
         cron_input: TWorkflowInput | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: Priority = Priority.LOW,
+        default_priority: Priority = "LOW",
         schedule_timeout: timedelta = timedelta(minutes=5),
         execution_timeout: timedelta = timedelta(seconds=60),
         rate_limits: list[RateLimit] | None = None,
@@ -786,7 +786,7 @@ class Hatchet:
         cron_input: TWorkflowInput | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: Priority = Priority.LOW,
+        default_priority: Priority = "LOW",
         schedule_timeout: timedelta = timedelta(minutes=5),
         execution_timeout: timedelta = timedelta(seconds=60),
         rate_limits: list[RateLimit] | None = None,
@@ -824,7 +824,7 @@ class Hatchet:
         cron_input: TWorkflowInput | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: Priority = Priority.LOW,
+        default_priority: Priority = "LOW",
         schedule_timeout: timedelta = timedelta(minutes=5),
         execution_timeout: timedelta = timedelta(seconds=60),
         rate_limits: list[RateLimit] | None = None,
@@ -961,7 +961,7 @@ class Hatchet:
         cron_input: None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: Priority = Priority.LOW,
+        default_priority: Priority = "LOW",
         concurrency: (
             int | ConcurrencyStrategy | Sequence[ConcurrencyStrategy] | None
         ) = None,
@@ -996,7 +996,7 @@ class Hatchet:
         cron_input: TWorkflowInput | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: Priority = Priority.LOW,
+        default_priority: Priority = "LOW",
         concurrency: (
             int | ConcurrencyStrategy | Sequence[ConcurrencyStrategy] | None
         ) = None,
@@ -1034,7 +1034,7 @@ class Hatchet:
         cron_input: TWorkflowInput | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
-        default_priority: Priority = Priority.LOW,
+        default_priority: Priority = "LOW",
         concurrency: (
             int | ConcurrencyStrategy | Sequence[ConcurrencyStrategy] | None
         ) = None,

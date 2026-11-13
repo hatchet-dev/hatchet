@@ -1,7 +1,6 @@
 import json
 from collections.abc import Callable
 from datetime import timedelta
-from enum import StrEnum
 from logging import Logger, getLogger
 from typing import ClassVar, Literal, overload
 
@@ -102,14 +101,7 @@ class OpenTelemetryConfig(BaseSettings):
     )
 
 
-class HTTPMethod(StrEnum):
-    GET = "GET"
-    DELETE = "DELETE"
-    POST = "POST"
-    PUT = "PUT"
-    PATCH = "PATCH"
-    HEAD = "HEAD"
-    OPTIONS = "OPTIONS"
+HTTPMethod = Literal["GET", "DELETE", "POST", "PUT", "PATCH", "HEAD", "OPTIONS"]
 
 
 def tenacity_before_sleep(retry_state: tenacity.RetryCallState) -> None:
@@ -140,7 +132,7 @@ class TenacityConfig(BaseSettings):
         description="Enable retries for REST transport errors (timeout, connection, TLS). Default: off.",
     )
     retry_transport_methods: list[HTTPMethod] = Field(
-        default_factory=lambda: [HTTPMethod.GET, HTTPMethod.DELETE],
+        default_factory=lambda: list[HTTPMethod](["GET", "DELETE"]),
         description="HTTP methods to retry on transport errors when retry_transport_errors is enabled; excludes POST/PUT/PATCH by default due to idempotency concerns.",
     )
     wait: type[tenacity.wait.wait_base] = tenacity.wait_exponential_jitter

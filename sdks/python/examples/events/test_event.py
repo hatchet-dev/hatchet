@@ -79,12 +79,7 @@ async def fetch_runs_for_event(
         test_run_id=cast(str, meta["test_run_id"]),
     )
 
-    if not all(
-        [
-            r.status in [RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.CANCELLED]
-            for r in runs
-        ]
-    ):
+    if not all([r.status in ["COMPLETED", "FAILED", "CANCELLED"] for r in runs]):
         return (processed_event, [])
 
     return (
@@ -121,9 +116,9 @@ async def wait_for_result(
             or any(
                 e.status
                 not in [
-                    RunStatus.COMPLETED,
-                    RunStatus.FAILED,
-                    RunStatus.CANCELLED,
+                    "COMPLETED",
+                    "FAILED",
+                    "CANCELLED",
                 ]
                 for e in event_run
             )
@@ -137,7 +132,7 @@ async def wait_for_result(
         event_id_to_runs = {event_id: runs for (event_id, runs) in event_runs}
 
         any_queued_or_running = any(
-            run.status in [RunStatus.QUEUED, RunStatus.RUNNING]
+            run.status in ["QUEUED", "RUNNING"]
             for runs in event_id_to_runs.values()
             for run in runs
         )
@@ -184,7 +179,7 @@ async def assert_event_runs_processed(
         assert len(runs) > 0
 
         for run in runs:
-            assert run.status == RunStatus.COMPLETED
+            assert run.status == "COMPLETED"
 
             meta = run.additional_metadata or {}
             assert meta.get("test_run_id") == event.test_run_id
@@ -391,9 +386,7 @@ async def test_event_skipping_filtering(hatchet: Hatchet, test_run_id: str) -> N
 
 
 async def bulk_to_single(hatchet: Hatchet, event: BulkPushEventWithMetadata) -> Event:
-    priority = (
-        Priority(event.priority) if isinstance(event.priority, int) else event.priority
-    )
+    priority = event.priority
     return await hatchet.events.aio_push(
         event_key=event.key,
         payload=event.payload,

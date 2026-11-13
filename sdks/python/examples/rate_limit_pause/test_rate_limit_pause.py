@@ -38,7 +38,7 @@ async def test_rate_limit_pause(hatchet: Hatchet) -> None:
 
         paused_details = await hatchet.runs.aio_get_details(paused_ref.workflow_run_id)
         assert (
-            paused_details.status == RunStatus.QUEUED
+            paused_details.status == "QUEUED"
         ), f"Run with a paused key is not queued (status {paused_details.status})."
 
         rate_limits = await hatchet.rate_limits.aio_list(search=paused_key)
@@ -53,7 +53,7 @@ async def test_rate_limit_pause(hatchet: Hatchet) -> None:
                 paused_ref.workflow_run_id
             )
             assert (
-                paused_details.status == RunStatus.QUEUED
+                paused_details.status == "QUEUED"
             ), f"Run with a paused key left the queue before the pause ended (status {paused_details.status})."
 
             await asyncio.sleep(1)
@@ -72,12 +72,12 @@ async def test_rate_limit_pause(hatchet: Hatchet) -> None:
                 paused_ref.workflow_run_id
             )
 
-            if paused_details.status == RunStatus.COMPLETED:
+            if paused_details.status == "COMPLETED":
                 break
 
             assert paused_details.status in [
-                RunStatus.QUEUED,
-                RunStatus.RUNNING,
+                "QUEUED",
+                "RUNNING",
             ], f"Run with a paused key is not queued or running (status {paused_details.status})."
 
             await asyncio.sleep(1)

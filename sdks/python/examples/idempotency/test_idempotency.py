@@ -227,7 +227,7 @@ async def test_idempotency_status_based_cancel(
 
     details = await hatchet.runs.aio_get_details(ref1.workflow_run_id)
 
-    assert details.status == RunStatus.CANCELLED
+    assert details.status == "CANCELLED"
     assert details.external_id == ref1.workflow_run_id
 
     assert time() - start >= 1
@@ -245,7 +245,7 @@ async def test_idempotency_status_based_cancel(
 
     details = await hatchet.runs.aio_get_details(ref1.workflow_run_id)
 
-    assert details.status == RunStatus.CANCELLED
+    assert details.status == "CANCELLED"
     assert details.external_id == ref1.workflow_run_id
 
     assert (
@@ -408,11 +408,11 @@ async def test_idempotency_keys_prevent_duplicate_runs_event_trigger(
             all_triggered_runs[0].workflow_run_id
         )
 
-        if run_details.status in [RunStatus.QUEUED, RunStatus.RUNNING]:
+        if run_details.status in ["QUEUED", "RUNNING"]:
             await asyncio.sleep(1)
             continue
 
-        assert run_details.status == RunStatus.COMPLETED
+        assert run_details.status == "COMPLETED"
 
 
 async def _wait_for_retry_count(
@@ -474,7 +474,7 @@ async def test_idempotency_status_based_key_held_across_all_retries_until_exhaus
     assert "failed as requested" in str(exc_info_final.value).lower()
 
     details = await hatchet.runs.aio_get_details(ref1.workflow_run_id)
-    assert details.status == RunStatus.FAILED
+    assert details.status == "FAILED"
 
     ref2 = await idempotent_status_based_task_with_retries.aio_run(
         input=IdempotencyInput(id=test_run_id, desired_status="fail"),
@@ -520,7 +520,7 @@ async def test_idempotency_status_based_key_released_immediately_on_success_afte
     assert "hello" in result["result"].lower()
 
     details = await hatchet.runs.aio_get_details(ref1.workflow_run_id)
-    assert details.status == RunStatus.COMPLETED
+    assert details.status == "COMPLETED"
 
     ref2 = await idempotent_status_based_task_with_retries.aio_run(
         input=IdempotencyInput(id=test_run_id, desired_status="success"),
@@ -563,7 +563,7 @@ async def test_idempotency_status_based_key_released_immediately_on_cancel_after
     await ref1.aio_result()
 
     details = await hatchet.runs.aio_get_details(ref1.workflow_run_id)
-    assert details.status == RunStatus.CANCELLED
+    assert details.status == "CANCELLED"
 
     ref2 = await idempotent_status_based_task_with_retries.aio_run(
         input=IdempotencyInput(id=test_run_id, desired_status="cancel"),
@@ -575,4 +575,4 @@ async def test_idempotency_status_based_key_released_immediately_on_cancel_after
     await ref2.aio_result()
 
     details2 = await hatchet.runs.aio_get_details(ref2.workflow_run_id)
-    assert details2.status == RunStatus.CANCELLED
+    assert details2.status == "CANCELLED"

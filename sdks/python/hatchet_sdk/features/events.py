@@ -37,7 +37,7 @@ from hatchet_sdk.runnables.contextvars import (
     ctx_task_run_external_id,
     ctx_workflow_run_id,
 )
-from hatchet_sdk.types.priority import Priority
+from hatchet_sdk.types.priority import Priority, priority_to_int
 from hatchet_sdk.types.run_status import RunStatus
 from hatchet_sdk.types.trigger import (
     BulkPushEventWithMetadata as BulkPushEventWithMetadata,
@@ -193,7 +193,7 @@ class EventClient(BaseRestClient):
             payload=payload_str,
             event_timestamp=proto_timestamp_now(),
             additional_metadata=meta_bytes,
-            priority=priority,
+            priority=priority_to_int(priority) if priority is not None else None,
             scope=scope,
         )
 
@@ -295,11 +295,7 @@ class EventClient(BaseRestClient):
                     key=event.key,
                     payload=event.payload,
                     additional_metadata=event.additional_metadata,
-                    priority=(
-                        Priority(event.priority)
-                        if isinstance(event.priority, int)
-                        else event.priority
-                    ),
+                    priority=event.priority,
                     scope=event.scope,
                 )
                 for event in events
@@ -339,11 +335,7 @@ class EventClient(BaseRestClient):
                     key=event.key,
                     payload=event.payload,
                     additional_metadata=event.additional_metadata,
-                    priority=(
-                        Priority(event.priority)
-                        if isinstance(event.priority, int)
-                        else event.priority
-                    ),
+                    priority=event.priority,
                     scope=event.scope,
                 )
                 for event in events

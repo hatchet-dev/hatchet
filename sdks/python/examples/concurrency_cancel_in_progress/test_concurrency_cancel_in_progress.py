@@ -35,12 +35,12 @@ async def test_run(hatchet: Hatchet, test_run_id: str) -> None:
             hatchet,
             expected_count=10,
             additional_metadata={"test_run_id": test_run_id},
-            statuses=[RunStatus.COMPLETED, RunStatus.CANCELLED],
+            statuses=["COMPLETED", "CANCELLED"],
         ),
         key=lambda r: int((r.additional_metadata or {}).get("i", "0")),
     )
 
     assert len(runs) == 10
     assert (runs[-1].additional_metadata or {}).get("i") == "9"
-    assert runs[-1].status == RunStatus.COMPLETED
-    assert all(r.status == RunStatus.CANCELLED for r in runs[:-1])
+    assert runs[-1].status == "COMPLETED"
+    assert all(r.status == "CANCELLED" for r in runs[:-1])

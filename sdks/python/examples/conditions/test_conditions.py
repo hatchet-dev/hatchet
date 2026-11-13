@@ -31,8 +31,7 @@ async def _wait_for_task_to_complete(
 
         # a task's display name is "<step readable id>-<unix timestamp>"
         if any(
-            t.status == RunStatus.COMPLETED
-            and t.display_name.startswith(f"{task_name}-")
+            t.status == "COMPLETED" and t.display_name.startswith(f"{task_name}-")
             for t in details.tasks
         ):
             return
@@ -99,7 +98,7 @@ async def test_cancel_if(hatchet: Hatchet) -> None:
 
     details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
 
-    assert details.status == RunStatus.CANCELLED
+    assert details.status == "CANCELLED"
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -156,7 +155,7 @@ async def test_cancel_if_user_event(hatchet: Hatchet) -> None:
     await ref.aio_result()
 
     details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
-    assert details.status == RunStatus.CANCELLED
+    assert details.status == "CANCELLED"
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -166,7 +165,7 @@ async def test_cancel_if_sleep(hatchet: Hatchet) -> None:
     await ref.aio_result()
 
     details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
-    assert details.status == RunStatus.CANCELLED
+    assert details.status == "CANCELLED"
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -176,7 +175,7 @@ async def test_cancel_if_or_group(hatchet: Hatchet) -> None:
     await ref.aio_result()
 
     details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
-    assert details.status == RunStatus.CANCELLED
+    assert details.status == "CANCELLED"
 
 
 @pytest.mark.asyncio(loop_scope="session")

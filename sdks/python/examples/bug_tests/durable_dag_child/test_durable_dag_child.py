@@ -54,11 +54,9 @@ async def run_dag_to_completion(
 
     details = await wait_for_run(hatchet, ref.workflow_run_id)
 
-    assert details.status == RunStatus.COMPLETED
+    assert details.status == "COMPLETED"
     assert set(details.task_runs.keys()) == expected_steps
-    assert all(
-        task.status == RunStatus.COMPLETED for task in details.task_runs.values()
-    )
+    assert all(task.status == "COMPLETED" for task in details.task_runs.values())
 
     step_external_ids = {task.external_id for task in details.task_runs.values()}
 
@@ -86,7 +84,7 @@ async def test_step_spawning_a_dag(hatchet: Hatchet) -> None:
 
     child = await wait_for_run(hatchet, child_run_ids.pop())
 
-    assert child.status == RunStatus.COMPLETED
+    assert child.status == "COMPLETED"
     assert set(child.task_runs.keys()) == {"child_dag_step_a", "child_dag_step_b"}
 
     grandchild_run_ids = spawned_run_ids(child)
@@ -95,7 +93,7 @@ async def test_step_spawning_a_dag(hatchet: Hatchet) -> None:
 
     grandchild = await wait_for_run(hatchet, grandchild_run_ids.pop())
 
-    assert grandchild.status == RunStatus.COMPLETED
+    assert grandchild.status == "COMPLETED"
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -124,7 +122,7 @@ async def test_durable_step_spawning_a_dag(hatchet: Hatchet) -> None:
 
     child = await wait_for_run(hatchet, child_run_ids.pop())
 
-    assert child.status == RunStatus.COMPLETED
+    assert child.status == "COMPLETED"
     assert set(child.task_runs.keys()) == {"child_dag_step_a", "child_dag_step_b"}
 
 

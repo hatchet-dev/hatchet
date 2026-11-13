@@ -22,7 +22,7 @@ async def test_durable_child_key_duplicate_bug_all_duped(hatchet: Hatchet) -> No
 
     run = runs[0]
 
-    assert run.status == RunStatus.COMPLETED
+    assert run.status == "COMPLETED"
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -41,8 +41,8 @@ async def test_durable_child_key_duplicate_bug_second_unique(hatchet: Hatchet) -
 
     first, second = runs
 
-    assert first.status == RunStatus.COMPLETED
-    assert second.status == RunStatus.COMPLETED
+    assert first.status == "COMPLETED"
+    assert second.status == "COMPLETED"
 
     assert (
         first.workflow_run_id != second.workflow_run_id
@@ -65,8 +65,8 @@ async def test_durable_child_key_duplicate_bug_third_unique(hatchet: Hatchet) ->
 
     first, second = runs
 
-    assert first.status == RunStatus.COMPLETED
-    assert second.status == RunStatus.COMPLETED
+    assert first.status == "COMPLETED"
+    assert second.status == "COMPLETED"
 
     assert (
         first.workflow_run_id != second.workflow_run_id

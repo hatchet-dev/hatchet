@@ -1,6 +1,6 @@
 import asyncio
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 from google.protobuf import timestamp_pb2
 
@@ -20,9 +20,20 @@ from hatchet_sdk.clients.v1.api_client import BaseRestClient
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts import workflows_pb2 as v0_workflow_protos
 from hatchet_sdk.contracts.workflows_pb2_grpc import WorkflowServiceStub
+from hatchet_sdk.types.ordering import OrderByDirection
 from hatchet_sdk.types.rate_limit import RateLimitDuration
 from hatchet_sdk.utils.api_auth import create_authorization_header
 from hatchet_sdk.utils.proto_enums import convert_python_literal_to_proto
+
+_ORDER_BY_FIELD_TO_REST = {
+    "key": RateLimitOrderByField.KEY,
+    "value": RateLimitOrderByField.VALUE,
+    "limit_value": RateLimitOrderByField.LIMITVALUE,
+}
+_ORDER_BY_DIRECTION_TO_REST: dict[OrderByDirection, RateLimitOrderByDirection] = {
+    "asc": RateLimitOrderByDirection.ASC,
+    "desc": RateLimitOrderByDirection.DESC,
+}
 
 
 class RateLimitsClient(BaseRestClient):
@@ -144,8 +155,8 @@ class RateLimitsClient(BaseRestClient):
         offset: int | None = None,
         limit: int | None = None,
         search: str | None = None,
-        order_by_field: RateLimitOrderByField | None = None,
-        order_by_direction: RateLimitOrderByDirection | None = None,
+        order_by_field: Literal["key", "value", "limit_value"] | None = None,
+        order_by_direction: OrderByDirection | None = None,
     ) -> list[RateLimit]:
         """
         List all rate limits for the tenant.
@@ -173,8 +184,8 @@ class RateLimitsClient(BaseRestClient):
         offset: int | None = None,
         limit: int | None = None,
         search: str | None = None,
-        order_by_field: RateLimitOrderByField | None = None,
-        order_by_direction: RateLimitOrderByDirection | None = None,
+        order_by_field: Literal["key", "value", "limit_value"] | None = None,
+        order_by_direction: OrderByDirection | None = None,
     ) -> list[RateLimit]:
         """
         List all rate limits for the tenant.
@@ -197,8 +208,16 @@ class RateLimitsClient(BaseRestClient):
                 offset=offset,
                 limit=limit,
                 search=search,
-                order_by_field=order_by_field,
-                order_by_direction=order_by_direction,
+                order_by_field=(
+                    _ORDER_BY_FIELD_TO_REST[order_by_field]
+                    if order_by_field is not None
+                    else None
+                ),
+                order_by_direction=(
+                    _ORDER_BY_DIRECTION_TO_REST[order_by_direction]
+                    if order_by_direction is not None
+                    else None
+                ),
             )
 
             return rll.rows or []

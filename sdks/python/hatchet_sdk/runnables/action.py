@@ -14,12 +14,11 @@ from pydantic import (
 )
 
 from hatchet_sdk.runnables.types import BatchMemberId
-from hatchet_sdk.types.priority import Priority
-from hatchet_sdk.utils.opentelemetry import OTelAttribute
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 if TYPE_CHECKING:
     from hatchet_sdk.config import ClientConfig
+    from hatchet_sdk.utils.opentelemetry import OTelAttribute
 
 ActionKey = str
 
@@ -116,7 +115,7 @@ class Action(BaseModel):
     child_workflow_key: str | None = None
     parent_workflow_run_id: str | None = None
 
-    priority: int | Priority | None = None
+    priority: int | None = None
     durable_task_invocation_count: int | None = None
 
     triggering_event_external_id: str | None = None
@@ -129,27 +128,27 @@ class Action(BaseModel):
             payload_str = str(self.action_payload)
 
         attrs: dict[OTelAttribute, str | int | None] = {
-            OTelAttribute.TENANT_ID: self.tenant_id,
-            OTelAttribute.WORKER_ID: self.worker_id,
-            OTelAttribute.WORKFLOW_RUN_ID: self.workflow_run_id,
-            OTelAttribute.TASK_ID: self.task_id,
-            OTelAttribute.TASK_RUN_ID: self.task_run_external_id,
-            OTelAttribute.RETRY_COUNT: self.retry_count,
-            OTelAttribute.PARENT_WORKFLOW_RUN_ID: self.parent_workflow_run_id,
-            OTelAttribute.CHILD_WORKFLOW_INDEX: self.child_workflow_index,
-            OTelAttribute.CHILD_WORKFLOW_KEY: self.child_workflow_key,
-            OTelAttribute.ACTION_PAYLOAD: payload_str,
-            OTelAttribute.WORKFLOW_NAME: self.job_name,
-            OTelAttribute.ACTION_NAME: self.action_id,
-            OTelAttribute.TASK_NAME: self.task_name,
-            OTelAttribute.WORKFLOW_ID: self.workflow_id,
-            OTelAttribute.WORKFLOW_VERSION_ID: self.workflow_version_id,
-            OTelAttribute.TRIGGERING_EVENT_EXTERNAL_ID: self.triggering_event_external_id,
-            OTelAttribute.TRIGGERING_EVENT_KEY: self.triggering_event_key,
+            "tenant_id": self.tenant_id,
+            "worker_id": self.worker_id,
+            "workflow_run_id": self.workflow_run_id,
+            "step_id": self.task_id,
+            "step_run_id": self.task_run_external_id,
+            "retry_count": self.retry_count,
+            "parent_workflow_run_id": self.parent_workflow_run_id,
+            "child_workflow_index": self.child_workflow_index,
+            "child_workflow_key": self.child_workflow_key,
+            "payload": payload_str,
+            "workflow_name": self.job_name,
+            "action_name": self.action_id,
+            "step_name": self.task_name,
+            "workflow_id": self.workflow_id,
+            "workflow_version_id": self.workflow_version_id,
+            "triggering_event_external_id": self.triggering_event_external_id,
+            "triggering_event_key": self.triggering_event_key,
         }
 
         result = {
-            f"hatchet.{k.value}": v
+            f"hatchet.{k}": v
             for k, v in attrs.items()
             if v and k not in config.otel.excluded_attributes
         }

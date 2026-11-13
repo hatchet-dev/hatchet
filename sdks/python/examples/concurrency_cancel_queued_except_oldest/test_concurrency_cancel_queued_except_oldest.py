@@ -59,9 +59,9 @@ async def test_cancel_queued_except_oldest_keeps_only_the_oldest_queued_run(
 
     occupying, oldest_queued, *superseded = runs
 
-    assert occupying.status == RunStatus.COMPLETED
+    assert occupying.status == "COMPLETED"
 
     assert (oldest_queued.additional_metadata or {}).get("i") == "1"
-    assert oldest_queued.status == RunStatus.COMPLETED
+    assert oldest_queued.status == "COMPLETED"
 
-    assert all(r.status == RunStatus.CANCELLED for r in superseded)
+    assert all(r.status == "CANCELLED" for r in superseded)

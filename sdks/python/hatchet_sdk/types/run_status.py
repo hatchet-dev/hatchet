@@ -1,9 +1,3 @@
-from enum import StrEnum
+from typing import Literal
 
-
-class RunStatus(StrEnum):
-    QUEUED = "QUEUED"
-    RUNNING = "RUNNING"
-    COMPLETED = "COMPLETED"
-    CANCELLED = "CANCELLED"
-    FAILED = "FAILED"
+RunStatus = Literal["QUEUED", "RUNNING", "COMPLETED", "CANCELLED", "FAILED"]

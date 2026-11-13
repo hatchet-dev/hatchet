@@ -69,8 +69,8 @@ async def run_until_first_step_fails(
 
     details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
 
-    assert details.task_runs[first.name].status == RunStatus.FAILED
-    assert details.task_runs[second.name].status == RunStatus.CANCELLED
+    assert details.task_runs[first.name].status == "FAILED"
+    assert details.task_runs[second.name].status == "CANCELLED"
 
     return ref.workflow_run_id
 
@@ -80,11 +80,11 @@ async def replay_and_await_completion(
 ) -> dict[str, dict[str, Any] | None]:
     await hatchet.runs.aio_replay(replay_target_id)
     await wait_for_running_status(hatchet, run_id)
-    await wait_for_run_status(hatchet, run_id, RunStatus.COMPLETED, timeout=90)
+    await wait_for_run_status(hatchet, run_id, "COMPLETED", timeout=90)
 
     details = await hatchet.runs.aio_get_details(run_id)
-    assert details.task_runs[first.name].status == RunStatus.COMPLETED
-    assert details.task_runs[second.name].status == RunStatus.COMPLETED
+    assert details.task_runs[first.name].status == "COMPLETED"
+    assert details.task_runs[second.name].status == "COMPLETED"
 
     return {name: task_run.output for name, task_run in details.task_runs.items()}
 
@@ -151,14 +151,14 @@ async def test_dag_single_task_replay_then_cancel_then_whole_run_replay(
     details = await hatchet.runs.aio_get_details(run_id)
 
     await hatchet.runs.aio_replay(details.task_runs[first.name].external_id)
-    await wait_for_task_status(hatchet, run_id, second.name, RunStatus.RUNNING)
+    await wait_for_task_status(hatchet, run_id, second.name, "RUNNING")
 
     await hatchet.runs.aio_cancel(run_id)
-    await wait_for_run_status(hatchet, run_id, RunStatus.CANCELLED)
+    await wait_for_run_status(hatchet, run_id, "CANCELLED")
 
     details = await hatchet.runs.aio_get_details(run_id)
-    assert details.task_runs[first.name].status == RunStatus.COMPLETED
-    assert details.task_runs[second.name].status == RunStatus.CANCELLED
+    assert details.task_runs[first.name].status == "COMPLETED"
+    assert details.task_runs[second.name].status == "CANCELLED"
 
     result = await replay_and_await_completion(hatchet, run_id, run_id)
     assert result[first.name] == {"retry_count": 2}
@@ -179,13 +179,13 @@ async def test_dag_completes_after_replaying_a_step_that_is_still_running(
     )
     run_id = ref.workflow_run_id
 
-    await wait_for_task_status(hatchet, run_id, first.name, RunStatus.RUNNING)
+    await wait_for_task_status(hatchet, run_id, first.name, "RUNNING")
 
     details = await hatchet.runs.aio_get_details(run_id)
     await hatchet.runs.aio_replay(details.task_runs[first.name].external_id)
 
-    await wait_for_run_status(hatchet, run_id, RunStatus.COMPLETED, timeout=120)
+    await wait_for_run_status(hatchet, run_id, "COMPLETED", timeout=120)
 
     details = await hatchet.runs.aio_get_details(run_id)
-    assert details.task_runs[first.name].status == RunStatus.COMPLETED
-    assert details.task_runs[second.name].status == RunStatus.COMPLETED
+    assert details.task_runs[first.name].status == "COMPLETED"
+    assert details.task_runs[second.name].status == "COMPLETED"
