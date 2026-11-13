@@ -71,8 +71,10 @@ type DAGOperator struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	// runCancels lets a CANCEL_STEP_RUN action stop one run without cancelling d.ctx.
-	runCancels syncx.Map[string, context.CancelFunc]
+	// runs lets a CANCEL_STEP_RUN action stop one task's runs without cancelling d.ctx. It holds
+	// one entry per run() call: a task can be assigned again while an older invocation is still
+	// running, so several entries can share a task run external id.
+	runs syncx.Map[*inflightRun, struct{}]
 
 	slots int
 }
@@ -253,8 +255,7 @@ func (d *DAGOperator) cancelRun(ctx context.Context, action *contracts.AssignedA
 
 	span.SetAttributes(attribute.String("dagoperator.task_run_external_id", action.TaskRunExternalId))
 
-	cancel, ok := d.runCancels.Load(action.TaskRunExternalId)
-	if !ok {
+	if !d.cancelRuns(action.TaskRunExternalId) {
 		span.SetAttributes(attribute.Bool("dagoperator.run_found", false))
 
 		d.Logger().Warn().
@@ -268,9 +269,36 @@ func (d *DAGOperator) cancelRun(ctx context.Context, action *contracts.AssignedA
 
 	span.SetAttributes(attribute.Bool("dagoperator.run_found", true))
 
-	cancel()
-
 	return nil
+}
+
+type inflightRun struct {
+	taskRunExternalId string
+	cancel            context.CancelFunc
+}
+
+// trackRun registers one run() call for cancellation; untrack removes only that call's entry.
+func (d *DAGOperator) trackRun(taskRunExternalId string, cancel context.CancelFunc) (untrack func()) {
+	r := &inflightRun{taskRunExternalId: taskRunExternalId, cancel: cancel}
+	d.runs.Store(r, struct{}{})
+
+	return func() { d.runs.Delete(r) }
+}
+
+// cancelRuns cancels every in-flight run of the task and reports whether there was one.
+func (d *DAGOperator) cancelRuns(taskRunExternalId string) bool {
+	found := false
+
+	d.runs.Range(func(r *inflightRun, _ struct{}) bool {
+		if r.taskRunExternalId == taskRunExternalId {
+			r.cancel()
+			found = true
+		}
+
+		return true
+	})
+
+	return found
 }
 
 func (d *DAGOperator) run(action *contracts.AssignedAction) error {
@@ -315,9 +343,9 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 	// Derived from runSpanCtx so buildDAG/RegisterDurableTask/dagDurableTask spans nest under
 	// dagoperator.run instead of starting new traces.
 	runCtx, runCancel := context.WithCancel(runSpanCtx)
-	d.runCancels.Store(action.TaskRunExternalId, runCancel)
+	untrack := d.trackRun(action.TaskRunExternalId, runCancel)
 	defer func() {
-		d.runCancels.Delete(action.TaskRunExternalId)
+		untrack()
 		runCancel()
 	}()
 
