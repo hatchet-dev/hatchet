@@ -105,12 +105,6 @@ const onboardingVerifyRoute = createRoute({
   ),
 });
 
-const redeemOffersRoute = createRoute({
-  getParentRoute: () => authenticatedRoute,
-  path: 'redeem',
-  component: lazyRouteComponent(() => import('./pages/redeem'), 'default'),
-});
-
 const organizationsRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
   path: 'organizations/$organization',
@@ -1235,7 +1229,6 @@ const routeTree = rootRoute.addChildren([
     onboardingCreateOrganizationRoute,
     onboardingNoTenantsRoute,
     onboardingInvitesRoute,
-    redeemOffersRoute,
     organizationsRoute.addChildren([
       organizationSettingsLayoutRoute.addChildren([
         organizationsIndexRoute,
@@ -1292,7 +1285,6 @@ export const appRoutes = {
   authMagicLinkRoute,
   authMFARoute,
   onboardingVerifyRoute,
-  redeemOffersRoute,
   organizationsRoute,
   organizationSettingsLayoutRoute,
   organizationsIndexRoute,
