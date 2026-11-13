@@ -108,7 +108,7 @@ func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *sqlcv1.Tenant, req 
 		// Re-marshal to ensure consistent formatting
 		metadata, err = json.Marshal(metadataMap)
 		if err != nil {
-			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("Failed to marshal metadata: %v", err))
+			return nil, fmt.Errorf("Failed to marshal metadata: %w", err)
 		}
 	}
 

@@ -38,7 +38,8 @@ func (s *V1StreamsService) V1StreamPayloadUpload(ctx echo.Context, request gen.V
 	payload, err := readPayloadPart(request.Body)
 
 	if err != nil {
-		return gen.V1StreamPayloadUpload400JSONResponse(apierrors.NewAPIErrors(err.Error())), nil
+		s.config.Logger.Warn().Err(err).Str("tenant_id", tenant.ID.String()).Msg("could not read stream payload upload")
+		return gen.V1StreamPayloadUpload400JSONResponse(apierrors.NewAPIErrors("could not read payload from multipart body")), nil
 	}
 
 	if len(payload) > repository.MaxStreamUploadedPayloadBytes {

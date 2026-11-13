@@ -686,6 +686,10 @@ func (c *routingCache) upsertLocked(b *batch, row *sqlcv1.V1ServerlessEndpoint) 
 
 		if cfg.secretErr != nil {
 			c.l.Error().Err(cfg.secretErr).Str("endpoint_id", row.ID.String()).Msg("could not decrypt endpoint signing secret")
+			// This cached error is used in task failures and endpoint status responses.
+			if cfg.secretEnc != "" {
+				cfg.secretErr = errors.New("could not decrypt signing secret")
+			}
 		}
 	}
 

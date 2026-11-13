@@ -508,13 +508,14 @@ func (validHealthSender) Deliver(context.Context, string, string, []byte, http.H
 }
 
 // A healthcheck that succeeds over HTTP but whose workflows the engine keeps rejecting is one
-// status write (unhealthy with the engine's error), not a healthy/unhealthy pair per poll.
+// status write, with the internal cause confined to logs.
 func TestPersistentWorkflowRejectionWritesStatusOnce(t *testing.T) {
 	c, repo := budgetCache(t, 1, 0)
 	ep := c.byId[repo.rows[0].ID]
 
 	ts := &tenantState{cache: c, reg: &registration{session: rejectingSession{}}, hcSem: make(chan struct{}, 4)}
-	l := zerolog.Nop()
+	var logs bytes.Buffer
+	l := zerolog.New(&logs)
 	r := &runner{repo: budgetRootRepo{ep: repo}, cfg: DefaultConfig(), sender: validHealthSender{}, l: &l, m: newMetrics("budget-status"), hcSem: make(chan struct{}, 256)}
 	ts.reg.r = r
 	p := newEndpointPoller(r, ts, ep)
@@ -528,7 +529,8 @@ func TestPersistentWorkflowRejectionWritesStatusOnce(t *testing.T) {
 	assert.Equal(t, []bool{false}, repo.statuses, "the rejection is written once, as the poll's single outcome")
 	assert.True(t, ep.cfg.healthKnown)
 	assert.False(t, ep.cfg.healthy)
-	assert.Contains(t, ep.cfg.statusError, "persistent workflow rejection")
+	assert.Equal(t, "could not register endpoint workflows", ep.cfg.statusError)
+	assert.Contains(t, logs.String(), "persistent workflow rejection")
 }
 
 // newRegistrationForTest builds a registration advertising the cache's current union over
