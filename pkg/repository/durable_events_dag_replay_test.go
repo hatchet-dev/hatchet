@@ -68,7 +68,6 @@ func ingestDagStepTriggerResult(
 					ParentTaskId:         &parentTaskId,
 					ParentTaskInsertedAt: &parentTaskInsertedAt,
 					ChildIndex:           &childIndex,
-					WorkflowRunId:        &parentExternalId,
 				},
 			}},
 		},
