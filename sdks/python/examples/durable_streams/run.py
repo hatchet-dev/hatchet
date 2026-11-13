@@ -82,13 +82,13 @@ async def reset_to_cursor() -> None:
     # > Reset to a cursor
     cursor = None
 
-    async for event in hatchet.streams.subscribe("orders"):
+    async for event in hatchet.streams.aio_subscribe("orders"):
         cursor = event.cursor
         break
 
     await hatchet.streams.aio_reset("orders", cursor=cursor)
 
-    async for event in hatchet.streams.subscribe("orders"):
+    async for event in hatchet.streams.aio_subscribe("orders"):
         print(event.payload.decode())
     # !!
 

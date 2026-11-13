@@ -262,12 +262,12 @@ async def wf_durable_async_task_with_dependencies(
 
 
 @contextmanager
-def shared_resource_dep(input: EmptyModel, ctx: Context) -> Generator[str, None, None]:
+def shared_resource_dep(input: None, ctx: Context) -> Generator[str, None, None]:
     yield str(uuid4())
 
 
 def first_consumer_of_shared_resource_dep(
-    input: EmptyModel,
+    input: None,
     ctx: Context,
     shared_resource: Annotated[str, Depends(shared_resource_dep)],
 ) -> str:
@@ -275,7 +275,7 @@ def first_consumer_of_shared_resource_dep(
 
 
 async def second_consumer_of_shared_resource_dep(
-    input: EmptyModel,
+    input: None,
     ctx: Context,
     shared_resource: Annotated[str, Depends(shared_resource_dep)],
 ) -> str:
@@ -290,7 +290,7 @@ class SharedDependencyOutput(BaseModel):
 
 @hatchet.task()
 async def task_with_shared_dependency(
-    _i: EmptyModel,
+    _i: None,
     ctx: Context,
     direct: Annotated[str, Depends(shared_resource_dep)],
     first_consumer: Annotated[str, Depends(first_consumer_of_shared_resource_dep)],
@@ -312,9 +312,7 @@ class TransactionRolledBackError(Exception):
 
 
 @contextmanager
-def sync_transaction_dep(
-    input: EmptyModel, ctx: Context
-) -> Generator[None, None, None]:
+def sync_transaction_dep(input: None, ctx: Context) -> Generator[None, None, None]:
     try:
         yield
     except Exception as e:
@@ -323,7 +321,7 @@ def sync_transaction_dep(
 
 @asynccontextmanager
 async def async_transaction_dep(
-    input: EmptyModel, ctx: Context
+    input: None, ctx: Context
 ) -> AsyncGenerator[None, None]:
     try:
         yield
@@ -333,7 +331,7 @@ async def async_transaction_dep(
 
 @asynccontextmanager
 async def exception_swallowing_dep(
-    input: EmptyModel, ctx: Context
+    input: None, ctx: Context
 ) -> AsyncGenerator[None, None]:
     try:
         yield
@@ -343,7 +341,7 @@ async def exception_swallowing_dep(
 
 @hatchet.task()
 def failing_task_with_sync_transaction(
-    _i: EmptyModel,
+    _i: None,
     ctx: Context,
     transaction: Annotated[None, Depends(sync_transaction_dep)],
 ) -> None:
@@ -352,7 +350,7 @@ def failing_task_with_sync_transaction(
 
 @hatchet.task()
 async def failing_task_with_async_transaction(
-    _i: EmptyModel,
+    _i: None,
     ctx: Context,
     transaction: Annotated[None, Depends(async_transaction_dep)],
 ) -> None:
@@ -361,7 +359,7 @@ async def failing_task_with_async_transaction(
 
 @hatchet.task()
 async def failing_task_with_exception_swallowing_dependency(
-    _i: EmptyModel,
+    _i: None,
     ctx: Context,
     swallower: Annotated[None, Depends(exception_swallowing_dep)],
 ) -> None:
@@ -370,7 +368,7 @@ async def failing_task_with_exception_swallowing_dependency(
 
 @hatchet.task()
 async def failing_task_with_transaction_entered_before_exception_swallowing_dependency(
-    _i: EmptyModel,
+    _i: None,
     ctx: Context,
     transaction: Annotated[None, Depends(async_transaction_dep)],
     swallower: Annotated[None, Depends(exception_swallowing_dep)],

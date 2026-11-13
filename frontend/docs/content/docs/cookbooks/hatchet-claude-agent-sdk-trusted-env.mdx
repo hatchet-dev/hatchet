@@ -342,11 +342,11 @@ In the agent, publish the text and tool calls of each assistant message, and the
         if isinstance(message, AssistantMessage):
             for block in message.content:
                 if isinstance(block, TextBlock):
-                    await hatchet.streams.publish(topic, json.dumps({"type": "text", "text": block.text}))
+                    await hatchet.streams.aio_publish(topic, json.dumps({"type": "text", "text": block.text}))
                 elif isinstance(block, ToolUseBlock):
-                    await hatchet.streams.publish(topic, json.dumps({"type": "tool", "name": block.name}))
+                    await hatchet.streams.aio_publish(topic, json.dumps({"type": "tool", "name": block.name}))
         elif isinstance(message, ResultMessage):
-            await hatchet.streams.publish(topic, json.dumps({"type": "done", "result": message.result}))
+            await hatchet.streams.aio_publish(topic, json.dumps({"type": "done", "result": message.result}))
     ```
 
   </Tabs.Tab>
@@ -381,7 +381,7 @@ Then read the topic wherever you show progress:
   <Tabs.Tab title="Python">
 
     ```python
-    async for event in hatchet.streams.subscribe("support-agent-C-100"):
+    async for event in hatchet.streams.aio_subscribe("support-agent-C-100"):
         step = json.loads(event.payload)
         print(step)
         if step["type"] == "done":
