@@ -294,3 +294,48 @@ DELETE FROM
     v1_match_condition
 WHERE
     v1_match_id IN (SELECT id FROM deleted_match_ids);
+
+-- name: DeleteRunEntryCompletionMatches :exec
+-- Every run entry completion match has an unsatisfied COMPLETED condition hinted by the child's
+-- external id, which is the indexed path to the match. The entry columns limit the delete to the
+-- given entries' matches; other matches hinted by the same child stay.
+WITH input AS (
+    SELECT
+        UNNEST(@childExternalIds::TEXT[]) AS child_external_id,
+        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST(@nodeIds::BIGINT[]) AS node_id,
+        UNNEST(@branchIds::BIGINT[]) AS branch_id
+), matches AS (
+    SELECT
+        m.id
+    FROM
+        input i
+    JOIN
+        v1_match_condition mc ON mc.tenant_id = @tenantId::UUID
+        AND mc.event_type = 'INTERNAL'
+        AND mc.event_key = 'COMPLETED'
+        AND mc.is_satisfied = FALSE
+        AND mc.event_resource_hint = i.child_external_id
+    JOIN
+        v1_match m ON m.id = mc.v1_match_id
+    WHERE
+        m.kind = 'SIGNAL'
+        AND m.signal_task_id = i.durable_task_id
+        AND m.signal_task_inserted_at = i.durable_task_inserted_at
+        AND m.durable_event_log_entry_node_id = i.node_id
+        AND m.durable_event_log_entry_branch_id = i.branch_id
+), deleted_conditions AS (
+    DELETE FROM
+        v1_match_condition mc
+    USING
+        matches
+    WHERE
+        mc.v1_match_id = matches.id
+)
+DELETE FROM
+    v1_match m
+USING
+    matches
+WHERE
+    m.id = matches.id;
