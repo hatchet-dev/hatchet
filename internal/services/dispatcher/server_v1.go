@@ -967,6 +967,10 @@ func (d *DispatcherServiceImpl) handleDurableTaskRequest(
 			_ = recoveryutils.RecoverWithAlert(d.l, d.alerter, r)
 			err = fmt.Errorf("recovered from panic handling %T: %v", req.GetMessage(), r)
 		}
+
+		if err != nil {
+			d.sendRequestFailure(invocation, req, err)
+		}
 	}()
 
 	ctx, span := telemetry.NewRootSpan(ctx, "dispatcher.handle-durable-task-request")
@@ -992,6 +996,56 @@ func (d *DispatcherServiceImpl) handleDurableTaskRequest(
 		return d.handleCompleteMemo(ctx, invocation, msg.CompleteMemo)
 	default:
 		return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("unknown message type: %T", msg))
+	}
+}
+
+// sendRequestFailure answers a memo, trigger_runs or wait_for request that failed. The worker
+// blocks on the ack for each of these, so without an answer it waits until its stream drops.
+// The handlers return an error only before sending the ack, since an error after it would
+// fail the next request of the same invocation instead. Only a panic after the ack, which is
+// an engine bug, still answers a request twice.
+func (d *DispatcherServiceImpl) sendRequestFailure(invocation *durableTaskInvocation, req *contracts.DurableTaskRequest, err error) {
+	if errors.Is(err, context.Canceled) || errors.Is(err, errDurableTaskSessionClosed) {
+		return
+	}
+
+	var taskExternalId string
+	var invocationCount int32
+
+	switch msg := req.GetMessage().(type) {
+	case *contracts.DurableTaskRequest_Memo:
+		taskExternalId, invocationCount = msg.Memo.DurableTaskExternalId, msg.Memo.InvocationCount
+	case *contracts.DurableTaskRequest_TriggerRuns:
+		taskExternalId, invocationCount = msg.TriggerRuns.DurableTaskExternalId, msg.TriggerRuns.InvocationCount
+	case *contracts.DurableTaskRequest_WaitFor:
+		taskExternalId, invocationCount = msg.WaitFor.DurableTaskExternalId, msg.WaitFor.InvocationCount
+	default:
+		return
+	}
+
+	// only an invalid request's message is the caller's to see; anything else may carry
+	// database or transport details
+	message := "the engine failed to handle this request"
+
+	var connectErr *connect.Error
+	if errors.As(err, &connectErr) && connectErr.Code() == connect.CodeInvalidArgument {
+		message = connectErr.Message()
+	}
+
+	sendErr := invocation.send(&contracts.DurableTaskResponse{
+		Message: &contracts.DurableTaskResponse_Error{
+			Error: &contracts.DurableTaskErrorResponse{
+				Ref: &contracts.DurableEventLogEntryRef{
+					DurableTaskExternalId: taskExternalId,
+					InvocationCount:       invocationCount,
+				},
+				ErrorType:    contracts.DurableTaskErrorType_DURABLE_TASK_ERROR_TYPE_UNSPECIFIED,
+				ErrorMessage: message,
+			},
+		},
+	})
+	if sendErr != nil {
+		d.logDurableTaskRequestError(fmt.Errorf("failed to send request failure: %w", sendErr))
 	}
 }
 
@@ -1059,7 +1113,10 @@ func (d *DispatcherServiceImpl) sendStaleInvocationEviction(invocation *durableT
 	})
 }
 
-func (d *DispatcherServiceImpl) deliverSatisfiedEntries(tenantId uuid.UUID, taskExternalId string, result *v1.IngestDurableTaskEventResult) error {
+// deliverSatisfiedEntries runs after the ack, so it logs its failures instead of returning them:
+// a returned error would answer the request a second time (see sendRequestFailure). An entry it
+// fails to deliver is delivered again when the worker reports it as waiting.
+func (d *DispatcherServiceImpl) deliverSatisfiedEntries(tenantId uuid.UUID, taskExternalId string, result *v1.IngestDurableTaskEventResult) {
 	switch result.Kind {
 	case sqlcv1.V1DurableEventLogKindRUN:
 		for _, entry := range result.TriggerRunsResult.Entries {
@@ -1076,7 +1133,8 @@ func (d *DispatcherServiceImpl) deliverSatisfiedEntries(tenantId uuid.UUID, task
 					entry.ChildTaskIsFailure,
 					entry.ChildTaskErrorMessage,
 				); err != nil {
-					return fmt.Errorf("failed to deliver callback completion for node %d: %w", entry.NodeId, err)
+					d.logDurableTaskRequestError(fmt.Errorf("failed to deliver callback completion for node %d: %w", entry.NodeId, err))
+					return
 				}
 			}
 		}
@@ -1094,7 +1152,7 @@ func (d *DispatcherServiceImpl) deliverSatisfiedEntries(tenantId uuid.UUID, task
 				false,
 				nil,
 			); err != nil {
-				return fmt.Errorf("failed to deliver callback completion for node %d: %w", result.MemoResult.NodeId, err)
+				d.logDurableTaskRequestError(fmt.Errorf("failed to deliver callback completion for node %d: %w", result.MemoResult.NodeId, err))
 			}
 		}
 	case sqlcv1.V1DurableEventLogKindWAITFOR:
@@ -1111,13 +1169,12 @@ func (d *DispatcherServiceImpl) deliverSatisfiedEntries(tenantId uuid.UUID, task
 				false,
 				nil,
 			); err != nil {
-				return fmt.Errorf("failed to deliver callback completion for node %d: %w", result.WaitForResult.NodeId, err)
+				d.logDurableTaskRequestError(fmt.Errorf("failed to deliver callback completion for node %d: %w", result.WaitForResult.NodeId, err))
 			}
 		}
 	default:
-		return fmt.Errorf("unknown durable event log kind: %s", result.Kind)
+		d.logDurableTaskRequestError(fmt.Errorf("unknown durable event log kind: %s", result.Kind))
 	}
-	return nil
 }
 
 func (d *DispatcherServiceImpl) handleMemo(
@@ -1187,7 +1244,9 @@ func (d *DispatcherServiceImpl) handleMemo(
 		return fmt.Errorf("failed to send memo ack: %w", err)
 	}
 
-	return d.deliverSatisfiedEntries(invocation.tenantId, req.DurableTaskExternalId, ingestionResult)
+	d.deliverSatisfiedEntries(invocation.tenantId, req.DurableTaskExternalId, ingestionResult)
+
+	return nil
 }
 
 func (d *DispatcherServiceImpl) handleTriggerRuns(
@@ -1312,7 +1371,9 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 		return fmt.Errorf("failed to send trigger runs ack: %w", err)
 	}
 
-	return d.deliverSatisfiedEntries(invocation.tenantId, req.DurableTaskExternalId, ingestionResult)
+	d.deliverSatisfiedEntries(invocation.tenantId, req.DurableTaskExternalId, ingestionResult)
+
+	return nil
 }
 
 func (d *DispatcherServiceImpl) handleWaitFor(
@@ -1433,7 +1494,9 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 		return fmt.Errorf("failed to send wait_for ack: %w", err)
 	}
 
-	return d.deliverSatisfiedEntries(invocation.tenantId, req.DurableTaskExternalId, ingestionResult)
+	d.deliverSatisfiedEntries(invocation.tenantId, req.DurableTaskExternalId, ingestionResult)
+
+	return nil
 }
 
 func (d *DispatcherServiceImpl) handleCompleteMemo(
