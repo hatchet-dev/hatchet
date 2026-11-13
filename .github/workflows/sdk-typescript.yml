@@ -438,6 +438,9 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Test
+        run: pnpm test
+
   publish:
     # npm trusted publishing only accepts OIDC from GitHub-hosted runners.
     runs-on: ubuntu-latest

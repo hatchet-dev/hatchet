@@ -293,11 +293,11 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 		childExternalIds, err := a.repo.Tasks().ListDurableOrchestratorChildExternalIds(ctx, tenant.ID, task.ExternalID)
 
 		if err != nil {
-			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to list orchestrator children for replay: %v", err))
+			return nil, fmt.Errorf("failed to list orchestrator children for replay: %w", err)
 		}
 
 		if _, err := a.repo.DurableEvents().HandleBranchForDAGReplay(ctx, tenant.ID, task, childExternalIds); err != nil {
-			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to branch durable task for replay: %v", err))
+			return nil, fmt.Errorf("failed to branch durable task for replay: %w", err)
 		}
 	}
 
@@ -431,7 +431,7 @@ func (a *AdminServiceImpl) handleOperatorDAGStepReplays(
 	parents, err := a.repo.Tasks().FlattenExternalIds(ctx, tenantId, parentExternalIds)
 
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to look up parent tasks for replay: %v", err))
+		return nil, fmt.Errorf("failed to look up parent tasks for replay: %w", err)
 	}
 
 	orchestrators := make(map[uuid.UUID]*sqlcv1.FlattenExternalIdsRow)
@@ -488,7 +488,7 @@ func (a *AdminServiceImpl) handleOperatorDAGStepReplays(
 		branch, err := a.repo.DurableEvents().HandleBranchForDAGReplay(ctx, tenantId, orchestrator, childExternalIds)
 
 		if err != nil {
-			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to branch durable task for step replay: %v", err))
+			return nil, fmt.Errorf("failed to branch durable task for step replay: %w", err)
 		}
 
 		if branch == nil {
@@ -567,7 +567,7 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 			)
 
 			if err != nil {
-				return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to build idempotency collision error: %v", err))
+				return nil, fmt.Errorf("failed to build idempotency collision error: %w", err)
 			}
 
 			collisionErr := connect.NewError(connect.CodeAlreadyExists, errors.New("idempotency key collision"))
@@ -595,13 +595,13 @@ func (a *AdminServiceImpl) BranchDurableTask(ctx context.Context, req *contracts
 
 	task, err := a.repo.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, true)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("task not found: %v", err))
+		return nil, fmt.Errorf("failed to get task: %w", err)
 	}
 
 	result, err := a.repo.DurableEvents().HandleBranch(ctx, tenantId, req.NodeId, req.BranchId, task)
 
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to branch durable task: %v", err))
+		return nil, fmt.Errorf("failed to branch durable task: %w", err)
 	}
 
 	replayPayload := tasktypes.ReplayTasksPayload{
@@ -618,11 +618,11 @@ func (a *AdminServiceImpl) BranchDurableTask(ctx context.Context, req *contracts
 
 	msg, err := msgqueue.NewTenantMessage(tenantId, msgqueue.MsgIDReplayTasks, false, true, replayPayload)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to create replay message: %v", err))
+		return nil, fmt.Errorf("failed to create replay message: %w", err)
 	}
 
 	if err := a.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to send replay message: %v", err))
+		return nil, fmt.Errorf("failed to send replay message: %w", err)
 	}
 
 	return &contracts.BranchDurableTaskResponse{

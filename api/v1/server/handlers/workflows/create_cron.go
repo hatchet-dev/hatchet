@@ -2,8 +2,12 @@ package workflows
 
 import (
 	"encoding/json"
-	"strings"
+	"errors"
+	"fmt"
 
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
@@ -27,7 +31,10 @@ func (t *WorkflowService) CronWorkflowTriggerCreate(ctx echo.Context, request ge
 	workflow, err := t.config.V1.Workflows().GetWorkflowByName(ctx.Request().Context(), tenantId, request.Workflow)
 
 	if err != nil {
-		return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors("workflow not found")), nil
+		if errors.Is(err, pgx.ErrNoRows) {
+			return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors("workflow not found")), nil
+		}
+		return nil, fmt.Errorf("could not look up workflow for cron trigger: %w", err)
 	}
 
 	var priority int32 = 1
@@ -74,11 +81,12 @@ func (t *WorkflowService) CronWorkflowTriggerCreate(ctx echo.Context, request ge
 
 	cronTrigger, err := t.config.V1.WorkflowSchedules().CreateCronWorkflow(ctx.Request().Context(), tenantId, opts)
 	if err != nil {
-		if strings.Contains(err.Error(), "unique constraint") {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
 			return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors("cron trigger with that name-expression pair already exists")), nil
 		}
 
-		return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors("error creating cron trigger")), nil
+		return nil, fmt.Errorf("could not create cron trigger: %w", err)
 	}
 	msg := tasktypes.NewCronUpdateMessage(request.Tenant, msgqueue.MsgIDCronCreate)
 	err = t.config.PubSubV1.Pub(ctx.Request().Context(), msgqueue.CronRefreshTopic(), msg)

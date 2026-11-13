@@ -1,10 +1,15 @@
 package streams
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
+	"mime/multipart"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -58,6 +63,49 @@ func (r payloadRepository) TenantEntitlement() repository.TenantEntitlementRepos
 }
 
 func (r payloadRepository) Streams() repository.StreamsRepository { return r.streams }
+
+func TestPayloadUploadReadFailureIsLoggedAndRedacted(t *testing.T) {
+	cause := &net.OpError{
+		Op: "read", Net: "tcp",
+		Source: &net.TCPAddr{IP: net.ParseIP("10.0.0.8"), Port: 8080},
+		Addr:   &net.TCPAddr{IP: net.ParseIP("192.0.2.1"), Port: 12345},
+		Err:    errors.New("connection reset by peer"),
+	}
+
+	for _, prefix := range []string{"", "--boundary\r\nContent-Disposition: form-data; name=payload\r\n\r\n"} {
+		name := "multipart_headers"
+		if prefix != "" {
+			name = "payload_body"
+		}
+		t.Run(name, func(t *testing.T) {
+			var logs bytes.Buffer
+			l := zerolog.New(&logs)
+			tenantID := uuid.New()
+			s := NewV1StreamsService(&server.ServerConfig{
+				Layer:  &database.Layer{V1: payloadRepository{}},
+				Logger: &l,
+			}, nil)
+			body := multipart.NewReader(io.MultiReader(strings.NewReader(prefix), failingPayloadReader{cause}), "boundary")
+			ctx := echo.New().NewContext(httptest.NewRequest(http.MethodPost, "/", nil), httptest.NewRecorder())
+			ctx.Set("tenant", &sqlcv1.Tenant{ID: tenantID})
+
+			resp, err := s.V1StreamPayloadUpload(ctx, gen.V1StreamPayloadUploadRequestObject{Body: body})
+			require.NoError(t, err)
+			recorder := httptest.NewRecorder()
+			require.NoError(t, resp.VisitV1StreamPayloadUploadResponse(recorder))
+			assert.Equal(t, http.StatusBadRequest, recorder.Code)
+			assert.Contains(t, recorder.Body.String(), "could not read payload from multipart body")
+			assert.NotContains(t, recorder.Body.String(), "10.0.0.8")
+			assert.NotContains(t, recorder.Body.String(), "connection reset by peer")
+			assert.Contains(t, logs.String(), cause.Error())
+			assert.Contains(t, logs.String(), tenantID.String())
+		})
+	}
+}
+
+type failingPayloadReader struct{ err error }
+
+func (r failingPayloadReader) Read([]byte) (int, error) { return 0, r.err }
 
 func TestPayloadGetBillsTheBytesItReturns(t *testing.T) {
 	tenantId := uuid.New()

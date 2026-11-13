@@ -75,7 +75,7 @@ func (oc *otelCollectorImpl) Export(ctx context.Context, req *collectortracev1.E
 		return &collectortracev1.ExportTraceServiceResponse{
 			PartialSuccess: &collectortracev1.ExportTracePartialSuccess{
 				RejectedSpans: int64(len(spans)) + rejected,
-				ErrorMessage:  err.Error(),
+				ErrorMessage:  "failed to store spans",
 			},
 		}, nil
 	}
@@ -94,7 +94,7 @@ func (oc *otelCollectorImpl) Export(ctx context.Context, req *collectortracev1.E
 		return &collectortracev1.ExportTraceServiceResponse{
 			PartialSuccess: &collectortracev1.ExportTracePartialSuccess{
 				RejectedSpans: int64(len(spans)) + rejected,
-				ErrorMessage:  err.Error(),
+				ErrorMessage:  "failed to create span lookup table entries",
 			},
 		}, nil
 	}

@@ -26,6 +26,8 @@ import {
   isBeforeRetention,
   isTimeWindowOutsideRetention,
   largestAllowedTimeWindow,
+  TIME_WINDOW_HOURS,
+  TIME_WINDOW_PRESETS,
   type TimeWindowPreset,
 } from '@/lib/utils/retention';
 import { ColumnFiltersState } from '@tanstack/react-table';
@@ -34,22 +36,10 @@ import { z } from 'zod';
 
 type TimeWindow = TimeWindowPreset;
 
-const getCreatedAfterFromTimeRange = (timeWindow: TimeWindow): string => {
-  switch (timeWindow) {
-    case '1h':
-      return new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    case '6h':
-      return new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
-    case '1d':
-      return new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    case '7d':
-      return new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    default: {
-      const exhaustiveCheck: never = timeWindow;
-      throw new Error(`Unhandled time range: ${exhaustiveCheck}`);
-    }
-  }
-};
+const getCreatedAfterFromTimeRange = (timeWindow: TimeWindow): string =>
+  new Date(
+    Date.now() - TIME_WINDOW_HOURS[timeWindow] * 60 * 60 * 1000,
+  ).toISOString();
 
 export type AdditionalMetadataProp = {
   key: string;
@@ -91,7 +81,7 @@ export type FilterActions = {
 
 const createApiFilterSchema = (initialValues?: { workflowIds?: string[] }) =>
   z.object({
-    tw: z.enum(['1h', '6h', '1d', '7d']).default('1d'), // time window preset
+    tw: z.enum(TIME_WINDOW_PRESETS).default('1d'), // time window preset
     ctr: z.boolean().default(false), // whether using custom range
     s: z.string().optional(), // since
     u: z.string().optional(), // until

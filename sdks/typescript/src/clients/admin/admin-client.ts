@@ -15,6 +15,7 @@ import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import { AdminServiceClient, CreateWorkflowVersionRequest } from '@hatchet/protoc/v1/workflows';
 import { Priority, RunsClient, WorkerLabelComparator } from '@hatchet/v1';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
+import { serializePayload } from '@hatchet/util/serialize-payload';
 import { DesiredWorkerLabels } from '@hatchet/protoc/v1/shared/trigger';
 import { createNodeTransport, type Transport } from '@clients/transport';
 import { Api } from '../rest';
@@ -245,7 +246,7 @@ export class AdminClient {
     const computedName = applyNamespace(workflowName, this.config.namespace);
 
     try {
-      const inputStr = JSON.stringify(input);
+      const inputStr = serializePayload(input);
 
       const opts = options ?? {};
       const {
@@ -262,7 +263,7 @@ export class AdminClient {
         ...rest,
         // API expects `parentTaskRunExternalId`; accept the old name as an alias.
         parentTaskRunExternalId: parentTaskRunExternalId ?? parentStepRunId,
-        additionalMetadata: additionalMetadata ? JSON.stringify(additionalMetadata) : undefined,
+        additionalMetadata: additionalMetadata ? serializePayload(additionalMetadata) : undefined,
         priority: opts.priority,
         desiredWorkerLabels: desiredWorkerLabels
           ? convertDesiredWorkerLabels(desiredWorkerLabels)
@@ -309,7 +310,7 @@ export class AdminClient {
     // Prepare workflows to be triggered in bulk
     const workflowRequests = workflowRuns.map(({ workflowName, input, options }) => {
       const computedName = applyNamespace(workflowName, this.config.namespace);
-      const inputStr = JSON.stringify(input);
+      const inputStr = serializePayload(input);
 
       const opts = options ?? {};
       const {
@@ -325,7 +326,7 @@ export class AdminClient {
         input: inputStr,
         ...rest,
         parentTaskRunExternalId: parentTaskRunExternalId ?? parentStepRunId,
-        additionalMetadata: additionalMetadata ? JSON.stringify(additionalMetadata) : undefined,
+        additionalMetadata: additionalMetadata ? serializePayload(additionalMetadata) : undefined,
         desiredWorkerLabels: desiredWorkerLabels
           ? convertDesiredWorkerLabels(desiredWorkerLabels)
           : {},
@@ -482,7 +483,7 @@ export class AdminClient {
       let input: string | undefined;
 
       if (options?.input) {
-        input = JSON.stringify(options.input);
+        input = serializePayload(options.input);
       }
 
       this.client.scheduleWorkflow({

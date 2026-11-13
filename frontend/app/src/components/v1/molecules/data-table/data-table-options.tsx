@@ -37,7 +37,7 @@ import {
   isCustomTimeRangeKey,
   timeWindowKey,
 } from '@/pages/main/v1/workflow-runs-v1/components/v1/task-runs-columns';
-import { XCircleIcon } from '@heroicons/react/24/outline';
+import { TableCellsIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import { Cross2Icon, MixerHorizontalIcon } from '@radix-ui/react-icons';
 import { ChevronDownIcon } from '@radix-ui/react-icons';
 import { ColumnFiltersState, Table } from '@tanstack/react-table';
@@ -776,6 +776,26 @@ function FiltersContent<TData>({
         </div>
       </div>
     </div>
+  );
+}
+
+export function DataTableColumnsButton<TData>({
+  table,
+  columnKeyToName,
+}: ColumnsContentProps<TData>) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="flex-shrink-0">
+          <TableCellsIcon className="size-4" />
+          <span className="cq-xl:inline ml-2 hidden text-sm">Columns</span>
+          <ChevronDownIcon className="cq-xl:inline ml-2 hidden size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64 p-0 shadow-lg">
+        <ColumnsContent table={table} columnKeyToName={columnKeyToName} />
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

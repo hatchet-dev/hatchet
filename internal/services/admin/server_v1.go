@@ -96,7 +96,7 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *v1contrac
 			)
 
 			if detailErr != nil {
-				return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to build idempotency collision error: %v", detailErr))
+				return nil, fmt.Errorf("failed to build idempotency collision error: %w", detailErr)
 			}
 
 			collisionErr := connect.NewError(connect.CodeAlreadyExists, errors.New("idempotency key collision"))
@@ -210,7 +210,7 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 		)
 
 		if detailErr != nil {
-			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to build idempotency collision error: %v", detailErr))
+			return nil, fmt.Errorf("failed to build idempotency collision error: %w", detailErr)
 		}
 
 		collisionErr := connect.NewError(connect.CodeAlreadyExists, errors.New("idempotency key collision"))

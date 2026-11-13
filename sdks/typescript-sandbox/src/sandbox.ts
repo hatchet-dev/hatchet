@@ -1,6 +1,16 @@
 import { HatchetClient, JsonObject } from '@hatchet-dev/typescript-sdk/v1';
+import { z } from 'zod';
 import { Files } from './files.js';
 import { setupTelemetry } from './otel.js';
+import {
+  commandOutput,
+  metadata,
+  sandboxInfo,
+  turnInput,
+  turnResult,
+  type TurnInput,
+  type TurnResult,
+} from './wire.js';
 
 const TASK_NAMES = ['hatchet-sandbox', 'brickie-sandbox'];
 const taskNames = new WeakMap<HatchetClient, Promise<string>>();
@@ -41,23 +51,8 @@ function resolveTaskName(client: HatchetClient): Promise<string> {
   return pending;
 }
 
-interface TurnInput extends JsonObject {
-  sandboxId?: string;
-  image?: string;
-  fn: string;
-  input: JsonObject;
-  snapshotId?: string;
-  metadata?: Record<string, string>;
-  idleTtlMs?: number;
-  inheritMetadata?: boolean;
-}
-
-interface TurnResult extends JsonObject {
-  output: JsonObject;
-  sandboxId: string;
-  snapshotId?: string;
-  timings?: Record<string, number>;
-}
+const positiveInt = z.int().positive();
+const nonEmpty = z.string().min(1);
 
 export interface Timings {
   /** Snapshot made after this turn. Absent for turns that do not change the workspace. */
@@ -72,6 +67,10 @@ export interface CommandResult extends Timings {
   /** A non-zero code is a normal result, not an error. */
   exitCode: number;
 }
+
+const commandResult = commandOutput.extend(
+  turnResult.pick({ snapshotId: true, timings: true }).shape
+);
 
 export interface SandboxOpts {
   /** Sandbox ID to use instead of a generated one. Lowercase letters, digits, and hyphens; must be new on the provider. */
@@ -111,47 +110,71 @@ const UNITS: Record<string, number> = {
   Gi: 2 ** 30,
   Ti: 2 ** 40,
 };
+const QUANTITY = /^(\d+(?:\.\d+)?)\s*([KMGT]i?)B?$/;
 
-function toMib(value: number | string, field: string): number {
-  if (typeof value === 'number') {
-    if (!Number.isInteger(value) || value <= 0)
-      throw new Error(`resources.${field}: expected a positive whole number of MiB`);
-    return value;
+const mib = z.union(
+  [
+    positiveInt,
+    z
+      .string()
+      .trim()
+      .regex(QUANTITY)
+      .transform((s) => {
+        const [, n, unit] = QUANTITY.exec(s)!;
+        return Math.ceil((Number(n) * UNITS[unit]) / UNITS.Mi);
+      })
+      .pipe(z.int().min(1)),
+  ],
+  {
+    error:
+      "expected a positive whole number of MiB or a quantity with a unit like '512Mi', '4Gi' or '8G'",
   }
-  const m = /^(\d+(?:\.\d+)?)\s*([KMGT]i?)B?$/.exec(value.trim());
-  if (!m)
-    throw new Error(
-      `resources.${field}: expected a quantity with a unit like '512Mi', '4Gi' or '8G', or a number of MiB, got ${JSON.stringify(value)}`
-    );
-  const bytes = Number(m[1]) * UNITS[m[2]];
-  const mib = Math.ceil(bytes / UNITS.Mi);
-  if (mib <= 0) throw new Error(`resources.${field}: must be at least 1Mi`);
-  return mib;
-}
+);
 
-function wireResources(r: Resources): JsonObject {
-  const out: JsonObject = {};
-  if (r.vcpu !== undefined) {
-    if (!Number.isInteger(r.vcpu) || r.vcpu <= 0)
-      throw new Error('resources.vcpu: expected a positive whole number of cores');
-    out.vcpu = r.vcpu;
-  }
-  if (r.memory !== undefined) out.memoryMib = toMib(r.memory, 'memory');
-  if (r.disk !== undefined) out.diskMib = toMib(r.disk, 'disk');
-  if (Object.keys(out).length === 0)
-    throw new Error('resources: set at least one of vcpu, memory, disk');
-  return out;
-}
+const resources = z
+  .strictObject({
+    vcpu: positiveInt.optional(),
+    memory: mib.optional(),
+    disk: mib.optional(),
+  })
+  .refine(
+    (r) => r.vcpu !== undefined || r.memory !== undefined || r.disk !== undefined,
+    'set at least one of vcpu, memory, disk'
+  )
+  .transform(({ vcpu, memory, disk }) => ({ vcpu, memoryMib: memory, diskMib: disk }));
+
+const sandboxOpts = z
+  .strictObject({
+    id: z
+      .string()
+      .regex(/^[a-z0-9-]+$/, 'lowercase letters, digits, and hyphens only')
+      .optional(),
+    template: nonEmpty.optional(),
+    from: nonEmpty.optional(),
+    metadata: metadata.optional(),
+    idleTimeoutMs: positiveInt.optional(),
+    inheritParentMetadata: z.boolean().optional(),
+    provider: nonEmpty.optional(),
+    resources: resources.optional(),
+  })
+  .refine((o) => !o.inheritParentMetadata || o.from !== undefined, {
+    error: 'inheritParentMetadata needs from',
+    path: ['inheritParentMetadata'],
+  });
 
 export interface ExecOpts {
   /** Kill the command after this long. The result then has `exitCode` 124. */
   timeoutMs?: number;
 }
 
+const execOpts = z.strictObject({ timeoutMs: positiveInt.optional() });
+
 export interface ConnectOpts {
   /** Image to use if the sandbox has to be started again. Defaults to the provider's image. */
   template?: string;
 }
+
+const connectOpts = z.strictObject({ template: nonEmpty.optional() });
 
 export interface SandboxListOpts {
   /** Only the sandbox with this ID. */
@@ -159,6 +182,16 @@ export interface SandboxListOpts {
   /** Only sandboxes whose metadata contains every one of these pairs. */
   metadata?: Record<string, string>;
 }
+
+const listOpts = z.strictObject({
+  sandboxId: nonEmpty.optional(),
+  metadata: metadata.optional(),
+});
+
+const deleteOpts = listOpts.refine(
+  (o) => o.sandboxId !== undefined || Object.keys(o.metadata ?? {}).length > 0,
+  'delete needs a sandboxId or a metadata filter'
+);
 
 export interface SandboxInfo {
   sandboxId: string;
@@ -174,7 +207,9 @@ type RunTurn = (input: TurnInput, opts?: { fresh?: boolean }) => Promise<TurnRes
 
 function turnRunner(client: HatchetClient): RunTurn {
   const resolved = resolveTaskName(client);
-  return async (input, opts) => {
+  return async (raw, opts) => {
+    const input = turnInput.parse(raw);
+    const payload = input as JsonObject;
     const name = await resolved;
     const additionalMetadata = {
       'hatchet.sandbox.fn': input.fn,
@@ -184,14 +219,14 @@ function turnRunner(client: HatchetClient): RunTurn {
     };
     const result = opts?.fresh
       ? await (
-          await client.admin.runWorkflow<TurnInput, Record<string, TurnResult>>(name, input, {
+          await client.admin.runWorkflow<JsonObject, Record<string, JsonObject>>(name, payload, {
             additionalMetadata,
           })
         ).result()
       : await client
-          .workflow<TurnInput, Record<string, TurnResult>>({ name })
-          .run(input, { additionalMetadata });
-    return result[name] ?? (result as unknown as TurnResult);
+          .workflow<JsonObject, Record<string, JsonObject>>({ name })
+          .run(payload, { additionalMetadata });
+    return turnResult.parse(result[name] ?? result);
   };
 }
 
@@ -210,21 +245,21 @@ export class Sandbox {
 
   /** Starts a new sandbox. Prefer `hatchet.sandbox.create`. */
   static async create(client: HatchetClient, opts: SandboxOpts = {}): Promise<Sandbox> {
+    const o = sandboxOpts.parse(opts);
     await setupTelemetry();
     const run = turnRunner(client);
-    const metadata = opts.provider ? { ...opts.metadata, provider: opts.provider } : opts.metadata;
     const created = await run({
       fn: '$create',
       input: {},
-      ...(opts.id ? { sandboxId: opts.id } : {}),
-      ...(opts.template ? { image: opts.template } : {}),
-      ...(opts.from ? { snapshotId: opts.from } : {}),
-      ...(metadata ? { metadata } : {}),
-      ...(opts.idleTimeoutMs ? { idleTtlMs: opts.idleTimeoutMs } : {}),
-      ...(opts.inheritParentMetadata ? { inheritMetadata: true } : {}),
-      ...(opts.resources ? { resources: wireResources(opts.resources) } : {}),
+      sandboxId: o.id,
+      image: o.template,
+      snapshotId: o.from,
+      metadata: o.provider ? { ...o.metadata, provider: o.provider } : o.metadata,
+      idleTtlMs: o.idleTimeoutMs,
+      inheritMetadata: o.inheritParentMetadata,
+      resources: o.resources,
     });
-    return new Sandbox(run, created.sandboxId, opts.template);
+    return new Sandbox(run, created.sandboxId, o.template);
   }
 
   /** Attaches to a sandbox by ID. Prefer `hatchet.sandbox.connect`. */
@@ -233,40 +268,24 @@ export class Sandbox {
     sandboxId: string,
     opts: ConnectOpts = {}
   ): Promise<Sandbox> {
+    const id = nonEmpty.parse(sandboxId);
+    const o = connectOpts.parse(opts);
     await setupTelemetry();
     const run = turnRunner(client);
-    await run({
-      fn: '$connect',
-      input: {},
-      sandboxId,
-      ...(opts.template ? { image: opts.template } : {}),
-    });
-    return new Sandbox(run, sandboxId, opts.template);
+    await run({ fn: '$connect', input: {}, sandboxId: id, image: o.template });
+    return new Sandbox(run, id, o.template);
   }
 
   /** Lists sandboxes on the provider. Prefer `hatchet.sandbox.list`. */
   static async list(client: HatchetClient, opts: SandboxListOpts = {}): Promise<SandboxInfo[]> {
-    const result = await turnRunner(client)({
-      fn: '$list',
-      input: {
-        ...(opts.sandboxId ? { sandboxId: opts.sandboxId } : {}),
-        ...(opts.metadata ? { metadata: opts.metadata } : {}),
-      },
-    });
-    const raw = (result.output.sandboxes ?? []) as Array<
-      Omit<SandboxInfo, 'createdAt' | 'lastUsed'> & { createdAt: string; lastUsed?: string }
-    >;
-    return raw.map((s) => ({
-      ...s,
-      createdAt: new Date(s.createdAt),
-      lastUsed: s.lastUsed ? new Date(s.lastUsed) : undefined,
-    }));
+    const o = listOpts.parse(opts);
+    const result = await turnRunner(client)({ fn: '$list', input: o });
+    return sandboxInfo.array().parse(result.output.sandboxes ?? []);
   }
 
   /** Deletes every sandbox matching the filter, with all their snapshots and files. Prefer `hatchet.sandbox.delete`. */
   static async delete(client: HatchetClient, opts: SandboxListOpts): Promise<string[]> {
-    if (!opts.sandboxId && Object.keys(opts.metadata ?? {}).length === 0)
-      throw new Error('delete needs a sandboxId or a metadata filter');
+    deleteOpts.parse(opts);
     const run = turnRunner(client);
     const ids: string[] = [];
     for (const { sandboxId } of await Sandbox.list(client, opts)) {
@@ -278,10 +297,8 @@ export class Sandbox {
 
   /** Runs a shell command with `sh -c` in the workspace and makes a snapshot. A timeout gives `exitCode` 124, not an error. */
   async exec(cmd: string, opts: ExecOpts = {}): Promise<CommandResult> {
-    return this.turn<CommandResult>('$command', {
-      cmd,
-      ...(opts.timeoutMs ? { timeoutMs: opts.timeoutMs } : {}),
-    });
+    const input = { cmd: nonEmpty.parse(cmd), ...execOpts.parse(opts) };
+    return commandResult.parse(await this.turn('$command', input));
   }
 
   /** Removes the sandbox. Its snapshots stay; `connect` can bring it back. */
@@ -294,21 +311,16 @@ export class Sandbox {
     await this.turn('$delete', {});
   }
 
-  private async turn<T = JsonObject>(fn: string, input: JsonObject, fresh = false): Promise<T> {
+  private async turn(fn: string, input: JsonObject, fresh = false): Promise<JsonObject> {
     const result = await this.run(
-      {
-        sandboxId: this.sandboxId,
-        ...(this.template ? { image: this.template } : {}),
-        fn,
-        input,
-      },
+      { sandboxId: this.sandboxId, image: this.template, fn, input },
       { fresh }
     );
     return {
       ...result.output,
       snapshotId: result.snapshotId,
       timings: result.timings,
-    } as unknown as T;
+    } as JsonObject;
   }
 }
 

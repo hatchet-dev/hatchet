@@ -14,7 +14,7 @@
     "plugin:storybook/recommended",
     "prettier"
   ],
-  "ignorePatterns": ["dist", "**/generated/**/*", "!.storybook"],
+  "ignorePatterns": ["dist", "**/generated/**/*", "!.storybook", ".storybook/public"],
   "parser": "@typescript-eslint/parser",
   "parserOptions": {
     "project": ["./tsconfig.json", "./tsconfig.node.json", "./tsconfig.cypress.json"],
@@ -54,7 +54,8 @@
           "cypress.config.ts",
           "cypress/**/*.{ts,tsx}",
           ".storybook/**/*.{ts,tsx}",
-          "src/**/*.stories.{ts,tsx}"
+          "src/**/*.stories.{ts,tsx}",
+          "src/**/*.fixtures.{ts,tsx}"
         ]
       }
     ],

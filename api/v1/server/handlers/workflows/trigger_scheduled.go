@@ -1,6 +1,7 @@
 package workflows
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -44,7 +45,10 @@ func (w *WorkflowService) WorkflowScheduledTrigger(ctx echo.Context, request gen
 
 	// external id can be nil if idempotency collision happens
 	// note: this will be fixed soon with the new idempotency improvements
-	if err != nil || externalId == nil {
+	if err != nil {
+		return nil, fmt.Errorf("could not trigger scheduled workflow: %w", err)
+	}
+	if externalId == nil {
 		return gen.WorkflowScheduledTrigger500JSONResponse(apierrors.NewAPIErrors("Failed to trigger scheduled workflow.")), nil
 	}
 

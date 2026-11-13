@@ -926,9 +926,17 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 		recordFailedTask()
 	}
 
+	taskIdsWithInternalEvent := enumerables.ToSet(res.InternalEvents, func(event v1.InternalTaskEvent) int64 {
+		return event.TaskID
+	})
+
 	// operator step children have no internal event, they satisfy their orchestrator's entry directly
 	for _, task := range res.ReleasedTasks {
 		if _, isRetried := retriedTaskIds[task.ID]; isRetried || !task.IsCurrentRetry || !v1.IsOperatorStepChild(task) {
+			continue
+		}
+
+		if _, hasInternalEvent := taskIdsWithInternalEvent[task.ID]; hasInternalEvent {
 			continue
 		}
 

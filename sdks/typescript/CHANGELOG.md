@@ -5,6 +5,12 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.47.1] - 2026-11-13
+
+### Fixed
+
+- When the SDK serializes task outputs, durable memo results, workflow and child workflow inputs, event payloads, additional metadata and log metadata for the engine, it replaces lone UTF-16 surrogates in string values with U+FFFD, as `TextEncoder` does. A lone surrogate is half of a character such as an emoji, usually left by cutting text with `slice`, and the engine rejects it because Postgres `jsonb` cannot store it. A lone surrogate in an object key is still sent unchanged.
+
 ## [1.47.0] - 2026-11-11
 
 ### Added

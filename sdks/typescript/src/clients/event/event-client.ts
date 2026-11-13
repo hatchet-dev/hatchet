@@ -6,6 +6,7 @@ import { ClientConfig } from '@clients/hatchet-client/client-config';
 import { Logger } from '@hatchet/util/logger';
 import { retrier } from '@hatchet/util/retrier';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
+import { serializePayload } from '@hatchet/util/serialize-payload';
 import { HatchetClient } from '@hatchet/v1';
 import type { EventWithMetadata, PushEventOptions } from '@hatchet/core/types';
 import { buildBulkPushEventRequest, buildPushEventRequest, createEventsRpc, LogLevel } from './rpc';
@@ -97,7 +98,7 @@ export class EventClient {
         message: log,
         level: level || LogLevel.INFO,
         taskRetryCount,
-        metadata: metadata ? JSON.stringify(metadata) : undefined,
+        metadata: metadata ? serializePayload(metadata) : undefined,
       })
       .catch((e: unknown) => {
         this.logger.warn(`Could not put log: ${getErrorMessage(e)}`);
