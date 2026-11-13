@@ -1469,9 +1469,11 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 	}
 
 	if request.EventType == contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED {
-		if validationErr := v1.ValidateJSONB([]byte(request.EventPayload), "taskOutput"); validationErr != nil {
+		if output, validationErr := v1.ValidateJSONB(request.EventPayload, "taskOutput"); validationErr != nil {
 			request.EventPayload = validationErr.Error()
 			request.EventType = contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED
+		} else {
+			request.EventPayload = output
 		}
 	}
 
@@ -1976,12 +1978,14 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 			retryCount = *item.RetryCount
 		}
 
-		eventPayload := item.EventPayload
 		olapEventType := sqlcv1.V1EventTypeOlapFINISHED
 
 		var outputPayloadReferenceId *uuid.UUID
 
-		if validationErr := v1.ValidateJSONB([]byte(eventPayload), "taskOutput"); validationErr != nil {
+		output, validationErr := v1.ValidateJSONB(item.EventPayload, "taskOutput")
+		eventPayload := output
+
+		if validationErr != nil {
 			eventPayload = validationErr.Error()
 			olapEventType = sqlcv1.V1EventTypeOlapFAILED
 
@@ -1995,7 +1999,7 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 				ErrorMsg:      eventPayload,
 			})
 		} else {
-			outputPayloadReferenceId = s.newOutputPayloadReferenceId(item.EventPayload)
+			outputPayloadReferenceId = s.newOutputPayloadReferenceId(output)
 
 			if outputPayloadReferenceId != nil {
 				eventPayload = ""
@@ -2007,7 +2011,7 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 				ExternalId:         task.ExternalID,
 				WorkflowRunId:      task.WorkflowRunID,
 				RetryCount:         retryCount,
-				Output:             []byte(item.EventPayload),
+				Output:             []byte(output),
 				PayloadReferenceId: outputPayloadReferenceId,
 			})
 		}

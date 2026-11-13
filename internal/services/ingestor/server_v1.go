@@ -139,7 +139,7 @@ func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *sqlcv1.Tenant, req 
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", apiErrors.String()))
 	}
 
-	if err := v1.ValidateJSONB(opts.Metadata, "additionalMetadata"); err != nil {
+	if opts.Metadata, err = v1.ValidateJSONB(opts.Metadata, "additionalMetadata"); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", err))
 	}
 
