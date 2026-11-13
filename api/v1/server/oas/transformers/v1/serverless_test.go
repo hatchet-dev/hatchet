@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -22,7 +23,7 @@ func testServerlessEndpoint() *sqlcv1.V1ServerlessEndpoint {
 		ID:                    uuid.New(),
 		TenantID:              uuid.New(),
 		Name:                  "billing-worker",
-		Kind:                  sqlcv1.V1ServerlessEndpointKindCLOUDFLAREWORKERS,
+		Kind:                  enums.V1ServerlessEndpointKindCLOUDFLAREWORKERS,
 		HealthcheckUrl:        "https://example.com/hatchet/health",
 		TriggerUrl:            "https://example.com/hatchet/trigger",
 		SigningSecretEnc:      testSigningSecretEnc,
@@ -141,14 +142,14 @@ func TestToV1ServerlessEndpointEventList(t *testing.T) {
 		{
 			ID:        2,
 			CreatedAt: pgtype.Timestamptz{Time: now, Valid: true},
-			Kind:      sqlcv1.V1ServerlessEndpointEventKindDELIVERYFAILED,
+			Kind:      enums.V1ServerlessEndpointEventKindDELIVERYFAILED,
 			Message:   "endpoint returned status 500 Internal Server Error",
 			Details:   []byte(`{"statusCode":500,"taskRunExternalId":"` + taskId.String() + `","retryable":true,"suppressed":4,"responseExcerpt":"boom"}`),
 		},
 		{
 			ID:        1,
 			CreatedAt: pgtype.Timestamptz{Time: now.Add(-time.Minute), Valid: true},
-			Kind:      sqlcv1.V1ServerlessEndpointEventKindHEALTHY,
+			Kind:      enums.V1ServerlessEndpointEventKindHEALTHY,
 			Message:   "endpoint is healthy",
 			Details:   []byte(`{}`),
 		},

@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/serverlessoperator/internal/memrepo"
@@ -52,7 +53,7 @@ func (c *testClock) advance(d time.Duration) {
 }
 
 // eventsOfKind returns the recorded events of one kind, in order.
-func eventsOfKind(repo *memrepo.Repo, kind sqlcv1.V1ServerlessEndpointEventKind) []repository.ServerlessEndpointEventOpts {
+func eventsOfKind(repo *memrepo.Repo, kind enums.V1ServerlessEndpointEventKind) []repository.ServerlessEndpointEventOpts {
 	out := make([]repository.ServerlessEndpointEventOpts, 0)
 
 	for _, ev := range repo.EventRows() {
@@ -160,9 +161,9 @@ func TestHealthcheckEventsRecordStreakStartsAndTransitions(t *testing.T) {
 	// The first success flips an unknown endpoint healthy; re-putting the catalog the row
 	// already holds is not a catalog change.
 	require.Eventually(t, func() bool {
-		return len(eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindHEALTHY)) == 1
+		return len(eventsOfKind(env.repo, enums.V1ServerlessEndpointEventKindHEALTHY)) == 1
 	}, eventually, 10*time.Millisecond)
-	assert.Empty(t, eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindCATALOGREGISTERED))
+	assert.Empty(t, eventsOfKind(env.repo, enums.V1ServerlessEndpointEventKindCATALOGREGISTERED))
 
 	poller := env.poller(a)
 	require.NotNil(t, poller)
@@ -176,10 +177,10 @@ func TestHealthcheckEventsRecordStreakStartsAndTransitions(t *testing.T) {
 
 	// One failure event for the streak, one unhealthy transition after the third failure.
 	require.Eventually(t, func() bool {
-		return len(eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindUNHEALTHY)) == 1
+		return len(eventsOfKind(env.repo, enums.V1ServerlessEndpointEventKindUNHEALTHY)) == 1
 	}, eventually, 10*time.Millisecond)
 
-	failed := eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindHEALTHCHECKFAILED)
+	failed := eventsOfKind(env.repo, enums.V1ServerlessEndpointEventKindHEALTHCHECKFAILED)
 	require.Len(t, failed, 1)
 	assert.Equal(t, "healthcheck returned status 502", failed[0].Message)
 	assert.Equal(t, tenant, failed[0].TenantId)
@@ -191,7 +192,7 @@ func TestHealthcheckEventsRecordStreakStartsAndTransitions(t *testing.T) {
 	assert.Equal(t, "upstream down", details.ResponseExcerpt)
 	assert.Equal(t, a.HealthcheckUrl, details.URL)
 
-	unhealthy := eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindUNHEALTHY)[0]
+	unhealthy := eventsOfKind(env.repo, enums.V1ServerlessEndpointEventKindUNHEALTHY)[0]
 	assert.Equal(t, "healthcheck returned status 502", unhealthy.Message)
 	assert.Equal(t, http.StatusBadGateway, detailsOf(t, unhealthy).StatusCode)
 
@@ -202,7 +203,7 @@ func TestHealthcheckEventsRecordStreakStartsAndTransitions(t *testing.T) {
 	poller.pollOnce(context.Background())
 
 	time.Sleep(50 * time.Millisecond)
-	assert.Len(t, eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindHEALTHCHECKFAILED), 1)
+	assert.Len(t, eventsOfKind(env.repo, enums.V1ServerlessEndpointEventKindHEALTHCHECKFAILED), 1)
 	assert.Equal(t, "healthcheck returned status 503", poller.ts.cache.Config(poller.ep).statusError)
 
 	// Past the window the changed error, still pending, is recorded with the count of the
@@ -211,25 +212,25 @@ func TestHealthcheckEventsRecordStreakStartsAndTransitions(t *testing.T) {
 	poller.pollOnce(context.Background())
 
 	require.Eventually(t, func() bool {
-		return len(eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindHEALTHCHECKFAILED)) == 2
+		return len(eventsOfKind(env.repo, enums.V1ServerlessEndpointEventKindHEALTHCHECKFAILED)) == 2
 	}, eventually, 10*time.Millisecond)
 
-	second := eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindHEALTHCHECKFAILED)[1]
+	second := eventsOfKind(env.repo, enums.V1ServerlessEndpointEventKindHEALTHCHECKFAILED)[1]
 	assert.Equal(t, "healthcheck returned status 503", second.Message)
 	assert.Equal(t, 2, detailsOf(t, second).Suppressed)
 
 	// Once written, the same error is not offered again.
 	poller.pollOnce(context.Background())
 	time.Sleep(50 * time.Millisecond)
-	assert.Len(t, eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindHEALTHCHECKFAILED), 2)
-	assert.Len(t, eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindUNHEALTHY), 1, "a new error while unhealthy is no transition")
+	assert.Len(t, eventsOfKind(env.repo, enums.V1ServerlessEndpointEventKindHEALTHCHECKFAILED), 2)
+	assert.Len(t, eventsOfKind(env.repo, enums.V1ServerlessEndpointEventKindUNHEALTHY), 1, "a new error while unhealthy is no transition")
 
 	// Recovery is a transition back.
 	env.sender.respond(a.HealthcheckUrl, http.StatusOK, healthcheckBody("svc:a"))
 	poller.pollOnce(context.Background())
 
 	require.Eventually(t, func() bool {
-		return len(eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindHEALTHY)) == 2
+		return len(eventsOfKind(env.repo, enums.V1ServerlessEndpointEventKindHEALTHY)) == 2
 	}, eventually, 10*time.Millisecond)
 
 	// A new streak records its first failure again, even with an error seen before.
@@ -238,7 +239,7 @@ func TestHealthcheckEventsRecordStreakStartsAndTransitions(t *testing.T) {
 	poller.pollOnce(context.Background())
 
 	require.Eventually(t, func() bool {
-		return len(eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindHEALTHCHECKFAILED)) == 3
+		return len(eventsOfKind(env.repo, enums.V1ServerlessEndpointEventKindHEALTHCHECKFAILED)) == 3
 	}, eventually, 10*time.Millisecond)
 }
 
@@ -259,17 +260,17 @@ func TestCatalogChangeIsRecorded(t *testing.T) {
 	poller.pollOnce(context.Background())
 
 	require.Eventually(t, func() bool {
-		return len(eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindCATALOGREGISTERED)) == 1
+		return len(eventsOfKind(env.repo, enums.V1ServerlessEndpointEventKindCATALOGREGISTERED)) == 1
 	}, eventually, 10*time.Millisecond)
 
-	registered := eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindCATALOGREGISTERED)[0]
+	registered := eventsOfKind(env.repo, enums.V1ServerlessEndpointEventKindCATALOGREGISTERED)[0]
 	assert.Equal(t, "registered 0 workflows and 2 actions", registered.Message)
 	assert.Equal(t, []string{"svc:a", "svc:b"}, detailsOf(t, registered).Actions)
 
 	// The same catalog again is no change.
 	poller.pollOnce(context.Background())
 	time.Sleep(50 * time.Millisecond)
-	assert.Len(t, eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindCATALOGREGISTERED), 1)
+	assert.Len(t, eventsOfKind(env.repo, enums.V1ServerlessEndpointEventKindCATALOGREGISTERED), 1)
 }
 
 func TestDeliveryFailureIsRecorded(t *testing.T) {
@@ -288,10 +289,10 @@ func TestDeliveryFailureIsRecorded(t *testing.T) {
 	reg.deliver(t, action)
 
 	require.Eventually(t, func() bool {
-		return len(eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindDELIVERYFAILED)) == 1
+		return len(eventsOfKind(env.repo, enums.V1ServerlessEndpointEventKindDELIVERYFAILED)) == 1
 	}, eventually, 10*time.Millisecond)
 
-	ev := eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindDELIVERYFAILED)[0]
+	ev := eventsOfKind(env.repo, enums.V1ServerlessEndpointEventKindDELIVERYFAILED)[0]
 	assert.Equal(t, "endpoint returned status 500 Internal Server Error", ev.Message, "the message is the task's error")
 
 	details := detailsOf(t, ev)
@@ -313,7 +314,7 @@ func TestDeliveryFailureIsRecorded(t *testing.T) {
 	env.sender.respond(a.TriggerUrl, http.StatusOK, `{}`)
 	reg.deliver(t, startAction("svc:run"))
 	time.Sleep(50 * time.Millisecond)
-	assert.Len(t, eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindDELIVERYFAILED), 1)
+	assert.Len(t, eventsOfKind(env.repo, enums.V1ServerlessEndpointEventKindDELIVERYFAILED), 1)
 }
 
 func TestDeliveryFailedEventsAreRateLimited(t *testing.T) {
@@ -366,7 +367,7 @@ func TestEventRecorderDropsWhenFull(t *testing.T) {
 	ep := &cachedEndpoint{id: uuid.New(), tenantId: uuid.New()}
 
 	for range 5 {
-		rec.record(ep, sqlcv1.V1ServerlessEndpointEventKindCATALOGREGISTERED, "registered", nil)
+		rec.record(ep, enums.V1ServerlessEndpointEventKindCATALOGREGISTERED, "registered", nil)
 	}
 
 	assert.Len(t, rec.queue, 2)
@@ -434,7 +435,7 @@ func TestEventDetailsAreSafeAndBounded(t *testing.T) {
 		Actions:   []string{"svc:\xffrun"},
 	}
 
-	rec.record(ep, sqlcv1.V1ServerlessEndpointEventKindCATALOGREJECTED, "engine rejected workflow bad\x00name\x1b[2K", details)
+	rec.record(ep, enums.V1ServerlessEndpointEventKindCATALOGREJECTED, "engine rejected workflow bad\x00name\x1b[2K", details)
 	rec.stop(context.Background())
 
 	rows := repo.EventRows()
@@ -475,29 +476,29 @@ func TestFailureEventsAreLimitedPerKind(t *testing.T) {
 
 	// A new error text on every poll is still one event per window and kind.
 	for i := range 5 {
-		rec.record(ep, sqlcv1.V1ServerlessEndpointEventKindHEALTHCHECKFAILED, fmt.Sprintf("healthcheck returned status %d", 500+i), &eventDetails{})
-		rec.record(ep, sqlcv1.V1ServerlessEndpointEventKindCATALOGREJECTED, fmt.Sprintf("engine rejected workflow w%d", i), &eventDetails{})
+		rec.record(ep, enums.V1ServerlessEndpointEventKindHEALTHCHECKFAILED, fmt.Sprintf("healthcheck returned status %d", 500+i), &eventDetails{})
+		rec.record(ep, enums.V1ServerlessEndpointEventKindCATALOGREJECTED, fmt.Sprintf("engine rejected workflow w%d", i), &eventDetails{})
 	}
 
 	// Kinds outside the failure kinds are not windowed.
-	rec.record(ep, sqlcv1.V1ServerlessEndpointEventKindUNHEALTHY, "down", nil)
-	rec.record(ep, sqlcv1.V1ServerlessEndpointEventKindHEALTHY, "endpoint is healthy", nil)
+	rec.record(ep, enums.V1ServerlessEndpointEventKindUNHEALTHY, "down", nil)
+	rec.record(ep, enums.V1ServerlessEndpointEventKindHEALTHY, "endpoint is healthy", nil)
 
 	clock.advance(failureEventWindow)
-	rec.record(ep, sqlcv1.V1ServerlessEndpointEventKindHEALTHCHECKFAILED, "healthcheck returned status 599", &eventDetails{})
+	rec.record(ep, enums.V1ServerlessEndpointEventKindHEALTHCHECKFAILED, "healthcheck returned status 599", &eventDetails{})
 
 	rec.stop(context.Background())
 
-	failed := eventsOfKind(repo, sqlcv1.V1ServerlessEndpointEventKindHEALTHCHECKFAILED)
+	failed := eventsOfKind(repo, enums.V1ServerlessEndpointEventKindHEALTHCHECKFAILED)
 	require.Len(t, failed, 2)
 	assert.Equal(t, "healthcheck returned status 500", failed[0].Message)
 	assert.Equal(t, 4, detailsOf(t, failed[1]).Suppressed)
 
-	rejected := eventsOfKind(repo, sqlcv1.V1ServerlessEndpointEventKindCATALOGREJECTED)
+	rejected := eventsOfKind(repo, enums.V1ServerlessEndpointEventKindCATALOGREJECTED)
 	require.Len(t, rejected, 1, "each kind has its own window")
 
-	assert.Len(t, eventsOfKind(repo, sqlcv1.V1ServerlessEndpointEventKindUNHEALTHY), 1)
-	assert.Len(t, eventsOfKind(repo, sqlcv1.V1ServerlessEndpointEventKindHEALTHY), 1)
+	assert.Len(t, eventsOfKind(repo, enums.V1ServerlessEndpointEventKindUNHEALTHY), 1)
+	assert.Len(t, eventsOfKind(repo, enums.V1ServerlessEndpointEventKindHEALTHY), 1)
 }
 
 func TestEndpointEventBudget(t *testing.T) {
@@ -512,14 +513,14 @@ func TestEndpointEventBudget(t *testing.T) {
 	other := &cachedEndpoint{id: uuid.New(), tenantId: ep.tenantId}
 
 	for range endpointEventBudget + 10 {
-		rec.record(ep, sqlcv1.V1ServerlessEndpointEventKindCATALOGREGISTERED, "registered", nil)
+		rec.record(ep, enums.V1ServerlessEndpointEventKindCATALOGREGISTERED, "registered", nil)
 	}
 
-	rec.record(other, sqlcv1.V1ServerlessEndpointEventKindCATALOGREGISTERED, "other endpoint", nil)
+	rec.record(other, enums.V1ServerlessEndpointEventKindCATALOGREGISTERED, "other endpoint", nil)
 
 	// The budget renews with the period; the next event carries what was held back.
 	clock.advance(endpointEventBudgetPeriod)
-	rec.record(ep, sqlcv1.V1ServerlessEndpointEventKindCATALOGREGISTERED, "next period", nil)
+	rec.record(ep, enums.V1ServerlessEndpointEventKindCATALOGREGISTERED, "next period", nil)
 
 	rec.stop(context.Background())
 
@@ -543,11 +544,11 @@ func TestEventRecorderForgetsIdleEndpoints(t *testing.T) {
 	rec.now = clock.now
 
 	for range 1024 {
-		rec.record(&cachedEndpoint{id: uuid.New()}, sqlcv1.V1ServerlessEndpointEventKindHEALTHY, "healthy", nil)
+		rec.record(&cachedEndpoint{id: uuid.New()}, enums.V1ServerlessEndpointEventKindHEALTHY, "healthy", nil)
 	}
 
 	clock.advance(endpointEventBudgetPeriod)
-	rec.record(&cachedEndpoint{id: uuid.New()}, sqlcv1.V1ServerlessEndpointEventKindHEALTHY, "healthy", nil)
+	rec.record(&cachedEndpoint{id: uuid.New()}, enums.V1ServerlessEndpointEventKindHEALTHY, "healthy", nil)
 
 	rec.mu.Lock()
 	defer rec.mu.Unlock()
@@ -637,11 +638,11 @@ func TestEventRecorderDropsQueuedEventsPastShutdownDeadline(t *testing.T) {
 	rec := newEventRecorder(repo, &l)
 	ep := &cachedEndpoint{id: uuid.New(), tenantId: uuid.New()}
 
-	rec.record(ep, sqlcv1.V1ServerlessEndpointEventKindHEALTHY, "first", nil)
+	rec.record(ep, enums.V1ServerlessEndpointEventKindHEALTHY, "first", nil)
 	<-repo.started // the writer is inside Insert with the first event
 
-	rec.record(ep, sqlcv1.V1ServerlessEndpointEventKindUNHEALTHY, "second", nil)
-	rec.record(ep, sqlcv1.V1ServerlessEndpointEventKindHEALTHY, "third", nil)
+	rec.record(ep, enums.V1ServerlessEndpointEventKindUNHEALTHY, "second", nil)
+	rec.record(ep, enums.V1ServerlessEndpointEventKindHEALTHY, "third", nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -683,7 +684,7 @@ func TestShortFailureStreakEndsWithRecoveryEvent(t *testing.T) {
 	env.r.UnitsGained(context.Background(), []memrepo.Unit{env.unit(a)})
 
 	require.Eventually(t, func() bool {
-		return len(eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindHEALTHY)) == 1
+		return len(eventsOfKind(env.repo, enums.V1ServerlessEndpointEventKindHEALTHY)) == 1
 	}, eventually, 10*time.Millisecond)
 
 	poller := env.poller(a)
@@ -700,18 +701,18 @@ func TestShortFailureStreakEndsWithRecoveryEvent(t *testing.T) {
 	poller.pollOnce(context.Background())
 
 	require.Eventually(t, func() bool {
-		return len(eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindHEALTHY)) == 2
+		return len(eventsOfKind(env.repo, enums.V1ServerlessEndpointEventKindHEALTHY)) == 2
 	}, eventually, 10*time.Millisecond)
 
-	recovered := eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindHEALTHY)[1]
+	recovered := eventsOfKind(env.repo, enums.V1ServerlessEndpointEventKindHEALTHY)[1]
 	assert.Equal(t, "healthchecks succeed again after 2 failed polls", recovered.Message)
-	assert.Empty(t, eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindUNHEALTHY))
+	assert.Empty(t, eventsOfKind(env.repo, enums.V1ServerlessEndpointEventKindUNHEALTHY))
 	assert.True(t, poller.ts.cache.Config(poller.ep).healthy)
 
 	// A success without a failure before it records nothing.
 	poller.pollOnce(context.Background())
 	time.Sleep(50 * time.Millisecond)
-	assert.Len(t, eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindHEALTHY), 2)
+	assert.Len(t, eventsOfKind(env.repo, enums.V1ServerlessEndpointEventKindHEALTHY), 2)
 
 	// A streak that flips the status ends with the transition alone.
 	clock.advance(failureEventWindow)
@@ -726,7 +727,7 @@ func TestShortFailureStreakEndsWithRecoveryEvent(t *testing.T) {
 	poller.pollOnce(context.Background())
 
 	require.Eventually(t, func() bool {
-		return len(eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindHEALTHY)) == 3
+		return len(eventsOfKind(env.repo, enums.V1ServerlessEndpointEventKindHEALTHY)) == 3
 	}, eventually, 10*time.Millisecond)
-	assert.Equal(t, "endpoint is healthy", eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindHEALTHY)[2].Message)
+	assert.Equal(t, "endpoint is healthy", eventsOfKind(env.repo, enums.V1ServerlessEndpointEventKindHEALTHY)[2].Message)
 }

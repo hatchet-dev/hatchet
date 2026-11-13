@@ -17,6 +17,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/timeout_lock"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -271,7 +272,7 @@ func (worker *subscribedWorker) CancelTask(
 					TaskId:         task.ID,
 					RetryCount:     task.RetryCount,
 					WorkerId:       &worker.workerId,
-					EventType:      sqlcv1.V1EventTypeOlapCOULDNOTSENDTOWORKER,
+					EventType:      enums.V1EventTypeOlapCOULDNOTSENDTOWORKER,
 					EventTimestamp: time.Now().UTC(),
 					EventMessage:   fmt.Sprintf("Could not acquire send lock before timeout of %s", worker.sendLock.Timeout),
 				},

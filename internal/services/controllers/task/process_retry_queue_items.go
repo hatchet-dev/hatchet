@@ -11,6 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -44,7 +45,7 @@ func (tc *TasksControllerImpl) processTaskRetryQueueItems(ctx context.Context, t
 		monitoringEvent := tasktypes.CreateMonitoringEventPayload{
 			TaskId:         taskId,
 			RetryCount:     task.TaskRetryCount,
-			EventType:      sqlcv1.V1EventTypeOlapQUEUED,
+			EventType:      enums.V1EventTypeOlapQUEUED,
 			EventTimestamp: time.Now(),
 		}
 

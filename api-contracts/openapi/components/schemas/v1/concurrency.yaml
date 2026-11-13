@@ -27,6 +27,9 @@ V1ConcurrencyLimitStrategy:
     - V1ConcurrencyLimitStrategyCancelNewest
     - V1ConcurrencyLimitStrategyCancelQueuedExceptNewest
     - V1ConcurrencyLimitStrategyCancelQueuedExceptOldest
+  x-go-type: enums.V1ConcurrencyStrategy
+  x-go-type-import:
+    path: github.com/hatchet-dev/hatchet/pkg/enums
 
 V1ConcurrencyStrategyUsage:
   type: object

@@ -25,6 +25,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
@@ -1118,7 +1119,7 @@ func (d *DispatcherServiceImpl) sendStaleInvocationEviction(invocation *durableT
 // fails to deliver is delivered again when the worker reports it as waiting.
 func (d *DispatcherServiceImpl) deliverSatisfiedEntries(tenantId uuid.UUID, taskExternalId string, result *v1.IngestDurableTaskEventResult) {
 	switch result.Kind {
-	case sqlcv1.V1DurableEventLogKindRUN:
+	case enums.V1DurableEventLogKindRUN:
 		for _, entry := range result.TriggerRunsResult.Entries {
 			if entry.IsSatisfied {
 				taskExtId, _ := uuid.Parse(taskExternalId)
@@ -1138,7 +1139,7 @@ func (d *DispatcherServiceImpl) deliverSatisfiedEntries(tenantId uuid.UUID, task
 				}
 			}
 		}
-	case sqlcv1.V1DurableEventLogKindMEMO:
+	case enums.V1DurableEventLogKindMEMO:
 		if result.MemoResult.IsSatisfied {
 			taskExtId, _ := uuid.Parse(taskExternalId)
 			if err := d.DeliverDurableEventLogEntryCompletion(
@@ -1155,7 +1156,7 @@ func (d *DispatcherServiceImpl) deliverSatisfiedEntries(tenantId uuid.UUID, task
 				d.logDurableTaskRequestError(fmt.Errorf("failed to deliver callback completion for node %d: %w", result.MemoResult.NodeId, err))
 			}
 		}
-	case sqlcv1.V1DurableEventLogKindWAITFOR:
+	case enums.V1DurableEventLogKindWAITFOR:
 		if result.WaitForResult.IsSatisfied {
 			taskExtId, _ := uuid.Parse(taskExternalId)
 			if err := d.DeliverDurableEventLogEntryCompletion(
@@ -1207,7 +1208,7 @@ func (d *DispatcherServiceImpl) handleMemo(
 		BaseIngestEventOpts: &v1.BaseIngestEventOpts{
 			TenantId:        invocation.tenantId,
 			Task:            task,
-			Kind:            sqlcv1.V1DurableEventLogKindMEMO,
+			Kind:            enums.V1DurableEventLogKindMEMO,
 			InvocationCount: req.InvocationCount,
 		},
 		Memo: &v1.IngestMemoOpts{
@@ -1300,7 +1301,7 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 		BaseIngestEventOpts: &v1.BaseIngestEventOpts{
 			TenantId:        invocation.tenantId,
 			Task:            task,
-			Kind:            sqlcv1.V1DurableEventLogKindRUN,
+			Kind:            enums.V1DurableEventLogKindRUN,
 			InvocationCount: req.InvocationCount,
 		},
 		TriggerRuns: &v1.IngestTriggerRunsOpts{
@@ -1459,7 +1460,7 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 		BaseIngestEventOpts: &v1.BaseIngestEventOpts{
 			TenantId:        invocation.tenantId,
 			Task:            task,
-			Kind:            sqlcv1.V1DurableEventLogKindWAITFOR,
+			Kind:            enums.V1DurableEventLogKindWAITFOR,
 			InvocationCount: req.InvocationCount,
 		},
 		WaitFor: &v1.IngestWaitForOpts{
@@ -1659,7 +1660,7 @@ func (d *DispatcherServiceImpl) evictDurableTask(
 				RetryCount:             task.RetryCount,
 				DurableInvocationCount: invocationCount,
 				EventTimestamp:         time.Now(),
-				EventType:              sqlcv1.V1EventTypeOlapDURABLEEVICTED,
+				EventType:              enums.V1EventTypeOlapDURABLEEVICTED,
 				EventMessage:           reason,
 			},
 		)
@@ -2071,7 +2072,7 @@ func (d *DispatcherServiceImpl) TriggerDAGSteps(ctx context.Context, tenantId uu
 		BaseIngestEventOpts: &v1.BaseIngestEventOpts{
 			TenantId:        tenantId,
 			Task:            task,
-			Kind:            sqlcv1.V1DurableEventLogKindRUN,
+			Kind:            enums.V1DurableEventLogKindRUN,
 			InvocationCount: first.InvocationCount,
 		},
 		TriggerRuns: &v1.IngestTriggerRunsOpts{

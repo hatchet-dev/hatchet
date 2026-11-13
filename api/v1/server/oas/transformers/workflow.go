@@ -161,7 +161,7 @@ func ToV1Concurrency(workflowConcurrencies []*sqlcv1.ListWorkflowConcurrencyByVe
 			Expression:     c.Expression,
 			LimitStrategy:  gen.ConcurrencyLimitStrategy(c.Strategy),
 			MaxRuns:        c.MaxConcurrency,
-			Scope:          gen.ConcurrencyScopeTASK,
+			Scope:          gen.TASK,
 		})
 	}
 
@@ -170,7 +170,7 @@ func ToV1Concurrency(workflowConcurrencies []*sqlcv1.ListWorkflowConcurrencyByVe
 			Expression:    wc.Expression,
 			LimitStrategy: gen.ConcurrencyLimitStrategy(wc.LimitStrategy),
 			MaxRuns:       wc.MaxRuns,
-			Scope:         gen.ConcurrencyScopeWORKFLOW,
+			Scope:         gen.WORKFLOW,
 		})
 	}
 

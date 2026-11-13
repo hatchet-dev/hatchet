@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -154,7 +155,7 @@ func TestServerlessRepository(t *testing.T) {
 
 		assert.Equal(t, tenantId, created.TenantID)
 		assert.Equal(t, "endpoint-a", created.Name)
-		assert.Equal(t, sqlcv1.V1ServerlessEndpointKindCLOUDFLAREWORKERS, created.Kind)
+		assert.Equal(t, enums.V1ServerlessEndpointKindCLOUDFLAREWORKERS, created.Kind)
 		assert.Equal(t, defaultServerlessRequestTimeoutSeconds, created.RequestTimeoutSeconds)
 		assert.Equal(t, defaultServerlessPollIntervalSeconds, created.PollIntervalSeconds)
 		assert.Equal(t, defaultServerlessInlineWaitBudgetMs, created.InlineWaitBudgetMs)
@@ -192,7 +193,7 @@ func TestServerlessRepository(t *testing.T) {
 		newName := "endpoint-b"
 		newTimeout := int32(5)
 		disabled := false
-		kind := sqlcv1.V1ServerlessEndpointKindGENERICHTTP
+		kind := enums.V1ServerlessEndpointKindGENERICHTTP
 
 		updated, err := repo.Endpoints().Update(ctx, tenantId, created.ID, UpdateServerlessEndpointOpts{
 			Name:                  &newName,
@@ -1191,12 +1192,12 @@ func TestServerlessEndpointEventsAndAssignment(t *testing.T) {
 
 	t.Run("vercel is a valid kind", func(t *testing.T) {
 		opts := serverlessEndpointOpts("vercel-endpoint")
-		kind := sqlcv1.V1ServerlessEndpointKindVERCEL
+		kind := enums.V1ServerlessEndpointKindVERCEL
 		opts.Kind = &kind
 
 		created, err := repo.Endpoints().Create(ctx, uuid.New(), opts)
 		require.NoError(t, err)
-		assert.Equal(t, sqlcv1.V1ServerlessEndpointKindVERCEL, created.Kind)
+		assert.Equal(t, enums.V1ServerlessEndpointKindVERCEL, created.Kind)
 	})
 
 	t.Run("events round trip, newest first", func(t *testing.T) {
@@ -1211,16 +1212,16 @@ func TestServerlessEndpointEventsAndAssignment(t *testing.T) {
 		require.NoError(t, err)
 
 		require.NoError(t, repo.Events().Insert(ctx, []ServerlessEndpointEventOpts{
-			{TenantId: tenantId, EndpointId: endpointId, CreatedAt: base, Kind: sqlcv1.V1ServerlessEndpointEventKindHEALTHCHECKFAILED, Message: "healthcheck returned status 401", Details: map[string]any{"statusCode": 401, "responseExcerpt": "bad signature"}},
-			{TenantId: tenantId, EndpointId: endpointId, CreatedAt: base.Add(time.Second), Kind: sqlcv1.V1ServerlessEndpointEventKindUNHEALTHY, Message: "healthcheck returned status 401"},
-			{TenantId: tenantId, EndpointId: uuid.New(), CreatedAt: base, Kind: sqlcv1.V1ServerlessEndpointEventKindHEALTHY, Message: "another endpoint"},
-			{TenantId: tenantId, EndpointId: endpointId, CreatedAt: retentionStart.Add(-time.Hour), Kind: sqlcv1.V1ServerlessEndpointEventKindHEALTHY, Message: "outside retention"},
+			{TenantId: tenantId, EndpointId: endpointId, CreatedAt: base, Kind: enums.V1ServerlessEndpointEventKindHEALTHCHECKFAILED, Message: "healthcheck returned status 401", Details: map[string]any{"statusCode": 401, "responseExcerpt": "bad signature"}},
+			{TenantId: tenantId, EndpointId: endpointId, CreatedAt: base.Add(time.Second), Kind: enums.V1ServerlessEndpointEventKindUNHEALTHY, Message: "healthcheck returned status 401"},
+			{TenantId: tenantId, EndpointId: uuid.New(), CreatedAt: base, Kind: enums.V1ServerlessEndpointEventKindHEALTHY, Message: "another endpoint"},
+			{TenantId: tenantId, EndpointId: endpointId, CreatedAt: retentionStart.Add(-time.Hour), Kind: enums.V1ServerlessEndpointEventKindHEALTHY, Message: "outside retention"},
 		}))
 
 		events, err := repo.Events().List(ctx, tenantId, endpointId, retentionStart, nil, 0)
 		require.NoError(t, err)
 		require.Len(t, events, 2, "events before the retention window are not returned")
-		assert.Equal(t, sqlcv1.V1ServerlessEndpointEventKindUNHEALTHY, events[0].Kind)
+		assert.Equal(t, enums.V1ServerlessEndpointEventKindUNHEALTHY, events[0].Kind)
 		assert.JSONEq(t, `{}`, string(events[0].Details))
 		assert.JSONEq(t, `{"statusCode":401,"responseExcerpt":"bad signature"}`, string(events[1].Details))
 
@@ -1242,8 +1243,8 @@ func TestServerlessEndpointEventsAndAssignment(t *testing.T) {
 	t.Run("a value JSONB refuses fails the batch as a row error", func(t *testing.T) {
 		tenantId := uuid.New()
 		endpointId := uuid.New()
-		good := ServerlessEndpointEventOpts{TenantId: tenantId, EndpointId: endpointId, Kind: sqlcv1.V1ServerlessEndpointEventKindHEALTHY, Message: "fine"}
-		bad := ServerlessEndpointEventOpts{TenantId: tenantId, EndpointId: endpointId, Kind: sqlcv1.V1ServerlessEndpointEventKindCATALOGREJECTED, Message: "refused", Details: map[string]any{"workflows": []string{"bad\x00name"}}}
+		good := ServerlessEndpointEventOpts{TenantId: tenantId, EndpointId: endpointId, Kind: enums.V1ServerlessEndpointEventKindHEALTHY, Message: "fine"}
+		bad := ServerlessEndpointEventOpts{TenantId: tenantId, EndpointId: endpointId, Kind: enums.V1ServerlessEndpointEventKindCATALOGREJECTED, Message: "refused", Details: map[string]any{"workflows": []string{"bad\x00name"}}}
 
 		err := repo.Events().Insert(ctx, []ServerlessEndpointEventOpts{good, bad})
 		require.Error(t, err)

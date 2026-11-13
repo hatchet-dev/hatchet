@@ -11,6 +11,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/loadtest/eventkeys"
 	v1 "github.com/hatchet-dev/hatchet/pkg/v1" //nolint:staticcheck // SA1019: used only for REST timing queries in --externalWorker mode
 )
@@ -204,7 +205,7 @@ func (c *TimingCollector) sweep(ctx context.Context, out chan<- PhaseSample) {
 	since := c.windowStart
 	c.mu.Unlock()
 
-	statuses := []rest.V1TaskStatus{rest.V1TaskStatusCOMPLETED, rest.V1TaskStatusFAILED}
+	statuses := []rest.V1TaskStatus{enums.V1ReadableStatusOlapCOMPLETED, enums.V1ReadableStatusOlapFAILED}
 
 	var offset int64
 

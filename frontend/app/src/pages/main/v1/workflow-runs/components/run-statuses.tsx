@@ -59,6 +59,7 @@ function createV1RunStatusVariant(status: V1TaskStatus): RunStatusVariant {
     case V1TaskStatus.CANCELLED:
       return { text: 'Cancelled', variant: 'cancelled' };
     case V1TaskStatus.RUNNING:
+    case V1TaskStatus.EVICTED:
       return { text: 'Running', variant: 'inProgress' };
     case V1TaskStatus.QUEUED:
       return { text: 'Queued', variant: 'queued' };

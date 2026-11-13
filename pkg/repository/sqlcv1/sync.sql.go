@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -79,12 +80,12 @@ RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name,
 `
 
 type SyncUpdateTenantParams struct {
-	Updatedat         pgtype.Timestamp             `json:"updatedat"`
-	Name              pgtype.Text                  `json:"name"`
-	AnalyticsOptOut   pgtype.Bool                  `json:"analyticsOptOut"`
-	AlertMemberEmails pgtype.Bool                  `json:"alertMemberEmails"`
-	Version           NullTenantMajorEngineVersion `json:"version"`
-	ID                uuid.UUID                    `json:"id"`
+	Updatedat         pgtype.Timestamp                   `json:"updatedat"`
+	Name              pgtype.Text                        `json:"name"`
+	AnalyticsOptOut   pgtype.Bool                        `json:"analyticsOptOut"`
+	AlertMemberEmails pgtype.Bool                        `json:"alertMemberEmails"`
+	Version           enums.NullTenantMajorEngineVersion `json:"version"`
+	ID                uuid.UUID                          `json:"id"`
 }
 
 func (q *Queries) SyncUpdateTenant(ctx context.Context, db DBTX, arg SyncUpdateTenantParams) (*Tenant, error) {
@@ -131,11 +132,11 @@ RETURNING id, "createdAt", "updatedAt", "tenantId", "inviterEmail", "inviteeEmai
 `
 
 type SyncUpdateTenantInviteParams struct {
-	Updatedat       pgtype.Timestamp     `json:"updatedat"`
-	Status          NullInviteLinkStatus `json:"status"`
-	Role            NullTenantMemberRole `json:"role"`
-	CanViewPayloads pgtype.Bool          `json:"canViewPayloads"`
-	ID              uuid.UUID            `json:"id"`
+	Updatedat       pgtype.Timestamp           `json:"updatedat"`
+	Status          NullInviteLinkStatus       `json:"status"`
+	Role            enums.NullTenantMemberRole `json:"role"`
+	CanViewPayloads pgtype.Bool                `json:"canViewPayloads"`
+	ID              uuid.UUID                  `json:"id"`
 }
 
 func (q *Queries) SyncUpdateTenantInvite(ctx context.Context, db DBTX, arg SyncUpdateTenantInviteParams) (*TenantInviteLink, error) {
@@ -173,10 +174,10 @@ RETURNING id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayl
 `
 
 type SyncUpdateTenantMemberParams struct {
-	Updatedat       pgtype.Timestamp `json:"updatedat"`
-	Role            TenantMemberRole `json:"role"`
-	CanViewPayloads pgtype.Bool      `json:"canViewPayloads"`
-	ID              uuid.UUID        `json:"id"`
+	Updatedat       pgtype.Timestamp       `json:"updatedat"`
+	Role            enums.TenantMemberRole `json:"role"`
+	CanViewPayloads pgtype.Bool            `json:"canViewPayloads"`
+	ID              uuid.UUID              `json:"id"`
 }
 
 func (q *Queries) SyncUpdateTenantMember(ctx context.Context, db DBTX, arg SyncUpdateTenantMemberParams) (*TenantMember, error) {
@@ -244,19 +245,19 @@ RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name,
 `
 
 type SyncUpsertTenantParams struct {
-	ID                  uuid.UUID                `json:"id"`
-	Createdat           pgtype.Timestamp         `json:"createdat"`
-	Updatedat           pgtype.Timestamp         `json:"updatedat"`
-	Name                string                   `json:"name"`
-	Slug                string                   `json:"slug"`
-	Dataretentionperiod string                   `json:"dataretentionperiod"`
-	Version             TenantMajorEngineVersion `json:"version"`
-	Uiversion           TenantMajorUIVersion     `json:"uiversion"`
-	OnboardingData      []byte                   `json:"onboardingData"`
-	Environment         NullTenantEnvironment    `json:"environment"`
-	Analyticsoptout     bool                     `json:"analyticsoptout"`
-	Alertmemberemails   bool                     `json:"alertmemberemails"`
-	Canupgradev1        bool                     `json:"canupgradev1"`
+	ID                  uuid.UUID                      `json:"id"`
+	Createdat           pgtype.Timestamp               `json:"createdat"`
+	Updatedat           pgtype.Timestamp               `json:"updatedat"`
+	Name                string                         `json:"name"`
+	Slug                string                         `json:"slug"`
+	Dataretentionperiod string                         `json:"dataretentionperiod"`
+	Version             enums.TenantMajorEngineVersion `json:"version"`
+	Uiversion           TenantMajorUIVersion           `json:"uiversion"`
+	OnboardingData      []byte                         `json:"onboardingData"`
+	Environment         NullTenantEnvironment          `json:"environment"`
+	Analyticsoptout     bool                           `json:"analyticsoptout"`
+	Alertmemberemails   bool                           `json:"alertmemberemails"`
+	Canupgradev1        bool                           `json:"canupgradev1"`
 }
 
 func (q *Queries) SyncUpsertTenant(ctx context.Context, db DBTX, arg SyncUpsertTenantParams) (*Tenant, error) {
@@ -366,16 +367,16 @@ RETURNING id, "createdAt", "updatedAt", "tenantId", "inviterEmail", "inviteeEmai
 `
 
 type SyncUpsertTenantInviteParams struct {
-	ID              uuid.UUID        `json:"id"`
-	Createdat       pgtype.Timestamp `json:"createdat"`
-	Updatedat       pgtype.Timestamp `json:"updatedat"`
-	Tenantid        uuid.UUID        `json:"tenantid"`
-	Inviteremail    string           `json:"inviteremail"`
-	Inviteeemail    string           `json:"inviteeemail"`
-	Expires         pgtype.Timestamp `json:"expires"`
-	Role            TenantMemberRole `json:"role"`
-	Status          InviteLinkStatus `json:"status"`
-	CanViewPayloads pgtype.Bool      `json:"canViewPayloads"`
+	ID              uuid.UUID              `json:"id"`
+	Createdat       pgtype.Timestamp       `json:"createdat"`
+	Updatedat       pgtype.Timestamp       `json:"updatedat"`
+	Tenantid        uuid.UUID              `json:"tenantid"`
+	Inviteremail    string                 `json:"inviteremail"`
+	Inviteeemail    string                 `json:"inviteeemail"`
+	Expires         pgtype.Timestamp       `json:"expires"`
+	Role            enums.TenantMemberRole `json:"role"`
+	Status          InviteLinkStatus       `json:"status"`
+	CanViewPayloads pgtype.Bool            `json:"canViewPayloads"`
 }
 
 func (q *Queries) SyncUpsertTenantInvite(ctx context.Context, db DBTX, arg SyncUpsertTenantInviteParams) (*TenantInviteLink, error) {
@@ -432,13 +433,13 @@ RETURNING id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayl
 `
 
 type SyncUpsertTenantMemberParams struct {
-	ID              uuid.UUID        `json:"id"`
-	Createdat       pgtype.Timestamp `json:"createdat"`
-	Updatedat       pgtype.Timestamp `json:"updatedat"`
-	Tenantid        uuid.UUID        `json:"tenantid"`
-	Userid          uuid.UUID        `json:"userid"`
-	Role            TenantMemberRole `json:"role"`
-	CanViewPayloads pgtype.Bool      `json:"canViewPayloads"`
+	ID              uuid.UUID              `json:"id"`
+	Createdat       pgtype.Timestamp       `json:"createdat"`
+	Updatedat       pgtype.Timestamp       `json:"updatedat"`
+	Tenantid        uuid.UUID              `json:"tenantid"`
+	Userid          uuid.UUID              `json:"userid"`
+	Role            enums.TenantMemberRole `json:"role"`
+	CanViewPayloads pgtype.Bool            `json:"canViewPayloads"`
 }
 
 func (q *Queries) SyncUpsertTenantMember(ctx context.Context, db DBTX, arg SyncUpsertTenantMemberParams) (*TenantMember, error) {

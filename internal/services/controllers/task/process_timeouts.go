@@ -10,8 +10,8 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -65,7 +65,7 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 			tasktypes.CreateMonitoringEventPayload{
 				TaskId:         task.ID,
 				RetryCount:     task.RetryCount,
-				EventType:      sqlcv1.V1EventTypeOlapTIMEDOUT,
+				EventType:      enums.V1EventTypeOlapTIMEDOUT,
 				EventTimestamp: time.Now(),
 				EventMessage:   fmt.Sprintf("Task exceeded timeout of %s", task.StepTimeout),
 				WillRetry:      willRetry,

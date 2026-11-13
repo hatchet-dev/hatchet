@@ -15,6 +15,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 )
 
 // RunsListView displays a list of runs in a table
@@ -401,15 +402,15 @@ func (v *RunsListView) View() string {
 
 	for _, metric := range v.metrics {
 		switch metric.Status {
-		case rest.V1TaskStatusCOMPLETED:
+		case enums.V1ReadableStatusOlapCOMPLETED:
 			completed = metric.Count
-		case rest.V1TaskStatusRUNNING:
+		case enums.V1ReadableStatusOlapRUNNING:
 			running = metric.Count
-		case rest.V1TaskStatusQUEUED:
+		case enums.V1ReadableStatusOlapQUEUED:
 			queued = metric.Count
-		case rest.V1TaskStatusFAILED:
+		case enums.V1ReadableStatusOlapFAILED:
 			failed = metric.Count
-		case rest.V1TaskStatusCANCELLED:
+		case enums.V1ReadableStatusOlapCANCELLED:
 			cancelled = metric.Count
 		}
 		total += metric.Count
@@ -859,7 +860,7 @@ func formatTaskDuration(task *rest.V1TaskSummary) string {
 	switch {
 	case task.FinishedAt != nil:
 		duration = task.FinishedAt.Sub(*task.StartedAt)
-	case task.Status == rest.V1TaskStatusRUNNING:
+	case task.Status == enums.V1ReadableStatusOlapRUNNING:
 		duration = time.Since(*task.StartedAt)
 	default:
 		return "-"

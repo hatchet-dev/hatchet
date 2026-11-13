@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -107,13 +108,13 @@ RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name,
 `
 
 type CreateTenantParams struct {
-	ID                  uuid.UUID                    `json:"id"`
-	Name                string                       `json:"name"`
-	Slug                string                       `json:"slug"`
-	DataRetentionPeriod pgtype.Text                  `json:"dataRetentionPeriod"`
-	Version             NullTenantMajorEngineVersion `json:"version"`
-	OnboardingData      []byte                       `json:"onboardingData"`
-	Environment         NullTenantEnvironment        `json:"environment"`
+	ID                  uuid.UUID                          `json:"id"`
+	Name                string                             `json:"name"`
+	Slug                string                             `json:"slug"`
+	DataRetentionPeriod pgtype.Text                        `json:"dataRetentionPeriod"`
+	Version             enums.NullTenantMajorEngineVersion `json:"version"`
+	OnboardingData      []byte                             `json:"onboardingData"`
+	Environment         NullTenantEnvironment              `json:"environment"`
 }
 
 func (q *Queries) CreateTenant(ctx context.Context, db DBTX, arg CreateTenantParams) (*Tenant, error) {
@@ -225,10 +226,10 @@ RETURNING id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayl
 `
 
 type CreateTenantMemberParams struct {
-	Tenantid        uuid.UUID        `json:"tenantid"`
-	Userid          uuid.UUID        `json:"userid"`
-	Role            TenantMemberRole `json:"role"`
-	CanViewPayloads pgtype.Bool      `json:"canViewPayloads"`
+	Tenantid        uuid.UUID              `json:"tenantid"`
+	Userid          uuid.UUID              `json:"userid"`
+	Role            enums.TenantMemberRole `json:"role"`
+	CanViewPayloads pgtype.Bool            `json:"canViewPayloads"`
 }
 
 func (q *Queries) CreateTenantMember(ctx context.Context, db DBTX, arg CreateTenantMemberParams) (*TenantMember, error) {
@@ -1181,25 +1182,25 @@ WHERE
 `
 
 type PopulateTenantMembersRow struct {
-	ID                        uuid.UUID                `json:"id"`
-	CreatedAt                 pgtype.Timestamp         `json:"createdAt"`
-	UpdatedAt                 pgtype.Timestamp         `json:"updatedAt"`
-	TenantId                  uuid.UUID                `json:"tenantId"`
-	UserId                    uuid.UUID                `json:"userId"`
-	Role                      TenantMemberRole         `json:"role"`
-	CanViewPayloads           bool                     `json:"canViewPayloads"`
-	Email                     string                   `json:"email"`
-	Name                      pgtype.Text              `json:"name"`
-	TenantId_2                uuid.UUID                `json:"tenantId_2"`
-	TenantCreatedAt           pgtype.Timestamp         `json:"tenantCreatedAt"`
-	TenantUpdatedAt           pgtype.Timestamp         `json:"tenantUpdatedAt"`
-	TenantName                string                   `json:"tenantName"`
-	TenantSlug                string                   `json:"tenantSlug"`
-	AlertMemberEmails         bool                     `json:"alertMemberEmails"`
-	AnalyticsOptOut           bool                     `json:"analyticsOptOut"`
-	TenantVersion             TenantMajorEngineVersion `json:"tenantVersion"`
-	TenantEnvironment         NullTenantEnvironment    `json:"tenantEnvironment"`
-	TenantDataRetentionPeriod string                   `json:"tenantDataRetentionPeriod"`
+	ID                        uuid.UUID                      `json:"id"`
+	CreatedAt                 pgtype.Timestamp               `json:"createdAt"`
+	UpdatedAt                 pgtype.Timestamp               `json:"updatedAt"`
+	TenantId                  uuid.UUID                      `json:"tenantId"`
+	UserId                    uuid.UUID                      `json:"userId"`
+	Role                      enums.TenantMemberRole         `json:"role"`
+	CanViewPayloads           bool                           `json:"canViewPayloads"`
+	Email                     string                         `json:"email"`
+	Name                      pgtype.Text                    `json:"name"`
+	TenantId_2                uuid.UUID                      `json:"tenantId_2"`
+	TenantCreatedAt           pgtype.Timestamp               `json:"tenantCreatedAt"`
+	TenantUpdatedAt           pgtype.Timestamp               `json:"tenantUpdatedAt"`
+	TenantName                string                         `json:"tenantName"`
+	TenantSlug                string                         `json:"tenantSlug"`
+	AlertMemberEmails         bool                           `json:"alertMemberEmails"`
+	AnalyticsOptOut           bool                           `json:"analyticsOptOut"`
+	TenantVersion             enums.TenantMajorEngineVersion `json:"tenantVersion"`
+	TenantEnvironment         NullTenantEnvironment          `json:"tenantEnvironment"`
+	TenantDataRetentionPeriod string                         `json:"tenantDataRetentionPeriod"`
 }
 
 func (q *Queries) PopulateTenantMembers(ctx context.Context, db DBTX, ids []uuid.UUID) ([]*PopulateTenantMembersRow, error) {
@@ -1525,12 +1526,12 @@ RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name,
 `
 
 type UpdateTenantParams struct {
-	Name                pgtype.Text                  `json:"name"`
-	AnalyticsOptOut     pgtype.Bool                  `json:"analyticsOptOut"`
-	AlertMemberEmails   pgtype.Bool                  `json:"alertMemberEmails"`
-	Version             NullTenantMajorEngineVersion `json:"version"`
-	DataRetentionPeriod pgtype.Text                  `json:"dataRetentionPeriod"`
-	ID                  uuid.UUID                    `json:"id"`
+	Name                pgtype.Text                        `json:"name"`
+	AnalyticsOptOut     pgtype.Bool                        `json:"analyticsOptOut"`
+	AlertMemberEmails   pgtype.Bool                        `json:"alertMemberEmails"`
+	Version             enums.NullTenantMajorEngineVersion `json:"version"`
+	DataRetentionPeriod pgtype.Text                        `json:"dataRetentionPeriod"`
+	ID                  uuid.UUID                          `json:"id"`
 }
 
 func (q *Queries) UpdateTenant(ctx context.Context, db DBTX, arg UpdateTenantParams) (*Tenant, error) {
@@ -1635,9 +1636,9 @@ RETURNING id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayl
 `
 
 type UpdateTenantMemberParams struct {
-	Role            NullTenantMemberRole `json:"role"`
-	CanViewPayloads pgtype.Bool          `json:"canViewPayloads"`
-	ID              uuid.UUID            `json:"id"`
+	Role            enums.NullTenantMemberRole `json:"role"`
+	CanViewPayloads pgtype.Bool                `json:"canViewPayloads"`
+	ID              uuid.UUID                  `json:"id"`
 }
 
 func (q *Queries) UpdateTenantMember(ctx context.Context, db DBTX, arg UpdateTenantMemberParams) (*TenantMember, error) {

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/openapi"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
@@ -37,8 +38,8 @@ const (
 
 // Defines values for ConcurrencyScope.
 const (
-	ConcurrencyScopeTASK     ConcurrencyScope = "TASK"
-	ConcurrencyScopeWORKFLOW ConcurrencyScope = "WORKFLOW"
+	TASK     ConcurrencyScope = "TASK"
+	WORKFLOW ConcurrencyScope = "WORKFLOW"
 )
 
 // Defines values for CronWorkflowsMethod.
@@ -195,31 +196,6 @@ const (
 	Production  TenantEnvironment = "production"
 )
 
-// Defines values for TenantMemberRole.
-const (
-	ADMIN  TenantMemberRole = "ADMIN"
-	MEMBER TenantMemberRole = "MEMBER"
-	OWNER  TenantMemberRole = "OWNER"
-	VIEWER TenantMemberRole = "VIEWER"
-)
-
-// Defines values for TenantResource.
-const (
-	CRON            TenantResource = "CRON"
-	EVENT           TenantResource = "EVENT"
-	INCOMINGWEBHOOK TenantResource = "INCOMING_WEBHOOK"
-	SCHEDULE        TenantResource = "SCHEDULE"
-	TASKRUN         TenantResource = "TASK_RUN"
-	WORKER          TenantResource = "WORKER"
-	WORKERSLOT      TenantResource = "WORKER_SLOT"
-)
-
-// Defines values for TenantVersion.
-const (
-	V0 TenantVersion = "V0"
-	V1 TenantVersion = "V1"
-)
-
 // Defines values for V1AdditionalMetadataOperator.
 const (
 	AND V1AdditionalMetadataOperator = "AND"
@@ -232,16 +208,6 @@ const (
 	V1CELDebugResponseStatusSUCCESS V1CELDebugResponseStatus = "SUCCESS"
 )
 
-// Defines values for V1ConcurrencyLimitStrategy.
-const (
-	V1ConcurrencyLimitStrategyCancelInProgress         V1ConcurrencyLimitStrategy = "CANCEL_IN_PROGRESS"
-	V1ConcurrencyLimitStrategyCancelNewest             V1ConcurrencyLimitStrategy = "CANCEL_NEWEST"
-	V1ConcurrencyLimitStrategyCancelQueuedExceptNewest V1ConcurrencyLimitStrategy = "CANCEL_QUEUED_EXCEPT_NEWEST"
-	V1ConcurrencyLimitStrategyCancelQueuedExceptOldest V1ConcurrencyLimitStrategy = "CANCEL_QUEUED_EXCEPT_OLDEST"
-	V1ConcurrencyLimitStrategyGroupRoundRobin          V1ConcurrencyLimitStrategy = "GROUP_ROUND_ROBIN"
-	V1ConcurrencyLimitStrategyNone                     V1ConcurrencyLimitStrategy = "NONE"
-)
-
 // Defines values for V1ConcurrencyScope.
 const (
 	V1ConcurrencyScopeShared   V1ConcurrencyScope = "SHARED"
@@ -251,7 +217,7 @@ const (
 
 // Defines values for V1CreateWebhookRequestAPIKeyAuthType.
 const (
-	V1CreateWebhookRequestAPIKeyAuthTypeAPIKEY V1CreateWebhookRequestAPIKeyAuthType = "API_KEY"
+	APIKEY V1CreateWebhookRequestAPIKeyAuthType = "API_KEY"
 )
 
 // Defines values for V1CreateWebhookRequestBasicAuthAuthType.
@@ -262,13 +228,6 @@ const (
 // Defines values for V1CreateWebhookRequestHMACAuthType.
 const (
 	HMAC V1CreateWebhookRequestHMACAuthType = "HMAC"
-)
-
-// Defines values for V1DurableEventLogKind.
-const (
-	MEMO    V1DurableEventLogKind = "MEMO"
-	RUN     V1DurableEventLogKind = "RUN"
-	WAITFOR V1DurableEventLogKind = "WAIT_FOR"
 )
 
 // Defines values for V1DurableWaitConditionKind.
@@ -307,97 +266,11 @@ const (
 	STATUS  V1ServerlessEndpointCheckStage = "STATUS"
 )
 
-// Defines values for V1ServerlessEndpointEventKind.
-const (
-	CATALOGREGISTERED V1ServerlessEndpointEventKind = "CATALOG_REGISTERED"
-	CATALOGREJECTED   V1ServerlessEndpointEventKind = "CATALOG_REJECTED"
-	DELIVERYFAILED    V1ServerlessEndpointEventKind = "DELIVERY_FAILED"
-	HEALTHCHECKFAILED V1ServerlessEndpointEventKind = "HEALTHCHECK_FAILED"
-	HEALTHY           V1ServerlessEndpointEventKind = "HEALTHY"
-	UNHEALTHY         V1ServerlessEndpointEventKind = "UNHEALTHY"
-)
-
-// Defines values for V1ServerlessEndpointKind.
-const (
-	CLOUDFLAREWORKERS V1ServerlessEndpointKind = "CLOUDFLARE_WORKERS"
-	GENERICHTTP       V1ServerlessEndpointKind = "GENERIC_HTTP"
-	VERCEL            V1ServerlessEndpointKind = "VERCEL"
-)
-
-// Defines values for V1TaskEventType.
-const (
-	V1TaskEventTypeACKNOWLEDGED         V1TaskEventType = "ACKNOWLEDGED"
-	V1TaskEventTypeASSIGNED             V1TaskEventType = "ASSIGNED"
-	V1TaskEventTypeBATCHFLUSHED         V1TaskEventType = "BATCH_FLUSHED"
-	V1TaskEventTypeCANCELLED            V1TaskEventType = "CANCELLED"
-	V1TaskEventTypeCOULDNOTSENDTOWORKER V1TaskEventType = "COULD_NOT_SEND_TO_WORKER"
-	V1TaskEventTypeCREATED              V1TaskEventType = "CREATED"
-	V1TaskEventTypeDURABLEEVICTED       V1TaskEventType = "DURABLE_EVICTED"
-	V1TaskEventTypeDURABLERESTORING     V1TaskEventType = "DURABLE_RESTORING"
-	V1TaskEventTypeFAILED               V1TaskEventType = "FAILED"
-	V1TaskEventTypeFINISHED             V1TaskEventType = "FINISHED"
-	V1TaskEventTypeQUEUED               V1TaskEventType = "QUEUED"
-	V1TaskEventTypeRATELIMITERROR       V1TaskEventType = "RATE_LIMIT_ERROR"
-	V1TaskEventTypeREASSIGNED           V1TaskEventType = "REASSIGNED"
-	V1TaskEventTypeREQUEUEDNOWORKER     V1TaskEventType = "REQUEUED_NO_WORKER"
-	V1TaskEventTypeREQUEUEDRATELIMIT    V1TaskEventType = "REQUEUED_RATE_LIMIT"
-	V1TaskEventTypeRETRIEDBYUSER        V1TaskEventType = "RETRIED_BY_USER"
-	V1TaskEventTypeRETRYING             V1TaskEventType = "RETRYING"
-	V1TaskEventTypeSCHEDULINGTIMEDOUT   V1TaskEventType = "SCHEDULING_TIMED_OUT"
-	V1TaskEventTypeSENTTOWORKER         V1TaskEventType = "SENT_TO_WORKER"
-	V1TaskEventTypeSKIPPED              V1TaskEventType = "SKIPPED"
-	V1TaskEventTypeSLOTRELEASED         V1TaskEventType = "SLOT_RELEASED"
-	V1TaskEventTypeSTARTED              V1TaskEventType = "STARTED"
-	V1TaskEventTypeTIMEDOUT             V1TaskEventType = "TIMED_OUT"
-	V1TaskEventTypeTIMEOUTREFRESHED     V1TaskEventType = "TIMEOUT_REFRESHED"
-	V1TaskEventTypeWAITINGFORBATCH      V1TaskEventType = "WAITING_FOR_BATCH"
-)
-
-// Defines values for V1TaskStatus.
-const (
-	V1TaskStatusCANCELLED V1TaskStatus = "CANCELLED"
-	V1TaskStatusCOMPLETED V1TaskStatus = "COMPLETED"
-	V1TaskStatusFAILED    V1TaskStatus = "FAILED"
-	V1TaskStatusQUEUED    V1TaskStatus = "QUEUED"
-	V1TaskStatusRUNNING   V1TaskStatus = "RUNNING"
-)
-
-// Defines values for V1WebhookAuthType.
-const (
-	V1WebhookAuthTypeAPIKEY V1WebhookAuthType = "API_KEY"
-	V1WebhookAuthTypeBASIC  V1WebhookAuthType = "BASIC"
-	V1WebhookAuthTypeHMAC   V1WebhookAuthType = "HMAC"
-)
-
-// Defines values for V1WebhookHMACAlgorithm.
-const (
-	MD5    V1WebhookHMACAlgorithm = "MD5"
-	SHA1   V1WebhookHMACAlgorithm = "SHA1"
-	SHA256 V1WebhookHMACAlgorithm = "SHA256"
-	SHA512 V1WebhookHMACAlgorithm = "SHA512"
-)
-
 // Defines values for V1WebhookHMACEncoding.
 const (
 	BASE64    V1WebhookHMACEncoding = "BASE64"
 	BASE64URL V1WebhookHMACEncoding = "BASE64URL"
 	HEX       V1WebhookHMACEncoding = "HEX"
-)
-
-// Defines values for V1WebhookSourceName.
-const (
-	GENERIC V1WebhookSourceName = "GENERIC"
-	GITHUB  V1WebhookSourceName = "GITHUB"
-	LINEAR  V1WebhookSourceName = "LINEAR"
-	SLACK   V1WebhookSourceName = "SLACK"
-	STRIPE  V1WebhookSourceName = "STRIPE"
-	SVIX    V1WebhookSourceName = "SVIX"
-)
-
-// Defines values for V1WorkflowType.
-const (
-	V1WorkflowTypeDAG  V1WorkflowType = "DAG"
-	V1WorkflowTypeTASK V1WorkflowType = "TASK"
 )
 
 // Defines values for WorkerRuntimeSDKs.
@@ -1406,7 +1279,7 @@ type TenantMemberList struct {
 }
 
 // TenantMemberRole defines model for TenantMemberRole.
-type TenantMemberRole string
+type TenantMemberRole = enums.TenantMemberRole
 
 // TenantQueueMetrics defines model for TenantQueueMetrics.
 type TenantQueueMetrics struct {
@@ -1416,7 +1289,7 @@ type TenantQueueMetrics struct {
 }
 
 // TenantResource defines model for TenantResource.
-type TenantResource string
+type TenantResource = enums.LimitResource
 
 // TenantResourceLimit defines model for TenantResourceLimit.
 type TenantResourceLimit struct {
@@ -1450,7 +1323,7 @@ type TenantStepRunQueueMetrics struct {
 }
 
 // TenantVersion defines model for TenantVersion.
-type TenantVersion string
+type TenantVersion = enums.TenantMajorEngineVersion
 
 // TriggerRunResult defines model for TriggerRunResult.
 type TriggerRunResult struct {
@@ -1694,7 +1567,7 @@ type V1ConcurrencyKeyList struct {
 }
 
 // V1ConcurrencyLimitStrategy What happens to a run when its key has no free slot. NONE is the database default and is not set on registered strategies.
-type V1ConcurrencyLimitStrategy string
+type V1ConcurrencyLimitStrategy = enums.V1ConcurrencyStrategy
 
 // V1ConcurrencyScope Where a concurrency strategy is defined. SHARED strategies are named, tenant-wide and can be used by tasks in several workflows.
 type V1ConcurrencyScope string
@@ -1963,7 +1836,7 @@ type V1DurableEventLogEntry struct {
 }
 
 // V1DurableEventLogKind defines model for V1DurableEventLogKind.
-type V1DurableEventLogKind string
+type V1DurableEventLogKind = enums.V1DurableEventLogKind
 
 // V1DurableEventLogList defines model for V1DurableEventLogList.
 type V1DurableEventLogList = []V1DurableEventLogEntry
@@ -2233,7 +2106,7 @@ type V1ServerlessEndpointEventDetails struct {
 }
 
 // V1ServerlessEndpointEventKind HEALTHCHECK_FAILED: a healthcheck failed; recorded at the start of a failure streak and whenever the error changes. UNHEALTHY: the endpoint's health flipped to unhealthy. HEALTHY: the endpoint's health flipped to healthy, or its healthchecks succeed again after a streak of failures too short to flip it. CATALOG_REGISTERED: a changed set of workflows and actions was registered. CATALOG_REJECTED: the engine refused the declared workflows. DELIVERY_FAILED: a task delivered to the endpoint failed. HEALTHCHECK_FAILED, CATALOG_REJECTED, DELIVERY_FAILED and HEALTHY are each recorded at most once per endpoint every 30 seconds, and an endpoint records at most 120 events an hour; what is held back is counted in details.suppressed of the next event of the same kind.
-type V1ServerlessEndpointEventKind string
+type V1ServerlessEndpointEventKind = enums.V1ServerlessEndpointEventKind
 
 // V1ServerlessEndpointEventList defines model for V1ServerlessEndpointEventList.
 type V1ServerlessEndpointEventList struct {
@@ -2241,7 +2114,7 @@ type V1ServerlessEndpointEventList struct {
 }
 
 // V1ServerlessEndpointKind The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS and VERCEL name the platform the endpoint is deployed on, which the dashboard uses to guide setup and diagnose failures.
-type V1ServerlessEndpointKind string
+type V1ServerlessEndpointKind = enums.V1ServerlessEndpointKind
 
 // V1ServerlessEndpointList defines model for V1ServerlessEndpointList.
 type V1ServerlessEndpointList struct {
@@ -2320,7 +2193,7 @@ type V1TaskEventList struct {
 }
 
 // V1TaskEventType defines model for V1TaskEventType.
-type V1TaskEventType string
+type V1TaskEventType = enums.V1EventTypeOlap
 
 // V1TaskFilter defines model for V1TaskFilter.
 type V1TaskFilter struct {
@@ -2354,7 +2227,7 @@ type V1TaskRunMetric struct {
 type V1TaskRunMetrics = []V1TaskRunMetric
 
 // V1TaskStatus defines model for V1TaskStatus.
-type V1TaskStatus string
+type V1TaskStatus = enums.V1ReadableStatusOlap
 
 // V1TaskSummary defines model for V1TaskSummary.
 type V1TaskSummary struct {
@@ -2628,7 +2501,7 @@ type V1WebhookAPIKeyAuth struct {
 }
 
 // V1WebhookAuthType defines model for V1WebhookAuthType.
-type V1WebhookAuthType string
+type V1WebhookAuthType = enums.V1IncomingWebhookAuthType
 
 // V1WebhookBasicAuth defines model for V1WebhookBasicAuth.
 type V1WebhookBasicAuth struct {
@@ -2640,7 +2513,7 @@ type V1WebhookBasicAuth struct {
 }
 
 // V1WebhookHMACAlgorithm defines model for V1WebhookHMACAlgorithm.
-type V1WebhookHMACAlgorithm string
+type V1WebhookHMACAlgorithm = enums.V1IncomingWebhookHmacAlgorithm
 
 // V1WebhookHMACAuth defines model for V1WebhookHMACAuth.
 type V1WebhookHMACAuth struct {
@@ -2673,7 +2546,7 @@ type V1WebhookResponse struct {
 }
 
 // V1WebhookSourceName defines model for V1WebhookSourceName.
-type V1WebhookSourceName string
+type V1WebhookSourceName = enums.V1IncomingWebhookSourceName
 
 // V1WorkflowRun defines model for V1WorkflowRun.
 type V1WorkflowRun struct {
@@ -2753,7 +2626,7 @@ type V1WorkflowRunDisplayNameList struct {
 type V1WorkflowRunExternalIdList = []openapi_types.UUID
 
 // V1WorkflowType defines model for V1WorkflowType.
-type V1WorkflowType string
+type V1WorkflowType = enums.V1RunKind
 
 // WebhookWorker defines model for WebhookWorker.
 type WebhookWorker struct {

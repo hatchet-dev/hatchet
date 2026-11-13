@@ -16,6 +16,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -595,11 +596,11 @@ type decideFn func(sq *subQueue) (toFill, toCancel []slot)
 // CANCEL_NEWEST keep the oldest among equal-priority slots (priorityCompare); CANCEL_IN_PROGRESS
 // keeps the newest (cancelInProgressCompare), so a newer arrival preempts an older run. "Smaller"
 // under the chosen comparator always means "should run".
-func comparatorForStrategy(kind sqlcv1.V1ConcurrencyStrategy) func(a, b slot) int {
-	if kind == sqlcv1.V1ConcurrencyStrategyCANCELINPROGRESS {
+func comparatorForStrategy(kind enums.V1ConcurrencyStrategy) func(a, b slot) int {
+	if kind == enums.V1ConcurrencyStrategyCANCELINPROGRESS {
 		return cancelInProgressCompare
 	}
-	if kind == sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST || kind == sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST {
+	if kind == enums.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST || kind == enums.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST {
 		return cancelQueuedExceptCompare
 	}
 	return priorityCompare
@@ -612,17 +613,17 @@ func comparatorForStrategy(kind sqlcv1.V1ConcurrencyStrategy) func(a, b slot) in
 // preempt a running slot when a higher-priority-or-newer slot is waiting.
 func (c *ConcurrencyStrategy) decide() decideFn {
 	switch c.strategy.Strategy {
-	case sqlcv1.V1ConcurrencyStrategyGROUPROUNDROBIN:
+	case enums.V1ConcurrencyStrategyGROUPROUNDROBIN:
 		return decideGroupRoundRobin
-	case sqlcv1.V1ConcurrencyStrategyCANCELINPROGRESS:
+	case enums.V1ConcurrencyStrategyCANCELINPROGRESS:
 		return decideCancelInProgress
-	case sqlcv1.V1ConcurrencyStrategyCANCELNEWEST:
+	case enums.V1ConcurrencyStrategyCANCELNEWEST:
 		return decideCancelNewest
-	case sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST:
+	case enums.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST:
 		return decideCancelQueuedExceptNewest
-	case sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST:
+	case enums.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST:
 		return decideCancelQueuedExceptOldest
-	case sqlcv1.V1ConcurrencyStrategyNONE:
+	case enums.V1ConcurrencyStrategyNONE:
 		panic("unknown concurrency strategy")
 	default:
 		panic("unknown concurrency strategy")

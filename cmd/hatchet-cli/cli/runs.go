@@ -23,6 +23,7 @@ import (
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
 	"github.com/hatchet-dev/hatchet/pkg/client" //nolint:staticcheck
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 )
 
 var runsCmd = &cobra.Command{
@@ -897,15 +898,15 @@ func parseStatuses(strs []string) ([]rest.V1TaskStatus, error) {
 	for _, s := range strs {
 		switch strings.ToUpper(s) {
 		case "QUEUED":
-			statuses = append(statuses, rest.V1TaskStatusQUEUED)
+			statuses = append(statuses, enums.V1ReadableStatusOlapQUEUED)
 		case "RUNNING":
-			statuses = append(statuses, rest.V1TaskStatusRUNNING)
+			statuses = append(statuses, enums.V1ReadableStatusOlapRUNNING)
 		case "COMPLETED":
-			statuses = append(statuses, rest.V1TaskStatusCOMPLETED)
+			statuses = append(statuses, enums.V1ReadableStatusOlapCOMPLETED)
 		case "FAILED":
-			statuses = append(statuses, rest.V1TaskStatusFAILED)
+			statuses = append(statuses, enums.V1ReadableStatusOlapFAILED)
 		case "CANCELLED":
-			statuses = append(statuses, rest.V1TaskStatusCANCELLED)
+			statuses = append(statuses, enums.V1ReadableStatusOlapCANCELLED)
 		default:
 			return nil, fmt.Errorf("invalid status %q (valid: QUEUED,RUNNING,COMPLETED,FAILED,CANCELLED)", s)
 		}

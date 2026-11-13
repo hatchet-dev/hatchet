@@ -11,6 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/durable"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -89,7 +90,7 @@ func (tc *TasksControllerImpl) handleDurableRestoreTask(ctx context.Context, ten
 				RetryCount:             t.RetryCount,
 				DurableInvocationCount: durableInvCount,
 				EventTimestamp:         time.Now(),
-				EventType:              sqlcv1.V1EventTypeOlapDURABLERESTORING,
+				EventType:              enums.V1EventTypeOlapDURABLERESTORING,
 				EventMessage:           fmt.Sprintf("Restoring evicted task: %s", reason),
 			},
 		)

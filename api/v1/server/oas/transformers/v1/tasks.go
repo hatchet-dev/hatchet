@@ -9,6 +9,7 @@ import (
 	"github.com/oapi-codegen/runtime/types"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -21,7 +22,7 @@ func jsonToMap(jsonBytes []byte) map[string]interface{} {
 
 func mapOlapStatus(olapStatus string) (gen.V1TaskStatus, bool) {
 	if olapStatus == "EVICTED" {
-		return gen.V1TaskStatusRUNNING, true
+		return enums.V1ReadableStatusOlapRUNNING, true
 	}
 	return gen.V1TaskStatus(olapStatus), false
 }
@@ -77,7 +78,7 @@ func ToTaskSummary(task *v1.TaskWithPayloads, opts ...PayloadOption) gen.V1TaskS
 		},
 		Input:                 input,
 		Output:                output,
-		Type:                  gen.V1WorkflowTypeTASK,
+		Type:                  enums.V1RunKindTASK,
 		CreatedAt:             task.InsertedAt.Time,
 		DisplayName:           task.DisplayName,
 		Duration:              durationPtr,
@@ -181,7 +182,7 @@ func ToTaskRunEventMany(
 		toReturn[i] = gen.V1TaskEvent{
 			Id:              int(event.ID),
 			ErrorMessage:    &event.ErrorMessage.String,
-			EventType:       gen.V1TaskEventType(event.EventType),
+			EventType:       event.EventType,
 			Message:         event.AdditionalEventMessage.String,
 			Timestamp:       event.EventTimestamp.Time,
 			WorkerId:        event.WorkerID,
@@ -211,7 +212,7 @@ func ToWorkflowRunTaskRunEventsMany(
 
 		toReturn[i] = gen.V1TaskEvent{
 			ErrorMessage:    &event.ErrorMessage.String,
-			EventType:       gen.V1TaskEventType(event.EventType),
+			EventType:       event.EventType,
 			Id:              int(event.ID),
 			Message:         event.AdditionalEventMessage.String,
 			TaskDisplayName: &event.DisplayName,
@@ -236,11 +237,11 @@ func ToWorkflowRunTaskRunEventsMany(
 
 func StatusToTaskRunMetrics(metrics *[]v1.TaskRunMetric) gen.V1TaskRunMetrics {
 	statuses := []gen.V1TaskStatus{
-		gen.V1TaskStatusCANCELLED,
-		gen.V1TaskStatusCOMPLETED,
-		gen.V1TaskStatusFAILED,
-		gen.V1TaskStatusQUEUED,
-		gen.V1TaskStatusRUNNING,
+		enums.V1ReadableStatusOlapCANCELLED,
+		enums.V1ReadableStatusOlapCOMPLETED,
+		enums.V1ReadableStatusOlapFAILED,
+		enums.V1ReadableStatusOlapQUEUED,
+		enums.V1ReadableStatusOlapRUNNING,
 	}
 
 	metricsMap := make(map[gen.V1TaskStatus]v1.TaskRunMetric)
@@ -258,7 +259,7 @@ func StatusToTaskRunMetrics(metrics *[]v1.TaskRunMetric) gen.V1TaskRunMetrics {
 			Status: status,
 		}
 
-		if status == gen.V1TaskStatusRUNNING {
+		if status == enums.V1ReadableStatusOlapRUNNING {
 			evicted := int(metric.EvictedCount)   // nolint: gosec
 			onWorker := int(metric.OnWorkerCount) // nolint: gosec
 			toReturn[i].RunningDetailCount = &gen.V1RunningDetailCount{
@@ -365,7 +366,7 @@ func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId uuid.UUID, 
 		ErrorMessage:          &taskWithData.ErrorMessage.String,
 		WorkflowRunExternalId: workflowRunExternalId,
 		TaskExternalId:        taskWithData.ExternalID,
-		Type:                  gen.V1WorkflowTypeTASK,
+		Type:                  enums.V1RunKindTASK,
 		NumSpawnedChildren:    int(taskWithData.NumSpawnedChildren),
 		StepId:                &stepId,
 		ActionId:              &taskWithData.ActionID,
@@ -479,7 +480,7 @@ func ToWorkflowRunDetails(
 
 		parsedTaskEvents[i] = gen.V1TaskEvent{
 			ErrorMessage:    &event.ErrorMessage.String,
-			EventType:       gen.V1TaskEventType(event.EventType),
+			EventType:       event.EventType,
 			Id:              int(event.ID),
 			Message:         event.AdditionalEventMessage.String,
 			TaskDisplayName: &event.DisplayName,

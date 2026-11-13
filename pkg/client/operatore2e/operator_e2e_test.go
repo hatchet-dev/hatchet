@@ -31,9 +31,9 @@ import (
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/operatorclient"
-	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/operator/hostgrpc"
 	"github.com/hatchet-dev/hatchet/pkg/operator/operatortest"
@@ -270,10 +270,10 @@ func waitForCompletion(t *testing.T, ctx context.Context, sdk *hatchet.Client, r
 			return false, err
 		}
 		switch d.Status {
-		case rest.V1TaskStatusCOMPLETED:
+		case enums.V1ReadableStatusOlapCOMPLETED:
 			details = d
 			return true, nil
-		case rest.V1TaskStatusFAILED, rest.V1TaskStatusCANCELLED:
+		case enums.V1ReadableStatusOlapFAILED, enums.V1ReadableStatusOlapCANCELLED:
 			t.Fatalf("run %s ended with status %s: %+v", runId, d.Status, d.TaskRuns)
 		}
 		return false, nil
@@ -294,7 +294,7 @@ func assertStaysQueued(t *testing.T, ctx context.Context, sdk *hatchet.Client, r
 		if err != nil {
 			t.Logf("poll error: %v", err)
 		} else {
-			require.Equal(t, rest.V1TaskStatusQUEUED, d.Status, "run %s must stay queued while no worker has its action: %+v", runId, d.TaskRuns)
+			require.Equal(t, enums.V1ReadableStatusOlapQUEUED, d.Status, "run %s must stay queued while no worker has its action: %+v", runId, d.TaskRuns)
 		}
 		select {
 		case <-ctx.Done():

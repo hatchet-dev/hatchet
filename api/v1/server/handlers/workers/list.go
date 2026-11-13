@@ -13,6 +13,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	transformersv1 "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -22,9 +23,9 @@ func (t *WorkerService) WorkerList(ctx echo.Context, request gen.WorkerListReque
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 
 	switch tenant.Version {
-	case sqlcv1.TenantMajorEngineVersionV0:
+	case enums.TenantMajorEngineVersionV0:
 		return t.workerListV0(ctx, tenant, request)
-	case sqlcv1.TenantMajorEngineVersionV1:
+	case enums.TenantMajorEngineVersionV1:
 		return t.workerListV1(ctx, tenant, request)
 	default:
 		err := fmt.Errorf("unsupported tenant version: %s", string(tenant.Version))

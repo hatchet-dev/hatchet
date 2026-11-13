@@ -10,16 +10,16 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type taskPrometheusUpdate struct {
 	tenantId       uuid.UUID
 	taskId         int64
 	taskInsertedAt pgtype.Timestamptz
-	readableStatus sqlcv1.V1ReadableStatusOlap
+	readableStatus enums.V1ReadableStatusOlap
 	workflowId     uuid.UUID
 	isDAGTask      bool
 }
@@ -28,7 +28,7 @@ type dagPrometheusUpdate struct {
 	tenantId       uuid.UUID
 	dagExternalId  uuid.UUID
 	dagInsertedAt  pgtype.Timestamptz
-	readableStatus sqlcv1.V1ReadableStatusOlap
+	readableStatus enums.V1ReadableStatusOlap
 	workflowId     uuid.UUID
 }
 
@@ -69,7 +69,7 @@ func (o *OLAPControllerImpl) runTaskPrometheusUpdateWorker() {
 
 				taskIds := make([]int64, 0, len(tenantUpdates))
 				taskInsertedAts := make([]pgtype.Timestamptz, 0, len(tenantUpdates))
-				readableStatuses := make([]sqlcv1.V1ReadableStatusOlap, 0, len(tenantUpdates))
+				readableStatuses := make([]enums.V1ReadableStatusOlap, 0, len(tenantUpdates))
 
 				for _, update := range tenantUpdates {
 					taskIds = append(taskIds, update.taskId)

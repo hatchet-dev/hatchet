@@ -5,12 +5,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func newCancelNewestStrategy(repo repository.ConcurrencyRepository, maxConcurrency int32) *ConcurrencyStrategy {
-	return newTestStrategyKind(repo, maxConcurrency, sqlcv1.V1ConcurrencyStrategyCANCELNEWEST)
+	return newTestStrategyKind(repo, maxConcurrency, enums.V1ConcurrencyStrategyCANCELNEWEST)
 }
 
 // Free capacity is filled from the queued backlog in comparator order; the slots that don't fit are

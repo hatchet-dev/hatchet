@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/limits"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -20,7 +21,7 @@ type TenantLimitConfig struct {
 }
 
 type Limit struct {
-	Resource sqlcv1.LimitResource
+	Resource enums.LimitResource
 	Limit    int32
 	Alarm    *int32
 	Window   *time.Duration
@@ -33,14 +34,14 @@ type TenantLimitRepository interface {
 	UpdateLimits(ctx context.Context, tenantId uuid.UUID, limits []Limit) error
 
 	// CanCreate checks if the tenant can create a resource
-	CanCreate(ctx context.Context, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (bool, int, error)
+	CanCreate(ctx context.Context, resource enums.LimitResource, tenantId uuid.UUID, numberOfResources int32) (bool, int, error)
 
 	// Resolve all tenant resource limits
 	ResolveAllTenantResourceLimits(ctx context.Context) error
 
 	DefaultLimits() []Limit
 
-	Meter(ctx context.Context, dbtx sqlcv1.DBTX, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (precommit func() error, postcommit func())
+	Meter(ctx context.Context, dbtx sqlcv1.DBTX, resource enums.LimitResource, tenantId uuid.UUID, numberOfResources int32) (precommit func() error, postcommit func())
 
 	// StreamRetention comes from the STREAM_RETENTION limit, in hours, or the default.
 	StreamRetention(ctx context.Context, tenantId uuid.UUID) (time.Duration, error)
@@ -52,7 +53,7 @@ type TenantLimitRepository interface {
 }
 
 type meterKey struct {
-	resource sqlcv1.LimitResource
+	resource enums.LimitResource
 	tenantId uuid.UUID
 }
 
@@ -99,11 +100,11 @@ func (t *tenantLimitRepository) ResolveAllTenantResourceLimits(ctx context.Conte
 }
 
 // FIXME(mnafees): WE NEED TO GET RID OF CUSTOM VALUE METERS
-func hasCustomValueMeter(resource sqlcv1.LimitResource) bool {
+func hasCustomValueMeter(resource enums.LimitResource) bool {
 	switch resource {
-	case sqlcv1.LimitResourceWORKER, sqlcv1.LimitResourceWORKERSLOT, sqlcv1.LimitResourceINCOMINGWEBHOOK, sqlcv1.LimitResourceSTREAMTOPIC, sqlcv1.LimitResourceSTREAMRETENTION:
+	case enums.LimitResourceWORKER, enums.LimitResourceWORKERSLOT, enums.LimitResourceINCOMINGWEBHOOK, enums.LimitResourceSTREAMTOPIC, enums.LimitResourceSTREAMRETENTION:
 		return true
-	case sqlcv1.LimitResourceTASKRUN, sqlcv1.LimitResourceEVENT, sqlcv1.LimitResourceCRON, sqlcv1.LimitResourceSCHEDULE, sqlcv1.LimitResourceSTREAMMESSAGE:
+	case enums.LimitResourceTASKRUN, enums.LimitResourceEVENT, enums.LimitResourceCRON, enums.LimitResourceSCHEDULE, enums.LimitResourceSTREAMMESSAGE:
 		return false
 	}
 
@@ -113,46 +114,46 @@ func hasCustomValueMeter(resource sqlcv1.LimitResource) bool {
 func (t *tenantLimitRepository) DefaultLimits() []Limit {
 	return []Limit{
 		{
-			Resource: sqlcv1.LimitResourceTASKRUN,
+			Resource: enums.LimitResourceTASKRUN,
 			Limit:    t.config.DefaultTaskRunLimit,                // nolint: gosec
 			Alarm:    Int32Ptr(t.config.DefaultTaskRunAlarmLimit), // nolint: gosec
 			Window:   &t.config.DefaultTaskRunWindow,
 		},
 		{
-			Resource: sqlcv1.LimitResourceEVENT,
+			Resource: enums.LimitResourceEVENT,
 			Limit:    t.config.DefaultEventLimit,                // nolint: gosec
 			Alarm:    Int32Ptr(t.config.DefaultEventAlarmLimit), // nolint: gosec
 			Window:   &t.config.DefaultEventWindow,
 		},
 		{
-			Resource: sqlcv1.LimitResourceWORKER,
+			Resource: enums.LimitResourceWORKER,
 			Limit:    t.config.DefaultWorkerLimit,                // nolint: gosec
 			Alarm:    Int32Ptr(t.config.DefaultWorkerAlarmLimit), // nolint: gosec
 		},
 		{
-			Resource: sqlcv1.LimitResourceWORKERSLOT,
+			Resource: enums.LimitResourceWORKERSLOT,
 			Limit:    t.config.DefaultWorkerSlotLimit,                // nolint: gosec
 			Alarm:    Int32Ptr(t.config.DefaultWorkerSlotAlarmLimit), // nolint: gosec
 		},
 		{
-			Resource: sqlcv1.LimitResourceINCOMINGWEBHOOK,
+			Resource: enums.LimitResourceINCOMINGWEBHOOK,
 			Limit:    t.config.DefaultIncomingWebhookLimit,                // nolint: gosec
 			Alarm:    Int32Ptr(t.config.DefaultIncomingWebhookAlarmLimit), // nolint: gosec
 		},
 		{
-			Resource: sqlcv1.LimitResourceSTREAMTOPIC,
+			Resource: enums.LimitResourceSTREAMTOPIC,
 			Limit:    t.config.DefaultStreamTopicLimit,                // nolint: gosec
 			Alarm:    Int32Ptr(t.config.DefaultStreamTopicAlarmLimit), // nolint: gosec
 		},
 		{
-			Resource: sqlcv1.LimitResourceSTREAMMESSAGE,
+			Resource: enums.LimitResourceSTREAMMESSAGE,
 			Limit:    t.config.DefaultStreamMessageLimit,                // nolint: gosec
 			Alarm:    Int32Ptr(t.config.DefaultStreamMessageAlarmLimit), // nolint: gosec
 			Window:   &t.config.DefaultStreamMessageWindow,
 		},
 		{
 			// hours, not a count; nothing meters it
-			Resource: sqlcv1.LimitResourceSTREAMRETENTION,
+			Resource: enums.LimitResourceSTREAMRETENTION,
 			Limit:    t.DefaultStreamRetentionHours(),
 		},
 	}
@@ -174,7 +175,7 @@ func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId uuid.UUI
 	// patch custom worker limits
 	for _, limit := range limits {
 
-		if limit.Resource == sqlcv1.LimitResourceWORKER {
+		if limit.Resource == enums.LimitResourceWORKER {
 			workerCount, err := t.queries.CountTenantWorkers(ctx, db, tenantId)
 			if err != nil {
 				return nil, err
@@ -182,7 +183,7 @@ func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId uuid.UUI
 			limit.Value = int32(workerCount) // nolint: gosec
 		}
 
-		if limit.Resource == sqlcv1.LimitResourceWORKERSLOT {
+		if limit.Resource == enums.LimitResourceWORKERSLOT {
 			totalSlots, err := t.queries.GetTotalActiveSlotsForTenant(ctx, db, tenantId)
 			if err != nil {
 				return nil, err
@@ -195,11 +196,11 @@ func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId uuid.UUI
 	return limits, nil
 }
 
-func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (bool, int, error) {
+func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource enums.LimitResource, tenantId uuid.UUID, numberOfResources int32) (bool, int, error) {
 	return t.canCreate(ctx, nil, resource, tenantId, numberOfResources)
 }
 
-func (t *tenantLimitRepository) canCreate(ctx context.Context, dbtx sqlcv1.DBTX, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (bool, int, error) {
+func (t *tenantLimitRepository) canCreate(ctx context.Context, dbtx sqlcv1.DBTX, resource enums.LimitResource, tenantId uuid.UUID, numberOfResources int32) (bool, int, error) {
 	db := t.pool.ForTenant(tenantId)
 
 	if !t.enforceLimits {
@@ -212,7 +213,7 @@ func (t *tenantLimitRepository) canCreate(ctx context.Context, dbtx sqlcv1.DBTX,
 
 	limit, err := t.queries.GetTenantResourceLimit(ctx, dbtx, sqlcv1.GetTenantResourceLimitParams{
 		Tenantid: tenantId,
-		Resource: sqlcv1.NullLimitResource{
+		Resource: enums.NullLimitResource{
 			LimitResource: resource,
 			Valid:         true,
 		},
@@ -229,7 +230,7 @@ func (t *tenantLimitRepository) canCreate(ctx context.Context, dbtx sqlcv1.DBTX,
 
 		limit, err = t.queries.GetTenantResourceLimit(ctx, dbtx, sqlcv1.GetTenantResourceLimitParams{
 			Tenantid: tenantId,
-			Resource: sqlcv1.NullLimitResource{
+			Resource: enums.NullLimitResource{
 				LimitResource: resource,
 				Valid:         true,
 			},
@@ -244,7 +245,7 @@ func (t *tenantLimitRepository) canCreate(ctx context.Context, dbtx sqlcv1.DBTX,
 	var value = limit.Value
 
 	// patch custom worker limits aggregate methods
-	if resource == sqlcv1.LimitResourceWORKER {
+	if resource == enums.LimitResourceWORKER {
 		count, err := t.queries.CountTenantWorkers(ctx, dbtx, tenantId)
 		value = int32(count) // nolint: gosec
 
@@ -254,7 +255,7 @@ func (t *tenantLimitRepository) canCreate(ctx context.Context, dbtx sqlcv1.DBTX,
 	}
 
 	// counted live: nothing meters topic creation, and the idle sweep deletes topics
-	if resource == sqlcv1.LimitResourceSTREAMTOPIC {
+	if resource == enums.LimitResourceSTREAMTOPIC {
 		count, err := t.queries.CountStreamTopics(ctx, dbtx, tenantId)
 		value = int32(count) // nolint: gosec
 
@@ -281,14 +282,14 @@ func calcPercent(value int32, limit int32) int {
 	return int((float64(value) / float64(limit)) * 100)
 }
 
-func (t *tenantLimitRepository) unflushedAmount(tenantId uuid.UUID, resource sqlcv1.LimitResource) int32 {
+func (t *tenantLimitRepository) unflushedAmount(tenantId uuid.UUID, resource enums.LimitResource) int32 {
 	t.unflushedMu.RLock()
 	defer t.unflushedMu.RUnlock()
 
 	return t.unflushed[meterKey{tenantId: tenantId, resource: resource}]
 }
 
-func (t *tenantLimitRepository) addToUnflushed(resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) {
+func (t *tenantLimitRepository) addToUnflushed(resource enums.LimitResource, tenantId uuid.UUID, numberOfResources int32) {
 	if numberOfResources == 0 {
 		return
 	}
@@ -374,7 +375,7 @@ func (t *tenantLimitRepository) flushToDatabase(ctx context.Context) error {
 	return nil
 }
 
-func (t *tenantLimitRepository) cachedCanCreate(ctx context.Context, dbtx sqlcv1.DBTX, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (bool, int, error) {
+func (t *tenantLimitRepository) cachedCanCreate(ctx context.Context, dbtx sqlcv1.DBTX, resource enums.LimitResource, tenantId uuid.UUID, numberOfResources int32) (bool, int, error) {
 	key := meterKey{tenantId: tenantId, resource: resource}.cacheKey()
 
 	var canCreate *bool
@@ -403,7 +404,7 @@ func (t *tenantLimitRepository) cachedCanCreate(ctx context.Context, dbtx sqlcv1
 	return *canCreate, percent, nil
 }
 
-func (t *tenantLimitRepository) Meter(ctx context.Context, dbtx sqlcv1.DBTX, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (precommit func() error, postcommit func()) {
+func (t *tenantLimitRepository) Meter(ctx context.Context, dbtx sqlcv1.DBTX, resource enums.LimitResource, tenantId uuid.UUID, numberOfResources int32) (precommit func() error, postcommit func()) {
 	return func() error {
 			// skip the limit check when there's nothing to meter, so a running DAG can
 			// still trigger its steps after the tenant reaches its limit
@@ -540,7 +541,7 @@ func (t *tenantLimitRepository) DefaultStreamRetentionHours() int32 {
 const defaultStreamRetentionHours = 720
 
 func (t *tenantLimitRepository) StreamRetention(ctx context.Context, tenantId uuid.UUID) (time.Duration, error) {
-	key := meterKey{resource: sqlcv1.LimitResourceSTREAMRETENTION, tenantId: tenantId}.cacheKey()
+	key := meterKey{resource: enums.LimitResourceSTREAMRETENTION, tenantId: tenantId}.cacheKey()
 
 	if v, ok := t.c.Get(key); ok {
 		return v.(time.Duration), nil
@@ -550,7 +551,7 @@ func (t *tenantLimitRepository) StreamRetention(ctx context.Context, tenantId uu
 
 	limit, err := t.queries.GetTenantResourceLimit(ctx, t.pool.ForTenant(tenantId), sqlcv1.GetTenantResourceLimitParams{
 		Tenantid: tenantId,
-		Resource: sqlcv1.NullLimitResource{LimitResource: sqlcv1.LimitResourceSTREAMRETENTION, Valid: true},
+		Resource: enums.NullLimitResource{LimitResource: enums.LimitResourceSTREAMRETENTION, Valid: true},
 	})
 
 	switch {

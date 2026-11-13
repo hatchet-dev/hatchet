@@ -21,6 +21,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/operator/safeclient"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -555,7 +556,7 @@ func newEndpointRow(spec endpointSpec) *sqlcv1.V1ServerlessEndpoint {
 		ID:                    uuid.New(),
 		TenantID:              spec.tenantId,
 		Name:                  spec.name,
-		Kind:                  sqlcv1.V1ServerlessEndpointKindGENERICHTTP,
+		Kind:                  enums.V1ServerlessEndpointKindGENERICHTTP,
 		HealthcheckUrl:        "https://" + spec.name + ".example.test/health",
 		TriggerUrl:            "https://" + spec.name + ".example.test/trigger",
 		SigningSecretEnc:      "enc:test-signing-secret-0123456789-" + spec.name,

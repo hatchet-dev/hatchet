@@ -51,7 +51,7 @@ func (t *V1ServerlessService) V1ServerlessEndpointUpdate(ctx echo.Context, reque
 	}
 
 	if body.Kind != nil {
-		kind := sqlcv1.V1ServerlessEndpointKind(*body.Kind)
+		kind := *body.Kind
 		opts.Kind = &kind
 	}
 

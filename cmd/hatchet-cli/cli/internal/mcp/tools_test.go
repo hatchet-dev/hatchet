@@ -15,6 +15,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	cliconfig "github.com/hatchet-dev/hatchet/pkg/config/cli"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 )
 
 // fakeEngine is an in-memory Engine for handler tests.
@@ -160,7 +161,7 @@ func TestHandleTriggerRunWaitsForCompletion(t *testing.T) {
 		tenantID:     "tenant-local",
 		triggerRunID: runID,
 		runs: map[string]*rest.V1WorkflowRunDetails{
-			runID: runDetails(runID, rest.V1TaskStatusCOMPLETED, map[string]any{"result": "ok"}, ""),
+			runID: runDetails(runID, enums.V1ReadableStatusOlapCOMPLETED, map[string]any{"result": "ok"}, ""),
 		},
 	}
 	server := newTestServer(t, engine, &fakeFeedbackSender{}, "local")
@@ -212,7 +213,7 @@ func TestHandleGetRun(t *testing.T) {
 	engine := &fakeEngine{
 		tenantID: "tenant-local",
 		runs: map[string]*rest.V1WorkflowRunDetails{
-			runID: runDetails(runID, rest.V1TaskStatusFAILED, nil, "boom"),
+			runID: runDetails(runID, enums.V1ReadableStatusOlapFAILED, nil, "boom"),
 		},
 	}
 	server := newTestServer(t, engine, &fakeFeedbackSender{}, "local")
@@ -230,7 +231,7 @@ func TestHandleListRunEventsFallsBackToTaskEvents(t *testing.T) {
 	engine := &fakeEngine{
 		tenantID: "tenant-local",
 		events: []rest.V1TaskEvent{
-			{EventType: rest.V1TaskEventTypeSTARTED, Message: "started", Timestamp: time.Now(), TaskDisplayName: &taskName},
+			{EventType: enums.V1EventTypeOlapSTARTED, Message: "started", Timestamp: time.Now(), TaskDisplayName: &taskName},
 		},
 	}
 	server := newTestServer(t, engine, &fakeFeedbackSender{}, "local")
@@ -267,7 +268,7 @@ func TestHandleReplayRunInPlace(t *testing.T) {
 	engine := &fakeEngine{
 		tenantID: "tenant-local",
 		runs: map[string]*rest.V1WorkflowRunDetails{
-			runID: runDetails(runID, rest.V1TaskStatusFAILED, nil, "boom"),
+			runID: runDetails(runID, enums.V1ReadableStatusOlapFAILED, nil, "boom"),
 		},
 	}
 	server := newTestServer(t, engine, &fakeFeedbackSender{}, "local")
@@ -286,8 +287,8 @@ func TestHandleReplayRunWithNewInputTriggersFreshRun(t *testing.T) {
 		tenantID:     "tenant-local",
 		triggerRunID: newRunID,
 		runs: map[string]*rest.V1WorkflowRunDetails{
-			oldRunID: runDetails(oldRunID, rest.V1TaskStatusFAILED, nil, "boom"),
-			newRunID: runDetails(newRunID, rest.V1TaskStatusCOMPLETED, map[string]any{"fixed": true}, ""),
+			oldRunID: runDetails(oldRunID, enums.V1ReadableStatusOlapFAILED, nil, "boom"),
+			newRunID: runDetails(newRunID, enums.V1ReadableStatusOlapCOMPLETED, map[string]any{"fixed": true}, ""),
 		},
 		workflowNames: map[string]string{"11111111-1111-1111-1111-111111111111": "simple"},
 	}

@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -60,7 +61,7 @@ func TestHandleCreateMonitoringEvent_OrchestratorStatusOnly(t *testing.T) {
 	finished := func(statusOnly bool) tasktypes.CreateMonitoringEventPayload {
 		return tasktypes.CreateMonitoringEventPayload{
 			TaskId:         orchestrator.ID,
-			EventType:      sqlcv1.V1EventTypeOlapFINISHED,
+			EventType:      enums.V1EventTypeOlapFINISHED,
 			EventTimestamp: time.Now(),
 			StatusOnly:     statusOnly,
 		}
@@ -69,7 +70,7 @@ func TestHandleCreateMonitoringEvent_OrchestratorStatusOnly(t *testing.T) {
 	failed := func(willRetry bool) tasktypes.CreateMonitoringEventPayload {
 		return tasktypes.CreateMonitoringEventPayload{
 			TaskId:         orchestrator.ID,
-			EventType:      sqlcv1.V1EventTypeOlapFAILED,
+			EventType:      enums.V1EventTypeOlapFAILED,
 			EventTimestamp: time.Now(),
 			WillRetry:      willRetry,
 		}

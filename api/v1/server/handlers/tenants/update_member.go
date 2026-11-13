@@ -6,6 +6,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -21,15 +22,15 @@ func (t *TenantService) TenantMemberUpdate(ctx echo.Context, request gen.TenantM
 	}
 
 	// if user is not an owner, they cannot change a role to owner or change owner roles
-	if tenantMember.Role != sqlcv1.TenantMemberRoleOWNER {
-		if request.Body.Role == gen.OWNER {
+	if tenantMember.Role != enums.TenantMemberRoleOWNER {
+		if request.Body.Role == enums.TenantMemberRoleOWNER {
 			return gen.TenantMemberUpdate400JSONResponse(
 				apierrors.NewAPIErrors("only an owner can change a role to owner"),
 			), nil
 		}
 
 		// Cannot change role of an owner
-		if memberToUpdate.Role == sqlcv1.TenantMemberRoleOWNER {
+		if memberToUpdate.Role == enums.TenantMemberRoleOWNER {
 			return gen.TenantMemberUpdate400JSONResponse(
 				apierrors.NewAPIErrors("only an owner can change the role of another owner"),
 			), nil

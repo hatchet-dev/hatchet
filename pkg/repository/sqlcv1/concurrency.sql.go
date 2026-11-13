@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -947,20 +948,20 @@ type ListConcurrencyStrategiesByWorkflowVersionIdParams struct {
 }
 
 type ListConcurrencyStrategiesByWorkflowVersionIdRow struct {
-	ID                int64                 `json:"id"`
-	ParentStrategyID  pgtype.Int8           `json:"parent_strategy_id"`
-	WorkflowID        uuid.UUID             `json:"workflow_id"`
-	WorkflowVersionID uuid.UUID             `json:"workflow_version_id"`
-	StepID            uuid.UUID             `json:"step_id"`
-	IsActive          bool                  `json:"is_active"`
-	LastActiveAt      pgtype.Timestamptz    `json:"last_active_at"`
-	Strategy          V1ConcurrencyStrategy `json:"strategy"`
-	Expression        string                `json:"expression"`
-	TenantID          uuid.UUID             `json:"tenant_id"`
-	MaxConcurrency    int32                 `json:"max_concurrency"`
-	TenantStrategyID  pgtype.Int8           `json:"tenant_strategy_id"`
-	MaxRunsExpression pgtype.Text           `json:"max_runs_expression"`
-	StepReadableID    string                `json:"step_readable_id"`
+	ID                int64                       `json:"id"`
+	ParentStrategyID  pgtype.Int8                 `json:"parent_strategy_id"`
+	WorkflowID        uuid.UUID                   `json:"workflow_id"`
+	WorkflowVersionID uuid.UUID                   `json:"workflow_version_id"`
+	StepID            uuid.UUID                   `json:"step_id"`
+	IsActive          bool                        `json:"is_active"`
+	LastActiveAt      pgtype.Timestamptz          `json:"last_active_at"`
+	Strategy          enums.V1ConcurrencyStrategy `json:"strategy"`
+	Expression        string                      `json:"expression"`
+	TenantID          uuid.UUID                   `json:"tenant_id"`
+	MaxConcurrency    int32                       `json:"max_concurrency"`
+	TenantStrategyID  pgtype.Int8                 `json:"tenant_strategy_id"`
+	MaxRunsExpression pgtype.Text                 `json:"max_runs_expression"`
+	StepReadableID    string                      `json:"step_readable_id"`
 }
 
 func (q *Queries) ListConcurrencyStrategiesByWorkflowVersionId(ctx context.Context, db DBTX, arg ListConcurrencyStrategiesByWorkflowVersionIdParams) ([]*ListConcurrencyStrategiesByWorkflowVersionIdRow, error) {
@@ -1040,16 +1041,16 @@ type ListStepConcurrencyStrategiesByIdsParams struct {
 }
 
 type ListStepConcurrencyStrategiesByIdsRow struct {
-	ID                int64                 `json:"id"`
-	WorkflowID        uuid.UUID             `json:"workflow_id"`
-	WorkflowVersionID uuid.UUID             `json:"workflow_version_id"`
-	Strategy          V1ConcurrencyStrategy `json:"strategy"`
-	Expression        string                `json:"expression"`
-	MaxConcurrency    int32                 `json:"max_concurrency"`
-	MaxRunsExpression pgtype.Text           `json:"max_runs_expression"`
-	WorkflowName      string                `json:"workflow_name"`
-	WorkflowVersion   pgtype.Text           `json:"workflow_version"`
-	StepReadableID    string                `json:"step_readable_id"`
+	ID                int64                       `json:"id"`
+	WorkflowID        uuid.UUID                   `json:"workflow_id"`
+	WorkflowVersionID uuid.UUID                   `json:"workflow_version_id"`
+	Strategy          enums.V1ConcurrencyStrategy `json:"strategy"`
+	Expression        string                      `json:"expression"`
+	MaxConcurrency    int32                       `json:"max_concurrency"`
+	MaxRunsExpression pgtype.Text                 `json:"max_runs_expression"`
+	WorkflowName      string                      `json:"workflow_name"`
+	WorkflowVersion   pgtype.Text                 `json:"workflow_version"`
+	StepReadableID    string                      `json:"step_readable_id"`
 }
 
 // Task-scoped strategies by primary key, for strategies on an older workflow version that
@@ -1137,17 +1138,17 @@ ORDER BY
 `
 
 type ListTaskConcurrencyStrategiesForTenantRow struct {
-	ID                int64                 `json:"id"`
-	WorkflowID        uuid.UUID             `json:"workflow_id"`
-	WorkflowVersionID uuid.UUID             `json:"workflow_version_id"`
-	Strategy          V1ConcurrencyStrategy `json:"strategy"`
-	Expression        string                `json:"expression"`
-	MaxConcurrency    int32                 `json:"max_concurrency"`
-	MaxRunsExpression pgtype.Text           `json:"max_runs_expression"`
-	LastActiveAt      pgtype.Timestamptz    `json:"last_active_at"`
-	WorkflowName      string                `json:"workflow_name"`
-	WorkflowVersion   pgtype.Text           `json:"workflow_version"`
-	StepReadableID    string                `json:"step_readable_id"`
+	ID                int64                       `json:"id"`
+	WorkflowID        uuid.UUID                   `json:"workflow_id"`
+	WorkflowVersionID uuid.UUID                   `json:"workflow_version_id"`
+	Strategy          enums.V1ConcurrencyStrategy `json:"strategy"`
+	Expression        string                      `json:"expression"`
+	MaxConcurrency    int32                       `json:"max_concurrency"`
+	MaxRunsExpression pgtype.Text                 `json:"max_runs_expression"`
+	LastActiveAt      pgtype.Timestamptz          `json:"last_active_at"`
+	WorkflowName      string                      `json:"workflow_name"`
+	WorkflowVersion   pgtype.Text                 `json:"workflow_version"`
+	StepReadableID    string                      `json:"step_readable_id"`
 }
 
 // Task-scoped strategies on the workflow's latest (non-deleted) version: excludes children
@@ -1577,14 +1578,14 @@ type ListWorkflowConcurrencyStrategiesByIdsParams struct {
 }
 
 type ListWorkflowConcurrencyStrategiesByIdsRow struct {
-	ID                int64                 `json:"id"`
-	WorkflowID        uuid.UUID             `json:"workflow_id"`
-	WorkflowVersionID uuid.UUID             `json:"workflow_version_id"`
-	Strategy          V1ConcurrencyStrategy `json:"strategy"`
-	Expression        string                `json:"expression"`
-	MaxConcurrency    int32                 `json:"max_concurrency"`
-	WorkflowName      string                `json:"workflow_name"`
-	WorkflowVersion   pgtype.Text           `json:"workflow_version"`
+	ID                int64                       `json:"id"`
+	WorkflowID        uuid.UUID                   `json:"workflow_id"`
+	WorkflowVersionID uuid.UUID                   `json:"workflow_version_id"`
+	Strategy          enums.V1ConcurrencyStrategy `json:"strategy"`
+	Expression        string                      `json:"expression"`
+	MaxConcurrency    int32                       `json:"max_concurrency"`
+	WorkflowName      string                      `json:"workflow_name"`
+	WorkflowVersion   pgtype.Text                 `json:"workflow_version"`
 }
 
 // Workflow-scoped strategies by primary key, for strategies on an older workflow version
@@ -1663,14 +1664,14 @@ ORDER BY
 `
 
 type ListWorkflowConcurrencyStrategiesForTenantRow struct {
-	ID                int64                 `json:"id"`
-	WorkflowID        uuid.UUID             `json:"workflow_id"`
-	WorkflowVersionID uuid.UUID             `json:"workflow_version_id"`
-	Strategy          V1ConcurrencyStrategy `json:"strategy"`
-	Expression        string                `json:"expression"`
-	MaxConcurrency    int32                 `json:"max_concurrency"`
-	WorkflowName      string                `json:"workflow_name"`
-	WorkflowVersion   pgtype.Text           `json:"workflow_version"`
+	ID                int64                       `json:"id"`
+	WorkflowID        uuid.UUID                   `json:"workflow_id"`
+	WorkflowVersionID uuid.UUID                   `json:"workflow_version_id"`
+	Strategy          enums.V1ConcurrencyStrategy `json:"strategy"`
+	Expression        string                      `json:"expression"`
+	MaxConcurrency    int32                       `json:"max_concurrency"`
+	WorkflowName      string                      `json:"workflow_name"`
+	WorkflowVersion   pgtype.Text                 `json:"workflow_version"`
 }
 
 // Workflow-scoped strategies on the workflow's latest (non-deleted) version.

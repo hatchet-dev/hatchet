@@ -24,6 +24,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/config/client"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -126,15 +127,15 @@ type WorkflowRun struct {
 func taskStatusFromProto(s v1contracts.RunStatus) rest.V1TaskStatus {
 	switch s {
 	case v1contracts.RunStatus_COMPLETED:
-		return rest.V1TaskStatusCOMPLETED
+		return enums.V1ReadableStatusOlapCOMPLETED
 	case v1contracts.RunStatus_CANCELLED:
-		return rest.V1TaskStatusCANCELLED
+		return enums.V1ReadableStatusOlapCANCELLED
 	case v1contracts.RunStatus_FAILED:
-		return rest.V1TaskStatusFAILED
+		return enums.V1ReadableStatusOlapFAILED
 	case v1contracts.RunStatus_RUNNING:
-		return rest.V1TaskStatusRUNNING
+		return enums.V1ReadableStatusOlapRUNNING
 	default:
-		return rest.V1TaskStatusQUEUED
+		return enums.V1ReadableStatusOlapQUEUED
 	}
 }
 

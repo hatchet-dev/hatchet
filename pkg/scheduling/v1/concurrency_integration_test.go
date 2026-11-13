@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/pgoutbox"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -83,7 +84,7 @@ func setupStepConcurrencyStrategy(
 	require.Len(t, strategies, 1)
 
 	strat := strategies[0]
-	require.Equal(t, sqlcv1.V1ConcurrencyStrategy(strategyType), strat.Strategy)
+	require.Equal(t, strategyType, strat.Strategy)
 	require.Equal(t, maxRuns, strat.MaxConcurrency)
 	require.False(t, strat.ParentStrategyID.Valid, "step-level concurrency should have no parent")
 
@@ -403,8 +404,8 @@ func TestConcurrency_ChainedStrategiesDoNotContaminate(t *testing.T) {
 		strat1 := strategies[0] // CANCEL_NEWEST
 		strat2 := strategies[1] // GROUP_ROUND_ROBIN
 
-		require.Equal(t, sqlcv1.V1ConcurrencyStrategyCANCELNEWEST, strat1.Strategy)
-		require.Equal(t, sqlcv1.V1ConcurrencyStrategyGROUPROUNDROBIN, strat2.Strategy)
+		require.Equal(t, enums.V1ConcurrencyStrategyCANCELNEWEST, strat1.Strategy)
+		require.Equal(t, enums.V1ConcurrencyStrategyGROUPROUNDROBIN, strat2.Strategy)
 
 		stepId := strat1.StepID
 

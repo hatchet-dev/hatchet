@@ -21,9 +21,9 @@ import (
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/auth/token"
 	"github.com/hatchet-dev/hatchet/pkg/client"
-	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/operator/hostgrpc"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -684,10 +684,10 @@ func (e *testEnv) waitForCompletion(tn *tenant, runId string, timeout time.Durat
 		}
 
 		switch d.Status {
-		case rest.V1TaskStatusCOMPLETED:
+		case enums.V1ReadableStatusOlapCOMPLETED:
 			details = d
 			return true, nil
-		case rest.V1TaskStatusFAILED, rest.V1TaskStatusCANCELLED:
+		case enums.V1ReadableStatusOlapFAILED, enums.V1ReadableStatusOlapCANCELLED:
 			e.t.Fatalf("run %s ended with status %s: %s", runId, d.Status, describeTasks(d))
 		}
 

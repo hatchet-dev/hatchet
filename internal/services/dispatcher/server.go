@@ -24,6 +24,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -1734,7 +1735,7 @@ func (d *DispatcherImpl) CancelTaskWithReason(ctx context.Context, tenantId uuid
 		task.ExternalID,
 		task.WorkflowRunID,
 		retryCount,
-		sqlcv1.V1EventTypeOlapCANCELLED,
+		enums.V1EventTypeOlapCANCELLED,
 		request.EventPayload,
 		false,
 	)
@@ -1873,7 +1874,7 @@ func (s *DispatcherImpl) handleBatchTaskStarted(
 			RetryCount:             retryCount,
 			DurableInvocationCount: durableInvocationCount,
 			WorkerId:               workerId,
-			EventType:              sqlcv1.V1EventTypeOlapSTARTED,
+			EventType:              enums.V1EventTypeOlapSTARTED,
 			EventTimestamp:         request.EventTimestamp.AsTime(),
 			EventPayload:           item.EventPayload,
 		})
@@ -1977,13 +1978,13 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 		}
 
 		eventPayload := item.EventPayload
-		olapEventType := sqlcv1.V1EventTypeOlapFINISHED
+		olapEventType := enums.V1EventTypeOlapFINISHED
 
 		var outputPayloadReferenceId *uuid.UUID
 
 		if validationErr := v1.ValidateJSONB([]byte(eventPayload), "taskOutput"); validationErr != nil {
 			eventPayload = validationErr.Error()
-			olapEventType = sqlcv1.V1EventTypeOlapFAILED
+			olapEventType = enums.V1EventTypeOlapFAILED
 
 			failedPayloads = append(failedPayloads, tasktypes.FailedTaskPayload{
 				TaskId:        task.ID,
@@ -2300,7 +2301,7 @@ func (d *DispatcherImpl) flushRefreshTimeout(ctx context.Context, key refreshTim
 				RetryCount:     taskRuntime.RetryCount,
 				WorkerId:       taskRuntime.WorkerID,
 				EventTimestamp: time.Now(),
-				EventType:      sqlcv1.V1EventTypeOlapTIMEOUTREFRESHED,
+				EventType:      enums.V1EventTypeOlapTIMEOUTREFRESHED,
 				EventMessage:   fmt.Sprintf("Timeout refreshed by %s", sum.String()),
 			},
 		)
@@ -2345,7 +2346,7 @@ func (d *DispatcherImpl) releaseSlot(ctx context.Context, tenant *sqlcv1.Tenant,
 			RetryCount:     releasedSlot.RetryCount,
 			WorkerId:       workerId,
 			EventTimestamp: time.Now(),
-			EventType:      sqlcv1.V1EventTypeOlapSLOTRELEASED,
+			EventType:      enums.V1EventTypeOlapSLOTRELEASED,
 		},
 	)
 

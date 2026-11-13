@@ -8,6 +8,9 @@ V1ServerlessEndpointKind:
     - GENERIC_HTTP
     - CLOUDFLARE_WORKERS
     - VERCEL
+  x-go-type: enums.V1ServerlessEndpointKind
+  x-go-type-import:
+    path: github.com/hatchet-dev/hatchet/pkg/enums
 
 V1ServerlessEndpointStatus:
   type: object
@@ -222,6 +225,9 @@ V1ServerlessEndpointEventKind:
     - CATALOG_REGISTERED
     - CATALOG_REJECTED
     - DELIVERY_FAILED
+  x-go-type: enums.V1ServerlessEndpointEventKind
+  x-go-type-import:
+    path: github.com/hatchet-dev/hatchet/pkg/enums
 
 V1ServerlessEndpointEventDetails:
   type: object

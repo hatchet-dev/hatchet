@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -214,10 +215,10 @@ func TestListTasks_DAGChildrenReadMetadataFromTheDAGRun(t *testing.T) {
 			TenantID:       f.tenantId,
 			TaskID:         task.ID,
 			TaskInsertedAt: task.InsertedAt,
-			EventType:      sqlcv1.V1EventTypeOlapQUEUED,
+			EventType:      enums.V1EventTypeOlapQUEUED,
 			WorkflowID:     f.dagWorkflow,
 			EventTimestamp: pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
-			ReadableStatus: sqlcv1.V1ReadableStatusOlapQUEUED,
+			ReadableStatus: enums.V1ReadableStatusOlapQUEUED,
 			ExternalID:     uuid.New(),
 		}
 		_, locksNotAcquired, err := repo.CreateTaskEvents(ctx, f.tenantId, []sqlcv1.CreateTaskEventsOLAPParams{queuedEvent}, map[uuid.UUID]uuid.UUID{queuedEvent.ExternalID: f.dagExternalId}, nil, nil, nil)

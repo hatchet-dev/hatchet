@@ -233,6 +233,9 @@ export enum TenantResource {
   CRON = "CRON",
   SCHEDULE = "SCHEDULE",
   INCOMING_WEBHOOK = "INCOMING_WEBHOOK",
+  STREAM_TOPIC = "STREAM_TOPIC",
+  STREAM_MESSAGE = "STREAM_MESSAGE",
+  STREAM_RETENTION = "STREAM_RETENTION",
 }
 
 /** The status of the CEL evaluation */
@@ -398,6 +401,7 @@ export enum V1TaskEventType {
   COULD_NOT_SEND_TO_WORKER = "COULD_NOT_SEND_TO_WORKER",
   DURABLE_EVICTED = "DURABLE_EVICTED",
   DURABLE_RESTORING = "DURABLE_RESTORING",
+  BATCH_BUFFERED = "BATCH_BUFFERED",
 }
 
 export enum V1WorkflowType {
@@ -411,6 +415,7 @@ export enum V1TaskStatus {
   COMPLETED = "COMPLETED",
   CANCELLED = "CANCELLED",
   FAILED = "FAILED",
+  EVICTED = "EVICTED",
 }
 
 export interface APIResourceMeta {
