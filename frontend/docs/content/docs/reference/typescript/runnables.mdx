@@ -420,9 +420,7 @@ The task options that were added.
 ### CreateBatchTaskWorkflowOpts
 
 ```ts
-type CreateBatchTaskWorkflowOpts<I, O> = CreateBaseWorkflowOpts &
-  CreateBaseTaskOpts<I, O, BatchTaskFn<I, O>> &
-  object;
+type CreateBatchTaskWorkflowOpts<I, O> = CreateBaseWorkflowOpts & Omit<CreateBaseTaskOpts<I, O, BatchTaskFn<..., ...>>, "maxReassignmentsAllowed"> & object;
 ```
 
 Options for creating a batch task workflow. Batch tasks buffer concurrent runs and

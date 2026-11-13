@@ -496,7 +496,9 @@ export interface CreateTaskOpts {
   /** (optional) slot requests (slot_type -> units) */
   slotRequests: { [key: string]: number };
   /** (optional) batch execution configuration */
-  batch?: TaskBatchConfig | undefined;
+  batch?:
+    | TaskBatchConfig
+    | undefined;
   /** (optional) the max number of times the task can be reassigned before failing */
   maxReassignmentsAllowed?: number | undefined;
 }
