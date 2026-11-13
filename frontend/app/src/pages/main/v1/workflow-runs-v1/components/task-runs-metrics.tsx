@@ -118,7 +118,6 @@ function MetricBadge({
 export const V1WorkflowRunsMetricsView = () => {
   const {
     display: { hideMetrics },
-    actions: { setShowQueueMetrics },
   } = useRunsContext();
 
   // format of className strings is:
@@ -150,16 +149,24 @@ export const V1WorkflowRunsMetricsView = () => {
         className={`text-slate-800 data-[is-selected=false]:border data-[is-selected=false]:border-slate-500/20 data-[is-selected=true]:bg-slate-500/20 hover:data-[is-selected=false]:border-transparent hover:data-[is-selected=false]:bg-slate-500/20 hover:data-[is-selected=true]:bg-slate-500/20 dark:text-slate-300`}
       />
 
-      {!hideMetrics && (
-        <Badge
-          variant="outline"
-          className="h-8 w-fit cursor-pointer rounded-sm px-3 py-1 text-sm font-normal"
-          onClick={() => setShowQueueMetrics(true)}
-        >
-          <span className="cq-xl:inline hidden">Queue metrics</span>
-          <ChartColumn className="cq-xl:hidden size-4" />
-        </Badge>
-      )}
+      {!hideMetrics && <QueueMetricsButton />}
     </div>
+  );
+};
+
+export const QueueMetricsButton = () => {
+  const {
+    actions: { setShowQueueMetrics },
+  } = useRunsContext();
+
+  return (
+    <Badge
+      variant="outline"
+      className="h-8 w-fit cursor-pointer rounded-sm px-3 py-1 text-sm font-normal"
+      onClick={() => setShowQueueMetrics(true)}
+    >
+      <span className="cq-xl:inline hidden">Queue metrics</span>
+      <ChartColumn className="cq-xl:hidden size-4" />
+    </Badge>
   );
 };

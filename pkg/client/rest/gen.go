@@ -66,6 +66,7 @@ const (
 	ConcurrencyPageEnabled         FeatureFlagId = "concurrency-page-enabled"
 	OperatorDetailsEnabled         FeatureFlagId = "operator-details-enabled"
 	OrganizationSsoEnabled         FeatureFlagId = "organization-sso-enabled"
+	RunsFilterSidebarEnabled       FeatureFlagId = "runs-filter-sidebar-enabled"
 	TenantLogWorkflowFilterEnabled FeatureFlagId = "tenant-log-workflow-filter-enabled"
 	TraceMinimapEnabled            FeatureFlagId = "trace-minimap-enabled"
 )

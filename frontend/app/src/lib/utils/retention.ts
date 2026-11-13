@@ -77,23 +77,36 @@ export function formatRetentionPeriod(period: string): string {
   return period;
 }
 
-export type TimeWindowPreset = '1h' | '6h' | '1d' | '7d';
+export const TIME_WINDOW_PRESETS = [
+  '15m',
+  '1h',
+  '4h',
+  '6h',
+  '1d',
+  '7d',
+] as const;
+
+export type TimeWindowPreset = (typeof TIME_WINDOW_PRESETS)[number];
 
 export const TIME_WINDOW_HOURS: Record<TimeWindowPreset, number> = {
+  '15m': 0.25,
   '1h': 1,
+  '4h': 4,
   '6h': 6,
   '1d': 24,
   '7d': 168,
 };
 
 export const TIME_WINDOW_LABELS: Record<TimeWindowPreset, string> = {
+  '15m': '15 minutes',
   '1h': '1 hour',
+  '4h': '4 hours',
   '6h': '6 hours',
   '1d': '1 day',
   '7d': '7 days',
 };
 
-const TIME_WINDOWS_DESC: TimeWindowPreset[] = ['7d', '1d', '6h', '1h'];
+const TIME_WINDOWS_DESC = [...TIME_WINDOW_PRESETS].reverse();
 
 export function isTimeWindowPreset(value: string): value is TimeWindowPreset {
   return value in TIME_WINDOW_HOURS;
@@ -125,7 +138,7 @@ export function largestAllowedTimeWindow(period?: string): TimeWindowPreset {
     }
   }
 
-  return '1h';
+  return '15m';
 }
 
 /**

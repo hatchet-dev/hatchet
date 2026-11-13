@@ -24,7 +24,10 @@ export function useRetentionGate(period?: string) {
         timeWindow !== 'custom' &&
         isTimeWindowOutsideRetention(timeWindow, period)
       ) {
-        setAttempt({ kind: 'preset', window: timeWindow as TimeWindowPreset });
+        setAttempt({
+          kind: 'preset',
+          window: timeWindow as TimeWindowPreset,
+        });
         return false;
       }
       apply();
