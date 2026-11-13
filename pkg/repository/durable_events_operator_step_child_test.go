@@ -175,12 +175,13 @@ func TestOperatorStepChildCancellationSatisfiesTheEntryAsAFailure(t *testing.T) 
 
 const operatorStepChildMatchTestAction = "integration:step1"
 
-// newOperatorStepChildMatchTestTasks registers the workflow ingestDagStepTrigger names and turns
-// direct completion off for the tenant, so spawning a step child writes a completion match.
-func newOperatorStepChildMatchTestTasks(t *testing.T, ctx context.Context, pool *pgxpool.Pool, repos userEventScopeTestRepositories) *TaskRepositoryImpl {
+// newOperatorStepChildMatchTestTasks registers the workflow ingestDagStepTrigger names and sets
+// the tenant's direct completion entitlement: without it, spawning a step child writes a
+// completion match.
+func newOperatorStepChildMatchTestTasks(t *testing.T, ctx context.Context, pool *pgxpool.Pool, repos userEventScopeTestRepositories, directCompletion bool) *TaskRepositoryImpl {
 	t.Helper()
 
-	require.NoError(t, newTenantEntitlementRepository(repos.shared).SetEntitlements(ctx, internalTenantId, TenantEntitlements{OperatorStepDirectCompletion: false}))
+	require.NoError(t, newTenantEntitlementRepository(repos.shared).SetEntitlements(ctx, internalTenantId, TenantEntitlements{OperatorStepDirectCompletion: directCompletion}))
 
 	_, err := (&workflowRepository{sharedRepository: repos.shared}).PutWorkflowVersion(ctx, internalTenantId, minimalWorkflowOpts("my-dag", "v1", nil))
 	require.NoError(t, err)
@@ -221,13 +222,13 @@ func TestOperatorStepChildFinalizeDeletesItsCompletionMatch(t *testing.T) {
 
 	ctx := context.Background()
 	repos := newUserEventScopeTestRepositories(t, pool)
-	tasks := newOperatorStepChildMatchTestTasks(t, ctx, pool, repos)
+	tasks := newOperatorStepChildMatchTestTasks(t, ctx, pool, repos, false)
 	orchestrator := createUserEventScopeTestTask(t, ctx, repos, internalTenantId, 303)
 
 	_, completes := spawnOperatorStepChild(t, ctx, repos, orchestrator, 1)
 	_, fails := spawnOperatorStepChild(t, ctx, repos, orchestrator, 2)
 	_, cancels := spawnOperatorStepChild(t, ctx, repos, orchestrator, 3)
-	require.Equal(t, 12, countMatchRows(t, ctx, pool), "with direct completion off, spawning a step child writes a match and three conditions")
+	require.Equal(t, 12, countMatchRows(t, ctx, pool), "without direct completion, spawning a step child writes a match and three conditions")
 
 	completed, err := tasks.CompleteTasks(ctx, internalTenantId, []CompleteTaskOpts{{TaskIdInsertedAtRetryCount: completes, Output: []byte(`{"answer":42}`)}})
 	require.NoError(t, err)
@@ -245,20 +246,21 @@ func TestOperatorStepChildFinalizeDeletesItsCompletionMatch(t *testing.T) {
 	require.Zero(t, countMatchRows(t, ctx, pool))
 }
 
-func TestReExecutedOperatorStepChildFinalizeDeletesTheNewBranchMatch(t *testing.T) {
+// Re-executing a step child writes matches whether or not the tenant has direct completion.
+func TestReExecutedOperatorStepChildFinalizeDeletesItsReplayMatches(t *testing.T) {
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
 
 	ctx := context.Background()
 	repos := newUserEventScopeTestRepositories(t, pool)
-	tasks := newOperatorStepChildMatchTestTasks(t, ctx, pool, repos)
+	tasks := newOperatorStepChildMatchTestTasks(t, ctx, pool, repos, true)
 	orchestrator := createUserEventScopeTestTask(t, ctx, repos, internalTenantId, 304)
 
 	firstEntry, child := spawnOperatorStepChild(t, ctx, repos, orchestrator, 1)
+	require.Zero(t, countMatchRows(t, ctx, pool), "with direct completion, spawning a step child writes no match")
 
 	_, err := tasks.CompleteTasks(ctx, internalTenantId, []CompleteTaskOpts{{TaskIdInsertedAtRetryCount: child, Output: []byte(`{"run":1}`)}})
 	require.NoError(t, err)
-	require.Zero(t, countMatchRows(t, ctx, pool))
 
 	_, err = repos.durable.HandleBranchForDAGReplay(ctx, internalTenantId, orchestrator, []uuid.UUID{firstEntry.WorkflowRunExternalId})
 	require.NoError(t, err)
