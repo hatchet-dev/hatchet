@@ -85,8 +85,11 @@ LABEL run.hatchet.fips=${FIPS}
 
 WORKDIR /hatchet
 
-# openssl is used by hatchet-admin quickstart to generate dev certs; FIPS images do not ship it
-RUN apk update && apk add --no-cache bash ca-certificates tzdata $([ "$FIPS" = "true" ] || echo openssl)
+# openssl is used by hatchet-admin quickstart to generate dev certs; FIPS images do not ship it.
+# zlib ships in the alpine base image. --upgrade pulls security fixes (zlib 1.4-r0
+# for CVE-2026-4738) that the base tag has not been rebuilt with; the other
+# packages do not depend on the newer version, so a plain apk add leaves it behind.
+RUN apk update && apk add --no-cache --upgrade zlib bash ca-certificates tzdata $([ "$FIPS" = "true" ] || echo openssl)
 
 COPY --from=build-go /hatchet/bin/hatchet-${SERVER_TARGET} /hatchet/
 

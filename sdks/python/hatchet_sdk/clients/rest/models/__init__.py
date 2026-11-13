@@ -227,6 +227,9 @@ from hatchet_sdk.clients.rest.models.update_scheduled_workflow_run_request impor
 from hatchet_sdk.clients.rest.models.update_tenant_alert_email_group_request import (
     UpdateTenantAlertEmailGroupRequest,
 )
+from hatchet_sdk.clients.rest.models.update_tenant_entitlements_request import (
+    UpdateTenantEntitlementsRequest,
+)
 from hatchet_sdk.clients.rest.models.update_tenant_invite_request import (
     UpdateTenantInviteRequest,
 )

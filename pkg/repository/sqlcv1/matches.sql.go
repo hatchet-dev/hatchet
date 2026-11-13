@@ -49,6 +49,53 @@ type CreateMatchConditionsParams struct {
 	Data              []byte                 `json:"data"`
 }
 
+const deleteCompletionMatchesHeldOnChildTasks = `-- name: DeleteCompletionMatchesHeldOnChildTasks :exec
+WITH input AS (
+    SELECT
+        UNNEST($1::BIGINT[]) AS durable_task_id,
+        UNNEST($2::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST($3::UUID[]) AS child_task_external_id
+), deleted_matches AS (
+    DELETE FROM
+        v1_match m
+    USING
+        input i
+    JOIN
+        v1_match_condition mc ON mc.tenant_id = $4::UUID
+        AND mc.event_type = 'INTERNAL'
+        AND mc.event_key = 'COMPLETED'
+        AND mc.is_satisfied = FALSE
+        AND mc.event_resource_hint = i.child_task_external_id::TEXT
+    WHERE
+        m.id = mc.v1_match_id
+        AND m.signal_task_id = i.durable_task_id
+        AND m.signal_task_inserted_at = i.durable_task_inserted_at
+    RETURNING
+        m.id
+)
+DELETE FROM
+    v1_match_condition
+WHERE
+    v1_match_id IN (SELECT id FROM deleted_matches)
+`
+
+type DeleteCompletionMatchesHeldOnChildTasksParams struct {
+	Durabletaskids         []int64              `json:"durabletaskids"`
+	Durabletaskinsertedats []pgtype.Timestamptz `json:"durabletaskinsertedats"`
+	Childtaskexternalids   []uuid.UUID          `json:"childtaskexternalids"`
+	Tenantid               uuid.UUID            `json:"tenantid"`
+}
+
+func (q *Queries) DeleteCompletionMatchesHeldOnChildTasks(ctx context.Context, db DBTX, arg DeleteCompletionMatchesHeldOnChildTasksParams) error {
+	_, err := db.Exec(ctx, deleteCompletionMatchesHeldOnChildTasks,
+		arg.Durabletaskids,
+		arg.Durabletaskinsertedats,
+		arg.Childtaskexternalids,
+		arg.Tenantid,
+	)
+	return err
+}
+
 const getActiveMatchForDurableWait = `-- name: GetActiveMatchForDurableWait :one
 WITH inputs AS (
     SELECT

@@ -14,7 +14,8 @@ SELECT
     create_v1_range_partition('v1_task_expression_eval', @date::date) AS v1_task_expression_eval,
     create_v1_monthly_range_partition('v1_lookup_table', @date::date) AS v1_lookup_table,
     create_v1_range_partition('v1_stream_producer_cursor', @date::date, 80) AS v1_stream_producer_cursor,
-    create_v1_range_partition('v1_serverless_endpoint_event', @date::date) AS v1_serverless_endpoint_event
+    create_v1_range_partition('v1_serverless_endpoint_event', @date::date) AS v1_serverless_endpoint_event,
+    create_v1_range_partition('v1_sandbox_event', @date::date) AS v1_sandbox_event
 ;
 
 -- name: EnsureTablePartitionsExist :one
@@ -82,6 +83,8 @@ WITH task_partitions AS (
     SELECT 'v1_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_monthly_partitions_before_date('v1_lookup_table', @date::date) AS p
 ), serverless_endpoint_event_partitions AS (
     SELECT 'v1_serverless_endpoint_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_serverless_endpoint_event', @date::date) AS p
+), sandbox_event_partitions AS (
+    SELECT 'v1_sandbox_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_sandbox_event', @date::date) AS p
 )
 
 SELECT
@@ -179,6 +182,13 @@ SELECT
     *
 FROM
     serverless_endpoint_event_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    sandbox_event_partitions
 ;
 
 -- name: DefaultTaskActivityGauge :one
@@ -189,92 +199,6 @@ FROM
 WHERE
     tenant_id = @tenantId::uuid
     AND last_active > @activeSince::timestamptz;
-
--- name: FlattenExternalIds :many
-WITH lookup_rows AS MATERIALIZED (
-    SELECT
-        *
-    FROM
-        v1_lookup_table l
-    WHERE
-        l.external_id = ANY(@externalIds::uuid[])
-        AND l.tenant_id = @tenantId::uuid
-), tasks_from_dags AS (
-    SELECT
-        t.id,
-        t.inserted_at,
-        t.retry_count,
-        t.external_id,
-        t.workflow_run_id,
-        t.additional_metadata,
-        t.dag_id,
-        t.dag_inserted_at,
-        t.parent_task_id,
-        t.child_index,
-        t.child_key,
-        t.step_readable_id,
-        l.external_id AS workflow_run_external_id,
-        t.workflow_id,
-        t.step_id,
-        t.is_dag_orchestrator,
-        t.workflow_version_id,
-        t.parent_task_external_id,
-        t.is_durable,
-        t.task_input_payload_version,
-        t.payload_reference_id,
-        d.payload_reference_id AS dag_payload_reference_id
-    FROM
-        lookup_rows l
-    JOIN
-        v1_dag d ON d.id = l.dag_id AND d.inserted_at = l.inserted_at
-    JOIN
-        v1_dag_to_task dt ON dt.dag_id = l.dag_id AND dt.dag_inserted_at = l.inserted_at
-    JOIN
-        v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
-    WHERE
-        l.dag_id IS NOT NULL
-        AND d.inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE dag_id IS NOT NULL)
-        AND dt.dag_inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE dag_id IS NOT NULL)
-        AND t.inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE dag_id IS NOT NULL)
-)
--- Union the tasks from the lookup table with the tasks from the DAGs
-SELECT
-    t.id,
-    t.inserted_at,
-    t.retry_count,
-    t.external_id,
-    t.workflow_run_id,
-    t.additional_metadata,
-    t.dag_id,
-    t.dag_inserted_at,
-    t.parent_task_id,
-    t.child_index,
-    t.child_key,
-    t.step_readable_id,
-    t.external_id AS workflow_run_external_id,
-    t.workflow_id,
-    t.step_id,
-    t.is_dag_orchestrator,
-    t.workflow_version_id,
-    t.parent_task_external_id,
-    t.is_durable,
-    t.task_input_payload_version,
-    t.payload_reference_id,
-    NULL::uuid AS dag_payload_reference_id
-FROM
-    lookup_rows l
-JOIN
-    v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
-WHERE
-    l.task_id IS NOT NULL
-    AND t.inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE task_id IS NOT NULL)
-
-UNION ALL
-
-SELECT
-    *
-FROM
-    tasks_from_dags;
 
 -- name: GetTaskByExternalId :one
 -- Resolve the task key before reading v1_task. Joining the lookup row directly
@@ -951,6 +875,7 @@ WITH RECURSIVE input_tasks AS MATERIALIZED (
         t.step_id,
         t.workflow_id,
         t.external_id,
+        t.workflow_run_id,
         t.input,
         t.additional_metadata,
         t.parent_task_external_id,
@@ -1002,6 +927,7 @@ SELECT
     t.step_id,
     t.workflow_id,
     t.external_id,
+    t.workflow_run_id,
     t.input,
     t.additional_metadata,
     t.parent_task_external_id,

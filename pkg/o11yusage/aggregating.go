@@ -10,26 +10,32 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// Kind is a separately buffered ingest source. Both kinds flush together but
+// Kind is a separately buffered billable byte count. All kinds flush together but
 // stay distinct through to Autumn event names.
 type Kind string
 
 const (
 	KindLogs Kind = "logs"
 	KindOtel Kind = "otel"
+	// payload bytes of stored durable stream messages
+	KindStreamPublished Kind = "streamPublished"
+	// payload bytes sent to durable stream subscribers, once per subscriber
+	KindStreamDelivered Kind = "streamDelivered"
 )
 
 func (k Kind) valid() bool {
-	return k == KindLogs || k == KindOtel
+	return k == KindLogs || k == KindOtel || k == KindStreamPublished || k == KindStreamDelivered
 }
 
-// TenantBytes is one tenant's buffered ingest since the last flush.
+// TenantBytes is one tenant's buffered bytes since the last flush.
 type TenantBytes struct {
-	Logs int64 `json:"logs,omitempty"`
-	Otel int64 `json:"otel,omitempty"`
+	Logs            int64 `json:"logs,omitempty"`
+	Otel            int64 `json:"otel,omitempty"`
+	StreamPublished int64 `json:"streamPublished,omitempty"`
+	StreamDelivered int64 `json:"streamDelivered,omitempty"`
 }
 
-// FlushFunc receives a snapshot of tenant → log/otel bytes since the last flush.
+// FlushFunc receives a snapshot of tenant → bytes since the last flush.
 // A non-nil error is logged and the snapshot is dropped (best-effort undercount).
 type FlushFunc func(tenants map[uuid.UUID]TenantBytes) error
 
@@ -85,6 +91,16 @@ func (a *Aggregator) AddLogs(tenantID uuid.UUID, n int64) {
 // AddOtel increments the tenant's OTLP-ingest counter. Safe on a nil receiver.
 func (a *Aggregator) AddOtel(tenantID uuid.UUID, n int64) {
 	a.Add(tenantID, KindOtel, n)
+}
+
+// AddStreamPublished increments the tenant's stored stream payload bytes. Safe on a nil receiver.
+func (a *Aggregator) AddStreamPublished(tenantID uuid.UUID, n int64) {
+	a.Add(tenantID, KindStreamPublished, n)
+}
+
+// AddStreamDelivered increments the tenant's stream payload bytes sent to subscribers. Safe on a nil receiver.
+func (a *Aggregator) AddStreamDelivered(tenantID uuid.UUID, n int64) {
+	a.Add(tenantID, KindStreamDelivered, n)
 }
 
 // Add increments the tenant's counter for kind. Safe on a nil receiver.
@@ -200,6 +216,10 @@ func (a *Aggregator) snapshot() map[uuid.UUID]TenantBytes {
 			cur.Logs += n
 		case KindOtel:
 			cur.Otel += n
+		case KindStreamPublished:
+			cur.StreamPublished += n
+		case KindStreamDelivered:
+			cur.StreamDelivered += n
 		}
 		out[ck.TenantID] = cur
 		return true

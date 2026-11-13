@@ -54,6 +54,7 @@ interface DataTableProps<TData extends IDGetter<TData>, TValue> {
   filters?: ToolbarFilters;
   leftActions?: JSX.Element[];
   rightActions?: JSX.Element[];
+  endActions?: JSX.Element[];
   searchBar?: JSX.Element;
   sorting?: SortingState;
   setSorting?: OnChangeFn<SortingState>;
@@ -86,6 +87,7 @@ interface DataTableProps<TData extends IDGetter<TData>, TValue> {
   getSubRows?: (row: TData) => TData[];
   hiddenFilters?: string[];
   onResetFilters?: () => void;
+  filtersInSidebar?: boolean;
 }
 
 type RefetchProps = {
@@ -107,6 +109,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   filters = [],
   leftActions = [],
   rightActions = [],
+  endActions,
   searchBar,
   sorting,
   setSorting,
@@ -134,6 +137,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   columnKeyToName,
   refetchProps,
   tableActions,
+  filtersInSidebar,
 }: DataTableProps<TData, TValue> & ExtraDataTableProps) {
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
 
@@ -261,6 +265,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
               isLoading={isLoading}
               leftActions={leftActions}
               rightActions={rightActions}
+              endActions={endActions}
               searchBar={searchBar}
               showColumnToggle={showColumnToggle}
               hiddenFilters={hiddenFilters}
@@ -268,6 +273,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
               refetchProps={refetchProps}
               tableActions={tableActions}
               onResetFilters={onResetFilters}
+              filtersInSidebar={filtersInSidebar}
             />
           )}
         </div>

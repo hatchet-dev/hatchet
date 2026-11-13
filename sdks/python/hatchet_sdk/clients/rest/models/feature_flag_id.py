@@ -32,6 +32,7 @@ class FeatureFlagId(str, Enum):
     ORGANIZATION_MINUS_SSO_MINUS_ENABLED = "organization-sso-enabled"
     OPERATOR_MINUS_DETAILS_MINUS_ENABLED = "operator-details-enabled"
     CONCURRENCY_MINUS_PAGE_MINUS_ENABLED = "concurrency-page-enabled"
+    RUNS_MINUS_FILTER_MINUS_SIDEBAR_MINUS_ENABLED = "runs-filter-sidebar-enabled"
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

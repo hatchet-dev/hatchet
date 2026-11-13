@@ -90,6 +90,7 @@ type OLAPControllerImpl struct {
 	statusUpdateBatchSizeLimits  v1.StatusUpdateBatchSizeLimits
 	mqQos                        int
 	promGate                     *prometheus.Gate
+	auditLogs                    *v1.AuditLogOutbox
 }
 
 type OLAPControllerOpt func(*OLAPControllerOpts)
@@ -111,6 +112,7 @@ type OLAPControllerOpts struct {
 	statusUpdateBatchSizeLimits v1.StatusUpdateBatchSizeLimits
 	mqQos                       int
 	promGate                    *prometheus.Gate
+	auditLogs                   *v1.AuditLogOutbox
 }
 
 func defaultOLAPControllerOpts() *OLAPControllerOpts {
@@ -232,6 +234,13 @@ func WithPrometheusGate(gate *prometheus.Gate) OLAPControllerOpt {
 	}
 }
 
+// WithAuditLogOutbox makes the controller copy queued audit log entries into the OLAP database.
+func WithAuditLogOutbox(auditLogs *v1.AuditLogOutbox) OLAPControllerOpt {
+	return func(opts *OLAPControllerOpts) {
+		opts.auditLogs = auditLogs
+	}
+}
+
 func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 	opts := defaultOLAPControllerOpts()
 
@@ -299,6 +308,7 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 		statusUpdateBatchSizeLimits: opts.statusUpdateBatchSizeLimits,
 		mqQos:                       opts.mqQos,
 		promGate:                    opts.promGate,
+		auditLogs:                   opts.auditLogs,
 	}
 
 	// Default jitter value
@@ -376,6 +386,19 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not schedule task table partition: %w", err)
 	}
 
+	_, err = o.s.NewJob(
+		gocron.DurationJob(time.Hour),
+		gocron.NewTask(
+			o.runArchiveAuditLogs(ctx),
+		),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule audit log archive: %w", err)
+	}
+
 	// Default poll interval
 	pollIntervalSec := 2
 
@@ -434,6 +457,17 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not run analyze: %w", err)
+	}
+
+	if o.auditLogs != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			if err := o.auditLogs.Run(ctx, o.repo.OLAP()); err != nil && !errors.Is(err, context.Canceled) {
+				o.l.Error().Err(err).Msg("audit log outbox flusher stopped")
+			}
+		}()
 	}
 
 	stopAggregates := o.repo.OLAP().Aggregates().Start()

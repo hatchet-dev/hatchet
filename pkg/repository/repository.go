@@ -157,7 +157,7 @@ func NewRepository(
 		sns:                 newSNSRepository(shared),
 		tenantInvite:        newTenantInviteRepository(shared),
 		tenantLimit:         shared.m,
-		tenantEntitlement:   newTenantEntitlementRepository(shared),
+		tenantEntitlement:   shared.entitlements,
 		tenantAlerting:      newTenantAlertingRepository(shared, cacheDuration),
 		tenant:              newTenantRepository(shared, cacheDuration),
 		user:                newUserRepository(shared),

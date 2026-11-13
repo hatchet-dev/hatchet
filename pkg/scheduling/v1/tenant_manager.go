@@ -133,15 +133,7 @@ func (t *tenantManager) Cleanup() error {
 		q.Cleanup()
 	}
 
-	t.concurrencyMu.Lock()
-
-	for _, c := range t.concurrencyStrategies {
-		c.cleanup()
-	}
-
-	t.concurrencyStrategies = nil
-
-	t.concurrencyMu.Unlock()
+	t.cleanupConcurrencyStrategies(cleanupCtx)
 
 	t.rl.cleanup()
 
@@ -162,6 +154,39 @@ func (t *tenantManager) Cleanup() error {
 	t.batchSchedulersMu.Unlock()
 
 	return err
+}
+
+// cleanupConcurrencyStrategies stops every concurrency manager and then releases the outbox
+// topic leases they held. Stopping a manager leaves its lease valid for a full lease duration,
+// during which the scheduler that takes the tenant over cannot build its index for that
+// strategy. The release happens here rather than in each manager's cleanup because a manager
+// replaced in place shares its topic with its replacement, and releasing on the old manager's
+// behalf would revoke the lease the new one has just acquired.
+func (t *tenantManager) cleanupConcurrencyStrategies(ctx context.Context) {
+	t.concurrencyMu.Lock()
+
+	topics := make([]string, 0, len(t.concurrencyStrategies))
+
+	for _, c := range t.concurrencyStrategies {
+		c.cleanup()
+
+		if topic, ok := c.leasedOutboxTopic(); ok {
+			topics = append(topics, topic)
+		}
+	}
+
+	t.concurrencyStrategies = nil
+
+	t.concurrencyMu.Unlock()
+
+	if len(topics) == 0 {
+		return
+	}
+
+	// a failed release is not fatal: the leases lapse on their own after the lease duration
+	if err := t.cf.outbox.ReleaseTopics(ctx, topics); err != nil {
+		t.l.Error().Err(err).Int("topics", len(topics)).Msg("could not release concurrency outbox topic leases")
+	}
 }
 
 func (t *tenantManager) listenForWorkerLeases(ctx context.Context) {

@@ -51,28 +51,8 @@ Audit log entries distinguish between two types of actors:
 
 ## Retention
 
-Audit log entries are retained for **30 days**. Entries older than 30 days are automatically removed.
+Audit log entries are retained for **6 years**.
 
-## Viewing audit logs
+## Exporting audit logs
 
-Organization admins can view audit logs in the Hatchet dashboard under the organization settings. Logs can be filtered by tenant and time range.
-
-## API access
-
-Audit logs can also be retrieved programmatically via the Management API:
-
-```
-GET /api/v1/management/organizations/{organization}/audit-logs
-```
-
-Query parameters:
-
-| Parameter | Type     | Default                                | Description                         |
-| --------- | -------- | -------------------------------------- | ----------------------------------- |
-| `tenant`  | UUID     | all active tenants in the organization | Filter logs to a specific tenant    |
-| `limit`   | integer  | `1000`                                 | Maximum number of results to return |
-| `offset`  | integer  | `0`                                    | Number of results to skip           |
-| `since`   | ISO 8601 | 24 hours ago                           | Start of the time range             |
-| `until`   | ISO 8601 | now                                    | End of the time range               |
-
-Results are ordered by timestamp descending (most recent first).
+To get an export of your organization's audit logs, contact [support@hatchet.run](mailto:support@hatchet.run).

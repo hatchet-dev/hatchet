@@ -119,13 +119,24 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 		return err
 	}
 
+	// send one notification per payload. A message with no payloads is still
+	// sent, once: its ID alone is the signal.
+	msgs := []*msgqueue.Message{msg}
+
+	if len(msg.Payloads) > 0 {
+		msgs = make([]*msgqueue.Message, 0, len(msg.Payloads))
+
+		for _, payload := range msg.Payloads {
+			msgCp := *msg
+			msgCp.Payloads = [][]byte{payload}
+			msgs = append(msgs, &msgCp)
+		}
+	}
+
 	eg := errgroup.Group{}
 
-	for _, payload := range msg.Payloads {
-		msgCp := *msg
-		msgCp.Payloads = [][]byte{payload}
-
-		msgBytes, err := json.Marshal(&msgCp)
+	for _, m := range msgs {
+		msgBytes, err := json.Marshal(m)
 
 		if err == nil {
 			eg.Go(func() error {

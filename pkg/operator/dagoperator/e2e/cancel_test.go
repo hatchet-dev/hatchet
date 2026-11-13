@@ -70,17 +70,15 @@ type dagInput struct {
 	CompleteRootA bool `json:"complete_root_a"`
 }
 
-// cancelEnv is a tenant with the DAG operator enabled and a worker serving a DAG whose two
-// parallel roots block until cancelled. The leaf depends on both roots, so it is never reached.
-type cancelEnv struct {
+// testEnv is a tenant with the DAG operator enabled and a client for it.
+type testEnv struct {
 	repo     v1.Repository
 	tenantID uuid.UUID
-	workflow *hatchet.Workflow
-	admin    admincontracts.AdminServiceClient
+	client   *hatchet.Client
 	token    string
 }
 
-func newCancelEnv(t *testing.T) *cancelEnv {
+func newTestEnv(t *testing.T) *testEnv {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), engineReadyTimeout)
@@ -96,27 +94,47 @@ func newCancelEnv(t *testing.T) *cancelEnv {
 	t.Cleanup(func() { _ = dl.Disconnect() })
 
 	token := os.Getenv("HATCHET_CLIENT_TOKEN")
-	tenantID := tenantIDFromToken(t, token)
-
-	// The entitlement is read when the workflow is registered, so it has to be on before the
-	// worker starts.
-	require.NoError(t, dl.V1.TenantEntitlement().SetEntitlements(ctx, tenantID, v1.TenantEntitlements{
-		DAGOperator: true,
-	}))
 
 	client, err := hatchet.NewClient()
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close(context.Background()) })
 
-	runningRoots := new(atomic.Int32)
+	return &testEnv{
+		repo:     dl.V1,
+		tenantID: tenantIDFromToken(t, token),
+		client:   client,
+		token:    token,
+	}
+}
 
-	workflow := registerBlockingDag(client, runningRoots)
+func (e *testEnv) startWorker(t *testing.T, workflow *hatchet.Workflow) {
+	t.Helper()
 
-	worker := newWorker(t, client, workflow)
+	worker := newWorker(t, e.client, workflow)
 
 	stopWorker, err := worker.Start()
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = stopWorker() })
+}
+
+// cancelEnv has a worker serving a DAG whose two parallel roots block until cancelled. The leaf
+// depends on both roots, so it is never reached.
+type cancelEnv struct {
+	*testEnv
+	workflow *hatchet.Workflow
+	admin    admincontracts.AdminServiceClient
+}
+
+func newCancelEnv(t *testing.T) *cancelEnv {
+	t.Helper()
+
+	e := newTestEnv(t)
+
+	runningRoots := new(atomic.Int32)
+
+	workflow := registerBlockingDag(e.client, runningRoots)
+
+	e.startWorker(t, workflow)
 
 	// Registered after stopWorker so it runs first. The engine delivers a cancel to the worker
 	// after it has already recorded the root as cancelled, so stopping the worker straight after
@@ -133,11 +151,9 @@ func newCancelEnv(t *testing.T) *cancelEnv {
 	t.Cleanup(func() { _ = conn.Close() })
 
 	return &cancelEnv{
-		repo:     dl.V1,
-		tenantID: tenantID,
+		testEnv:  e,
 		workflow: workflow,
 		admin:    admincontracts.NewAdminServiceClient(conn),
-		token:    token,
 	}
 }
 
@@ -154,7 +170,7 @@ func newWorker(t *testing.T, client *hatchet.Client, workflow *hatchet.Workflow)
 	for range newWorkerAttempts {
 		var worker *hatchet.Worker
 
-		worker, err = client.NewWorker("dag-operator-cancel-worker", hatchet.WithWorkflows(workflow))
+		worker, err = client.NewWorker("dag-operator-e2e-worker", hatchet.WithWorkflows(workflow))
 
 		var deprecation *hatchet.DeprecationError
 		if !errors.As(err, &deprecation) {
@@ -265,7 +281,7 @@ func (e *cancelEnv) cancel(ctx context.Context, ids ...uuid.UUID) error {
 // reports the orchestrator's own status separately (OrchestratorStatus) from each child it has
 // spawned (ReadableIdToDetails, keyed by step readable id). It returns (nil, nil) if runID hasn't
 // shown up in the lookup table yet.
-func (e *cancelEnv) runDetails(ctx context.Context, runID uuid.UUID) (*v1.WorkflowRunDetails, error) {
+func (e *testEnv) runDetails(ctx context.Context, runID uuid.UUID) (*v1.WorkflowRunDetails, error) {
 	return e.repo.Tasks().GetWorkflowRunResultDetails(ctx, e.tenantID, runID)
 }
 
@@ -325,7 +341,7 @@ func (e *cancelEnv) startBlockingDag(ctx context.Context, t *testing.T, input da
 	return runID, rootIDs
 }
 
-func (e *cancelEnv) requireOrchestratorEvicted(ctx context.Context, t *testing.T, runID uuid.UUID) {
+func (e *testEnv) requireOrchestratorEvicted(ctx context.Context, t *testing.T, runID uuid.UUID) {
 	t.Helper()
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {

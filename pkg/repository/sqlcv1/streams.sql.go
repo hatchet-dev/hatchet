@@ -241,6 +241,54 @@ func (q *Queries) GetStreamPayload(ctx context.Context, db DBTX, arg GetStreamPa
 	return payload, err
 }
 
+const getStreamPayloadSize = `-- name: GetStreamPayloadSize :one
+SELECT octet_length(payload)::bigint AS size
+FROM v1_stream_payload
+WHERE tenant_id = $1::uuid AND id = $2::uuid AND inserted_at = $3::timestamptz
+`
+
+type GetStreamPayloadSizeParams struct {
+	Tenantid   uuid.UUID          `json:"tenantid"`
+	ID         uuid.UUID          `json:"id"`
+	Insertedat pgtype.Timestamptz `json:"insertedat"`
+}
+
+// octet_length reads a TOASTed payload's size without loading it.
+func (q *Queries) GetStreamPayloadSize(ctx context.Context, db DBTX, arg GetStreamPayloadSizeParams) (int64, error) {
+	row := db.QueryRow(ctx, getStreamPayloadSize, arg.Tenantid, arg.ID, arg.Insertedat)
+	var size int64
+	err := row.Scan(&size)
+	return size, err
+}
+
+const getStreamTopicInfo = `-- name: GetStreamTopicInfo :one
+SELECT
+    COALESCE(t.starting_offset, 0)::bigint AS starting_offset,
+    COALESCE(t.last_offset, 0)::bigint AS last_offset
+FROM (SELECT 1) AS one
+LEFT JOIN v1_stream_topic t
+    ON t.tenant_id = $1::uuid AND t.namespace = $2::text AND t.topic = $3::text
+`
+
+type GetStreamTopicInfoParams struct {
+	Tenantid  uuid.UUID `json:"tenantid"`
+	Namespace string    `json:"namespace"`
+	Topic     string    `json:"topic"`
+}
+
+type GetStreamTopicInfoRow struct {
+	StartingOffset int64 `json:"starting_offset"`
+	LastOffset     int64 `json:"last_offset"`
+}
+
+// Zeros for a topic not yet published to. A primary-key lookup, cheap enough to run every poll tick.
+func (q *Queries) GetStreamTopicInfo(ctx context.Context, db DBTX, arg GetStreamTopicInfoParams) (*GetStreamTopicInfoRow, error) {
+	row := db.QueryRow(ctx, getStreamTopicInfo, arg.Tenantid, arg.Namespace, arg.Topic)
+	var i GetStreamTopicInfoRow
+	err := row.Scan(&i.StartingOffset, &i.LastOffset)
+	return &i, err
+}
+
 const getStreamTopicMetadata = `-- name: GetStreamTopicMetadata :one
 WITH topic AS (
     SELECT 1
@@ -299,28 +347,6 @@ func (q *Queries) GetStreamTopicMetadata(ctx context.Context, db DBTX, arg GetSt
 	var i GetStreamTopicMetadataRow
 	err := row.Scan(&i.LatestID, &i.LatestInsertedAt, &i.MessageCount)
 	return &i, err
-}
-
-const getStreamTopicStartingOffset = `-- name: GetStreamTopicStartingOffset :one
-SELECT COALESCE((
-    SELECT starting_offset
-    FROM v1_stream_topic
-    WHERE tenant_id = $1::uuid AND namespace = $2::text AND topic = $3::text
-), 0)::bigint AS starting_offset
-`
-
-type GetStreamTopicStartingOffsetParams struct {
-	Tenantid  uuid.UUID `json:"tenantid"`
-	Namespace string    `json:"namespace"`
-	Topic     string    `json:"topic"`
-}
-
-// 0 for a topic not yet published to, so it starts at its beginning.
-func (q *Queries) GetStreamTopicStartingOffset(ctx context.Context, db DBTX, arg GetStreamTopicStartingOffsetParams) (int64, error) {
-	row := db.QueryRow(ctx, getStreamTopicStartingOffset, arg.Tenantid, arg.Namespace, arg.Topic)
-	var starting_offset int64
-	err := row.Scan(&starting_offset)
-	return starting_offset, err
 }
 
 const insertStreamPayload = `-- name: InsertStreamPayload :one
@@ -695,26 +721,6 @@ func (q *Queries) SetStreamMessagePayloadRef(ctx context.Context, db DBTX, arg S
 		arg.Insertedat,
 	)
 	return err
-}
-
-const streamPayloadExists = `-- name: StreamPayloadExists :one
-SELECT EXISTS (
-    SELECT 1 FROM v1_stream_payload
-    WHERE tenant_id = $1::uuid AND id = $2::uuid AND inserted_at = $3::timestamptz
-) AS exists
-`
-
-type StreamPayloadExistsParams struct {
-	Tenantid   uuid.UUID          `json:"tenantid"`
-	ID         uuid.UUID          `json:"id"`
-	Insertedat pgtype.Timestamptz `json:"insertedat"`
-}
-
-func (q *Queries) StreamPayloadExists(ctx context.Context, db DBTX, arg StreamPayloadExistsParams) (bool, error) {
-	row := db.QueryRow(ctx, streamPayloadExists, arg.Tenantid, arg.ID, arg.Insertedat)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
 }
 
 const upsertStreamTopic = `-- name: UpsertStreamTopic :one

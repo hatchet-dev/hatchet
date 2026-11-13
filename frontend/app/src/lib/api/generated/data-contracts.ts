@@ -45,6 +45,7 @@ export enum FeatureFlagId {
   OrganizationSsoEnabled = "organization-sso-enabled",
   OperatorDetailsEnabled = "operator-details-enabled",
   ConcurrencyPageEnabled = "concurrency-page-enabled",
+  RunsFilterSidebarEnabled = "runs-filter-sidebar-enabled",
 }
 
 export enum WebhookWorkerRequestMethod {
@@ -1827,6 +1828,16 @@ export interface TenantEntitlements {
   dagOperator: boolean;
   durableStreams: boolean;
   serverlessOperator: boolean;
+  sandboxOperator: boolean;
+}
+
+export interface UpdateTenantEntitlementsRequest {
+  /** Whether the tenant has opted into durable streams. */
+  durableStreams?: boolean;
+  /** Whether the tenant has opted into the serverless operator. */
+  serverlessOperator?: boolean;
+  /** Whether the tenant has opted into the sandbox operator. */
+  sandboxOperator?: boolean;
 }
 
 export interface UpdateTenantAlertEmailGroupRequest {

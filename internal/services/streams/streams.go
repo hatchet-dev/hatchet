@@ -13,7 +13,9 @@ import (
 	v1connect "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1/v1connect"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/streams"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
+	"github.com/hatchet-dev/hatchet/pkg/o11yusage"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
@@ -30,9 +32,11 @@ type Service interface {
 type ServiceOptFunc func(*ServiceOpts)
 
 type ServiceOpts struct {
-	pubsub msgqueue.PubSub
-	repov1 v1.Repository
-	l      *zerolog.Logger
+	pubsub    msgqueue.PubSub
+	repov1    v1.Repository
+	l         *zerolog.Logger
+	usage     *o11yusage.Aggregator
+	analytics analytics.Analytics
 }
 
 func WithPubSub(pubsub msgqueue.PubSub) ServiceOptFunc {
@@ -47,6 +51,19 @@ func WithRepositoryV1(r v1.Repository) ServiceOptFunc {
 	}
 }
 
+// WithUsage meters billable payload bytes; nil meters nothing.
+func WithUsage(usage *o11yusage.Aggregator) ServiceOptFunc {
+	return func(opts *ServiceOpts) {
+		opts.usage = usage
+	}
+}
+
+func WithAnalytics(a analytics.Analytics) ServiceOptFunc {
+	return func(opts *ServiceOpts) {
+		opts.analytics = a
+	}
+}
+
 func WithLogger(l *zerolog.Logger) ServiceOptFunc {
 	return func(opts *ServiceOpts) {
 		opts.l = l
@@ -57,16 +74,19 @@ func defaultServiceOpts() *ServiceOpts {
 	l := logger.NewDefaultLogger("streams")
 
 	return &ServiceOpts{
-		l: &l,
+		l:         &l,
+		analytics: analytics.NoOpAnalytics{},
 	}
 }
 
 type ServiceImpl struct {
 	v1connect.UnimplementedV1StreamsHandler
 
-	pubsub msgqueue.PubSub
-	repo   v1.Repository
-	l      *zerolog.Logger
+	pubsub    msgqueue.PubSub
+	repo      v1.Repository
+	l         *zerolog.Logger
+	usage     *o11yusage.Aggregator
+	analytics analytics.Analytics
 
 	publisher      *publishBatcher
 	streamSessions *streams.Registry
@@ -84,6 +104,8 @@ func NewService(fs ...ServiceOptFunc) (Service, error) {
 		pubsub:         opts.pubsub,
 		repo:           opts.repov1,
 		l:              opts.l,
+		usage:          opts.usage,
+		analytics:      opts.analytics,
 		publisher:      newPublishBatcher(opts.repov1.Streams(), opts.pubsub, opts.l, publishBatchWorkers),
 		streamSessions: streams.NewRegistry(),
 		topicPollers:   newTopicPollerRegistry(opts.repov1.Streams(), opts.pubsub, opts.l, subscribeTailPollInterval, subscribeIdleHangupTimeout),

@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"testing"
 
 	"github.com/spf13/viper"
 	"go.yaml.in/yaml/v3"
@@ -50,6 +51,8 @@ type Store struct {
 
 	mu sync.RWMutex // protects v
 	v  *viper.Viper
+
+	secrets Secrets
 }
 
 // NewStore opens the profile store in dir (the ~/.hatchet directory), using
@@ -72,6 +75,116 @@ func NewStore(dir, fileName string) (*Store, error) {
 	}
 
 	return s, nil
+}
+
+// writeSecrets is the backend new tokens go to: the system keyring when it
+// passes the probe, otherwise nil, meaning the token stays in the profile file.
+func (s *Store) writeSecrets() Secrets {
+	if s.secrets != nil || !keyringAvailable() {
+		return s.secrets
+	}
+	return systemKeyring{}
+}
+
+// readSecrets is the backend tokens are looked up in. It skips the probe so a
+// read costs one keyring call, not four.
+func (s *Store) readSecrets() Secrets {
+	if s.secrets != nil || testing.Testing() {
+		return s.secrets
+	}
+	return systemKeyring{}
+}
+
+func (s *Store) secretKey(name string) string {
+	return s.fileName + ":" + strings.ToLower(name)
+}
+
+func (s *Store) lookupToken(name string) (string, error) {
+	secrets := s.readSecrets()
+	if secrets == nil {
+		return "", nil
+	}
+	return secrets.Get(s.secretKey(name))
+}
+
+func (s *Store) deleteSecret(name string) {
+	if secrets := s.readSecrets(); secrets != nil {
+		_ = secrets.Delete(s.secretKey(name))
+	}
+}
+
+func (s *Store) setTokenNode(entry *yaml.Node, name, token string) error {
+	secrets := s.writeSecrets()
+	if secrets == nil {
+		node, err := yamlNodeFor(token)
+		if err != nil {
+			return err
+		}
+		setMappingValue(entry, "token", node)
+		return nil
+	}
+	if err := secrets.Set(s.secretKey(name), token); err != nil {
+		return fmt.Errorf("could not store token in %s: %w", KeyringName(), err)
+	}
+	deleteMappingKey(entry, "token")
+	return nil
+}
+
+// PlaintextProfiles returns the names of profiles whose token is stored in the
+// profile file itself.
+func (s *Store) PlaintextProfiles() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var names []string
+	for name := range s.v.GetStringMap("profiles") {
+		if s.v.GetString(fmt.Sprintf("profiles.%s.token", name)) != "" {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
+}
+
+// MigrateTokens moves every plain-text token from the profile file into the
+// keyring and returns the profiles it moved. It is a no-op when the keyring is
+// unavailable.
+func (s *Store) MigrateTokens() ([]string, error) {
+	secrets := s.writeSecrets()
+	if secrets == nil {
+		return nil, nil
+	}
+
+	var moved []string
+
+	err := s.mutate(func(d *document) (bool, error) {
+		profiles := mappingValue(d.root, "profiles")
+		if profiles == nil || profiles.Kind != yaml.MappingNode {
+			return false, nil
+		}
+
+		for i := 0; i+1 < len(profiles.Content); i += 2 {
+			name := profiles.Content[i].Value
+			entry := profiles.Content[i+1]
+			if entry.Kind != yaml.MappingNode {
+				continue
+			}
+			tokenNode := mappingValue(entry, "token")
+			if tokenNode == nil || tokenNode.Value == "" {
+				continue
+			}
+			if err := secrets.Set(s.secretKey(name), tokenNode.Value); err != nil {
+				return false, fmt.Errorf("could not store token for profile '%s' in %s: %w", name, KeyringName(), err)
+			}
+			deleteMappingKey(entry, "token")
+			entry.Style = 0
+			moved = append(moved, name)
+		}
+
+		return len(moved) > 0, nil
+	})
+
+	return moved, err
 }
 
 // NewDefaultStore opens the profile store at the location the CLI uses:
@@ -161,6 +274,9 @@ func (s *Store) GetProfiles() map[string]cli.Profile {
 			GrpcHostPort: s.v.GetString(fmt.Sprintf("profiles.%s.grpcHostPort", name)),
 			TLSStrategy:  tlsStrategy,
 		}
+		if profile.Token == "" {
+			profile.Token, _ = s.lookupToken(name)
+		}
 		profiles[name] = profile
 	}
 
@@ -169,6 +285,26 @@ func (s *Store) GetProfiles() map[string]cli.Profile {
 
 // GetProfile returns a specific profile by name (case-insensitive).
 func (s *Store) GetProfile(name string) (*cli.Profile, error) {
+	profile, err := s.GetProfileMetadata(name)
+	if err != nil {
+		return nil, err
+	}
+	if profile.Token == "" {
+		token, err := s.lookupToken(name)
+		if err != nil {
+			return nil, fmt.Errorf("could not read the token for profile '%s' from the %s", name, KeyringName())
+		}
+		profile.Token = token
+	}
+
+	return profile, nil
+}
+
+// GetProfileMetadata returns a profile without consulting the keyring. Token
+// is set only when it is stored in the profile file; callers that need only
+// the connection details use this so a locked or absent keyring cannot fail
+// them.
+func (s *Store) GetProfileMetadata(name string) (*cli.Profile, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -182,7 +318,7 @@ func (s *Store) GetProfile(name string) (*cli.Profile, error) {
 		tlsStrategy = "tls"
 	}
 
-	profile := &cli.Profile{
+	return &cli.Profile{
 		TenantId:     s.v.GetString(fmt.Sprintf("%s.tenantId", key)),
 		Name:         s.v.GetString(fmt.Sprintf("%s.name", key)),
 		Token:        s.v.GetString(fmt.Sprintf("%s.token", key)),
@@ -190,9 +326,7 @@ func (s *Store) GetProfile(name string) (*cli.Profile, error) {
 		ApiServerURL: s.v.GetString(fmt.Sprintf("%s.apiServerURL", key)),
 		GrpcHostPort: s.v.GetString(fmt.Sprintf("%s.grpcHostPort", key)),
 		TLSStrategy:  tlsStrategy,
-	}
-
-	return profile, nil
+	}, nil
 }
 
 // ListProfiles returns a sorted list of all profile names.
@@ -276,7 +410,6 @@ func (s *Store) UpsertProfile(name string, profile *cli.Profile, extraFields map
 		}{
 			{"tenantid", profile.TenantId},
 			{"name", profile.Name},
-			{"token", profile.Token},
 			{"expiresat", profile.ExpiresAt},
 			{"apiserverurl", profile.ApiServerURL},
 			{"grpchostport", profile.GrpcHostPort},
@@ -289,6 +422,10 @@ func (s *Store) UpsertProfile(name string, profile *cli.Profile, extraFields map
 				return false, err
 			}
 			setMappingValue(entry, f.key, node)
+		}
+
+		if err := s.setTokenNode(entry, name, profile.Token); err != nil {
+			return false, err
 		}
 
 		extraKeys := make([]string, 0, len(extraFields))
@@ -339,7 +476,6 @@ func (s *Store) UpdateProfile(name string, profile *cli.Profile) error {
 		}{
 			{"tenantid", profile.TenantId, profile.TenantId != ""},
 			{"name", profile.Name, profile.Name != ""},
-			{"token", profile.Token, profile.Token != ""},
 			{"expiresat", profile.ExpiresAt, !profile.ExpiresAt.IsZero()},
 			{"apiserverurl", profile.ApiServerURL, profile.ApiServerURL != ""},
 			{"grpchostport", profile.GrpcHostPort, profile.GrpcHostPort != ""},
@@ -357,6 +493,12 @@ func (s *Store) UpdateProfile(name string, profile *cli.Profile) error {
 			setMappingValue(entry, f.key, node)
 		}
 
+		if profile.Token != "" {
+			if err := s.setTokenNode(entry, name, profile.Token); err != nil {
+				return false, err
+			}
+		}
+
 		d.root.Style = 0
 		profiles.Style = 0
 		entry.Style = 0
@@ -368,7 +510,7 @@ func (s *Store) UpdateProfile(name string, profile *cli.Profile) error {
 // RemoveProfile removes a profile from the config. If the removed profile was
 // the default profile, the default is cleared.
 func (s *Store) RemoveProfile(name string) error {
-	return s.mutate(func(d *document) (bool, error) {
+	err := s.mutate(func(d *document) (bool, error) {
 		profiles := mappingValue(d.root, "profiles")
 
 		if mappingValue(profiles, name) == nil {
@@ -383,6 +525,11 @@ func (s *Store) RemoveProfile(name string) error {
 
 		return true, nil
 	})
+	if err != nil {
+		return err
+	}
+	s.deleteSecret(name)
+	return nil
 }
 
 // RemoveProfileIfTokenMatches removes the named profile only when its stored
@@ -408,8 +555,14 @@ func (s *Store) RemoveProfileIfTokenMatches(name, token string) (bool, error) {
 			return false, nil
 		}
 
-		entryToken := mappingValue(entry, "token")
-		if entryToken == nil || entryToken.Value != token {
+		current := ""
+		if entryToken := mappingValue(entry, "token"); entryToken != nil {
+			current = entryToken.Value
+		}
+		if current == "" {
+			current, _ = s.lookupToken(name)
+		}
+		if current == "" || current != token {
 			return false, nil
 		}
 
@@ -418,6 +571,9 @@ func (s *Store) RemoveProfileIfTokenMatches(name, token string) (bool, error) {
 
 		return true, nil
 	})
+	if removed {
+		s.deleteSecret(name)
+	}
 
 	return removed, err
 }

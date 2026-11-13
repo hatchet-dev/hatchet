@@ -6,6 +6,7 @@ roles:
   ADMIN:
     inherits: [MEMBER]
     permissions:
+      - TenantEntitlementsUpdate
       - TenantMemberUpdate
       - ApiTokenCreate
       - ApiTokenUpdateRevoke
