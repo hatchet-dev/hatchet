@@ -29,19 +29,6 @@ export enum SandboxProviderKind {
   FREESTYLE = "FREESTYLE",
 }
 
-export enum UserOfferType {
-  YCAlumni = "YC Alumni",
-  YCCurrentBatch = "YC Current Batch",
-  Startup = "Startup",
-  Custom = "Custom",
-}
-
-export enum UserOfferStage {
-  Requested = "Requested",
-  Approved = "Approved",
-  Redeemed = "Redeemed",
-}
-
 export enum OrganizationInviteStatus {
   PENDING = "PENDING",
   ACCEPTED = "ACCEPTED",
@@ -948,45 +935,6 @@ export interface RejectOrganizationInviteRequest {
    * @format uuid
    */
   id: string;
-}
-
-export interface RedeemOfferRequest {
-  /**
-   * The organization to apply the offer credit to.
-   * @format uuid
-   */
-  organizationId: string;
-  /** The Attio record ID of the offer to redeem. */
-  offerRecordId: string;
-  /** Shipping address for welcome kit delivery. */
-  address?: string;
-}
-
-export interface RedeemOfferResponse {
-  /** The amount of credit applied in cents. */
-  appliedCents: number;
-  /** The Attio record ID of the redeemed offer. */
-  offerRecordId: string;
-}
-
-export interface UserOffer {
-  /** The Attio record ID of the offer. */
-  recordId: string;
-  /** The current stage of the offer. */
-  stage?: UserOfferStage;
-  /** The type of the offer. */
-  type?: UserOfferType;
-  /** The credit amount in cents. */
-  creditAmountCents?: number;
-  /**
-   * The expiration date of the offer.
-   * @format date-time
-   */
-  expiresAt?: string;
-  /** Number of months until the offer credit expires after redemption. */
-  expiresInMonths?: number;
-  /** Whether the offer includes a welcome kit. */
-  includesWelcomeKit?: boolean;
 }
 
 export type AutumnWebhookEvent = AutumnCustomerProductsUpdatedEvent;
