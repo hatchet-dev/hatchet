@@ -29,7 +29,9 @@ from hatchet_sdk.types.ordering import OrderByDirection
 from hatchet_sdk.types.priority import Priority, priority_from_int, priority_to_int
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
-_ORDER_BY_FIELD_TO_REST = {
+CronOrderByField = Literal["name", "created_at"]
+
+_ORDER_BY_FIELD_TO_REST: dict[CronOrderByField, CronWorkflowsOrderByField] = {
     "name": CronWorkflowsOrderByField.NAME,
     "created_at": CronWorkflowsOrderByField.CREATEDAT,
 }
@@ -244,7 +246,7 @@ class CronClient(BaseRestClient):
         limit: int | None = None,
         workflow_id: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
-        order_by_field: Literal["name", "created_at"] | None = None,
+        order_by_field: CronOrderByField | None = None,
         order_by_direction: OrderByDirection | None = None,
         workflow_name: str | None = None,
         cron_name: str | None = None,
@@ -282,7 +284,7 @@ class CronClient(BaseRestClient):
         limit: int | None = None,
         workflow_id: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
-        order_by_field: Literal["name", "created_at"] | None = None,
+        order_by_field: CronOrderByField | None = None,
         order_by_direction: OrderByDirection | None = None,
         workflow_name: str | None = None,
         cron_name: str | None = None,

@@ -65,8 +65,10 @@ _WORKFLOW_RUN_STATUS_TO_RUN_STATUS: dict[WorkflowRunStatus, RunStatus] = {
     WorkflowRunStatus.CANCELLED: "CANCELLED",
 }
 
+ScheduledRunStatusFilter = RunStatus | Literal["SCHEDULED"]
+
 _RUN_STATUS_TO_SCHEDULED_RUN_STATUSES: dict[
-    RunStatus | Literal["SCHEDULED"], list[ScheduledRunStatus]
+    ScheduledRunStatusFilter, list[ScheduledRunStatus]
 ] = {
     "SCHEDULED": [ScheduledRunStatus.SCHEDULED],
     "QUEUED": [ScheduledRunStatus.PENDING, ScheduledRunStatus.QUEUED],
@@ -77,7 +79,11 @@ _RUN_STATUS_TO_SCHEDULED_RUN_STATUSES: dict[
 }
 
 
-_ORDER_BY_FIELD_TO_REST = {
+ScheduledRunOrderByField = Literal["trigger_at", "created_at"]
+
+_ORDER_BY_FIELD_TO_REST: dict[
+    ScheduledRunOrderByField, ScheduledWorkflowsOrderByField
+] = {
     "trigger_at": ScheduledWorkflowsOrderByField.TRIGGERAT,
     "created_at": ScheduledWorkflowsOrderByField.CREATEDAT,
 }
@@ -423,9 +429,9 @@ class ScheduledClient(BaseRestClient):
         limit: int | None = None,
         workflow_id: str | None = None,
         parent_workflow_run_id: str | None = None,
-        statuses: list[RunStatus | Literal["SCHEDULED"]] | None = None,
+        statuses: list[ScheduledRunStatusFilter] | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
-        order_by_field: Literal["trigger_at", "created_at"] | None = None,
+        order_by_field: ScheduledRunOrderByField | None = None,
         order_by_direction: OrderByDirection | None = None,
     ) -> list[ScheduledRun]:
         """
@@ -461,9 +467,9 @@ class ScheduledClient(BaseRestClient):
         limit: int | None = None,
         workflow_id: str | None = None,
         parent_workflow_run_id: str | None = None,
-        statuses: list[RunStatus | Literal["SCHEDULED"]] | None = None,
+        statuses: list[ScheduledRunStatusFilter] | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
-        order_by_field: Literal["trigger_at", "created_at"] | None = None,
+        order_by_field: ScheduledRunOrderByField | None = None,
         order_by_direction: OrderByDirection | None = None,
     ) -> list[ScheduledRun]:
         """

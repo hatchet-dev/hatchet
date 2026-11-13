@@ -220,7 +220,6 @@ async def _legacy_check_listener_health(
     worker: Worker,
     durable_action_listener_process: multiprocessing.context.SpawnProcess | None,
 ) -> None:
-
     logger.debug("starting legacy action listener health check...")
     try:
         while not worker._killing:

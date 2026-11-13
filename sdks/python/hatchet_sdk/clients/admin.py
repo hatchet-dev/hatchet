@@ -38,7 +38,7 @@ from hatchet_sdk.types.labels import (
     DesiredWorkerLabel,
 )
 from hatchet_sdk.types.priority import Priority, priority_to_int
-from hatchet_sdk.types.run_status import RunStatus
+from hatchet_sdk.types.run_status import RunStatus, parse_run_status
 from hatchet_sdk.types.trigger import (
     ScheduleTriggerWorkflowOptions as ScheduleTriggerWorkflowOptions,
 )
@@ -615,7 +615,7 @@ class AdminClient:
                 if response.additional_metadata
                 else None
             ),
-            status=cast("RunStatus", workflow_protos.RunStatus.Name(response.status)),
+            status=parse_run_status(workflow_protos.RunStatus.Name(response.status)),
             task_runs={
                 readable_id: TaskRunDetail(
                     readable_id=readable_id,
@@ -626,8 +626,8 @@ class AdminClient:
                         else None
                     ),
                     error=details.error if details.error else None,
-                    status=cast(
-                        "RunStatus", workflow_protos.RunStatus.Name(details.status)
+                    status=parse_run_status(
+                        workflow_protos.RunStatus.Name(details.status)
                     ),
                     is_evicted=getattr(details, "is_evicted", False),
                 )

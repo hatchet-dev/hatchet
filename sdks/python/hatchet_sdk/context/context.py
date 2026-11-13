@@ -228,7 +228,7 @@ class Context:
 
     @property
     def worker_labels(self) -> list[WorkerLabel]:
-        return self._worker_labels
+        return list(self._worker_labels)
 
     def upsert_worker_labels(self, labels: list[WorkerLabel]) -> None:
         self._dispatcher_client.upsert_worker_labels(self.worker_id, labels)

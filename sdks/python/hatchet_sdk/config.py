@@ -132,7 +132,7 @@ class TenacityConfig(BaseSettings):
         description="Enable retries for REST transport errors (timeout, connection, TLS). Default: off.",
     )
     retry_transport_methods: list[HTTPMethod] = Field(
-        default_factory=lambda: list[HTTPMethod](["GET", "DELETE"]),
+        default=["GET", "DELETE"],
         description="HTTP methods to retry on transport errors when retry_transport_errors is enabled; excludes POST/PUT/PATCH by default due to idempotency concerns.",
     )
     wait: type[tenacity.wait.wait_base] = tenacity.wait_exponential_jitter

@@ -7,7 +7,6 @@ import pytest
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.runnables.workflow import BaseWorkflow
 from hatchet_sdk.utils.slots import resolve_worker_slot_config
-from hatchet_sdk.worker.slot_types import SlotType
 
 
 def test_client_host_port_overrides() -> None:
