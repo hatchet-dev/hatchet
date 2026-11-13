@@ -10,9 +10,9 @@ import (
 	"unicode/utf8"
 )
 
-// ValidateJSONB rejects JSON that Postgres jsonb cannot store and returns the bytes to store
-// instead of jsonb. They differ from jsonb only where it has an unpaired UTF-16 surrogate escape,
-// which jsonb rejects; that escape becomes \ufffd, the character Go's decoder yields for it.
+// ValidateJSONB rejects JSON that Postgres jsonb cannot store and returns the bytes to store in
+// place of the input. They differ only where the input has an unpaired UTF-16 surrogate escape,
+// which Postgres rejects; that escape becomes \ufffd, the character Go's decoder yields for it.
 func ValidateJSONB[T string | []byte](jsonb T, fieldName string) (T, error) {
 	if len(jsonb) == 0 {
 		return jsonb, nil
