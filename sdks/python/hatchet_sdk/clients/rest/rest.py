@@ -256,9 +256,7 @@ class RESTClientObject:
                     f"timeout={_request_timeout}",
                 ]
             )
-            raise RestTLSError(
-                status=0, reason=msg, http_method=method.upper()
-            ) from e
+            raise RestTLSError(status=0, reason=msg, http_method=method.upper()) from e
         except (
             urllib3.exceptions.MaxRetryError,
             urllib3.exceptions.NewConnectionError,

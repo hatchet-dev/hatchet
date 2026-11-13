@@ -61,7 +61,7 @@ def _expand_literal_aliases(
 
 def _documented_objects(obj: griffe.Object) -> Iterator[griffe.Object]:
     for member in obj.members.values():
-        if member.is_alias or not isinstance(member, griffe.Object):
+        if not isinstance(member, griffe.Object):
             continue
 
         yield member
