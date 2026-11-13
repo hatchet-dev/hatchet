@@ -195,7 +195,6 @@ type DurableEventsRepository interface {
 type durableEventsRepository struct {
 	*sharedRepository
 
-	entitlements TenantEntitlementRepository
 	ingestBuffer *durableEventIngestBuffer
 }
 
@@ -208,10 +207,9 @@ type DurableEventBufferOpts struct {
 	MaxConcurrentFlushes int
 }
 
-func newDurableEventsRepository(shared *sharedRepository, entitlements TenantEntitlementRepository, opts DurableEventBufferOpts) *durableEventsRepository {
+func newDurableEventsRepository(shared *sharedRepository, opts DurableEventBufferOpts) *durableEventsRepository {
 	r := &durableEventsRepository{
 		sharedRepository: shared,
-		entitlements:     entitlements,
 	}
 
 	r.ingestBuffer = newDurableEventIngestBuffer(r.appendDurableEventLogBatch, opts.FlushInterval, opts.MaxBatchSize, opts.MaxConcurrentFlushes)
@@ -2981,7 +2979,7 @@ func (r *durableEventsRepository) ListDurableEventLog(ctx context.Context, tenan
 // be spawned without a completion match. Until every engine pod satisfies entries directly, a pod
 // that still resolves completions through matching would otherwise never finish such a step, so
 // the match is kept unless the tenant is entitled, and kept on a lookup error.
-func (r *durableEventsRepository) operatorStepChildrenSkipCompletionMatch(ctx context.Context, tenantId uuid.UUID) bool {
+func (r *sharedRepository) operatorStepChildrenSkipCompletionMatch(ctx context.Context, tenantId uuid.UUID) bool {
 	if r.entitlements == nil {
 		return false
 	}
@@ -3007,10 +3005,50 @@ type OperatorStepChildCompletion struct {
 // of its steps. The DAG operator groups every step child under the orchestrator's run id and names
 // the orchestrator as the parent, so the two ids coincide only for operator step children.
 func IsOperatorStepChild(task *sqlcv1.ReleaseTasksRow) bool {
-	return task.ParentTaskID.Valid &&
-		task.ParentTaskInsertedAt.Valid &&
-		task.ParentTaskExternalID != nil &&
-		*task.ParentTaskExternalID == task.WorkflowRunID
+	return isOperatorStepChild(task.ParentTaskID, task.ParentTaskInsertedAt, task.ParentTaskExternalID, task.WorkflowRunID)
+}
+
+func isOperatorStepChild(parentTaskId pgtype.Int8, parentTaskInsertedAt pgtype.Timestamptz, parentTaskExternalId *uuid.UUID, workflowRunId uuid.UUID) bool {
+	return parentTaskId.Valid &&
+		parentTaskInsertedAt.Valid &&
+		parentTaskExternalId != nil &&
+		*parentTaskExternalId == workflowRunId
+}
+
+// with the entitlement flag off, children report through their completion match like they did before direct completion existed.
+// there's a race condition around the flag being changed where a child that was spawned while the flag was on has no match
+// (the flag was rolled back, or this process still has the old value cached after it was enabled), so we need to check if each
+// child has a completion match and complete the ones without one directly, otherwise their orchestrator would never hear from them.
+func (r *sharedRepository) operatorStepChildrenCompletingDirectly(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, completions []OperatorStepChildCompletion) ([]OperatorStepChildCompletion, error) {
+	if len(completions) == 0 || r.operatorStepChildrenSkipCompletionMatch(ctx, tenantId) {
+		return completions, nil
+	}
+
+	childExternalIds := enumerables.Map(completions, func(completion OperatorStepChildCompletion) string {
+		return completion.ReleasedTask.ExternalID.String()
+	})
+
+	completionConditions, err := r.queries.ListMatchConditionsForEventWithHint(ctx, tx, sqlcv1.ListMatchConditionsForEventWithHintParams{
+		Tenantid:  tenantId,
+		Eventtype: sqlcv1.V1EventTypeINTERNAL,
+		Eventkeys: enumerables.Map(childExternalIds, func(string) string {
+			return string(sqlcv1.V1TaskEventTypeCOMPLETED)
+		}),
+		Eventresourcehints: childExternalIds,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list completion matches for operator step children: %w", err)
+	}
+
+	childExternalIdsWithCompletionMatch := enumerables.ToSet(completionConditions, func(condition *sqlcv1.ListMatchConditionsForEventRow) string {
+		return condition.EventResourceHint.String
+	})
+
+	return enumerables.Filter(completions, func(completion OperatorStepChildCompletion) bool {
+		_, hasCompletionMatch := childExternalIdsWithCompletionMatch[completion.ReleasedTask.ExternalID.String()]
+		return !hasCompletionMatch
+	}), nil
 }
 
 // satisfyOperatorStepChildEntries marks the orchestrator's RUN log entries for the given step
