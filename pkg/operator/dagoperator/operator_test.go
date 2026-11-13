@@ -100,17 +100,26 @@ func TestHandleAction_CancelStepRun_ReachesOverlappingInvocation(t *testing.T) {
 
 	secondCtx, secondCancel := context.WithCancel(context.Background())
 	defer secondCancel()
-	untrackSecond := d.trackRun(action.TaskRunExternalId, secondCancel)
-	defer untrackSecond()
+	defer d.trackRun(action.TaskRunExternalId, secondCancel)()
 
-	// The first invocation finishes while the second is still running.
+	thirdCtx, thirdCancel := context.WithCancel(context.Background())
+	defer thirdCancel()
+	defer d.trackRun(action.TaskRunExternalId, thirdCancel)()
+
+	otherCtx, otherCancel := context.WithCancel(context.Background())
+	defer otherCancel()
+	defer d.trackRun("other-run", otherCancel)()
+
+	// The first invocation finishes while the second and third are still running.
 	untrackFirst()
 
 	action.ActionType = contracts.ActionType_CANCEL_STEP_RUN
 	require.NoError(t, d.HandleAction(context.Background(), action))
 
-	assert.ErrorIs(t, secondCtx.Err(), context.Canceled, "the cancel must reach the invocation still running")
+	assert.ErrorIs(t, secondCtx.Err(), context.Canceled, "the cancel must reach every invocation still running")
+	assert.ErrorIs(t, thirdCtx.Err(), context.Canceled, "the cancel must reach every invocation still running")
 	assert.NoError(t, firstCtx.Err(), "the finished invocation's cancel is no longer tracked")
+	assert.NoError(t, otherCtx.Err(), "the cancel must not reach another task's run")
 	assert.Empty(t, session.Events(), "the running invocation reports the cancellation itself")
 }
 
