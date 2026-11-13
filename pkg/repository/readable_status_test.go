@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -60,24 +61,20 @@ func TestReadableStatusesForFilter(t *testing.T) {
 			runningFilter: RunningStatusFilterEvicted,
 			expected:      []sqlcv1.V1ReadableStatusOlap{sqlcv1.V1ReadableStatusOlapEVICTED},
 		},
-		{
-			name:          "unknown is dropped",
-			statuses:      []string{"FAILED", "BOGUS"},
-			runningFilter: RunningStatusFilterAll,
-			expected:      []sqlcv1.V1ReadableStatusOlap{sqlcv1.V1ReadableStatusOlapFAILED},
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, ReadableStatusesForFilter(tt.statuses, tt.runningFilter))
+			actual, err := ReadableStatusesForFilter(tt.statuses, tt.runningFilter)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, actual)
 		})
 	}
 }
 
-func TestValidateReadableStatuses(t *testing.T) {
-	assert.NoError(t, ValidateReadableStatuses(nil))
-	assert.NoError(t, ValidateReadableStatuses([]string{"QUEUED", "RUNNING", "FAILED", "COMPLETED", "CANCELLED", "EVICTED"}))
-	assert.Error(t, ValidateReadableStatuses([]string{"running"}))
-	assert.Error(t, ValidateReadableStatuses([]string{"FAILED", "BOGUS"}))
+func TestReadableStatusesForFilterRejectsUnknown(t *testing.T) {
+	for _, statuses := range [][]string{{"running"}, {"FAILED", "BOGUS"}} {
+		_, err := ReadableStatusesForFilter(statuses, RunningStatusFilterAll)
+		assert.Error(t, err, statuses)
+	}
 }

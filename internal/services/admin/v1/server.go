@@ -46,12 +46,12 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 	}
 
 	if len(externalIds) == 0 && req.Filter != nil {
-		if err := v1.ValidateReadableStatuses(req.Filter.Statuses); err != nil {
+		statuses, err := v1.ReadableStatusesForFilter(req.Filter.Statuses, v1.RunningStatusFilterAll)
+		if err != nil {
 			return nil, connect.NewError(connect.CodeInvalidArgument, err)
 		}
 
 		var (
-			statuses    = v1.ReadableStatusesForFilter(req.Filter.Statuses, v1.RunningStatusFilterAll)
 			since       = req.Filter.Since.AsTime()
 			until       *time.Time
 			workflowIds       = []uuid.UUID{}
@@ -184,12 +184,12 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 	}
 
 	if len(externalIds) == 0 && req.Filter != nil {
-		if err := v1.ValidateReadableStatuses(req.Filter.Statuses); err != nil {
+		statuses, err := v1.ReadableStatusesForFilter(req.Filter.Statuses, v1.RunningStatusFilterAll)
+		if err != nil {
 			return nil, connect.NewError(connect.CodeInvalidArgument, err)
 		}
 
 		var (
-			statuses    = v1.ReadableStatusesForFilter(req.Filter.Statuses, v1.RunningStatusFilterAll)
 			since       = req.Filter.Since.AsTime()
 			until       *time.Time
 			workflowIds       = []uuid.UUID{}
