@@ -10,6 +10,10 @@ import (
 
 // Note: we want all errors to redirect, otherwise the user will be greeted with raw JSON in the middle of the login flow.
 func (u *UserService) UserUpdateOidcOauthStart(ctx echo.Context, _ gen.UserUpdateOidcOauthStartRequestObject) (gen.UserUpdateOidcOauthStartResponseObject, error) {
+	if u.config.Auth.ConfigFile.DirectUserLoginDisabled() {
+		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, nil, "User signup is disabled.")
+	}
+
 	if u.config.Auth.OIDCOAuthConfig == nil {
 		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, nil, "OIDC authentication is not configured.")
 	}

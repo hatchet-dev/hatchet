@@ -22,10 +22,10 @@ func (u *MetadataService) MetadataGet(ctx echo.Context, request gen.MetadataGetR
 		if u.config.Auth.ConfigFile.Github.Enabled {
 			authTypes = append(authTypes, "github")
 		}
-	}
 
-	if u.config.Auth.ConfigFile.OIDC.Enabled {
-		authTypes = append(authTypes, "oidc")
+		if u.config.Auth.ConfigFile.OIDC.Enabled {
+			authTypes = append(authTypes, "oidc")
+		}
 	}
 
 	pylonAppID := u.config.Pylon.AppID
