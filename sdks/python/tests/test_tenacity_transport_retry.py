@@ -109,8 +109,8 @@ def test_edge__no_http_method_not_retried() -> None:
     assert tenacity_should_retry(exc, config) is False
 
 
-def test_edge__enum_method_matching() -> None:
-    """Method matching uses HTTPMethod enum values directly."""
+def test_edge__method_matching() -> None:
+    """Method matching compares the HTTP method strings directly."""
     exc = RestTimeoutError(status=0, reason="timeout", http_method="GET")
     config = TenacityConfig(retry_transport_errors=True)
     assert tenacity_should_retry(exc, config) is True

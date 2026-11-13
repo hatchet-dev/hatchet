@@ -61,18 +61,18 @@ List events that were pushed to the tenant.
 
 Parameters:
 
-| Name                    | Type                              | Description                                                                  | Default |
-| ----------------------- | --------------------------------- | ---------------------------------------------------------------------------- | ------- |
-| `offset`                | `int \| None`                     | The number of events to skip.                                                | `None`  |
-| `limit`                 | `int \| None`                     | The maximum number of events to return.                                      | `None`  |
-| `keys`                  | `list[str] \| None`               | Only return events with one of these keys.                                   | `None`  |
-| `since`                 | `datetime \| None`                | Only return events seen at or after this time.                               | `None`  |
-| `until`                 | `datetime \| None`                | Only return events seen at or before this time.                              | `None`  |
-| `workflow_ids`          | `list[str] \| None`               | Only return events that triggered one of these workflows.                    | `None`  |
-| `workflow_run_statuses` | `list[RunStatus] \| None`         | Only return events that triggered a run in one of these statuses.            | `None`  |
-| `event_ids`             | `list[str] \| None`               | Only return events with one of these IDs.                                    | `None`  |
-| `additional_metadata`   | `JSONSerializableMapping \| None` | Only return events whose additional metadata contains these key-value pairs. | `None`  |
-| `scopes`                | `list[str] \| None`               | Only return events with one of these scopes.                                 | `None`  |
+| Name                    | Type                                                                             | Description                                                                  | Default |
+| ----------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ------- |
+| `offset`                | `int \| None`                                                                    | The number of events to skip.                                                | `None`  |
+| `limit`                 | `int \| None`                                                                    | The maximum number of events to return.                                      | `None`  |
+| `keys`                  | `list[str] \| None`                                                              | Only return events with one of these keys.                                   | `None`  |
+| `since`                 | `datetime \| None`                                                               | Only return events seen at or after this time.                               | `None`  |
+| `until`                 | `datetime \| None`                                                               | Only return events seen at or before this time.                              | `None`  |
+| `workflow_ids`          | `list[str] \| None`                                                              | Only return events that triggered one of these workflows.                    | `None`  |
+| `workflow_run_statuses` | `list[Literal['QUEUED', 'RUNNING', 'COMPLETED', 'CANCELLED', 'FAILED']] \| None` | Only return events that triggered a run in one of these statuses.            | `None`  |
+| `event_ids`             | `list[str] \| None`                                                              | Only return events with one of these IDs.                                    | `None`  |
+| `additional_metadata`   | `JSONSerializableMapping \| None`                                                | Only return events whose additional metadata contains these key-value pairs. | `None`  |
+| `scopes`                | `list[str] \| None`                                                              | Only return events with one of these scopes.                                 | `None`  |
 
 Returns:
 
@@ -86,13 +86,13 @@ Push an event to Hatchet, triggering any workflows that listen for its key.
 
 Parameters:
 
-| Name                  | Type                              | Description                                                                          | Default    |
-| --------------------- | --------------------------------- | ------------------------------------------------------------------------------------ | ---------- |
-| `event_key`           | `str`                             | The key of the event. Workflows declared with this key in `on_events` are triggered. | _required_ |
-| `payload`             | `JSONSerializableMapping`         | The payload of the event, which becomes the input of the triggered runs.             | _required_ |
-| `additional_metadata` | `JSONSerializableMapping \| None` | Additional metadata to attach to the event and to the runs it triggers.              | `None`     |
-| `priority`            | `Priority \| None`                | The priority to give the runs triggered by the event.                                | `None`     |
-| `scope`               | `str \| None`                     | The scope of the event, used to match it against event filters.                      | `None`     |
+| Name                  | Type                                       | Description                                                                          | Default    |
+| --------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------ | ---------- |
+| `event_key`           | `str`                                      | The key of the event. Workflows declared with this key in `on_events` are triggered. | _required_ |
+| `payload`             | `JSONSerializableMapping`                  | The payload of the event, which becomes the input of the triggered runs.             | _required_ |
+| `additional_metadata` | `JSONSerializableMapping \| None`          | Additional metadata to attach to the event and to the runs it triggers.              | `None`     |
+| `priority`            | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority to give the runs triggered by the event.                                | `None`     |
+| `scope`               | `str \| None`                              | The scope of the event, used to match it against event filters.                      | `None`     |
 
 Returns:
 
@@ -138,18 +138,18 @@ List events that were pushed to the tenant.
 
 Parameters:
 
-| Name                    | Type                              | Description                                                                  | Default |
-| ----------------------- | --------------------------------- | ---------------------------------------------------------------------------- | ------- |
-| `offset`                | `int \| None`                     | The number of events to skip.                                                | `None`  |
-| `limit`                 | `int \| None`                     | The maximum number of events to return.                                      | `None`  |
-| `keys`                  | `list[str] \| None`               | Only return events with one of these keys.                                   | `None`  |
-| `since`                 | `datetime \| None`                | Only return events seen at or after this time.                               | `None`  |
-| `until`                 | `datetime \| None`                | Only return events seen at or before this time.                              | `None`  |
-| `workflow_ids`          | `list[str] \| None`               | Only return events that triggered one of these workflows.                    | `None`  |
-| `workflow_run_statuses` | `list[RunStatus] \| None`         | Only return events that triggered a run in one of these statuses.            | `None`  |
-| `event_ids`             | `list[str] \| None`               | Only return events with one of these IDs.                                    | `None`  |
-| `additional_metadata`   | `JSONSerializableMapping \| None` | Only return events whose additional metadata contains these key-value pairs. | `None`  |
-| `scopes`                | `list[str] \| None`               | Only return events with one of these scopes.                                 | `None`  |
+| Name                    | Type                                                                             | Description                                                                  | Default |
+| ----------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ------- |
+| `offset`                | `int \| None`                                                                    | The number of events to skip.                                                | `None`  |
+| `limit`                 | `int \| None`                                                                    | The maximum number of events to return.                                      | `None`  |
+| `keys`                  | `list[str] \| None`                                                              | Only return events with one of these keys.                                   | `None`  |
+| `since`                 | `datetime \| None`                                                               | Only return events seen at or after this time.                               | `None`  |
+| `until`                 | `datetime \| None`                                                               | Only return events seen at or before this time.                              | `None`  |
+| `workflow_ids`          | `list[str] \| None`                                                              | Only return events that triggered one of these workflows.                    | `None`  |
+| `workflow_run_statuses` | `list[Literal['QUEUED', 'RUNNING', 'COMPLETED', 'CANCELLED', 'FAILED']] \| None` | Only return events that triggered a run in one of these statuses.            | `None`  |
+| `event_ids`             | `list[str] \| None`                                                              | Only return events with one of these IDs.                                    | `None`  |
+| `additional_metadata`   | `JSONSerializableMapping \| None`                                                | Only return events whose additional metadata contains these key-value pairs. | `None`  |
+| `scopes`                | `list[str] \| None`                                                              | Only return events with one of these scopes.                                 | `None`  |
 
 Returns:
 
@@ -163,13 +163,13 @@ Push an event to Hatchet, triggering any workflows that listen for its key.
 
 Parameters:
 
-| Name                  | Type                              | Description                                                                          | Default    |
-| --------------------- | --------------------------------- | ------------------------------------------------------------------------------------ | ---------- |
-| `event_key`           | `str`                             | The key of the event. Workflows declared with this key in `on_events` are triggered. | _required_ |
-| `payload`             | `JSONSerializableMapping`         | The payload of the event, which becomes the input of the triggered runs.             | _required_ |
-| `additional_metadata` | `JSONSerializableMapping \| None` | Additional metadata to attach to the event and to the runs it triggers.              | `None`     |
-| `priority`            | `Priority \| None`                | The priority to give the runs triggered by the event.                                | `None`     |
-| `scope`               | `str \| None`                     | The scope of the event, used to match it against event filters.                      | `None`     |
+| Name                  | Type                                       | Description                                                                          | Default    |
+| --------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------ | ---------- |
+| `event_key`           | `str`                                      | The key of the event. Workflows declared with this key in `on_events` are triggered. | _required_ |
+| `payload`             | `JSONSerializableMapping`                  | The payload of the event, which becomes the input of the triggered runs.             | _required_ |
+| `additional_metadata` | `JSONSerializableMapping \| None`          | Additional metadata to attach to the event and to the runs it triggers.              | `None`     |
+| `priority`            | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority to give the runs triggered by the event.                                | `None`     |
+| `scope`               | `str \| None`                              | The scope of the event, used to match it against event filters.                      | `None`     |
 
 Returns:
 

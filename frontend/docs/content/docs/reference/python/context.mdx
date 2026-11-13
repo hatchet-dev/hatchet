@@ -114,9 +114,9 @@ The priority that the current task was run with.
 
 Returns:
 
-| Type               | Description                                                           |
-| ------------------ | --------------------------------------------------------------------- |
-| `Priority \| None` | The priority of the current task run, or None if no priority was set. |
+| Type                                       | Description                                                           |
+| ------------------------------------------ | --------------------------------------------------------------------- |
+| `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the current task run, or None if no priority was set. |
 
 #### `workflow_id`
 
@@ -317,7 +317,7 @@ Raises:
 
 | Type         | Description                                                                                           |
 | ------------ | ----------------------------------------------------------------------------------------------------- |
-| `ValueError` | If the durable task client is not available.                                                          |
+| `ValueError` | If the durable task client is not available, or if two conditions have the same `readable_data_key`.  |
 | `TypeError`  | If the durable event listener is not of type DurableEventListener or PreEvictionDurableEventListener. |
 
 #### `aio_sleep_for`

@@ -223,15 +223,15 @@ This method triggers a workflow run, blocks until completion, and returns the fi
 
 Parameters:
 
-| Name                    | Type                               | Description                                                                                           | Default                        |
-| ----------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------ |
-| `input`                 | `TWorkflowInput`                   | The input data for the workflow, must match the workflow's input type.                                | `cast('TWorkflowInput', None)` |
-| `wait_for_result`       | `bool`                             | If True, block until completion and return the result. If False, return a WorkflowRunRef immediately. | `True`                         |
-| `child_key`             | `str \| None`                      | An optional key for deduplicating child workflow runs.                                                | `None`                         |
-| `additional_metadata`   | `JSONSerializableMapping \| None`  | Additional metadata to attach to the workflow run.                                                    | `None`                         |
-| `priority`              | `Priority \| None`                 | The priority of the workflow run.                                                                     | `None`                         |
-| `sticky`                | `bool`                             | Whether to run the workflow on the same worker as the task that triggers it.                          | `False`                        |
-| `desired_worker_labels` | `list[DesiredWorkerLabel] \| None` | A list of desired worker labels for worker affinity.                                                  | `None`                         |
+| Name                    | Type                                       | Description                                                                                           | Default                        |
+| ----------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------- | ------------------------------ |
+| `input`                 | `TWorkflowInput`                           | The input data for the workflow, must match the workflow's input type.                                | `cast('TWorkflowInput', None)` |
+| `wait_for_result`       | `bool`                                     | If True, block until completion and return the result. If False, return a WorkflowRunRef immediately. | `True`                         |
+| `child_key`             | `str \| None`                              | An optional key for deduplicating child workflow runs.                                                | `None`                         |
+| `additional_metadata`   | `JSONSerializableMapping \| None`          | Additional metadata to attach to the workflow run.                                                    | `None`                         |
+| `priority`              | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the workflow run.                                                                     | `None`                         |
+| `sticky`                | `bool`                                     | Whether to run the workflow on the same worker as the task that triggers it.                          | `False`                        |
+| `desired_worker_labels` | `list[DesiredWorkerLabel] \| None`         | A list of desired worker labels for worker affinity.                                                  | `None`                         |
 
 Returns:
 
@@ -247,15 +247,15 @@ This method triggers a workflow run, awaits until completion, and returns the fi
 
 Parameters:
 
-| Name                    | Type                               | Description                                                                                     | Default                        |
-| ----------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------ |
-| `input`                 | `TWorkflowInput`                   | The input data for the workflow, must match the workflow's input type.                          | `cast('TWorkflowInput', None)` |
-| `wait_for_result`       | `bool`                             | If True, await completion and return the result. If False, return a WorkflowRunRef immediately. | `True`                         |
-| `child_key`             | `str \| None`                      | An optional key for deduplicating child workflow runs.                                          | `None`                         |
-| `additional_metadata`   | `JSONSerializableMapping \| None`  | Additional metadata to attach to the workflow run.                                              | `None`                         |
-| `priority`              | `Priority \| None`                 | The priority of the workflow run.                                                               | `None`                         |
-| `sticky`                | `bool`                             | Whether to run the workflow on the same worker as the task that triggers it.                    | `False`                        |
-| `desired_worker_labels` | `list[DesiredWorkerLabel] \| None` | A list of desired worker labels for worker affinity.                                            | `None`                         |
+| Name                    | Type                                       | Description                                                                                     | Default                        |
+| ----------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------- | ------------------------------ |
+| `input`                 | `TWorkflowInput`                           | The input data for the workflow, must match the workflow's input type.                          | `cast('TWorkflowInput', None)` |
+| `wait_for_result`       | `bool`                                     | If True, await completion and return the result. If False, return a WorkflowRunRef immediately. | `True`                         |
+| `child_key`             | `str \| None`                              | An optional key for deduplicating child workflow runs.                                          | `None`                         |
+| `additional_metadata`   | `JSONSerializableMapping \| None`          | Additional metadata to attach to the workflow run.                                              | `None`                         |
+| `priority`              | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the workflow run.                                                               | `None`                         |
+| `sticky`                | `bool`                                     | Whether to run the workflow on the same worker as the task that triggers it.                    | `False`                        |
+| `desired_worker_labels` | `list[DesiredWorkerLabel] \| None`         | A list of desired worker labels for worker affinity.                                            | `None`                         |
 
 Returns:
 
@@ -311,13 +311,13 @@ Schedule a workflow to run at a specific time.
 
 Parameters:
 
-| Name                  | Type                              | Description                                            | Default                        |
-| --------------------- | --------------------------------- | ------------------------------------------------------ | ------------------------------ |
-| `trigger_at`          | `datetime`                        | The time at which to schedule the workflow.            | _required_                     |
-| `input`               | `TWorkflowInput`                  | The input data for the workflow.                       | `cast('TWorkflowInput', None)` |
-| `child_key`           | `str \| None`                     | An optional key for deduplicating child workflow runs. | `None`                         |
-| `additional_metadata` | `JSONSerializableMapping \| None` | Additional metadata to attach to the workflow run.     | `None`                         |
-| `priority`            | `Priority \| None`                | The priority of the scheduled workflow run.            | `None`                         |
+| Name                  | Type                                       | Description                                            | Default                        |
+| --------------------- | ------------------------------------------ | ------------------------------------------------------ | ------------------------------ |
+| `trigger_at`          | `datetime`                                 | The time at which to schedule the workflow.            | _required_                     |
+| `input`               | `TWorkflowInput`                           | The input data for the workflow.                       | `cast('TWorkflowInput', None)` |
+| `child_key`           | `str \| None`                              | An optional key for deduplicating child workflow runs. | `None`                         |
+| `additional_metadata` | `JSONSerializableMapping \| None`          | Additional metadata to attach to the workflow run.     | `None`                         |
+| `priority`            | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the scheduled workflow run.            | `None`                         |
 
 Returns:
 
@@ -331,13 +331,13 @@ Schedule a workflow to run at a specific time.
 
 Parameters:
 
-| Name                  | Type                              | Description                                            | Default                        |
-| --------------------- | --------------------------------- | ------------------------------------------------------ | ------------------------------ |
-| `trigger_at`          | `datetime`                        | The time at which to schedule the workflow.            | _required_                     |
-| `input`               | `TWorkflowInput`                  | The input data for the workflow.                       | `cast('TWorkflowInput', None)` |
-| `child_key`           | `str \| None`                     | An optional key for deduplicating child workflow runs. | `None`                         |
-| `additional_metadata` | `JSONSerializableMapping \| None` | Additional metadata to attach to the workflow run.     | `None`                         |
-| `priority`            | `Priority \| None`                | The priority of the scheduled workflow run.            | `None`                         |
+| Name                  | Type                                       | Description                                            | Default                        |
+| --------------------- | ------------------------------------------ | ------------------------------------------------------ | ------------------------------ |
+| `trigger_at`          | `datetime`                                 | The time at which to schedule the workflow.            | _required_                     |
+| `input`               | `TWorkflowInput`                           | The input data for the workflow.                       | `cast('TWorkflowInput', None)` |
+| `child_key`           | `str \| None`                              | An optional key for deduplicating child workflow runs. | `None`                         |
+| `additional_metadata` | `JSONSerializableMapping \| None`          | Additional metadata to attach to the workflow run.     | `None`                         |
+| `priority`            | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the scheduled workflow run.            | `None`                         |
 
 Returns:
 
@@ -351,13 +351,13 @@ Create a cron job for the workflow.
 
 Parameters:
 
-| Name                  | Type                              | Description                                                     | Default                        |
-| --------------------- | --------------------------------- | --------------------------------------------------------------- | ------------------------------ |
-| `cron_name`           | `str`                             | The name of the cron job.                                       | _required_                     |
-| `expression`          | `str`                             | The cron expression that defines the schedule for the cron job. | _required_                     |
-| `input`               | `TWorkflowInput`                  | The input data for the workflow.                                | `cast('TWorkflowInput', None)` |
-| `additional_metadata` | `JSONSerializableMapping \| None` | Additional metadata for the cron job.                           | `None`                         |
-| `priority`            | `Priority \| None`                | The priority of the cron job.                                   | `None`                         |
+| Name                  | Type                                       | Description                                                     | Default                        |
+| --------------------- | ------------------------------------------ | --------------------------------------------------------------- | ------------------------------ |
+| `cron_name`           | `str`                                      | The name of the cron job.                                       | _required_                     |
+| `expression`          | `str`                                      | The cron expression that defines the schedule for the cron job. | _required_                     |
+| `input`               | `TWorkflowInput`                           | The input data for the workflow.                                | `cast('TWorkflowInput', None)` |
+| `additional_metadata` | `JSONSerializableMapping \| None`          | Additional metadata for the cron job.                           | `None`                         |
+| `priority`            | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the cron job.                                   | `None`                         |
 
 Returns:
 
@@ -371,13 +371,13 @@ Create a cron job for the workflow.
 
 Parameters:
 
-| Name                  | Type                              | Description                                                     | Default                        |
-| --------------------- | --------------------------------- | --------------------------------------------------------------- | ------------------------------ |
-| `cron_name`           | `str`                             | The name of the cron job.                                       | _required_                     |
-| `expression`          | `str`                             | The cron expression that defines the schedule for the cron job. | _required_                     |
-| `input`               | `TWorkflowInput`                  | The input data for the workflow.                                | `cast('TWorkflowInput', None)` |
-| `additional_metadata` | `JSONSerializableMapping \| None` | Additional metadata for the cron job.                           | `None`                         |
-| `priority`            | `Priority \| None`                | The priority of the cron job.                                   | `None`                         |
+| Name                  | Type                                       | Description                                                     | Default                        |
+| --------------------- | ------------------------------------------ | --------------------------------------------------------------- | ------------------------------ |
+| `cron_name`           | `str`                                      | The name of the cron job.                                       | _required_                     |
+| `expression`          | `str`                                      | The cron expression that defines the schedule for the cron job. | _required_                     |
+| `input`               | `TWorkflowInput`                           | The input data for the workflow.                                | `cast('TWorkflowInput', None)` |
+| `additional_metadata` | `JSONSerializableMapping \| None`          | Additional metadata for the cron job.                           | `None`                         |
+| `priority`            | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the cron job.                                   | `None`                         |
 
 Returns:
 
@@ -391,14 +391,14 @@ Create a bulk run item for the workflow. This is intended to be used in conjunct
 
 Parameters:
 
-| Name                    | Type                               | Description                                                                  | Default                        |
-| ----------------------- | ---------------------------------- | ---------------------------------------------------------------------------- | ------------------------------ |
-| `input`                 | `TWorkflowInput`                   | The input data for the workflow.                                             | `cast('TWorkflowInput', None)` |
-| `child_key`             | `str \| None`                      | An optional key for deduplicating child workflow runs.                       | `None`                         |
-| `additional_metadata`   | `JSONSerializableMapping \| None`  | Additional metadata to attach to the workflow run.                           | `None`                         |
-| `priority`              | `Priority \| None`                 | The priority of the workflow run.                                            | `None`                         |
-| `sticky`                | `bool`                             | Whether to run the workflow on the same worker as the task that triggers it. | `False`                        |
-| `desired_worker_labels` | `list[DesiredWorkerLabel] \| None` | A list of desired worker labels for worker affinity.                         | `None`                         |
+| Name                    | Type                                       | Description                                                                  | Default                        |
+| ----------------------- | ------------------------------------------ | ---------------------------------------------------------------------------- | ------------------------------ |
+| `input`                 | `TWorkflowInput`                           | The input data for the workflow.                                             | `cast('TWorkflowInput', None)` |
+| `child_key`             | `str \| None`                              | An optional key for deduplicating child workflow runs.                       | `None`                         |
+| `additional_metadata`   | `JSONSerializableMapping \| None`          | Additional metadata to attach to the workflow run.                           | `None`                         |
+| `priority`              | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the workflow run.                                            | `None`                         |
+| `sticky`                | `bool`                                     | Whether to run the workflow on the same worker as the task that triggers it. | `False`                        |
+| `desired_worker_labels` | `list[DesiredWorkerLabel] \| None`         | A list of desired worker labels for worker affinity.                         | `None`                         |
 
 Returns:
 
@@ -412,18 +412,18 @@ List runs of the workflow.
 
 Parameters:
 
-| Name                  | Type                      | Description                                                                     | Default |
-| --------------------- | ------------------------- | ------------------------------------------------------------------------------- | ------- |
-| `since`               | `datetime \| None`        | The start time for the runs to be listed.                                       | `None`  |
-| `until`               | `datetime \| None`        | The end time for the runs to be listed.                                         | `None`  |
-| `limit`               | `int \| None`             | The maximum number of runs to be listed. Returns every matching run if not set. | `None`  |
-| `offset`              | `int \| None`             | The offset for pagination.                                                      | `None`  |
-| `statuses`            | `list[RunStatus] \| None` | The statuses of the runs to be listed.                                          | `None`  |
-| `additional_metadata` | `dict[str, str] \| None`  | Additional metadata for filtering the runs.                                     | `None`  |
-| `worker_id`           | `str \| None`             | The ID of the worker that ran the tasks.                                        | `None`  |
-| `parent_task_run_id`  | `str \| None`             | The ID of the parent task run.                                                  | `None`  |
-| `only_tasks`          | `bool`                    | Whether to list only task runs.                                                 | `False` |
-| `triggering_event_id` | `str \| None`             | The ID of the event that triggered the task run.                                | `None`  |
+| Name                  | Type                                                                             | Description                                                                     | Default |
+| --------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------- |
+| `since`               | `datetime \| None`                                                               | The start time for the runs to be listed.                                       | `None`  |
+| `until`               | `datetime \| None`                                                               | The end time for the runs to be listed.                                         | `None`  |
+| `limit`               | `int \| None`                                                                    | The maximum number of runs to be listed. Returns every matching run if not set. | `None`  |
+| `offset`              | `int \| None`                                                                    | The offset for pagination.                                                      | `None`  |
+| `statuses`            | `list[Literal['QUEUED', 'RUNNING', 'COMPLETED', 'CANCELLED', 'FAILED']] \| None` | The statuses of the runs to be listed.                                          | `None`  |
+| `additional_metadata` | `dict[str, str] \| None`                                                         | Additional metadata for filtering the runs.                                     | `None`  |
+| `worker_id`           | `str \| None`                                                                    | The ID of the worker that ran the tasks.                                        | `None`  |
+| `parent_task_run_id`  | `str \| None`                                                                    | The ID of the parent task run.                                                  | `None`  |
+| `only_tasks`          | `bool`                                                                           | Whether to list only task runs.                                                 | `False` |
+| `triggering_event_id` | `str \| None`                                                                    | The ID of the event that triggered the task run.                                | `None`  |
 
 Returns:
 
@@ -437,18 +437,18 @@ List runs of the workflow.
 
 Parameters:
 
-| Name                  | Type                      | Description                                                                     | Default |
-| --------------------- | ------------------------- | ------------------------------------------------------------------------------- | ------- |
-| `since`               | `datetime \| None`        | The start time for the runs to be listed.                                       | `None`  |
-| `until`               | `datetime \| None`        | The end time for the runs to be listed.                                         | `None`  |
-| `limit`               | `int \| None`             | The maximum number of runs to be listed. Returns every matching run if not set. | `None`  |
-| `offset`              | `int \| None`             | The offset for pagination.                                                      | `None`  |
-| `statuses`            | `list[RunStatus] \| None` | The statuses of the runs to be listed.                                          | `None`  |
-| `additional_metadata` | `dict[str, str] \| None`  | Additional metadata for filtering the runs.                                     | `None`  |
-| `worker_id`           | `str \| None`             | The ID of the worker that ran the tasks.                                        | `None`  |
-| `parent_task_run_id`  | `str \| None`             | The ID of the parent task run.                                                  | `None`  |
-| `only_tasks`          | `bool`                    | Whether to list only task runs.                                                 | `False` |
-| `triggering_event_id` | `str \| None`             | The ID of the event that triggered the task run.                                | `None`  |
+| Name                  | Type                                                                             | Description                                                                     | Default |
+| --------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------- |
+| `since`               | `datetime \| None`                                                               | The start time for the runs to be listed.                                       | `None`  |
+| `until`               | `datetime \| None`                                                               | The end time for the runs to be listed.                                         | `None`  |
+| `limit`               | `int \| None`                                                                    | The maximum number of runs to be listed. Returns every matching run if not set. | `None`  |
+| `offset`              | `int \| None`                                                                    | The offset for pagination.                                                      | `None`  |
+| `statuses`            | `list[Literal['QUEUED', 'RUNNING', 'COMPLETED', 'CANCELLED', 'FAILED']] \| None` | The statuses of the runs to be listed.                                          | `None`  |
+| `additional_metadata` | `dict[str, str] \| None`                                                         | Additional metadata for filtering the runs.                                     | `None`  |
+| `worker_id`           | `str \| None`                                                                    | The ID of the worker that ran the tasks.                                        | `None`  |
+| `parent_task_run_id`  | `str \| None`                                                                    | The ID of the parent task run.                                                  | `None`  |
+| `only_tasks`          | `bool`                                                                           | Whether to list only task runs.                                                 | `False` |
+| `triggering_event_id` | `str \| None`                                                                    | The ID of the event that triggered the task run.                                | `None`  |
 
 Returns:
 
@@ -610,15 +610,15 @@ This method triggers a workflow run, blocks until completion, and returns the ex
 
 Parameters:
 
-| Name                    | Type                               | Description                                                                                       | Default                        |
-| ----------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------ |
-| `input`                 | `TWorkflowInput`                   | The input data for the workflow.                                                                  | `cast('TWorkflowInput', None)` |
-| `wait_for_result`       | `bool`                             | If True, block until completion and return the result. If False, return a TaskRunRef immediately. | `True`                         |
-| `child_key`             | `str \| None`                      | An optional key for deduplicating child workflow runs.                                            | `None`                         |
-| `additional_metadata`   | `JSONSerializableMapping \| None`  | Additional metadata to attach to the workflow run.                                                | `None`                         |
-| `priority`              | `Priority \| None`                 | The priority of the workflow run.                                                                 | `None`                         |
-| `sticky`                | `bool`                             | Whether to run the workflow on the same worker as the task that triggers it.                      | `False`                        |
-| `desired_worker_labels` | `list[DesiredWorkerLabel] \| None` | A list of desired worker labels for worker affinity.                                              | `None`                         |
+| Name                    | Type                                       | Description                                                                                       | Default                        |
+| ----------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------- | ------------------------------ |
+| `input`                 | `TWorkflowInput`                           | The input data for the workflow.                                                                  | `cast('TWorkflowInput', None)` |
+| `wait_for_result`       | `bool`                                     | If True, block until completion and return the result. If False, return a TaskRunRef immediately. | `True`                         |
+| `child_key`             | `str \| None`                              | An optional key for deduplicating child workflow runs.                                            | `None`                         |
+| `additional_metadata`   | `JSONSerializableMapping \| None`          | Additional metadata to attach to the workflow run.                                                | `None`                         |
+| `priority`              | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the workflow run.                                                                 | `None`                         |
+| `sticky`                | `bool`                                     | Whether to run the workflow on the same worker as the task that triggers it.                      | `False`                        |
+| `desired_worker_labels` | `list[DesiredWorkerLabel] \| None`         | A list of desired worker labels for worker affinity.                                              | `None`                         |
 
 Returns:
 
@@ -634,15 +634,15 @@ This method triggers a workflow run, awaits until completion, and returns the ex
 
 Parameters:
 
-| Name                    | Type                               | Description                                                                                 | Default                        |
-| ----------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------ |
-| `input`                 | `TWorkflowInput`                   | The input data for the workflow, must match the workflow's input type.                      | `cast('TWorkflowInput', None)` |
-| `wait_for_result`       | `bool`                             | If True, await completion and return the result. If False, return a TaskRunRef immediately. | `True`                         |
-| `child_key`             | `str \| None`                      | An optional key for deduplicating child workflow runs.                                      | `None`                         |
-| `additional_metadata`   | `JSONSerializableMapping \| None`  | Additional metadata to attach to the workflow run.                                          | `None`                         |
-| `priority`              | `Priority \| None`                 | The priority of the workflow run.                                                           | `None`                         |
-| `sticky`                | `bool`                             | Whether to run the workflow on the same worker as the task that triggers it.                | `False`                        |
-| `desired_worker_labels` | `list[DesiredWorkerLabel] \| None` | A list of desired worker labels for worker affinity.                                        | `None`                         |
+| Name                    | Type                                       | Description                                                                                 | Default                        |
+| ----------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------- | ------------------------------ |
+| `input`                 | `TWorkflowInput`                           | The input data for the workflow, must match the workflow's input type.                      | `cast('TWorkflowInput', None)` |
+| `wait_for_result`       | `bool`                                     | If True, await completion and return the result. If False, return a TaskRunRef immediately. | `True`                         |
+| `child_key`             | `str \| None`                              | An optional key for deduplicating child workflow runs.                                      | `None`                         |
+| `additional_metadata`   | `JSONSerializableMapping \| None`          | Additional metadata to attach to the workflow run.                                          | `None`                         |
+| `priority`              | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the workflow run.                                                           | `None`                         |
+| `sticky`                | `bool`                                     | Whether to run the workflow on the same worker as the task that triggers it.                | `False`                        |
+| `desired_worker_labels` | `list[DesiredWorkerLabel] \| None`         | A list of desired worker labels for worker affinity.                                        | `None`                         |
 
 Returns:
 
@@ -692,13 +692,13 @@ Schedule a workflow to run at a specific time.
 
 Parameters:
 
-| Name                  | Type                              | Description                                            | Default                        |
-| --------------------- | --------------------------------- | ------------------------------------------------------ | ------------------------------ |
-| `trigger_at`          | `datetime`                        | The time at which to schedule the workflow.            | _required_                     |
-| `input`               | `TWorkflowInput`                  | The input data for the workflow.                       | `cast('TWorkflowInput', None)` |
-| `child_key`           | `str \| None`                     | An optional key for deduplicating child workflow runs. | `None`                         |
-| `additional_metadata` | `JSONSerializableMapping \| None` | Additional metadata to attach to the workflow run.     | `None`                         |
-| `priority`            | `Priority \| None`                | The priority of the scheduled workflow run.            | `None`                         |
+| Name                  | Type                                       | Description                                            | Default                        |
+| --------------------- | ------------------------------------------ | ------------------------------------------------------ | ------------------------------ |
+| `trigger_at`          | `datetime`                                 | The time at which to schedule the workflow.            | _required_                     |
+| `input`               | `TWorkflowInput`                           | The input data for the workflow.                       | `cast('TWorkflowInput', None)` |
+| `child_key`           | `str \| None`                              | An optional key for deduplicating child workflow runs. | `None`                         |
+| `additional_metadata` | `JSONSerializableMapping \| None`          | Additional metadata to attach to the workflow run.     | `None`                         |
+| `priority`            | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the scheduled workflow run.            | `None`                         |
 
 Returns:
 
@@ -712,13 +712,13 @@ Schedule a workflow to run at a specific time.
 
 Parameters:
 
-| Name                  | Type                              | Description                                            | Default                        |
-| --------------------- | --------------------------------- | ------------------------------------------------------ | ------------------------------ |
-| `trigger_at`          | `datetime`                        | The time at which to schedule the workflow.            | _required_                     |
-| `input`               | `TWorkflowInput`                  | The input data for the workflow.                       | `cast('TWorkflowInput', None)` |
-| `child_key`           | `str \| None`                     | An optional key for deduplicating child workflow runs. | `None`                         |
-| `additional_metadata` | `JSONSerializableMapping \| None` | Additional metadata to attach to the workflow run.     | `None`                         |
-| `priority`            | `Priority \| None`                | The priority of the scheduled workflow run.            | `None`                         |
+| Name                  | Type                                       | Description                                            | Default                        |
+| --------------------- | ------------------------------------------ | ------------------------------------------------------ | ------------------------------ |
+| `trigger_at`          | `datetime`                                 | The time at which to schedule the workflow.            | _required_                     |
+| `input`               | `TWorkflowInput`                           | The input data for the workflow.                       | `cast('TWorkflowInput', None)` |
+| `child_key`           | `str \| None`                              | An optional key for deduplicating child workflow runs. | `None`                         |
+| `additional_metadata` | `JSONSerializableMapping \| None`          | Additional metadata to attach to the workflow run.     | `None`                         |
+| `priority`            | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the scheduled workflow run.            | `None`                         |
 
 Returns:
 
@@ -732,13 +732,13 @@ Create a cron job for the workflow.
 
 Parameters:
 
-| Name                  | Type                              | Description                                                     | Default                        |
-| --------------------- | --------------------------------- | --------------------------------------------------------------- | ------------------------------ |
-| `cron_name`           | `str`                             | The name of the cron job.                                       | _required_                     |
-| `expression`          | `str`                             | The cron expression that defines the schedule for the cron job. | _required_                     |
-| `input`               | `TWorkflowInput`                  | The input data for the workflow.                                | `cast('TWorkflowInput', None)` |
-| `additional_metadata` | `JSONSerializableMapping \| None` | Additional metadata for the cron job.                           | `None`                         |
-| `priority`            | `Priority \| None`                | The priority of the cron job.                                   | `None`                         |
+| Name                  | Type                                       | Description                                                     | Default                        |
+| --------------------- | ------------------------------------------ | --------------------------------------------------------------- | ------------------------------ |
+| `cron_name`           | `str`                                      | The name of the cron job.                                       | _required_                     |
+| `expression`          | `str`                                      | The cron expression that defines the schedule for the cron job. | _required_                     |
+| `input`               | `TWorkflowInput`                           | The input data for the workflow.                                | `cast('TWorkflowInput', None)` |
+| `additional_metadata` | `JSONSerializableMapping \| None`          | Additional metadata for the cron job.                           | `None`                         |
+| `priority`            | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the cron job.                                   | `None`                         |
 
 Returns:
 
@@ -752,13 +752,13 @@ Create a cron job for the workflow.
 
 Parameters:
 
-| Name                  | Type                              | Description                                                     | Default                        |
-| --------------------- | --------------------------------- | --------------------------------------------------------------- | ------------------------------ |
-| `cron_name`           | `str`                             | The name of the cron job.                                       | _required_                     |
-| `expression`          | `str`                             | The cron expression that defines the schedule for the cron job. | _required_                     |
-| `input`               | `TWorkflowInput`                  | The input data for the workflow.                                | `cast('TWorkflowInput', None)` |
-| `additional_metadata` | `JSONSerializableMapping \| None` | Additional metadata for the cron job.                           | `None`                         |
-| `priority`            | `Priority \| None`                | The priority of the cron job.                                   | `None`                         |
+| Name                  | Type                                       | Description                                                     | Default                        |
+| --------------------- | ------------------------------------------ | --------------------------------------------------------------- | ------------------------------ |
+| `cron_name`           | `str`                                      | The name of the cron job.                                       | _required_                     |
+| `expression`          | `str`                                      | The cron expression that defines the schedule for the cron job. | _required_                     |
+| `input`               | `TWorkflowInput`                           | The input data for the workflow.                                | `cast('TWorkflowInput', None)` |
+| `additional_metadata` | `JSONSerializableMapping \| None`          | Additional metadata for the cron job.                           | `None`                         |
+| `priority`            | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the cron job.                                   | `None`                         |
 
 Returns:
 
@@ -772,14 +772,14 @@ Create a bulk run item for the workflow. This is intended to be used in conjunct
 
 Parameters:
 
-| Name                    | Type                               | Description                                                                  | Default                        |
-| ----------------------- | ---------------------------------- | ---------------------------------------------------------------------------- | ------------------------------ |
-| `input`                 | `TWorkflowInput`                   | The input data for the workflow.                                             | `cast('TWorkflowInput', None)` |
-| `child_key`             | `str \| None`                      | An optional key for deduplicating child workflow runs.                       | `None`                         |
-| `additional_metadata`   | `JSONSerializableMapping \| None`  | Additional metadata to attach to the workflow run.                           | `None`                         |
-| `priority`              | `Priority \| None`                 | The priority of the workflow run.                                            | `None`                         |
-| `sticky`                | `bool`                             | Whether to run the workflow on the same worker as the task that triggers it. | `False`                        |
-| `desired_worker_labels` | `list[DesiredWorkerLabel] \| None` | A list of desired worker labels for worker affinity.                         | `None`                         |
+| Name                    | Type                                       | Description                                                                  | Default                        |
+| ----------------------- | ------------------------------------------ | ---------------------------------------------------------------------------- | ------------------------------ |
+| `input`                 | `TWorkflowInput`                           | The input data for the workflow.                                             | `cast('TWorkflowInput', None)` |
+| `child_key`             | `str \| None`                              | An optional key for deduplicating child workflow runs.                       | `None`                         |
+| `additional_metadata`   | `JSONSerializableMapping \| None`          | Additional metadata to attach to the workflow run.                           | `None`                         |
+| `priority`              | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the workflow run.                                            | `None`                         |
+| `sticky`                | `bool`                                     | Whether to run the workflow on the same worker as the task that triggers it. | `False`                        |
+| `desired_worker_labels` | `list[DesiredWorkerLabel] \| None`         | A list of desired worker labels for worker affinity.                         | `None`                         |
 
 Returns:
 
@@ -793,18 +793,18 @@ List runs of the workflow.
 
 Parameters:
 
-| Name                  | Type                      | Description                                                                     | Default |
-| --------------------- | ------------------------- | ------------------------------------------------------------------------------- | ------- |
-| `since`               | `datetime \| None`        | The start time for the runs to be listed.                                       | `None`  |
-| `until`               | `datetime \| None`        | The end time for the runs to be listed.                                         | `None`  |
-| `limit`               | `int \| None`             | The maximum number of runs to be listed. Returns every matching run if not set. | `None`  |
-| `offset`              | `int \| None`             | The offset for pagination.                                                      | `None`  |
-| `statuses`            | `list[RunStatus] \| None` | The statuses of the runs to be listed.                                          | `None`  |
-| `additional_metadata` | `dict[str, str] \| None`  | Additional metadata for filtering the runs.                                     | `None`  |
-| `worker_id`           | `str \| None`             | The ID of the worker that ran the tasks.                                        | `None`  |
-| `parent_task_run_id`  | `str \| None`             | The ID of the parent task run.                                                  | `None`  |
-| `only_tasks`          | `bool`                    | Whether to list only task runs.                                                 | `False` |
-| `triggering_event_id` | `str \| None`             | The ID of the event that triggered the task run.                                | `None`  |
+| Name                  | Type                                                                             | Description                                                                     | Default |
+| --------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------- |
+| `since`               | `datetime \| None`                                                               | The start time for the runs to be listed.                                       | `None`  |
+| `until`               | `datetime \| None`                                                               | The end time for the runs to be listed.                                         | `None`  |
+| `limit`               | `int \| None`                                                                    | The maximum number of runs to be listed. Returns every matching run if not set. | `None`  |
+| `offset`              | `int \| None`                                                                    | The offset for pagination.                                                      | `None`  |
+| `statuses`            | `list[Literal['QUEUED', 'RUNNING', 'COMPLETED', 'CANCELLED', 'FAILED']] \| None` | The statuses of the runs to be listed.                                          | `None`  |
+| `additional_metadata` | `dict[str, str] \| None`                                                         | Additional metadata for filtering the runs.                                     | `None`  |
+| `worker_id`           | `str \| None`                                                                    | The ID of the worker that ran the tasks.                                        | `None`  |
+| `parent_task_run_id`  | `str \| None`                                                                    | The ID of the parent task run.                                                  | `None`  |
+| `only_tasks`          | `bool`                                                                           | Whether to list only task runs.                                                 | `False` |
+| `triggering_event_id` | `str \| None`                                                                    | The ID of the event that triggered the task run.                                | `None`  |
 
 Returns:
 
@@ -818,18 +818,18 @@ List runs of the workflow.
 
 Parameters:
 
-| Name                  | Type                      | Description                                                                     | Default |
-| --------------------- | ------------------------- | ------------------------------------------------------------------------------- | ------- |
-| `since`               | `datetime \| None`        | The start time for the runs to be listed.                                       | `None`  |
-| `until`               | `datetime \| None`        | The end time for the runs to be listed.                                         | `None`  |
-| `limit`               | `int \| None`             | The maximum number of runs to be listed. Returns every matching run if not set. | `None`  |
-| `offset`              | `int \| None`             | The offset for pagination.                                                      | `None`  |
-| `statuses`            | `list[RunStatus] \| None` | The statuses of the runs to be listed.                                          | `None`  |
-| `additional_metadata` | `dict[str, str] \| None`  | Additional metadata for filtering the runs.                                     | `None`  |
-| `worker_id`           | `str \| None`             | The ID of the worker that ran the tasks.                                        | `None`  |
-| `parent_task_run_id`  | `str \| None`             | The ID of the parent task run.                                                  | `None`  |
-| `only_tasks`          | `bool`                    | Whether to list only task runs.                                                 | `False` |
-| `triggering_event_id` | `str \| None`             | The ID of the event that triggered the task run.                                | `None`  |
+| Name                  | Type                                                                             | Description                                                                     | Default |
+| --------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------- |
+| `since`               | `datetime \| None`                                                               | The start time for the runs to be listed.                                       | `None`  |
+| `until`               | `datetime \| None`                                                               | The end time for the runs to be listed.                                         | `None`  |
+| `limit`               | `int \| None`                                                                    | The maximum number of runs to be listed. Returns every matching run if not set. | `None`  |
+| `offset`              | `int \| None`                                                                    | The offset for pagination.                                                      | `None`  |
+| `statuses`            | `list[Literal['QUEUED', 'RUNNING', 'COMPLETED', 'CANCELLED', 'FAILED']] \| None` | The statuses of the runs to be listed.                                          | `None`  |
+| `additional_metadata` | `dict[str, str] \| None`                                                         | Additional metadata for filtering the runs.                                     | `None`  |
+| `worker_id`           | `str \| None`                                                                    | The ID of the worker that ran the tasks.                                        | `None`  |
+| `parent_task_run_id`  | `str \| None`                                                                    | The ID of the parent task run.                                                  | `None`  |
+| `only_tasks`          | `bool`                                                                           | Whether to list only task runs.                                                 | `False` |
+| `triggering_event_id` | `str \| None`                                                                    | The ID of the event that triggered the task run.                                | `None`  |
 
 Returns:
 

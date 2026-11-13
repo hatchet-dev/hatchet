@@ -81,9 +81,9 @@ Parameters:
 
 Returns:
 
-| Type        | Description     |
-| ----------- | --------------- |
-| `RunStatus` | The task status |
+| Type                                                               | Description     |
+| ------------------------------------------------------------------ | --------------- |
+| `Literal['QUEUED', 'RUNNING', 'COMPLETED', 'CANCELLED', 'FAILED']` | The task status |
 
 #### `aio_get_status`
 
@@ -97,9 +97,9 @@ Parameters:
 
 Returns:
 
-| Type        | Description     |
-| ----------- | --------------- |
-| `RunStatus` | The task status |
+| Type                                                               | Description     |
+| ------------------------------------------------------------------ | --------------- |
+| `Literal['QUEUED', 'RUNNING', 'COMPLETED', 'CANCELLED', 'FAILED']` | The task status |
 
 #### `list`
 
@@ -107,20 +107,20 @@ List task runs according to a set of filters, newest first.
 
 Parameters:
 
-| Name                  | Type                      | Description                                                                                                                 | Default |
-| --------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------- |
-| `since`               | `datetime \| None`        | The start time for filtering task runs.                                                                                     | `None`  |
-| `only_tasks`          | `bool`                    | Whether to only list task runs.                                                                                             | `False` |
-| `offset`              | `int \| None`             | The number of task runs to skip, counted across the whole time range.                                                       | `None`  |
-| `limit`               | `int \| None`             | The maximum number of task runs to return, counted across the whole time range. Returns every matching task run if not set. | `None`  |
-| `statuses`            | `list[RunStatus] \| None` | The statuses to filter task runs by.                                                                                        | `None`  |
-| `until`               | `datetime \| None`        | The end time for filtering task runs.                                                                                       | `None`  |
-| `additional_metadata` | `dict[str, str] \| None`  | Additional metadata to filter task runs by.                                                                                 | `None`  |
-| `workflow_ids`        | `list[str] \| None`       | The workflow IDs to filter task runs by.                                                                                    | `None`  |
-| `worker_id`           | `str \| None`             | The worker ID to filter task runs by.                                                                                       | `None`  |
-| `parent_task_run_id`  | `str \| None`             | The ID of the parent task run to filter task runs by.                                                                       | `None`  |
-| `triggering_event_id` | `str \| None`             | The ID of the event that triggered the task run.                                                                            | `None`  |
-| `include_payloads`    | `bool`                    | Whether to include payloads in the response.                                                                                | `True`  |
+| Name                  | Type                                                                             | Description                                                                                                                 | Default |
+| --------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `since`               | `datetime \| None`                                                               | The start time for filtering task runs.                                                                                     | `None`  |
+| `only_tasks`          | `bool`                                                                           | Whether to only list task runs.                                                                                             | `False` |
+| `offset`              | `int \| None`                                                                    | The number of task runs to skip, counted across the whole time range.                                                       | `None`  |
+| `limit`               | `int \| None`                                                                    | The maximum number of task runs to return, counted across the whole time range. Returns every matching task run if not set. | `None`  |
+| `statuses`            | `list[Literal['QUEUED', 'RUNNING', 'COMPLETED', 'CANCELLED', 'FAILED']] \| None` | The statuses to filter task runs by.                                                                                        | `None`  |
+| `until`               | `datetime \| None`                                                               | The end time for filtering task runs.                                                                                       | `None`  |
+| `additional_metadata` | `dict[str, str] \| None`                                                         | Additional metadata to filter task runs by.                                                                                 | `None`  |
+| `workflow_ids`        | `list[str] \| None`                                                              | The workflow IDs to filter task runs by.                                                                                    | `None`  |
+| `worker_id`           | `str \| None`                                                                    | The worker ID to filter task runs by.                                                                                       | `None`  |
+| `parent_task_run_id`  | `str \| None`                                                                    | The ID of the parent task run to filter task runs by.                                                                       | `None`  |
+| `triggering_event_id` | `str \| None`                                                                    | The ID of the event that triggered the task run.                                                                            | `None`  |
+| `include_payloads`    | `bool`                                                                           | Whether to include payloads in the response.                                                                                | `True`  |
 
 Returns:
 
@@ -134,20 +134,20 @@ List task runs according to a set of filters, newest first.
 
 Parameters:
 
-| Name                  | Type                      | Description                                                                                                                 | Default |
-| --------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------- |
-| `since`               | `datetime \| None`        | The start time for filtering task runs.                                                                                     | `None`  |
-| `only_tasks`          | `bool`                    | Whether to only list task runs.                                                                                             | `False` |
-| `offset`              | `int \| None`             | The number of task runs to skip, counted across the whole time range.                                                       | `None`  |
-| `limit`               | `int \| None`             | The maximum number of task runs to return, counted across the whole time range. Returns every matching task run if not set. | `None`  |
-| `statuses`            | `list[RunStatus] \| None` | The statuses to filter task runs by.                                                                                        | `None`  |
-| `until`               | `datetime \| None`        | The end time for filtering task runs.                                                                                       | `None`  |
-| `additional_metadata` | `dict[str, str] \| None`  | Additional metadata to filter task runs by.                                                                                 | `None`  |
-| `workflow_ids`        | `list[str] \| None`       | The workflow IDs to filter task runs by.                                                                                    | `None`  |
-| `worker_id`           | `str \| None`             | The worker ID to filter task runs by.                                                                                       | `None`  |
-| `parent_task_run_id`  | `str \| None`             | The ID of the parent task run to filter task runs by.                                                                       | `None`  |
-| `triggering_event_id` | `str \| None`             | The ID of the event that triggered the task run.                                                                            | `None`  |
-| `include_payloads`    | `bool`                    | Whether to include payloads in the response.                                                                                | `True`  |
+| Name                  | Type                                                                             | Description                                                                                                                 | Default |
+| --------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `since`               | `datetime \| None`                                                               | The start time for filtering task runs.                                                                                     | `None`  |
+| `only_tasks`          | `bool`                                                                           | Whether to only list task runs.                                                                                             | `False` |
+| `offset`              | `int \| None`                                                                    | The number of task runs to skip, counted across the whole time range.                                                       | `None`  |
+| `limit`               | `int \| None`                                                                    | The maximum number of task runs to return, counted across the whole time range. Returns every matching task run if not set. | `None`  |
+| `statuses`            | `list[Literal['QUEUED', 'RUNNING', 'COMPLETED', 'CANCELLED', 'FAILED']] \| None` | The statuses to filter task runs by.                                                                                        | `None`  |
+| `until`               | `datetime \| None`                                                               | The end time for filtering task runs.                                                                                       | `None`  |
+| `additional_metadata` | `dict[str, str] \| None`                                                         | Additional metadata to filter task runs by.                                                                                 | `None`  |
+| `workflow_ids`        | `list[str] \| None`                                                              | The workflow IDs to filter task runs by.                                                                                    | `None`  |
+| `worker_id`           | `str \| None`                                                                    | The worker ID to filter task runs by.                                                                                       | `None`  |
+| `parent_task_run_id`  | `str \| None`                                                                    | The ID of the parent task run to filter task runs by.                                                                       | `None`  |
+| `triggering_event_id` | `str \| None`                                                                    | The ID of the event that triggered the task run.                                                                            | `None`  |
+| `include_payloads`    | `bool`                                                                           | Whether to include payloads in the response.                                                                                | `True`  |
 
 Returns:
 
@@ -163,12 +163,12 @@ IMPORTANT: It's preferable to use `Workflow.run` (and similar) to trigger workfl
 
 Parameters:
 
-| Name                  | Type                              | Description                                           | Default    |
-| --------------------- | --------------------------------- | ----------------------------------------------------- | ---------- |
-| `workflow_name`       | `str`                             | The name of the workflow to trigger.                  | _required_ |
-| `input`               | `JSONSerializableMapping`         | The input data for the workflow run.                  | _required_ |
-| `additional_metadata` | `JSONSerializableMapping \| None` | Additional metadata associated with the workflow run. | `None`     |
-| `priority`            | `Priority \| None`                | The priority of the workflow run.                     | `None`     |
+| Name                  | Type                                       | Description                                           | Default    |
+| --------------------- | ------------------------------------------ | ----------------------------------------------------- | ---------- |
+| `workflow_name`       | `str`                                      | The name of the workflow to trigger.                  | _required_ |
+| `input`               | `JSONSerializableMapping`                  | The input data for the workflow run.                  | _required_ |
+| `additional_metadata` | `JSONSerializableMapping \| None`          | Additional metadata associated with the workflow run. | `None`     |
+| `priority`            | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the workflow run.                     | `None`     |
 
 Returns:
 
@@ -184,12 +184,12 @@ IMPORTANT: It's preferable to use `Workflow.run` (and similar) to trigger workfl
 
 Parameters:
 
-| Name                  | Type                              | Description                                           | Default    |
-| --------------------- | --------------------------------- | ----------------------------------------------------- | ---------- |
-| `workflow_name`       | `str`                             | The name of the workflow to trigger.                  | _required_ |
-| `input`               | `JSONSerializableMapping`         | The input data for the workflow run.                  | _required_ |
-| `additional_metadata` | `JSONSerializableMapping \| None` | Additional metadata associated with the workflow run. | `None`     |
-| `priority`            | `Priority \| None`                | The priority of the workflow run.                     | `None`     |
+| Name                  | Type                                       | Description                                           | Default    |
+| --------------------- | ------------------------------------------ | ----------------------------------------------------- | ---------- |
+| `workflow_name`       | `str`                                      | The name of the workflow to trigger.                  | _required_ |
+| `input`               | `JSONSerializableMapping`                  | The input data for the workflow run.                  | _required_ |
+| `additional_metadata` | `JSONSerializableMapping \| None`          | Additional metadata associated with the workflow run. | `None`     |
+| `priority`            | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the workflow run.                     | `None`     |
 
 Returns:
 

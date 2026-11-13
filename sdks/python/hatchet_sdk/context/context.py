@@ -27,6 +27,7 @@ from hatchet_sdk.conditions import (
     UserEventCondition,
     build_conditions_proto,
     flatten_conditions,
+    raise_for_duplicate_readable_data_keys,
 )
 from hatchet_sdk.context.pre_eviction import aio_wait_for_pre_eviction
 from hatchet_sdk.contracts.dispatcher_pb2 import STEP_EVENT_TYPE_CANCELLED
@@ -718,7 +719,7 @@ class DurableContext(Context):
 
         :return: A list with one result for each condition (or or-group) that was satisfied.
 
-        :raises ValueError: If the durable task client is not available.
+        :raises ValueError: If the durable task client is not available, or if two conditions have the same `readable_data_key`.
         :raises TypeError: If the durable event listener is not of type DurableEventListener or PreEvictionDurableEventListener.
         """
         if self._durable_event_listener is None:
@@ -727,6 +728,7 @@ class DurableContext(Context):
         signal_key = signal_key or f"wait_for-{self._increment_wait_index()}"
 
         flat_conditions = flatten_conditions(list(conditions))
+        raise_for_duplicate_readable_data_keys(flat_conditions)
         meta = _build_condition_meta(list(conditions), flat_conditions)
 
         if not self._supports_durable_eviction:

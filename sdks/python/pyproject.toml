@@ -183,6 +183,9 @@ exclude = [
     "tests/*",
 ]
 
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-base-classes = ["pydantic.BaseModel"]
+
 [tool.pydoclint]
 style = "sphinx"
 exclude = "v0|clients/rest/*|contracts/*|.venv|site/*|examples/dependency_injection/dependency_annotations312.py"

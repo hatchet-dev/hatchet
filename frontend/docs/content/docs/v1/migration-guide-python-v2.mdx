@@ -759,6 +759,8 @@ user_id = event.payload["user_id"]
 
 An `OrGroupResult` wraps whichever condition in the group was satisfied, available as `.result`.
 
+Each condition passed to `ctx.aio_wait_for`, including the conditions inside each `OrGroup`, must have a distinct `readable_data_key`, or the call raises a `ValueError`. The default key is built from the condition itself (`sleep:30s` for a 30 second sleep, or the event key), so two `OrGroup`s that both contain `SleepCondition(timedelta(seconds=30))` need an explicit `readable_data_key` on at least one of them.
+
 `ctx.aio_wait_for` no longer takes a signal key as its first argument. Pass the conditions directly. If you need a specific key, pass `signal_key` by keyword. When it is left out, the key is generated from the order of the wait within the task run, which is stable across replays:
 
 ```python

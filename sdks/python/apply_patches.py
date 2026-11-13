@@ -335,7 +335,7 @@ def patch_rest_error_diagnostics(content: str) -> str:
     Replaces the generic ApiException handler with typed exception handlers.
     Handler ordering is critical: NewConnectionError must be caught before
     ConnectTimeoutError because it inherits from ConnectTimeoutError in urllib3.
-    Each typed exception includes http_method=HTTPMethod(method) for retry logic.
+    Each typed exception includes http_method=method.upper() for retry logic.
     """
     # This pattern matches either the original SSLError only handler or
     # the previously patched multi-exception handler raising ApiException
@@ -366,11 +366,8 @@ def patch_rest_error_diagnostics(content: str) -> str:
         r"^\1[ \t]*raise ApiException\(status=0, reason=msg\)\s*\n"
     )
 
-    # Check if already using typed exceptions with HTTPMethod enum
-    if "http_method=HTTPMethod(method.upper())" in content:
+    if "http_method=method.upper()" in content:
         return content
-
-    content = prepend_import(content, "from hatchet_sdk.config import HTTPMethod")
 
     # Pattern for typed exceptions without http_method
     pattern_typed_no_http_method = (
@@ -427,7 +424,7 @@ def patch_rest_error_diagnostics(content: str) -> str:
         r"^\1[ \t]*raise RestProtocolError\(status=0, reason=msg\) from e\s*\n"
     )
 
-    # Pattern for typed exceptions with string http_method (change to HTTPMethod enum)
+    # Pattern for typed exceptions with an unnormalized string http_method
     pattern_typed_with_string_http_method = (
         r"(?ms)^([ \t]*)except urllib3\.exceptions\.SSLError as e:\s*\n"
         r'^\1[ \t]*msg = "\\n"\.join\(\s*\n'
@@ -495,7 +492,7 @@ def patch_rest_error_diagnostics(content: str) -> str:
         r'\1            f"timeout={_request_timeout}",\n'
         r"\1        ]\n"
         r"\1    )\n"
-        r"\1    raise RestTLSError(status=0, reason=msg, http_method=HTTPMethod(method.upper())) from e\n"
+        r"\1    raise RestTLSError(status=0, reason=msg, http_method=method.upper()) from e\n"
         r"\1except (\n"
         r"\1    urllib3.exceptions.MaxRetryError,\n"
         r"\1    urllib3.exceptions.NewConnectionError,\n"
@@ -510,7 +507,7 @@ def patch_rest_error_diagnostics(content: str) -> str:
         r'\1            f"timeout={_request_timeout}",\n'
         r"\1        ]\n"
         r"\1    )\n"
-        r"\1    raise RestConnectionError(status=0, reason=msg, http_method=HTTPMethod(method.upper())) from e\n"
+        r"\1    raise RestConnectionError(status=0, reason=msg, http_method=method.upper()) from e\n"
         r"\1except (\n"
         r"\1    urllib3.exceptions.ConnectTimeoutError,\n"
         r"\1    urllib3.exceptions.ReadTimeoutError,\n"
@@ -524,7 +521,7 @@ def patch_rest_error_diagnostics(content: str) -> str:
         r'\1            f"timeout={_request_timeout}",\n'
         r"\1        ]\n"
         r"\1    )\n"
-        r"\1    raise RestTimeoutError(status=0, reason=msg, http_method=HTTPMethod(method.upper())) from e\n"
+        r"\1    raise RestTimeoutError(status=0, reason=msg, http_method=method.upper()) from e\n"
         r"\1except urllib3.exceptions.ProtocolError as e:\n"
         r'\1    msg = "\\n".join(\n'
         r"\1        [\n"
@@ -535,10 +532,10 @@ def patch_rest_error_diagnostics(content: str) -> str:
         r'\1            f"timeout={_request_timeout}",\n'
         r"\1        ]\n"
         r"\1    )\n"
-        r"\1    raise RestProtocolError(status=0, reason=msg, http_method=HTTPMethod(method.upper())) from e\n"
+        r"\1    raise RestProtocolError(status=0, reason=msg, http_method=method.upper()) from e\n"
     )
 
-    # Try pattern for typed exceptions with string http_method (change to HTTPMethod enum)
+    # Try pattern for typed exceptions with an unnormalized string http_method
     modified = re.sub(pattern_typed_with_string_http_method, replacement, content)
     if modified != content:
         return modified

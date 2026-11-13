@@ -163,6 +163,13 @@ def flatten_conditions(conditions: list[Condition | OrGroup]) -> list[Condition]
     return flattened
 
 
+def raise_for_duplicate_readable_data_keys(conditions: list[Condition]) -> None:
+    readable_data_keys = [c._base.readable_data_key for c in conditions]
+
+    if len(set(readable_data_keys)) != len(readable_data_keys):
+        raise ValueError("Conditions must have unique readable data keys.")
+
+
 def build_conditions_proto(
     conditions: list[Condition], config: ClientConfig
 ) -> DurableEventListenerConditions:

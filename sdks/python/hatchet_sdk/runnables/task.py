@@ -38,6 +38,7 @@ from hatchet_sdk.conditions import (
     UserEventCondition,
     _Action,
     flatten_conditions,
+    raise_for_duplicate_readable_data_keys,
 )
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import TaskConditions
@@ -453,10 +454,7 @@ class Task(Generic[TWorkflowInput, R]):
 
         conditions = wait_for_conditions + cancel_if_conditions + skip_if_conditions
 
-        if len({c._base.readable_data_key for c in conditions}) != len(
-            [c._base.readable_data_key for c in conditions]
-        ):
-            raise ValueError("Conditions must have unique readable data keys.")
+        raise_for_duplicate_readable_data_keys(conditions)
 
         user_events = [
             c._to_proto(self._workflow._client.config)

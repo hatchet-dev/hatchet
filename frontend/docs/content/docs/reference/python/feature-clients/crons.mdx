@@ -29,14 +29,14 @@ Create a new workflow cron trigger.
 
 Parameters:
 
-| Name                  | Type                      | Description                                           | Default    |
-| --------------------- | ------------------------- | ----------------------------------------------------- | ---------- |
-| `workflow_name`       | `str`                     | The name of the workflow to trigger.                  | _required_ |
-| `cron_name`           | `str`                     | The name of the cron trigger.                         | _required_ |
-| `expression`          | `str`                     | The cron expression defining the schedule.            | _required_ |
-| `input`               | `JSONSerializableMapping` | The input data for the cron workflow.                 | _required_ |
-| `additional_metadata` | `JSONSerializableMapping` | Additional metadata associated with the cron trigger. | _required_ |
-| `priority`            | `Priority \| None`        | The priority of the cron workflow trigger.            | `None`     |
+| Name                  | Type                                       | Description                                           | Default    |
+| --------------------- | ------------------------------------------ | ----------------------------------------------------- | ---------- |
+| `workflow_name`       | `str`                                      | The name of the workflow to trigger.                  | _required_ |
+| `cron_name`           | `str`                                      | The name of the cron trigger.                         | _required_ |
+| `expression`          | `str`                                      | The cron expression defining the schedule.            | _required_ |
+| `input`               | `JSONSerializableMapping`                  | The input data for the cron workflow.                 | _required_ |
+| `additional_metadata` | `JSONSerializableMapping`                  | Additional metadata associated with the cron trigger. | _required_ |
+| `priority`            | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the cron workflow trigger.            | `None`     |
 
 Returns:
 
@@ -82,16 +82,16 @@ Retrieve a list of all workflow cron triggers matching the criteria.
 
 Parameters:
 
-| Name                  | Type                              | Description                                | Default |
-| --------------------- | --------------------------------- | ------------------------------------------ | ------- |
-| `offset`              | `int \| None`                     | The offset to start the list from.         | `None`  |
-| `limit`               | `int \| None`                     | The maximum number of items to return.     | `None`  |
-| `workflow_id`         | `str \| None`                     | The ID of the workflow to filter by.       | `None`  |
-| `additional_metadata` | `JSONSerializableMapping \| None` | Filter by additional metadata keys.        | `None`  |
-| `order_by_field`      | `CronOrderByField \| None`        | The field to order the list by.            | `None`  |
-| `order_by_direction`  | `OrderByDirection \| None`        | The direction to order the list by.        | `None`  |
-| `workflow_name`       | `str \| None`                     | The name of the workflow to filter by.     | `None`  |
-| `cron_name`           | `str \| None`                     | The name of the cron trigger to filter by. | `None`  |
+| Name                  | Type                                    | Description                                | Default |
+| --------------------- | --------------------------------------- | ------------------------------------------ | ------- |
+| `offset`              | `int \| None`                           | The offset to start the list from.         | `None`  |
+| `limit`               | `int \| None`                           | The maximum number of items to return.     | `None`  |
+| `workflow_id`         | `str \| None`                           | The ID of the workflow to filter by.       | `None`  |
+| `additional_metadata` | `JSONSerializableMapping \| None`       | Filter by additional metadata keys.        | `None`  |
+| `order_by_field`      | `Literal['name', 'created_at'] \| None` | The field to order the list by.            | `None`  |
+| `order_by_direction`  | `Literal['asc', 'desc'] \| None`        | The direction to order the list by.        | `None`  |
+| `workflow_name`       | `str \| None`                           | The name of the workflow to filter by.     | `None`  |
+| `cron_name`           | `str \| None`                           | The name of the cron trigger to filter by. | `None`  |
 
 Returns:
 
@@ -105,14 +105,14 @@ Create a new workflow cron trigger.
 
 Parameters:
 
-| Name                  | Type                      | Description                                           | Default    |
-| --------------------- | ------------------------- | ----------------------------------------------------- | ---------- |
-| `workflow_name`       | `str`                     | The name of the workflow to trigger.                  | _required_ |
-| `cron_name`           | `str`                     | The name of the cron trigger.                         | _required_ |
-| `expression`          | `str`                     | The cron expression defining the schedule.            | _required_ |
-| `input`               | `JSONSerializableMapping` | The input data for the cron workflow.                 | _required_ |
-| `additional_metadata` | `JSONSerializableMapping` | Additional metadata associated with the cron trigger. | _required_ |
-| `priority`            | `Priority \| None`        | The priority of the cron workflow trigger.            | `None`     |
+| Name                  | Type                                       | Description                                           | Default    |
+| --------------------- | ------------------------------------------ | ----------------------------------------------------- | ---------- |
+| `workflow_name`       | `str`                                      | The name of the workflow to trigger.                  | _required_ |
+| `cron_name`           | `str`                                      | The name of the cron trigger.                         | _required_ |
+| `expression`          | `str`                                      | The cron expression defining the schedule.            | _required_ |
+| `input`               | `JSONSerializableMapping`                  | The input data for the cron workflow.                 | _required_ |
+| `additional_metadata` | `JSONSerializableMapping`                  | Additional metadata associated with the cron trigger. | _required_ |
+| `priority`            | `Literal['LOW', 'MEDIUM', 'HIGH'] \| None` | The priority of the cron workflow trigger.            | `None`     |
 
 Returns:
 
@@ -158,16 +158,16 @@ Retrieve a list of all workflow cron triggers matching the criteria.
 
 Parameters:
 
-| Name                  | Type                              | Description                                | Default |
-| --------------------- | --------------------------------- | ------------------------------------------ | ------- |
-| `offset`              | `int \| None`                     | The offset to start the list from.         | `None`  |
-| `limit`               | `int \| None`                     | The maximum number of items to return.     | `None`  |
-| `workflow_id`         | `str \| None`                     | The ID of the workflow to filter by.       | `None`  |
-| `additional_metadata` | `JSONSerializableMapping \| None` | Filter by additional metadata keys.        | `None`  |
-| `order_by_field`      | `CronOrderByField \| None`        | The field to order the list by.            | `None`  |
-| `order_by_direction`  | `OrderByDirection \| None`        | The direction to order the list by.        | `None`  |
-| `workflow_name`       | `str \| None`                     | The name of the workflow to filter by.     | `None`  |
-| `cron_name`           | `str \| None`                     | The name of the cron trigger to filter by. | `None`  |
+| Name                  | Type                                    | Description                                | Default |
+| --------------------- | --------------------------------------- | ------------------------------------------ | ------- |
+| `offset`              | `int \| None`                           | The offset to start the list from.         | `None`  |
+| `limit`               | `int \| None`                           | The maximum number of items to return.     | `None`  |
+| `workflow_id`         | `str \| None`                           | The ID of the workflow to filter by.       | `None`  |
+| `additional_metadata` | `JSONSerializableMapping \| None`       | Filter by additional metadata keys.        | `None`  |
+| `order_by_field`      | `Literal['name', 'created_at'] \| None` | The field to order the list by.            | `None`  |
+| `order_by_direction`  | `Literal['asc', 'desc'] \| None`        | The direction to order the list by.        | `None`  |
+| `workflow_name`       | `str \| None`                           | The name of the workflow to filter by.     | `None`  |
+| `cron_name`           | `str \| None`                           | The name of the cron trigger to filter by. | `None`  |
 
 Returns:
 
