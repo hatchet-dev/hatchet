@@ -438,10 +438,12 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 		// nondeterministic ingestion are all terminal DAG outcomes that replay reproduces
 		// deterministically, so they must not be retried; anything else (operational errors) remains retriable.
 		var nonDeterminismErr *repository.NonDeterminismError
+		var logEntryMismatchErr *operator.DAGStepLogEntryMismatchError
 		shouldNotRetry := isDagChildFailedErr(dagErr) ||
 			isDagEngineErr(dagErr) ||
 			isDagNonRetryablePgErr(dagErr) ||
-			errors.As(dagErr, &nonDeterminismErr)
+			errors.As(dagErr, &nonDeterminismErr) ||
+			errors.As(dagErr, &logEntryMismatchErr)
 
 		return d.fail(span, action, fmt.Errorf("dag failed: %w", dagErr), shouldNotRetry)
 	}

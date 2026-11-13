@@ -2064,7 +2064,7 @@ func (d *DispatcherServiceImpl) TriggerDAGSteps(ctx context.Context, tenantId uu
 		entry, ok := entryByChildExternalId[triggerOpts[i].ExternalId]
 
 		if !ok {
-			return nil, fmt.Errorf("no durable log entry returned for dag step %s", req.ActionId)
+			return nil, &operator.DAGStepLogEntryMismatchError{ActionId: req.ActionId}
 		}
 
 		if entry.IsSatisfied {

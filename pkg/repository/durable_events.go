@@ -1463,9 +1463,16 @@ func (r *durableEventsRepository) resolveOrphanedChildDedupes(
 
 		latestEntry := latestEntryByChild[to.ExternalId]
 
-		if latestEntry == nil || !to.ReplayOrphanedChildren {
+		if !to.ReplayOrphanedChildren {
 			to.ShouldSkip = false
 			to.ExternalId = uuid.New()
+			continue
+		}
+
+		childExternalIdWasReservedWithoutAnEntry := latestEntry == nil
+
+		if childExternalIdWasReservedWithoutAnEntry {
+			to.ShouldSkip = false
 			continue
 		}
 

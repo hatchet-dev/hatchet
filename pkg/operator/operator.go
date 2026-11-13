@@ -71,6 +71,14 @@ func (e *DAGStepCELFailureError) Error() string {
 	return fmt.Sprintf("dag step trigger for %q did not create its child run: %s", e.ActionId, e.Message)
 }
 
+type DAGStepLogEntryMismatchError struct {
+	ActionId string
+}
+
+func (e *DAGStepLogEntryMismatchError) Error() string {
+	return fmt.Sprintf("no durable log entry returned for dag step %s", e.ActionId)
+}
+
 type DAGStepTriggerResult struct {
 	NodeId                int64
 	BranchId              int64
