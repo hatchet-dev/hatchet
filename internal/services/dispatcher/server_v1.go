@@ -730,6 +730,9 @@ func (d *DispatcherServiceImpl) durableTask(
 				taskId:   taskExtId,
 			}, invocation)
 			registeredTasks[taskExtId] = struct{}{}
+		} else {
+			// the stale invocation check in handleWorkerStatus may have deleted this task's entry
+			d.durableInvocations.LoadOrStore(durableInvocationsKey{tenantId: tenantId, taskId: taskExtId}, invocation)
 		}
 	}
 
