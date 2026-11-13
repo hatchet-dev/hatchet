@@ -61,9 +61,6 @@ importers:
       qs:
         specifier: ^6.16.0
         version: 6.16.0
-      semver:
-        specifier: ^7.7.4
-        version: 7.8.5
       yaml:
         specifier: ^2.8.3
         version: 2.9.0

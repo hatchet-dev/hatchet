@@ -1,6 +1,6 @@
 {
   "name": "@hatchet-dev/typescript-sdk",
-  "version": "1.47.1",
+  "version": "1.47.2",
   "engines": {
     "node": ">=22"
   },
@@ -109,7 +109,6 @@
   "scripts": {
     "build": "echo 'build hatchet sdk with `npm run tsc:build` to ensure it is not build during the publish step' && exit 0",
     "prepare": "pnpm run build",
-    "postinstall": "node scripts/version-check.js",
     "dump-version": "node -e \"console.log('export const HATCHET_VERSION = \\'' + require('./package.json').version + '\\';');\" > src/version.ts",
     "tsc:build": "pnpm run dump-version && tsc && resolve-tspaths",
     "test:unit": "jest --testMatch='**/*.test.ts'",
@@ -208,7 +207,6 @@
     "nice-grpc-common": "^2.0.2",
     "protobufjs": "^7.5.5",
     "qs": "^6.16.0",
-    "semver": "^7.7.4",
     "yaml": "^2.8.3",
     "zod-to-json-schema": "^3.24.2"
   },
