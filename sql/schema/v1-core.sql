@@ -576,6 +576,7 @@ CREATE TABLE v1_task (
     -- child tasks it triggers. Unlike desired_worker_label, this does not affect where the task itself runs.
     child_task_desired_worker_labels JSONB,
     task_input_payload_version SMALLINT NOT NULL DEFAULT 1,
+    max_reassignments_allowed INTEGER,
     CONSTRAINT v1_task_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 

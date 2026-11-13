@@ -598,7 +598,7 @@ FROM
 WHERE
     v1_task.id = locked_tasks.id
     AND v1_task.inserted_at = locked_tasks.inserted_at
-    AND @maxInternalRetries::int > v1_task.internal_retry_count
+    AND v1_task.internal_retry_count < LEAST(@maxInternalRetries::int, COALESCE(v1_task.max_reassignments_allowed, @maxInternalRetries::int))
 RETURNING
     v1_task.id,
     v1_task.inserted_at,

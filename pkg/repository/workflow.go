@@ -157,6 +157,9 @@ type CreateStepOpts struct {
 
 	// (optional) batch execution configuration
 	BatchConfig *StepBatchConfig `json:"batchConfig,omitempty"`
+
+	// (optional) the maximum number of times the task can be reassigned, capped by the server's max internal retry count
+	MaxReassignmentsAllowed *int32 `json:"maxReassignmentsAllowed,omitempty" validate:"omitnil,min=0"`
 }
 
 type StepBatchConfig struct {
@@ -1339,16 +1342,17 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 		}
 
 		createStepParams := sqlcv1.CreateStepParams{
-			ID:                stepId,
-			Tenantid:          tenantId,
-			Jobid:             jobId,
-			Actionid:          stepOpts.Action,
-			Timeout:           timeout,
-			Readableid:        stepOpts.ReadableId,
-			CustomUserData:    customUserData,
-			Retries:           retries,
-			IsDurable:         sqlchelpers.BoolFromBoolean(stepOpts.IsDurable),
-			IsDagOrchestrator: sqlchelpers.BoolFromBoolean(stepOpts.IsDagOrchestrator),
+			ID:                      stepId,
+			Tenantid:                tenantId,
+			Jobid:                   jobId,
+			Actionid:                stepOpts.Action,
+			Timeout:                 timeout,
+			Readableid:              stepOpts.ReadableId,
+			CustomUserData:          customUserData,
+			Retries:                 retries,
+			IsDurable:               sqlchelpers.BoolFromBoolean(stepOpts.IsDurable),
+			IsDagOrchestrator:       sqlchelpers.BoolFromBoolean(stepOpts.IsDagOrchestrator),
+			MaxReassignmentsAllowed: sqlchelpers.ToInt(stepOpts.MaxReassignmentsAllowed),
 		}
 
 		if stepOpts.ScheduleTimeout != nil {

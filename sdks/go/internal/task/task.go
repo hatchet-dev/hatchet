@@ -60,6 +60,11 @@ type TaskShared struct {
 	// Durable tasks ignore it.
 	SlotCost *int32
 
+	// MaxReassignmentsAllowed is the number of times the engine may move this task to a new worker
+	// after its worker stops heartbeating or never acknowledges the assignment. When nil, the
+	// server's default limit applies.
+	MaxReassignmentsAllowed *int32
+
 	// Batch configures the task as a batch task. When set, the engine buffers concurrent
 	// runs of this task and dispatches them together; retries is always forced to 0.
 	Batch *types.BatchConfig
@@ -236,6 +241,8 @@ func makeContractTaskOpts(t *TaskShared, taskDefaults *create.TaskDefaults) *con
 	if t.RetryMaxBackoffSeconds != nil {
 		taskOpts.BackoffMaxSeconds = t.RetryMaxBackoffSeconds
 	}
+
+	taskOpts.MaxReassignmentsAllowed = t.MaxReassignmentsAllowed
 
 	if t.Batch != nil {
 		batchProto := &contracts.TaskBatchConfig{

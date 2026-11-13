@@ -312,6 +312,16 @@ export type CreateBaseTaskOpts<
   slotRequests?: Record<string, number>;
 
   /**
+   * (optional) the maximum number of times Hatchet will reassign the task to a new worker when the
+   * worker running it stops heartbeating or never acknowledges it. Once reached, the task fails
+   * instead of being reassigned. Set to 0 to never reassign the task, e.g. if re-running it would
+   * be unsafe. Not available on batch, onFailure, or onSuccess tasks.
+   *
+   * default: the server's default limit, which also caps this value
+   */
+  maxReassignmentsAllowed?: number;
+
+  /**
    * (optional) configures this task as a batch task. Not available on durable tasks.
    * retries is always forced to 0 when batch is set.
    *
@@ -413,7 +423,7 @@ export type CreateOnSuccessTaskOpts<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
   C extends TaskFn<I, O> = TaskFn<I, O>,
-> = Omit<CreateBaseTaskOpts<I, O, C>, 'name'>;
+> = Omit<CreateBaseTaskOpts<I, O, C>, 'name' | 'maxReassignmentsAllowed'>;
 
 /**
  * Options for configuring the onFailure task that is invoked when a task fails.
@@ -424,4 +434,4 @@ export type CreateOnFailureTaskOpts<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
   C extends TaskFn<I, O> = TaskFn<I, O>,
-> = Omit<CreateBaseTaskOpts<I, O, C>, 'name'>;
+> = Omit<CreateBaseTaskOpts<I, O, C>, 'name' | 'maxReassignmentsAllowed'>;

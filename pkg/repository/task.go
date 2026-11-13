@@ -1823,6 +1823,8 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId u
 	}, len(toTimeout) == limit, nil
 }
 
+const ReachedMaxReassignmentsErrorMessage = "Task reached its maximum reassignment count"
+
 func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenantId uuid.UUID) (*FailTasksResponse, bool, error) {
 	db := r.pool.ForTenant(tenantId)
 
@@ -1871,6 +1873,7 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 			},
 			IsAppError:     false,
 			IsNonRetryable: false,
+			ErrorMessage:   ReachedMaxReassignmentsErrorMessage,
 		})
 
 		reasonByTaskId[task.ID] = task.Reason
@@ -2657,6 +2660,7 @@ func (r *sharedRepository) insertTasks(
 	desiredWorkerLabels := make([][]byte, len(tasks))
 	isDagOrchestrators := make([]bool, len(tasks))
 	batchKeys := make([]string, len(tasks))
+	maxReassignmentsAlloweds := make([]pgtype.Int4, len(tasks))
 
 	externalIdToStepRunData := make(map[uuid.UUID]*V1StepRunData, len(tasks))
 	taskInputPayloadVersionForNewTasks := r.taskInputPayloadVersionToWrite()
@@ -2686,6 +2690,7 @@ func (r *sharedRepository) insertTasks(
 		workflowRunIds[i] = task.WorkflowRunId
 		isDurables[i] = stepConfig.IsDurable
 		isDagOrchestrators[i] = stepConfig.IsDagOrchestrator
+		maxReassignmentsAlloweds[i] = stepConfig.MaxReassignmentsAllowed
 
 		externalIdToStepRunData[task.ExternalId] = r.ToV1StepRunData(task.Input)
 
@@ -3042,6 +3047,7 @@ func (r *sharedRepository) insertTasks(
 				DagParentTaskRunIds:          make([][]byte, 0),
 				ChildTaskDesiredWorkerLabels: make([][]byte, 0),
 				TaskInputPayloadVersions:     make([]int16, 0),
+				MaxReassignmentsAlloweds:     make([]pgtype.Int4, 0),
 			}
 		}
 
@@ -3055,6 +3061,7 @@ func (r *sharedRepository) insertTasks(
 		params.DagParentTaskRunIds = append(params.DagParentTaskRunIds, stepRunDataColumns.dagParentTaskRunIds)
 		params.ChildTaskDesiredWorkerLabels = append(params.ChildTaskDesiredWorkerLabels, stepRunDataColumns.childTaskDesiredWorkerLabels)
 		params.TaskInputPayloadVersions = append(params.TaskInputPayloadVersions, int16(taskInputPayloadVersionForNewTasks))
+		params.MaxReassignmentsAlloweds = append(params.MaxReassignmentsAlloweds, maxReassignmentsAlloweds[i])
 		params.Tenantids = append(params.Tenantids, tenantIds[i])
 		params.Queues = append(params.Queues, queues[i])
 		params.Actionids = append(params.Actionids, actionIds[i])
