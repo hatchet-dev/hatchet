@@ -42,7 +42,7 @@ func (t *WorkflowService) CronWorkflowTriggerCreate(ctx echo.Context, request ge
 		return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors("invalid input format")), nil
 	}
 
-	if _, err := v1.ValidateJSONB(inputBytes, "input"); err != nil {
+	if err := v1.ValidateJSONB(inputBytes, "input"); err != nil {
 		return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors(err.Error())), nil
 	}
 
@@ -52,7 +52,7 @@ func (t *WorkflowService) CronWorkflowTriggerCreate(ctx echo.Context, request ge
 		return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors("invalid additional metadata format")), nil
 	}
 
-	if _, err := v1.ValidateJSONB(additionalMetaBytes, "additionalMetadata"); err != nil {
+	if err := v1.ValidateJSONB(additionalMetaBytes, "additionalMetadata"); err != nil {
 		return gen.CronWorkflowTriggerCreate400JSONResponse(apierrors.NewAPIErrors(err.Error())), nil
 	}
 

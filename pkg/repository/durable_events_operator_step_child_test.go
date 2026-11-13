@@ -4,9 +4,7 @@ package repository
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
-	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -172,49 +170,4 @@ func TestOperatorStepChildCancellationSatisfiesTheEntryAsAFailure(t *testing.T) 
 	require.True(t, entries[0].ChildTaskIsFailure)
 	require.NotNil(t, entries[0].ChildTaskErrorMessage)
 	require.Equal(t, TaskCancelledErrorMessage, *entries[0].ChildTaskErrorMessage)
-}
-
-func TestOperatorStepChildOutputWithUnpairedSurrogateEscapeSatisfiesItsEntry(t *testing.T) {
-	pool, cleanup := setupPostgresWithMigration(t)
-	defer cleanup()
-
-	ctx := context.Background()
-	tenantID := uuid.New()
-	repos := newUserEventScopeTestRepositories(t, pool)
-	orchestrator := createUserEventScopeTestTask(t, ctx, repos, tenantID, 303)
-
-	step := ingestDagStepTrigger(t, ctx, repos.durable, tenantID, orchestrator, 1, "my-dag:step-a", 1)
-
-	// the dispatcher completes the task with the output ValidateJSONB returns
-	output, err := ValidateJSONB([]byte(`{"label":"a\ud83d..."}`), "taskOutput")
-	require.NoError(t, err)
-
-	entries := satisfyOperatorStepChildren(t, ctx, repos, tenantID, []OperatorStepChildCompletion{{
-		ReleasedTask: releasedOperatorStepChild(orchestrator, 1004, step.WorkflowRunExternalId),
-		OutputEvent:  &TaskOutputEvent{EventType: sqlcv1.V1TaskEventTypeCOMPLETED, Output: output},
-	}})
-	require.Len(t, entries, 1)
-	require.False(t, entries[0].ChildTaskIsFailure)
-
-	storedEntries, err := repos.shared.queries.BulkGetDurableEventLogEntries(ctx, repos.shared.pool.ForShared(), sqlcv1.BulkGetDurableEventLogEntriesParams{
-		Durabletaskids:         []int64{orchestrator.ID},
-		Durabletaskinsertedats: []pgtype.Timestamptz{orchestrator.InsertedAt},
-		Branchids:              []int64{step.BranchId},
-		Nodeids:                []int64{step.NodeId},
-	})
-	require.NoError(t, err)
-	require.Len(t, storedEntries, 1)
-	require.True(t, storedEntries[0].IsSatisfied)
-
-	result, err := repos.shared.payloadStore.DurableEventLogEntryResultData().RetrieveOne(ctx, repos.shared.pool.ForShared(), PayloadRef[DurableEventLogEntryResultDataShape]{
-		Id:         storedEntries[0].ID,
-		InsertedAt: storedEntries[0].InsertedAt,
-		ExternalId: storedEntries[0].ResultPayloadExternalID,
-		TenantId:   tenantID,
-	})
-	require.NoError(t, err)
-
-	var stored map[string]string
-	require.NoError(t, json.Unmarshal(result.Bytes(), &stored))
-	require.Equal(t, map[string]string{"label": "a" + string(utf8.RuneError) + "..."}, stored)
 }

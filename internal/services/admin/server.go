@@ -182,15 +182,13 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 		additionalMetadata = []byte(*req.AdditionalMetadata)
 	}
 
-	additionalMetadata, err = v1.ValidateJSONB(additionalMetadata, "additionalMetadata")
-
-	if err != nil {
+	if err := v1.ValidateJSONB(additionalMetadata, "additionalMetadata"); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", err))
 	}
 
-	payloadBytes, err := v1.ValidateJSONB([]byte(req.Input), "payload")
+	payloadBytes := []byte(req.Input)
 
-	if err != nil {
+	if err := v1.ValidateJSONB(payloadBytes, "payload"); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", err))
 	}
 

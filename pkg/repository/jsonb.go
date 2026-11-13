@@ -7,44 +7,36 @@ import (
 	"fmt"
 	"strings"
 	"unicode/utf16"
-	"unicode/utf8"
 )
 
-// ValidateJSONB rejects JSON that Postgres jsonb cannot store and returns the bytes to store in
-// place of the input. They differ only where the input has an unpaired UTF-16 surrogate escape,
-// which Postgres rejects; that escape becomes \ufffd, the character Go's decoder yields for it.
-func ValidateJSONB[T string | []byte](jsonb T, fieldName string) (T, error) {
+func ValidateJSONB(jsonb []byte, fieldName string) error {
 	if len(jsonb) == 0 {
-		return jsonb, nil
+		return nil
 	}
 
-	b := []byte(jsonb)
-
-	if !IsUnicodeValid(b) {
-		return jsonb, fmt.Errorf("encoded jsonb contains invalid null character \\u0000 in field `%s`", fieldName)
+	if !IsUnicodeValid(jsonb) {
+		return fmt.Errorf("encoded jsonb contains invalid null character \\u0000 in field `%s`", fieldName)
 	}
 
-	if !json.Valid(b) {
-		return jsonb, fmt.Errorf("invalid json in field `%s`", fieldName)
+	if !json.Valid(jsonb) {
+		return fmt.Errorf("invalid json in field `%s`", fieldName)
 	}
 
-	if replaced := replaceUnpairedSurrogateEscapes(b); replaced != nil {
-		return T(replaced), nil
+	if hasUnpairedSurrogateEscape(jsonb) {
+		return fmt.Errorf("json contains an unpaired UTF-16 surrogate escape, such as half of an emoji, in field `%s`", fieldName)
 	}
 
-	return jsonb, nil
+	return nil
 }
 
 var unicodeEscapePrefix = []byte(`\u`)
 
-// replaceUnpairedSurrogateEscapes expects valid JSON and returns a copy with every unpaired
-// surrogate escape replaced, or nil if there is none.
-func replaceUnpairedSurrogateEscapes(b []byte) []byte {
+// hasUnpairedSurrogateEscape expects valid JSON. Go accepts a \u escape of a UTF-16 surrogate that
+// is missing its other half; Postgres jsonb rejects it.
+func hasUnpairedSurrogateEscape(b []byte) bool {
 	if !bytes.Contains(b, unicodeEscapePrefix) {
-		return nil
+		return false
 	}
-
-	var out []byte
 
 	for i := 0; i < len(b); i++ {
 		if b[i] != '\\' {
@@ -58,7 +50,6 @@ func replaceUnpairedSurrogateEscapes(b []byte) []byte {
 			continue
 		}
 
-		start := i - 1
 		r := decodeEscapedRune(b[i+1 : i+5])
 		i += 4
 
@@ -66,29 +57,26 @@ func replaceUnpairedSurrogateEscapes(b []byte) []byte {
 			continue
 		}
 
-		if r < 0xdc00 && i+6 < len(b) && b[i+1] == '\\' && b[i+2] == 'u' {
-			if low := decodeEscapedRune(b[i+3 : i+7]); low >= 0xdc00 && low <= 0xdfff {
-				i += 6
-				continue
-			}
+		// a pair is a high surrogate escape immediately followed by a low one
+		if r >= 0xdc00 || i+6 >= len(b) || b[i+1] != '\\' || b[i+2] != 'u' {
+			return true
 		}
 
-		if out == nil {
-			out = bytes.Clone(b)
+		if low := decodeEscapedRune(b[i+3 : i+7]); low < 0xdc00 || low > 0xdfff {
+			return true
 		}
 
-		copy(out[start:], `\ufffd`)
+		i += 6
 	}
 
-	return out
+	return false
 }
 
 func decodeEscapedRune(hexDigits []byte) rune {
 	var buf [2]byte
 
-	if _, err := hex.Decode(buf[:], hexDigits); err != nil {
-		return utf8.RuneError
-	}
+	// the caller passes four hex digits
+	_, _ = hex.Decode(buf[:], hexDigits)
 
 	return rune(buf[0])<<8 | rune(buf[1])
 }

@@ -33,15 +33,13 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 		additionalMeta = []byte(*req.AdditionalMetadata)
 	}
 
-	additionalMeta, err := v1.ValidateJSONB(additionalMeta, "additionalMetadata")
-
-	if err != nil {
+	if err := v1.ValidateJSONB(additionalMeta, "additionalMetadata"); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", err))
 	}
 
-	payload, err := v1.ValidateJSONB(req.Payload, "payload")
+	payloadBytes := []byte(req.Payload)
 
-	if err != nil {
+	if err := v1.ValidateJSONB(payloadBytes, "payload"); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", err))
 	}
 
@@ -49,7 +47,7 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("priority must be between 1 and 3, got %d", *req.Priority))
 	}
 
-	event, err := i.IngestEvent(ctx, tenant, req.Key, []byte(payload), additionalMeta, req.Priority, req.Scope, nil)
+	event, err := i.IngestEvent(ctx, tenant, req.Key, []byte(req.Payload), additionalMeta, req.Priority, req.Scope, nil)
 
 	if err == v1.ErrResourceExhausted {
 		return nil, connect.NewError(connect.CodeResourceExhausted, errors.New("resource exhausted: event limit exceeded for tenant"))
@@ -105,15 +103,13 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 			additionalMeta = []byte(*e.AdditionalMetadata)
 		}
 
-		additionalMeta, err := v1.ValidateJSONB(additionalMeta, "additionalMetadata")
-
-		if err != nil {
+		if err := v1.ValidateJSONB(additionalMeta, "additionalMetadata"); err != nil {
 			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", err))
 		}
 
-		payloadBytes, err := v1.ValidateJSONB([]byte(e.Payload), "payload")
+		payloadBytes := []byte(e.Payload)
 
-		if err != nil {
+		if err := v1.ValidateJSONB(payloadBytes, "payload"); err != nil {
 			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", err))
 		}
 

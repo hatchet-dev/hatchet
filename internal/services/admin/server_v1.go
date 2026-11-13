@@ -58,11 +58,11 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *v1contrac
 		return nil, fmt.Errorf("could not create trigger opt: %w", err)
 	}
 
-	if opt.Data, err = v1.ValidateJSONB(opt.Data, "payload"); err != nil {
+	if err := v1.ValidateJSONB(opt.Data, "payload"); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", err))
 	}
 
-	if opt.AdditionalMetadata, err = v1.ValidateJSONB(opt.AdditionalMetadata, "additionalMetadata"); err != nil {
+	if err := v1.ValidateJSONB(opt.AdditionalMetadata, "additionalMetadata"); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", err))
 	}
 
@@ -135,11 +135,11 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 			return nil, fmt.Errorf("could not create trigger opt: %w", err)
 		}
 
-		if opt.Data, err = v1.ValidateJSONB(opt.Data, "payload"); err != nil {
+		if err := v1.ValidateJSONB(opt.Data, "payload"); err != nil {
 			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", err))
 		}
 
-		if opt.AdditionalMetadata, err = v1.ValidateJSONB(opt.AdditionalMetadata, "additionalMetadata"); err != nil {
+		if err := v1.ValidateJSONB(opt.AdditionalMetadata, "additionalMetadata"); err != nil {
 			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", err))
 		}
 
