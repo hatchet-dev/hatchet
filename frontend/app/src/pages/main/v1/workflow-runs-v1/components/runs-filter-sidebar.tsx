@@ -22,7 +22,7 @@ import {
 import { cn } from '@/lib/utils';
 import {
   isTimeWindowOutsideRetention,
-  type RunsTimeWindowPreset,
+  TIME_WINDOW_PRESETS,
 } from '@/lib/utils/retention';
 import { Cross2Icon } from '@radix-ui/react-icons';
 import { Lock, Search } from 'lucide-react';
@@ -49,15 +49,6 @@ const RUNNING_SUB_LABELS: Record<V1RunningFilter, string> = {
   [V1RunningFilter.ON_WORKER]: 'On worker',
   [V1RunningFilter.EVICTED]: 'Evicted',
 };
-
-const TIME_PRESETS: RunsTimeWindowPreset[] = [
-  '15m',
-  '1h',
-  '4h',
-  '6h',
-  '1d',
-  '7d',
-];
 
 function formatRangePoint(iso: string) {
   return new Date(iso).toLocaleString(undefined, {
@@ -171,7 +162,7 @@ function TimeRangeBlock() {
       }
     >
       <div className="flex flex-wrap gap-1">
-        {TIME_PRESETS.map((preset) => {
+        {TIME_WINDOW_PRESETS.map((preset) => {
           const active = !isCustomTimeRange && timeWindow === preset;
           const locked =
             !!retentionPeriod &&

@@ -8,16 +8,17 @@ import {
 import useControlPlane from '@/hooks/use-control-plane';
 import {
   TIME_WINDOW_LABELS,
+  TIME_WINDOW_PRESETS,
   isTimeWindowOutsideRetention,
   type TimeWindowPreset,
 } from '@/lib/utils/retention';
 import { Lock } from 'lucide-react';
 
 const PRESETS: { value: TimeWindowPreset | 'custom'; label: string }[] = [
-  { value: '1h', label: TIME_WINDOW_LABELS['1h'] },
-  { value: '6h', label: TIME_WINDOW_LABELS['6h'] },
-  { value: '1d', label: TIME_WINDOW_LABELS['1d'] },
-  { value: '7d', label: TIME_WINDOW_LABELS['7d'] },
+  ...TIME_WINDOW_PRESETS.map((value) => ({
+    value,
+    label: TIME_WINDOW_LABELS[value],
+  })),
   { value: 'custom', label: 'Custom' },
 ];
 
