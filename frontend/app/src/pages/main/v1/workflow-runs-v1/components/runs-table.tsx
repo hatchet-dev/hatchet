@@ -33,7 +33,7 @@ import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { FeatureFlagId, useIsFeatureEnabled } from '@/hooks/use-feature-flags';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { queries, V1TaskStatus } from '@/lib/api';
+import { FILTERABLE_TASK_STATUSES, queries } from '@/lib/api';
 import { withPolling } from '@/lib/api/polling';
 import { docsPages } from '@/lib/generated/docs';
 import { formatRetentionPeriod } from '@/lib/utils/retention';
@@ -230,7 +230,7 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
     return () => clearInterval(interval);
   }, [filters, filters.isCustomTimeRange, filters.updateCurrentTimeWindow]);
 
-  const allStatusCount = Object.values(V1TaskStatus).length;
+  const allStatusCount = FILTERABLE_TASK_STATUSES.length;
   const hasActiveFilters =
     (filters.apiFilters.statuses?.length ?? allStatusCount) < allStatusCount ||
     (filters.apiFilters.workflowIds?.length ?? 0) > 0 ||

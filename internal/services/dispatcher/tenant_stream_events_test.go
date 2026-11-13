@@ -12,6 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/stretchr/testify/assert"
@@ -23,16 +24,16 @@ func TestWorkflowRunEventTypeForOlapStatus(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		status       sqlcv1.V1ReadableStatusOlap
+		status       enums.V1ReadableStatusOlap
 		wantType     contracts.ResourceEventType
 		wantTerminal bool
 	}{
-		{sqlcv1.V1ReadableStatusOlapCOMPLETED, contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED, true},
-		{sqlcv1.V1ReadableStatusOlapFAILED, contracts.ResourceEventType_RESOURCE_EVENT_TYPE_FAILED, true},
-		{sqlcv1.V1ReadableStatusOlapCANCELLED, contracts.ResourceEventType_RESOURCE_EVENT_TYPE_CANCELLED, true},
-		{sqlcv1.V1ReadableStatusOlapRUNNING, 0, false},
-		{sqlcv1.V1ReadableStatusOlapQUEUED, 0, false},
-		{sqlcv1.V1ReadableStatusOlapEVICTED, 0, false},
+		{enums.V1ReadableStatusOlapCOMPLETED, contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED, true},
+		{enums.V1ReadableStatusOlapFAILED, contracts.ResourceEventType_RESOURCE_EVENT_TYPE_FAILED, true},
+		{enums.V1ReadableStatusOlapCANCELLED, contracts.ResourceEventType_RESOURCE_EVENT_TYPE_CANCELLED, true},
+		{enums.V1ReadableStatusOlapRUNNING, 0, false},
+		{enums.V1ReadableStatusOlapQUEUED, 0, false},
+		{enums.V1ReadableStatusOlapEVICTED, 0, false},
 	}
 
 	for _, tt := range tests {
@@ -63,7 +64,7 @@ func TestWorkflowRunFinishedConverterErrorsOnNonTerminalStatus(t *testing.T) {
 
 	runId := uuid.New()
 
-	payload := func(status sqlcv1.V1ReadableStatusOlap) []byte {
+	payload := func(status enums.V1ReadableStatusOlap) []byte {
 		body, err := json.Marshal(tasktypes.NotifyFinalizedPayload{
 			ExternalId: runId,
 			Status:     status,
@@ -72,16 +73,16 @@ func TestWorkflowRunFinishedConverterErrorsOnNonTerminalStatus(t *testing.T) {
 		return body
 	}
 
-	events, err := convert([][]byte{payload(sqlcv1.V1ReadableStatusOlapRUNNING)})
+	events, err := convert([][]byte{payload(enums.V1ReadableStatusOlapRUNNING)})
 	require.Error(t, err)
 	assert.Nil(t, events)
 	assert.Contains(t, err.Error(), runId.String())
 
-	events, err = convert([][]byte{payload(sqlcv1.V1ReadableStatusOlapQUEUED)})
+	events, err = convert([][]byte{payload(enums.V1ReadableStatusOlapQUEUED)})
 	require.Error(t, err)
 	assert.Nil(t, events)
 
-	events, err = convert([][]byte{payload(sqlcv1.V1ReadableStatusOlapCOMPLETED)})
+	events, err = convert([][]byte{payload(enums.V1ReadableStatusOlapCOMPLETED)})
 	require.NoError(t, err)
 	require.Len(t, events, 1)
 	assert.Equal(t, contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED, events[0].EventType)

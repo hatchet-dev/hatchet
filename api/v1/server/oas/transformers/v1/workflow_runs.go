@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -83,9 +84,9 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 
 	status, isEvicted := mapOlapStatus(string(task.ReadableStatus))
 
-	runType := gen.V1WorkflowTypeDAG
-	if task.Kind == sqlcv1.V1RunKindTASK {
-		runType = gen.V1WorkflowTypeTASK
+	runType := enums.V1RunKindDAG
+	if task.Kind == enums.V1RunKindTASK {
+		runType = enums.V1RunKindTASK
 	}
 
 	summary := gen.V1TaskSummary{
@@ -246,7 +247,7 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *v1.TaskWithPayloads, workflowNa
 		TaskExternalId:        task.ExternalID,
 		TaskId:                int(task.ID),
 		TaskInsertedAt:        task.InsertedAt.Time,
-		Type:                  gen.V1WorkflowTypeTASK,
+		Type:                  enums.V1RunKindTASK,
 		WorkflowName:          workflowName,
 		StepId:                &stepId,
 		ActionId:              &task.ActionID,

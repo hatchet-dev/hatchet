@@ -13,6 +13,7 @@ import (
 	"github.com/google/cel-go/cel"
 	"github.com/google/uuid"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -913,7 +914,7 @@ func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx 
 			continue
 		}
 
-		if cb.Kind == sqlcv1.V1DurableEventLogKindRUN {
+		if cb.Kind == enums.V1DurableEventLogKindRUN {
 			if extracted, extractErr := ExtractOutputFromMatchData(initialEntry.Data); extractErr != nil {
 				m.l.Error().Err(extractErr).Msgf("failed to extract output from RUN_COMPLETED match data for entry %d", cb.NodeID)
 			} else {

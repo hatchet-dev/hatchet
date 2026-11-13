@@ -12,6 +12,9 @@ export const limitedResources: Record<TenantResource, string> = {
   [TenantResource.CRON]: 'Cron Triggers',
   [TenantResource.SCHEDULE]: 'Schedule Triggers',
   [TenantResource.INCOMING_WEBHOOK]: 'Incoming Webhooks',
+  [TenantResource.STREAM_TOPIC]: 'Stream Topics',
+  [TenantResource.STREAM_MESSAGE]: 'Stream Messages',
+  [TenantResource.STREAM_RETENTION]: 'Stream Retention',
 };
 
 const indicatorVariants = {

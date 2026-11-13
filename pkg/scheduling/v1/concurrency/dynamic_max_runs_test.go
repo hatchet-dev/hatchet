@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -217,7 +218,7 @@ func TestDynamicMaxRuns_LowerTrimsRunning_CancelInProgress(t *testing.T) {
 	future := now.Add(time.Hour)
 
 	repo := &mockConcurrencyRepo{}
-	c := newTestStrategyKind(repo, 1, sqlcv1.V1ConcurrencyStrategyCANCELINPROGRESS)
+	c := newTestStrategyKind(repo, 1, enums.V1ConcurrencyStrategyCANCELINPROGRESS)
 
 	if _, err := c.processWALMessages(context.Background(), nil, []walMessage{
 		walInsertMaxRuns("a", 1, 1, now, future, 3),
@@ -381,7 +382,7 @@ func TestDynamicMaxRuns_UpdateStrategyPreservesObservedLimits(t *testing.T) {
 
 	c.UpdateStrategy(&sqlcv1.V1StepConcurrency{
 		MaxConcurrency: 2,
-		Strategy:       sqlcv1.V1ConcurrencyStrategyGROUPROUNDROBIN,
+		Strategy:       enums.V1ConcurrencyStrategyGROUPROUNDROBIN,
 	})
 
 	if sq := c.getOrCreateSubQueue("dynamic"); sq.maxRuns != 5 {

@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -23,7 +24,7 @@ type CreateServerlessEndpointOpts struct {
 	Name string `validate:"required,hatchetName"`
 
 	// Kind defaults to CLOUDFLARE_WORKERS.
-	Kind *sqlcv1.V1ServerlessEndpointKind `validate:"omitnil,oneof=GENERIC_HTTP CLOUDFLARE_WORKERS VERCEL"`
+	Kind *enums.V1ServerlessEndpointKind `validate:"omitnil,oneof=GENERIC_HTTP CLOUDFLARE_WORKERS VERCEL"`
 
 	HealthcheckUrl string `validate:"required,url"`
 	TriggerUrl     string `validate:"required,url"`
@@ -49,14 +50,14 @@ type CreateServerlessEndpointOpts struct {
 }
 
 type UpdateServerlessEndpointOpts struct {
-	Name                  *string                          `validate:"omitnil,hatchetName"`
-	Kind                  *sqlcv1.V1ServerlessEndpointKind `validate:"omitnil,oneof=GENERIC_HTTP CLOUDFLARE_WORKERS VERCEL"`
-	HealthcheckUrl        *string                          `validate:"omitnil,url"`
-	TriggerUrl            *string                          `validate:"omitnil,url"`
-	SigningSecretEnc      *string                          `validate:"omitnil,min=1"`
-	RequestTimeoutSeconds *int32                           `validate:"omitnil,min=1,max=600"`
-	PollIntervalSeconds   *int32                           `validate:"omitnil,min=5,max=3600"`
-	InlineWaitBudgetMs    *int32                           `validate:"omitnil,min=0,max=600000"`
+	Name                  *string                         `validate:"omitnil,hatchetName"`
+	Kind                  *enums.V1ServerlessEndpointKind `validate:"omitnil,oneof=GENERIC_HTTP CLOUDFLARE_WORKERS VERCEL"`
+	HealthcheckUrl        *string                         `validate:"omitnil,url"`
+	TriggerUrl            *string                         `validate:"omitnil,url"`
+	SigningSecretEnc      *string                         `validate:"omitnil,min=1"`
+	RequestTimeoutSeconds *int32                          `validate:"omitnil,min=1,max=600"`
+	PollIntervalSeconds   *int32                          `validate:"omitnil,min=5,max=3600"`
+	InlineWaitBudgetMs    *int32                          `validate:"omitnil,min=0,max=600000"`
 	Labels                []byte
 	Enabled               *bool
 }
@@ -105,7 +106,7 @@ func (r *serverlessEndpointRepository) Create(ctx context.Context, tenantId uuid
 		return nil, err
 	}
 
-	kind := sqlcv1.V1ServerlessEndpointKindCLOUDFLAREWORKERS
+	kind := enums.V1ServerlessEndpointKindCLOUDFLAREWORKERS
 
 	if opts.Kind != nil {
 		kind = *opts.Kind
@@ -232,7 +233,7 @@ func (r *serverlessEndpointRepository) Update(ctx context.Context, tenantId, end
 	}
 
 	if opts.Kind != nil {
-		params.Kind = sqlcv1.NullV1ServerlessEndpointKind{
+		params.Kind = enums.NullV1ServerlessEndpointKind{
 			V1ServerlessEndpointKind: *opts.Kind,
 			Valid:                    true,
 		}

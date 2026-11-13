@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/limits"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -90,7 +91,7 @@ func ingestUserEventScopeTestWaiter(
 	result, err := repo.IngestDurableTaskEvent(ctx, IngestDurableTaskEventOpts{
 		BaseIngestEventOpts: &BaseIngestEventOpts{
 			Task:            task,
-			Kind:            sqlcv1.V1DurableEventLogKindWAITFOR,
+			Kind:            enums.V1DurableEventLogKindWAITFOR,
 			InvocationCount: 1,
 			TenantId:        tenantID,
 		},

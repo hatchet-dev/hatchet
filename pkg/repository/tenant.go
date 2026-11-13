@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -31,7 +32,7 @@ type CreateTenantOpts struct {
 	DataRetentionPeriod *string `validate:"omitempty,duration"`
 
 	// (optional) the tenant engine version
-	EngineVersion *sqlcv1.TenantMajorEngineVersion `validate:"omitempty"`
+	EngineVersion *enums.TenantMajorEngineVersion `validate:"omitempty"`
 
 	// (optional) the tenant environment type
 	Environment *string `validate:"omitempty,oneof=local development production"`
@@ -50,7 +51,7 @@ type UpdateTenantOpts struct {
 
 	AlertMemberEmails *bool `validate:"omitempty"`
 
-	Version *sqlcv1.NullTenantMajorEngineVersion `validate:"omitempty"`
+	Version *enums.NullTenantMajorEngineVersion `validate:"omitempty"`
 
 	DataRetentionPeriod *string `validate:"omitempty,duration"`
 }
@@ -192,7 +193,7 @@ type tenantRepository struct {
 	*sharedRepository
 
 	cache                cache.Cacheable
-	defaultTenantVersion sqlcv1.TenantMajorEngineVersion
+	defaultTenantVersion enums.TenantMajorEngineVersion
 	createCallbacks      []UnscopedCallback[*sqlcv1.Tenant]
 	updateCallbacks      []UnscopedCallback[*sqlcv1.Tenant]
 	deleteCallbacks      []UnscopedCallback[*sqlcv1.Tenant]
@@ -206,7 +207,7 @@ func newTenantRepository(shared *sharedRepository, cacheDuration time.Duration) 
 	return &tenantRepository{
 		sharedRepository:     shared,
 		cache:                cache.New(cacheDuration),
-		defaultTenantVersion: sqlcv1.TenantMajorEngineVersionV1,
+		defaultTenantVersion: enums.TenantMajorEngineVersionV1,
 	}
 }
 
@@ -315,7 +316,7 @@ func (r *tenantRepository) CreateTenant(ctx context.Context, opts *CreateTenantO
 		Slug:                opts.Slug,
 		Name:                opts.Name,
 		DataRetentionPeriod: dataRetentionPeriod,
-		Version: sqlcv1.NullTenantMajorEngineVersion{
+		Version: enums.NullTenantMajorEngineVersion{
 			TenantMajorEngineVersion: engineVersion,
 			Valid:                    true,
 		},
@@ -438,7 +439,7 @@ func (r *tenantRepository) CreateTenantMember(ctx context.Context, tenantId uuid
 		sqlcv1.CreateTenantMemberParams{
 			Tenantid:        tenantId,
 			Userid:          opts.UserId,
-			Role:            sqlcv1.TenantMemberRole(opts.Role),
+			Role:            enums.TenantMemberRole(opts.Role),
 			CanViewPayloads: canViewPayloadsParam(opts.CanViewPayloads),
 		},
 	)
@@ -546,8 +547,8 @@ func (r *tenantRepository) UpdateTenantMember(ctx context.Context, tenantId uuid
 	}
 
 	if opts.Role != nil {
-		params.Role = sqlcv1.NullTenantMemberRole{
-			TenantMemberRole: sqlcv1.TenantMemberRole(*opts.Role),
+		params.Role = enums.NullTenantMemberRole{
+			TenantMemberRole: enums.TenantMemberRole(*opts.Role),
 			Valid:            true,
 		}
 	}

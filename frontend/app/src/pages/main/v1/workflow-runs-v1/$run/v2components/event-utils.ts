@@ -86,6 +86,8 @@ export function mapEventTypeToTitle(
       return 'Batch flushed';
     case V1TaskEventType.WAITING_FOR_BATCH:
       return 'Waiting for batch';
+    case V1TaskEventType.BATCH_BUFFERED:
+      return 'Batch buffered';
     case undefined:
       return 'Unknown';
     default:

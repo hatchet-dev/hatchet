@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -235,19 +236,19 @@ RETURNING id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secre
 `
 
 type CreateServerlessEndpointParams struct {
-	ID                     uuid.UUID                `json:"id"`
-	Tenantid               uuid.UUID                `json:"tenantid"`
-	Name                   string                   `json:"name"`
-	Kind                   V1ServerlessEndpointKind `json:"kind"`
-	Healthcheckurl         string                   `json:"healthcheckurl"`
-	Triggerurl             string                   `json:"triggerurl"`
-	Signingsecretenc       string                   `json:"signingsecretenc"`
-	Requesttimeoutseconds  int32                    `json:"requesttimeoutseconds"`
-	Pollintervalseconds    int32                    `json:"pollintervalseconds"`
-	Inlinewaitbudgetms     int32                    `json:"inlinewaitbudgetms"`
-	Labels                 []byte                   `json:"labels"`
-	Enabled                bool                     `json:"enabled"`
-	Endpointpartitioncount int32                    `json:"endpointpartitioncount"`
+	ID                     uuid.UUID                      `json:"id"`
+	Tenantid               uuid.UUID                      `json:"tenantid"`
+	Name                   string                         `json:"name"`
+	Kind                   enums.V1ServerlessEndpointKind `json:"kind"`
+	Healthcheckurl         string                         `json:"healthcheckurl"`
+	Triggerurl             string                         `json:"triggerurl"`
+	Signingsecretenc       string                         `json:"signingsecretenc"`
+	Requesttimeoutseconds  int32                          `json:"requesttimeoutseconds"`
+	Pollintervalseconds    int32                          `json:"pollintervalseconds"`
+	Inlinewaitbudgetms     int32                          `json:"inlinewaitbudgetms"`
+	Labels                 []byte                         `json:"labels"`
+	Enabled                bool                           `json:"enabled"`
+	Endpointpartitioncount int32                          `json:"endpointpartitioncount"`
 }
 
 // Serverless operator tables. Endpoints and tenants are written by the API server; processes and
@@ -1209,18 +1210,18 @@ RETURNING id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secre
 `
 
 type UpdateServerlessEndpointParams struct {
-	Name                  pgtype.Text                  `json:"name"`
-	Kind                  NullV1ServerlessEndpointKind `json:"kind"`
-	HealthcheckUrl        pgtype.Text                  `json:"healthcheckUrl"`
-	TriggerUrl            pgtype.Text                  `json:"triggerUrl"`
-	SigningSecretEnc      pgtype.Text                  `json:"signingSecretEnc"`
-	RequestTimeoutSeconds pgtype.Int4                  `json:"requestTimeoutSeconds"`
-	PollIntervalSeconds   pgtype.Int4                  `json:"pollIntervalSeconds"`
-	InlineWaitBudgetMs    pgtype.Int4                  `json:"inlineWaitBudgetMs"`
-	Labels                []byte                       `json:"labels"`
-	Enabled               pgtype.Bool                  `json:"enabled"`
-	Tenantid              uuid.UUID                    `json:"tenantid"`
-	ID                    uuid.UUID                    `json:"id"`
+	Name                  pgtype.Text                        `json:"name"`
+	Kind                  enums.NullV1ServerlessEndpointKind `json:"kind"`
+	HealthcheckUrl        pgtype.Text                        `json:"healthcheckUrl"`
+	TriggerUrl            pgtype.Text                        `json:"triggerUrl"`
+	SigningSecretEnc      pgtype.Text                        `json:"signingSecretEnc"`
+	RequestTimeoutSeconds pgtype.Int4                        `json:"requestTimeoutSeconds"`
+	PollIntervalSeconds   pgtype.Int4                        `json:"pollIntervalSeconds"`
+	InlineWaitBudgetMs    pgtype.Int4                        `json:"inlineWaitBudgetMs"`
+	Labels                []byte                             `json:"labels"`
+	Enabled               pgtype.Bool                        `json:"enabled"`
+	Tenantid              uuid.UUID                          `json:"tenantid"`
+	ID                    uuid.UUID                          `json:"id"`
 }
 
 // The partition is never updatable: it decides which lease unit owns the endpoint.

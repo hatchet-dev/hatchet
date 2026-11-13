@@ -21,6 +21,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -67,7 +68,7 @@ type SatisfiedEventWithPayload struct {
 
 type BaseIngestEventOpts struct {
 	Task            *sqlcv1.FlattenExternalIdsRow `validate:"required"`
-	Kind            sqlcv1.V1DurableEventLogKind  `validate:"required"`
+	Kind            enums.V1DurableEventLogKind   `validate:"required"`
 	InvocationCount int32
 	TenantId        uuid.UUID `validate:"required"`
 }
@@ -142,7 +143,7 @@ type IngestDurableTaskEventResult struct {
 	MemoResult        *IngestMemoResult
 	TriggerRunsResult *IngestTriggerRunsResult
 	WaitForResult     *IngestWaitForResult
-	Kind              sqlcv1.V1DurableEventLogKind
+	Kind              enums.V1DurableEventLogKind
 }
 
 type HandleBranchResult struct {
@@ -416,8 +417,8 @@ type NonDeterminismDetail struct {
 type NonDeterminismError struct {
 	Detail                               *NonDeterminismDetail
 	ExistingEntryInsertedAt              pgtype.Timestamptz
-	ExpectedKind                         sqlcv1.V1DurableEventLogKind
-	ActualKind                           sqlcv1.V1DurableEventLogKind
+	ExpectedKind                         enums.V1DurableEventLogKind
+	ActualKind                           enums.V1DurableEventLogKind
 	ExpectedIdempotencyKey               []byte
 	ActualIdempotencyKey                 []byte
 	NodeId                               int64
@@ -618,7 +619,7 @@ func marshalWaitData(wd *WaitData) string {
 
 func (opts IngestDurableTaskEventOpts) formatCall() string {
 	switch opts.Kind {
-	case sqlcv1.V1DurableEventLogKindRUN:
+	case enums.V1DurableEventLogKindRUN:
 		if opts.TriggerRuns != nil {
 			names := make([]string, 0, len(opts.TriggerRuns.TriggerOpts))
 			for _, t := range opts.TriggerRuns.TriggerOpts {
@@ -626,27 +627,27 @@ func (opts IngestDurableTaskEventOpts) formatCall() string {
 			}
 			return "run(" + strings.Join(names, ", ") + ")"
 		}
-	case sqlcv1.V1DurableEventLogKindWAITFOR:
+	case enums.V1DurableEventLogKindWAITFOR:
 		if opts.WaitFor != nil {
 			wd := waitDataFromWaitForConditions(opts.WaitFor.WaitForConditions)
 			if wd != nil {
 				return wd.ToReadableMessage()
 			}
 		}
-	case sqlcv1.V1DurableEventLogKindMEMO:
+	case enums.V1DurableEventLogKindMEMO:
 		return "memo"
 	}
 
 	return string(opts.Kind)
 }
 
-func formatStoredPayload(kind sqlcv1.V1DurableEventLogKind, payload []byte) string {
+func formatStoredPayload(kind enums.V1DurableEventLogKind, payload []byte) string {
 	if len(payload) == 0 {
 		return string(kind)
 	}
 
 	switch kind {
-	case sqlcv1.V1DurableEventLogKindRUN:
+	case enums.V1DurableEventLogKindRUN:
 		var triggerOpts WorkflowNameTriggerOpts
 
 		if err := json.Unmarshal(payload, &triggerOpts); err != nil {
@@ -656,7 +657,7 @@ func formatStoredPayload(kind sqlcv1.V1DurableEventLogKind, payload []byte) stri
 		if triggerOpts.WorkflowName != "" {
 			return "run(" + triggerOpts.WorkflowName + ")"
 		}
-	case sqlcv1.V1DurableEventLogKindWAITFOR:
+	case enums.V1DurableEventLogKindWAITFOR:
 		var conditions []CreateExternalSignalConditionOpt
 
 		if err := json.Unmarshal(payload, &conditions); err != nil {
@@ -669,14 +670,14 @@ func formatStoredPayload(kind sqlcv1.V1DurableEventLogKind, payload []byte) stri
 				return wd.ToReadableMessage()
 			}
 		}
-	case sqlcv1.V1DurableEventLogKindMEMO:
+	case enums.V1DurableEventLogKindMEMO:
 		return "memo"
 	}
 
 	return string(kind)
 }
 
-func nonDeterminismDetail(opts IngestDurableTaskEventOpts, expectedKind sqlcv1.V1DurableEventLogKind, existingPayload []byte) *NonDeterminismDetail {
+func nonDeterminismDetail(opts IngestDurableTaskEventOpts, expectedKind enums.V1DurableEventLogKind, existingPayload []byte) *NonDeterminismDetail {
 	return &NonDeterminismDetail{
 		Expected: formatStoredPayload(expectedKind, existingPayload),
 		Received: opts.formatCall(),
@@ -684,7 +685,7 @@ func nonDeterminismDetail(opts IngestDurableTaskEventOpts, expectedKind sqlcv1.V
 }
 
 type GetOrCreateLogEntryOpt struct {
-	Kind                sqlcv1.V1DurableEventLogKind
+	Kind                enums.V1DurableEventLogKind
 	IdempotencyKey      []byte
 	InputPayload        []byte
 	ResultPayload       []byte
@@ -818,7 +819,7 @@ func satisfiedOrderPtr(v pgtype.Int8) *int64 {
 	return &order
 }
 
-func (r *durableEventsRepository) createIdempotencyKey(kind sqlcv1.V1DurableEventLogKind, triggerOpts *WorkflowNameTriggerOpts, waitForConditions []CreateExternalSignalConditionOpt) ([]byte, error) {
+func (r *durableEventsRepository) createIdempotencyKey(kind enums.V1DurableEventLogKind, triggerOpts *WorkflowNameTriggerOpts, waitForConditions []CreateExternalSignalConditionOpt) ([]byte, error) {
 	// note: can't use additional metadata here because it's not stable, since we store trace information in it w/ the otel instrumentors
 	dataToHash := []byte(kind)
 
@@ -1520,7 +1521,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		return nil, fmt.Errorf("invalid opts: %w", err)
 	}
 
-	if opts.Kind == sqlcv1.V1DurableEventLogKindRUN && len(opts.TriggerRuns.TriggerOpts) == 0 {
+	if opts.Kind == enums.V1DurableEventLogKindRUN && len(opts.TriggerRuns.TriggerOpts) == 0 {
 		return nil, fmt.Errorf("TriggerOptsList is required and must be non-empty for RUN kind")
 	}
 
@@ -1542,7 +1543,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	var triggerRunsResult *IngestTriggerRunsResult
 
 	switch opts.Kind {
-	case sqlcv1.V1DurableEventLogKindRUN:
+	case enums.V1DurableEventLogKindRUN:
 		entries := make([]*IngestTriggerRunsEntry, len(logEntries))
 
 		for i, entry := range logEntries {
@@ -1623,7 +1624,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		}
 
 		triggerRunsResult.PendingTriggers = pending
-	case sqlcv1.V1DurableEventLogKindWAITFOR:
+	case enums.V1DurableEventLogKindWAITFOR:
 		if len(logEntries) != 1 {
 			// note: we implicitly assume that there will only be one log entry for wait for conditions
 			// if we get more than one, it's an indication something is wrong
@@ -1646,7 +1647,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			ResultPayload:   le.ResultPayload,
 			SatisfiedOrder:  satisfiedOrderPtr(le.Entry.SatisfiedOrder),
 		}
-	case sqlcv1.V1DurableEventLogKindMEMO:
+	case enums.V1DurableEventLogKindMEMO:
 		if len(logEntries) != 1 {
 			// note: we implicitly assume that there will only be one log entry for memo
 			// if we get more than one, it's an indication something is wrong
@@ -1665,7 +1666,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		}
 	}
 
-	if opts.Kind == sqlcv1.V1DurableEventLogKindWAITFOR {
+	if opts.Kind == enums.V1DurableEventLogKindWAITFOR {
 		waitForResult, err = r.handleEventLookback(ctx, tenantId, task, waitForResult, opts.WaitFor.WaitForConditions)
 
 		if err != nil {
@@ -1877,7 +1878,7 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 	for _, taskId := range eligibleTaskIds {
 		opts := batch[taskId]
 
-		if opts.Kind == sqlcv1.V1DurableEventLogKindRUN {
+		if opts.Kind == enums.V1DurableEventLogKindRUN {
 			resolveTasks = append(resolveTasks, resolveChildExternalIdsTask{
 				tenantId:    opts.TenantId,
 				task:        opts.Task,
@@ -2087,7 +2088,7 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 	childrenToReplay := make(map[uuid.UUID]bool)
 
 	switch opts.Kind {
-	case sqlcv1.V1DurableEventLogKindRUN:
+	case enums.V1DurableEventLogKindRUN:
 		resolvedChildrenToReplay, dedupeErr := r.resolveOrphanedChildDedupes(ctx, tx, logFile, nextBranchIdToBranchPoint, opts.TriggerRuns.TriggerOpts)
 		if dedupeErr != nil {
 			return nil, nil, dedupeErr
@@ -2105,7 +2106,7 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 				// cached child even when the inputs differ
 				var idempotencyKey []byte
 				if triggerOpts.ChildKey == nil {
-					key, keyErr := r.createIdempotencyKey(sqlcv1.V1DurableEventLogKindRUN, triggerOpts, nil)
+					key, keyErr := r.createIdempotencyKey(enums.V1DurableEventLogKindRUN, triggerOpts, nil)
 					if keyErr != nil {
 						return nil, fmt.Errorf("failed to create idempotency key: %w", keyErr), nil
 					}
@@ -2117,7 +2118,7 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 				}
 
 				innerOpts[i] = GetOrCreateLogEntryOpt{
-					Kind:                sqlcv1.V1DurableEventLogKindRUN,
+					Kind:                enums.V1DurableEventLogKindRUN,
 					ChildTaskExternalId: triggerOpts.ExternalId,
 					IdempotencyKey:      idempotencyKey,
 					IsDagStepTrigger:    triggerOpts.IsDagStepTrigger,
@@ -2139,7 +2140,7 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 				return nil, fmt.Errorf("failed to marshal trigger opts: %w", marshalErr), nil
 			}
 
-			idempotencyKey, keyErr := r.createIdempotencyKey(sqlcv1.V1DurableEventLogKindRUN, triggerOpts, nil)
+			idempotencyKey, keyErr := r.createIdempotencyKey(enums.V1DurableEventLogKindRUN, triggerOpts, nil)
 			if keyErr != nil {
 				return nil, fmt.Errorf("failed to create idempotency key: %w", keyErr), nil
 			}
@@ -2151,7 +2152,7 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 			isSatisfied := triggerOpts.IsCancelled || triggerOpts.IsSkipped
 
 			innerOpts[i] = GetOrCreateLogEntryOpt{
-				Kind:                sqlcv1.V1DurableEventLogKindRUN,
+				Kind:                enums.V1DurableEventLogKindRUN,
 				NodeId:              nodeId,
 				BranchId:            branchId,
 				ChildTaskExternalId: triggerOpts.ExternalId,
@@ -2172,7 +2173,7 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 			DurableTaskExternalId: task.ExternalID,
 			Entries:               innerOpts,
 		}
-	case sqlcv1.V1DurableEventLogKindWAITFOR:
+	case enums.V1DurableEventLogKindWAITFOR:
 		branchId := resolveBranchForNode(baseNodeId, logFile.LatestBranchID, nextBranchIdToBranchPoint)
 
 		inputPayload, marshalErr := json.Marshal(opts.WaitFor.WaitForConditions)
@@ -2180,7 +2181,7 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 			return nil, fmt.Errorf("failed to marshal wait for conditions: %w", marshalErr), nil
 		}
 
-		idempotencyKey, keyErr := r.createIdempotencyKey(sqlcv1.V1DurableEventLogKindWAITFOR, nil, opts.WaitFor.WaitForConditions)
+		idempotencyKey, keyErr := r.createIdempotencyKey(enums.V1DurableEventLogKindWAITFOR, nil, opts.WaitFor.WaitForConditions)
 		if keyErr != nil {
 			return nil, fmt.Errorf("failed to create idempotency key: %w", keyErr), nil
 		}
@@ -2191,7 +2192,7 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 			DurableTaskId:         task.ID,
 			DurableTaskInsertedAt: task.InsertedAt,
 			Entries: []GetOrCreateLogEntryOpt{{
-				Kind:           sqlcv1.V1DurableEventLogKindWAITFOR,
+				Kind:           enums.V1DurableEventLogKindWAITFOR,
 				NodeId:         baseNodeId,
 				BranchId:       branchId,
 				IdempotencyKey: idempotencyKey,
@@ -2200,7 +2201,7 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 				WaitData:       marshalWaitData(waitDataFromWaitForConditions(opts.WaitFor.WaitForConditions)),
 			}},
 		}
-	case sqlcv1.V1DurableEventLogKindMEMO:
+	case enums.V1DurableEventLogKindMEMO:
 		branchId := resolveBranchForNode(baseNodeId, logFile.LatestBranchID, nextBranchIdToBranchPoint)
 
 		var resultPayload []byte
@@ -2216,7 +2217,7 @@ func (r *durableEventsRepository) planDurableEventLogAppend(
 			DurableTaskId:         task.ID,
 			DurableTaskInsertedAt: task.InsertedAt,
 			Entries: []GetOrCreateLogEntryOpt{{
-				Kind:           sqlcv1.V1DurableEventLogKindMEMO,
+				Kind:           enums.V1DurableEventLogKindMEMO,
 				NodeId:         baseNodeId,
 				BranchId:       branchId,
 				IdempotencyKey: opts.Memo.MemoKey,

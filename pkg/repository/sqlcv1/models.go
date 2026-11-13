@@ -10,6 +10,7 @@ import (
 	"net/netip"
 
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -393,73 +394,6 @@ func (e LeaseKind) Valid() bool {
 		LeaseKindCONCURRENCYSTRATEGY,
 		LeaseKindTABLEPARTITIONMAINTENANCE,
 		LeaseKindBATCH:
-		return true
-	}
-	return false
-}
-
-type LimitResource string
-
-const (
-	LimitResourceTASKRUN         LimitResource = "TASK_RUN"
-	LimitResourceEVENT           LimitResource = "EVENT"
-	LimitResourceWORKER          LimitResource = "WORKER"
-	LimitResourceWORKERSLOT      LimitResource = "WORKER_SLOT"
-	LimitResourceCRON            LimitResource = "CRON"
-	LimitResourceSCHEDULE        LimitResource = "SCHEDULE"
-	LimitResourceINCOMINGWEBHOOK LimitResource = "INCOMING_WEBHOOK"
-	LimitResourceSTREAMTOPIC     LimitResource = "STREAM_TOPIC"
-	LimitResourceSTREAMMESSAGE   LimitResource = "STREAM_MESSAGE"
-	LimitResourceSTREAMRETENTION LimitResource = "STREAM_RETENTION"
-)
-
-func (e *LimitResource) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = LimitResource(s)
-	case string:
-		*e = LimitResource(s)
-	default:
-		return fmt.Errorf("unsupported scan type for LimitResource: %T", src)
-	}
-	return nil
-}
-
-type NullLimitResource struct {
-	LimitResource LimitResource `json:"LimitResource"`
-	Valid         bool          `json:"valid"` // Valid is true if LimitResource is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullLimitResource) Scan(value interface{}) error {
-	if value == nil {
-		ns.LimitResource, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.LimitResource.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullLimitResource) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.LimitResource), nil
-}
-
-func (e LimitResource) Valid() bool {
-	switch e {
-	case LimitResourceTASKRUN,
-		LimitResourceEVENT,
-		LimitResourceWORKER,
-		LimitResourceWORKERSLOT,
-		LimitResourceCRON,
-		LimitResourceSCHEDULE,
-		LimitResourceINCOMINGWEBHOOK,
-		LimitResourceSTREAMTOPIC,
-		LimitResourceSTREAMMESSAGE,
-		LimitResourceSTREAMRETENTION:
 		return true
 	}
 	return false
@@ -984,57 +918,6 @@ func (e TenantEnvironment) Valid() bool {
 	return false
 }
 
-type TenantMajorEngineVersion string
-
-const (
-	TenantMajorEngineVersionV0 TenantMajorEngineVersion = "V0"
-	TenantMajorEngineVersionV1 TenantMajorEngineVersion = "V1"
-)
-
-func (e *TenantMajorEngineVersion) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = TenantMajorEngineVersion(s)
-	case string:
-		*e = TenantMajorEngineVersion(s)
-	default:
-		return fmt.Errorf("unsupported scan type for TenantMajorEngineVersion: %T", src)
-	}
-	return nil
-}
-
-type NullTenantMajorEngineVersion struct {
-	TenantMajorEngineVersion TenantMajorEngineVersion `json:"TenantMajorEngineVersion"`
-	Valid                    bool                     `json:"valid"` // Valid is true if TenantMajorEngineVersion is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullTenantMajorEngineVersion) Scan(value interface{}) error {
-	if value == nil {
-		ns.TenantMajorEngineVersion, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.TenantMajorEngineVersion.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullTenantMajorEngineVersion) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.TenantMajorEngineVersion), nil
-}
-
-func (e TenantMajorEngineVersion) Valid() bool {
-	switch e {
-	case TenantMajorEngineVersionV0,
-		TenantMajorEngineVersionV1:
-		return true
-	}
-	return false
-}
-
 type TenantMajorUIVersion string
 
 const (
@@ -1081,61 +964,6 @@ func (e TenantMajorUIVersion) Valid() bool {
 	switch e {
 	case TenantMajorUIVersionV0,
 		TenantMajorUIVersionV1:
-		return true
-	}
-	return false
-}
-
-type TenantMemberRole string
-
-const (
-	TenantMemberRoleOWNER  TenantMemberRole = "OWNER"
-	TenantMemberRoleADMIN  TenantMemberRole = "ADMIN"
-	TenantMemberRoleMEMBER TenantMemberRole = "MEMBER"
-	TenantMemberRoleVIEWER TenantMemberRole = "VIEWER"
-)
-
-func (e *TenantMemberRole) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = TenantMemberRole(s)
-	case string:
-		*e = TenantMemberRole(s)
-	default:
-		return fmt.Errorf("unsupported scan type for TenantMemberRole: %T", src)
-	}
-	return nil
-}
-
-type NullTenantMemberRole struct {
-	TenantMemberRole TenantMemberRole `json:"TenantMemberRole"`
-	Valid            bool             `json:"valid"` // Valid is true if TenantMemberRole is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullTenantMemberRole) Scan(value interface{}) error {
-	if value == nil {
-		ns.TenantMemberRole, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.TenantMemberRole.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullTenantMemberRole) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.TenantMemberRole), nil
-}
-
-func (e TenantMemberRole) Valid() bool {
-	switch e {
-	case TenantMemberRoleOWNER,
-		TenantMemberRoleADMIN,
-		TenantMemberRoleMEMBER,
-		TenantMemberRoleVIEWER:
 		return true
 	}
 	return false
@@ -1296,118 +1124,6 @@ func (e V1CelEvaluationFailureSource) Valid() bool {
 	return false
 }
 
-type V1ConcurrencyStrategy string
-
-const (
-	V1ConcurrencyStrategyNONE                     V1ConcurrencyStrategy = "NONE"
-	V1ConcurrencyStrategyGROUPROUNDROBIN          V1ConcurrencyStrategy = "GROUP_ROUND_ROBIN"
-	V1ConcurrencyStrategyCANCELINPROGRESS         V1ConcurrencyStrategy = "CANCEL_IN_PROGRESS"
-	V1ConcurrencyStrategyCANCELNEWEST             V1ConcurrencyStrategy = "CANCEL_NEWEST"
-	V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST V1ConcurrencyStrategy = "CANCEL_QUEUED_EXCEPT_NEWEST"
-	V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST V1ConcurrencyStrategy = "CANCEL_QUEUED_EXCEPT_OLDEST"
-)
-
-func (e *V1ConcurrencyStrategy) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = V1ConcurrencyStrategy(s)
-	case string:
-		*e = V1ConcurrencyStrategy(s)
-	default:
-		return fmt.Errorf("unsupported scan type for V1ConcurrencyStrategy: %T", src)
-	}
-	return nil
-}
-
-type NullV1ConcurrencyStrategy struct {
-	V1ConcurrencyStrategy V1ConcurrencyStrategy `json:"v1_concurrency_strategy"`
-	Valid                 bool                  `json:"valid"` // Valid is true if V1ConcurrencyStrategy is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1ConcurrencyStrategy) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1ConcurrencyStrategy, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1ConcurrencyStrategy.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1ConcurrencyStrategy) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1ConcurrencyStrategy), nil
-}
-
-func (e V1ConcurrencyStrategy) Valid() bool {
-	switch e {
-	case V1ConcurrencyStrategyNONE,
-		V1ConcurrencyStrategyGROUPROUNDROBIN,
-		V1ConcurrencyStrategyCANCELINPROGRESS,
-		V1ConcurrencyStrategyCANCELNEWEST,
-		V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST,
-		V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST:
-		return true
-	}
-	return false
-}
-
-type V1DurableEventLogKind string
-
-const (
-	V1DurableEventLogKindRUN     V1DurableEventLogKind = "RUN"
-	V1DurableEventLogKindWAITFOR V1DurableEventLogKind = "WAIT_FOR"
-	V1DurableEventLogKindMEMO    V1DurableEventLogKind = "MEMO"
-)
-
-func (e *V1DurableEventLogKind) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = V1DurableEventLogKind(s)
-	case string:
-		*e = V1DurableEventLogKind(s)
-	default:
-		return fmt.Errorf("unsupported scan type for V1DurableEventLogKind: %T", src)
-	}
-	return nil
-}
-
-type NullV1DurableEventLogKind struct {
-	V1DurableEventLogKind V1DurableEventLogKind `json:"v1_durable_event_log_kind"`
-	Valid                 bool                  `json:"valid"` // Valid is true if V1DurableEventLogKind is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1DurableEventLogKind) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1DurableEventLogKind, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1DurableEventLogKind.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1DurableEventLogKind) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1DurableEventLogKind), nil
-}
-
-func (e V1DurableEventLogKind) Valid() bool {
-	switch e {
-	case V1DurableEventLogKindRUN,
-		V1DurableEventLogKindWAITFOR,
-		V1DurableEventLogKindMEMO:
-		return true
-	}
-	return false
-}
-
 type V1EventType string
 
 const (
@@ -1454,213 +1170,6 @@ func (e V1EventType) Valid() bool {
 	switch e {
 	case V1EventTypeUSER,
 		V1EventTypeINTERNAL:
-		return true
-	}
-	return false
-}
-
-type V1EventTypeOlap string
-
-const (
-	V1EventTypeOlapRETRYING             V1EventTypeOlap = "RETRYING"
-	V1EventTypeOlapREASSIGNED           V1EventTypeOlap = "REASSIGNED"
-	V1EventTypeOlapRETRIEDBYUSER        V1EventTypeOlap = "RETRIED_BY_USER"
-	V1EventTypeOlapCREATED              V1EventTypeOlap = "CREATED"
-	V1EventTypeOlapQUEUED               V1EventTypeOlap = "QUEUED"
-	V1EventTypeOlapREQUEUEDNOWORKER     V1EventTypeOlap = "REQUEUED_NO_WORKER"
-	V1EventTypeOlapREQUEUEDRATELIMIT    V1EventTypeOlap = "REQUEUED_RATE_LIMIT"
-	V1EventTypeOlapASSIGNED             V1EventTypeOlap = "ASSIGNED"
-	V1EventTypeOlapACKNOWLEDGED         V1EventTypeOlap = "ACKNOWLEDGED"
-	V1EventTypeOlapSENTTOWORKER         V1EventTypeOlap = "SENT_TO_WORKER"
-	V1EventTypeOlapSLOTRELEASED         V1EventTypeOlap = "SLOT_RELEASED"
-	V1EventTypeOlapSTARTED              V1EventTypeOlap = "STARTED"
-	V1EventTypeOlapTIMEOUTREFRESHED     V1EventTypeOlap = "TIMEOUT_REFRESHED"
-	V1EventTypeOlapSCHEDULINGTIMEDOUT   V1EventTypeOlap = "SCHEDULING_TIMED_OUT"
-	V1EventTypeOlapFINISHED             V1EventTypeOlap = "FINISHED"
-	V1EventTypeOlapFAILED               V1EventTypeOlap = "FAILED"
-	V1EventTypeOlapCANCELLED            V1EventTypeOlap = "CANCELLED"
-	V1EventTypeOlapTIMEDOUT             V1EventTypeOlap = "TIMED_OUT"
-	V1EventTypeOlapRATELIMITERROR       V1EventTypeOlap = "RATE_LIMIT_ERROR"
-	V1EventTypeOlapSKIPPED              V1EventTypeOlap = "SKIPPED"
-	V1EventTypeOlapCOULDNOTSENDTOWORKER V1EventTypeOlap = "COULD_NOT_SEND_TO_WORKER"
-	V1EventTypeOlapDURABLEEVICTED       V1EventTypeOlap = "DURABLE_EVICTED"
-	V1EventTypeOlapDURABLERESTORING     V1EventTypeOlap = "DURABLE_RESTORING"
-	V1EventTypeOlapBATCHBUFFERED        V1EventTypeOlap = "BATCH_BUFFERED"
-	V1EventTypeOlapWAITINGFORBATCH      V1EventTypeOlap = "WAITING_FOR_BATCH"
-	V1EventTypeOlapBATCHFLUSHED         V1EventTypeOlap = "BATCH_FLUSHED"
-)
-
-func (e *V1EventTypeOlap) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = V1EventTypeOlap(s)
-	case string:
-		*e = V1EventTypeOlap(s)
-	default:
-		return fmt.Errorf("unsupported scan type for V1EventTypeOlap: %T", src)
-	}
-	return nil
-}
-
-type NullV1EventTypeOlap struct {
-	V1EventTypeOlap V1EventTypeOlap `json:"v1_event_type_olap"`
-	Valid           bool            `json:"valid"` // Valid is true if V1EventTypeOlap is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1EventTypeOlap) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1EventTypeOlap, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1EventTypeOlap.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1EventTypeOlap) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1EventTypeOlap), nil
-}
-
-func (e V1EventTypeOlap) Valid() bool {
-	switch e {
-	case V1EventTypeOlapRETRYING,
-		V1EventTypeOlapREASSIGNED,
-		V1EventTypeOlapRETRIEDBYUSER,
-		V1EventTypeOlapCREATED,
-		V1EventTypeOlapQUEUED,
-		V1EventTypeOlapREQUEUEDNOWORKER,
-		V1EventTypeOlapREQUEUEDRATELIMIT,
-		V1EventTypeOlapASSIGNED,
-		V1EventTypeOlapACKNOWLEDGED,
-		V1EventTypeOlapSENTTOWORKER,
-		V1EventTypeOlapSLOTRELEASED,
-		V1EventTypeOlapSTARTED,
-		V1EventTypeOlapTIMEOUTREFRESHED,
-		V1EventTypeOlapSCHEDULINGTIMEDOUT,
-		V1EventTypeOlapFINISHED,
-		V1EventTypeOlapFAILED,
-		V1EventTypeOlapCANCELLED,
-		V1EventTypeOlapTIMEDOUT,
-		V1EventTypeOlapRATELIMITERROR,
-		V1EventTypeOlapSKIPPED,
-		V1EventTypeOlapCOULDNOTSENDTOWORKER,
-		V1EventTypeOlapDURABLEEVICTED,
-		V1EventTypeOlapDURABLERESTORING,
-		V1EventTypeOlapBATCHBUFFERED,
-		V1EventTypeOlapWAITINGFORBATCH,
-		V1EventTypeOlapBATCHFLUSHED:
-		return true
-	}
-	return false
-}
-
-type V1IncomingWebhookAuthType string
-
-const (
-	V1IncomingWebhookAuthTypeBASIC  V1IncomingWebhookAuthType = "BASIC"
-	V1IncomingWebhookAuthTypeAPIKEY V1IncomingWebhookAuthType = "API_KEY"
-	V1IncomingWebhookAuthTypeHMAC   V1IncomingWebhookAuthType = "HMAC"
-)
-
-func (e *V1IncomingWebhookAuthType) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = V1IncomingWebhookAuthType(s)
-	case string:
-		*e = V1IncomingWebhookAuthType(s)
-	default:
-		return fmt.Errorf("unsupported scan type for V1IncomingWebhookAuthType: %T", src)
-	}
-	return nil
-}
-
-type NullV1IncomingWebhookAuthType struct {
-	V1IncomingWebhookAuthType V1IncomingWebhookAuthType `json:"v1_incoming_webhook_auth_type"`
-	Valid                     bool                      `json:"valid"` // Valid is true if V1IncomingWebhookAuthType is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1IncomingWebhookAuthType) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1IncomingWebhookAuthType, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1IncomingWebhookAuthType.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1IncomingWebhookAuthType) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1IncomingWebhookAuthType), nil
-}
-
-func (e V1IncomingWebhookAuthType) Valid() bool {
-	switch e {
-	case V1IncomingWebhookAuthTypeBASIC,
-		V1IncomingWebhookAuthTypeAPIKEY,
-		V1IncomingWebhookAuthTypeHMAC:
-		return true
-	}
-	return false
-}
-
-type V1IncomingWebhookHmacAlgorithm string
-
-const (
-	V1IncomingWebhookHmacAlgorithmSHA1   V1IncomingWebhookHmacAlgorithm = "SHA1"
-	V1IncomingWebhookHmacAlgorithmSHA256 V1IncomingWebhookHmacAlgorithm = "SHA256"
-	V1IncomingWebhookHmacAlgorithmSHA512 V1IncomingWebhookHmacAlgorithm = "SHA512"
-	V1IncomingWebhookHmacAlgorithmMD5    V1IncomingWebhookHmacAlgorithm = "MD5"
-)
-
-func (e *V1IncomingWebhookHmacAlgorithm) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = V1IncomingWebhookHmacAlgorithm(s)
-	case string:
-		*e = V1IncomingWebhookHmacAlgorithm(s)
-	default:
-		return fmt.Errorf("unsupported scan type for V1IncomingWebhookHmacAlgorithm: %T", src)
-	}
-	return nil
-}
-
-type NullV1IncomingWebhookHmacAlgorithm struct {
-	V1IncomingWebhookHmacAlgorithm V1IncomingWebhookHmacAlgorithm `json:"v1_incoming_webhook_hmac_algorithm"`
-	Valid                          bool                           `json:"valid"` // Valid is true if V1IncomingWebhookHmacAlgorithm is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1IncomingWebhookHmacAlgorithm) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1IncomingWebhookHmacAlgorithm, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1IncomingWebhookHmacAlgorithm.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1IncomingWebhookHmacAlgorithm) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1IncomingWebhookHmacAlgorithm), nil
-}
-
-func (e V1IncomingWebhookHmacAlgorithm) Valid() bool {
-	switch e {
-	case V1IncomingWebhookHmacAlgorithmSHA1,
-		V1IncomingWebhookHmacAlgorithmSHA256,
-		V1IncomingWebhookHmacAlgorithmSHA512,
-		V1IncomingWebhookHmacAlgorithmMD5:
 		return true
 	}
 	return false
@@ -1714,65 +1223,6 @@ func (e V1IncomingWebhookHmacEncoding) Valid() bool {
 	case V1IncomingWebhookHmacEncodingHEX,
 		V1IncomingWebhookHmacEncodingBASE64,
 		V1IncomingWebhookHmacEncodingBASE64URL:
-		return true
-	}
-	return false
-}
-
-type V1IncomingWebhookSourceName string
-
-const (
-	V1IncomingWebhookSourceNameGENERIC V1IncomingWebhookSourceName = "GENERIC"
-	V1IncomingWebhookSourceNameGITHUB  V1IncomingWebhookSourceName = "GITHUB"
-	V1IncomingWebhookSourceNameSTRIPE  V1IncomingWebhookSourceName = "STRIPE"
-	V1IncomingWebhookSourceNameSLACK   V1IncomingWebhookSourceName = "SLACK"
-	V1IncomingWebhookSourceNameLINEAR  V1IncomingWebhookSourceName = "LINEAR"
-	V1IncomingWebhookSourceNameSVIX    V1IncomingWebhookSourceName = "SVIX"
-)
-
-func (e *V1IncomingWebhookSourceName) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = V1IncomingWebhookSourceName(s)
-	case string:
-		*e = V1IncomingWebhookSourceName(s)
-	default:
-		return fmt.Errorf("unsupported scan type for V1IncomingWebhookSourceName: %T", src)
-	}
-	return nil
-}
-
-type NullV1IncomingWebhookSourceName struct {
-	V1IncomingWebhookSourceName V1IncomingWebhookSourceName `json:"v1_incoming_webhook_source_name"`
-	Valid                       bool                        `json:"valid"` // Valid is true if V1IncomingWebhookSourceName is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1IncomingWebhookSourceName) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1IncomingWebhookSourceName, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1IncomingWebhookSourceName.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1IncomingWebhookSourceName) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1IncomingWebhookSourceName), nil
-}
-
-func (e V1IncomingWebhookSourceName) Valid() bool {
-	switch e {
-	case V1IncomingWebhookSourceNameGENERIC,
-		V1IncomingWebhookSourceNameGITHUB,
-		V1IncomingWebhookSourceNameSTRIPE,
-		V1IncomingWebhookSourceNameSLACK,
-		V1IncomingWebhookSourceNameLINEAR,
-		V1IncomingWebhookSourceNameSVIX:
 		return true
 	}
 	return false
@@ -2320,116 +1770,6 @@ func (e V1PayloadType) Valid() bool {
 	return false
 }
 
-type V1ReadableStatusOlap string
-
-const (
-	V1ReadableStatusOlapQUEUED    V1ReadableStatusOlap = "QUEUED"
-	V1ReadableStatusOlapRUNNING   V1ReadableStatusOlap = "RUNNING"
-	V1ReadableStatusOlapCANCELLED V1ReadableStatusOlap = "CANCELLED"
-	V1ReadableStatusOlapFAILED    V1ReadableStatusOlap = "FAILED"
-	V1ReadableStatusOlapCOMPLETED V1ReadableStatusOlap = "COMPLETED"
-	V1ReadableStatusOlapEVICTED   V1ReadableStatusOlap = "EVICTED"
-)
-
-func (e *V1ReadableStatusOlap) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = V1ReadableStatusOlap(s)
-	case string:
-		*e = V1ReadableStatusOlap(s)
-	default:
-		return fmt.Errorf("unsupported scan type for V1ReadableStatusOlap: %T", src)
-	}
-	return nil
-}
-
-type NullV1ReadableStatusOlap struct {
-	V1ReadableStatusOlap V1ReadableStatusOlap `json:"v1_readable_status_olap"`
-	Valid                bool                 `json:"valid"` // Valid is true if V1ReadableStatusOlap is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1ReadableStatusOlap) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1ReadableStatusOlap, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1ReadableStatusOlap.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1ReadableStatusOlap) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1ReadableStatusOlap), nil
-}
-
-func (e V1ReadableStatusOlap) Valid() bool {
-	switch e {
-	case V1ReadableStatusOlapQUEUED,
-		V1ReadableStatusOlapRUNNING,
-		V1ReadableStatusOlapCANCELLED,
-		V1ReadableStatusOlapFAILED,
-		V1ReadableStatusOlapCOMPLETED,
-		V1ReadableStatusOlapEVICTED:
-		return true
-	}
-	return false
-}
-
-type V1RunKind string
-
-const (
-	V1RunKindTASK V1RunKind = "TASK"
-	V1RunKindDAG  V1RunKind = "DAG"
-)
-
-func (e *V1RunKind) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = V1RunKind(s)
-	case string:
-		*e = V1RunKind(s)
-	default:
-		return fmt.Errorf("unsupported scan type for V1RunKind: %T", src)
-	}
-	return nil
-}
-
-type NullV1RunKind struct {
-	V1RunKind V1RunKind `json:"v1_run_kind"`
-	Valid     bool      `json:"valid"` // Valid is true if V1RunKind is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1RunKind) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1RunKind, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1RunKind.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1RunKind) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1RunKind), nil
-}
-
-func (e V1RunKind) Valid() bool {
-	switch e {
-	case V1RunKindTASK,
-		V1RunKindDAG:
-		return true
-	}
-	return false
-}
-
 type V1SandboxEventKind string
 
 const (
@@ -2598,118 +1938,6 @@ func (e V1SandboxStatus) Valid() bool {
 		V1SandboxStatusRUNNING,
 		V1SandboxStatusDESTROYED,
 		V1SandboxStatusFAILED:
-		return true
-	}
-	return false
-}
-
-type V1ServerlessEndpointEventKind string
-
-const (
-	V1ServerlessEndpointEventKindHEALTHCHECKFAILED V1ServerlessEndpointEventKind = "HEALTHCHECK_FAILED"
-	V1ServerlessEndpointEventKindUNHEALTHY         V1ServerlessEndpointEventKind = "UNHEALTHY"
-	V1ServerlessEndpointEventKindHEALTHY           V1ServerlessEndpointEventKind = "HEALTHY"
-	V1ServerlessEndpointEventKindCATALOGREGISTERED V1ServerlessEndpointEventKind = "CATALOG_REGISTERED"
-	V1ServerlessEndpointEventKindCATALOGREJECTED   V1ServerlessEndpointEventKind = "CATALOG_REJECTED"
-	V1ServerlessEndpointEventKindDELIVERYFAILED    V1ServerlessEndpointEventKind = "DELIVERY_FAILED"
-)
-
-func (e *V1ServerlessEndpointEventKind) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = V1ServerlessEndpointEventKind(s)
-	case string:
-		*e = V1ServerlessEndpointEventKind(s)
-	default:
-		return fmt.Errorf("unsupported scan type for V1ServerlessEndpointEventKind: %T", src)
-	}
-	return nil
-}
-
-type NullV1ServerlessEndpointEventKind struct {
-	V1ServerlessEndpointEventKind V1ServerlessEndpointEventKind `json:"v1_serverless_endpoint_event_kind"`
-	Valid                         bool                          `json:"valid"` // Valid is true if V1ServerlessEndpointEventKind is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1ServerlessEndpointEventKind) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1ServerlessEndpointEventKind, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1ServerlessEndpointEventKind.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1ServerlessEndpointEventKind) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1ServerlessEndpointEventKind), nil
-}
-
-func (e V1ServerlessEndpointEventKind) Valid() bool {
-	switch e {
-	case V1ServerlessEndpointEventKindHEALTHCHECKFAILED,
-		V1ServerlessEndpointEventKindUNHEALTHY,
-		V1ServerlessEndpointEventKindHEALTHY,
-		V1ServerlessEndpointEventKindCATALOGREGISTERED,
-		V1ServerlessEndpointEventKindCATALOGREJECTED,
-		V1ServerlessEndpointEventKindDELIVERYFAILED:
-		return true
-	}
-	return false
-}
-
-type V1ServerlessEndpointKind string
-
-const (
-	V1ServerlessEndpointKindGENERICHTTP       V1ServerlessEndpointKind = "GENERIC_HTTP"
-	V1ServerlessEndpointKindCLOUDFLAREWORKERS V1ServerlessEndpointKind = "CLOUDFLARE_WORKERS"
-	V1ServerlessEndpointKindVERCEL            V1ServerlessEndpointKind = "VERCEL"
-)
-
-func (e *V1ServerlessEndpointKind) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = V1ServerlessEndpointKind(s)
-	case string:
-		*e = V1ServerlessEndpointKind(s)
-	default:
-		return fmt.Errorf("unsupported scan type for V1ServerlessEndpointKind: %T", src)
-	}
-	return nil
-}
-
-type NullV1ServerlessEndpointKind struct {
-	V1ServerlessEndpointKind V1ServerlessEndpointKind `json:"v1_serverless_endpoint_kind"`
-	Valid                    bool                     `json:"valid"` // Valid is true if V1ServerlessEndpointKind is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1ServerlessEndpointKind) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1ServerlessEndpointKind, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1ServerlessEndpointKind.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1ServerlessEndpointKind) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1ServerlessEndpointKind), nil
-}
-
-func (e V1ServerlessEndpointKind) Valid() bool {
-	switch e {
-	case V1ServerlessEndpointKindGENERICHTTP,
-		V1ServerlessEndpointKindCLOUDFLAREWORKERS,
-		V1ServerlessEndpointKindVERCEL:
 		return true
 	}
 	return false
@@ -4085,23 +3313,23 @@ type StreamEvent struct {
 }
 
 type Tenant struct {
-	ID                    uuid.UUID                `json:"id"`
-	CreatedAt             pgtype.Timestamp         `json:"createdAt"`
-	UpdatedAt             pgtype.Timestamp         `json:"updatedAt"`
-	DeletedAt             pgtype.Timestamp         `json:"deletedAt"`
-	Version               TenantMajorEngineVersion `json:"version"`
-	UiVersion             TenantMajorUIVersion     `json:"uiVersion"`
-	Name                  string                   `json:"name"`
-	Slug                  string                   `json:"slug"`
-	AnalyticsOptOut       bool                     `json:"analyticsOptOut"`
-	AlertMemberEmails     bool                     `json:"alertMemberEmails"`
-	ControllerPartitionId pgtype.Text              `json:"controllerPartitionId"`
-	WorkerPartitionId     pgtype.Text              `json:"workerPartitionId"`
-	DataRetentionPeriod   string                   `json:"dataRetentionPeriod"`
-	SchedulerPartitionId  pgtype.Text              `json:"schedulerPartitionId"`
-	CanUpgradeV1          bool                     `json:"canUpgradeV1"`
-	OnboardingData        []byte                   `json:"onboardingData"`
-	Environment           NullTenantEnvironment    `json:"environment"`
+	ID                    uuid.UUID                      `json:"id"`
+	CreatedAt             pgtype.Timestamp               `json:"createdAt"`
+	UpdatedAt             pgtype.Timestamp               `json:"updatedAt"`
+	DeletedAt             pgtype.Timestamp               `json:"deletedAt"`
+	Version               enums.TenantMajorEngineVersion `json:"version"`
+	UiVersion             TenantMajorUIVersion           `json:"uiVersion"`
+	Name                  string                         `json:"name"`
+	Slug                  string                         `json:"slug"`
+	AnalyticsOptOut       bool                           `json:"analyticsOptOut"`
+	AlertMemberEmails     bool                           `json:"alertMemberEmails"`
+	ControllerPartitionId pgtype.Text                    `json:"controllerPartitionId"`
+	WorkerPartitionId     pgtype.Text                    `json:"workerPartitionId"`
+	DataRetentionPeriod   string                         `json:"dataRetentionPeriod"`
+	SchedulerPartitionId  pgtype.Text                    `json:"schedulerPartitionId"`
+	CanUpgradeV1          bool                           `json:"canUpgradeV1"`
+	OnboardingData        []byte                         `json:"onboardingData"`
+	Environment           NullTenantEnvironment          `json:"environment"`
 }
 
 type TenantAlertEmailGroup struct {
@@ -4142,40 +3370,40 @@ type TenantEntitlement struct {
 }
 
 type TenantInviteLink struct {
-	ID              uuid.UUID        `json:"id"`
-	CreatedAt       pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
-	TenantId        uuid.UUID        `json:"tenantId"`
-	InviterEmail    string           `json:"inviterEmail"`
-	InviteeEmail    string           `json:"inviteeEmail"`
-	Expires         pgtype.Timestamp `json:"expires"`
-	Status          InviteLinkStatus `json:"status"`
-	Role            TenantMemberRole `json:"role"`
-	CanViewPayloads bool             `json:"canViewPayloads"`
+	ID              uuid.UUID              `json:"id"`
+	CreatedAt       pgtype.Timestamp       `json:"createdAt"`
+	UpdatedAt       pgtype.Timestamp       `json:"updatedAt"`
+	TenantId        uuid.UUID              `json:"tenantId"`
+	InviterEmail    string                 `json:"inviterEmail"`
+	InviteeEmail    string                 `json:"inviteeEmail"`
+	Expires         pgtype.Timestamp       `json:"expires"`
+	Status          InviteLinkStatus       `json:"status"`
+	Role            enums.TenantMemberRole `json:"role"`
+	CanViewPayloads bool                   `json:"canViewPayloads"`
 }
 
 type TenantMember struct {
-	ID              uuid.UUID        `json:"id"`
-	CreatedAt       pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
-	TenantId        uuid.UUID        `json:"tenantId"`
-	UserId          uuid.UUID        `json:"userId"`
-	Role            TenantMemberRole `json:"role"`
-	CanViewPayloads bool             `json:"canViewPayloads"`
+	ID              uuid.UUID              `json:"id"`
+	CreatedAt       pgtype.Timestamp       `json:"createdAt"`
+	UpdatedAt       pgtype.Timestamp       `json:"updatedAt"`
+	TenantId        uuid.UUID              `json:"tenantId"`
+	UserId          uuid.UUID              `json:"userId"`
+	Role            enums.TenantMemberRole `json:"role"`
+	CanViewPayloads bool                   `json:"canViewPayloads"`
 }
 
 type TenantResourceLimit struct {
-	ID               uuid.UUID        `json:"id"`
-	CreatedAt        pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt        pgtype.Timestamp `json:"updatedAt"`
-	Resource         LimitResource    `json:"resource"`
-	TenantId         uuid.UUID        `json:"tenantId"`
-	LimitValue       int32            `json:"limitValue"`
-	AlarmValue       pgtype.Int4      `json:"alarmValue"`
-	Value            int32            `json:"value"`
-	Window           pgtype.Text      `json:"window"`
-	LastRefill       pgtype.Timestamp `json:"lastRefill"`
-	CustomValueMeter bool             `json:"customValueMeter"`
+	ID               uuid.UUID           `json:"id"`
+	CreatedAt        pgtype.Timestamp    `json:"createdAt"`
+	UpdatedAt        pgtype.Timestamp    `json:"updatedAt"`
+	Resource         enums.LimitResource `json:"resource"`
+	TenantId         uuid.UUID           `json:"tenantId"`
+	LimitValue       int32               `json:"limitValue"`
+	AlarmValue       pgtype.Int4         `json:"alarmValue"`
+	Value            int32               `json:"value"`
+	Window           pgtype.Text         `json:"window"`
+	LastRefill       pgtype.Timestamp    `json:"lastRefill"`
+	CustomValueMeter bool                `json:"customValueMeter"`
 }
 
 type TenantResourceLimitAlert struct {
@@ -4184,7 +3412,7 @@ type TenantResourceLimitAlert struct {
 	UpdatedAt       pgtype.Timestamp             `json:"updatedAt"`
 	ResourceLimitId uuid.UUID                    `json:"resourceLimitId"`
 	TenantId        uuid.UUID                    `json:"tenantId"`
-	Resource        LimitResource                `json:"resource"`
+	Resource        enums.LimitResource          `json:"resource"`
 	AlertType       TenantResourceLimitAlertType `json:"alertType"`
 	Value           int32                        `json:"value"`
 	Limit           int32                        `json:"limit"`
@@ -4468,22 +3696,22 @@ type V1DagToTaskOlap struct {
 }
 
 type V1DagsOlap struct {
-	ID                   int64                `json:"id"`
-	InsertedAt           pgtype.Timestamptz   `json:"inserted_at"`
-	TenantID             uuid.UUID            `json:"tenant_id"`
-	ExternalID           uuid.UUID            `json:"external_id"`
-	DisplayName          string               `json:"display_name"`
-	WorkflowID           uuid.UUID            `json:"workflow_id"`
-	WorkflowVersionID    uuid.UUID            `json:"workflow_version_id"`
-	ReadableStatus       V1ReadableStatusOlap `json:"readable_status"`
-	Input                []byte               `json:"input"`
-	AdditionalMetadata   []byte               `json:"additional_metadata"`
-	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
-	TotalTasks           int32                `json:"total_tasks"`
-	IdempotencyKey       pgtype.Text          `json:"idempotency_key"`
-	LatestRetryCount     int32                `json:"latest_retry_count"`
-	IsDagOperator        bool                 `json:"is_dag_operator"`
-	PayloadReferenceID   *uuid.UUID           `json:"payload_reference_id"`
+	ID                   int64                      `json:"id"`
+	InsertedAt           pgtype.Timestamptz         `json:"inserted_at"`
+	TenantID             uuid.UUID                  `json:"tenant_id"`
+	ExternalID           uuid.UUID                  `json:"external_id"`
+	DisplayName          string                     `json:"display_name"`
+	WorkflowID           uuid.UUID                  `json:"workflow_id"`
+	WorkflowVersionID    uuid.UUID                  `json:"workflow_version_id"`
+	ReadableStatus       enums.V1ReadableStatusOlap `json:"readable_status"`
+	Input                []byte                     `json:"input"`
+	AdditionalMetadata   []byte                     `json:"additional_metadata"`
+	ParentTaskExternalID *uuid.UUID                 `json:"parent_task_external_id"`
+	TotalTasks           int32                      `json:"total_tasks"`
+	IdempotencyKey       pgtype.Text                `json:"idempotency_key"`
+	LatestRetryCount     int32                      `json:"latest_retry_count"`
+	IsDagOperator        bool                       `json:"is_dag_operator"`
+	PayloadReferenceID   *uuid.UUID                 `json:"payload_reference_id"`
 }
 
 type V1DurableEventLogBranchPoint struct {
@@ -4499,26 +3727,26 @@ type V1DurableEventLogBranchPoint struct {
 }
 
 type V1DurableEventLogEntry struct {
-	TenantID                uuid.UUID             `json:"tenant_id"`
-	ExternalID              uuid.UUID             `json:"external_id"`
-	ResultPayloadExternalID uuid.UUID             `json:"result_payload_external_id"`
-	ChildTaskExternalID     *uuid.UUID            `json:"child_task_external_id"`
-	ChildTaskIsFailure      bool                  `json:"child_task_is_failure"`
-	ChildTaskErrorMessage   pgtype.Text           `json:"child_task_error_message"`
-	InsertedAt              pgtype.Timestamptz    `json:"inserted_at"`
-	ID                      int64                 `json:"id"`
-	DurableTaskID           int64                 `json:"durable_task_id"`
-	DurableTaskInsertedAt   pgtype.Timestamptz    `json:"durable_task_inserted_at"`
-	Kind                    V1DurableEventLogKind `json:"kind"`
-	NodeID                  int64                 `json:"node_id"`
-	BranchID                int64                 `json:"branch_id"`
-	IdempotencyKey          []byte                `json:"idempotency_key"`
-	IsSatisfied             bool                  `json:"is_satisfied"`
-	SatisfiedAt             pgtype.Timestamptz    `json:"satisfied_at"`
-	SatisfiedOrder          pgtype.Int8           `json:"satisfied_order"`
-	UserMessage             pgtype.Text           `json:"user_message"`
-	WaitData                []byte                `json:"wait_data"`
-	TriggeredAt             pgtype.Timestamptz    `json:"triggered_at"`
+	TenantID                uuid.UUID                   `json:"tenant_id"`
+	ExternalID              uuid.UUID                   `json:"external_id"`
+	ResultPayloadExternalID uuid.UUID                   `json:"result_payload_external_id"`
+	ChildTaskExternalID     *uuid.UUID                  `json:"child_task_external_id"`
+	ChildTaskIsFailure      bool                        `json:"child_task_is_failure"`
+	ChildTaskErrorMessage   pgtype.Text                 `json:"child_task_error_message"`
+	InsertedAt              pgtype.Timestamptz          `json:"inserted_at"`
+	ID                      int64                       `json:"id"`
+	DurableTaskID           int64                       `json:"durable_task_id"`
+	DurableTaskInsertedAt   pgtype.Timestamptz          `json:"durable_task_inserted_at"`
+	Kind                    enums.V1DurableEventLogKind `json:"kind"`
+	NodeID                  int64                       `json:"node_id"`
+	BranchID                int64                       `json:"branch_id"`
+	IdempotencyKey          []byte                      `json:"idempotency_key"`
+	IsSatisfied             bool                        `json:"is_satisfied"`
+	SatisfiedAt             pgtype.Timestamptz          `json:"satisfied_at"`
+	SatisfiedOrder          pgtype.Int8                 `json:"satisfied_order"`
+	UserMessage             pgtype.Text                 `json:"user_message"`
+	WaitData                []byte                      `json:"wait_data"`
+	TriggeredAt             pgtype.Timestamptz          `json:"triggered_at"`
 }
 
 type V1DurableEventLogFile struct {
@@ -4602,24 +3830,24 @@ type V1IdempotencyKey struct {
 }
 
 type V1IncomingWebhook struct {
-	TenantID                     uuid.UUID                          `json:"tenant_id"`
-	Name                         string                             `json:"name"`
-	SourceName                   V1IncomingWebhookSourceName        `json:"source_name"`
-	EventKeyExpression           string                             `json:"event_key_expression"`
-	ScopeExpression              pgtype.Text                        `json:"scope_expression"`
-	StaticPayload                []byte                             `json:"static_payload"`
-	ReturnEventAsResponsePayload bool                               `json:"return_event_as_response_payload"`
-	AuthMethod                   V1IncomingWebhookAuthType          `json:"auth_method"`
-	AuthBasicUsername            pgtype.Text                        `json:"auth__basic__username"`
-	AuthBasicPassword            []byte                             `json:"auth__basic__password"`
-	AuthApiKeyHeaderName         pgtype.Text                        `json:"auth__api_key__header_name"`
-	AuthApiKeyKey                []byte                             `json:"auth__api_key__key"`
-	AuthHmacAlgorithm            NullV1IncomingWebhookHmacAlgorithm `json:"auth__hmac__algorithm"`
-	AuthHmacEncoding             NullV1IncomingWebhookHmacEncoding  `json:"auth__hmac__encoding"`
-	AuthHmacSignatureHeaderName  pgtype.Text                        `json:"auth__hmac__signature_header_name"`
-	AuthHmacWebhookSigningSecret []byte                             `json:"auth__hmac__webhook_signing_secret"`
-	InsertedAt                   pgtype.Timestamptz                 `json:"inserted_at"`
-	UpdatedAt                    pgtype.Timestamptz                 `json:"updated_at"`
+	TenantID                     uuid.UUID                                `json:"tenant_id"`
+	Name                         string                                   `json:"name"`
+	SourceName                   enums.V1IncomingWebhookSourceName        `json:"source_name"`
+	EventKeyExpression           string                                   `json:"event_key_expression"`
+	ScopeExpression              pgtype.Text                              `json:"scope_expression"`
+	StaticPayload                []byte                                   `json:"static_payload"`
+	ReturnEventAsResponsePayload bool                                     `json:"return_event_as_response_payload"`
+	AuthMethod                   enums.V1IncomingWebhookAuthType          `json:"auth_method"`
+	AuthBasicUsername            pgtype.Text                              `json:"auth__basic__username"`
+	AuthBasicPassword            []byte                                   `json:"auth__basic__password"`
+	AuthApiKeyHeaderName         pgtype.Text                              `json:"auth__api_key__header_name"`
+	AuthApiKeyKey                []byte                                   `json:"auth__api_key__key"`
+	AuthHmacAlgorithm            enums.NullV1IncomingWebhookHmacAlgorithm `json:"auth__hmac__algorithm"`
+	AuthHmacEncoding             NullV1IncomingWebhookHmacEncoding        `json:"auth__hmac__encoding"`
+	AuthHmacSignatureHeaderName  pgtype.Text                              `json:"auth__hmac__signature_header_name"`
+	AuthHmacWebhookSigningSecret []byte                                   `json:"auth__hmac__webhook_signing_secret"`
+	InsertedAt                   pgtype.Timestamptz                       `json:"inserted_at"`
+	UpdatedAt                    pgtype.Timestamptz                       `json:"updated_at"`
 }
 
 type V1IncomingWebhookValidationFailuresOlap struct {
@@ -4891,18 +4119,18 @@ type V1RetryQueueItem struct {
 }
 
 type V1RunsOlap struct {
-	TenantID             uuid.UUID            `json:"tenant_id"`
-	ID                   int64                `json:"id"`
-	InsertedAt           pgtype.Timestamptz   `json:"inserted_at"`
-	ExternalID           uuid.UUID            `json:"external_id"`
-	ReadableStatus       V1ReadableStatusOlap `json:"readable_status"`
-	Kind                 V1RunKind            `json:"kind"`
-	WorkflowID           uuid.UUID            `json:"workflow_id"`
-	WorkflowVersionID    uuid.UUID            `json:"workflow_version_id"`
-	AdditionalMetadata   []byte               `json:"additional_metadata"`
-	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
-	IdempotencyKey       pgtype.Text          `json:"idempotency_key"`
-	FinishedAt           pgtype.Timestamptz   `json:"finished_at"`
+	TenantID             uuid.UUID                  `json:"tenant_id"`
+	ID                   int64                      `json:"id"`
+	InsertedAt           pgtype.Timestamptz         `json:"inserted_at"`
+	ExternalID           uuid.UUID                  `json:"external_id"`
+	ReadableStatus       enums.V1ReadableStatusOlap `json:"readable_status"`
+	Kind                 enums.V1RunKind            `json:"kind"`
+	WorkflowID           uuid.UUID                  `json:"workflow_id"`
+	WorkflowVersionID    uuid.UUID                  `json:"workflow_version_id"`
+	AdditionalMetadata   []byte                     `json:"additional_metadata"`
+	ParentTaskExternalID *uuid.UUID                 `json:"parent_task_external_id"`
+	IdempotencyKey       pgtype.Text                `json:"idempotency_key"`
+	FinishedAt           pgtype.Timestamptz         `json:"finished_at"`
 }
 
 type V1Sandbox struct {
@@ -4994,38 +4222,38 @@ type V1SandboxTurn struct {
 }
 
 type V1ServerlessEndpoint struct {
-	ID                    uuid.UUID                `json:"id"`
-	TenantID              uuid.UUID                `json:"tenant_id"`
-	Name                  string                   `json:"name"`
-	Kind                  V1ServerlessEndpointKind `json:"kind"`
-	HealthcheckUrl        string                   `json:"healthcheck_url"`
-	TriggerUrl            string                   `json:"trigger_url"`
-	SigningSecretEnc      string                   `json:"signing_secret_enc"`
-	RequestTimeoutSeconds int32                    `json:"request_timeout_seconds"`
-	PollIntervalSeconds   int32                    `json:"poll_interval_seconds"`
-	InlineWaitBudgetMs    int32                    `json:"inline_wait_budget_ms"`
-	Labels                []byte                   `json:"labels"`
-	Enabled               bool                     `json:"enabled"`
-	EndpointPartition     int32                    `json:"endpoint_partition"`
-	Healthy               pgtype.Bool              `json:"healthy"`
-	StatusError           pgtype.Text              `json:"status_error"`
-	StatusChangedAt       pgtype.Timestamptz       `json:"status_changed_at"`
-	RegisteredActions     []string                 `json:"registered_actions"`
-	CreatedAt             pgtype.Timestamptz       `json:"created_at"`
-	UpdatedAt             pgtype.Timestamptz       `json:"updated_at"`
-	StreamActions         []string                 `json:"stream_actions"`
-	DurableSupported      bool                     `json:"durable_supported"`
-	DeletedAt             pgtype.Timestamptz       `json:"deleted_at"`
+	ID                    uuid.UUID                      `json:"id"`
+	TenantID              uuid.UUID                      `json:"tenant_id"`
+	Name                  string                         `json:"name"`
+	Kind                  enums.V1ServerlessEndpointKind `json:"kind"`
+	HealthcheckUrl        string                         `json:"healthcheck_url"`
+	TriggerUrl            string                         `json:"trigger_url"`
+	SigningSecretEnc      string                         `json:"signing_secret_enc"`
+	RequestTimeoutSeconds int32                          `json:"request_timeout_seconds"`
+	PollIntervalSeconds   int32                          `json:"poll_interval_seconds"`
+	InlineWaitBudgetMs    int32                          `json:"inline_wait_budget_ms"`
+	Labels                []byte                         `json:"labels"`
+	Enabled               bool                           `json:"enabled"`
+	EndpointPartition     int32                          `json:"endpoint_partition"`
+	Healthy               pgtype.Bool                    `json:"healthy"`
+	StatusError           pgtype.Text                    `json:"status_error"`
+	StatusChangedAt       pgtype.Timestamptz             `json:"status_changed_at"`
+	RegisteredActions     []string                       `json:"registered_actions"`
+	CreatedAt             pgtype.Timestamptz             `json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz             `json:"updated_at"`
+	StreamActions         []string                       `json:"stream_actions"`
+	DurableSupported      bool                           `json:"durable_supported"`
+	DeletedAt             pgtype.Timestamptz             `json:"deleted_at"`
 }
 
 type V1ServerlessEndpointEvent struct {
-	ID         int64                         `json:"id"`
-	TenantID   uuid.UUID                     `json:"tenant_id"`
-	EndpointID uuid.UUID                     `json:"endpoint_id"`
-	CreatedAt  pgtype.Timestamptz            `json:"created_at"`
-	Kind       V1ServerlessEndpointEventKind `json:"kind"`
-	Message    string                        `json:"message"`
-	Details    []byte                        `json:"details"`
+	ID         int64                               `json:"id"`
+	TenantID   uuid.UUID                           `json:"tenant_id"`
+	EndpointID uuid.UUID                           `json:"endpoint_id"`
+	CreatedAt  pgtype.Timestamptz                  `json:"created_at"`
+	Kind       enums.V1ServerlessEndpointEventKind `json:"kind"`
+	Message    string                              `json:"message"`
+	Details    []byte                              `json:"details"`
 }
 
 type V1ServerlessLease struct {
@@ -5052,12 +4280,12 @@ type V1ServerlessTenant struct {
 }
 
 type V1StatusesOlap struct {
-	ExternalID     uuid.UUID            `json:"external_id"`
-	InsertedAt     pgtype.Timestamptz   `json:"inserted_at"`
-	TenantID       uuid.UUID            `json:"tenant_id"`
-	WorkflowID     uuid.UUID            `json:"workflow_id"`
-	Kind           V1RunKind            `json:"kind"`
-	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
+	ExternalID     uuid.UUID                  `json:"external_id"`
+	InsertedAt     pgtype.Timestamptz         `json:"inserted_at"`
+	TenantID       uuid.UUID                  `json:"tenant_id"`
+	WorkflowID     uuid.UUID                  `json:"workflow_id"`
+	Kind           enums.V1RunKind            `json:"kind"`
+	ReadableStatus enums.V1ReadableStatusOlap `json:"readable_status"`
 }
 
 type V1StepBatchConfig struct {
@@ -5070,19 +4298,19 @@ type V1StepBatchConfig struct {
 }
 
 type V1StepConcurrency struct {
-	ID                int64                 `json:"id"`
-	ParentStrategyID  pgtype.Int8           `json:"parent_strategy_id"`
-	WorkflowID        uuid.UUID             `json:"workflow_id"`
-	WorkflowVersionID uuid.UUID             `json:"workflow_version_id"`
-	StepID            uuid.UUID             `json:"step_id"`
-	IsActive          bool                  `json:"is_active"`
-	LastActiveAt      pgtype.Timestamptz    `json:"last_active_at"`
-	Strategy          V1ConcurrencyStrategy `json:"strategy"`
-	Expression        string                `json:"expression"`
-	TenantID          uuid.UUID             `json:"tenant_id"`
-	MaxConcurrency    int32                 `json:"max_concurrency"`
-	TenantStrategyID  pgtype.Int8           `json:"tenant_strategy_id"`
-	MaxRunsExpression pgtype.Text           `json:"max_runs_expression"`
+	ID                int64                       `json:"id"`
+	ParentStrategyID  pgtype.Int8                 `json:"parent_strategy_id"`
+	WorkflowID        uuid.UUID                   `json:"workflow_id"`
+	WorkflowVersionID uuid.UUID                   `json:"workflow_version_id"`
+	StepID            uuid.UUID                   `json:"step_id"`
+	IsActive          bool                        `json:"is_active"`
+	LastActiveAt      pgtype.Timestamptz          `json:"last_active_at"`
+	Strategy          enums.V1ConcurrencyStrategy `json:"strategy"`
+	Expression        string                      `json:"expression"`
+	TenantID          uuid.UUID                   `json:"tenant_id"`
+	MaxConcurrency    int32                       `json:"max_concurrency"`
+	TenantStrategyID  pgtype.Int8                 `json:"tenant_strategy_id"`
+	MaxRunsExpression pgtype.Text                 `json:"max_runs_expression"`
 }
 
 type V1StepMatchCondition struct {
@@ -5217,38 +4445,38 @@ type V1TaskEvent struct {
 }
 
 type V1TaskEventsOlap struct {
-	TenantID               uuid.UUID            `json:"tenant_id"`
-	ID                     int64                `json:"id"`
-	InsertedAt             pgtype.Timestamptz   `json:"inserted_at"`
-	ExternalID             uuid.UUID            `json:"external_id"`
-	TaskID                 int64                `json:"task_id"`
-	TaskInsertedAt         pgtype.Timestamptz   `json:"task_inserted_at"`
-	EventType              V1EventTypeOlap      `json:"event_type"`
-	WorkflowID             uuid.UUID            `json:"workflow_id"`
-	EventTimestamp         pgtype.Timestamptz   `json:"event_timestamp"`
-	ReadableStatus         V1ReadableStatusOlap `json:"readable_status"`
-	RetryCount             int32                `json:"retry_count"`
-	ErrorMessage           pgtype.Text          `json:"error_message"`
-	Output                 []byte               `json:"output"`
-	WorkerID               *uuid.UUID           `json:"worker_id"`
-	AdditionalEventData    pgtype.Text          `json:"additional__event_data"`
-	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
-	DurableInvocationCount int32                `json:"durable_invocation_count"`
-	IsDagOrchestrator      bool                 `json:"is_dag_orchestrator"`
-	PayloadReferenceID     *uuid.UUID           `json:"payload_reference_id"`
+	TenantID               uuid.UUID                  `json:"tenant_id"`
+	ID                     int64                      `json:"id"`
+	InsertedAt             pgtype.Timestamptz         `json:"inserted_at"`
+	ExternalID             uuid.UUID                  `json:"external_id"`
+	TaskID                 int64                      `json:"task_id"`
+	TaskInsertedAt         pgtype.Timestamptz         `json:"task_inserted_at"`
+	EventType              enums.V1EventTypeOlap      `json:"event_type"`
+	WorkflowID             uuid.UUID                  `json:"workflow_id"`
+	EventTimestamp         pgtype.Timestamptz         `json:"event_timestamp"`
+	ReadableStatus         enums.V1ReadableStatusOlap `json:"readable_status"`
+	RetryCount             int32                      `json:"retry_count"`
+	ErrorMessage           pgtype.Text                `json:"error_message"`
+	Output                 []byte                     `json:"output"`
+	WorkerID               *uuid.UUID                 `json:"worker_id"`
+	AdditionalEventData    pgtype.Text                `json:"additional__event_data"`
+	AdditionalEventMessage pgtype.Text                `json:"additional__event_message"`
+	DurableInvocationCount int32                      `json:"durable_invocation_count"`
+	IsDagOrchestrator      bool                       `json:"is_dag_orchestrator"`
+	PayloadReferenceID     *uuid.UUID                 `json:"payload_reference_id"`
 }
 
 type V1TaskEventsOlapTmp struct {
-	TenantID       uuid.UUID            `json:"tenant_id"`
-	RequeueAfter   pgtype.Timestamptz   `json:"requeue_after"`
-	RequeueRetries int32                `json:"requeue_retries"`
-	ID             int64                `json:"id"`
-	TaskID         int64                `json:"task_id"`
-	TaskInsertedAt pgtype.Timestamptz   `json:"task_inserted_at"`
-	EventType      V1EventTypeOlap      `json:"event_type"`
-	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
-	RetryCount     int32                `json:"retry_count"`
-	WorkerID       *uuid.UUID           `json:"worker_id"`
+	TenantID       uuid.UUID                  `json:"tenant_id"`
+	RequeueAfter   pgtype.Timestamptz         `json:"requeue_after"`
+	RequeueRetries int32                      `json:"requeue_retries"`
+	ID             int64                      `json:"id"`
+	TaskID         int64                      `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz         `json:"task_inserted_at"`
+	EventType      enums.V1EventTypeOlap      `json:"event_type"`
+	ReadableStatus enums.V1ReadableStatusOlap `json:"readable_status"`
+	RetryCount     int32                      `json:"retry_count"`
+	WorkerID       *uuid.UUID                 `json:"worker_id"`
 }
 
 type V1TaskExpressionEval struct {
@@ -5298,45 +4526,45 @@ type V1TaskStatusUpdatesTmp struct {
 }
 
 type V1TasksOlap struct {
-	TenantID             uuid.UUID            `json:"tenant_id"`
-	ID                   int64                `json:"id"`
-	InsertedAt           pgtype.Timestamptz   `json:"inserted_at"`
-	ExternalID           uuid.UUID            `json:"external_id"`
-	Queue                string               `json:"queue"`
-	ActionID             string               `json:"action_id"`
-	StepID               uuid.UUID            `json:"step_id"`
-	WorkflowID           uuid.UUID            `json:"workflow_id"`
-	WorkflowVersionID    uuid.UUID            `json:"workflow_version_id"`
-	WorkflowRunID        uuid.UUID            `json:"workflow_run_id"`
-	ScheduleTimeout      string               `json:"schedule_timeout"`
-	StepTimeout          pgtype.Text          `json:"step_timeout"`
-	Priority             pgtype.Int4          `json:"priority"`
-	Sticky               V1StickyStrategyOlap `json:"sticky"`
-	DesiredWorkerID      *uuid.UUID           `json:"desired_worker_id"`
-	DisplayName          string               `json:"display_name"`
-	Input                []byte               `json:"input"`
-	AdditionalMetadata   []byte               `json:"additional_metadata"`
-	ReadableStatus       V1ReadableStatusOlap `json:"readable_status"`
-	LatestRetryCount     int32                `json:"latest_retry_count"`
-	LatestWorkerID       *uuid.UUID           `json:"latest_worker_id"`
-	DagID                pgtype.Int8          `json:"dag_id"`
-	DagInsertedAt        pgtype.Timestamptz   `json:"dag_inserted_at"`
-	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
-	IsDurable            bool                 `json:"is_durable"`
-	IdempotencyKey       pgtype.Text          `json:"idempotency_key"`
-	PayloadReferenceID   *uuid.UUID           `json:"payload_reference_id"`
+	TenantID             uuid.UUID                  `json:"tenant_id"`
+	ID                   int64                      `json:"id"`
+	InsertedAt           pgtype.Timestamptz         `json:"inserted_at"`
+	ExternalID           uuid.UUID                  `json:"external_id"`
+	Queue                string                     `json:"queue"`
+	ActionID             string                     `json:"action_id"`
+	StepID               uuid.UUID                  `json:"step_id"`
+	WorkflowID           uuid.UUID                  `json:"workflow_id"`
+	WorkflowVersionID    uuid.UUID                  `json:"workflow_version_id"`
+	WorkflowRunID        uuid.UUID                  `json:"workflow_run_id"`
+	ScheduleTimeout      string                     `json:"schedule_timeout"`
+	StepTimeout          pgtype.Text                `json:"step_timeout"`
+	Priority             pgtype.Int4                `json:"priority"`
+	Sticky               V1StickyStrategyOlap       `json:"sticky"`
+	DesiredWorkerID      *uuid.UUID                 `json:"desired_worker_id"`
+	DisplayName          string                     `json:"display_name"`
+	Input                []byte                     `json:"input"`
+	AdditionalMetadata   []byte                     `json:"additional_metadata"`
+	ReadableStatus       enums.V1ReadableStatusOlap `json:"readable_status"`
+	LatestRetryCount     int32                      `json:"latest_retry_count"`
+	LatestWorkerID       *uuid.UUID                 `json:"latest_worker_id"`
+	DagID                pgtype.Int8                `json:"dag_id"`
+	DagInsertedAt        pgtype.Timestamptz         `json:"dag_inserted_at"`
+	ParentTaskExternalID *uuid.UUID                 `json:"parent_task_external_id"`
+	IsDurable            bool                       `json:"is_durable"`
+	IdempotencyKey       pgtype.Text                `json:"idempotency_key"`
+	PayloadReferenceID   *uuid.UUID                 `json:"payload_reference_id"`
 }
 
 type V1TenantConcurrency struct {
-	ID                int64                 `json:"id"`
-	TenantID          uuid.UUID             `json:"tenant_id"`
-	Name              string                `json:"name"`
-	IsActive          bool                  `json:"is_active"`
-	LastActiveAt      pgtype.Timestamptz    `json:"last_active_at"`
-	Strategy          V1ConcurrencyStrategy `json:"strategy"`
-	Expression        string                `json:"expression"`
-	MaxConcurrency    int32                 `json:"max_concurrency"`
-	MaxRunsExpression pgtype.Text           `json:"max_runs_expression"`
+	ID                int64                       `json:"id"`
+	TenantID          uuid.UUID                   `json:"tenant_id"`
+	Name              string                      `json:"name"`
+	IsActive          bool                        `json:"is_active"`
+	LastActiveAt      pgtype.Timestamptz          `json:"last_active_at"`
+	Strategy          enums.V1ConcurrencyStrategy `json:"strategy"`
+	Expression        string                      `json:"expression"`
+	MaxConcurrency    int32                       `json:"max_concurrency"`
+	MaxRunsExpression pgtype.Text                 `json:"max_runs_expression"`
 }
 
 type V1WorkerSlotConfig struct {
@@ -5349,15 +4577,15 @@ type V1WorkerSlotConfig struct {
 }
 
 type V1WorkflowConcurrency struct {
-	ID                int64                 `json:"id"`
-	WorkflowID        uuid.UUID             `json:"workflow_id"`
-	WorkflowVersionID uuid.UUID             `json:"workflow_version_id"`
-	IsActive          bool                  `json:"is_active"`
-	Strategy          V1ConcurrencyStrategy `json:"strategy"`
-	ChildStrategyIds  []int64               `json:"child_strategy_ids"`
-	Expression        string                `json:"expression"`
-	TenantID          uuid.UUID             `json:"tenant_id"`
-	MaxConcurrency    int32                 `json:"max_concurrency"`
+	ID                int64                       `json:"id"`
+	WorkflowID        uuid.UUID                   `json:"workflow_id"`
+	WorkflowVersionID uuid.UUID                   `json:"workflow_version_id"`
+	IsActive          bool                        `json:"is_active"`
+	Strategy          enums.V1ConcurrencyStrategy `json:"strategy"`
+	ChildStrategyIds  []int64                     `json:"child_strategy_ids"`
+	Expression        string                      `json:"expression"`
+	TenantID          uuid.UUID                   `json:"tenant_id"`
+	MaxConcurrency    int32                       `json:"max_concurrency"`
 }
 
 type V1WorkflowConcurrencySlot struct {

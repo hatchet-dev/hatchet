@@ -12,6 +12,7 @@ function createV2IndicatorVariant(eventType: V1TaskStatus | undefined) {
     case V1TaskStatus.FAILED:
       return 'border-transparent rounded-full bg-red-500';
     case V1TaskStatus.RUNNING:
+    case V1TaskStatus.EVICTED:
       return 'border-transparent rounded-full bg-yellow-500';
     case V1TaskStatus.QUEUED:
       return 'border-transparent rounded-full bg-slate-500';

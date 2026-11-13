@@ -17,6 +17,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/operator/hostgrpc"
 	"github.com/hatchet-dev/hatchet/pkg/operator/safeclient"
@@ -315,7 +316,7 @@ func TestCatalogRegisteredEventSurvivesAFailedSync(t *testing.T) {
 	poller.stop()
 
 	registered := func() []repository.ServerlessEndpointEventOpts {
-		return eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindCATALOGREGISTERED)
+		return eventsOfKind(env.repo, enums.V1ServerlessEndpointEventKindCATALOGREGISTERED)
 	}
 
 	// The new action is saved on the row, then the owner's registration refuses the delta.
@@ -370,7 +371,7 @@ func TestRejectedCatalogEventStaysPendingUntilRecorded(t *testing.T) {
 	reg.mu.Unlock()
 
 	rejectedEvents := func() []repository.ServerlessEndpointEventOpts {
-		return eventsOfKind(env.repo, sqlcv1.V1ServerlessEndpointEventKindCATALOGREJECTED)
+		return eventsOfKind(env.repo, enums.V1ServerlessEndpointEventKindCATALOGREJECTED)
 	}
 
 	first := &v1.CreateWorkflowVersionRequest{Name: "first", Tasks: []*v1.CreateTaskOpts{{ReadableId: "t", Action: "svc:first"}}}

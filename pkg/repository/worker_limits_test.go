@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -109,7 +110,7 @@ func TestCreateNewWorkerMetersOperatorWorkers(t *testing.T) {
 
 	t.Run("a metered operator worker over the worker limit is refused like an SDK worker", func(t *testing.T) {
 		tenantId := createLimitTestTenant(t, pool)
-		require.NoError(t, limits.UpdateLimits(ctx, tenantId, []Limit{{Resource: sqlcv1.LimitResourceWORKER, Limit: 1}}))
+		require.NoError(t, limits.UpdateLimits(ctx, tenantId, []Limit{{Resource: enums.LimitResourceWORKER, Limit: 1}}))
 
 		grpcOp := seedOperatorForLimits(t, ctx, pool, tenantId, sqlcv1.V1OperatorKindGRPC)
 		dagOp := seedOperatorForLimits(t, ctx, pool, tenantId, sqlcv1.V1OperatorKindDAG)
@@ -134,7 +135,7 @@ func TestCreateNewWorkerMetersOperatorWorkers(t *testing.T) {
 
 	t.Run("exempt workers do not count, whatever operator they back", func(t *testing.T) {
 		tenantId := createLimitTestTenant(t, pool)
-		require.NoError(t, limits.UpdateLimits(ctx, tenantId, []Limit{{Resource: sqlcv1.LimitResourceWORKER, Limit: 1}}))
+		require.NoError(t, limits.UpdateLimits(ctx, tenantId, []Limit{{Resource: enums.LimitResourceWORKER, Limit: 1}}))
 
 		dagOp := seedOperatorForLimits(t, ctx, pool, tenantId, sqlcv1.V1OperatorKindDAG)
 		grpcOp := seedOperatorForLimits(t, ctx, pool, tenantId, sqlcv1.V1OperatorKindGRPC)
@@ -152,8 +153,8 @@ func TestCreateNewWorkerMetersOperatorWorkers(t *testing.T) {
 	t.Run("a metered operator worker over the slot limit is refused", func(t *testing.T) {
 		tenantId := createLimitTestTenant(t, pool)
 		require.NoError(t, limits.UpdateLimits(ctx, tenantId, []Limit{
-			{Resource: sqlcv1.LimitResourceWORKER, Limit: 10},
-			{Resource: sqlcv1.LimitResourceWORKERSLOT, Limit: 5},
+			{Resource: enums.LimitResourceWORKER, Limit: 10},
+			{Resource: enums.LimitResourceWORKERSLOT, Limit: 5},
 		}))
 
 		grpcOp := seedOperatorForLimits(t, ctx, pool, tenantId, sqlcv1.V1OperatorKindGRPC)
@@ -164,7 +165,7 @@ func TestCreateNewWorkerMetersOperatorWorkers(t *testing.T) {
 
 	t.Run("units that cancel or wrap the sum do not skip the slot limit", func(t *testing.T) {
 		tenantId := createLimitTestTenant(t, pool)
-		require.NoError(t, limits.UpdateLimits(ctx, tenantId, []Limit{{Resource: sqlcv1.LimitResourceWORKERSLOT, Limit: 5}}))
+		require.NoError(t, limits.UpdateLimits(ctx, tenantId, []Limit{{Resource: enums.LimitResourceWORKERSLOT, Limit: 5}}))
 
 		for name, slotConfig := range map[string]map[string]int32{
 			"negative-offset": {SlotTypeDefault: 10, "offset": -10},
@@ -177,7 +178,7 @@ func TestCreateNewWorkerMetersOperatorWorkers(t *testing.T) {
 
 	t.Run("a worker of a DAG operator is metered unless exempted", func(t *testing.T) {
 		tenantId := createLimitTestTenant(t, pool)
-		require.NoError(t, limits.UpdateLimits(ctx, tenantId, []Limit{{Resource: sqlcv1.LimitResourceWORKER, Limit: 1}}))
+		require.NoError(t, limits.UpdateLimits(ctx, tenantId, []Limit{{Resource: enums.LimitResourceWORKER, Limit: 1}}))
 
 		dagOp := seedOperatorForLimits(t, ctx, pool, tenantId, sqlcv1.V1OperatorKindDAG)
 		seedActiveWorkerForLimits(t, ctx, pool, tenantId, &dagOp, false)
@@ -202,8 +203,8 @@ func TestGetLimitsCountsOnlyTheTenantsWorkerSlots(t *testing.T) {
 
 	for id, slots := range map[uuid.UUID]int32{tenantId: 3, otherTenantId: 5} {
 		require.NoError(t, limits.UpdateLimits(ctx, id, []Limit{
-			{Resource: sqlcv1.LimitResourceWORKER, Limit: 10},
-			{Resource: sqlcv1.LimitResourceWORKERSLOT, Limit: 100},
+			{Resource: enums.LimitResourceWORKER, Limit: 10},
+			{Resource: enums.LimitResourceWORKERSLOT, Limit: 100},
 		}))
 
 		worker, err := repo.CreateNewWorker(ctx, id, &CreateWorkerOpts{DispatcherId: dispatcherId, Name: "sdk", SlotConfig: map[string]int32{SlotTypeDefault: slots}})
@@ -217,7 +218,7 @@ func TestGetLimitsCountsOnlyTheTenantsWorkerSlots(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, l := range got {
-		if l.Resource == sqlcv1.LimitResourceWORKERSLOT {
+		if l.Resource == enums.LimitResourceWORKERSLOT {
 			assert.EqualValues(t, 3, l.Value)
 			return
 		}

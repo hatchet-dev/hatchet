@@ -7,53 +7,54 @@ import (
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 )
 
 // FormatEventType maps a V1TaskEventType enum to a human-readable string
 // Mapping taken from frontend: frontend/app/src/pages/main/v1/workflow-runs-v1/$run/v2components/events-columns.tsx
 func FormatEventType(eventType rest.V1TaskEventType) string {
 	switch eventType {
-	case rest.V1TaskEventTypeASSIGNED:
+	case enums.V1EventTypeOlapASSIGNED:
 		return "Assigned to worker"
-	case rest.V1TaskEventTypeSTARTED:
+	case enums.V1EventTypeOlapSTARTED:
 		return "Started"
-	case rest.V1TaskEventTypeFINISHED:
+	case enums.V1EventTypeOlapFINISHED:
 		return "Completed"
-	case rest.V1TaskEventTypeFAILED:
+	case enums.V1EventTypeOlapFAILED:
 		return "Failed"
-	case rest.V1TaskEventTypeCANCELLED:
+	case enums.V1EventTypeOlapCANCELLED:
 		return "Cancelled"
-	case rest.V1TaskEventTypeRETRYING:
+	case enums.V1EventTypeOlapRETRYING:
 		return "Retrying"
-	case rest.V1TaskEventTypeREQUEUEDNOWORKER:
+	case enums.V1EventTypeOlapREQUEUEDNOWORKER:
 		return "Requeuing (no worker available)"
-	case rest.V1TaskEventTypeREQUEUEDRATELIMIT:
+	case enums.V1EventTypeOlapREQUEUEDRATELIMIT:
 		return "Requeuing (rate limit)"
-	case rest.V1TaskEventTypeSCHEDULINGTIMEDOUT:
+	case enums.V1EventTypeOlapSCHEDULINGTIMEDOUT:
 		return "Scheduling timed out"
-	case rest.V1TaskEventTypeTIMEOUTREFRESHED:
+	case enums.V1EventTypeOlapTIMEOUTREFRESHED:
 		return "Timeout refreshed"
-	case rest.V1TaskEventTypeREASSIGNED:
+	case enums.V1EventTypeOlapREASSIGNED:
 		return "Reassigned"
-	case rest.V1TaskEventTypeTIMEDOUT:
+	case enums.V1EventTypeOlapTIMEDOUT:
 		return "Execution timed out"
-	case rest.V1TaskEventTypeSLOTRELEASED:
+	case enums.V1EventTypeOlapSLOTRELEASED:
 		return "Slot released"
-	case rest.V1TaskEventTypeRETRIEDBYUSER:
+	case enums.V1EventTypeOlapRETRIEDBYUSER:
 		return "Replayed by user"
-	case rest.V1TaskEventTypeACKNOWLEDGED:
+	case enums.V1EventTypeOlapACKNOWLEDGED:
 		return "Acknowledged by worker"
-	case rest.V1TaskEventTypeCREATED:
+	case enums.V1EventTypeOlapCREATED:
 		return "Created"
-	case rest.V1TaskEventTypeRATELIMITERROR:
+	case enums.V1EventTypeOlapRATELIMITERROR:
 		return "Rate limit error"
-	case rest.V1TaskEventTypeSENTTOWORKER:
+	case enums.V1EventTypeOlapSENTTOWORKER:
 		return "Sent to worker"
-	case rest.V1TaskEventTypeQUEUED:
+	case enums.V1EventTypeOlapQUEUED:
 		return "Queued"
-	case rest.V1TaskEventTypeSKIPPED:
+	case enums.V1EventTypeOlapSKIPPED:
 		return "Skipped"
-	case rest.V1TaskEventTypeCOULDNOTSENDTOWORKER:
+	case enums.V1EventTypeOlapCOULDNOTSENDTOWORKER:
 		return "Could not send to worker"
 	default:
 		return "Unknown"
@@ -86,19 +87,19 @@ const (
 func GetEventSeverity(eventType rest.V1TaskEventType) EventSeverity {
 	switch eventType {
 	// CRITICAL: Red events
-	case rest.V1TaskEventTypeFAILED,
-		rest.V1TaskEventTypeRATELIMITERROR,
-		rest.V1TaskEventTypeSCHEDULINGTIMEDOUT,
-		rest.V1TaskEventTypeTIMEDOUT,
-		rest.V1TaskEventTypeCANCELLED:
+	case enums.V1EventTypeOlapFAILED,
+		enums.V1EventTypeOlapRATELIMITERROR,
+		enums.V1EventTypeOlapSCHEDULINGTIMEDOUT,
+		enums.V1EventTypeOlapTIMEDOUT,
+		enums.V1EventTypeOlapCANCELLED:
 		return EventSeverityCritical
 
 	// WARNING: Yellow events
-	case rest.V1TaskEventTypeREASSIGNED,
-		rest.V1TaskEventTypeREQUEUEDNOWORKER,
-		rest.V1TaskEventTypeREQUEUEDRATELIMIT,
-		rest.V1TaskEventTypeRETRIEDBYUSER,
-		rest.V1TaskEventTypeRETRYING:
+	case enums.V1EventTypeOlapREASSIGNED,
+		enums.V1EventTypeOlapREQUEUEDNOWORKER,
+		enums.V1EventTypeOlapREQUEUEDRATELIMIT,
+		enums.V1EventTypeOlapRETRIEDBYUSER,
+		enums.V1EventTypeOlapRETRYING:
 		return EventSeverityWarning
 
 	// INFO: Green events (default)

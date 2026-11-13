@@ -13,6 +13,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	cliconfig "github.com/hatchet-dev/hatchet/pkg/config/cli"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 )
 
 const (
@@ -565,7 +566,7 @@ func waitTimeout(seconds int) time.Duration {
 
 func isTerminalStatus(status rest.V1TaskStatus) bool {
 	switch status {
-	case rest.V1TaskStatusCOMPLETED, rest.V1TaskStatusFAILED, rest.V1TaskStatusCANCELLED:
+	case enums.V1ReadableStatusOlapCOMPLETED, enums.V1ReadableStatusOlapFAILED, enums.V1ReadableStatusOlapCANCELLED:
 		return true
 	default:
 		return false
@@ -670,7 +671,7 @@ func runSummary(details *rest.V1WorkflowRunDetails) map[string]any {
 
 	var failedTasks []map[string]any
 	for _, task := range details.Tasks {
-		if task.Status == rest.V1TaskStatusFAILED && task.ErrorMessage != nil && *task.ErrorMessage != "" {
+		if task.Status == enums.V1ReadableStatusOlapFAILED && task.ErrorMessage != nil && *task.ErrorMessage != "" {
 			failedTasks = append(failedTasks, map[string]any{
 				"task":         task.DisplayName,
 				"errorMessage": *task.ErrorMessage,

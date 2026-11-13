@@ -7,6 +7,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -27,7 +28,7 @@ func TestCanViewPayloads(t *testing.T) {
 	t.Run("member flag false", func(t *testing.T) {
 		c := newCtx()
 		c.Set("tenant-member", &sqlcv1.PopulateTenantMembersRow{
-			Role:            sqlcv1.TenantMemberRoleMEMBER,
+			Role:            enums.TenantMemberRoleMEMBER,
 			CanViewPayloads: false,
 		})
 		if CanViewPayloads(c) {
@@ -38,7 +39,7 @@ func TestCanViewPayloads(t *testing.T) {
 	t.Run("member flag true", func(t *testing.T) {
 		c := newCtx()
 		c.Set("tenant-member", &sqlcv1.PopulateTenantMembersRow{
-			Role:            sqlcv1.TenantMemberRoleMEMBER,
+			Role:            enums.TenantMemberRoleMEMBER,
 			CanViewPayloads: true,
 		})
 		if !CanViewPayloads(c) {
@@ -49,7 +50,7 @@ func TestCanViewPayloads(t *testing.T) {
 	t.Run("admin always", func(t *testing.T) {
 		c := newCtx()
 		c.Set("tenant-member", &sqlcv1.PopulateTenantMembersRow{
-			Role:            sqlcv1.TenantMemberRoleADMIN,
+			Role:            enums.TenantMemberRoleADMIN,
 			CanViewPayloads: false,
 		})
 		if !CanViewPayloads(c) {
@@ -60,7 +61,7 @@ func TestCanViewPayloads(t *testing.T) {
 	t.Run("owner always", func(t *testing.T) {
 		c := newCtx()
 		c.Set("tenant-member", &sqlcv1.PopulateTenantMembersRow{
-			Role:            sqlcv1.TenantMemberRoleOWNER,
+			Role:            enums.TenantMemberRoleOWNER,
 			CanViewPayloads: false,
 		})
 		if !CanViewPayloads(c) {
@@ -71,7 +72,7 @@ func TestCanViewPayloads(t *testing.T) {
 	t.Run("viewer flag false", func(t *testing.T) {
 		c := newCtx()
 		c.Set("tenant-member", &sqlcv1.PopulateTenantMembersRow{
-			Role:            sqlcv1.TenantMemberRoleVIEWER,
+			Role:            enums.TenantMemberRoleVIEWER,
 			CanViewPayloads: false,
 		})
 		if CanViewPayloads(c) {

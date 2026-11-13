@@ -34,6 +34,7 @@ const RUN_STATUS_META: Record<V1TaskStatus, { label: string; dot: string }> = {
   [V1TaskStatus.QUEUED]: { label: 'Queued', dot: 'bg-slate-500' },
   [V1TaskStatus.FAILED]: { label: 'Failed', dot: 'bg-red-500' },
   [V1TaskStatus.CANCELLED]: { label: 'Cancelled', dot: 'bg-orange-500' },
+  [V1TaskStatus.EVICTED]: { label: 'Evicted', dot: 'bg-yellow-500' },
 };
 
 const STATUS_ORDER = [

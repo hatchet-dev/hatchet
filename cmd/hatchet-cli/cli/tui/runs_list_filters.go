@@ -12,6 +12,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 )
 
 // RunsListFilters holds the current filter state
@@ -28,11 +29,11 @@ func NewDefaultRunsListFilters() *RunsListFilters {
 	return &RunsListFilters{
 		WorkflowIDs: []string{}, // Empty means all workflows
 		Statuses: map[rest.V1TaskStatus]bool{
-			rest.V1TaskStatusCOMPLETED: true,
-			rest.V1TaskStatusFAILED:    true,
-			rest.V1TaskStatusCANCELLED: true,
-			rest.V1TaskStatusRUNNING:   true,
-			rest.V1TaskStatusQUEUED:    true,
+			enums.V1ReadableStatusOlapCOMPLETED: true,
+			enums.V1ReadableStatusOlapFAILED:    true,
+			enums.V1ReadableStatusOlapCANCELLED: true,
+			enums.V1ReadableStatusOlapRUNNING:   true,
+			enums.V1ReadableStatusOlapQUEUED:    true,
 		},
 		TimeWindow: "1d", // 24 hours default
 		Since:      time.Now().Add(-24 * time.Hour),
@@ -127,11 +128,11 @@ func BuildRunsListFiltersForm(filters *RunsListFilters, workflows []WorkflowOpti
 				Title("Statuses").
 				Description("x/space to toggle | Enter to confirm").
 				Options(
-					huh.NewOption("Completed", rest.V1TaskStatusCOMPLETED),
-					huh.NewOption("Failed", rest.V1TaskStatusFAILED),
-					huh.NewOption("Cancelled", rest.V1TaskStatusCANCELLED),
-					huh.NewOption("Running", rest.V1TaskStatusRUNNING),
-					huh.NewOption("Queued", rest.V1TaskStatusQUEUED),
+					huh.NewOption("Completed", enums.V1ReadableStatusOlapCOMPLETED),
+					huh.NewOption("Failed", enums.V1ReadableStatusOlapFAILED),
+					huh.NewOption("Cancelled", enums.V1ReadableStatusOlapCANCELLED),
+					huh.NewOption("Running", enums.V1ReadableStatusOlapRUNNING),
+					huh.NewOption("Queued", enums.V1ReadableStatusOlapQUEUED),
 				).
 				Value(statusSlice).
 				Filterable(false),
@@ -245,11 +246,11 @@ func (m *filterFormModel) Init() tea.Cmd {
 				Title("Statuses").
 				Description("x/space to toggle | Enter to confirm").
 				Options(
-					huh.NewOption("Completed", rest.V1TaskStatusCOMPLETED),
-					huh.NewOption("Failed", rest.V1TaskStatusFAILED),
-					huh.NewOption("Cancelled", rest.V1TaskStatusCANCELLED),
-					huh.NewOption("Running", rest.V1TaskStatusRUNNING),
-					huh.NewOption("Queued", rest.V1TaskStatusQUEUED),
+					huh.NewOption("Completed", enums.V1ReadableStatusOlapCOMPLETED),
+					huh.NewOption("Failed", enums.V1ReadableStatusOlapFAILED),
+					huh.NewOption("Cancelled", enums.V1ReadableStatusOlapCANCELLED),
+					huh.NewOption("Running", enums.V1ReadableStatusOlapRUNNING),
+					huh.NewOption("Queued", enums.V1ReadableStatusOlapQUEUED),
 				).
 				Value(currentFiltersToSlice(m.currentFilters)).
 				Filterable(false),
@@ -357,11 +358,11 @@ func ShowFiltersForm(currentFilters *RunsListFilters, workflows []WorkflowOption
 			huh.NewMultiSelect[rest.V1TaskStatus]().
 				Title("Statuses").
 				Options(
-					huh.NewOption("Completed", rest.V1TaskStatusCOMPLETED),
-					huh.NewOption("Failed", rest.V1TaskStatusFAILED),
-					huh.NewOption("Cancelled", rest.V1TaskStatusCANCELLED),
-					huh.NewOption("Running", rest.V1TaskStatusRUNNING),
-					huh.NewOption("Queued", rest.V1TaskStatusQUEUED),
+					huh.NewOption("Completed", enums.V1ReadableStatusOlapCOMPLETED),
+					huh.NewOption("Failed", enums.V1ReadableStatusOlapFAILED),
+					huh.NewOption("Cancelled", enums.V1ReadableStatusOlapCANCELLED),
+					huh.NewOption("Running", enums.V1ReadableStatusOlapRUNNING),
+					huh.NewOption("Queued", enums.V1ReadableStatusOlapQUEUED),
 				).
 				Value(currentFiltersToSlice(currentFilters)).
 				Filterable(false),

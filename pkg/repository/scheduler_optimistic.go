@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -27,7 +28,7 @@ func (r *optimisticSchedulingRepositoryImpl) StartTx(ctx context.Context, tenant
 }
 
 func (r *optimisticSchedulingRepositoryImpl) TriggerFromEvents(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, opts []EventTriggerOpts) ([]*sqlcv1.V1QueueItem, *TriggerFromEventsResult, error) {
-	pre, post := r.m.Meter(ctx, tx.tx, sqlcv1.LimitResourceEVENT, tenantId, int32(len(opts))) // nolint: gosec
+	pre, post := r.m.Meter(ctx, tx.tx, enums.LimitResourceEVENT, tenantId, int32(len(opts))) // nolint: gosec
 
 	if err := pre(); err != nil {
 		return nil, nil, err

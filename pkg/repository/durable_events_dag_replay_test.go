@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -51,7 +52,7 @@ func ingestDagStepTriggerResult(
 	return repo.IngestDurableTaskEvent(ctx, IngestDurableTaskEventOpts{
 		BaseIngestEventOpts: &BaseIngestEventOpts{
 			Task:            task,
-			Kind:            sqlcv1.V1DurableEventLogKindRUN,
+			Kind:            enums.V1DurableEventLogKindRUN,
 			InvocationCount: invocationCount,
 			TenantId:        tenantID,
 		},

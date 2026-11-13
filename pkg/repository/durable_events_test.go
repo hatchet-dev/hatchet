@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
 	"github.com/stretchr/testify/assert"
@@ -171,7 +172,7 @@ func TestResolveBranchForNode_SiblingBranchForkAfterSibling(t *testing.T) {
 
 func strPtr(s string) *string { return &s }
 
-func keyFromKind(t *testing.T, kind sqlcv1.V1DurableEventLogKind, triggerOpts *WorkflowNameTriggerOpts, waitForConditions []CreateExternalSignalConditionOpt) string {
+func keyFromKind(t *testing.T, kind enums.V1DurableEventLogKind, triggerOpts *WorkflowNameTriggerOpts, waitForConditions []CreateExternalSignalConditionOpt) string {
 	t.Helper()
 	r := &durableEventsRepository{}
 	k, err := r.createIdempotencyKey(kind, triggerOpts, waitForConditions)
@@ -193,17 +194,17 @@ func TestCreateIdempotencyKey_ConditionOrderInvariant(t *testing.T) {
 		UserEventKey:    strPtr("some-event"),
 	}
 
-	keyAB := keyFromKind(t, sqlcv1.V1DurableEventLogKindWAITFOR, nil, []CreateExternalSignalConditionOpt{condA, condB})
-	keyBA := keyFromKind(t, sqlcv1.V1DurableEventLogKindWAITFOR, nil, []CreateExternalSignalConditionOpt{condB, condA})
+	keyAB := keyFromKind(t, enums.V1DurableEventLogKindWAITFOR, nil, []CreateExternalSignalConditionOpt{condA, condB})
+	keyBA := keyFromKind(t, enums.V1DurableEventLogKindWAITFOR, nil, []CreateExternalSignalConditionOpt{condB, condA})
 
 	assert.Equal(t, keyAB, keyBA)
 }
 
 func TestCreateIdempotencyKey_DifferentConditions(t *testing.T) {
-	base := keyFromKind(t, sqlcv1.V1DurableEventLogKindWAITFOR, nil, []CreateExternalSignalConditionOpt{
+	base := keyFromKind(t, enums.V1DurableEventLogKindWAITFOR, nil, []CreateExternalSignalConditionOpt{
 		{Kind: CreateExternalSignalConditionKindSLEEP, Expression: "true", ReadableDataKey: "output", SleepFor: strPtr("5s")},
 	})
-	different := keyFromKind(t, sqlcv1.V1DurableEventLogKindWAITFOR, nil, []CreateExternalSignalConditionOpt{
+	different := keyFromKind(t, enums.V1DurableEventLogKindWAITFOR, nil, []CreateExternalSignalConditionOpt{
 		{Kind: CreateExternalSignalConditionKindSLEEP, Expression: "true", ReadableDataKey: "output", SleepFor: strPtr("30s")},
 	})
 
@@ -211,9 +212,9 @@ func TestCreateIdempotencyKey_DifferentConditions(t *testing.T) {
 }
 
 func TestCreateIdempotencyKey_DifferentKind(t *testing.T) {
-	run := keyFromKind(t, sqlcv1.V1DurableEventLogKindRUN, nil, nil)
-	waitFor := keyFromKind(t, sqlcv1.V1DurableEventLogKindWAITFOR, nil, nil)
-	memo := keyFromKind(t, sqlcv1.V1DurableEventLogKindMEMO, nil, nil)
+	run := keyFromKind(t, enums.V1DurableEventLogKindRUN, nil, nil)
+	waitFor := keyFromKind(t, enums.V1DurableEventLogKindWAITFOR, nil, nil)
+	memo := keyFromKind(t, enums.V1DurableEventLogKindMEMO, nil, nil)
 
 	assert.NotEqual(t, run, waitFor)
 	assert.NotEqual(t, run, memo)
@@ -221,10 +222,10 @@ func TestCreateIdempotencyKey_DifferentKind(t *testing.T) {
 }
 
 func TestCreateIdempotencyKey_DifferentWorkflowName(t *testing.T) {
-	keyA := keyFromKind(t, sqlcv1.V1DurableEventLogKindRUN, &WorkflowNameTriggerOpts{
+	keyA := keyFromKind(t, enums.V1DurableEventLogKindRUN, &WorkflowNameTriggerOpts{
 		TriggerTaskData: &TriggerTaskData{WorkflowName: "workflow-a"},
 	}, nil)
-	keyB := keyFromKind(t, sqlcv1.V1DurableEventLogKindRUN, &WorkflowNameTriggerOpts{
+	keyB := keyFromKind(t, enums.V1DurableEventLogKindRUN, &WorkflowNameTriggerOpts{
 		TriggerTaskData: &TriggerTaskData{WorkflowName: "workflow-b"},
 	}, nil)
 
@@ -232,10 +233,10 @@ func TestCreateIdempotencyKey_DifferentWorkflowName(t *testing.T) {
 }
 
 func TestCreateIdempotencyKey_DifferentTriggerData(t *testing.T) {
-	keyA := keyFromKind(t, sqlcv1.V1DurableEventLogKindRUN, &WorkflowNameTriggerOpts{
+	keyA := keyFromKind(t, enums.V1DurableEventLogKindRUN, &WorkflowNameTriggerOpts{
 		TriggerTaskData: &TriggerTaskData{WorkflowName: "my-workflow", Data: []byte(`{"x":1}`)},
 	}, nil)
-	keyB := keyFromKind(t, sqlcv1.V1DurableEventLogKindRUN, &WorkflowNameTriggerOpts{
+	keyB := keyFromKind(t, enums.V1DurableEventLogKindRUN, &WorkflowNameTriggerOpts{
 		TriggerTaskData: &TriggerTaskData{WorkflowName: "my-workflow", Data: []byte(`{"x":2}`)},
 	}, nil)
 
@@ -243,8 +244,8 @@ func TestCreateIdempotencyKey_DifferentTriggerData(t *testing.T) {
 }
 
 func TestCreateIdempotencyKey_WithAndWithoutTriggerOpts(t *testing.T) {
-	without := keyFromKind(t, sqlcv1.V1DurableEventLogKindRUN, nil, nil)
-	with := keyFromKind(t, sqlcv1.V1DurableEventLogKindRUN, &WorkflowNameTriggerOpts{
+	without := keyFromKind(t, enums.V1DurableEventLogKindRUN, nil, nil)
+	with := keyFromKind(t, enums.V1DurableEventLogKindRUN, &WorkflowNameTriggerOpts{
 		TriggerTaskData: &TriggerTaskData{WorkflowName: "my-workflow"},
 	}, nil)
 
@@ -266,8 +267,8 @@ func dagStepTriggerOpts(actionId string, childIndex int64) *WorkflowNameTriggerO
 }
 
 func TestCreateIdempotencyKey_DagStepsOfSameWorkflowDiffer(t *testing.T) {
-	stepA := keyFromKind(t, sqlcv1.V1DurableEventLogKindRUN, dagStepTriggerOpts("my-dag:step-a", 9), nil)
-	stepB := keyFromKind(t, sqlcv1.V1DurableEventLogKindRUN, dagStepTriggerOpts("my-dag:step-b", 13), nil)
+	stepA := keyFromKind(t, enums.V1DurableEventLogKindRUN, dagStepTriggerOpts("my-dag:step-a", 9), nil)
+	stepB := keyFromKind(t, enums.V1DurableEventLogKindRUN, dagStepTriggerOpts("my-dag:step-b", 13), nil)
 
 	assert.NotEqual(t, stepA, stepB)
 }
@@ -288,10 +289,10 @@ func TestIdempotencyKeyMatches_ChildRunMatchesByKey(t *testing.T) {
 func int32Ptr(i int32) *int32 { return &i }
 
 func TestCreateIdempotencyKey_PriorityIgnored(t *testing.T) {
-	base := keyFromKind(t, sqlcv1.V1DurableEventLogKindRUN, &WorkflowNameTriggerOpts{
+	base := keyFromKind(t, enums.V1DurableEventLogKindRUN, &WorkflowNameTriggerOpts{
 		TriggerTaskData: &TriggerTaskData{WorkflowName: "my-workflow", Data: []byte(`{"x":1}`)},
 	}, nil)
-	withPriority := keyFromKind(t, sqlcv1.V1DurableEventLogKindRUN, &WorkflowNameTriggerOpts{
+	withPriority := keyFromKind(t, enums.V1DurableEventLogKindRUN, &WorkflowNameTriggerOpts{
 		TriggerTaskData: &TriggerTaskData{WorkflowName: "my-workflow", Data: []byte(`{"x":1}`), Priority: int32Ptr(3)},
 	}, nil)
 
@@ -299,10 +300,10 @@ func TestCreateIdempotencyKey_PriorityIgnored(t *testing.T) {
 }
 
 func TestCreateIdempotencyKey_AdditionalMetadataIgnored(t *testing.T) {
-	base := keyFromKind(t, sqlcv1.V1DurableEventLogKindRUN, &WorkflowNameTriggerOpts{
+	base := keyFromKind(t, enums.V1DurableEventLogKindRUN, &WorkflowNameTriggerOpts{
 		TriggerTaskData: &TriggerTaskData{WorkflowName: "my-workflow", Data: []byte(`{"x":1}`)},
 	}, nil)
-	withMeta := keyFromKind(t, sqlcv1.V1DurableEventLogKindRUN, &WorkflowNameTriggerOpts{
+	withMeta := keyFromKind(t, enums.V1DurableEventLogKindRUN, &WorkflowNameTriggerOpts{
 		TriggerTaskData: &TriggerTaskData{
 			WorkflowName:       "my-workflow",
 			Data:               []byte(`{"x":1}`),
@@ -369,7 +370,7 @@ func TestNonDeterminismError_ImplementsError(t *testing.T) {
 
 func TestFormatCall_Run(t *testing.T) {
 	opts := IngestDurableTaskEventOpts{
-		BaseIngestEventOpts: &BaseIngestEventOpts{Kind: sqlcv1.V1DurableEventLogKindRUN},
+		BaseIngestEventOpts: &BaseIngestEventOpts{Kind: enums.V1DurableEventLogKindRUN},
 		TriggerRuns: &IngestTriggerRunsOpts{
 			TriggerOpts: []*WorkflowNameTriggerOpts{
 				{TriggerTaskData: &TriggerTaskData{WorkflowName: "wf-a"}},
@@ -382,7 +383,7 @@ func TestFormatCall_Run(t *testing.T) {
 
 func TestFormatCall_WaitFor(t *testing.T) {
 	opts := IngestDurableTaskEventOpts{
-		BaseIngestEventOpts: &BaseIngestEventOpts{Kind: sqlcv1.V1DurableEventLogKindWAITFOR},
+		BaseIngestEventOpts: &BaseIngestEventOpts{Kind: enums.V1DurableEventLogKindWAITFOR},
 		WaitFor: &IngestWaitForOpts{
 			WaitForConditions: []CreateExternalSignalConditionOpt{
 				{Kind: CreateExternalSignalConditionKindSLEEP, SleepFor: strPtr("10s")},
@@ -395,7 +396,7 @@ func TestFormatCall_WaitFor(t *testing.T) {
 
 func TestFormatCall_Memo(t *testing.T) {
 	opts := IngestDurableTaskEventOpts{
-		BaseIngestEventOpts: &BaseIngestEventOpts{Kind: sqlcv1.V1DurableEventLogKindMEMO},
+		BaseIngestEventOpts: &BaseIngestEventOpts{Kind: enums.V1DurableEventLogKindMEMO},
 	}
 	assert.Equal(t, "memo", opts.formatCall())
 }
@@ -412,7 +413,7 @@ func TestFormatCall_RunBulkWithDuplicates(t *testing.T) {
 		&WorkflowNameTriggerOpts{TriggerTaskData: &TriggerTaskData{WorkflowName: "wf-c"}},
 	)
 	opts := IngestDurableTaskEventOpts{
-		BaseIngestEventOpts: &BaseIngestEventOpts{Kind: sqlcv1.V1DurableEventLogKindRUN},
+		BaseIngestEventOpts: &BaseIngestEventOpts{Kind: enums.V1DurableEventLogKindRUN},
 		TriggerRuns:         &IngestTriggerRunsOpts{TriggerOpts: triggers},
 	}
 	assert.Equal(t, "run(wf-a, wf-a, wf-a, wf-a, wf-a, wf-a, wf-b, wf-c)", opts.formatCall())
@@ -427,7 +428,7 @@ func TestFormatCall_RunBulkExceedsMaxLabels(t *testing.T) {
 		}
 	}
 	opts := IngestDurableTaskEventOpts{
-		BaseIngestEventOpts: &BaseIngestEventOpts{Kind: sqlcv1.V1DurableEventLogKindRUN},
+		BaseIngestEventOpts: &BaseIngestEventOpts{Kind: enums.V1DurableEventLogKindRUN},
 		TriggerRuns:         &IngestTriggerRunsOpts{TriggerOpts: triggers},
 	}
 	assert.Equal(t, "run(a, b, c, d, e, f, g)", opts.formatCall())
@@ -447,7 +448,7 @@ func TestFormatCall_WaitForBulkMixed(t *testing.T) {
 		CreateExternalSignalConditionOpt{Kind: CreateExternalSignalConditionKindUSEREVENT, UserEventKey: strPtr("ev4")},
 	)
 	opts := IngestDurableTaskEventOpts{
-		BaseIngestEventOpts: &BaseIngestEventOpts{Kind: sqlcv1.V1DurableEventLogKindWAITFOR},
+		BaseIngestEventOpts: &BaseIngestEventOpts{Kind: enums.V1DurableEventLogKindWAITFOR},
 		WaitFor:             &IngestWaitForOpts{WaitForConditions: conditions},
 	}
 	assert.Equal(t, "any of: sleep(5s), sleep(5s), sleep(5s), sleep(5s), event(ev1), event(ev2), event(ev3), event(ev4)", opts.formatCall())
@@ -462,7 +463,7 @@ func TestFormatCall_RunExactlyAtMaxLabels(t *testing.T) {
 		}
 	}
 	opts := IngestDurableTaskEventOpts{
-		BaseIngestEventOpts: &BaseIngestEventOpts{Kind: sqlcv1.V1DurableEventLogKindRUN},
+		BaseIngestEventOpts: &BaseIngestEventOpts{Kind: enums.V1DurableEventLogKindRUN},
 		TriggerRuns:         &IngestTriggerRunsOpts{TriggerOpts: triggers},
 	}
 	assert.Equal(t, "run(a, b, c, d, e)", opts.formatCall())
@@ -472,19 +473,19 @@ func TestFormatStoredPayload_Run(t *testing.T) {
 	payload, _ := json.Marshal(WorkflowNameTriggerOpts{
 		TriggerTaskData: &TriggerTaskData{WorkflowName: "my-workflow"},
 	})
-	assert.Equal(t, "run(my-workflow)", formatStoredPayload(sqlcv1.V1DurableEventLogKindRUN, payload))
+	assert.Equal(t, "run(my-workflow)", formatStoredPayload(enums.V1DurableEventLogKindRUN, payload))
 }
 
 func TestFormatStoredPayload_WaitFor(t *testing.T) {
 	payload, _ := json.Marshal([]CreateExternalSignalConditionOpt{
 		{Kind: CreateExternalSignalConditionKindSLEEP, SleepFor: strPtr("2s")},
 	})
-	assert.Equal(t, "sleep(2s)", formatStoredPayload(sqlcv1.V1DurableEventLogKindWAITFOR, payload))
+	assert.Equal(t, "sleep(2s)", formatStoredPayload(enums.V1DurableEventLogKindWAITFOR, payload))
 }
 
 func TestFormatStoredPayload_NoPayload(t *testing.T) {
-	assert.Equal(t, "MEMO", formatStoredPayload(sqlcv1.V1DurableEventLogKindMEMO, nil))
-	assert.Equal(t, "RUN", formatStoredPayload(sqlcv1.V1DurableEventLogKindRUN, nil))
+	assert.Equal(t, "MEMO", formatStoredPayload(enums.V1DurableEventLogKindMEMO, nil))
+	assert.Equal(t, "RUN", formatStoredPayload(enums.V1DurableEventLogKindRUN, nil))
 }
 
 func TestNonDeterminismDetail_WithPayload(t *testing.T) {
@@ -492,28 +493,28 @@ func TestNonDeterminismDetail_WithPayload(t *testing.T) {
 		{Kind: CreateExternalSignalConditionKindSLEEP, SleepFor: strPtr("2s")},
 	})
 	opts := IngestDurableTaskEventOpts{
-		BaseIngestEventOpts: &BaseIngestEventOpts{Kind: sqlcv1.V1DurableEventLogKindWAITFOR},
+		BaseIngestEventOpts: &BaseIngestEventOpts{Kind: enums.V1DurableEventLogKindWAITFOR},
 		WaitFor: &IngestWaitForOpts{
 			WaitForConditions: []CreateExternalSignalConditionOpt{
 				{Kind: CreateExternalSignalConditionKindSLEEP, SleepFor: strPtr("4s")},
 			},
 		},
 	}
-	detail := nonDeterminismDetail(opts, sqlcv1.V1DurableEventLogKindWAITFOR, existingPayload)
+	detail := nonDeterminismDetail(opts, enums.V1DurableEventLogKindWAITFOR, existingPayload)
 	assert.Equal(t, "sleep(2s)", detail.Expected)
 	assert.Equal(t, "sleep(4s)", detail.Received)
 }
 
 func TestNonDeterminismDetail_KindMismatch(t *testing.T) {
 	opts := IngestDurableTaskEventOpts{
-		BaseIngestEventOpts: &BaseIngestEventOpts{Kind: sqlcv1.V1DurableEventLogKindRUN},
+		BaseIngestEventOpts: &BaseIngestEventOpts{Kind: enums.V1DurableEventLogKindRUN},
 		TriggerRuns: &IngestTriggerRunsOpts{
 			TriggerOpts: []*WorkflowNameTriggerOpts{
 				{TriggerTaskData: &TriggerTaskData{WorkflowName: "my-wf"}},
 			},
 		},
 	}
-	detail := nonDeterminismDetail(opts, sqlcv1.V1DurableEventLogKindMEMO, nil)
+	detail := nonDeterminismDetail(opts, enums.V1DurableEventLogKindMEMO, nil)
 	assert.Equal(t, "MEMO", detail.Expected)
 	assert.Equal(t, "run(my-wf)", detail.Received)
 }

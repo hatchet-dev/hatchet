@@ -14,6 +14,7 @@ import (
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -37,7 +38,7 @@ func (i *IngestorImpl) ingestEventV1(ctx context.Context, tenant *sqlcv1.Tenant,
 
 	canCreateEvents, eLimit, err := i.repov1.TenantLimit().CanCreate(
 		ctx,
-		sqlcv1.LimitResourceEVENT,
+		enums.LimitResourceEVENT,
 		tenantId,
 		1,
 	)
@@ -220,7 +221,7 @@ func (i *IngestorImpl) bulkIngestEventV1(ctx context.Context, tenant *sqlcv1.Ten
 
 	canCreateEvents, eLimit, err := i.repov1.TenantLimit().CanCreate(
 		ctx,
-		sqlcv1.LimitResourceEVENT,
+		enums.LimitResourceEVENT,
 		tenantId,
 		int32(count), // nolint: gosec
 	)

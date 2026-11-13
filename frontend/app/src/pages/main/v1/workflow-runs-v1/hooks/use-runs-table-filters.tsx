@@ -17,6 +17,7 @@ import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
 import {
   V1AdditionalMetadataOperator,
   V1RunningFilter,
+  FILTERABLE_TASK_STATUSES,
   V1TaskStatus,
 } from '@/lib/api';
 import { useSearchParams } from '@/lib/router-helpers';
@@ -87,7 +88,7 @@ const createApiFilterSchema = (initialValues?: { workflowIds?: string[] }) =>
     u: z.string().optional(), // until
     st: z
       .array(z.nativeEnum(V1TaskStatus))
-      .default(() => Object.values(V1TaskStatus)), // statuses
+      .default(() => FILTERABLE_TASK_STATUSES), // statuses
     w: z // workflow ids
       .array(z.string())
       .optional()
@@ -260,7 +261,7 @@ export const useRunsTableFilters = (
   const setStatuses = useCallback(
     (statuses: V1TaskStatus[]) => {
       const finalStatuses =
-        statuses.length > 0 ? statuses : Object.values(V1TaskStatus);
+        statuses.length > 0 ? statuses : FILTERABLE_TASK_STATUSES;
 
       const newColumnFilters = columnFilters
         .filter((f) => f.id !== statusKey)

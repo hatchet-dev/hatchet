@@ -5,12 +5,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func newCancelInProgressStrategy(repo repository.ConcurrencyRepository, maxConcurrency int32) *ConcurrencyStrategy {
-	return newTestStrategyKind(repo, maxConcurrency, sqlcv1.V1ConcurrencyStrategyCANCELINPROGRESS)
+	return newTestStrategyKind(repo, maxConcurrency, enums.V1ConcurrencyStrategyCANCELINPROGRESS)
 }
 
 // At capacity, a higher-priority arrival cancels the lowest-priority running task (in-progress

@@ -15,6 +15,7 @@ import (
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/streams"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/o11yusage"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -67,7 +68,7 @@ type unlimitedTenants struct {
 	v1.TenantLimitRepository
 }
 
-func (unlimitedTenants) Meter(context.Context, sqlcv1.DBTX, sqlcv1.LimitResource, uuid.UUID, int32) (func() error, func()) {
+func (unlimitedTenants) Meter(context.Context, sqlcv1.DBTX, enums.LimitResource, uuid.UUID, int32) (func() error, func()) {
 	return func() error { return nil }, func() {}
 }
 

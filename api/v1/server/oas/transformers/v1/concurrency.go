@@ -16,7 +16,7 @@ func ToV1ConcurrencyStrategy(s *repository.ConcurrencyStrategySummary) gen.V1Con
 		WorkflowId:        s.WorkflowID,
 		WorkflowVersionId: s.WorkflowVersionID,
 		Expression:        s.Expression,
-		LimitStrategy:     gen.V1ConcurrencyLimitStrategy(s.Strategy),
+		LimitStrategy:     s.Strategy,
 		MaxRuns:           s.MaxRuns,
 		MaxRunsExpression: s.MaxRunsExpression,
 		IsDraining:        s.IsDraining,

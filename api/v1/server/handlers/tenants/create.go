@@ -10,6 +10,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -60,10 +61,10 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 
 	createOpts.Entitlements = &t.config.DefaultTenantEntitlements
 
-	var engineVersion *sqlcv1.TenantMajorEngineVersion
+	var engineVersion *enums.TenantMajorEngineVersion
 
 	if request.Body.EngineVersion != nil {
-		ver := sqlcv1.TenantMajorEngineVersion(*request.Body.EngineVersion)
+		ver := *request.Body.EngineVersion
 		engineVersion = &ver
 	}
 

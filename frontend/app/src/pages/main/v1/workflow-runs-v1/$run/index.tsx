@@ -77,6 +77,7 @@ function statusToBadgeVariant(status: V1TaskStatus) {
     case V1TaskStatus.QUEUED:
       return 'queued';
     case V1TaskStatus.RUNNING:
+    case V1TaskStatus.EVICTED:
       return 'inProgress';
     default: {
       const exhaustivenessCheck: never = status;

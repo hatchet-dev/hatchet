@@ -3,6 +3,7 @@ package authz
 import (
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -15,7 +16,7 @@ func CanViewPayloads(c echo.Context) bool {
 		return true
 	}
 
-	if member.Role == sqlcv1.TenantMemberRoleOWNER || member.Role == sqlcv1.TenantMemberRoleADMIN {
+	if member.Role == enums.TenantMemberRoleOWNER || member.Role == enums.TenantMemberRoleADMIN {
 		return true
 	}
 

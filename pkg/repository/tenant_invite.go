@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -173,7 +174,7 @@ func (r *tenantInviteRepository) CreateTenantInvite(ctx context.Context, tenantI
 			Inviteremail:    opts.InviterEmail,
 			Inviteeemail:    opts.InviteeEmail,
 			Expires:         sqlchelpers.TimestampFromTime(opts.ExpiresAt),
-			Role:            sqlcv1.TenantMemberRole(opts.Role),
+			Role:            enums.TenantMemberRole(opts.Role),
 			CanViewPayloads: canViewPayloadsParam(opts.CanViewPayloads),
 		},
 	)
@@ -251,8 +252,8 @@ func (r *tenantInviteRepository) UpdateTenantInvite(ctx context.Context, tenantI
 	}
 
 	if opts.Role != nil {
-		params.Role = sqlcv1.NullTenantMemberRole{
-			TenantMemberRole: sqlcv1.TenantMemberRole(*opts.Role),
+		params.Role = enums.NullTenantMemberRole{
+			TenantMemberRole: enums.TenantMemberRole(*opts.Role),
 			Valid:            true,
 		}
 	}

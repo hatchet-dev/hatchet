@@ -18,6 +18,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -690,13 +691,13 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 	if !opts.IsExemptFromLimits {
 		var preWorker, preWorkerSlot func() error
 
-		preWorker, postWorker = w.m.Meter(ctx, nil, sqlcv1.LimitResourceWORKER, tenantId, 1)
+		preWorker, postWorker = w.m.Meter(ctx, nil, enums.LimitResourceWORKER, tenantId, 1)
 
 		if err := preWorker(); err != nil {
 			return nil, err
 		}
 
-		preWorkerSlot, postWorkerSlot = w.m.Meter(ctx, nil, sqlcv1.LimitResourceWORKERSLOT, tenantId, slots)
+		preWorkerSlot, postWorkerSlot = w.m.Meter(ctx, nil, enums.LimitResourceWORKERSLOT, tenantId, slots)
 
 		if err := preWorkerSlot(); err != nil {
 			return nil, err

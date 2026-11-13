@@ -3,6 +3,9 @@ V1WorkflowType:
   enum:
     - DAG
     - TASK
+  x-go-type: enums.V1RunKind
+  x-go-type-import:
+    path: github.com/hatchet-dev/hatchet/pkg/enums
 
 V1TaskSummary:
   properties:
@@ -291,6 +294,10 @@ V1TaskStatus:
     - COMPLETED
     - CANCELLED
     - FAILED
+    - EVICTED
+  x-go-type: enums.V1ReadableStatusOlap
+  x-go-type-import:
+    path: github.com/hatchet-dev/hatchet/pkg/enums
 
 V1RunningFilter:
   type: string
@@ -333,6 +340,10 @@ V1TaskEventType:
     - COULD_NOT_SEND_TO_WORKER
     - DURABLE_EVICTED
     - DURABLE_RESTORING
+    - BATCH_BUFFERED
+  x-go-type: enums.V1EventTypeOlap
+  x-go-type-import:
+    path: github.com/hatchet-dev/hatchet/pkg/enums
 
 V1RestoreTaskResponse:
   type: object

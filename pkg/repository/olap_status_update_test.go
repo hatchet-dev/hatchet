@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/limits"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -144,7 +145,7 @@ func createReplayTask(t *testing.T, ctx context.Context, repo *OLAPRepositoryImp
 	require.Empty(t, locksNotAcquired)
 }
 
-func (f replayStatusFixture) event(eventType sqlcv1.V1EventTypeOlap, status sqlcv1.V1ReadableStatusOlap, retryCount int32) sqlcv1.CreateTaskEventsOLAPParams {
+func (f replayStatusFixture) event(eventType enums.V1EventTypeOlap, status enums.V1ReadableStatusOlap, retryCount int32) sqlcv1.CreateTaskEventsOLAPParams {
 	e := sqlcv1.CreateTaskEventsOLAPParams{
 		TenantID:       f.tenantId,
 		TaskID:         f.taskId,
@@ -158,7 +159,7 @@ func (f replayStatusFixture) event(eventType sqlcv1.V1EventTypeOlap, status sqlc
 		ExternalID:     f.externalId,
 	}
 
-	if eventType == sqlcv1.V1EventTypeOlapASSIGNED {
+	if eventType == enums.V1EventTypeOlapASSIGNED {
 		workerId := f.workerId
 		e.WorkerID = &workerId
 	}
@@ -207,26 +208,26 @@ func assertOLAPRunStatus(t *testing.T, ctx context.Context, pool *pgxpool.Pool, 
 // in a batch before its queued/assigned events.
 func replayEventBatches(f replayStatusFixture) [3][]sqlcv1.CreateTaskEventsOLAPParams {
 	initialLifecycle := []sqlcv1.CreateTaskEventsOLAPParams{
-		f.event(sqlcv1.V1EventTypeOlapQUEUED, sqlcv1.V1ReadableStatusOlapQUEUED, 0),
-		f.event(sqlcv1.V1EventTypeOlapASSIGNED, sqlcv1.V1ReadableStatusOlapRUNNING, 0),
-		f.event(sqlcv1.V1EventTypeOlapSTARTED, sqlcv1.V1ReadableStatusOlapRUNNING, 0),
-		f.event(sqlcv1.V1EventTypeOlapFAILED, sqlcv1.V1ReadableStatusOlapFAILED, 0),
-		f.event(sqlcv1.V1EventTypeOlapRETRYING, sqlcv1.V1ReadableStatusOlapQUEUED, 1),
-		f.event(sqlcv1.V1EventTypeOlapASSIGNED, sqlcv1.V1ReadableStatusOlapRUNNING, 1),
-		f.event(sqlcv1.V1EventTypeOlapSTARTED, sqlcv1.V1ReadableStatusOlapRUNNING, 1),
-		f.event(sqlcv1.V1EventTypeOlapFINISHED, sqlcv1.V1ReadableStatusOlapCOMPLETED, 1),
+		f.event(enums.V1EventTypeOlapQUEUED, enums.V1ReadableStatusOlapQUEUED, 0),
+		f.event(enums.V1EventTypeOlapASSIGNED, enums.V1ReadableStatusOlapRUNNING, 0),
+		f.event(enums.V1EventTypeOlapSTARTED, enums.V1ReadableStatusOlapRUNNING, 0),
+		f.event(enums.V1EventTypeOlapFAILED, enums.V1ReadableStatusOlapFAILED, 0),
+		f.event(enums.V1EventTypeOlapRETRYING, enums.V1ReadableStatusOlapQUEUED, 1),
+		f.event(enums.V1EventTypeOlapASSIGNED, enums.V1ReadableStatusOlapRUNNING, 1),
+		f.event(enums.V1EventTypeOlapSTARTED, enums.V1ReadableStatusOlapRUNNING, 1),
+		f.event(enums.V1EventTypeOlapFINISHED, enums.V1ReadableStatusOlapCOMPLETED, 1),
 	}
 
 	replayCompletion := []sqlcv1.CreateTaskEventsOLAPParams{
-		f.event(sqlcv1.V1EventTypeOlapSENTTOWORKER, sqlcv1.V1ReadableStatusOlapRUNNING, 2),
-		f.event(sqlcv1.V1EventTypeOlapSTARTED, sqlcv1.V1ReadableStatusOlapRUNNING, 2),
-		f.event(sqlcv1.V1EventTypeOlapFINISHED, sqlcv1.V1ReadableStatusOlapCOMPLETED, 2),
+		f.event(enums.V1EventTypeOlapSENTTOWORKER, enums.V1ReadableStatusOlapRUNNING, 2),
+		f.event(enums.V1EventTypeOlapSTARTED, enums.V1ReadableStatusOlapRUNNING, 2),
+		f.event(enums.V1EventTypeOlapFINISHED, enums.V1ReadableStatusOlapCOMPLETED, 2),
 	}
 
 	replayQueueing := []sqlcv1.CreateTaskEventsOLAPParams{
-		f.event(sqlcv1.V1EventTypeOlapRETRIEDBYUSER, sqlcv1.V1ReadableStatusOlapQUEUED, 2),
-		f.event(sqlcv1.V1EventTypeOlapQUEUED, sqlcv1.V1ReadableStatusOlapQUEUED, 2),
-		f.event(sqlcv1.V1EventTypeOlapASSIGNED, sqlcv1.V1ReadableStatusOlapRUNNING, 2),
+		f.event(enums.V1EventTypeOlapRETRIEDBYUSER, enums.V1ReadableStatusOlapQUEUED, 2),
+		f.event(enums.V1EventTypeOlapQUEUED, enums.V1ReadableStatusOlapQUEUED, 2),
+		f.event(enums.V1EventTypeOlapASSIGNED, enums.V1ReadableStatusOlapRUNNING, 2),
 	}
 
 	return [3][]sqlcv1.CreateTaskEventsOLAPParams{initialLifecycle, replayCompletion, replayQueueing}
@@ -383,13 +384,13 @@ func TestOLAPStatusUpdate_RetriedFailureIsNotTerminal(t *testing.T) {
 	}
 
 	applyBatch(t, []sqlcv1.CreateTaskEventsOLAPParams{
-		f.event(sqlcv1.V1EventTypeOlapQUEUED, sqlcv1.V1ReadableStatusOlapQUEUED, 0),
-		f.event(sqlcv1.V1EventTypeOlapASSIGNED, sqlcv1.V1ReadableStatusOlapRUNNING, 0),
-		f.event(sqlcv1.V1EventTypeOlapSTARTED, sqlcv1.V1ReadableStatusOlapRUNNING, 0),
+		f.event(enums.V1EventTypeOlapQUEUED, enums.V1ReadableStatusOlapQUEUED, 0),
+		f.event(enums.V1EventTypeOlapASSIGNED, enums.V1ReadableStatusOlapRUNNING, 0),
+		f.event(enums.V1EventTypeOlapSTARTED, enums.V1ReadableStatusOlapRUNNING, 0),
 	}, nil)
 	assertOLAPTaskStatus(t, ctx, pool, f, "RUNNING", 0)
 
-	retriedFailure := f.event(sqlcv1.V1EventTypeOlapFAILED, sqlcv1.V1ReadableStatusOlapFAILED, 0)
+	retriedFailure := f.event(enums.V1EventTypeOlapFAILED, enums.V1ReadableStatusOlapFAILED, 0)
 	retriedFailure.ExternalID = uuid.New()
 
 	result := applyBatch(t, []sqlcv1.CreateTaskEventsOLAPParams{retriedFailure}, map[uuid.UUID]struct{}{retriedFailure.ExternalID: {}})
@@ -403,24 +404,24 @@ func TestOLAPStatusUpdate_RetriedFailureIsNotTerminal(t *testing.T) {
 
 	var failedEvents int64
 	for _, e := range events {
-		if e.EventType == sqlcv1.V1EventTypeOlapFAILED && e.RetryCount == 0 {
+		if e.EventType == enums.V1EventTypeOlapFAILED && e.RetryCount == 0 {
 			failedEvents += e.Count
 		}
 	}
 	assert.Equal(t, int64(1), failedEvents, "the retried failure is still recorded as an event")
 
 	applyBatch(t, []sqlcv1.CreateTaskEventsOLAPParams{
-		f.event(sqlcv1.V1EventTypeOlapRETRYING, sqlcv1.V1ReadableStatusOlapQUEUED, 1),
-		f.event(sqlcv1.V1EventTypeOlapASSIGNED, sqlcv1.V1ReadableStatusOlapRUNNING, 1),
+		f.event(enums.V1EventTypeOlapRETRYING, enums.V1ReadableStatusOlapQUEUED, 1),
+		f.event(enums.V1EventTypeOlapASSIGNED, enums.V1ReadableStatusOlapRUNNING, 1),
 	}, nil)
 	assertOLAPTaskStatus(t, ctx, pool, f, "RUNNING", 1)
 
 	result = applyBatch(t, []sqlcv1.CreateTaskEventsOLAPParams{
-		f.event(sqlcv1.V1EventTypeOlapFAILED, sqlcv1.V1ReadableStatusOlapFAILED, 1),
+		f.event(enums.V1EventTypeOlapFAILED, enums.V1ReadableStatusOlapFAILED, 1),
 	}, nil)
 	require.NotNil(t, result)
 	require.Len(t, result.TaskRows, 1)
-	assert.Equal(t, sqlcv1.V1ReadableStatusOlapFAILED, result.TaskRows[0].ReadableStatus)
+	assert.Equal(t, enums.V1ReadableStatusOlapFAILED, result.TaskRows[0].ReadableStatus)
 	assertOLAPTaskStatus(t, ctx, pool, f, "FAILED", 1)
 	assertOLAPRunStatus(t, ctx, pool, f, "FAILED")
 }

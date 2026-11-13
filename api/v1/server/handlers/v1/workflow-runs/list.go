@@ -14,6 +14,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -21,7 +22,7 @@ import (
 	transformers "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 )
 
-func olapStatuses(statuses *[]gen.V1TaskStatus, runningFilter *gen.V1RunningFilter) ([]sqlcv1.V1ReadableStatusOlap, error) {
+func olapStatuses(statuses *[]gen.V1TaskStatus, runningFilter *gen.V1RunningFilter) ([]enums.V1ReadableStatusOlap, error) {
 	var raw []gen.V1TaskStatus
 	if statuses != nil {
 		raw = *statuses
@@ -36,7 +37,7 @@ func olapStatuses(statuses *[]gen.V1TaskStatus, runningFilter *gen.V1RunningFilt
 }
 
 type workflowRunFilters struct {
-	Statuses                   []sqlcv1.V1ReadableStatusOlap
+	Statuses                   []enums.V1ReadableStatusOlap
 	Since                      time.Time
 	Until                      *time.Time
 	AdditionalMetadata         *[]string
@@ -205,7 +206,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 	dagExternalIds := make([]uuid.UUID, 0)
 
 	for _, dag := range dags {
-		if dag.Kind == sqlcv1.V1RunKindDAG {
+		if dag.Kind == enums.V1RunKindDAG {
 			dagExternalIds = append(dagExternalIds, dag.ExternalID)
 		}
 	}

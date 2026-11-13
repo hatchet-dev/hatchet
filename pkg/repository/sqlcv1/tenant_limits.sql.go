@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -131,22 +132,22 @@ WHERE "tenantId" = $1::uuid
 `
 
 type GetTenantResourceLimitParams struct {
-	Tenantid uuid.UUID         `json:"tenantid"`
-	Resource NullLimitResource `json:"resource"`
+	Tenantid uuid.UUID               `json:"tenantid"`
+	Resource enums.NullLimitResource `json:"resource"`
 }
 
 type GetTenantResourceLimitRow struct {
-	ID               uuid.UUID        `json:"id"`
-	CreatedAt        pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt        pgtype.Timestamp `json:"updatedAt"`
-	Resource         LimitResource    `json:"resource"`
-	TenantId         uuid.UUID        `json:"tenantId"`
-	LimitValue       int32            `json:"limitValue"`
-	AlarmValue       pgtype.Int4      `json:"alarmValue"`
-	Value            int32            `json:"value"`
-	Window           pgtype.Text      `json:"window"`
-	LastRefill       pgtype.Timestamp `json:"lastRefill"`
-	CustomValueMeter bool             `json:"customValueMeter"`
+	ID               uuid.UUID           `json:"id"`
+	CreatedAt        pgtype.Timestamp    `json:"createdAt"`
+	UpdatedAt        pgtype.Timestamp    `json:"updatedAt"`
+	Resource         enums.LimitResource `json:"resource"`
+	TenantId         uuid.UUID           `json:"tenantId"`
+	LimitValue       int32               `json:"limitValue"`
+	AlarmValue       pgtype.Int4         `json:"alarmValue"`
+	Value            int32               `json:"value"`
+	Window           pgtype.Text         `json:"window"`
+	LastRefill       pgtype.Timestamp    `json:"lastRefill"`
+	CustomValueMeter bool                `json:"customValueMeter"`
 }
 
 func (q *Queries) GetTenantResourceLimit(ctx context.Context, db DBTX, arg GetTenantResourceLimitParams) (*GetTenantResourceLimitRow, error) {
@@ -280,9 +281,9 @@ RETURNING id, "createdAt", "updatedAt", resource, "tenantId", "limitValue", "ala
 `
 
 type MeterTenantResourceParams struct {
-	Numresources int32             `json:"numresources"`
-	Tenantid     uuid.UUID         `json:"tenantid"`
-	Resource     NullLimitResource `json:"resource"`
+	Numresources int32                   `json:"numresources"`
+	Tenantid     uuid.UUID               `json:"tenantid"`
+	Resource     enums.NullLimitResource `json:"resource"`
 }
 
 func (q *Queries) MeterTenantResource(ctx context.Context, db DBTX, arg MeterTenantResourceParams) (*TenantResourceLimit, error) {
@@ -319,17 +320,17 @@ FROM resolved_limits
 `
 
 type ResolveAllLimitsIfWindowPassedRow struct {
-	ID               uuid.UUID        `json:"id"`
-	CreatedAt        pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt        pgtype.Timestamp `json:"updatedAt"`
-	Resource         LimitResource    `json:"resource"`
-	TenantId         uuid.UUID        `json:"tenantId"`
-	LimitValue       int32            `json:"limitValue"`
-	AlarmValue       pgtype.Int4      `json:"alarmValue"`
-	Value            int32            `json:"value"`
-	Window           pgtype.Text      `json:"window"`
-	LastRefill       pgtype.Timestamp `json:"lastRefill"`
-	CustomValueMeter bool             `json:"customValueMeter"`
+	ID               uuid.UUID           `json:"id"`
+	CreatedAt        pgtype.Timestamp    `json:"createdAt"`
+	UpdatedAt        pgtype.Timestamp    `json:"updatedAt"`
+	Resource         enums.LimitResource `json:"resource"`
+	TenantId         uuid.UUID           `json:"tenantId"`
+	LimitValue       int32               `json:"limitValue"`
+	AlarmValue       pgtype.Int4         `json:"alarmValue"`
+	Value            int32               `json:"value"`
+	Window           pgtype.Text         `json:"window"`
+	LastRefill       pgtype.Timestamp    `json:"lastRefill"`
+	CustomValueMeter bool                `json:"customValueMeter"`
 }
 
 func (q *Queries) ResolveAllLimitsIfWindowPassed(ctx context.Context, db DBTX) ([]*ResolveAllLimitsIfWindowPassedRow, error) {
