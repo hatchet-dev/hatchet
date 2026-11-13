@@ -3107,17 +3107,6 @@ func (r *sharedRepository) satisfyOperatorStepChildEntries(ctx context.Context, 
 	satisfiedEntries := make([]SatisfiedEntry, 0, len(satisfiedRows))
 	payloadsToStore := make([]StorePayloadOpts, 0, len(satisfiedRows))
 
-	// the child's internal event is dropped, so a completion match left from spawning it (kept for
-	// pods that still resolve completions through matching) would never be consumed
-	deleteMatchParams := sqlcv1.DeleteRunEntryCompletionMatchesParams{
-		Tenantid:               tenantId,
-		Childexternalids:       make([]string, 0, len(satisfiedRows)),
-		Durabletaskids:         make([]int64, 0, len(satisfiedRows)),
-		Durabletaskinsertedats: make([]pgtype.Timestamptz, 0, len(satisfiedRows)),
-		Nodeids:                make([]int64, 0, len(satisfiedRows)),
-		Branchids:              make([]int64, 0, len(satisfiedRows)),
-	}
-
 	for _, row := range satisfiedRows {
 		if row.ChildTaskExternalID == nil {
 			continue
@@ -3128,12 +3117,6 @@ func (r *sharedRepository) satisfyOperatorStepChildEntries(ctx context.Context, 
 		if !ok {
 			continue
 		}
-
-		deleteMatchParams.Childexternalids = append(deleteMatchParams.Childexternalids, row.ChildTaskExternalID.String())
-		deleteMatchParams.Durabletaskids = append(deleteMatchParams.Durabletaskids, row.DurableTaskID)
-		deleteMatchParams.Durabletaskinsertedats = append(deleteMatchParams.Durabletaskinsertedats, row.DurableTaskInsertedAt)
-		deleteMatchParams.Nodeids = append(deleteMatchParams.Nodeids, row.NodeID)
-		deleteMatchParams.Branchids = append(deleteMatchParams.Branchids, row.BranchID)
 
 		task := completion.ReleasedTask
 		isFailure, errorMessage := completion.OutputEvent.FailureForDurableEntry()
@@ -3173,10 +3156,15 @@ func (r *sharedRepository) satisfyOperatorStepChildEntries(ctx context.Context, 
 		}
 	}
 
-	if len(deleteMatchParams.Childexternalids) > 0 {
-		if err := r.queries.DeleteRunEntryCompletionMatches(ctx, tx, deleteMatchParams); err != nil {
-			return nil, fmt.Errorf("failed to delete completion matches for operator step children: %w", err)
-		}
+	// the children's internal events are dropped and every entry waiting on them is satisfied above,
+	// so the matches their orchestrators hold on them can no longer be consumed or needed
+	if err := r.queries.DeleteChildCompletionMatches(ctx, tx, sqlcv1.DeleteChildCompletionMatchesParams{
+		Tenantid:               tenantId,
+		Durabletaskids:         lookupParams.Durabletaskids,
+		Durabletaskinsertedats: lookupParams.Durabletaskinsertedats,
+		Childtaskexternalids:   lookupParams.Childtaskexternalids,
+	}); err != nil {
+		return nil, fmt.Errorf("failed to delete completion matches for operator step children: %w", err)
 	}
 
 	return satisfiedEntries, nil

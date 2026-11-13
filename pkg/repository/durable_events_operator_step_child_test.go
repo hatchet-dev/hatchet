@@ -5,7 +5,6 @@ package repository
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -174,142 +173,46 @@ func TestOperatorStepChildCancellationSatisfiesTheEntryAsAFailure(t *testing.T) 
 	require.Equal(t, TaskCancelledErrorMessage, *entries[0].ChildTaskErrorMessage)
 }
 
-type operatorStepChildMatchTestEnv struct {
-	repo         *TaskRepositoryImpl
-	durable      *durableEventsRepository
-	orchestrator *sqlcv1.FlattenExternalIdsRow
-	workflowName string
-	versionId    uuid.UUID
-}
+const operatorStepChildMatchTestAction = "integration:step1"
 
-// newOperatorStepChildMatchTestEnv triggers a DAG of independent steps through the operator and
-// turns direct completion off for the tenant, so spawning a step child writes a completion match.
-func newOperatorStepChildMatchTestEnv(t *testing.T, ctx context.Context, pool *pgxpool.Pool, stepIds ...string) operatorStepChildMatchTestEnv {
+// newOperatorStepChildMatchTestTasks registers the workflow ingestDagStepTrigger names and turns
+// direct completion off for the tenant, so spawning a step child writes a completion match.
+func newOperatorStepChildMatchTestTasks(t *testing.T, ctx context.Context, pool *pgxpool.Pool, repos userEventScopeTestRepositories) *TaskRepositoryImpl {
 	t.Helper()
 
-	repo := newBatchTestRepository(pool)
-	shared := repo.sharedRepository
-	entitlements := newTenantEntitlementRepository(shared)
-	durable := newDurableEventsRepository(shared, entitlements, DurableEventBufferOpts{
-		FlushInterval:        10 * time.Millisecond,
-		MaxBatchSize:         20,
-		MaxConcurrentFlushes: 16,
-	})
+	require.NoError(t, newTenantEntitlementRepository(repos.shared).SetEntitlements(ctx, internalTenantId, TenantEntitlements{OperatorStepDirectCompletion: false}))
 
-	require.NoError(t, entitlements.SetEntitlements(ctx, internalTenantId, TenantEntitlements{OperatorStepDirectCompletion: false}))
-
-	workflowOpts := minimalWorkflowOpts("operator-step-child-match", "v1", nil)
-	workflowOpts.Tasks = nil
-
-	for _, stepId := range stepIds {
-		workflowOpts.Tasks = append(workflowOpts.Tasks, CreateStepOpts{ReadableId: stepId, Action: "integration:" + stepId})
-	}
-
-	wf, err := (&workflowRepository{sharedRepository: shared}).PutWorkflowVersion(ctx, internalTenantId, workflowOpts)
+	_, err := (&workflowRepository{sharedRepository: repos.shared}).PutWorkflowVersion(ctx, internalTenantId, minimalWorkflowOpts("my-dag", "v1", nil))
 	require.NoError(t, err)
 
-	tasks, _, _, _, err := newTriggerRepository(shared).TriggerFromWorkflowNames(ctx, internalTenantId, []*WorkflowNameTriggerOpts{{
-		TriggerTaskData: &TriggerTaskData{WorkflowName: workflowOpts.Name, Data: []byte(`{}`)},
-		ExternalId:      uuid.New(),
+	return newBatchTestRepository(pool)
+}
+
+// spawnOperatorStepChild ingests a step trigger and creates its child task, as the dispatcher does.
+func spawnOperatorStepChild(t *testing.T, ctx context.Context, repos userEventScopeTestRepositories, orchestrator *sqlcv1.FlattenExternalIdsRow, childIndex int64) (*IngestTriggerRunsEntry, *TaskIdInsertedAtRetryCount) {
+	t.Helper()
+
+	result, err := ingestDagStepTriggerResult(ctx, repos.durable, internalTenantId, orchestrator, 1, operatorStepChildMatchTestAction, childIndex, []byte(`{}`), false)
+	require.NoError(t, err)
+
+	created, _, _, err := repos.durable.TriggerPendingRunEntries(ctx, internalTenantId, []TriggerPendingRunEntriesOpt{{
+		Task:        orchestrator,
+		PendingRuns: result.TriggerRunsResult.PendingTriggers,
 	}})
 	require.NoError(t, err)
-	require.Len(t, tasks, 1)
-	require.True(t, tasks[0].IsDagOrchestrator)
+	require.Len(t, created, 1)
 
-	flattened, err := repo.FlattenExternalIds(ctx, internalTenantId, []uuid.UUID{tasks[0].ExternalID})
-	require.NoError(t, err)
-	require.Len(t, flattened, 1)
-
-	_, err = shared.queries.IncrementLogFileInvocationCounts(ctx, pool, sqlcv1.IncrementLogFileInvocationCountsParams{
-		Durabletaskids:         []int64{flattened[0].ID},
-		Durabletaskinsertedats: []pgtype.Timestamptz{flattened[0].InsertedAt},
-		Tenantids:              []uuid.UUID{internalTenantId},
-	})
-	require.NoError(t, err)
-
-	return operatorStepChildMatchTestEnv{
-		repo:         repo,
-		durable:      durable,
-		orchestrator: flattened[0],
-		workflowName: workflowOpts.Name,
-		versionId:    wf.WorkflowVersion.ID,
-	}
+	return result.TriggerRunsResult.Entries[0], &TaskIdInsertedAtRetryCount{Id: created[0].ID, InsertedAt: created[0].InsertedAt, RetryCount: created[0].RetryCount}
 }
 
-// spawnSteps spawns step children the way the dispatcher does for an orchestrator invocation.
-func (e operatorStepChildMatchTestEnv) spawnSteps(t *testing.T, ctx context.Context, invocationCount int32, stepIds ...string) ([]*IngestTriggerRunsEntry, []*V1TaskWithPayload) {
+// countMatchRows counts every match and match condition. Each test database holds one
+// orchestrator, so they all wait on its step children.
+func countMatchRows(t *testing.T, ctx context.Context, pool *pgxpool.Pool) (rows int) {
 	t.Helper()
 
-	triggerOpts := make([]*WorkflowNameTriggerOpts, len(stepIds))
+	require.NoError(t, pool.QueryRow(ctx, `SELECT (SELECT COUNT(*) FROM v1_match) + (SELECT COUNT(*) FROM v1_match_condition)`).Scan(&rows))
 
-	for i, stepId := range stepIds {
-		actionId := "integration:" + stepId
-		childIndex := int64(i)
-		parentInsertedAt := e.orchestrator.InsertedAt.Time
-
-		triggerOpts[i] = &WorkflowNameTriggerOpts{
-			ReplayOrphanedChildren: true,
-			IsDagStepTrigger:       true,
-			TriggerTaskData: &TriggerTaskData{
-				WorkflowName:         e.workflowName,
-				WorkflowVersionId:    &e.versionId,
-				TargetActionId:       &actionId,
-				Data:                 []byte(`{}`),
-				ParentExternalId:     &e.orchestrator.ExternalID,
-				ParentTaskId:         &e.orchestrator.ID,
-				ParentTaskInsertedAt: &parentInsertedAt,
-				ChildIndex:           &childIndex,
-				WorkflowRunId:        &e.orchestrator.ExternalID,
-			},
-		}
-	}
-
-	result, err := e.durable.IngestDurableTaskEvent(ctx, IngestDurableTaskEventOpts{
-		BaseIngestEventOpts: &BaseIngestEventOpts{
-			TenantId:        internalTenantId,
-			Task:            e.orchestrator,
-			Kind:            sqlcv1.V1DurableEventLogKindRUN,
-			InvocationCount: invocationCount,
-		},
-		TriggerRuns: &IngestTriggerRunsOpts{TriggerOpts: triggerOpts},
-	})
-	require.NoError(t, err)
-
-	var created []*V1TaskWithPayload
-
-	if pending := result.TriggerRunsResult.PendingTriggers; len(pending) > 0 {
-		created, _, _, err = e.durable.TriggerPendingRunEntries(ctx, internalTenantId, []TriggerPendingRunEntriesOpt{{
-			Task:        e.orchestrator,
-			PendingRuns: pending,
-		}})
-		require.NoError(t, err)
-	}
-
-	return result.TriggerRunsResult.Entries, created
-}
-
-// countCompletionMatchRows counts the child's run entry completion matches and their conditions,
-// including conditions left without a match. Other matches hinted by the child are not counted.
-func countCompletionMatchRows(t *testing.T, ctx context.Context, pool *pgxpool.Pool, childExternalId uuid.UUID) (matches, conditions int) {
-	t.Helper()
-
-	require.NoError(t, pool.QueryRow(ctx, `
-		WITH hinted AS (
-			SELECT v1_match_id FROM v1_match_condition WHERE event_resource_hint = $1::text
-		), other_matches AS (
-			SELECT id FROM v1_match WHERE id IN (SELECT v1_match_id FROM hinted) AND signal_key NOT LIKE 'durable_run:%'
-		)
-		SELECT
-			(SELECT COUNT(*) FROM v1_match WHERE id IN (SELECT v1_match_id FROM hinted) AND signal_key LIKE 'durable_run:%'),
-			(SELECT COUNT(*) FROM hinted WHERE v1_match_id NOT IN (SELECT id FROM other_matches))`,
-		childExternalId,
-	).Scan(&matches, &conditions))
-
-	return matches, conditions
-}
-
-func taskRef(task *V1TaskWithPayload) *TaskIdInsertedAtRetryCount {
-	return &TaskIdInsertedAtRetryCount{Id: task.ID, InsertedAt: task.InsertedAt, RetryCount: task.RetryCount}
+	return rows
 }
 
 func TestOperatorStepChildFinalizeDeletesItsCompletionMatch(t *testing.T) {
@@ -317,60 +220,29 @@ func TestOperatorStepChildFinalizeDeletesItsCompletionMatch(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	env := newOperatorStepChildMatchTestEnv(t, ctx, pool, "completes", "fails", "cancels")
+	repos := newUserEventScopeTestRepositories(t, pool)
+	tasks := newOperatorStepChildMatchTestTasks(t, ctx, pool, repos)
+	orchestrator := createUserEventScopeTestTask(t, ctx, repos, internalTenantId, 303)
 
-	entries, children := env.spawnSteps(t, ctx, 1, "completes", "fails", "cancels")
-	require.Len(t, entries, 3)
-	require.Len(t, children, 3)
+	_, completes := spawnOperatorStepChild(t, ctx, repos, orchestrator, 1)
+	_, fails := spawnOperatorStepChild(t, ctx, repos, orchestrator, 2)
+	_, cancels := spawnOperatorStepChild(t, ctx, repos, orchestrator, 3)
+	require.Equal(t, 12, countMatchRows(t, ctx, pool), "with direct completion off, spawning a step child writes a match and three conditions")
 
-	childByStep := make(map[string]*V1TaskWithPayload, len(children))
-
-	for _, child := range children {
-		childByStep[child.StepReadableID] = child
-
-		matches, conditions := countCompletionMatchRows(t, ctx, pool, child.ExternalID)
-		require.Equal(t, 1, matches, "with direct completion off, spawning a step child writes its completion match")
-		require.Equal(t, 3, conditions)
-	}
-
-	completed, err := env.repo.CompleteTasks(ctx, internalTenantId, []CompleteTaskOpts{{
-		TaskIdInsertedAtRetryCount: taskRef(childByStep["completes"]),
-		Output:                     []byte(`{"answer":42}`),
-	}})
+	completed, err := tasks.CompleteTasks(ctx, internalTenantId, []CompleteTaskOpts{{TaskIdInsertedAtRetryCount: completes, Output: []byte(`{"answer":42}`)}})
 	require.NoError(t, err)
 	require.Len(t, completed.SatisfiedDurableEventLogEntries, 1)
+	require.Equal(t, 8, countMatchRows(t, ctx, pool))
 
-	failed, err := env.repo.FailTasks(ctx, internalTenantId, []FailTaskOpts{{
-		TaskIdInsertedAtRetryCount: taskRef(childByStep["fails"]),
-		IsAppError:                 true,
-		ErrorMessage:               "boom",
-		IsNonRetryable:             true,
-	}})
+	failed, err := tasks.FailTasks(ctx, internalTenantId, []FailTaskOpts{{TaskIdInsertedAtRetryCount: fails, IsAppError: true, ErrorMessage: "boom", IsNonRetryable: true}})
 	require.NoError(t, err)
 	require.Len(t, failed.SatisfiedDurableEventLogEntries, 1)
+	require.Equal(t, 4, countMatchRows(t, ctx, pool))
 
-	cancelled, err := env.repo.CancelTasks(ctx, internalTenantId, []TaskIdInsertedAtRetryCount{*taskRef(childByStep["cancels"])})
+	cancelled, err := tasks.CancelTasks(ctx, internalTenantId, []TaskIdInsertedAtRetryCount{*cancels})
 	require.NoError(t, err)
 	require.Len(t, cancelled.SatisfiedDurableEventLogEntries, 1)
-
-	storedEntries, err := env.repo.queries.BulkGetDurableEventLogEntries(ctx, pool, sqlcv1.BulkGetDurableEventLogEntriesParams{
-		Durabletaskids:         []int64{env.orchestrator.ID, env.orchestrator.ID, env.orchestrator.ID},
-		Durabletaskinsertedats: []pgtype.Timestamptz{env.orchestrator.InsertedAt, env.orchestrator.InsertedAt, env.orchestrator.InsertedAt},
-		Branchids:              []int64{entries[0].BranchId, entries[1].BranchId, entries[2].BranchId},
-		Nodeids:                []int64{entries[0].NodeId, entries[1].NodeId, entries[2].NodeId},
-	})
-	require.NoError(t, err)
-	require.Len(t, storedEntries, 3)
-
-	for _, entry := range storedEntries {
-		require.True(t, entry.IsSatisfied)
-	}
-
-	for step, child := range childByStep {
-		matches, conditions := countCompletionMatchRows(t, ctx, pool, child.ExternalID)
-		require.Zero(t, matches, "step %s left its completion match", step)
-		require.Zero(t, conditions, "step %s left its completion match conditions", step)
-	}
+	require.Zero(t, countMatchRows(t, ctx, pool))
 }
 
 func TestReExecutedOperatorStepChildFinalizeDeletesTheNewBranchMatch(t *testing.T) {
@@ -378,56 +250,34 @@ func TestReExecutedOperatorStepChildFinalizeDeletesTheNewBranchMatch(t *testing.
 	defer cleanup()
 
 	ctx := context.Background()
-	env := newOperatorStepChildMatchTestEnv(t, ctx, pool, "reruns", "other")
+	repos := newUserEventScopeTestRepositories(t, pool)
+	tasks := newOperatorStepChildMatchTestTasks(t, ctx, pool, repos)
+	orchestrator := createUserEventScopeTestTask(t, ctx, repos, internalTenantId, 304)
 
-	firstEntries, children := env.spawnSteps(t, ctx, 1, "reruns")
-	require.Len(t, children, 1)
-	child := children[0]
+	firstEntry, child := spawnOperatorStepChild(t, ctx, repos, orchestrator, 1)
 
-	_, err := env.repo.CompleteTasks(ctx, internalTenantId, []CompleteTaskOpts{{
-		TaskIdInsertedAtRetryCount: taskRef(child),
-		Output:                     []byte(`{"run":1}`),
-	}})
+	_, err := tasks.CompleteTasks(ctx, internalTenantId, []CompleteTaskOpts{{TaskIdInsertedAtRetryCount: child, Output: []byte(`{"run":1}`)}})
 	require.NoError(t, err)
+	require.Zero(t, countMatchRows(t, ctx, pool))
 
-	matches, conditions := countCompletionMatchRows(t, ctx, pool, child.ExternalID)
-	require.Zero(t, matches, "the first run left its completion match")
-	require.Zero(t, conditions)
-
-	_, err = env.durable.HandleBranchForDAGReplay(ctx, internalTenantId, env.orchestrator, []uuid.UUID{child.ExternalID})
+	_, err = repos.durable.HandleBranchForDAGReplay(ctx, internalTenantId, orchestrator, []uuid.UUID{firstEntry.WorkflowRunExternalId})
 	require.NoError(t, err)
+	reinvokeDurableTask(t, ctx, repos, internalTenantId, orchestrator)
 
-	_, err = env.repo.queries.IncrementLogFileInvocationCounts(ctx, pool, sqlcv1.IncrementLogFileInvocationCountsParams{
-		Durabletaskids:         []int64{env.orchestrator.ID},
-		Durabletaskinsertedats: []pgtype.Timestamptz{env.orchestrator.InsertedAt},
-		Tenantids:              []uuid.UUID{internalTenantId},
-	})
+	rerunEntry := ingestDagStepTrigger(t, ctx, repos.durable, internalTenantId, orchestrator, 2, operatorStepChildMatchTestAction, 1)
+	require.True(t, rerunEntry.ChildNeedsReplay, "a re-executed child keeps its task")
+	require.Equal(t, firstEntry.WorkflowRunExternalId, rerunEntry.WorkflowRunExternalId)
+	require.NotEqual(t, firstEntry.BranchId, rerunEntry.BranchId)
+	require.Equal(t, 4, countMatchRows(t, ctx, pool), "the new branch entry gets its own completion match")
+
+	_, err = tasks.ReplayTasks(ctx, internalTenantId, []TaskIdInsertedAtRetryCount{*child})
 	require.NoError(t, err)
+	require.Equal(t, 8, countMatchRows(t, ctx, pool), "replaying the task adds a match that signals its parent")
 
-	rerunEntries, rerunChildren := env.spawnSteps(t, ctx, 2, "reruns")
-	require.Len(t, rerunEntries, 1)
-	require.Empty(t, rerunChildren, "a re-executed child keeps its task")
-	require.True(t, rerunEntries[0].ChildNeedsReplay)
-	require.Equal(t, child.ExternalID, rerunEntries[0].WorkflowRunExternalId)
-	require.NotEqual(t, firstEntries[0].BranchId, rerunEntries[0].BranchId)
-
-	matches, conditions = countCompletionMatchRows(t, ctx, pool, child.ExternalID)
-	require.Equal(t, 1, matches, "the new branch entry gets its own completion match")
-	require.Equal(t, 3, conditions)
-
-	replayed, err := env.repo.ReplayTasks(ctx, internalTenantId, []TaskIdInsertedAtRetryCount{*taskRef(child)})
-	require.NoError(t, err)
-	require.Len(t, replayed.ReplayedTasks, 1)
-
-	completed, err := env.repo.CompleteTasks(ctx, internalTenantId, []CompleteTaskOpts{{
-		TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{Id: child.ID, InsertedAt: child.InsertedAt, RetryCount: child.RetryCount + 1},
-		Output:                     []byte(`{"run":2}`),
-	}})
+	child.RetryCount++
+	completed, err := tasks.CompleteTasks(ctx, internalTenantId, []CompleteTaskOpts{{TaskIdInsertedAtRetryCount: child, Output: []byte(`{"run":2}`)}})
 	require.NoError(t, err)
 	require.Len(t, completed.SatisfiedDurableEventLogEntries, 1)
-	require.Equal(t, rerunEntries[0].BranchId, completed.SatisfiedDurableEventLogEntries[0].BranchId)
-
-	matches, conditions = countCompletionMatchRows(t, ctx, pool, child.ExternalID)
-	require.Zero(t, matches)
-	require.Zero(t, conditions)
+	require.Equal(t, rerunEntry.BranchId, completed.SatisfiedDurableEventLogEntries[0].BranchId)
+	require.Zero(t, countMatchRows(t, ctx, pool))
 }

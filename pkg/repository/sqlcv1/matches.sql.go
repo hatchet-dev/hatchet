@@ -49,68 +49,50 @@ type CreateMatchConditionsParams struct {
 	Data              []byte                 `json:"data"`
 }
 
-const deleteRunEntryCompletionMatches = `-- name: DeleteRunEntryCompletionMatches :exec
+const deleteChildCompletionMatches = `-- name: DeleteChildCompletionMatches :exec
 WITH input AS (
     SELECT
-        UNNEST($1::TEXT[]) AS child_external_id,
-        UNNEST($2::BIGINT[]) AS durable_task_id,
-        UNNEST($3::TIMESTAMPTZ[]) AS durable_task_inserted_at,
-        UNNEST($4::BIGINT[]) AS node_id,
-        UNNEST($5::BIGINT[]) AS branch_id
-), matches AS (
-    SELECT
-        m.id
-    FROM
+        UNNEST($1::BIGINT[]) AS durable_task_id,
+        UNNEST($2::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST($3::UUID[]) AS child_task_external_id
+), deleted_matches AS (
+    DELETE FROM
+        v1_match m
+    USING
         input i
     JOIN
-        v1_match_condition mc ON mc.tenant_id = $6::UUID
+        v1_match_condition mc ON mc.tenant_id = $4::UUID
         AND mc.event_type = 'INTERNAL'
         AND mc.event_key = 'COMPLETED'
         AND mc.is_satisfied = FALSE
-        AND mc.event_resource_hint = i.child_external_id
-    JOIN
-        v1_match m ON m.id = mc.v1_match_id
+        AND mc.event_resource_hint = i.child_task_external_id::TEXT
     WHERE
-        m.kind = 'SIGNAL'
+        m.id = mc.v1_match_id
         AND m.signal_task_id = i.durable_task_id
         AND m.signal_task_inserted_at = i.durable_task_inserted_at
-        AND m.durable_event_log_entry_node_id = i.node_id
-        AND m.durable_event_log_entry_branch_id = i.branch_id
-), deleted_conditions AS (
-    DELETE FROM
-        v1_match_condition mc
-    USING
-        matches
-    WHERE
-        mc.v1_match_id = matches.id
+    RETURNING
+        m.id
 )
 DELETE FROM
-    v1_match m
-USING
-    matches
+    v1_match_condition
 WHERE
-    m.id = matches.id
+    v1_match_id IN (SELECT id FROM deleted_matches)
 `
 
-type DeleteRunEntryCompletionMatchesParams struct {
-	Childexternalids       []string             `json:"childexternalids"`
+type DeleteChildCompletionMatchesParams struct {
 	Durabletaskids         []int64              `json:"durabletaskids"`
 	Durabletaskinsertedats []pgtype.Timestamptz `json:"durabletaskinsertedats"`
-	Nodeids                []int64              `json:"nodeids"`
-	Branchids              []int64              `json:"branchids"`
+	Childtaskexternalids   []uuid.UUID          `json:"childtaskexternalids"`
 	Tenantid               uuid.UUID            `json:"tenantid"`
 }
 
-// Every run entry completion match has an unsatisfied COMPLETED condition hinted by the child's
-// external id, which is the indexed path to the match. The entry columns limit the delete to the
-// given entries' matches; other matches hinted by the same child stay.
-func (q *Queries) DeleteRunEntryCompletionMatches(ctx context.Context, db DBTX, arg DeleteRunEntryCompletionMatchesParams) error {
-	_, err := db.Exec(ctx, deleteRunEntryCompletionMatches,
-		arg.Childexternalids,
+// Deletes every match through which a durable task waits on one of its children. Each has an
+// unsatisfied COMPLETED condition hinted by the child's external id, the indexed path to it.
+func (q *Queries) DeleteChildCompletionMatches(ctx context.Context, db DBTX, arg DeleteChildCompletionMatchesParams) error {
+	_, err := db.Exec(ctx, deleteChildCompletionMatches,
 		arg.Durabletaskids,
 		arg.Durabletaskinsertedats,
-		arg.Nodeids,
-		arg.Branchids,
+		arg.Childtaskexternalids,
 		arg.Tenantid,
 	)
 	return err
