@@ -3049,6 +3049,18 @@ func (r *sharedRepository) satisfyOperatorStepChildEntries(ctx context.Context, 
 		}
 	}
 
+	// the children's internal events are dropped and every entry waiting on them is satisfied below,
+	// so the matches their orchestrators hold on them can no longer be consumed or needed. Matches
+	// are locked before log files, the order match processing takes them in.
+	if err := r.queries.DeleteChildCompletionMatches(ctx, tx, sqlcv1.DeleteChildCompletionMatchesParams{
+		Tenantid:               tenantId,
+		Durabletaskids:         lookupParams.Durabletaskids,
+		Durabletaskinsertedats: lookupParams.Durabletaskinsertedats,
+		Childtaskexternalids:   lookupParams.Childtaskexternalids,
+	}); err != nil {
+		return nil, fmt.Errorf("failed to delete completion matches for operator step children: %w", err)
+	}
+
 	tenantIds := make([]uuid.UUID, len(lookupParams.Durabletaskids))
 	for i := range tenantIds {
 		tenantIds[i] = tenantId
@@ -3154,17 +3166,6 @@ func (r *sharedRepository) satisfyOperatorStepChildEntries(ctx context.Context, 
 		if err := r.payloadStore.Store(ctx, tx, payloadsToStore...); err != nil {
 			return nil, fmt.Errorf("failed to store result payloads for operator step children: %w", err)
 		}
-	}
-
-	// the children's internal events are dropped and every entry waiting on them is satisfied above,
-	// so the matches their orchestrators hold on them can no longer be consumed or needed
-	if err := r.queries.DeleteChildCompletionMatches(ctx, tx, sqlcv1.DeleteChildCompletionMatchesParams{
-		Tenantid:               tenantId,
-		Durabletaskids:         lookupParams.Durabletaskids,
-		Durabletaskinsertedats: lookupParams.Durabletaskinsertedats,
-		Childtaskexternalids:   lookupParams.Childtaskexternalids,
-	}); err != nil {
-		return nil, fmt.Errorf("failed to delete completion matches for operator step children: %w", err)
 	}
 
 	return satisfiedEntries, nil
