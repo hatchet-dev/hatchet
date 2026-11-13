@@ -199,16 +199,16 @@ FROM filtered
 `
 
 type CountTasksParams struct {
-	Tenantid                      uuid.UUID          `json:"tenantid"`
-	Since                         pgtype.Timestamptz `json:"since"`
-	Statuses                      []string           `json:"statuses"`
-	Until                         pgtype.Timestamptz `json:"until"`
-	WorkflowIds                   []uuid.UUID        `json:"workflowIds"`
-	WorkerId                      *uuid.UUID         `json:"workerId"`
-	TriggeringEventExternalId     *uuid.UUID         `json:"triggeringEventExternalId"`
-	IdempotencyKeys               *[]string          `json:"idempotencyKeys"`
-	ExternalIds                   *[]uuid.UUID       `json:"externalIds"`
-	AdditionalMetadataContainsAny [][]byte           `json:"additionalMetadataContainsAny"`
+	Tenantid                       uuid.UUID          `json:"tenantid"`
+	Since                          pgtype.Timestamptz `json:"since"`
+	Statuses                       []string           `json:"statuses"`
+	Until                          pgtype.Timestamptz `json:"until"`
+	WorkflowIds                    []uuid.UUID        `json:"workflowIds"`
+	WorkerId                       *uuid.UUID         `json:"workerId"`
+	TriggeringEventExternalId      *uuid.UUID         `json:"triggeringEventExternalId"`
+	IdempotencyKeys                *[]string          `json:"idempotencyKeys"`
+	ConcurrencySlotTaskExternalIds *[]uuid.UUID       `json:"concurrencySlotTaskExternalIds"`
+	AdditionalMetadataContainsAny  [][]byte           `json:"additionalMetadataContainsAny"`
 }
 
 func (q *Queries) CountTasks(ctx context.Context, db DBTX, arg CountTasksParams) (int64, error) {
@@ -222,7 +222,7 @@ func (q *Queries) CountTasks(ctx context.Context, db DBTX, arg CountTasksParams)
 		arg.WorkerId,
 		arg.TriggeringEventExternalId,
 		arg.IdempotencyKeys,
-		arg.ExternalIds,
+		arg.ConcurrencySlotTaskExternalIds,
 	}
 
 	if len(arg.AdditionalMetadataContainsAny) > 0 {
@@ -461,19 +461,19 @@ FROM filtered
 const forceCustomPlan = pgx.QueryExecModeCacheDescribe
 
 type CountWorkflowRunsParams struct {
-	Tenantid                      uuid.UUID          `json:"tenantid"`
-	Statuses                      []string           `json:"statuses"`
-	WorkflowIds                   []uuid.UUID        `json:"workflowIds"`
-	Since                         pgtype.Timestamptz `json:"since"`
-	Until                         pgtype.Timestamptz `json:"until"`
-	Keys                          []string           `json:"keys"`
-	Values                        []string           `json:"values"`
-	ParentTaskExternalId          *uuid.UUID         `json:"parentTaskExternalId"`
-	TriggeringEventExternalId     *uuid.UUID         `json:"triggeringEventExternalId"`
-	AdditionalMetadataContainsAny [][]byte           `json:"additionalMetadataContainsAny"`
-	AdditionalMetadataContainsAll []byte             `json:"additionalMetadataContainsAll"`
-	IdempotencyKeys               *[]string          `json:"idempotencyKeys"`
-	ExternalIds                   *[]uuid.UUID       `json:"externalIds"`
+	Tenantid                              uuid.UUID          `json:"tenantid"`
+	Statuses                              []string           `json:"statuses"`
+	WorkflowIds                           []uuid.UUID        `json:"workflowIds"`
+	Since                                 pgtype.Timestamptz `json:"since"`
+	Until                                 pgtype.Timestamptz `json:"until"`
+	Keys                                  []string           `json:"keys"`
+	Values                                []string           `json:"values"`
+	ParentTaskExternalId                  *uuid.UUID         `json:"parentTaskExternalId"`
+	TriggeringEventExternalId             *uuid.UUID         `json:"triggeringEventExternalId"`
+	AdditionalMetadataContainsAny         [][]byte           `json:"additionalMetadataContainsAny"`
+	AdditionalMetadataContainsAll         []byte             `json:"additionalMetadataContainsAll"`
+	IdempotencyKeys                       *[]string          `json:"idempotencyKeys"`
+	ConcurrencySlotWorkflowRunExternalIds *[]uuid.UUID       `json:"concurrencySlotWorkflowRunExternalIds"`
 }
 
 func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkflowRunsParams) (int64, error) {
@@ -501,7 +501,7 @@ func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkf
 		arg.TriggeringEventExternalId,
 		metadataContains,
 		arg.IdempotencyKeys,
-		arg.ExternalIds,
+		arg.ConcurrencySlotWorkflowRunExternalIds,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -698,21 +698,21 @@ OFFSET $8::integer
 `
 
 type FetchWorkflowRunIdsParams struct {
-	Tenantid                      uuid.UUID          `json:"tenantid"`
-	Statuses                      []string           `json:"statuses"`
-	WorkflowIds                   []uuid.UUID        `json:"workflowIds"`
-	Since                         pgtype.Timestamptz `json:"since"`
-	Until                         pgtype.Timestamptz `json:"until"`
-	Keys                          []string           `json:"keys"`
-	Values                        []string           `json:"values"`
-	Listworkflowrunsoffset        int32              `json:"listworkflowrunsoffset"`
-	Listworkflowrunslimit         int32              `json:"listworkflowrunslimit"`
-	ParentTaskExternalId          *uuid.UUID         `json:"parentTaskExternalId"`
-	TriggeringEventExternalId     *uuid.UUID         `json:"triggeringEventExternalId"`
-	AdditionalMetadataContainsAny [][]byte           `json:"additionalMetadataContainsAny"`
-	AdditionalMetadataContainsAll []byte             `json:"additionalMetadataContainsAll"`
-	IdempotencyKeys               *[]string          `json:"idempotencyKeys"`
-	ExternalIds                   *[]uuid.UUID       `json:"externalIds"`
+	Tenantid                              uuid.UUID          `json:"tenantid"`
+	Statuses                              []string           `json:"statuses"`
+	WorkflowIds                           []uuid.UUID        `json:"workflowIds"`
+	Since                                 pgtype.Timestamptz `json:"since"`
+	Until                                 pgtype.Timestamptz `json:"until"`
+	Keys                                  []string           `json:"keys"`
+	Values                                []string           `json:"values"`
+	Listworkflowrunsoffset                int32              `json:"listworkflowrunsoffset"`
+	Listworkflowrunslimit                 int32              `json:"listworkflowrunslimit"`
+	ParentTaskExternalId                  *uuid.UUID         `json:"parentTaskExternalId"`
+	TriggeringEventExternalId             *uuid.UUID         `json:"triggeringEventExternalId"`
+	AdditionalMetadataContainsAny         [][]byte           `json:"additionalMetadataContainsAny"`
+	AdditionalMetadataContainsAll         []byte             `json:"additionalMetadataContainsAll"`
+	IdempotencyKeys                       *[]string          `json:"idempotencyKeys"`
+	ConcurrencySlotWorkflowRunExternalIds *[]uuid.UUID       `json:"concurrencySlotWorkflowRunExternalIds"`
 }
 
 type FetchWorkflowRunIdsRow struct {
@@ -749,7 +749,7 @@ func (q *Queries) FetchWorkflowRunIds(ctx context.Context, db DBTX, arg FetchWor
 		arg.TriggeringEventExternalId,
 		metadataContains,
 		arg.IdempotencyKeys,
-		arg.ExternalIds,
+		arg.ConcurrencySlotWorkflowRunExternalIds,
 	)
 
 	if err != nil {
@@ -941,18 +941,18 @@ OFFSET $7::integer
 `
 
 type ListTasksOlapParams struct {
-	Tenantid                      uuid.UUID          `json:"tenantid"`
-	Since                         pgtype.Timestamptz `json:"since"`
-	Statuses                      []string           `json:"statuses"`
-	Until                         pgtype.Timestamptz `json:"until"`
-	WorkflowIds                   []uuid.UUID        `json:"workflowIds"`
-	WorkerId                      *uuid.UUID         `json:"workerId"`
-	Taskoffset                    int32              `json:"taskoffset"`
-	Tasklimit                     int32              `json:"tasklimit"`
-	TriggeringEventExternalId     *uuid.UUID         `json:"triggeringEventExternalId"`
-	IdempotencyKeys               *[]string          `json:"idempotencyKeys"`
-	ExternalIds                   *[]uuid.UUID       `json:"externalIds"`
-	AdditionalMetadataContainsAny [][]byte           `json:"additionalMetadataContainsAny"`
+	Tenantid                       uuid.UUID          `json:"tenantid"`
+	Since                          pgtype.Timestamptz `json:"since"`
+	Statuses                       []string           `json:"statuses"`
+	Until                          pgtype.Timestamptz `json:"until"`
+	WorkflowIds                    []uuid.UUID        `json:"workflowIds"`
+	WorkerId                       *uuid.UUID         `json:"workerId"`
+	Taskoffset                     int32              `json:"taskoffset"`
+	Tasklimit                      int32              `json:"tasklimit"`
+	TriggeringEventExternalId      *uuid.UUID         `json:"triggeringEventExternalId"`
+	IdempotencyKeys                *[]string          `json:"idempotencyKeys"`
+	ConcurrencySlotTaskExternalIds *[]uuid.UUID       `json:"concurrencySlotTaskExternalIds"`
+	AdditionalMetadataContainsAny  [][]byte           `json:"additionalMetadataContainsAny"`
 }
 
 type ListTasksOlapRow struct {
@@ -973,7 +973,7 @@ func (q *Queries) ListTasksOlap(ctx context.Context, db DBTX, arg ListTasksOlapP
 		arg.Tasklimit,
 		arg.TriggeringEventExternalId,
 		arg.IdempotencyKeys,
-		arg.ExternalIds,
+		arg.ConcurrencySlotTaskExternalIds,
 	}
 
 	if len(arg.AdditionalMetadataContainsAny) > 0 {

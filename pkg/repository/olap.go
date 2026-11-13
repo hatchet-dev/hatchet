@@ -94,8 +94,8 @@ type ListTaskRunOpts struct {
 
 	IdempotencyKeys *[]string
 
-	// Task or workflow run external ids. A DAG run's id matches all of its tasks.
-	ExternalIds *[]uuid.UUID
+	// A DAG run's external id matches all of its tasks, so workflow-level slots can filter tasks.
+	ConcurrencySlotTaskExternalIds *[]uuid.UUID
 }
 
 type ListWorkflowRunOpts struct {
@@ -127,7 +127,7 @@ type ListWorkflowRunOpts struct {
 
 	IdempotencyKeys *[]string
 
-	ExternalIds *[]uuid.UUID
+	ConcurrencySlotWorkflowRunExternalIds *[]uuid.UUID
 }
 
 type ReadTaskRunMetricsOpts struct {
@@ -891,7 +891,7 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId uuid.
 }
 
 func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, opts ListTaskRunOpts) ([]*TaskWithPayloads, int, error) {
-	if matchesNoExternalIds(opts.ExternalIds) {
+	if matchesNoExternalIds(opts.ConcurrencySlotTaskExternalIds) {
 		return []*TaskWithPayloads{}, 0, nil
 	}
 
@@ -1194,16 +1194,16 @@ func listTasksParamsFromOpts(tenantId uuid.UUID, opts ListTaskRunOpts) (sqlcv1.L
 	}
 
 	params := sqlcv1.ListTasksOlapParams{
-		Tenantid:                      tenantId,
-		Since:                         sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
-		Statuses:                      readableStatusesOrDefault(opts.Statuses),
-		Tasklimit:                     int32(opts.Limit),  // #nosec G115 -- pagination param, worst case is a bounded/wrong page size, not exploitable
-		Taskoffset:                    int32(opts.Offset), // #nosec G115 -- pagination param, worst case is a bounded/wrong page offset, not exploitable
-		TriggeringEventExternalId:     opts.TriggeringEventExternalId,
-		WorkerId:                      opts.WorkerId,
-		IdempotencyKeys:               opts.IdempotencyKeys,
-		ExternalIds:                   opts.ExternalIds,
-		AdditionalMetadataContainsAny: metadataContainsAny,
+		Tenantid:                       tenantId,
+		Since:                          sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
+		Statuses:                       readableStatusesOrDefault(opts.Statuses),
+		Tasklimit:                      int32(opts.Limit),  // #nosec G115 -- pagination param, worst case is a bounded/wrong page size, not exploitable
+		Taskoffset:                     int32(opts.Offset), // #nosec G115 -- pagination param, worst case is a bounded/wrong page offset, not exploitable
+		TriggeringEventExternalId:      opts.TriggeringEventExternalId,
+		WorkerId:                       opts.WorkerId,
+		IdempotencyKeys:                opts.IdempotencyKeys,
+		ConcurrencySlotTaskExternalIds: opts.ConcurrencySlotTaskExternalIds,
+		AdditionalMetadataContainsAny:  metadataContainsAny,
 	}
 
 	if len(opts.WorkflowIds) > 0 {
@@ -1219,16 +1219,16 @@ func listTasksParamsFromOpts(tenantId uuid.UUID, opts ListTaskRunOpts) (sqlcv1.L
 
 func countTasksParamsFromListTasksParams(listTasksParams sqlcv1.ListTasksOlapParams) sqlcv1.CountTasksParams {
 	return sqlcv1.CountTasksParams{
-		Tenantid:                      listTasksParams.Tenantid,
-		Since:                         listTasksParams.Since,
-		Statuses:                      listTasksParams.Statuses,
-		Until:                         listTasksParams.Until,
-		WorkflowIds:                   listTasksParams.WorkflowIds,
-		WorkerId:                      listTasksParams.WorkerId,
-		TriggeringEventExternalId:     listTasksParams.TriggeringEventExternalId,
-		AdditionalMetadataContainsAny: listTasksParams.AdditionalMetadataContainsAny,
-		IdempotencyKeys:               listTasksParams.IdempotencyKeys,
-		ExternalIds:                   listTasksParams.ExternalIds,
+		Tenantid:                       listTasksParams.Tenantid,
+		Since:                          listTasksParams.Since,
+		Statuses:                       listTasksParams.Statuses,
+		Until:                          listTasksParams.Until,
+		WorkflowIds:                    listTasksParams.WorkflowIds,
+		WorkerId:                       listTasksParams.WorkerId,
+		TriggeringEventExternalId:      listTasksParams.TriggeringEventExternalId,
+		AdditionalMetadataContainsAny:  listTasksParams.AdditionalMetadataContainsAny,
+		IdempotencyKeys:                listTasksParams.IdempotencyKeys,
+		ConcurrencySlotTaskExternalIds: listTasksParams.ConcurrencySlotTaskExternalIds,
 	}
 }
 
@@ -1240,16 +1240,16 @@ func fetchWorkflowRunIdsParamsFromOpts(tenantId uuid.UUID, opts ListWorkflowRunO
 	}
 
 	params := sqlcv1.FetchWorkflowRunIdsParams{
-		Tenantid:                      tenantId,
-		Since:                         sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
-		Statuses:                      readableStatusesOrDefault(opts.Statuses),
-		Listworkflowrunslimit:         int32(opts.Limit),  // #nosec G115 -- pagination param, worst case is a bounded/wrong page size, not exploitable
-		Listworkflowrunsoffset:        int32(opts.Offset), // #nosec G115 -- pagination param, worst case is a bounded/wrong page offset, not exploitable
-		ParentTaskExternalId:          opts.ParentTaskExternalId,
-		TriggeringEventExternalId:     opts.TriggeringEventExternalId,
-		IdempotencyKeys:               opts.IdempotencyKeys,
-		ExternalIds:                   opts.ExternalIds,
-		AdditionalMetadataContainsAny: metadataContainsAny,
+		Tenantid:                              tenantId,
+		Since:                                 sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
+		Statuses:                              readableStatusesOrDefault(opts.Statuses),
+		Listworkflowrunslimit:                 int32(opts.Limit),  // #nosec G115 -- pagination param, worst case is a bounded/wrong page size, not exploitable
+		Listworkflowrunsoffset:                int32(opts.Offset), // #nosec G115 -- pagination param, worst case is a bounded/wrong page offset, not exploitable
+		ParentTaskExternalId:                  opts.ParentTaskExternalId,
+		TriggeringEventExternalId:             opts.TriggeringEventExternalId,
+		IdempotencyKeys:                       opts.IdempotencyKeys,
+		ConcurrencySlotWorkflowRunExternalIds: opts.ConcurrencySlotWorkflowRunExternalIds,
+		AdditionalMetadataContainsAny:         metadataContainsAny,
 	}
 
 	if len(opts.WorkflowIds) > 0 {
@@ -1265,24 +1265,24 @@ func fetchWorkflowRunIdsParamsFromOpts(tenantId uuid.UUID, opts ListWorkflowRunO
 
 func countWorkflowRunsParamsFromFetchWorkflowRunIdsParams(fetchWorkflowRunIdsParams sqlcv1.FetchWorkflowRunIdsParams) sqlcv1.CountWorkflowRunsParams {
 	return sqlcv1.CountWorkflowRunsParams{
-		Tenantid:                      fetchWorkflowRunIdsParams.Tenantid,
-		Statuses:                      fetchWorkflowRunIdsParams.Statuses,
-		WorkflowIds:                   fetchWorkflowRunIdsParams.WorkflowIds,
-		Since:                         fetchWorkflowRunIdsParams.Since,
-		Until:                         fetchWorkflowRunIdsParams.Until,
-		Keys:                          fetchWorkflowRunIdsParams.Keys,
-		Values:                        fetchWorkflowRunIdsParams.Values,
-		ParentTaskExternalId:          fetchWorkflowRunIdsParams.ParentTaskExternalId,
-		TriggeringEventExternalId:     fetchWorkflowRunIdsParams.TriggeringEventExternalId,
-		AdditionalMetadataContainsAny: fetchWorkflowRunIdsParams.AdditionalMetadataContainsAny,
-		AdditionalMetadataContainsAll: fetchWorkflowRunIdsParams.AdditionalMetadataContainsAll,
-		IdempotencyKeys:               fetchWorkflowRunIdsParams.IdempotencyKeys,
-		ExternalIds:                   fetchWorkflowRunIdsParams.ExternalIds,
+		Tenantid:                              fetchWorkflowRunIdsParams.Tenantid,
+		Statuses:                              fetchWorkflowRunIdsParams.Statuses,
+		WorkflowIds:                           fetchWorkflowRunIdsParams.WorkflowIds,
+		Since:                                 fetchWorkflowRunIdsParams.Since,
+		Until:                                 fetchWorkflowRunIdsParams.Until,
+		Keys:                                  fetchWorkflowRunIdsParams.Keys,
+		Values:                                fetchWorkflowRunIdsParams.Values,
+		ParentTaskExternalId:                  fetchWorkflowRunIdsParams.ParentTaskExternalId,
+		TriggeringEventExternalId:             fetchWorkflowRunIdsParams.TriggeringEventExternalId,
+		AdditionalMetadataContainsAny:         fetchWorkflowRunIdsParams.AdditionalMetadataContainsAny,
+		AdditionalMetadataContainsAll:         fetchWorkflowRunIdsParams.AdditionalMetadataContainsAll,
+		IdempotencyKeys:                       fetchWorkflowRunIdsParams.IdempotencyKeys,
+		ConcurrencySlotWorkflowRunExternalIds: fetchWorkflowRunIdsParams.ConcurrencySlotWorkflowRunExternalIds,
 	}
 }
 
 func (r *OLAPRepositoryImpl) CountTasks(ctx context.Context, tenantId uuid.UUID, opts ListTaskRunOpts) (int, error) {
-	if matchesNoExternalIds(opts.ExternalIds) {
+	if matchesNoExternalIds(opts.ConcurrencySlotTaskExternalIds) {
 		return 0, nil
 	}
 
@@ -1305,7 +1305,7 @@ func (r *OLAPRepositoryImpl) CountTasks(ctx context.Context, tenantId uuid.UUID,
 }
 
 func (r *OLAPRepositoryImpl) CountWorkflowRuns(ctx context.Context, tenantId uuid.UUID, opts ListWorkflowRunOpts) (int, error) {
-	if matchesNoExternalIds(opts.ExternalIds) {
+	if matchesNoExternalIds(opts.ConcurrencySlotWorkflowRunExternalIds) {
 		return 0, nil
 	}
 
@@ -1328,7 +1328,7 @@ func (r *OLAPRepositoryImpl) CountWorkflowRuns(ctx context.Context, tenantId uui
 }
 
 func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid.UUID, opts ListWorkflowRunOpts) ([]*WorkflowRunData, int, error) {
-	if matchesNoExternalIds(opts.ExternalIds) {
+	if matchesNoExternalIds(opts.ConcurrencySlotWorkflowRunExternalIds) {
 		return []*WorkflowRunData{}, 0, nil
 	}
 

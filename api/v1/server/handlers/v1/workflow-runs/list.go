@@ -350,7 +350,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 	opts.Offset = offset
 	opts.IncludePayloads = includePayloads
 	opts.IncludeTotalCount = includeNumPages(request.Params)
-	opts.ExternalIds = runExternalIds(slotIds)
+	opts.ConcurrencySlotWorkflowRunExternalIds = runExternalIds(slotIds)
 
 	dags, total, err := t.config.V1.OLAP().ListWorkflowRuns(
 		ctx,
@@ -460,7 +460,7 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 	opts.Offset = offset
 	opts.IncludePayloads = includePayloads
 	opts.IncludeTotalCount = includeNumPages(request.Params)
-	opts.ExternalIds = taskExternalIds(slotIds)
+	opts.ConcurrencySlotTaskExternalIds = taskExternalIds(slotIds)
 
 	tasks, total, err := t.config.V1.OLAP().ListTasks(
 		ctx,
@@ -579,13 +579,13 @@ func (t *V1WorkflowRunsService) countWorkflowRunsOrTasks(ctx context.Context, te
 
 	if onlyTasks {
 		opts := listTaskRunOptsFromFilters(filters, useGinIndex)
-		opts.ExternalIds = taskExternalIds(slotIds)
+		opts.ConcurrencySlotTaskExternalIds = taskExternalIds(slotIds)
 
 		return t.config.V1.OLAP().CountTasks(ctx, tenantId, opts)
 	}
 
 	opts := listWorkflowRunOptsFromFilters(filters, useGinIndex)
-	opts.ExternalIds = runExternalIds(slotIds)
+	opts.ConcurrencySlotWorkflowRunExternalIds = runExternalIds(slotIds)
 
 	return t.config.V1.OLAP().CountWorkflowRuns(ctx, tenantId, opts)
 }

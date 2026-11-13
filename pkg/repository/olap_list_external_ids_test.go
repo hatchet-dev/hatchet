@@ -14,7 +14,7 @@ import (
 
 // One DAG run with two tasks and one standalone task run, so a filter can be checked for both
 // run kinds and for the DAG-to-task expansion of the task-only list.
-func TestListRunsAndTasks_ExternalIdsFilter(t *testing.T) {
+func TestListRunsAndTasks_ConcurrencySlotExternalIdsFilter(t *testing.T) {
 	ctx, _, repo := setupOLAPRepository(t)
 	f := seedDAGWithFinishedChildren(t, ctx, repo, 2)
 
@@ -49,12 +49,12 @@ func TestListRunsAndTasks_ExternalIdsFilter(t *testing.T) {
 		t.Helper()
 
 		opts := ListWorkflowRunOpts{
-			CreatedAfter:               since,
-			Limit:                      50,
-			IncludeTotalCount:          true,
-			ExternalIds:                ids,
-			AdditionalMetadata:         metadata,
-			AdditionalMetadataOperator: AdditionalMetadataOperatorAnd,
+			CreatedAfter:                          since,
+			Limit:                                 50,
+			IncludeTotalCount:                     true,
+			ConcurrencySlotWorkflowRunExternalIds: ids,
+			AdditionalMetadata:                    metadata,
+			AdditionalMetadataOperator:            AdditionalMetadataOperatorAnd,
 		}
 
 		runs, total, err := repo.ListWorkflowRuns(ctx, f.tenantId, opts)
@@ -77,12 +77,12 @@ func TestListRunsAndTasks_ExternalIdsFilter(t *testing.T) {
 		t.Helper()
 
 		opts := ListTaskRunOpts{
-			CreatedAfter:               since,
-			Limit:                      50,
-			IncludeTotalCount:          true,
-			ExternalIds:                ids,
-			AdditionalMetadata:         metadata,
-			AdditionalMetadataOperator: AdditionalMetadataOperatorAnd,
+			CreatedAfter:                   since,
+			Limit:                          50,
+			IncludeTotalCount:              true,
+			ConcurrencySlotTaskExternalIds: ids,
+			AdditionalMetadata:             metadata,
+			AdditionalMetadataOperator:     AdditionalMetadataOperatorAnd,
 		}
 
 		tasks, total, err := repo.ListTasks(ctx, f.tenantId, opts)
