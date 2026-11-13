@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -227,6 +228,94 @@ func TestHandleWaitForNilConditionBaseReturnsInvalidArgument(t *testing.T) {
 		req := &contracts.DurableTaskWaitForRequest{DurableTaskExternalId: uuid.NewString(), WaitForConditions: c}
 		err := d.handleWaitFor(context.Background(), &durableTaskInvocation{}, req)
 		require.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err), err)
+	}
+}
+
+type failingTaskLookup struct {
+	v1.Repository
+	v1.TaskRepository
+}
+
+func (f failingTaskLookup) Tasks() v1.TaskRepository { return f }
+func (failingTaskLookup) GetTaskByExternalId(context.Context, uuid.UUID, uuid.UUID, bool) (*sqlcv1.FlattenExternalIdsRow, error) {
+	return nil, errors.New("pq: connection to 10.0.0.1 reset")
+}
+
+// The worker blocks on the ack of a memo, trigger_runs or wait_for request, so a request that
+// fails must be answered with an error for that invocation. Only an invalid request's message
+// reaches the worker.
+func TestDurableTaskAnswersFailedRequestsWithError(t *testing.T) {
+	taskId := uuid.NewString()
+	const invocationCount = 3
+
+	cases := []struct {
+		name        string
+		repo        v1.Repository
+		req         *contracts.DurableTaskRequest
+		wantMessage string
+	}{
+		{
+			name: "memo",
+			repo: failingTaskLookup{},
+			req: &contracts.DurableTaskRequest{Message: &contracts.DurableTaskRequest_Memo{
+				Memo: &contracts.DurableTaskMemoRequest{DurableTaskExternalId: taskId, InvocationCount: invocationCount},
+			}},
+			wantMessage: "the engine failed to handle this request",
+		},
+		{
+			name: "trigger_runs",
+			repo: failingTaskLookup{},
+			req: &contracts.DurableTaskRequest{Message: &contracts.DurableTaskRequest_TriggerRuns{
+				TriggerRuns: &contracts.DurableTaskTriggerRunsRequest{DurableTaskExternalId: taskId, InvocationCount: invocationCount},
+			}},
+			wantMessage: "the engine failed to handle this request",
+		},
+		{
+			name: "wait_for",
+			repo: failingTaskLookup{},
+			req: &contracts.DurableTaskRequest{Message: &contracts.DurableTaskRequest_WaitFor{
+				WaitFor: &contracts.DurableTaskWaitForRequest{DurableTaskExternalId: taskId, InvocationCount: invocationCount},
+			}},
+			wantMessage: "the engine failed to handle this request",
+		},
+		{
+			name: "invalid wait_for",
+			repo: fakeFoundTask{},
+			req: &contracts.DurableTaskRequest{Message: &contracts.DurableTaskRequest_WaitFor{
+				WaitFor: &contracts.DurableTaskWaitForRequest{
+					DurableTaskExternalId: taskId,
+					InvocationCount:       invocationCount,
+					WaitForConditions:     &contracts.DurableEventListenerConditions{SleepConditions: []*contracts.SleepMatchCondition{{}}},
+				},
+			}},
+			wantMessage: "or group id is not a valid uuid",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			d := newTestDispatcher()
+			d.repo = c.repo
+
+			ctx, cancel := context.WithCancel(tenantContext())
+			t.Cleanup(cancel)
+
+			reqCh, respCh, err := d.RegisterDurableTask(ctx, uuid.MustParse(taskId))
+			require.NoError(t, err)
+
+			reqCh <- c.req
+
+			select {
+			case resp := <-respCh:
+				errResp := resp.GetError()
+				require.NotNil(t, errResp, "expected an error response, got %v", resp)
+				require.Equal(t, taskId, errResp.GetRef().GetDurableTaskExternalId())
+				require.Equal(t, int32(invocationCount), errResp.GetRef().GetInvocationCount())
+				require.True(t, strings.HasPrefix(errResp.GetErrorMessage(), c.wantMessage), errResp.GetErrorMessage())
+			case <-time.After(5 * time.Second):
+				t.Fatal("the failed request was never answered")
+			}
+		})
 	}
 }
 
