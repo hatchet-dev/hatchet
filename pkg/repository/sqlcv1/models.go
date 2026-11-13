@@ -71,6 +71,16 @@ func (e ConcurrencyLimitStrategy) Valid() bool {
 	return false
 }
 
+func AllConcurrencyLimitStrategyValues() []ConcurrencyLimitStrategy {
+	return []ConcurrencyLimitStrategy{
+		ConcurrencyLimitStrategyCANCELINPROGRESS,
+		ConcurrencyLimitStrategyDROPNEWEST,
+		ConcurrencyLimitStrategyQUEUENEWEST,
+		ConcurrencyLimitStrategyGROUPROUNDROBIN,
+		ConcurrencyLimitStrategyCANCELNEWEST,
+	}
+}
+
 type IdempotencyMethod string
 
 const (
@@ -120,6 +130,13 @@ func (e IdempotencyMethod) Valid() bool {
 		return true
 	}
 	return false
+}
+
+func AllIdempotencyMethodValues() []IdempotencyMethod {
+	return []IdempotencyMethod{
+		IdempotencyMethodTTL,
+		IdempotencyMethodSTATUS,
+	}
 }
 
 type InternalQueue string
@@ -179,6 +196,16 @@ func (e InternalQueue) Valid() bool {
 	return false
 }
 
+func AllInternalQueueValues() []InternalQueue {
+	return []InternalQueue{
+		InternalQueueWORKERSEMAPHORECOUNT,
+		InternalQueueSTEPRUNUPDATE,
+		InternalQueueWORKFLOWRUNUPDATE,
+		InternalQueueWORKFLOWRUNPAUSED,
+		InternalQueueSTEPRUNUPDATEV2,
+	}
+}
+
 type InviteLinkStatus string
 
 const (
@@ -232,6 +259,14 @@ func (e InviteLinkStatus) Valid() bool {
 	return false
 }
 
+func AllInviteLinkStatusValues() []InviteLinkStatus {
+	return []InviteLinkStatus{
+		InviteLinkStatusPENDING,
+		InviteLinkStatusACCEPTED,
+		InviteLinkStatusREJECTED,
+	}
+}
+
 type JobKind string
 
 const (
@@ -281,6 +316,13 @@ func (e JobKind) Valid() bool {
 		return true
 	}
 	return false
+}
+
+func AllJobKindValues() []JobKind {
+	return []JobKind{
+		JobKindDEFAULT,
+		JobKindONFAILURE,
+	}
 }
 
 type JobRunStatus string
@@ -342,6 +384,17 @@ func (e JobRunStatus) Valid() bool {
 	return false
 }
 
+func AllJobRunStatusValues() []JobRunStatus {
+	return []JobRunStatus{
+		JobRunStatusPENDING,
+		JobRunStatusRUNNING,
+		JobRunStatusSUCCEEDED,
+		JobRunStatusFAILED,
+		JobRunStatusCANCELLED,
+		JobRunStatusBACKOFF,
+	}
+}
+
 type LeaseKind string
 
 const (
@@ -399,6 +452,16 @@ func (e LeaseKind) Valid() bool {
 	return false
 }
 
+func AllLeaseKindValues() []LeaseKind {
+	return []LeaseKind{
+		LeaseKindWORKER,
+		LeaseKindQUEUE,
+		LeaseKindCONCURRENCYSTRATEGY,
+		LeaseKindTABLEPARTITIONMAINTENANCE,
+		LeaseKindBATCH,
+	}
+}
+
 type LogLineLevel string
 
 const (
@@ -454,6 +517,15 @@ func (e LogLineLevel) Valid() bool {
 	return false
 }
 
+func AllLogLineLevelValues() []LogLineLevel {
+	return []LogLineLevel{
+		LogLineLevelDEBUG,
+		LogLineLevelINFO,
+		LogLineLevelWARN,
+		LogLineLevelERROR,
+	}
+}
+
 type MessageQueueItemStatus string
 
 const (
@@ -503,6 +575,13 @@ func (e MessageQueueItemStatus) Valid() bool {
 		return true
 	}
 	return false
+}
+
+func AllMessageQueueItemStatusValues() []MessageQueueItemStatus {
+	return []MessageQueueItemStatus{
+		MessageQueueItemStatusPENDING,
+		MessageQueueItemStatusASSIGNED,
+	}
 }
 
 type StepExpressionKind string
@@ -560,6 +639,15 @@ func (e StepExpressionKind) Valid() bool {
 	return false
 }
 
+func AllStepExpressionKindValues() []StepExpressionKind {
+	return []StepExpressionKind{
+		StepExpressionKindDYNAMICRATELIMITKEY,
+		StepExpressionKindDYNAMICRATELIMITVALUE,
+		StepExpressionKindDYNAMICRATELIMITUNITS,
+		StepExpressionKindDYNAMICRATELIMITWINDOW,
+	}
+}
+
 type StepRateLimitKind string
 
 const (
@@ -609,6 +697,13 @@ func (e StepRateLimitKind) Valid() bool {
 		return true
 	}
 	return false
+}
+
+func AllStepRateLimitKindValues() []StepRateLimitKind {
+	return []StepRateLimitKind{
+		StepRateLimitKindSTATIC,
+		StepRateLimitKindDYNAMIC,
+	}
 }
 
 type StepRunEventReason string
@@ -696,6 +791,30 @@ func (e StepRunEventReason) Valid() bool {
 	return false
 }
 
+func AllStepRunEventReasonValues() []StepRunEventReason {
+	return []StepRunEventReason{
+		StepRunEventReasonREQUEUEDNOWORKER,
+		StepRunEventReasonREQUEUEDRATELIMIT,
+		StepRunEventReasonSCHEDULINGTIMEDOUT,
+		StepRunEventReasonASSIGNED,
+		StepRunEventReasonSTARTED,
+		StepRunEventReasonFINISHED,
+		StepRunEventReasonFAILED,
+		StepRunEventReasonRETRYING,
+		StepRunEventReasonCANCELLED,
+		StepRunEventReasonTIMEDOUT,
+		StepRunEventReasonREASSIGNED,
+		StepRunEventReasonSLOTRELEASED,
+		StepRunEventReasonTIMEOUTREFRESHED,
+		StepRunEventReasonRETRIEDBYUSER,
+		StepRunEventReasonSENTTOWORKER,
+		StepRunEventReasonWORKFLOWRUNGROUPKEYSUCCEEDED,
+		StepRunEventReasonWORKFLOWRUNGROUPKEYFAILED,
+		StepRunEventReasonRATELIMITERROR,
+		StepRunEventReasonACKNOWLEDGED,
+	}
+}
+
 type StepRunEventSeverity string
 
 const (
@@ -747,6 +866,14 @@ func (e StepRunEventSeverity) Valid() bool {
 		return true
 	}
 	return false
+}
+
+func AllStepRunEventSeverityValues() []StepRunEventSeverity {
+	return []StepRunEventSeverity{
+		StepRunEventSeverityINFO,
+		StepRunEventSeverityWARNING,
+		StepRunEventSeverityCRITICAL,
+	}
 }
 
 type StepRunStatus string
@@ -814,6 +941,20 @@ func (e StepRunStatus) Valid() bool {
 	return false
 }
 
+func AllStepRunStatusValues() []StepRunStatus {
+	return []StepRunStatus{
+		StepRunStatusPENDING,
+		StepRunStatusPENDINGASSIGNMENT,
+		StepRunStatusASSIGNED,
+		StepRunStatusRUNNING,
+		StepRunStatusSUCCEEDED,
+		StepRunStatusFAILED,
+		StepRunStatusCANCELLED,
+		StepRunStatusCANCELLING,
+		StepRunStatusBACKOFF,
+	}
+}
+
 type StickyStrategy string
 
 const (
@@ -863,6 +1004,13 @@ func (e StickyStrategy) Valid() bool {
 		return true
 	}
 	return false
+}
+
+func AllStickyStrategyValues() []StickyStrategy {
+	return []StickyStrategy{
+		StickyStrategySOFT,
+		StickyStrategyHARD,
+	}
 }
 
 type TenantEnvironment string
@@ -918,6 +1066,14 @@ func (e TenantEnvironment) Valid() bool {
 	return false
 }
 
+func AllTenantEnvironmentValues() []TenantEnvironment {
+	return []TenantEnvironment{
+		TenantEnvironmentLocal,
+		TenantEnvironmentDevelopment,
+		TenantEnvironmentProduction,
+	}
+}
+
 type TenantMajorUIVersion string
 
 const (
@@ -967,6 +1123,13 @@ func (e TenantMajorUIVersion) Valid() bool {
 		return true
 	}
 	return false
+}
+
+func AllTenantMajorUIVersionValues() []TenantMajorUIVersion {
+	return []TenantMajorUIVersion{
+		TenantMajorUIVersionV0,
+		TenantMajorUIVersionV1,
+	}
 }
 
 type TenantResourceLimitAlertType string
@@ -1020,6 +1183,13 @@ func (e TenantResourceLimitAlertType) Valid() bool {
 	return false
 }
 
+func AllTenantResourceLimitAlertTypeValues() []TenantResourceLimitAlertType {
+	return []TenantResourceLimitAlertType{
+		TenantResourceLimitAlertTypeAlarm,
+		TenantResourceLimitAlertTypeExhausted,
+	}
+}
+
 type V1AuditLogActorType string
 
 const (
@@ -1069,6 +1239,13 @@ func (e V1AuditLogActorType) Valid() bool {
 		return true
 	}
 	return false
+}
+
+func AllV1AuditLogActorTypeValues() []V1AuditLogActorType {
+	return []V1AuditLogActorType{
+		V1AuditLogActorTypeUser,
+		V1AuditLogActorTypeApiKey,
+	}
 }
 
 type V1CelEvaluationFailureSource string
@@ -1124,6 +1301,14 @@ func (e V1CelEvaluationFailureSource) Valid() bool {
 	return false
 }
 
+func AllV1CelEvaluationFailureSourceValues() []V1CelEvaluationFailureSource {
+	return []V1CelEvaluationFailureSource{
+		V1CelEvaluationFailureSourceFILTER,
+		V1CelEvaluationFailureSourceWEBHOOK,
+		V1CelEvaluationFailureSourceIDEMPOTENCYKEY,
+	}
+}
+
 type V1EventType string
 
 const (
@@ -1173,6 +1358,13 @@ func (e V1EventType) Valid() bool {
 		return true
 	}
 	return false
+}
+
+func AllV1EventTypeValues() []V1EventType {
+	return []V1EventType{
+		V1EventTypeUSER,
+		V1EventTypeINTERNAL,
+	}
 }
 
 type V1IncomingWebhookHmacEncoding string
@@ -1228,6 +1420,14 @@ func (e V1IncomingWebhookHmacEncoding) Valid() bool {
 	return false
 }
 
+func AllV1IncomingWebhookHmacEncodingValues() []V1IncomingWebhookHmacEncoding {
+	return []V1IncomingWebhookHmacEncoding{
+		V1IncomingWebhookHmacEncodingHEX,
+		V1IncomingWebhookHmacEncodingBASE64,
+		V1IncomingWebhookHmacEncodingBASE64URL,
+	}
+}
+
 type V1LogLineLevel string
 
 const (
@@ -1281,6 +1481,15 @@ func (e V1LogLineLevel) Valid() bool {
 		return true
 	}
 	return false
+}
+
+func AllV1LogLineLevelValues() []V1LogLineLevel {
+	return []V1LogLineLevel{
+		V1LogLineLevelDEBUG,
+		V1LogLineLevelINFO,
+		V1LogLineLevelWARN,
+		V1LogLineLevelERROR,
+	}
 }
 
 type V1MatchConditionAction string
@@ -1340,6 +1549,16 @@ func (e V1MatchConditionAction) Valid() bool {
 	return false
 }
 
+func AllV1MatchConditionActionValues() []V1MatchConditionAction {
+	return []V1MatchConditionAction{
+		V1MatchConditionActionCREATE,
+		V1MatchConditionActionQUEUE,
+		V1MatchConditionActionCANCEL,
+		V1MatchConditionActionSKIP,
+		V1MatchConditionActionCREATEMATCH,
+	}
+}
+
 type V1MatchKind string
 
 const (
@@ -1389,6 +1608,13 @@ func (e V1MatchKind) Valid() bool {
 		return true
 	}
 	return false
+}
+
+func AllV1MatchKindValues() []V1MatchKind {
+	return []V1MatchKind{
+		V1MatchKindTRIGGER,
+		V1MatchKindSIGNAL,
+	}
 }
 
 type V1OperatorKind string
@@ -1444,6 +1670,14 @@ func (e V1OperatorKind) Valid() bool {
 	return false
 }
 
+func AllV1OperatorKindValues() []V1OperatorKind {
+	return []V1OperatorKind{
+		V1OperatorKindHTTPAPI,
+		V1OperatorKindDAG,
+		V1OperatorKindGRPC,
+	}
+}
+
 type V1OperatorLeasingManager string
 
 const (
@@ -1493,6 +1727,13 @@ func (e V1OperatorLeasingManager) Valid() bool {
 		return true
 	}
 	return false
+}
+
+func AllV1OperatorLeasingManagerValues() []V1OperatorLeasingManager {
+	return []V1OperatorLeasingManager{
+		V1OperatorLeasingManagerSELF,
+		V1OperatorLeasingManagerDISPATCHER,
+	}
 }
 
 type V1OtelSpanKind string
@@ -1554,6 +1795,17 @@ func (e V1OtelSpanKind) Valid() bool {
 	return false
 }
 
+func AllV1OtelSpanKindValues() []V1OtelSpanKind {
+	return []V1OtelSpanKind{
+		V1OtelSpanKindUNSPECIFIED,
+		V1OtelSpanKindINTERNAL,
+		V1OtelSpanKindSERVER,
+		V1OtelSpanKindCLIENT,
+		V1OtelSpanKindPRODUCER,
+		V1OtelSpanKindCONSUMER,
+	}
+}
+
 type V1OtelStatusCode string
 
 const (
@@ -1607,6 +1859,14 @@ func (e V1OtelStatusCode) Valid() bool {
 	return false
 }
 
+func AllV1OtelStatusCodeValues() []V1OtelStatusCode {
+	return []V1OtelStatusCode{
+		V1OtelStatusCodeUNSET,
+		V1OtelStatusCodeOK,
+		V1OtelStatusCodeERROR,
+	}
+}
+
 type V1PayloadLocation string
 
 const (
@@ -1658,6 +1918,13 @@ func (e V1PayloadLocation) Valid() bool {
 	return false
 }
 
+func AllV1PayloadLocationValues() []V1PayloadLocation {
+	return []V1PayloadLocation{
+		V1PayloadLocationINLINE,
+		V1PayloadLocationEXTERNAL,
+	}
+}
+
 type V1PayloadLocationOlap string
 
 const (
@@ -1707,6 +1974,13 @@ func (e V1PayloadLocationOlap) Valid() bool {
 		return true
 	}
 	return false
+}
+
+func AllV1PayloadLocationOlapValues() []V1PayloadLocationOlap {
+	return []V1PayloadLocationOlap{
+		V1PayloadLocationOlapINLINE,
+		V1PayloadLocationOlapEXTERNAL,
+	}
 }
 
 type V1PayloadType string
@@ -1768,6 +2042,18 @@ func (e V1PayloadType) Valid() bool {
 		return true
 	}
 	return false
+}
+
+func AllV1PayloadTypeValues() []V1PayloadType {
+	return []V1PayloadType{
+		V1PayloadTypeTASKINPUT,
+		V1PayloadTypeDAGINPUT,
+		V1PayloadTypeTASKOUTPUT,
+		V1PayloadTypeTASKEVENTDATA,
+		V1PayloadTypeUSEREVENTINPUT,
+		V1PayloadTypeDURABLEEVENTLOGENTRYDATA,
+		V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
+	}
 }
 
 type V1SandboxEventKind string
@@ -1833,6 +2119,19 @@ func (e V1SandboxEventKind) Valid() bool {
 	return false
 }
 
+func AllV1SandboxEventKindValues() []V1SandboxEventKind {
+	return []V1SandboxEventKind{
+		V1SandboxEventKindHEALTHCHECKFAILED,
+		V1SandboxEventKindUNHEALTHY,
+		V1SandboxEventKindHEALTHY,
+		V1SandboxEventKindSANDBOXCREATED,
+		V1SandboxEventKindSANDBOXCREATEFAILED,
+		V1SandboxEventKindTURNFAILED,
+		V1SandboxEventKindSNAPSHOTFAILED,
+		V1SandboxEventKindSANDBOXDESTROYED,
+	}
+}
+
 type V1SandboxProviderKind string
 
 const (
@@ -1886,6 +2185,15 @@ func (e V1SandboxProviderKind) Valid() bool {
 		return true
 	}
 	return false
+}
+
+func AllV1SandboxProviderKindValues() []V1SandboxProviderKind {
+	return []V1SandboxProviderKind{
+		V1SandboxProviderKindDAYTONA,
+		V1SandboxProviderKindE2B,
+		V1SandboxProviderKindARCHIL,
+		V1SandboxProviderKindFREESTYLE,
+	}
 }
 
 type V1SandboxStatus string
@@ -1943,6 +2251,15 @@ func (e V1SandboxStatus) Valid() bool {
 	return false
 }
 
+func AllV1SandboxStatusValues() []V1SandboxStatus {
+	return []V1SandboxStatus{
+		V1SandboxStatusCREATING,
+		V1SandboxStatusRUNNING,
+		V1SandboxStatusDESTROYED,
+		V1SandboxStatusFAILED,
+	}
+}
+
 type V1StatusKind string
 
 const (
@@ -1992,6 +2309,13 @@ func (e V1StatusKind) Valid() bool {
 		return true
 	}
 	return false
+}
+
+func AllV1StatusKindValues() []V1StatusKind {
+	return []V1StatusKind{
+		V1StatusKindTASK,
+		V1StatusKindDAG,
+	}
 }
 
 type V1StepMatchConditionKind string
@@ -2047,6 +2371,14 @@ func (e V1StepMatchConditionKind) Valid() bool {
 	return false
 }
 
+func AllV1StepMatchConditionKindValues() []V1StepMatchConditionKind {
+	return []V1StepMatchConditionKind{
+		V1StepMatchConditionKindPARENTOVERRIDE,
+		V1StepMatchConditionKindUSEREVENT,
+		V1StepMatchConditionKindSLEEP,
+	}
+}
+
 type V1StickyStrategy string
 
 const (
@@ -2100,6 +2432,14 @@ func (e V1StickyStrategy) Valid() bool {
 	return false
 }
 
+func AllV1StickyStrategyValues() []V1StickyStrategy {
+	return []V1StickyStrategy{
+		V1StickyStrategyNONE,
+		V1StickyStrategySOFT,
+		V1StickyStrategyHARD,
+	}
+}
+
 type V1StickyStrategyOlap string
 
 const (
@@ -2151,6 +2491,14 @@ func (e V1StickyStrategyOlap) Valid() bool {
 		return true
 	}
 	return false
+}
+
+func AllV1StickyStrategyOlapValues() []V1StickyStrategyOlap {
+	return []V1StickyStrategyOlap{
+		V1StickyStrategyOlapNONE,
+		V1StickyStrategyOlapSOFT,
+		V1StickyStrategyOlapHARD,
+	}
 }
 
 type V1TaskEventType string
@@ -2210,6 +2558,16 @@ func (e V1TaskEventType) Valid() bool {
 	return false
 }
 
+func AllV1TaskEventTypeValues() []V1TaskEventType {
+	return []V1TaskEventType{
+		V1TaskEventTypeCOMPLETED,
+		V1TaskEventTypeFAILED,
+		V1TaskEventTypeCANCELLED,
+		V1TaskEventTypeSIGNALCREATED,
+		V1TaskEventTypeSIGNALCOMPLETED,
+	}
+}
+
 type V1TaskInitialState string
 
 const (
@@ -2265,6 +2623,15 @@ func (e V1TaskInitialState) Valid() bool {
 	return false
 }
 
+func AllV1TaskInitialStateValues() []V1TaskInitialState {
+	return []V1TaskInitialState{
+		V1TaskInitialStateQUEUED,
+		V1TaskInitialStateCANCELLED,
+		V1TaskInitialStateSKIPPED,
+		V1TaskInitialStateFAILED,
+	}
+}
+
 type VcsProvider string
 
 const (
@@ -2312,6 +2679,12 @@ func (e VcsProvider) Valid() bool {
 		return true
 	}
 	return false
+}
+
+func AllVcsProviderValues() []VcsProvider {
+	return []VcsProvider{
+		VcsProviderGITHUB,
+	}
 }
 
 type WebhookWorkerRequestMethod string
@@ -2365,6 +2738,14 @@ func (e WebhookWorkerRequestMethod) Valid() bool {
 		return true
 	}
 	return false
+}
+
+func AllWebhookWorkerRequestMethodValues() []WebhookWorkerRequestMethod {
+	return []WebhookWorkerRequestMethod{
+		WebhookWorkerRequestMethodGET,
+		WebhookWorkerRequestMethodPOST,
+		WebhookWorkerRequestMethodPUT,
+	}
 }
 
 type WorkerLabelComparator string
@@ -2426,6 +2807,17 @@ func (e WorkerLabelComparator) Valid() bool {
 	return false
 }
 
+func AllWorkerLabelComparatorValues() []WorkerLabelComparator {
+	return []WorkerLabelComparator{
+		WorkerLabelComparatorEQUAL,
+		WorkerLabelComparatorNOTEQUAL,
+		WorkerLabelComparatorGREATERTHAN,
+		WorkerLabelComparatorGREATERTHANOREQUAL,
+		WorkerLabelComparatorLESSTHAN,
+		WorkerLabelComparatorLESSTHANOREQUAL,
+	}
+}
+
 type WorkerSDKS string
 
 const (
@@ -2483,6 +2875,16 @@ func (e WorkerSDKS) Valid() bool {
 	return false
 }
 
+func AllWorkerSDKSValues() []WorkerSDKS {
+	return []WorkerSDKS{
+		WorkerSDKSUNKNOWN,
+		WorkerSDKSGO,
+		WorkerSDKSPYTHON,
+		WorkerSDKSTYPESCRIPT,
+		WorkerSDKSRUBY,
+	}
+}
+
 type WorkerType string
 
 const (
@@ -2534,6 +2936,14 @@ func (e WorkerType) Valid() bool {
 		return true
 	}
 	return false
+}
+
+func AllWorkerTypeValues() []WorkerType {
+	return []WorkerType{
+		WorkerTypeWEBHOOK,
+		WorkerTypeMANAGED,
+		WorkerTypeSELFHOSTED,
+	}
 }
 
 type WorkflowKind string
@@ -2589,6 +2999,14 @@ func (e WorkflowKind) Valid() bool {
 	return false
 }
 
+func AllWorkflowKindValues() []WorkflowKind {
+	return []WorkflowKind{
+		WorkflowKindFUNCTION,
+		WorkflowKindDURABLE,
+		WorkflowKindDAG,
+	}
+}
+
 type WorkflowPauseQueueBehavior string
 
 const (
@@ -2638,6 +3056,13 @@ func (e WorkflowPauseQueueBehavior) Valid() bool {
 		return true
 	}
 	return false
+}
+
+func AllWorkflowPauseQueueBehaviorValues() []WorkflowPauseQueueBehavior {
+	return []WorkflowPauseQueueBehavior{
+		WorkflowPauseQueueBehaviorQUEUE,
+		WorkflowPauseQueueBehaviorDROP,
+	}
 }
 
 type WorkflowRunStatus string
@@ -2703,6 +3128,19 @@ func (e WorkflowRunStatus) Valid() bool {
 	return false
 }
 
+func AllWorkflowRunStatusValues() []WorkflowRunStatus {
+	return []WorkflowRunStatus{
+		WorkflowRunStatusPENDING,
+		WorkflowRunStatusRUNNING,
+		WorkflowRunStatusSUCCEEDED,
+		WorkflowRunStatusFAILED,
+		WorkflowRunStatusQUEUED,
+		WorkflowRunStatusCANCELLING,
+		WorkflowRunStatusCANCELLED,
+		WorkflowRunStatusBACKOFF,
+	}
+}
+
 type WorkflowTriggerCronRefMethods string
 
 const (
@@ -2754,6 +3192,13 @@ func (e WorkflowTriggerCronRefMethods) Valid() bool {
 	return false
 }
 
+func AllWorkflowTriggerCronRefMethodsValues() []WorkflowTriggerCronRefMethods {
+	return []WorkflowTriggerCronRefMethods{
+		WorkflowTriggerCronRefMethodsDEFAULT,
+		WorkflowTriggerCronRefMethodsAPI,
+	}
+}
+
 type WorkflowTriggerScheduledRefMethods string
 
 const (
@@ -2803,6 +3248,13 @@ func (e WorkflowTriggerScheduledRefMethods) Valid() bool {
 		return true
 	}
 	return false
+}
+
+func AllWorkflowTriggerScheduledRefMethodsValues() []WorkflowTriggerScheduledRefMethods {
+	return []WorkflowTriggerScheduledRefMethods{
+		WorkflowTriggerScheduledRefMethodsDEFAULT,
+		WorkflowTriggerScheduledRefMethodsAPI,
+	}
 }
 
 type APIToken struct {

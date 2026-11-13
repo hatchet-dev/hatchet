@@ -74,6 +74,21 @@ func (e LimitResource) Valid() bool {
 	return false
 }
 
+func AllLimitResourceValues() []LimitResource {
+	return []LimitResource{
+		LimitResourceTASKRUN,
+		LimitResourceEVENT,
+		LimitResourceWORKER,
+		LimitResourceWORKERSLOT,
+		LimitResourceCRON,
+		LimitResourceSCHEDULE,
+		LimitResourceINCOMINGWEBHOOK,
+		LimitResourceSTREAMTOPIC,
+		LimitResourceSTREAMMESSAGE,
+		LimitResourceSTREAMRETENTION,
+	}
+}
+
 type TenantMajorEngineVersion string
 
 const (
@@ -123,6 +138,13 @@ func (e TenantMajorEngineVersion) Valid() bool {
 		return true
 	}
 	return false
+}
+
+func AllTenantMajorEngineVersionValues() []TenantMajorEngineVersion {
+	return []TenantMajorEngineVersion{
+		TenantMajorEngineVersionV0,
+		TenantMajorEngineVersionV1,
+	}
 }
 
 type TenantMemberRole string
@@ -178,6 +200,15 @@ func (e TenantMemberRole) Valid() bool {
 		return true
 	}
 	return false
+}
+
+func AllTenantMemberRoleValues() []TenantMemberRole {
+	return []TenantMemberRole{
+		TenantMemberRoleOWNER,
+		TenantMemberRoleADMIN,
+		TenantMemberRoleMEMBER,
+		TenantMemberRoleVIEWER,
+	}
 }
 
 type V1ConcurrencyStrategy string
@@ -239,6 +270,17 @@ func (e V1ConcurrencyStrategy) Valid() bool {
 	return false
 }
 
+func AllV1ConcurrencyStrategyValues() []V1ConcurrencyStrategy {
+	return []V1ConcurrencyStrategy{
+		V1ConcurrencyStrategyNONE,
+		V1ConcurrencyStrategyGROUPROUNDROBIN,
+		V1ConcurrencyStrategyCANCELINPROGRESS,
+		V1ConcurrencyStrategyCANCELNEWEST,
+		V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST,
+		V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST,
+	}
+}
+
 type V1DurableEventLogKind string
 
 const (
@@ -290,6 +332,14 @@ func (e V1DurableEventLogKind) Valid() bool {
 		return true
 	}
 	return false
+}
+
+func AllV1DurableEventLogKindValues() []V1DurableEventLogKind {
+	return []V1DurableEventLogKind{
+		V1DurableEventLogKindRUN,
+		V1DurableEventLogKindWAITFOR,
+		V1DurableEventLogKindMEMO,
+	}
 }
 
 type V1EventTypeOlap string
@@ -391,6 +441,37 @@ func (e V1EventTypeOlap) Valid() bool {
 	return false
 }
 
+func AllV1EventTypeOlapValues() []V1EventTypeOlap {
+	return []V1EventTypeOlap{
+		V1EventTypeOlapRETRYING,
+		V1EventTypeOlapREASSIGNED,
+		V1EventTypeOlapRETRIEDBYUSER,
+		V1EventTypeOlapCREATED,
+		V1EventTypeOlapQUEUED,
+		V1EventTypeOlapREQUEUEDNOWORKER,
+		V1EventTypeOlapREQUEUEDRATELIMIT,
+		V1EventTypeOlapASSIGNED,
+		V1EventTypeOlapACKNOWLEDGED,
+		V1EventTypeOlapSENTTOWORKER,
+		V1EventTypeOlapSLOTRELEASED,
+		V1EventTypeOlapSTARTED,
+		V1EventTypeOlapTIMEOUTREFRESHED,
+		V1EventTypeOlapSCHEDULINGTIMEDOUT,
+		V1EventTypeOlapFINISHED,
+		V1EventTypeOlapFAILED,
+		V1EventTypeOlapCANCELLED,
+		V1EventTypeOlapTIMEDOUT,
+		V1EventTypeOlapRATELIMITERROR,
+		V1EventTypeOlapSKIPPED,
+		V1EventTypeOlapCOULDNOTSENDTOWORKER,
+		V1EventTypeOlapDURABLEEVICTED,
+		V1EventTypeOlapDURABLERESTORING,
+		V1EventTypeOlapBATCHBUFFERED,
+		V1EventTypeOlapWAITINGFORBATCH,
+		V1EventTypeOlapBATCHFLUSHED,
+	}
+}
+
 type V1IncomingWebhookAuthType string
 
 const (
@@ -442,6 +523,14 @@ func (e V1IncomingWebhookAuthType) Valid() bool {
 		return true
 	}
 	return false
+}
+
+func AllV1IncomingWebhookAuthTypeValues() []V1IncomingWebhookAuthType {
+	return []V1IncomingWebhookAuthType{
+		V1IncomingWebhookAuthTypeBASIC,
+		V1IncomingWebhookAuthTypeAPIKEY,
+		V1IncomingWebhookAuthTypeHMAC,
+	}
 }
 
 type V1IncomingWebhookHmacAlgorithm string
@@ -497,6 +586,15 @@ func (e V1IncomingWebhookHmacAlgorithm) Valid() bool {
 		return true
 	}
 	return false
+}
+
+func AllV1IncomingWebhookHmacAlgorithmValues() []V1IncomingWebhookHmacAlgorithm {
+	return []V1IncomingWebhookHmacAlgorithm{
+		V1IncomingWebhookHmacAlgorithmSHA1,
+		V1IncomingWebhookHmacAlgorithmSHA256,
+		V1IncomingWebhookHmacAlgorithmSHA512,
+		V1IncomingWebhookHmacAlgorithmMD5,
+	}
 }
 
 type V1IncomingWebhookSourceName string
@@ -558,6 +656,17 @@ func (e V1IncomingWebhookSourceName) Valid() bool {
 	return false
 }
 
+func AllV1IncomingWebhookSourceNameValues() []V1IncomingWebhookSourceName {
+	return []V1IncomingWebhookSourceName{
+		V1IncomingWebhookSourceNameGENERIC,
+		V1IncomingWebhookSourceNameGITHUB,
+		V1IncomingWebhookSourceNameSTRIPE,
+		V1IncomingWebhookSourceNameSLACK,
+		V1IncomingWebhookSourceNameLINEAR,
+		V1IncomingWebhookSourceNameSVIX,
+	}
+}
+
 type V1ReadableStatusOlap string
 
 const (
@@ -617,6 +726,17 @@ func (e V1ReadableStatusOlap) Valid() bool {
 	return false
 }
 
+func AllV1ReadableStatusOlapValues() []V1ReadableStatusOlap {
+	return []V1ReadableStatusOlap{
+		V1ReadableStatusOlapQUEUED,
+		V1ReadableStatusOlapRUNNING,
+		V1ReadableStatusOlapCANCELLED,
+		V1ReadableStatusOlapFAILED,
+		V1ReadableStatusOlapCOMPLETED,
+		V1ReadableStatusOlapEVICTED,
+	}
+}
+
 type V1RunKind string
 
 const (
@@ -666,6 +786,13 @@ func (e V1RunKind) Valid() bool {
 		return true
 	}
 	return false
+}
+
+func AllV1RunKindValues() []V1RunKind {
+	return []V1RunKind{
+		V1RunKindTASK,
+		V1RunKindDAG,
+	}
 }
 
 type V1ServerlessEndpointEventKind string
@@ -727,6 +854,17 @@ func (e V1ServerlessEndpointEventKind) Valid() bool {
 	return false
 }
 
+func AllV1ServerlessEndpointEventKindValues() []V1ServerlessEndpointEventKind {
+	return []V1ServerlessEndpointEventKind{
+		V1ServerlessEndpointEventKindHEALTHCHECKFAILED,
+		V1ServerlessEndpointEventKindUNHEALTHY,
+		V1ServerlessEndpointEventKindHEALTHY,
+		V1ServerlessEndpointEventKindCATALOGREGISTERED,
+		V1ServerlessEndpointEventKindCATALOGREJECTED,
+		V1ServerlessEndpointEventKindDELIVERYFAILED,
+	}
+}
+
 type V1ServerlessEndpointKind string
 
 const (
@@ -778,4 +916,12 @@ func (e V1ServerlessEndpointKind) Valid() bool {
 		return true
 	}
 	return false
+}
+
+func AllV1ServerlessEndpointKindValues() []V1ServerlessEndpointKind {
+	return []V1ServerlessEndpointKind{
+		V1ServerlessEndpointKindGENERICHTTP,
+		V1ServerlessEndpointKindCLOUDFLAREWORKERS,
+		V1ServerlessEndpointKindVERCEL,
+	}
 }

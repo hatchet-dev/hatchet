@@ -113,7 +113,7 @@ type TriggerTaskData struct {
 	OrchestratorPayloadReferenceId *uuid.UUID `json:"orchestrator_payload_reference_id,omitempty"`
 }
 
-func ProtoToDesiredWorkerLabel(key string, strValue *string, intValue *int32, required *bool, weight *int32, comparator *string) *sqlcv1.GetDesiredLabelsRow {
+func ProtoToDesiredWorkerLabel(key string, strValue *string, intValue *int32, required *bool, weight *int32, comparator *v1contracts.WorkerLabelComparator) (*sqlcv1.GetDesiredLabelsRow, error) {
 	row := &sqlcv1.GetDesiredLabelsRow{
 		Key:        key,
 		Comparator: sqlcv1.WorkerLabelComparatorEQUAL,
@@ -137,10 +137,14 @@ func ProtoToDesiredWorkerLabel(key string, strValue *string, intValue *int32, re
 	}
 
 	if comparator != nil {
-		row.Comparator = sqlcv1.WorkerLabelComparator(*comparator)
+		c, err := enums.FromProto[sqlcv1.WorkerLabelComparator](*comparator)
+		if err != nil {
+			return nil, fmt.Errorf("desired worker label %s: %w", key, err)
+		}
+		row.Comparator = c
 	}
 
-	return row
+	return row, nil
 }
 
 type createDAGOpts struct {
@@ -3199,19 +3203,18 @@ func (r *sharedRepository) NewTriggerTaskData(
 	if len(req.DesiredWorkerLabels) > 0 {
 		labels := make([]*sqlcv1.GetDesiredLabelsRow, 0, len(req.DesiredWorkerLabels))
 		for key, label := range req.DesiredWorkerLabels {
-			var comparator *string
-			if label.Comparator != nil {
-				c := label.Comparator.String()
-				comparator = &c
-			}
-			labels = append(labels, ProtoToDesiredWorkerLabel(
+			row, err := ProtoToDesiredWorkerLabel(
 				key,
 				label.StrValue,
 				label.IntValue,
 				label.Required,
 				label.Weight,
-				comparator,
-			))
+				label.Comparator,
+			)
+			if err != nil {
+				return nil, &TriggerOptInvalidArgumentError{Err: err}
+			}
+			labels = append(labels, row)
 		}
 		t.DesiredWorkerLabels = labels
 	}

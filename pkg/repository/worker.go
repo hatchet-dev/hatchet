@@ -641,21 +641,14 @@ func hashActions(actions []string) []byte {
 // workerSDKFromContract maps the SDK reported by a worker at registration to the "Worker"."language"
 // column value.
 func workerSDKFromContract(sdk contracts.SDKS) (sqlcv1.NullWorkerSDKS, error) {
-	var language sqlcv1.WorkerSDKS
+	// UNKNOWN is a valid column value but not something a worker may register as
+	if sdk == contracts.SDKS_UNKNOWN {
+		return sqlcv1.NullWorkerSDKS{}, fmt.Errorf("invalid sdk: %s", sdk)
+	}
 
-	switch sdk {
-	case contracts.SDKS_GO:
-		language = sqlcv1.WorkerSDKSGO
-	case contracts.SDKS_PYTHON:
-		language = sqlcv1.WorkerSDKSPYTHON
-	case contracts.SDKS_TYPESCRIPT:
-		language = sqlcv1.WorkerSDKSTYPESCRIPT
-	case contracts.SDKS_RUBY:
-		language = sqlcv1.WorkerSDKSRUBY
-	case contracts.SDKS_UNKNOWN:
-		return sqlcv1.NullWorkerSDKS{}, fmt.Errorf("invalid sdk: %s", sdk)
-	default:
-		return sqlcv1.NullWorkerSDKS{}, fmt.Errorf("invalid sdk: %s", sdk)
+	language, err := enums.FromProto[sqlcv1.WorkerSDKS](sdk)
+	if err != nil {
+		return sqlcv1.NullWorkerSDKS{}, fmt.Errorf("invalid sdk: %w", err)
 	}
 
 	return sqlcv1.NullWorkerSDKS{

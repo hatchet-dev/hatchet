@@ -17,6 +17,7 @@ import (
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/client/streaming"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -206,19 +207,9 @@ func (a *actionListenerImpl) subscribeActionStream(ctx context.Context) (dispatc
 }
 
 func (a *actionListenerImpl) actionFromAssigned(ctx context.Context, assignedAction *dispatchercontracts.AssignedAction) (*Action, bool) {
-	var actionType ActionType
-
-	switch assignedAction.ActionType {
-	case dispatchercontracts.ActionType_START_STEP_RUN:
-		actionType = ActionTypeStartStepRun
-	case dispatchercontracts.ActionType_CANCEL_STEP_RUN:
-		actionType = ActionTypeCancelStepRun
-	case dispatchercontracts.ActionType_START_GET_GROUP_KEY:
-		actionType = ActionTypeStartGetGroupKey
-	case dispatchercontracts.ActionType_START_BATCH:
-		actionType = ActionTypeStartBatch
-	default:
-		a.l.Error().Ctx(ctx).Str("action_type", string(assignedAction.ActionType)).Msg("unknown action type")
+	actionType, err := enums.FromProto[ActionType](assignedAction.ActionType)
+	if err != nil {
+		a.l.Error().Ctx(ctx).Err(err).Msg("unknown action type")
 		return nil, false
 	}
 

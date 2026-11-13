@@ -62,6 +62,7 @@ sql:
         emit_result_struct_pointers: true
         emit_json_tags: true
         emit_enum_valid_method: true
+        emit_all_enum_values: true
         overrides:
           - column: "v1_task.concurrency_parent_strategy_ids"
             go_type:

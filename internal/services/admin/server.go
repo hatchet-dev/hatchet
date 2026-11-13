@@ -17,6 +17,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -233,14 +234,17 @@ func (a *AdminServiceImpl) PutRateLimit(ctx context.Context, req *contracts.PutR
 	}
 
 	limit := int(req.Limit)
-	duration := req.Duration.String()
+	duration, err := enums.FromProto[string](req.Duration)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
 
 	createOpts := &v1.UpsertRateLimitOpts{
 		Limit:    limit,
 		Duration: &duration,
 	}
 
-	_, err := a.repov1.RateLimit().UpsertRateLimit(ctx, tenantId, req.Key, createOpts)
+	_, err = a.repov1.RateLimit().UpsertRateLimit(ctx, tenantId, req.Key, createOpts)
 
 	if err != nil {
 		return nil, err
@@ -342,11 +346,9 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*v1.CreateWorkflo
 		}
 	}
 
-	var sticky *string
-
-	if req.Opts.Sticky != nil {
-		s := req.Opts.Sticky.String()
-		sticky = &s
+	sticky, err := enums.FromProtoPtr[sqlcv1.StickyStrategy](req.Opts.Sticky)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 
 	var concurrency []v1.CreateConcurrencyOpts
@@ -358,15 +360,13 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*v1.CreateWorkflo
 			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("CEL expression is required for concurrency"))
 		}
 
-		var limitStrategy *string
-
-		if req.Opts.Concurrency.LimitStrategy != nil && req.Opts.Concurrency.LimitStrategy.String() != "" {
-			s := req.Opts.Concurrency.LimitStrategy.String()
-			limitStrategy = &s
+		limitStrategy, err := enums.FromProtoPtr[enums.V1ConcurrencyStrategy](req.Opts.Concurrency.LimitStrategy)
+		if err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, err)
 		}
 
 		concurrency = append(concurrency, v1.CreateConcurrencyOpts{
-			LimitStrategy: limitStrategy,
+			LimitStrategy: (*string)(limitStrategy),
 			Expression:    *req.Opts.Concurrency.Expression,
 			MaxRuns:       req.Opts.Concurrency.MaxRuns,
 		})
@@ -387,7 +387,7 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*v1.CreateWorkflo
 		CronInput:       cronInput,
 		Tasks:           tasks,
 		OnFailure:       onFailureTask,
-		Sticky:          sticky,
+		Sticky:          (*string)(sticky),
 		DefaultPriority: req.Opts.DefaultPriority,
 	}, nil
 }
@@ -430,10 +430,9 @@ func getCreateTaskOpts(steps []*contracts.CreateWorkflowStepOpts, scheduleTimeou
 					continue
 				}
 
-				var c *string
-				if v.Comparator != nil {
-					cPtr := v.Comparator.String()
-					c = &cPtr
+				c, err := enums.FromProtoPtr[sqlcv1.WorkerLabelComparator](v.Comparator)
+				if err != nil {
+					return nil, connect.NewError(connect.CodeInvalidArgument, err)
 				}
 
 				affinity[k] = v1.DesiredWorkerLabelOpts{
@@ -442,7 +441,7 @@ func getCreateTaskOpts(steps []*contracts.CreateWorkflowStepOpts, scheduleTimeou
 					IntValue:   v.IntValue,
 					Required:   v.Required,
 					Weight:     v.Weight,
-					Comparator: c,
+					Comparator: (*string)(c),
 				}
 			}
 		}
@@ -492,10 +491,11 @@ func getCreateTaskOpts(steps []*contracts.CreateWorkflowStepOpts, scheduleTimeou
 					UnitsExpr: rateLimit.UnitsExpr,
 				}
 
-				if rateLimit.Duration != nil {
-					dur := rateLimit.Duration.String()
-					opt.Duration = &dur
+				dur, err := enums.FromProtoPtr[string](rateLimit.Duration)
+				if err != nil {
+					return nil, connect.NewError(connect.CodeInvalidArgument, err)
 				}
+				opt.Duration = dur
 
 				if rateLimit.Units != nil {
 					units := int(*rateLimit.Units)
