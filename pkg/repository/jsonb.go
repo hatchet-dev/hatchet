@@ -31,8 +31,13 @@ func ValidateJSONB(jsonb []byte, fieldName string) error {
 
 var unicodeEscapePrefix = []byte(`\u`)
 
-// hasUnpairedSurrogateEscape expects valid JSON. Go accepts a \u escape of a UTF-16 surrogate that
-// is missing its other half; Postgres jsonb rejects it.
+// hasUnpairedSurrogateEscape expects valid JSON.
+//
+// A character outside the Basic Multilingual Plane, such as an emoji, is a pair of UTF-16
+// surrogates, and JSON can write it as two \u escapes. The JSON grammar also allows one of the two
+// alone, and Go accepts that. Postgres jsonb rejects it, because half a pair has no UTF-8 encoding.
+// JavaScript's JSON.stringify and Python's json.dumps write half a pair for a string that holds
+// one, which in JavaScript is what text.slice(0, n) leaves when it cuts through an emoji.
 func hasUnpairedSurrogateEscape(b []byte) bool {
 	if !bytes.Contains(b, unicodeEscapePrefix) {
 		return false
