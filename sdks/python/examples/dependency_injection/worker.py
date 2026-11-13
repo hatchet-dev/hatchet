@@ -5,7 +5,7 @@ import sys
 
 from pydantic import BaseModel
 
-from hatchet_sdk import Context, Depends, DurableContext, EmptyModel, Hatchet
+from hatchet_sdk import Context, Depends, DurableContext, Hatchet
 
 hatchet = Hatchet()
 
@@ -38,7 +38,7 @@ else:
 
 @hatchet.task()
 async def task_with_type_aliases(
-    _i: EmptyModel,
+    _i: None,
     ctx: Context,
     async_dep_no_type_alias: AsyncDepNoTypeAlias,
     async_dep_type_alias: AsyncDepTypeAlias,
@@ -58,17 +58,17 @@ async def task_with_type_aliases(
 
 
 # > Declare dependencies
-async def async_dep(input: EmptyModel, ctx: Context) -> str:
+async def async_dep(input: None, ctx: Context) -> str:
     return ASYNC_DEPENDENCY_VALUE
 
 
-def sync_dep(input: EmptyModel, ctx: Context) -> str:
+def sync_dep(input: None, ctx: Context) -> str:
     return SYNC_DEPENDENCY_VALUE
 
 
 @asynccontextmanager
 async def async_cm_dep(
-    input: EmptyModel, ctx: Context, async_dep: Annotated[str, Depends(async_dep)]
+    input: None, ctx: Context, async_dep: Annotated[str, Depends(async_dep)]
 ) -> AsyncGenerator[str, None]:
     try:
         yield ASYNC_CM_DEPENDENCY_VALUE + "_" + async_dep
@@ -78,7 +78,7 @@ async def async_cm_dep(
 
 @contextmanager
 def sync_cm_dep(
-    input: EmptyModel, ctx: Context, sync_dep: Annotated[str, Depends(sync_dep)]
+    input: None, ctx: Context, sync_dep: Annotated[str, Depends(sync_dep)]
 ) -> Generator[str, None, None]:
     try:
         yield SYNC_CM_DEPENDENCY_VALUE + "_" + sync_dep
@@ -87,7 +87,7 @@ def sync_cm_dep(
 
 
 @contextmanager
-def base_cm_dep(input: EmptyModel, ctx: Context) -> Generator[str, None, None]:
+def base_cm_dep(input: None, ctx: Context) -> Generator[str, None, None]:
     try:
         yield CHAINED_CM_VALUE
     finally:
@@ -95,15 +95,13 @@ def base_cm_dep(input: EmptyModel, ctx: Context) -> Generator[str, None, None]:
 
 
 def chained_dep(
-    input: EmptyModel, ctx: Context, base_cm: Annotated[str, Depends(base_cm_dep)]
+    input: None, ctx: Context, base_cm: Annotated[str, Depends(base_cm_dep)]
 ) -> str:
     return "chained_" + base_cm
 
 
 @asynccontextmanager
-async def base_async_cm_dep(
-    input: EmptyModel, ctx: Context
-) -> AsyncGenerator[str, None]:
+async def base_async_cm_dep(input: None, ctx: Context) -> AsyncGenerator[str, None]:
     try:
         yield CHAINED_ASYNC_CM_VALUE
     finally:
@@ -111,7 +109,7 @@ async def base_async_cm_dep(
 
 
 async def chained_async_dep(
-    input: EmptyModel,
+    input: None,
     ctx: Context,
     base_async_cm: Annotated[str, Depends(base_async_cm_dep)],
 ) -> str:
@@ -133,7 +131,7 @@ class Output(BaseModel):
 # > Inject dependencies
 @hatchet.task()
 async def async_task_with_dependencies(
-    _i: EmptyModel,
+    _i: None,
     ctx: Context,
     async_dep: Annotated[str, Depends(async_dep)],
     sync_dep: Annotated[str, Depends(sync_dep)],
@@ -157,7 +155,7 @@ async def async_task_with_dependencies(
 
 @hatchet.task()
 def sync_task_with_dependencies(
-    _i: EmptyModel,
+    _i: None,
     ctx: Context,
     async_dep: Annotated[str, Depends(async_dep)],
     sync_dep: Annotated[str, Depends(sync_dep)],
@@ -178,7 +176,7 @@ def sync_task_with_dependencies(
 
 @hatchet.durable_task()
 async def durable_async_task_with_dependencies(
-    _i: EmptyModel,
+    _i: None,
     ctx: DurableContext,
     async_dep: Annotated[str, Depends(async_dep)],
     sync_dep: Annotated[str, Depends(sync_dep)],
@@ -204,7 +202,7 @@ di_workflow = hatchet.workflow(
 
 @di_workflow.task()
 async def wf_async_task_with_dependencies(
-    _i: EmptyModel,
+    _i: None,
     ctx: Context,
     async_dep: Annotated[str, Depends(async_dep)],
     sync_dep: Annotated[str, Depends(sync_dep)],
@@ -225,7 +223,7 @@ async def wf_async_task_with_dependencies(
 
 @di_workflow.task()
 def wf_sync_task_with_dependencies(
-    _i: EmptyModel,
+    _i: None,
     ctx: Context,
     async_dep: Annotated[str, Depends(async_dep)],
     sync_dep: Annotated[str, Depends(sync_dep)],
@@ -246,7 +244,7 @@ def wf_sync_task_with_dependencies(
 
 @di_workflow.durable_task()
 async def wf_durable_async_task_with_dependencies(
-    _i: EmptyModel,
+    _i: None,
     ctx: DurableContext,
     async_dep: Annotated[str, Depends(async_dep)],
     sync_dep: Annotated[str, Depends(sync_dep)],
@@ -266,12 +264,12 @@ async def wf_durable_async_task_with_dependencies(
 
 
 @contextmanager
-def shared_resource_dep(input: EmptyModel, ctx: Context) -> Generator[str, None, None]:
+def shared_resource_dep(input: None, ctx: Context) -> Generator[str, None, None]:
     yield str(uuid4())
 
 
 def first_consumer_of_shared_resource_dep(
-    input: EmptyModel,
+    input: None,
     ctx: Context,
     shared_resource: Annotated[str, Depends(shared_resource_dep)],
 ) -> str:
@@ -279,7 +277,7 @@ def first_consumer_of_shared_resource_dep(
 
 
 async def second_consumer_of_shared_resource_dep(
-    input: EmptyModel,
+    input: None,
     ctx: Context,
     shared_resource: Annotated[str, Depends(shared_resource_dep)],
 ) -> str:
@@ -294,7 +292,7 @@ class SharedDependencyOutput(BaseModel):
 
 @hatchet.task()
 async def task_with_shared_dependency(
-    _i: EmptyModel,
+    _i: None,
     ctx: Context,
     direct: Annotated[str, Depends(shared_resource_dep)],
     first_consumer: Annotated[str, Depends(first_consumer_of_shared_resource_dep)],
@@ -316,9 +314,7 @@ class TransactionRolledBackError(Exception):
 
 
 @contextmanager
-def sync_transaction_dep(
-    input: EmptyModel, ctx: Context
-) -> Generator[None, None, None]:
+def sync_transaction_dep(input: None, ctx: Context) -> Generator[None, None, None]:
     try:
         yield
     except Exception as e:
@@ -327,7 +323,7 @@ def sync_transaction_dep(
 
 @asynccontextmanager
 async def async_transaction_dep(
-    input: EmptyModel, ctx: Context
+    input: None, ctx: Context
 ) -> AsyncGenerator[None, None]:
     try:
         yield
@@ -337,7 +333,7 @@ async def async_transaction_dep(
 
 @asynccontextmanager
 async def exception_swallowing_dep(
-    input: EmptyModel, ctx: Context
+    input: None, ctx: Context
 ) -> AsyncGenerator[None, None]:
     try:
         yield
@@ -347,7 +343,7 @@ async def exception_swallowing_dep(
 
 @hatchet.task()
 def failing_task_with_sync_transaction(
-    _i: EmptyModel,
+    _i: None,
     ctx: Context,
     transaction: Annotated[None, Depends(sync_transaction_dep)],
 ) -> None:
@@ -356,7 +352,7 @@ def failing_task_with_sync_transaction(
 
 @hatchet.task()
 async def failing_task_with_async_transaction(
-    _i: EmptyModel,
+    _i: None,
     ctx: Context,
     transaction: Annotated[None, Depends(async_transaction_dep)],
 ) -> None:
@@ -365,7 +361,7 @@ async def failing_task_with_async_transaction(
 
 @hatchet.task()
 async def failing_task_with_exception_swallowing_dependency(
-    _i: EmptyModel,
+    _i: None,
     ctx: Context,
     swallower: Annotated[None, Depends(exception_swallowing_dep)],
 ) -> None:
@@ -374,7 +370,7 @@ async def failing_task_with_exception_swallowing_dependency(
 
 @hatchet.task()
 async def failing_task_with_transaction_entered_before_exception_swallowing_dependency(
-    _i: EmptyModel,
+    _i: None,
     ctx: Context,
     transaction: Annotated[None, Depends(async_transaction_dep)],
     swallower: Annotated[None, Depends(exception_swallowing_dep)],

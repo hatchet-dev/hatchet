@@ -10,7 +10,7 @@ Tests verify:
 import pytest
 
 from hatchet_sdk.clients.rest.exceptions import (
-    NotFoundException,
+    NotFoundError,
     RestTimeoutError,
     RestTransportError,
     ServiceException,
@@ -28,7 +28,7 @@ from hatchet_sdk.config import TenacityConfig, HTTPMethod
 )
 def test_default__transport_errors_not_retried(exc_class: type) -> None:
     """By default, RestTransportError and subclasses should not be retried."""
-    exc = exc_class(status=0, reason="timeout", http_method=HTTPMethod.GET)
+    exc = exc_class(status=0, reason="timeout", http_method="GET")
     config = TenacityConfig()
     assert tenacity_should_retry(exc, config) is False
 
@@ -36,9 +36,7 @@ def test_default__transport_errors_not_retried(exc_class: type) -> None:
 # --- Opt-in behavior tests (transport errors retried for allowed methods) ---
 
 
-@pytest.mark.parametrize(
-    "method", [HTTPMethod.GET, HTTPMethod.DELETE], ids=["get", "delete"]
-)
+@pytest.mark.parametrize("method", ["GET", "DELETE"], ids=["get", "delete"])
 def test_optin__idempotent_methods_retried(method: HTTPMethod) -> None:
     """When enabled, GET and DELETE requests with transport errors should be retried."""
     exc = RestTimeoutError(status=0, reason="timeout", http_method=method)
@@ -48,7 +46,7 @@ def test_optin__idempotent_methods_retried(method: HTTPMethod) -> None:
 
 @pytest.mark.parametrize(
     "method",
-    [HTTPMethod.POST, HTTPMethod.PUT, HTTPMethod.PATCH],
+    ["POST", "PUT", "PATCH"],
     ids=["post", "put", "patch"],
 )
 def test_optin__non_idempotent_methods_not_retried(method: HTTPMethod) -> None:
@@ -60,20 +58,20 @@ def test_optin__non_idempotent_methods_not_retried(method: HTTPMethod) -> None:
 
 def test_optin__custom_methods_list() -> None:
     """Custom retry_transport_methods should be honored."""
-    exc = RestTimeoutError(status=0, reason="timeout", http_method=HTTPMethod.POST)
+    exc = RestTimeoutError(status=0, reason="timeout", http_method="POST")
     config = TenacityConfig(
         retry_transport_errors=True,
-        retry_transport_methods=[HTTPMethod.POST],
+        retry_transport_methods=["POST"],
     )
     assert tenacity_should_retry(exc, config) is True
 
 
 def test_optin__custom_methods_excludes_default() -> None:
     """Custom retry_transport_methods can exclude default methods like GET."""
-    exc = RestTimeoutError(status=0, reason="timeout", http_method=HTTPMethod.GET)
+    exc = RestTimeoutError(status=0, reason="timeout", http_method="GET")
     config = TenacityConfig(
         retry_transport_errors=True,
-        retry_transport_methods=[HTTPMethod.DELETE],
+        retry_transport_methods=["DELETE"],
     )
     assert tenacity_should_retry(exc, config) is False
 
@@ -85,12 +83,12 @@ def test_optin__custom_methods_excludes_default() -> None:
     ("exc", "desc"),
     [
         (ServiceException(status=500, reason="Internal Server Error"), "5xx"),
-        (NotFoundException(status=404, reason="Not Found"), "404"),
+        (NotFoundError(status=404, reason="Not Found"), "404"),
     ],
     ids=["service-exception", "not-found"],
 )
 def test_regression__http_errors_still_retried(exc: Exception, desc: str) -> None:
-    """ServiceException (5xx) and NotFoundException (404) should still be retried."""
+    """ServiceException (5xx) and NotFoundError (404) should still be retried."""
     config = TenacityConfig()
     assert tenacity_should_retry(exc, config) is True
 
@@ -111,9 +109,9 @@ def test_edge__no_http_method_not_retried() -> None:
     assert tenacity_should_retry(exc, config) is False
 
 
-def test_edge__enum_method_matching() -> None:
-    """Method matching uses HTTPMethod enum values directly."""
-    exc = RestTimeoutError(status=0, reason="timeout", http_method=HTTPMethod.GET)
+def test_edge__method_matching() -> None:
+    """Method matching compares the HTTP method strings directly."""
+    exc = RestTimeoutError(status=0, reason="timeout", http_method="GET")
     config = TenacityConfig(retry_transport_errors=True)
     assert tenacity_should_retry(exc, config) is True
 
@@ -130,4 +128,4 @@ def test_config__default_retry_transport_errors_is_false() -> None:
 def test_config__default_retry_transport_methods() -> None:
     """retry_transport_methods should default to GET and DELETE."""
     config = TenacityConfig()
-    assert set(config.retry_transport_methods) == {HTTPMethod.GET, HTTPMethod.DELETE}
+    assert set(config.retry_transport_methods) == {"GET", "DELETE"}

@@ -1,12 +1,6 @@
 from pydantic import BaseModel
 
-from hatchet_sdk import (
-    ConcurrencyExpression,
-    ConcurrencyLimitStrategy,
-    Context,
-    Hatchet,
-)
-from hatchet_sdk.rate_limit import RateLimit, RateLimitDuration
+from hatchet_sdk import ConcurrencyStrategy, Context, Hatchet, RateLimit
 
 hatchet = Hatchet()
 
@@ -18,17 +12,17 @@ class RateLimitPauseInput(BaseModel):
 
 @hatchet.task(
     input_validator=RateLimitPauseInput,
-    concurrency=ConcurrencyExpression(
+    concurrency=ConcurrencyStrategy(
         expression="input.group",
         max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+        strategy="GROUP_ROUND_ROBIN",
     ),
     rate_limits=[
         RateLimit(
             dynamic_key="input.key",
             units=1,
             limit=10,
-            duration=RateLimitDuration.HOUR,
+            duration="HOUR",
         )
     ],
 )

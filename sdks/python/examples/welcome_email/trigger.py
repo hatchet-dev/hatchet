@@ -17,7 +17,7 @@ print(f"Started workflow run: {ref.workflow_run_id}")
 
 # Push onboarding-completed event (scoped to this user)
 print("Pushing onboarding-completed event...")
-hatchet.event.push(
+hatchet.events.push(
     ONBOARDING_EVENT_KEY,
     {"status": "done"},
     scope=signup.user_id,

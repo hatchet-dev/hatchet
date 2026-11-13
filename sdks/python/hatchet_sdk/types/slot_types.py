@@ -1,6 +1,3 @@
-from enum import Enum
+from typing import Literal
 
-
-class SlotType(str, Enum):
-    DEFAULT = "default"
-    DURABLE = "durable"
+SlotType = Literal["default", "durable"]

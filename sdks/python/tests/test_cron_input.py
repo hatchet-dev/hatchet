@@ -10,7 +10,7 @@ import json
 
 from pydantic import BaseModel
 
-from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet
+from hatchet_sdk import Context, DurableContext, Hatchet
 
 
 class CronInput(BaseModel):
@@ -30,7 +30,7 @@ def test_cron_input_serialized_onto_workflow_proto(hatchet: Hatchet) -> None:
     def step(input: CronInput, ctx: Context) -> dict[str, str]:
         return {"name": input.name}
 
-    proto = workflow.to_proto()
+    proto = workflow._to_proto()
 
     assert proto.HasField("cron_input")
     assert json.loads(proto.cron_input) == {"name": "alice", "count": 3}
@@ -43,10 +43,10 @@ def test_cron_input_unset_when_not_provided(hatchet: Hatchet) -> None:
     )
 
     @workflow.task()
-    def step(input: EmptyModel, ctx: Context) -> dict[str, str]:
+    def step(input: None, ctx: Context) -> dict[str, str]:
         return {}
 
-    assert not workflow.to_proto().HasField("cron_input")
+    assert not workflow._to_proto().HasField("cron_input")
 
 
 def test_cron_input_serialized_on_standalone_task(hatchet: Hatchet) -> None:
@@ -59,7 +59,7 @@ def test_cron_input_serialized_on_standalone_task(hatchet: Hatchet) -> None:
     def my_task(input: CronInput, ctx: Context) -> dict[str, str]:
         return {"name": input.name}
 
-    proto = my_task.to_proto()
+    proto = my_task._to_proto()
 
     assert proto.HasField("cron_input")
     assert json.loads(proto.cron_input) == {"name": "bob", "count": 1}
@@ -75,7 +75,7 @@ def test_cron_input_serialized_on_durable_task(hatchet: Hatchet) -> None:
     async def my_durable_task(input: CronInput, ctx: DurableContext) -> dict[str, str]:
         return {"name": input.name}
 
-    proto = my_durable_task.to_proto()
+    proto = my_durable_task._to_proto()
 
     assert proto.HasField("cron_input")
     assert json.loads(proto.cron_input) == {"name": "carol", "count": 2}

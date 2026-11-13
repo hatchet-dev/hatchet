@@ -2,7 +2,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
-from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet
+from hatchet_sdk import Context, DurableContext, Hatchet
 from hatchet_sdk.runnables.contextvars import ctx_action_key, workflow_spawn_indices
 
 hatchet = Hatchet()
@@ -21,12 +21,12 @@ class OutputB(BaseModel):
 
 
 @hatchet.task()
-async def spawn_index_child_a(_i: EmptyModel, ctx: Context) -> OutputA:
+async def spawn_index_child_a(_i: None, ctx: Context) -> OutputA:
     return OutputA(which_child="a")
 
 
 @hatchet.task()
-async def spawn_index_child_b(_i: EmptyModel, ctx: Context) -> OutputB:
+async def spawn_index_child_b(_i: None, ctx: Context) -> OutputB:
     return OutputB(which_child="b")
 
 

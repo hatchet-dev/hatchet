@@ -27,19 +27,19 @@ List all rate limits for the tenant.
 
 Parameters:
 
-| Name                 | Type                                | Description                                  | Default |
-| -------------------- | ----------------------------------- | -------------------------------------------- | ------- |
-| `offset`             | `int \| None`                       | The number of results to skip.               | `None`  |
-| `limit`              | `int \| None`                       | The maximum number of results to return.     | `None`  |
-| `search`             | `str \| None`                       | A search query to filter rate limits by key. | `None`  |
-| `order_by_field`     | `RateLimitOrderByField \| None`     | The field to order results by.               | `None`  |
-| `order_by_direction` | `RateLimitOrderByDirection \| None` | The direction to order results.              | `None`  |
+| Name                 | Type                                             | Description                                  | Default |
+| -------------------- | ------------------------------------------------ | -------------------------------------------- | ------- |
+| `offset`             | `int \| None`                                    | The number of results to skip.               | `None`  |
+| `limit`              | `int \| None`                                    | The maximum number of results to return.     | `None`  |
+| `search`             | `str \| None`                                    | A search query to filter rate limits by key. | `None`  |
+| `order_by_field`     | `Literal['key', 'value', 'limit_value'] \| None` | The field to order results by.               | `None`  |
+| `order_by_direction` | `Literal['asc', 'desc'] \| None`                 | The direction to order results.              | `None`  |
 
 Returns:
 
-| Type            | Description            |
-| --------------- | ---------------------- |
-| `RateLimitList` | A list of rate limits. |
+| Type              | Description            |
+| ----------------- | ---------------------- |
+| `list[RateLimit]` | A list of rate limits. |
 
 #### `aio_pause`
 
@@ -66,11 +66,11 @@ Put a rate limit for a given key.
 
 Parameters:
 
-| Name       | Type                | Description                        | Default    |
-| ---------- | ------------------- | ---------------------------------- | ---------- |
-| `key`      | `str`               | The key to set the rate limit for. | _required_ |
-| `limit`    | `int`               | The rate limit to set.             | _required_ |
-| `duration` | `RateLimitDuration` | The duration of the rate limit.    | `SECOND`   |
+| Name       | Type                                                                  | Description                        | Default    |
+| ---------- | --------------------------------------------------------------------- | ---------------------------------- | ---------- |
+| `key`      | `str`                                                                 | The key to set the rate limit for. | _required_ |
+| `limit`    | `int`                                                                 | The rate limit to set.             | _required_ |
+| `duration` | `Literal['SECOND', 'MINUTE', 'HOUR', 'DAY', 'WEEK', 'MONTH', 'YEAR']` | The duration of the rate limit.    | `'SECOND'` |
 
 Returns:
 
@@ -84,19 +84,19 @@ List all rate limits for the tenant.
 
 Parameters:
 
-| Name                 | Type                                | Description                                  | Default |
-| -------------------- | ----------------------------------- | -------------------------------------------- | ------- |
-| `offset`             | `int \| None`                       | The number of results to skip.               | `None`  |
-| `limit`              | `int \| None`                       | The maximum number of results to return.     | `None`  |
-| `search`             | `str \| None`                       | A search query to filter rate limits by key. | `None`  |
-| `order_by_field`     | `RateLimitOrderByField \| None`     | The field to order results by.               | `None`  |
-| `order_by_direction` | `RateLimitOrderByDirection \| None` | The direction to order results.              | `None`  |
+| Name                 | Type                                             | Description                                  | Default |
+| -------------------- | ------------------------------------------------ | -------------------------------------------- | ------- |
+| `offset`             | `int \| None`                                    | The number of results to skip.               | `None`  |
+| `limit`              | `int \| None`                                    | The maximum number of results to return.     | `None`  |
+| `search`             | `str \| None`                                    | A search query to filter rate limits by key. | `None`  |
+| `order_by_field`     | `Literal['key', 'value', 'limit_value'] \| None` | The field to order results by.               | `None`  |
+| `order_by_direction` | `Literal['asc', 'desc'] \| None`                 | The direction to order results.              | `None`  |
 
 Returns:
 
-| Type            | Description            |
-| --------------- | ---------------------- |
-| `RateLimitList` | A list of rate limits. |
+| Type              | Description            |
+| ----------------- | ---------------------- |
+| `list[RateLimit]` | A list of rate limits. |
 
 #### `pause`
 
@@ -123,11 +123,11 @@ Put a rate limit for a given key.
 
 Parameters:
 
-| Name       | Type                | Description                        | Default    |
-| ---------- | ------------------- | ---------------------------------- | ---------- |
-| `key`      | `str`               | The key to set the rate limit for. | _required_ |
-| `limit`    | `int`               | The rate limit to set.             | _required_ |
-| `duration` | `RateLimitDuration` | The duration of the rate limit.    | `SECOND`   |
+| Name       | Type                                                                  | Description                        | Default    |
+| ---------- | --------------------------------------------------------------------- | ---------------------------------- | ---------- |
+| `key`      | `str`                                                                 | The key to set the rate limit for. | _required_ |
+| `limit`    | `int`                                                                 | The rate limit to set.             | _required_ |
+| `duration` | `Literal['SECOND', 'MINUTE', 'HOUR', 'DAY', 'WEEK', 'MONTH', 'YEAR']` | The duration of the rate limit.    | `'SECOND'` |
 
 Returns:
 

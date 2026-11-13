@@ -1,16 +1,24 @@
 import json
 from dataclasses import field
 from datetime import datetime
-from enum import Enum
-from typing import Any
+from enum import StrEnum
+from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
-from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.runnables.types import BatchMemberId
-from hatchet_sdk.types.priority import Priority
-from hatchet_sdk.utils.opentelemetry import OTelAttribute
 from hatchet_sdk.utils.typing import JSONSerializableMapping
+
+if TYPE_CHECKING:
+    from hatchet_sdk.config import ClientConfig
+    from hatchet_sdk.utils.opentelemetry import OTelAttribute
 
 ActionKey = str
 
@@ -22,7 +30,10 @@ class ActionPayload(BaseModel):
     parents: dict[str, JSONSerializableMapping] = Field(default_factory=dict)
     overrides: JSONSerializableMapping = Field(default_factory=dict)
     user_data: JSONSerializableMapping = Field(default_factory=dict)
-    step_run_errors: dict[str, str] = Field(default_factory=dict)
+    task_run_errors: dict[str, str] = Field(
+        default_factory=dict,
+        validation_alias=AliasChoices("task_run_errors", "step_run_errors"),
+    )
     triggered_by: str | None = None
     triggers: JSONSerializableMapping = Field(default_factory=dict)
     filter_payload: JSONSerializableMapping = Field(default_factory=dict)
@@ -32,12 +43,12 @@ class ActionPayload(BaseModel):
         "parents",
         "overrides",
         "user_data",
-        "step_run_errors",
+        "task_run_errors",
         "filter_payload",
         mode="before",
     )
     @classmethod
-    def validate_fields(cls, v: Any) -> Any:
+    def validate_fields(cls, v: Any) -> Any:  # noqa: ANN401
         return v or {}
 
     @model_validator(mode="after")
@@ -47,7 +58,7 @@ class ActionPayload(BaseModel):
         return self
 
 
-class ActionType(str, Enum):
+class ActionType(StrEnum):
     START_STEP_RUN = "START_STEP_RUN"
     CANCEL_STEP_RUN = "CANCEL_STEP_RUN"
     START_BATCH = "START_BATCH"
@@ -84,10 +95,10 @@ class Action(BaseModel):
     job_id: str
     job_name: str
     job_run_id: str
-    step_id: str
-    step_run_id: str
+    task_id: str
+    task_run_external_id: str
     action_id: str
-    step_name: str = ""
+    task_name: str = ""
     action_type: ActionType
     retry_count: int
     action_payload: ActionPayload
@@ -104,7 +115,7 @@ class Action(BaseModel):
     child_workflow_key: str | None = None
     parent_workflow_run_id: str | None = None
 
-    priority: int | Priority | None = None
+    priority: int | None = None
     durable_task_invocation_count: int | None = None
 
     triggering_event_external_id: str | None = None
@@ -117,27 +128,27 @@ class Action(BaseModel):
             payload_str = str(self.action_payload)
 
         attrs: dict[OTelAttribute, str | int | None] = {
-            OTelAttribute.TENANT_ID: self.tenant_id,
-            OTelAttribute.WORKER_ID: self.worker_id,
-            OTelAttribute.WORKFLOW_RUN_ID: self.workflow_run_id,
-            OTelAttribute.STEP_ID: self.step_id,
-            OTelAttribute.STEP_RUN_ID: self.step_run_id,
-            OTelAttribute.RETRY_COUNT: self.retry_count,
-            OTelAttribute.PARENT_WORKFLOW_RUN_ID: self.parent_workflow_run_id,
-            OTelAttribute.CHILD_WORKFLOW_INDEX: self.child_workflow_index,
-            OTelAttribute.CHILD_WORKFLOW_KEY: self.child_workflow_key,
-            OTelAttribute.ACTION_PAYLOAD: payload_str,
-            OTelAttribute.WORKFLOW_NAME: self.job_name,
-            OTelAttribute.ACTION_NAME: self.action_id,
-            OTelAttribute.STEP_NAME: self.step_name,
-            OTelAttribute.WORKFLOW_ID: self.workflow_id,
-            OTelAttribute.WORKFLOW_VERSION_ID: self.workflow_version_id,
-            OTelAttribute.TRIGGERING_EVENT_EXTERNAL_ID: self.triggering_event_external_id,
-            OTelAttribute.TRIGGERING_EVENT_KEY: self.triggering_event_key,
+            "tenant_id": self.tenant_id,
+            "worker_id": self.worker_id,
+            "workflow_run_id": self.workflow_run_id,
+            "step_id": self.task_id,
+            "step_run_id": self.task_run_external_id,
+            "retry_count": self.retry_count,
+            "parent_workflow_run_id": self.parent_workflow_run_id,
+            "child_workflow_index": self.child_workflow_index,
+            "child_workflow_key": self.child_workflow_key,
+            "payload": payload_str,
+            "workflow_name": self.job_name,
+            "action_name": self.action_id,
+            "step_name": self.task_name,
+            "workflow_id": self.workflow_id,
+            "workflow_version_id": self.workflow_version_id,
+            "triggering_event_external_id": self.triggering_event_external_id,
+            "triggering_event_key": self.triggering_event_key,
         }
 
         result = {
-            f"hatchet.{k.value}": v
+            f"hatchet.{k}": v
             for k, v in attrs.items()
             if v and k not in config.otel.excluded_attributes
         }
@@ -147,15 +158,15 @@ class Action(BaseModel):
     @property
     def key(self) -> ActionKey:
         """
-        This key is used to uniquely identify a single step run by its id + retry count.
+        This key is used to uniquely identify a single task run by its id + retry count.
         It's used when storing references to a task, a context, etc. in a dictionary so that
         we can look up those items in the dictionary by a unique key.
         """
         if self.durable_task_invocation_count is not None:
-            return f"{self.step_run_id}/{self.retry_count}/{self.durable_task_invocation_count}"
+            return f"{self.task_run_external_id}/{self.retry_count}/{self.durable_task_invocation_count}"
 
         if self.action_type == ActionType.START_BATCH:
-            # START_BATCH does not correspond to a unique step_run_id; key it by batch id.
+            # START_BATCH does not correspond to a unique task_run_external_id; key it by batch id.
             batch_key = self.batch_id or self.action_id or "unknown"
             return f"{batch_key}/{self.retry_count or 0}"
-        return f"{self.step_run_id}/{self.retry_count}"
+        return f"{self.task_run_external_id}/{self.retry_count}"

@@ -22,7 +22,6 @@ from examples.dependency_injection.worker import (
     task_with_shared_dependency,
     task_with_type_aliases,
 )
-from hatchet_sdk import EmptyModel
 from hatchet_sdk.exceptions import FailedTaskRunExceptionGroup
 from hatchet_sdk.runnables.workflow import Standalone
 
@@ -37,7 +36,7 @@ from hatchet_sdk.runnables.workflow import Standalone
 )
 @pytest.mark.asyncio(loop_scope="session")
 async def test_di_standalones(
-    task: Standalone[EmptyModel, Output],
+    task: Standalone[None, Output],
 ) -> None:
     result = await task.aio_run()
 
@@ -76,7 +75,7 @@ async def test_di_workflows() -> None:
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_type_aliases() -> None:
-    result = await task_with_type_aliases.aio_run(EmptyModel())
+    result = await task_with_type_aliases.aio_run()
     assert result
     for key in result:
         assert result[key] is True
@@ -99,7 +98,7 @@ async def test_shared_dependency_is_resolved_once_per_run() -> None:
 )
 @pytest.mark.asyncio(loop_scope="session")
 async def test_context_manager_dependency_sees_task_exception(
-    task: Standalone[EmptyModel, None],
+    task: Standalone[None, None],
 ) -> None:
     with pytest.raises(FailedTaskRunExceptionGroup) as exception_group:
         await task.aio_run()

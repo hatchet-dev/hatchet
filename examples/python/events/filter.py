@@ -5,7 +5,7 @@ hatchet = Hatchet()
 
 # > Create a filter
 hatchet.filters.create(
-    workflow_id=event_workflow.id,
+    workflow_id=event_workflow.get_id(),
     expression="input.should_skip == false",
     # the scope groups filters: only events pushed with a matching
     # scope are evaluated against this filter. in a real app, this is
@@ -19,7 +19,7 @@ hatchet.filters.create(
 )
 
 # > Skip a run
-hatchet.event.push(
+hatchet.events.push(
     event_key=EVENT_KEY,
     payload={
         "should_skip": True,
@@ -28,7 +28,7 @@ hatchet.event.push(
 )
 
 # > Trigger a run
-hatchet.event.push(
+hatchet.events.push(
     event_key=EVENT_KEY,
     payload={
         "should_skip": False,

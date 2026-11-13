@@ -11,7 +11,7 @@ from examples.bug_tests.durable_dag_child.worker import (
     multi_spawner_dag,
     parent_dag,
 )
-from hatchet_sdk import EmptyModel, Hatchet, RunStatus, V1TaskStatus
+from hatchet_sdk import Hatchet, RunStatus
 from hatchet_sdk.clients.admin import WorkflowRunDetail
 from hatchet_sdk.runnables.workflow import Workflow
 
@@ -47,18 +47,16 @@ async def wait_for_run(
 
 
 async def run_dag_to_completion(
-    hatchet: Hatchet, workflow: Workflow[EmptyModel], expected_steps: set[str]
+    hatchet: Hatchet, workflow: Workflow[None], expected_steps: set[str]
 ) -> WorkflowRunDetail:
     ref = await workflow.aio_run(wait_for_result=False)
     await ref.aio_result()
 
     details = await wait_for_run(hatchet, ref.workflow_run_id)
 
-    assert details.status == RunStatus.COMPLETED
+    assert details.status == "COMPLETED"
     assert set(details.task_runs.keys()) == expected_steps
-    assert all(
-        task.status == V1TaskStatus.COMPLETED for task in details.task_runs.values()
-    )
+    assert all(task.status == "COMPLETED" for task in details.task_runs.values())
 
     step_external_ids = {task.external_id for task in details.task_runs.values()}
 
@@ -86,7 +84,7 @@ async def test_step_spawning_a_dag(hatchet: Hatchet) -> None:
 
     child = await wait_for_run(hatchet, child_run_ids.pop())
 
-    assert child.status == RunStatus.COMPLETED
+    assert child.status == "COMPLETED"
     assert set(child.task_runs.keys()) == {"child_dag_step_a", "child_dag_step_b"}
 
     grandchild_run_ids = spawned_run_ids(child)
@@ -95,7 +93,7 @@ async def test_step_spawning_a_dag(hatchet: Hatchet) -> None:
 
     grandchild = await wait_for_run(hatchet, grandchild_run_ids.pop())
 
-    assert grandchild.status == RunStatus.COMPLETED
+    assert grandchild.status == "COMPLETED"
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -124,7 +122,7 @@ async def test_durable_step_spawning_a_dag(hatchet: Hatchet) -> None:
 
     child = await wait_for_run(hatchet, child_run_ids.pop())
 
-    assert child.status == RunStatus.COMPLETED
+    assert child.status == "COMPLETED"
     assert set(child.task_runs.keys()) == {"child_dag_step_a", "child_dag_step_b"}
 
 
@@ -154,8 +152,8 @@ async def test_multiple_steps_spawning(hatchet: Hatchet) -> None:
 
     for readable_id in ("multi_spawner_first", "multi_spawner_second"):
         step = details.task_runs[readable_id]
-        children = await hatchet.runs.aio_list(parent_task_external_id=step.external_id)
+        children = await hatchet.runs.aio_list(parent_task_run_id=step.external_id)
 
-        assert {child.metadata.id for child in children.rows} == set(
+        assert {child.id for child in children} == set(
             (step.output or {}).get("spawned_run_ids", [])
         ), f"{readable_id}'s spawned child must be attached to the step that spawned it"

@@ -56,14 +56,14 @@ async def test_cancel_queued_except_newest_keeps_newest_with_parent_concurrency(
     occupying_details = await hatchet.runs.aio_get_details(
         occupying_run.workflow_run_id
     )
-    assert occupying_details.status == RunStatus.COMPLETED
+    assert occupying_details.status == "COMPLETED"
 
     *superseded, newest_queued = queued_refs
 
     newest_details = await hatchet.runs.aio_get_details(newest_queued.workflow_run_id)
-    assert newest_details.status == RunStatus.COMPLETED
+    assert newest_details.status == "COMPLETED"
 
     superseded_details = [
         await hatchet.runs.aio_get_details(ref.workflow_run_id) for ref in superseded
     ]
-    assert all(r.status == RunStatus.CANCELLED for r in superseded_details)
+    assert all(r.status == "CANCELLED" for r in superseded_details)

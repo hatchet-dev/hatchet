@@ -44,7 +44,7 @@ class ImageProcessOutput(BaseModel):
 @hatchet.task(
     name="image-processor",
     retries=3,
-    execution_timeout="10m",
+    execution_timeout=timedelta(minutes=10),
     input_validator=ImageProcessInput,
 )
 async def image_processor(input: ImageProcessInput, ctx: Context) -> ImageProcessOutput:

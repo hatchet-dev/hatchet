@@ -1,6 +1,9 @@
 import asyncio
+from typing import TYPE_CHECKING
 
-from hatchet_sdk.clients.rest.api.tenant_api import TenantApi
+if TYPE_CHECKING:
+    from hatchet_sdk.clients.rest.api.tenant_api import TenantApi
+
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.tenant import Tenant
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
@@ -12,7 +15,9 @@ class TenantClient(BaseRestClient):
     The tenant client is a client for interacting with your Tenant.
     """
 
-    def _ta(self, client: ApiClient) -> TenantApi:
+    def _ta(self, client: ApiClient) -> "TenantApi":
+        from hatchet_sdk.clients.rest.api.tenant_api import TenantApi
+
         return TenantApi(client)
 
     def get(self) -> Tenant:

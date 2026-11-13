@@ -12,7 +12,7 @@ Use `is_in_hatchet_serialization_context` instead of this directly
 """
 
 
-def is_in_hatchet_serialization_context(context: Any) -> bool:
+def is_in_hatchet_serialization_context(context: Any) -> bool:  # noqa: ANN401
     """
     Determines from pydantic ValidationInfo.context whether we are in a Hatchet serialization context.
 

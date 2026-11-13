@@ -2,9 +2,8 @@ from datetime import timedelta
 
 from pydantic import BaseModel
 
-from hatchet_sdk import Context, EmptyModel
-
-from .hatchet_client import hatchet
+from examples.migration_guides.hatchet_client import hatchet
+from hatchet_sdk import Context
 
 # --- Models used across snippets ---
 
@@ -95,7 +94,7 @@ def start_worker() -> None:
     name="call-api",
     retries=5,
     backoff_factor=2.0,
-    backoff_max_seconds=60,
+    backoff_max=timedelta(seconds=60),
     execution_timeout=timedelta(seconds=30),
     input_validator=OrderInput,
 )
@@ -127,7 +126,7 @@ async def schedule_for_later() -> None:
 
 # > Hatchet cron
 @hatchet.task(name="DailyReport", on_crons=["0 9 * * *"])
-async def generate_report(input: EmptyModel, ctx: Context) -> dict[str, str]:
+async def generate_report(input: None, ctx: Context) -> dict[str, str]:
     await build_report()
     return {"status": "sent"}
 

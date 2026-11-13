@@ -9,7 +9,7 @@ from examples.on_failure.worker import (
     on_failure_wf,
     on_failure_wf_with_details,
 )
-from hatchet_sdk import Hatchet, V1TaskStatus
+from hatchet_sdk import Hatchet, RunStatus
 from hatchet_sdk.clients.admin import WorkflowRunDetail
 
 
@@ -29,25 +29,20 @@ async def test_run_timeout(hatchet: Hatchet) -> None:
     async def get_runs() -> WorkflowRunDetail:
         details = await hatchet.runs.aio_get_details(run.workflow_run_id)
         if len(details.task_runs) == 2 and all(
-            t.status in [V1TaskStatus.COMPLETED, V1TaskStatus.FAILED]
-            for t in details.task_runs.values()
+            t.status in ["COMPLETED", "FAILED"] for t in details.task_runs.values()
         ):
             return details
         raise Exception()
 
     details = await get_runs()
     assert len(details.task_runs) == 2
-    assert (
-        sum(t.status == V1TaskStatus.COMPLETED for t in details.task_runs.values()) == 1
-    )
-    assert sum(t.status == V1TaskStatus.FAILED for t in details.task_runs.values()) == 1
+    assert sum(t.status == "COMPLETED" for t in details.task_runs.values()) == 1
+    assert sum(t.status == "FAILED" for t in details.task_runs.values()) == 1
 
     completed_task = next(
-        t for t in details.task_runs.values() if t.status == V1TaskStatus.COMPLETED
+        t for t in details.task_runs.values() if t.status == "COMPLETED"
     )
-    failed_task = next(
-        t for t in details.task_runs.values() if t.status == V1TaskStatus.FAILED
-    )
+    failed_task = next(t for t in details.task_runs.values() if t.status == "FAILED")
 
     assert "on_failure" in completed_task.readable_id
     assert "step1" in failed_task.readable_id
@@ -66,19 +61,16 @@ async def test_on_failure_task_receives_upstream_errors(hatchet: Hatchet) -> Non
     async def get_runs() -> WorkflowRunDetail:
         details = await hatchet.runs.aio_get_details(run.workflow_run_id)
         if len(details.task_runs) == 2 and all(
-            t.status in [V1TaskStatus.COMPLETED, V1TaskStatus.FAILED]
-            for t in details.task_runs.values()
+            t.status in ["COMPLETED", "FAILED"] for t in details.task_runs.values()
         ):
             return details
         raise Exception()
 
     details = await get_runs()
 
-    failed_task = next(
-        t for t in details.task_runs.values() if t.status == V1TaskStatus.FAILED
-    )
+    failed_task = next(t for t in details.task_runs.values() if t.status == "FAILED")
     on_failure_task = next(
-        t for t in details.task_runs.values() if t.status == V1TaskStatus.COMPLETED
+        t for t in details.task_runs.values() if t.status == "COMPLETED"
     )
 
     assert details_step1.name in failed_task.readable_id

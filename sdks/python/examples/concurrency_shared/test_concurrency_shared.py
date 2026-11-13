@@ -11,7 +11,7 @@ from examples.concurrency_shared.worker import (
     task_chain,
     task_mixed,
 )
-from hatchet_sdk import Hatchet, V1TaskStatus
+from hatchet_sdk import Hatchet, RunStatus
 from hatchet_sdk.runnables.workflow import Standalone
 
 TOLERANCE_MS = 100
@@ -155,11 +155,8 @@ async def test_shared_concurrency_multi_strategy_chain(hatchet: Hatchet) -> None
         old_run = await hatchet.runs.aio_get(ref_old.workflow_run_id)
         new_run = await hatchet.runs.aio_get(ref_new.workflow_run_id)
 
-        if (
-            old_run.run.status == V1TaskStatus.CANCELLED
-            and new_run.run.status == V1TaskStatus.COMPLETED
-        ):
+        if old_run.run.status == "CANCELLED" and new_run.run.status == "COMPLETED":
             break
 
-    assert old_run.run.status == V1TaskStatus.CANCELLED, old_run.run.status
-    assert new_run.run.status == V1TaskStatus.COMPLETED, new_run.run.status
+    assert old_run.run.status == "CANCELLED", old_run.run.status
+    assert new_run.run.status == "COMPLETED", new_run.run.status

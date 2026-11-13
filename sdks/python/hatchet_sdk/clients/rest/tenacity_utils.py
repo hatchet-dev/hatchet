@@ -1,19 +1,20 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import TYPE_CHECKING, ParamSpec, TypeVar
 
 import grpc
 import tenacity
 
 from hatchet_sdk.clients.rest.exceptions import (
-    NotFoundException,
+    NotFoundError,
     RestTransportError,
     ServiceException,
     TooManyRequestsException,
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from hatchet_sdk.config import TenacityConfig
 
 P = ParamSpec("P")
@@ -40,7 +41,7 @@ def tenacity_should_retry(
     ex: BaseException, config: TenacityConfig | None = None
 ) -> bool:
     """Return True when the exception should be retried."""
-    if isinstance(ex, (ServiceException, NotFoundException)):
+    if isinstance(ex, (ServiceException, NotFoundError)):
         return True
 
     if isinstance(ex, TooManyRequestsException):

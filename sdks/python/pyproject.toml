@@ -1,10 +1,10 @@
 [project]
 name = "hatchet-sdk"
-version = "1.46.0"
+version = "2.0.0a1"
 description = "This is the official Python SDK for Hatchet, a distributed, fault-tolerant task queue. The SDK allows you to easily integrate Hatchet's task scheduling and workflow orchestration capabilities into your Python applications."
 readme = "README.md"
 license = { text = "MIT" }
-requires-python = ">=3.10,<4"
+requires-python = ">=3.11,<4"
 
 authors = [
     { name = "Alexander Belanger", email = "alexander@hatchet.run" },
@@ -38,7 +38,7 @@ otel = [
 ]
 
 lint = [
-    "mypy==1.20.1",
+    "mypy==2.1.0",
     "types-protobuf>=5.28.3.20241030",
     "black==26.3.1",
     "click>=8.4.2",
@@ -73,8 +73,6 @@ docs = [
     "fastapi>=0.141.1,<1",
     "uvicorn>=0.52.1,<1",
 ]
-
-codegen = ["grpcio-tools>=1.76.0,<2"]
 
 claude = ["claude-agent-sdk", "mcp"]
 openai = ["openai-agents"]
@@ -127,7 +125,7 @@ enable_error_code = [
 ]
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py311"
 exclude = [
     "hatchet_sdk/clients/rest/api/*",
     "hatchet_sdk/clients/rest/models/*",
@@ -161,8 +159,13 @@ select = [
     "FIX",
     "PERF",
     "T201",
+    "TCH",
+    "PT",
+    "PGH",
+    "ANN",
+    "ERA",
 ]
-ignore = ["E501", "N806", "B008", "ARG001", "ARG002", "RET503", "FIX", "RET506"]
+ignore = ["E501", "RET503", "FIX", "B008", "PGH004"]
 exclude = [
     "examples/*",
     "docs/*",
@@ -173,11 +176,15 @@ exclude = [
     "hatchet_sdk/clients/rest/configuration.py",
     "hatchet_sdk/clients/rest/exceptions.py",
     "hatchet_sdk/clients/rest/rest.py",
+    "hatchet_sdk/clients/rest/api_response.py",
     "hatchet_sdk/v0/*",
     "apply_patches.py",
     "site/*",
     "tests/*",
 ]
+
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-base-classes = ["pydantic.BaseModel"]
 
 [tool.pydoclint]
 style = "sphinx"

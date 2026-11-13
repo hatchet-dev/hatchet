@@ -3,8 +3,7 @@ import asyncio
 from pydantic import BaseModel
 
 from hatchet_sdk import (
-    ConcurrencyExpression,
-    ConcurrencyLimitStrategy,
+    ConcurrencyStrategy,
     Context,
     Hatchet,
 )
@@ -19,10 +18,10 @@ class WorkflowInput(BaseModel):
 
 concurrency_cancel_newest_workflow = hatchet.workflow(
     name="ConcurrencyCancelNewest",
-    concurrency=ConcurrencyExpression(
+    concurrency=ConcurrencyStrategy(
         expression="input.group",
         max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_NEWEST,
+        strategy="CANCEL_NEWEST",
     ),
     input_validator=WorkflowInput,
 )

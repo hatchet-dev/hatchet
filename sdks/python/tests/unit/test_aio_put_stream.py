@@ -9,7 +9,7 @@ import grpc.aio
 import pytest
 import tenacity
 
-from hatchet_sdk.clients.events import EventClient
+from hatchet_sdk.features.events import EventClient
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.config import ClientConfig, TenacityConfig
 from hatchet_sdk.context.context import Context
@@ -68,8 +68,8 @@ def _event_client(aio_stub: _FakeAioEventsServiceStub) -> EventClient:
         host_port="localhost:7070",
         tenacity=TenacityConfig(max_attempts=3, wait=tenacity.wait_none),
     )
-    client.token = "token"
-    client.namespace = ""
+    client._token = "token"
+    client._namespace = ""
     client._aio_client = cast(EventsServiceStub, aio_stub)
     client._retrying_aio_put_stream_event = tenacity_retry(
         client._put_stream_event, client.client_config.tenacity
@@ -91,7 +91,7 @@ async def test_aio_stream_retries_generated_aio_callable(
     put_stream_event = _GeneratedAioUnaryCall(failures_before_success=2)
     client = _event_client(_FakeAioEventsServiceStub(put_stream_event))
 
-    await client.aio_stream(data, step_run_id="step-run-id", index=7)
+    await client._aio_stream(data, task_run_external_id="step-run-id", index=7)
 
     assert put_stream_event.calls == 3
     assert [request.task_run_external_id for request in put_stream_event.requests] == [
@@ -118,8 +118,10 @@ class _RecordingEventClient:
         self.both_calls_started = asyncio.Event()
         self.release_sends = asyncio.Event()
 
-    async def aio_stream(self, data: str | bytes, step_run_id: str, index: int) -> None:
-        self.calls.append((data, step_run_id, index))
+    async def _aio_stream(
+        self, data: str | bytes, task_run_external_id: str, index: int
+    ) -> None:
+        self.calls.append((data, task_run_external_id, index))
         if len(self.calls) == 2:
             self.both_calls_started.set()
         await self.release_sends.wait()
@@ -128,7 +130,7 @@ class _RecordingEventClient:
 def _context(event_client: _RecordingEventClient) -> Context:
     ctx = Context.__new__(Context)
     ctx._stream_index = 0
-    ctx._step_run_id = "step-run-id"
+    ctx._task_run_external_id = "step-run-id"
     ctx._event_client = cast(EventClient, event_client)
 
     return ctx

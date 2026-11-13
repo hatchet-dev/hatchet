@@ -7,7 +7,7 @@ import { Snippet } from "@/components/code";
 import { Callout, Card, Cards, Steps, Tabs } from "@/components/nextra-compat";
 import UniversalTabs from "@/components/UniversalTabs";
 
-# Rate Limiting Step Runs in Hatchet
+# Rate Limiting Task Runs in Hatchet
 
 Hatchet allows you to enforce rate limits on task runs, enabling you to control the rate at which your service runs consume resources, such as external API calls, database queries, or other services. By defining rate limits, you can prevent task runs from exceeding a certain number of requests per time window (e.g., per second, minute, or hour), ensuring efficient resource utilization and avoiding overloading external services.
 
@@ -34,11 +34,11 @@ This pattern is especially useful for:
 
 1. Define the dynamic rate limit key with a [CEL (Common Expression Language) expression](/v1/cel-expressions) on the key, referencing either `input` or `additional_metadata`.
 2. Provide this key as part of the workflow trigger or event `input` or `additional_metadata` at runtime.
-3. Hatchet will create or update the rate limit based on the provided key and enforce it for the step run.
+3. Hatchet will create or update the rate limit based on the provided key and enforce it for the task run.
 
 <Callout type="info">
   Note: Dynamic keys are a shared resource, this means the same rendered cel on
-  multiple steps will be treated as one global rate limit.
+  multiple tasks will be treated as one global rate limit.
 </Callout>
 
 ### Declaring and Consuming Dynamic Rate Limits
@@ -81,15 +81,15 @@ Static Rate Limits (formerly known as Global Rate Limits) are defined as part of
 
 ### How It Works
 
-1. Declare static rate limits using the `put_rate_limit` method in the `Admin` client before starting your worker.
-2. Specify the units of consumption for a specific rate limit key in each step definition using the `rate_limits` configuration.
-3. Hatchet enforces the defined rate limits by tracking the number of units consumed by each step run across all workflow runs.
+1. Declare static rate limits using the rate limits client before starting your worker.
+2. Specify the units of consumption for a specific rate limit key in each task definition using the `rate_limits` configuration.
+3. Hatchet enforces the defined rate limits by tracking the number of units consumed by each task run across all workflow runs.
 
-If a step run exceeds the rate limit, Hatchet re-queues the step run until the rate limit is no longer exceeded.
+If a task run exceeds the rate limit, Hatchet re-queues the task run until the rate limit is no longer exceeded.
 
 ### Declaring Static Limits
 
-Define the static rate limits that can be consumed by any step run across all workflow runs using the `put_rate_limit` method in the `Admin` client within your code.
+Define the static rate limits that can be consumed by any task run across all workflow runs using the rate limits client within your code.
 
 <UniversalTabs items={['Python', 'Typescript', 'Go', "Ruby"]} variant="hidden">
   <Tabs.Tab>
@@ -117,7 +117,7 @@ Define the static rate limits that can be consumed by any step run across all wo
 
 ### Consuming Static Rate Limits
 
-With your rate limit key defined, specify the units of consumption for a specific key in each step definition by adding the `rate_limits` configuration to your step definition in your workflow.
+With your rate limit key defined, specify the units of consumption for a specific key in each task definition by adding the `rate_limits` configuration to your task definition in your workflow.
 
 <UniversalTabs items={['Python', 'Typescript', 'Go', "Ruby"]} variant="hidden">
   <Tabs.Tab>
@@ -141,4 +141,4 @@ With your rate limit key defined, specify the units of consumption for a specifi
 
 ### Limiting Workflow Runs
 
-To rate limit an entire workflow run, it's recommended to specify the rate limit configuration on the entry step (i.e., the first step in the workflow). This will gate the execution of all downstream steps in the workflow.
+To rate limit an entire workflow run, it's recommended to specify the rate limit configuration on the entry task (i.e., the first task in the workflow). This will gate the execution of all downstream tasks in the workflow.

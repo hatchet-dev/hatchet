@@ -11,40 +11,39 @@ import pytest_asyncio
 from pydantic import BaseModel
 
 from examples.priority.worker import DEFAULT_PRIORITY, SLEEP_TIME, priority_workflow
-from hatchet_sdk import Hatchet, Priority as PriorityEnum
-from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
+from hatchet_sdk import Hatchet, Priority
+from hatchet_sdk.types.priority import priority_to_int
+from hatchet_sdk.types.run_status import RunStatus
 
-Priority = Literal["low", "medium", "high", "default"]
+TestPriority = Literal["low", "medium", "high", "default"]
 
 
 class RunPriorityStartedAt(BaseModel):
-    priority: Priority
+    priority: TestPriority
     started_at: datetime
     finished_at: datetime
 
 
-def priority_to_enum(priority: Priority) -> PriorityEnum:
+def to_sdk_priority(priority: TestPriority) -> Priority:
     match priority:
         case "high":
-            return PriorityEnum.HIGH
+            return "HIGH"
         case "medium":
-            return PriorityEnum.MEDIUM
+            return "MEDIUM"
         case "low":
-            return PriorityEnum.LOW
+            return "LOW"
         case "default":
             return DEFAULT_PRIORITY
-        case _:
-            raise ValueError(f"Invalid priority: {priority}")
 
 
 @pytest_asyncio.fixture(loop_scope="session", scope="function")
 async def dummy_runs() -> None:
-    priority: Priority = "high"
+    priority: TestPriority = "high"
 
     await priority_workflow.aio_run_many(
         [
             priority_workflow.create_bulk_run_item(
-                priority=(priority_to_enum(priority)),
+                priority=(to_sdk_priority(priority)),
                 additional_metadata={
                     "priority": priority,
                     "key": ix,
@@ -69,16 +68,15 @@ async def dummy_runs() -> None:
 )
 @pytest.mark.asyncio(loop_scope="session")
 async def test_priority(
-    hatchet: Hatchet, dummy_runs: None, on_demand_worker: Popen[Any]
+    hatchet: Hatchet, dummy_runs: None, on_demand_worker: Popen[Any], test_run_id: str
 ) -> None:
-    test_run_id = str(uuid4())
-    choices: list[Priority] = ["low", "medium", "high", "default"]
+    choices: list[TestPriority] = ["low", "medium", "high", "default"]
     N = 30
 
     run_refs = await priority_workflow.aio_run_many(
         [
             priority_workflow.create_bulk_run_item(
-                priority=(priority_to_enum(pr)),
+                priority=(to_sdk_priority(pr)),
                 additional_metadata={
                     "priority": pr,
                     "key": ix,
@@ -93,9 +91,7 @@ async def test_priority(
 
     await asyncio.gather(*[r.aio_result() for r in run_refs])
 
-    workflows = (
-        await hatchet.workflows.aio_list(workflow_name=priority_workflow.name)
-    ).rows
+    workflows = await hatchet.workflows.aio_list(workflow_name=priority_workflow.name)
 
     assert workflows
 
@@ -120,7 +116,7 @@ async def test_priority(
                 started_at=r.started_at or datetime.min,
                 finished_at=r.finished_at or datetime.min,
             )
-            for r in runs.rows
+            for r in runs
         ],
         key=lambda x: x.started_at,
     )
@@ -133,7 +129,9 @@ async def test_priority(
         nxt = runs_ids_started_ats[i + 1]
 
         """Run start times should be in order of priority"""
-        assert priority_to_enum(curr.priority) >= priority_to_enum(nxt.priority)
+        assert priority_to_int(to_sdk_priority(curr.priority)) >= priority_to_int(
+            to_sdk_priority(nxt.priority)
+        )
 
         """Runs should proceed one at a time"""
         assert curr.finished_at <= nxt.finished_at
@@ -151,19 +149,18 @@ async def test_priority(
 )
 @pytest.mark.asyncio(loop_scope="session")
 async def test_priority_via_scheduling(
-    hatchet: Hatchet, dummy_runs: None, on_demand_worker: Popen[Any]
+    hatchet: Hatchet, dummy_runs: None, on_demand_worker: Popen[Any], test_run_id: str
 ) -> None:
-    test_run_id = str(uuid4())
     sleep_time = 3
     n = 30
-    choices: list[Priority] = ["low", "medium", "high", "default"]
+    choices: list[TestPriority] = ["low", "medium", "high", "default"]
     run_at = datetime.now(tz=timezone.utc) + timedelta(seconds=sleep_time)
 
     versions = await asyncio.gather(
         *[
             priority_workflow.aio_schedule(
-                run_at=run_at,
-                priority=(priority_to_enum(pr)),
+                trigger_at=run_at,
+                priority=(to_sdk_priority(pr)),
                 additional_metadata={
                     "priority": pr,
                     "key": ix,
@@ -195,15 +192,13 @@ async def test_priority_via_scheduling(
             limit=1_000,
         )
 
-        if not runs.rows:
+        if not runs:
             continue
 
-        if any(
-            r.status in [V1TaskStatus.FAILED, V1TaskStatus.CANCELLED] for r in runs.rows
-        ):
+        if any(r.status in ["FAILED", "CANCELLED"] for r in runs):
             raise ValueError("One or more runs failed or were cancelled")
 
-        if all(r.status == V1TaskStatus.COMPLETED for r in runs.rows):
+        if all(r.status == "COMPLETED" for r in runs):
             break
 
     runs_ids_started_ats: list[RunPriorityStartedAt] = sorted(
@@ -213,7 +208,7 @@ async def test_priority_via_scheduling(
                 started_at=r.started_at or datetime.min,
                 finished_at=r.finished_at or datetime.min,
             )
-            for r in runs.rows
+            for r in runs
         ],
         key=lambda x: x.started_at,
     )
@@ -225,7 +220,9 @@ async def test_priority_via_scheduling(
         nxt = runs_ids_started_ats[i + 1]
 
         """Run start times should be in order of priority"""
-        assert priority_to_enum(curr.priority) >= priority_to_enum(nxt.priority)
+        assert priority_to_int(to_sdk_priority(curr.priority)) >= priority_to_int(
+            to_sdk_priority(nxt.priority)
+        )
 
         """Runs should proceed one at a time"""
         assert curr.finished_at <= nxt.finished_at
@@ -237,15 +234,14 @@ async def test_priority_via_scheduling(
 
 @pytest_asyncio.fixture(loop_scope="session", scope="function")
 async def crons(
-    hatchet: Hatchet, dummy_runs: None
+    hatchet: Hatchet, dummy_runs: None, test_run_id: str
 ) -> AsyncGenerator[tuple[str, str, int], None]:
-    test_run_id = str(uuid4())
-    choices: list[Priority] = ["low", "medium", "high"]
+    choices: list[TestPriority] = ["low", "medium", "high"]
     n = 30
 
     crons = await asyncio.gather(
         *[
-            hatchet.cron.aio_create(
+            hatchet.crons.aio_create(
                 workflow_name=priority_workflow.name,
                 cron_name=f"{test_run_id}-cron-{i}",
                 expression="* * * * *",
@@ -256,7 +252,7 @@ async def crons(
                     "priority": (priority := choice(choices)),
                     "key": str(i),
                 },
-                priority=(priority_to_enum(priority)),
+                priority=(to_sdk_priority(priority)),
             )
             for i in range(n)
         ]
@@ -264,7 +260,7 @@ async def crons(
 
     yield crons[0].workflow_id, test_run_id, n
 
-    await asyncio.gather(*[hatchet.cron.aio_delete(cron.metadata.id) for cron in crons])
+    await asyncio.gather(*[hatchet.crons.aio_delete(cron.id) for cron in crons])
 
 
 def time_until_next_minute() -> float:
@@ -306,15 +302,13 @@ async def test_priority_via_cron(
             limit=1_000,
         )
 
-        if not runs.rows:
+        if not runs:
             continue
 
-        if any(
-            r.status in [V1TaskStatus.FAILED, V1TaskStatus.CANCELLED] for r in runs.rows
-        ):
+        if any(r.status in ["FAILED", "CANCELLED"] for r in runs):
             raise ValueError("One or more runs failed or were cancelled")
 
-        if all(r.status == V1TaskStatus.COMPLETED for r in runs.rows):
+        if all(r.status == "COMPLETED" for r in runs):
             break
 
     runs_ids_started_ats: list[RunPriorityStartedAt] = sorted(
@@ -324,7 +318,7 @@ async def test_priority_via_cron(
                 started_at=r.started_at or datetime.min,
                 finished_at=r.finished_at or datetime.min,
             )
-            for r in runs.rows
+            for r in runs
         ],
         key=lambda x: x.started_at,
     )
@@ -336,7 +330,9 @@ async def test_priority_via_cron(
         nxt = runs_ids_started_ats[i + 1]
 
         """Run start times should be in order of priority"""
-        assert priority_to_enum(curr.priority) >= priority_to_enum(nxt.priority)
+        assert priority_to_int(to_sdk_priority(curr.priority)) >= priority_to_int(
+            to_sdk_priority(nxt.priority)
+        )
 
         """Runs should proceed one at a time"""
         assert curr.finished_at <= nxt.finished_at

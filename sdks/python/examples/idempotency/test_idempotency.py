@@ -15,7 +15,7 @@ from hatchet_sdk import (
     RunStatus,
     BulkTriggerIdempotencyCollisionError,
 )
-from hatchet_sdk.clients.rest.models.v1_task_summary_list import V1TaskSummaryList
+from hatchet_sdk import TaskRunSummary
 from uuid import uuid4
 from datetime import timedelta, datetime, timezone
 import asyncio
@@ -41,7 +41,7 @@ async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger(
 
     assert exc_info.value.existing_run_external_id == ref1.workflow_run_id
 
-    runs: V1TaskSummaryList | None = None
+    runs: list[TaskRunSummary] = []
 
     for _ in range(15):
         runs = await hatchet.runs.aio_list(
@@ -49,15 +49,15 @@ async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger(
             additional_metadata={"test_run_id": test_run_id},
         )
 
-        if len(runs.rows) == 0:
+        if len(runs) == 0:
             await asyncio.sleep(1)
             continue
 
         break
 
     assert runs is not None
-    assert len(runs.rows) == 1
-    assert runs.rows[0].metadata.id == ref1.workflow_run_id
+    assert len(runs) == 1
+    assert runs[0].id == ref1.workflow_run_id
 
     result = await ref1.aio_result()
     assert "hello" in result["result"].lower()
@@ -106,7 +106,7 @@ async def test_idempotency_status_based(
         time() - start < 10
     ), "The second run should have completed within the TTL window so we can test that the status-based idempotency is working."
 
-    runs: V1TaskSummaryList | None = None
+    runs: list[TaskRunSummary] | None = None
 
     for _ in range(15):
         runs = await hatchet.runs.aio_list(
@@ -114,15 +114,15 @@ async def test_idempotency_status_based(
             additional_metadata={"test_run_id": test_run_id},
         )
 
-        if len(runs.rows) == 0:
+        if len(runs) == 0:
             await asyncio.sleep(1)
             continue
 
         break
 
     assert runs is not None
-    assert len(runs.rows) == 2
-    assert {r.metadata.id for r in runs.rows} == {
+    assert len(runs) == 2
+    assert {r.id for r in runs} == {
         ref1.workflow_run_id,
         ref2.workflow_run_id,
     }
@@ -182,7 +182,7 @@ async def test_idempotency_status_based_failure(
         time() - start < 10
     ), "The second run should have completed within the TTL window so we can test that the status-based idempotency is working."
 
-    runs: V1TaskSummaryList | None = None
+    runs: list[TaskRunSummary] | None = None
 
     for _ in range(15):
         runs = await hatchet.runs.aio_list(
@@ -190,15 +190,15 @@ async def test_idempotency_status_based_failure(
             additional_metadata={"test_run_id": test_run_id},
         )
 
-        if len(runs.rows) == 0:
+        if len(runs) == 0:
             await asyncio.sleep(1)
             continue
 
         break
 
     assert runs is not None
-    assert len(runs.rows) == 2
-    assert {r.metadata.id for r in runs.rows} == {
+    assert len(runs) == 2
+    assert {r.id for r in runs} == {
         ref1.workflow_run_id,
         ref2.workflow_run_id,
     }
@@ -227,7 +227,7 @@ async def test_idempotency_status_based_cancel(
 
     details = await hatchet.runs.aio_get_details(ref1.workflow_run_id)
 
-    assert details.status == RunStatus.CANCELLED
+    assert details.status == "CANCELLED"
     assert details.external_id == ref1.workflow_run_id
 
     assert time() - start >= 1
@@ -245,7 +245,7 @@ async def test_idempotency_status_based_cancel(
 
     details = await hatchet.runs.aio_get_details(ref1.workflow_run_id)
 
-    assert details.status == RunStatus.CANCELLED
+    assert details.status == "CANCELLED"
     assert details.external_id == ref1.workflow_run_id
 
     assert (
@@ -255,7 +255,7 @@ async def test_idempotency_status_based_cancel(
         time() - start < 10
     ), "The second run should have completed within the TTL window so we can test that the status-based idempotency is working."
 
-    runs: V1TaskSummaryList | None = None
+    runs: list[TaskRunSummary] | None = None
 
     for _ in range(15):
         runs = await hatchet.runs.aio_list(
@@ -263,15 +263,15 @@ async def test_idempotency_status_based_cancel(
             additional_metadata={"test_run_id": test_run_id},
         )
 
-        if len(runs.rows) == 0:
+        if len(runs) == 0:
             await asyncio.sleep(1)
             continue
 
         break
 
     assert runs is not None
-    assert len(runs.rows) == 2
-    assert {r.metadata.id for r in runs.rows} == {
+    assert len(runs) == 2
+    assert {r.id for r in runs} == {
         ref1.workflow_run_id,
         ref2.workflow_run_id,
     }
@@ -328,7 +328,7 @@ async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger_short_wind
         if i != 3:
             await asyncio.sleep(i + 1.5)
 
-    runs: V1TaskSummaryList | None = None
+    runs: list[TaskRunSummary] = []
 
     for _ in range(15):
         runs = await hatchet.runs.aio_list(
@@ -336,7 +336,7 @@ async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger_short_wind
             additional_metadata={"test_run_id": test_run_id},
         )
 
-        if len(runs.rows) < 3:
+        if len(runs) < 3:
             await asyncio.sleep(1)
             continue
 
@@ -344,10 +344,10 @@ async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger_short_wind
     else:
         pytest.fail("Expected to find at least one run, but found none.")
 
-    assert runs.rows
-    assert len(runs.rows) == 3
+    assert runs
+    assert len(runs) == 3
 
-    for id in [r.metadata.id for r in runs.rows]:
+    for id in [r.id for r in runs]:
         ref = hatchet.runs.get_run_ref(id)
         res = await ref.aio_result()
 
@@ -359,18 +359,18 @@ async def test_idempotency_keys_prevent_duplicate_runs_event_trigger(
     hatchet: Hatchet,
 ) -> None:
     test_run_id = str(uuid4())
-    e1 = await hatchet.event.aio_push(
+    e1 = await hatchet.events.aio_push(
         event_key=EVENT_KEY,
         payload={"id": test_run_id},
         additional_metadata={"test_run_id": test_run_id},
     )
-    e2 = await hatchet.event.aio_push(
+    e2 = await hatchet.events.aio_push(
         event_key=EVENT_KEY,
         payload={"id": test_run_id},
         additional_metadata={"test_run_id": test_run_id},
     )
 
-    runs: V1TaskSummaryList | None = None
+    runs: list[TaskRunSummary] = []
 
     for _ in range(15):
         runs = await hatchet.runs.aio_list(
@@ -378,27 +378,27 @@ async def test_idempotency_keys_prevent_duplicate_runs_event_trigger(
             additional_metadata={"test_run_id": test_run_id},
         )
 
-        if len(runs.rows) == 0:
+        if len(runs) == 0:
             await asyncio.sleep(1)
             continue
 
         break
 
     assert runs is not None
-    assert len(runs.rows) == 1
+    assert len(runs) == 1
 
     await asyncio.sleep(1)
 
-    details = await hatchet.event.aio_list(
-        event_ids=[e1.event_id, e2.event_id],
+    details = await hatchet.events.aio_list(
+        event_ids=[e1.id, e2.id],
     )
 
-    assert details.rows
-    assert len(details.rows) == 2
+    assert details
+    assert len(details) == 2
 
     all_triggered_runs = [
-        *(details.rows[0].triggered_runs or []),
-        *(details.rows[1].triggered_runs or []),
+        *(details[0].triggered_runs or []),
+        *(details[1].triggered_runs or []),
     ]
 
     assert len(all_triggered_runs) == 1
@@ -408,11 +408,11 @@ async def test_idempotency_keys_prevent_duplicate_runs_event_trigger(
             all_triggered_runs[0].workflow_run_id
         )
 
-        if run_details.status in [RunStatus.QUEUED, RunStatus.RUNNING]:
+        if run_details.status in ["QUEUED", "RUNNING"]:
             await asyncio.sleep(1)
             continue
 
-        assert run_details.status == RunStatus.COMPLETED
+        assert run_details.status == "COMPLETED"
 
 
 async def _wait_for_retry_count(
@@ -424,7 +424,7 @@ async def _wait_for_retry_count(
             additional_metadata={"test_run_id": test_run_id},
         )
 
-        if runs.rows and (runs.rows[0].retry_count or 0) >= min_retry_count:
+        if runs and (runs[0].retry_count or 0) >= min_retry_count:
             return
 
         await asyncio.sleep(1)
@@ -474,7 +474,7 @@ async def test_idempotency_status_based_key_held_across_all_retries_until_exhaus
     assert "failed as requested" in str(exc_info_final.value).lower()
 
     details = await hatchet.runs.aio_get_details(ref1.workflow_run_id)
-    assert details.status == RunStatus.FAILED
+    assert details.status == "FAILED"
 
     ref2 = await idempotent_status_based_task_with_retries.aio_run(
         input=IdempotencyInput(id=test_run_id, desired_status="fail"),
@@ -520,7 +520,7 @@ async def test_idempotency_status_based_key_released_immediately_on_success_afte
     assert "hello" in result["result"].lower()
 
     details = await hatchet.runs.aio_get_details(ref1.workflow_run_id)
-    assert details.status == RunStatus.COMPLETED
+    assert details.status == "COMPLETED"
 
     ref2 = await idempotent_status_based_task_with_retries.aio_run(
         input=IdempotencyInput(id=test_run_id, desired_status="success"),
@@ -563,7 +563,7 @@ async def test_idempotency_status_based_key_released_immediately_on_cancel_after
     await ref1.aio_result()
 
     details = await hatchet.runs.aio_get_details(ref1.workflow_run_id)
-    assert details.status == RunStatus.CANCELLED
+    assert details.status == "CANCELLED"
 
     ref2 = await idempotent_status_based_task_with_retries.aio_run(
         input=IdempotencyInput(id=test_run_id, desired_status="cancel"),
@@ -575,4 +575,4 @@ async def test_idempotency_status_based_key_released_immediately_on_cancel_after
     await ref2.aio_result()
 
     details2 = await hatchet.runs.aio_get_details(ref2.workflow_run_id)
-    assert details2.status == RunStatus.CANCELLED
+    assert details2.status == "CANCELLED"

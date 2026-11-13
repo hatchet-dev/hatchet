@@ -4,25 +4,10 @@ from hatchet_sdk.runnables.workflow import BaseWorkflow
 from hatchet_sdk.types.slot_types import SlotType
 
 
-def normalize_slot_config(
-    slot_config: dict[SlotType | str, int],
-) -> dict[str, int]:
-    return {
-        (key.value if isinstance(key, SlotType) else key): value
-        for key, value in slot_config.items()
-    }
-
-
-def has_slot_config(
-    slot_config: dict[SlotType | str, int], slot_type: SlotType
-) -> bool:
-    return slot_type in slot_config or slot_type.value in slot_config
-
-
 def ensure_slot_config(
     slot_config: dict[SlotType | str, int], slot_type: SlotType, default_value: int
 ) -> dict[SlotType | str, int]:
-    if has_slot_config(slot_config, slot_type):
+    if slot_type in slot_config:
         return slot_config
     return {**slot_config, slot_type: default_value}
 
@@ -37,9 +22,8 @@ def required_slot_types_from_workflows(
     for workflow in workflows:
         for task in workflow.tasks:
             if task._is_durable:
-                required.add(SlotType.DURABLE.value)
-            for key in task._slot_requests:
-                required.add(key.value if isinstance(key, SlotType) else key)
+                required.add("durable")
+            required.update(task._slot_requests)
 
     return required
 
@@ -58,8 +42,8 @@ def resolve_worker_slot_config(
         legacy_config: dict[SlotType | str, int] = {
             key: value
             for key, value in (
-                (SlotType.DEFAULT, slots),
-                (SlotType.DURABLE, durable_slots),
+                ("default", slots),
+                ("durable", durable_slots),
             )
             if value is not None
         }
@@ -68,16 +52,13 @@ def resolve_worker_slot_config(
     required_slot_types = required_slot_types_from_workflows(workflows)
 
     # Apply defaults for well-known slot types
-    if SlotType.DEFAULT.value in required_slot_types:
-        resolved_config = ensure_slot_config(resolved_config, SlotType.DEFAULT, 100)
-    if SlotType.DURABLE.value in required_slot_types:
-        resolved_config = ensure_slot_config(resolved_config, SlotType.DURABLE, 1000)
+    if "default" in required_slot_types:
+        resolved_config = ensure_slot_config(resolved_config, "default", 100)
+    if "durable" in required_slot_types:
+        resolved_config = ensure_slot_config(resolved_config, "durable", 1000)
 
     # Raise for any required custom slot types that are missing from the config
-    configured_keys = {
-        key.value if isinstance(key, SlotType) else key for key in resolved_config
-    }
-    missing = required_slot_types - configured_keys
+    missing = required_slot_types - resolved_config.keys()
     if missing:
         formatted = ", ".join(sorted(missing))
         raise ValueError(
@@ -86,6 +67,6 @@ def resolve_worker_slot_config(
         )
 
     if not resolved_config:
-        resolved_config = {SlotType.DEFAULT: 100}
+        resolved_config = {"default": 100}
 
     return resolved_config
