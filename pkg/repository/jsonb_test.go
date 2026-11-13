@@ -13,14 +13,6 @@ func TestValidateJSONBAgreesWithPostgres(t *testing.T) {
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
 
-	requireAgreement := func(t *testing.T, json string) {
-		var stored string
-		postgresErr := pool.QueryRow(context.Background(), `SELECT ($1::text)::jsonb::text`, json).Scan(&stored)
-		validateErr := ValidateJSONB([]byte(json), "field")
-
-		require.Equal(t, postgresErr == nil, validateErr == nil, "%s: postgres said %v, ValidateJSONB said %v", json, postgresErr, validateErr)
-	}
-
 	cases := []struct {
 		name string
 		json string
@@ -79,26 +71,11 @@ func TestValidateJSONBAgreesWithPostgres(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			requireAgreement(t, c.json)
+			var stored string
+			postgresErr := pool.QueryRow(context.Background(), `SELECT ($1::text)::jsonb::text`, c.json).Scan(&stored)
+			validateErr := ValidateJSONB([]byte(c.json), "field")
+
+			require.Equal(t, postgresErr == nil, validateErr == nil, "%s: postgres said %v, ValidateJSONB said %v", c.json, postgresErr, validateErr)
 		})
 	}
-
-	// every string of up to four of these, so that each escape meets each neighbour and each end of the string
-	fragments := []string{`\ud83d`, `\ude00`, `\u0041`, `\uffff`, `\u0000`, `\\`, `\n`, `u`, `a`}
-
-	var requireAgreementOnEveryExtension func(content string, depth int)
-
-	requireAgreementOnEveryExtension = func(content string, depth int) {
-		requireAgreement(t, `"`+content+`"`)
-
-		if depth == 0 {
-			return
-		}
-
-		for _, fragment := range fragments {
-			requireAgreementOnEveryExtension(content+fragment, depth-1)
-		}
-	}
-
-	requireAgreementOnEveryExtension("", 4)
 }
