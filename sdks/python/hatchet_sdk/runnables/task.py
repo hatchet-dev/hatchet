@@ -4,10 +4,12 @@ from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import (
     AbstractAsyncContextManager,
     AbstractContextManager,
+    AsyncExitStack,
     asynccontextmanager,
 )
-from dataclasses import asdict, dataclass, is_dataclass
+from dataclasses import asdict, is_dataclass
 from inspect import Parameter, iscoroutinefunction, signature
+from types import TracebackType
 from typing import (
     TYPE_CHECKING,
     Annotated,
@@ -132,10 +134,54 @@ class Depends(Generic[T, TWorkflowInput]):
         return self._fn
 
 
-@dataclass
-class DependencyToInject:
-    name: str
-    value: Any
+def find_dependency_in_annotation(param: Parameter) -> Depends[Any, Any] | None:
+    annotation = param.annotation
+    if is_typealiastype(annotation):
+        annotation = annotation.__value__
+
+    if get_origin(annotation) is not Annotated:
+        return None
+
+    return next(
+        (item for item in get_args(annotation)[1:] if isinstance(item, Depends)),
+        None,
+    )
+
+
+## the exit callbacks return None so that a dependency can never suppress the task's exception,
+## which would hide it from the dependencies exited after it and make a failed task look successful
+async def enter_if_context_manager(value: Any, exit_stack: AsyncExitStack) -> Any:
+    if is_async_context_manager(value):
+        async_context_manager = value
+
+        async def exit_without_suppressing(
+            exc_type: type[BaseException] | None,
+            exc: BaseException | None,
+            traceback: TracebackType | None,
+        ) -> None:
+            await async_context_manager.__aexit__(exc_type, exc, traceback)
+
+        entered_value = await async_context_manager.__aenter__()
+        exit_stack.push_async_exit(exit_without_suppressing)
+        return entered_value
+
+    if is_sync_context_manager(value):
+        sync_context_manager = value
+
+        async def exit_in_thread_without_suppressing(
+            exc_type: type[BaseException] | None,
+            exc: BaseException | None,
+            traceback: TracebackType | None,
+        ) -> None:
+            await asyncio.to_thread(
+                sync_context_manager.__exit__, exc_type, exc, traceback
+            )
+
+        entered_value = await asyncio.to_thread(sync_context_manager.__enter__)
+        exit_stack.push_async_exit(exit_in_thread_without_suppressing)
+        return entered_value
+
+    return value
 
 
 class Task(Generic[TWorkflowInput, R]):
@@ -290,168 +336,82 @@ class Task(Generic[TWorkflowInput, R]):
         )
         return self._validators
 
-    async def _parse_maybe_cm_param(
+    async def _resolve_dependency(
         self,
-        parsed: DependencyToInject,
-        cms_to_exit: (
-            list[AbstractAsyncContextManager[Any] | AbstractContextManager[Any]] | None
-        ),
-    ) -> tuple[
-        Any, AbstractAsyncContextManager[Any] | AbstractContextManager[Any] | None
-    ]:
-        value = parsed.value
-        to_exit: (
-            AbstractAsyncContextManager[Any] | AbstractContextManager[Any] | None
-        ) = None
+        dependency: Depends[Any, Any],
+        input: TWorkflowInput,
+        ctx: Context | DurableContext,
+        exit_stack: AsyncExitStack,
+        resolved_values_by_dependency_fn: dict[Callable[..., Any], Any],
+        resolution_stack: tuple[Callable[..., Any], ...],
+    ) -> Any:
+        fn = dependency._fn
 
-        if is_async_context_manager(value):
-            entered_value: Any = await value.__aenter__()
+        if fn in resolved_values_by_dependency_fn:
+            return resolved_values_by_dependency_fn[fn]
 
-            if cms_to_exit is not None:
-                to_exit = value
+        if fn in resolution_stack:
+            stack_path = " -> ".join(f.__name__ for f in resolution_stack)
+            raise InvalidDependencyError(
+                f"Circular dependency detected: {fn.__name__} is already being resolved. "
+                f"Dependency chain: {stack_path} -> {fn.__name__}"
+            )
 
-            return entered_value, to_exit
+        sub_dependencies = await self._resolve_dependencies(
+            fn,
+            input,
+            ctx,
+            exit_stack,
+            resolved_values_by_dependency_fn,
+            (*resolution_stack, fn),
+        )
 
-        if is_sync_context_manager(value):
-            entered_value = await asyncio.to_thread(value.__enter__)
+        if iscoroutinefunction(fn):
+            value = await fn(input, ctx, **sub_dependencies)
+        else:
+            value = await asyncio.to_thread(fn, input, ctx, **sub_dependencies)
 
-            if cms_to_exit is not None:
-                to_exit = value
+        entered_value = await enter_if_context_manager(value, exit_stack)
+        resolved_values_by_dependency_fn[fn] = entered_value
 
-            return entered_value, to_exit
+        return entered_value
 
-        return value, to_exit
-
-    async def _resolve_function_dependencies(
+    async def _resolve_dependencies(
         self,
         fn: Callable[..., Any],
         input: TWorkflowInput,
         ctx: Context | DurableContext,
-        resolution_stack: set[str] | None = None,  # detect cycles
-        cms_to_exit: (
-            list[AbstractAsyncContextManager[Any] | AbstractContextManager[Any]] | None
-        ) = None,
+        exit_stack: AsyncExitStack,
+        resolved_values_by_dependency_fn: dict[Callable[..., Any], Any],
+        resolution_stack: tuple[Callable[..., Any], ...],
     ) -> dict[str, Any]:
-        if resolution_stack is None:
-            resolution_stack = set()
+        dependencies: dict[str, Any] = {}
 
-        fn_name = fn.__name__
-        if fn_name in resolution_stack:
-            stack_path = " -> ".join(resolution_stack)
-            raise InvalidDependencyError(
-                f"Circular dependency detected: {fn_name} is already being resolved. "
-                f"Dependency chain: {stack_path} -> {fn_name}"
-            )
+        for name, param in signature(fn).parameters.items():
+            dependency = find_dependency_in_annotation(param)
 
-        resolution_stack.add(fn_name)
-        try:
-            sig = signature(fn)
-            params = list(sig.parameters.items())
-
-            dependencies: dict[str, Any] = {}
-
-            for name, param in params[2:]:  # first two params are input and ctx
-                parsed = await self._parse_parameter(
-                    name, param, input, ctx, resolution_stack, cms_to_exit
+            if dependency is not None:
+                dependencies[name] = await self._resolve_dependency(
+                    dependency,
+                    input,
+                    ctx,
+                    exit_stack,
+                    resolved_values_by_dependency_fn,
+                    resolution_stack,
                 )
-                if parsed is not None:
-                    value, to_exit = await self._parse_maybe_cm_param(
-                        parsed, cms_to_exit
-                    )
 
-                    dependencies[parsed.name] = value
-                    if to_exit is not None and cms_to_exit is not None:
-                        cms_to_exit.append(to_exit)
-
-            return dependencies
-        finally:
-            resolution_stack.discard(fn_name)
-
-    async def _parse_parameter(
-        self,
-        name: str,
-        param: Parameter,
-        input: TWorkflowInput,
-        ctx: Context | DurableContext,
-        resolution_stack: set[str] | None = None,
-        cms_to_exit: (
-            list[AbstractAsyncContextManager[Any] | AbstractContextManager[Any]] | None
-        ) = None,
-    ) -> DependencyToInject | None:
-        annotation = param.annotation
-        if is_typealiastype(annotation):
-            annotation = annotation.__value__
-
-        if get_origin(annotation) is Annotated:
-            args = get_args(annotation)
-
-            if len(args) < 2:
-                return None
-
-            metadata = args[1:]
-
-            for item in metadata:
-                if isinstance(item, Depends):
-                    deps = await self._resolve_function_dependencies(
-                        item._fn, input, ctx, resolution_stack, cms_to_exit
-                    )
-
-                    if iscoroutinefunction(item._fn):
-                        return DependencyToInject(
-                            name=name, value=await item._fn(input, ctx, **deps)
-                        )
-
-                    return DependencyToInject(
-                        name=name,
-                        value=await asyncio.to_thread(item._fn, input, ctx, **deps),
-                    )
-
-        return None
-
-    async def _unpack_dependencies(
-        self, ctx: Context | DurableContext
-    ) -> dict[str, Any]:
-        sig = signature(self._fn)
-        input = self._workflow._get_workflow_input(ctx)
-        return {
-            parsed.name: parsed.value
-            for n, p in sig.parameters.items()
-            if (parsed := await self._parse_parameter(n, p, input, ctx)) is not None
-        }
+        return dependencies
 
     @asynccontextmanager
     async def _unpack_dependencies_with_cleanup(
         self, ctx: Context | DurableContext
     ) -> AsyncIterator[dict[str, Any]]:
-        sig = signature(self._fn)
         input = self._workflow._get_workflow_input(ctx)
 
-        dependencies: dict[str, Any] = {}
-        cms_to_exit: list[
-            AbstractAsyncContextManager[Any] | AbstractContextManager[Any]
-        ] = []
-
-        try:
-            for n, p in sig.parameters.items():
-                parsed = await self._parse_parameter(
-                    n, p, input, ctx, None, cms_to_exit
-                )
-                if parsed is not None:
-                    value, to_exit = await self._parse_maybe_cm_param(
-                        parsed, cms_to_exit
-                    )
-
-                    dependencies[parsed.name] = value
-                    if to_exit is not None:
-                        cms_to_exit.append(to_exit)
-
-            yield dependencies
-        finally:
-            for cm in reversed(cms_to_exit):
-                if is_async_context_manager(cm):
-                    await cm.__aexit__(None, None, None)
-                elif is_sync_context_manager(cm):
-                    await asyncio.to_thread(cm.__exit__, None, None, None)
+        async with AsyncExitStack() as exit_stack:
+            yield await self._resolve_dependencies(
+                self._fn, input, ctx, exit_stack, {}, ()
+            )
 
     def call(
         self, ctx: Context | DurableContext, dependencies: dict[str, Any] | None = None
@@ -588,6 +548,10 @@ class Task(Generic[TWorkflowInput, R]):
         parent_outputs: dict[str, JSONSerializableMapping] | None = None,
         retry_count: int = 0,
         lifespan_context: Any = None,
+        task_run_errors: dict[str, str] | None = None,
+        trigger_data: JSONSerializableMapping | None = None,
+        workflow_run_id: str | None = None,
+        task_run_id: str | None = None,
     ) -> Context | DurableContext:
         from hatchet_sdk.runnables.action import Action, ActionPayload, ActionType
 
@@ -600,17 +564,22 @@ class Task(Generic[TWorkflowInput, R]):
         elif isinstance(input, BaseModel):
             serialized_input = input.model_dump(context=HATCHET_PYDANTIC_SENTINEL)
 
-        action_payload = ActionPayload(input=serialized_input, parents=parent_outputs)
+        action_payload = ActionPayload(
+            input=serialized_input,
+            parents=parent_outputs,
+            step_run_errors=task_run_errors or {},
+            triggers=trigger_data or {},
+        )
 
         action = Action(
             tenant_id=self._workflow._client.config.tenant_id,
             worker_id=str(uuid4()),
-            workflow_run_id=str(uuid4()),
+            workflow_run_id=workflow_run_id or str(uuid4()),
             job_id=str(uuid4()),
             job_name="mock-job-name",
             job_run_id=str(uuid4()),
             step_id=str(uuid4()),
-            step_run_id=str(uuid4()),
+            step_run_id=task_run_id or str(uuid4()),
             action_id="mock:action",
             action_payload=action_payload,
             action_type=ActionType.START_STEP_RUN,
@@ -652,6 +621,10 @@ class Task(Generic[TWorkflowInput, R]):
         retry_count: int = 0,
         lifespan: Any = None,
         dependencies: dict[str, Any] | None = None,
+        task_run_errors: dict[str, str] | None = None,
+        trigger_data: JSONSerializableMapping | None = None,
+        workflow_run_id: str | None = None,
+        task_run_id: str | None = None,
     ) -> R:
         """
         Mimic the execution of a task. This method is intended to be used to unit test
@@ -664,6 +637,10 @@ class Task(Generic[TWorkflowInput, R]):
         :param retry_count: The number of times the task has been retried.
         :param lifespan: The lifespan to be used in the task, which is useful if one was set on the worker. This will allow you to access `ctx.lifespan` inside of your task.
         :param dependencies: Dependencies to be injected into the task. This is useful for tasks that have dependencies defined using `Depends`. **IMPORTANT**: You must pass the dependencies _directly_, **not** the `Depends` objects themselves. For example, if you have a task that has a dependency `config: Annotated[str, Depends(get_config)]`, you should pass `dependencies={"config": "config_value"}` to `aio_mock_run`.
+        :param task_run_errors: Errors from upstream tasks, keyed by task name. This is useful for testing on-failure tasks that read `ctx.task_run_errors` or `ctx.get_task_run_error`.
+        :param trigger_data: The data from the conditions that triggered the task, keyed by each condition's readable data key. This is useful for testing tasks that use `wait_for` conditions and read `ctx.trigger_data`.
+        :param workflow_run_id: The id of the workflow run, which will be available as `ctx.workflow_run_id`. A random id is used if not provided.
+        :param task_run_id: The id of the task run, which will be available as `ctx.task_run_id`. A random id is used if not provided.
 
         :return: The output of the task.
         :raises TypeError: If the task is an async function and `mock_run` is called, or if the task is a sync function and `aio_mock_run` is called.
@@ -675,7 +652,15 @@ class Task(Generic[TWorkflowInput, R]):
             )
 
         ctx = self._create_mock_context(
-            input, additional_metadata, parent_outputs, retry_count, lifespan
+            input=input,
+            additional_metadata=additional_metadata,
+            parent_outputs=parent_outputs,
+            retry_count=retry_count,
+            lifespan_context=lifespan,
+            task_run_errors=task_run_errors,
+            trigger_data=trigger_data,
+            workflow_run_id=workflow_run_id,
+            task_run_id=task_run_id,
         )
 
         return self.call(ctx, dependencies)
@@ -688,6 +673,10 @@ class Task(Generic[TWorkflowInput, R]):
         retry_count: int = 0,
         lifespan: Any = None,
         dependencies: dict[str, Any] | None = None,
+        task_run_errors: dict[str, str] | None = None,
+        trigger_data: JSONSerializableMapping | None = None,
+        workflow_run_id: str | None = None,
+        task_run_id: str | None = None,
     ) -> R:
         """
         Mimic the execution of a task. This method is intended to be used to unit test
@@ -700,6 +689,10 @@ class Task(Generic[TWorkflowInput, R]):
         :param retry_count: The number of times the task has been retried.
         :param lifespan: The lifespan to be used in the task, which is useful if one was set on the worker. This will allow you to access `ctx.lifespan` inside of your task.
         :param dependencies: Dependencies to be injected into the task. This is useful for tasks that have dependencies defined using `Depends`. **IMPORTANT**: You must pass the dependencies _directly_, **not** the `Depends` objects themselves. For example, if you have a task that has a dependency `config: Annotated[str, Depends(get_config)]`, you should pass `dependencies={"config": "config_value"}` to `aio_mock_run`.
+        :param task_run_errors: Errors from upstream tasks, keyed by task name. This is useful for testing on-failure tasks that read `ctx.task_run_errors` or `ctx.get_task_run_error`.
+        :param trigger_data: The data from the conditions that triggered the task, keyed by each condition's readable data key. This is useful for testing tasks that use `wait_for` conditions and read `ctx.trigger_data`.
+        :param workflow_run_id: The id of the workflow run, which will be available as `ctx.workflow_run_id`. A random id is used if not provided.
+        :param task_run_id: The id of the task run, which will be available as `ctx.task_run_id`. A random id is used if not provided.
 
         :return: The output of the task.
         :raises TypeError: If the task is an async function and `mock_run` is called, or if the task is a sync function and `aio_mock_run` is called.
@@ -711,11 +704,15 @@ class Task(Generic[TWorkflowInput, R]):
             )
 
         ctx = self._create_mock_context(
-            input,
-            additional_metadata,
-            parent_outputs,
-            retry_count,
-            lifespan,
+            input=input,
+            additional_metadata=additional_metadata,
+            parent_outputs=parent_outputs,
+            retry_count=retry_count,
+            lifespan_context=lifespan,
+            task_run_errors=task_run_errors,
+            trigger_data=trigger_data,
+            workflow_run_id=workflow_run_id,
+            task_run_id=task_run_id,
         )
 
         return await self.aio_call(ctx, dependencies)

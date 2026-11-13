@@ -5,6 +5,22 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.46.0] - 2026-11-12
+
+### Added
+
+- `mock_run` and `aio_mock_run` accept `task_run_errors`, `trigger_data`, `workflow_run_id`, and `task_run_id`, so unit tests can cover on-failure tasks, tasks with `wait_for` conditions, and tasks that read their run ids.
+
+### Fixed
+
+- A dependency used more than once in a task's dependency tree is now resolved once per run and its value is shared, matching FastAPI's `Depends`.
+- Context manager dependencies now receive the task's exception when the task fails, so they can e.g. roll back a transaction. A dependency that catches the exception without re-raising it no longer makes the task succeed or hides the exception from the other dependencies.
+- The REST client can read workflow versions whose concurrency uses `CANCEL_NEWEST`, `CANCEL_QUEUED_EXCEPT_NEWEST`, or `CANCEL_QUEUED_EXCEPT_OLDEST`.
+
+### Removed
+
+- `grpcio-tools` is no longer a runtime dependency, since the SDK only uses it to generate protobuf code. This avoids building it from source on Python 3.15, where the newest `grpcio-tools` versions compatible with `protobuf<7` have no prebuilt wheels.
+
 ## [1.45.1] - 2026-11-05
 
 ### Added

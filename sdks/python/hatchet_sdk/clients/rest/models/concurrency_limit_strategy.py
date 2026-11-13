@@ -29,6 +29,9 @@ class ConcurrencyLimitStrategy(str, Enum):
     DROP_NEWEST = "DROP_NEWEST"
     QUEUE_NEWEST = "QUEUE_NEWEST"
     GROUP_ROUND_ROBIN = "GROUP_ROUND_ROBIN"
+    CANCEL_NEWEST = "CANCEL_NEWEST"
+    CANCEL_QUEUED_EXCEPT_NEWEST = "CANCEL_QUEUED_EXCEPT_NEWEST"
+    CANCEL_QUEUED_EXCEPT_OLDEST = "CANCEL_QUEUED_EXCEPT_OLDEST"
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

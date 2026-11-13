@@ -26,10 +26,13 @@ const (
 
 // Defines values for ConcurrencyLimitStrategy.
 const (
-	CANCELINPROGRESS ConcurrencyLimitStrategy = "CANCEL_IN_PROGRESS"
-	DROPNEWEST       ConcurrencyLimitStrategy = "DROP_NEWEST"
-	GROUPROUNDROBIN  ConcurrencyLimitStrategy = "GROUP_ROUND_ROBIN"
-	QUEUENEWEST      ConcurrencyLimitStrategy = "QUEUE_NEWEST"
+	CANCELINPROGRESS         ConcurrencyLimitStrategy = "CANCEL_IN_PROGRESS"
+	CANCELNEWEST             ConcurrencyLimitStrategy = "CANCEL_NEWEST"
+	CANCELQUEUEDEXCEPTNEWEST ConcurrencyLimitStrategy = "CANCEL_QUEUED_EXCEPT_NEWEST"
+	CANCELQUEUEDEXCEPTOLDEST ConcurrencyLimitStrategy = "CANCEL_QUEUED_EXCEPT_OLDEST"
+	DROPNEWEST               ConcurrencyLimitStrategy = "DROP_NEWEST"
+	GROUPROUNDROBIN          ConcurrencyLimitStrategy = "GROUP_ROUND_ROBIN"
+	QUEUENEWEST              ConcurrencyLimitStrategy = "QUEUE_NEWEST"
 )
 
 // Defines values for ConcurrencyScope.
