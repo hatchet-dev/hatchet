@@ -16,7 +16,6 @@ Methods:
 | `aio_reset`          | Make `aio_subscribe` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.                                                                                                                                                                                                                                                                           |
 | `aio_subscribe`      | Yield a topic's messages after `cursor`, or from the oldest retained (or, once the topic is reset, after the reset). If the connection drops, it resubscribes from the last message yielded, so nothing is skipped or repeated. Ends when the server hangs up an idle subscription or the caller stops iterating; raises on errors a retry can't fix, such as an expired cursor.                                                                  |
 | `aio_topic_metadata` | Describe a topic's retained messages. Raises a `NOT_FOUND` gRPC error for a topic nothing was published to.                                                                                                                                                                                                                                                                                                                                       |
-| `reset`              | Make `aio_subscribe` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.                                                                                                                                                                                                                                                                           |
 | `topic_metadata`     | Describe a topic's retained messages. Raises a `NOT_FOUND` gRPC error for a topic nothing was published to.                                                                                                                                                                                                                                                                                                                                       |
 
 ### Functions
@@ -104,24 +103,6 @@ Returns:
 | Type                  | Description           |
 | --------------------- | --------------------- |
 | `StreamTopicMetadata` | The topic's metadata. |
-
-#### `reset`
-
-Make `aio_subscribe` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.
-
-Parameters:
-
-| Name        | Type          | Description                                                                             | Default    |
-| ----------- | ------------- | --------------------------------------------------------------------------------------- | ---------- |
-| `topic`     | `str`         | The topic to reset.                                                                     | _required_ |
-| `namespace` | `str`         | The topic's namespace; the empty namespace by default.                                  | `''`       |
-| `cursor`    | `str \| None` | A cursor read off one of the topic's events to reset to, instead of its latest message. | `None`     |
-
-Returns:
-
-| Type   | Description |
-| ------ | ----------- |
-| `None` | None        |
 
 #### `topic_metadata`
 

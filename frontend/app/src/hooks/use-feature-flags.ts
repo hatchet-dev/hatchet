@@ -1,9 +1,26 @@
+import { useLocalStorageState } from './use-local-storage-state';
 import api from '@/lib/api';
 import { FeatureFlagId } from '@/lib/api/generated/data-contracts';
 import { useAppContext } from '@/providers/app-context';
 import { useQuery } from '@tanstack/react-query';
 
 export { FeatureFlagId };
+
+type FeatureFlagOverrides = Partial<Record<FeatureFlagId, boolean>>;
+
+const FEATURE_FLAG_OVERRIDES_KEY = 'hatchet:dev-feature-flag-overrides';
+
+// Set from the devtools footer so flags can be flipped locally without PostHog.
+export const useFeatureFlagOverrides = () =>
+  useLocalStorageState<FeatureFlagOverrides>(FEATURE_FLAG_OVERRIDES_KEY, {});
+
+// Chosen once per build so the hook call order is stable. Production gets a
+// no-op: a stray localStorage entry can't enable unreleased features there, and
+// flag checks don't pay for storage reads or window listeners.
+const useFeatureFlagOverride: (flag: FeatureFlagId) => boolean | undefined =
+  import.meta.env.DEV
+    ? (flag) => useFeatureFlagOverrides()[0][flag]
+    : () => undefined;
 
 type UseIsFeatureEnabledResult =
   | {
@@ -23,6 +40,7 @@ export const useIsFeatureEnabled = (
   isEnabledIfNoPosthog: boolean,
 ): UseIsFeatureEnabledResult => {
   const { tenantId } = useAppContext();
+  const override = useFeatureFlagOverride(flagName);
 
   const { data, isError } = useQuery({
     queryKey: ['feature-flag', tenantId, flagName, isEnabledIfNoPosthog],
@@ -43,6 +61,10 @@ export const useIsFeatureEnabled = (
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   });
+
+  if (override !== undefined) {
+    return { isEnabled: override, isLoading: false };
+  }
 
   if (tenantId && !data && !isError) {
     // fixme: not sure if this is the right behavior here

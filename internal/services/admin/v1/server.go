@@ -46,28 +46,18 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 	}
 
 	if len(externalIds) == 0 && req.Filter != nil {
+		statuses, err := v1.ReadableStatusesForFilter(req.Filter.Statuses, v1.RunningStatusFilterAll)
+		if err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, err)
+		}
+
 		var (
-			statuses = []sqlcv1.V1ReadableStatusOlap{
-				sqlcv1.V1ReadableStatusOlapQUEUED,
-				sqlcv1.V1ReadableStatusOlapRUNNING,
-				sqlcv1.V1ReadableStatusOlapFAILED,
-				sqlcv1.V1ReadableStatusOlapCOMPLETED,
-				sqlcv1.V1ReadableStatusOlapCANCELLED,
-			}
 			since       = req.Filter.Since.AsTime()
 			until       *time.Time
 			workflowIds       = []uuid.UUID{}
 			limit       int64 = 20000
 			offset      int64
 		)
-
-		if len(req.Filter.Statuses) > 0 {
-			statuses = []sqlcv1.V1ReadableStatusOlap{}
-
-			for _, status := range req.Filter.Statuses {
-				statuses = append(statuses, sqlcv1.V1ReadableStatusOlap(status))
-			}
-		}
 
 		if len(req.Filter.WorkflowIds) > 0 {
 			for _, id := range req.Filter.WorkflowIds {
@@ -194,28 +184,18 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 	}
 
 	if len(externalIds) == 0 && req.Filter != nil {
+		statuses, err := v1.ReadableStatusesForFilter(req.Filter.Statuses, v1.RunningStatusFilterAll)
+		if err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, err)
+		}
+
 		var (
-			statuses = []sqlcv1.V1ReadableStatusOlap{
-				sqlcv1.V1ReadableStatusOlapQUEUED,
-				sqlcv1.V1ReadableStatusOlapRUNNING,
-				sqlcv1.V1ReadableStatusOlapFAILED,
-				sqlcv1.V1ReadableStatusOlapCOMPLETED,
-				sqlcv1.V1ReadableStatusOlapCANCELLED,
-			}
 			since       = req.Filter.Since.AsTime()
 			until       *time.Time
 			workflowIds       = []uuid.UUID{}
 			limit       int64 = 1000
 			offset      int64
 		)
-
-		if len(req.Filter.Statuses) > 0 {
-			statuses = []sqlcv1.V1ReadableStatusOlap{}
-
-			for _, status := range req.Filter.Statuses {
-				statuses = append(statuses, sqlcv1.V1ReadableStatusOlap(status))
-			}
-		}
 
 		if len(req.Filter.WorkflowIds) > 0 {
 			for _, id := range req.Filter.WorkflowIds {
@@ -293,11 +273,11 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 		childExternalIds, err := a.repo.Tasks().ListDurableOrchestratorChildExternalIds(ctx, tenant.ID, task.ExternalID)
 
 		if err != nil {
-			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to list orchestrator children for replay: %v", err))
+			return nil, fmt.Errorf("failed to list orchestrator children for replay: %w", err)
 		}
 
 		if _, err := a.repo.DurableEvents().HandleBranchForDAGReplay(ctx, tenant.ID, task, childExternalIds); err != nil {
-			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to branch durable task for replay: %v", err))
+			return nil, fmt.Errorf("failed to branch durable task for replay: %w", err)
 		}
 	}
 
@@ -431,7 +411,7 @@ func (a *AdminServiceImpl) handleOperatorDAGStepReplays(
 	parents, err := a.repo.Tasks().FlattenExternalIds(ctx, tenantId, parentExternalIds)
 
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to look up parent tasks for replay: %v", err))
+		return nil, fmt.Errorf("failed to look up parent tasks for replay: %w", err)
 	}
 
 	orchestrators := make(map[uuid.UUID]*sqlcv1.FlattenExternalIdsRow)
@@ -488,7 +468,7 @@ func (a *AdminServiceImpl) handleOperatorDAGStepReplays(
 		branch, err := a.repo.DurableEvents().HandleBranchForDAGReplay(ctx, tenantId, orchestrator, childExternalIds)
 
 		if err != nil {
-			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to branch durable task for step replay: %v", err))
+			return nil, fmt.Errorf("failed to branch durable task for step replay: %w", err)
 		}
 
 		if branch == nil {
@@ -567,7 +547,7 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 			)
 
 			if err != nil {
-				return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to build idempotency collision error: %v", err))
+				return nil, fmt.Errorf("failed to build idempotency collision error: %w", err)
 			}
 
 			collisionErr := connect.NewError(connect.CodeAlreadyExists, errors.New("idempotency key collision"))
@@ -595,13 +575,13 @@ func (a *AdminServiceImpl) BranchDurableTask(ctx context.Context, req *contracts
 
 	task, err := a.repo.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, true)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("task not found: %v", err))
+		return nil, fmt.Errorf("failed to get task: %w", err)
 	}
 
 	result, err := a.repo.DurableEvents().HandleBranch(ctx, tenantId, req.NodeId, req.BranchId, task)
 
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to branch durable task: %v", err))
+		return nil, fmt.Errorf("failed to branch durable task: %w", err)
 	}
 
 	replayPayload := tasktypes.ReplayTasksPayload{
@@ -618,11 +598,11 @@ func (a *AdminServiceImpl) BranchDurableTask(ctx context.Context, req *contracts
 
 	msg, err := msgqueue.NewTenantMessage(tenantId, msgqueue.MsgIDReplayTasks, false, true, replayPayload)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to create replay message: %v", err))
+		return nil, fmt.Errorf("failed to create replay message: %w", err)
 	}
 
 	if err := a.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to send replay message: %v", err))
+		return nil, fmt.Errorf("failed to send replay message: %w", err)
 	}
 
 	return &contracts.BranchDurableTaskResponse{
@@ -897,7 +877,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 
 	if len(createOpts.CronTriggers) > 0 {
 		msg := tasktypes.NewCronUpdateMessage(tenantId, msgqueue.MsgIDCronUpdate)
-		err = a.mq.SendMessage(ctx, msgqueue.TICKER_UPDATE_QUEUE, msg)
+		err = a.pubsub.Pub(ctx, msgqueue.CronRefreshTopic(), msg)
 		if err != nil {
 			a.l.Err(err).Ctx(ctx).Msg("could not send cron trigger update message")
 		}

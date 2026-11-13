@@ -19,6 +19,7 @@ import type { Action } from '@hatchet/clients/dispatcher/action';
 import { workflowNameFromAction } from '@hatchet/clients/dispatcher/action';
 import { Logger, LogLevel } from '@hatchet/util/logger';
 import { parseJSON } from '@hatchet/util/parse';
+import { serializePayload } from '@hatchet/util/serialize-payload';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import { Conditions, Render } from '@hatchet/v1/conditions';
 import { conditionsToPb } from '@hatchet/v1/conditions/transformer';
@@ -1288,13 +1289,13 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
 
     const triggerOpts = {
       name: workflowName,
-      input: JSON.stringify(input || {}),
+      input: serializePayload(input || {}),
       parentId: this.action.workflowRunId,
       parentTaskRunExternalId: this.action.taskRunExternalId,
       childIndex,
       childKey: options?.key,
       additionalMetadata: options?.additionalMetadata
-        ? JSON.stringify(options.additionalMetadata)
+        ? serializePayload(options.additionalMetadata)
         : undefined,
       desiredWorkerId: options?.sticky ? this.worker.id() : undefined,
       priority: options?.priority,
@@ -1426,7 +1427,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
     }
 
     const result = await fn();
-    const serializedResult = new TextEncoder().encode(JSON.stringify(result));
+    const serializedResult = new TextEncoder().encode(serializePayload(result));
 
     await this._durableListener.sendMemoCompletedNotification(
       this.action.taskRunExternalId,

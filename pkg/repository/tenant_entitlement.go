@@ -10,6 +10,7 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -31,6 +32,10 @@ type TenantEntitlementRepository interface {
 
 	// SetEntitlements upserts the full set of feature entitlements for the tenant.
 	SetEntitlements(ctx context.Context, tenantId uuid.UUID, entitlements TenantEntitlements) error
+
+	// UpdateLabsEntitlements sets durable streams, the serverless operator, and the sandbox operator.
+	// Nil fields keep their current value. Other entitlements are left unchanged.
+	UpdateLabsEntitlements(ctx context.Context, tenantId uuid.UUID, patch LabsEntitlements) (TenantEntitlements, error)
 }
 
 // Entitlement names a per-tenant feature; values match the tenant_entitlement columns.
@@ -40,13 +45,22 @@ const (
 	EntitlementAuditLogs                       Entitlement = "audit_logs"
 	EntitlementPrometheusMetrics               Entitlement = "prometheus_metrics"
 	EntitlementStrictAdditionalMetadataFilters Entitlement = "strict_additional_metadata_filters"
-	EntitlementDAGOperator                     Entitlement = "dag_operator"
 	EntitlementDurableStreams                  Entitlement = "durable_streams"
 	EntitlementServerlessOperator              Entitlement = "serverless_operator"
+	EntitlementSandboxOperator                 Entitlement = "sandbox_operator"
+	EntitlementOperatorStepDirectCompletion    Entitlement = "operator_step_direct_completion"
 )
 
-// Entitlements only change on plan changes fanned out from the control plane,
-// so this bounds how long a change takes to apply on hot paths.
+// LabsEntitlements is a partial update of the Labs preview opt-ins.
+// A nil field keeps the tenant's current value.
+type LabsEntitlements struct {
+	DurableStreams     *bool
+	ServerlessOperator *bool
+	SandboxOperator    *bool
+}
+
+// Entitlement reads are cached so hot paths do not hit the database. The writer
+// drops its own cache; other processes observe a change within entitlementCacheTTL.
 const entitlementCacheTTL = 5 * time.Minute
 
 const entitlementCacheSize = 10000
@@ -57,9 +71,10 @@ type TenantEntitlements struct {
 	AuditLogs                       bool
 	PrometheusMetrics               bool
 	StrictAdditionalMetadataFilters bool
-	DAGOperator                     bool
 	DurableStreams                  bool
 	ServerlessOperator              bool
+	SandboxOperator                 bool
+	OperatorStepDirectCompletion    bool
 }
 
 // Has reports whether this set includes the named entitlement.
@@ -71,12 +86,14 @@ func (e TenantEntitlements) Has(entitlement Entitlement) (bool, error) {
 		return e.PrometheusMetrics, nil
 	case EntitlementStrictAdditionalMetadataFilters:
 		return e.StrictAdditionalMetadataFilters, nil
-	case EntitlementDAGOperator:
-		return e.DAGOperator, nil
 	case EntitlementDurableStreams:
 		return e.DurableStreams, nil
 	case EntitlementServerlessOperator:
 		return e.ServerlessOperator, nil
+	case EntitlementSandboxOperator:
+		return e.SandboxOperator, nil
+	case EntitlementOperatorStepDirectCompletion:
+		return e.OperatorStepDirectCompletion, nil
 	default:
 		return false, fmt.Errorf("unknown entitlement %q", entitlement)
 	}
@@ -145,14 +162,19 @@ func (t *tenantEntitlementRepository) GetEntitlements(ctx context.Context, tenan
 		return TenantEntitlements{}, err
 	}
 
+	return tenantEntitlementsFromRow(entitlement), nil
+}
+
+func tenantEntitlementsFromRow(entitlement *sqlcv1.TenantEntitlement) TenantEntitlements {
 	return TenantEntitlements{
 		AuditLogs:                       entitlement.AuditLogs,
 		PrometheusMetrics:               entitlement.PrometheusMetrics,
 		StrictAdditionalMetadataFilters: entitlement.StrictAdditionalMetadataFilters,
-		DAGOperator:                     entitlement.DagOperator,
 		DurableStreams:                  entitlement.DurableStreams,
 		ServerlessOperator:              entitlement.ServerlessOperator,
-	}, nil
+		SandboxOperator:                 entitlement.SandboxOperator,
+		OperatorStepDirectCompletion:    entitlement.OperatorStepDirectCompletion,
+	}
 }
 
 func (t *tenantEntitlementRepository) SetEntitlements(ctx context.Context, tenantId uuid.UUID, entitlements TenantEntitlements) error {
@@ -163,9 +185,10 @@ func (t *tenantEntitlementRepository) SetEntitlements(ctx context.Context, tenan
 		Auditlogs:                       entitlements.AuditLogs,
 		Prometheusmetrics:               entitlements.PrometheusMetrics,
 		Strictadditionalmetadatafilters: entitlements.StrictAdditionalMetadataFilters,
-		Dagoperator:                     entitlements.DAGOperator,
 		Durablestreams:                  entitlements.DurableStreams,
 		Serverlessoperator:              entitlements.ServerlessOperator,
+		Sandboxoperator:                 entitlements.SandboxOperator,
+		Operatorstepdirectcompletion:    entitlements.OperatorStepDirectCompletion,
 	})
 
 	if err != nil {
@@ -175,4 +198,26 @@ func (t *tenantEntitlementRepository) SetEntitlements(ctx context.Context, tenan
 	t.cache.Remove(tenantId)
 
 	return nil
+}
+
+func (t *tenantEntitlementRepository) UpdateLabsEntitlements(ctx context.Context, tenantId uuid.UUID, patch LabsEntitlements) (TenantEntitlements, error) {
+	if patch.DurableStreams == nil && patch.ServerlessOperator == nil && patch.SandboxOperator == nil {
+		return t.GetEntitlements(ctx, tenantId)
+	}
+
+	// The merge happens in SQL so concurrent patches to different flags do not overwrite each other.
+	row, err := t.queries.UpdateTenantLabsEntitlements(ctx, t.pool.ForTenant(tenantId), sqlcv1.UpdateTenantLabsEntitlementsParams{
+		Tenantid:           tenantId,
+		DurableStreams:     sqlchelpers.BoolFromMaybeBoolean(patch.DurableStreams),
+		ServerlessOperator: sqlchelpers.BoolFromMaybeBoolean(patch.ServerlessOperator),
+		SandboxOperator:    sqlchelpers.BoolFromMaybeBoolean(patch.SandboxOperator),
+	})
+
+	if err != nil {
+		return TenantEntitlements{}, err
+	}
+
+	t.cache.Remove(tenantId)
+
+	return tenantEntitlementsFromRow(row), nil
 }

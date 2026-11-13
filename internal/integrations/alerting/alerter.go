@@ -28,7 +28,7 @@ func New(repo v1.Repository, e encryption.EncryptionService, frontendURL string,
 	return &TenantAlertManager{repo, e, frontendURL, email}
 }
 
-func (t *TenantAlertManager) SendWorkflowRunAlertV1(tenantId uuid.UUID, failedRuns []*v1.WorkflowRunData) error {
+func (t *TenantAlertManager) SendWorkflowRunAlertV1(tenantId uuid.UUID, failedRuns []*v1.WorkflowRunData, alertedAt time.Time) error {
 	if len(failedRuns) == 0 {
 		return nil
 	}
@@ -49,10 +49,8 @@ func (t *TenantAlertManager) SendWorkflowRunAlertV1(tenantId uuid.UUID, failedRu
 		return nil
 	}
 
-	now := time.Now().UTC()
-
 	err = t.repo.TenantAlertingSettings().UpdateTenantAlertingSettings(ctx, tenantId, &v1.UpdateTenantAlertingSettingsOpts{
-		LastAlertedAt: &now,
+		LastAlertedAt: &alertedAt,
 	})
 
 	if err != nil {

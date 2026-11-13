@@ -254,6 +254,9 @@ if TYPE_CHECKING:
     from hatchet_sdk.clients.rest.models.update_tenant_alert_email_group_request import (
         UpdateTenantAlertEmailGroupRequest,
     )
+    from hatchet_sdk.clients.rest.models.update_tenant_entitlements_request import (
+        UpdateTenantEntitlementsRequest,
+    )
     from hatchet_sdk.clients.rest.models.update_tenant_invite_request import (
         UpdateTenantInviteRequest,
     )
@@ -674,6 +677,7 @@ _LAZY_IMPORTS: dict[str, str] = {
     "UpdateCronWorkflowTriggerRequest": "hatchet_sdk.clients.rest.models.update_cron_workflow_trigger_request",
     "UpdateScheduledWorkflowRunRequest": "hatchet_sdk.clients.rest.models.update_scheduled_workflow_run_request",
     "UpdateTenantAlertEmailGroupRequest": "hatchet_sdk.clients.rest.models.update_tenant_alert_email_group_request",
+    "UpdateTenantEntitlementsRequest": "hatchet_sdk.clients.rest.models.update_tenant_entitlements_request",
     "UpdateTenantInviteRequest": "hatchet_sdk.clients.rest.models.update_tenant_invite_request",
     "UpdateTenantMemberRequest": "hatchet_sdk.clients.rest.models.update_tenant_member_request",
     "UpdateTenantRequest": "hatchet_sdk.clients.rest.models.update_tenant_request",

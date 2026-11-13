@@ -2,6 +2,7 @@ package workflows
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -43,7 +44,10 @@ func (t *WorkflowService) WorkflowCronTrigger(ctx echo.Context, request gen.Work
 		&priority,
 		time.Now().UTC(),
 	)
-	if err != nil || externalId == nil {
+	if err != nil {
+		return nil, fmt.Errorf("could not trigger cron workflow: %w", err)
+	}
+	if externalId == nil {
 		return gen.WorkflowCronTrigger500JSONResponse(apierrors.NewAPIErrors("Failed to trigger cron workflow.")), nil
 	}
 

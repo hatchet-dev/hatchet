@@ -1,0 +1,67 @@
+---
+title: "About"
+description: Run untrusted code in isolated machines from Hatchet tasks, on a sandbox provider connected to your tenant, with every command recorded as a Hatchet task.
+---
+
+import { snippets } from "@/lib/generated/snippets";
+import { Snippet } from "@/components/code";
+import { Callout, Tabs } from "@/components/nextra-compat";
+import UniversalTabs from "@/components/UniversalTabs";
+import { Sandboxes } from "@/components/flow-animations/Sandboxes";
+
+# Sandboxes
+
+<Callout type="info">Sandboxes are available on Hatchet Cloud only.</Callout>
+
+<Callout type="warning">
+  Sandboxes are a Labs feature and may change in future releases. In the
+  dashboard, open <strong>Settings</strong>, go to <strong>Labs Preview</strong>{" "}
+  and turn on <strong>Sandboxes</strong>.
+</Callout>
+
+A sandbox is a workspace with shell access to a remote machine. You may run commands in it as well as carry out filesystem operations such as reading and writing files. Agents that write and run code, untrusted plugins, and jobs that need an isolated environment perfectly fit in this use case.
+
+Hatchet does not run sandboxes. You connect a sandbox vendor to your tenant with your own account. Hatchet drives it and keeps the snapshot lineage in the form of Hatchet tasks and additional metadata.
+
+<Sandboxes />
+
+## Why sandboxes
+
+Code written by an agent, uploaded by a user or pulled from a repository you do not control should not run next to your own services. A sandbox gives that code a machine of its own, with its own filesystem, that you can throw away afterwards. This guarantees an isolation boundary between external code and your running services.
+
+The workspace can also be saved and copied, which makes a sandbox a cheap way to keep state between steps. An agent can stop for the day and pick the same files up tomorrow.
+
+## What Hatchet adds
+
+- **Every call is a task.** `create`, `exec`, the file operations and `kill` each run as a Hatchet task. They are retried, logged and visible in the dashboard next to the rest of your runs.
+- **Durable by default.** Called from a [durable task](/v1/durable-tasks), every sandbox call is recorded in the event log. If the worker crashes, the task resumes and the calls that already finished are not run again.
+- **Snapshots and forks.** A sandbox can be [resumed](/v1/sandboxes/using-sandboxes#resuming-a-paused-sandbox) from its latest snapshot or [forked](/v1/sandboxes/using-sandboxes#forks) into as many copies as you need.
+- **Unified sandbox SDK.** You connect your own account as a [provider](/v1/sandboxes/providers) and the same code can run across any of them.
+
+## Terminology
+
+- A **[provider](/v1/sandboxes/providers)** is a vendor account connected to your tenant. You add it once in the dashboard with the vendor's API key and optional configuration values, as described in [Setup](/v1/sandboxes/setup).
+- A **sandbox operator** runs inside Hatchet Cloud. For each tenant with sandboxes turned on it registers a `hatchet-sandbox` task and serves every call by talking to the upstream vendor.
+- A **[snapshot](/v1/sandboxes/setup#snapshots)** is the saved state of a sandbox's workspace. A sandbox can be [started again](/v1/sandboxes/using-sandboxes#resuming-a-paused-sandbox) from its latest snapshot. You may also [fork](/v1/sandboxes/using-sandboxes#forks) an existing snapshot for a newly created one.
+
+## How it looks
+
+The task below clones a repository into a sandbox and runs its tests, then forks the sandbox to run the same tests with upgraded dependencies. The original sandbox is left as it was.
+
+<UniversalTabs items={["Typescript"]}>
+<Tabs.Tab title="Typescript">
+
+<Snippet src={snippets.typescript_sandbox.sandbox.simple_demo.simple_demo} />
+
+</Tabs.Tab>
+</UniversalTabs>
+
+1. The task creates a sandbox, clones the repository and runs the tests. Each of those calls is a Hatchet task.
+2. `kill` stops the sandbox and saves a snapshot. `create({ from })` starts a second sandbox from that snapshot, with the repository and its dependencies already in place.
+3. If the worker crashes halfway, Hatchet resumes the task. The calls that already finished are read back from the event log, so the clone and the first test run are not repeated.
+
+## Next steps
+
+- [Setup](/v1/sandboxes/setup) turns sandboxes on and connects a provider.
+- [Providers](/v1/sandboxes/providers) lists what each vendor accepts.
+- [Using sandboxes](/v1/sandboxes/using-sandboxes) covers commands, files, resuming, forks and cleanup.

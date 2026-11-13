@@ -1114,7 +1114,9 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 				state.newEntryByKey[key] = o
 				continue
 			}
-			if !o.idempotencyKeyMatches(e.IdempotencyKey) {
+			// a DAG step trigger skips the key check, so only the kind check stops it from taking
+			// over another kind's entry
+			if o.Kind != e.Kind || !o.idempotencyKeyMatches(e.IdempotencyKey) {
 				nonDeterminismErr = &NonDeterminismError{
 					BranchId:                o.BranchId,
 					NodeId:                  o.NodeId,
@@ -1461,9 +1463,16 @@ func (r *durableEventsRepository) resolveOrphanedChildDedupes(
 
 		latestEntry := latestEntryByChild[to.ExternalId]
 
-		if latestEntry == nil || !to.ReplayOrphanedChildren {
+		if !to.ReplayOrphanedChildren {
 			to.ShouldSkip = false
 			to.ExternalId = uuid.New()
+			continue
+		}
+
+		childExternalIdWasReservedWithoutAnEntry := latestEntry == nil
+
+		if childExternalIdWasReservedWithoutAnEntry {
+			to.ShouldSkip = false
 			continue
 		}
 
@@ -1940,6 +1949,8 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 
 			childExternalId := *le.Entry.ChildTaskExternalID
 
+			// re-executed operator step children keep this match even with direct completion: the replay
+			// can create the child already FAILED, which is never finalized and only emits a FAILED event
 			childHint := childExternalId.String()
 			orGroupId := uuid.New()
 
@@ -2286,6 +2297,8 @@ func (r *durableEventsRepository) TriggerPendingRunEntries(ctx context.Context, 
 
 	triggerOpts := make([]*WorkflowNameTriggerOpts, 0, len(claimedSet))
 	externalIdToEventLogEntryPK := make(map[uuid.UUID]DurableTaskEventLogEntryKey, len(claimedSet))
+	dagStepChildExternalIds := make(map[uuid.UUID]struct{})
+	stepChildrenSkipMatch := r.operatorStepChildrenSkipCompletionMatch(ctx, tenantId)
 
 	for _, t := range tasks {
 		for _, p := range t.PendingRuns {
@@ -2303,6 +2316,10 @@ func (r *durableEventsRepository) TriggerPendingRunEntries(ctx context.Context, 
 
 			triggerOpts = append(triggerOpts, p.TriggerOpts)
 			externalIdToEventLogEntryPK[p.TriggerOpts.ExternalId] = k
+
+			if p.TriggerOpts.IsDagStepTrigger && stepChildrenSkipMatch {
+				dagStepChildExternalIds[p.TriggerOpts.ExternalId] = struct{}{}
+			}
 		}
 	}
 
@@ -2333,6 +2350,12 @@ func (r *durableEventsRepository) TriggerPendingRunEntries(ctx context.Context, 
 
 	for _, ct := range createdTasks {
 		if _, isDagTask := dagExternalIds[ct.WorkflowRunID]; isDagTask {
+			continue
+		}
+
+		// an operator step child satisfies its entry in its own finalize transaction, see satisfyOperatorStepChildEntries.
+		// a child created already FAILED is never finalized, so its FAILED internal event still needs this match.
+		if _, isDagStepChild := dagStepChildExternalIds[ct.ExternalID]; isDagStepChild && ct.InitialState == sqlcv1.V1TaskInitialStateQUEUED {
 			continue
 		}
 
@@ -2957,4 +2980,226 @@ func (r *durableEventsRepository) ListDurableEventLog(ctx context.Context, tenan
 		Eventlogoffset:        offset,
 		Eventloglimit:         limit,
 	})
+}
+
+// operatorStepChildrenSkipCompletionMatch reports whether the tenant's operator step children may
+// be spawned without a completion match. Until every engine pod satisfies entries directly, a pod
+// that still resolves completions through matching would otherwise never finish such a step, so
+// the match is kept unless the tenant is entitled, and kept on a lookup error.
+func (r *sharedRepository) operatorStepChildrenSkipCompletionMatch(ctx context.Context, tenantId uuid.UUID) bool {
+	if r.entitlements == nil {
+		return false
+	}
+
+	entitled, err := r.entitlements.HasEntitlement(ctx, tenantId, EntitlementOperatorStepDirectCompletion)
+
+	if err != nil {
+		r.l.Error().Ctx(ctx).Err(err).Msgf("could not read the operator step direct completion entitlement for tenant %s, keeping the completion match", tenantId)
+		return false
+	}
+
+	return entitled
+}
+
+// OperatorStepChildCompletion is a DAG operator step child that reached a terminal state in the
+// transaction that released it.
+type OperatorStepChildCompletion struct {
+	ReleasedTask *sqlcv1.ReleaseTasksRow
+	OutputEvent  *TaskOutputEvent
+}
+
+// IsOperatorStepChild reports whether a released task was spawned by a DAG orchestrator for one
+// of its steps. The DAG operator groups every step child under the orchestrator's run id and names
+// the orchestrator as the parent, so the two ids coincide only for operator step children.
+func IsOperatorStepChild(task *sqlcv1.ReleaseTasksRow) bool {
+	return isOperatorStepChild(task.ParentTaskID, task.ParentTaskInsertedAt, task.ParentTaskExternalID, task.WorkflowRunID)
+}
+
+func isOperatorStepChild(parentTaskId pgtype.Int8, parentTaskInsertedAt pgtype.Timestamptz, parentTaskExternalId *uuid.UUID, workflowRunId uuid.UUID) bool {
+	return parentTaskId.Valid &&
+		parentTaskInsertedAt.Valid &&
+		parentTaskExternalId != nil &&
+		*parentTaskExternalId == workflowRunId
+}
+
+// with the entitlement flag off, children report through their completion match like they did before direct completion existed.
+// there's a race condition around the flag being changed where a child that was spawned while the flag was on has no match
+// (the flag was rolled back, or this process still has the old value cached after it was enabled), so we need to check if each
+// child has a completion match and complete the ones without one directly, otherwise their orchestrator would never hear from them.
+func (r *sharedRepository) operatorStepChildrenCompletingDirectly(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, completions []OperatorStepChildCompletion) ([]OperatorStepChildCompletion, error) {
+	if len(completions) == 0 || r.operatorStepChildrenSkipCompletionMatch(ctx, tenantId) {
+		return completions, nil
+	}
+
+	childExternalIds := enumerables.Map(completions, func(completion OperatorStepChildCompletion) string {
+		return completion.ReleasedTask.ExternalID.String()
+	})
+
+	completionConditions, err := r.queries.ListMatchConditionsForEventWithHint(ctx, tx, sqlcv1.ListMatchConditionsForEventWithHintParams{
+		Tenantid:  tenantId,
+		Eventtype: sqlcv1.V1EventTypeINTERNAL,
+		Eventkeys: enumerables.Map(childExternalIds, func(string) string {
+			return string(sqlcv1.V1TaskEventTypeCOMPLETED)
+		}),
+		Eventresourcehints: childExternalIds,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list completion matches for operator step children: %w", err)
+	}
+
+	childExternalIdsWithCompletionMatch := enumerables.ToSet(completionConditions, func(condition *sqlcv1.ListMatchConditionsForEventRow) string {
+		return condition.EventResourceHint.String
+	})
+
+	return enumerables.Filter(completions, func(completion OperatorStepChildCompletion) bool {
+		_, hasCompletionMatch := childExternalIdsWithCompletionMatch[completion.ReleasedTask.ExternalID.String()]
+		return !hasCompletionMatch
+	}), nil
+}
+
+// satisfyOperatorStepChildEntries marks the orchestrator's RUN log entries for the given step
+// children satisfied in the same transaction that finalized the children, so operator steps never
+// go through the match pipeline. Every unsatisfied entry naming the child is satisfied: a
+// re-executed child keeps its task identity but gets a fresh entry on the new branch.
+func (r *sharedRepository) satisfyOperatorStepChildEntries(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, completions []OperatorStepChildCompletion) ([]SatisfiedEntry, error) {
+	if len(completions) == 0 {
+		return nil, nil
+	}
+
+	ctx, span := telemetry.NewSpan(ctx, "satisfy-operator-step-child-entries")
+	defer span.End()
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "n_children", Value: len(completions)})
+
+	lookupParams := sqlcv1.ListUnsatisfiedRunEntriesForChildTaskExternalIdsParams{
+		Durabletaskids:           make([]int64, 0, len(completions)),
+		Durabletaskinsertedats:   make([]pgtype.Timestamptz, 0, len(completions)),
+		Childtaskexternalids:     make([]uuid.UUID, 0, len(completions)),
+		Mindurabletaskinsertedat: sqlchelpers.TimestamptzFromTime(time.Now().UTC()),
+	}
+
+	completionByChildExternalId := make(map[uuid.UUID]OperatorStepChildCompletion, len(completions))
+
+	for _, completion := range completions {
+		task := completion.ReleasedTask
+
+		completionByChildExternalId[task.ExternalID] = completion
+		lookupParams.Durabletaskids = append(lookupParams.Durabletaskids, task.ParentTaskID.Int64)
+		lookupParams.Durabletaskinsertedats = append(lookupParams.Durabletaskinsertedats, task.ParentTaskInsertedAt)
+		lookupParams.Childtaskexternalids = append(lookupParams.Childtaskexternalids, task.ExternalID)
+
+		if task.ParentTaskInsertedAt.Time.Before(lookupParams.Mindurabletaskinsertedat.Time) {
+			lookupParams.Mindurabletaskinsertedat = sqlchelpers.TimestamptzFromTime(task.ParentTaskInsertedAt.Time)
+		}
+	}
+
+	tenantIds := make([]uuid.UUID, len(lookupParams.Durabletaskids))
+	for i := range tenantIds {
+		tenantIds[i] = tenantId
+	}
+
+	// NOTE: need an explicit lock here to prevent segfault caused by Postgres bug, see this issue: https://github.com/hatchet-dev/hatchet/issues/5101
+	_, err := r.queries.GetAndLockLogFilesWithBranchPoints(ctx, tx, sqlcv1.GetAndLockLogFilesWithBranchPointsParams{
+		Durabletaskids:           lookupParams.Durabletaskids,
+		Durabletaskinsertedats:   lookupParams.Durabletaskinsertedats,
+		Tenantids:                tenantIds,
+		Mindurabletaskinsertedat: lookupParams.Mindurabletaskinsertedat,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to lock durable event log files: %w", err)
+	}
+
+	unsatisfiedEntries, err := r.queries.ListUnsatisfiedRunEntriesForChildTaskExternalIds(ctx, tx, lookupParams)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list unsatisfied run entries for operator step children: %w", err)
+	}
+
+	if len(unsatisfiedEntries) == 0 {
+		return nil, nil
+	}
+
+	updateParams := sqlcv1.UpdateDurableEventLogEntriesSatisfiedParams{
+		Durabletaskids:           make([]int64, 0, len(unsatisfiedEntries)),
+		Durabletaskinsertedats:   make([]pgtype.Timestamptz, 0, len(unsatisfiedEntries)),
+		Nodeids:                  make([]int64, 0, len(unsatisfiedEntries)),
+		Branchids:                make([]int64, 0, len(unsatisfiedEntries)),
+		Childtaskisfailures:      make([]bool, 0, len(unsatisfiedEntries)),
+		Childtaskerrormessages:   make([]string, 0, len(unsatisfiedEntries)),
+		Mindurabletaskinsertedat: lookupParams.Mindurabletaskinsertedat,
+	}
+
+	for _, entry := range unsatisfiedEntries {
+		completion := completionByChildExternalId[*entry.ChildTaskExternalID]
+		isFailure, errorMessage := completion.OutputEvent.FailureForDurableEntry()
+
+		updateParams.Durabletaskids = append(updateParams.Durabletaskids, entry.DurableTaskID)
+		updateParams.Durabletaskinsertedats = append(updateParams.Durabletaskinsertedats, entry.DurableTaskInsertedAt)
+		updateParams.Nodeids = append(updateParams.Nodeids, entry.NodeID)
+		updateParams.Branchids = append(updateParams.Branchids, entry.BranchID)
+		updateParams.Childtaskisfailures = append(updateParams.Childtaskisfailures, isFailure)
+		updateParams.Childtaskerrormessages = append(updateParams.Childtaskerrormessages, errorMessage)
+	}
+
+	satisfiedRows, err := r.queries.UpdateDurableEventLogEntriesSatisfied(ctx, tx, updateParams)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to satisfy run entries for operator step children: %w", err)
+	}
+
+	satisfiedEntries := make([]SatisfiedEntry, 0, len(satisfiedRows))
+	payloadsToStore := make([]StorePayloadOpts, 0, len(satisfiedRows))
+
+	for _, row := range satisfiedRows {
+		if row.ChildTaskExternalID == nil {
+			continue
+		}
+
+		completion, ok := completionByChildExternalId[*row.ChildTaskExternalID]
+
+		if !ok {
+			continue
+		}
+
+		task := completion.ReleasedTask
+		isFailure, errorMessage := completion.OutputEvent.FailureForDurableEntry()
+		output := completion.OutputEvent.Output
+
+		if len(output) > 0 {
+			payloadsToStore = append(payloadsToStore, PayloadRef[DurableEventLogEntryResultDataShape]{
+				Id:         row.ID,
+				InsertedAt: row.InsertedAt,
+				ExternalId: row.ResultPayloadExternalID,
+				TenantId:   tenantId,
+			}.StoreOpts(NewPayload[DurableEventLogEntryResultDataShape](output)))
+		}
+
+		var errorMessagePtr *string
+		if isFailure {
+			errorMessagePtr = &errorMessage
+		}
+
+		satisfiedEntries = append(satisfiedEntries, SatisfiedEntry{
+			DurableTaskExternalId: *task.ParentTaskExternalID,
+			DurableTaskId:         row.DurableTaskID,
+			DurableTaskInsertedAt: row.DurableTaskInsertedAt,
+			NodeId:                row.NodeID,
+			BranchId:              row.BranchID,
+			Data:                  output,
+			ChildTaskIsFailure:    isFailure,
+			ChildTaskErrorMessage: errorMessagePtr,
+			InvocationCount:       row.InvocationCount,
+			SatisfiedOrder:        satisfiedOrderPtr(row.SatisfiedOrder),
+		})
+	}
+
+	if len(payloadsToStore) > 0 {
+		if err := r.payloadStore.Store(ctx, tx, payloadsToStore...); err != nil {
+			return nil, fmt.Errorf("failed to store result payloads for operator step children: %w", err)
+		}
+	}
+
+	return satisfiedEntries, nil
 }

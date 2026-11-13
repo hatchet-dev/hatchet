@@ -10,7 +10,7 @@ import {
   V1StreamsClient as PbV1StreamsClient,
   V1StreamsDefinition,
 } from '@hatchet/protoc/v1/streams';
-import type { StreamCallOptions, StreamTopicMetadata } from '@hatchet/core/types';
+import type { StreamCallOptions, StreamEvent, StreamTopicMetadata } from '@hatchet/core/types';
 import { HatchetClient } from '../client';
 
 // the server stored nothing, so the seq is unused
@@ -80,16 +80,7 @@ function shouldResubscribe(err: unknown, attempt: number): boolean {
   return true;
 }
 
-export type StreamEvent = {
-  /** the message payload */
-  payload: Uint8Array;
-  /** resumes subscribe() right after this event */
-  cursor: string;
-  /** when the message was stored */
-  createdAt?: Date;
-};
-
-export type { StreamCallOptions, StreamTopicMetadata } from '@hatchet/core/types';
+export type { StreamCallOptions, StreamEvent, StreamTopicMetadata } from '@hatchet/core/types';
 
 interface QueuedPublish {
   payload: Uint8Array;

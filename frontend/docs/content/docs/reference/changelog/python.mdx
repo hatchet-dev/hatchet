@@ -56,7 +56,7 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 ### Changed
 
 - Python 3.11 or newer is required.
-- Optional parameters that follow a method's main arguments are keyword-only, so passing them positionally raises a `TypeError`. This covers `run`, `aio_run`, `run_many`, `aio_run_many`, `create_bulk_run_item`, `schedule`, `aio_schedule`, `create_cron`, `aio_create_cron`, `create_filter`, `aio_create_filter`, `list_runs`, `aio_list_runs`, `pause`, `aio_pause`, `mock_run`, and `aio_mock_run` on workflows and tasks; the `task`, `durable_task`, `batch_task`, `on_failure_task`, and `on_success_task` decorators on a workflow (after `name`); `hatchet.worker` and the `Worker` constructor; `poll_interval` on `WorkflowRunRef.result` and `TaskRunRef.result`; `SleepCondition`, `UserEventCondition`, and `ParentCondition`; the `label` parameter on `ctx.aio_sleep_for` and `ctx.aio_sleep_until`; every `HatchetInstrumentor` parameter; and, along with their `aio_` variants, `cel.debug`, `crons.create`, `crons.list`, `events.push`, `events.list`, `filters.create`, `filters.list`, `logs.list`, `metrics.get_task_metrics`, `rate_limits.put`, `rate_limits.list`, `runs.list`, `runs.create`, `runs.reset_durable_task`, `scheduled.create`, `scheduled.list`, `streams.topic_metadata`, `streams.reset`, `webhooks.create`, `webhooks.update`, `webhooks.list`, `workflows.list`, `workflows.get_version`, and `workflows.pause`. Pass these arguments by keyword. `input` and `additional_metadata` on `crons.create` and `scheduled.create` are still required.
+- Optional parameters that follow a method's main arguments are keyword-only, so passing them positionally raises a `TypeError`. This covers `run`, `aio_run`, `run_many`, `aio_run_many`, `create_bulk_run_item`, `schedule`, `aio_schedule`, `create_cron`, `aio_create_cron`, `create_filter`, `aio_create_filter`, `list_runs`, `aio_list_runs`, `pause`, `aio_pause`, `mock_run`, and `aio_mock_run` on workflows and tasks; the `task`, `durable_task`, `batch_task`, `on_failure_task`, and `on_success_task` decorators on a workflow (after `name`); `hatchet.worker` and the `Worker` constructor; `poll_interval` on `WorkflowRunRef.result` and `TaskRunRef.result`; `SleepCondition`, `UserEventCondition`, and `ParentCondition`; the `label` parameter on `ctx.aio_sleep_for` and `ctx.aio_sleep_until`; `streams.aio_reset`; every `HatchetInstrumentor` parameter; and, along with their `aio_` variants, `cel.debug`, `crons.create`, `crons.list`, `events.push`, `events.list`, `filters.create`, `filters.list`, `logs.list`, `metrics.get_task_metrics`, `rate_limits.put`, `rate_limits.list`, `runs.list`, `runs.create`, `runs.reset_durable_task`, `scheduled.create`, `scheduled.list`, `streams.topic_metadata`, `webhooks.create`, `webhooks.update`, `webhooks.list`, `workflows.list`, `workflows.get_version`, and `workflows.pause`. Pass these arguments by keyword. `input` and `additional_metadata` on `crons.create` and `scheduled.create` are still required.
 - `hatchet.event` has been renamed to `hatchet.events`, and `hatchet.cron` has been renamed to `hatchet.crons`, consistent with the other (plural) feature clients.
 - `runs.subscribe_to_stream` has been renamed to `runs.aio_subscribe_to_stream`, consistent with the `aio_` prefix on every other async method.
 - `streams.publish` has been renamed to `streams.aio_publish`, and `streams.subscribe` has been renamed to `streams.aio_subscribe`, since both are async.
@@ -73,6 +73,7 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - `ctx.aio_wait_for` no longer takes a signal key as its first argument. Pass the conditions directly, and pass `signal_key=` by keyword if you need a specific key. When it is left out, the key is generated from the order of the wait within the task run, which is stable across replays.
 - `ctx.refresh_timeout`, `ctx.aio_refresh_timeout`, `ctx.put_stream`, and `ctx.aio_put_stream` raise when the request fails, instead of logging the error and returning.
 - `ctx.priority` now returns `Priority | None` instead of `int | None`.
+- The `task_run_errors` parameter on `mock_run` and `aio_mock_run` takes a `dict[str, TaskRunError]` instead of serialized error strings, matching `ctx.task_run_errors`. Their `trigger_data` parameter has been replaced by `filter_payload`, which sets `ctx.filter_payload`.
 - `from hatchet_sdk import Event` now resolves to the SDK's own event class instead of the V0 REST model. Every method on the events client returns it: `push`, `bulk_push`, `get`, and `list`, along with their `aio_` variants. `get` and `list` previously returned the `V1Event` REST model, so read `event.id` instead of `event.metadata.id`.
 - `Event.event_id` has been renamed to `Event.id`.
 - `Event.payload` and `Event.additional_metadata` are now dictionaries instead of JSON strings, so there is no need to call `json.loads` on them. `additional_metadata` is an empty dictionary when the event has none.
@@ -93,7 +94,6 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - `WorkerLabel.key` is required, and `DesiredWorkerLabel` no longer subclasses `WorkerLabel`.
 - The default `readable_data_key` of a `ParentCondition` is the parent task's name, followed by `:` and the expression when one is set. It previously also included the time the condition was created, so the workflow definition changed every time the worker started. Two `ParentCondition`s on the same task with the same parent and expression now need distinct `readable_data_key` values, or registering the workflow raises a `ValueError`.
 - String-mixin enums (`RunStatus`, `HTTPMethod`, `SlotType`, `OTelAttribute`, and others) are now `enum.StrEnum` subclasses, so `str(member)` returns the raw value.
-- `grpcio-tools` is no longer a runtime dependency.
 - `RunStatus` is now the only run status enum. Every status the SDK accepts or returns is a `RunStatus`, including `TaskRunSummary.status`, `ScheduledRun.workflow_run_status`, the `status` field on REST models, and the `statuses` filters on `runs.list` and `events.list`.
 - The events client module has moved from `hatchet_sdk.clients.events` to `hatchet_sdk.features.events`, alongside the other feature clients.
 - The `parent_step_run_id` parameter on `scheduled.bulk_delete` and `scheduled.aio_bulk_delete` has been renamed to `parent_task_run_id`.
@@ -139,6 +139,33 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - `TaskRunError` sets `args`, so it can be pickled.
 - The `hatchet.durable.wait_for` span reports the actual number of conditions in `hatchet.num_conditions` instead of always 2, and leaves out `hatchet.signal_key` when the key was generated.
 - `HatchetInstrumentor.uninstrument()` now also unwraps `events.aio_push` and `events.aio_bulk_push`.
+## v1.46.0 - 2026-11-12
+
+### Added
+
+- `mock_run` and `aio_mock_run` accept `task_run_errors`, `trigger_data`, `workflow_run_id`, and `task_run_id`, so unit tests can cover on-failure tasks, tasks with `wait_for` conditions, and tasks that read their run ids.
+
+### Fixed
+
+- A dependency used more than once in a task's dependency tree is now resolved once per run and its value is shared, matching FastAPI's `Depends`.
+- Context manager dependencies now receive the task's exception when the task fails, so they can e.g. roll back a transaction. A dependency that catches the exception without re-raising it no longer makes the task succeed or hides the exception from the other dependencies.
+- The REST client can read workflow versions whose concurrency uses `CANCEL_NEWEST`, `CANCEL_QUEUED_EXCEPT_NEWEST`, or `CANCEL_QUEUED_EXCEPT_OLDEST`.
+
+### Removed
+
+- `grpcio-tools` is no longer a runtime dependency, since the SDK only uses it to generate protobuf code. This avoids building it from source on Python 3.15, where the newest `grpcio-tools` versions compatible with `protobuf<7` have no prebuilt wheels.
+
+## v1.45.1 - 2026-11-05
+
+### Added
+
+- `TenantEntitlements.sandbox_operator`, the tenant's sandbox entitlement.
+
+## v1.45.0 - 2026-10-30
+
+### Removed
+
+- Removes the synchronous `hatchet.streams.reset`; use `aio_reset`, which now calls the engine asynchronously instead of from a worker thread.
 
 ## v1.44.0 - 2026-10-26
 

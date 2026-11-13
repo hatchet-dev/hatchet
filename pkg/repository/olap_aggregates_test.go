@@ -94,7 +94,7 @@ func createOLAPRepositoryManagingAllPartitions(t *testing.T, pool *pgxpool.Pool)
 	)
 	t.Cleanup(func() { _ = cleanupShared() })
 
-	return newOLAPRepository(shared, 24*time.Hour, true, false, StatusUpdateBatchSizeLimits{Task: 1000, DAG: 1000})
+	return newOLAPRepository(shared, 24*time.Hour, StatusUpdateBatchSizeLimits{Task: 1000, DAG: 1000}, true)
 }
 
 var readableStatuses = []string{"QUEUED", "RUNNING", "COMPLETED", "CANCELLED", "FAILED", "EVICTED"}

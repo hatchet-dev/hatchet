@@ -1,4 +1,5 @@
 import HatchetError from '@util/errors/hatchet-error';
+import { serializePayload } from '@hatchet/util/serialize-payload';
 import {
   TaskRunTerminatedError,
   isTaskRunTerminatedError,
@@ -596,7 +597,7 @@ export class InternalWorker {
       actionId: action.actionId,
       eventTimestamp: new Date(),
       eventType,
-      eventPayload: JSON.stringify(payload),
+      eventPayload: serializePayload(payload),
       shouldNotRetry,
       retryCount,
     };
@@ -677,7 +678,7 @@ export class InternalWorker {
 
     Object.entries(result).forEach(([id, output]) => {
       try {
-        completedItems.push({ taskRunExternalId: id, eventPayload: JSON.stringify(output) });
+        completedItems.push({ taskRunExternalId: id, eventPayload: serializePayload(output) });
       } catch (e: any) {
         failedItems.push({
           taskRunExternalId: id,

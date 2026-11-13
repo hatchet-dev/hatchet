@@ -61,6 +61,12 @@ export function settingsNavGroups(opts: {
           to: appRoutes.tenantSettingsResourceLimitsRoute.to,
           params,
         },
+        {
+          key: 'labs',
+          name: 'Labs Preview',
+          to: appRoutes.tenantSettingsLabsRoute.to,
+          params,
+        },
       ],
     });
   }
@@ -137,6 +143,19 @@ export function settingsNavGroups(opts: {
               },
             ]
           : []),
+      ],
+    });
+
+    groups.push({
+      key: 'user',
+      title: 'User',
+      items: [
+        {
+          key: 'user-security',
+          name: 'Multifactor Auth',
+          to: appRoutes.organizationUserRoute.to,
+          params,
+        },
       ],
     });
   }

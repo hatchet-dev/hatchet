@@ -21,102 +21,22 @@ import (
 	transformers "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 )
 
-func allOlapStatuses(runningFilter *gen.V1RunningFilter) []sqlcv1.V1ReadableStatusOlap {
-	statuses := []sqlcv1.V1ReadableStatusOlap{
-		sqlcv1.V1ReadableStatusOlapQUEUED,
-		sqlcv1.V1ReadableStatusOlapFAILED,
-		sqlcv1.V1ReadableStatusOlapCOMPLETED,
-		sqlcv1.V1ReadableStatusOlapCANCELLED,
+func olapStatuses(statuses *[]gen.V1TaskStatus, runningFilter *gen.V1RunningFilter) ([]sqlcv1.V1ReadableStatusOlap, error) {
+	var raw []gen.V1TaskStatus
+	if statuses != nil {
+		raw = *statuses
 	}
 
-	rf := gen.ALL
+	rf := v1.RunningStatusFilterAll
 	if runningFilter != nil {
-		rf = *runningFilter
-	}
-	switch rf {
-	case gen.EVICTED:
-		statuses = append(statuses, sqlcv1.V1ReadableStatusOlapEVICTED)
-	case gen.ONWORKER:
-		statuses = append(statuses, sqlcv1.V1ReadableStatusOlapRUNNING)
-	case gen.ALL:
-		statuses = append(statuses, sqlcv1.V1ReadableStatusOlapRUNNING, sqlcv1.V1ReadableStatusOlapEVICTED)
-	default:
-		statuses = append(statuses, sqlcv1.V1ReadableStatusOlapRUNNING, sqlcv1.V1ReadableStatusOlapEVICTED)
+		rf = v1.RunningStatusFilter(*runningFilter)
 	}
 
-	return statuses
-}
-
-var taskStatusToOlapStatus = map[gen.V1TaskStatus]sqlcv1.V1ReadableStatusOlap{
-	gen.V1TaskStatusQUEUED:    sqlcv1.V1ReadableStatusOlapQUEUED,
-	gen.V1TaskStatusRUNNING:   sqlcv1.V1ReadableStatusOlapRUNNING,
-	gen.V1TaskStatusFAILED:    sqlcv1.V1ReadableStatusOlapFAILED,
-	gen.V1TaskStatusCOMPLETED: sqlcv1.V1ReadableStatusOlapCOMPLETED,
-	gen.V1TaskStatusCANCELLED: sqlcv1.V1ReadableStatusOlapCANCELLED,
-}
-
-func normalizeWorkflowRunStatuses(statuses []gen.V1TaskStatus, runningFilter *gen.V1RunningFilter) []sqlcv1.V1ReadableStatusOlap {
-	normalized := make([]sqlcv1.V1ReadableStatusOlap, 0, len(statuses))
-	seen := make(map[sqlcv1.V1ReadableStatusOlap]struct{}, len(statuses))
-
-	for _, status := range statuses {
-		if status == gen.V1TaskStatusRUNNING {
-			rf := gen.ALL
-			if runningFilter != nil {
-				rf = *runningFilter
-			}
-			switch rf {
-			case gen.EVICTED:
-				if _, exists := seen[sqlcv1.V1ReadableStatusOlapEVICTED]; !exists {
-					seen[sqlcv1.V1ReadableStatusOlapEVICTED] = struct{}{}
-					normalized = append(normalized, sqlcv1.V1ReadableStatusOlapEVICTED)
-				}
-			case gen.ONWORKER:
-				if _, exists := seen[sqlcv1.V1ReadableStatusOlapRUNNING]; !exists {
-					seen[sqlcv1.V1ReadableStatusOlapRUNNING] = struct{}{}
-					normalized = append(normalized, sqlcv1.V1ReadableStatusOlapRUNNING)
-				}
-			case gen.ALL:
-				if _, exists := seen[sqlcv1.V1ReadableStatusOlapRUNNING]; !exists {
-					seen[sqlcv1.V1ReadableStatusOlapRUNNING] = struct{}{}
-					normalized = append(normalized, sqlcv1.V1ReadableStatusOlapRUNNING)
-				}
-				if _, exists := seen[sqlcv1.V1ReadableStatusOlapEVICTED]; !exists {
-					seen[sqlcv1.V1ReadableStatusOlapEVICTED] = struct{}{}
-					normalized = append(normalized, sqlcv1.V1ReadableStatusOlapEVICTED)
-				}
-			default:
-				if _, exists := seen[sqlcv1.V1ReadableStatusOlapRUNNING]; !exists {
-					seen[sqlcv1.V1ReadableStatusOlapRUNNING] = struct{}{}
-					normalized = append(normalized, sqlcv1.V1ReadableStatusOlapRUNNING)
-				}
-				if _, exists := seen[sqlcv1.V1ReadableStatusOlapEVICTED]; !exists {
-					seen[sqlcv1.V1ReadableStatusOlapEVICTED] = struct{}{}
-					normalized = append(normalized, sqlcv1.V1ReadableStatusOlapEVICTED)
-				}
-			}
-			continue
-		}
-
-		mapped, ok := taskStatusToOlapStatus[status]
-		if !ok {
-			continue
-		}
-
-		if _, exists := seen[mapped]; exists {
-			continue
-		}
-
-		seen[mapped] = struct{}{}
-		normalized = append(normalized, mapped)
-	}
-
-	return normalized
+	return v1.ReadableStatusesForFilter(raw, rf)
 }
 
 type workflowRunFilters struct {
-	Statuses                   *[]gen.V1TaskStatus
-	RunningFilter              *gen.V1RunningFilter
+	Statuses                   []sqlcv1.V1ReadableStatusOlap
 	Since                      time.Time
 	Until                      *time.Time
 	AdditionalMetadata         *[]string
@@ -128,10 +48,14 @@ type workflowRunFilters struct {
 	IdempotencyKeys            *[]string
 }
 
-func workflowRunFiltersFromListParams(params gen.V1WorkflowRunListParams) workflowRunFilters {
+func workflowRunFiltersFromListParams(params gen.V1WorkflowRunListParams) (workflowRunFilters, error) {
+	statuses, err := olapStatuses(params.Statuses, params.RunningFilter)
+	if err != nil {
+		return workflowRunFilters{}, err
+	}
+
 	return workflowRunFilters{
-		Statuses:                   params.Statuses,
-		RunningFilter:              params.RunningFilter,
+		Statuses:                   statuses,
 		Since:                      params.Since,
 		Until:                      params.Until,
 		AdditionalMetadata:         params.AdditionalMetadata,
@@ -141,13 +65,17 @@ func workflowRunFiltersFromListParams(params gen.V1WorkflowRunListParams) workfl
 		ParentTaskExternalId:       params.ParentTaskExternalId,
 		TriggeringEventExternalId:  params.TriggeringEventExternalId,
 		IdempotencyKeys:            params.IdempotencyKeys,
-	}
+	}, nil
 }
 
-func workflowRunFiltersFromCountParams(params gen.V1WorkflowRunCountGetParams) workflowRunFilters {
+func workflowRunFiltersFromCountParams(params gen.V1WorkflowRunCountGetParams) (workflowRunFilters, error) {
+	statuses, err := olapStatuses(params.Statuses, params.RunningFilter)
+	if err != nil {
+		return workflowRunFilters{}, err
+	}
+
 	return workflowRunFilters{
-		Statuses:                   params.Statuses,
-		RunningFilter:              params.RunningFilter,
+		Statuses:                   statuses,
 		Since:                      params.Since,
 		Until:                      params.Until,
 		AdditionalMetadata:         params.AdditionalMetadata,
@@ -157,19 +85,11 @@ func workflowRunFiltersFromCountParams(params gen.V1WorkflowRunCountGetParams) w
 		ParentTaskExternalId:       params.ParentTaskExternalId,
 		TriggeringEventExternalId:  params.TriggeringEventExternalId,
 		IdempotencyKeys:            params.IdempotencyKeys,
-	}
+	}, nil
 }
 
 func includeNumPages(params gen.V1WorkflowRunListParams) bool {
 	return params.IncludeNumPages == nil || *params.IncludeNumPages
-}
-
-func olapStatusesFromFilters(filters workflowRunFilters) []sqlcv1.V1ReadableStatusOlap {
-	if filters.Statuses != nil && len(*filters.Statuses) > 0 {
-		return normalizeWorkflowRunStatuses(*filters.Statuses, filters.RunningFilter)
-	}
-
-	return allOlapStatuses(filters.RunningFilter)
 }
 
 func workflowIdsFromFilters(filters workflowRunFilters) []uuid.UUID {
@@ -203,7 +123,7 @@ func listWorkflowRunOptsFromFilters(filters workflowRunFilters, useGinIndex bool
 	return v1.ListWorkflowRunOpts{
 		CreatedAfter:               filters.Since,
 		FinishedBefore:             filters.Until,
-		Statuses:                   olapStatusesFromFilters(filters),
+		Statuses:                   filters.Statuses,
 		WorkflowIds:                workflowIdsFromFilters(filters),
 		AdditionalMetadata:         additionalMetadata,
 		AdditionalMetadataOperator: additionalMetadataOperator(filters.AdditionalMetadataOperator, len(additionalMetadata), useGinIndex),
@@ -219,7 +139,7 @@ func listTaskRunOptsFromFilters(filters workflowRunFilters, useGinIndex bool) v1
 	return v1.ListTaskRunOpts{
 		CreatedAfter:               filters.Since,
 		FinishedBefore:             filters.Until,
-		Statuses:                   olapStatusesFromFilters(filters),
+		Statuses:                   filters.Statuses,
 		WorkflowIds:                workflowIdsFromFilters(filters),
 		WorkerId:                   filters.WorkerId,
 		AdditionalMetadata:         additionalMetadata,
@@ -261,7 +181,12 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		offset = *request.Params.Offset
 	}
 
-	opts := listWorkflowRunOptsFromFilters(workflowRunFiltersFromListParams(request.Params), useGinIndex)
+	filters, err := workflowRunFiltersFromListParams(request.Params)
+	if err != nil {
+		return gen.V1WorkflowRunList400JSONResponse(apierrors.NewAPIErrors(err.Error())), nil
+	}
+
+	opts := listWorkflowRunOptsFromFilters(filters, useGinIndex)
 	opts.Limit = limit
 	opts.Offset = offset
 	opts.IncludePayloads = includePayloads
@@ -362,7 +287,12 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 		offset = *request.Params.Offset
 	}
 
-	opts := listTaskRunOptsFromFilters(workflowRunFiltersFromListParams(request.Params), useGinIndex)
+	filters, err := workflowRunFiltersFromListParams(request.Params)
+	if err != nil {
+		return gen.V1WorkflowRunList400JSONResponse(apierrors.NewAPIErrors(err.Error())), nil
+	}
+
+	opts := listTaskRunOptsFromFilters(filters, useGinIndex)
 	opts.Limit = limit
 	opts.Offset = offset
 	opts.IncludePayloads = includePayloads
@@ -459,7 +389,10 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCountGet(ctx echo.Context, request 
 		return nil, err
 	}
 
-	filters := workflowRunFiltersFromCountParams(request.Params)
+	filters, err := workflowRunFiltersFromCountParams(request.Params)
+	if err != nil {
+		return gen.V1WorkflowRunCountGet400JSONResponse(apierrors.NewAPIErrors(err.Error())), nil
+	}
 
 	count, err := t.countWorkflowRunsOrTasks(spanContext, tenantId, filters, request.Params.OnlyTasks, useGinIndex)
 
@@ -527,17 +460,15 @@ func (t *V1WorkflowRunsService) V1WorkflowRunExternalIdsList(ctx echo.Context, r
 	spanCtx, span := telemetry.NewSpan(ctx.Request().Context(), "v1-workflow-runs-list-external-ids")
 	defer span.End()
 
+	statuses, err := olapStatuses(request.Params.Statuses, request.Params.RunningFilter)
+	if err != nil {
+		return gen.V1WorkflowRunExternalIdsList400JSONResponse(apierrors.NewAPIErrors(err.Error())), nil
+	}
+
 	var (
-		statuses    = allOlapStatuses(request.Params.RunningFilter)
 		since       = request.Params.Since
 		workflowIds = []uuid.UUID{}
 	)
-
-	if request.Params.Statuses != nil {
-		if len(*request.Params.Statuses) > 0 {
-			statuses = normalizeWorkflowRunStatuses(*request.Params.Statuses, request.Params.RunningFilter)
-		}
-	}
 
 	if request.Params.WorkflowIds != nil {
 		workflowIds = *request.Params.WorkflowIds

@@ -58,6 +58,18 @@ func (ns NullConcurrencyLimitStrategy) Value() (driver.Value, error) {
 	return string(ns.ConcurrencyLimitStrategy), nil
 }
 
+func (e ConcurrencyLimitStrategy) Valid() bool {
+	switch e {
+	case ConcurrencyLimitStrategyCANCELINPROGRESS,
+		ConcurrencyLimitStrategyDROPNEWEST,
+		ConcurrencyLimitStrategyQUEUENEWEST,
+		ConcurrencyLimitStrategyGROUPROUNDROBIN,
+		ConcurrencyLimitStrategyCANCELNEWEST:
+		return true
+	}
+	return false
+}
+
 type IdempotencyMethod string
 
 const (
@@ -98,6 +110,15 @@ func (ns NullIdempotencyMethod) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.IdempotencyMethod), nil
+}
+
+func (e IdempotencyMethod) Valid() bool {
+	switch e {
+	case IdempotencyMethodTTL,
+		IdempotencyMethodSTATUS:
+		return true
+	}
+	return false
 }
 
 type InternalQueue string
@@ -145,6 +166,18 @@ func (ns NullInternalQueue) Value() (driver.Value, error) {
 	return string(ns.InternalQueue), nil
 }
 
+func (e InternalQueue) Valid() bool {
+	switch e {
+	case InternalQueueWORKERSEMAPHORECOUNT,
+		InternalQueueSTEPRUNUPDATE,
+		InternalQueueWORKFLOWRUNUPDATE,
+		InternalQueueWORKFLOWRUNPAUSED,
+		InternalQueueSTEPRUNUPDATEV2:
+		return true
+	}
+	return false
+}
+
 type InviteLinkStatus string
 
 const (
@@ -188,6 +221,16 @@ func (ns NullInviteLinkStatus) Value() (driver.Value, error) {
 	return string(ns.InviteLinkStatus), nil
 }
 
+func (e InviteLinkStatus) Valid() bool {
+	switch e {
+	case InviteLinkStatusPENDING,
+		InviteLinkStatusACCEPTED,
+		InviteLinkStatusREJECTED:
+		return true
+	}
+	return false
+}
+
 type JobKind string
 
 const (
@@ -228,6 +271,15 @@ func (ns NullJobKind) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.JobKind), nil
+}
+
+func (e JobKind) Valid() bool {
+	switch e {
+	case JobKindDEFAULT,
+		JobKindONFAILURE:
+		return true
+	}
+	return false
 }
 
 type JobRunStatus string
@@ -276,6 +328,19 @@ func (ns NullJobRunStatus) Value() (driver.Value, error) {
 	return string(ns.JobRunStatus), nil
 }
 
+func (e JobRunStatus) Valid() bool {
+	switch e {
+	case JobRunStatusPENDING,
+		JobRunStatusRUNNING,
+		JobRunStatusSUCCEEDED,
+		JobRunStatusFAILED,
+		JobRunStatusCANCELLED,
+		JobRunStatusBACKOFF:
+		return true
+	}
+	return false
+}
+
 type LeaseKind string
 
 const (
@@ -319,6 +384,18 @@ func (ns NullLeaseKind) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.LeaseKind), nil
+}
+
+func (e LeaseKind) Valid() bool {
+	switch e {
+	case LeaseKindWORKER,
+		LeaseKindQUEUE,
+		LeaseKindCONCURRENCYSTRATEGY,
+		LeaseKindTABLEPARTITIONMAINTENANCE,
+		LeaseKindBATCH:
+		return true
+	}
+	return false
 }
 
 type LimitResource string
@@ -371,6 +448,23 @@ func (ns NullLimitResource) Value() (driver.Value, error) {
 	return string(ns.LimitResource), nil
 }
 
+func (e LimitResource) Valid() bool {
+	switch e {
+	case LimitResourceTASKRUN,
+		LimitResourceEVENT,
+		LimitResourceWORKER,
+		LimitResourceWORKERSLOT,
+		LimitResourceCRON,
+		LimitResourceSCHEDULE,
+		LimitResourceINCOMINGWEBHOOK,
+		LimitResourceSTREAMTOPIC,
+		LimitResourceSTREAMMESSAGE,
+		LimitResourceSTREAMRETENTION:
+		return true
+	}
+	return false
+}
+
 type LogLineLevel string
 
 const (
@@ -415,6 +509,17 @@ func (ns NullLogLineLevel) Value() (driver.Value, error) {
 	return string(ns.LogLineLevel), nil
 }
 
+func (e LogLineLevel) Valid() bool {
+	switch e {
+	case LogLineLevelDEBUG,
+		LogLineLevelINFO,
+		LogLineLevelWARN,
+		LogLineLevelERROR:
+		return true
+	}
+	return false
+}
+
 type MessageQueueItemStatus string
 
 const (
@@ -455,6 +560,15 @@ func (ns NullMessageQueueItemStatus) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.MessageQueueItemStatus), nil
+}
+
+func (e MessageQueueItemStatus) Valid() bool {
+	switch e {
+	case MessageQueueItemStatusPENDING,
+		MessageQueueItemStatusASSIGNED:
+		return true
+	}
+	return false
 }
 
 type StepExpressionKind string
@@ -501,6 +615,17 @@ func (ns NullStepExpressionKind) Value() (driver.Value, error) {
 	return string(ns.StepExpressionKind), nil
 }
 
+func (e StepExpressionKind) Valid() bool {
+	switch e {
+	case StepExpressionKindDYNAMICRATELIMITKEY,
+		StepExpressionKindDYNAMICRATELIMITVALUE,
+		StepExpressionKindDYNAMICRATELIMITUNITS,
+		StepExpressionKindDYNAMICRATELIMITWINDOW:
+		return true
+	}
+	return false
+}
+
 type StepRateLimitKind string
 
 const (
@@ -541,6 +666,15 @@ func (ns NullStepRateLimitKind) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.StepRateLimitKind), nil
+}
+
+func (e StepRateLimitKind) Valid() bool {
+	switch e {
+	case StepRateLimitKindSTATIC,
+		StepRateLimitKindDYNAMIC:
+		return true
+	}
+	return false
 }
 
 type StepRunEventReason string
@@ -602,6 +736,32 @@ func (ns NullStepRunEventReason) Value() (driver.Value, error) {
 	return string(ns.StepRunEventReason), nil
 }
 
+func (e StepRunEventReason) Valid() bool {
+	switch e {
+	case StepRunEventReasonREQUEUEDNOWORKER,
+		StepRunEventReasonREQUEUEDRATELIMIT,
+		StepRunEventReasonSCHEDULINGTIMEDOUT,
+		StepRunEventReasonASSIGNED,
+		StepRunEventReasonSTARTED,
+		StepRunEventReasonFINISHED,
+		StepRunEventReasonFAILED,
+		StepRunEventReasonRETRYING,
+		StepRunEventReasonCANCELLED,
+		StepRunEventReasonTIMEDOUT,
+		StepRunEventReasonREASSIGNED,
+		StepRunEventReasonSLOTRELEASED,
+		StepRunEventReasonTIMEOUTREFRESHED,
+		StepRunEventReasonRETRIEDBYUSER,
+		StepRunEventReasonSENTTOWORKER,
+		StepRunEventReasonWORKFLOWRUNGROUPKEYSUCCEEDED,
+		StepRunEventReasonWORKFLOWRUNGROUPKEYFAILED,
+		StepRunEventReasonRATELIMITERROR,
+		StepRunEventReasonACKNOWLEDGED:
+		return true
+	}
+	return false
+}
+
 type StepRunEventSeverity string
 
 const (
@@ -643,6 +803,16 @@ func (ns NullStepRunEventSeverity) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.StepRunEventSeverity), nil
+}
+
+func (e StepRunEventSeverity) Valid() bool {
+	switch e {
+	case StepRunEventSeverityINFO,
+		StepRunEventSeverityWARNING,
+		StepRunEventSeverityCRITICAL:
+		return true
+	}
+	return false
 }
 
 type StepRunStatus string
@@ -694,6 +864,22 @@ func (ns NullStepRunStatus) Value() (driver.Value, error) {
 	return string(ns.StepRunStatus), nil
 }
 
+func (e StepRunStatus) Valid() bool {
+	switch e {
+	case StepRunStatusPENDING,
+		StepRunStatusPENDINGASSIGNMENT,
+		StepRunStatusASSIGNED,
+		StepRunStatusRUNNING,
+		StepRunStatusSUCCEEDED,
+		StepRunStatusFAILED,
+		StepRunStatusCANCELLED,
+		StepRunStatusCANCELLING,
+		StepRunStatusBACKOFF:
+		return true
+	}
+	return false
+}
+
 type StickyStrategy string
 
 const (
@@ -734,6 +920,15 @@ func (ns NullStickyStrategy) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.StickyStrategy), nil
+}
+
+func (e StickyStrategy) Valid() bool {
+	switch e {
+	case StickyStrategySOFT,
+		StickyStrategyHARD:
+		return true
+	}
+	return false
 }
 
 type TenantEnvironment string
@@ -779,6 +974,16 @@ func (ns NullTenantEnvironment) Value() (driver.Value, error) {
 	return string(ns.TenantEnvironment), nil
 }
 
+func (e TenantEnvironment) Valid() bool {
+	switch e {
+	case TenantEnvironmentLocal,
+		TenantEnvironmentDevelopment,
+		TenantEnvironmentProduction:
+		return true
+	}
+	return false
+}
+
 type TenantMajorEngineVersion string
 
 const (
@@ -821,6 +1026,15 @@ func (ns NullTenantMajorEngineVersion) Value() (driver.Value, error) {
 	return string(ns.TenantMajorEngineVersion), nil
 }
 
+func (e TenantMajorEngineVersion) Valid() bool {
+	switch e {
+	case TenantMajorEngineVersionV0,
+		TenantMajorEngineVersionV1:
+		return true
+	}
+	return false
+}
+
 type TenantMajorUIVersion string
 
 const (
@@ -861,6 +1075,15 @@ func (ns NullTenantMajorUIVersion) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.TenantMajorUIVersion), nil
+}
+
+func (e TenantMajorUIVersion) Valid() bool {
+	switch e {
+	case TenantMajorUIVersionV0,
+		TenantMajorUIVersionV1:
+		return true
+	}
+	return false
 }
 
 type TenantMemberRole string
@@ -907,6 +1130,17 @@ func (ns NullTenantMemberRole) Value() (driver.Value, error) {
 	return string(ns.TenantMemberRole), nil
 }
 
+func (e TenantMemberRole) Valid() bool {
+	switch e {
+	case TenantMemberRoleOWNER,
+		TenantMemberRoleADMIN,
+		TenantMemberRoleMEMBER,
+		TenantMemberRoleVIEWER:
+		return true
+	}
+	return false
+}
+
 type TenantResourceLimitAlertType string
 
 const (
@@ -947,6 +1181,66 @@ func (ns NullTenantResourceLimitAlertType) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.TenantResourceLimitAlertType), nil
+}
+
+func (e TenantResourceLimitAlertType) Valid() bool {
+	switch e {
+	case TenantResourceLimitAlertTypeAlarm,
+		TenantResourceLimitAlertTypeExhausted:
+		return true
+	}
+	return false
+}
+
+type V1AuditLogActorType string
+
+const (
+	V1AuditLogActorTypeUser   V1AuditLogActorType = "user"
+	V1AuditLogActorTypeApiKey V1AuditLogActorType = "api_key"
+)
+
+func (e *V1AuditLogActorType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1AuditLogActorType(s)
+	case string:
+		*e = V1AuditLogActorType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1AuditLogActorType: %T", src)
+	}
+	return nil
+}
+
+type NullV1AuditLogActorType struct {
+	V1AuditLogActorType V1AuditLogActorType `json:"v1_audit_log_actor_type"`
+	Valid               bool                `json:"valid"` // Valid is true if V1AuditLogActorType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1AuditLogActorType) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1AuditLogActorType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1AuditLogActorType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1AuditLogActorType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1AuditLogActorType), nil
+}
+
+func (e V1AuditLogActorType) Valid() bool {
+	switch e {
+	case V1AuditLogActorTypeUser,
+		V1AuditLogActorTypeApiKey:
+		return true
+	}
+	return false
 }
 
 type V1CelEvaluationFailureSource string
@@ -990,6 +1284,16 @@ func (ns NullV1CelEvaluationFailureSource) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.V1CelEvaluationFailureSource), nil
+}
+
+func (e V1CelEvaluationFailureSource) Valid() bool {
+	switch e {
+	case V1CelEvaluationFailureSourceFILTER,
+		V1CelEvaluationFailureSourceWEBHOOK,
+		V1CelEvaluationFailureSourceIDEMPOTENCYKEY:
+		return true
+	}
+	return false
 }
 
 type V1ConcurrencyStrategy string
@@ -1038,6 +1342,19 @@ func (ns NullV1ConcurrencyStrategy) Value() (driver.Value, error) {
 	return string(ns.V1ConcurrencyStrategy), nil
 }
 
+func (e V1ConcurrencyStrategy) Valid() bool {
+	switch e {
+	case V1ConcurrencyStrategyNONE,
+		V1ConcurrencyStrategyGROUPROUNDROBIN,
+		V1ConcurrencyStrategyCANCELINPROGRESS,
+		V1ConcurrencyStrategyCANCELNEWEST,
+		V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST,
+		V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST:
+		return true
+	}
+	return false
+}
+
 type V1DurableEventLogKind string
 
 const (
@@ -1081,6 +1398,16 @@ func (ns NullV1DurableEventLogKind) Value() (driver.Value, error) {
 	return string(ns.V1DurableEventLogKind), nil
 }
 
+func (e V1DurableEventLogKind) Valid() bool {
+	switch e {
+	case V1DurableEventLogKindRUN,
+		V1DurableEventLogKindWAITFOR,
+		V1DurableEventLogKindMEMO:
+		return true
+	}
+	return false
+}
+
 type V1EventType string
 
 const (
@@ -1121,6 +1448,15 @@ func (ns NullV1EventType) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.V1EventType), nil
+}
+
+func (e V1EventType) Valid() bool {
+	switch e {
+	case V1EventTypeUSER,
+		V1EventTypeINTERNAL:
+		return true
+	}
+	return false
 }
 
 type V1EventTypeOlap string
@@ -1189,6 +1525,39 @@ func (ns NullV1EventTypeOlap) Value() (driver.Value, error) {
 	return string(ns.V1EventTypeOlap), nil
 }
 
+func (e V1EventTypeOlap) Valid() bool {
+	switch e {
+	case V1EventTypeOlapRETRYING,
+		V1EventTypeOlapREASSIGNED,
+		V1EventTypeOlapRETRIEDBYUSER,
+		V1EventTypeOlapCREATED,
+		V1EventTypeOlapQUEUED,
+		V1EventTypeOlapREQUEUEDNOWORKER,
+		V1EventTypeOlapREQUEUEDRATELIMIT,
+		V1EventTypeOlapASSIGNED,
+		V1EventTypeOlapACKNOWLEDGED,
+		V1EventTypeOlapSENTTOWORKER,
+		V1EventTypeOlapSLOTRELEASED,
+		V1EventTypeOlapSTARTED,
+		V1EventTypeOlapTIMEOUTREFRESHED,
+		V1EventTypeOlapSCHEDULINGTIMEDOUT,
+		V1EventTypeOlapFINISHED,
+		V1EventTypeOlapFAILED,
+		V1EventTypeOlapCANCELLED,
+		V1EventTypeOlapTIMEDOUT,
+		V1EventTypeOlapRATELIMITERROR,
+		V1EventTypeOlapSKIPPED,
+		V1EventTypeOlapCOULDNOTSENDTOWORKER,
+		V1EventTypeOlapDURABLEEVICTED,
+		V1EventTypeOlapDURABLERESTORING,
+		V1EventTypeOlapBATCHBUFFERED,
+		V1EventTypeOlapWAITINGFORBATCH,
+		V1EventTypeOlapBATCHFLUSHED:
+		return true
+	}
+	return false
+}
+
 type V1IncomingWebhookAuthType string
 
 const (
@@ -1230,6 +1599,16 @@ func (ns NullV1IncomingWebhookAuthType) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.V1IncomingWebhookAuthType), nil
+}
+
+func (e V1IncomingWebhookAuthType) Valid() bool {
+	switch e {
+	case V1IncomingWebhookAuthTypeBASIC,
+		V1IncomingWebhookAuthTypeAPIKEY,
+		V1IncomingWebhookAuthTypeHMAC:
+		return true
+	}
+	return false
 }
 
 type V1IncomingWebhookHmacAlgorithm string
@@ -1276,6 +1655,17 @@ func (ns NullV1IncomingWebhookHmacAlgorithm) Value() (driver.Value, error) {
 	return string(ns.V1IncomingWebhookHmacAlgorithm), nil
 }
 
+func (e V1IncomingWebhookHmacAlgorithm) Valid() bool {
+	switch e {
+	case V1IncomingWebhookHmacAlgorithmSHA1,
+		V1IncomingWebhookHmacAlgorithmSHA256,
+		V1IncomingWebhookHmacAlgorithmSHA512,
+		V1IncomingWebhookHmacAlgorithmMD5:
+		return true
+	}
+	return false
+}
+
 type V1IncomingWebhookHmacEncoding string
 
 const (
@@ -1317,6 +1707,16 @@ func (ns NullV1IncomingWebhookHmacEncoding) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.V1IncomingWebhookHmacEncoding), nil
+}
+
+func (e V1IncomingWebhookHmacEncoding) Valid() bool {
+	switch e {
+	case V1IncomingWebhookHmacEncodingHEX,
+		V1IncomingWebhookHmacEncodingBASE64,
+		V1IncomingWebhookHmacEncodingBASE64URL:
+		return true
+	}
+	return false
 }
 
 type V1IncomingWebhookSourceName string
@@ -1365,6 +1765,19 @@ func (ns NullV1IncomingWebhookSourceName) Value() (driver.Value, error) {
 	return string(ns.V1IncomingWebhookSourceName), nil
 }
 
+func (e V1IncomingWebhookSourceName) Valid() bool {
+	switch e {
+	case V1IncomingWebhookSourceNameGENERIC,
+		V1IncomingWebhookSourceNameGITHUB,
+		V1IncomingWebhookSourceNameSTRIPE,
+		V1IncomingWebhookSourceNameSLACK,
+		V1IncomingWebhookSourceNameLINEAR,
+		V1IncomingWebhookSourceNameSVIX:
+		return true
+	}
+	return false
+}
+
 type V1LogLineLevel string
 
 const (
@@ -1407,6 +1820,17 @@ func (ns NullV1LogLineLevel) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.V1LogLineLevel), nil
+}
+
+func (e V1LogLineLevel) Valid() bool {
+	switch e {
+	case V1LogLineLevelDEBUG,
+		V1LogLineLevelINFO,
+		V1LogLineLevelWARN,
+		V1LogLineLevelERROR:
+		return true
+	}
+	return false
 }
 
 type V1MatchConditionAction string
@@ -1454,6 +1878,18 @@ func (ns NullV1MatchConditionAction) Value() (driver.Value, error) {
 	return string(ns.V1MatchConditionAction), nil
 }
 
+func (e V1MatchConditionAction) Valid() bool {
+	switch e {
+	case V1MatchConditionActionCREATE,
+		V1MatchConditionActionQUEUE,
+		V1MatchConditionActionCANCEL,
+		V1MatchConditionActionSKIP,
+		V1MatchConditionActionCREATEMATCH:
+		return true
+	}
+	return false
+}
+
 type V1MatchKind string
 
 const (
@@ -1494,6 +1930,15 @@ func (ns NullV1MatchKind) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.V1MatchKind), nil
+}
+
+func (e V1MatchKind) Valid() bool {
+	switch e {
+	case V1MatchKindTRIGGER,
+		V1MatchKindSIGNAL:
+		return true
+	}
+	return false
 }
 
 type V1OperatorKind string
@@ -1539,6 +1984,16 @@ func (ns NullV1OperatorKind) Value() (driver.Value, error) {
 	return string(ns.V1OperatorKind), nil
 }
 
+func (e V1OperatorKind) Valid() bool {
+	switch e {
+	case V1OperatorKindHTTPAPI,
+		V1OperatorKindDAG,
+		V1OperatorKindGRPC:
+		return true
+	}
+	return false
+}
+
 type V1OperatorLeasingManager string
 
 const (
@@ -1579,6 +2034,15 @@ func (ns NullV1OperatorLeasingManager) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.V1OperatorLeasingManager), nil
+}
+
+func (e V1OperatorLeasingManager) Valid() bool {
+	switch e {
+	case V1OperatorLeasingManagerSELF,
+		V1OperatorLeasingManagerDISPATCHER:
+		return true
+	}
+	return false
 }
 
 type V1OtelSpanKind string
@@ -1627,6 +2091,19 @@ func (ns NullV1OtelSpanKind) Value() (driver.Value, error) {
 	return string(ns.V1OtelSpanKind), nil
 }
 
+func (e V1OtelSpanKind) Valid() bool {
+	switch e {
+	case V1OtelSpanKindUNSPECIFIED,
+		V1OtelSpanKindINTERNAL,
+		V1OtelSpanKindSERVER,
+		V1OtelSpanKindCLIENT,
+		V1OtelSpanKindPRODUCER,
+		V1OtelSpanKindCONSUMER:
+		return true
+	}
+	return false
+}
+
 type V1OtelStatusCode string
 
 const (
@@ -1668,6 +2145,16 @@ func (ns NullV1OtelStatusCode) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.V1OtelStatusCode), nil
+}
+
+func (e V1OtelStatusCode) Valid() bool {
+	switch e {
+	case V1OtelStatusCodeUNSET,
+		V1OtelStatusCodeOK,
+		V1OtelStatusCodeERROR:
+		return true
+	}
+	return false
 }
 
 type V1PayloadLocation string
@@ -1712,6 +2199,15 @@ func (ns NullV1PayloadLocation) Value() (driver.Value, error) {
 	return string(ns.V1PayloadLocation), nil
 }
 
+func (e V1PayloadLocation) Valid() bool {
+	switch e {
+	case V1PayloadLocationINLINE,
+		V1PayloadLocationEXTERNAL:
+		return true
+	}
+	return false
+}
+
 type V1PayloadLocationOlap string
 
 const (
@@ -1752,6 +2248,15 @@ func (ns NullV1PayloadLocationOlap) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.V1PayloadLocationOlap), nil
+}
+
+func (e V1PayloadLocationOlap) Valid() bool {
+	switch e {
+	case V1PayloadLocationOlapINLINE,
+		V1PayloadLocationOlapEXTERNAL:
+		return true
+	}
+	return false
 }
 
 type V1PayloadType string
@@ -1801,6 +2306,20 @@ func (ns NullV1PayloadType) Value() (driver.Value, error) {
 	return string(ns.V1PayloadType), nil
 }
 
+func (e V1PayloadType) Valid() bool {
+	switch e {
+	case V1PayloadTypeTASKINPUT,
+		V1PayloadTypeDAGINPUT,
+		V1PayloadTypeTASKOUTPUT,
+		V1PayloadTypeTASKEVENTDATA,
+		V1PayloadTypeUSEREVENTINPUT,
+		V1PayloadTypeDURABLEEVENTLOGENTRYDATA,
+		V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA:
+		return true
+	}
+	return false
+}
+
 type V1ReadableStatusOlap string
 
 const (
@@ -1847,6 +2366,19 @@ func (ns NullV1ReadableStatusOlap) Value() (driver.Value, error) {
 	return string(ns.V1ReadableStatusOlap), nil
 }
 
+func (e V1ReadableStatusOlap) Valid() bool {
+	switch e {
+	case V1ReadableStatusOlapQUEUED,
+		V1ReadableStatusOlapRUNNING,
+		V1ReadableStatusOlapCANCELLED,
+		V1ReadableStatusOlapFAILED,
+		V1ReadableStatusOlapCOMPLETED,
+		V1ReadableStatusOlapEVICTED:
+		return true
+	}
+	return false
+}
+
 type V1RunKind string
 
 const (
@@ -1887,6 +2419,188 @@ func (ns NullV1RunKind) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.V1RunKind), nil
+}
+
+func (e V1RunKind) Valid() bool {
+	switch e {
+	case V1RunKindTASK,
+		V1RunKindDAG:
+		return true
+	}
+	return false
+}
+
+type V1SandboxEventKind string
+
+const (
+	V1SandboxEventKindHEALTHCHECKFAILED   V1SandboxEventKind = "HEALTHCHECK_FAILED"
+	V1SandboxEventKindUNHEALTHY           V1SandboxEventKind = "UNHEALTHY"
+	V1SandboxEventKindHEALTHY             V1SandboxEventKind = "HEALTHY"
+	V1SandboxEventKindSANDBOXCREATED      V1SandboxEventKind = "SANDBOX_CREATED"
+	V1SandboxEventKindSANDBOXCREATEFAILED V1SandboxEventKind = "SANDBOX_CREATE_FAILED"
+	V1SandboxEventKindTURNFAILED          V1SandboxEventKind = "TURN_FAILED"
+	V1SandboxEventKindSNAPSHOTFAILED      V1SandboxEventKind = "SNAPSHOT_FAILED"
+	V1SandboxEventKindSANDBOXDESTROYED    V1SandboxEventKind = "SANDBOX_DESTROYED"
+)
+
+func (e *V1SandboxEventKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1SandboxEventKind(s)
+	case string:
+		*e = V1SandboxEventKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1SandboxEventKind: %T", src)
+	}
+	return nil
+}
+
+type NullV1SandboxEventKind struct {
+	V1SandboxEventKind V1SandboxEventKind `json:"v1_sandbox_event_kind"`
+	Valid              bool               `json:"valid"` // Valid is true if V1SandboxEventKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1SandboxEventKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1SandboxEventKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1SandboxEventKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1SandboxEventKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1SandboxEventKind), nil
+}
+
+func (e V1SandboxEventKind) Valid() bool {
+	switch e {
+	case V1SandboxEventKindHEALTHCHECKFAILED,
+		V1SandboxEventKindUNHEALTHY,
+		V1SandboxEventKindHEALTHY,
+		V1SandboxEventKindSANDBOXCREATED,
+		V1SandboxEventKindSANDBOXCREATEFAILED,
+		V1SandboxEventKindTURNFAILED,
+		V1SandboxEventKindSNAPSHOTFAILED,
+		V1SandboxEventKindSANDBOXDESTROYED:
+		return true
+	}
+	return false
+}
+
+type V1SandboxProviderKind string
+
+const (
+	V1SandboxProviderKindDAYTONA   V1SandboxProviderKind = "DAYTONA"
+	V1SandboxProviderKindE2B       V1SandboxProviderKind = "E2B"
+	V1SandboxProviderKindARCHIL    V1SandboxProviderKind = "ARCHIL"
+	V1SandboxProviderKindFREESTYLE V1SandboxProviderKind = "FREESTYLE"
+)
+
+func (e *V1SandboxProviderKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1SandboxProviderKind(s)
+	case string:
+		*e = V1SandboxProviderKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1SandboxProviderKind: %T", src)
+	}
+	return nil
+}
+
+type NullV1SandboxProviderKind struct {
+	V1SandboxProviderKind V1SandboxProviderKind `json:"v1_sandbox_provider_kind"`
+	Valid                 bool                  `json:"valid"` // Valid is true if V1SandboxProviderKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1SandboxProviderKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1SandboxProviderKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1SandboxProviderKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1SandboxProviderKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1SandboxProviderKind), nil
+}
+
+func (e V1SandboxProviderKind) Valid() bool {
+	switch e {
+	case V1SandboxProviderKindDAYTONA,
+		V1SandboxProviderKindE2B,
+		V1SandboxProviderKindARCHIL,
+		V1SandboxProviderKindFREESTYLE:
+		return true
+	}
+	return false
+}
+
+type V1SandboxStatus string
+
+const (
+	V1SandboxStatusCREATING  V1SandboxStatus = "CREATING"
+	V1SandboxStatusRUNNING   V1SandboxStatus = "RUNNING"
+	V1SandboxStatusDESTROYED V1SandboxStatus = "DESTROYED"
+	V1SandboxStatusFAILED    V1SandboxStatus = "FAILED"
+)
+
+func (e *V1SandboxStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1SandboxStatus(s)
+	case string:
+		*e = V1SandboxStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1SandboxStatus: %T", src)
+	}
+	return nil
+}
+
+type NullV1SandboxStatus struct {
+	V1SandboxStatus V1SandboxStatus `json:"v1_sandbox_status"`
+	Valid           bool            `json:"valid"` // Valid is true if V1SandboxStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV1SandboxStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.V1SandboxStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V1SandboxStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV1SandboxStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V1SandboxStatus), nil
+}
+
+func (e V1SandboxStatus) Valid() bool {
+	switch e {
+	case V1SandboxStatusCREATING,
+		V1SandboxStatusRUNNING,
+		V1SandboxStatusDESTROYED,
+		V1SandboxStatusFAILED:
+		return true
+	}
+	return false
 }
 
 type V1ServerlessEndpointEventKind string
@@ -1935,6 +2649,19 @@ func (ns NullV1ServerlessEndpointEventKind) Value() (driver.Value, error) {
 	return string(ns.V1ServerlessEndpointEventKind), nil
 }
 
+func (e V1ServerlessEndpointEventKind) Valid() bool {
+	switch e {
+	case V1ServerlessEndpointEventKindHEALTHCHECKFAILED,
+		V1ServerlessEndpointEventKindUNHEALTHY,
+		V1ServerlessEndpointEventKindHEALTHY,
+		V1ServerlessEndpointEventKindCATALOGREGISTERED,
+		V1ServerlessEndpointEventKindCATALOGREJECTED,
+		V1ServerlessEndpointEventKindDELIVERYFAILED:
+		return true
+	}
+	return false
+}
+
 type V1ServerlessEndpointKind string
 
 const (
@@ -1978,6 +2705,16 @@ func (ns NullV1ServerlessEndpointKind) Value() (driver.Value, error) {
 	return string(ns.V1ServerlessEndpointKind), nil
 }
 
+func (e V1ServerlessEndpointKind) Valid() bool {
+	switch e {
+	case V1ServerlessEndpointKindGENERICHTTP,
+		V1ServerlessEndpointKindCLOUDFLAREWORKERS,
+		V1ServerlessEndpointKindVERCEL:
+		return true
+	}
+	return false
+}
+
 type V1StatusKind string
 
 const (
@@ -2018,6 +2755,15 @@ func (ns NullV1StatusKind) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.V1StatusKind), nil
+}
+
+func (e V1StatusKind) Valid() bool {
+	switch e {
+	case V1StatusKindTASK,
+		V1StatusKindDAG:
+		return true
+	}
+	return false
 }
 
 type V1StepMatchConditionKind string
@@ -2063,6 +2809,16 @@ func (ns NullV1StepMatchConditionKind) Value() (driver.Value, error) {
 	return string(ns.V1StepMatchConditionKind), nil
 }
 
+func (e V1StepMatchConditionKind) Valid() bool {
+	switch e {
+	case V1StepMatchConditionKindPARENTOVERRIDE,
+		V1StepMatchConditionKindUSEREVENT,
+		V1StepMatchConditionKindSLEEP:
+		return true
+	}
+	return false
+}
+
 type V1StickyStrategy string
 
 const (
@@ -2106,6 +2862,16 @@ func (ns NullV1StickyStrategy) Value() (driver.Value, error) {
 	return string(ns.V1StickyStrategy), nil
 }
 
+func (e V1StickyStrategy) Valid() bool {
+	switch e {
+	case V1StickyStrategyNONE,
+		V1StickyStrategySOFT,
+		V1StickyStrategyHARD:
+		return true
+	}
+	return false
+}
+
 type V1StickyStrategyOlap string
 
 const (
@@ -2147,6 +2913,16 @@ func (ns NullV1StickyStrategyOlap) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.V1StickyStrategyOlap), nil
+}
+
+func (e V1StickyStrategyOlap) Valid() bool {
+	switch e {
+	case V1StickyStrategyOlapNONE,
+		V1StickyStrategyOlapSOFT,
+		V1StickyStrategyOlapHARD:
+		return true
+	}
+	return false
 }
 
 type V1TaskEventType string
@@ -2194,6 +2970,18 @@ func (ns NullV1TaskEventType) Value() (driver.Value, error) {
 	return string(ns.V1TaskEventType), nil
 }
 
+func (e V1TaskEventType) Valid() bool {
+	switch e {
+	case V1TaskEventTypeCOMPLETED,
+		V1TaskEventTypeFAILED,
+		V1TaskEventTypeCANCELLED,
+		V1TaskEventTypeSIGNALCREATED,
+		V1TaskEventTypeSIGNALCOMPLETED:
+		return true
+	}
+	return false
+}
+
 type V1TaskInitialState string
 
 const (
@@ -2238,6 +3026,17 @@ func (ns NullV1TaskInitialState) Value() (driver.Value, error) {
 	return string(ns.V1TaskInitialState), nil
 }
 
+func (e V1TaskInitialState) Valid() bool {
+	switch e {
+	case V1TaskInitialStateQUEUED,
+		V1TaskInitialStateCANCELLED,
+		V1TaskInitialStateSKIPPED,
+		V1TaskInitialStateFAILED:
+		return true
+	}
+	return false
+}
+
 type VcsProvider string
 
 const (
@@ -2277,6 +3076,14 @@ func (ns NullVcsProvider) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.VcsProvider), nil
+}
+
+func (e VcsProvider) Valid() bool {
+	switch e {
+	case VcsProviderGITHUB:
+		return true
+	}
+	return false
 }
 
 type WebhookWorkerRequestMethod string
@@ -2320,6 +3127,16 @@ func (ns NullWebhookWorkerRequestMethod) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.WebhookWorkerRequestMethod), nil
+}
+
+func (e WebhookWorkerRequestMethod) Valid() bool {
+	switch e {
+	case WebhookWorkerRequestMethodGET,
+		WebhookWorkerRequestMethodPOST,
+		WebhookWorkerRequestMethodPUT:
+		return true
+	}
+	return false
 }
 
 type WorkerLabelComparator string
@@ -2368,6 +3185,19 @@ func (ns NullWorkerLabelComparator) Value() (driver.Value, error) {
 	return string(ns.WorkerLabelComparator), nil
 }
 
+func (e WorkerLabelComparator) Valid() bool {
+	switch e {
+	case WorkerLabelComparatorEQUAL,
+		WorkerLabelComparatorNOTEQUAL,
+		WorkerLabelComparatorGREATERTHAN,
+		WorkerLabelComparatorGREATERTHANOREQUAL,
+		WorkerLabelComparatorLESSTHAN,
+		WorkerLabelComparatorLESSTHANOREQUAL:
+		return true
+	}
+	return false
+}
+
 type WorkerSDKS string
 
 const (
@@ -2413,6 +3243,18 @@ func (ns NullWorkerSDKS) Value() (driver.Value, error) {
 	return string(ns.WorkerSDKS), nil
 }
 
+func (e WorkerSDKS) Valid() bool {
+	switch e {
+	case WorkerSDKSUNKNOWN,
+		WorkerSDKSGO,
+		WorkerSDKSPYTHON,
+		WorkerSDKSTYPESCRIPT,
+		WorkerSDKSRUBY:
+		return true
+	}
+	return false
+}
+
 type WorkerType string
 
 const (
@@ -2454,6 +3296,16 @@ func (ns NullWorkerType) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.WorkerType), nil
+}
+
+func (e WorkerType) Valid() bool {
+	switch e {
+	case WorkerTypeWEBHOOK,
+		WorkerTypeMANAGED,
+		WorkerTypeSELFHOSTED:
+		return true
+	}
+	return false
 }
 
 type WorkflowKind string
@@ -2499,6 +3351,16 @@ func (ns NullWorkflowKind) Value() (driver.Value, error) {
 	return string(ns.WorkflowKind), nil
 }
 
+func (e WorkflowKind) Valid() bool {
+	switch e {
+	case WorkflowKindFUNCTION,
+		WorkflowKindDURABLE,
+		WorkflowKindDAG:
+		return true
+	}
+	return false
+}
+
 type WorkflowPauseQueueBehavior string
 
 const (
@@ -2539,6 +3401,15 @@ func (ns NullWorkflowPauseQueueBehavior) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.WorkflowPauseQueueBehavior), nil
+}
+
+func (e WorkflowPauseQueueBehavior) Valid() bool {
+	switch e {
+	case WorkflowPauseQueueBehaviorQUEUE,
+		WorkflowPauseQueueBehaviorDROP:
+		return true
+	}
+	return false
 }
 
 type WorkflowRunStatus string
@@ -2589,6 +3460,21 @@ func (ns NullWorkflowRunStatus) Value() (driver.Value, error) {
 	return string(ns.WorkflowRunStatus), nil
 }
 
+func (e WorkflowRunStatus) Valid() bool {
+	switch e {
+	case WorkflowRunStatusPENDING,
+		WorkflowRunStatusRUNNING,
+		WorkflowRunStatusSUCCEEDED,
+		WorkflowRunStatusFAILED,
+		WorkflowRunStatusQUEUED,
+		WorkflowRunStatusCANCELLING,
+		WorkflowRunStatusCANCELLED,
+		WorkflowRunStatusBACKOFF:
+		return true
+	}
+	return false
+}
+
 type WorkflowTriggerCronRefMethods string
 
 const (
@@ -2631,6 +3517,15 @@ func (ns NullWorkflowTriggerCronRefMethods) Value() (driver.Value, error) {
 	return string(ns.WorkflowTriggerCronRefMethods), nil
 }
 
+func (e WorkflowTriggerCronRefMethods) Valid() bool {
+	switch e {
+	case WorkflowTriggerCronRefMethodsDEFAULT,
+		WorkflowTriggerCronRefMethodsAPI:
+		return true
+	}
+	return false
+}
+
 type WorkflowTriggerScheduledRefMethods string
 
 const (
@@ -2671,6 +3566,15 @@ func (ns NullWorkflowTriggerScheduledRefMethods) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.WorkflowTriggerScheduledRefMethods), nil
+}
+
+func (e WorkflowTriggerScheduledRefMethods) Valid() bool {
+	switch e {
+	case WorkflowTriggerScheduledRefMethodsDEFAULT,
+		WorkflowTriggerScheduledRefMethodsAPI:
+		return true
+	}
+	return false
 }
 
 type APIToken struct {
@@ -3231,6 +4135,8 @@ type TenantEntitlement struct {
 	DagOperator                     bool               `json:"dag_operator"`
 	DurableStreams                  bool               `json:"durable_streams"`
 	ServerlessOperator              bool               `json:"serverless_operator"`
+	SandboxOperator                 bool               `json:"sandbox_operator"`
+	OperatorStepDirectCompletion    bool               `json:"operator_step_direct_completion"`
 	CreatedAt                       pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                       pgtype.Timestamptz `json:"updated_at"`
 }
@@ -3382,6 +4288,13 @@ type V1AggEventsMinuteOlap struct {
 	EventCount int64              `json:"event_count"`
 }
 
+type V1AggStreamBytesMinuteOlap struct {
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	Bucket         pgtype.Timestamptz `json:"bucket"`
+	PublishedBytes int64              `json:"published_bytes"`
+	DeliveredBytes int64              `json:"delivered_bytes"`
+}
+
 type V1AggTaskEventsMinuteDeltaOlap struct {
 	ID             int64              `json:"id"`
 	TenantID       uuid.UUID          `json:"tenant_id"`
@@ -3428,6 +4341,31 @@ type V1AggTaskStatusesMinuteOlap struct {
 	CancelledCount int64              `json:"cancelled_count"`
 	FailedCount    int64              `json:"failed_count"`
 	EvictedCount   int64              `json:"evicted_count"`
+}
+
+type V1AuditLog struct {
+	ID            uuid.UUID           `json:"id"`
+	InsertedAt    pgtype.Timestamptz  `json:"inserted_at"`
+	TenantID      uuid.UUID           `json:"tenant_id"`
+	ActorType     V1AuditLogActorType `json:"actor_type"`
+	ActorID       uuid.UUID           `json:"actor_id"`
+	Action        string              `json:"action"`
+	CorrelationID pgtype.Text         `json:"correlation_id"`
+	ResourceID    string              `json:"resource_id"`
+	ResourceType  string              `json:"resource_type"`
+	IpAddress     pgtype.Text         `json:"ip_address"`
+	UserAgent     pgtype.Text         `json:"user_agent"`
+}
+
+type V1AuditLogArchiveCursor struct {
+	PartitionDate  pgtype.Date        `json:"partition_date"`
+	IsCompleted    bool               `json:"is_completed"`
+	LeaseProcessID uuid.UUID          `json:"lease_process_id"`
+	LeaseExpiresAt pgtype.Timestamptz `json:"lease_expires_at"`
+	NextFileIndex  int32              `json:"next_file_index"`
+	LastTenantID   uuid.UUID          `json:"last_tenant_id"`
+	LastInsertedAt pgtype.Timestamptz `json:"last_inserted_at"`
+	LastID         uuid.UUID          `json:"last_id"`
 }
 
 type V1BatchRuntime struct {
@@ -3964,6 +4902,95 @@ type V1RunsOlap struct {
 	AdditionalMetadata   []byte               `json:"additional_metadata"`
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
 	IdempotencyKey       pgtype.Text          `json:"idempotency_key"`
+	FinishedAt           pgtype.Timestamptz   `json:"finished_at"`
+}
+
+type V1Sandbox struct {
+	ID               string             `json:"id"`
+	TenantID         uuid.UUID          `json:"tenant_id"`
+	ProviderID       uuid.UUID          `json:"provider_id"`
+	ExternalID       pgtype.Text        `json:"external_id"`
+	Template         pgtype.Text        `json:"template"`
+	Status           V1SandboxStatus    `json:"status"`
+	StatusError      pgtype.Text        `json:"status_error"`
+	Metadata         []byte             `json:"metadata"`
+	IdleTtlMs        int64              `json:"idle_ttl_ms"`
+	LatestSnapshotID pgtype.Text        `json:"latest_snapshot_id"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	LastUsedAt       pgtype.Timestamptz `json:"last_used_at"`
+	DeletedAt        pgtype.Timestamptz `json:"deleted_at"`
+}
+
+type V1SandboxEvent struct {
+	ID         int64              `json:"id"`
+	TenantID   uuid.UUID          `json:"tenant_id"`
+	ProviderID uuid.UUID          `json:"provider_id"`
+	SandboxID  pgtype.Text        `json:"sandbox_id"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	Kind       V1SandboxEventKind `json:"kind"`
+	Message    string             `json:"message"`
+	Details    []byte             `json:"details"`
+}
+
+type V1SandboxLease struct {
+	TenantID          uuid.UUID          `json:"tenant_id"`
+	ProviderPartition int32              `json:"provider_partition"`
+	ProcessID         *uuid.UUID         `json:"process_id"`
+	ClaimedAt         pgtype.Timestamptz `json:"claimed_at"`
+	ProviderCount     int32              `json:"provider_count"`
+}
+
+type V1SandboxProcess struct {
+	ProcessID     uuid.UUID          `json:"process_id"`
+	ExpiresAt     pgtype.Timestamptz `json:"expires_at"`
+	UnitCount     int32              `json:"unit_count"`
+	ProviderCount int32              `json:"provider_count"`
+	Hostname      pgtype.Text        `json:"hostname"`
+	Version       pgtype.Text        `json:"version"`
+	StartedAt     pgtype.Timestamptz `json:"started_at"`
+}
+
+type V1SandboxProvider struct {
+	ID                uuid.UUID             `json:"id"`
+	TenantID          uuid.UUID             `json:"tenant_id"`
+	Name              string                `json:"name"`
+	Kind              V1SandboxProviderKind `json:"kind"`
+	ApiKeyEnc         string                `json:"api_key_enc"`
+	Config            []byte                `json:"config"`
+	DefaultTemplate   pgtype.Text           `json:"default_template"`
+	MaxIdleTtlSeconds int32                 `json:"max_idle_ttl_seconds"`
+	Labels            []byte                `json:"labels"`
+	Enabled           bool                  `json:"enabled"`
+	ProviderPartition int32                 `json:"provider_partition"`
+	Healthy           pgtype.Bool           `json:"healthy"`
+	StatusError       pgtype.Text           `json:"status_error"`
+	StatusChangedAt   pgtype.Timestamptz    `json:"status_changed_at"`
+	CreatedAt         pgtype.Timestamptz    `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz    `json:"updated_at"`
+	DeletedAt         pgtype.Timestamptz    `json:"deleted_at"`
+}
+
+type V1SandboxSnapshot struct {
+	ID         string             `json:"id"`
+	TenantID   uuid.UUID          `json:"tenant_id"`
+	SandboxID  string             `json:"sandbox_id"`
+	ParentID   pgtype.Text        `json:"parent_id"`
+	ExternalID string             `json:"external_id"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
+type V1SandboxTenant struct {
+	TenantID               uuid.UUID `json:"tenant_id"`
+	ProviderPartitionCount int32     `json:"provider_partition_count"`
+}
+
+type V1SandboxTurn struct {
+	RunID          string             `json:"run_id"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	SandboxID      string             `json:"sandbox_id"`
+	PrevSnapshotID pgtype.Text        `json:"prev_snapshot_id"`
+	Result         []byte             `json:"result"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
 type V1ServerlessEndpoint struct {

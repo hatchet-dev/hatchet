@@ -1,14 +1,12 @@
 package repository
 
 import (
-	"context"
-	"errors"
 	"log"
+	"sync"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/hashicorp/golang-lru/v2/expirable"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -67,6 +65,11 @@ type sharedRepository struct {
 
 	eventKeyWorkflowsCache *expirable.LRU[eventKeyTenantIdTuple, []*sqlcv1.ListWorkflowsForEventsRow]
 
+	// eventKeyWorkflowsDrops counts InvalidateEventKeyWorkflows calls. A lookup caches its result
+	// only if no drop happened while it ran, since it may have read Postgres before the commit.
+	eventKeyWorkflowsMu    sync.Mutex
+	eventKeyWorkflowsDrops uint64
+
 	rateLimitPauseCache *expirable.LRU[uuid.UUID, bool]
 
 	celParser         *cel.CELParser
@@ -74,6 +77,10 @@ type sharedRepository struct {
 	taskLookupCache   *lru.Cache[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow]
 	payloadStore      PayloadStoreRepository
 	m                 TenantLimitRepository
+	entitlements      TenantEntitlementRepository
+
+	// taskKeyCache has no TTL because a task's external id maps to the same primary key for as long as the task exists
+	taskKeyCache *lru.Cache[taskExternalIdTenantIdTuple, IdInsertedAt]
 
 	wrapTaskInputInStepRunData bool
 	enablePayloadConsolidation bool
@@ -126,6 +133,12 @@ func newSharedRepository(
 		log.Fatalf("failed to create LRU cache: %v", err)
 	}
 
+	taskKeyCache, err := lru.New[taskExternalIdTenantIdTuple, IdInsertedAt](100000)
+
+	if err != nil {
+		log.Fatalf("failed to create LRU cache: %v", err)
+	}
+
 	s := &sharedRepository{
 		pool:                        pool,
 		ddlPool:                     ddlPool,
@@ -150,6 +163,7 @@ func newSharedRepository(
 		celParser:                   celParser,
 		boolExprEvaluator:           boolExprEvaluator,
 		taskLookupCache:             lookupCache,
+		taskKeyCache:                taskKeyCache,
 		payloadStore:                payloadStore,
 		wrapTaskInputInStepRunData:  payloadStoreOpts.WrapTaskInputInStepRunData,
 		enablePayloadConsolidation:  payloadStoreOpts.EnablePayloadConsolidation,
@@ -159,23 +173,9 @@ func newSharedRepository(
 	tenantLimitRepository := newTenantLimitRepository(s, c, shouldEnforceLimits, cacheDuration)
 
 	s.m = tenantLimitRepository
+	s.entitlements = newTenantEntitlementRepository(s)
 
 	return s, s.cleanup
-}
-
-func (s *sharedRepository) isDagOperatorEnabled(ctx context.Context, db sqlcv1.DBTX, tenantId uuid.UUID) (bool, error) {
-	// fixme: can probably cache this?
-	entitlement, err := s.queries.GetTenantEntitlement(ctx, db, tenantId)
-
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return false, nil
-		}
-
-		return false, err
-	}
-
-	return entitlement.DagOperator, nil
 }
 
 func (s *sharedRepository) cleanup() error {

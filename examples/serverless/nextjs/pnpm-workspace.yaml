@@ -5,11 +5,9 @@ packages:
 minimumReleaseAge: 1440
 
 # Dependency install scripts are opt-in under pnpm 10. sharp and unrs-resolver fetch their
-# platform binaries for Next.js; the SDK's postinstall only prints upgrade notes and protobufjs
-# needs nothing at install time.
+# platform binaries for Next.js. protobufjs has a postinstall that does nothing the SDK needs.
 onlyBuiltDependencies:
   - sharp
   - unrs-resolver
 ignoredBuiltDependencies:
-  - "@hatchet-dev/typescript-sdk"
   - protobufjs

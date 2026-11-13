@@ -1,0 +1,212 @@
+.wrap {
+  display: grid;
+  justify-items: center;
+}
+
+.root {
+  width: 100%;
+}
+
+.stage {
+  width: 100%;
+}
+
+.chromeStroke {
+  stroke: var(--fg);
+}
+
+.chromeDash {
+  stroke: var(--fg-secondary);
+  stroke-dasharray: 2 3;
+}
+
+.chromeSlot {
+  stroke: var(--fg-border);
+}
+
+.stageLabel {
+  position: absolute;
+  transform: translate(-50%, 0);
+  font-family: var(--font-mono);
+  font-size: var(--micro);
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--fg);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.labelMuted {
+  color: var(--fg-secondary);
+}
+
+.caption {
+  font-family: var(--font-mono);
+  font-size: var(--micro);
+  line-height: 1;
+  color: var(--fg-secondary);
+  white-space: nowrap;
+}
+
+.taskPill {
+  font-family: var(--font-mono);
+  font-size: var(--micro);
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding: 0.3em 0.55em;
+  border: 1px solid var(--fg);
+  background: var(--bg);
+  color: var(--fg);
+  white-space: nowrap;
+  transition:
+    border-color 300ms ease,
+    color 300ms ease;
+}
+
+[data-flow-state="running"] .taskPill {
+  border-color: var(--accent);
+  color: var(--accent);
+  animation: se-pulse 900ms ease-in-out infinite;
+}
+
+[data-flow-state="done"] .taskPill {
+  border-color: var(--accent-3);
+  color: var(--accent-3);
+}
+
+.slot {
+  width: calc(var(--flow-u) * 7);
+  height: calc(var(--flow-u) * 7);
+  background: color-mix(in srgb, var(--fg) 72%, transparent);
+  transition: background-color 500ms ease;
+}
+
+[data-flow-state="fresh"] .slot {
+  background: var(--accent-2);
+  transition: none;
+}
+
+.msg {
+  width: calc(var(--flow-u) * 5);
+  height: calc(var(--flow-u) * 5);
+  background: var(--accent-2);
+}
+
+[data-flow-state="task"] .msg {
+  background: var(--accent);
+}
+
+[data-flow-state="ok"] .msg {
+  background: var(--accent-3);
+}
+
+.endpoint {
+  box-sizing: border-box;
+  width: calc(var(--flow-u) * 66);
+  height: calc(var(--flow-u) * 80);
+  border: 1px solid var(--fg);
+  background: var(--bg);
+  transition: border-color 300ms ease;
+}
+
+[data-flow-state="waiting"] .endpoint {
+  border-style: dashed;
+  border-color: var(--fg-tertiary);
+}
+
+.endpointHeader {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--flow-u) * 3);
+  height: calc(var(--flow-u) * 16);
+  padding-inline: calc(var(--flow-u) * 4);
+  border-bottom: 1px solid var(--fg-border);
+  font-family: var(--font-mono);
+  font-size: var(--micro);
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--fg);
+  white-space: nowrap;
+}
+
+[data-flow-state="waiting"] .endpointHeader {
+  color: var(--fg-tertiary);
+}
+
+.endpointDot {
+  flex-shrink: 0;
+  width: calc(var(--flow-u) * 5);
+  height: calc(var(--flow-u) * 5);
+  border-radius: 50%;
+  background: var(--fg-tertiary);
+  transition: background-color 300ms ease;
+}
+
+[data-flow-state="healthy"] .endpointDot {
+  background: var(--accent-3);
+}
+
+[data-flow-state="busy"] .endpointDot {
+  background: var(--accent);
+  animation: se-breathe 900ms ease-in-out infinite;
+}
+
+.run {
+  font-family: var(--font-mono);
+  font-size: var(--micro);
+  line-height: 1;
+  padding: 0.3em 0.55em;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  background: var(--bg);
+  white-space: nowrap;
+  transition:
+    border-color 300ms ease,
+    color 300ms ease;
+}
+
+[data-flow-state="running"] .run {
+  animation: se-pulse 900ms ease-in-out infinite;
+}
+
+[data-flow-state="done"] .run {
+  border-color: var(--accent-3);
+  color: var(--accent-3);
+}
+
+@keyframes se-pulse {
+  0%,
+  100% {
+    transform: none;
+  }
+  50% {
+    transform: scale(0.9);
+  }
+}
+
+@keyframes se-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+[data-flow-static] .taskPill,
+[data-flow-static] .run,
+[data-flow-static] .endpointDot {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .taskPill,
+  .run,
+  .endpointDot {
+    animation: none !important;
+  }
+}

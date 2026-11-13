@@ -5,6 +5,19 @@ All notable changes to Hatchet's Ruby SDK will be documented in this changelog.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.2] - 2026-11-10
+
+### Fixed
+
+- Task `wait_for` and `skip_if` conditions grouped with `Hatchet.or_`, and `Hatchet::ParentCondition`s, were silently dropped at workflow registration, so those tasks ran without waiting or skipping. They are now registered with the engine.
+- `Context#was_skipped?` returns true only for a parent the engine marked as skipped, instead of for any parent whose output is missing.
+
+## [0.12.1] - 2026-11-02
+
+### Added
+
+- `TenantEntitlements#sandbox_operator`, the tenant's sandbox entitlement.
+
 ## [0.12.0] - 2026-10-26
 
 ### Added

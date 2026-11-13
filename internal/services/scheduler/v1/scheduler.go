@@ -27,6 +27,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	repov1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/scheduling"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
@@ -1556,17 +1557,15 @@ func (s *Scheduler) handleDeadLetteredDurableCallbackCompleted(ctx context.Conte
 		externalIds = append(externalIds, p.TaskExternalId)
 	}
 
-	flatTasks, err := s.repov1.Tasks().FlattenExternalIds(ctx, msg.TenantID, externalIds)
+	tasks, err := s.repov1.Tasks().ResolveTaskExternalIds(ctx, msg.TenantID, externalIds)
 	if err != nil {
 		return fmt.Errorf("could not resolve tasks for undelivered durable callbacks: %w", err)
 	}
 
-	flatByExternalId := enumerables.KeyBy(flatTasks, func(t *sqlcv1.FlattenExternalIdsRow) uuid.UUID { return t.ExternalID })
-
 	callbacks := make([]repov1.SatisfiedEntry, 0, len(payloads))
 
 	for _, p := range payloads {
-		t, ok := flatByExternalId[p.TaskExternalId]
+		t, ok := tasks[p.TaskExternalId]
 		if !ok {
 			s.l.Warn().Ctx(ctx).Msgf("no task found for undelivered durable callback %s, skipping", p.TaskExternalId)
 			continue
@@ -1579,7 +1578,7 @@ func (s *Scheduler) handleDeadLetteredDurableCallbackCompleted(ctx context.Conte
 
 		callbacks = append(callbacks, repov1.SatisfiedEntry{
 			DurableTaskId:         t.ID,
-			DurableTaskInsertedAt: t.InsertedAt,
+			DurableTaskInsertedAt: sqlchelpers.TimestamptzFromUnixMicros(t.InsertedAtUnixMicros),
 			DurableTaskExternalId: p.TaskExternalId,
 			InvocationCount:       p.InvocationCount,
 			BranchId:              p.BranchId,

@@ -9,6 +9,7 @@ import { createTsProtoClient } from '@clients/transport/ts-proto-client';
 import type { Transport } from '@clients/transport/transport';
 import type { EventWithMetadata, PushEventOptions } from '@hatchet/core/types';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
+import { serializePayload } from '@hatchet/util/serialize-payload';
 import { parentRunContextManager } from '@hatchet/v1/parent-run-context-vars';
 
 /** The levels a task run log line is stored with. */
@@ -58,10 +59,10 @@ export function buildPushEventRequest<T>(
 
   return {
     key: applyNamespace(type, namespace),
-    payload: JSON.stringify(input),
+    payload: serializePayload(input),
     eventTimestamp: new Date(),
     additionalMetadata:
-      Object.keys(enhancedMetadata).length > 0 ? JSON.stringify(enhancedMetadata) : undefined,
+      Object.keys(enhancedMetadata).length > 0 ? serializePayload(enhancedMetadata) : undefined,
     priority: options.priority,
     scope: options.scope,
   };
@@ -87,9 +88,10 @@ export function buildBulkPushEventRequest<T>(
 
       return {
         key: namespacedType,
-        payload: JSON.stringify(input.payload),
+        payload: serializePayload(input.payload),
         eventTimestamp: new Date(),
-        additionalMetadata: Object.keys(enhanced).length > 0 ? JSON.stringify(enhanced) : undefined,
+        additionalMetadata:
+          Object.keys(enhanced).length > 0 ? serializePayload(enhanced) : undefined,
         priority: input.priority ?? options.priority,
         scope: input.scope ?? options.scope,
       };

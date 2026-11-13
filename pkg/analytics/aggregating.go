@@ -25,6 +25,11 @@ type counterEntry struct {
 	count   *atomic.Int64
 	props   Properties
 	tokenID *uuid.UUID
+	// totals holds additive integers flushed as properties. Keys are stable for
+	// a bucket; values are summed and are not part of the bucket key. They are
+	// written separately from the count, so a flush can attribute them to a
+	// neighboring window, the same way it can for the time markers.
+	totals sync.Map
 	// First and last event times since the last flush. Zero means unset.
 	// The markers are written separately from the count and from each
 	// other, so they are approximate bounds, see the note in flush.
@@ -56,13 +61,55 @@ func (e *counterEntry) observe(nanos int64) {
 const evictedCount = math.MinInt64 / 2
 
 // add reports whether the increment was counted. It returns false when flush
-// evicted the entry before the increment landed.
-func (e *counterEntry) add(n int64, nanos int64) bool {
+// evicted the entry before the increment landed. totals are applied only after
+// the count is accepted, so a rejected add leaves them for the retry.
+func (e *counterEntry) add(n int64, totals map[string]int64, nanos int64) bool {
 	if e.count.Add(n) < 0 {
 		return false
 	}
+	e.addTotals(totals)
 	e.observe(nanos)
 	return true
+}
+
+func (e *counterEntry) addTotals(totals map[string]int64) {
+	for k, n := range totals {
+		if n == 0 {
+			continue
+		}
+		e.addTotal(k, n)
+	}
+}
+
+func (e *counterEntry) addTotal(key string, n int64) {
+	if v, ok := e.totals.Load(key); ok {
+		v.(*atomic.Int64).Add(n)
+		return
+	}
+
+	c := &atomic.Int64{}
+	c.Add(n)
+	actual, loaded := e.totals.LoadOrStore(key, c)
+	if loaded {
+		actual.(*atomic.Int64).Add(n)
+	}
+}
+
+// takeTotals swaps every total to zero and returns the non-zero ones.
+func (e *counterEntry) takeTotals() map[string]int64 {
+	var out map[string]int64
+	e.totals.Range(func(key, val any) bool {
+		n := val.(*atomic.Int64).Swap(0)
+		if n == 0 {
+			return true
+		}
+		if out == nil {
+			out = make(map[string]int64)
+		}
+		out[key.(string)] = n
+		return true
+	})
+	return out
 }
 
 // FlushFunc receives one bucket's totals for the interval since the previous
@@ -115,13 +162,26 @@ func NewAggregator(l *zerolog.Logger, enabled bool, interval time.Duration, maxK
 // separately. This is the non-blocking hot path: sync.Map.Load + atomic.Add +
 // the marker update on the common case.
 func (a *Aggregator) Count(resource Resource, action Action, tenantID uuid.UUID, tokenID *uuid.UUID, n int64, props ...Properties) {
-	if a.disabled || n <= 0 {
-		return
-	}
-
 	var p Properties
 	if len(props) > 0 {
 		p = props[0]
+	}
+	a.count(resource, action, tenantID, tokenID, n, nil, p)
+}
+
+// CountTotals is Count plus additive totals. Totals are summed into the bucket
+// and flushed as properties; they are not part of the bucket key.
+func (a *Aggregator) CountTotals(resource Resource, action Action, tenantID uuid.UUID, tokenID *uuid.UUID, n int64, totals map[string]int64, props ...Properties) {
+	var p Properties
+	if len(props) > 0 {
+		p = props[0]
+	}
+	a.count(resource, action, tenantID, tokenID, n, totals, p)
+}
+
+func (a *Aggregator) count(resource Resource, action Action, tenantID uuid.UUID, tokenID *uuid.UUID, n int64, totals map[string]int64, p Properties) {
+	if a.disabled || n <= 0 {
+		return
 	}
 
 	var tid uuid.UUID
@@ -159,7 +219,7 @@ func (a *Aggregator) Count(resource Resource, action Action, tenantID uuid.UUID,
 	evicted := false
 	for {
 		if v, ok := a.counters.Load(key); ok {
-			if v.(*counterEntry).add(n, a.now().UnixNano()) {
+			if v.(*counterEntry).add(n, totals, a.now().UnixNano()) {
 				return
 			}
 			// Another writer can already have published a replacement
@@ -182,13 +242,14 @@ func (a *Aggregator) Count(resource Resource, action Action, tenantID uuid.UUID,
 		c := &atomic.Int64{}
 		c.Add(n)
 		entry := &counterEntry{count: c, props: p, tokenID: tokenID}
+		entry.addTotals(totals)
 		entry.observe(a.now().UnixNano())
 		existing, loaded := a.counters.LoadOrStore(key, entry)
 		if !loaded {
 			a.keyCount.Add(1)
 			return
 		}
-		if existing.(*counterEntry).add(n, a.now().UnixNano()) {
+		if existing.(*counterEntry).add(n, totals, a.now().UnixNano()) {
 			return
 		}
 		evicted = true
@@ -278,7 +339,20 @@ func (a *Aggregator) flush() {
 			lastEventAt = time.Unix(0, lastNanos).UTC()
 		}
 
-		a.flushFn(k.Resource, k.Action, k.TenantID, e.tokenID, count, firstEventAt, lastEventAt, e.props)
+		// Totals are swapped separately from the count, so a writer overlapping
+		// this flush can have its count and its totals land in different windows.
+		props := e.props
+		if totals := e.takeTotals(); len(totals) > 0 {
+			props = make(Properties, len(e.props)+len(totals))
+			for key, val := range e.props {
+				props[key] = val
+			}
+			for key, val := range totals {
+				props[key] = val
+			}
+		}
+
+		a.flushFn(k.Resource, k.Action, k.TenantID, e.tokenID, count, firstEventAt, lastEventAt, props)
 		return true
 	})
 }

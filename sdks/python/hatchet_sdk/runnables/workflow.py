@@ -2206,6 +2206,10 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         retry_count: int = 0,
         lifespan: Any = None,  # noqa: ANN401
         dependencies: dict[str, Any] | None = None,
+        task_run_errors: dict[str, str] | None = None,
+        trigger_data: JSONSerializableMapping | None = None,
+        workflow_run_id: str | None = None,
+        task_run_id: str | None = None,
     ) -> R:
         """
         Mimic the execution of a task. This method is intended to be used to unit test
@@ -2218,6 +2222,10 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         :param retry_count: The number of times the task has been retried.
         :param lifespan: The lifespan to be used in the task, which is useful if one was set on the worker. This will allow you to access `ctx.lifespan` inside of your task.
         :param dependencies: Dependencies to be injected into the task. This is useful for tasks that have dependencies defined using `Depends`. **IMPORTANT**: You must pass the dependencies _directly_, **not** the `Depends` objects themselves. For example, if you have a task that has a dependency `config: Annotated[str, Depends(get_config)]`, you should pass `dependencies={"config": "config_value"}` to `aio_mock_run`.
+        :param task_run_errors: Errors from upstream tasks, keyed by task name. This is useful for testing on-failure tasks that read `ctx.task_run_errors` or `ctx.get_task_run_error`.
+        :param trigger_data: The data from the conditions that triggered the task, keyed by each condition's readable data key. This is useful for testing tasks that use `wait_for` conditions and read `ctx.trigger_data`.
+        :param workflow_run_id: The id of the workflow run, which will be available as `ctx.workflow_run_id`. A random id is used if not provided.
+        :param task_run_id: The id of the task run, which will be available as `ctx.task_run_id`. A random id is used if not provided.
 
         :return: The output of the task.
         """
@@ -2229,6 +2237,10 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
             retry_count=retry_count,
             lifespan=lifespan,
             dependencies=dependencies,
+            task_run_errors=task_run_errors,
+            trigger_data=trigger_data,
+            workflow_run_id=workflow_run_id,
+            task_run_id=task_run_id,
         )
 
     async def aio_mock_run(
@@ -2240,6 +2252,10 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         retry_count: int = 0,
         lifespan: Any = None,  # noqa: ANN401
         dependencies: dict[str, Any] | None = None,
+        task_run_errors: dict[str, str] | None = None,
+        trigger_data: JSONSerializableMapping | None = None,
+        workflow_run_id: str | None = None,
+        task_run_id: str | None = None,
     ) -> R:
         """
         Mimic the execution of a task. This method is intended to be used to unit test
@@ -2252,6 +2268,10 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         :param retry_count: The number of times the task has been retried.
         :param lifespan: The lifespan to be used in the task, which is useful if one was set on the worker. This will allow you to access `ctx.lifespan` inside of your task.
         :param dependencies: Dependencies to be injected into the task. This is useful for tasks that have dependencies defined using `Depends`. **IMPORTANT**: You must pass the dependencies _directly_, **not** the `Depends` objects themselves. For example, if you have a task that has a dependency `config: Annotated[str, Depends(get_config)]`, you should pass `dependencies={"config": "config_value"}` to `aio_mock_run`.
+        :param task_run_errors: Errors from upstream tasks, keyed by task name. This is useful for testing on-failure tasks that read `ctx.task_run_errors` or `ctx.get_task_run_error`.
+        :param trigger_data: The data from the conditions that triggered the task, keyed by each condition's readable data key. This is useful for testing tasks that use `wait_for` conditions and read `ctx.trigger_data`.
+        :param workflow_run_id: The id of the workflow run, which will be available as `ctx.workflow_run_id`. A random id is used if not provided.
+        :param task_run_id: The id of the task run, which will be available as `ctx.task_run_id`. A random id is used if not provided.
 
         :return: The output of the task.
         """
@@ -2263,6 +2283,10 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
             retry_count=retry_count,
             lifespan=lifespan,
             dependencies=dependencies,
+            task_run_errors=task_run_errors,
+            trigger_data=trigger_data,
+            workflow_run_id=workflow_run_id,
+            task_run_id=task_run_id,
         )
 
     @property

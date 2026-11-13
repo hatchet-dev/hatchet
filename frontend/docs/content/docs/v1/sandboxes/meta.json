@@ -1,0 +1,5 @@
+{
+  "pages": ["index", "setup", "providers", "using-sandboxes"],
+  "title": "Sandboxes",
+  "defaultOpen": false
+}

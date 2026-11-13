@@ -1,12 +1,40 @@
 package timeout_lock
 
 import (
+	"context"
+	"errors"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func TestAcquireContext(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		lock := NewTimeoutLock(time.Second)
+		if !lock.Acquire() {
+			t.Fatal("could not acquire free lock")
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+		if err := lock.AcquireContext(ctx); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("want deadline, got %v", err)
+		}
+		lock.Release()
+		if err := lock.AcquireContext(ctx); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("expired context acquired free lock: %v", err)
+		}
+		if !lock.Acquire() {
+			t.Fatal("expired context leaked lock ownership")
+		}
+		if err := lock.AcquireContext(context.Background()); !errors.Is(err, ErrTimeout) {
+			t.Fatalf("want lock timeout, got %v", err)
+		}
+		lock.Release()
+	})
+}
 
 func BenchmarkLockAcquisition(b *testing.B) {
 	l := NewTimeoutLock(time.Second)

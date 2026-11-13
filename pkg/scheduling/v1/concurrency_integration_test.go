@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -793,6 +794,104 @@ func TestConcurrency_ColdStrategyScheduledPromptly(t *testing.T) {
 				}
 			}
 		}
+	})
+}
+
+// TestConcurrency_TenantHandoffDoesNotWaitOutTopicLease covers a tenant moving from one scheduler
+// to another, as on every scheduler rollout. A scheduler running an in-memory index holds an
+// exclusive lease on the strategy's outbox topic, and the next scheduler cannot build its own
+// index until it acquires that lease. The scheduler giving the tenant up must release the lease
+// rather than leave it to lapse, or the strategy stops being scheduled for a full lease duration.
+func TestConcurrency_TenantHandoffDoesNotWaitOutTopicLease(t *testing.T) {
+	runWithDatabase(t, func(conf *database.Layer) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		requireSchedulerSchema(t, ctx, conf)
+
+		r := conf.V1
+
+		s := setupStepConcurrencyStrategy(t, ctx, conf, "concurrency-handoff-test", "GROUP_ROUND_ROBIN", 2)
+
+		tenant, err := r.Tenant().GetTenantByID(ctx, s.tenantId)
+		require.NoError(t, err)
+
+		l := zerolog.Nop()
+
+		// Each scheduler gets its own outbox, since topic leases are held per outbox instance.
+		// stop shuts the scheduler down the way the engine does: the outbox first, then the pool.
+		startScheduler := func() (results <-chan *v1.ConcurrencyResults, stop func()) {
+			outboxCtx, stopOutbox := context.WithCancel(ctx)
+
+			outbox, err := pgoutbox.NewOutbox(outboxCtx, conf.Pool, pgoutbox.WithAutoMigrate(false))
+			require.NoError(t, err)
+
+			schedulingPool, cleanup, err := v1.NewSchedulingPool(
+				r.Scheduler(),
+				r.Tasks(),
+				outbox,
+				&l,
+				100,
+				20,
+				10*time.Millisecond,
+				20*time.Millisecond,
+				50*time.Millisecond,
+				100*time.Millisecond,
+				5*time.Millisecond,
+				false,
+				1,
+				true,
+				nil,
+			)
+			require.NoError(t, err)
+
+			schedulingPool.SetTenants([]*sqlcv1.Tenant{tenant})
+
+			var stopOnce sync.Once
+
+			return schedulingPool.GetConcurrencyResultsCh(), func() {
+				stopOnce.Do(func() {
+					stopOutbox()
+					require.NoError(t, cleanup())
+				})
+			}
+		}
+
+		// A strategy's manager emits its first result once its index is built, which requires
+		// holding the topic lease.
+		waitForFirstResult := func(results <-chan *v1.ConcurrencyResults, within time.Duration, scheduler string) time.Duration {
+			start := time.Now()
+
+			select {
+			case res := <-results:
+				require.False(t, res.RunConcurrencyResult.FailedAdvisoryLock)
+			case <-time.After(within):
+				t.Fatalf("the %s scheduler did not run the strategy within %s", scheduler, within)
+			case <-ctx.Done():
+				t.Fatalf("context ended while waiting for the %s scheduler: %v", scheduler, ctx.Err())
+			}
+
+			return time.Since(start)
+		}
+
+		firstResults, stopFirst := startScheduler()
+		defer stopFirst()
+
+		// The outbox lease duration is 30s, and without a release the second scheduler's index
+		// build waits it out in full. 10s is far below that while leaving a scheduler's startup
+		// (lease acquisition, an empty index build, one run) plenty of headroom on a loaded
+		// database.
+		const handoffDeadline = 10 * time.Second
+
+		waitForFirstResult(firstResults, handoffDeadline, "first")
+
+		stopFirst()
+
+		secondResults, stopSecond := startScheduler()
+		defer stopSecond()
+
+		t.Logf("second scheduler ran the strategy %s after the handoff", waitForFirstResult(secondResults, handoffDeadline, "second"))
+
+		return nil
 	})
 }
 

@@ -59,6 +59,8 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	hatchetprom "github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
+	"github.com/hatchet-dev/hatchet/pkg/o11yusage"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -95,7 +97,7 @@ type apiService struct {
 	*streamsv1.V1StreamsService
 }
 
-func newAPIService(config *server.ServerConfig) *apiService {
+func newAPIService(config *server.ServerConfig, usage *o11yusage.Aggregator) *apiService {
 	return &apiService{
 		UserService:            users.NewUserService(config),
 		TenantService:          tenants.NewTenantService(config),
@@ -124,18 +126,21 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		V1ObservabilityService: observability.NewV1ObservabilityService(config),
 		V1FeatureFlagsService:  featureflagsv1.NewV1FeatureFlagsService(config),
 		DurableTasksService:    durabletasksv1.NewDurableTasksService(config),
-		V1StreamsService:       streamsv1.NewV1StreamsService(config),
+		V1StreamsService:       streamsv1.NewV1StreamsService(config, usage),
 	}
 }
 
 type APIServer struct {
 	config                *server.ServerConfig
 	additionalMiddlewares []hatchetmiddleware.MiddlewareFunc
+	usage                 *o11yusage.Aggregator
 }
 
 func NewAPIServer(config *server.ServerConfig) *APIServer {
 	return &APIServer{
 		config: config,
+		// a no-op without a flush callback, as in OSS
+		usage: o11yusage.NewAggregator(config.Logger, config.Runtime.O11yUsageFlushInterval, config.O11yUsageFlush),
 	}
 }
 
@@ -187,14 +192,29 @@ func (t *APIServer) RunWithServer(e *echo.Echo) (func() error, error) {
 		t.config.Logger.Debug().Msgf("registered route: %s %s", route.Method, route.Path)
 	}
 
+	var stopPrometheus func() error
+
+	if t.config.Prometheus.Enabled {
+		stopPrometheus = hatchetprom.StartServer(t.config.Logger, t.config.Prometheus.Address, t.config.Prometheus.Path)
+	}
+
 	go func() {
 		if err := e.Start(fmt.Sprintf(":%d", t.config.Runtime.Port)); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			panic(err)
 		}
 	}()
 
+	t.usage.Start()
+
 	cleanup := func() error {
-		return e.Shutdown(context.Background())
+		err := e.Shutdown(context.Background())
+
+		if stopPrometheus != nil {
+			err = errors.Join(err, stopPrometheus())
+		}
+
+		// after the server, so bytes from requests that were still finishing are flushed
+		return errors.Join(err, t.usage.Shutdown())
 	}
 
 	return cleanup, nil
@@ -290,6 +310,7 @@ func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 	}
 
 	e := echo.New()
+	e.Binder = &requestBinder{Binder: e.Binder, l: t.config.Logger}
 
 	e.Use(cors.Middleware(t.config))
 
@@ -306,7 +327,7 @@ func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 		return nil, err
 	}
 
-	service := newAPIService(t.config)
+	service := newAPIService(t.config, t.usage)
 
 	myStrictApiHandler := gen.NewStrictHandler(service)
 

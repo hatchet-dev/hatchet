@@ -3,7 +3,9 @@
 package repository
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -131,6 +133,121 @@ func TestOperatorActionBudgetSpansWorkers(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 5, added)
 	assert.Equal(t, 5, workerOperatorActionCount(t, ctx, pool, loose))
+}
+
+// A registration of a claimed operator releases the operator's dead workers: it drops their
+// links, zeroes the count the budget sum reads, clears the hash and marks them inactive, which
+// frees the budget for the new worker. A worker still active on a live dispatcher is another
+// replica of the operator and keeps its links, and so does the worker being registered.
+func TestReleaseDeadOperatorWorkers(t *testing.T) {
+	pool := workerActionsPool(t)
+	repo := createWorkerActionsRepositoryForTest(pool)
+	ctx := context.Background()
+	tenantId := seedTenantForActions(t, ctx, pool)
+	operatorId := seedOperator(t, ctx, pool, tenantId)
+
+	const cap = 12
+
+	liveDispatcher := seedDispatcher(t, ctx, pool)
+	staleDispatcher := seedDispatcher(t, ctx, pool)
+
+	_, err := pool.Exec(ctx, `UPDATE "Dispatcher" SET "lastHeartbeatAt" = NOW() - INTERVAL '1 minute' WHERE "id" = $1`, staleDispatcher)
+	require.NoError(t, err)
+
+	worker := func(dispatcherId uuid.UUID, active bool, actions int) uuid.UUID {
+		id := seedOperatorWorker(t, ctx, pool, tenantId, operatorId)
+
+		_, err := pool.Exec(ctx, `UPDATE "Worker" SET "dispatcherId" = $1, "isActive" = $2 WHERE "id" = $3`, dispatcherId, active, id)
+		require.NoError(t, err)
+
+		_, _, err = repo.ApplyWorkerActionsDelta(ctx, tenantId, id, ids("a", 0, actions), nil, cap)
+		require.NoError(t, err)
+		require.NoError(t, repo.RefreshWorkerActionHash(ctx, tenantId, id))
+
+		return id
+	}
+
+	replica := worker(liveDispatcher, true, 3)
+	tornDown := worker(liveDispatcher, false, 3)
+	orphaned := worker(staleDispatcher, true, 3)
+	registering := worker(liveDispatcher, false, 3)
+
+	released, err := repo.ReleaseDeadOperatorWorkers(ctx, tenantId, operatorId, registering)
+	require.NoError(t, err)
+	assert.EqualValues(t, 6, released, "the torn-down worker and the one on a stale dispatcher")
+
+	for _, id := range []uuid.UUID{tornDown, orphaned} {
+		assert.Empty(t, linkedActions(t, ctx, pool, id))
+		assert.Equal(t, 0, workerOperatorActionCount(t, ctx, pool, id))
+		assert.Nil(t, workerActionHash(t, ctx, pool, id), "the hash is cleared, not left describing the old links")
+		assert.False(t, workerIsActive(t, ctx, pool, id))
+	}
+
+	for _, id := range []uuid.UUID{replica, registering} {
+		assert.Len(t, linkedActions(t, ctx, pool, id), 3)
+	}
+
+	assert.True(t, workerIsActive(t, ctx, pool, replica), "a live replica keeps serving")
+
+	_, _, err = repo.ApplyWorkerActionsDelta(ctx, tenantId, registering, ids("a", 3, 9), nil, cap)
+	require.NoError(t, err, "the release freed the budget")
+
+	released, err = repo.ReleaseDeadOperatorWorkers(ctx, tenantId, operatorId, registering)
+	require.NoError(t, err)
+	assert.Zero(t, released, "a second release finds nothing")
+
+	otherTenant := seedTenantForActions(t, ctx, pool)
+	released, err = repo.ReleaseDeadOperatorWorkers(ctx, otherTenant, operatorId, uuid.New())
+	require.NoError(t, err)
+	assert.Zero(t, released, "another tenant's release touches nothing")
+	assert.Len(t, linkedActions(t, ctx, pool, registering), 9)
+}
+
+func workerIsActive(t *testing.T, ctx context.Context, pool *pgxpool.Pool, workerId uuid.UUID) bool {
+	t.Helper()
+
+	var active bool
+	require.NoError(t, pool.QueryRow(ctx, `SELECT "isActive" FROM "Worker" WHERE "id" = $1`, workerId).Scan(&active))
+
+	return active
+}
+
+// An accepted delta that leaves the operator at 70% of its budget or more logs an error with
+// the operator's totals, so the budget can be alerted on before a delta is refused. Deltas
+// below that line, and refused deltas, log nothing.
+func TestOperatorActionBudgetAlertsAtSeventyPercent(t *testing.T) {
+	pool := workerActionsPool(t)
+	var logs bytes.Buffer
+	repo := createWorkerActionsRepositoryWithLogger(pool, &logs)
+	ctx := context.Background()
+	tenantId := seedTenantForActions(t, ctx, pool)
+	operatorId := seedOperator(t, ctx, pool, tenantId)
+	worker := seedOperatorWorker(t, ctx, pool, tenantId, operatorId)
+
+	const cap = 10
+
+	_, _, err := repo.ApplyWorkerActionsDelta(ctx, tenantId, worker, ids("a", 0, 6), nil, cap)
+	require.NoError(t, err)
+	assert.Empty(t, logs.String(), "60% of the budget is under the line")
+
+	_, _, err = repo.ApplyWorkerActionsDelta(ctx, tenantId, worker, ids("a", 6, 7), nil, cap)
+	require.NoError(t, err)
+
+	var line map[string]any
+	require.NoError(t, json.Unmarshal(logs.Bytes(), &line), "exactly one line is logged: %q", logs.String())
+	assert.Equal(t, "error", line["level"])
+	assert.Equal(t, "operator action links are over 70% of the action budget", line["message"])
+	assert.Equal(t, operatorId.String(), line["operator_id"])
+	assert.Equal(t, tenantId.String(), line["tenant_id"])
+	assert.Equal(t, worker.String(), line["worker_id"])
+	assert.EqualValues(t, 7, line["linked"])
+	assert.EqualValues(t, cap, line["limit"])
+
+	logs.Reset()
+
+	_, _, err = repo.ApplyWorkerActionsDelta(ctx, tenantId, worker, ids("b", 0, 4), nil, cap)
+	require.ErrorIs(t, err, ErrWorkerActionBudgetExceeded)
+	assert.Empty(t, logs.String(), "a refused delta is reported by its error, not the alert")
 }
 
 // Concurrent deltas on two workers of one operator never leave the operator over its cap, and

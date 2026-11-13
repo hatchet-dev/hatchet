@@ -386,7 +386,7 @@ func (t *streamTable) closeAll() {
 func (t *streamTable) streamError(id string, err error) *connect.Error {
 	cerr := publicStreamError(err)
 
-	t.r.l.Debug().Err(err).Str("task_id", t.r.p.TaskId).Int32("invocation", t.r.p.Invocation).Str("stream_id", id).Str("code", cerr.Code().String()).Msg("engine stream failed")
+	t.r.l.Warn().Err(err).Str("task_id", t.r.p.TaskId).Int32("invocation", t.r.p.Invocation).Str("stream_id", id).Str("code", cerr.Code().String()).Msg("engine stream failed")
 
 	return cerr
 }
