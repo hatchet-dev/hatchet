@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	promclient "github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -27,6 +28,10 @@ func newTenantControlTestRepo(t *testing.T, pool *pgxpool.Pool) (*tenantControlR
 	limits.tenantControls = newTenantControlRepository(limits.sharedRepository)
 
 	return limits.tenantControls, limits
+}
+
+func perSecond(n int32) *int32 {
+	return &n
 }
 
 // tenantControlSeries returns one tenant's series of a tenant control metric, keyed by control.
@@ -72,15 +77,15 @@ func TestTenantControlSetClearList(t *testing.T) {
 	repo, _ := newTenantControlTestRepo(t, pool)
 	tenantID := createLimitTestTenant(t, pool)
 
-	row, err := repo.Set(ctx, SetTenantControlOpts{TenantId: tenantID, IngestPerSecond: 500, Reason: "noisy tenant"})
+	row, err := repo.Set(ctx, SetTenantControlOpts{TenantId: tenantID, IngestPerSecond: perSecond(500), Reason: "noisy tenant"})
 	require.NoError(t, err)
-	require.Equal(t, int32(500), row.IngestPerSecond)
+	require.Equal(t, pgtype.Int4{Int32: 500, Valid: true}, row.IngestPerSecond)
 	require.Equal(t, "noisy tenant", row.Reason)
 
 	// set replaces the row
-	row, err = repo.Set(ctx, SetTenantControlOpts{TenantId: tenantID, IngestPerSecond: 50, Reason: "still noisy"})
+	row, err = repo.Set(ctx, SetTenantControlOpts{TenantId: tenantID, IngestPerSecond: perSecond(50), Reason: "still noisy"})
 	require.NoError(t, err)
-	require.Equal(t, int32(50), row.IngestPerSecond)
+	require.Equal(t, pgtype.Int4{Int32: 50, Valid: true}, row.IngestPerSecond)
 
 	rows, err := repo.List(ctx)
 	require.NoError(t, err)
@@ -100,14 +105,14 @@ func TestTenantControlSetClearList(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, rows)
 
-	_, err = repo.Set(ctx, SetTenantControlOpts{TenantId: uuid.New(), IngestPerSecond: 10, Reason: "unknown tenant"})
+	_, err = repo.Set(ctx, SetTenantControlOpts{TenantId: uuid.New(), IngestPerSecond: perSecond(10), Reason: "unknown tenant"})
 	require.Error(t, err, "a control for a tenant that does not exist must be refused")
 
-	_, err = repo.Set(ctx, SetTenantControlOpts{TenantId: tenantID, IngestPerSecond: 0, Reason: "out of range"})
+	_, err = repo.Set(ctx, SetTenantControlOpts{TenantId: tenantID, IngestPerSecond: perSecond(0), Reason: "out of range"})
 	require.Error(t, err, "ingest_per_second below 1 must be refused")
 
 	// deleting the tenant deletes its control
-	_, err = repo.Set(ctx, SetTenantControlOpts{TenantId: tenantID, IngestPerSecond: 10, Reason: "test"})
+	_, err = repo.Set(ctx, SetTenantControlOpts{TenantId: tenantID, IngestPerSecond: perSecond(10), Reason: "test"})
 	require.NoError(t, err)
 
 	_, err = pool.Exec(ctx, `DELETE FROM "Tenant" WHERE id = $1`, tenantID)
@@ -126,7 +131,7 @@ func TestTenantControlRefresh(t *testing.T) {
 	repo, _ := newTenantControlTestRepo(t, pool)
 	tenantID := createLimitTestTenant(t, pool)
 
-	_, err := repo.Set(ctx, SetTenantControlOpts{TenantId: tenantID, IngestPerSecond: 1, Reason: "test"})
+	_, err := repo.Set(ctx, SetTenantControlOpts{TenantId: tenantID, IngestPerSecond: perSecond(1), Reason: "test"})
 	require.NoError(t, err)
 	require.NoError(t, repo.Admit(tenantID, 100), "a process that has not refreshed treats every tenant as uncontrolled")
 
@@ -170,7 +175,7 @@ func TestTenantControlRefreshLoopAppliesAChange(t *testing.T) {
 	// let the loop's first read pass, so the change below waits for a tick
 	time.Sleep(100 * time.Millisecond)
 
-	_, err := repo.Set(ctx, SetTenantControlOpts{TenantId: tenantID, IngestPerSecond: 1, Reason: "test"})
+	_, err := repo.Set(ctx, SetTenantControlOpts{TenantId: tenantID, IngestPerSecond: perSecond(1), Reason: "test"})
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
@@ -189,7 +194,7 @@ func TestCanCreateDoesNotQueryTheDatabaseForControls(t *testing.T) {
 	limited := createLimitTestTenant(t, pool)
 	other := createLimitTestTenant(t, pool)
 
-	_, err := repo.Set(ctx, SetTenantControlOpts{TenantId: limited, IngestPerSecond: 1, Reason: "test"})
+	_, err := repo.Set(ctx, SetTenantControlOpts{TenantId: limited, IngestPerSecond: perSecond(1), Reason: "test"})
 	require.NoError(t, err)
 	require.NoError(t, repo.refresh(ctx))
 
@@ -219,7 +224,7 @@ func TestCanCreateMetersIngestRate(t *testing.T) {
 	limited := createLimitTestTenant(t, pool)
 	other := createLimitTestTenant(t, pool)
 
-	_, err := repo.Set(ctx, SetTenantControlOpts{TenantId: limited, IngestPerSecond: 50, Reason: "test"})
+	_, err := repo.Set(ctx, SetTenantControlOpts{TenantId: limited, IngestPerSecond: perSecond(50), Reason: "test"})
 	require.NoError(t, err)
 	require.NoError(t, repo.refresh(ctx))
 
@@ -275,7 +280,7 @@ func TestCanCreateMetersIngestRate(t *testing.T) {
 	require.Greater(t, refusal.RetryAfter, 8900*time.Millisecond)
 
 	// A new limit starts a full bucket, without the old limit's debt.
-	_, err = repo.Set(ctx, SetTenantControlOpts{TenantId: limited, IngestPerSecond: 10, Reason: "test"})
+	_, err = repo.Set(ctx, SetTenantControlOpts{TenantId: limited, IngestPerSecond: perSecond(10), Reason: "test"})
 	require.NoError(t, err)
 	require.NoError(t, repo.refresh(ctx))
 	require.NoError(t, repo.Admit(limited, 10))
@@ -288,7 +293,7 @@ func TestCanCreateMetersIngestRate(t *testing.T) {
 	require.NoError(t, repo.refresh(ctx))
 	require.NoError(t, repo.Admit(limited, 1000))
 
-	_, err = repo.Set(ctx, SetTenantControlOpts{TenantId: limited, IngestPerSecond: 10, Reason: "test"})
+	_, err = repo.Set(ctx, SetTenantControlOpts{TenantId: limited, IngestPerSecond: perSecond(10), Reason: "test"})
 	require.NoError(t, err)
 	require.NoError(t, repo.refresh(ctx))
 	require.NoError(t, repo.Admit(limited, 10))

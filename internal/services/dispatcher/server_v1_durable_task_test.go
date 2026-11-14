@@ -237,8 +237,27 @@ type failingTaskLookup struct {
 }
 
 func (f failingTaskLookup) Tasks() v1.TaskRepository { return f }
+
+func (failingTaskLookup) TenantControl() v1.TenantControlRepository { return fakeTenantControl{} }
+
 func (failingTaskLookup) GetTaskByExternalId(context.Context, uuid.UUID, uuid.UUID, bool) (*sqlcv1.FlattenExternalIdsRow, error) {
 	return nil, errors.New("pq: connection to 10.0.0.1 reset")
+}
+
+type fakeTenantControl struct {
+	v1.TenantControlRepository
+	paused bool
+}
+
+func (f fakeTenantControl) IsPaused(uuid.UUID) bool { return f.paused }
+
+// pausedTenant fails the test if a request reads past the pause check.
+type pausedTenant struct {
+	v1.Repository
+}
+
+func (pausedTenant) TenantControl() v1.TenantControlRepository {
+	return fakeTenantControl{paused: true}
 }
 
 // The worker blocks on the ack of a memo, trigger_runs or wait_for request, so a request that
@@ -289,6 +308,18 @@ func TestDurableTaskAnswersFailedRequestsWithError(t *testing.T) {
 				},
 			}},
 			wantMessage: "or group id is not a valid uuid",
+		},
+		{
+			name: "trigger_runs of a paused tenant",
+			repo: pausedTenant{},
+			req: &contracts.DurableTaskRequest{Message: &contracts.DurableTaskRequest_TriggerRuns{
+				TriggerRuns: &contracts.DurableTaskTriggerRunsRequest{
+					DurableTaskExternalId: taskId,
+					InvocationCount:       invocationCount,
+					TriggerOpts:           []*contracts.TriggerWorkflowRequest{{Name: "child"}},
+				},
+			}},
+			wantMessage: "resource exhausted: tenant is paused by an operator",
 		},
 	}
 

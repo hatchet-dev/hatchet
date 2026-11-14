@@ -5341,9 +5341,11 @@ type V1TenantConcurrency struct {
 
 type V1TenantControl struct {
 	TenantID        uuid.UUID          `json:"tenant_id"`
-	IngestPerSecond int32              `json:"ingest_per_second"`
+	IngestPerSecond pgtype.Int4        `json:"ingest_per_second"`
 	Reason          string             `json:"reason"`
 	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	Paused          bool               `json:"paused"`
+	PausedAt        pgtype.Timestamptz `json:"paused_at"`
 }
 
 type V1WorkerSlotConfig struct {

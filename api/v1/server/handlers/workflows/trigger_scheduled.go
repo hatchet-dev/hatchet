@@ -27,6 +27,11 @@ func (w *WorkflowService) WorkflowScheduledTrigger(ctx echo.Context, request gen
 		), nil
 	}
 
+	// creating the run now is new work, unlike the run coming due
+	if err := w.config.V1.TenantControl().Admit(scheduled.TenantId, 1); err != nil {
+		return nil, err
+	}
+
 	externalId, err := ticker.RunScheduledWorkflow(
 		ctx.Request().Context(),
 		w.config.Logger,

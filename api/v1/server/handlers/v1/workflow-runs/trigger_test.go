@@ -12,6 +12,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 func TestTriggerErrorResponse(t *testing.T) {
@@ -35,6 +36,15 @@ func TestTriggerErrorResponse(t *testing.T) {
 
 	t.Run("throttling is returned for the error handler", func(t *testing.T) {
 		in := fmt.Errorf("trigger: %w", throttled.Err())
+
+		resp, err := triggerErrorResponse(in)
+
+		require.Nil(t, resp)
+		require.ErrorIs(t, err, in)
+	})
+
+	t.Run("a pause is returned for the error handler", func(t *testing.T) {
+		in := fmt.Errorf("trigger: %w", status.Error(codes.ResourceExhausted, repository.ErrTenantPaused.Error()))
 
 		resp, err := triggerErrorResponse(in)
 

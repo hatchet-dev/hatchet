@@ -144,15 +144,32 @@ connections stay at `hatchet_fairpool_connection_limit{bucket="shared"}`, raise
 `DATABASE_FAIRPOOL_SHARED_MAX_PERCENT`.
 
 `hatchet_tenant_control` and `hatchet_tenant_control_refused_total` are
-labelled by `tenant_id` and `control`, which is `ingest` for the ingest rate
-limit an operator sets with
-`hatchet-admin tenant-control set --tenant-id <id> --ingest-per-second <n> --reason "..."`
-(`tenant-control clear` removes it, `tenant-control list` shows every control).
-Each engine and API process reads the controls every 2 seconds and reports
-both metrics as it last read them; their series exist only while a control is
-set. The limit is applied by each process on its own, so a tenant served by
+labelled by `tenant_id` and `control`, which is `paused` or `ingest`. An
+operator sets them with
+`hatchet-admin tenant-control set --tenant-id <id> --paused --reason "..."` or
+`--ingest-per-second <n>` (both can be given; `set` replaces the tenant's
+controls, `tenant-control clear` removes them, `tenant-control list` shows
+every control). Each engine and API process reads the controls every 2 seconds
+and reports both metrics as it last read them; their series exist only while a
+control is set.
+
+A pause stops scheduling the tenant's queued work and refuses its new work,
+and touches nothing else: running tasks finish and their results are recorded,
+timeouts, retries, reassignments and durable sleeps are processed as usual, and
+cron fires and scheduled runs that come due are written and wait in the queue.
+The scheduler reads the pause from the database each time it lists its
+tenants, about once a second. The time paused does not count toward schedule
+timeouts, however the pause ends, except for the second or two the scheduler
+takes to notice the pause and the resume. New runs and events, including child runs spawned by running tasks,
+replays and "trigger now" of a cron or a scheduled run, are refused with
+`ResourceExhausted` over gRPC and `429` over HTTP, without a retry delay. To
+resume a tenant whose clients are still sending at full rate, replace the
+pause with an ingest limit (`set --ingest-per-second <n>` without `--paused`)
+and loosen it in steps once the held backlog has drained.
+
+The ingest limit is applied by each process on its own, so a tenant served by
 several engine or API processes is admitted up to that many times the limit.
-Refused calls get `ResourceExhausted` with a `RetryInfo` delay over gRPC and
+Calls over it get `ResourceExhausted` with a `RetryInfo` delay over gRPC and
 `429` with `Retry-After` over HTTP.
 
 The publish duration and transit histograms are labelled by `kind` (the

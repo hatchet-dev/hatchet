@@ -7,8 +7,8 @@ import (
 
 var (
 	// TenantControl is 1 for each operator control set on a tenant, as this process last read
-	// them. control is "ingest". A series is removed when its control is cleared, so the metric is
-	// empty unless an operator has acted.
+	// them. control is "paused" or "ingest". A series is removed when its control is cleared, so
+	// the metric is empty unless an operator has acted.
 	TenantControl = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "hatchet_tenant_control",
 		Help: "Operator controls set on a tenant (1 while set)",

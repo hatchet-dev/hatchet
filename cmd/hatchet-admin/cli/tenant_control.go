@@ -20,6 +20,7 @@ import (
 var (
 	tenantControlTenantID string
 	tenantControlIngest   int32
+	tenantControlPaused   bool
 	tenantControlReason   string
 )
 
@@ -32,7 +33,12 @@ var tenantControlSetCmd = &cobra.Command{
 	Use:   "set",
 	Short: "set replaces a tenant's controls.",
 	Run: func(cmd *cobra.Command, args []string) {
-		opts, err := tenantControlSetOpts(tenantControlTenantID, tenantControlIngest, tenantControlReason)
+		var ingestPerSecond *int32
+		if cmd.Flags().Changed("ingest-per-second") {
+			ingestPerSecond = &tenantControlIngest
+		}
+
+		opts, err := tenantControlSetOpts(tenantControlTenantID, ingestPerSecond, tenantControlPaused, tenantControlReason)
 		if err != nil {
 			fatalf("%v", err)
 		}
@@ -103,26 +109,31 @@ func init() {
 	}
 
 	tenantControlSetCmd.Flags().Int32Var(&tenantControlIngest, "ingest-per-second", 0, "the most new runs and events each engine or API process admits for the tenant per second, at least 1; the rest are refused with a retry delay. The limit is per process, so with N processes serving the tenant it admits up to N times this")
+	tenantControlSetCmd.Flags().BoolVar(&tenantControlPaused, "paused", false, "stop scheduling the tenant's queued work and refuse its new runs and events. Accepted work is kept, and the time paused does not count toward schedule timeouts; set without --paused, or clear, to resume")
 	tenantControlSetCmd.Flags().StringVar(&tenantControlReason, "reason", "", "why, for the next operator")
-	_ = tenantControlSetCmd.MarkFlagRequired("ingest-per-second")
 	_ = tenantControlSetCmd.MarkFlagRequired("reason")
 }
 
-func tenantControlSetOpts(tenantID string, ingestPerSecond int32, reason string) (v1.SetTenantControlOpts, error) {
+// tenantControlSetOpts validates the flags of set. ingestPerSecond is nil when the flag is not given.
+func tenantControlSetOpts(tenantID string, ingestPerSecond *int32, paused bool, reason string) (v1.SetTenantControlOpts, error) {
 	id, err := uuid.Parse(tenantID)
 	if err != nil {
 		return v1.SetTenantControlOpts{}, fmt.Errorf("--tenant-id is not a valid uuid: %w", err)
 	}
 
-	if ingestPerSecond < 1 {
-		return v1.SetTenantControlOpts{}, fmt.Errorf("--ingest-per-second must be at least 1, got %d", ingestPerSecond)
+	if ingestPerSecond == nil && !paused {
+		return v1.SetTenantControlOpts{}, errors.New("set at least one of --paused and --ingest-per-second; clear removes every control")
+	}
+
+	if ingestPerSecond != nil && *ingestPerSecond < 1 {
+		return v1.SetTenantControlOpts{}, fmt.Errorf("--ingest-per-second must be at least 1, got %d", *ingestPerSecond)
 	}
 
 	if reason == "" {
 		return v1.SetTenantControlOpts{}, errors.New("--reason must not be empty")
 	}
 
-	return v1.SetTenantControlOpts{TenantId: id, IngestPerSecond: ingestPerSecond, Reason: reason}, nil
+	return v1.SetTenantControlOpts{TenantId: id, IngestPerSecond: ingestPerSecond, Paused: paused, Reason: reason}, nil
 }
 
 // withTenantControls runs fn on a data layer of its own and exits the process if either fails.
@@ -140,7 +151,8 @@ func runWithTenantControls(fn func(ctx context.Context, repo v1.TenantControlRep
 
 	defer dc.Disconnect() // nolint: errcheck
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// a little longer than the statement timeout, so that a slow resume ends with the database's error
+	ctx, cancel := context.WithTimeout(context.Background(), v1.TenantControlChangeTimeout+time.Minute)
 	defer cancel()
 
 	return fn(ctx, dc.V1.TenantControl())
@@ -148,10 +160,20 @@ func runWithTenantControls(fn func(ctx context.Context, repo v1.TenantControlRep
 
 func printTenantControls(rows ...*sqlcv1.V1TenantControl) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "TENANT ID\tINGEST PER SECOND\tUPDATED AT\tREASON")
+	fmt.Fprintln(w, "TENANT ID\tPAUSED SINCE\tINGEST PER SECOND\tUPDATED AT\tREASON")
 
 	for _, row := range rows {
-		fmt.Fprintf(w, "%s\t%d\t%s\t%s\n", row.TenantID, row.IngestPerSecond, row.UpdatedAt.Time.UTC().Format(time.RFC3339), row.Reason)
+		pausedSince, ingest := "-", "-"
+
+		if row.Paused {
+			pausedSince = row.PausedAt.Time.UTC().Format(time.RFC3339)
+		}
+
+		if row.IngestPerSecond.Valid {
+			ingest = fmt.Sprint(row.IngestPerSecond.Int32)
+		}
+
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", row.TenantID, pausedSince, ingest, row.UpdatedAt.Time.UTC().Format(time.RFC3339), row.Reason)
 	}
 
 	_ = w.Flush()

@@ -150,6 +150,12 @@ type TenantRepository interface {
 
 	ListTenantsBySchedulerPartition(ctx context.Context, schedulerPartitionId string) ([]*sqlcv1.Tenant, error)
 
+	// ListSchedulableTenantsBySchedulerPartition lists the tenants of the scheduler partition that the
+	// scheduler may schedule: ListTenantsBySchedulerPartition without the tenants an operator paused.
+	// It reads v1_tenant_control on every call, so a paused tenant is left out whatever this process's
+	// snapshot of the controls holds.
+	ListSchedulableTenantsBySchedulerPartition(ctx context.Context, schedulerPartitionId string) ([]*sqlcv1.Tenant, error)
+
 	// CreateEnginePartition creates a new partition for tenants within the engine
 	CreateControllerPartition(ctx context.Context) (string, error)
 
@@ -919,6 +925,14 @@ func (r *tenantRepository) ListTenantsBySchedulerPartition(ctx context.Context, 
 	}
 
 	return r.queries.ListTenantsBySchedulerPartitionId(ctx, r.pool.ForShared(), schedulerPartitionId)
+}
+
+func (r *tenantRepository) ListSchedulableTenantsBySchedulerPartition(ctx context.Context, schedulerPartitionId string) ([]*sqlcv1.Tenant, error) {
+	if schedulerPartitionId == "" {
+		return nil, fmt.Errorf("partitionId is required")
+	}
+
+	return r.queries.ListSchedulableTenantsBySchedulerPartitionId(ctx, r.pool.ForShared(), schedulerPartitionId)
 }
 
 func (r *tenantRepository) CreateSchedulerPartition(ctx context.Context) (string, error) {

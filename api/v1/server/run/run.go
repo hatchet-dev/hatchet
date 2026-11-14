@@ -263,11 +263,12 @@ func hatchetIPExtractor(trustPrivateProxies bool, trustedProxies []string, logge
 	}
 }
 
-// retryableLimitErrorHandler answers 429 with a Retry-After header and an APIErrors body when a
-// request was throttled by the connection cap or an operator's ingest rate limit, and defers to
-// next for everything else. Handlers that proxy to the engine see either as a ResourceExhausted
-// status carrying RetryInfo, whose message is the engine's; a ResourceExhausted status without it
-// is a tenant quota and keeps the default handling.
+// retryableLimitErrorHandler answers 429 with an APIErrors body when a request was throttled by the
+// connection cap or an operator's ingest rate limit, with a Retry-After header, or refused because
+// an operator paused the tenant, without one. It defers to next for everything else. Handlers that
+// proxy to the engine see a throttle as a ResourceExhausted status carrying RetryInfo, whose
+// message is the engine's, and a pause as proxy.TenantPaused does; any other ResourceExhausted
+// status is a tenant quota and keeps the default handling.
 func retryableLimitErrorHandler(next echo.HTTPErrorHandler) echo.HTTPErrorHandler {
 	return func(err error, c echo.Context) {
 		var limitErr *fairpool.LimitError
@@ -279,20 +280,31 @@ func retryableLimitErrorHandler(next echo.HTTPErrorHandler) echo.HTTPErrorHandle
 			writeThrottled(rateLimited.RetryAfter, rateLimited.Error(), c)
 		} else if retryAfter, ok := proxy.ThrottleRetryAfter(err); ok {
 			writeThrottled(retryAfter, status.Convert(err).Message(), c)
+		} else if proxy.TenantPaused(err) {
+			writeTooManyRequests(repository.ErrTenantPaused.Error(), c)
 		} else {
 			next(err, c)
 		}
 	}
 }
 
-// writeThrottled writes the 429 response. The cause stays with the caller: the access logger
-// records the error returned by the handler chain, not what is written here.
+// writeThrottled writes the 429 response with a Retry-After header.
 func writeThrottled(retryAfter time.Duration, message string, c echo.Context) {
 	if c.Response().Committed {
 		return
 	}
 
 	c.Response().Header().Set(echo.HeaderRetryAfter, strconv.Itoa(max(1, int(math.Ceil(retryAfter.Seconds())))))
+
+	writeTooManyRequests(message, c)
+}
+
+// writeTooManyRequests writes a 429 response. The cause stays with the caller: the access logger
+// records the error returned by the handler chain, not what is written here.
+func writeTooManyRequests(message string, c echo.Context) {
+	if c.Response().Committed {
+		return
+	}
 
 	var err error
 
@@ -926,10 +938,8 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 // at info. A refusal by an operator control is expected, and a retrying client makes one per
 // attempt, so it logs at debug; hatchet_tenant_control_refused_total counts them.
 func accessLogLevel(status int, err error) zerolog.Level {
-	var rateLimited *repository.TenantRateLimitedError
-
 	switch {
-	case errors.As(err, &rateLimited):
+	case repository.IsTenantControlRefusal(err), proxy.TenantPaused(err):
 		return zerolog.DebugLevel
 	case status == hatchetmiddleware.StatusClientClosedRequest:
 		return zerolog.InfoLevel

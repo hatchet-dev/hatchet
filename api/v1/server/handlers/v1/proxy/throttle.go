@@ -1,11 +1,15 @@
 package proxy
 
 import (
+	"errors"
+	"strings"
 	"time"
 
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 // ThrottleRetryAfter reports whether err is a gRPC ResourceExhausted status that carries a
@@ -27,4 +31,17 @@ func ThrottleRetryAfter(err error) (time.Duration, bool) {
 	}
 
 	return 0, false
+}
+
+// TenantPaused reports whether err refuses a paused tenant: repository.ErrTenantPaused in process,
+// or the engine's ResourceExhausted status for it on a proxied call. That status carries no
+// RetryInfo, so its message is what tells it apart from a tenant quota.
+func TenantPaused(err error) bool {
+	if errors.Is(err, repository.ErrTenantPaused) {
+		return true
+	}
+
+	st, ok := status.FromError(err)
+
+	return ok && st.Code() == codes.ResourceExhausted && strings.HasSuffix(st.Message(), repository.ErrTenantPaused.Error())
 }
