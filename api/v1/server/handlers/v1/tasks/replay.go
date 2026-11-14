@@ -71,7 +71,7 @@ func (t *TasksService) V1TaskReplay(ctx echo.Context, request gen.V1TaskReplayRe
 	)
 
 	if err != nil {
-		if e, ok := status.FromError(err); ok && e.Code() == codes.InvalidArgument {
+		if e, ok := status.FromError(err); ok && (e.Code() == codes.InvalidArgument || e.Code() == codes.FailedPrecondition) {
 			return gen.V1TaskReplay400JSONResponse(
 				apierrors.NewAPIErrors(e.Message()),
 			), nil

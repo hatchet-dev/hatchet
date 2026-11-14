@@ -2548,7 +2548,25 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(ctx context.
 			return err
 		}
 
-		if len(tasks) == 0 {
+		var finalizedRun *v1.ListFinalizedWorkflowRunsResponse
+
+		// a run whose day core has dropped has no tasks there, and only the run log has its result
+		if len(tasks) > 0 || s.repov1.Tasks().RunLogEnabled() {
+			finalized, err := s.repov1.Tasks().ListFinalizedWorkflowRuns(ctx, tenantId, []uuid.UUID{workflowRunId})
+
+			if err != nil {
+				return err
+			}
+
+			for _, wr := range finalized {
+				if wr.WorkflowRunId == workflowRunId {
+					finalizedRun = wr
+					break
+				}
+			}
+		}
+
+		if len(tasks) == 0 && finalizedRun == nil {
 			select {
 			case <-ctx.Done():
 				return nil
@@ -2558,21 +2576,6 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(ctx context.
 		}
 
 		foundWorkflowRun = true
-
-		finalized, err := s.repov1.Tasks().ListFinalizedWorkflowRuns(ctx, tenantId, []uuid.UUID{workflowRunId})
-
-		if err != nil {
-			return err
-		}
-
-		var finalizedRun *v1.ListFinalizedWorkflowRunsResponse
-
-		for _, wr := range finalized {
-			if wr.WorkflowRunId == workflowRunId {
-				finalizedRun = wr
-				break
-			}
-		}
 
 		if finalizedRun != nil {
 			eventType := workflowRunEventTypeFromOutputEvents(finalizedRun.OutputEvents)

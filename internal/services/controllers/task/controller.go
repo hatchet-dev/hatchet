@@ -360,8 +360,18 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	startupPartitionCtx, cancelStartupPartition := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelStartupPartition()
 
+	partitionJobOpts := []gocron.JobOption{gocron.WithSingletonMode(gocron.LimitModeReschedule)}
+
 	// always create table partition on startup
-	if err := tc.createTablePartition(startupPartitionCtx); err != nil {
+	if tc.repov1.Tasks().RunLogEnabled() {
+		// archiving and dropping can take longer than the startup deadline, so they run only in the
+		// periodic job, which starts right away
+		if err := tc.repov1.Tasks().CreateTablePartitions(startupPartitionCtx); err != nil {
+			return nil, fmt.Errorf("could not create table partition: %w", err)
+		}
+
+		partitionJobOpts = append(partitionJobOpts, gocron.WithStartAt(gocron.WithStartImmediately()))
+	} else if err := tc.createTablePartition(startupPartitionCtx); err != nil {
 		return nil, fmt.Errorf("could not create table partition: %w", err)
 	}
 
@@ -374,7 +384,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 		gocron.NewTask(
 			tc.runTaskTablePartition(spanContext),
 		),
-		gocron.WithSingletonMode(gocron.LimitModeReschedule),
+		partitionJobOpts...,
 	)
 
 	if err != nil {
