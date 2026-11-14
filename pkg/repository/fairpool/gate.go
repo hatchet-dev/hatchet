@@ -58,6 +58,8 @@ const (
 )
 
 type gate struct {
+	// limit is each bucket's cap on checkouts in flight. Zero means the buckets are not capped:
+	// they have no semaphore and only time their holds.
 	limit    int64
 	maxWait  time.Duration
 	poolName string
@@ -75,6 +77,7 @@ type gate struct {
 }
 
 type tenantSlots struct {
+	// sem is nil when the gate has no limit.
 	sem  *semaphore.Weighted
 	held int64
 	refs int
@@ -92,6 +95,7 @@ type slotHold struct {
 	g     *gate
 	key   string
 	slots *tenantSlots
+	start time.Time
 	once  sync.Once
 }
 
@@ -133,7 +137,7 @@ func (g *gate) pin(ctx context.Context, key string, tenantID uuid.UUID, open fun
 	}
 
 	if err := open(); err != nil {
-		slots.sem.Release(1)
+		slots.releaseSlot()
 		return nil, err
 	}
 
@@ -147,7 +151,7 @@ func (g *gate) pin(ctx context.Context, key string, tenantID uuid.UUID, open fun
 
 // reserve acquires one slot, waiting up to MaxWait. The caller must take or release it.
 func (g *gate) reserve(ctx context.Context, key string, slots *tenantSlots, tenantID uuid.UUID) (time.Duration, error) {
-	if slots.sem.TryAcquire(1) {
+	if slots.sem == nil || slots.sem.TryAcquire(1) {
 		return 0, nil
 	}
 
@@ -196,7 +200,10 @@ func (g *gate) borrow(key string) *tenantSlots {
 
 	slots, ok := g.tenants[key]
 	if !ok {
-		slots = &tenantSlots{sem: semaphore.NewWeighted(g.limit)}
+		slots = &tenantSlots{}
+		if g.limit > 0 {
+			slots.sem = semaphore.NewWeighted(g.limit)
+		}
 		g.tenants[key] = slots
 	}
 
@@ -214,6 +221,8 @@ func (g *gate) releaseBorrow(key string, slots *tenantSlots) {
 }
 
 func (g *gate) take(key string, slots *tenantSlots) *slotHold {
+	start := time.Now()
+
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
@@ -221,7 +230,7 @@ func (g *gate) take(key string, slots *tenantSlots) *slotHold {
 	slots.refs++
 	g.noteHeldLocked(key, slots)
 
-	return &slotHold{g: g, key: key, slots: slots}
+	return &slotHold{g: g, key: key, slots: slots, start: start}
 }
 
 func (h *slotHold) release() {
@@ -230,6 +239,8 @@ func (h *slotHold) release() {
 	}
 
 	h.once.Do(func() {
+		prometheus.FairpoolHeldSeconds.WithLabelValues(h.g.poolName, h.key).Add(time.Since(h.start).Seconds())
+
 		h.g.mu.Lock()
 		h.slots.held--
 		h.slots.refs--
@@ -237,8 +248,14 @@ func (h *slotHold) release() {
 		h.g.evictLocked(h.key, h.slots)
 		h.g.mu.Unlock()
 
-		h.slots.sem.Release(1)
+		h.slots.releaseSlot()
 	})
+}
+
+func (s *tenantSlots) releaseSlot() {
+	if s.sem != nil {
+		s.sem.Release(1)
+	}
 }
 
 func (g *gate) evictLocked(key string, slots *tenantSlots) {
@@ -247,7 +264,12 @@ func (g *gate) evictLocked(key string, slots *tenantSlots) {
 	}
 }
 
+// noteHeldLocked keeps FairpoolHeldConns, which only capped gates report.
 func (g *gate) noteHeldLocked(key string, slots *tenantSlots) {
+	if g.limit == 0 {
+		return
+	}
+
 	if slots.held <= 0 {
 		slots.held = 0
 		prometheus.FairpoolHeldConns.DeleteLabelValues(g.poolName, key)

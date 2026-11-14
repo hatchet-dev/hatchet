@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -333,6 +334,23 @@ type errRow struct {
 
 func (e errRow) Scan(dest ...any) error { return e.err }
 
+// errRows is the result of a Query that failed before it returned rows. Like the rows pgx returns
+// with an error, it is not nil and reports the error, so a caller that checks only rows.Err sees it.
+type errRows struct {
+	err error
+}
+
+func (errRows) Close()                                       {}
+func (e errRows) Err() error                                 { return e.err }
+func (errRows) CommandTag() pgconn.CommandTag                { return pgconn.CommandTag{} }
+func (errRows) FieldDescriptions() []pgconn.FieldDescription { return nil }
+func (errRows) Next() bool                                   { return false }
+func (e errRows) Scan(dest ...any) error                     { return e.err }
+func (e errRows) Values() ([]any, error)                     { return nil, e.err }
+func (errRows) RawValues() [][]byte                          { return nil }
+func (errRows) Conn() *pgx.Conn                              { return nil }
+func (errRows) TypeMap() *pgtype.Map                         { return nil }
+
 type errBatchResults struct {
 	err error
 }
@@ -341,7 +359,7 @@ func (b errBatchResults) Exec() (pgconn.CommandTag, error) {
 	return pgconn.CommandTag{}, b.err
 }
 
-func (b errBatchResults) Query() (pgx.Rows, error) { return nil, b.err }
+func (b errBatchResults) Query() (pgx.Rows, error) { return errRows(b), b.err }
 
 func (b errBatchResults) QueryRow() pgx.Row { return errRow(b) }
 

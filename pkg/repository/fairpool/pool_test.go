@@ -112,35 +112,53 @@ func newPoolWithOptions(t *testing.T, opts fairpool.Options, tracer pgx.QueryTra
 	return pool, name
 }
 
-func gaugeValue(poolName, tenantID string) (value float64, found bool) {
+// collect returns the series of c whose labels include every pair in want.
+func collect(c prometheus.Collector, want map[string]string) []*dto.Metric {
 	ch := make(chan prometheus.Metric)
 	go func() {
-		prommetrics.FairpoolHeldConns.Collect(ch)
+		c.Collect(ch)
 		close(ch)
 	}()
 
+	var found []*dto.Metric
+
 	for metric := range ch {
-		var m dto.Metric
-		if err := metric.Write(&m); err != nil {
+		m := &dto.Metric{}
+		if err := metric.Write(m); err != nil {
 			continue
 		}
 
-		var gotPool, gotTenant string
+		matched := 0
 		for _, label := range m.GetLabel() {
-			switch label.GetName() {
-			case "pool":
-				gotPool = label.GetValue()
-			case "tenant_id":
-				gotTenant = label.GetValue()
+			if v, ok := want[label.GetName()]; ok && v == label.GetValue() {
+				matched++
 			}
 		}
 
-		if gotPool == poolName && gotTenant == tenantID {
-			value, found = m.GetGauge().GetValue(), true
+		if matched == len(want) {
+			found = append(found, m)
 		}
 	}
 
-	return value, found
+	return found
+}
+
+func gaugeValue(poolName, tenantID string) (value float64, found bool) {
+	series := collect(prommetrics.FairpoolHeldConns, map[string]string{"pool": poolName, "tenant_id": tenantID})
+	if len(series) == 0 {
+		return 0, false
+	}
+
+	return series[0].GetGauge().GetValue(), true
+}
+
+func heldSeconds(poolName, tenantID string) (value float64, found bool) {
+	series := collect(prommetrics.FairpoolHeldSeconds, map[string]string{"pool": poolName, "tenant_id": tenantID})
+	if len(series) == 0 {
+		return 0, false
+	}
+
+	return series[0].GetCounter().GetValue(), true
 }
 
 func requireHeld(t *testing.T, poolName, tenantID string, want float64) {
@@ -640,4 +658,205 @@ func TestAcquireSpanStaysOnInnerPool(t *testing.T) {
 		}
 	}
 	require.True(t, found, "pool.acquire span was not recorded")
+}
+
+// An uncapped tenant may hold the whole pool. Its next checkout waits for the pool, past MaxWait
+// and without a LimitError, until a connection is released or the caller's context ends.
+func TestUncappedTenantWaitsOnlyForPool(t *testing.T) {
+	const maxWait = 100 * time.Millisecond
+
+	for _, percent := range []int{0, 100} {
+		t.Run(fmt.Sprintf("percent_%d", percent), func(t *testing.T) {
+			pool, name := newPoolWithOptions(t, fairpool.Options{MaxPercent: percent, MaxWait: maxWait}, nil)
+			ctx := context.Background()
+			tenantA := uuid.New()
+			dbA := pool.ForTenant(tenantA)
+
+			var txs []pgx.Tx
+			for i := 0; i < int(pool.Config().MaxConns); i++ {
+				tx, err := dbA.Begin(ctx)
+				require.NoError(t, err)
+				t.Cleanup(func() { _ = tx.Rollback(context.Background()) })
+				txs = append(txs, tx)
+			}
+			// held_connections is reported only for capped buckets
+			requireGone(t, name, tenantA.String())
+
+			deadlineCtx, cancel := context.WithTimeout(ctx, 3*maxWait)
+			defer cancel()
+			_, err := dbA.Begin(deadlineCtx)
+			require.ErrorIs(t, err, context.DeadlineExceeded)
+			require.NotErrorAs(t, err, new(*fairpool.LimitError))
+
+			done := make(chan error, 1)
+			go func() {
+				tx, err := dbA.Begin(ctx)
+				if err != nil {
+					done <- err
+					return
+				}
+				done <- tx.Rollback(ctx)
+			}()
+
+			time.Sleep(3 * maxWait)
+			select {
+			case err := <-done:
+				t.Fatalf("checkout on a full pool returned before a connection was released: %v", err)
+			default:
+			}
+
+			require.NoError(t, txs[0].Rollback(ctx))
+
+			select {
+			case err := <-done:
+				require.NoError(t, err)
+			case <-time.After(2 * time.Second):
+				t.Fatal("checkout did not proceed after a connection was released")
+			}
+
+			for _, tx := range txs[1:] {
+				require.NoError(t, tx.Rollback(ctx))
+			}
+
+			require.Empty(t, collect(prommetrics.FairpoolRejections, map[string]string{"pool": name}))
+			require.Empty(t, collect(prommetrics.FairpoolWait, map[string]string{"pool": name}))
+		})
+	}
+}
+
+// The upper bounds only catch a hold counted many times over; they leave room for a slow runner.
+func TestHeldSecondsCountsEachBucket(t *testing.T) {
+	const sleep = 0.1
+
+	for _, percent := range []int{0, 50} {
+		t.Run(fmt.Sprintf("percent_%d", percent), func(t *testing.T) {
+			pool, name := newSharedCappedPool(t, percent, time.Second)
+			ctx := context.Background()
+			tenantA := uuid.New()
+			tenantB := uuid.New()
+
+			_, err := pool.ForTenant(tenantA).Exec(ctx, fmt.Sprintf("SELECT pg_sleep(%g)", sleep))
+			require.NoError(t, err)
+
+			tx, err := pool.ForTenant(tenantA).Begin(ctx)
+			require.NoError(t, err)
+			_, err = tx.Exec(ctx, fmt.Sprintf("SELECT pg_sleep(%g)", sleep))
+			require.NoError(t, err)
+			require.NoError(t, tx.Commit(ctx))
+
+			heldA, ok := heldSeconds(name, tenantA.String())
+			require.True(t, ok)
+			require.GreaterOrEqual(t, heldA, 2*sleep)
+			require.Less(t, heldA, 2*sleep+2)
+
+			_, err = pool.ForShared().Exec(ctx, fmt.Sprintf("SELECT pg_sleep(%g)", sleep))
+			require.NoError(t, err)
+
+			heldShared, ok := heldSeconds(name, "shared")
+			require.True(t, ok)
+			require.GreaterOrEqual(t, heldShared, sleep)
+			require.Less(t, heldShared, sleep+2)
+
+			_, err = pool.ForTenant(tenantB).Exec(ctx, "SELECT 1")
+			require.NoError(t, err)
+
+			heldB, ok := heldSeconds(name, tenantB.String())
+			require.True(t, ok)
+			require.Greater(t, heldB, 0.0)
+			require.Less(t, heldB, 2.0)
+
+			_, err = pool.Unwrap().Exec(ctx, "SELECT 1")
+			require.NoError(t, err)
+
+			_, err = fairpool.Ungated(pool.Unwrap()).ForTenant(tenantA).Exec(ctx, fmt.Sprintf("SELECT pg_sleep(%g)", sleep))
+			require.NoError(t, err)
+
+			stillA, _ := heldSeconds(name, tenantA.String())
+			require.Equal(t, heldA, stillA, "other buckets, Unwrap and Ungated must not add to tenant A")
+		})
+	}
+}
+
+// Pools in one process may share a PoolName. Their holds add to one series, and each keeps adding
+// after the other's bucket for the same tenant has come and gone.
+func TestPoolsWithOneNameShareSeries(t *testing.T) {
+	const sleep = 0.05
+
+	capped, name := newPool(t, 50, time.Second, nil)
+	cfg := capped.Config()
+	uncapped, err := fairpool.NewWithConfig(context.Background(), cfg, fairpool.Options{PoolName: name})
+	require.NoError(t, err)
+	t.Cleanup(uncapped.Close)
+
+	ctx := context.Background()
+	tenant := uuid.New()
+	total := 0.0
+
+	for _, pool := range []*fairpool.Pool{capped, uncapped, capped, uncapped} {
+		_, err := pool.ForTenant(tenant).Exec(ctx, fmt.Sprintf("SELECT pg_sleep(%g)", sleep))
+		require.NoError(t, err)
+
+		held, ok := heldSeconds(name, tenant.String())
+		require.True(t, ok)
+		require.GreaterOrEqual(t, held, total+sleep)
+		total = held
+	}
+}
+
+// A Query that fails before it returns rows still returns rows that carry the error, as pgxpool's
+// Query does, so a caller that ignores Query's error and checks rows.Err sees it.
+func TestFailedQueryReturnsRowsWithError(t *testing.T) {
+	capped, _ := newPool(t, 50, 50*time.Millisecond, nil)
+	uncapped, _ := newPoolWithOptions(t, fairpool.Options{}, nil)
+	ctx := context.Background()
+	tenant := uuid.New()
+
+	canceled, cancel := context.WithCancel(ctx)
+	cancel()
+
+	queries := map[string]func(context.Context) (pgx.Rows, error){
+		"pgxpool": func(ctx context.Context) (pgx.Rows, error) { return uncapped.Unwrap().Query(ctx, "SELECT 1") },
+		"ungated": func(ctx context.Context) (pgx.Rows, error) {
+			return fairpool.Ungated(uncapped.Unwrap()).ForTenant(tenant).Query(ctx, "SELECT 1")
+		},
+		"uncapped": func(ctx context.Context) (pgx.Rows, error) { return uncapped.ForTenant(tenant).Query(ctx, "SELECT 1") },
+		"capped":   func(ctx context.Context) (pgx.Rows, error) { return capped.ForTenant(tenant).Query(ctx, "SELECT 1") },
+		"batch": func(ctx context.Context) (pgx.Rows, error) {
+			batch := &pgx.Batch{}
+			batch.Queue("SELECT 1")
+			return uncapped.ForTenant(tenant).SendBatch(ctx, batch).Query()
+		},
+	}
+
+	requireErrRows := func(t *testing.T, rows pgx.Rows, err error, target error) {
+		t.Helper()
+		require.ErrorIs(t, err, target)
+		require.NotNil(t, rows)
+		require.False(t, rows.Next())
+		require.ErrorIs(t, rows.Err(), target)
+		rows.Close()
+		_, collectErr := pgx.CollectRows(rows, pgx.RowTo[int])
+		require.ErrorIs(t, collectErr, target)
+	}
+
+	for name, query := range queries {
+		t.Run(name, func(t *testing.T) {
+			rows, err := query(canceled)
+			requireErrRows(t, rows, err, context.Canceled)
+		})
+	}
+
+	t.Run("limit", func(t *testing.T) {
+		db := capped.ForTenant(tenant)
+		for i := 0; i < 2; i++ {
+			tx, err := db.Begin(ctx)
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = tx.Rollback(context.Background()) })
+		}
+
+		var limitErr *fairpool.LimitError
+		rows, err := db.Query(ctx, "SELECT 1")
+		require.ErrorAs(t, err, &limitErr)
+		requireErrRows(t, rows, err, limitErr)
+	})
 }
