@@ -5,6 +5,12 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.47.3] - 2026-11-14
+
+### Fixed
+
+- Retried unary gRPC calls that fail with a `google.rpc.RetryInfo` detail, such as `RESOURCE_EXHAUSTED` when the engine throttles a call, now wait the delay the server asks for, capped at 5 seconds, instead of the SDK's own backoff. This covers the calls the retrier makes over the Connect transport, such as workflow triggers, bulk triggers and event pushes; the attempt limit and which errors are retried are unchanged.
+
 ## [1.47.2] - 2026-11-13
 
 ### Fixed
