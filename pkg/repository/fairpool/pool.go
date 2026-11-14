@@ -80,7 +80,10 @@ func Ungated(inner *pgxpool.Pool) *Pool {
 		return nil
 	}
 
-	return newPool(inner, Options{})
+	p := &Pool{inner: inner}
+	p.shared = &handle{pool: p, key: sharedKey}
+
+	return p
 }
 
 func newPool(inner *pgxpool.Pool, opts Options) *Pool {
@@ -96,13 +99,13 @@ func newPool(inner *pgxpool.Pool, opts Options) *Pool {
 
 	maxConns := inner.Config().MaxConns
 
-	if limit := connectionLimit(maxConns, opts.MaxPercent); limit > 0 {
-		p.gate = newGate(limit, opts.MaxWait, opts.PoolName, opts.L)
+	p.gate = newGate(connectionLimit(maxConns, opts.MaxPercent), opts.MaxWait, opts.PoolName, opts.L)
+	if limit := p.gate.limit; limit > 0 {
 		prometheus.FairpoolConnectionLimit.WithLabelValues(opts.PoolName, "tenant").Set(float64(limit))
 	}
 
-	if limit := connectionLimit(maxConns, opts.SharedMaxPercent); limit > 0 {
-		p.sharedGate = newGate(limit, opts.MaxWait, opts.PoolName, opts.L)
+	p.sharedGate = newGate(connectionLimit(maxConns, opts.SharedMaxPercent), opts.MaxWait, opts.PoolName, opts.L)
+	if limit := p.sharedGate.limit; limit > 0 {
 		prometheus.FairpoolConnectionLimit.WithLabelValues(opts.PoolName, sharedKey).Set(float64(limit))
 	}
 
@@ -121,7 +124,7 @@ func checkPercent(name string, percent int) error {
 }
 
 // connectionLimit is the number of checkouts one bucket may have in flight.
-// Zero means no gate is installed.
+// Zero means the bucket is not capped.
 func connectionLimit(maxConns int32, percent int) int64 {
 	if percent <= 0 || percent >= 100 || maxConns <= 0 {
 		return 0
@@ -262,13 +265,13 @@ func (h *handle) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, 
 
 	conn, hold, err := h.pinConn(ctx)
 	if err != nil {
-		return nil, err
+		return errRows{err: err}, err
 	}
 
 	rows, err := conn.Query(ctx, sql, args...)
 	if err != nil {
 		releaseCheckedOut(hold, conn.Release)
-		return nil, err
+		return errRows{err: err}, err
 	}
 
 	return newGatingRows(rows, conn, hold), nil

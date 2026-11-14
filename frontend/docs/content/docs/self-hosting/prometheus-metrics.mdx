@@ -111,12 +111,14 @@ Restart your Hatchet server after setting these variables to apply the changes.
 | `hatchet_pubsub_handler_slot_wait_seconds`                 | Histogram | Time a pub/sub delivery waited for a free handler slot                                             |
 | `hatchet_pubsub_nats_scheduler_partition_pending_messages` | Gauge     | Messages buffered by the NATS scheduler-partition subscription, not yet handed to a handler        |
 | `hatchet_fairpool_held_connections`                        | Gauge     | Database connections a fairpool bucket currently holds                                             |
+| `hatchet_fairpool_held_seconds_total`                      | Counter   | Seconds database connections were checked out by a fairpool bucket                                 |
 | `hatchet_fairpool_connection_limit`                        | Gauge     | Database checkouts a fairpool bucket may have in flight at once                                    |
 | `hatchet_fairpool_wait_seconds`                            | Histogram | Time an acquire waited for a fairpool connection slot                                              |
 | `hatchet_fairpool_rejections_total`                        | Counter   | Acquires rejected because a fairpool bucket was at its cap for `DATABASE_FAIRPOOL_TENANT_MAX_WAIT` |
 
-The `hatchet_fairpool_*` metrics are reported per engine or API process, and only for
-buckets with a cap: `DATABASE_FAIRPOOL_TENANT_MAX_PERCENT` or
+The `hatchet_fairpool_*` metrics are reported per engine or API process. All but
+`hatchet_fairpool_held_seconds_total` are reported only for buckets with a cap:
+`DATABASE_FAIRPOOL_TENANT_MAX_PERCENT` or
 `DATABASE_FAIRPOOL_SHARED_MAX_PERCENT` from `1` to `99`. `pool` is `main` or
 `read-replica`. `bucket` is `tenant` or `shared`; the `tenant` limit applies to
 each tenant separately. `hatchet_fairpool_held_connections` is labelled by
@@ -124,6 +126,14 @@ each tenant separately. `hatchet_fairpool_held_connections` is labelled by
 when its count returns to zero. `hatchet_fairpool_wait_seconds` is labelled by
 `outcome` (`acquired`, `rejected` or `canceled`) and only observes acquires that
 had to wait.
+
+`hatchet_fairpool_held_seconds_total` is reported for every tenant, with or
+without a cap, and is labelled by `pool` and `tenant_id`, which is a tenant id or
+`shared`. Its series stay for the life of the process: expect about one per
+tenant per pool per process. Held time runs from the moment a connection is
+checked out to its release, so it includes lock waits and the engine's own work
+inside a transaction, and excludes time spent waiting for a connection. It shows
+how much of the pool a tenant occupies, not its share of database CPU.
 
 The shared bucket carries engine work that is not tied to a tenant, including
 partition heartbeats and API lookups that run before the tenant is known. If
@@ -295,6 +305,13 @@ hatchet_fairpool_connection_limit{bucket="shared"}
 
 # Shared acquires rejected per second
 sum by (pool) (rate(hatchet_fairpool_rejections_total{bucket="shared"}[5m]))
+```
+
+#### 15. Top Tenants by Database Time
+
+```promql
+# Connections each tenant held on average over 5 minutes, summed over processes
+topk(10, sum by (tenant_id) (rate(hatchet_fairpool_held_seconds_total{pool="main"}[5m])))
 ```
 
 ## Tenant Metrics

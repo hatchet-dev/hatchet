@@ -29,6 +29,16 @@ var (
 		Help: "Database connections currently held by a fairpool bucket",
 	}, []string{"pool", "tenant_id"})
 
+	// FairpoolHeldSeconds is the wall-clock time a bucket's checkouts were held, added when each is
+	// released. It includes lock waits and the engine's own work inside a transaction, so it measures
+	// how much of the pool a bucket occupies rather than database CPU. tenant_id is the tenant id, or
+	// "shared". It is reported with or without a cap, and a series exists for each bucket the process
+	// has served since it started.
+	FairpoolHeldSeconds = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "hatchet_fairpool_held_seconds_total",
+		Help: "Seconds database connections were checked out by a fairpool bucket",
+	}, []string{"pool", "tenant_id"})
+
 	// FairpoolConnectionLimit is the cap of a bucket that has one. For bucket "tenant" the cap applies
 	// to each tenant separately.
 	FairpoolConnectionLimit = promauto.NewGaugeVec(prometheus.GaugeOpts{
