@@ -109,8 +109,7 @@ func codeToLevel(err error) zerolog.Level {
 
 	// A refusal by an operator control is expected, and a retrying client makes one per attempt;
 	// hatchet_tenant_control_refused_total counts them.
-	var rateLimited *repository.TenantRateLimitedError
-	if errors.As(err, &rateLimited) {
+	if repository.IsTenantControlRefusal(err) {
 		return zerolog.DebugLevel
 	}
 

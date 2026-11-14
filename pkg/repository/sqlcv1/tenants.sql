@@ -495,6 +495,19 @@ WHERE
     AND "version" = 'V1'::"TenantMajorEngineVersion"
     AND "deletedAt" IS NULL;
 
+-- name: ListSchedulableTenantsBySchedulerPartitionId :many
+-- The tenants of a scheduler partition that the scheduler may schedule: those an operator paused
+-- are left out.
+SELECT
+    *
+FROM
+    "Tenant" as tenants
+WHERE
+    "schedulerPartitionId" = sqlc.arg('schedulerPartitionId')::text
+    AND "version" = 'V1'::"TenantMajorEngineVersion"
+    AND "deletedAt" IS NULL
+    AND NOT EXISTS (SELECT 1 FROM v1_tenant_control c WHERE c.tenant_id = tenants."id" AND c.paused);
+
 -- name: UpsertTenantAlertingSettings :one
 INSERT INTO "TenantAlertingSettings" (
     "id",

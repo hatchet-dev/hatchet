@@ -45,6 +45,8 @@ func TestRetryableLimitErrorHandler(t *testing.T) {
 		"proxied throttle":               {err: throttledStatus(t, 2*time.Second), want: http.StatusTooManyRequests, retryAfter: "2", description: "throttled"},
 		"proxied throttle rounds up":     {err: throttledStatus(t, 1500*time.Millisecond), want: http.StatusTooManyRequests, retryAfter: "2", description: "throttled"},
 		"proxied throttle without delay": {err: throttledStatus(t, 0), want: http.StatusTooManyRequests, retryAfter: "1", description: "throttled"},
+		"tenant paused":                  {err: fmt.Errorf("could not ingest event: %w", repository.ErrTenantPaused), want: http.StatusTooManyRequests, description: "resource exhausted: tenant is paused by an operator"},
+		"proxied tenant paused":          {err: status.Error(codes.ResourceExhausted, repository.ErrTenantPaused.Error()), want: http.StatusTooManyRequests, description: "resource exhausted: tenant is paused by an operator"},
 		"proxied resource exhausted":     {err: status.Error(codes.ResourceExhausted, "limit"), want: http.StatusInternalServerError},
 		"proxied unavailable":            {err: status.Error(codes.Unavailable, "down"), want: http.StatusInternalServerError},
 		"other error":                    {err: fmt.Errorf("boom"), want: http.StatusInternalServerError},

@@ -908,6 +908,58 @@ func (q *Queries) GetTenantWorkflowQueueMetrics(ctx context.Context, db DBTX, ar
 	return items, nil
 }
 
+const listSchedulableTenantsBySchedulerPartitionId = `-- name: ListSchedulableTenantsBySchedulerPartitionId :many
+SELECT
+    id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1", "onboardingData", environment
+FROM
+    "Tenant" as tenants
+WHERE
+    "schedulerPartitionId" = $1::text
+    AND "version" = 'V1'::"TenantMajorEngineVersion"
+    AND "deletedAt" IS NULL
+    AND NOT EXISTS (SELECT 1 FROM v1_tenant_control c WHERE c.tenant_id = tenants."id" AND c.paused)
+`
+
+// The tenants of a scheduler partition that the scheduler may schedule: those an operator paused
+// are left out.
+func (q *Queries) ListSchedulableTenantsBySchedulerPartitionId(ctx context.Context, db DBTX, schedulerpartitionid string) ([]*Tenant, error) {
+	rows, err := db.Query(ctx, listSchedulableTenantsBySchedulerPartitionId, schedulerpartitionid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*Tenant
+	for rows.Next() {
+		var i Tenant
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.Version,
+			&i.UiVersion,
+			&i.Name,
+			&i.Slug,
+			&i.AnalyticsOptOut,
+			&i.AlertMemberEmails,
+			&i.ControllerPartitionId,
+			&i.WorkerPartitionId,
+			&i.DataRetentionPeriod,
+			&i.SchedulerPartitionId,
+			&i.CanUpgradeV1,
+			&i.OnboardingData,
+			&i.Environment,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTenantAlertGroups = `-- name: ListTenantAlertGroups :many
 SELECT
     id, "createdAt", "updatedAt", "deletedAt", "tenantId", emails

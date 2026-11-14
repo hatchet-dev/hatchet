@@ -169,7 +169,8 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 // returned as an error for the API error handler to answer as 429 with Retry-After because the
 // generated responses for this operation have no 429.
 func triggerErrorResponse(err error) (gen.V1WorkflowRunCreateResponseObject, error) {
-	if _, throttled := proxy.ThrottleRetryAfter(err); throttled {
+	// the API's error handler answers 429
+	if _, throttled := proxy.ThrottleRetryAfter(err); throttled || proxy.TenantPaused(err) {
 		return nil, err
 	}
 

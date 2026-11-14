@@ -456,6 +456,11 @@ func (d *DispatcherServiceImpl) logDurableTaskRequestError(err error) {
 		return
 	}
 
+	if errors.Is(err, v1.ErrTenantPaused) {
+		d.l.Debug().Err(err).Msg("durable task request refused because the tenant is paused")
+		return
+	}
+
 	d.l.Error().Err(err).Msg("error handling durable task request")
 }
 
@@ -1026,13 +1031,15 @@ func (d *DispatcherServiceImpl) sendRequestFailure(invocation *durableTaskInvoca
 		return
 	}
 
-	// only an invalid request's message is the caller's to see; anything else may carry
-	// database or transport details
+	// only an invalid request's message and an operator's refusal are the caller's to see;
+	// anything else may carry database or transport details
 	message := "the engine failed to handle this request"
 
 	var connectErr *connect.Error
 	if errors.As(err, &connectErr) && connectErr.Code() == connect.CodeInvalidArgument {
 		message = connectErr.Message()
+	} else if errors.Is(err, v1.ErrTenantPaused) {
+		message = err.Error()
 	}
 
 	sendErr := invocation.send(&contracts.DurableTaskResponse{
@@ -1270,6 +1277,13 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 	taskExternalId, err := uuid.Parse(req.DurableTaskExternalId)
 	if err != nil {
 		return connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid durable_task_external_id: %v", err))
+	}
+
+	// A paused tenant's children are refused like its other new runs, before any read. The ingest
+	// rate limit does not apply here: a durable task re-sends the spawns already in its log when it
+	// is re-invoked, and the worker does not retry a refused request.
+	if d.repo.TenantControl().IsPaused(invocation.tenantId) {
+		return v1.ErrTenantPaused
 	}
 
 	for _, w := range req.TriggerOpts {
