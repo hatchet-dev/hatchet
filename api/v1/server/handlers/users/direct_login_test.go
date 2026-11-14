@@ -37,6 +37,7 @@ func exchangeTokenConfig() *server.ServerConfig {
 				BasicAuthEnabled: true,
 				Google:           server.ConfigFileAuthGoogle{Enabled: true},
 				Github:           server.ConfigFileAuthGithub{Enabled: true},
+				OIDC:             server.ConfigFileAuthOIDC{Enabled: true},
 				ControlPlaneExchangeTokenConfig: server.ConfigFileAuthControlPlaneExchangeToken{
 					Enabled: true,
 				},
@@ -111,6 +112,12 @@ func assertDirectLoginRejected(t *testing.T, svc *UserService, operationID strin
 		requireSignupDisabledRedirect(t, err, rec)
 	case "UserUpdateGithubOauthCallback":
 		_, err := svc.UserUpdateGithubOauthCallback(c, gen.UserUpdateGithubOauthCallbackRequestObject{})
+		requireSignupDisabledRedirect(t, err, rec)
+	case "UserUpdateOidcOauthStart":
+		_, err := svc.UserUpdateOidcOauthStart(c, gen.UserUpdateOidcOauthStartRequestObject{})
+		requireSignupDisabledRedirect(t, err, rec)
+	case "UserUpdateOidcOauthCallback":
+		_, err := svc.UserUpdateOidcOauthCallback(c, gen.UserUpdateOidcOauthCallbackRequestObject{})
 		requireSignupDisabledRedirect(t, err, rec)
 	default:
 		t.Fatalf("public operation %s is not rejected when exchange tokens are enabled", operationID)
