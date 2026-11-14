@@ -91,7 +91,7 @@ module Hatchet
           request = ::V1::TriggerWorkflowRequest.new(**request_args)
 
           begin
-            response = @v0_stub.trigger_workflow(request, metadata: @config.auth_metadata)
+            response = ServerRetryDelay.call { @v0_stub.trigger_workflow(request, metadata: @config.auth_metadata) }
             response.workflow_run_id
           rescue ::GRPC::AlreadyExists => e
             run_id = extract_idempotency_run_id(e)
@@ -152,7 +152,7 @@ module Hatchet
           begin
             requests.each_slice(BULK_TRIGGER_BATCH_SIZE) do |batch|
               bulk_request = ::BulkTriggerWorkflowRequest.new(workflows: batch)
-              response = @v0_stub.bulk_trigger_workflow(bulk_request, metadata: @config.auth_metadata)
+              response = ServerRetryDelay.call { @v0_stub.bulk_trigger_workflow(bulk_request, metadata: @config.auth_metadata) }
               all_run_ids.concat(response.workflow_run_ids.to_a)
             end
           rescue ::GRPC::AlreadyExists => e

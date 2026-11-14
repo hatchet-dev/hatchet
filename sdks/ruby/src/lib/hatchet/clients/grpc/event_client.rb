@@ -64,7 +64,7 @@ module Hatchet
           request_args[:scope] = scope if scope
 
           request = ::PushEventRequest.new(**request_args)
-          @stub.push(request, metadata: @config.auth_metadata)
+          ServerRetryDelay.call { @stub.push(request, metadata: @config.auth_metadata) }
         end
 
         # Push multiple events via gRPC.
@@ -103,7 +103,7 @@ module Hatchet
           end
 
           request = ::BulkPushEventRequest.new(events: items)
-          @stub.bulk_push(request, metadata: @config.auth_metadata)
+          ServerRetryDelay.call { @stub.bulk_push(request, metadata: @config.auth_metadata) }
         end
 
         # Put a log message for a task run.
