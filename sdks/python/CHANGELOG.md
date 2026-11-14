@@ -177,7 +177,6 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 ### Removed
 
 - Removes the synchronous `hatchet.streams.reset`; use `aio_reset`, which now calls the engine asynchronously instead of from a worker thread.
->>>>>>> ee6d34ecd0baf10908a1a621b9b5324721026f25
 
 ## [1.44.0] - 2026-10-26
 
