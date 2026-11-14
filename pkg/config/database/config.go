@@ -46,6 +46,11 @@ type ConfigFile struct {
 	// 100 (the default) installs no cap. Values from 1 to 99 cap it at that percent of MaxConns.
 	FairpoolSharedMaxPercent int `mapstructure:"fairpoolSharedMaxPercent" json:"fairpoolSharedMaxPercent,omitempty" default:"100"`
 
+	// FairpoolTenantBudgetPercent is each tenant's database time budget: the share of the pool's
+	// connection-seconds one tenant may hold on average. 100 (the default) installs no budget. A tenant
+	// over its budget has its scheduling and periodic work deferred; other work is metered, never delayed.
+	FairpoolTenantBudgetPercent int `mapstructure:"fairpoolTenantBudgetPercent" json:"fairpoolTenantBudgetPercent,omitempty" default:"100"`
+
 	// FairpoolTenantMaxWait is how long an acquire waits for a slot before it fails.
 	// The wait is not applied to the query.
 	FairpoolTenantMaxWait time.Duration `mapstructure:"fairpoolTenantMaxWait" json:"fairpoolTenantMaxWait,omitempty" default:"5s"`
@@ -135,6 +140,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("maxConnIdleTime", "DATABASE_MAX_CONN_IDLE_TIME")
 	_ = v.BindEnv("fairpoolTenantMaxPercent", "DATABASE_FAIRPOOL_TENANT_MAX_PERCENT")
 	_ = v.BindEnv("fairpoolSharedMaxPercent", "DATABASE_FAIRPOOL_SHARED_MAX_PERCENT")
+	_ = v.BindEnv("fairpoolTenantBudgetPercent", "DATABASE_FAIRPOOL_TENANT_BUDGET_PERCENT")
 	_ = v.BindEnv("fairpoolTenantMaxWait", "DATABASE_FAIRPOOL_TENANT_MAX_WAIT")
 	_ = v.BindEnv("applicationNamePrefix", "K8S_POD_NAMESPACE")
 

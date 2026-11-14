@@ -138,8 +138,9 @@ func newTestScheduler(t *testing.T, tenantId uuid.UUID, ar repo.AssignmentReposi
 
 	sr := &mockSchedulerRepo{assignment: ar}
 	cf := &sharedConfig{
-		repo: sr,
-		l:    &l,
+		repo:    sr,
+		control: noTenantControls{},
+		l:       &l,
 	}
 
 	// rate limiter not needed for most tests; can be set by the caller if required.
@@ -1127,8 +1128,9 @@ func ptrTime(t time.Time) *time.Time { return &t }
 func TestScheduler_Start_Smoke(t *testing.T) {
 	l := zerolog.Nop()
 	cf := &sharedConfig{
-		repo: &mockSchedulerRepo{assignment: &mockAssignmentRepo{}},
-		l:    &l,
+		repo:    &mockSchedulerRepo{assignment: &mockAssignmentRepo{}},
+		control: noTenantControls{},
+		l:       &l,
 	}
 	s := newScheduler(cf, uuid.New(), nil, &Extensions{})
 
@@ -1764,7 +1766,7 @@ func BenchmarkScheduler_Replenish_DenseSharedActions(b *testing.B) {
 
 	l := zerolog.Nop()
 	sr := &mockSchedulerRepo{assignment: ar}
-	cf := &sharedConfig{repo: sr, l: &l}
+	cf := &sharedConfig{repo: sr, control: noTenantControls{}, l: &l}
 	s := newScheduler(cf, tenantId, nil, &Extensions{})
 
 	ctx, cancel := context.WithCancel(context.Background())

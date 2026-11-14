@@ -258,6 +258,15 @@ func (f *fakeBatchFactory) NewBatchQueue(uuid.UUID) v1repo.BatchQueueRepository 
 	return f.repo
 }
 
+// noTenantControls is a tenant control with no paused tenant and no budget.
+type noTenantControls struct {
+	v1repo.TenantControlRepository
+}
+
+func (noTenantControls) IsPaused(uuid.UUID) bool { return false }
+
+func (noTenantControls) AwaitBudget(context.Context, uuid.UUID) error { return nil }
+
 type fakeSchedulerRepository struct {
 	batchFactory v1repo.BatchQueueFactoryRepository
 }
@@ -298,7 +307,8 @@ func newTestSharedConfig(repo v1repo.BatchQueueRepository) *sharedConfig {
 		repo: &fakeSchedulerRepository{
 			batchFactory: &fakeBatchFactory{repo: repo},
 		},
-		l: &logger,
+		control: noTenantControls{},
+		l:       &logger,
 	}
 }
 

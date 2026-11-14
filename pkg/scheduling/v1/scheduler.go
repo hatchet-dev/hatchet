@@ -37,6 +37,7 @@ const parkedAssignRetryTimeout = 100 * time.Millisecond
 // assignments that completed in the meantime (see ackedDuringReplenish).
 type Scheduler struct {
 	repo     v1.AssignmentRepository
+	control  v1.TenantControlRepository
 	tenantId uuid.UUID
 
 	l *zerolog.Logger
@@ -107,6 +108,7 @@ func newScheduler(cf *sharedConfig, tenantId uuid.UUID, rl *rateLimiter, exts *E
 
 	return &Scheduler{
 		repo:               cf.repo.Assignment(),
+		control:            cf.control,
 		tenantId:           tenantId,
 		l:                  &l,
 		rl:                 rl,
@@ -820,6 +822,12 @@ func (s *Scheduler) loopReplenish(ctx context.Context) {
 	defer ticker.Stop()
 
 	run := func(mustReplenish bool) {
+		// yield to the tenant's database time budget outside the replenish timeout. Ticks and
+		// requests that arrive meanwhile coalesce in their channels.
+		if err := s.control.AwaitBudget(ctx, s.tenantId); err != nil {
+			return
+		}
+
 		innerCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
 

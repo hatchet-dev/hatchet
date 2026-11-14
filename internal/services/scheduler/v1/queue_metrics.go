@@ -191,7 +191,7 @@ func (s *Scheduler) runPollQueueMetrics(ctx context.Context) func() {
 		ctx, cancel := context.WithTimeout(ctx, queueMetricsPollTimeout)
 		defer cancel()
 
-		tenants, err := s.repov1.Tenant().ListTenantsBySchedulerPartition(ctx, s.p.GetSchedulerPartitionId())
+		tenants, err := s.listSchedulableTenants(ctx)
 
 		if err != nil {
 			s.l.Error().Err(err).Msg("could not list tenants for queue metrics")

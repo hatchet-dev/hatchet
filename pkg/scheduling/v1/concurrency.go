@@ -36,7 +36,8 @@ type ConcurrencyManager struct {
 
 	tenantId uuid.UUID
 
-	repo v1.ConcurrencyRepository
+	repo    v1.ConcurrencyRepository
+	control v1.TenantControlRepository
 
 	notifyConcurrencyCh chan map[string]string
 	notifyMu            mutex
@@ -82,6 +83,7 @@ func newConcurrencyManager(conf *sharedConfig, tenantId uuid.UUID, strategy *sql
 
 	c := &ConcurrencyManager{
 		repo:                   repo,
+		control:                conf.control,
 		strategy:               strategy,
 		concurrencyStrategy:    concurrencyStrategy,
 		tenantId:               tenantId,
@@ -239,6 +241,12 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 		case carrier = <-c.notifyConcurrencyCh:
 		}
 
+		// yield to the tenant's database time budget before the strategy locks, which the other
+		// loops of this tenant's strategies wait for with a timeout
+		if err := c.control.AwaitBudget(ctx, c.tenantId); err != nil {
+			return
+		}
+
 		ctx, span := telemetry.NewSpanWithCarrier(ctx, "concurrency-manager", carrier)
 
 		telemetry.WithAttributes(span,
@@ -302,6 +310,10 @@ func (c *ConcurrencyManager) loopCheckActive(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+		}
+
+		if err := c.control.AwaitBudget(ctx, c.tenantId); err != nil {
+			return
 		}
 
 		ctx, span := telemetry.NewSpan(ctx, "concurrency-check-active")

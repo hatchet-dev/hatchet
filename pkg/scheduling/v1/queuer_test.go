@@ -229,6 +229,7 @@ func TestQueuer_CapacityRestoredDuringFlushRequeuesMisses(t *testing.T) {
 	l := zerolog.Nop()
 	q := &Queuer{
 		repo:          qr,
+		control:       noTenantControls{},
 		tenantId:      tenantId,
 		queueName:     qi.Queue,
 		l:             &l,
@@ -394,6 +395,7 @@ func TestQueuerReplaysWakeLostWhileMissedItemInFlight(t *testing.T) {
 			l := zerolog.Nop()
 			q := &Queuer{
 				repo:          repo,
+				control:       noTenantControls{},
 				tenantId:      tenantId,
 				queueName:     "q",
 				l:             &l,
@@ -525,6 +527,7 @@ func TestQueuer_FailedFlushDoesNotReplayItself(t *testing.T) {
 	l := zerolog.Nop()
 	q := &Queuer{
 		repo:          repo,
+		control:       noTenantControls{},
 		tenantId:      tenantId,
 		queueName:     "q",
 		l:             &l,
@@ -568,4 +571,80 @@ func TestQueuer_FailedFlushDoesNotReplayItself(t *testing.T) {
 	require.Len(t, q.unassigned, 1)
 	require.Contains(t, q.unassigned, repo.items[1].ID)
 	q.unassignedMu.Unlock()
+}
+
+// blockingControl holds every AwaitBudget call until release is closed.
+type blockingControl struct {
+	noTenantControls
+
+	waiting chan struct{}
+	release chan struct{}
+}
+
+func (c blockingControl) AwaitBudget(ctx context.Context, _ uuid.UUID) error {
+	select {
+	case c.waiting <- struct{}{}:
+	default:
+	}
+
+	select {
+	case <-c.release:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// A tick yields to the tenant's budget before it polls and before it takes the queuer's locks, so
+// flushes of earlier ticks can ack while it waits.
+func TestQueuer_YieldsBeforeThePoll(t *testing.T) {
+	tenantId := uuid.New()
+	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
+
+	repo := &failingFlushQueueRepo{
+		items:   []*sqlcv1.V1QueueItem{testQI(tenantId, "A", 1)},
+		flushed: make(chan struct{}),
+	}
+	control := blockingControl{waiting: make(chan struct{}, 1), release: make(chan struct{})}
+
+	l := zerolog.Nop()
+	q := &Queuer{
+		repo:          repo,
+		control:       control,
+		tenantId:      tenantId,
+		queueName:     "q",
+		l:             &l,
+		s:             s,
+		limit:         100,
+		resultsCh:     make(chan *QueueResults, 16),
+		notifyQueueCh: make(chan map[string]string, 1),
+		unackedMu:     newRWMu(&l),
+		unacked:       make(map[int64]struct{}),
+		unassigned:    make(map[int64]*sqlcv1.V1QueueItem),
+		unassignedMu:  newMu(&l),
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	loopDone := make(chan struct{})
+	go func() {
+		defer close(loopDone)
+		q.loopQueue(ctx)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		<-loopDone
+	})
+
+	q.queue(ctx)
+	waitFor(t, control.waiting, "the tick did not yield")
+
+	q.unackedMu.Lock()
+	q.unackedMu.Unlock()
+	q.unassignedMu.Lock()
+	q.unassignedMu.Unlock()
+
+	require.Zero(t, repo.flushes.Load(), "the tick does not poll before its budget allows")
+
+	close(control.release)
+	waitFor(t, repo.flushed, "the tick did not poll and flush after the yield")
 }

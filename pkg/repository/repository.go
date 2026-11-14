@@ -56,6 +56,7 @@ type Repository interface {
 	TenantInvite() TenantInviteRepository
 	TenantLimit() TenantLimitRepository
 	TenantEntitlement() TenantEntitlementRepository
+	TenantControl() TenantControlRepository
 	TenantAlertingSettings() TenantAlertingRepository
 	Tenant() TenantRepository
 	User() UserRepository
@@ -96,6 +97,7 @@ type repositoryImpl struct {
 	tenantInvite        TenantInviteRepository
 	tenantLimit         TenantLimitRepository
 	tenantEntitlement   TenantEntitlementRepository
+	tenantControl       TenantControlRepository
 	tenantAlerting      TenantAlertingRepository
 	tenant              TenantRepository
 	user                UserRepository
@@ -104,8 +106,11 @@ type repositoryImpl struct {
 	sync                SyncRepository
 }
 
+// NewRepository builds the repositories on pool. readReplicaPool may be nil; when set, it only
+// receives the tenant connection overrides here.
 func NewRepository(
 	pool *fairpool.Pool,
+	readReplicaPool *fairpool.Pool,
 	ddlPool *pgxpool.Pool,
 	l *zerolog.Logger,
 	cacheDuration time.Duration,
@@ -125,6 +130,13 @@ func NewRepository(
 	mq, cleanupMq := newMessageQueueRepository(shared)
 
 	concurrencyOverview, cleanupConcurrencyOverview := newConcurrencyOverviewRepository(shared)
+
+	controlledPools := []*fairpool.Pool{pool}
+	if readReplicaPool != nil {
+		controlledPools = append(controlledPools, readReplicaPool)
+	}
+
+	tenantControl := newTenantControlRepository(shared, controlledPools...)
 
 	impl := &repositoryImpl{
 		apiToken:            newAPITokenRepository(shared, cacheDuration),
@@ -158,6 +170,7 @@ func NewRepository(
 		tenantInvite:        newTenantInviteRepository(shared),
 		tenantLimit:         shared.m,
 		tenantEntitlement:   shared.entitlements,
+		tenantControl:       tenantControl,
 		tenantAlerting:      newTenantAlertingRepository(shared, cacheDuration),
 		tenant:              newTenantRepository(shared, cacheDuration),
 		user:                newUserRepository(shared),
@@ -317,6 +330,10 @@ func (r *repositoryImpl) TenantLimit() TenantLimitRepository {
 
 func (r *repositoryImpl) TenantEntitlement() TenantEntitlementRepository {
 	return r.tenantEntitlement
+}
+
+func (r *repositoryImpl) TenantControl() TenantControlRepository {
+	return r.tenantControl
 }
 
 func (r *repositoryImpl) TenantAlertingSettings() TenantAlertingRepository {

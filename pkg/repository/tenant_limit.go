@@ -32,7 +32,8 @@ type TenantLimitRepository interface {
 	// UpdateLimits updates the limits for a tenant
 	UpdateLimits(ctx context.Context, tenantId uuid.UUID, limits []Limit) error
 
-	// CanCreate checks if the tenant can create a resource
+	// CanCreate checks if the tenant can create a resource. For runs and events it first applies the
+	// operator's controls (see TenantControlRepository.Admit), whether or not limits are enforced.
 	CanCreate(ctx context.Context, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (bool, int, error)
 
 	// Resolve all tenant resource limits
@@ -196,6 +197,14 @@ func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId uuid.UUI
 }
 
 func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (bool, int, error) {
+	// Operator controls refuse new runs and events whether or not limits are enforced. Other
+	// resources stay available so running tasks and configuration keep working.
+	if resource == sqlcv1.LimitResourceTASKRUN || resource == sqlcv1.LimitResourceEVENT {
+		if err := t.admitTenant(tenantId, int(numberOfResources)); err != nil {
+			return false, 0, err
+		}
+	}
+
 	return t.canCreate(ctx, nil, resource, tenantId, numberOfResources)
 }
 

@@ -5339,6 +5339,17 @@ type V1TenantConcurrency struct {
 	MaxRunsExpression pgtype.Text           `json:"max_runs_expression"`
 }
 
+type V1TenantControl struct {
+	TenantID        uuid.UUID          `json:"tenant_id"`
+	Paused          bool               `json:"paused"`
+	PausedAt        pgtype.Timestamptz `json:"paused_at"`
+	DbConnPercent   pgtype.Int4        `json:"db_conn_percent"`
+	DbTimePercent   pgtype.Int4        `json:"db_time_percent"`
+	IngestPerSecond pgtype.Int4        `json:"ingest_per_second"`
+	Reason          string             `json:"reason"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
 type V1WorkerSlotConfig struct {
 	TenantID  uuid.UUID          `json:"tenant_id"`
 	WorkerID  uuid.UUID          `json:"worker_id"`

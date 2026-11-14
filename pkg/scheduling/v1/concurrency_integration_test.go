@@ -492,6 +492,7 @@ func TestConcurrency_MultipleStrategiesContention(t *testing.T) {
 		require.NoError(t, err)
 		schedulingPool, cleanup, err := v1.NewSchedulingPool(
 			r.Scheduler(),
+			r.TenantControl(),
 			r.Tasks(),
 			outbox,
 			&l,
@@ -688,6 +689,7 @@ func TestConcurrency_ColdStrategyScheduledPromptly(t *testing.T) {
 		require.NoError(t, err)
 		schedulingPool, cleanup, err := v1.NewSchedulingPool(
 			r.Scheduler(),
+			r.TenantControl(),
 			r.Tasks(),
 			outbox,
 			&l,
@@ -827,6 +829,7 @@ func TestConcurrency_TenantHandoffDoesNotWaitOutTopicLease(t *testing.T) {
 
 			schedulingPool, cleanup, err := v1.NewSchedulingPool(
 				r.Scheduler(),
+				r.TenantControl(),
 				r.Tasks(),
 				outbox,
 				&l,
