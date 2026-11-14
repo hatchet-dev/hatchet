@@ -871,9 +871,15 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	schedulingPoolV1.AddExtension(v1.NewPrometheusExtension(promGate))
 
+	// The engine and the API admit new runs and events, so they keep a snapshot of the tenant
+	// controls. A process that builds only the data layer (the admin CLI) does not.
+	tenantControlCtx, stopTenantControl := context.WithCancel(context.Background())
+	go dc.V1.TenantControl().RefreshLoop(tenantControlCtx)
+
 	cleanup = func() error {
 		l.Debug().Msg("cleaning up server config")
 
+		stopTenantControl()
 		cleanupSecurityCheck()
 
 		cleanupOutbox()

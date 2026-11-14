@@ -327,6 +327,12 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 	)
 
 	if err != nil {
+		// the API's error handler answers 429 with Retry-After
+		var rateLimited *repository.TenantRateLimitedError
+		if errors.As(err, &rateLimited) {
+			return nil, err
+		}
+
 		if errors.Is(err, repository.ErrResourceExhausted) {
 			return gen.V1WebhookReceive429JSONResponse{
 				Errors: []gen.APIError{

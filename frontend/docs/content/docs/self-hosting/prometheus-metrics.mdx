@@ -115,6 +115,8 @@ Restart your Hatchet server after setting these variables to apply the changes.
 | `hatchet_fairpool_connection_limit`                        | Gauge     | Database checkouts a fairpool bucket may have in flight at once                                    |
 | `hatchet_fairpool_wait_seconds`                            | Histogram | Time an acquire waited for a fairpool connection slot                                              |
 | `hatchet_fairpool_rejections_total`                        | Counter   | Acquires rejected because a fairpool bucket was at its cap for `DATABASE_FAIRPOOL_TENANT_MAX_WAIT` |
+| `hatchet_tenant_control`                                   | Gauge     | 1 for each operator control set on a tenant                                                        |
+| `hatchet_tenant_control_refused_total`                     | Counter   | New runs and events refused because of an operator control on the tenant                           |
 
 The `hatchet_fairpool_*` metrics are reported per engine or API process. All but
 `hatchet_fairpool_held_seconds_total` are reported only for buckets with a cap:
@@ -140,6 +142,18 @@ partition heartbeats and API lookups that run before the tenant is known. If
 `hatchet_fairpool_rejections_total{bucket="shared"}` rises, or shared held
 connections stay at `hatchet_fairpool_connection_limit{bucket="shared"}`, raise
 `DATABASE_FAIRPOOL_SHARED_MAX_PERCENT`.
+
+`hatchet_tenant_control` and `hatchet_tenant_control_refused_total` are
+labelled by `tenant_id` and `control`, which is `ingest` for the ingest rate
+limit an operator sets with
+`hatchet-admin tenant-control set --tenant-id <id> --ingest-per-second <n> --reason "..."`
+(`tenant-control clear` removes it, `tenant-control list` shows every control).
+Each engine and API process reads the controls every 2 seconds and reports
+both metrics as it last read them; their series exist only while a control is
+set. The limit is applied by each process on its own, so a tenant served by
+several engine or API processes is admitted up to that many times the limit.
+Refused calls get `ResourceExhausted` with a `RetryInfo` delay over gRPC and
+`429` with `Retry-After` over HTTP.
 
 The publish duration and transit histograms are labelled by `kind` (the
 pub/sub backend: `rabbitmq`, `postgres`, or `nats`) and `topic_kind`;
@@ -312,6 +326,13 @@ sum by (pool) (rate(hatchet_fairpool_rejections_total{bucket="shared"}[5m]))
 ```promql
 # Connections each tenant held on average over 5 minutes, summed over processes
 topk(10, sum by (tenant_id) (rate(hatchet_fairpool_held_seconds_total{pool="main"}[5m])))
+```
+
+#### 16. Tenants Refused by an Operator Control
+
+```promql
+# Runs and events refused per second, per tenant and control, summed over processes
+sum by (tenant_id, control) (rate(hatchet_tenant_control_refused_total[5m]))
 ```
 
 ## Tenant Metrics

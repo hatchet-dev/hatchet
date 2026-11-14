@@ -3502,6 +3502,17 @@ CREATE TABLE tenant_entitlement (
     CONSTRAINT tenant_entitlement_pkey PRIMARY KEY (tenant_id)
 );
 
+-- Operator controls for one tenant. Every process that admits work reads the whole table every few
+-- seconds, so it is sparse: a row exists only while a control is set.
+CREATE TABLE v1_tenant_control (
+    tenant_id UUID NOT NULL REFERENCES "Tenant" ("id") ON DELETE CASCADE,
+    -- the most new runs and events each process admits for the tenant per second
+    ingest_per_second INTEGER NOT NULL CHECK (ingest_per_second >= 1),
+    reason TEXT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT v1_tenant_control_pkey PRIMARY KEY (tenant_id)
+);
+
 CREATE OR REPLACE FUNCTION after_v1_concurrency_slot_insert_outbox_function()
 RETURNS trigger AS $$
 BEGIN
