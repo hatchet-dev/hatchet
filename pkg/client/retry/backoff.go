@@ -13,7 +13,8 @@ const (
 	// gRPC retry backoff uses full jitter over exponential windows so clients
 	// spread retry pressure. After the initial RPC fails, middleware invokes
 	// backoff with attempt=1 for the first retry; delay windows are 0-5s,
-	// 0-10s, 0-20s, 0-40s, then capped at 0-80s.
+	// 0-10s, 0-20s, 0-40s, then capped at 0-80s. A unary error carrying
+	// RetryInfo waits the server's delay instead, capped at the window's top.
 	grpcMaxRetries    = 5
 	grpcBaseDelay     = 5 * time.Second
 	grpcBackoffFactor = 2.0
@@ -72,19 +73,21 @@ func sleepContext(ctx context.Context, d time.Duration) error {
 }
 
 func fullJitterDelay(attempt int, base time.Duration, factor float64, maxDelay time.Duration, jitter func(int64) int64) time.Duration {
-	if attempt < 0 {
-		attempt = 0
-	}
-
-	delayLimit := float64(base) * math.Pow(factor, float64(attempt))
-	if delayLimit > float64(maxDelay) {
-		delayLimit = float64(maxDelay)
-	}
+	delayLimit := backoffCeiling(attempt, base, factor, maxDelay)
 	if delayLimit <= 0 {
 		return 0
 	}
 
 	return time.Duration(jitter(int64(delayLimit) + 1))
+}
+
+// backoffCeiling is the upper bound of the full-jitter window for the given zero-based attempt.
+func backoffCeiling(attempt int, base time.Duration, factor float64, maxDelay time.Duration) time.Duration {
+	if attempt < 0 {
+		attempt = 0
+	}
+
+	return time.Duration(math.Min(float64(base)*math.Pow(factor, float64(attempt)), float64(maxDelay)))
 }
 
 // parseRetryAfter parses an HTTP Retry-After header value.

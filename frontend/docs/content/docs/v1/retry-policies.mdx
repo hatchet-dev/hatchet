@@ -335,6 +335,8 @@ For HTTP 429 responses on idempotent reads, the Go SDK honors a valid `Retry-Aft
   retries all unary RPCs, including writes, in this release.
 </Callout>
 
+When a retried unary gRPC call fails with an error that carries a `RetryInfo` detail, such as `RESOURCE_EXHAUSTED` when Hatchet throttles the call, the Go SDK waits the delay the server asks for instead of its own backoff. That wait is capped at the top of the attempt's backoff window (5s, 10s, 20s, then 40s), so the attempt limit and the longest total wait stay the same.
+
 ### Configuring Go SDK client retries
 
 Use environment variables to disable SDK client retries:
