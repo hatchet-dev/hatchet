@@ -306,6 +306,12 @@ func (b *BatchScheduler) run() {
 	defer ticker.Stop()
 
 	for {
+		// yield to the tenant's database time budget; the scheduler's state is owned by this
+		// goroutine, so nothing else waits on it, and Cleanup's cancel ends the wait
+		if err := b.cf.control.AwaitBudget(b.ctx, b.tenantId); err != nil {
+			return
+		}
+
 		if err := b.tick(); err != nil {
 			if b.ctx.Err() != nil {
 				return

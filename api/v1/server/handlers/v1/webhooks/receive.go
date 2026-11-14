@@ -327,11 +327,22 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 	)
 
 	if err != nil {
+		// the API's error handler answers 429 with Retry-After
+		var rateLimited *repository.TenantRateLimitedError
+		if errors.As(err, &rateLimited) {
+			return nil, err
+		}
+
 		if errors.Is(err, repository.ErrResourceExhausted) {
+			description := "resource limit exceeded: task run or event limit reached for tenant"
+			if errors.Is(err, repository.ErrTenantPaused) {
+				description = "tenant is paused by an operator"
+			}
+
 			return gen.V1WebhookReceive429JSONResponse{
 				Errors: []gen.APIError{
 					{
-						Description: "resource limit exceeded: task run or event limit reached for tenant",
+						Description: description,
 					},
 				},
 			}, nil

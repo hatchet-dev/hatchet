@@ -38,7 +38,7 @@ var (
 // databaseURL starts a Postgres container on first use and shares it for the package, so tests
 // that need no database run without Docker. The tests only issue ad hoc SQL, so no Hatchet
 // schema is needed.
-func databaseURL(t *testing.T) string {
+func databaseURL(t testing.TB) string {
 	t.Helper()
 
 	dbOnce.Do(func() {
@@ -91,7 +91,7 @@ func newSharedCappedPool(t *testing.T, percent int, maxWait time.Duration) (*fai
 	return newPoolWithOptions(t, fairpool.Options{MaxPercent: percent, SharedMaxPercent: percent, MaxWait: maxWait}, nil)
 }
 
-func newPoolWithOptions(t *testing.T, opts fairpool.Options, tracer pgx.QueryTracer) (*fairpool.Pool, string) {
+func newPoolWithOptions(t testing.TB, opts fairpool.Options, tracer pgx.QueryTracer) (*fairpool.Pool, string) {
 	t.Helper()
 
 	cfg, err := pgxpool.ParseConfig(databaseURL(t))
@@ -426,22 +426,16 @@ func TestNilTenantUsesSharedBucket(t *testing.T) {
 	requireGone(t, name, "shared")
 }
 
-func TestSharedUngatedAtFullPercent(t *testing.T) {
+// At 100 percent the shared bucket is not capped: it may hold the whole pool, and its checkouts
+// are still counted.
+func TestSharedUncappedAtFullPercent(t *testing.T) {
 	pool, name := newPoolWithOptions(t, fairpool.Options{MaxPercent: 50, SharedMaxPercent: 100, MaxWait: time.Second}, nil)
-	ctx := context.Background()
 
-	var txs []pgx.Tx
-	for i := 0; i < 3; i++ {
-		tx, err := pool.ForShared().Begin(ctx)
-		require.NoError(t, err)
-		txs = append(txs, tx)
-	}
-	_, ok := gaugeValue(name, "shared")
-	require.False(t, ok)
+	txs := beginN(t, pool.ForShared(), 4)
+	requireHeld(t, name, "shared", 4)
 
-	for _, tx := range txs {
-		require.NoError(t, tx.Rollback(ctx))
-	}
+	rollbackAll(t, txs)
+	requireGone(t, name, "shared")
 }
 
 func TestQueryKeepsCallerDeadline(t *testing.T) {
@@ -640,4 +634,181 @@ func TestAcquireSpanStaysOnInnerPool(t *testing.T) {
 		}
 	}
 	require.True(t, found, "pool.acquire span was not recorded")
+}
+
+func requireLimitError(t *testing.T, db fairpool.Handle, wantLimit int64) {
+	t.Helper()
+
+	_, err := db.Begin(context.Background())
+	var limitErr *fairpool.LimitError
+	require.ErrorAs(t, err, &limitErr)
+	require.Equal(t, wantLimit, limitErr.Limit)
+}
+
+func beginN(t *testing.T, db fairpool.Handle, n int) []pgx.Tx {
+	t.Helper()
+
+	txs := make([]pgx.Tx, 0, n)
+	for i := 0; i < n; i++ {
+		tx, err := db.Begin(context.Background())
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = tx.Rollback(context.Background()) })
+		txs = append(txs, tx)
+	}
+
+	return txs
+}
+
+func rollbackAll(t *testing.T, txs []pgx.Tx) {
+	t.Helper()
+
+	for _, tx := range txs {
+		require.NoError(t, tx.Rollback(context.Background()))
+	}
+}
+
+func TestOverrideCapsTenantOnUncappedPool(t *testing.T) {
+	pool, name := newPool(t, 100, 100*time.Millisecond, nil)
+	tenantA := uuid.New()
+	tenantB := uuid.New()
+	require.Equal(t, int64(0), pool.ConnectionLimit())
+
+	pool.SetTenantMaxPercents(map[uuid.UUID]int{tenantA: 25})
+
+	held := beginN(t, pool.ForTenant(tenantA), 1)
+	requireHeld(t, name, tenantA.String(), 1)
+	requireLimitError(t, pool.ForTenant(tenantA), 1)
+
+	// tenant B is not capped, but its checkouts are counted
+	others := beginN(t, pool.ForTenant(tenantB), 3)
+	requireHeld(t, name, tenantB.String(), 3)
+	rollbackAll(t, others)
+
+	pool.SetTenantMaxPercents(nil)
+
+	// cleared: tenant A is uncapped again while its capped checkout is still in flight
+	extra := beginN(t, pool.ForTenant(tenantA), 2)
+	requireHeld(t, name, tenantA.String(), 3)
+	rollbackAll(t, extra)
+
+	rollbackAll(t, held)
+	requireGone(t, name, tenantA.String())
+}
+
+func TestOverrideLowerThanDefault(t *testing.T) {
+	pool, name := newPool(t, 50, 100*time.Millisecond, nil)
+	tenantA := uuid.New()
+	tenantB := uuid.New()
+
+	pool.SetTenantMaxPercents(map[uuid.UUID]int{tenantA: 1})
+
+	heldA := beginN(t, pool.ForTenant(tenantA), 1)
+	requireLimitError(t, pool.ForTenant(tenantA), 1)
+
+	heldB := beginN(t, pool.ForTenant(tenantB), 2)
+	requireLimitError(t, pool.ForTenant(tenantB), 2)
+
+	rollbackAll(t, heldA)
+	rollbackAll(t, heldB)
+	requireGone(t, name, tenantA.String())
+	requireGone(t, name, tenantB.String())
+}
+
+// Changing a tenant's limit replaces its bucket. Checkouts and waiters on the old bucket finish
+// against it, new checkouts count against the new one, and every slot comes back.
+func TestOverrideChangeWithCheckoutsInFlight(t *testing.T) {
+	pool, name := newPool(t, 50, 2*time.Second, nil)
+	ctx := context.Background()
+	tenantA := uuid.New()
+	id := tenantA.String()
+
+	old := beginN(t, pool.ForTenant(tenantA), 2)
+	requireHeld(t, name, id, 2)
+
+	waiterDone := make(chan error, 1)
+	go func() {
+		tx, err := pool.ForTenant(tenantA).Begin(ctx)
+		if err != nil {
+			waiterDone <- err
+			return
+		}
+		waiterDone <- tx.Rollback(ctx)
+	}()
+	time.Sleep(50 * time.Millisecond)
+
+	pool.SetTenantMaxPercents(map[uuid.UUID]int{tenantA: 75})
+
+	// the gauge counts the tenant's checkouts in both buckets
+	fresh := beginN(t, pool.ForTenant(tenantA), 1)
+	requireHeld(t, name, id, 3)
+
+	// the waiter is queued on the old bucket and takes the slot an old checkout frees
+	require.NoError(t, old[0].Rollback(ctx))
+	select {
+	case err := <-waiterDone:
+		require.NoError(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("waiter on the replaced bucket did not proceed")
+	}
+
+	require.NoError(t, old[1].Rollback(ctx))
+	rollbackAll(t, fresh)
+	requireGone(t, name, id)
+
+	// the new bucket has exactly its limit of slots
+	newLimit := beginN(t, pool.ForTenant(tenantA), 3)
+	requireAtCap(t, pool, tenantA)
+
+	// clearing goes back to the default with the override's checkouts still in flight
+	pool.SetTenantMaxPercents(nil)
+	rollbackAll(t, newLimit[1:])
+
+	defaults := beginN(t, pool.ForTenant(tenantA), 2)
+	requireAtCap(t, pool, tenantA)
+
+	require.NoError(t, newLimit[0].Rollback(ctx))
+	rollbackAll(t, defaults)
+	requireGone(t, name, id)
+
+	again := beginN(t, pool.ForTenant(tenantA), 2)
+	requireAtCap(t, pool, tenantA)
+	rollbackAll(t, again)
+	requireGone(t, name, id)
+}
+
+// requireAtCap checks that the tenant's next checkout waits, without waiting out the pool's MaxWait.
+func requireAtCap(t *testing.T, pool *fairpool.Pool, tenantID uuid.UUID) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	_, err := pool.ForTenant(tenantID).Begin(ctx)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+// A checkout that installs a replacement bucket and then fails to get a connection leaves the
+// old bucket draining. Its releases still bring the held-connections series down to nothing.
+func TestOverrideChangeWithFailedCheckout(t *testing.T) {
+	pool, name := newPool(t, 50, 2*time.Second, nil)
+	tenantA := uuid.New()
+	id := tenantA.String()
+
+	heldA := beginN(t, pool.ForTenant(tenantA), 2)
+	heldB := beginN(t, pool.ForTenant(uuid.New()), 2)
+	requireHeld(t, name, id, 2)
+
+	pool.SetTenantMaxPercents(map[uuid.UUID]int{tenantA: 75})
+
+	// the new bucket has a free slot, but the pool has no free connection
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	_, err := pool.ForTenant(tenantA).Begin(ctx)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	requireHeld(t, name, id, 2)
+
+	rollbackAll(t, heldA)
+	requireGone(t, name, id)
+	rollbackAll(t, heldB)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -504,8 +505,7 @@ func (s *Scheduler) runSetTenants(ctx context.Context) func() {
 	return func() {
 		s.l.Debug().Ctx(ctx).Msgf("partition: checking step run requeue")
 
-		// list all tenants
-		tenants, err := s.repov1.Tenant().ListTenantsBySchedulerPartition(ctx, s.p.GetSchedulerPartitionId())
+		tenants, err := s.listSchedulableTenants(ctx)
 
 		if err != nil {
 			logger.ShutdownAware(ctx, s.l, err, zerolog.ErrorLevel).Err(err).Ctx(ctx).Msg("could not list tenants")
@@ -514,6 +514,20 @@ func (s *Scheduler) runSetTenants(ctx context.Context) func() {
 
 		s.pool.SetTenants(tenants)
 	}
+}
+
+// listSchedulableTenants lists the tenants of this scheduler partition, leaving out tenants an
+// operator paused. A paused tenant's manager is torn down like that of any tenant that leaves the
+// list, and its queue rows stay in the database until it is resumed.
+func (s *Scheduler) listSchedulableTenants(ctx context.Context) ([]*sqlcv1.Tenant, error) {
+	tenants, err := s.repov1.Tenant().ListTenantsBySchedulerPartition(ctx, s.p.GetSchedulerPartitionId())
+	if err != nil {
+		return nil, err
+	}
+
+	return slices.DeleteFunc(tenants, func(t *sqlcv1.Tenant) bool {
+		return s.repov1.TenantControl().IsPaused(t.ID)
+	}), nil
 }
 
 func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, res *v1.QueueResults) error {

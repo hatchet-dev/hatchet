@@ -36,6 +36,7 @@ const (
 type Queuer struct {
 	repo       v1.QueueRepository
 	optimistic v1.OptimisticSchedulingRepository
+	control    v1.TenantControlRepository
 	tenantId   uuid.UUID
 	queueName  string
 
@@ -122,6 +123,7 @@ func newQueuer(conf *sharedConfig, tenantId uuid.UUID, queueName string, s *Sche
 	q := &Queuer{
 		repo:          queueRepo,
 		optimistic:    conf.repo.Optimistic(),
+		control:       conf.control,
 		tenantId:      tenantId,
 		queueName:     queueName,
 		promGate:      conf.promGate,
@@ -204,6 +206,12 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			return
 		case <-timer.C:
 		case carrier = <-q.notifyQueueCh:
+		}
+
+		// yield to the tenant's database time budget before this tick takes the queuer's locks or a
+		// connection. Wake-ups that arrive meanwhile coalesce in notifyQueueCh.
+		if err := q.control.AwaitBudget(ctx, q.tenantId); err != nil {
+			return
 		}
 
 		// anything that changes worker capacity from here on may happen while this
