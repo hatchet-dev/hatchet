@@ -78,6 +78,7 @@ type sharedRepository struct {
 	payloadStore      PayloadStoreRepository
 	m                 TenantLimitRepository
 	entitlements      TenantEntitlementRepository
+	tenantControls    *tenantControlRepository
 
 	// taskKeyCache has no TTL because a task's external id maps to the same primary key for as long as the task exists
 	taskKeyCache *lru.Cache[taskExternalIdTenantIdTuple, IdInsertedAt]
@@ -169,6 +170,8 @@ func newSharedRepository(
 		enablePayloadConsolidation:  payloadStoreOpts.EnablePayloadConsolidation,
 		reassignUnackedTasks:        reassignUnackedTasks,
 	}
+
+	s.tenantControls = newTenantControlRepository(s)
 
 	tenantLimitRepository := newTenantLimitRepository(s, c, shouldEnforceLimits, cacheDuration)
 

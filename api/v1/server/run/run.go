@@ -18,6 +18,7 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/rs/zerolog"
 	"golang.org/x/time/rate"
+	"google.golang.org/grpc/status"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
@@ -263,17 +264,21 @@ func hatchetIPExtractor(trustPrivateProxies bool, trustedProxies []string, logge
 }
 
 // retryableLimitErrorHandler answers 429 with a Retry-After header and an APIErrors body when a
-// request was throttled by the connection cap, and defers to next for everything else. Handlers
-// that proxy to the engine see the engine's cap as a ResourceExhausted status carrying RetryInfo;
-// a ResourceExhausted status without it is a tenant quota and keeps the default handling.
+// request was throttled by the connection cap or an operator's ingest rate limit, and defers to
+// next for everything else. Handlers that proxy to the engine see either as a ResourceExhausted
+// status carrying RetryInfo, whose message is the engine's; a ResourceExhausted status without it
+// is a tenant quota and keeps the default handling.
 func retryableLimitErrorHandler(next echo.HTTPErrorHandler) echo.HTTPErrorHandler {
 	return func(err error, c echo.Context) {
 		var limitErr *fairpool.LimitError
+		var rateLimited *repository.TenantRateLimitedError
 
 		if errors.As(err, &limitErr) {
-			writeThrottled(fairpool.RetryAfter, c)
+			writeThrottled(fairpool.RetryAfter, "too many concurrent database operations, retry shortly", c)
+		} else if errors.As(err, &rateLimited) {
+			writeThrottled(rateLimited.RetryAfter, rateLimited.Error(), c)
 		} else if retryAfter, ok := proxy.ThrottleRetryAfter(err); ok {
-			writeThrottled(retryAfter, c)
+			writeThrottled(retryAfter, status.Convert(err).Message(), c)
 		} else {
 			next(err, c)
 		}
@@ -282,7 +287,7 @@ func retryableLimitErrorHandler(next echo.HTTPErrorHandler) echo.HTTPErrorHandle
 
 // writeThrottled writes the 429 response. The cause stays with the caller: the access logger
 // records the error returned by the handler chain, not what is written here.
-func writeThrottled(retryAfter time.Duration, c echo.Context) {
+func writeThrottled(retryAfter time.Duration, message string, c echo.Context) {
 	if c.Response().Committed {
 		return
 	}
@@ -294,7 +299,7 @@ func writeThrottled(retryAfter time.Duration, c echo.Context) {
 	if c.Request().Method == http.MethodHead {
 		err = c.NoContent(http.StatusTooManyRequests)
 	} else {
-		err = c.JSON(http.StatusTooManyRequests, apierrors.NewAPIErrors("too many concurrent database operations, retry shortly"))
+		err = c.JSON(http.StatusTooManyRequests, apierrors.NewAPIErrors(message))
 	}
 
 	if err != nil {
@@ -871,7 +876,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 				statusCode = http.StatusInternalServerError
 			}
 
-			level := accessLogLevel(statusCode)
+			level := accessLogLevel(statusCode, v.Error)
 
 			e := t.config.Logger.WithLevel(level)
 
@@ -918,9 +923,14 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 
 // accessLogLevel resolves the log level for an API access log entry.
 // A 499 (client closed request) is the client's outcome, not a server fault, so it logs
-// at info.
-func accessLogLevel(status int) zerolog.Level {
+// at info. A refusal by an operator control is expected, and a retrying client makes one per
+// attempt, so it logs at debug; hatchet_tenant_control_refused_total counts them.
+func accessLogLevel(status int, err error) zerolog.Level {
+	var rateLimited *repository.TenantRateLimitedError
+
 	switch {
+	case errors.As(err, &rateLimited):
+		return zerolog.DebugLevel
 	case status == hatchetmiddleware.StatusClientClosedRequest:
 		return zerolog.InfoLevel
 	case status >= http.StatusInternalServerError:

@@ -17,6 +17,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/errors"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 )
 
@@ -54,6 +55,19 @@ func expectedStatus(ctx context.Context, err error) error {
 		}
 
 		return throttled
+	}
+
+	// An operator's ingest rate limit is throttling too, and the client learns when its request
+	// would be admitted.
+	var rateLimited *repository.TenantRateLimitedError
+	if goerrors.As(err, &rateLimited) {
+		limited := connect.NewError(connect.CodeResourceExhausted, rateLimited)
+
+		if detail, detailErr := connect.NewErrorDetail(&errdetails.RetryInfo{RetryDelay: durationpb.New(rateLimited.RetryAfter)}); detailErr == nil {
+			limited.AddDetail(detail)
+		}
+
+		return limited
 	}
 
 	// Extensions can return gRPC status errors. Convert their code and details here;

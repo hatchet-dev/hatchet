@@ -3,9 +3,11 @@ package middleware
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 	"github.com/jackc/pgx/v5"
@@ -18,6 +20,7 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 )
 
@@ -80,6 +83,69 @@ func TestErrorInterceptorMapsLimitErrorToResourceExhaustedWithRetryInfo(t *testi
 	retryInfo, ok := detail.(*errdetails.RetryInfo)
 	require.True(t, ok, "detail is %T", detail)
 	assert.Equal(t, fairpool.RetryAfter, retryInfo.GetRetryDelay().AsDuration())
+}
+
+func TestErrorInterceptorMapsTenantRateLimitedToResourceExhaustedWithRetryInfo(t *testing.T) {
+	handlerErr := fmt.Errorf("could not check tenant limit: %w", &repository.TenantRateLimitedError{RetryAfter: 1500 * time.Millisecond})
+	err, alerter := runThroughErrorInterceptor(t, handlerErr)
+
+	require.Error(t, err)
+	assert.Equal(t, connect.CodeResourceExhausted, connect.CodeOf(err))
+	assert.Equal(t, 0, alerter.n)
+
+	var connectErr *connect.Error
+	require.ErrorAs(t, err, &connectErr)
+	assert.Equal(t, "resource exhausted: tenant is rate limited by an operator", connectErr.Message())
+	require.Len(t, connectErr.Details(), 1)
+
+	detail, valueErr := connectErr.Details()[0].Value()
+	require.NoError(t, valueErr)
+
+	retryInfo, ok := detail.(*errdetails.RetryInfo)
+	require.True(t, ok, "detail is %T", detail)
+	assert.Equal(t, 1500*time.Millisecond, retryInfo.GetRetryDelay().AsDuration())
+}
+
+// A retrying client makes one refused call per attempt, so a refusal by an operator control is
+// logged at debug, while other ResourceExhausted calls keep their warning.
+func TestFinishedCallOfAnOperatorRefusalIsDebug(t *testing.T) {
+	for name, tc := range map[string]struct {
+		handlerErr error
+		level      string
+	}{
+		"rate limited":   {handlerErr: fmt.Errorf("could not check tenant limit: %w", &repository.TenantRateLimitedError{RetryAfter: time.Second}), level: "debug"},
+		"quota":          {handlerErr: connect.NewError(connect.CodeResourceExhausted, errors.New("tenant has reached 100% of its task runs limit")), level: "warn"},
+		"connection cap": {handlerErr: &fairpool.LimitError{Key: "shared", Limit: 2}, level: "warn"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var buf bytes.Buffer
+			l := zerolog.New(&buf).Level(zerolog.DebugLevel)
+
+			// the server's order: logging outside the error interceptor
+			handler := LoggingInterceptor(&l).WrapUnary(NewErrorInterceptor(&countingAlerter{}, &l).Interceptor().WrapUnary(
+				func(context.Context, connect.AnyRequest) (connect.AnyResponse, error) {
+					return nil, tc.handlerErr
+				}))
+
+			_, err := handler(context.Background(), connect.NewRequest(&struct{}{}))
+			require.Equal(t, connect.CodeResourceExhausted, connect.CodeOf(err))
+
+			var finished map[string]any
+
+			for _, line := range bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n")) {
+				var entry map[string]any
+				require.NoError(t, json.Unmarshal(line, &entry))
+
+				if entry["message"] == "finished call" {
+					finished = entry
+				}
+			}
+
+			require.NotNil(t, finished, "log: %s", buf.String())
+			assert.Equal(t, tc.level, finished["level"])
+			assert.Equal(t, "ResourceExhausted", finished["grpc.code"])
+		})
+	}
 }
 
 func TestErrorInterceptorMapsCanceledWithoutAlert(t *testing.T) {
