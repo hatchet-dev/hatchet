@@ -4,6 +4,10 @@ from typing import TYPE_CHECKING, ParamSpec, TypeVar
 
 import grpc
 import tenacity
+from google.rpc import (  # type: ignore[import-untyped]
+    error_details_pb2,
+    status_pb2,
+)
 
 from hatchet_sdk.clients.rest.exceptions import (
     NotFoundError,
@@ -14,6 +18,7 @@ from hatchet_sdk.clients.rest.exceptions import (
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from datetime import timedelta
 
     from hatchet_sdk.config import TenacityConfig
 
@@ -30,7 +35,7 @@ def tenacity_retry(func: Callable[P, R], config: TenacityConfig) -> Callable[P, 
 
     return tenacity.retry(
         reraise=True,
-        wait=config.wait(),
+        wait=wait_server_retry_delay(config.wait()),
         stop=tenacity.stop_after_attempt(config.max_attempts),
         before_sleep=config.before_sleep,
         retry=tenacity.retry_if_exception(should_retry),
@@ -73,3 +78,43 @@ def tenacity_should_retry(
         return False
 
     return False
+
+
+MAX_SERVER_RETRY_DELAY_SECONDS = 5.0
+"""The longest wait a server's RetryInfo delay can ask for before one retry."""
+
+
+def wait_server_retry_delay(
+    fallback: Callable[[tenacity.RetryCallState], float],
+) -> Callable[[tenacity.RetryCallState], float]:
+    """Wait the delay the server asked for when the failed attempt carried one, capped at
+    MAX_SERVER_RETRY_DELAY_SECONDS. Otherwise wait the fallback's delay.
+    """
+
+    def wait(retry_state: tenacity.RetryCallState) -> float:
+        assert retry_state.outcome is not None
+        server_delay = _server_retry_delay(retry_state.outcome.exception())
+        if server_delay > 0:
+            return min(server_delay, MAX_SERVER_RETRY_DELAY_SECONDS)
+
+        # Tenacity's wait strategies keep no state between calls; each wait is computed from
+        # retry_state.attempt_number, so skipping the fallback here leaves later waits unchanged.
+        return fallback(retry_state)
+
+    return wait
+
+
+def _server_retry_delay(ex: BaseException | None) -> float:
+    """Seconds to wait from a gRPC error's RetryInfo detail, or 0."""
+    if not isinstance(ex, (grpc.Call, grpc.aio.AioRpcError)):
+        return 0
+
+    for key, value in ex.trailing_metadata() or ():
+        if key == "grpc-status-details-bin":
+            for detail in status_pb2.Status.FromString(value).details:
+                info = error_details_pb2.RetryInfo()
+                if detail.Unpack(info):
+                    delay: timedelta = info.retry_delay.ToTimedelta()
+                    return delay.total_seconds()
+
+    return 0

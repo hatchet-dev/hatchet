@@ -5,6 +5,12 @@ All notable changes to Hatchet's Ruby SDK will be documented in this changelog.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.3] - 2026-11-14
+
+### Fixed
+
+- Triggering a run, bulk triggering and pushing events, one at a time or in bulk, now retry when the engine throttles the call with `RESOURCE_EXHAUSTED` and a `google.rpc.RetryInfo` detail, waiting the delay the server asks for, capped at 5 seconds, for at most 5 attempts in all. Other errors, including `RESOURCE_EXHAUSTED` without `RetryInfo`, are raised at once as before.
+
 ## [0.12.2] - 2026-11-10
 
 ### Fixed

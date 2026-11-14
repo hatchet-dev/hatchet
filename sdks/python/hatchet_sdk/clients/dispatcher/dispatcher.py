@@ -8,7 +8,10 @@ import tenacity
 from google.protobuf.timestamp_pb2 import Timestamp
 
 from hatchet_sdk.clients.dispatcher.action_listener import ActionListener
-from hatchet_sdk.clients.rest.tenacity_utils import tenacity_should_retry
+from hatchet_sdk.clients.rest.tenacity_utils import (
+    tenacity_should_retry,
+    wait_server_retry_delay,
+)
 from hatchet_sdk.config import ClientConfig, tenacity_before_sleep
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.dispatcher_pb2 import (
@@ -107,7 +110,9 @@ class DispatcherClient:
 
     @tenacity.retry(
         reraise=True,
-        wait=tenacity.wait_exponential_jitter(initial=0.5, max=5),
+        wait=wait_server_retry_delay(
+            tenacity.wait_exponential_jitter(initial=0.5, max=5)
+        ),
         stop=tenacity.stop_after_attempt(3),
         before_sleep=tenacity_before_sleep,
         retry=tenacity.retry_if_exception(tenacity_should_retry),
@@ -168,7 +173,9 @@ class DispatcherClient:
 
     @tenacity.retry(
         reraise=True,
-        wait=tenacity.wait_exponential_jitter(initial=0.5, max=10),
+        wait=wait_server_retry_delay(
+            tenacity.wait_exponential_jitter(initial=0.5, max=10)
+        ),
         stop=tenacity.stop_after_attempt(20),
         before_sleep=tenacity_before_sleep,
         retry=tenacity.retry_if_exception(tenacity_should_retry),
@@ -249,7 +256,9 @@ class DispatcherClient:
 
     @tenacity.retry(
         reraise=True,
-        wait=tenacity.wait_exponential_jitter(initial=0.5, max=10),
+        wait=wait_server_retry_delay(
+            tenacity.wait_exponential_jitter(initial=0.5, max=10)
+        ),
         stop=tenacity.stop_after_attempt(20),
         before_sleep=tenacity_before_sleep,
         retry=tenacity.retry_if_exception(tenacity_should_retry),
@@ -292,7 +301,9 @@ class DispatcherClient:
 
     @tenacity.retry(
         reraise=True,
-        wait=tenacity.wait_exponential_jitter(initial=0.5, max=10),
+        wait=wait_server_retry_delay(
+            tenacity.wait_exponential_jitter(initial=0.5, max=10)
+        ),
         stop=tenacity.stop_after_attempt(20),
         before_sleep=tenacity_before_sleep,
         retry=tenacity.retry_if_exception(tenacity_should_retry),

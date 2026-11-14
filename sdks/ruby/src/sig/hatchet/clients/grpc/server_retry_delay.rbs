@@ -1,0 +1,13 @@
+module Hatchet
+  module Clients
+    module Grpc
+      module ServerRetryDelay
+        MAX_ATTEMPTS: Integer
+        MAX_DELAY_SECONDS: Float
+
+        def self.call: [T] () { () -> T } -> T
+        def self.retry_delay: (untyped error) -> Float?
+      end
+    end
+  end
+end

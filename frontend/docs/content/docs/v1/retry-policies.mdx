@@ -283,6 +283,8 @@ You can add non-idempotent methods to `retry_transport_methods`, but only do so 
 
 Python SDK client retries use exponential backoff with jitter. Fine-grained backoff timing is not currently configurable through `TenacityConfig`.
 
+When a retried unary gRPC call fails with a `google.rpc.RetryInfo` detail, such as `RESOURCE_EXHAUSTED` when the engine throttles a call, the Python SDK waits the delay the server asks for, capped at 5 seconds, instead of its own backoff. The attempt limit and which errors are retried stay the same.
+
 ## Go SDK Client Retry Behavior
 
 The retry behavior described above is for task execution inside Hatchet. The Go SDK also retries some REST and gRPC calls that the SDK itself makes to Hatchet.
@@ -334,6 +336,8 @@ For HTTP 429 responses on idempotent reads, the Go SDK honors a valid `Retry-Aft
   control-plane signals such as inactive listeners. The unary interceptor still
   retries all unary RPCs, including writes, in this release.
 </Callout>
+
+When a retried unary gRPC call fails with a `google.rpc.RetryInfo` detail, such as `RESOURCE_EXHAUSTED` when the engine throttles a call, the Go SDK waits the delay the server asks for, capped at 5 seconds, instead of its own backoff. The attempt limit and which errors are retried stay the same. Stream calls keep their own backoff.
 
 ### Configuring Go SDK client retries
 
