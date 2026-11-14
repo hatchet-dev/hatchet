@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
+	"github.com/hatchet-dev/hatchet/pkg/repository/runlog"
 )
 
 type TaskOperationLimits struct {
@@ -39,6 +40,10 @@ type Repository interface {
 	Streams() StreamsRepository
 	Payloads() PayloadStoreRepository
 	OverwriteExternalPayloadStore(o ExternalStore)
+	// SetRunLog turns on archiving finished work to the run log before core partitions are dropped.
+	SetRunLog(l *runlog.Log)
+	// RunLog is the run log, or nil when it is off.
+	RunLog() *runlog.Log
 	Workers() WorkerRepository
 	Workflows() WorkflowRepository
 	Ticker() TickerRepository
@@ -65,6 +70,7 @@ type Repository interface {
 }
 
 type repositoryImpl struct {
+	shared              *sharedRepository
 	apiToken            APITokenRepository
 	dispatcher          DispatcherRepository
 	durableEvents       DurableEventsRepository
@@ -127,6 +133,7 @@ func NewRepository(
 	concurrencyOverview, cleanupConcurrencyOverview := newConcurrencyOverviewRepository(shared)
 
 	impl := &repositoryImpl{
+		shared:              shared,
 		apiToken:            newAPITokenRepository(shared, cacheDuration),
 		dispatcher:          newDispatcherRepository(shared),
 		durableEvents:       newDurableEventsRepository(shared, durableEventBufferOpts),
@@ -249,6 +256,21 @@ func (r *repositoryImpl) Payloads() PayloadStoreRepository {
 
 func (r *repositoryImpl) OverwriteExternalPayloadStore(o ExternalStore) {
 	r.payloadStore.OverwriteExternalStore(o)
+}
+
+func (r *repositoryImpl) SetRunLog(l *runlog.Log) {
+	reader := newRunLogReader(l, r.shared.pool)
+
+	r.shared.runLog = reader
+	r.shared.payloadStore.(*payloadStoreRepositoryImpl).runLog = reader
+}
+
+func (r *repositoryImpl) RunLog() *runlog.Log {
+	if r.shared.runLog == nil {
+		return nil
+	}
+
+	return r.shared.runLog.Log
 }
 
 func (r *repositoryImpl) Workers() WorkerRepository {

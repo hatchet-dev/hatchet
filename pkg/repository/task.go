@@ -31,6 +31,10 @@ import (
 
 var ErrPartitionLockConflict = errors.New("partition DDL could not acquire lock due to concurrent table operation")
 
+// ErrPartitionLeaseHeld is returned by UpdateTablePartitionsAt when another process holds the partition
+// maintenance lease, so nothing was done.
+var ErrPartitionLeaseHeld = errors.New("partition maintenance lease is held by another process")
+
 func isLockNotAvailable(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == pgerrcode.LockNotAvailable
@@ -295,6 +299,13 @@ type EvictTaskResult struct {
 type TaskRepository interface {
 	EnsureTablePartitionsExist(ctx context.Context) (bool, error)
 	UpdateTablePartitions(ctx context.Context) error
+	// UpdateTablePartitionsAt is UpdateTablePartitions with an explicit clock and core retention. It returns
+	// ErrPartitionLeaseHeld when another process holds the maintenance lease.
+	UpdateTablePartitionsAt(ctx context.Context, now time.Time, retention time.Duration) error
+	// CreateTablePartitions creates today's and tomorrow's partitions and drops nothing.
+	CreateTablePartitions(ctx context.Context) error
+	// RunLogEnabled reports whether partition maintenance archives finished work to the run log.
+	RunLogEnabled() bool
 
 	// GetTaskByExternalId is a heavily cached method to return task metadata by its external id
 	GetTaskByExternalId(ctx context.Context, tenantId, taskExternalId uuid.UUID, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error)
@@ -393,6 +404,9 @@ type TaskRepository interface {
 	// run "details" getter, used for retrieving payloads and status of a run for external consumption without going through the REST API
 	GetWorkflowRunResultDetails(ctx context.Context, tenantId uuid.UUID, externalId uuid.UUID) (*WorkflowRunDetails, error)
 
+	// ListArchivedExternalIds returns those of the external ids (runs or tasks) that only the run log still holds.
+	ListArchivedExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]uuid.UUID, error)
+
 	FilterValidTasks(ctx context.Context, tenantId uuid.UUID, opts []TaskIdInsertedAtRetryCount) (map[int64]struct{}, error)
 }
 
@@ -405,6 +419,10 @@ type TaskRepositoryImpl struct {
 	reassignLimit         int
 	retryQueueLimit       int
 	durableSleepLimit     int
+
+	// runLogBeforeDrop, when set (tests only), runs before an archived day's partitions are dropped; an
+	// error stops the pass there, as a crash would.
+	runLogBeforeDrop func(day time.Time) error
 }
 
 func newTaskRepository(s *sharedRepository, taskRetentionPeriod time.Duration, maxInternalRetryCount int32, timeoutLimit, reassignLimit, retryQueueLimit, durableSleepLimit int) TaskRepository {
@@ -515,29 +533,140 @@ func reattachValidatesParent(serverVersionNum int) bool {
 }
 
 func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
+	err := r.UpdateTablePartitionsAt(ctx, time.Now().UTC(), r.taskRetentionPeriod)
+
+	if errors.Is(err, ErrPartitionLeaseHeld) {
+		return nil
+	}
+
+	return err
+}
+
+func (r *TaskRepositoryImpl) RunLogEnabled() bool {
+	return r.runLog != nil
+}
+
+// CreateTablePartitions creates today's and tomorrow's partitions without dropping anything.
+func (r *TaskRepositoryImpl) CreateTablePartitions(ctx context.Context) error {
+	release, ok, err := r.acquireTablePartitionsLease(ctx)
+
+	if err != nil || !ok {
+		return err
+	}
+
+	defer release()
+
+	return r.createTablePartitions(ctx, time.Now().UTC())
+}
+
+func (r *TaskRepositoryImpl) acquireTablePartitionsLease(ctx context.Context) (release func(), ok bool, err error) {
 	const leaseKey = "v1_task_partitions"
 
 	leases, err := r.acquirePartitionLease(ctx, r.ddlPool, leaseKey)
 	if err != nil {
-		return fmt.Errorf("failed to acquire partition lease: %w", err)
+		return nil, false, fmt.Errorf("failed to acquire partition lease: %w", err)
 	}
 
 	if len(leases) == 0 {
 		r.l.Debug().Ctx(ctx).Msg("partition operations already running on another controller instance, skipping")
-		return nil
+		return nil, false, nil
 	}
 
-	defer func() {
+	return func() {
 		releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if releaseErr := r.releasePartitionLease(releaseCtx, r.ddlPool, leases); releaseErr != nil {
 			r.l.Warn().Ctx(ctx).Err(releaseErr).Msg("failed to release partition lease")
 		}
-	}()
+	}, true, nil
+}
 
-	today := time.Now().UTC()
+// UpdateTablePartitionsAt runs partition maintenance as if the time were now: it creates the partitions of
+// now's day and the next, and drops the partitions that end before now - retention.
+func (r *TaskRepositoryImpl) UpdateTablePartitionsAt(ctx context.Context, now time.Time, retention time.Duration) error {
+	release, ok, err := r.acquireTablePartitionsLease(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	if !ok {
+		return ErrPartitionLeaseHeld
+	}
+
+	defer release()
+
+	today := now.UTC()
+	removeBefore := today.Add(-1 * retention)
+
+	if err := r.createTablePartitions(ctx, today); err != nil {
+		return err
+	}
+
+	partitions, err := r.queries.ListPartitionsBeforeDate(ctx, r.ddlPool, pgtype.Date{
+		Time:  removeBefore,
+		Valid: true,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	blockIndexCutoff := removeBefore
+
+	if r.runLog != nil {
+		// the run log archives and drops the task families itself and hands back the rest
+		partitions, blockIndexCutoff, err = r.archiveAndDropPartitions(ctx, removeBefore, partitions)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	cursorPartitions, err := r.queries.ListStreamProducerCursorPartitionsBeforeDate(ctx, r.ddlPool, streamProducerCursorMinBucket(today))
+
+	if err != nil {
+		return err
+	}
+
+	for _, p := range cursorPartitions {
+		partitions = append(partitions, &sqlcv1.ListPartitionsBeforeDateRow{ParentTable: p.ParentTable, PartitionName: p.PartitionName})
+	}
+
+	if len(partitions) > 0 {
+		r.l.Warn().Ctx(ctx).Msgf("removing partitions before %s using retention period of %s", removeBefore.Format(time.RFC3339), retention)
+	}
+
+	for _, partition := range partitions {
+		if err := r.detachAndDropPartition(ctx, partition.ParentTable, partition.PartitionName); err != nil {
+			return err
+		}
+	}
+
+	if err = r.queries.DeleteOldPayloadOffloadedBlockIndexRows(ctx, r.ddlPool, pgtype.Date{
+		Time:  blockIndexCutoff,
+		Valid: true,
+	}); err != nil {
+		return fmt.Errorf("failed to delete old payload offloaded block index rows: %w", err)
+	}
+
+	if err = r.deleteIdleStreamTopics(ctx); err != nil {
+		return fmt.Errorf("failed to delete idle stream topics: %w", err)
+	}
+
+	if err = r.updateStreamMessagePartitions(ctx, today); err != nil {
+		return fmt.Errorf("failed to update stream message partitions: %w", err)
+	}
+
+	// Runs last, in its own transaction, so that if it gives up on a lock, partition creation
+	// and cleanup above have already been committed.
+	return runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
+		return reattachIndicesToParents(ctx, r.queries, tx, false)
+	})
+}
+
+func (r *TaskRepositoryImpl) createTablePartitions(ctx context.Context, today time.Time) error {
 	tomorrow := today.AddDate(0, 0, 1)
-	removeBefore := today.Add(-1 * r.taskRetentionPeriod)
 
 	// important: uses the ddlPool because these operations are critical (shouldn't be blocked by the main app pool)
 	// and not all can run inside of a transaction (e.g. DETACH PARTITION CONCURRENTLY),
@@ -645,55 +774,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 
 	releaseCreateConn()
 
-	partitions, err := r.queries.ListPartitionsBeforeDate(ctx, r.ddlPool, pgtype.Date{
-		Time:  removeBefore,
-		Valid: true,
-	})
-
-	if err != nil {
-		return err
-	}
-
-	cursorPartitions, err := r.queries.ListStreamProducerCursorPartitionsBeforeDate(ctx, r.ddlPool, streamProducerCursorMinBucket(today))
-
-	if err != nil {
-		return err
-	}
-
-	for _, p := range cursorPartitions {
-		partitions = append(partitions, &sqlcv1.ListPartitionsBeforeDateRow{ParentTable: p.ParentTable, PartitionName: p.PartitionName})
-	}
-
-	if len(partitions) > 0 {
-		r.l.Warn().Ctx(ctx).Msgf("removing partitions before %s using retention period of %s", removeBefore.Format(time.RFC3339), r.taskRetentionPeriod)
-	}
-
-	for _, partition := range partitions {
-		if err := r.detachAndDropPartition(ctx, partition.ParentTable, partition.PartitionName); err != nil {
-			return err
-		}
-	}
-
-	if err = r.queries.DeleteOldPayloadOffloadedBlockIndexRows(ctx, r.ddlPool, pgtype.Date{
-		Time:  removeBefore,
-		Valid: true,
-	}); err != nil {
-		return fmt.Errorf("failed to delete old payload offloaded block index rows: %w", err)
-	}
-
-	if err = r.deleteIdleStreamTopics(ctx); err != nil {
-		return fmt.Errorf("failed to delete idle stream topics: %w", err)
-	}
-
-	if err = r.updateStreamMessagePartitions(ctx); err != nil {
-		return fmt.Errorf("failed to update stream message partitions: %w", err)
-	}
-
-	// Runs last, in its own transaction, so that if it gives up on a lock, partition creation
-	// and cleanup above have already been committed.
-	return runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
-		return reattachIndicesToParents(ctx, r.queries, tx, false)
-	})
+	return nil
 }
 
 func (r *sharedRepository) GetTaskByExternalId(ctx context.Context, tenantId, taskExternalId uuid.UUID, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error) {
@@ -1314,6 +1395,23 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 }
 
 func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tenantId uuid.UUID, rootExternalIds []uuid.UUID) ([]*ListFinalizedWorkflowRunsResponse, error) {
+	res, notInCore, err := r.listFinalizedWorkflowRunsInCore(ctx, tenantId, rootExternalIds)
+
+	if err != nil || r.runLog == nil || len(notInCore) == 0 {
+		return res, err
+	}
+
+	archived, err := r.listArchivedFinalizedWorkflowRuns(ctx, tenantId, notInCore)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return append(res, archived...), nil
+}
+
+// listFinalizedWorkflowRunsInCore also returns the root ids core has no task for.
+func (r *TaskRepositoryImpl) listFinalizedWorkflowRunsInCore(ctx context.Context, tenantId uuid.UUID, rootExternalIds []uuid.UUID) ([]*ListFinalizedWorkflowRunsResponse, []uuid.UUID, error) {
 	db := r.pool.ForTenant(tenantId)
 
 	start := time.Now()
@@ -1322,7 +1420,7 @@ func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tena
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, r.l)
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	defer rollback()
@@ -1332,8 +1430,10 @@ func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tena
 	tasks, err := r.lookupExternalIds(ctx, tx, tenantId, rootExternalIds)
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+
+	notInCore := ExternalIdsWithoutTasks(rootExternalIds, tasks)
 
 	durLookup := time.Since(checkpoint)
 	checkpoint = time.Now()
@@ -1341,7 +1441,7 @@ func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tena
 	finalizedRootIds, rootIdToStepCounts, err := r.verifyAllTasksFinalized(ctx, tx, tenantId, tasks)
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	durVerify := time.Since(checkpoint)
@@ -1367,21 +1467,21 @@ func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tena
 
 	if len(taskExternalIds) == 0 {
 		if commitErr := commit(ctx); commitErr != nil {
-			return nil, commitErr
+			return nil, nil, commitErr
 		}
-		return []*ListFinalizedWorkflowRunsResponse{}, nil
+		return []*ListFinalizedWorkflowRunsResponse{}, notInCore, nil
 	}
 
 	outputEvents, err := r.listTaskOutputEvents(ctx, tx, tenantId, taskExternalIds)
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	durOutputEvents := time.Since(checkpoint)
 
 	if err := commit(ctx); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	taskExternalIdsHasOutputEvent := make(map[uuid.UUID]bool)
@@ -1455,7 +1555,27 @@ func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tena
 		).Dur("total_duration", time.Since(start)).Msgf("slow finalized workflow runs lookup")
 	}
 
-	return res, nil
+	return res, notInCore, nil
+}
+
+// ExternalIdsWithoutTasks returns the external ids that match neither a task nor the run of a task.
+func ExternalIdsWithoutTasks(externalIds []uuid.UUID, tasks []*sqlcv1.FlattenExternalIdsRow) []uuid.UUID {
+	found := make(map[uuid.UUID]bool, 2*len(tasks))
+
+	for _, t := range tasks {
+		found[t.ExternalID] = true
+		found[t.WorkflowRunExternalID] = true
+	}
+
+	var res []uuid.UUID
+
+	for _, id := range externalIds {
+		if !found[id] {
+			res = append(res, id)
+		}
+	}
+
+	return res
 }
 
 func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*FinalizedTaskResponse, error) {
@@ -5267,6 +5387,18 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 		today := time.Now().UTC()
 		removeBefore := today.Add(-1 * r.taskRetentionPeriod)
 
+		if r.runLog != nil {
+			// A match keeps the days it points into from being dropped, so only a match that points
+			// before every remaining day of tasks is orphaned. Retention says nothing about the rest.
+			oldest, err := oldestTaskPartitionDay(ctx, tx)
+
+			if err != nil || oldest == nil {
+				return err
+			}
+
+			removeBefore = *oldest
+		}
+
 		err := r.queries.CleanupMatchWithMatchConditions(ctx, tx, pgtype.Date{
 			Time:  removeBefore,
 			Valid: true,
@@ -5574,7 +5706,11 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 	}
 
 	if len(flat) == 0 {
-		return nil, nil
+		if r.runLog == nil {
+			return nil, nil
+		}
+
+		return r.archivedWorkflowRunResultDetails(ctx, tenantId, externalId)
 	}
 
 	rootExternalIds := []uuid.UUID{externalId}
@@ -5883,8 +6019,7 @@ func (r *TaskRepositoryImpl) detachAndDropPartition(ctx context.Context, parentT
 
 // updateStreamMessagePartitions drops shared partitions once the longest
 // retention passes them, and deletes expired messages of shorter-retention tenants.
-func (r *TaskRepositoryImpl) updateStreamMessagePartitions(ctx context.Context) error {
-	now := time.Now().UTC()
+func (r *TaskRepositoryImpl) updateStreamMessagePartitions(ctx context.Context, now time.Time) error {
 
 	err := runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
 		if err := r.queries.CreateStreamMessagePartitions(ctx, tx, sqlcv1.CreateStreamMessagePartitionsParams{
