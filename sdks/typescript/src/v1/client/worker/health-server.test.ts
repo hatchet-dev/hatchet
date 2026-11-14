@@ -7,16 +7,23 @@ const noopLogger = {
   error: () => undefined,
 };
 
+type WorkerState = {
+  status: WorkerStatus;
+  slots: number;
+  actions: string[];
+};
+
 async function withServer(
   status: WorkerStatus,
-  run: (baseUrl: string) => Promise<void>
+  run: (baseUrl: string, state: WorkerState) => Promise<void>
 ): Promise<void> {
+  const state: WorkerState = { status, slots: 1, actions: [] };
   const server = new HealthServer(
     0,
-    () => status,
+    () => state.status,
     'test-worker',
-    () => 1,
-    () => [],
+    () => state.slots,
+    () => state.actions,
     () => ({}),
     noopLogger as never
   );
@@ -27,7 +34,7 @@ async function withServer(
   ).server.address();
 
   try {
-    await run(`http://127.0.0.1:${address.port}`);
+    await run(`http://127.0.0.1:${address.port}`, state);
   } finally {
     await server.stop();
   }
@@ -43,6 +50,53 @@ describe('HealthServer /health (legacy, unconditional 200)', () => {
         expect(response.status).toBe(200);
         expect(body.status).toBe(status);
       });
+    }
+  });
+});
+
+describe('HealthServer /metrics', () => {
+  it('collects default metrics and the current worker values on every scrape', async () => {
+    await withServer(workerStatus.HEALTHY, async (baseUrl, state) => {
+      const first = await fetch(`${baseUrl}/metrics`);
+      const firstMetrics = await first.text();
+
+      expect(first.status).toBe(200);
+      expect(first.headers.get('content-type')).toContain('text/plain');
+      expect(firstMetrics).toMatch(/^nodejs_version_info\{/m);
+      expect(firstMetrics).toMatch(/^hatchet_worker_status 1$/m);
+      expect(firstMetrics).toMatch(/^hatchet_worker_slots 1$/m);
+      expect(firstMetrics).toMatch(/^hatchet_worker_actions 0$/m);
+
+      state.status = workerStatus.UNHEALTHY;
+      state.slots = 3;
+      state.actions = ['first', 'second'];
+
+      const second = await fetch(`${baseUrl}/metrics`);
+      const secondMetrics = await second.text();
+
+      expect(second.status).toBe(200);
+      expect(secondMetrics).toMatch(/^hatchet_worker_status 0$/m);
+      expect(secondMetrics).toMatch(/^hatchet_worker_slots 3$/m);
+      expect(secondMetrics).toMatch(/^hatchet_worker_actions 2$/m);
+    });
+  });
+
+  it('serves health checks but reports unavailable metrics when the optional package is missing', async () => {
+    jest.doMock('@prometheus-io/client', () => {
+      throw new Error('Cannot find module');
+    });
+
+    try {
+      await withServer(workerStatus.HEALTHY, async (baseUrl) => {
+        const health = await fetch(`${baseUrl}/health`);
+        const metrics = await fetch(`${baseUrl}/metrics`);
+
+        expect(health.status).toBe(200);
+        expect(metrics.status).toBe(503);
+        expect(await metrics.text()).toBe('Metrics initialization failed');
+      });
+    } finally {
+      jest.dontMock('@prometheus-io/client');
     }
   });
 });
