@@ -1,4 +1,4 @@
-import { createServer, type Http2Server, type ServerHttp2Stream } from 'http2';
+import { createServer, type Http2Server, type Http2Session, type ServerHttp2Stream } from 'http2';
 import type { AddressInfo } from 'net';
 import { Code, ConnectError } from '@connectrpc/connect';
 import { findTrailerError } from '@connectrpc/connect/protocol-grpc';
@@ -114,6 +114,7 @@ describe('retrier', () => {
 
   describe('over the gRPC transport', () => {
     let server: Http2Server;
+    let sessions: Http2Session[];
     let attempts: number[];
     let responses: Array<Record<string, string>>;
 
@@ -121,7 +122,9 @@ describe('retrier', () => {
       sleepMock.mockImplementation(realSleep);
       attempts = [];
       responses = [];
+      sessions = [];
       server = createServer();
+      server.on('session', (session) => sessions.push(session));
       server.on('stream', (stream) => {
         attempts.push(performance.now());
         stream.resume();
@@ -132,7 +135,12 @@ describe('retrier', () => {
       });
     });
 
+    // The client transport keeps its HTTP/2 session open and has no way to close it, and
+    // server.close() waits for every session to end, so the sessions are destroyed first.
     afterEach(async () => {
+      for (const session of sessions) {
+        session.destroy();
+      }
       await new Promise((resolve) => {
         server.close(resolve);
       });
