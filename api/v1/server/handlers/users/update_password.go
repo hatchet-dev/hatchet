@@ -58,7 +58,8 @@ func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdat
 	}
 
 	user, err := u.config.V1.User().UpdateUser(ctx.Request().Context(), userId, &v1.UpdateUserOpts{
-		Password: newPass,
+		Password:       newPass,
+		RevokeSessions: true,
 	})
 
 	if err != nil {
@@ -66,12 +67,8 @@ func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdat
 		return gen.UserUpdatePassword400JSONResponse(apierrors.NewAPIErrors(ErrInvalidCredentials)), nil
 	}
 
-	// A password change must end any session an attacker may already hold. The session that
-	// issued this request is kept so the user is not signed out of the client they are using.
-	currentSession := authn.NewSessionHelpers(u.config.SessionStore).CurrentSessionID(ctx)
-
-	if _, err := u.config.V1.UserSession().DeleteByUserId(ctx.Request().Context(), userId, currentSession); err != nil {
-		u.config.Logger.Err(err).Msg("failed to revoke other sessions after password change")
+	if err := authn.NewSessionHelpers(u.config.SessionStore).RotateSession(ctx); err != nil {
+		u.config.Logger.Err(err).Msg("failed to rotate session after password change")
 		return nil, err
 	}
 

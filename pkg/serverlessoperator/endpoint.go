@@ -279,10 +279,12 @@ func (p *endpointPoller) apply(ctx context.Context, res *healthcheckResult) poll
 		p.r.l.Error().Err(err).Str("endpoint_id", p.ep.id.String()).Msg("could not register serverless endpoint workflows")
 
 		details := &eventDetails{Stage: stageCatalog, Workflows: workflowNames(res), Actions: res.actions}
+		message := "could not register endpoint workflows"
 
 		var rejection catalogRejected
 
 		if errors.As(err, &rejection) {
+			message = rejection.Error()
 			if p.rejectedEventHash != res.hash && p.r.events.record(p.ep, sqlcv1.V1ServerlessEndpointEventKindCATALOGREJECTED, err.Error(), details) {
 				p.rejectedEventHash = res.hash
 			}
@@ -290,7 +292,7 @@ func (p *endpointPoller) apply(ctx context.Context, res *healthcheckResult) poll
 			p.rejected(res.hash, err.Error())
 		}
 
-		return pollStatus{healthy: false, err: err.Error(), details: details}
+		return pollStatus{healthy: false, err: message, details: details}
 	}
 
 	if p.catalogChanged {

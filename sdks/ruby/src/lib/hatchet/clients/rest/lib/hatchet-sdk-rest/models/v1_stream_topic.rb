@@ -27,6 +27,9 @@ module HatchetSdkRest
     # The number of messages within the tenant's retention
     attr_accessor :message_count
 
+    # Subscribers without a cursor start after this offset, 0 to start from the oldest retained message
+    attr_accessor :starting_offset
+
     # Attribute mapping from ruby-style variable name to JSON key.
     def self.attribute_map
       {
@@ -34,7 +37,8 @@ module HatchetSdkRest
         :'topic' => :'topic',
         :'created_at' => :'createdAt',
         :'last_published_at' => :'lastPublishedAt',
-        :'message_count' => :'messageCount'
+        :'message_count' => :'messageCount',
+        :'starting_offset' => :'startingOffset'
       }
     end
 
@@ -55,7 +59,8 @@ module HatchetSdkRest
         :'topic' => :'String',
         :'created_at' => :'Time',
         :'last_published_at' => :'Time',
-        :'message_count' => :'Integer'
+        :'message_count' => :'Integer',
+        :'starting_offset' => :'Integer'
       }
     end
 
@@ -110,6 +115,12 @@ module HatchetSdkRest
       else
         self.message_count = nil
       end
+
+      if attributes.key?(:'starting_offset')
+        self.starting_offset = attributes[:'starting_offset']
+      else
+        self.starting_offset = nil
+      end
     end
 
     # Show invalid properties with the reasons. Usually used together with valid?
@@ -137,6 +148,10 @@ module HatchetSdkRest
         invalid_properties.push('invalid value for "message_count", message_count cannot be nil.')
       end
 
+      if @starting_offset.nil?
+        invalid_properties.push('invalid value for "starting_offset", starting_offset cannot be nil.')
+      end
+
       invalid_properties
     end
 
@@ -149,6 +164,7 @@ module HatchetSdkRest
       return false if @created_at.nil?
       return false if @last_published_at.nil?
       return false if @message_count.nil?
+      return false if @starting_offset.nil?
       true
     end
 
@@ -202,6 +218,16 @@ module HatchetSdkRest
       @message_count = message_count
     end
 
+    # Custom attribute writer method with validation
+    # @param [Object] starting_offset Value to be assigned
+    def starting_offset=(starting_offset)
+      if starting_offset.nil?
+        fail ArgumentError, 'starting_offset cannot be nil'
+      end
+
+      @starting_offset = starting_offset
+    end
+
     # Checks equality by comparing each attribute.
     # @param [Object] Object to be compared
     def ==(o)
@@ -211,7 +237,8 @@ module HatchetSdkRest
           topic == o.topic &&
           created_at == o.created_at &&
           last_published_at == o.last_published_at &&
-          message_count == o.message_count
+          message_count == o.message_count &&
+          starting_offset == o.starting_offset
     end
 
     # @see the `==` method
@@ -223,7 +250,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [namespace, topic, created_at, last_published_at, message_count].hash
+      [namespace, topic, created_at, last_published_at, message_count, starting_offset].hash
     end
 
     # Builds the object from hash

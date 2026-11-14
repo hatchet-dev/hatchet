@@ -52,6 +52,8 @@ func (tc *TasksControllerImpl) processPausedWorkflowQueueItemTTL(ctx context.Con
 		tc.l.Error().Ctx(ctx).Err(err).Msg("could not send internal events for cleaned up tasks")
 	}
 
+	tc.dispatchSatisfiedDurableEntries(ctx, tenantId, res.SatisfiedDurableEventLogEntries)
+
 	for _, releasedTask := range res.ReleasedTasks {
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,

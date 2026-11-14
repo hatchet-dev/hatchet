@@ -24,12 +24,17 @@ V1StreamTopic:
       type: integer
       format: int64
       description: The number of messages within the tenant's retention
+    startingOffset:
+      type: integer
+      format: int64
+      description: Subscribers without a cursor start after this offset, 0 to start from the oldest retained message
   required:
     - namespace
     - topic
     - createdAt
     - lastPublishedAt
     - messageCount
+    - startingOffset
   type: object
 
 V1StreamTopicList:

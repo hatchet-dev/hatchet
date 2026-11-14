@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -312,6 +313,86 @@ func TestDeadLetteringSuccess(t *testing.T) {
 
 	if err := cleanupQueue(); err != nil {
 		t.Fatalf("error cleaning up queue: %v", err)
+	}
+}
+
+func TestRetiredQueueDeletedOnceUnused(t *testing.T) {
+	url := "amqp://user:password@localhost:5672/"
+
+	start := func() *MessageQueueImpl {
+		cleanup, mq, err := New(WithURL(url))
+		require.NoError(t, err)
+
+		t.Cleanup(func() {
+			assert.NoError(t, cleanup())
+		})
+
+		return mq
+	}
+
+	conn, err := amqp.Dial(url)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		assert.NoError(t, conn.Close())
+	})
+
+	// each call gets its own channel: a passive declare of a missing queue closes it
+	consumers := func(name string) (int, error) {
+		ch, err := conn.Channel()
+
+		if err != nil {
+			return 0, err
+		}
+
+		defer ch.Close() // nolint: errcheck
+
+		queue, err := ch.QueueDeclarePassive(name, true, false, false, false, nil)
+
+		return queue.Consumers, err
+	}
+
+	q := msgqueue.NewRandomStaticQueue()
+	procDLQ := getProcDLQName(q.DLQ().Name())
+	names := []string{q.Name(), getTmpDLQName(q.DLQ().Name()), procDLQ}
+
+	retired := msgqueue.RetiredQueues
+	msgqueue.RetiredQueues = []msgqueue.Queue{q}
+
+	t.Cleanup(func() {
+		msgqueue.RetiredQueues = retired
+	})
+
+	// an older version reads the queue
+	cleanupSub, err := start().Subscribe(q, msgqueue.NoOpHook, msgqueue.NoOpHook)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		n, err := consumers(q.Name())
+		return err == nil && n > 0
+	}, 10*time.Second, 100*time.Millisecond)
+
+	start()
+
+	for _, name := range names {
+		_, err := consumers(name)
+		assert.NoError(t, err, "%s should be kept while the queue is read", name)
+	}
+
+	require.NoError(t, cleanupSub())
+
+	require.Eventually(t, func() bool {
+		main, mainErr := consumers(q.Name())
+		proc, procErr := consumers(procDLQ)
+
+		return mainErr == nil && procErr == nil && main+proc == 0
+	}, 10*time.Second, 100*time.Millisecond)
+
+	start()
+
+	for _, name := range names {
+		_, err := consumers(name)
+		assert.Error(t, err, "%s should be deleted", name)
 	}
 }
 

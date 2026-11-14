@@ -120,6 +120,7 @@ export function TasksPanel({
                   FAILED: 'hsl(var(--destructive))',
                 }}
                 showYAxis={false}
+                stacked
                 className="h-24 min-h-24"
               />
             )}

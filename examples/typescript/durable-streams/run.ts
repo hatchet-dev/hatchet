@@ -74,6 +74,23 @@ export async function resetTopic() {
   }
 }
 
+export async function resetToCursor() {
+  // > Reset to a cursor
+  let cursor: string | undefined;
+
+  for await (const event of hatchet.streams.subscribe('orders')) {
+    ({ cursor } = event);
+    break;
+  }
+
+  await hatchet.streams.reset('orders', { cursor });
+
+  // starts right after the event the cursor was read from
+  for await (const event of hatchet.streams.subscribe('orders')) {
+    console.log(decode(event.payload));
+  }
+}
+
 async function main() {
   await consume();
   await publishFromAnywhere();

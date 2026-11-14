@@ -76,7 +76,6 @@ const (
 type OperatorStore interface {
 	GetOperatorById(ctx context.Context, operatorId uuid.UUID) (*sqlcv1.V1Operator, error)
 	UpsertOperator(ctx context.Context, tenantId uuid.UUID, opts repository.UpsertOperatorOpts) (*sqlcv1.V1Operator, error)
-	UpdateOperator(ctx context.Context, tenantId, operatorId uuid.UUID, opts repository.UpdateOperatorOpts) (*sqlcv1.V1Operator, error)
 }
 
 // WorkerStore is the subset of repository.WorkerRepository the service uses.
@@ -92,6 +91,7 @@ type WorkerStore interface {
 	ApplyWorkerActionsDelta(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, add, remove []string, maxOperatorLinks int64) (added, removed int, err error)
 	RefreshWorkerActionHash(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) error
 	CountOperatorWorkerActions(ctx context.Context, tenantId uuid.UUID, operatorId uuid.UUID) (int64, error)
+	ReleaseDeadOperatorWorkers(ctx context.Context, tenantId, operatorId, keepWorkerId uuid.UUID) (int64, error)
 }
 
 // ActionHandler receives assigned actions by direct call. It is the in-process delivery: the

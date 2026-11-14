@@ -90,8 +90,8 @@ func (d *DispatcherImpl) V1() *DispatcherServiceImpl {
 	return d.serviceV1
 }
 
-func (d *DispatcherImpl) TriggerDAGStep(ctx context.Context, tenantId uuid.UUID, req *operator.DAGStepTriggerRequest) (*operator.DAGStepTriggerResult, error) {
-	return d.serviceV1.TriggerDAGStep(ctx, tenantId, req)
+func (d *DispatcherImpl) TriggerDAGSteps(ctx context.Context, tenantId uuid.UUID, reqs []*operator.DAGStepTriggerRequest) ([]*operator.DAGStepTriggerResult, error) {
+	return d.serviceV1.TriggerDAGSteps(ctx, tenantId, reqs)
 }
 
 func (d *DispatcherImpl) CancelDAGChildren(ctx context.Context, tenantId uuid.UUID, taskExternalIds []uuid.UUID) error {
@@ -190,7 +190,7 @@ func defaultDispatcherOpts() *DispatcherOpts {
 		alerter:                             alerter,
 		analytics:                           analytics.NoOpAnalytics{},
 		payloadSizeThreshold:                3 * 1024 * 1024,
-		defaultMaxWorkerLockAcquisitionTime: 250 * time.Millisecond,
+		defaultMaxWorkerLockAcquisitionTime: time.Second,
 		workflowRunBufferSize:               1000,
 		streamEventBufferTimeout:            5 * time.Second,
 	}
@@ -347,7 +347,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		streamEventBufferTimeout:            opts.streamEventBufferTimeout,
 		version:                             opts.version,
 		refreshTimeoutBuf:                   newRefreshTimeoutBuffer(),
-		serviceV1:                           newDispatcherService(opts.repov1, opts.mqv1, opts.pubsub, v, opts.l, opts.dispatcherId, opts.analytics, a, opts.promGate),
+		serviceV1:                           newDispatcherService(opts.repov1, opts.mqv1, opts.pubsub, v, opts.l, opts.dispatcherId, opts.analytics, a, opts.promGate, opts.payloadSizeThreshold),
 	}, nil
 }
 

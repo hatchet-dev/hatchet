@@ -6,12 +6,15 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net/http"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/o11yusage"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -35,7 +38,8 @@ func (s *V1StreamsService) V1StreamPayloadUpload(ctx echo.Context, request gen.V
 	payload, err := readPayloadPart(request.Body)
 
 	if err != nil {
-		return gen.V1StreamPayloadUpload400JSONResponse(apierrors.NewAPIErrors(err.Error())), nil
+		s.config.Logger.Warn().Err(err).Str("tenant_id", tenant.ID.String()).Msg("could not read stream payload upload")
+		return gen.V1StreamPayloadUpload400JSONResponse(apierrors.NewAPIErrors("could not read payload from multipart body")), nil
 	}
 
 	if len(payload) > repository.MaxStreamUploadedPayloadBytes {
@@ -104,10 +108,33 @@ func (s *V1StreamsService) V1StreamPayloadGet(ctx echo.Context, request gen.V1St
 		return nil, err
 	}
 
-	return gen.V1StreamPayloadGet200ApplicationoctetStreamResponse{
-		Body:          bytes.NewReader(payload),
-		ContentLength: int64(len(payload)),
+	return meteredPayloadResponse{
+		V1StreamPayloadGet200ApplicationoctetStreamResponse: gen.V1StreamPayloadGet200ApplicationoctetStreamResponse{
+			Body:          bytes.NewReader(payload),
+			ContentLength: int64(len(payload)),
+		},
+		usage:    s.usage,
+		tenantId: tenant.ID,
 	}, nil
+}
+
+// meteredPayloadResponse bills a large payload's download, which a subscriber makes instead
+// of receiving the payload inline, only once the whole body is written.
+type meteredPayloadResponse struct {
+	gen.V1StreamPayloadGet200ApplicationoctetStreamResponse
+
+	usage    *o11yusage.Aggregator
+	tenantId uuid.UUID
+}
+
+func (r meteredPayloadResponse) VisitV1StreamPayloadGetResponse(w http.ResponseWriter) error {
+	if err := r.V1StreamPayloadGet200ApplicationoctetStreamResponse.VisitV1StreamPayloadGetResponse(w); err != nil {
+		return err
+	}
+
+	r.usage.AddStreamDelivered(r.tenantId, r.ContentLength)
+
+	return nil
 }
 
 func readPayloadPart(reader *multipart.Reader) ([]byte, error) {

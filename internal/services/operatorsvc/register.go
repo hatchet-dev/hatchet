@@ -22,9 +22,8 @@ const defaultSlotCount = 100
 // worker to back this session.
 type RegisterOpts struct {
 	// OperatorId is an existing operator row, as claimed by the in-process claimer. Name, Kind
-	// and LeasingManager are taken from the row and no upsert happens; the row's worker_id is pointed
-	// at the session's worker, which is how ClaimOperators recognises the assignment on later
-	// polls.
+	// and LeasingManager are taken from the row and no upsert happens. ClaimOperators sees the
+	// assignment through the worker's operatorId.
 	OperatorId *uuid.UUID
 
 	// Name is the operator name, unique per (tenant, kind). Ignored when OperatorId is set.
@@ -122,9 +121,7 @@ func (s *Service) Register(ctx context.Context, tenant *sqlcv1.Tenant, opts Regi
 	}
 
 	if opts.OperatorId != nil {
-		if err := s.pointOperatorAtWorker(ctx, op, workerId); err != nil {
-			return Registration{}, err
-		}
+		s.releaseDeadWorkers(ctx, op, workerId)
 	}
 
 	if len(opts.Labels) > 0 {
@@ -170,15 +167,29 @@ func (s *Service) loadOperator(ctx context.Context, tenant *sqlcv1.Tenant, opera
 	return op, nil
 }
 
-// pointOperatorAtWorker records the session's worker on the operator row, so ClaimOperators
-// sees the operator as assigned to this worker's dispatcher.
-func (s *Service) pointOperatorAtWorker(ctx context.Context, op *sqlcv1.V1Operator, workerId uuid.UUID) error {
-	if _, err := s.operators.UpdateOperator(ctx, op.TenantID, op.ID, repository.UpdateOperatorOpts{WorkerId: &workerId}); err != nil {
-		s.l.Error().Ctx(ctx).Err(err).Msgf("could not point operator %s at worker %s", op.ID, workerId)
-		return err
+// releaseDeadWorkers drops the action links of the claimed operator's workers that no longer
+// serve it, other than the one this registration is for. The claimer registers a claimed row
+// under a new worker every time, so a worker torn down or left behind by a dispatcher that died
+// is never registered under again, and its links would count against the operator's action
+// budget until the worker is cleaned up: an operator with a large catalog would run out of
+// budget after enough restarts. Failure is logged, not returned: the registration is good,
+// and the next registration releases what this one left.
+func (s *Service) releaseDeadWorkers(ctx context.Context, op *sqlcv1.V1Operator, workerId uuid.UUID) {
+	released, err := s.workers.ReleaseDeadOperatorWorkers(ctx, op.TenantID, op.ID, workerId)
+
+	if err != nil {
+		s.l.Error().Ctx(ctx).Err(err).
+			Str("operator_id", op.ID.String()).
+			Msg("could not release the actions of the operator's dead workers")
+		return
 	}
 
-	return nil
+	if released > 0 {
+		s.l.Info().Ctx(ctx).
+			Str("operator_id", op.ID.String()).
+			Int64("released", released).
+			Msg("released the actions of the operator's dead workers")
+	}
 }
 
 // upsertOperator upserts the row a named registration stands for. Only contract operators are

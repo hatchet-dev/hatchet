@@ -10,22 +10,23 @@
  * ---------------------------------------------------------------
  */
 
-export enum UserOfferType {
-  YCAlumni = "YC Alumni",
-  YCCurrentBatch = "YC Current Batch",
-  Startup = "Startup",
-  Custom = "Custom",
+export enum SandboxProviderEventKind {
+  HEALTHCHECK_FAILED = "HEALTHCHECK_FAILED",
+  UNHEALTHY = "UNHEALTHY",
+  HEALTHY = "HEALTHY",
+  SANDBOX_CREATED = "SANDBOX_CREATED",
+  SANDBOX_CREATE_FAILED = "SANDBOX_CREATE_FAILED",
+  TURN_FAILED = "TURN_FAILED",
+  SNAPSHOT_FAILED = "SNAPSHOT_FAILED",
+  SANDBOX_DESTROYED = "SANDBOX_DESTROYED",
 }
 
-export enum UserOfferStage {
-  Requested = "Requested",
-  Approved = "Approved",
-  Redeemed = "Redeemed",
-}
-
-export enum AuditLogActorType {
-  User = "user",
-  ApiKey = "api_key",
+/** The sandbox vendor a provider connects to. */
+export enum SandboxProviderKind {
+  DAYTONA = "DAYTONA",
+  E2B = "E2B",
+  ARCHIL = "ARCHIL",
+  FREESTYLE = "FREESTYLE",
 }
 
 export enum OrganizationInviteStatus {
@@ -936,86 +937,6 @@ export interface RejectOrganizationInviteRequest {
   id: string;
 }
 
-export interface AuditLog {
-  /**
-   * The ID of the audit log
-   * @format uuid
-   */
-  id: string;
-  /**
-   * The timestamp at which the audit log was inserted
-   * @format date-time
-   */
-  insertedAt: string;
-  /**
-   * The ID of the tenant
-   * @format uuid
-   */
-  tenantId: string;
-  /** The type of the actor */
-  actorType: AuditLogActorType;
-  /**
-   * The ID of the actor
-   * @format uuid
-   */
-  actorId: string;
-  /** The action that was performed */
-  action: string;
-  /** The correlation ID */
-  correlationId?: string;
-  /** The ID of the resource */
-  resourceId: string;
-  /** The type of the resource */
-  resourceType: string;
-  /** The IP address of the actor */
-  ipAddress?: string;
-  /** The user agent of the actor */
-  userAgent?: string;
-}
-
-export interface AuditLogList {
-  rows: AuditLog[];
-}
-
-export interface RedeemOfferRequest {
-  /**
-   * The organization to apply the offer credit to.
-   * @format uuid
-   */
-  organizationId: string;
-  /** The Attio record ID of the offer to redeem. */
-  offerRecordId: string;
-  /** Shipping address for welcome kit delivery. */
-  address?: string;
-}
-
-export interface RedeemOfferResponse {
-  /** The amount of credit applied in cents. */
-  appliedCents: number;
-  /** The Attio record ID of the redeemed offer. */
-  offerRecordId: string;
-}
-
-export interface UserOffer {
-  /** The Attio record ID of the offer. */
-  recordId: string;
-  /** The current stage of the offer. */
-  stage?: UserOfferStage;
-  /** The type of the offer. */
-  type?: UserOfferType;
-  /** The credit amount in cents. */
-  creditAmountCents?: number;
-  /**
-   * The expiration date of the offer.
-   * @format date-time
-   */
-  expiresAt?: string;
-  /** Number of months until the offer credit expires after redemption. */
-  expiresInMonths?: number;
-  /** Whether the offer includes a welcome kit. */
-  includesWelcomeKit?: boolean;
-}
-
 export type AutumnWebhookEvent = AutumnCustomerProductsUpdatedEvent;
 
 export interface AutumnCustomerProductsUpdatedEvent {
@@ -1171,4 +1092,110 @@ export interface AutumnProductItemDisplay {
 export interface AddOrganizationMembersToTenantRequest {
   /** IDs of org members to add to the tenant. */
   memberIds: string[];
+}
+
+/** The health of the provider as last observed by the sandbox operator: whether the vendor accepted the provider's credentials. Written on transitions only. */
+export interface SandboxProviderStatus {
+  /** Whether the last credential check succeeded. Absent until the operator has checked the provider. */
+  healthy?: boolean;
+  /** The error from the last failed check, if the provider is unhealthy. */
+  error?: string;
+  /**
+   * When the healthy flag last changed.
+   * @format date-time
+   */
+  changedAt?: string;
+}
+
+export interface SandboxProvider {
+  metadata: APIResourceMeta;
+  /** @format uuid */
+  tenantId: string;
+  /** The name of the provider. Unique within the tenant; the SDK selects it with metadata.provider. */
+  name: string;
+  /** The sandbox vendor a provider connects to. */
+  kind: SandboxProviderKind;
+  /** Provider settings as JSON. */
+  config: Record<string, any>;
+  /** The template or image a sandbox is created from when the SDK names none. */
+  defaultTemplate?: string;
+  /**
+   * The longest idle time a sandbox may ask for before the vendor removes it, in seconds.
+   * @format int32
+   */
+  maxIdleTtlSeconds: number;
+  labels: Record<string, any>;
+  /** Whether the operator serves sandboxes on this provider. */
+  enabled: boolean;
+  /** The health of the provider as last observed by the sandbox operator: whether the vendor accepted the provider's credentials. Written on transitions only. */
+  status: SandboxProviderStatus;
+}
+
+export interface SandboxProviderList {
+  pagination?: PaginationResponse;
+  rows?: SandboxProvider[];
+}
+
+export interface CreateSandboxProviderRequest {
+  /**
+   * The name of the provider. Unique within the tenant.
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  /** The sandbox vendor a provider connects to. */
+  kind: SandboxProviderKind;
+  /**
+   * The vendor API key. Write-only; it is stored encrypted and never returned.
+   * @minLength 1
+   */
+  apiKey: string;
+  /** Provider settings as JSON. Unknown keys are rejected. */
+  config?: Record<string, any>;
+  defaultTemplate?: string;
+  /**
+   * Defaults to 900.
+   * @format int32
+   */
+  maxIdleTtlSeconds?: number;
+  labels?: Record<string, any>;
+  /** Defaults to true. */
+  enabled?: boolean;
+}
+
+/** Fields to update on a sandbox provider. Omitted fields are left unchanged. */
+export interface UpdateSandboxProviderRequest {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name?: string;
+  /**
+   * A new vendor API key. Provide a value to rotate the key; it is never returned.
+   * @minLength 1
+   */
+  apiKey?: string;
+  /** Replaces the existing config. */
+  config?: Record<string, any>;
+  defaultTemplate?: string;
+  /** @format int32 */
+  maxIdleTtlSeconds?: number;
+  /** Replaces the existing labels. */
+  labels?: Record<string, any>;
+  enabled?: boolean;
+}
+
+export interface SandboxProviderEvent {
+  /** @format int64 */
+  id: number;
+  /** @format date-time */
+  createdAt: string;
+  kind: SandboxProviderEventKind;
+  sandboxId?: string;
+  message: string;
+  details: Record<string, any>;
+}
+
+export interface SandboxProviderEventList {
+  rows: SandboxProviderEvent[];
 }

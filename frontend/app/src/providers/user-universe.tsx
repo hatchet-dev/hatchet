@@ -3,14 +3,13 @@ import api, { controlPlaneApi } from '@/lib/api/api';
 import { OrganizationForUserList } from '@/lib/api/generated/cloud/data-contracts';
 import { TenantMember } from '@/lib/api/generated/data-contracts';
 import { useApiError } from '@/lib/hooks';
-import { appRoutes } from '@/router';
+import { reloadToLogin } from '@/lib/redirect';
 import {
   useMutation,
   UseMutationResult,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
 import { AxiosError } from 'axios';
 import { createContext, useCallback, useContext, useMemo } from 'react';
 import invariant from 'tiny-invariant';
@@ -109,7 +108,6 @@ export function UserUniverseProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const navigate = useNavigate();
   const { handleApiError } = useApiError({});
   const { isControlPlaneEnabled, isControlPlaneLoading } = useControlPlane();
   const tenantMembershipAndOrganizationsQuery = useQuery({
@@ -141,9 +139,7 @@ export function UserUniverseProvider({
     },
     onError: handleApiError,
     onSettled: () => {
-      // always clear on logout attempt, even if the request fails
-      queryClient.clear();
-      navigate({ to: appRoutes.authLoginRoute.to });
+      reloadToLogin();
     },
   });
 

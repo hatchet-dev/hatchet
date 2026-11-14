@@ -1,6 +1,7 @@
 import { LogLevel } from '@hatchet/clients/event/rpc';
 import type { EventsServiceClient, PutLogResponse } from '@hatchet/protoc/events/events';
 import HatchetError from '@util/errors/hatchet-error';
+import { serializePayload } from '@hatchet/util/serialize-payload';
 
 /** The longest log line accepted, in characters; the Node client's `putLog` holds the same limit. */
 export const MAX_LOG_LINE_CHARS = 1_000;
@@ -43,7 +44,7 @@ export class LogsClient {
       message,
       level: options.level ?? LogLevel.INFO,
       taskRetryCount: options.retryCount,
-      metadata: options.metadata ? JSON.stringify(options.metadata) : undefined,
+      metadata: options.metadata ? serializePayload(options.metadata) : undefined,
     });
   }
 }

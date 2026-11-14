@@ -97,6 +97,8 @@ var restrictedWithBearerToken = []string{
 	"ApiTokenList",
 	"ApiTokenCreate",
 	"ApiTokenUpdateRevoke",
+	// tokens are not tied to a member role, so they cannot change Labs entitlements
+	"TenantEntitlementsUpdate",
 }
 
 // Bearer tokens have tenant access checked by authentication and optional viewer restrictions here.

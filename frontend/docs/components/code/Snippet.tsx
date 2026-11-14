@@ -11,6 +11,7 @@ const languageToHighlightAbbreviation = (language: Language) => {
     case "python":
       return "py";
     case "typescript":
+    case "typescript_sandbox":
       return "ts";
     case "go":
       return "go";

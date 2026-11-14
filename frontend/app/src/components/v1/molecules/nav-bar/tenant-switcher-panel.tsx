@@ -36,10 +36,13 @@ import {
 } from '@heroicons/react/24/outline';
 import { detectPlatform, formatForDisplay } from '@tanstack/react-hotkeys';
 import React, { useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 
 // Orgs with more tenants than this show only the first ones plus "Show more",
 // and start collapsed unless they hold the current tenant.
 const ORG_VISIBLE_TENANTS = 6;
+
+const MAX_EXPANDED_ORGANIZATIONS = 5;
 
 const isMac = detectPlatform() === 'mac';
 
@@ -86,6 +89,7 @@ type Section = {
   isOpen: boolean;
   rows: Tenant[];
   hiddenCount: number;
+  firstHidden?: Tenant;
 };
 
 const tenantKey = (tenantId: string, organizationId?: string) =>
@@ -156,18 +160,19 @@ export function TenantSwitcherPanel({
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
   const [activeKey, setActiveKey] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<Set<string>>(
-    () =>
-      new Set(
-        (organizations ?? [])
-          .filter(
-            (org) =>
-              org.id === currentOrganizationId ||
-              org.tenants.length <= ORG_VISIBLE_TENANTS,
-          )
-          .map((org) => org.id),
-      ),
-  );
+  const [expanded, setExpanded] = useState<Set<string>>(() => {
+    const orgs = organizations ?? [];
+    const collapseOthers = orgs.length > MAX_EXPANDED_ORGANIZATIONS;
+    return new Set(
+      orgs
+        .filter(
+          (org) =>
+            org.id === currentOrganizationId ||
+            (!collapseOthers && org.tenants.length <= ORG_VISIBLE_TENANTS),
+        )
+        .map((org) => org.id),
+    );
+  });
   const [showAll, setShowAll] = useState<Set<string>>(() => new Set());
 
   const words = useMemo(() => parseSearchQuery(query), [query]);
@@ -221,6 +226,7 @@ export function TenantSwitcherPanel({
       }
 
       let hiddenCount = 0;
+      let firstHidden: Tenant | undefined;
       if (
         !isSearching &&
         !showAll.has(org.id) &&
@@ -234,6 +240,7 @@ export function TenantSwitcherPanel({
           visible = [...visible.slice(0, ORG_VISIBLE_TENANTS - 1), current];
         }
         hiddenCount = rows.length - visible.length;
+        firstHidden = rows.find((tenant) => !visible.includes(tenant));
         rows = visible;
       }
 
@@ -243,6 +250,7 @@ export function TenantSwitcherPanel({
           isOpen: isSearching || expanded.has(org.id),
           rows,
           hiddenCount,
+          firstHidden,
         },
       ];
     });
@@ -495,7 +503,22 @@ export function TenantSwitcherPanel({
         {section.isOpen && section.hiddenCount > 0 && (
           <CommandItem
             value={moreKey(org.id)}
-            onSelect={() => setShowAll((prev) => new Set(prev).add(org.id))}
+            onSelect={() => {
+              // cmdk jumps to the first item if the selected row unmounts, so
+              // deselect "Show more" before it goes away.
+              const lastVisible = section.rows.at(-1);
+              if (lastVisible) {
+                flushSync(() =>
+                  setActiveKey(tenantKey(lastVisible.metadata.id, org.id)),
+                );
+              }
+              setShowAll((prev) => new Set(prev).add(org.id));
+              if (section.firstHidden) {
+                setActiveKey(
+                  tenantKey(section.firstHidden.metadata.id, org.id),
+                );
+              }
+            }}
             className="cursor-pointer pl-16 text-xs text-muted-foreground"
           >
             Show {section.hiddenCount} more

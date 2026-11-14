@@ -1,3 +1,4 @@
+import { BananaMode } from '@/banana-mode/banana-mode';
 import { SidebarProvider } from '@/components/hooks/use-sidebar';
 import { ThemeProvider } from '@/components/hooks/use-theme';
 import { DomainRedirectModal } from '@/components/modals/domain-redirect-modal';
@@ -21,6 +22,7 @@ function Root({ children }: PropsWithChildren) {
                 <SidebarProvider>
                   {/* Root should not own scrolling; route shells decide their scroll behavior. */}
                   <div className="h-full w-full overflow-hidden">
+                    <BananaMode />
                     <Toaster />
                     <DomainRedirectModal />
                     {children ?? <Outlet />}

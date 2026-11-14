@@ -412,10 +412,8 @@ func TestConcurrency_DynamicMaxRuns_TenantScopedPropagation(t *testing.T) {
 	})
 }
 
-// TestConcurrency_DynamicMaxRuns_RegistrationRejections covers the two registration-time
-// gates: an expression that can never evaluate to an integer is rejected by validation,
-// and workflow-level entries on the old parent/child DAG path are rejected because that
-// machinery never sees per-slot max-runs values.
+// TestConcurrency_DynamicMaxRuns_RegistrationRejections verifies that an expression that
+// can never evaluate to an integer is rejected at registration.
 func TestConcurrency_DynamicMaxRuns_RegistrationRejections(t *testing.T) {
 	runWithDatabase(t, func(conf *database.Layer) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -448,21 +446,6 @@ func TestConcurrency_DynamicMaxRuns_RegistrationRejections(t *testing.T) {
 			},
 		})
 		require.Error(t, err, "a max_runs_expression that statically evaluates to a string must be rejected")
-
-		goodExpr := "input.limit"
-		_, err = conf.V1.Workflows().PutWorkflowVersion(ctx, tenantId, &repo.CreateWorkflowVersionOpts{
-			Name:        "dyn-reject-workflow-level",
-			Description: &desc,
-			Concurrency: []repo.CreateConcurrencyOpts{
-				{Expression: "input.group", MaxRuns: &maxRuns, MaxRunsExpression: &goodExpr},
-			},
-			Tasks: []repo.CreateStepOpts{
-				{ReadableId: "task-a", Action: "test:a"},
-				{ReadableId: "task-b", Action: "test:b", Parents: []string{"task-a"}},
-			},
-		})
-		require.Error(t, err, "workflow-level max_runs_expression on the old DAG path must be rejected")
-		require.ErrorContains(t, err, "max_runs_expression")
 
 		return nil
 	})

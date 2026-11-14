@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,6 +14,7 @@ import (
 )
 
 var ErrInviteAlreadyExists = errors.New("invite already exists for this email")
+var ErrMaxPendingInvites = errors.New("max pending invites reached")
 
 type CreateTenantInviteOpts struct {
 	// (required) the invitee email
@@ -146,7 +146,7 @@ func (r *tenantInviteRepository) CreateTenantInvite(ctx context.Context, tenantI
 
 		if invites >= int64(opts.MaxPending) {
 			r.l.Error().Ctx(ctx).Msg("max pending invites reached")
-			return nil, fmt.Errorf("max pending invites reached")
+			return nil, ErrMaxPendingInvites
 		}
 	}
 

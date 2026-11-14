@@ -1,3 +1,4 @@
+import { FeatureFlagsPanel } from './devtools-feature-flags';
 import { Button } from '@/components/v1/ui/button';
 import { cn } from '@/lib/utils';
 import { ReactQueryDevtoolsPanel } from '@tanstack/react-query-devtools';
@@ -9,8 +10,9 @@ export default function DevtoolsFooter() {
   const router = useRouter();
   const [openQuery, setOpenQuery] = useState(false);
   const [openRouter, setOpenRouter] = useState(false);
+  const [openFlags, setOpenFlags] = useState(false);
 
-  const anyOpen = openQuery || openRouter;
+  const anyOpen = openQuery || openRouter || openFlags;
   return (
     <div className="flex w-full min-w-0 items-center justify-end">
       <div className="relative flex items-center gap-2">
@@ -28,6 +30,13 @@ export default function DevtoolsFooter() {
         >
           Router
         </Button>
+        <Button
+          size="sm"
+          variant={openFlags ? 'secondary' : 'outline'}
+          onClick={() => setOpenFlags((v) => !v)}
+        >
+          Flags
+        </Button>
 
         {anyOpen ? (
           <Button
@@ -36,6 +45,7 @@ export default function DevtoolsFooter() {
             onClick={() => {
               setOpenQuery(false);
               setOpenRouter(false);
+              setOpenFlags(false);
             }}
           >
             Close
@@ -54,6 +64,7 @@ export default function DevtoolsFooter() {
               {openRouter ? (
                 <TanStackRouterDevtoolsPanel router={router} />
               ) : null}
+              {openFlags ? <FeatureFlagsPanel /> : null}
             </div>
           </div>
         ) : null}

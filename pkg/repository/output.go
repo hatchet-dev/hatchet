@@ -205,6 +205,20 @@ func ExtractOutputFromMatchData(data []byte) ([]byte, error) {
 
 const TaskCancelledErrorMessage = "task was cancelled"
 
+// FailureForDurableEntry is the failure a durable RUN entry records for this terminal event: a
+// failed child carries its error message and a cancelled child the cancellation message.
+func (e *TaskOutputEvent) FailureForDurableEntry() (bool, string) {
+	if e.IsFailure {
+		return true, e.ErrorMessage
+	}
+
+	if e.EventType == sqlcv1.V1TaskEventTypeCANCELLED {
+		return true, TaskCancelledErrorMessage
+	}
+
+	return false, ""
+}
+
 func ExtractFailureFromMatchData(data []byte) (bool, *string, error) {
 	var outer map[string]map[string][]json.RawMessage
 	if err := json.Unmarshal(data, &outer); err != nil {

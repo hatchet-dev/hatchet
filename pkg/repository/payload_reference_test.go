@@ -45,8 +45,6 @@ func TestEventTriggeredOperatorDagOrchestratorSharesTheEventInputPayload(t *test
 
 	ctx := context.Background()
 
-	require.NoError(t, newTenantEntitlementRepository(shared).SetEntitlements(ctx, internalTenantId, TenantEntitlements{DAGOperator: true}))
-
 	const eventKey = "order:created"
 
 	workflows := &workflowRepository{sharedRepository: shared}

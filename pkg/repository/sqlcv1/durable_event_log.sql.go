@@ -1121,6 +1121,77 @@ func (q *Queries) ListSatisfiedEntries(ctx context.Context, db DBTX, arg ListSat
 	return items, nil
 }
 
+const listUnsatisfiedRunEntriesForChildTaskExternalIds = `-- name: ListUnsatisfiedRunEntriesForChildTaskExternalIds :many
+WITH inputs AS (
+    SELECT
+        UNNEST($2::BIGINT[]) AS durable_task_id,
+        UNNEST($3::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST($4::UUID[]) AS child_task_external_id
+)
+
+SELECT
+    durable_task_id,
+    durable_task_inserted_at,
+    branch_id,
+    node_id,
+    child_task_external_id
+FROM v1_durable_event_log_entry
+WHERE
+    kind = 'RUN'
+    AND NOT is_satisfied
+    AND durable_task_inserted_at >= $1::TIMESTAMPTZ
+    AND (durable_task_id, durable_task_inserted_at, child_task_external_id) IN (
+        SELECT durable_task_id, durable_task_inserted_at, child_task_external_id
+        FROM inputs
+    )
+`
+
+type ListUnsatisfiedRunEntriesForChildTaskExternalIdsParams struct {
+	Mindurabletaskinsertedat pgtype.Timestamptz   `json:"mindurabletaskinsertedat"`
+	Durabletaskids           []int64              `json:"durabletaskids"`
+	Durabletaskinsertedats   []pgtype.Timestamptz `json:"durabletaskinsertedats"`
+	Childtaskexternalids     []uuid.UUID          `json:"childtaskexternalids"`
+}
+
+type ListUnsatisfiedRunEntriesForChildTaskExternalIdsRow struct {
+	DurableTaskID         int64              `json:"durable_task_id"`
+	DurableTaskInsertedAt pgtype.Timestamptz `json:"durable_task_inserted_at"`
+	BranchID              int64              `json:"branch_id"`
+	NodeID                int64              `json:"node_id"`
+	ChildTaskExternalID   *uuid.UUID         `json:"child_task_external_id"`
+}
+
+func (q *Queries) ListUnsatisfiedRunEntriesForChildTaskExternalIds(ctx context.Context, db DBTX, arg ListUnsatisfiedRunEntriesForChildTaskExternalIdsParams) ([]*ListUnsatisfiedRunEntriesForChildTaskExternalIdsRow, error) {
+	rows, err := db.Query(ctx, listUnsatisfiedRunEntriesForChildTaskExternalIds,
+		arg.Mindurabletaskinsertedat,
+		arg.Durabletaskids,
+		arg.Durabletaskinsertedats,
+		arg.Childtaskexternalids,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListUnsatisfiedRunEntriesForChildTaskExternalIdsRow
+	for rows.Next() {
+		var i ListUnsatisfiedRunEntriesForChildTaskExternalIdsRow
+		if err := rows.Scan(
+			&i.DurableTaskID,
+			&i.DurableTaskInsertedAt,
+			&i.BranchID,
+			&i.NodeID,
+			&i.ChildTaskExternalID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markDurableEventLogEntrySatisfied = `-- name: MarkDurableEventLogEntrySatisfied :one
 UPDATE v1_durable_event_log_entry
 SET

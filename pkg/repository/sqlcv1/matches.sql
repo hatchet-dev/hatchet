@@ -294,3 +294,32 @@ DELETE FROM
     v1_match_condition
 WHERE
     v1_match_id IN (SELECT id FROM deleted_match_ids);
+
+-- name: DeleteCompletionMatchesHeldOnChildTasks :exec
+WITH input AS (
+    SELECT
+        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST(@childTaskExternalIds::UUID[]) AS child_task_external_id
+), deleted_matches AS (
+    DELETE FROM
+        v1_match m
+    USING
+        input i
+    JOIN
+        v1_match_condition mc ON mc.tenant_id = @tenantId::UUID
+        AND mc.event_type = 'INTERNAL'
+        AND mc.event_key = 'COMPLETED'
+        AND mc.is_satisfied = FALSE
+        AND mc.event_resource_hint = i.child_task_external_id::TEXT
+    WHERE
+        m.id = mc.v1_match_id
+        AND m.signal_task_id = i.durable_task_id
+        AND m.signal_task_inserted_at = i.durable_task_inserted_at
+    RETURNING
+        m.id
+)
+DELETE FROM
+    v1_match_condition
+WHERE
+    v1_match_id IN (SELECT id FROM deleted_matches);

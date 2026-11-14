@@ -13,11 +13,11 @@ async def test_cancellation(hatchet: Hatchet) -> None:
     for _ in range(120):
         run = await hatchet.runs.aio_get_details(ref.workflow_run_id)
 
-        if run.status in [RunStatus.RUNNING, RunStatus.QUEUED]:
+        if run.status in ["RUNNING", "QUEUED"]:
             await asyncio.sleep(1)
             continue
 
-        assert run.status == RunStatus.CANCELLED
+        assert run.status == "CANCELLED"
 
         break
     else:

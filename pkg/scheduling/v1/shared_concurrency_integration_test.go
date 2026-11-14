@@ -485,8 +485,7 @@ func TestConcurrency_SharedStrategy_ActiveCheck(t *testing.T) {
 }
 
 // TestConcurrency_SharedStrategy_WorkflowLevel verifies workflow-level tenant-scoped
-// concurrency: with the DAG operator entitlement it lands on the orchestrator task, and
-// without it (the old parent/child path) it is rejected loudly.
+// concurrency: it lands on the DAG orchestrator task.
 func TestConcurrency_SharedStrategy_WorkflowLevel(t *testing.T) {
 	runWithDatabase(t, func(conf *database.Layer) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -495,20 +494,13 @@ func TestConcurrency_SharedStrategy_WorkflowLevel(t *testing.T) {
 
 		queries := sqlcv1.New()
 
-		newTenant := func(name string, dagOperator bool) uuid.UUID {
-			tenantId := uuid.New()
-			_, err := conf.V1.Tenant().CreateTenant(ctx, &repo.CreateTenantOpts{
-				ID:   &tenantId,
-				Name: name,
-				Slug: fmt.Sprintf("%s-%s", name, tenantId.String()),
-			})
-			require.NoError(t, err)
-
-			err = conf.V1.TenantEntitlement().SetEntitlements(ctx, tenantId, repo.TenantEntitlements{DAGOperator: dagOperator})
-			require.NoError(t, err)
-
-			return tenantId
-		}
+		dagTenant := uuid.New()
+		_, err := conf.V1.Tenant().CreateTenant(ctx, &repo.CreateTenantOpts{
+			ID:   &dagTenant,
+			Name: "shared-wf-dag-test",
+			Slug: fmt.Sprintf("shared-wf-dag-test-%s", dagTenant.String()),
+		})
+		require.NoError(t, err)
 
 		desc := "test workflow"
 		maxRuns := int32(1)
@@ -526,9 +518,6 @@ func TestConcurrency_SharedStrategy_WorkflowLevel(t *testing.T) {
 				LimitStrategy:  &strategyType,
 			},
 		}
-
-		// new path: the entry becomes concurrency on the DAG orchestrator task
-		dagTenant := newTenant("shared-wf-dag-test", true)
 
 		wfVersion, err := conf.V1.Workflows().PutWorkflowVersion(ctx, dagTenant, &repo.CreateWorkflowVersionOpts{
 			Name:        "shared-wf-dag",
@@ -556,18 +545,6 @@ func TestConcurrency_SharedStrategy_WorkflowLevel(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, rows, 1, "the tenant-scoped entry should land on the orchestrator step")
 		require.True(t, rows[0].TenantStrategyID.Valid)
-
-		// old path: rejected loudly
-		oldTenant := newTenant("shared-wf-old-test", false)
-
-		_, err = conf.V1.Workflows().PutWorkflowVersion(ctx, oldTenant, &repo.CreateWorkflowVersionOpts{
-			Name:        "shared-wf-old",
-			Description: &desc,
-			Concurrency: workflowConcurrency,
-			Tasks:       multiTask,
-		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "not supported at the workflow level")
 
 		return nil
 	})

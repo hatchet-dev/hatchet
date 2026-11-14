@@ -124,6 +124,17 @@ func (c *ConcurrencyManager) Cleanup() {
 	c.cleanup()
 }
 
+// leasedOutboxTopic returns the outbox topic whose exclusive lease this manager leaves behind
+// when it is cleaned up, and false if it leaves none. Only a manager running the in-memory
+// index does: on the SQL path the topic subscription releases its own lease as it exits.
+func (c *ConcurrencyManager) leasedOutboxTopic() (string, bool) {
+	if c.concurrencyStrategy == nil {
+		return "", false
+	}
+
+	return c.concurrencyStrategy.Topic(), true
+}
+
 // currentDef is the definition this manager is currently running: the last in-place
 // update if one was applied, else the construction-time strategy. Reconcile-goroutine
 // only, like appliedDef.

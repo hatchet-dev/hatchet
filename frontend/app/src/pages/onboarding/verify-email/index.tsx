@@ -5,11 +5,12 @@ import { useAnalytics } from '@/hooks/use-analytics';
 import api from '@/lib/api';
 import { controlPlaneApi, fetchControlPlaneStatus } from '@/lib/api/api';
 import { useUserApi } from '@/lib/api/user-wrapper';
+import { reloadToLogin } from '@/lib/redirect';
 import { AppContextProvider } from '@/providers/app-context';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
 import { useMutation } from '@tanstack/react-query';
-import { redirect, useLoaderData, useNavigate } from '@tanstack/react-router';
+import { redirect, useLoaderData } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
 export async function loader({ request }: { request: Request }) {
@@ -50,7 +51,6 @@ function VerifyEmailInner() {
     from: appRoutes.onboardingVerifyRoute.to,
   }) as Awaited<ReturnType<typeof loader>>;
   const { capture } = useAnalytics();
-  const navigate = useNavigate();
   const { userUpdateLogoutMutation } = useUserApi();
 
   // The full-screen card replaces the top nav (and its account menu), so the
@@ -58,8 +58,7 @@ function VerifyEmailInner() {
   const logoutMutation = useMutation({
     ...userUpdateLogoutMutation(),
     onSettled: () => {
-      queryClient.clear();
-      navigate({ to: appRoutes.authLoginRoute.to });
+      reloadToLogin();
     },
   });
 

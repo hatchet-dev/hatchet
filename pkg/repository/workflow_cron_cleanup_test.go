@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
@@ -31,6 +32,8 @@ func newWorkflowTestRepository(pool *pgxpool.Pool) *workflowRepository {
 		queries:    sqlcv1.New(),
 		v:          validator.NewDefaultValidator(),
 		queueCache: cache.New(5 * time.Minute),
+
+		eventKeyWorkflowsCache: expirable.NewLRU(10000, func(key eventKeyTenantIdTuple, value []*sqlcv1.ListWorkflowsForEventsRow) {}, 5*time.Second),
 	}
 	return &workflowRepository{sharedRepository: shared}
 }

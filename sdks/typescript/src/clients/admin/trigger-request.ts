@@ -12,6 +12,7 @@ import type {
 import type { DeepPartial } from '@clients/transport/message-bridge';
 import type { DesiredWorkerLabelOpt, TriggerRunOptions } from '@hatchet/core/types';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
+import { serializePayload } from '@hatchet/util/serialize-payload';
 
 /**
  * One builder for both clients, so a run triggered from the core client is indistinguishable
@@ -27,13 +28,13 @@ export function buildTriggerWorkflowRequest<Q>(
 
   return {
     name: applyNamespace(workflowName, namespace).toLowerCase(),
-    input: JSON.stringify(input),
+    input: serializePayload(input),
     parentId: opts.parentId,
     parentTaskRunExternalId: opts.parentTaskRunExternalId ?? opts.parentStepRunId,
     childIndex: opts.childIndex,
     childKey: opts.childKey,
     additionalMetadata: opts.additionalMetadata
-      ? JSON.stringify(opts.additionalMetadata)
+      ? serializePayload(opts.additionalMetadata)
       : undefined,
     desiredWorkerId: opts.desiredWorkerId,
     priority: opts.priority,

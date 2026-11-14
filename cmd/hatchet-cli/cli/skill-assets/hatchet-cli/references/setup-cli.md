@@ -26,6 +26,12 @@ Alternatively, on macOS via Homebrew:
 brew install hatchet-dev/hatchet/hatchet --cask
 ```
 
+Alternatively, with Node.js (macOS, Linux, and Windows):
+
+```bash
+npm i -g @hatchet-dev/cli
+```
+
 After installation, verify it worked:
 
 ```bash

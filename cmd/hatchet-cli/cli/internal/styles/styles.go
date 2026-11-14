@@ -48,13 +48,17 @@ var (
 
 	// Error color for general errors
 	ErrorColor = lipgloss.AdaptiveColor{Light: "#dc2626", Dark: "#ff5555"}
+
+	// Warning color for non-fatal notices
+	WarningColor = lipgloss.AdaptiveColor{Light: "#854d0e", Dark: "#fde047"}
 )
 
 // Common styles
 var (
 	// Base styles
-	Bold   = lipgloss.NewStyle().Bold(true)
-	Italic = lipgloss.NewStyle().Italic(true)
+	Bold    = lipgloss.NewStyle().Bold(true)
+	Italic  = lipgloss.NewStyle().Italic(true)
+	Warning = lipgloss.NewStyle().Foreground(WarningColor)
 
 	// Headings
 	H1 = lipgloss.NewStyle().

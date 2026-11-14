@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class MinEngineVersion(str, Enum):
+class MinEngineVersion(StrEnum):
     """Minimum engine version required for a given feature."""
 
     SLOT_CONFIG = "v0.78.23"

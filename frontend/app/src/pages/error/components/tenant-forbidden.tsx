@@ -8,6 +8,7 @@ import { TenantMember } from '@/lib/api';
 import { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
 import { useUserApi } from '@/lib/api/user-wrapper';
 import { lastTenantAtom } from '@/lib/atoms';
+import { reloadToLogin } from '@/lib/redirect';
 import { getOptionalStringParam } from '@/lib/router-helpers';
 import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
@@ -114,8 +115,7 @@ export function TenantForbidden() {
   const logoutMutation = useMutation({
     ...userUpdateLogoutMutation(),
     onSuccess: () => {
-      queryClient.clear();
-      navigate({ to: appRoutes.authLoginRoute.to, replace: true });
+      reloadToLogin();
     },
   });
 

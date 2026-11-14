@@ -98,29 +98,6 @@ func (f *OperatorStore) UpsertGRPCOperator(ctx context.Context, tenantId uuid.UU
 	})
 }
 
-// UpdateOperator applies the row changes a registration makes: pointing the row at a worker.
-func (f *OperatorStore) UpdateOperator(_ context.Context, tenantId, operatorId uuid.UUID, opts repository.UpdateOperatorOpts) (*sqlcv1.V1Operator, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	op, ok := f.operators[operatorId]
-
-	if !ok || op.TenantID != tenantId {
-		return nil, pgx.ErrNoRows
-	}
-
-	if opts.WorkerId != nil {
-		workerId := *opts.WorkerId
-		op.WorkerID = &workerId
-	}
-
-	if opts.Name != nil {
-		op.Name = *opts.Name
-	}
-
-	return op, nil
-}
-
 // Put adds an operator to the store, as a row created outside the service would be.
 func (f *OperatorStore) Put(op *sqlcv1.V1Operator) *sqlcv1.V1Operator {
 	f.mu.Lock()
@@ -440,6 +417,29 @@ func (f *WorkerStore) Refreshes() []uuid.UUID {
 	defer f.mu.Unlock()
 
 	return append([]uuid.UUID(nil), f.refreshes...)
+}
+
+// ReleaseDeadOperatorWorkers records "release" and releases every other worker of the operator
+// the store has inactive. The store has no dispatchers, so an active worker counts as live.
+func (f *WorkerStore) ReleaseDeadOperatorWorkers(_ context.Context, tenantId, operatorId, keepWorkerId uuid.UUID) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	var released int64
+
+	for id, w := range f.workers {
+		if id == keepWorkerId || f.active[id] || w.TenantId != tenantId || w.OperatorId == nil || *w.OperatorId != operatorId {
+			continue
+		}
+
+		released += int64(len(f.actions[id]))
+		f.actions[id] = map[string]struct{}{}
+		f.hashPending[id] = true
+	}
+
+	f.ops = append(f.ops, "release")
+
+	return released, nil
 }
 
 func (f *WorkerStore) CountOperatorWorkerActions(_ context.Context, tenantId uuid.UUID, operatorId uuid.UUID) (int64, error) {

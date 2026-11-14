@@ -4,7 +4,8 @@ import { AbortError } from '@hatchet/util/abort-error';
 import type { EventsServiceClient, PutStreamEventResponse } from '@hatchet/protoc/events/events';
 import type { V1StreamsClient } from '@hatchet/protoc/v1/streams';
 import { StreamPublishQueue, validateBatchTimeout } from '@util/stream-publish-batch';
-import type { StreamCallOptions, StreamTopicMetadata } from '../types';
+import sleep from '@hatchet/util/sleep';
+import type { StreamCallOptions, StreamEvent, StreamTopicMetadata } from '../types';
 
 /**
  * The largest payload one `publish` carries: the engine's limit for a payload sent inline
@@ -16,6 +17,11 @@ export const MAX_STREAM_MESSAGE_BYTES = 4 * 1024 * 1024 - 5 * 1024;
 export interface StreamsClientDeps {
   events: EventsServiceClient;
   streams: V1StreamsClient;
+  /**
+   * Reads a payload the engine stored by ref (one published through an upload) from the REST
+   * API. Without it, `subscribe` throws on reaching such a message.
+   */
+  fetchPayload?: (payloadRef: string, signal?: AbortSignal) => Promise<Uint8Array>;
 }
 
 /**
@@ -30,6 +36,48 @@ function isEventsService(
   deps: StreamsClientDeps | EventsServiceClient
 ): deps is EventsServiceClient {
   return typeof (deps as EventsServiceClient).putStreamEvent === 'function';
+}
+
+/** Retrying a subscribe that failed with these can't succeed. */
+const permanentSubscribeErrors = new Set<Code>([
+  Code.InvalidArgument,
+  Code.PermissionDenied,
+  Code.Unauthenticated,
+  Code.OutOfRange,
+  Code.FailedPrecondition,
+  Code.NotFound,
+]);
+
+const RESUBSCRIBE_MIN_DELAY_MS = 250;
+const RESUBSCRIBE_MAX_DELAY_MS = 10_000;
+const PAYLOAD_FETCH_ATTEMPTS = 3;
+
+/** The status of an error response the fetch REST client threw, which is the response itself. */
+function httpStatus(err: unknown): number | undefined {
+  if (typeof err === 'object' && err !== null && 'status' in err && 'ok' in err) {
+    return (err as { status: number }).status;
+  }
+  return undefined;
+}
+
+function shouldResubscribe(err: unknown, attempt: number): boolean {
+  if (err instanceof ConnectError) {
+    if (permanentSubscribeErrors.has(err.code)) {
+      return false;
+    }
+    // proxies answer 404 while an engine restarts, but on a first attempt it means no streams support
+    if (err.code === Code.Unimplemented) {
+      return attempt > 0;
+    }
+    return true;
+  }
+  // a payload fetch: a 5xx or 429 may succeed later, and fetch rejects with a TypeError when no
+  // response arrives
+  const status = httpStatus(err);
+  if (status !== undefined) {
+    return status >= 500 || status === 429;
+  }
+  return err instanceof TypeError;
 }
 
 /** The engine stored nothing, so the producer's sequence number is still unused. */
@@ -56,11 +104,8 @@ interface QueuedPublish {
  * Task run streams and durable stream topics.
  *
  * `put` publishes a chunk on a task run's stream, the way `ctx.putStream` does from a worker.
- * `publish`, `reset` and `topicMetadata` are the Node client's durable topic calls
- * (`hatchet.streams`), with the same names and options. `subscribe()` is not here: it is a
- * server stream, which the unary transport does not carry. Read a topic with the Node client
- * (`hatchet.streams.subscribe(topic)`), or from a serverless task over the operator socket once
- * the operator relays the subscription.
+ * `publish`, `subscribe`, `reset` and `topicMetadata` are the Node client's durable topic calls
+ * (`hatchet.streams`), with the same names and options.
  */
 export class StreamsClient {
   /** Per (namespace, topic); the sequence number only advances after a publish succeeds. */
@@ -75,8 +120,9 @@ export class StreamsClient {
   /** Set once the engine answers `PublishBatch` as unimplemented: it predates batching. */
   private publishBatchUnsupported = false;
 
-  private readonly events: EventsServiceClient;
+  private readonly eventsService: EventsServiceClient;
   private readonly streams: V1StreamsClient | undefined;
+  private readonly payloads: StreamsClientDeps['fetchPayload'];
 
   /**
    * Takes the events and durable streams services, or only the events service, which
@@ -84,11 +130,12 @@ export class StreamsClient {
    */
   constructor(deps: StreamsClientDeps | EventsServiceClient) {
     if (isEventsService(deps)) {
-      this.events = deps;
+      this.eventsService = deps;
       this.streams = undefined;
     } else {
-      this.events = deps.events;
+      this.eventsService = deps.events;
       this.streams = deps.streams;
+      this.payloads = deps.fetchPayload;
     }
   }
 
@@ -111,7 +158,7 @@ export class StreamsClient {
     index?: number
   ): Promise<PutStreamEventResponse> {
     const message = typeof data === 'string' ? new TextEncoder().encode(data) : data;
-    return this.events.putStreamEvent({
+    return this.eventsService.putStreamEvent({
       taskRunExternalId,
       createdAt: new Date(),
       message,
@@ -207,6 +254,91 @@ export class StreamsClient {
       latestCursor: res.latestCursor,
       lastPublishedAt: res.lastPublishedAt,
     };
+  }
+
+  /**
+   * Yields topic's messages after `options.cursor`, or from the oldest retained (or, once the
+   * topic is reset, after the reset). If the connection drops, it resubscribes from the last
+   * message yielded, so nothing is skipped or repeated. Ends when the server hangs up an idle
+   * subscription, `options.signal` aborts, or the caller stops iterating; throws on errors a
+   * retry can't fix, such as an expired cursor.
+   * @param topic - the topic to read from
+   * @param options - optional namespace override, resume cursor and abort signal
+   */
+  async *subscribe(topic: string, options?: StreamCallOptions): AsyncIterable<StreamEvent> {
+    const streams = this.durable();
+    const namespace = options?.namespace ?? '';
+    const signal = options?.signal;
+    let { cursor } = options ?? {};
+    let failures = 0;
+
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        for await (const msg of streams.subscribe({ namespace, topic, cursor }, { signal })) {
+          if (msg.hangup) {
+            return;
+          }
+
+          for (const entry of msg.entries) {
+            // aborting cancels the request, but a message's remaining entries are already here
+            if (signal?.aborted) {
+              return;
+            }
+            const payload = entry.payloadRef
+              ? await this.fetchPayload(entry.payloadRef, signal)
+              : entry.payload;
+            if (signal?.aborted) {
+              return;
+            }
+            ({ cursor } = entry);
+            // reset only on delivery, so a payload fetch failing on every reconnect still backs off
+            failures = 0;
+            yield { payload, cursor: entry.cursor, createdAt: entry.createdAt };
+          }
+        }
+        // ending without a hangup means the engine went away, e.g. it is shutting down
+      } catch (err) {
+        if (signal?.aborted) {
+          return;
+        }
+        if (!shouldResubscribe(err, attempt)) {
+          throw err;
+        }
+      }
+
+      const delayMs = Math.min(RESUBSCRIBE_MIN_DELAY_MS * 2 ** failures, RESUBSCRIBE_MAX_DELAY_MS);
+      failures += 1;
+
+      try {
+        await sleep(delayMs * (0.5 + Math.random() / 2), signal);
+      } catch {
+        return;
+      }
+    }
+  }
+
+  /** Retries a 5xx or network failure; a 4xx won't succeed on retry. */
+  private async fetchPayload(payloadRef: string, signal?: AbortSignal): Promise<Uint8Array> {
+    if (!this.payloads) {
+      throw new HatchetError(
+        'the message payload is stored by ref, which this StreamsClient cannot read; build it with fetchPayload'
+      );
+    }
+
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await this.payloads(payloadRef, signal);
+      } catch (err) {
+        const status = httpStatus(err);
+        if (
+          signal?.aborted ||
+          (status !== undefined && status < 500) ||
+          attempt >= PAYLOAD_FETCH_ATTEMPTS
+        ) {
+          throw err;
+        }
+      }
+    }
   }
 
   /**

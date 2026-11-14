@@ -23,8 +23,9 @@ type Ticker interface {
 }
 
 type TickerImpl struct {
-	mqv1 msgqueue.MessageQueue
-	l    *zerolog.Logger
+	mqv1   msgqueue.MessageQueue
+	pubsub msgqueue.PubSub
+	l      *zerolog.Logger
 
 	repov1 v1.Repository
 	s      gocron.Scheduler
@@ -49,8 +50,9 @@ type TickerImpl struct {
 type TickerOpt func(*TickerOpts)
 
 type TickerOpts struct {
-	mqv1 msgqueue.MessageQueue
-	l    *zerolog.Logger
+	mqv1   msgqueue.MessageQueue
+	pubsub msgqueue.PubSub
+	l      *zerolog.Logger
 
 	repov1   v1.Repository
 	tickerId uuid.UUID
@@ -71,6 +73,13 @@ func defaultTickerOpts() *TickerOpts {
 func WithMessageQueueV1(mq msgqueue.MessageQueue) TickerOpt {
 	return func(opts *TickerOpts) {
 		opts.mqv1 = mq
+	}
+}
+
+// WithPubSub supplies the pubsub the ticker receives cron refresh notifications on.
+func WithPubSub(pubsub msgqueue.PubSub) TickerOpt {
+	return func(opts *TickerOpts) {
+		opts.pubsub = pubsub
 	}
 }
 
@@ -103,6 +112,10 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 		return nil, fmt.Errorf("task queue v1 is required. use WithMessageQueueV1")
 	}
 
+	if opts.pubsub == nil {
+		return nil, fmt.Errorf("pubsub is required. use WithPubSub")
+	}
+
 	if opts.repov1 == nil {
 		return nil, fmt.Errorf("repository v1 is required. use WithRepositoryV1")
 	}
@@ -128,6 +141,7 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 
 	return &TickerImpl{
 		mqv1:                   opts.mqv1,
+		pubsub:                 opts.pubsub,
 		l:                      opts.l,
 		repov1:                 opts.repov1,
 		s:                      s,
@@ -157,14 +171,15 @@ func (t *TickerImpl) Start() (func() error, error) {
 	// a cron to be created
 	t.refreshCronSchedules(ctx)()
 
-	// add a handler to update the cron schedule on-demand when crons are created
+	// add a handler to update the cron schedule on-demand when crons change
 	cronUpdateHandler := func(task *msgqueue.Message) error {
 		t.refreshCronSchedules(ctx)()
 		return nil
 	}
-	queueCleanupFunc, err := t.mqv1.Subscribe(msgqueue.TICKER_UPDATE_QUEUE, cronUpdateHandler, msgqueue.NoOpHook)
+	cleanupCronRefresh, err := t.pubsub.Sub(msgqueue.CronRefreshTopic(), cronUpdateHandler)
 	if err != nil {
-		t.l.Err(err).Ctx(ctx).Msg("Could not subscribe to cron trigger update queue")
+		cancel()
+		return nil, fmt.Errorf("could not subscribe to cron refresh topic: %w", err)
 	}
 
 	_, err = t.s.NewJob(
@@ -243,8 +258,8 @@ func (t *TickerImpl) Start() (func() error, error) {
 
 		cancel()
 
-		if err = queueCleanupFunc(); err != nil {
-			t.l.Err(err).Ctx(ctx).Msg("Could not cleanup cron trigger update queue")
+		if err = cleanupCronRefresh(); err != nil {
+			t.l.Err(err).Ctx(ctx).Msg("Could not cleanup cron refresh subscription")
 		}
 
 		if err := t.s.Shutdown(); err != nil {

@@ -19,6 +19,8 @@ import {
   isBeforeRetention,
   isTimeWindowOutsideRetention,
   largestAllowedTimeWindow,
+  TIME_WINDOW_HOURS,
+  TIME_WINDOW_PRESETS,
   type TimeWindowPreset,
 } from '@/lib/utils/retention';
 import { appRoutes } from '@/router';
@@ -35,7 +37,7 @@ export type TimeWindow = TimeWindowPreset;
 
 const filterSchema = z.object({
   q: z.string().optional(),
-  tw: z.enum(['1h', '6h', '1d', '7d']).default('1d'),
+  tw: z.enum(TIME_WINDOW_PRESETS).default('1d'),
   // custom time range set by chart drag; overrides tw when present
   since: z.string().optional(),
   until: z.string().optional(),
@@ -44,8 +46,9 @@ const filterSchema = z.object({
 type FilterState = z.infer<typeof filterSchema>;
 
 function getSinceFromTimeWindow(tw: TimeWindow): string {
-  const hours = { '1h': 1, '6h': 6, '1d': 24, '7d': 168 }[tw];
-  return new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+  return new Date(
+    Date.now() - TIME_WINDOW_HOURS[tw] * 60 * 60 * 1000,
+  ).toISOString();
 }
 
 function logKey(log: LogLine): string {

@@ -45,6 +45,7 @@ export enum FeatureFlagId {
   OrganizationSsoEnabled = 'organization-sso-enabled',
   OperatorDetailsEnabled = 'operator-details-enabled',
   ConcurrencyPageEnabled = 'concurrency-page-enabled',
+  RunsFilterSidebarEnabled = 'runs-filter-sidebar-enabled',
 }
 
 export enum WebhookWorkerRequestMethod {
@@ -142,6 +143,9 @@ export enum ConcurrencyLimitStrategy {
   DROP_NEWEST = 'DROP_NEWEST',
   QUEUE_NEWEST = 'QUEUE_NEWEST',
   GROUP_ROUND_ROBIN = 'GROUP_ROUND_ROBIN',
+  CANCEL_NEWEST = 'CANCEL_NEWEST',
+  CANCEL_QUEUED_EXCEPT_NEWEST = 'CANCEL_QUEUED_EXCEPT_NEWEST',
+  CANCEL_QUEUED_EXCEPT_OLDEST = 'CANCEL_QUEUED_EXCEPT_OLDEST',
 }
 
 export enum CronWorkflowsOrderByField {
@@ -931,6 +935,11 @@ export interface V1StreamTopic {
    * @format int64
    */
   messageCount: number;
+  /**
+   * Subscribers without a cursor start after this offset, 0 to start from the oldest retained message
+   * @format int64
+   */
+  startingOffset: number;
 }
 
 export interface V1StreamTopicList {
@@ -1819,6 +1828,16 @@ export interface TenantEntitlements {
   dagOperator: boolean;
   durableStreams: boolean;
   serverlessOperator: boolean;
+  sandboxOperator: boolean;
+}
+
+export interface UpdateTenantEntitlementsRequest {
+  /** Whether the tenant has opted into durable streams. */
+  durableStreams?: boolean;
+  /** Whether the tenant has opted into the serverless operator. */
+  serverlessOperator?: boolean;
+  /** Whether the tenant has opted into the sandbox operator. */
+  sandboxOperator?: boolean;
 }
 
 export interface UpdateTenantAlertEmailGroupRequest {

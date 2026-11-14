@@ -143,6 +143,7 @@ HatchetSdkRest.autoload :TriggerWorkflowRunRequest, 'hatchet-sdk-rest/models/tri
 HatchetSdkRest.autoload :UpdateCronWorkflowTriggerRequest, 'hatchet-sdk-rest/models/update_cron_workflow_trigger_request'
 HatchetSdkRest.autoload :UpdateScheduledWorkflowRunRequest, 'hatchet-sdk-rest/models/update_scheduled_workflow_run_request'
 HatchetSdkRest.autoload :UpdateTenantAlertEmailGroupRequest, 'hatchet-sdk-rest/models/update_tenant_alert_email_group_request'
+HatchetSdkRest.autoload :UpdateTenantEntitlementsRequest, 'hatchet-sdk-rest/models/update_tenant_entitlements_request'
 HatchetSdkRest.autoload :UpdateTenantInviteRequest, 'hatchet-sdk-rest/models/update_tenant_invite_request'
 HatchetSdkRest.autoload :UpdateTenantMemberRequest, 'hatchet-sdk-rest/models/update_tenant_member_request'
 HatchetSdkRest.autoload :UpdateTenantRequest, 'hatchet-sdk-rest/models/update_tenant_request'

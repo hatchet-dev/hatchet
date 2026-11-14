@@ -40,7 +40,13 @@ func removeWorkerActions(repo WorkerRepository, ctx context.Context, tenantId, w
 }
 
 func createWorkerActionsRepositoryForTest(pool *pgxpool.Pool) WorkerRepository {
-	logger := zerolog.New(io.Discard)
+	return createWorkerActionsRepositoryWithLogger(pool, io.Discard)
+}
+
+// createWorkerActionsRepositoryWithLogger writes the repository's log lines to w, for tests
+// that assert on them.
+func createWorkerActionsRepositoryWithLogger(pool *pgxpool.Pool, w io.Writer) WorkerRepository {
+	logger := zerolog.New(w)
 
 	return newWorkerRepository(&sharedRepository{
 		pool:    fairpool.Ungated(pool),

@@ -43,6 +43,8 @@ type UpdateUserOpts struct {
 	EmailVerified *bool
 	Name          *string
 
+	RevokeSessions bool
+
 	// auth options
 	Password *string    `validate:"omitempty,required_without=OAuth,excluded_with=OAuth"`
 	OAuth    *OAuthOpts `validate:"omitempty,required_without=Password,excluded_with=Password"`
@@ -391,7 +393,9 @@ func (r *userRepository) updateUser(ctx context.Context, id uuid.UUID, opts *Upd
 		if err := r.queries.DeleteUserPassword(ctx, tx, id); err != nil {
 			return nil, err
 		}
+	}
 
+	if resetLogin || opts.RevokeSessions {
 		if _, err := r.queries.DeleteUserSessionsByUserId(ctx, tx, sqlcv1.DeleteUserSessionsByUserIdParams{
 			Userid: id,
 		}); err != nil {

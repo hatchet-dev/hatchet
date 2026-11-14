@@ -46,7 +46,7 @@ import api, {
 } from '@/lib/api';
 import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
 import { getErrorStatus, shouldRetryQueryError } from '@/lib/error-utils';
-import { prettyPrintIfValidJson } from '@/lib/utils';
+import { formatErrorForDisplay } from '@/lib/utils';
 import { isBeforeRetention } from '@/lib/utils/retention';
 import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
 import { appRoutes, tenantRunRoute } from '@/router';
@@ -414,6 +414,12 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
   const inputData = JSON.stringify(workflowRun.input || {});
   const additionalMetadata = workflowRun.additionalMetadata;
 
+  // A failed run shows its error in the Output tab.
+  const failed = workflowRun.status === V1TaskStatus.FAILED;
+  const output: ReturnType<typeof formatErrorForDisplay> = failed
+    ? formatErrorForDisplay(workflowRun.errorMessage || '')
+    : { code: JSON.stringify(workflowRun.output, null, 2), language: 'json' };
+
   return (
     <div className="flex h-full w-full flex-1 flex-col min-h-0">
       <div className="mx-auto flex h-full w-full flex-1 min-h-0 flex-col px-4 pt-2 sm:px-6 lg:px-8">
@@ -499,12 +505,9 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
                     className="flex-1 min-h-0 overflow-hidden"
                     maxHeight="100%"
                     minHeight="100%"
-                    language="json"
-                    code={
-                      workflowRun.status === V1TaskStatus.FAILED
-                        ? prettyPrintIfValidJson(workflowRun.errorMessage || '')
-                        : JSON.stringify(workflowRun.output, null, 2)
-                    }
+                    language={output.language}
+                    code={output.code}
+                    copyCode={failed ? workflowRun.errorMessage : undefined}
                   />
                 )}
               </TabsContent>

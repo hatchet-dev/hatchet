@@ -30,7 +30,7 @@ import { useUserApi } from '@/lib/api/user-wrapper';
 import { lastTenantAtom } from '@/lib/atoms';
 import { globalEmitter } from '@/lib/global-emitter';
 import { useContextFromParent } from '@/lib/outlet';
-import { REDIRECT_TARGET_KEY } from '@/lib/redirect';
+import { REDIRECT_TARGET_KEY, reloadToLogin } from '@/lib/redirect';
 import { getResourceLimitStatus } from '@/lib/resource-limit-status';
 import { OutletWithContext } from '@/lib/router-helpers';
 import { cn } from '@/lib/utils';
@@ -175,9 +175,7 @@ function AuthenticatedInner() {
   const logoutMutation = useMutation({
     ...userUpdateLogoutMutation(),
     onSettled: () => {
-      // always clear on logout attempt, even if the request fails
-      queryClient.clear();
-      navigate({ to: appRoutes.authLoginRoute.to });
+      reloadToLogin();
     },
   });
 

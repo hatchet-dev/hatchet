@@ -3,15 +3,14 @@ import { SetupScreen } from '@/components/layout/setup-card';
 import { Button } from '@/components/v1/ui/button';
 import { queries } from '@/lib/api';
 import { useUserApi } from '@/lib/api/user-wrapper';
-import { useRedirectOrNavigate } from '@/lib/redirect';
+import { reloadToLogin, useRedirectOrNavigate } from '@/lib/redirect';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
 import { useMutation } from '@tanstack/react-query';
-import { useLoaderData, useNavigate } from '@tanstack/react-router';
+import { useLoaderData } from '@tanstack/react-router';
 
 export default function CreateTenant() {
   const redirectOrNavigate = useRedirectOrNavigate();
-  const navigate = useNavigate();
   const { userUpdateLogoutMutation } = useUserApi();
   const { organizations } = useLoaderData({
     from: '/onboarding/create-tenant',
@@ -20,8 +19,7 @@ export default function CreateTenant() {
   const logoutMutation = useMutation({
     ...userUpdateLogoutMutation(),
     onSettled: () => {
-      queryClient.clear();
-      navigate({ to: appRoutes.authLoginRoute.to });
+      reloadToLogin();
     },
   });
 

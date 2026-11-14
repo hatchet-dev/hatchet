@@ -104,7 +104,8 @@ jobs:
         if: always()
         with:
           name: dist
-          path: dist/
+          # GoReleaser runs with workdir cmd/hatchet-cli, so dist is not at the repo root.
+          path: cmd/hatchet-cli/dist/
           retention-days: 7
 
   verify:
@@ -180,3 +181,78 @@ jobs:
           path: release_notes.md
           overwrite: true
           retention-days: 1
+
+  npm-publish:
+    name: Publish CLI to npm
+    runs-on: ubuntu-latest
+    needs: [verify, release-cli]
+    if: needs.verify.outputs.should_release == 'true'
+    # Name must match the trusted publisher environment on each @hatchet-dev/cli* package.
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      GITHUB_TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          check-latest: true
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+
+      - name: Drop the setup-node auth token
+        # An empty _authToken makes npm try token auth and skip trusted publishing.
+        run: |
+          npmrc="${HOME}/.npmrc"
+          if [ -f "$npmrc" ]; then
+            grep -v '_authToken' "$npmrc" > "${npmrc}.tmp" || true
+            mv "${npmrc}.tmp" "$npmrc"
+          fi
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dist
+          path: cli-dist
+
+      - name: Assemble npm packages
+        run: node cmd/hatchet-cli/npm/build.mjs "${GITHUB_TAG#v}" cli-dist cmd/hatchet-cli/npm/npm-out
+
+      - name: Publish npm packages
+        run: |
+          unset NODE_AUTH_TOKEN
+          VERSION="${GITHUB_TAG#v}"
+          if [[ "$VERSION" == *-* ]]; then
+            DIST_TAG=next
+          else
+            DIST_TAG=latest
+          fi
+
+          publish() {
+            local dir="$1"
+            local name
+            name="$(node -p "require('./${dir}/package.json').name")"
+            if npm view "${name}@${VERSION}" version >/dev/null 2>&1; then
+              echo "${name}@${VERSION} is already published; skipping"
+              return
+            fi
+            npm publish --access public --provenance --tag "$DIST_TAG" "$dir"
+          }
+
+          shopt -s nullglob
+          platform_dirs=(cmd/hatchet-cli/npm/npm-out/cli-*)
+          if [ "${#platform_dirs[@]}" -eq 0 ]; then
+            echo "no platform packages to publish" >&2
+            exit 1
+          fi
+          for dir in "${platform_dirs[@]}"; do
+            publish "$dir"
+          done
+          publish cmd/hatchet-cli/npm/npm-out/cli

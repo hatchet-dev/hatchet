@@ -24,4 +24,29 @@ RSpec.describe Hatchet::Context do
       expect { context.pause_rate_limit("upstream-api", until_time: Time.now) }.to raise_error(Hatchet::Error)
     end
   end
+
+  describe "#was_skipped?" do
+    let(:context) do
+      described_class.new(
+        workflow_run_id: "run-1",
+        step_run_id: "step-1",
+        parent_outputs: {
+          "skipped_parent" => { "skipped" => true },
+          "ran_parent" => { "random_number" => 3 },
+        },
+      )
+    end
+
+    it "is true for a parent the engine marked as skipped" do
+      expect(context.was_skipped?(:skipped_parent)).to be(true)
+    end
+
+    it "is false for a parent that ran" do
+      expect(context.was_skipped?(:ran_parent)).to be(false)
+    end
+
+    it "is false for a task that is not among the parent outputs" do
+      expect(context.was_skipped?(:unknown)).to be(false)
+    end
+  end
 end

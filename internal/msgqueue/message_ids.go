@@ -37,4 +37,5 @@ const (
 	MsgIDTogglePauseWorkflow          = "toggle-pause-workflow"
 	MsgIDRateLimitPausesChanged       = "rate-limit-pauses-changed"
 	MsgIDStreamMessage                = "stream-message"
+	MsgIDWorkflowVersionCreated       = "workflow-version-created"
 )

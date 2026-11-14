@@ -14,7 +14,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import MiniSearch from "minisearch";
-import { MINISEARCH_OPTIONS, SEARCH_OPTIONS, rerankResults, expandSynonyms } from "../lib/search-config.js";
+import {
+  MINISEARCH_OPTIONS,
+  SEARCH_OPTIONS,
+  rerankResults,
+  expandSynonyms,
+} from "../lib/search-config.js";
 
 // ---------------------------------------------------------------------------
 // Load the search index
@@ -67,7 +72,12 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "hatchet.workflow — defining a workflow",
     query: "hatchet.workflow",
-    expectAnyOf: ["v1/durable-execution", "v1/directed-acyclic-graphs", "v1/priority", "reference/python/runnables"],
+    expectAnyOf: [
+      "v1/durable-execution",
+      "v1/directed-acyclic-graphs",
+      "v1/priority",
+      "reference/python/runnables",
+    ],
     topN: 10,
   },
 
@@ -240,7 +250,11 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "child tasks",
     query: "child tasks",
-    expectAnyOf: ["v1/durable-execution", "v1/child-spawning", "v1/advanced-assignment/sticky-assignment"],
+    expectAnyOf: [
+      "v1/durable-execution",
+      "v1/child-spawning",
+      "v1/advanced-assignment/sticky-assignment",
+    ],
     topN: 10,
   },
 
@@ -349,12 +363,15 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "streaming",
     query: "streaming",
-    expectAnyOf: ["v1/streaming"],
+    expectAnyOf: ["v1/durable-streams", "v1/streaming"],
   },
   {
     name: "additional metadata",
     query: "additional metadata",
-    expectAnyOf: ["v1/additional-metadata", "v1/bulk-retries-and-cancellations"],
+    expectAnyOf: [
+      "v1/additional-metadata",
+      "v1/bulk-retries-and-cancellations",
+    ],
     topN: 10,
   },
 
@@ -432,23 +449,37 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "docker compose",
     query: "docker compose",
-    expectAnyOf: ["self-hosting/docker-compose", "v1/docker", "v1/runtime/docker"],
+    expectAnyOf: [
+      "self-hosting/docker-compose",
+      "v1/docker",
+      "v1/runtime/docker",
+    ],
   },
   {
     name: "running with docker",
     query: "running with docker",
-    expectAnyOf: ["v1/docker", "v1/runtime/docker", "self-hosting/docker-compose"],
+    expectAnyOf: [
+      "v1/docker",
+      "v1/runtime/docker",
+      "self-hosting/docker-compose",
+    ],
     topN: 10,
   },
   {
     name: "kubernetes",
     query: "kubernetes",
-    expectAnyOf: ["self-hosting/kubernetes-quickstart", "self-hosting/kubernetes-helm-configuration"],
+    expectAnyOf: [
+      "self-hosting/kubernetes-quickstart",
+      "self-hosting/kubernetes-helm-configuration",
+    ],
   },
   {
     name: "helm chart",
     query: "helm chart",
-    expectAnyOf: ["self-hosting/kubernetes-helm-configuration", "self-hosting/high-availability"],
+    expectAnyOf: [
+      "self-hosting/kubernetes-helm-configuration",
+      "self-hosting/high-availability",
+    ],
   },
   {
     name: "configuration options",
@@ -546,7 +577,11 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "running hatchet locally",
     query: "running hatchet locally",
-    expectAnyOf: ["reference/cli", "self-hosting/hatchet-lite", "v1/quickstart"],
+    expectAnyOf: [
+      "reference/cli",
+      "self-hosting/hatchet-lite",
+      "v1/quickstart",
+    ],
     topN: 10,
   },
 
@@ -607,7 +642,13 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "BaseModel — Pydantic",
     query: "BaseModel",
-    expectAnyOf: ["reference/python/pydantic", "v1/tasks", "cookbooks/webhooks-stripe", "cookbooks/webhooks-github", "cookbooks/webhooks-slack"],
+    expectAnyOf: [
+      "reference/python/pydantic",
+      "v1/tasks",
+      "cookbooks/webhooks-stripe",
+      "cookbooks/webhooks-github",
+      "cookbooks/webhooks-slack",
+    ],
   },
   {
     name: "ctx.spawn — child spawn",
@@ -670,7 +711,11 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "delay → scheduled/sleep",
     query: "delay",
-    expectAnyOf: ["v1/durable-execution", "v1/durable-sleep", "v1/scheduled-runs"],
+    expectAnyOf: [
+      "v1/durable-execution",
+      "v1/durable-sleep",
+      "v1/scheduled-runs",
+    ],
   },
   {
     name: "debounce → concurrency",
@@ -739,7 +784,11 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "long running task → durable",
     query: "long running task",
-    expectAnyOf: ["v1/durable-execution", "v1/durable-tasks", "v1/durable-sleep"],
+    expectAnyOf: [
+      "v1/durable-execution",
+      "v1/durable-tasks",
+      "v1/durable-sleep",
+    ],
     topN: 10,
   },
   {
@@ -757,7 +806,12 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "monitor → observability",
     query: "monitor",
-    expectAnyOf: ["v1/opentelemetry", "v1/prometheus-metrics", "v1/logging", "self-hosting/prometheus-metrics"],
+    expectAnyOf: [
+      "v1/opentelemetry",
+      "v1/prometheus-metrics",
+      "v1/logging",
+      "self-hosting/prometheus-metrics",
+    ],
     topN: 10,
   },
   {
@@ -769,44 +823,73 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "v1/observability",
     query: "v1/observability",
-    expectAnyOf: ["v1/opentelemetry", "v1/prometheus-metrics", "v1/logging", "v1/streaming"],
+    expectAnyOf: [
+      "v1/opentelemetry",
+      "v1/prometheus-metrics",
+      "v1/logging",
+      "v1/streaming",
+    ],
     topN: 10,
     skip: true,
   },
   {
     name: "debug → troubleshooting",
     query: "debug",
-    expectAnyOf: ["v1/troubleshooting", "v1/troubleshooting/index", "v1/logging"],
+    expectAnyOf: [
+      "v1/troubleshooting",
+      "v1/troubleshooting/index",
+      "v1/logging",
+    ],
     topN: 10,
   },
   {
     name: "deploy → docker/k8s",
     query: "deploy",
-    expectAnyOf: ["v1/docker", "v1/runtime/docker", "self-hosting/docker-compose", "self-hosting/kubernetes-quickstart"],
+    expectAnyOf: [
+      "v1/docker",
+      "v1/runtime/docker",
+      "self-hosting/docker-compose",
+      "self-hosting/kubernetes-quickstart",
+    ],
     topN: 10,
   },
   {
     name: "upgrade → migration",
     query: "upgrade",
-    expectAnyOf: ["v1/migrating/migration-guide-python", "v1/migrating/migration-guide-typescript", "v1/migrating/migration-guide-go", "v1/migrating/migration-guide-engine", "self-hosting/upgrading-downgrading"],
+    expectAnyOf: [
+      "v1/migrating/migration-guide-python",
+      "v1/migrating/migration-guide-typescript",
+      "v1/migrating/migration-guide-go",
+      "v1/migrating/migration-guide-engine",
+      "self-hosting/upgrading-downgrading",
+    ],
     topN: 10,
   },
   {
     name: "downgrade → downgrading",
     query: "downgrade",
-    expectAnyOf: ["self-hosting/downgrading-db-schema-manually", "self-hosting/upgrading-downgrading"],
+    expectAnyOf: [
+      "self-hosting/downgrading-db-schema-manually",
+      "self-hosting/upgrading-downgrading",
+    ],
     topN: 10,
   },
   {
     name: "postgres → database config",
     query: "postgres",
-    expectAnyOf: ["self-hosting/kubernetes-external-database", "self-hosting/configuration-options"],
+    expectAnyOf: [
+      "self-hosting/kubernetes-external-database",
+      "self-hosting/configuration-options",
+    ],
     topN: 10,
   },
   {
     name: "performance → improving",
     query: "performance",
-    expectAnyOf: ["self-hosting/improving-performance", "self-hosting/benchmarking"],
+    expectAnyOf: [
+      "self-hosting/improving-performance",
+      "self-hosting/benchmarking",
+    ],
     topN: 10,
   },
   {
@@ -825,7 +908,12 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "wait for event → durable events",
     query: "wait for event",
-    expectAnyOf: ["v1/durable-execution", "v1/events", "v1/durable-event-waits", "v1/durable-sleep"],
+    expectAnyOf: [
+      "v1/durable-execution",
+      "v1/events",
+      "v1/durable-event-waits",
+      "v1/durable-sleep",
+    ],
     topN: 10,
   },
   {
@@ -854,7 +942,11 @@ const TEST_CASES: SearchTestCase[] = [
   {
     name: "how to run tasks in parallel",
     query: "how to run tasks in parallel",
-    expectAnyOf: ["v1/durable-execution", "v1/child-spawning", "v1/running-your-task"],
+    expectAnyOf: [
+      "v1/durable-execution",
+      "v1/child-spawning",
+      "v1/running-your-task",
+    ],
     topN: 10,
   },
   {
@@ -953,7 +1045,10 @@ function runTests(idx: MiniSearch): TestResult[] {
 
     const topSlice = searchResults.slice(0, topN);
     const topRoutes = topSlice.map((r) => {
-      const route = (r.pageRoute as string || r.id).replace("hatchet://docs/", "");
+      const route = ((r.pageRoute as string) || r.id).replace(
+        "hatchet://docs/",
+        "",
+      );
       return route;
     });
     const topIds = topSlice.map((r) => r.id.replace("hatchet://docs/", ""));
@@ -962,7 +1057,12 @@ function runTests(idx: MiniSearch): TestResult[] {
     const found = tc.expectAnyOf.some(
       (expected) =>
         topRoutes.some((r) => r === expected || r.startsWith(expected + "#")) ||
-        topIds.some((id) => id === expected || id.startsWith(expected + "#") || expected.includes("#") && id === expected),
+        topIds.some(
+          (id) =>
+            id === expected ||
+            id.startsWith(expected + "#") ||
+            (expected.includes("#") && id === expected),
+        ),
     );
 
     results.push({
@@ -1011,7 +1111,9 @@ function formatResults(results: TestResult[], warnMode: boolean): void {
 
   console.log("╔════════════════════════════════════════════════════════════╗");
   console.log("║          Search Quality Test Results                      ║");
-  console.log("╚════════════════════════════════════════════════════════════╝\n");
+  console.log(
+    "╚════════════════════════════════════════════════════════════╝\n",
+  );
 
   if (failed.length > 0) {
     console.log(`❌ FAILURES (${failed.length}):\n`);
@@ -1022,7 +1124,9 @@ function formatResults(results: TestResult[], warnMode: boolean): void {
       if (r.topResults.length > 0) {
         console.log(`        actual top results:`);
         r.topResults.slice(0, 5).forEach((tr, i) => {
-          console.log(`          ${i + 1}. [${tr.score.toFixed(1)}] ${tr.title} (${tr.route})`);
+          console.log(
+            `          ${i + 1}. [${tr.score.toFixed(1)}] ${tr.title} (${tr.route})`,
+          );
         });
       }
       console.log();
@@ -1054,7 +1158,9 @@ function main(): void {
 
   if (!fs.existsSync(INDEX_PATH)) {
     if (warnMode) {
-      console.warn("  ⚠ Search index not found — skipping search quality tests");
+      console.warn(
+        "  ⚠ Search index not found — skipping search quality tests",
+      );
       process.exit(0);
     }
     console.error(

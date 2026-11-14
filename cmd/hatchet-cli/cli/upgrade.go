@@ -115,11 +115,6 @@ func runUpgrade(ctx context.Context) error {
 		os.Exit(1)
 	}
 
-	if runtime.GOOS == "windows" {
-		fmt.Println("Automatic upgrades are not supported on Windows. Download the latest release from https://github.com/hatchet-dev/hatchet/releases")
-		return nil
-	}
-
 	exe, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("could not locate the running binary: %w", err)
@@ -128,26 +123,41 @@ func runUpgrade(ctx context.Context) error {
 		exe = resolved
 	}
 
-	upgrade, describe, err := brewUpgradeCommand(ctx, exe)
-	if err != nil {
-		return err
-	}
+	var upgrade *exec.Cmd
+	var describe string
 
-	if upgrade == nil {
-		bash := "/bin/bash"
-		if _, err := os.Stat(bash); err != nil {
-			if bash, err = exec.LookPath("bash"); err != nil {
-				return err
-			}
-		}
-		script, err := httpGet(ctx, installScriptURL)
+	// npm owns binaries inside node_modules. Let the user choose the install
+	// scope so upgrading a project dependency does not create a global install.
+	switch {
+	case npmInstallPath(exe):
+		spec := "@hatchet-dev/cli@" + strings.TrimPrefix(latest, "v")
+		fmt.Printf("This copy of hatchet is managed by npm. Upgrade it manually using the command for your installation:\n\n  Global install: npm i -g %s\n  Project dependency (from your project directory): npm i %s\n  Run with npx: npx %s\n", spec, spec, spec)
+		return nil
+	case runtime.GOOS == "windows":
+		fmt.Println("Automatic upgrades are not supported on Windows. Download the latest release from https://github.com/hatchet-dev/hatchet/releases")
+		return nil
+	default:
+		upgrade, describe, err = brewUpgradeCommand(ctx, exe)
 		if err != nil {
 			return err
 		}
-		upgrade = exec.CommandContext(ctx, bash, "-s", "--", latest)
-		upgrade.Stdin = strings.NewReader(script)
-		upgrade.Env = append(os.Environ(), "INSTALL_DIR="+filepath.Dir(exe))
-		describe = fmt.Sprintf("curl -fsSL %s | INSTALL_DIR=%s bash -s -- %s", installScriptURL, filepath.Dir(exe), latest)
+
+		if upgrade == nil {
+			bash := "/bin/bash"
+			if _, err := os.Stat(bash); err != nil {
+				if bash, err = exec.LookPath("bash"); err != nil {
+					return err
+				}
+			}
+			script, err := httpGet(ctx, installScriptURL)
+			if err != nil {
+				return err
+			}
+			upgrade = exec.CommandContext(ctx, bash, "-s", "--", latest)
+			upgrade.Stdin = strings.NewReader(script)
+			upgrade.Env = append(os.Environ(), "INSTALL_DIR="+filepath.Dir(exe))
+			describe = fmt.Sprintf("curl -fsSL %s | INSTALL_DIR=%s bash -s -- %s", installScriptURL, filepath.Dir(exe), latest)
+		}
 	}
 
 	if !upgradeYes {
@@ -201,6 +211,15 @@ func fetchLatestVersion(ctx context.Context) (string, error) {
 		return "", err
 	}
 	return parseCaskVersion(cask)
+}
+
+// npmInstallPath reports whether exe is the platform binary shipped by an
+// npm install of @hatchet-dev/cli. Those binaries live in
+// @hatchet-dev/cli-<platform>, which npm owns.
+func npmInstallPath(exe string) bool {
+	// Replace both separators so a Windows path is recognized wherever this runs.
+	slash := strings.ReplaceAll(filepath.ToSlash(exe), `\`, "/")
+	return strings.Contains(slash, "/node_modules/@hatchet-dev/cli-")
 }
 
 func parseCaskVersion(cask string) (string, error) {

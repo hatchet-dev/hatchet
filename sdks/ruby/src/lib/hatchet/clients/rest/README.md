@@ -177,6 +177,7 @@ Class | Method | HTTP request | Description
 *HatchetSdkRest::TenantApi* | [**tenant_alerting_settings_get**](docs/TenantApi.md#tenant_alerting_settings_get) | **GET** /api/v1/tenants/{tenant}/alerting/settings | Get tenant alerting settings
 *HatchetSdkRest::TenantApi* | [**tenant_create**](docs/TenantApi.md#tenant_create) | **POST** /api/v1/tenants | Create tenant
 *HatchetSdkRest::TenantApi* | [**tenant_entitlements_get**](docs/TenantApi.md#tenant_entitlements_get) | **GET** /api/v1/tenants/{tenant}/entitlements | Get tenant entitlements
+*HatchetSdkRest::TenantApi* | [**tenant_entitlements_update**](docs/TenantApi.md#tenant_entitlements_update) | **PATCH** /api/v1/tenants/{tenant}/entitlements | Update tenant entitlements
 *HatchetSdkRest::TenantApi* | [**tenant_get**](docs/TenantApi.md#tenant_get) | **GET** /api/v1/tenants/{tenant} | Get tenant
 *HatchetSdkRest::TenantApi* | [**tenant_get_prometheus_metrics**](docs/TenantApi.md#tenant_get_prometheus_metrics) | **GET** /api/v1/tenants/{tenant}/prometheus-metrics | Get prometheus metrics
 *HatchetSdkRest::TenantApi* | [**tenant_get_step_run_queue_metrics**](docs/TenantApi.md#tenant_get_step_run_queue_metrics) | **GET** /api/v1/tenants/{tenant}/step-run-queue-metrics | Get step run metrics
@@ -382,6 +383,7 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::UpdateCronWorkflowTriggerRequest](docs/UpdateCronWorkflowTriggerRequest.md)
  - [HatchetSdkRest::UpdateScheduledWorkflowRunRequest](docs/UpdateScheduledWorkflowRunRequest.md)
  - [HatchetSdkRest::UpdateTenantAlertEmailGroupRequest](docs/UpdateTenantAlertEmailGroupRequest.md)
+ - [HatchetSdkRest::UpdateTenantEntitlementsRequest](docs/UpdateTenantEntitlementsRequest.md)
  - [HatchetSdkRest::UpdateTenantInviteRequest](docs/UpdateTenantInviteRequest.md)
  - [HatchetSdkRest::UpdateTenantMemberRequest](docs/UpdateTenantMemberRequest.md)
  - [HatchetSdkRest::UpdateTenantRequest](docs/UpdateTenantRequest.md)

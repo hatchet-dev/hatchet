@@ -306,7 +306,8 @@ SELECT
     create_v1_range_partition('v1_task_expression_eval', $1::date) AS v1_task_expression_eval,
     create_v1_monthly_range_partition('v1_lookup_table', $1::date) AS v1_lookup_table,
     create_v1_range_partition('v1_stream_producer_cursor', $1::date, 80) AS v1_stream_producer_cursor,
-    create_v1_range_partition('v1_serverless_endpoint_event', $1::date) AS v1_serverless_endpoint_event
+    create_v1_range_partition('v1_serverless_endpoint_event', $1::date) AS v1_serverless_endpoint_event,
+    create_v1_range_partition('v1_sandbox_event', $1::date) AS v1_sandbox_event
 `
 
 type CreatePartitionsRow struct {
@@ -325,6 +326,7 @@ type CreatePartitionsRow struct {
 	V1LookupTable                int32 `json:"v1_lookup_table"`
 	V1StreamProducerCursor       int32 `json:"v1_stream_producer_cursor"`
 	V1ServerlessEndpointEvent    int32 `json:"v1_serverless_endpoint_event"`
+	V1SandboxEvent               int32 `json:"v1_sandbox_event"`
 }
 
 func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Date) (*CreatePartitionsRow, error) {
@@ -346,6 +348,7 @@ func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Dat
 		&i.V1LookupTable,
 		&i.V1StreamProducerCursor,
 		&i.V1ServerlessEndpointEvent,
+		&i.V1SandboxEvent,
 	)
 	return &i, err
 }
@@ -1055,166 +1058,6 @@ func (q *Queries) FindOldestTask(ctx context.Context, db DBTX) (*V1Task, error) 
 		&i.TaskInputPayloadVersion,
 	)
 	return &i, err
-}
-
-const flattenExternalIds = `-- name: FlattenExternalIds :many
-WITH lookup_rows AS MATERIALIZED (
-    SELECT
-        tenant_id, external_id, task_id, dag_id, inserted_at
-    FROM
-        v1_lookup_table l
-    WHERE
-        l.external_id = ANY($1::uuid[])
-        AND l.tenant_id = $2::uuid
-), tasks_from_dags AS (
-    SELECT
-        t.id,
-        t.inserted_at,
-        t.retry_count,
-        t.external_id,
-        t.workflow_run_id,
-        t.additional_metadata,
-        t.dag_id,
-        t.dag_inserted_at,
-        t.parent_task_id,
-        t.child_index,
-        t.child_key,
-        t.step_readable_id,
-        l.external_id AS workflow_run_external_id,
-        t.workflow_id,
-        t.step_id,
-        t.is_dag_orchestrator,
-        t.workflow_version_id,
-        t.parent_task_external_id,
-        t.is_durable,
-        t.task_input_payload_version,
-        t.payload_reference_id,
-        d.payload_reference_id AS dag_payload_reference_id
-    FROM
-        lookup_rows l
-    JOIN
-        v1_dag d ON d.id = l.dag_id AND d.inserted_at = l.inserted_at
-    JOIN
-        v1_dag_to_task dt ON dt.dag_id = l.dag_id AND dt.dag_inserted_at = l.inserted_at
-    JOIN
-        v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
-    WHERE
-        l.dag_id IS NOT NULL
-        AND d.inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE dag_id IS NOT NULL)
-        AND dt.dag_inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE dag_id IS NOT NULL)
-        AND t.inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE dag_id IS NOT NULL)
-)
-SELECT
-    t.id,
-    t.inserted_at,
-    t.retry_count,
-    t.external_id,
-    t.workflow_run_id,
-    t.additional_metadata,
-    t.dag_id,
-    t.dag_inserted_at,
-    t.parent_task_id,
-    t.child_index,
-    t.child_key,
-    t.step_readable_id,
-    t.external_id AS workflow_run_external_id,
-    t.workflow_id,
-    t.step_id,
-    t.is_dag_orchestrator,
-    t.workflow_version_id,
-    t.parent_task_external_id,
-    t.is_durable,
-    t.task_input_payload_version,
-    t.payload_reference_id,
-    NULL::uuid AS dag_payload_reference_id
-FROM
-    lookup_rows l
-JOIN
-    v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
-WHERE
-    l.task_id IS NOT NULL
-    AND t.inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE task_id IS NOT NULL)
-
-UNION ALL
-
-SELECT
-    id, inserted_at, retry_count, external_id, workflow_run_id, additional_metadata, dag_id, dag_inserted_at, parent_task_id, child_index, child_key, step_readable_id, workflow_run_external_id, workflow_id, step_id, is_dag_orchestrator, workflow_version_id, parent_task_external_id, is_durable, task_input_payload_version, payload_reference_id, dag_payload_reference_id
-FROM
-    tasks_from_dags
-`
-
-type FlattenExternalIdsParams struct {
-	Externalids []uuid.UUID `json:"externalids"`
-	Tenantid    uuid.UUID   `json:"tenantid"`
-}
-
-type FlattenExternalIdsRow struct {
-	ID                      int64              `json:"id"`
-	InsertedAt              pgtype.Timestamptz `json:"inserted_at"`
-	RetryCount              int32              `json:"retry_count"`
-	ExternalID              uuid.UUID          `json:"external_id"`
-	WorkflowRunID           uuid.UUID          `json:"workflow_run_id"`
-	AdditionalMetadata      []byte             `json:"additional_metadata"`
-	DagID                   pgtype.Int8        `json:"dag_id"`
-	DagInsertedAt           pgtype.Timestamptz `json:"dag_inserted_at"`
-	ParentTaskID            pgtype.Int8        `json:"parent_task_id"`
-	ChildIndex              pgtype.Int8        `json:"child_index"`
-	ChildKey                pgtype.Text        `json:"child_key"`
-	StepReadableID          string             `json:"step_readable_id"`
-	WorkflowRunExternalID   uuid.UUID          `json:"workflow_run_external_id"`
-	WorkflowID              uuid.UUID          `json:"workflow_id"`
-	StepID                  uuid.UUID          `json:"step_id"`
-	IsDagOrchestrator       bool               `json:"is_dag_orchestrator"`
-	WorkflowVersionID       uuid.UUID          `json:"workflow_version_id"`
-	ParentTaskExternalID    *uuid.UUID         `json:"parent_task_external_id"`
-	IsDurable               pgtype.Bool        `json:"is_durable"`
-	TaskInputPayloadVersion int16              `json:"task_input_payload_version"`
-	PayloadReferenceID      *uuid.UUID         `json:"payload_reference_id"`
-	DagPayloadReferenceID   *uuid.UUID         `json:"dag_payload_reference_id"`
-}
-
-// Union the tasks from the lookup table with the tasks from the DAGs
-func (q *Queries) FlattenExternalIds(ctx context.Context, db DBTX, arg FlattenExternalIdsParams) ([]*FlattenExternalIdsRow, error) {
-	rows, err := db.Query(ctx, flattenExternalIds, arg.Externalids, arg.Tenantid)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*FlattenExternalIdsRow
-	for rows.Next() {
-		var i FlattenExternalIdsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.InsertedAt,
-			&i.RetryCount,
-			&i.ExternalID,
-			&i.WorkflowRunID,
-			&i.AdditionalMetadata,
-			&i.DagID,
-			&i.DagInsertedAt,
-			&i.ParentTaskID,
-			&i.ChildIndex,
-			&i.ChildKey,
-			&i.StepReadableID,
-			&i.WorkflowRunExternalID,
-			&i.WorkflowID,
-			&i.StepID,
-			&i.IsDagOrchestrator,
-			&i.WorkflowVersionID,
-			&i.ParentTaskExternalID,
-			&i.IsDurable,
-			&i.TaskInputPayloadVersion,
-			&i.PayloadReferenceID,
-			&i.DagPayloadReferenceID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const getTaskByExternalId = `-- name: GetTaskByExternalId :one
@@ -1965,6 +1808,8 @@ WITH task_partitions AS (
     SELECT 'v1_lookup_table' AS parent_table, p::text as partition_name FROM get_v1_monthly_partitions_before_date('v1_lookup_table', $1::date) AS p
 ), serverless_endpoint_event_partitions AS (
     SELECT 'v1_serverless_endpoint_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_serverless_endpoint_event', $1::date) AS p
+), sandbox_event_partitions AS (
+    SELECT 'v1_sandbox_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_sandbox_event', $1::date) AS p
 )
 
 SELECT
@@ -2062,6 +1907,13 @@ SELECT
     parent_table, partition_name
 FROM
     serverless_endpoint_event_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    sandbox_event_partitions
 `
 
 type ListPartitionsBeforeDateRow struct {
@@ -2642,6 +2494,7 @@ WITH RECURSIVE input_tasks AS MATERIALIZED (
         t.step_id,
         t.workflow_id,
         t.external_id,
+        t.workflow_run_id,
         t.input,
         t.additional_metadata,
         t.parent_task_external_id,
@@ -2693,6 +2546,7 @@ SELECT
     t.step_id,
     t.workflow_id,
     t.external_id,
+    t.workflow_run_id,
     t.input,
     t.additional_metadata,
     t.parent_task_external_id,
@@ -2735,6 +2589,7 @@ type ListTasksForReplayRow struct {
 	StepID                    uuid.UUID          `json:"step_id"`
 	WorkflowID                uuid.UUID          `json:"workflow_id"`
 	ExternalID                uuid.UUID          `json:"external_id"`
+	WorkflowRunID             uuid.UUID          `json:"workflow_run_id"`
 	Input                     []byte             `json:"input"`
 	AdditionalMetadata        []byte             `json:"additional_metadata"`
 	ParentTaskExternalID      *uuid.UUID         `json:"parent_task_external_id"`
@@ -2778,6 +2633,7 @@ func (q *Queries) ListTasksForReplay(ctx context.Context, db DBTX, arg ListTasks
 			&i.StepID,
 			&i.WorkflowID,
 			&i.ExternalID,
+			&i.WorkflowRunID,
 			&i.Input,
 			&i.AdditionalMetadata,
 			&i.ParentTaskExternalID,

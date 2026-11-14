@@ -75,6 +75,18 @@ export function useUserApi() {
           ).data,
       }),
 
+      userCreateMagicLinkMutation: () => ({
+        mutationKey: ['user:create:magic-link'] as const,
+        mutationFn: async (data: { email: string }) =>
+          (await controlPlaneApi.cloudUserCreateMagicLink(data)).data,
+      }),
+
+      userUpdateMagicLinkMutation: () => ({
+        mutationKey: ['user:update:magic-link'] as const,
+        mutationFn: async (data: { token: string }) =>
+          (await controlPlaneApi.cloudUserUpdateMagicLink(data)).data,
+      }),
+
       userCreateMutation: () => ({
         mutationKey: ['user:create'] as const,
         mutationFn: async (data: UserCreateRequest) =>

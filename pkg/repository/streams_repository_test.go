@@ -387,8 +387,12 @@ func TestStreamsRepository(t *testing.T) {
 		ref, err := repo.InsertStreamPayload(ctx, tenantId, []byte("large"))
 		require.NoError(t, err)
 
-		require.NoError(t, repo.CheckStreamPayloadExists(ctx, tenantId, ref))
-		assert.ErrorIs(t, repo.CheckStreamPayloadExists(ctx, other, ref), ErrStreamPayloadNotFound, "another tenant's payload")
+		size, err := repo.StreamPayloadSize(ctx, tenantId, ref)
+		require.NoError(t, err)
+		assert.Equal(t, int64(len("large")), size)
+
+		_, err = repo.StreamPayloadSize(ctx, other, ref)
+		assert.ErrorIs(t, err, ErrStreamPayloadNotFound, "another tenant's payload")
 
 		res, err := repo.InsertOrderedStreamMessage(ctx, tenantId, CreateOrderedStreamMessageOpts{Topic: "t", ProducerID: "p1", ProducerSeq: 0, PayloadRef: &ref})
 		require.NoError(t, err)
@@ -463,8 +467,9 @@ func TestStreamsRepository(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		before, err := repo.TopicStartCursor(ctx, tenantId, "", "t")
+		beforeInfo, err := repo.GetTopicInfo(ctx, tenantId, "", "t")
 		require.NoError(t, err)
+		before := beforeInfo.StartCursor()
 		assert.Equal(t, int64(0), before.ID, "a topic never reset starts at its beginning")
 
 		require.NoError(t, repo.ResetTopic(ctx, tenantId, "", "t", nil))
@@ -472,8 +477,9 @@ func TestStreamsRepository(t *testing.T) {
 		_, err = repo.InsertOrderedStreamMessage(ctx, tenantId, streamOpts(2, "three"))
 		require.NoError(t, err)
 
-		after, err := repo.TopicStartCursor(ctx, tenantId, "", "t")
+		afterInfo, err := repo.GetTopicInfo(ctx, tenantId, "", "t")
 		require.NoError(t, err)
+		after := afterInfo.StartCursor()
 		require.NoError(t, repo.CheckCursorRetained(ctx, tenantId, after), "a reset cursor can't expire")
 
 		fromReset, err := repo.ListMessagesAfterCursor(ctx, tenantId, ListStreamMessagesOpts{Topic: "t", Cursor: after})
@@ -501,8 +507,9 @@ func TestStreamsRepository(t *testing.T) {
 		first := StreamCursor{Topic: "t", CreatedAt: msgs[0].InsertedAt.Time, ID: msgs[0].ID}
 		require.NoError(t, repo.ResetTopic(ctx, tenantId, "", "t", &first))
 
-		start, err := repo.TopicStartCursor(ctx, tenantId, "", "t")
+		startInfo, err := repo.GetTopicInfo(ctx, tenantId, "", "t")
 		require.NoError(t, err)
+		start := startInfo.StartCursor()
 
 		fromReset, err := repo.ListMessagesAfterCursor(ctx, tenantId, ListStreamMessagesOpts{Topic: "t", Cursor: start})
 		require.NoError(t, err)
@@ -511,8 +518,31 @@ func TestStreamsRepository(t *testing.T) {
 		past := StreamCursor{Topic: "t", ID: msgs[2].ID + 10}
 		require.NoError(t, repo.ResetTopic(ctx, tenantId, "", "t", &past))
 
-		start, err = repo.TopicStartCursor(ctx, tenantId, "", "t")
+		startInfo, err = repo.GetTopicInfo(ctx, tenantId, "", "t")
 		require.NoError(t, err)
+		start = startInfo.StartCursor()
 		assert.Equal(t, msgs[2].ID, start.ID, "a cursor past the last reserved offset is capped to it")
+	})
+
+	t.Run("last offset counts every reservation, stored or not", func(t *testing.T) {
+		repo := createStreamsRepository(t, pool)
+		tenantId := uuid.New()
+
+		info, err := repo.GetTopicInfo(ctx, tenantId, "", "t")
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), info.LastOffset, "a topic never published to")
+
+		for seq, payload := range []string{"one", "two"} {
+			_, err := repo.InsertOrderedStreamMessage(ctx, tenantId, streamOpts(int64(seq), payload))
+			require.NoError(t, err)
+		}
+
+		dup, err := repo.InsertOrderedStreamMessage(ctx, tenantId, streamOpts(1, "two"))
+		require.NoError(t, err)
+		require.False(t, dup.Inserted)
+
+		info, err = repo.GetTopicInfo(ctx, tenantId, "", "t")
+		require.NoError(t, err)
+		assert.Equal(t, int64(3), info.LastOffset, "a rejected duplicate still reserves an offset")
 	})
 }

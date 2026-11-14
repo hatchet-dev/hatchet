@@ -43,6 +43,7 @@ export type {
   RunFilter,
   RunFilterBase,
   StreamCallOptions,
+  StreamEvent,
   StreamTopicMetadata,
   TaskRunDetail,
   TriggerRun,

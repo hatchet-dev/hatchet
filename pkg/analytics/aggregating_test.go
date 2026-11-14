@@ -147,6 +147,39 @@ func TestCount_MultipleTenants(t *testing.T) {
 	}
 }
 
+func TestCountTotals_SumsBytesPerTenant(t *testing.T) {
+	rec := &flushRecorder{}
+	agg := NewAggregator(&nopLogger, true, time.Hour, 0, rec.record)
+
+	tenant1 := uuid.New()
+	tenant2 := uuid.New()
+
+	agg.CountTotals(DurableStream, Publish, tenant1, nil, 2, map[string]int64{"bytes": 10})
+	agg.CountTotals(DurableStream, Publish, tenant1, nil, 3, map[string]int64{"bytes": 7})
+	agg.CountTotals(DurableStream, Publish, tenant2, nil, 1, map[string]int64{"bytes": 100})
+	agg.flush()
+
+	events := rec.getEvents()
+	if len(events) != 2 {
+		t.Fatalf("expected 2 flushed events, got %d", len(events))
+	}
+
+	byTenant := make(map[uuid.UUID]flushedEvent, len(events))
+	for _, e := range events {
+		byTenant[e.TenantID] = e
+	}
+
+	got1 := byTenant[tenant1]
+	if got1.Resource != DurableStream || got1.Action != Publish || got1.Count != 5 || got1.Properties["bytes"] != int64(17) {
+		t.Errorf("tenant1 = %+v", got1)
+	}
+
+	got2 := byTenant[tenant2]
+	if got2.Count != 1 || got2.Properties["bytes"] != int64(100) {
+		t.Errorf("tenant2 = %+v", got2)
+	}
+}
+
 func TestFlush_EvictsIdleKeys(t *testing.T) {
 	rec := &flushRecorder{}
 	agg := NewAggregator(&nopLogger, true, 50*time.Millisecond, 0, rec.record)

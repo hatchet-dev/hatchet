@@ -63,7 +63,7 @@ export type AppContextValue = {
   tenantId: string | undefined;
 } & UserUniverseData;
 
-const AppContext = createContext<AppContextValue | null>(null);
+export const AppContext = createContext<AppContextValue | null>(null);
 
 interface AppContextProviderProps {
   children: ReactNode;
@@ -88,10 +88,14 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
   const tenantParamInPath = params.tenant;
   const organizationParamInPath = params.organization;
 
-  // Fetch current user
+  const { isControlPlaneEnabled, isControlPlaneLoading } = useControlPlane();
+  // Fetch current user only after we know which API owns the session. Calling
+  // the shard while that is unknown treats a control-plane cookie as a new
+  // session and replaces it, which drops a pending MFA login.
   const { userGetCurrentQuery } = useUserApi();
   const currentUserQuery = useQuery({
     ...userGetCurrentQuery(),
+    enabled: !isControlPlaneLoading,
     retry: false,
   });
 
@@ -102,8 +106,6 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
       queryKey: userGetCurrentQuery().queryKey,
     });
   }, [queryClient, userGetCurrentQuery]);
-
-  const { isControlPlaneEnabled } = useControlPlane();
   const {
     isLoaded: isUserUniverseLoaded,
     organizations,
@@ -249,4 +251,8 @@ export function useAppContext() {
   }
 
   return context;
+}
+
+export function useOptionalAppContext() {
+  return useContext(AppContext);
 }

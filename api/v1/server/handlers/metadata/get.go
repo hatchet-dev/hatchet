@@ -10,16 +10,18 @@ import (
 func (u *MetadataService) MetadataGet(ctx echo.Context, request gen.MetadataGetRequestObject) (gen.MetadataGetResponseObject, error) {
 	authTypes := []string{}
 
-	if u.config.Auth.ConfigFile.BasicAuthEnabled {
-		authTypes = append(authTypes, "basic")
-	}
+	if !u.config.Auth.ConfigFile.DirectUserLoginDisabled() {
+		if u.config.Auth.ConfigFile.BasicAuthEnabled {
+			authTypes = append(authTypes, "basic")
+		}
 
-	if u.config.Auth.ConfigFile.Google.Enabled {
-		authTypes = append(authTypes, "google")
-	}
+		if u.config.Auth.ConfigFile.Google.Enabled {
+			authTypes = append(authTypes, "google")
+		}
 
-	if u.config.Auth.ConfigFile.Github.Enabled {
-		authTypes = append(authTypes, "github")
+		if u.config.Auth.ConfigFile.Github.Enabled {
+			authTypes = append(authTypes, "github")
+		}
 	}
 
 	pylonAppID := u.config.Pylon.AppID

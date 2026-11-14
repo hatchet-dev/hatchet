@@ -1,0 +1,234 @@
+.wrap {
+  display: grid;
+  justify-items: center;
+}
+
+.root {
+  width: 100%;
+}
+
+.stage {
+  width: 100%;
+}
+
+.chromeStroke {
+  stroke: var(--fg);
+}
+
+.chromeDash {
+  stroke: var(--fg-secondary);
+  stroke-dasharray: 2 3;
+}
+
+.chromeFrame {
+  stroke: var(--fg-border);
+  stroke-dasharray: 4 3;
+}
+
+.chromeFill {
+  fill: var(--fg);
+}
+
+.chromeSlot {
+  stroke: var(--fg-border);
+}
+
+.chromeShelf {
+  stroke: var(--fg-border);
+  fill: var(--bg);
+}
+
+.stageLabel {
+  position: absolute;
+  transform: translate(-50%, 0);
+  font-family: var(--font-mono);
+  font-size: var(--micro);
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--fg);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.labelMuted {
+  color: var(--fg-secondary);
+}
+
+.callLabel {
+  font-family: var(--font-mono);
+  font-size: var(--micro);
+  line-height: 1;
+  color: var(--fg-secondary);
+  white-space: nowrap;
+}
+
+.taskPill {
+  font-family: var(--font-mono);
+  font-size: var(--micro);
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding: 0.3em 0.55em;
+  border: 1px solid var(--fg);
+  background: var(--bg);
+  color: var(--fg);
+  white-space: nowrap;
+  transition:
+    border-color 300ms ease,
+    color 300ms ease;
+}
+
+[data-flow-state="running"] .taskPill {
+  border-color: var(--accent);
+  color: var(--accent);
+  animation: sb-pulse 900ms ease-in-out infinite;
+}
+
+[data-flow-state="done"] .taskPill {
+  border-color: var(--accent-3);
+  color: var(--accent-3);
+}
+
+.slot {
+  width: calc(var(--flow-u) * 8);
+  height: calc(var(--flow-u) * 8);
+  background: color-mix(in srgb, var(--fg) 72%, transparent);
+  transition: background-color 500ms ease;
+}
+
+[data-flow-state="running"] .slot {
+  background: var(--accent);
+  transition: none;
+  animation: sb-breathe 900ms ease-in-out infinite;
+}
+
+.msg {
+  width: calc(var(--flow-u) * 4);
+  height: calc(var(--flow-u) * 4);
+  background: var(--accent);
+}
+
+.box {
+  box-sizing: border-box;
+  width: calc(var(--flow-u) * 70);
+  height: calc(var(--flow-u) * 44);
+  border: 1px solid var(--fg);
+  background: var(--bg);
+  transition: border-color 300ms ease;
+}
+
+[data-flow-state="off"] .box,
+[data-flow-state="stopped"] .box {
+  border-style: dashed;
+  border-color: var(--fg-tertiary);
+}
+
+.boxHeader {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--flow-u) * 3);
+  height: calc(var(--flow-u) * 18);
+  padding-inline: calc(var(--flow-u) * 5);
+  border-bottom: 1px solid var(--fg-border);
+  font-family: var(--font-mono);
+  font-size: var(--micro);
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--fg);
+  white-space: nowrap;
+}
+
+[data-flow-state="off"] .boxHeader {
+  color: var(--fg-tertiary);
+}
+
+[data-flow-state="stopped"] .boxHeader {
+  color: var(--fg-secondary);
+}
+
+.boxDot {
+  flex-shrink: 0;
+  width: calc(var(--flow-u) * 5);
+  height: calc(var(--flow-u) * 5);
+  border-radius: 50%;
+  background: var(--fg-tertiary);
+  transition: background-color 300ms ease;
+}
+
+[data-flow-state="running"] .boxDot {
+  background: var(--accent-3);
+}
+
+[data-flow-state="stopped"] .boxDot {
+  background: var(--accent-2);
+}
+
+.bar {
+  width: calc(var(--flow-u) * 5);
+  height: calc(var(--flow-u) * 5);
+  background: color-mix(in srgb, var(--fg) 72%, transparent);
+  transition: background-color 500ms ease;
+}
+
+[data-flow-state="fresh"] .bar {
+  background: var(--accent);
+  transition: none;
+}
+
+[data-flow-state="restored"] .bar {
+  background: var(--accent-2);
+  transition: none;
+}
+
+.snapshot {
+  width: calc(var(--flow-u) * 8);
+  height: calc(var(--flow-u) * 8);
+  background: color-mix(in srgb, var(--fg) 72%, transparent);
+  transition: background-color 500ms ease;
+}
+
+[data-flow-state="fresh"] .snapshot,
+[data-flow-state="read"] .snapshot {
+  background: var(--accent-2);
+  transition: none;
+}
+
+.copy {
+  width: calc(var(--flow-u) * 6);
+  height: calc(var(--flow-u) * 6);
+  background: var(--accent-2);
+}
+
+@keyframes sb-pulse {
+  0%,
+  100% {
+    transform: none;
+  }
+  50% {
+    transform: scale(0.9);
+  }
+}
+
+@keyframes sb-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+[data-flow-static] .taskPill,
+[data-flow-static] .slot {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .taskPill,
+  .slot {
+    animation: none !important;
+  }
+}

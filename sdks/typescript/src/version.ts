@@ -1,1 +1,1 @@
-export const HATCHET_VERSION = '1.46.0';
+export const HATCHET_VERSION = '1.47.2';

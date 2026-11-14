@@ -104,6 +104,10 @@ func (s *SMTPService) SendTenantResourceLimitAlert(ctx context.Context, emails [
 	})
 }
 
+func (s *SMTPService) SendMagicLinkEmail(ctx context.Context, to string, data email.MagicLinkEmailData) error {
+	return s.SendTemplateEmail(ctx, to, email.MagicLinkTemplate, data, false)
+}
+
 func (s *SMTPService) SendTemplateEmail(ctx context.Context, to, templateAlias string, templateModelData interface{}, bccSupport bool) error {
 	var bcc string
 

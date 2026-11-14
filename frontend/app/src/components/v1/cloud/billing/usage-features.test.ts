@@ -1,6 +1,7 @@
 import {
   dailyLimitAlerts,
   dailyMeterSeverity,
+  formatBytes,
   formatObservedUsage,
   formatTimeUntil,
   nextRefillAt,
@@ -10,6 +11,7 @@ import {
   sumUsageSeries,
   tenantUsageChart,
   toUsageDisplayRows,
+  usageMetric,
 } from './usage-features';
 import {
   OrganizationTenantResourceLimits,
@@ -562,5 +564,72 @@ describe('tenantUsageChart', () => {
     assert.equal(filtered?.series[0]?.color, all?.series[1]?.color);
     assert.equal(filtered?.points[0]?.zeta, 5);
     assert.equal(filtered?.points[0]?.alpha, undefined);
+  });
+});
+
+describe('stream bytes', () => {
+  it('formats bytes in decimal units', () => {
+    assert.equal(formatBytes(0), '0 B');
+    assert.equal(formatBytes(999), '999 B');
+    assert.equal(formatBytes(1_500), '1.5 KB');
+    assert.equal(formatBytes(52_428_800), '52.4 MB');
+    assert.equal(formatBytes(3_000_000_000_000), '3 TB');
+  });
+
+  it('shows observed byte usage as bytes', () => {
+    assert.equal(
+      formatObservedUsage(2_500_000, '7d', 'stream_delivered_bytes'),
+      '2.5 MB in the last 7 days',
+    );
+    assert.equal(formatObservedUsage(2_500, '7d'), '2,500 in the last 7 days');
+  });
+
+  it('lists stream rows as period totals only once there is usage', () => {
+    const ids = (streamPublishedBytes: number, streamDeliveredBytes: number) =>
+      shardUsageRows({
+        taskRuns: 1,
+        events: 0,
+        streamPublishedBytes,
+        streamDeliveredBytes,
+      }).map((row) => row.feature.featureId);
+
+    assert.deepEqual(ids(0, 0), ['task_runs', 'events']);
+    assert.deepEqual(ids(10, 0), [
+      'task_runs',
+      'events',
+      'stream_published_bytes',
+    ]);
+
+    const delivered = shardUsageRows({
+      taskRuns: 0,
+      events: 0,
+      streamDeliveredBytes: 20,
+    }).find((row) => row.feature.featureId === 'stream_delivered_bytes');
+    assert.equal(delivered?.feature.usage, 20);
+    assert.equal(delivered?.showPeriodAsCount, true);
+  });
+
+  it('charts a stream byte feature from the matching field', () => {
+    const point = {
+      taskRuns: 1,
+      events: 2,
+      streamPublishedBytes: 3,
+      streamDeliveredBytes: 4,
+    };
+    assert.equal(usageMetric('stream_published_bytes', point), 3);
+    assert.equal(usageMetric('stream_delivered_bytes', point), 4);
+    assert.equal(usageMetric('events', point), 2);
+
+    const chart = tenantUsageChart(
+      [
+        {
+          tenantId: 'a',
+          tenantName: 'A',
+          series: [{ date: '2026-09-01', ...point }],
+        },
+      ],
+      'stream_delivered_bytes',
+    );
+    assert.equal(chart?.total, 4);
   });
 });

@@ -52,9 +52,9 @@ async def test_run(hatchet: Hatchet) -> None:
     # read the authoritative run details (rather than the eventually-consistent runs list) so we
     # don't need to sleep waiting for the OLAP repo to catch up.
     successful_run = await hatchet.runs.aio_get_details(to_run.workflow_run_id)
-    assert successful_run.status == RunStatus.COMPLETED
+    assert successful_run.status == "COMPLETED"
 
     cancelled_runs = [
         await hatchet.runs.aio_get_details(ref.workflow_run_id) for ref in to_cancel
     ]
-    assert all(r.status == RunStatus.CANCELLED for r in cancelled_runs)
+    assert all(r.status == "CANCELLED" for r in cancelled_runs)

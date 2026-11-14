@@ -162,3 +162,27 @@ func TestDagStepCreatedSkippedTakesNextSatisfiedOrder(t *testing.T) {
 	require.Len(t, logFile, 1)
 	require.EqualValues(t, 1, logFile[0].LatestSatisfiedOrder)
 }
+
+// A step that was never triggered is triggered on a replay into a position the earlier invocation
+// gave a wait_for. It must not take over that entry: it would get the wait_for's external id as
+// its run id and never have a child task created.
+func TestDagStepTriggerOnAnotherKindsEntryIsNondeterministic(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	tenantID := uuid.New()
+	repos := newUserEventScopeTestRepositories(t, pool)
+	task := createUserEventScopeTestTask(t, ctx, repos, tenantID, 204)
+
+	waitFor := ingestUserEventScopeTestWaiter(t, ctx, repos.durable, tenantID, task, "some:event", nil, nil, "")
+	require.EqualValues(t, 1, waitFor.NodeId)
+
+	reinvokeDurableTask(t, ctx, repos, tenantID, task)
+
+	_, err := ingestDagStepTriggerResult(ctx, repos.durable, tenantID, task, 2, "my-dag:step-a", 1, []byte(`{"x":1}`), false)
+
+	var nde *NonDeterminismError
+	require.ErrorAs(t, err, &nde)
+	require.EqualValues(t, 1, nde.NodeId)
+}

@@ -395,33 +395,37 @@ module Hatchet
 
       sleep_conditions = []
       user_event_conditions = []
+      parent_override_conditions = []
+      accumulators = [sleep_conditions, user_event_conditions, parent_override_conditions]
 
       # Process wait_for conditions (action = QUEUE)
       (@wait_for || []).each do |cond|
-        process_condition(cond, :QUEUE, sleep_conditions, user_event_conditions, config)
+        process_condition(cond, :QUEUE, *accumulators, config)
       end
 
       # Process skip_if conditions (action = SKIP)
       (@skip_if || []).each do |cond|
-        process_condition(cond, :SKIP, sleep_conditions, user_event_conditions, config)
+        process_condition(cond, :SKIP, *accumulators, config)
       end
 
-      return nil if sleep_conditions.empty? && user_event_conditions.empty?
+      return nil if accumulators.all?(&:empty?)
 
       ::V1::TaskConditions.new(
         sleep_conditions: sleep_conditions,
         user_event_conditions: user_event_conditions,
+        parent_override_conditions: parent_override_conditions,
       )
     end
 
     # Process a single condition into the appropriate proto list.
     # Delegates to ConditionConverter for shared logic.
-    def process_condition(cond, action, sleep_conditions, user_event_conditions, config = nil)
+    def process_condition(cond, action, sleep_conditions, user_event_conditions, parent_override_conditions, config = nil)
       ConditionConverter.convert_condition(
         cond,
         action: action,
         sleep_conditions: sleep_conditions,
         user_event_conditions: user_event_conditions,
+        parent_override_conditions: parent_override_conditions,
         proto_method: :to_proto,
         proto_arg: action,
         config: config,

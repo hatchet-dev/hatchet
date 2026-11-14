@@ -6,6 +6,7 @@ import {
 import { Api } from './generated/Api';
 import { Api as CloudApi } from './generated/cloud/Api';
 import { Api as ControlPlaneApi } from './generated/control-plane/Api';
+import { config } from '@/config';
 import { isRetryableRequestError } from '@/lib/query-retry';
 import queryClient from '@/query-client';
 import { InternalAxiosRequestConfig } from 'axios';
@@ -73,6 +74,29 @@ export const controlPlaneApi = new ControlPlaneApi({
   paramsSerializer: (params) => qs.stringify(params, { arrayFormat: 'repeat' }),
   timeout: CONTROL_PLANE_REQUEST_TIMEOUT_MS,
 });
+
+export function isMfaRequiredResponse(data: unknown): boolean {
+  if (!data || typeof data !== 'object') {
+    return false;
+  }
+  const body = data as { code?: unknown; message?: unknown };
+  return body.code === 'mfa_required' || body.message === 'mfa_required';
+}
+
+// Pending primary logins have no access to user or tenant resources.
+controlPlaneApi.instance.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const target = `${config.BASE_PATH.replace(/\/$/, '')}/auth/mfa`;
+    if (
+      isMfaRequiredResponse(error.response?.data) &&
+      window.location.pathname !== target
+    ) {
+      window.location.assign(target);
+    }
+    return Promise.reject(error);
+  },
+);
 
 export const SELF_HOSTED_LIST_TIMEOUT_MS =
   api.instance.defaults.timeout || 30_000;

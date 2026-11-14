@@ -202,7 +202,7 @@ func TestFailedDeltaIsRetriedOnNextPoll(t *testing.T) {
 
 	require.Len(t, env.repo.StatusWrites(), 1, "a delta the engine refused marks the endpoint")
 	assert.False(t, env.repo.StatusWrites()[0].Healthy)
-	assert.Contains(t, *env.repo.StatusWrites()[0].Error, "could not add actions")
+	assert.Equal(t, "could not register endpoint workflows", *env.repo.StatusWrites()[0].Error)
 	require.Len(t, env.repo.ActionWrites(), 1, "the row is written before the delta, so other processes see the set the endpoint serves")
 
 	union, _ := env.tenant(tenant).cache.ActionUnion()
@@ -430,7 +430,8 @@ func TestTransientPutWorkflowErrorRetriesOnTheNextPoll(t *testing.T) {
 
 	require.Len(t, env.repo.StatusWrites(), 1)
 	assert.False(t, env.repo.StatusWrites()[0].Healthy)
-	assert.Contains(t, *env.repo.StatusWrites()[0].Error, "could not put workflow shared")
+	assert.Equal(t, "could not register endpoint workflows", *env.repo.StatusWrites()[0].Error)
+	assert.NotContains(t, *env.repo.StatusWrites()[0].Error, "unique constraint")
 	assert.Empty(t, env.repo.ActionWrites())
 
 	reg.mu.Lock()

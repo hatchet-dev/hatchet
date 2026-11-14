@@ -12,6 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -77,9 +78,20 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 			), nil
 		}
 
-		return gen.TenantInviteCreate403JSONResponse{
-			Description: err.Error(),
-		}, nil
+		if errors.Is(err, v1.ErrMaxPendingInvites) {
+			return gen.TenantInviteCreate403JSONResponse{
+				Description: "max pending invites reached",
+			}, nil
+		}
+
+		var validationErr *hatcheterrors.DetailedError
+		if errors.As(err, &validationErr) && validationErr.Code == 400 {
+			return gen.TenantInviteCreate403JSONResponse{
+				Description: validationErr.Error(),
+			}, nil
+		}
+
+		return nil, err
 	}
 
 	// send an email

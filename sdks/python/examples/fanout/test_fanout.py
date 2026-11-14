@@ -20,9 +20,9 @@ async def test_run(hatchet: Hatchet) -> None:
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_additional_metadata_propagation(hatchet: Hatchet) -> None:
-    test_run_id = uuid4().hex
-
+async def test_additional_metadata_propagation(
+    hatchet: Hatchet, test_run_id: str
+) -> None:
     ref = await parent_wf.aio_run(
         ParentInput(n=2),
         additional_metadata={"test_run_id": test_run_id},
@@ -37,10 +37,10 @@ async def test_additional_metadata_propagation(hatchet: Hatchet) -> None:
         additional_metadata={"test_run_id": test_run_id},
     )
 
-    assert runs.rows
+    assert runs
 
     """Assert that the additional metadata is propagated to the child runs."""
-    for run in runs.rows:
+    for run in runs:
         assert run.additional_metadata
         assert run.additional_metadata["test_run_id"] == test_run_id
 

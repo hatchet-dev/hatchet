@@ -26,7 +26,8 @@ func newValidator() *validator.Validate {
 	validate := validator.New()
 
 	celParser := cel.NewCELParser()
-	cronParser := cron.NewParser(cron.SecondOptional | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+	// Matches the parser gocron uses in the ticker, so validation accepts exactly what the ticker can schedule.
+	cronParser := cron.NewParser(cron.SecondOptional | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
 
 	_ = validate.RegisterValidation("hatchetName", func(fl validator.FieldLevel) bool {
 		return NameRegex.MatchString(fl.Field().String())

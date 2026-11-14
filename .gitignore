@@ -9,6 +9,7 @@ app
 *.db
 test.yaml
 dist
+npm-out
 gon.hcl
 internal/local_templates
 gon*.hcl
@@ -17,6 +18,9 @@ staging.sh
 *.crt
 *.key
 bin
+# The npm CLI shim is a source file, not a build product.
+!cmd/hatchet-cli/npm/cli/bin/
+!cmd/hatchet-cli/npm/cli/bin/**
 .idea
 dump.rdb
 .srl

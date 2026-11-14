@@ -80,6 +80,8 @@ func (o *fakeOutbox) AcquireTopic(ctx context.Context, topic string) error { ret
 
 func (o *fakeOutbox) ReleaseTopic(ctx context.Context, topic string) error { return nil }
 
+func (o *fakeOutbox) ReleaseTopics(ctx context.Context, topics []string) error { return nil }
+
 func queuedIDs(res *repository.RunConcurrencyResult) []int64 {
 	ids := make([]int64, len(res.Queued))
 	for i, q := range res.Queued {

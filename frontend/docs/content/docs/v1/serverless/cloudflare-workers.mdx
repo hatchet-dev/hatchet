@@ -7,6 +7,13 @@ import { Callout } from "@/components/nextra-compat";
 
 # Cloudflare Workers
 
+<Callout type="warning">
+  Serverless endpoints are a Labs feature and may change in future releases. In
+  the dashboard, open <strong>Settings</strong>, go to{" "}
+  <strong>Labs Preview</strong> and turn on <strong>Serverless</strong>. Tenants
+  on the free plan are asked to upgrade first.
+</Callout>
+
 `@hatchet-dev/serverless` turns a Cloudflare Worker into a [serverless endpoint](/v1/serverless): the Worker answers Hatchet's healthcheck with the workflows it serves, verifies the signature on every request, and runs each task it's assigned. Your task code is the same code you'd run on a [worker](/v1/workers), declared with the same `hatchet.task` and `hatchet.durableTask` calls.
 
 You need Node 22, [Wrangler](https://developers.cloudflare.com/workers/wrangler/), and a Cloudflare account. Durable tasks and tasks that wait for child runs hold a websocket open for the length of one invocation, so they need more CPU time than the Free plan's 10 ms; see [platform notes](#platform-notes).

@@ -35,6 +35,7 @@ class TenantEntitlements(BaseModel):
     dag_operator: StrictBool = Field(alias="dagOperator")
     durable_streams: StrictBool = Field(alias="durableStreams")
     serverless_operator: StrictBool = Field(alias="serverlessOperator")
+    sandbox_operator: StrictBool = Field(alias="sandboxOperator")
     __properties: ClassVar[List[str]] = [
         "auditLogs",
         "prometheusMetrics",
@@ -42,6 +43,7 @@ class TenantEntitlements(BaseModel):
         "dagOperator",
         "durableStreams",
         "serverlessOperator",
+        "sandboxOperator",
     ]
 
     model_config = ConfigDict(
@@ -102,6 +104,7 @@ class TenantEntitlements(BaseModel):
                 "dagOperator": obj.get("dagOperator"),
                 "durableStreams": obj.get("durableStreams"),
                 "serverlessOperator": obj.get("serverlessOperator"),
+                "sandboxOperator": obj.get("sandboxOperator"),
             }
         )
         return _obj

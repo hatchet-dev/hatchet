@@ -7,6 +7,13 @@ import { Callout } from "@/components/nextra-compat";
 
 # HTTP Contract
 
+<Callout type="warning">
+  Serverless endpoints are a Labs feature and may change in future releases. In
+  the dashboard, open <strong>Settings</strong>, go to{" "}
+  <strong>Labs Preview</strong> and turn on <strong>Serverless</strong>. Tenants
+  on the free plan are asked to upgrade first.
+</Callout>
+
 A [serverless endpoint](/v1/serverless) is two HTTPS routes that Hatchet calls: a healthcheck and a trigger. `@hatchet-dev/serverless` implements both for [Cloudflare Workers](/v1/serverless/cloudflare-workers), [Vercel](/v1/serverless/vercel) and Node servers. This page describes the contract itself, so you can serve an endpoint from another language or platform, or know what the package does on your behalf.
 
 An endpoint that implements only what's on this page serves tasks that are functions of their input: Hatchet delivers each one as a signed `POST` and reads the response as the task's output. Durable tasks, and tasks that wait for child runs or read streams while they run, are invoked over a websocket with a frame protocol that the TypeScript package implements. An endpoint without it reports `durable: { "supported": false }` and lists no `tasks`, and Hatchet delivers every task as a `POST`.

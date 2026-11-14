@@ -98,4 +98,69 @@ RSpec.describe Hatchet::Task do
     expect(proto.concurrency.length).to eq(1)
     expect(proto.concurrency[0].limit_strategy).to eq(:CANCEL_QUEUED_EXCEPT_OLDEST)
   end
+
+  it "registers every condition in an or_ group under one shared or group id" do
+    task = described_class.new(
+      name: "waits_for_sleep_or_event",
+      wait_for: [
+        Hatchet.or_(
+          Hatchet::SleepCondition.new(60),
+          Hatchet::UserEventCondition.new(event_key: "go"),
+        ),
+      ],
+    ) { |_input, _ctx| nil }
+
+    conditions = task.to_proto("test-service", config: config).conditions
+
+    expect(conditions.sleep_conditions.length).to eq(1)
+    expect(conditions.user_event_conditions.length).to eq(1)
+
+    sleep_base = conditions.sleep_conditions[0].base
+    event_base = conditions.user_event_conditions[0].base
+
+    expect(sleep_base.action).to eq(:QUEUE)
+    expect(event_base.action).to eq(:QUEUE)
+    expect(sleep_base.or_group_id).not_to be_empty
+    expect(sleep_base.or_group_id).to eq(event_base.or_group_id)
+  end
+
+  it "registers a nested or_ group in the group that contains it" do
+    task = described_class.new(
+      name: "waits_for_nested_or",
+      wait_for: [
+        Hatchet.or_(
+          Hatchet::SleepCondition.new(1),
+          Hatchet.or_(
+            Hatchet::SleepCondition.new(2),
+            Hatchet::UserEventCondition.new(event_key: "go"),
+          ),
+        ),
+      ],
+    ) { |_input, _ctx| nil }
+
+    conditions = task.to_proto("test-service", config: config).conditions
+    bases = conditions.sleep_conditions.map(&:base) + conditions.user_event_conditions.map(&:base)
+
+    expect(bases.length).to eq(3)
+    expect(bases.map(&:or_group_id).uniq.length).to eq(1)
+  end
+
+  it "registers a parent condition as a parent override condition" do
+    parent = described_class.new(name: "start") { |_input, _ctx| nil }
+    task = described_class.new(
+      name: "branch",
+      parents: [parent],
+      skip_if: [Hatchet::ParentCondition.new(parent: parent, expression: "output.random_number > 50")],
+    ) { |_input, _ctx| nil }
+
+    conditions = task.to_proto("test-service", config: config).conditions
+
+    expect(conditions.parent_override_conditions.length).to eq(1)
+
+    parent_condition = conditions.parent_override_conditions[0]
+
+    expect(parent_condition.parent_readable_id).to eq("start")
+    expect(parent_condition.base.action).to eq(:SKIP)
+    expect(parent_condition.base.expression).to eq("output.random_number > 50")
+  end
 end

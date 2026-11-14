@@ -129,6 +129,35 @@ func resetTopic(ctx context.Context, client *hatchet.Client) error {
 	return nil
 }
 
+func resetToCursor(ctx context.Context, client *hatchet.Client) error {
+	// > Reset to a cursor
+	var cursor string
+
+	for event, err := range client.Streams().Subscribe(ctx, "orders") {
+		if err != nil {
+			return err
+		}
+
+		cursor = event.Cursor
+		break
+	}
+
+	if err := client.Streams().Reset(ctx, "orders", features.WithStreamCursor(cursor)); err != nil {
+		return err
+	}
+
+	for event, err := range client.Streams().Subscribe(ctx, "orders") {
+		if err != nil {
+			return err
+		}
+
+		fmt.Println(string(event.Payload))
+	}
+	// !!
+
+	return nil
+}
+
 func main() {
 	client, err := hatchet.NewClient()
 	if err != nil {

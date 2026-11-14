@@ -1501,6 +1501,9 @@ CREATE INDEX "Worker_tenantId_actionHash_idx" ON "Worker" ("tenantId", "actionHa
 CREATE INDEX "Worker_tenantId_operatorId_idx" ON "Worker" ("tenantId", "operatorId");
 
 -- CreateIndex
+CREATE INDEX "Worker_tenantId_operatorId_active_idx" ON "Worker" ("tenantId", "operatorId") WHERE "isActive" AND "operatorId" IS NOT NULL;
+
+-- CreateIndex
 CREATE INDEX "WorkerAssignEvent_workerId_id_idx" ON "WorkerAssignEvent" ("workerId" ASC, "id" ASC);
 
 -- CreateIndex

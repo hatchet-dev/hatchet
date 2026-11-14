@@ -65,9 +65,13 @@ Unlike the Claude Agent SDK example, there is no in-process MCP server here. Hat
 <Callout type="info">
   **Trusted environment pattern.** This cookbook uses a trusted-harness
   architecture. The agent process runs in your own infrastructure with direct
-  access to Hatchet credentials. If you need to run agent turns inside untrusted
-  sandboxes with credentials kept outside, that is a different architecture
-  pattern covered in a later guide.
+  access to Hatchet credentials. To run the agent's commands in a sandbox, see{" "}
+  <a href="/v1/sandboxes">Sandboxes</a>. To run the whole agent in a sandbox
+  with its credentials kept outside, see{" "}
+  <a href="/cookbooks/agent-sandbox-credentials">
+    Credentials for Sandboxed Agents
+  </a>
+  .
 </Callout>
 
 ## Setup
@@ -302,20 +306,109 @@ When successful, you should see tool calls for all three agent tools. Given the 
 
 </Steps>
 
+## Stream the agent's progress
+
+The example prints only the agent's final output. To show progress while the agent works, for example in a web page, run the agent in streaming mode and publish each step to a [durable stream](/v1/durable-streams) topic. A consumer can subscribe from anywhere, and one that connects late, or reconnects, still reads the steps from the start of the topic.
+
+<Callout type="warning">
+  Durable streams are a Labs feature and may change in future releases. In the
+  dashboard, open <strong>Settings</strong>, go to <strong>Labs Preview</strong>{" "}
+  and turn on <strong>Durable streams</strong>. Tenants on the free plan are
+  asked to upgrade first.
+</Callout>
+
+In the agent, publish each tool call and message, and the final output. `agent` is the one from the agent above, and `prompt` is its prompt:
+
+<UniversalTabs items={["Python", "Typescript"]}>
+  <Tabs.Tab title="Python">
+
+    ```python
+    import json
+
+    from agents import ItemHelpers, Runner
+    from hatchet_sdk import Hatchet
+
+    hatchet = Hatchet()
+    topic = "support-agent-C-100"
+
+    result = Runner.run_streamed(agent, prompt)
+    async for event in result.stream_events():
+        if event.type != "run_item_stream_event":
+            continue
+        if event.name == "tool_called":
+            name = getattr(event.item.raw_item, "name", None)
+            await hatchet.streams.publish(topic, json.dumps({"type": "tool", "name": name}))
+        elif event.name == "message_output_created":
+            text = ItemHelpers.text_message_output(event.item)
+            await hatchet.streams.publish(topic, json.dumps({"type": "text", "text": text}))
+
+    await hatchet.streams.publish(topic, json.dumps({"type": "done", "result": str(result.final_output)}))
+    ```
+
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+
+    ```ts
+    import { hatchet } from '../hatchet-client';
+
+    const topic = 'support-agent-C-100';
+
+    const result = await run(agent, prompt, { stream: true });
+    for await (const event of result) {
+      if (event.type !== 'run_item_stream_event') continue;
+      if (event.name === 'tool_called' && event.item.type === 'tool_call_item') {
+        const { name } = event.item.rawItem as { name?: string };
+        await hatchet.streams.publish(topic, JSON.stringify({ type: 'tool', name }));
+      } else if (event.name === 'message_output_created' && event.item.type === 'message_output_item') {
+        await hatchet.streams.publish(topic, JSON.stringify({ type: 'text', text: event.item.content }));
+      }
+    }
+    await result.completed;
+    await hatchet.streams.publish(topic, JSON.stringify({ type: 'done', result: result.finalOutput }));
+    ```
+
+  </Tabs.Tab>
+</UniversalTabs>
+
+Then read the topic wherever you show progress:
+
+<UniversalTabs items={["Python", "Typescript"]}>
+  <Tabs.Tab title="Python">
+
+    ```python
+    async for event in hatchet.streams.subscribe("support-agent-C-100"):
+        step = json.loads(event.payload)
+        print(step)
+        if step["type"] == "done":
+            break
+    ```
+
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+
+    ```ts
+    for await (const event of hatchet.streams.subscribe('support-agent-C-100')) {
+      const step = JSON.parse(new TextDecoder().decode(event.payload));
+      console.log(step);
+      if (step.type === 'done') break;
+    }
+    ```
+
+  </Tabs.Tab>
+</UniversalTabs>
+
+Use one topic per agent run, or [reset the topic](/v1/durable-streams#resetting-a-topic) before a new run, so a new consumer does not read an older run's steps.
+
 ## Security considerations
 
 The agent process has direct access to Hatchet client credentials and runs in your own infrastructure. Every tool passed to the agent adds to the model's available capability set. Once a tool is available to the model, you should assume the model may attempt to call it. Do not rely on the agent prompt alone to enforce security rules.
 
-<Callout type="info">
-  Hatchet does not provide native code sandboxing. If you need to run each agent
-  turn inside an untrusted sandbox, use a different architecture with external
-  sandbox providers and credential proxying. Later guides in this series will
-  explore sandboxed and custom-harness patterns.
-</Callout>
+The tools in this cookbook are code you wrote. If the agent needs to write files and run commands that the model chooses, do not run them in the agent process or on your workers. Run them in a Hatchet sandbox, as described in [Sandboxes](/v1/sandboxes). If the agent itself has to run in a sandbox, keep its credentials in a proxy outside, as shown in [Credentials for Sandboxed Agents](/cookbooks/agent-sandbox-credentials).
 
 ## Next steps
 
 - [Hatchet Agent Tools](/cookbooks/hatchet-and-mcp): the prerequisite guide for exposing tasks and workflows as MCP tools.
+- [Sandboxes](/v1/sandboxes): give the agent a shell in a Hatchet sandbox.
 - [Claude Agent SDK](/cookbooks/hatchet-claude-agent-sdk-trusted-env): the same support scenario using the Claude Agent SDK.
 - [How to Create a Support Agent Using Hatchet](/cookbooks/workflow-support-agent): a workflow-first support-agent pattern with durable waits and escalation.
 - [Python SDK reference](/reference/python/client) and [TypeScript SDK reference](/reference/typescript/client): full SDK references.

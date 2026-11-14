@@ -409,7 +409,7 @@ func CreateTable(tableName string) string {
 }
 
 // rewriteV1_0_153GooseVersion remaps the 15-digit version 153 originally
-// shipped under so goose matches 20260910122311_v1_0_153.sql and does not
+// shipped under so goose matches 20260910122311.sql and does not
 // treat that file as missing before the current max version.
 func rewriteV1_0_153GooseVersion(ctx context.Context, conn *sql.Conn) error {
 	_, err := conn.ExecContext(ctx, `

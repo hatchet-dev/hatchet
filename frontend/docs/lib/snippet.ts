@@ -3,5 +3,5 @@ export type Snippet = {
     content: string;
     githubUrl: string;
     codePath: string;
-    language: 'python' | 'typescript' | 'go' | 'ruby'
+    language: 'python' | 'typescript' | 'typescript_sandbox' | 'go' | 'ruby'
 };

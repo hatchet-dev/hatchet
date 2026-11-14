@@ -899,7 +899,10 @@ SELECT
     t.retry_count = i.retry_count AS is_current_retry,
     t.concurrency_strategy_ids,
 	t.idempotency_key,
-    t.is_dag_orchestrator
+    t.is_dag_orchestrator,
+    t.parent_task_external_id,
+    t.parent_task_id,
+    t.parent_task_inserted_at
 FROM
     v1_task t
 JOIN
@@ -929,6 +932,9 @@ type ReleaseTasksRow struct {
 	ConcurrencyStrategyIds []int64            `json:"concurrency_strategy_ids"`
 	IdempotencyKey         pgtype.Text        `json:"idempotency_key"`
 	IsDagOrchestrator      bool               `json:"is_dag_orchestrator"`
+	ParentTaskExternalID   *uuid.UUID         `json:"parent_task_external_id"`
+	ParentTaskID           pgtype.Int8        `json:"parent_task_id"`
+	ParentTaskInsertedAt   pgtype.Timestamptz `json:"parent_task_inserted_at"`
 }
 
 func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksParams) ([]*ReleaseTasksRow, error) {
@@ -962,6 +968,9 @@ func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksPar
 				&i.ConcurrencyStrategyIds,
 				&i.IdempotencyKey,
 				&i.IsDagOrchestrator,
+				&i.ParentTaskExternalID,
+				&i.ParentTaskID,
+				&i.ParentTaskInsertedAt,
 			); err != nil {
 				errCh <- err
 				close(rowsCh)
@@ -1370,6 +1379,246 @@ func (q *Queries) ListTasksForDispatch(ctx context.Context, db DBTX, tenantId uu
 				InlineContent:       payloadInlineContent,
 				UpdatedAt:           payloadUpdatedAt,
 			}
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listFlattenedTasks = `-- name: ListFlattenedTasks :many
+SELECT
+    t.id,
+    t.inserted_at,
+    t.retry_count,
+    t.external_id,
+    t.workflow_run_id,
+    t.additional_metadata,
+    t.dag_id,
+    t.dag_inserted_at,
+    t.parent_task_id,
+    t.child_index,
+    t.child_key,
+    t.step_readable_id,
+    t.external_id AS workflow_run_external_id,
+    t.workflow_id,
+    t.step_id,
+    t.is_dag_orchestrator,
+    t.workflow_version_id,
+    t.parent_task_external_id,
+    t.is_durable,
+    t.task_input_payload_version,
+    t.payload_reference_id,
+    NULL::uuid AS dag_payload_reference_id
+FROM
+    unnest($1::bigint[], $2::timestamptz[]) AS i(id, inserted_at)
+JOIN
+    v1_task t ON t.id = i.id AND t.inserted_at = i.inserted_at
+WHERE
+    t.inserted_at >= $3::timestamptz
+    AND t.inserted_at <= $4::timestamptz
+`
+
+const listFlattenedDagTasks = `-- name: ListFlattenedDagTasks :many
+SELECT
+    t.id,
+    t.inserted_at,
+    t.retry_count,
+    t.external_id,
+    t.workflow_run_id,
+    t.additional_metadata,
+    t.dag_id,
+    t.dag_inserted_at,
+    t.parent_task_id,
+    t.child_index,
+    t.child_key,
+    t.step_readable_id,
+    i.external_id AS workflow_run_external_id,
+    t.workflow_id,
+    t.step_id,
+    t.is_dag_orchestrator,
+    t.workflow_version_id,
+    t.parent_task_external_id,
+    t.is_durable,
+    t.task_input_payload_version,
+    t.payload_reference_id,
+    d.payload_reference_id AS dag_payload_reference_id
+FROM
+    unnest($1::bigint[], $2::timestamptz[], $3::uuid[]) AS i(id, inserted_at, external_id)
+JOIN
+    v1_dag d ON d.id = i.id AND d.inserted_at = i.inserted_at
+JOIN
+    v1_dag_to_task dt ON dt.dag_id = d.id AND dt.dag_inserted_at = d.inserted_at
+JOIN
+    v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
+WHERE
+    d.inserted_at >= $4::timestamptz
+    AND d.inserted_at <= $5::timestamptz
+    AND dt.dag_inserted_at >= $4::timestamptz
+    AND dt.dag_inserted_at <= $5::timestamptz
+    -- a DAG's tasks are never inserted before the DAG itself
+    AND t.inserted_at >= $4::timestamptz
+`
+
+type FlattenExternalIdsParams struct {
+	Externalids []uuid.UUID `json:"externalids"`
+	Tenantid    uuid.UUID   `json:"tenantid"`
+}
+
+type FlattenExternalIdsRow struct {
+	ID                      int64              `json:"id"`
+	InsertedAt              pgtype.Timestamptz `json:"inserted_at"`
+	RetryCount              int32              `json:"retry_count"`
+	ExternalID              uuid.UUID          `json:"external_id"`
+	WorkflowRunID           uuid.UUID          `json:"workflow_run_id"`
+	AdditionalMetadata      []byte             `json:"additional_metadata"`
+	DagID                   pgtype.Int8        `json:"dag_id"`
+	DagInsertedAt           pgtype.Timestamptz `json:"dag_inserted_at"`
+	ParentTaskID            pgtype.Int8        `json:"parent_task_id"`
+	ChildIndex              pgtype.Int8        `json:"child_index"`
+	ChildKey                pgtype.Text        `json:"child_key"`
+	StepReadableID          string             `json:"step_readable_id"`
+	WorkflowRunExternalID   uuid.UUID          `json:"workflow_run_external_id"`
+	WorkflowID              uuid.UUID          `json:"workflow_id"`
+	StepID                  uuid.UUID          `json:"step_id"`
+	IsDagOrchestrator       bool               `json:"is_dag_orchestrator"`
+	WorkflowVersionID       uuid.UUID          `json:"workflow_version_id"`
+	ParentTaskExternalID    *uuid.UUID         `json:"parent_task_external_id"`
+	IsDurable               pgtype.Bool        `json:"is_durable"`
+	TaskInputPayloadVersion int16              `json:"task_input_payload_version"`
+	PayloadReferenceID      *uuid.UUID         `json:"payload_reference_id"`
+	DagPayloadReferenceID   *uuid.UUID         `json:"dag_payload_reference_id"`
+}
+
+// flattenKeys collects the primary keys that one kind of v1_lookup_table row (task or DAG) points
+// at, along with the inserted_at range they span.
+type flattenKeys struct {
+	minInsertedAt pgtype.Timestamptz
+	maxInsertedAt pgtype.Timestamptz
+	ids           []int64
+	insertedAts   []pgtype.Timestamptz
+	externalIds   []uuid.UUID
+}
+
+func (k *flattenKeys) add(id int64, insertedAt pgtype.Timestamptz, externalId uuid.UUID) {
+	if len(k.ids) == 0 || insertedAt.Time.Before(k.minInsertedAt.Time) {
+		k.minInsertedAt = insertedAt
+	}
+
+	if len(k.ids) == 0 || insertedAt.Time.After(k.maxInsertedAt.Time) {
+		k.maxInsertedAt = insertedAt
+	}
+
+	k.ids = append(k.ids, id)
+	k.insertedAts = append(k.insertedAts, insertedAt)
+	k.externalIds = append(k.externalIds, externalId)
+}
+
+// FlattenExternalIds returns the tasks behind a set of external ids: the task itself for a task's
+// external id, and every task in the DAG for a DAG's external id.
+//
+// The ids are resolved through v1_lookup_table in a statement of their own, and the inserted_at
+// range of the rows they point at is then passed to the v1_task and v1_dag statements as plain
+// parameters under forceCustomPlan. That is what lets the planner prune those tables to the
+// partitions inside the range. A range computed within the statement that reads v1_task is only
+// known once it is executing, by which point every partition has been locked and initialized, and
+// on a cached generic plan the partitions are locked before the parameters are looked at.
+//
+// The statements do not share a snapshot unless db is a transaction. Lookup rows are written in the
+// same statement as the row they point at and are never updated, so a later snapshot still finds it.
+func (q *Queries) FlattenExternalIds(ctx context.Context, db DBTX, arg FlattenExternalIdsParams) ([]*FlattenExternalIdsRow, error) {
+	if len(arg.Externalids) == 0 {
+		return nil, nil
+	}
+
+	lookups, err := q.LookupExternalIds(ctx, db, LookupExternalIdsParams(arg))
+	if err != nil {
+		return nil, err
+	}
+
+	var tasks, dags flattenKeys
+
+	for _, l := range lookups {
+		if l.TaskID.Valid {
+			tasks.add(l.TaskID.Int64, l.InsertedAt, l.ExternalID)
+		}
+
+		if l.DagID.Valid {
+			dags.add(l.DagID.Int64, l.InsertedAt, l.ExternalID)
+		}
+	}
+
+	var items []*FlattenExternalIdsRow
+
+	if len(tasks.ids) > 0 {
+		rows, err := db.Query(ctx, listFlattenedTasks, forceCustomPlan,
+			tasks.ids,
+			tasks.insertedAts,
+			tasks.minInsertedAt,
+			tasks.maxInsertedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		items, err = appendFlattenExternalIdsRows(items, rows)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if len(dags.ids) > 0 {
+		rows, err := db.Query(ctx, listFlattenedDagTasks, forceCustomPlan,
+			dags.ids,
+			dags.insertedAts,
+			dags.externalIds,
+			dags.minInsertedAt,
+			dags.maxInsertedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		items, err = appendFlattenExternalIdsRows(items, rows)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return items, nil
+}
+
+func appendFlattenExternalIdsRows(items []*FlattenExternalIdsRow, rows pgx.Rows) ([]*FlattenExternalIdsRow, error) {
+	defer rows.Close()
+	for rows.Next() {
+		var i FlattenExternalIdsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.InsertedAt,
+			&i.RetryCount,
+			&i.ExternalID,
+			&i.WorkflowRunID,
+			&i.AdditionalMetadata,
+			&i.DagID,
+			&i.DagInsertedAt,
+			&i.ParentTaskID,
+			&i.ChildIndex,
+			&i.ChildKey,
+			&i.StepReadableID,
+			&i.WorkflowRunExternalID,
+			&i.WorkflowID,
+			&i.StepID,
+			&i.IsDagOrchestrator,
+			&i.WorkflowVersionID,
+			&i.ParentTaskExternalID,
+			&i.IsDurable,
+			&i.TaskInputPayloadVersion,
+			&i.PayloadReferenceID,
+			&i.DagPayloadReferenceID,
+		); err != nil {
+			return nil, err
 		}
 		items = append(items, &i)
 	}

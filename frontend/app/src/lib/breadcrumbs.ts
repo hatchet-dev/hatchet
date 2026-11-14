@@ -28,6 +28,7 @@ type TenantedPath =
   | '/tenants/:tenant/settings/ingestors'
   | '/tenants/:tenant/settings/integrations'
   | '/tenants/:tenant/settings/organization'
+  | '/tenants/:tenant/settings/labs'
   | '/tenants/:tenant/workflow-runs'
   | '/tenants/:tenant/workflow-runs/:run'
   | '/tenants/:tenant/'
@@ -115,6 +116,8 @@ const createRouteLabel = (
       return 'Integrations';
     case '/tenants/:tenant/settings/organization':
       return isControlPlaneEnabled ? 'Organization' : 'Tenants';
+    case '/tenants/:tenant/settings/labs':
+      return 'Labs Preview';
     case '/tenants/:tenant/workflow-runs':
     case '/tenants/:tenant/workflow-runs/:run':
     case '/tenants/:tenant/':
