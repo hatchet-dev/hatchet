@@ -148,6 +148,7 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - `TaskRunError` sets `args`, so it can be pickled.
 - The `hatchet.durable.wait_for` span reports the actual number of conditions in `hatchet.num_conditions` instead of always 2, and leaves out `hatchet.signal_key` when the key was generated.
 - `HatchetInstrumentor.uninstrument()` now also unwraps `events.aio_push` and `events.aio_bulk_push`.
+- Retried gRPC calls that fail with a `RetryInfo` detail, such as `RESOURCE_EXHAUSTED` when Hatchet throttles a call, now wait the delay the server asks for instead of the SDK's own backoff, and retried HTTP 429 responses wait their `Retry-After` seconds. The wait is capped at the backoff the SDK would have used, so the attempt limit and the longest total wait are unchanged.
 
 ## [1.46.0] - 2026-11-12
 
