@@ -63,6 +63,10 @@ func (a *GRPCAuthN) Middleware(ctx context.Context, header http.Header) (context
 	ctx = context.WithValue(ctx, analytics.APITokenIDKey, tokenUUID)
 	ctx = context.WithValue(ctx, analytics.TenantIDKey, tenantId)
 
+	if dbToken.OperatorId != nil {
+		ctx = context.WithValue(ctx, analytics.OperatorIDKey, *dbToken.OperatorId)
+	}
+
 	source := analytics.SourceGRPC
 	if vals := header.Values(analytics.SourceMetadataKey); len(vals) > 0 {
 		source = analytics.Source(vals[0])

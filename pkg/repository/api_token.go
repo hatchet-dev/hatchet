@@ -2,9 +2,11 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -30,9 +32,12 @@ type CreateAPITokenOpts struct {
 
 type APITokenGenerator func(ctx context.Context, tenantId uuid.UUID, name string, internal bool, expires *time.Time) (string, error)
 
+var ErrAPITokenBoundToOtherOperator = errors.New("api token is bound to another operator")
+
 type APITokenRepository interface {
 	CreateAPIToken(ctx context.Context, opts *CreateAPITokenOpts) (*sqlcv1.APIToken, error)
 	GetAPITokenById(ctx context.Context, id uuid.UUID) (*sqlcv1.APIToken, error)
+	BindAPITokenToOperator(ctx context.Context, id, operatorId uuid.UUID) error
 	ListAPITokensByTenant(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.APIToken, error)
 	RevokeAPIToken(ctx context.Context, tenantId uuid.UUID, id uuid.UUID) error
 	DeleteAPIToken(ctx context.Context, tenantId, id uuid.UUID) error
@@ -96,6 +101,25 @@ func (a *apiTokenRepository) GetAPITokenById(ctx context.Context, id uuid.UUID) 
 	return cache.MakeCacheable[sqlcv1.APIToken](a.c, id.String(), func() (*sqlcv1.APIToken, error) {
 		return a.queries.GetAPITokenById(ctx, a.pool.ForShared(), id)
 	})
+}
+
+func (a *apiTokenRepository) BindAPITokenToOperator(ctx context.Context, id, operatorId uuid.UUID) error {
+	token, err := a.queries.BindAPITokenToOperator(ctx, a.pool.ForShared(), sqlcv1.BindAPITokenToOperatorParams{
+		ID:         id,
+		Operatorid: operatorId,
+	})
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrAPITokenBoundToOtherOperator
+	}
+
+	if err != nil {
+		return err
+	}
+
+	a.c.Set(id.String(), token)
+
+	return nil
 }
 
 func (a *apiTokenRepository) DeleteAPIToken(ctx context.Context, tenantId, id uuid.UUID) error {

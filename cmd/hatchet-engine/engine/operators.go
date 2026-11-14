@@ -38,6 +38,7 @@ func startOperatorClaimer(sc *server.ServerConfig, d *dispatcher.DispatcherImpl,
 	svc, err := operatorsvc.New(
 		operatorsvc.WithOperatorStore(sc.V1.Operators()),
 		operatorsvc.WithWorkerStore(sc.V1.Workers()),
+		operatorsvc.WithTokenStore(sc.V1.APIToken()),
 		operatorsvc.WithDispatcherBackend(operatorsvc.NewDispatcherBackend(d)),
 		operatorsvc.WithStreamsBackend(streamsSvc),
 		operatorsvc.WithDispatcherId(d.DispatcherId()),

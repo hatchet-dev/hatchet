@@ -2862,6 +2862,7 @@ type APIToken struct {
 	NextAlertAt pgtype.Timestamp `json:"nextAlertAt"`
 	Internal    bool             `json:"internal"`
 	ReadOnly    bool             `json:"readOnly"`
+	OperatorId  *uuid.UUID       `json:"operatorId"`
 }
 
 type Action struct {
@@ -4731,6 +4732,7 @@ type Workflow struct {
 	PausedWorkflowCronRunQueueBehavior      NullWorkflowPauseQueueBehavior `json:"pausedWorkflowCronRunQueueBehavior"`
 	PausedWorkflowScheduledRunQueueBehavior NullWorkflowPauseQueueBehavior `json:"pausedWorkflowScheduledRunQueueBehavior"`
 	PausedWorkflowQueueTTL                  pgtype.Interval                `json:"pausedWorkflowQueueTTL"`
+	OperatorId                              *uuid.UUID                     `json:"operatorId"`
 }
 
 type WorkflowConcurrency struct {

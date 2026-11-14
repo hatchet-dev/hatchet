@@ -12,6 +12,42 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const bindAPITokenToOperator = `-- name: BindAPITokenToOperator :one
+UPDATE
+    "APIToken"
+SET
+    "operatorId" = $1::uuid,
+    "updatedAt" = CURRENT_TIMESTAMP
+WHERE
+    "id" = $2::uuid
+    AND ("operatorId" IS NULL OR "operatorId" = $1::uuid)
+RETURNING id, "createdAt", "updatedAt", "expiresAt", revoked, name, "tenantId", "nextAlertAt", internal, "readOnly", "operatorId"
+`
+
+type BindAPITokenToOperatorParams struct {
+	Operatorid uuid.UUID `json:"operatorid"`
+	ID         uuid.UUID `json:"id"`
+}
+
+func (q *Queries) BindAPITokenToOperator(ctx context.Context, db DBTX, arg BindAPITokenToOperatorParams) (*APIToken, error) {
+	row := db.QueryRow(ctx, bindAPITokenToOperator, arg.Operatorid, arg.ID)
+	var i APIToken
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ExpiresAt,
+		&i.Revoked,
+		&i.Name,
+		&i.TenantId,
+		&i.NextAlertAt,
+		&i.Internal,
+		&i.ReadOnly,
+		&i.OperatorId,
+	)
+	return &i, err
+}
+
 const createAPIToken = `-- name: CreateAPIToken :one
 INSERT INTO "APIToken" (
     "id",
@@ -31,7 +67,7 @@ INSERT INTO "APIToken" (
     $4::timestamp,
     COALESCE($5::boolean, FALSE),
     $6::boolean
-) RETURNING id, "createdAt", "updatedAt", "expiresAt", revoked, name, "tenantId", "nextAlertAt", internal, "readOnly"
+) RETURNING id, "createdAt", "updatedAt", "expiresAt", revoked, name, "tenantId", "nextAlertAt", internal, "readOnly", "operatorId"
 `
 
 type CreateAPITokenParams struct {
@@ -64,6 +100,7 @@ func (q *Queries) CreateAPIToken(ctx context.Context, db DBTX, arg CreateAPIToke
 		&i.NextAlertAt,
 		&i.Internal,
 		&i.ReadOnly,
+		&i.OperatorId,
 	)
 	return &i, err
 }
@@ -88,7 +125,7 @@ func (q *Queries) DeleteAPIToken(ctx context.Context, db DBTX, arg DeleteAPIToke
 
 const getAPITokenById = `-- name: GetAPITokenById :one
 SELECT
-    id, "createdAt", "updatedAt", "expiresAt", revoked, name, "tenantId", "nextAlertAt", internal, "readOnly"
+    id, "createdAt", "updatedAt", "expiresAt", revoked, name, "tenantId", "nextAlertAt", internal, "readOnly", "operatorId"
 FROM
     "APIToken"
 WHERE
@@ -109,13 +146,14 @@ func (q *Queries) GetAPITokenById(ctx context.Context, db DBTX, id uuid.UUID) (*
 		&i.NextAlertAt,
 		&i.Internal,
 		&i.ReadOnly,
+		&i.OperatorId,
 	)
 	return &i, err
 }
 
 const listAPITokensByTenant = `-- name: ListAPITokensByTenant :many
 SELECT
-    id, "createdAt", "updatedAt", "expiresAt", revoked, name, "tenantId", "nextAlertAt", internal, "readOnly"
+    id, "createdAt", "updatedAt", "expiresAt", revoked, name, "tenantId", "nextAlertAt", internal, "readOnly", "operatorId"
 FROM
     "APIToken"
 WHERE
@@ -144,6 +182,7 @@ func (q *Queries) ListAPITokensByTenant(ctx context.Context, db DBTX, tenantid u
 			&i.NextAlertAt,
 			&i.Internal,
 			&i.ReadOnly,
+			&i.OperatorId,
 		); err != nil {
 			return nil, err
 		}

@@ -78,6 +78,10 @@ type OperatorStore interface {
 	UpsertOperator(ctx context.Context, tenantId uuid.UUID, opts repository.UpsertOperatorOpts) (*sqlcv1.V1Operator, error)
 }
 
+type TokenStore interface {
+	BindAPITokenToOperator(ctx context.Context, id, operatorId uuid.UUID) error
+}
+
 // WorkerStore is the subset of repository.WorkerRepository the service uses.
 type WorkerStore interface {
 	CreateNewWorker(ctx context.Context, tenantId uuid.UUID, opts *repository.CreateWorkerOpts) (*sqlcv1.Worker, error)
@@ -141,6 +145,7 @@ type StreamsBackend interface {
 type Service struct {
 	operators  OperatorStore
 	workers    WorkerStore
+	tokens     TokenStore
 	dispatcher DispatcherBackend
 	streams    StreamsBackend
 
@@ -168,6 +173,7 @@ type Service struct {
 type opts struct {
 	operators    OperatorStore
 	workers      WorkerStore
+	tokens       TokenStore
 	dispatcher   DispatcherBackend
 	streams      StreamsBackend
 	dispatcherId uuid.UUID
@@ -206,6 +212,10 @@ func WithOperatorStore(s OperatorStore) Opt {
 // Required.
 func WithWorkerStore(s WorkerStore) Opt {
 	return func(o *opts) { o.workers = s }
+}
+
+func WithTokenStore(s TokenStore) Opt {
+	return func(o *opts) { o.tokens = s }
 }
 
 // WithDispatcherBackend sets the local dispatcher sessions are registered with. Required.
@@ -287,6 +297,7 @@ func New(fs ...Opt) (*Service, error) {
 	return &Service{
 		operators:                   o.operators,
 		workers:                     o.workers,
+		tokens:                      o.tokens,
 		dispatcher:                  o.dispatcher,
 		streams:                     o.streams,
 		dispatcherId:                o.dispatcherId,

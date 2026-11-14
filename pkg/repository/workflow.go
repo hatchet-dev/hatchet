@@ -69,6 +69,9 @@ type CreateWorkflowVersionOpts struct {
 	InputJsonSchema []byte `json:"inputJsonSchema,omitempty"`
 
 	Idempotency *IdempotencyConfig `json:"idempotency,omitempty"`
+
+	// note: json:"-" keeps ownership out of the workflow version checksum
+	OperatorId *uuid.UUID `json:"-"`
 }
 
 type IdempotencyConfig struct {
@@ -700,6 +703,27 @@ func (e *JobRunHasCycleError) Error() string {
 	return fmt.Sprintf("job %s has a cycle", e.JobName)
 }
 
+type WorkflowOwnedByOperatorError struct {
+	WorkflowName string
+	OperatorId   uuid.UUID
+}
+
+func (e *WorkflowOwnedByOperatorError) Error() string {
+	return fmt.Sprintf("workflow %s is owned by operator %s and cannot be modified by anyone else", e.WorkflowName, e.OperatorId)
+}
+
+func CheckWorkflowOwner(workflow *sqlcv1.Workflow, callerOperatorId *uuid.UUID) error {
+	if workflow.OperatorId == nil {
+		return nil
+	}
+
+	if callerOperatorId != nil && *callerOperatorId == *workflow.OperatorId {
+		return nil
+	}
+
+	return &WorkflowOwnedByOperatorError{WorkflowName: workflow.Name, OperatorId: *workflow.OperatorId}
+}
+
 func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkflowVersionOpts) (*sqlcv1.GetWorkflowVersionForEngineRow, error) {
 	db := r.pool.ForTenant(tenantId)
 
@@ -756,6 +780,7 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 				Tenantid:    tenantId,
 				Name:        opts.Name,
 				Description: *opts.Description,
+				OperatorId:  opts.OperatorId,
 			},
 		)
 
@@ -782,6 +807,22 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 		return nil, fmt.Errorf("invalid id for workflow %s", opts.Name)
 	default:
 		workflowId = existingWorkflow.ID
+
+		if err := CheckWorkflowOwner(existingWorkflow, opts.OperatorId); err != nil {
+			return nil, err
+		}
+
+		if opts.OperatorId != nil {
+			err := r.queries.ClaimWorkflowForOperator(ctx, tx, sqlcv1.ClaimWorkflowForOperatorParams{
+				ID:         workflowId,
+				Tenantid:   tenantId,
+				Operatorid: *opts.OperatorId,
+			})
+
+			if err != nil {
+				return nil, fmt.Errorf("could not claim workflow %s for operator %s: %w", opts.Name, opts.OperatorId, err)
+			}
+		}
 
 		// Lock the previous workflow version to prevent concurrent version creation
 		_, err := r.queries.LockWorkflowVersion(ctx, tx, workflowId)

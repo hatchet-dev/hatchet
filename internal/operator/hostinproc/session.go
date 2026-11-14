@@ -11,6 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/operatorsvc"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 )
 
@@ -128,7 +129,9 @@ func (s *session) PutWorkflow(ctx context.Context, wf *v1.CreateWorkflowVersionR
 
 	tenant := s.ss.Tenant()
 
-	resp, err := s.host.admin.PutWorkflow(operatorsvc.WithTenant(ctx, tenant), wf)
+	putCtx := context.WithValue(operatorsvc.WithTenant(ctx, tenant), analytics.OperatorIDKey, s.reg.OperatorId)
+
+	resp, err := s.host.admin.PutWorkflow(putCtx, wf)
 
 	if err != nil {
 		return nil, err

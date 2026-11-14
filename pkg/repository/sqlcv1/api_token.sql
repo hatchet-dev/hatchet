@@ -28,6 +28,17 @@ INSERT INTO "APIToken" (
 ) RETURNING *;
 
 
+-- name: BindAPITokenToOperator :one
+UPDATE
+    "APIToken"
+SET
+    "operatorId" = @operatorId::uuid,
+    "updatedAt" = CURRENT_TIMESTAMP
+WHERE
+    "id" = @id::uuid
+    AND ("operatorId" IS NULL OR "operatorId" = @operatorId::uuid)
+RETURNING *;
+
 -- name: RevokeAPIToken :exec
 UPDATE
     "APIToken"

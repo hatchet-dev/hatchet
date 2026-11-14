@@ -82,6 +82,7 @@ const (
 	AccountIDKey      = contextKey("account_id")
 	UserIDKey         = contextKey("user_id")
 	SourceKey         = contextKey("source")
+	OperatorIDKey     = contextKey("operator_id")
 
 	SourceMetadataKey = "x-hatchet-source"
 
@@ -119,6 +120,13 @@ func TokenIDFromContext(ctx context.Context) *uuid.UUID {
 
 func TenantIDFromContext(ctx context.Context) *uuid.UUID {
 	if id, ok := ctx.Value(TenantIDKey).(uuid.UUID); ok && id != uuid.Nil {
+		return &id
+	}
+	return nil
+}
+
+func OperatorIDFromContext(ctx context.Context) *uuid.UUID {
+	if id, ok := ctx.Value(OperatorIDKey).(uuid.UUID); ok && id != uuid.Nil {
 		return &id
 	}
 	return nil

@@ -63,6 +63,8 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New(apiErrors.String()))
 	}
 
+	createOpts.OperatorId = analytics.OperatorIDFromContext(ctx)
+
 	currWorkflow, err := a.repov1.Workflows().PutWorkflowVersion(
 		ctx,
 		tenantId,
@@ -70,6 +72,12 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 	)
 
 	if err != nil {
+		var ownedErr *v1.WorkflowOwnedByOperatorError
+
+		if errors.As(err, &ownedErr) {
+			return nil, connect.NewError(connect.CodePermissionDenied, errors.New(ownedErr.Error()))
+		}
+
 		return nil, err
 	}
 

@@ -141,6 +141,7 @@ func New(fs ...OperatorServiceOpt) (*OperatorServiceImpl, error) {
 	svc, err := operatorsvc.New(
 		operatorsvc.WithOperatorStore(opts.repo.Operators()),
 		operatorsvc.WithWorkerStore(opts.repo.Workers()),
+		operatorsvc.WithTokenStore(opts.repo.APIToken()),
 		operatorsvc.WithDispatcherBackend(operatorsvc.NewDispatcherBackend(opts.dispatcher)),
 		operatorsvc.WithDispatcherId(opts.dispatcher.DispatcherId()),
 		operatorsvc.WithLogger(opts.l),

@@ -100,7 +100,8 @@ INSERT INTO "Workflow" (
     "deletedAt",
     "tenantId",
     "name",
-    "description"
+    "description",
+    "operatorId"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -108,10 +109,22 @@ INSERT INTO "Workflow" (
     @deletedAt::timestamp,
     @tenantId::uuid,
     @name::text,
-    @description::text
+    @description::text,
+    sqlc.narg('operatorId')::uuid
 )
 ON CONFLICT ("tenantId", "name") DO NOTHING
 RETURNING *;
+
+-- name: ClaimWorkflowForOperator :exec
+UPDATE
+    "Workflow"
+SET
+    "operatorId" = @operatorId::uuid,
+    "updatedAt" = CURRENT_TIMESTAMP
+WHERE
+    "id" = @id::uuid
+    AND "tenantId" = @tenantId::uuid
+    AND "operatorId" IS NULL;
 
 -- name: CreateWorkflowVersion :one
 INSERT INTO "WorkflowVersion" (

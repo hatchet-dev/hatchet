@@ -1,6 +1,7 @@
 package authz
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -132,6 +133,10 @@ func (a *AuthZ) handleBearerAuth(c echo.Context, r *middleware.RouteInfo) error 
 		token, err := a.config.V1.APIToken().GetAPITokenById(c.Request().Context(), tokenID)
 		if err != nil {
 			return echo.NewHTTPError(http.StatusUnauthorized, "Invalid API token")
+		}
+		if token.OperatorId != nil {
+			ctx := context.WithValue(c.Request().Context(), analytics.OperatorIDKey, *token.OperatorId)
+			c.SetRequest(c.Request().WithContext(ctx))
 		}
 		if token.ReadOnly {
 			return a.authorizeTenantOperations(string(sqlcv1.TenantMemberRoleVIEWER), r)

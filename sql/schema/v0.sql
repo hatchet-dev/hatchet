@@ -156,6 +156,7 @@ CREATE TABLE "APIToken" (
     "nextAlertAt" TIMESTAMP(3),
     "internal" BOOLEAN NOT NULL DEFAULT false,
     "readOnly" BOOLEAN NOT NULL DEFAULT false,
+    "operatorId" UUID,
 
     CONSTRAINT "APIToken_pkey" PRIMARY KEY ("id")
 );
@@ -928,6 +929,7 @@ CREATE TABLE "Workflow" (
     "pausedWorkflowCronRunQueueBehavior" "WorkflowPauseQueueBehavior",
     "pausedWorkflowScheduledRunQueueBehavior" "WorkflowPauseQueueBehavior",
     "pausedWorkflowQueueTTL" INTERVAL,
+    "operatorId" UUID,
 
     CONSTRAINT "Workflow_pkey" PRIMARY KEY ("id"),
     CONSTRAINT "Workflow_PausedWorkflowCheck" CHECK (

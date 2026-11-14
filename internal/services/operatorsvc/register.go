@@ -106,6 +106,10 @@ func (s *Service) Register(ctx context.Context, tenant *sqlcv1.Tenant, opts Regi
 		return Registration{}, err
 	}
 
+	if err := s.bindToken(ctx, op); err != nil {
+		return Registration{}, err
+	}
+
 	workerId, resumed, err := s.resumeWorker(ctx, op, opts.ResumeWorkerId)
 
 	if err != nil {
@@ -144,6 +148,27 @@ func (s *Service) Register(ctx context.Context, tenant *sqlcv1.Tenant, opts Regi
 		WorkerId:   workerId,
 		Resumed:    resumed,
 	}, nil
+}
+
+func (s *Service) bindToken(ctx context.Context, op *sqlcv1.V1Operator) error {
+	tokenId := analytics.TokenIDFromContext(ctx)
+
+	if s.tokens == nil || tokenId == nil {
+		return nil
+	}
+
+	err := s.tokens.BindAPITokenToOperator(ctx, *tokenId, op.ID)
+
+	if errors.Is(err, repository.ErrAPITokenBoundToOtherOperator) {
+		return connect.NewError(connect.CodePermissionDenied, fmt.Errorf("the api token already registered another operator and cannot register %s; use one token per operator", op.Name))
+	}
+
+	if err != nil {
+		s.l.Error().Ctx(ctx).Err(err).Msgf("could not bind api token to operator %s", op.ID)
+		return err
+	}
+
+	return nil
 }
 
 // loadOperator returns the existing row a claimed registration names, refusing a row of another

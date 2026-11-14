@@ -8,6 +8,8 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -21,6 +23,10 @@ func (t *WorkflowService) WorkflowUpdate(echoCtx echo.Context, request gen.Workf
 
 	if request.Body == nil {
 		return gen.WorkflowUpdate400JSONResponse(apierrors.NewAPIErrors("the request body must be non-null")), nil
+	}
+
+	if err := repository.CheckWorkflowOwner(&workflow.Workflow, analytics.OperatorIDFromContext(ctx)); err != nil {
+		return gen.WorkflowUpdate403JSONResponse(apierrors.NewAPIErrors(err.Error())), nil
 	}
 
 	if request.Body.Pause != nil {

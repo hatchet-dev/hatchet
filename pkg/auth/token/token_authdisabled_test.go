@@ -64,6 +64,10 @@ func (s *stubAPITokenRepository) DeleteAPIToken(ctx context.Context, tenantId, i
 	return nil
 }
 
+func (s *stubAPITokenRepository) BindAPITokenToOperator(ctx context.Context, id, operatorId uuid.UUID) error {
+	return nil
+}
+
 // TestAuthDisabledKeysetIsolation is the security invariant behind authdisabled mode: the main
 // (production) JWT manager can never validate a token signed by the embedded authdisabled keyset,
 // and vice versa. The embedded token is only accepted via the separate authdisabled manager, which

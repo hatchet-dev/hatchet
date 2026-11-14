@@ -869,6 +869,8 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New(apiErrors.String()))
 	}
 
+	createOpts.OperatorId = analytics.OperatorIDFromContext(ctx)
+
 	currWorkflow, err := a.repo.Workflows().PutWorkflowVersion(
 		ctx,
 		tenantId,
@@ -876,6 +878,12 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 	)
 
 	if err != nil {
+		var ownedErr *v1.WorkflowOwnedByOperatorError
+
+		if errors.As(err, &ownedErr) {
+			return nil, connect.NewError(connect.CodePermissionDenied, errors.New(ownedErr.Error()))
+		}
+
 		// tenant-concurrency registration errors are user-actionable and contain only
 		// caller-supplied identifiers
 		var tenantConcurrencyErr *v1.TenantConcurrencyError
