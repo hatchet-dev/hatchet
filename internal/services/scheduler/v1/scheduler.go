@@ -504,8 +504,10 @@ func (s *Scheduler) runSetTenants(ctx context.Context) func() {
 	return func() {
 		s.l.Debug().Ctx(ctx).Msgf("partition: checking step run requeue")
 
-		// list all tenants
-		tenants, err := s.repov1.Tenant().ListTenantsBySchedulerPartition(ctx, s.p.GetSchedulerPartitionId())
+		// A paused tenant is not in the list: its manager is torn down and its leases released like
+		// those of any tenant that leaves it, its queue rows stay, and it is rebuilt on resume. On an
+		// error the current tenants are kept.
+		tenants, err := s.repov1.Tenant().ListSchedulableTenantsBySchedulerPartition(ctx, s.p.GetSchedulerPartitionId())
 
 		if err != nil {
 			logger.ShutdownAware(ctx, s.l, err, zerolog.ErrorLevel).Err(err).Ctx(ctx).Msg("could not list tenants")

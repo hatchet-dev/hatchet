@@ -106,6 +106,20 @@ func TestErrorInterceptorMapsTenantRateLimitedToResourceExhaustedWithRetryInfo(t
 	assert.Equal(t, 1500*time.Millisecond, retryInfo.GetRetryDelay().AsDuration())
 }
 
+func TestErrorInterceptorMapsTenantPausedToResourceExhaustedWithoutRetryInfo(t *testing.T) {
+	handlerErr := fmt.Errorf("could not check tenant limit: %w", repository.ErrTenantPaused)
+	err, alerter := runThroughErrorInterceptor(t, handlerErr)
+
+	require.Error(t, err)
+	assert.Equal(t, connect.CodeResourceExhausted, connect.CodeOf(err))
+	assert.Equal(t, 0, alerter.n)
+
+	var connectErr *connect.Error
+	require.ErrorAs(t, err, &connectErr)
+	assert.Equal(t, "resource exhausted: tenant is paused by an operator", connectErr.Message())
+	assert.Empty(t, connectErr.Details(), "a pause gives the client no retry delay")
+}
+
 // A retrying client makes one refused call per attempt, so a refusal by an operator control is
 // logged at debug, while other ResourceExhausted calls keep their warning.
 func TestFinishedCallOfAnOperatorRefusalIsDebug(t *testing.T) {
@@ -114,6 +128,7 @@ func TestFinishedCallOfAnOperatorRefusalIsDebug(t *testing.T) {
 		level      string
 	}{
 		"rate limited":   {handlerErr: fmt.Errorf("could not check tenant limit: %w", &repository.TenantRateLimitedError{RetryAfter: time.Second}), level: "debug"},
+		"paused":         {handlerErr: fmt.Errorf("could not check tenant limit: %w", repository.ErrTenantPaused), level: "debug"},
 		"quota":          {handlerErr: connect.NewError(connect.CodeResourceExhausted, errors.New("tenant has reached 100% of its task runs limit")), level: "warn"},
 		"connection cap": {handlerErr: &fairpool.LimitError{Key: "shared", Limit: 2}, level: "warn"},
 	} {

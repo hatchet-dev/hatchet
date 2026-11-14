@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const clearTenantControl = `-- name: ClearTenantControl :execrows
@@ -25,7 +26,7 @@ func (q *Queries) ClearTenantControl(ctx context.Context, db DBTX, tenantid uuid
 }
 
 const listTenantControls = `-- name: ListTenantControls :many
-SELECT tenant_id, ingest_per_second, reason, updated_at
+SELECT tenant_id, ingest_per_second, reason, updated_at, paused, paused_at
 FROM v1_tenant_control
 `
 
@@ -43,6 +44,8 @@ func (q *Queries) ListTenantControls(ctx context.Context, db DBTX) ([]*V1TenantC
 			&i.IngestPerSecond,
 			&i.Reason,
 			&i.UpdatedAt,
+			&i.Paused,
+			&i.PausedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -55,30 +58,40 @@ func (q *Queries) ListTenantControls(ctx context.Context, db DBTX) ([]*V1TenantC
 }
 
 const setTenantControl = `-- name: SetTenantControl :one
-INSERT INTO v1_tenant_control (tenant_id, ingest_per_second, reason)
-VALUES ($1::uuid, $2::integer, $3::text)
+INSERT INTO v1_tenant_control (tenant_id, ingest_per_second, paused, reason)
+VALUES ($1::uuid, $2::integer, $3::boolean, $4::text)
 ON CONFLICT (tenant_id) DO UPDATE
 SET
     ingest_per_second = EXCLUDED.ingest_per_second,
+    paused = EXCLUDED.paused,
     reason = EXCLUDED.reason,
     updated_at = NOW()
-RETURNING tenant_id, ingest_per_second, reason, updated_at
+RETURNING tenant_id, ingest_per_second, reason, updated_at, paused, paused_at
 `
 
 type SetTenantControlParams struct {
-	Tenantid        uuid.UUID `json:"tenantid"`
-	Ingestpersecond int32     `json:"ingestpersecond"`
-	Reason          string    `json:"reason"`
+	Tenantid        uuid.UUID   `json:"tenantid"`
+	IngestPerSecond pgtype.Int4 `json:"ingestPerSecond"`
+	Paused          bool        `json:"paused"`
+	Reason          string      `json:"reason"`
 }
 
+// v1_tenant_control_paused_at_trigger keeps paused_at
 func (q *Queries) SetTenantControl(ctx context.Context, db DBTX, arg SetTenantControlParams) (*V1TenantControl, error) {
-	row := db.QueryRow(ctx, setTenantControl, arg.Tenantid, arg.Ingestpersecond, arg.Reason)
+	row := db.QueryRow(ctx, setTenantControl,
+		arg.Tenantid,
+		arg.IngestPerSecond,
+		arg.Paused,
+		arg.Reason,
+	)
 	var i V1TenantControl
 	err := row.Scan(
 		&i.TenantID,
 		&i.IngestPerSecond,
 		&i.Reason,
 		&i.UpdatedAt,
+		&i.Paused,
+		&i.PausedAt,
 	)
 	return &i, err
 }

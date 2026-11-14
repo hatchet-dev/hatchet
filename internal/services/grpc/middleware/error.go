@@ -70,6 +70,12 @@ func expectedStatus(ctx context.Context, err error) error {
 		return limited
 	}
 
+	// A pause lasts until an operator ends it, so the refusal carries no RetryInfo and a client
+	// backs off on its own schedule.
+	if goerrors.Is(err, repository.ErrTenantPaused) {
+		return connect.NewError(connect.CodeResourceExhausted, repository.ErrTenantPaused)
+	}
+
 	// Extensions can return gRPC status errors. Convert their code and details here;
 	// redactServerError removes diagnostics from server failures before they reach the wire.
 	if st, ok := status.FromError(err); ok && st.Code() != codes.Unknown && st.Code() != codes.OK {

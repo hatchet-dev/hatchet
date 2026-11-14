@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	hatchetmiddleware "github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -38,6 +40,18 @@ func TestAccessLogLevel(t *testing.T) {
 			name:      "refusal by an operator control is debug",
 			status:    http.StatusTooManyRequests,
 			err:       fmt.Errorf("could not ingest event: %w", &repository.TenantRateLimitedError{RetryAfter: time.Second}),
+			wantLevel: zerolog.DebugLevel,
+		},
+		{
+			name:      "a paused tenant's refusal is debug",
+			status:    http.StatusTooManyRequests,
+			err:       fmt.Errorf("could not ingest event: %w", repository.ErrTenantPaused),
+			wantLevel: zerolog.DebugLevel,
+		},
+		{
+			name:      "a paused tenant's proxied refusal is debug",
+			status:    http.StatusTooManyRequests,
+			err:       status.Error(codes.ResourceExhausted, repository.ErrTenantPaused.Error()),
 			wantLevel: zerolog.DebugLevel,
 		},
 		{

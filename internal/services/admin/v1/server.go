@@ -183,6 +183,12 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("cannot provide both external ids and filter"))
 	}
 
+	// Before any read, so that refusing costs no database work. A filter's runs are not known yet,
+	// so a replay by filter counts as one.
+	if err := a.repo.TenantControl().Admit(tenant.ID, max(1, len(externalIds))); err != nil {
+		return nil, err
+	}
+
 	if len(externalIds) == 0 && req.Filter != nil {
 		statuses, err := v1.ReadableStatusesForFilter(req.Filter.Statuses, v1.RunningStatusFilterAll)
 		if err != nil {
@@ -572,6 +578,11 @@ func (a *AdminServiceImpl) BranchDurableTask(ctx context.Context, req *contracts
 	}
 
 	a.analytics.Count(ctx, analytics.DurableTask, analytics.Branch)
+
+	// a branch replays the task, which is new work
+	if err := a.repo.TenantControl().Admit(tenantId, 1); err != nil {
+		return nil, err
+	}
 
 	task, err := a.repo.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, true)
 	if err != nil {

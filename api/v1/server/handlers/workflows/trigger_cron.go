@@ -25,6 +25,11 @@ func (t *WorkflowService) WorkflowCronTrigger(ctx echo.Context, request gen.Work
 		}
 	}
 
+	// creating the run now is new work, unlike the cron's own fires
+	if err := t.config.V1.TenantControl().Admit(tenant.ID, 1); err != nil {
+		return nil, err
+	}
+
 	priority := cron.Priority
 
 	var cronName *string
