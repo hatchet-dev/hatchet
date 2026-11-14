@@ -1,7 +1,6 @@
 import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from multiprocessing import Queue
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from hatchet_sdk.config import ClientConfig
