@@ -149,6 +149,7 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - `TaskRunError` sets `args`, so it can be pickled.
 - The `hatchet.durable.wait_for` span reports the actual number of conditions in `hatchet.num_conditions` instead of always 2, and leaves out `hatchet.signal_key` when the key was generated.
 - `HatchetInstrumentor.uninstrument()` now also unwraps `events.aio_push` and `events.aio_bulk_push`.
+- Fixes an issue where a worker would be blocked because the default ThreadPoolExecutor used by calls to `loop.run_in_executor(None, ...)` and `asyncio.to_thread` was exhausted.
 
 ## v1.46.0 - 2026-11-12
 
