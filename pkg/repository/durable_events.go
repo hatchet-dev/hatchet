@@ -2994,7 +2994,7 @@ func (r *sharedRepository) operatorStepChildrenSkipCompletionMatch(ctx context.C
 		return false
 	}
 
-	entitled, err := r.entitlements.hasEntitlementOnConn(ctx, tx, tenantId, EntitlementOperatorStepDirectCompletion)
+	entitled, err := r.entitlements.hasEntitlementTx(ctx, tx, tenantId, EntitlementOperatorStepDirectCompletion)
 
 	if err != nil {
 		r.l.Error().Ctx(ctx).Err(err).Msgf("could not read the operator step direct completion entitlement for tenant %s, keeping the completion match", tenantId)
