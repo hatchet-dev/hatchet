@@ -5,6 +5,8 @@ export const KIND_ORDER: SandboxProviderKind[] = [
   SandboxProviderKind.E2B,
   SandboxProviderKind.ARCHIL,
   SandboxProviderKind.FREESTYLE,
+  SandboxProviderKind.MODAL,
+  SandboxProviderKind.VERCEL,
 ];
 
 export const KINDS: Record<
@@ -54,6 +56,35 @@ export const KINDS: Record<
       'An API key from admin.freestyle.sh. Leave the template empty for the platform default image, or set a snapshot id or slug.',
     templatePlaceholder: 'sh-… or your-snapshot-slug',
     configKeys: ['template', 'workdir', 'snapshotEveryTurn'],
+  },
+  [SandboxProviderKind.MODAL]: {
+    label: 'Modal',
+    description: 'Modal sandboxes with filesystem snapshots.',
+    keyHint:
+      'The token secret (as-…) of a Modal API token. Put the matching token id (ak-…) in the provider config as "tokenId". The template is a registry image or a snapshot image id.',
+    templatePlaceholder: 'debian:bookworm-slim',
+    configKeys: [
+      'tokenId',
+      'app',
+      'environment',
+      'template',
+      'workdir',
+      'snapshotEveryTurn',
+    ],
+  },
+  [SandboxProviderKind.VERCEL]: {
+    label: 'Vercel',
+    description: 'Vercel Sandbox microVMs with persistent snapshots.',
+    keyHint:
+      'A Vercel access token. Set "teamId" and "projectId" in the provider config; sandboxes are created in that project. Leave the template empty for the universal image.',
+    templatePlaceholder: 'vercel/sandbox/universal',
+    configKeys: [
+      'teamId',
+      'projectId',
+      'template',
+      'workdir',
+      'snapshotEveryTurn',
+    ],
   },
 };
 

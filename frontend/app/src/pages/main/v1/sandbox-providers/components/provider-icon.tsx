@@ -67,6 +67,28 @@ const FreestyleIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+const ModalIcon = ({ className }: { className?: string }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    className={className}
+    aria-hidden="true"
+  >
+    <path d="M3 4h4.5l4.5 9 4.5-9H21v16h-3.6V10.2L12 21 6.6 10.2V20H3V4Z" />
+  </svg>
+);
+
+const VercelIcon = ({ className }: { className?: string }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    className={className}
+    aria-hidden="true"
+  >
+    <path d="M12 2 24 22H0L12 2Z" />
+  </svg>
+);
+
 export const ProviderIcon = ({
   kind,
   className,
@@ -84,6 +106,10 @@ export const ProviderIcon = ({
       return <ArchilIcon className={cls} />;
     case SandboxProviderKind.FREESTYLE:
       return <FreestyleIcon className={cls} />;
+    case SandboxProviderKind.MODAL:
+      return <ModalIcon className={cls} />;
+    case SandboxProviderKind.VERCEL:
+      return <VercelIcon className={cls} />;
     default:
       const exhaustiveCheck: never = kind;
       throw new Error(`Unhandled sandbox provider kind: ${exhaustiveCheck}`);
