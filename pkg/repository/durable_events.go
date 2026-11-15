@@ -2298,7 +2298,7 @@ func (r *durableEventsRepository) TriggerPendingRunEntries(ctx context.Context, 
 	triggerOpts := make([]*WorkflowNameTriggerOpts, 0, len(claimedSet))
 	externalIdToEventLogEntryPK := make(map[uuid.UUID]DurableTaskEventLogEntryKey, len(claimedSet))
 	dagStepChildExternalIds := make(map[uuid.UUID]struct{})
-	stepChildrenSkipMatch := r.operatorStepChildrenSkipCompletionMatch(ctx, tenantId)
+	stepChildrenSkipMatch := r.operatorStepChildrenSkipCompletionMatch(ctx, tx, tenantId)
 
 	for _, t := range tasks {
 		for _, p := range t.PendingRuns {
@@ -2986,12 +2986,15 @@ func (r *durableEventsRepository) ListDurableEventLog(ctx context.Context, tenan
 // be spawned without a completion match. Until every engine pod satisfies entries directly, a pod
 // that still resolves completions through matching would otherwise never finish such a step, so
 // the match is kept unless the tenant is entitled, and kept on a lookup error.
-func (r *sharedRepository) operatorStepChildrenSkipCompletionMatch(ctx context.Context, tenantId uuid.UUID) bool {
+//
+// Every caller is inside a transaction, so the entitlement is read on tx rather than on a second
+// pooled connection.
+func (r *sharedRepository) operatorStepChildrenSkipCompletionMatch(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID) bool {
 	if r.entitlements == nil {
 		return false
 	}
 
-	entitled, err := r.entitlements.HasEntitlement(ctx, tenantId, EntitlementOperatorStepDirectCompletion)
+	entitled, err := r.entitlements.hasEntitlementTx(ctx, tx, tenantId, EntitlementOperatorStepDirectCompletion)
 
 	if err != nil {
 		r.l.Error().Ctx(ctx).Err(err).Msgf("could not read the operator step direct completion entitlement for tenant %s, keeping the completion match", tenantId)
@@ -3027,7 +3030,7 @@ func isOperatorStepChild(parentTaskId pgtype.Int8, parentTaskInsertedAt pgtype.T
 // (the flag was rolled back, or this process still has the old value cached after it was enabled), so we need to check if each
 // child has a completion match and complete the ones without one directly, otherwise their orchestrator would never hear from them.
 func (r *sharedRepository) operatorStepChildrenCompletingDirectly(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, completions []OperatorStepChildCompletion) ([]OperatorStepChildCompletion, error) {
-	if len(completions) == 0 || r.operatorStepChildrenSkipCompletionMatch(ctx, tenantId) {
+	if len(completions) == 0 || r.operatorStepChildrenSkipCompletionMatch(ctx, tx, tenantId) {
 		return completions, nil
 	}
 
