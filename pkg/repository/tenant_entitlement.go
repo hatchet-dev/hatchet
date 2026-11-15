@@ -111,7 +111,7 @@ type cachedEntitlements struct {
 	expiresAt    time.Time
 }
 
-func newTenantEntitlementRepository(shared *sharedRepository) TenantEntitlementRepository {
+func newTenantEntitlementRepository(shared *sharedRepository) *tenantEntitlementRepository {
 	c, err := lru.New[uuid.UUID, cachedEntitlements](entitlementCacheSize)
 
 	if err != nil {
@@ -125,11 +125,18 @@ func newTenantEntitlementRepository(shared *sharedRepository) TenantEntitlementR
 }
 
 func (t *tenantEntitlementRepository) HasEntitlement(ctx context.Context, tenantId uuid.UUID, entitlement Entitlement) (bool, error) {
+	return t.hasEntitlementOnConn(ctx, t.pool.ForTenant(tenantId), tenantId, entitlement)
+}
+
+// hasEntitlementOnConn reads a cache miss on db. A caller that already holds a connection has to
+// pass it here: once every connection in the pool is held by such a caller, each one waits forever
+// for a second connection that none of them will release.
+func (t *tenantEntitlementRepository) hasEntitlementOnConn(ctx context.Context, db sqlcv1.DBTX, tenantId uuid.UUID, entitlement Entitlement) (bool, error) {
 	if cached, ok := t.cache.Get(tenantId); ok && time.Now().Before(cached.expiresAt) {
 		return cached.entitlements.Has(entitlement)
 	}
 
-	entitlements, err := t.GetEntitlements(ctx, tenantId)
+	entitlements, err := t.getEntitlements(ctx, db, tenantId)
 
 	if err != nil {
 		return false, err
@@ -152,7 +159,11 @@ func (t *tenantEntitlementRepository) AnyTenantHasAuditLogs(ctx context.Context,
 }
 
 func (t *tenantEntitlementRepository) GetEntitlements(ctx context.Context, tenantId uuid.UUID) (TenantEntitlements, error) {
-	entitlement, err := t.queries.GetTenantEntitlement(ctx, t.pool.ForTenant(tenantId), tenantId)
+	return t.getEntitlements(ctx, t.pool.ForTenant(tenantId), tenantId)
+}
+
+func (t *tenantEntitlementRepository) getEntitlements(ctx context.Context, db sqlcv1.DBTX, tenantId uuid.UUID) (TenantEntitlements, error) {
+	entitlement, err := t.queries.GetTenantEntitlement(ctx, db, tenantId)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

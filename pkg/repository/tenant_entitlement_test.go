@@ -6,7 +6,9 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -148,4 +150,38 @@ func TestUpdateLabsEntitlementsConcurrentPatches(t *testing.T) {
 		ServerlessOperator: true,
 		SandboxOperator:    true,
 	}, got)
+}
+
+// A lookup that takes a second connection while its caller holds a transaction deadlocks the pool
+// as soon as every connection is held by such a caller. One connection reproduces that with a
+// single caller.
+func TestOperatorStepChildrenSkipCompletionMatchReadsOnCallerTx(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	logger := zerolog.Nop()
+	tenantID := createLimitTestTenant(t, pool)
+
+	singleConnConfig := pool.Config()
+	singleConnConfig.MaxConns = 1
+
+	singleConnPool, err := pgxpool.NewWithConfig(ctx, singleConnConfig)
+	require.NoError(t, err)
+	defer singleConnPool.Close()
+
+	shared := &sharedRepository{pool: fairpool.Ungated(singleConnPool), l: &logger, queries: sqlcv1.New()}
+	shared.entitlements = newTenantEntitlementRepository(shared)
+
+	// setting entitlements evicts the cached value, so the lookup below is a cache miss
+	require.NoError(t, shared.entitlements.SetEntitlements(ctx, tenantID, TenantEntitlements{OperatorStepDirectCompletion: true}))
+
+	tx, err := singleConnPool.Begin(ctx)
+	require.NoError(t, err)
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	lookupCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	assert.True(t, shared.operatorStepChildrenSkipCompletionMatch(lookupCtx, tx, tenantID), "the lookup must not wait for a second connection")
 }
