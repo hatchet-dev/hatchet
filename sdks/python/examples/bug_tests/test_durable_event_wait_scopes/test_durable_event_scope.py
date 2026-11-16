@@ -11,7 +11,7 @@ from hatchet_sdk import Hatchet, TaskRunRef
 
 
 async def push_event(hatchet: Hatchet, scope: str) -> None:
-    await hatchet.event.aio_push(EVENT_KEY, {}, scope=scope)
+    await hatchet.events.aio_push(EVENT_KEY, {}, scope=scope)
 
 
 async def run_tasks(

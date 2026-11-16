@@ -7,10 +7,10 @@ from contextvars import ContextVar
 from typing import TYPE_CHECKING
 
 from hatchet_sdk.runnables.action import ActionKey
-from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 if TYPE_CHECKING:
     from hatchet_sdk.context.context import Context, DurableContext
+    from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 ctx_workflow_run_id: ContextVar[str | None] = ContextVar(
     "ctx_workflow_run_id", default=None
@@ -18,7 +18,9 @@ ctx_workflow_run_id: ContextVar[str | None] = ContextVar(
 ctx_action_key: ContextVar[ActionKey | None] = ContextVar(
     "ctx_action_key", default=None
 )
-ctx_step_run_id: ContextVar[str | None] = ContextVar("ctx_step_run_id", default=None)
+ctx_task_run_external_id: ContextVar[str | None] = ContextVar(
+    "ctx_task_run_external_id", default=None
+)
 ctx_worker_id: ContextVar[str | None] = ContextVar("ctx_worker_id", default=None)
 ctx_additional_metadata: ContextVar[JSONSerializableMapping | None] = ContextVar(
     "ctx_additional_metadata", default=None

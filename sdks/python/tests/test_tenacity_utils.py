@@ -9,7 +9,7 @@ import pytest
 from hatchet_sdk.clients.rest.exceptions import (
     BadRequestException,
     ForbiddenException,
-    NotFoundException,
+    NotFoundError,
     RestConnectionError,
     RestProtocolError,
     RestTimeoutError,
@@ -31,9 +31,9 @@ from hatchet_sdk.clients.rest.tenacity_utils import tenacity_should_retry
             id="ServiceException (HTTP 5xx) should be retried",
         ),
         pytest.param(
-            NotFoundException(status=404, reason="Not Found"),
+            NotFoundError(status=404, reason="Not Found"),
             True,
-            id="NotFoundException (HTTP 404) should be retried",
+            id="NotFoundError (HTTP 404) should be retried",
         ),
         pytest.param(
             BadRequestException(status=400, reason="Bad Request"),

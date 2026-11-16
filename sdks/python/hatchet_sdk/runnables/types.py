@@ -2,10 +2,11 @@ import inspect
 import json
 from collections.abc import Callable, Mapping, Sequence
 from datetime import timedelta
-from enum import Enum
+from enum import StrEnum
 from typing import (
     TYPE_CHECKING,
     Any,
+    Literal,
     NewType,
     ParamSpec,
     TypeAlias,
@@ -18,15 +19,13 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from hatchet_sdk.contracts.v1.workflows_pb2 import DefaultFilter as DefaultFilterProto
 from hatchet_sdk.types.concurrency import (
-    ConcurrencyExpression,
+    ConcurrencyStrategy,
 )
 from hatchet_sdk.types.idempotency import (
     StatusBasedIdempotencyConfig,
     TTLBasedIdempotencyConfig,
 )
 from hatchet_sdk.types.priority import Priority
-from hatchet_sdk.types.sticky import StickyStrategy
-from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import (
     AwaitableLike,
     DataclassInstance,
@@ -37,17 +36,15 @@ if TYPE_CHECKING:
     from hatchet_sdk.context.context import Context, DurableContext
 
 
+StickyStrategy = Literal["SOFT", "HARD"]
+
 ValidTaskReturnType = BaseModel | Mapping[str, Any] | DataclassInstance | None
 
 R = TypeVar("R", bound=ValidTaskReturnType)
 P = ParamSpec("P")
 
 
-class EmptyModel(BaseModel):
-    model_config = ConfigDict(extra="allow", frozen=True)
-
-
-_TWorkflowInputBound: TypeAlias = BaseModel | DataclassInstance | dict[str, Any]
+_TWorkflowInputBound: TypeAlias = BaseModel | DataclassInstance | dict[str, Any] | None
 TWorkflowInput = TypeVar("TWorkflowInput", bound=_TWorkflowInputBound)
 
 TWorkflowInput_contra = TypeVar(
@@ -56,12 +53,13 @@ TWorkflowInput_contra = TypeVar(
 
 
 class TaskDefaults(BaseModel):
-    schedule_timeout: Duration | None = None
-    execution_timeout: Duration | None = None
-    priority: int | Priority | None = Field(gt=0, lt=4, default=None)
+    model_config = ConfigDict(extra="forbid")
+
+    schedule_timeout: timedelta | None = None
+    execution_timeout: timedelta | None = None
     retries: int | None = None
     backoff_factor: float | None = None
-    backoff_max_seconds: int | None = None
+    backoff_max: timedelta | None = None
 
 
 class DefaultFilter(BaseModel):
@@ -87,11 +85,11 @@ TaskPayloadForInternalUse = (
 class TaskIOValidator:
     def __init__(
         self,
-        workflow_input: TypeAdapter[TaskPayloadForInternalUse],
-        step_output: TypeAdapter[TaskPayloadForInternalUse],
+        workflow_input: TypeAdapter[TaskPayloadForInternalUse] | None,
+        task_output: TypeAdapter[TaskPayloadForInternalUse],
     ) -> None:
         self.workflow_input = workflow_input
-        self.step_output = step_output
+        self.task_output = task_output
 
 
 class WorkflowConfig(BaseModel):
@@ -105,14 +103,12 @@ class WorkflowConfig(BaseModel):
     # An instance of the workflow's input model, passed to runs triggered by the
     # workflow's `on_crons` schedules. Typed as `Any` because the concrete input
     # type is generic per-workflow; it is serialized via `input_validator` in
-    # `BaseWorkflow.to_proto`.
+    # `BaseWorkflow._to_proto`.
     cron_input: Any = None
     sticky: StickyStrategy | None = None
-    concurrency: (
-        int | ConcurrencyExpression | Sequence[ConcurrencyExpression] | None
-    ) = None
-    input_validator: TypeAdapter[TaskPayloadForInternalUse]
-    default_priority: int | Priority | None = None
+    concurrency: int | ConcurrencyStrategy | Sequence[ConcurrencyStrategy] | None = None
+    input_validator: TypeAdapter[TaskPayloadForInternalUse] | None = None
+    default_priority: Priority | None = None
     idempotency: TTLBasedIdempotencyConfig | StatusBasedIdempotencyConfig | None = None
 
     task_defaults: TaskDefaults = TaskDefaults()
@@ -132,7 +128,7 @@ BatchMemberId = NewType("BatchMemberId", str)
 """The key identifying a single item within a batch task's input/output dict (its task run external id)."""
 
 
-class StepType(str, Enum):
+class TaskType(StrEnum):
     DEFAULT = "default"
     ON_FAILURE = "on_failure"
     ON_SUCCESS = "on_success"
@@ -180,7 +176,7 @@ _T = TypeVar("_T")
 
 
 @overload
-def normalize_validator(validator: None) -> type[EmptyModel]: ...
+def normalize_validator(validator: None) -> type[dict[str, Any]]: ...
 
 
 @overload
@@ -197,6 +193,6 @@ def normalize_validator(validator: type[_T]) -> type[_T]: ...
 
 def normalize_validator(validator: object) -> object:
     if validator is None or validator is type(None):
-        return EmptyModel
+        return dict[str, Any]
 
     return validator

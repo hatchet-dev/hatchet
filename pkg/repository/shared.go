@@ -77,7 +77,7 @@ type sharedRepository struct {
 	taskLookupCache   *lru.Cache[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow]
 	payloadStore      PayloadStoreRepository
 	m                 TenantLimitRepository
-	entitlements      TenantEntitlementRepository
+	entitlements      *tenantEntitlementRepository
 
 	// taskKeyCache has no TTL because a task's external id maps to the same primary key for as long as the task exists
 	taskKeyCache *lru.Cache[taskExternalIdTenantIdTuple, IdInsertedAt]

@@ -18,20 +18,11 @@ To enable Pydantic for validation, you'll need to:
 
 ### Default Behavior
 
-By default, if no `input_validator` is provided, the `EmptyModel` is used, which is a Pydantic model that accepts any input. For example:
+By default, if no `input_validator` is provided, the task receives `None` as its input. For example:
 
 <Snippet src={snippets.python.simple.worker.simple} />
 
-In this simple example, the `input` that's injected into the task accepts an argument `input`, which is of type `EmptyModel`. The `EmptyModel` can be imported directly from Hatchet, and is an alias for:
-
-```python
-from pydantic import BaseModel, ConfigDict
-
-class EmptyModel(BaseModel):
-    model_config = ConfigDict(extra="allow")
-```
-
-Note that since `extra="allow"` is set, workflows will not fail with validation errors if an extra field is provided.
+In this simple example, the task's `input` argument is typed as `None`, since the workflow declares no input model. Provide an `input_validator` to receive a validated Pydantic model instead.
 
 ### Example Usage
 

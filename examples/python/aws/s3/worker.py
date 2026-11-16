@@ -17,10 +17,8 @@ import boto3  # type: ignore
 from pydantic import BaseModel
 
 from hatchet_sdk import (
-    ConcurrencyExpression,
-    ConcurrencyLimitStrategy,
+    ConcurrencyStrategy,
     Context,
-    EmptyModel,
     Hatchet,
 )
 
@@ -55,10 +53,10 @@ class ProcessObjectInput(BaseModel):
 
 fetch_buckets_workflow = hatchet.workflow(
     name="fetch_s3_buckets",
-    concurrency=ConcurrencyExpression(
+    concurrency=ConcurrencyStrategy(
         expression="'singleton'",
         max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_NEWEST,
+        strategy="CANCEL_NEWEST",
     ),
 )
 
@@ -69,12 +67,12 @@ fetch_objects_workflow = hatchet.workflow(
     name="fetch_s3_objects",
     input_validator=ListObjectsInput,
     concurrency=[
-        ConcurrencyExpression(
+        ConcurrencyStrategy(
             expression="input.bucket",
             max_runs=1,
-            limit_strategy=ConcurrencyLimitStrategy.CANCEL_NEWEST,
+            strategy="CANCEL_NEWEST",
         ),
-        ConcurrencyExpression.from_int(MAX_CONCURRENT_BUCKET_POLLERS),
+        ConcurrencyStrategy.from_int(MAX_CONCURRENT_BUCKET_POLLERS),
     ],
 )
 
@@ -84,10 +82,10 @@ fetch_objects_workflow = hatchet.workflow(
 process_object_workflow = hatchet.workflow(
     name="process_object",
     input_validator=ProcessObjectInput,
-    concurrency=ConcurrencyExpression(
+    concurrency=ConcurrencyStrategy(
         expression="input.bucket",
         max_runs=MAX_RUNS_PER_BUCKET,
-        limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+        strategy="GROUP_ROUND_ROBIN",
     ),
 )
 
@@ -97,7 +95,7 @@ process_object_workflow = hatchet.workflow(
 
 
 @fetch_buckets_workflow.task()
-async def fetch_buckets(input: EmptyModel, ctx: Context) -> dict[str, Any]:
+async def fetch_buckets(input: None, ctx: Context) -> dict[str, Any]:
     paginator = s3.get_paginator("list_buckets")
     pages = paginator.paginate(
         Prefix=BUCKET_PREFIX,

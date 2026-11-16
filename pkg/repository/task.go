@@ -4703,7 +4703,7 @@ func (r *TaskRepositoryImpl) deleteCompletionMatchesForRequeuedOperatorStepChild
 		params.Childtaskexternalids = append(params.Childtaskexternalids, task.ExternalID)
 	}
 
-	if len(params.Childtaskexternalids) == 0 || !r.operatorStepChildrenSkipCompletionMatch(ctx, tenantId) {
+	if len(params.Childtaskexternalids) == 0 || !r.operatorStepChildrenSkipCompletionMatch(ctx, tx, tenantId) {
 		return nil
 	}
 

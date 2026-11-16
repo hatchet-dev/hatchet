@@ -2064,7 +2064,6 @@ snapshots:
       nice-grpc-common: 2.0.4
       protobufjs: 7.6.6
       qs: 6.16.0
-      semver: 7.8.5
       yaml: 2.9.0
       zod: 4.5.4
       zod-to-json-schema: 3.25.2(zod@4.5.4)

@@ -151,7 +151,7 @@ class ApiException(OpenApiException):
             raise ForbiddenException(http_resp=http_resp, body=body, data=data)
 
         if http_resp.status == 404:
-            raise NotFoundException(http_resp=http_resp, body=body, data=data)
+            raise NotFoundError(http_resp=http_resp, body=body, data=data)
 
         # Added new conditions for 409 and 422
         if http_resp.status == 409:
@@ -185,7 +185,7 @@ class BadRequestException(ApiException):
     pass
 
 
-class NotFoundException(ApiException):
+class NotFoundError(ApiException):
     pass
 
 

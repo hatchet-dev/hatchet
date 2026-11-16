@@ -3,7 +3,7 @@ from datetime import timedelta
 
 from pydantic import BaseModel
 
-from hatchet_sdk import Context, Hatchet, RetryAfterException
+from hatchet_sdk import Context, Hatchet, RetryAfterError
 
 hatchet = Hatchet()
 
@@ -16,7 +16,7 @@ class UpstreamInput(BaseModel):
 @hatchet.task(name="RetryAfterUpstreamDelay", input_validator=UpstreamInput, retries=5)
 def retry_after_upstream_delay(input: UpstreamInput, ctx: Context) -> dict[str, int]:
     if ctx.retry_count < input.failing_attempts:
-        raise RetryAfterException("upstream rate limited", after=timedelta(seconds=2))
+        raise RetryAfterError("upstream rate limited", after=timedelta(seconds=2))
 
     return {"attempt": ctx.retry_count}
 
@@ -32,7 +32,7 @@ def retry_after_exponential_backoff(
     input: UpstreamInput, ctx: Context
 ) -> dict[str, int]:
     if ctx.retry_count < input.failing_attempts:
-        raise RetryAfterException(
+        raise RetryAfterError(
             "upstream unavailable",
             after=timedelta(seconds=random.uniform(0, min(2**ctx.retry_count, 60))),
         )
@@ -48,11 +48,11 @@ def retry_after_exponential_backoff(
     input_validator=UpstreamInput,
     retries=2,
     backoff_factor=10,
-    backoff_max_seconds=60,
+    backoff_max=timedelta(seconds=60),
 )
 def retry_after_overrides_backoff(input: UpstreamInput, ctx: Context) -> dict[str, int]:
     if ctx.retry_count < input.failing_attempts:
-        raise RetryAfterException("upstream unavailable", after=timedelta(seconds=1))
+        raise RetryAfterError("upstream unavailable", after=timedelta(seconds=1))
 
     return {"attempt": ctx.retry_count}
 

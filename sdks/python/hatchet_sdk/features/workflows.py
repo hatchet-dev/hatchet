@@ -1,9 +1,11 @@
 import asyncio
 from datetime import timedelta
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
-from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
-from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
+if TYPE_CHECKING:
+    from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
+    from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
+
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.pause_workflow_request import PauseWorkflowRequest
 from hatchet_sdk.clients.rest.models.pause_workflow_request_pause import (
@@ -13,7 +15,6 @@ from hatchet_sdk.clients.rest.models.pause_workflow_request_unpause import (
     PauseWorkflowRequestUnpause,
 )
 from hatchet_sdk.clients.rest.models.workflow import Workflow
-from hatchet_sdk.clients.rest.models.workflow_list import WorkflowList
 from hatchet_sdk.clients.rest.models.workflow_pause_scheduled_cron_run_queue_behavior import (
     WorkflowPauseScheduledCronRunQueueBehavior,
 )
@@ -35,10 +36,14 @@ class WorkflowsClient(BaseRestClient):
     Note that workflows are the declaration, _not_ the individual runs. If you're looking for runs, use the `RunsClient` instead.
     """
 
-    def _wra(self, client: ApiClient) -> WorkflowRunApi:
+    def _wra(self, client: ApiClient) -> "WorkflowRunApi":
+        from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
+
         return WorkflowRunApi(client)
 
-    def _wa(self, client: ApiClient) -> WorkflowApi:
+    def _wa(self, client: ApiClient) -> "WorkflowApi":
+        from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
+
         return WorkflowApi(client)
 
     async def aio_get(self, workflow_id: str) -> Workflow:
@@ -63,12 +68,33 @@ class WorkflowsClient(BaseRestClient):
             )
             return workflow_get(workflow_id)
 
-    def list(
+    async def aio_list(
         self,
+        *,
         workflow_name: str | None = None,
         limit: int | None = None,
         offset: int | None = None,
-    ) -> WorkflowList:
+    ) -> "list[Workflow]":
+        """
+        List all workflows in the tenant determined by the client config that match optional filters.
+
+        :param workflow_name: The name of the workflow to filter by.
+        :param limit: The maximum number of items to return.
+        :param offset: The offset to start the list from.
+
+        :return: A list of workflows.
+        """
+        return await asyncio.to_thread(
+            self.list, workflow_name=workflow_name, limit=limit, offset=offset
+        )
+
+    def list(
+        self,
+        *,
+        workflow_name: str | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> "list[Workflow]":
         """
         List all workflows in the tenant determined by the client config that match optional filters.
 
@@ -82,35 +108,20 @@ class WorkflowsClient(BaseRestClient):
             workflow_list = tenacity_retry(
                 self._wa(client).workflow_list, self.client_config.tenacity
             )
-            return workflow_list(
+            wl = workflow_list(
                 tenant=self.client_config.tenant_id,
                 limit=limit,
                 offset=offset,
                 name=self.client_config.apply_namespace(workflow_name),
             )
 
-    async def aio_list(
-        self,
-        workflow_name: str | None = None,
-        limit: int | None = None,
-        offset: int | None = None,
-    ) -> WorkflowList:
-        """
-        List all workflows in the tenant determined by the client config that match optional filters.
-
-        :param workflow_name: The name of the workflow to filter by.
-        :param limit: The maximum number of items to return.
-        :param offset: The offset to start the list from.
-
-        :return: A list of workflows.
-        """
-        return await asyncio.to_thread(self.list, workflow_name, limit, offset)
+            return wl.rows or []
 
     def get_version(
-        self, workflow_id: str, version: str | None = None
+        self, workflow_id: str, *, version: str | None = None
     ) -> WorkflowVersion:
         """
-        Get a workflow version by the workflow ID and an optional version.
+        Get a version of a workflow.
 
         :param workflow_id: The ID of the workflow to retrieve the version for.
         :param version: The version of the workflow to retrieve. If None, the latest version is returned.
@@ -123,16 +134,16 @@ class WorkflowsClient(BaseRestClient):
             return workflow_get_version(workflow_id, version)
 
     async def aio_get_version(
-        self, workflow_id: str, version: str | None = None
+        self, workflow_id: str, *, version: str | None = None
     ) -> WorkflowVersion:
         """
-        Get a workflow version by the workflow ID and an optional version.
+        Get a version of a workflow.
 
         :param workflow_id: The ID of the workflow to retrieve the version for.
         :param version: The version of the workflow to retrieve. If None, the latest version is returned.
         :return: The workflow version.
         """
-        return await asyncio.to_thread(self.get_version, workflow_id, version)
+        return await asyncio.to_thread(self.get_version, workflow_id, version=version)
 
     def delete(self, workflow_id: str) -> None:
         """
@@ -143,7 +154,6 @@ class WorkflowsClient(BaseRestClient):
         :param workflow_id: The ID of the workflow to delete.
         :return: None
         """
-
         with self.client() as client:
             return self._wa(client).workflow_delete(workflow_id)
 
@@ -163,6 +173,7 @@ class WorkflowsClient(BaseRestClient):
         self,
         workflow_id: str,
         queue_ttl: timedelta,
+        *,
         paused_workflow_cron_run_queue_behavior: Literal["DROP", "QUEUE"] = "QUEUE",
         paused_workflow_scheduled_run_queue_behavior: Literal[
             "DROP", "QUEUE"
@@ -178,7 +189,6 @@ class WorkflowsClient(BaseRestClient):
         :return: The updated workflow.
         """
         ttl_expr = timedelta_to_expr(queue_ttl)
-
         with self.client() as client:
             workflow_update_pause = tenacity_retry(
                 self._wa(client).workflow_update, self.client_config.tenacity
@@ -205,6 +215,7 @@ class WorkflowsClient(BaseRestClient):
         self,
         workflow_id: str,
         queue_ttl: timedelta,
+        *,
         paused_workflow_cron_run_queue_behavior: Literal["DROP", "QUEUE"] = "QUEUE",
         paused_workflow_scheduled_run_queue_behavior: Literal[
             "DROP", "QUEUE"
@@ -224,8 +235,8 @@ class WorkflowsClient(BaseRestClient):
             self.pause,
             workflow_id,
             queue_ttl,
-            paused_workflow_cron_run_queue_behavior,
-            paused_workflow_scheduled_run_queue_behavior,
+            paused_workflow_cron_run_queue_behavior=paused_workflow_cron_run_queue_behavior,
+            paused_workflow_scheduled_run_queue_behavior=paused_workflow_scheduled_run_queue_behavior,
         )
 
     def unpause(self, workflow_id: str) -> Workflow:

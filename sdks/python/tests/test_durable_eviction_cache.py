@@ -147,7 +147,7 @@ def test_concurrent_waits_keep_waiting_until_all_resolved() -> None:
     assert rec._wait_count == 3
 
     # child0 completes -- run should still be waiting
-    cache.mark_active(key, now=dt(2))
+    cache.mark_active(key)
     assert rec.is_waiting
     assert rec._wait_count == 2
     assert rec.waiting_since == dt(1)
@@ -162,18 +162,18 @@ def test_concurrent_waits_keep_waiting_until_all_resolved() -> None:
     assert chosen == key
 
     # child1 completes
-    cache.mark_active(key, now=dt(11))
+    cache.mark_active(key)
     assert rec.is_waiting
     assert rec._wait_count == 1
 
     # child2 completes -- now the run is truly active
-    cache.mark_active(key, now=dt(12))
+    cache.mark_active(key)
     assert not rec.is_waiting
     assert rec._wait_count == 0
     assert rec.waiting_since is None
 
 
-def test_find_key_by_step_run_id_returns_matching_key() -> None:
+def test_find_key_by_task_run_external_id_returns_matching_key() -> None:
     cache = DurableEvictionCache()
     cache.register_run(
         "run-a/0", "ext-a", invocation_count=1, now=dt(0), eviction_policy=None
@@ -182,28 +182,28 @@ def test_find_key_by_step_run_id_returns_matching_key() -> None:
         "run-b/0", "ext-b", invocation_count=1, now=dt(0), eviction_policy=None
     )
 
-    assert cache.find_key_by_step_run_id("ext-a") == "run-a/0"
-    assert cache.find_key_by_step_run_id("ext-b") == "run-b/0"
+    assert cache.find_key_by_task_run_external_id("ext-a") == "run-a/0"
+    assert cache.find_key_by_task_run_external_id("ext-b") == "run-b/0"
 
 
-def test_find_key_by_step_run_id_returns_none_for_unknown() -> None:
+def test_find_key_by_task_run_external_id_returns_none_for_unknown() -> None:
     cache = DurableEvictionCache()
     cache.register_run(
         "run-a/0", "ext-a", invocation_count=1, now=dt(0), eviction_policy=None
     )
 
-    assert cache.find_key_by_step_run_id("no-such-id") is None
+    assert cache.find_key_by_task_run_external_id("no-such-id") is None
 
 
-def test_find_key_by_step_run_id_returns_none_after_unregister() -> None:
+def test_find_key_by_task_run_external_id_returns_none_after_unregister() -> None:
     cache = DurableEvictionCache()
     cache.register_run(
         "run-a/0", "ext-a", invocation_count=1, now=dt(0), eviction_policy=None
     )
 
-    assert cache.find_key_by_step_run_id("ext-a") == "run-a/0"
+    assert cache.find_key_by_task_run_external_id("ext-a") == "run-a/0"
     cache.unregister_run("run-a/0")
-    assert cache.find_key_by_step_run_id("ext-a") is None
+    assert cache.find_key_by_task_run_external_id("ext-a") is None
 
 
 def test_mark_active_floors_at_zero() -> None:
@@ -217,8 +217,8 @@ def test_mark_active_floors_at_zero() -> None:
     )
     cache.mark_waiting(key, now=dt(0), wait_kind="sleep", resource_id="s")
 
-    cache.mark_active(key, now=dt(1))
-    cache.mark_active(key, now=dt(2))  # extra call
+    cache.mark_active(key)
+    cache.mark_active(key)  # extra call
 
     rec = cache.get(key)
     assert rec is not None

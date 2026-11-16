@@ -10,18 +10,18 @@ The filters client is a client for interacting with Hatchet's filters API.
 
 Methods:
 
-| Name         | Description                      |
-| ------------ | -------------------------------- |
-| `aio_create` | Create a new filter.             |
-| `aio_delete` | Delete a filter by its ID.       |
-| `aio_get`    | Get a filter by its ID.          |
-| `aio_list`   | List filters for a given tenant. |
-| `aio_update` | Update a filter by its ID.       |
-| `create`     | Create a new filter.             |
-| `delete`     | Delete a filter by its ID.       |
-| `get`        | Get a filter by its ID.          |
-| `list`       | List filters for a given tenant. |
-| `update`     | Update a filter by its ID.       |
+| Name         | Description                                                       |
+| ------------ | ----------------------------------------------------------------- |
+| `aio_create` | Create a new filter.                                              |
+| `aio_delete` | Delete a filter by its ID.                                        |
+| `aio_get`    | Get a filter by its ID.                                           |
+| `aio_list`   | List filters for a given tenant.                                  |
+| `aio_update` | Update a filter by its ID. Fields left as `None` are not changed. |
+| `create`     | Create a new filter.                                              |
+| `delete`     | Delete a filter by its ID.                                        |
+| `get`        | Get a filter by its ID.                                           |
+| `list`       | List filters for a given tenant.                                  |
+| `update`     | Update a filter by its ID. Fields left as `None` are not changed. |
 
 ### Functions
 
@@ -91,20 +91,22 @@ Parameters:
 
 Returns:
 
-| Type           | Description                                        |
-| -------------- | -------------------------------------------------- |
-| `V1FilterList` | A list of filters matching the specified criteria. |
+| Type             | Description                                        |
+| ---------------- | -------------------------------------------------- |
+| `list[V1Filter]` | A list of filters matching the specified criteria. |
 
 #### `aio_update`
 
-Update a filter by its ID.
+Update a filter by its ID. Fields left as `None` are not changed.
 
 Parameters:
 
-| Name        | Type                    | Description                         | Default    |
-| ----------- | ----------------------- | ----------------------------------- | ---------- |
-| `filter_id` | `str`                   | The ID of the filter to delete.     | _required_ |
-| `updates`   | `V1UpdateFilterRequest` | The updates to apply to the filter. | _required_ |
+| Name         | Type                              | Description                                    | Default    |
+| ------------ | --------------------------------- | ---------------------------------------------- | ---------- |
+| `filter_id`  | `str`                             | The ID of the filter to update.                | _required_ |
+| `expression` | `str \| None`                     | The new expression to evaluate for the filter. | `None`     |
+| `scope`      | `str \| None`                     | The new scope for the filter.                  | `None`     |
+| `payload`    | `JSONSerializableMapping \| None` | The new payload to send with the filter.       | `None`     |
 
 Returns:
 
@@ -178,20 +180,22 @@ Parameters:
 
 Returns:
 
-| Type           | Description                                        |
-| -------------- | -------------------------------------------------- |
-| `V1FilterList` | A list of filters matching the specified criteria. |
+| Type             | Description                                        |
+| ---------------- | -------------------------------------------------- |
+| `list[V1Filter]` | A list of filters matching the specified criteria. |
 
 #### `update`
 
-Update a filter by its ID.
+Update a filter by its ID. Fields left as `None` are not changed.
 
 Parameters:
 
-| Name        | Type                    | Description                         | Default    |
-| ----------- | ----------------------- | ----------------------------------- | ---------- |
-| `filter_id` | `str`                   | The ID of the filter to delete.     | _required_ |
-| `updates`   | `V1UpdateFilterRequest` | The updates to apply to the filter. | _required_ |
+| Name         | Type                              | Description                                    | Default    |
+| ------------ | --------------------------------- | ---------------------------------------------- | ---------- |
+| `filter_id`  | `str`                             | The ID of the filter to update.                | _required_ |
+| `expression` | `str \| None`                     | The new expression to evaluate for the filter. | `None`     |
+| `scope`      | `str \| None`                     | The new scope for the filter.                  | `None`     |
+| `payload`    | `JSONSerializableMapping \| None` | The new payload to send with the filter.       | `None`     |
 
 Returns:
 
