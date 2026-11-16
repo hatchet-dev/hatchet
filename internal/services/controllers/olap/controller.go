@@ -26,6 +26,7 @@ import (
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
@@ -914,63 +915,63 @@ func (tc *OLAPControllerImpl) emitEventSpans(ctx context.Context, tenantId uuid.
 	tc.writeEngineSpans(ctx, tenantId, spans, "event")
 }
 
-func olapEventTypeToReadableStatus(eventType sqlcv1.V1EventTypeOlap) sqlcv1.V1ReadableStatusOlap {
+func olapEventTypeToReadableStatus(eventType enums.V1EventTypeOlap) enums.V1ReadableStatusOlap {
 	switch eventType {
-	case sqlcv1.V1EventTypeOlapRETRYING:
-		return sqlcv1.V1ReadableStatusOlapQUEUED
-	case sqlcv1.V1EventTypeOlapREASSIGNED:
-		return sqlcv1.V1ReadableStatusOlapQUEUED
-	case sqlcv1.V1EventTypeOlapRETRIEDBYUSER:
-		return sqlcv1.V1ReadableStatusOlapQUEUED
-	case sqlcv1.V1EventTypeOlapCREATED:
-		return sqlcv1.V1ReadableStatusOlapQUEUED
-	case sqlcv1.V1EventTypeOlapQUEUED:
-		return sqlcv1.V1ReadableStatusOlapQUEUED
-	case sqlcv1.V1EventTypeOlapREQUEUEDNOWORKER:
-		return sqlcv1.V1ReadableStatusOlapQUEUED
-	case sqlcv1.V1EventTypeOlapREQUEUEDRATELIMIT:
-		return sqlcv1.V1ReadableStatusOlapQUEUED
-	case sqlcv1.V1EventTypeOlapASSIGNED:
-		return sqlcv1.V1ReadableStatusOlapRUNNING
-	case sqlcv1.V1EventTypeOlapACKNOWLEDGED:
-		return sqlcv1.V1ReadableStatusOlapRUNNING
-	case sqlcv1.V1EventTypeOlapSENTTOWORKER:
-		return sqlcv1.V1ReadableStatusOlapRUNNING
-	case sqlcv1.V1EventTypeOlapSLOTRELEASED:
-		return sqlcv1.V1ReadableStatusOlapRUNNING
-	case sqlcv1.V1EventTypeOlapSTARTED:
-		return sqlcv1.V1ReadableStatusOlapRUNNING
-	case sqlcv1.V1EventTypeOlapTIMEOUTREFRESHED:
-		return sqlcv1.V1ReadableStatusOlapRUNNING
-	case sqlcv1.V1EventTypeOlapSCHEDULINGTIMEDOUT:
-		return sqlcv1.V1ReadableStatusOlapFAILED
-	case sqlcv1.V1EventTypeOlapFINISHED:
-		return sqlcv1.V1ReadableStatusOlapCOMPLETED
-	case sqlcv1.V1EventTypeOlapFAILED:
-		return sqlcv1.V1ReadableStatusOlapFAILED
-	case sqlcv1.V1EventTypeOlapCANCELLED:
-		return sqlcv1.V1ReadableStatusOlapCANCELLED
-	case sqlcv1.V1EventTypeOlapTIMEDOUT:
-		return sqlcv1.V1ReadableStatusOlapFAILED
-	case sqlcv1.V1EventTypeOlapRATELIMITERROR:
-		return sqlcv1.V1ReadableStatusOlapFAILED
-	case sqlcv1.V1EventTypeOlapSKIPPED:
-		return sqlcv1.V1ReadableStatusOlapCOMPLETED
-	case sqlcv1.V1EventTypeOlapCOULDNOTSENDTOWORKER:
-		return sqlcv1.V1ReadableStatusOlapFAILED
-	case sqlcv1.V1EventTypeOlapDURABLEEVICTED:
-		return sqlcv1.V1ReadableStatusOlapEVICTED
-	case sqlcv1.V1EventTypeOlapDURABLERESTORING:
-		return sqlcv1.V1ReadableStatusOlapRUNNING
-	case sqlcv1.V1EventTypeOlapBATCHBUFFERED:
-		return sqlcv1.V1ReadableStatusOlapQUEUED
-	case sqlcv1.V1EventTypeOlapWAITINGFORBATCH:
-		return sqlcv1.V1ReadableStatusOlapQUEUED
-	case sqlcv1.V1EventTypeOlapBATCHFLUSHED:
+	case enums.V1EventTypeOlapRETRYING:
+		return enums.V1ReadableStatusOlapQUEUED
+	case enums.V1EventTypeOlapREASSIGNED:
+		return enums.V1ReadableStatusOlapQUEUED
+	case enums.V1EventTypeOlapRETRIEDBYUSER:
+		return enums.V1ReadableStatusOlapQUEUED
+	case enums.V1EventTypeOlapCREATED:
+		return enums.V1ReadableStatusOlapQUEUED
+	case enums.V1EventTypeOlapQUEUED:
+		return enums.V1ReadableStatusOlapQUEUED
+	case enums.V1EventTypeOlapREQUEUEDNOWORKER:
+		return enums.V1ReadableStatusOlapQUEUED
+	case enums.V1EventTypeOlapREQUEUEDRATELIMIT:
+		return enums.V1ReadableStatusOlapQUEUED
+	case enums.V1EventTypeOlapASSIGNED:
+		return enums.V1ReadableStatusOlapRUNNING
+	case enums.V1EventTypeOlapACKNOWLEDGED:
+		return enums.V1ReadableStatusOlapRUNNING
+	case enums.V1EventTypeOlapSENTTOWORKER:
+		return enums.V1ReadableStatusOlapRUNNING
+	case enums.V1EventTypeOlapSLOTRELEASED:
+		return enums.V1ReadableStatusOlapRUNNING
+	case enums.V1EventTypeOlapSTARTED:
+		return enums.V1ReadableStatusOlapRUNNING
+	case enums.V1EventTypeOlapTIMEOUTREFRESHED:
+		return enums.V1ReadableStatusOlapRUNNING
+	case enums.V1EventTypeOlapSCHEDULINGTIMEDOUT:
+		return enums.V1ReadableStatusOlapFAILED
+	case enums.V1EventTypeOlapFINISHED:
+		return enums.V1ReadableStatusOlapCOMPLETED
+	case enums.V1EventTypeOlapFAILED:
+		return enums.V1ReadableStatusOlapFAILED
+	case enums.V1EventTypeOlapCANCELLED:
+		return enums.V1ReadableStatusOlapCANCELLED
+	case enums.V1EventTypeOlapTIMEDOUT:
+		return enums.V1ReadableStatusOlapFAILED
+	case enums.V1EventTypeOlapRATELIMITERROR:
+		return enums.V1ReadableStatusOlapFAILED
+	case enums.V1EventTypeOlapSKIPPED:
+		return enums.V1ReadableStatusOlapCOMPLETED
+	case enums.V1EventTypeOlapCOULDNOTSENDTOWORKER:
+		return enums.V1ReadableStatusOlapFAILED
+	case enums.V1EventTypeOlapDURABLEEVICTED:
+		return enums.V1ReadableStatusOlapEVICTED
+	case enums.V1EventTypeOlapDURABLERESTORING:
+		return enums.V1ReadableStatusOlapRUNNING
+	case enums.V1EventTypeOlapBATCHBUFFERED:
+		return enums.V1ReadableStatusOlapQUEUED
+	case enums.V1EventTypeOlapWAITINGFORBATCH:
+		return enums.V1ReadableStatusOlapQUEUED
+	case enums.V1EventTypeOlapBATCHFLUSHED:
 		// Running until the individual tasks are completed
-		return sqlcv1.V1ReadableStatusOlapRUNNING
+		return enums.V1ReadableStatusOlapRUNNING
 	default:
-		return sqlcv1.V1ReadableStatusOlapQUEUED
+		return enums.V1ReadableStatusOlapQUEUED
 	}
 }
 
@@ -1005,8 +1006,8 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	workflowIds := make([]uuid.UUID, 0)
 	eventExternalIdToWorkflowRunId := make(map[uuid.UUID]uuid.UUID)
 	externalIdToMsg := make(map[uuid.UUID]*tasktypes.CreateMonitoringEventPayload)
-	eventTypes := make([]sqlcv1.V1EventTypeOlap, 0)
-	readableStatuses := make([]sqlcv1.V1ReadableStatusOlap, 0)
+	eventTypes := make([]enums.V1EventTypeOlap, 0)
+	readableStatuses := make([]enums.V1ReadableStatusOlap, 0)
 	eventPayloads := make([]string, 0)
 	eventMessages := make([]string, 0)
 	timestamps := make([]pgtype.Timestamptz, 0)
@@ -1134,38 +1135,38 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		}
 
 		switch eventTypes[i] {
-		case sqlcv1.V1EventTypeOlapFINISHED:
+		case enums.V1EventTypeOlapFINISHED:
 			if eventPayloads[i] != "" {
 				event.Output = []byte(eventPayloads[i])
 			}
-		case sqlcv1.V1EventTypeOlapFAILED:
+		case enums.V1EventTypeOlapFAILED:
 			errorMsg := strings.ReplaceAll(eventPayloads[i], "\x00", "")
 			event.ErrorMessage = sqlchelpers.TextFromStr(errorMsg)
-		case sqlcv1.V1EventTypeOlapCANCELLED:
+		case enums.V1EventTypeOlapCANCELLED:
 			event.AdditionalEventMessage = sqlchelpers.TextFromStr(eventMessages[i])
-		case sqlcv1.V1EventTypeOlapRETRYING,
-			sqlcv1.V1EventTypeOlapREASSIGNED,
-			sqlcv1.V1EventTypeOlapRETRIEDBYUSER,
-			sqlcv1.V1EventTypeOlapCREATED,
-			sqlcv1.V1EventTypeOlapQUEUED,
-			sqlcv1.V1EventTypeOlapREQUEUEDNOWORKER,
-			sqlcv1.V1EventTypeOlapREQUEUEDRATELIMIT,
-			sqlcv1.V1EventTypeOlapASSIGNED,
-			sqlcv1.V1EventTypeOlapACKNOWLEDGED,
-			sqlcv1.V1EventTypeOlapSENTTOWORKER,
-			sqlcv1.V1EventTypeOlapSLOTRELEASED,
-			sqlcv1.V1EventTypeOlapSTARTED,
-			sqlcv1.V1EventTypeOlapTIMEOUTREFRESHED,
-			sqlcv1.V1EventTypeOlapSCHEDULINGTIMEDOUT,
-			sqlcv1.V1EventTypeOlapTIMEDOUT,
-			sqlcv1.V1EventTypeOlapRATELIMITERROR,
-			sqlcv1.V1EventTypeOlapSKIPPED,
-			sqlcv1.V1EventTypeOlapCOULDNOTSENDTOWORKER,
-			sqlcv1.V1EventTypeOlapDURABLEEVICTED,
-			sqlcv1.V1EventTypeOlapDURABLERESTORING,
-			sqlcv1.V1EventTypeOlapBATCHBUFFERED,
-			sqlcv1.V1EventTypeOlapWAITINGFORBATCH,
-			sqlcv1.V1EventTypeOlapBATCHFLUSHED:
+		case enums.V1EventTypeOlapRETRYING,
+			enums.V1EventTypeOlapREASSIGNED,
+			enums.V1EventTypeOlapRETRIEDBYUSER,
+			enums.V1EventTypeOlapCREATED,
+			enums.V1EventTypeOlapQUEUED,
+			enums.V1EventTypeOlapREQUEUEDNOWORKER,
+			enums.V1EventTypeOlapREQUEUEDRATELIMIT,
+			enums.V1EventTypeOlapASSIGNED,
+			enums.V1EventTypeOlapACKNOWLEDGED,
+			enums.V1EventTypeOlapSENTTOWORKER,
+			enums.V1EventTypeOlapSLOTRELEASED,
+			enums.V1EventTypeOlapSTARTED,
+			enums.V1EventTypeOlapTIMEOUTREFRESHED,
+			enums.V1EventTypeOlapSCHEDULINGTIMEDOUT,
+			enums.V1EventTypeOlapTIMEDOUT,
+			enums.V1EventTypeOlapRATELIMITERROR,
+			enums.V1EventTypeOlapSKIPPED,
+			enums.V1EventTypeOlapCOULDNOTSENDTOWORKER,
+			enums.V1EventTypeOlapDURABLEEVICTED,
+			enums.V1EventTypeOlapDURABLERESTORING,
+			enums.V1EventTypeOlapBATCHBUFFERED,
+			enums.V1EventTypeOlapWAITINGFORBATCH,
+			enums.V1EventTypeOlapBATCHFLUSHED:
 		}
 
 		opts = append(opts, event)

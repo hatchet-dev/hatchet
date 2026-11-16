@@ -13,6 +13,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -85,9 +86,9 @@ func TestCountAllocatedResourcesByTenant(t *testing.T) {
 	_, err = queries.CreateWebhook(ctx, pool, sqlcv1.CreateWebhookParams{
 		Tenantid:           internalTenantId,
 		Name:               "allocated-webhook",
-		Sourcename:         sqlcv1.V1IncomingWebhookSourceNameGENERIC,
+		Sourcename:         enums.V1IncomingWebhookSourceNameGENERIC,
 		Eventkeyexpression: "input.key",
-		Authmethod:         sqlcv1.V1IncomingWebhookAuthTypeBASIC,
+		Authmethod:         enums.V1IncomingWebhookAuthTypeBASIC,
 		AuthBasicUsername:  sqlchelpers.TextFromStr("user"),
 		Authbasicpassword:  []byte("secret"),
 	})

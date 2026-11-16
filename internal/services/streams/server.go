@@ -15,6 +15,7 @@ import (
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -135,7 +136,7 @@ func (s *ServiceImpl) publish(ctx context.Context, namespace, topic, producerId 
 		return err
 	}
 
-	pre, post := s.repo.TenantLimit().Meter(ctx, nil, sqlcv1.LimitResourceSTREAMMESSAGE, tenantId, int32(len(msgs))) // nolint:gosec
+	pre, post := s.repo.TenantLimit().Meter(ctx, nil, enums.LimitResourceSTREAMMESSAGE, tenantId, int32(len(msgs))) // nolint:gosec
 
 	if err := pre(); err != nil {
 		if errors.Is(err, v1.ErrResourceExhausted) {

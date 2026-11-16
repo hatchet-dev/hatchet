@@ -23,6 +23,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/o11yusage"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -161,7 +162,7 @@ func TestPayloadGetBillsTheBytesItReturns(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, notFound.Code)
 
 	forbidden := httptest.NewRecorder()
-	require.NoError(t, get(stored, &sqlcv1.PopulateTenantMembersRow{Role: sqlcv1.TenantMemberRoleMEMBER}, forbidden))
+	require.NoError(t, get(stored, &sqlcv1.PopulateTenantMembersRow{Role: enums.TenantMemberRoleMEMBER}, forbidden))
 	assert.Equal(t, http.StatusForbidden, forbidden.Code)
 
 	require.NoError(t, usage.Shutdown())

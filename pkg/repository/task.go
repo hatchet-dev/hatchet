@@ -24,6 +24,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/statusutils"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -5451,7 +5452,7 @@ func isTaskStatsConcurrencyDetail(expression, strategy, key pgtype.Text) bool {
 	return expression.Valid &&
 		expression.String != "" &&
 		strategy.Valid &&
-		strategy.String != string(sqlcv1.V1ConcurrencyStrategyNONE) &&
+		strategy.String != string(enums.V1ConcurrencyStrategyNONE) &&
 		key.Valid &&
 		key.String != ""
 }

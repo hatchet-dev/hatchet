@@ -17,6 +17,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -342,11 +343,9 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*v1.CreateWorkflo
 		}
 	}
 
-	var sticky *string
-
-	if req.Opts.Sticky != nil {
-		s := req.Opts.Sticky.String()
-		sticky = &s
+	sticky, err := enums.FromProtoPtr[sqlcv1.StickyStrategy](req.Opts.Sticky)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 
 	var concurrency []v1.CreateConcurrencyOpts
@@ -358,15 +357,13 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*v1.CreateWorkflo
 			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("CEL expression is required for concurrency"))
 		}
 
-		var limitStrategy *string
-
-		if req.Opts.Concurrency.LimitStrategy != nil && req.Opts.Concurrency.LimitStrategy.String() != "" {
-			s := req.Opts.Concurrency.LimitStrategy.String()
-			limitStrategy = &s
+		limitStrategy, err := enums.FromProtoPtr[enums.V1ConcurrencyStrategy](req.Opts.Concurrency.LimitStrategy)
+		if err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, err)
 		}
 
 		concurrency = append(concurrency, v1.CreateConcurrencyOpts{
-			LimitStrategy: limitStrategy,
+			LimitStrategy: (*string)(limitStrategy),
 			Expression:    *req.Opts.Concurrency.Expression,
 			MaxRuns:       req.Opts.Concurrency.MaxRuns,
 		})
@@ -387,7 +384,7 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*v1.CreateWorkflo
 		CronInput:       cronInput,
 		Tasks:           tasks,
 		OnFailure:       onFailureTask,
-		Sticky:          sticky,
+		Sticky:          (*string)(sticky),
 		DefaultPriority: req.Opts.DefaultPriority,
 	}, nil
 }

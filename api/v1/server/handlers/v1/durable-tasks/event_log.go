@@ -55,7 +55,7 @@ func toDurableEventLogEntries(entries []*sqlcv1.ListDurableEventLogForTaskRow, c
 		entry := gen.V1DurableEventLogEntry{
 			NodeId:          e.NodeID,
 			BranchId:        e.BranchID,
-			Kind:            gen.V1DurableEventLogKind(e.Kind),
+			Kind:            e.Kind,
 			IsSatisfied:     e.IsSatisfied,
 			InsertedAt:      insertedAt,
 			TaskExternalId:  e.DurableTaskExternalID,

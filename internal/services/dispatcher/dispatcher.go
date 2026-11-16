@@ -28,6 +28,7 @@ import (
 	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
@@ -1035,7 +1036,7 @@ func (d *DispatcherImpl) sendTasksToWorker(
 						RetryCount:             task.RetryCount,
 						DurableInvocationCount: durableInvCount,
 						WorkerId:               &workerId,
-						EventType:              sqlcv1.V1EventTypeOlapSENTTOWORKER,
+						EventType:              enums.V1EventTypeOlapSENTTOWORKER,
 						EventTimestamp:         time.Now().UTC(),
 						EventMessage:           "Sent task run to the assigned worker",
 					},

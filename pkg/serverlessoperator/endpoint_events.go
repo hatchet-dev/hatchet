@@ -11,8 +11,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 const (
@@ -143,7 +143,7 @@ type eventWindow struct {
 // endpointEvents is one endpoint's rate limit state: a window per kind, and the budget it
 // has spent across every kind since budgetStart.
 type endpointEvents struct {
-	kinds          map[sqlcv1.V1ServerlessEndpointEventKind]*eventWindow
+	kinds          map[enums.V1ServerlessEndpointEventKind]*eventWindow
 	budgetStart    time.Time
 	lastSeen       time.Time
 	budgetUsed     int
@@ -151,11 +151,11 @@ type endpointEvents struct {
 }
 
 // windowedKinds are the kinds limited to one event per failureEventWindow.
-var windowedKinds = map[sqlcv1.V1ServerlessEndpointEventKind]bool{
-	sqlcv1.V1ServerlessEndpointEventKindHEALTHCHECKFAILED: true,
-	sqlcv1.V1ServerlessEndpointEventKindCATALOGREJECTED:   true,
-	sqlcv1.V1ServerlessEndpointEventKindDELIVERYFAILED:    true,
-	sqlcv1.V1ServerlessEndpointEventKindHEALTHY:           true,
+var windowedKinds = map[enums.V1ServerlessEndpointEventKind]bool{
+	enums.V1ServerlessEndpointEventKindHEALTHCHECKFAILED: true,
+	enums.V1ServerlessEndpointEventKindCATALOGREJECTED:   true,
+	enums.V1ServerlessEndpointEventKindDELIVERYFAILED:    true,
+	enums.V1ServerlessEndpointEventKindHEALTHY:           true,
 }
 
 // eventRecorder writes endpoint events off the caller's path: record only enqueues, and a
@@ -195,7 +195,7 @@ func newEventRecorder(repo repository.ServerlessEndpointEventRepository, l *zero
 // the queue is full. A held back event is counted as suppressed on the endpoint's next event
 // of the same kind. The message and details are stored through safeText. It reports whether
 // the event was admitted, so a caller can offer a held back event again later.
-func (rec *eventRecorder) record(ep *cachedEndpoint, kind sqlcv1.V1ServerlessEndpointEventKind, message string, details *eventDetails) bool {
+func (rec *eventRecorder) record(ep *cachedEndpoint, kind enums.V1ServerlessEndpointEventKind, message string, details *eventDetails) bool {
 	if rec == nil {
 		return false
 	}
@@ -244,14 +244,14 @@ func (rec *eventRecorder) record(ep *cachedEndpoint, kind sqlcv1.V1ServerlessEnd
 
 // deliveryFailed records a failed delivery, at most one per failureEventWindow.
 func (rec *eventRecorder) deliveryFailed(ep *cachedEndpoint, message string, details *eventDetails) {
-	rec.record(ep, sqlcv1.V1ServerlessEndpointEventKindDELIVERYFAILED, message, details)
+	rec.record(ep, enums.V1ServerlessEndpointEventKindDELIVERYFAILED, message, details)
 }
 
 // admit decides whether the endpoint writes an event of kind now. A failure kind written
 // within failureEventWindow, or any kind once the endpoint has spent endpointEventBudget in
 // the current period, is only counted. An admitted event returns the count of its kind held
 // back since the last one written, and resets it.
-func (rec *eventRecorder) admit(ep *cachedEndpoint, kind sqlcv1.V1ServerlessEndpointEventKind) (int, bool) {
+func (rec *eventRecorder) admit(ep *cachedEndpoint, kind enums.V1ServerlessEndpointEventKind) (int, bool) {
 	now := rec.now()
 
 	rec.mu.Lock()
@@ -260,7 +260,7 @@ func (rec *eventRecorder) admit(ep *cachedEndpoint, kind sqlcv1.V1ServerlessEndp
 
 	if !ok {
 		rec.pruneEndpointsLocked(now)
-		st = &endpointEvents{kinds: map[sqlcv1.V1ServerlessEndpointEventKind]*eventWindow{}}
+		st = &endpointEvents{kinds: map[enums.V1ServerlessEndpointEventKind]*eventWindow{}}
 		rec.endpoints[ep.id] = st
 	}
 

@@ -148,6 +148,7 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - `TaskRunError` sets `args`, so it can be pickled.
 - The `hatchet.durable.wait_for` span reports the actual number of conditions in `hatchet.num_conditions` instead of always 2, and leaves out `hatchet.signal_key` when the key was generated.
 - `HatchetInstrumentor.uninstrument()` now also unwraps `events.aio_push` and `events.aio_bulk_push`.
+- The REST client can read task events of type `BATCH_BUFFERED` and the `STREAM_TOPIC`, `STREAM_MESSAGE` and `STREAM_RETENTION` tenant resource limits, which the engine already returns.
 
 ## [1.46.0] - 2026-11-12
 

@@ -52,14 +52,21 @@ func TestDurableStreamsReadsFromTheBeginningThenLive(t *testing.T) {
 
 	require.NoError(t, streams.Publish(ctx, topic, []byte("published-before-consume")))
 
+	// the subscriber can see live-2 before its Publish returns, so wait for the publisher before the test context is cancelled
+	published := make(chan error, 1)
 	go func() {
 		time.Sleep(200 * time.Millisecond)
 		for _, m := range []string{"live-1", "live-2"} {
-			assert.NoError(t, streams.Publish(ctx, topic, []byte(m)))
+			if err := streams.Publish(ctx, topic, []byte(m)); err != nil {
+				published <- err
+				return
+			}
 		}
+		published <- nil
 	}()
 
 	events := collectStreamEvents(t, ctx, topic, 3)
+	require.NoError(t, <-published)
 	assert.Equal(t, []string{"published-before-consume", "live-1", "live-2"}, payloads(events))
 }
 

@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/internal/services/shared/timeout_lock"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	v1repo "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -135,7 +136,7 @@ func TestTenantManagerCleanupReleasesConcurrencyTopicLeases(t *testing.T) {
 		return &sqlcv1.V1StepConcurrency{
 			ID:             id,
 			TenantID:       tenantId,
-			Strategy:       sqlcv1.V1ConcurrencyStrategyGROUPROUNDROBIN,
+			Strategy:       enums.V1ConcurrencyStrategyGROUPROUNDROBIN,
 			MaxConcurrency: 1,
 		}
 	}

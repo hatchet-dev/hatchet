@@ -19,6 +19,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -112,7 +113,7 @@ type TriggerTaskData struct {
 	OrchestratorPayloadReferenceId *uuid.UUID `json:"orchestrator_payload_reference_id,omitempty"`
 }
 
-func ProtoToDesiredWorkerLabel(key string, strValue *string, intValue *int32, required *bool, weight *int32, comparator *string) *sqlcv1.GetDesiredLabelsRow {
+func ProtoToDesiredWorkerLabel(key string, strValue *string, intValue *int32, required *bool, weight *int32, comparator *v1contracts.WorkerLabelComparator) *sqlcv1.GetDesiredLabelsRow {
 	row := &sqlcv1.GetDesiredLabelsRow{
 		Key:        key,
 		Comparator: sqlcv1.WorkerLabelComparatorEQUAL,
@@ -135,8 +136,11 @@ func ProtoToDesiredWorkerLabel(key string, strValue *string, intValue *int32, re
 		row.Weight = *weight
 	}
 
+	// an unknown comparator keeps the EQUAL default so triggering never fails on it
 	if comparator != nil {
-		row.Comparator = sqlcv1.WorkerLabelComparator(*comparator)
+		if c, err := enums.FromProto[sqlcv1.WorkerLabelComparator](*comparator); err == nil {
+			row.Comparator = c
+		}
 	}
 
 	return row
@@ -324,7 +328,7 @@ type WorkflowAndScope struct {
 }
 
 func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId uuid.UUID, opts []EventTriggerOpts) (*TriggerFromEventsResult, error) {
-	pre, post := r.m.Meter(ctx, nil, sqlcv1.LimitResourceEVENT, tenantId, int32(len(opts))) // nolint: gosec
+	pre, post := r.m.Meter(ctx, nil, enums.LimitResourceEVENT, tenantId, int32(len(opts))) // nolint: gosec
 
 	if err := pre(); err != nil {
 		return nil, err
@@ -974,7 +978,7 @@ func (r *sharedRepository) triggerWorkflowsPreflight(
 		countTasks += meteredTaskCount(tuple, steps)
 	}
 
-	preTask, postTask := r.m.Meter(ctx, preflightTx, sqlcv1.LimitResourceTASKRUN, tenantId, int32(countTasks)) // nolint: gosec
+	preTask, postTask := r.m.Meter(ctx, preflightTx, enums.LimitResourceTASKRUN, tenantId, int32(countTasks)) // nolint: gosec
 
 	if err := preTask(); err != nil {
 		return nil, err
@@ -3198,18 +3202,13 @@ func (r *sharedRepository) NewTriggerTaskData(
 	if len(req.DesiredWorkerLabels) > 0 {
 		labels := make([]*sqlcv1.GetDesiredLabelsRow, 0, len(req.DesiredWorkerLabels))
 		for key, label := range req.DesiredWorkerLabels {
-			var comparator *string
-			if label.Comparator != nil {
-				c := label.Comparator.String()
-				comparator = &c
-			}
 			labels = append(labels, ProtoToDesiredWorkerLabel(
 				key,
 				label.StrValue,
 				label.IntValue,
 				label.Required,
 				label.Weight,
-				comparator,
+				label.Comparator,
 			))
 		}
 		t.DesiredWorkerLabels = labels

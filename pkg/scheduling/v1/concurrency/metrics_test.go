@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -39,7 +40,7 @@ func TestResidentCountsMatchSubQueues(t *testing.T) {
 	for i := int64(0); i < 10; i++ {
 		repo.indexRows = append(repo.indexRows, indexRow("crossing", 200+i, 0, 0, now, future, true))
 	}
-	c := newTestStrategyKind(repo, 1, sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST)
+	c := newTestStrategyKind(repo, 1, enums.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST)
 
 	check := func(step string) {
 		t.Helper()

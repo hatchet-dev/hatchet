@@ -9,6 +9,7 @@ import (
 	"github.com/oapi-codegen/runtime/types"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -19,11 +20,15 @@ func jsonToMap(jsonBytes []byte) map[string]interface{} {
 	return result
 }
 
-func mapOlapStatus(olapStatus string) (gen.V1TaskStatus, bool) {
-	if olapStatus == "EVICTED" {
-		return gen.V1TaskStatusRUNNING, true
+// mapOlapStatus is where database statuses become API statuses; values subsets.yaml excludes from V1TaskStatus must be handled here.
+func mapOlapStatus[S ~string](olapStatus S) (gen.V1TaskStatus, bool) {
+	if enums.V1ReadableStatusOlap(olapStatus) == enums.V1ReadableStatusOlapEVICTED {
+		return enums.V1TaskStatusRUNNING, true
 	}
-	return gen.V1TaskStatus(olapStatus), false
+
+	status, _ := enums.Narrow[gen.V1TaskStatus](olapStatus)
+
+	return status, false
 }
 
 func ToTaskSummary(task *v1.TaskWithPayloads, opts ...PayloadOption) gen.V1TaskSummary {
@@ -55,7 +60,7 @@ func ToTaskSummary(task *v1.TaskWithPayloads, opts ...PayloadOption) gen.V1TaskS
 	retryCount := int(task.RetryCount)
 	attempt := retryCount + 1
 
-	status, isEvicted := mapOlapStatus(string(task.Status))
+	status, isEvicted := mapOlapStatus(task.Status)
 
 	input := jsonToMap(task.InputPayload)
 	output := jsonToMap(task.OutputPayload)
@@ -77,7 +82,7 @@ func ToTaskSummary(task *v1.TaskWithPayloads, opts ...PayloadOption) gen.V1TaskS
 		},
 		Input:                 input,
 		Output:                output,
-		Type:                  gen.V1WorkflowTypeTASK,
+		Type:                  enums.V1RunKindTASK,
 		CreatedAt:             task.InsertedAt.Time,
 		DisplayName:           task.DisplayName,
 		Duration:              durationPtr,
@@ -181,7 +186,7 @@ func ToTaskRunEventMany(
 		toReturn[i] = gen.V1TaskEvent{
 			Id:              int(event.ID),
 			ErrorMessage:    &event.ErrorMessage.String,
-			EventType:       gen.V1TaskEventType(event.EventType),
+			EventType:       event.EventType,
 			Message:         event.AdditionalEventMessage.String,
 			Timestamp:       event.EventTimestamp.Time,
 			WorkerId:        event.WorkerID,
@@ -211,7 +216,7 @@ func ToWorkflowRunTaskRunEventsMany(
 
 		toReturn[i] = gen.V1TaskEvent{
 			ErrorMessage:    &event.ErrorMessage.String,
-			EventType:       gen.V1TaskEventType(event.EventType),
+			EventType:       event.EventType,
 			Id:              int(event.ID),
 			Message:         event.AdditionalEventMessage.String,
 			TaskDisplayName: &event.DisplayName,
@@ -236,29 +241,29 @@ func ToWorkflowRunTaskRunEventsMany(
 
 func StatusToTaskRunMetrics(metrics *[]v1.TaskRunMetric) gen.V1TaskRunMetrics {
 	statuses := []gen.V1TaskStatus{
-		gen.V1TaskStatusCANCELLED,
-		gen.V1TaskStatusCOMPLETED,
-		gen.V1TaskStatusFAILED,
-		gen.V1TaskStatusQUEUED,
-		gen.V1TaskStatusRUNNING,
+		enums.V1TaskStatusCANCELLED,
+		enums.V1TaskStatusCOMPLETED,
+		enums.V1TaskStatusFAILED,
+		enums.V1TaskStatusQUEUED,
+		enums.V1TaskStatusRUNNING,
 	}
 
-	metricsMap := make(map[gen.V1TaskStatus]v1.TaskRunMetric)
+	metricsMap := make(map[enums.V1ReadableStatusOlap]v1.TaskRunMetric)
 	for _, m := range *metrics {
-		metricsMap[gen.V1TaskStatus(m.Status)] = m
+		metricsMap[enums.V1ReadableStatusOlap(m.Status)] = m
 	}
 
 	toReturn := make([]gen.V1TaskRunMetric, len(statuses))
 
 	for i, status := range statuses {
-		metric := metricsMap[status]
+		metric := metricsMap[enums.V1ReadableStatusOlap(status)]
 
 		toReturn[i] = gen.V1TaskRunMetric{
 			Count:  int(metric.Count), // nolint: gosec
 			Status: status,
 		}
 
-		if status == gen.V1TaskStatusRUNNING {
+		if status == enums.V1TaskStatusRUNNING {
 			evicted := int(metric.EvictedCount)   // nolint: gosec
 			onWorker := int(metric.OnWorkerCount) // nolint: gosec
 			toReturn[i].RunningDetailCount = &gen.V1RunningDetailCount{
@@ -340,7 +345,7 @@ func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId uuid.UUID, 
 		}
 	}
 
-	taskStatus, isEvicted := mapOlapStatus(string(taskWithData.Status))
+	taskStatus, isEvicted := mapOlapStatus(taskWithData.Status)
 
 	summary := gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
@@ -365,7 +370,7 @@ func ToTask(taskWithData *v1.TaskWithPayloads, workflowRunExternalId uuid.UUID, 
 		ErrorMessage:          &taskWithData.ErrorMessage.String,
 		WorkflowRunExternalId: workflowRunExternalId,
 		TaskExternalId:        taskWithData.ExternalID,
-		Type:                  gen.V1WorkflowTypeTASK,
+		Type:                  enums.V1RunKindTASK,
 		NumSpawnedChildren:    int(taskWithData.NumSpawnedChildren),
 		StepId:                &stepId,
 		ActionId:              &taskWithData.ActionID,
@@ -426,7 +431,7 @@ func ToWorkflowRunDetails(
 		payloadsRestricted = boolPtr(true)
 	}
 
-	wrStatus, _ := mapOlapStatus(string(workflowRun.ReadableStatus))
+	wrStatus, _ := mapOlapStatus(workflowRun.ReadableStatus)
 
 	parsedWorkflowRun := gen.V1WorkflowRun{
 		AdditionalMetadata:   additionalMetadataPtr,
@@ -479,7 +484,7 @@ func ToWorkflowRunDetails(
 
 		parsedTaskEvents[i] = gen.V1TaskEvent{
 			ErrorMessage:    &event.ErrorMessage.String,
-			EventType:       gen.V1TaskEventType(event.EventType),
+			EventType:       event.EventType,
 			Id:              int(event.ID),
 			Message:         event.AdditionalEventMessage.String,
 			TaskDisplayName: &event.DisplayName,
@@ -526,7 +531,7 @@ func ToTaskTimings(
 		retryCount := int(timing.RetryCount)
 		attempt := retryCount + 1
 
-		timingStatus, timingIsEvicted := mapOlapStatus(string(timing.Status))
+		timingStatus, timingIsEvicted := mapOlapStatus(timing.Status)
 
 		toReturn[i] = gen.V1TaskTiming{
 			Metadata: gen.APIResourceMeta{
