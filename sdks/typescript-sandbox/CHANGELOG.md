@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Eac
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-11-16
+
+### Added
+
+- `exec(cmd, { signal })` stops waiting for the command when the signal aborts and cancels its task run, which makes the provider kill the command. `exec` then rejects with the signal's reason. With a signal, the command runs as a plain task run rather than a durable step, so a durable task that replays runs it again.
+
 ## [0.1.5] - 2026-11-11
 
 ### Added
