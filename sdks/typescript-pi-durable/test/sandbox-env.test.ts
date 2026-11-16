@@ -60,3 +60,65 @@ describe('SandboxEnv.exec', () => {
     ]);
   });
 });
+
+describe('SandboxEnv on a stopped sandbox', () => {
+  const stopped = ['sandbox sb is not running (idle-expired or killed): connect to it first'];
+
+  function stoppingClient() {
+    const connects: string[] = [];
+    const hatchet = {
+      sandbox: {
+        connect: async (sandboxId: string) => {
+          connects.push(sandboxId);
+          const stale = connects.length === 1;
+          const call = async <T>(value: T) => {
+            if (stale) throw stopped;
+            return value;
+          };
+          return {
+            exec: () => call({ stdout: `${EDGE}ok${EDGE}`, stderr: `${EDGE}${EDGE}`, exitCode: 0 }),
+            files: { read: () => call('content') },
+          };
+        },
+      },
+    } as unknown as HatchetClient;
+    return { env: new SandboxEnv(hatchet, 'sb', { template: 'node:24-alpine' }), connects };
+  }
+
+  it('connects again and retries a command', async () => {
+    const { env, connects } = stoppingClient();
+    expect(await env.exec('true', {}, BACKGROUND_CONTEXT)).toEqual({
+      ok: true,
+      value: { exitCode: 0 },
+    });
+    expect(connects).toEqual(['sb', 'sb']);
+  });
+
+  it('connects again and retries a file call', async () => {
+    const { env, connects } = stoppingClient();
+    expect(await env.readTextFile('/workspace/a.txt', BACKGROUND_CONTEXT)).toEqual({
+      ok: true,
+      value: 'content',
+    });
+    expect(connects).toEqual(['sb', 'sb']);
+  });
+
+  it('does not connect again for other failures', async () => {
+    const connects: string[] = [];
+    const hatchet = {
+      sandbox: {
+        connect: async (sandboxId: string) => {
+          connects.push(sandboxId);
+          return {
+            exec: async () => {
+              throw new Error('provider down');
+            },
+          };
+        },
+      },
+    } as unknown as HatchetClient;
+    const env = new SandboxEnv(hatchet, 'sb', { template: 'node:24-alpine' });
+    expect((await env.exec('true', {}, BACKGROUND_CONTEXT)).ok).toBe(false);
+    expect(connects).toEqual(['sb']);
+  });
+});

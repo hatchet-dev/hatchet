@@ -72,12 +72,24 @@ export function sandboxHandle(
   if (!byId) handles.set(hatchet, (byId = new Map()));
   let handle = byId.get(sandboxId);
   if (!handle) {
-    handle = hatchet.sandbox.connect(sandboxId, { template });
-    handle.catch(() => byId.delete(sandboxId));
-    byId.set(sandboxId, handle);
+    const connecting = hatchet.sandbox.connect(sandboxId, { template });
+    connecting.catch(() => forget(hatchet, sandboxId, connecting));
+    byId.set(sandboxId, connecting);
+    handle = connecting;
   }
   return handle;
 }
+
+function forget(hatchet: HatchetClient, sandboxId: string, handle: Promise<Sandbox>) {
+  const byId = handles.get(hatchet);
+  if (byId?.get(sandboxId) === handle) byId.delete(sandboxId);
+}
+
+/** brickie reports a call to a stopped sandbox only through this message: only `connect` starts it again. */
+const NOT_RUNNING = 'connect to it first';
+
+const notRunning = (error: unknown) =>
+  (error instanceof Error ? error.message : String(error)).includes(NOT_RUNNING);
 
 /** The snapshot holding the sandbox's current workspace. Every exec and write makes one. */
 export async function latestSnapshot(
@@ -160,11 +172,23 @@ export class SandboxEnv implements ExecutionEnv {
     return rel instanceof FileError ? rel : posix.join(this.workspace, rel);
   }
 
+  /** Connecting again restores the workspace from its latest snapshot. */
+  private async call<T>(fn: (sandbox: Sandbox) => Promise<T>): Promise<T> {
+    const handle = this.sandbox();
+    try {
+      return await fn(await handle);
+    } catch (error) {
+      if (!notRunning(error)) throw error;
+      forget(this.hatchet, this.sandboxId, handle);
+      return fn(await this.sandbox());
+    }
+  }
+
   private async files<T>(path: string, fn: (sandbox: Sandbox, rel: string) => Promise<T>) {
     const rel = this.relative(path);
     if (rel instanceof FileError) return err<T, FileError>(rel);
     try {
-      return ok<T, FileError>(await fn(await this.sandbox(), rel));
+      return ok<T, FileError>(await this.call((sandbox) => fn(sandbox, rel)));
     } catch (error) {
       return err<T, FileError>(toFileError(error, path));
     }
@@ -172,8 +196,7 @@ export class SandboxEnv implements ExecutionEnv {
 
   /** Runs a script in the sandbox for the env's own checks; the output is exact, as in `exec`. */
   private async sh(script: string): Promise<CommandResult> {
-    const sandbox = await this.sandbox();
-    const result = await sandbox.exec(this.wrap(script));
+    const result = await this.call((sandbox) => sandbox.exec(this.wrap(script)));
     return { ...result, stdout: unwrap(result.stdout ?? ''), stderr: unwrap(result.stderr ?? '') };
   }
 
@@ -510,11 +533,12 @@ export class SandboxEnv implements ExecutionEnv {
 
     let result: CommandResult;
     try {
-      const sandbox = await this.sandbox();
-      result = await sandbox.exec(this.wrap(`${setup} && { ${script}\n}`), {
-        timeoutMs,
-        signal: context.abortSignal,
-      });
+      result = await this.call((sandbox) =>
+        sandbox.exec(this.wrap(`${setup} && { ${script}\n}`), {
+          timeoutMs,
+          signal: context.abortSignal,
+        })
+      );
     } catch (error) {
       if (aborted(context)) return failed('aborted', 'The command was aborted');
       return failed('unknown', error instanceof Error ? error.message : String(error));

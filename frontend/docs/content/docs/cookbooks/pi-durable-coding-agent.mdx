@@ -222,7 +222,7 @@ A conversation's items are a window of its newest 50 to 100 entries. `before` is
 | ----------------------- | ------------ | --------------------------------------------------------------------------------------------------------- |
 | `name`                  | `pi-session` | The task's name, and the prefix of the session's stream topics. Give `SessionClient` the same `taskName`. |
 | `sandbox.workspace`     | `/workspace` | The sandbox's workspace. Tool paths outside it are refused.                                               |
-| `sandbox.idleTimeoutMs` | 30 min       | A sandbox idle this long stops, and a running worker does not restart it. Set it above any pause.         |
+| `sandbox.idleTimeoutMs` | 30 min       | A sandbox idle this long stops. The next tool call restarts it from its latest workspace snapshot.        |
 | `idleGraceMs`           | 20 s         | How long an idle session task waits for the next message before it returns.                               |
 | `retries`               | 3            | Retries of the session task after a crash.                                                                |
 | `executionTimeout`      | `60m`        | The longest one run may own the session.                                                                  |
