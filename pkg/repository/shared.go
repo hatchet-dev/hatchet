@@ -85,6 +85,9 @@ type sharedRepository struct {
 	wrapTaskInputInStepRunData bool
 	enablePayloadConsolidation bool
 	reassignUnackedTasks       bool
+
+	// runLog is set when finished work is archived to the run log before its partitions are dropped.
+	runLog *runLogReader
 }
 
 func newSharedRepository(

@@ -260,6 +260,10 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 		return nil, err
 	}
 
+	if err := a.rejectArchivedReplays(ctx, tenant.ID, externalIds, tasks); err != nil {
+		return nil, err
+	}
+
 	wholeRunOrchestrators := make(map[uuid.UUID]bool)
 
 	for _, task := range tasks {
@@ -380,6 +384,39 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 	return &contracts.ReplayTasksResponse{
 		ReplayedTasks: replayedIds,
 	}, nil
+}
+
+// maxArchivedIdsInError caps how many archived ids a rejected replay names.
+const maxArchivedIdsInError = 10
+
+// rejectArchivedReplays fails a replay that asks for runs core has dropped and only the run log holds. Replay
+// rewrites a run's rows in place, and an archived run has none left, so the whole request is refused rather
+// than silently replaying the rest.
+func (a *AdminServiceImpl) rejectArchivedReplays(ctx context.Context, tenantId uuid.UUID, requested []uuid.UUID, found []*sqlcv1.FlattenExternalIdsRow) error {
+	if !a.repo.Tasks().RunLogEnabled() {
+		return nil
+	}
+
+	archived, err := a.repo.Tasks().ListArchivedExternalIds(ctx, tenantId, v1.ExternalIdsWithoutTasks(requested, found))
+
+	if err != nil {
+		return connect.NewError(connect.CodeInternal, fmt.Errorf("could not check the run log for archived runs: %w", err))
+	}
+
+	if len(archived) == 0 {
+		return nil
+	}
+
+	named := make([]string, 0, min(len(archived), maxArchivedIdsInError))
+
+	for _, id := range archived[:min(len(archived), maxArchivedIdsInError)] {
+		named = append(named, id.String())
+	}
+
+	return connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf(
+		"cannot replay %d archived run(s): %s: they finished before core retention and are only in the run log",
+		len(archived), strings.Join(named, ", "),
+	))
 }
 
 // handleOperatorDAGStepReplays rewrites the replay set for selected steps of operator-managed

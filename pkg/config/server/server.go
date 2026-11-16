@@ -89,6 +89,8 @@ type ServerConfigFile struct {
 
 	PayloadStore PayloadStoreConfig `mapstructure:"payloadStore" json:"payloadStore,omitempty"`
 
+	RunLog RunLogConfigFile `mapstructure:"runLog" json:"runLog,omitempty"`
+
 	CronOperations CronOperationsConfigFile `mapstructure:"cronOperations" json:"cronOperations,omitempty"`
 
 	OLAPStatusUpdates OLAPStatusUpdateConfigFile `mapstructure:"statusUpdates" json:"statusUpdates,omitempty"`
@@ -978,6 +980,22 @@ type PayloadStoreConfig struct {
 	EnablePayloadConsolidation bool `mapstructure:"enablePayloadConsolidation" json:"enablePayloadConsolidation,omitempty" default:"false"`
 }
 
+// RunLogConfigFile configures the run log: before core day partitions past
+// SERVER_LIMITS_CORE_PARTITION_RETENTION are dropped, their finished work is archived to an S3 bucket, and
+// readers of finished work fall back to it. Days that still hold in-flight work are kept whole.
+type RunLogConfigFile struct {
+	Enabled bool   `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
+	Bucket  string `mapstructure:"bucket" json:"bucket,omitempty"`
+	// Prefix is prepended to every key (no trailing slash).
+	Prefix string `mapstructure:"prefix" json:"prefix,omitempty"`
+	Region string `mapstructure:"region" json:"region,omitempty" default:"us-east-1"`
+	// EndpointURL overrides the S3 endpoint, for an emulator; it also turns on path-style addressing.
+	EndpointURL string `mapstructure:"endpointURL" json:"endpointURL,omitempty"`
+	// AccessKeyID and SecretAccessKey are static credentials; without them the default AWS chain is used.
+	AccessKeyID     string `mapstructure:"accessKeyID" json:"accessKeyID,omitempty"`
+	SecretAccessKey string `mapstructure:"secretAccessKey" json:"secretAccessKey,omitempty"`
+}
+
 func (c *ServerConfig) HasService(name string) bool {
 	for _, s := range c.Services {
 		if s == name {
@@ -1323,6 +1341,15 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("payloadStore.enableWindowSizeOptimization", "SERVER_PAYLOAD_STORE_ENABLE_WINDOW_SIZE_OPTIMIZATION")
 	_ = v.BindEnv("payloadStore.wrapTaskInputInStepRunData", "SERVER_PAYLOAD_STORE_WRAP_TASK_INPUT_IN_STEP_RUN_DATA")
 	_ = v.BindEnv("payloadStore.enablePayloadConsolidation", "SERVER_PAYLOAD_STORE_ENABLE_PAYLOAD_CONSOLIDATION")
+
+	// run log options
+	_ = v.BindEnv("runLog.enabled", "SERVER_RUN_LOG_ENABLED")
+	_ = v.BindEnv("runLog.bucket", "SERVER_RUN_LOG_BUCKET")
+	_ = v.BindEnv("runLog.prefix", "SERVER_RUN_LOG_PREFIX")
+	_ = v.BindEnv("runLog.region", "SERVER_RUN_LOG_REGION")
+	_ = v.BindEnv("runLog.endpointURL", "SERVER_RUN_LOG_ENDPOINT_URL")
+	_ = v.BindEnv("runLog.accessKeyID", "SERVER_RUN_LOG_ACCESS_KEY_ID")
+	_ = v.BindEnv("runLog.secretAccessKey", "SERVER_RUN_LOG_SECRET_ACCESS_KEY")
 
 	// cron operations options
 	_ = v.BindEnv("cronOperations.taskAnalyzeCronInterval", "SERVER_CRON_OPERATIONS_TASK_ANALYZE_CRON_INTERVAL")

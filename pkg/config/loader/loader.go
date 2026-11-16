@@ -47,6 +47,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/debugger"
 	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
+	"github.com/hatchet-dev/hatchet/pkg/repository/runlog"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/security"
@@ -96,6 +97,9 @@ type ConfigLoader struct {
 	// logWriter is an optional runtime override for where loggers built by this
 	// loader write. Nil means os.Stderr.
 	logWriter io.Writer
+
+	// runLogStore, when set, replaces the S3 store of the run log.
+	runLogStore runlog.Store
 }
 
 // ConfigLoaderOpt configures a ConfigLoader created by NewConfigLoader.
@@ -126,6 +130,15 @@ func NewConfigLoader(directory string, opts ...ConfigLoaderOpt) *ConfigLoader {
 	}
 
 	return c
+}
+
+// WithRunLogStore makes the run log, when it is enabled, use store instead of the S3 bucket from the config.
+// It lets an embedding caller, such as a test running the engine in process, share one store between the
+// engine and itself.
+func WithRunLogStore(store runlog.Store) ConfigLoaderOpt {
+	return func(c *ConfigLoader) {
+		c.runLogStore = store
+	}
 }
 
 // applyLogWriter sets the loader's log writer on the given logger configs,
@@ -408,6 +421,27 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 	if readReplicaPool != nil {
 		v1.OLAP().SetReadReplicaPool(readReplicaPool)
+	}
+
+	if scf.RunLog.Enabled {
+		store := c.runLogStore
+
+		if store == nil {
+			store, err = runlog.NewS3Store(context.Background(), runlog.S3Config{
+				Bucket:          scf.RunLog.Bucket,
+				Region:          scf.RunLog.Region,
+				EndpointURL:     scf.RunLog.EndpointURL,
+				AccessKeyID:     scf.RunLog.AccessKeyID,
+				SecretAccessKey: scf.RunLog.SecretAccessKey,
+			})
+
+			if err != nil {
+				_ = cleanupV1()
+				return nil, fmt.Errorf("could not create run log store: %w", err)
+			}
+		}
+
+		v1.SetRunLog(runlog.New(store, scf.RunLog.Prefix))
 	}
 
 	return &database.Layer{

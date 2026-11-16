@@ -57,9 +57,11 @@ func getEnvConfig() (string, bool, string, bool, bool) {
 	return migrateStrategy, rabbitmqEnabled, pgVersion, isOptimistic, pgBouncerEnabled
 }
 
-func RunTestWithEngine(m *testing.M) {
+// RunTestWithEngine runs the package's tests against an in-process engine. opts configure the loader the
+// engine is built with.
+func RunTestWithEngine(m *testing.M, opts ...loader.ConfigLoaderOpt) {
 	// This runs before all tests
-	cleanup := startEngine()
+	cleanup := startEngine(opts...)
 
 	// Run the tests
 	exitCode := m.Run()
@@ -101,7 +103,7 @@ func RunTestWithEngine(m *testing.M) {
 	os.Exit(exitCode)
 }
 
-func startEngine() func() {
+func startEngine(opts ...loader.ConfigLoaderOpt) func() {
 	setTestingKeysInEnv()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -191,7 +193,7 @@ func startEngine() func() {
 	// Set higher rate limit for load tests
 	os.Setenv("SCHEDULER_CONCURRENCY_RATE_LIMIT", "1000")
 
-	cf := loader.NewConfigLoader("")
+	cf := loader.NewConfigLoader("", opts...)
 
 	dl, err := cf.InitDataLayer()
 

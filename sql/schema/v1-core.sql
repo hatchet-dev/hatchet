@@ -2604,6 +2604,25 @@ CREATE TABLE v1_payload_cutover_job_offset (
     last_external_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::UUID
 );
 
+-- v1_run_log_day tracks the run log archive of a day partition (pkg/repository/runlog_archive.go).
+-- ARCHIVED: every tenant-day of the day is in the run log; the watermark (task_count, event_count,
+-- max_event_id) is what the day held when the archive started, and a drop only follows if it still holds that.
+-- DROPPING: dropping the day's partitions has started; the archive is final and is never rewritten.
+-- DROPPED: the day's partitions are gone (v1_payload and v1_event may lag a day behind).
+CREATE TABLE v1_run_log_day (
+    day DATE PRIMARY KEY,
+    state TEXT NOT NULL CHECK (state IN ('ARCHIVED', 'DROPPING', 'DROPPED')),
+    task_count BIGINT NOT NULL,
+    event_count BIGINT NOT NULL,
+    max_event_id BIGINT NOT NULL,
+    tenant_days INTEGER NOT NULL,
+    bundles BIGINT NOT NULL,
+    bytes_compressed BIGINT NOT NULL,
+    bytes_uncompressed BIGINT NOT NULL,
+    archived_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE EXTENSION btree_gist;
 
 CREATE TYPE uuidrange AS RANGE (

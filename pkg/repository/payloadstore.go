@@ -321,6 +321,9 @@ type payloadStoreRepositoryImpl struct {
 	externalCutoverNumConcurrentOffloads int32
 	enableWindowSizeOptimization         bool
 	enablePayloadConsolidation           bool
+
+	// runLog, when set, serves the payloads of days core has dropped
+	runLog *runLogReader
 }
 
 type PayloadStoreRepositoryOpts struct {
@@ -592,6 +595,16 @@ func (p *payloadStoreRepositoryImpl) Resolve(ctx context.Context, tx sqlcv1.DBTX
 }
 
 func (p *payloadStoreRepositoryImpl) resolve(ctx context.Context, tx sqlcv1.DBTX, payloads []*sqlcv1.V1Payload, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
+	optsToPayload, err := p.resolveFromCore(ctx, tx, payloads, opts...)
+
+	if err != nil || p.runLog == nil {
+		return optsToPayload, err
+	}
+
+	return optsToPayload, p.runLog.fillPayloads(ctx, opts, optsToPayload)
+}
+
+func (p *payloadStoreRepositoryImpl) resolveFromCore(ctx context.Context, tx sqlcv1.DBTX, payloads []*sqlcv1.V1Payload, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
 	if len(opts) == 0 {
 		return make(map[RetrievePayloadOpts][]byte), nil
 	}
