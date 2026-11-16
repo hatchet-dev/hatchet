@@ -8,6 +8,7 @@ import { ClientMessage, SessionClient, SessionId } from '@hatchet-dev/pi-durable
 import { hatchet } from './agent.js';
 
 const PORT = Number(process.env.PORT ?? 3334);
+const HOST = process.env.HOST ?? '127.0.0.1';
 const PAGE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'index.html');
 
 const sessions = new SessionClient(hatchet, { taskName: 'pi-session' });
@@ -63,7 +64,9 @@ app.use((error: Error & { status?: number }, _req: Request, res: Response, _next
   // express.json() rejects a malformed body with status 400; anything else is ours.
   const status = error.status ?? 500;
   if (status >= 500) console.error(error);
-  if (!res.headersSent) res.status(status).json({ error: error.message });
+  if (!res.headersSent) {
+    res.status(status).json({ error: status >= 500 ? 'Internal server error' : error.message });
+  }
 });
 
-app.listen(PORT, () => console.log(`pi on Hatchet example on http://localhost:${PORT}`));
+app.listen(PORT, HOST, () => console.log(`pi on Hatchet example on http://${HOST}:${PORT}`));

@@ -120,7 +120,7 @@ has no cross-process locking, so there must be one owner at a time. The task's c
 | `sandbox.workspace`     | `/workspace` | The sandbox's workspace. Tool paths outside it are refused.                                               |
 | `sandbox.idleTimeoutMs` | 30 min       | A sandbox with no calls for this long stops. The next call restarts it from its snapshot.                 |
 | `sandbox.seed`          | none         | Fills a conversation's first sandbox, for example with a repository.                                      |
-| `maxSessionCostUsd`     | no cap       | Aborts every conversation once the session has spent this much.                                           |
+| `maxSessionCostUsd`     | no cap       | Aborts every conversation once the session has spent this much, and rejects later inputs.                 |
 | `idleGraceMs`           | 20 s         | How long an idle host waits for the next message before it hands the session back.                        |
 | `stallMs`               | 15 s         | A ready task that has not started after this long means the owner is stuck.                               |
 | `retries`               | 3            | Retries of the task after a crash.                                                                        |

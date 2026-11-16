@@ -455,7 +455,7 @@ function renderComposer(c) {
     sendButton.dataset.mode = 'followUp';
     buttons.push(sendButton);
   }
-  const signature = buttons.map((b) => b.textContent).join('|');
+  const signature = [c.id, ...buttons.map((b) => b.textContent)].join('|');
   if (actions.dataset.signature !== signature) {
     actions.dataset.signature = signature;
     actions.replaceChildren(...buttons);
@@ -479,7 +479,7 @@ function render() {
   const output = view.conversations.reduce((sum, x) => sum + x.usage.output, 0);
   $('spend').hidden = false;
   $('spend').replaceChildren('Spent ', el('strong', '', money(spend)), ` · ${output.toLocaleString()} output tokens`);
-  $('subtitle').replaceChildren('Session ', el('code', '', view.sessionId), '. Hatchet owns it and runs the tools in brickie sandboxes.');
+  $('subtitle').replaceChildren('Session ', el('code', '', view.sessionId), '. Hatchet owns it and runs the tools in Hatchet sandboxes.');
   renderOwner();
   renderTree();
   $('conv-title').textContent = c.parent ? `Fork ${c.id}` : 'Main conversation';

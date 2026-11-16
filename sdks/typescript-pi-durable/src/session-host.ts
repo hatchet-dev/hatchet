@@ -68,7 +68,7 @@ export type SessionTaskOptions = {
     /** Fills a conversation's first sandbox, for example with a repository. Forks start from a snapshot instead. */
     seed?: (sandbox: Sandbox, sessionId: string) => Promise<void>;
   };
-  /** Every conversation of a session is aborted once the session has spent this much. Default: no cap. */
+  /** Every conversation of a session is aborted, and later inputs rejected, once the session has spent this much. Default: no cap. */
   maxSessionCostUsd?: number;
   /** A host with nothing left to do waits this long for the next message before it hands the session back. Default 20 s. */
   idleGraceMs?: number;
@@ -113,6 +113,14 @@ type LogLevel = 'info' | 'debug' | 'warn' | 'error';
 
 const decoder = new TextDecoder();
 
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Runs a function in the async context of this module's import, where no task is running. Inside a task, the SDK turns
  * every run it starts into a child of that task, numbered in start order. A retry keeps the task run's id and numbers
@@ -152,6 +160,8 @@ class SessionHost {
   private publishing = Promise.resolve();
   private closing = false;
   private costCapHit = false;
+  private readonly inbox = new AbortController();
+  private reading = Promise.resolve();
   private readonly readySince = new Map<number, number>();
 
   constructor(
@@ -180,7 +190,20 @@ class SessionHost {
       (report) => this.log(`${report.kind}: ${String(report.error)}`, 'error'),
       context
     );
+    try {
+      return await this.host(signal);
+    } finally {
+      this.inbox.abort();
+      await this.reading;
+      this.closing = true;
+      clearTimeout(this.publishTimer);
+      await this.publishing;
+      await Promise.all([...this.views.values()].map((view) => view.stop()));
+      await this.harness.close(context);
+    }
+  }
 
+  private async host(signal: AbortSignal): Promise<SessionTaskOutput> {
     // A crash leaves the last owner's unfinished tasks live in storage; `resume()` continues them.
     this.recoveredTasks = (await this.harness.inspect(context)).tasks.length;
     const isNew = (await this.harness.conversation(ROOT_CONVERSATION_ID, context)) === undefined;
@@ -201,12 +224,11 @@ class SessionHost {
     this.schedulePublish();
     this.harness.resume();
 
-    const inbox = new AbortController();
-    signal.addEventListener('abort', () => inbox.abort(), { once: true });
-    const reading = this.readInbox(inbox.signal);
+    signal.addEventListener('abort', () => this.inbox.abort(), { once: true });
+    this.reading = this.readInbox(this.inbox.signal);
     const { stalled } = await this.untilIdle(signal, isNew || this.recoveredTasks > 0);
-    inbox.abort();
-    await reading;
+    this.inbox.abort();
+    await this.reading;
 
     const wake = this.harness.wake();
     if (!signal.aborted) {
@@ -226,8 +248,6 @@ class SessionHost {
     this.closing = true;
     clearTimeout(this.publishTimer);
     await this.publish({ final: true });
-    await Promise.all([...this.views.values()].map((view) => view.stop()));
-    await this.harness.close(context);
     return {
       sessionId: this.sessionId,
       recoveredTasks: this.recoveredTasks,
@@ -331,7 +351,7 @@ class SessionHost {
           cursor: this.appliedCursor,
           signal,
         })) {
-          const parsed = InboxMessage.safeParse(JSON.parse(decoder.decode(event.payload)));
+          const parsed = InboxMessage.safeParse(parseJson(decoder.decode(event.payload)));
           let rejected: RejectedMessage | undefined;
           if (!parsed.success)
             this.log(`skipped an invalid inbox message: ${parsed.error.message}`, 'warn');
@@ -389,7 +409,11 @@ class SessionHost {
     );
     if (!conversation) return `conversation ${message.conversationId} does not exist`;
     switch (message.type) {
-      case 'input':
+      case 'input': {
+        const cap = this.options.maxSessionCostUsd;
+        if (cap !== undefined && (await this.spent()) >= cap) {
+          return `the session has spent its $${cap} cap`;
+        }
         await this.ensureSandbox(conversation.id);
         await conversation.submit(
           {
@@ -401,6 +425,7 @@ class SessionHost {
           context
         );
         return;
+      }
       case 'abort':
         void conversation.abort(context);
         return;
@@ -437,11 +462,15 @@ class SessionHost {
     }
   }
 
+  private async spent(): Promise<number> {
+    const usage = await this.harness.usage(context);
+    return Object.values(usage.models).reduce((sum, u) => sum + u.cost.total, 0);
+  }
+
   private async enforceCostCap() {
     const cap = this.options.maxSessionCostUsd;
     if (cap === undefined || this.costCapHit) return;
-    const usage = await this.harness.usage(context);
-    const cost = Object.values(usage.models).reduce((sum, u) => sum + u.cost.total, 0);
+    const cost = await this.spent();
     if (cost < cap) return;
     this.costCapHit = true;
     this.log(
