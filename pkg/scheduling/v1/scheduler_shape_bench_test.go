@@ -178,7 +178,7 @@ func buildActionRows(shape inventoryShape, workerIds []uuid.UUID, actionIds []st
 func newShapeScheduler(tenantId uuid.UUID, ar repo.AssignmentRepository) *Scheduler {
 	l := zerolog.Nop()
 	sr := &mockSchedulerRepo{assignment: ar}
-	cf := &sharedConfig{repo: sr, l: &l}
+	cf := &sharedConfig{repo: sr, control: noTenantControls{}, l: &l}
 	return newScheduler(cf, tenantId, nil, &Extensions{})
 }
 

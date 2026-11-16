@@ -10,6 +10,8 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/rs/zerolog"
+
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 type callStartKey struct{}
@@ -103,6 +105,13 @@ func methodType(t connect.StreamType) string {
 func codeToLevel(err error) zerolog.Level {
 	if err == nil {
 		return zerolog.InfoLevel
+	}
+
+	// A refusal by an operator control is expected, and a retrying client makes one per attempt;
+	// the hatchet_tenant_control gauge is the signal that it is happening.
+	var rateLimited *repository.TenantRateLimitedError
+	if errors.Is(err, repository.ErrTenantPaused) || errors.As(err, &rateLimited) {
+		return zerolog.DebugLevel
 	}
 
 	//exhaustive:ignore

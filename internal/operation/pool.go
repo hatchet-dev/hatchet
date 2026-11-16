@@ -18,6 +18,7 @@ import (
 type TenantOperationPool struct {
 	intervalRepo            v1.IntervalSettingsRepository
 	cancel                  context.CancelFunc
+	control                 v1.TenantControlRepository
 	method                  OpMethod
 	ql                      *zerolog.Logger
 	intervalGauge           IntervalGauge
@@ -49,8 +50,11 @@ func WithPoolInterval(
 	}
 }
 
-func NewTenantOperationPool(p *partition.Partition, ql *zerolog.Logger, operationId string, timeout time.Duration, description string, method OpMethod, fs ...func(*TenantOperationPool)) *TenantOperationPool {
+// NewTenantOperationPool runs method for every tenant of the controller partition, except tenants
+// that control has paused. Each run first yields to the tenant's database time budget.
+func NewTenantOperationPool(p *partition.Partition, control v1.TenantControlRepository, ql *zerolog.Logger, operationId string, timeout time.Duration, description string, method OpMethod, fs ...func(*TenantOperationPool)) *TenantOperationPool {
 	pool := &TenantOperationPool{
+		control:     control,
 		operationId: operationId,
 		timeout:     timeout,
 		description: description,
@@ -114,7 +118,9 @@ func (p *TenantOperationPool) setTenants(tenants []uuid.UUID) {
 	tenantMap := make(map[uuid.UUID]bool)
 
 	for _, t := range tenants {
-		tenantMap[t] = true
+		if !p.control.IsPaused(t) {
+			tenantMap[t] = true
+		}
 	}
 
 	// init ops for new tenants
@@ -145,6 +151,9 @@ func (p *TenantOperationPool) getOperation(id uuid.UUID) *SerialOperation {
 
 		fs = append(fs, WithDescription(p.description))
 		fs = append(fs, WithTimeout(p.timeout))
+		fs = append(fs, withYield(func(ctx context.Context) error {
+			return p.control.AwaitBudget(ctx, id)
+		}))
 
 		if p.hasInterval {
 			fs = append(fs, WithInterval(

@@ -23,7 +23,7 @@ func newLoggedGate(t *testing.T, limit int64, maxWait time.Duration) (*gate, *by
 	buf := &bytes.Buffer{}
 	l := zerolog.New(buf)
 
-	return newGate(limit, maxWait, "test", &l), buf
+	return newGate(limit, 100, 0, maxWait, "test", &l), buf
 }
 
 func logLines(t *testing.T, buf *bytes.Buffer) []map[string]any {
@@ -87,7 +87,7 @@ func TestRejectionLogCountsSuppressedRejections(t *testing.T) {
 	require.Equal(t, "test", line["pool"])
 	require.Equal(t, "tenant", line["bucket"])
 	require.EqualValues(t, 1, line["limit"])
-	require.Contains(t, line, "waited")
+	require.Contains(t, line, "waited_ms")
 
 	g.mu.Lock()
 	require.Zero(t, g.tenants["tenant-a"].rejected)

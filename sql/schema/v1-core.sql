@@ -3502,6 +3502,29 @@ CREATE TABLE tenant_entitlement (
     CONSTRAINT tenant_entitlement_pkey PRIMARY KEY (tenant_id)
 );
 
+-- Operator controls for one tenant, read by every engine process every few seconds. Sparse: a row
+-- exists only while a control is set.
+CREATE TABLE v1_tenant_control (
+    tenant_id UUID NOT NULL REFERENCES "Tenant" ("id") ON DELETE CASCADE,
+    -- stops scheduling the tenant and refuses its new runs and events at the API
+    paused BOOLEAN NOT NULL DEFAULT FALSE,
+    -- when the current pause began. Ending a pause through the repository moves the tenant's
+    -- schedule deadlines forward by the time since then.
+    paused_at TIMESTAMPTZ,
+    -- the share of each process's connection pool the tenant may have checked out at once;
+    -- NULL means the process default
+    db_conn_percent INTEGER CHECK (db_conn_percent BETWEEN 1 AND 100),
+    -- the tenant's database time budget: the share of each process's pool connection-seconds it
+    -- may hold on average; NULL means the process default
+    db_time_percent INTEGER CHECK (db_time_percent BETWEEN 1 AND 100),
+    -- the most new runs and events each process admits for the tenant per second; NULL means
+    -- unlimited
+    ingest_per_second INTEGER CHECK (ingest_per_second >= 1),
+    reason TEXT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT v1_tenant_control_pkey PRIMARY KEY (tenant_id)
+);
+
 CREATE OR REPLACE FUNCTION after_v1_concurrency_slot_insert_outbox_function()
 RETURNS trigger AS $$
 BEGIN

@@ -122,6 +122,11 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
+	// bulk triggers are not metered here, but operator controls apply on every trigger path
+	if err := a.repov1.TenantControl().Admit(tenantId, len(req.Workflows)); err != nil {
+		return nil, err
+	}
+
 	opts := make([]*v1.WorkflowNameTriggerOpts, len(req.Workflows))
 
 	for i, workflow := range req.Workflows {

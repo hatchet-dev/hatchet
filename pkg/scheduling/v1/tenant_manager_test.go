@@ -111,6 +111,7 @@ func TestTenantManagerCleanupReleasesConcurrencyTopicLeases(t *testing.T) {
 	// the hour-long intervals leave the run on startup as each manager's only run
 	conf := &sharedConfig{
 		repo:                                   concurrencyOnlySchedulerRepo{},
+		control:                                noTenantControls{},
 		outbox:                                 outbox,
 		l:                                      &l,
 		schedulerConcurrencyPollingMinInterval: time.Hour,

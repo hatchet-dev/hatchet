@@ -2,14 +2,17 @@ package ingestors
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net/http"
 
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 
 	"github.com/hatchet-dev/hatchet/internal/integrations/ingestors/sns"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 func (i *IngestorsService) SnsUpdate(ctx echo.Context, req gen.SnsUpdateRequestObject) (gen.SnsUpdateResponseObject, error) {
@@ -65,6 +68,13 @@ func (i *IngestorsService) SnsUpdate(ctx echo.Context, req gen.SnsUpdateRequestO
 		}
 	default:
 		_, err := i.config.Ingestor.IngestEvent(ctx.Request().Context(), tenant, req.Event, body, nil, nil, nil, nil)
+
+		if errors.Is(err, v1.ErrTenantPaused) {
+			return nil, echo.NewHTTPError(http.StatusTooManyRequests, "tenant is paused by an operator")
+		}
+
+		// a *v1.TenantRateLimitedError goes back as is: the API's error handler answers 429 with
+		// Retry-After
 
 		if err != nil {
 			return nil, err

@@ -165,6 +165,10 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		return nil, fmt.Errorf("DATABASE_FAIRPOOL_SHARED_MAX_PERCENT must be from 1 to 100, got %d", cf.FairpoolSharedMaxPercent)
 	}
 
+	if cf.FairpoolTenantBudgetPercent < 1 || cf.FairpoolTenantBudgetPercent > 100 {
+		return nil, fmt.Errorf("DATABASE_FAIRPOOL_TENANT_BUDGET_PERCENT must be from 1 to 100, got %d", cf.FairpoolTenantBudgetPercent)
+	}
+
 	serverSharedFilePath := filepath.Join(c.directory, "server.yaml")
 	serverConfigFileBytes, err := loaderutils.GetConfigBytes(serverSharedFilePath)
 
@@ -253,6 +257,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	gatedPool, err := fairpool.NewWithConfig(context.Background(), config, fairpool.Options{
 		MaxPercent:       cf.FairpoolTenantMaxPercent,
 		SharedMaxPercent: cf.FairpoolSharedMaxPercent,
+		BudgetPercent:    cf.FairpoolTenantBudgetPercent,
 		MaxWait:          cf.FairpoolTenantMaxWait,
 		PoolName:         "main",
 		L:                &l,
@@ -304,6 +309,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		readReplicaPool, err = fairpool.NewWithConfig(context.Background(), readReplicaConfig, fairpool.Options{
 			MaxPercent:       cf.FairpoolTenantMaxPercent,
 			SharedMaxPercent: cf.FairpoolSharedMaxPercent,
+			BudgetPercent:    cf.FairpoolTenantBudgetPercent,
 			MaxWait:          cf.FairpoolTenantMaxWait,
 			PoolName:         "read-replica",
 			L:                &l,
@@ -392,6 +398,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 	v1, cleanupV1 := repov1.NewRepository(
 		gatedPool,
+		readReplicaPool,
 		ddlPool,
 		&l,
 		cf.CacheDuration,
@@ -849,6 +856,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	schedulingPoolV1, cleanupSchedulingPoolV1, err := v1.NewSchedulingPool(
 		dc.V1.Scheduler(),
+		dc.V1.TenantControl(),
 		dc.V1.Tasks(),
 		outbox,
 		&queueLogger,
@@ -871,9 +879,12 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	schedulingPoolV1.AddExtension(v1.NewPrometheusExtension(promGate))
 
+	stopTenantControl := func() {}
+
 	cleanup = func() error {
 		l.Debug().Msg("cleaning up server config")
 
+		stopTenantControl()
 		cleanupSecurityCheck()
 
 		cleanupOutbox()
@@ -939,6 +950,13 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	if cf.Runtime.FrontendURL == "" {
 		cf.Runtime.FrontendURL = cf.Runtime.ServerURL
 	}
+
+	// The engine and API act on tenant controls; a process with only the data layer (the admin
+	// CLI) writes them and needs no snapshot.
+	controlCtx, cancelTenantControl := context.WithCancel(context.Background())
+	stopTenantControl = cancelTenantControl
+
+	go dc.V1.TenantControl().RefreshLoop(controlCtx)
 
 	return cleanup, &server.ServerConfig{
 		Alerter:                alerter,

@@ -43,6 +43,7 @@ type SerialOperation struct {
 	description    string
 	timeout        time.Duration
 	method         OpMethod
+	yield          func(ctx context.Context) error
 	l              *zerolog.Logger
 
 	runningCtx context.Context
@@ -60,6 +61,14 @@ func WithDescription(description string) func(*SerialOperation) {
 func WithTimeout(timeout time.Duration) func(*SerialOperation) {
 	return func(o *SerialOperation) {
 		o.timeout = timeout
+	}
+}
+
+// withYield runs yield before each run of the method, outside the run's timeout. A run is skipped
+// when yield returns an error, which it does only when the operation is stopped.
+func withYield(yield func(ctx context.Context) error) func(*SerialOperation) {
+	return func(o *SerialOperation) {
+		o.yield = yield
 	}
 }
 
@@ -143,6 +152,10 @@ func (o *SerialOperation) Run(l *zerolog.Logger) {
 
 		f := func() {
 			o.setContinue(false)
+
+			if o.yield != nil && o.yield(o.runningCtx) != nil {
+				return
+			}
 
 			ctx, cancel := context.WithTimeout(o.runningCtx, o.timeout)
 			defer cancel()

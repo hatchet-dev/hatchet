@@ -3,6 +3,7 @@ package repository
 import (
 	"log"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -71,6 +72,10 @@ type sharedRepository struct {
 	eventKeyWorkflowsDrops uint64
 
 	rateLimitPauseCache *expirable.LRU[uuid.UUID, bool]
+
+	// tenantControls is this process's snapshot of v1_tenant_control, swapped whole by the
+	// tenant control refresher. Nil until the first refresh, which means no tenant is controlled.
+	tenantControls atomic.Pointer[map[uuid.UUID]*tenantControl]
 
 	celParser         *cel.CELParser
 	boolExprEvaluator *cel.BoolExprEvaluator
@@ -176,6 +181,49 @@ func newSharedRepository(
 	s.entitlements = newTenantEntitlementRepository(s)
 
 	return s, s.cleanup
+}
+
+// tenantControl is one tenant's entry in the snapshot.
+type tenantControl struct {
+	row *sqlcv1.V1TenantControl
+
+	// ingest meters the tenant's new runs and events; nil when they are not limited.
+	ingest *ingestBucket
+}
+
+func (s *sharedRepository) tenantControl(tenantId uuid.UUID) *tenantControl {
+	controls := s.tenantControls.Load()
+	if controls == nil {
+		return nil
+	}
+
+	return (*controls)[tenantId]
+}
+
+func (s *sharedRepository) tenantPaused(tenantId uuid.UUID) bool {
+	control := s.tenantControl(tenantId)
+
+	return control != nil && control.row.Paused
+}
+
+// admitTenant applies the operator's controls to a request for items new runs or events of the
+// tenant: ErrTenantPaused for a paused tenant, a *TenantRateLimitedError (which takes nothing from
+// the bucket) for one over its ingest rate, else nil.
+func (s *sharedRepository) admitTenant(tenantId uuid.UUID, items int) error {
+	control := s.tenantControl(tenantId)
+
+	switch {
+	case control == nil:
+		return nil
+	case control.row.Paused:
+		return ErrTenantPaused
+	case control.ingest != nil:
+		if wait := control.ingest.take(items, time.Now()); wait > 0 {
+			return &TenantRateLimitedError{RetryAfter: wait}
+		}
+	}
+
+	return nil
 }
 
 func (s *sharedRepository) cleanup() error {

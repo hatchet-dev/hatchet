@@ -19,6 +19,10 @@ import (
 type sharedConfig struct {
 	repo v1.SchedulerRepository
 
+	// control is where the per-tenant loops yield to the tenant's database time budget, at the top
+	// of an iteration and before they take any lock or connection.
+	control v1.TenantControlRepository
+
 	outbox   pgoutbox.Outbox
 	taskRepo v1.TaskRepository
 
@@ -67,6 +71,7 @@ type SchedulingPool struct {
 
 func NewSchedulingPool(
 	repo v1.SchedulerRepository,
+	control v1.TenantControlRepository,
 	taskRepo v1.TaskRepository,
 	outbox pgoutbox.Outbox,
 	l *zerolog.Logger,
@@ -91,6 +96,7 @@ func NewSchedulingPool(
 		Extensions: &Extensions{},
 		cf: &sharedConfig{
 			repo:                                   repo,
+			control:                                control,
 			outbox:                                 outbox,
 			l:                                      l,
 			promGate:                               promGate,
