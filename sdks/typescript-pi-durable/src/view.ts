@@ -1,4 +1,3 @@
-// Turns pi-durable's conversation view into the trimmed shape the session view carries.
 import type { AssistantMessage, Message } from '@earendil-works/pi-ai';
 import type {
   ConversationView,

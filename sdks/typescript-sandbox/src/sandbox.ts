@@ -215,16 +215,11 @@ export interface SandboxInfo {
 type TurnOpts = {
   /** A plain task run, even inside a durable task, so it does not shift the durable child sequence. */
   fresh?: boolean;
-  /** A plain task run that is cancelled when the signal aborts. */
   signal?: AbortSignal;
 };
 
 type RunTurn = (input: TurnInput, opts?: TurnOpts) => Promise<TurnResult>;
 
-/**
- * Runs the task and waits for its result until `signal` aborts. An abort rejects with the signal's reason at once and
- * cancels the run; if cancelling fails, the run goes on to its end.
- */
 async function runCancellable(
   client: HatchetClient,
   name: string,

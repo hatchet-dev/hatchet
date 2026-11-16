@@ -93,7 +93,6 @@ const checkpointEvery32 = (_value: unknown, _ops: unknown, info: { deltasSinceBa
  */
 const WAKE_GRACE_MS = 2_000;
 
-/** How many rejected messages the session keeps for its view. */
 const MAX_REJECTED = 20;
 
 /** What the host has applied. The inbox cursor commits with the work, so a new owner resumes after it. */

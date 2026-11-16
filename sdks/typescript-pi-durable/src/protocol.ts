@@ -1,4 +1,3 @@
-// What a session host and its clients say to each other, over two Hatchet streams per session.
 import { z } from 'zod';
 
 /** Session ids appear in stream topic names and concurrency keys, so they stay short and URL-safe. */

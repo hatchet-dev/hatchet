@@ -6,7 +6,6 @@ import { SandboxEnv } from '../src/sandbox-env.js';
 
 const EDGE = '\u001e';
 
-/** A client whose only sandbox runs `exec` through the given function. */
 function envWith(exec: (cmd: string, opts: ExecOpts) => Promise<unknown>) {
   const hatchet = { sandbox: { connect: async () => ({ exec }) } } as unknown as HatchetClient;
   return new SandboxEnv(hatchet, 'sb', { template: 'node:24-alpine' });
@@ -34,7 +33,6 @@ describe('SandboxEnv.exec', () => {
 
   it('reports an abort while the command runs as aborted', async () => {
     const abort = new AbortController();
-    // Like `Sandbox.exec`: an already aborted signal rejects at once, a later abort rejects when it happens.
     const env = envWith(
       (_cmd, opts) =>
         new Promise((_resolve, reject) => {
@@ -44,7 +42,7 @@ describe('SandboxEnv.exec', () => {
         })
     );
     const pending = env.exec('sleep 60', {}, withAbortSignal(abort.signal, BACKGROUND_CONTEXT));
-    await new Promise((resolve) => setTimeout(resolve, 0)); // the command is running
+    await new Promise((resolve) => setTimeout(resolve, 0));
     abort.abort();
     const result = await pending;
     expect(result.ok).toBe(false);

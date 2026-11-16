@@ -1,4 +1,3 @@
-// Run pi-durable agents on Hatchet.
 import '@hatchet-dev/sandbox';
 
 export { SessionClient, type SessionClientOptions } from './client.js';

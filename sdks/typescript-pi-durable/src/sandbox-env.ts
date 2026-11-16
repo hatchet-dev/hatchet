@@ -1,6 +1,5 @@
 // A pi-durable ExecutionEnv backed by a Hatchet sandbox. pi's coding tools (read, write, edit, bash) only touch files
 // and processes through this object, so the harness can run on the worker while every tool call runs in the sandbox.
-// Each method is one or more sandbox calls, which the tenant's sandbox provider serves as Hatchet tasks.
 import * as posix from 'node:path/posix';
 import type { Context } from '@earendil-works/chord/context';
 import {
@@ -105,7 +104,6 @@ const invalid = (message: string, path?: string) =>
   err<never, FileError>(new FileError('invalid', message, path));
 const isCount = (value: number) => Number.isInteger(value) && value >= 0;
 
-/** Strips the edge markers `exec` puts around a stream. */
 function unwrap(text: string): string {
   const start = text.startsWith(EDGE) ? 1 : 0;
   const end = text.endsWith(EDGE) && text.length > start ? text.length - 1 : text.length;
@@ -157,7 +155,6 @@ export class SandboxEnv implements ExecutionEnv {
     return rel || '.';
   }
 
-  /** The absolute path of a workspace path, or the error for a path outside the workspace. */
   private inside(path: string): string | FileError {
     const rel = this.relative(path);
     return rel instanceof FileError ? rel : posix.join(this.workspace, rel);
@@ -513,8 +510,7 @@ export class SandboxEnv implements ExecutionEnv {
 
     let result: CommandResult;
     try {
-      const sandbox = await this.sandbox(); // restarts a stopped sandbox from its snapshot
-      // An abort cancels the command's sandbox run, which makes the provider kill the command.
+      const sandbox = await this.sandbox();
       result = await sandbox.exec(this.wrap(`${setup} && { ${script}\n}`), {
         timeoutMs,
         signal: context.abortSignal,

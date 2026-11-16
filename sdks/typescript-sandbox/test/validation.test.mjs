@@ -65,7 +65,6 @@ test('file operations validate input and parse provider output', async () => {
   await assert.rejects(failing.rename('a', 'b'), isNotFound);
 });
 
-/** A client whose tenant serves `hatchet-sandbox`, and whose command runs never finish until told to. */
 function fakeClient() {
   const calls = { started: [], cancelled: [] };
   const turn = (output) => ({ 'hatchet-sandbox': { output, sandboxId: 'sb' } });

@@ -1,5 +1,3 @@
-// pi's coding tools wired to Hatchet sandboxes: the extension the agent sees, the document that ties a conversation to
-// its sandbox, and the resolver that gives each tool call that sandbox as its environment.
 import type { Context } from '@earendil-works/chord/context';
 import {
   defineDoc,
