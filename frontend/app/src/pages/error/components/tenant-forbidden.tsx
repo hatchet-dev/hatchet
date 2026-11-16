@@ -1,9 +1,11 @@
 import { ErrorPageLayout } from './layout';
+import { InviteModal } from '@/components/modals/invite-modal';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useOrganizations } from '@/hooks/use-organizations';
+import { usePendingInvites } from '@/hooks/use-pending-invites';
 import { TenantMember } from '@/lib/api';
 import { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
 import { useUserApi } from '@/lib/api/user-wrapper';
@@ -21,7 +23,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { useSetAtom } from 'jotai';
 import { LogOut, ShieldX, Undo2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 function TenantPickerItem({
   membership,
@@ -110,6 +112,26 @@ export function TenantForbidden() {
   const { tenantMemberships } = useUserUniverse();
   const { organizations, getOrganizationForTenant, isTenantArchivedInOrg } =
     useOrganizations();
+
+  // A 403 on a tenant route is rendered by the root error boundary, which
+  // replaces the authenticated layout and the InviteModal it mounts. Without
+  // this, a user who was just invited to the tenant would only see "Access
+  // denied" with no way to accept the invite.
+  const { pendingInvitesQuery } = usePendingInvites();
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  useEffect(() => {
+    if (
+      pendingInvitesQuery.isSuccess &&
+      !pendingInvitesQuery.isFetching &&
+      (pendingInvitesQuery.data?.inviteCount ?? 0) > 0
+    ) {
+      setInviteModalOpen(true);
+    }
+  }, [
+    pendingInvitesQuery.isSuccess,
+    pendingInvitesQuery.isFetching,
+    pendingInvitesQuery.data?.inviteCount,
+  ]);
 
   const { userUpdateLogoutMutation } = useUserApi();
   const logoutMutation = useMutation({
@@ -267,6 +289,10 @@ export function TenantForbidden() {
           Sign out
         </Button>
       </div>
+      <InviteModal
+        isOpen={inviteModalOpen}
+        onClose={() => setInviteModalOpen(false)}
+      />
     </ErrorPageLayout>
   );
 }
