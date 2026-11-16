@@ -1,6 +1,6 @@
 // A pi-durable ExecutionEnv backed by a Hatchet sandbox. pi's coding tools (read, write, edit, bash) only touch files
 // and processes through this object, so the harness can run on the worker while every tool call runs in the sandbox.
-// Each method is one or more sandbox calls, which the sandbox provider (brickie) serves as Hatchet tasks.
+// Each method is one or more sandbox calls, which the tenant's sandbox provider serves as Hatchet tasks.
 import * as posix from 'node:path/posix';
 import type { Context } from '@earendil-works/chord/context';
 import {
@@ -32,8 +32,6 @@ import type { HatchetClient } from '@hatchet-dev/typescript-sdk/v1';
 export const DEFAULT_WORKSPACE = '/workspace';
 const DEFAULT_EXEC_TIMEOUT_MS = 10 * 60_000;
 const DEFAULT_WATCH_INTERVAL_MS = 500;
-/** The task the sandbox provider serves. `exec` starts it directly, to cancel a command whose caller aborts. */
-const SANDBOX_TASK = 'brickie-sandbox';
 /** The provider trims whitespace around a command's output; this character around each stream keeps it exact. */
 const EDGE = '\u001e';
 /** What the argv form prints to stderr, with exit code 127, when the program does not exist. */
@@ -515,41 +513,14 @@ export class SandboxEnv implements ExecutionEnv {
 
     let result: CommandResult;
     try {
-      await this.sandbox(); // restarts a stopped sandbox from its snapshot
-      const run = await this.hatchet.workflow({ name: SANDBOX_TASK }).runNoWait({
-        sandboxId: this.sandboxId,
-        image: this.template,
-        fn: '$command',
-        input: { cmd: this.wrap(`${setup} && { ${script}\n}`), timeoutMs },
+      const sandbox = await this.sandbox(); // restarts a stopped sandbox from its snapshot
+      // An abort cancels the command's sandbox run, which makes the provider kill the command.
+      result = await sandbox.exec(this.wrap(`${setup} && { ${script}\n}`), {
+        timeoutMs,
+        signal: context.abortSignal,
       });
-      const output = (async () => {
-        const raw = (await run.output) as Record<string, unknown>;
-        const turn = (raw[SANDBOX_TASK] ?? raw) as { output?: CommandResult };
-        if (typeof turn.output?.exitCode !== 'number')
-          throw new Error('The sandbox run ended without a result');
-        return turn.output;
-      })();
-      const signal = context.abortSignal;
-      if (!signal) result = await output;
-      else {
-        const abort = new Promise<'aborted'>((resolve) =>
-          signal.addEventListener('abort', () => resolve('aborted'), { once: true })
-        );
-        const first = await Promise.race([output, abort]);
-        if (first === 'aborted') {
-          output.catch(() => {});
-          // Cancelling the run makes the provider kill the command. If that fails, the command runs to its end.
-          void run
-            .getWorkflowRunId()
-            .then((id) => this.hatchet.runs.cancel({ ids: [id] }))
-            .catch((error) =>
-              console.warn(`${this.id}: could not cancel an aborted command: ${String(error)}`)
-            );
-          return failed('aborted', 'The command was aborted');
-        }
-        result = first;
-      }
     } catch (error) {
+      if (aborted(context)) return failed('aborted', 'The command was aborted');
       return failed('unknown', error instanceof Error ? error.message : String(error));
     }
 

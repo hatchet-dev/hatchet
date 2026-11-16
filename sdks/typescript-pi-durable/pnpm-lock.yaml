@@ -25,8 +25,8 @@ importers:
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.15.0)
       '@hatchet-dev/sandbox':
-        specifier: 0.1.5
-        version: 0.1.5(@hatchet-dev/typescript-sdk@file:../typescript/dist(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(@opentelemetry/core@2.12.1(@opentelemetry/api@1.10.0))(@opentelemetry/exporter-trace-otlp-grpc@0.221.0(@opentelemetry/api@1.10.0))(@opentelemetry/instrumentation@0.221.0(@opentelemetry/api@1.10.0))(@opentelemetry/sdk-trace-base@2.12.0(@opentelemetry/api@1.10.0))(zod@4.6.7))
+        specifier: file:../typescript-sandbox
+        version: file:../typescript-sandbox(@hatchet-dev/typescript-sdk@file:../typescript/dist(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(@opentelemetry/core@2.12.1(@opentelemetry/api@1.10.0))(@opentelemetry/exporter-trace-otlp-grpc@0.221.0(@opentelemetry/api@1.10.0))(@opentelemetry/instrumentation@0.221.0(@opentelemetry/api@1.10.0))(@opentelemetry/sdk-trace-base@2.12.0(@opentelemetry/api@1.10.0))(zod@4.6.7))
       '@hatchet-dev/typescript-sdk':
         specifier: file:../typescript/dist
         version: file:../typescript/dist(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(@opentelemetry/core@2.12.1(@opentelemetry/api@1.10.0))(@opentelemetry/exporter-trace-otlp-grpc@0.221.0(@opentelemetry/api@1.10.0))(@opentelemetry/instrumentation@0.221.0(@opentelemetry/api@1.10.0))(@opentelemetry/sdk-trace-base@2.12.0(@opentelemetry/api@1.10.0))(zod@4.6.7)
@@ -606,9 +606,8 @@ packages:
     engines: {node: '>=6'}
     hasBin: true
 
-  '@hatchet-dev/sandbox@0.1.5':
-    resolution: {integrity: sha512-1yXQq2ZE6g0mumyrJCnTNWj35eTeNAGWs9TYkYUhPQnoM1JJhtQUu/9XLFeYG/dYx796hVfFD9T0CKAxOHDGhg==}
-    version: 0.1.5
+  '@hatchet-dev/sandbox@file:../typescript-sandbox':
+    resolution: {directory: ../typescript-sandbox, type: directory}
     peerDependencies:
       '@hatchet-dev/typescript-sdk': '>=1.33.1'
 
@@ -3058,7 +3057,7 @@ snapshots:
       protobufjs: 7.6.6
       yargs: 17.7.3
 
-  '@hatchet-dev/sandbox@0.1.5(@hatchet-dev/typescript-sdk@file:../typescript/dist(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(@opentelemetry/core@2.12.1(@opentelemetry/api@1.10.0))(@opentelemetry/exporter-trace-otlp-grpc@0.221.0(@opentelemetry/api@1.10.0))(@opentelemetry/instrumentation@0.221.0(@opentelemetry/api@1.10.0))(@opentelemetry/sdk-trace-base@2.12.0(@opentelemetry/api@1.10.0))(zod@4.6.7))':
+  '@hatchet-dev/sandbox@file:../typescript-sandbox(@hatchet-dev/typescript-sdk@file:../typescript/dist(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(@opentelemetry/core@2.12.1(@opentelemetry/api@1.10.0))(@opentelemetry/exporter-trace-otlp-grpc@0.221.0(@opentelemetry/api@1.10.0))(@opentelemetry/instrumentation@0.221.0(@opentelemetry/api@1.10.0))(@opentelemetry/sdk-trace-base@2.12.0(@opentelemetry/api@1.10.0))(zod@4.6.7))':
     dependencies:
       '@hatchet-dev/typescript-sdk': file:../typescript/dist(@grpc/grpc-js@1.14.7)(@opentelemetry/api@1.10.0)(@opentelemetry/core@2.12.1(@opentelemetry/api@1.10.0))(@opentelemetry/exporter-trace-otlp-grpc@0.221.0(@opentelemetry/api@1.10.0))(@opentelemetry/instrumentation@0.221.0(@opentelemetry/api@1.10.0))(@opentelemetry/sdk-trace-base@2.12.0(@opentelemetry/api@1.10.0))(zod@4.6.7)
       '@opentelemetry/api': 1.10.0

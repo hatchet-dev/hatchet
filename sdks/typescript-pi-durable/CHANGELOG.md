@@ -14,3 +14,4 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Eac
 - `SessionClient` creates and wakes sessions, sends `input`, `fork` and `abort` messages to a session's inbox stream, and reads its `SessionView` stream.
 - `sandboxCoding()` installs pi's read, write, edit and bash tools, and `sandboxEnvs()` runs each conversation's tool calls in its own Hatchet sandbox. A fork starts from the sandbox snapshot taken at the fork point.
 - `SandboxEnv`, a pi-durable `ExecutionEnv` backed by a Hatchet sandbox, which passes pi-durable's `ExecutionEnv` conformance suite.
+- Needs `@hatchet-dev/sandbox` 0.1.6 or newer: commands run through `Sandbox.exec`, on whichever sandbox task the tenant serves, and an aborted command cancels its sandbox run through the SDK's `signal` option.

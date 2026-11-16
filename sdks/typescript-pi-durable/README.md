@@ -145,11 +145,12 @@ For a local engine whose API certificate your system trusts but Node does not (a
 
 ## Develop
 
-The package links `@hatchet-dev/typescript-sdk` from the SDK's build output in `../typescript/dist`, so build the SDK
-before installing:
+The package links `@hatchet-dev/typescript-sdk` and `@hatchet-dev/sandbox` from their build output in `../typescript`
+and `../typescript-sandbox`, so build both before installing:
 
 ```bash
 pnpm build:sdk                  # builds ../typescript into ../typescript/dist
+pnpm build:sandbox              # builds ../typescript-sandbox into ../typescript-sandbox/dist
 pnpm install
 pnpm lint
 pnpm typecheck

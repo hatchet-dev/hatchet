@@ -32,6 +32,7 @@
   },
   "scripts": {
     "build:sdk": "cd ../typescript && pnpm install --frozen-lockfile --config.strict-dep-builds=false && pnpm tsc:build && pnpm prepublish",
+    "build:sandbox": "cd ../typescript-sandbox && pnpm install --frozen-lockfile && pnpm build",
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -46,13 +47,13 @@
     "example:server": "tsx --env-file-if-exists=.env examples/coding-agent/server.ts",
     "publish:ci": "pnpm run build && pnpm publish --access public --no-git-checks",
     "publish:ci:alpha": "pnpm run build && pnpm publish --access public --no-git-checks --tag alpha",
-    "release:local": "pnpm run build:sdk && pnpm install && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build && pnpm publish --access public --no-git-checks"
+    "release:local": "pnpm run build:sdk && pnpm run build:sandbox && pnpm install && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build && pnpm publish --access public --no-git-checks"
   },
   "peerDependencies": {
     "@earendil-works/chord": "~1.5.0",
     "@earendil-works/pi-ai": "~1.5.0",
     "@earendil-works/pi-durable": "~1.5.0",
-    "@hatchet-dev/sandbox": ">=0.1.0 <0.2.0",
+    "@hatchet-dev/sandbox": ">=0.1.6 <0.2.0",
     "@hatchet-dev/typescript-sdk": ">=1.44.0"
   },
   "dependencies": {
@@ -63,7 +64,7 @@
     "@earendil-works/pi-ai": "1.5.0",
     "@earendil-works/pi-durable": "1.5.0",
     "@eslint/js": "^10.0.1",
-    "@hatchet-dev/sandbox": "0.1.5",
+    "@hatchet-dev/sandbox": "file:../typescript-sandbox",
     "@hatchet-dev/typescript-sdk": "file:../typescript/dist",
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.3",

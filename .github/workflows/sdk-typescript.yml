@@ -444,7 +444,8 @@ jobs:
         run: pnpm test
 
   pi-durable:
-    # @hatchet-dev/pi-durable links the SDK from its build output, so the SDK is built first.
+    # @hatchet-dev/pi-durable links the SDK and @hatchet-dev/sandbox from their build output, so both
+    # are built first.
     if: github.event_name != 'workflow_dispatch'
     runs-on: ubicloud-standard-4
     defaults:
@@ -471,7 +472,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('sdks/typescript/pnpm-lock.yaml', 'sdks/typescript-pi-durable/pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('sdks/typescript/pnpm-lock.yaml', 'sdks/typescript-sandbox/pnpm-lock.yaml', 'sdks/typescript-pi-durable/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
@@ -481,6 +482,12 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm tsc:build
           pnpm prepublish
+
+      - name: Build the sandbox package the package links
+        working-directory: ./sdks/typescript-sandbox
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -769,18 +776,18 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish-pi-durable:
-    # @hatchet-dev/pi-durable declares the SDK as a peer, so it publishes after the SDK's own
-    # publish job and only when its version is not on npm yet. A manual run skips the test
+    # @hatchet-dev/pi-durable declares the SDK and @hatchet-dev/sandbox as peers, so it publishes
+    # after both of their publish jobs and only when its version is not on npm yet. A manual run skips the test
     # jobs and publishes this package from main.
     # npm trusted publishing only accepts OIDC from GitHub-hosted runners.
     runs-on: ubuntu-latest
-    needs: [pi-durable, publish]
+    needs: [pi-durable, publish, publish-sandbox]
     if: |
       always() &&
       github.ref == 'refs/heads/main' &&
       (
-        (github.event_name == 'push' && needs.pi-durable.result == 'success' && needs.publish.result == 'success') ||
-        (github.event_name == 'workflow_dispatch' && needs.pi-durable.result == 'skipped' && needs.publish.result == 'skipped')
+        (github.event_name == 'push' && needs.pi-durable.result == 'success' && needs.publish.result == 'success' && needs.publish-sandbox.result == 'success') ||
+        (github.event_name == 'workflow_dispatch' && needs.pi-durable.result == 'skipped' && needs.publish.result == 'skipped' && needs.publish-sandbox.result == 'success')
       )
     permissions:
       contents: write
@@ -809,7 +816,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('sdks/typescript/pnpm-lock.yaml', 'sdks/typescript-pi-durable/pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('sdks/typescript/pnpm-lock.yaml', 'sdks/typescript-sandbox/pnpm-lock.yaml', 'sdks/typescript-pi-durable/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
@@ -819,6 +826,12 @@ jobs:
           sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" pnpm install --frozen-lockfile
           pnpm tsc:build
           pnpm prepublish
+
+      - name: Build the sandbox package the package links
+        working-directory: ./sdks/typescript-sandbox
+        run: |
+          sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" pnpm install --frozen-lockfile
+          pnpm build
 
       - name: Install dependencies
         run: sh "${GITHUB_WORKSPACE:?}/hack/ci/retry.sh" pnpm install --frozen-lockfile
