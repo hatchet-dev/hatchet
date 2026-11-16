@@ -2987,14 +2987,14 @@ func (r *durableEventsRepository) ListDurableEventLog(ctx context.Context, tenan
 // that still resolves completions through matching would otherwise never finish such a step, so
 // the match is kept unless the tenant is entitled, and kept on a lookup error.
 //
-// Every caller is inside a transaction, so the entitlement is read on tx rather than on a second
-// pooled connection.
+// Every caller is inside a transaction. The entitlement is read through the cached lookup so a
+// warm cache does not query on that transaction.
 func (r *sharedRepository) operatorStepChildrenSkipCompletionMatch(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID) bool {
 	if r.entitlements == nil {
 		return false
 	}
 
-	entitled, err := r.entitlements.hasEntitlementTx(ctx, tx, tenantId, EntitlementOperatorStepDirectCompletion)
+	entitled, err := r.entitlements.HasEntitlement(ctx, tenantId, EntitlementOperatorStepDirectCompletion)
 
 	if err != nil {
 		r.l.Error().Ctx(ctx).Err(err).Msgf("could not read the operator step direct completion entitlement for tenant %s, keeping the completion match", tenantId)
