@@ -2,6 +2,7 @@ sns:
   post:
     description: SNS event
     operationId: sns:update
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -49,6 +50,7 @@ snsIntegration:
   get:
     description: List SNS integrations
     operationId: sns:list
+    x-payloads: false
     x-resources: ["tenant"]
     parameters:
       - description: The tenant id
@@ -85,12 +87,15 @@ snsIntegration:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Method not allowed
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: List SNS integrations
     tags:
       - SNS
   post:
     description: Create SNS integration
     operationId: sns:create
+    x-payloads: false
     x-resources: ["tenant"]
     parameters:
       - description: The tenant id
@@ -132,6 +137,8 @@ snsIntegration:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Method not allowed
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Create SNS integration
     tags:
       - SNS
@@ -139,6 +146,7 @@ deleteSNS:
   delete:
     description: Delete SNS integration
     operationId: sns:delete
+    x-payloads: false
     x-resources: ["tenant", "sns"]
     parameters:
       - description: The SNS integration id
@@ -171,6 +179,8 @@ deleteSNS:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Method not allowed
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Delete SNS integration
     tags:
       - SNS

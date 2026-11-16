@@ -60,8 +60,13 @@ func (s *OLAPSignaler) SignalDAGsCreated(ctx context.Context, tenantId uuid.UUID
 	// notify that tasks have been created
 	// TODO: make this transactionally safe?
 	for _, dag := range dags {
-		dagCp := dag
-		msg, err := tasktypes.CreatedDAGMessage(tenantId, tasktypes.CreatedDAGPayload{DAGWithData: dagCp})
+		dagForOLAP := *dag
+
+		if s.repo.Payloads().PayloadConsolidationEnabled() {
+			dagForOLAP.Input = nil
+		}
+
+		msg, err := tasktypes.CreatedDAGMessage(tenantId, tasktypes.CreatedDAGPayload{DAGWithData: &dagForOLAP})
 
 		if err != nil {
 			s.l.Err(err).Ctx(ctx).Msg("could not create message for olap queue")
@@ -103,7 +108,18 @@ func (s *OLAPSignaler) SignalTasksCreated(ctx context.Context, tenantId uuid.UUI
 			skippedTasks = append(skippedTasks, task)
 		}
 
-		msg, err := tasktypes.CreatedTaskMessage(tenantId, tasktypes.CreatedTaskPayload{V1TaskWithPayload: task})
+		// orchestrator tasks are represented in OLAP by their run's DAG row, not as tasks
+		if task.IsDagOrchestrator {
+			continue
+		}
+
+		taskForOLAP := *task
+
+		if s.repo.Payloads().PayloadConsolidationEnabled() {
+			taskForOLAP.Payload = nil
+		}
+
+		msg, err := tasktypes.CreatedTaskMessage(tenantId, tasktypes.CreatedTaskPayload{V1TaskWithPayload: &taskForOLAP})
 
 		if err != nil {
 			s.l.Err(err).Ctx(ctx).Msg("could not create message for olap queue")
@@ -290,6 +306,11 @@ func (s *OLAPSignaler) signalTasksCreatedAndQueued(ctx context.Context, tenantId
 	// notify that tasks have been created
 	// TODO: make this transactionally safe?
 	for _, task := range tasks {
+		// orchestrator tasks have no OLAP task row for monitoring events to attach to
+		if task.IsDagOrchestrator {
+			continue
+		}
+
 		msg := ""
 
 		if len(task.ConcurrencyKeys) > 0 {
@@ -702,15 +723,22 @@ func (s *OLAPSignaler) SignalEventsCreated(ctx context.Context, tenantId uuid.UU
 			seenAt = time.Now().UTC()
 		}
 
+		var eventPayloadForOLAP []byte
+
+		if !s.repo.Payloads().PayloadConsolidationEnabled() {
+			eventPayloadForOLAP = opts.Data
+		}
+
 		if len(runs) == 0 {
 			eventTriggerOpts = append(eventTriggerOpts, tasktypes.CreatedEventTriggerPayloadSingleton{
 				EventSeenAt:             seenAt,
 				EventKey:                opts.Key,
 				EventExternalId:         opts.ExternalId,
-				EventPayload:            opts.Data,
+				EventPayload:            eventPayloadForOLAP,
 				EventAdditionalMetadata: opts.AdditionalMetadata,
 				TriggeringWebhookName:   opts.TriggeringWebhookName,
 				EventScope:              opts.Scope,
+				PayloadReferenceId:      opts.PayloadReferenceId,
 			})
 		} else {
 			for _, run := range runs {
@@ -722,11 +750,12 @@ func (s *OLAPSignaler) SignalEventsCreated(ctx context.Context, tenantId uuid.UU
 					EventSeenAt:             seenAt,
 					EventKey:                opts.Key,
 					EventExternalId:         opts.ExternalId,
-					EventPayload:            opts.Data,
+					EventPayload:            eventPayloadForOLAP,
 					EventAdditionalMetadata: opts.AdditionalMetadata,
 					EventScope:              opts.Scope,
 					FilterId:                run.FilterId,
 					TriggeringWebhookName:   opts.TriggeringWebhookName,
+					PayloadReferenceId:      opts.PayloadReferenceId,
 				})
 			}
 		}

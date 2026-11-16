@@ -9,12 +9,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
@@ -24,12 +26,14 @@ var internalTenantId = uuid.MustParse("8d420720-ef03-41dc-9c73-1c93f276db97")
 func newWorkflowTestRepository(pool *pgxpool.Pool) *workflowRepository {
 	logger := zerolog.Nop()
 	shared := &sharedRepository{
-		pool:       pool,
+		pool:       fairpool.Ungated(pool),
 		ddlPool:    pool,
 		l:          &logger,
 		queries:    sqlcv1.New(),
 		v:          validator.NewDefaultValidator(),
 		queueCache: cache.New(5 * time.Minute),
+
+		eventKeyWorkflowsCache: expirable.NewLRU(10000, func(key eventKeyTenantIdTuple, value []*sqlcv1.ListWorkflowsForEventsRow) {}, 5*time.Second),
 	}
 	return &workflowRepository{sharedRepository: shared}
 }

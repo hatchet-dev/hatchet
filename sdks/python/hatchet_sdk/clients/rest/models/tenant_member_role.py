@@ -28,6 +28,7 @@ class TenantMemberRole(str, Enum):
     OWNER = "OWNER"
     ADMIN = "ADMIN"
     MEMBER = "MEMBER"
+    VIEWER = "VIEWER"
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

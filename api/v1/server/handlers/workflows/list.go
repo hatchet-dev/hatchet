@@ -53,10 +53,8 @@ func (t *WorkflowService) WorkflowList(ctx echo.Context, request gen.WorkflowLis
 
 	rows := make([]gen.Workflow, len(listResp.Rows))
 
-	for i := range listResp.Rows {
-		workflow := transformers.ToWorkflowFromSQLC(listResp.Rows[i])
-
-		rows[i] = *workflow
+	for i, row := range listResp.Rows {
+		rows[i] = *transformers.ToWorkflowFromListRow(row)
 	}
 
 	// use the total rows and limit to calculate the total pages

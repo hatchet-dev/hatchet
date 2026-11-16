@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/pkg/stdcopy"
+	"github.com/moby/moby/api/pkg/stdcopy"
+	"github.com/moby/moby/client"
 )
 
 const defaultTenantID = "707d0855-80ab-4e1f-a156-f1c4546cbf52"
@@ -16,7 +16,7 @@ const defaultTenantID = "707d0855-80ab-4e1f-a156-f1c4546cbf52"
 func (d *DockerDriver) createHatchetToken(ctx context.Context, hatchetLiteOpts *HatchetLiteOpts) (string, error) {
 	containerName := canonicalContainerName(hatchetLiteOpts.projectName, hatchetLiteOpts.hatchetName)
 
-	execConfig := container.ExecOptions{
+	execConfig := client.ExecCreateOptions{
 		Cmd: []string{
 			"./hatchet-admin",
 			"token",
@@ -29,12 +29,12 @@ func (d *DockerDriver) createHatchetToken(ctx context.Context, hatchetLiteOpts *
 		AttachStderr: true,
 	}
 
-	execResp, err := d.apiClient.ContainerExecCreate(ctx, containerName, execConfig)
+	execResp, err := d.apiClient.ExecCreate(ctx, containerName, execConfig)
 	if err != nil {
 		return "", fmt.Errorf("could not create exec: %w", err)
 	}
 
-	attachResp, err := d.apiClient.ContainerExecAttach(ctx, execResp.ID, container.ExecAttachOptions{})
+	attachResp, err := d.apiClient.ExecAttach(ctx, execResp.ID, client.ExecAttachOptions{})
 	if err != nil {
 		return "", fmt.Errorf("could not attach to exec: %w", err)
 	}
@@ -46,7 +46,7 @@ func (d *DockerDriver) createHatchetToken(ctx context.Context, hatchetLiteOpts *
 		return "", fmt.Errorf("could not read exec output: %w", err)
 	}
 
-	inspectResp, err := d.apiClient.ContainerExecInspect(ctx, execResp.ID)
+	inspectResp, err := d.apiClient.ExecInspect(ctx, execResp.ID, client.ExecInspectOptions{})
 	if err != nil {
 		return "", fmt.Errorf("could not inspect exec: %w", err)
 	}

@@ -210,25 +210,34 @@ INSERT INTO "TenantMember" (
     "id",
     "tenantId",
     "userId",
-    "role"
+    "role",
+    "canViewPayloads"
 ) VALUES (
     gen_random_uuid(),
     $1::uuid,
     $2::uuid,
-    $3::"TenantMemberRole"
+    $3::"TenantMemberRole",
+    COALESCE($4::boolean, true)
 ) ON CONFLICT ("tenantId", "userId") DO UPDATE SET
-    "role" = $3::"TenantMemberRole"
-RETURNING id, "createdAt", "updatedAt", "tenantId", "userId", role
+    "role" = $3::"TenantMemberRole",
+    "canViewPayloads" = COALESCE($4::boolean, "TenantMember"."canViewPayloads")
+RETURNING id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayloads"
 `
 
 type CreateTenantMemberParams struct {
-	Tenantid uuid.UUID        `json:"tenantid"`
-	Userid   uuid.UUID        `json:"userid"`
-	Role     TenantMemberRole `json:"role"`
+	Tenantid        uuid.UUID        `json:"tenantid"`
+	Userid          uuid.UUID        `json:"userid"`
+	Role            TenantMemberRole `json:"role"`
+	CanViewPayloads pgtype.Bool      `json:"canViewPayloads"`
 }
 
 func (q *Queries) CreateTenantMember(ctx context.Context, db DBTX, arg CreateTenantMemberParams) (*TenantMember, error) {
-	row := db.QueryRow(ctx, createTenantMember, arg.Tenantid, arg.Userid, arg.Role)
+	row := db.QueryRow(ctx, createTenantMember,
+		arg.Tenantid,
+		arg.Userid,
+		arg.Role,
+		arg.CanViewPayloads,
+	)
 	var i TenantMember
 	err := row.Scan(
 		&i.ID,
@@ -237,6 +246,7 @@ func (q *Queries) CreateTenantMember(ctx context.Context, db DBTX, arg CreateTen
 		&i.TenantId,
 		&i.UserId,
 		&i.Role,
+		&i.CanViewPayloads,
 	)
 	return &i, err
 }
@@ -641,7 +651,7 @@ func (q *Queries) GetTenantBySlug(ctx context.Context, db DBTX, slug string) (*T
 
 const getTenantMemberByEmail = `-- name: GetTenantMemberByEmail :one
 SELECT
-    tm.id, tm."createdAt", tm."updatedAt", tm."tenantId", tm."userId", tm.role
+    tm.id, tm."createdAt", tm."updatedAt", tm."tenantId", tm."userId", tm.role, tm."canViewPayloads"
 FROM
     "TenantMember" tm
 JOIN
@@ -666,13 +676,14 @@ func (q *Queries) GetTenantMemberByEmail(ctx context.Context, db DBTX, arg GetTe
 		&i.TenantId,
 		&i.UserId,
 		&i.Role,
+		&i.CanViewPayloads,
 	)
 	return &i, err
 }
 
 const getTenantMemberByID = `-- name: GetTenantMemberByID :one
 SELECT
-    id, "createdAt", "updatedAt", "tenantId", "userId", role
+    id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayloads"
 FROM
     "TenantMember"
 WHERE
@@ -689,13 +700,14 @@ func (q *Queries) GetTenantMemberByID(ctx context.Context, db DBTX, id uuid.UUID
 		&i.TenantId,
 		&i.UserId,
 		&i.Role,
+		&i.CanViewPayloads,
 	)
 	return &i, err
 }
 
 const getTenantMemberByUserID = `-- name: GetTenantMemberByUserID :one
 SELECT
-    id, "createdAt", "updatedAt", "tenantId", "userId", role
+    id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayloads"
 FROM
     "TenantMember"
 WHERE
@@ -718,6 +730,7 @@ func (q *Queries) GetTenantMemberByUserID(ctx context.Context, db DBTX, arg GetT
 		&i.TenantId,
 		&i.UserId,
 		&i.Role,
+		&i.CanViewPayloads,
 	)
 	return &i, err
 }
@@ -933,7 +946,7 @@ func (q *Queries) ListTenantAlertGroups(ctx context.Context, db DBTX, tenantid u
 
 const listTenantMembers = `-- name: ListTenantMembers :many
 SELECT
-    id, "createdAt", "updatedAt", "tenantId", "userId", role
+    id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayloads"
 FROM
     "TenantMember"
 WHERE
@@ -956,6 +969,7 @@ func (q *Queries) ListTenantMembers(ctx context.Context, db DBTX, tenantid uuid.
 			&i.TenantId,
 			&i.UserId,
 			&i.Role,
+			&i.CanViewPayloads,
 		); err != nil {
 			return nil, err
 		}
@@ -1143,7 +1157,7 @@ func (q *Queries) ListTenantsByTenantWorkerPartitionId(ctx context.Context, db D
 
 const populateTenantMembers = `-- name: PopulateTenantMembers :many
 SELECT
-    tm.id, tm."createdAt", tm."updatedAt", tm."tenantId", tm."userId", tm.role,
+    tm.id, tm."createdAt", tm."updatedAt", tm."tenantId", tm."userId", tm.role, tm."canViewPayloads",
     u."email",
     u."name",
     t."id" as "tenantId",
@@ -1154,7 +1168,8 @@ SELECT
     t."alertMemberEmails" as "alertMemberEmails",
     t."analyticsOptOut" as "analyticsOptOut",
     t."version" as "tenantVersion",
-    t."environment" as "tenantEnvironment"
+    t."environment" as "tenantEnvironment",
+    t."dataRetentionPeriod" as "tenantDataRetentionPeriod"
 FROM
     "TenantMember" tm
 JOIN
@@ -1166,23 +1181,25 @@ WHERE
 `
 
 type PopulateTenantMembersRow struct {
-	ID                uuid.UUID                `json:"id"`
-	CreatedAt         pgtype.Timestamp         `json:"createdAt"`
-	UpdatedAt         pgtype.Timestamp         `json:"updatedAt"`
-	TenantId          uuid.UUID                `json:"tenantId"`
-	UserId            uuid.UUID                `json:"userId"`
-	Role              TenantMemberRole         `json:"role"`
-	Email             string                   `json:"email"`
-	Name              pgtype.Text              `json:"name"`
-	TenantId_2        uuid.UUID                `json:"tenantId_2"`
-	TenantCreatedAt   pgtype.Timestamp         `json:"tenantCreatedAt"`
-	TenantUpdatedAt   pgtype.Timestamp         `json:"tenantUpdatedAt"`
-	TenantName        string                   `json:"tenantName"`
-	TenantSlug        string                   `json:"tenantSlug"`
-	AlertMemberEmails bool                     `json:"alertMemberEmails"`
-	AnalyticsOptOut   bool                     `json:"analyticsOptOut"`
-	TenantVersion     TenantMajorEngineVersion `json:"tenantVersion"`
-	TenantEnvironment NullTenantEnvironment    `json:"tenantEnvironment"`
+	ID                        uuid.UUID                `json:"id"`
+	CreatedAt                 pgtype.Timestamp         `json:"createdAt"`
+	UpdatedAt                 pgtype.Timestamp         `json:"updatedAt"`
+	TenantId                  uuid.UUID                `json:"tenantId"`
+	UserId                    uuid.UUID                `json:"userId"`
+	Role                      TenantMemberRole         `json:"role"`
+	CanViewPayloads           bool                     `json:"canViewPayloads"`
+	Email                     string                   `json:"email"`
+	Name                      pgtype.Text              `json:"name"`
+	TenantId_2                uuid.UUID                `json:"tenantId_2"`
+	TenantCreatedAt           pgtype.Timestamp         `json:"tenantCreatedAt"`
+	TenantUpdatedAt           pgtype.Timestamp         `json:"tenantUpdatedAt"`
+	TenantName                string                   `json:"tenantName"`
+	TenantSlug                string                   `json:"tenantSlug"`
+	AlertMemberEmails         bool                     `json:"alertMemberEmails"`
+	AnalyticsOptOut           bool                     `json:"analyticsOptOut"`
+	TenantVersion             TenantMajorEngineVersion `json:"tenantVersion"`
+	TenantEnvironment         NullTenantEnvironment    `json:"tenantEnvironment"`
+	TenantDataRetentionPeriod string                   `json:"tenantDataRetentionPeriod"`
 }
 
 func (q *Queries) PopulateTenantMembers(ctx context.Context, db DBTX, ids []uuid.UUID) ([]*PopulateTenantMembersRow, error) {
@@ -1201,6 +1218,7 @@ func (q *Queries) PopulateTenantMembers(ctx context.Context, db DBTX, ids []uuid
 			&i.TenantId,
 			&i.UserId,
 			&i.Role,
+			&i.CanViewPayloads,
 			&i.Email,
 			&i.Name,
 			&i.TenantId_2,
@@ -1212,6 +1230,7 @@ func (q *Queries) PopulateTenantMembers(ctx context.Context, db DBTX, ids []uuid
 			&i.AnalyticsOptOut,
 			&i.TenantVersion,
 			&i.TenantEnvironment,
+			&i.TenantDataRetentionPeriod,
 		); err != nil {
 			return nil, err
 		}
@@ -1498,18 +1517,20 @@ SET
     "name" = COALESCE($1::text, "name"),
     "analyticsOptOut" = COALESCE($2::boolean, "analyticsOptOut"),
     "alertMemberEmails" = COALESCE($3::boolean, "alertMemberEmails"),
-    "version" = COALESCE($4::"TenantMajorEngineVersion", "version")
+    "version" = COALESCE($4::"TenantMajorEngineVersion", "version"),
+    "dataRetentionPeriod" = COALESCE($5::text, "dataRetentionPeriod")
 WHERE
-    "id" = $5::uuid
+    "id" = $6::uuid
 RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1", "onboardingData", environment
 `
 
 type UpdateTenantParams struct {
-	Name              pgtype.Text                  `json:"name"`
-	AnalyticsOptOut   pgtype.Bool                  `json:"analyticsOptOut"`
-	AlertMemberEmails pgtype.Bool                  `json:"alertMemberEmails"`
-	Version           NullTenantMajorEngineVersion `json:"version"`
-	ID                uuid.UUID                    `json:"id"`
+	Name                pgtype.Text                  `json:"name"`
+	AnalyticsOptOut     pgtype.Bool                  `json:"analyticsOptOut"`
+	AlertMemberEmails   pgtype.Bool                  `json:"alertMemberEmails"`
+	Version             NullTenantMajorEngineVersion `json:"version"`
+	DataRetentionPeriod pgtype.Text                  `json:"dataRetentionPeriod"`
+	ID                  uuid.UUID                    `json:"id"`
 }
 
 func (q *Queries) UpdateTenant(ctx context.Context, db DBTX, arg UpdateTenantParams) (*Tenant, error) {
@@ -1518,6 +1539,7 @@ func (q *Queries) UpdateTenant(ctx context.Context, db DBTX, arg UpdateTenantPar
 		arg.AnalyticsOptOut,
 		arg.AlertMemberEmails,
 		arg.Version,
+		arg.DataRetentionPeriod,
 		arg.ID,
 	)
 	var i Tenant
@@ -1606,18 +1628,20 @@ func (q *Queries) UpdateTenantAlertingSettings(ctx context.Context, db DBTX, arg
 const updateTenantMember = `-- name: UpdateTenantMember :one
 UPDATE "TenantMember"
 SET
-    "role" = COALESCE($1::"TenantMemberRole", "role")
-WHERE "id" = $2::uuid
-RETURNING id, "createdAt", "updatedAt", "tenantId", "userId", role
+    "role" = COALESCE($1::"TenantMemberRole", "role"),
+    "canViewPayloads" = COALESCE($2::boolean, "canViewPayloads")
+WHERE "id" = $3::uuid
+RETURNING id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayloads"
 `
 
 type UpdateTenantMemberParams struct {
-	Role NullTenantMemberRole `json:"role"`
-	ID   uuid.UUID            `json:"id"`
+	Role            NullTenantMemberRole `json:"role"`
+	CanViewPayloads pgtype.Bool          `json:"canViewPayloads"`
+	ID              uuid.UUID            `json:"id"`
 }
 
 func (q *Queries) UpdateTenantMember(ctx context.Context, db DBTX, arg UpdateTenantMemberParams) (*TenantMember, error) {
-	row := db.QueryRow(ctx, updateTenantMember, arg.Role, arg.ID)
+	row := db.QueryRow(ctx, updateTenantMember, arg.Role, arg.CanViewPayloads, arg.ID)
 	var i TenantMember
 	err := row.Scan(
 		&i.ID,
@@ -1626,6 +1650,7 @@ func (q *Queries) UpdateTenantMember(ctx context.Context, db DBTX, arg UpdateTen
 		&i.TenantId,
 		&i.UserId,
 		&i.Role,
+		&i.CanViewPayloads,
 	)
 	return &i, err
 }

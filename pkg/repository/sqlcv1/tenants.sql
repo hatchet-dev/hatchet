@@ -35,7 +35,8 @@ SET
     "name" = COALESCE(sqlc.narg('name')::text, "name"),
     "analyticsOptOut" = COALESCE(sqlc.narg('analyticsOptOut')::boolean, "analyticsOptOut"),
     "alertMemberEmails" = COALESCE(sqlc.narg('alertMemberEmails')::boolean, "alertMemberEmails"),
-    "version" = COALESCE(sqlc.narg('version')::"TenantMajorEngineVersion", "version")
+    "version" = COALESCE(sqlc.narg('version')::"TenantMajorEngineVersion", "version"),
+    "dataRetentionPeriod" = COALESCE(sqlc.narg('dataRetentionPeriod')::text, "dataRetentionPeriod")
 WHERE
     "id" = sqlc.arg('id')::uuid
 RETURNING *;
@@ -561,14 +562,17 @@ INSERT INTO "TenantMember" (
     "id",
     "tenantId",
     "userId",
-    "role"
+    "role",
+    "canViewPayloads"
 ) VALUES (
     gen_random_uuid(),
     @tenantId::uuid,
     @userId::uuid,
-    @role::"TenantMemberRole"
+    @role::"TenantMemberRole",
+    COALESCE(sqlc.narg('canViewPayloads')::boolean, true)
 ) ON CONFLICT ("tenantId", "userId") DO UPDATE SET
-    "role" = @role::"TenantMemberRole"
+    "role" = @role::"TenantMemberRole",
+    "canViewPayloads" = COALESCE(sqlc.narg('canViewPayloads')::boolean, "TenantMember"."canViewPayloads")
 RETURNING *;
 
 -- name: GetTenantMemberByID :one
@@ -609,7 +613,8 @@ SELECT
     t."alertMemberEmails" as "alertMemberEmails",
     t."analyticsOptOut" as "analyticsOptOut",
     t."version" as "tenantVersion",
-    t."environment" as "tenantEnvironment"
+    t."environment" as "tenantEnvironment",
+    t."dataRetentionPeriod" as "tenantDataRetentionPeriod"
 FROM
     "TenantMember" tm
 JOIN
@@ -633,7 +638,8 @@ WHERE
 -- name: UpdateTenantMember :one
 UPDATE "TenantMember"
 SET
-    "role" = COALESCE(sqlc.narg('role')::"TenantMemberRole", "role")
+    "role" = COALESCE(sqlc.narg('role')::"TenantMemberRole", "role"),
+    "canViewPayloads" = COALESCE(sqlc.narg('canViewPayloads')::boolean, "canViewPayloads")
 WHERE "id" = @id::uuid
 RETURNING *;
 

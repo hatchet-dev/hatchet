@@ -24,3 +24,11 @@
   </a>
 </Callout>
 ```
+
+## SDK Changes
+
+- Changes that touch the following directories need to be accompanied by a version bump and a changelog entry for that SDK, with one exception: the Go SDK (`sdks/go/**`). It has no version file or changelog in the repo — it is versioned by git tags on the module path, which are cut after the PR merges. Do not ask for a version bump or changelog entry on Go SDK PRs. These are the directories in which changes will require version bumps:
+
+- `sdks/python/hatchet_sdk/**`
+- `sdks/typescript/src/**`
+- `sdks/ruby/src/**`

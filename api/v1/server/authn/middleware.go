@@ -18,6 +18,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/redirect"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -74,8 +75,9 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 
 		c.Set("auth_strategy", "bearer")
 
-		if bearerErr == nil {
-			return nil
+		var limitErr *fairpool.LimitError
+		if bearerErr == nil || errors.As(bearerErr, &limitErr) {
+			return bearerErr
 		}
 	}
 
@@ -133,10 +135,14 @@ func (a *AuthN) handleNoAuth(c echo.Context) error {
 		return redirect.GetRedirectWithError(c, a.l, err, "Could not log in. Please try again and make sure cookies are enabled.")
 	}
 
-	if auth, ok := session.Values["authenticated"].(bool); ok && auth {
-		a.l.Debug().Ctx(ctx).Msgf("user was authenticated when no security schemes permit auth")
+	// A leftover session cookie is not a login on a control-plane shard, so don't
+	// send the request into the app.
+	if !a.config.Auth.ConfigFile.DirectUserLoginDisabled() {
+		if auth, ok := session.Values["authenticated"].(bool); ok && auth {
+			a.l.Debug().Ctx(ctx).Msgf("user was authenticated when no security schemes permit auth")
 
-		return redirect.GetRedirectNoError(c, a.config.Runtime.ServerURL)
+			return redirect.GetRedirectNoError(c, a.config.Runtime.ServerURL)
+		}
 	}
 
 	// set unauthenticated session in context
@@ -147,6 +153,12 @@ func (a *AuthN) handleNoAuth(c echo.Context) error {
 
 func (a *AuthN) handleCookieAuth(c echo.Context) error {
 	forbidden := echo.NewHTTPError(http.StatusForbidden, "Please provide valid credentials")
+
+	// Control-plane shards authenticate the dashboard with exchange tokens.
+	// Reject the cookie before touching the session store.
+	if a.config.Auth.ConfigFile.DirectUserLoginDisabled() {
+		return forbidden
+	}
 
 	store := a.config.SessionStore
 
@@ -199,6 +211,10 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 		}
 
 		return fmt.Errorf("error getting user by id: %w", err)
+	}
+
+	if sessionKeepsUserUnverified(session) {
+		user.EmailVerified = false
 	}
 
 	c.Set("user", user)
@@ -315,6 +331,11 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 
 	// Validate the token.
 	tenantId, tokenUUID, err := a.config.Auth.JWTManager.ValidateTenantToken(c.Request().Context(), token)
+
+	var limitErr *fairpool.LimitError
+	if errors.As(err, &limitErr) {
+		return err
+	}
 
 	if err != nil {
 		a.l.Debug().Ctx(ctx).Err(err).Msg("error validating tenant token")

@@ -44,6 +44,34 @@ func run(ctx context.Context, delay time.Duration, concurrency int, maxAcceptabl
 	var uniques int64
 	var executed []int64
 
+	var sendMu sync.Mutex
+	resultsClosed := false
+	closeResults := func() {
+		sendMu.Lock()
+		defer sendMu.Unlock()
+		if resultsClosed {
+			return
+		}
+		resultsClosed = true
+		close(executedCh)
+		close(executionTimes)
+		close(hook)
+	}
+	defer closeResults()
+
+	sendResults := func(id int64, took time.Duration) {
+		sendMu.Lock()
+		defer sendMu.Unlock()
+		if resultsClosed {
+			return
+		}
+		if took > maxAcceptableDuration {
+			hook <- took
+		}
+		executionTimes <- took
+		executedCh <- id
+	}
+
 	var concurrencyOpts *worker.WorkflowConcurrency
 	if concurrency > 0 {
 		concurrencyOpts = worker.Concurrency(getConcurrencyKey).MaxRuns(int32(concurrency)) // nolint: gosec
@@ -67,12 +95,7 @@ func run(ctx context.Context, delay time.Duration, concurrency int, maxAcceptabl
 
 					l.Debug().Msgf("executing %d took %s", input.ID, took)
 
-					if took > maxAcceptableDuration {
-						hook <- took
-					}
-
-					executionTimes <- took
-					executedCh <- input.ID
+					sendResults(input.ID, took)
 
 					mx.Lock()
 

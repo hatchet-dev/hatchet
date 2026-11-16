@@ -1,0 +1,12 @@
+{
+  "pages": [
+    "index",
+    "cloudflare-workers",
+    "vercel",
+    "http",
+    "managing-endpoints",
+    "troubleshooting"
+  ],
+  "title": "Serverless Endpoints",
+  "defaultOpen": false
+}

@@ -103,57 +103,60 @@ func (q *Queries) BulkUpdateScheduledWorkflows(ctx context.Context, db DBTX, arg
 
 const countCronWorkflows = `-- name: CountCronWorkflows :one
 WITH latest_versions AS (
-    SELECT DISTINCT ON("workflowId")
-        workflowVersions."id" AS "workflowVersionId",
-        workflowVersions."workflowId"
+    SELECT
+        latestVersion."id" AS "workflowVersionId",
+        workflow."id" AS "workflowId",
+        workflow."name" AS "workflowName"
     FROM
-        "WorkflowVersion" as workflowVersions
-    JOIN
-        "Workflow" as workflow ON workflow."id" = workflowVersions."workflowId"
+        "Workflow" as workflow
+    JOIN LATERAL (
+        SELECT workflowVersions."id"
+        FROM "WorkflowVersion" as workflowVersions
+        WHERE
+            workflowVersions."workflowId" = workflow."id"
+            AND workflowVersions."deletedAt" IS NULL
+        ORDER BY workflowVersions."order" DESC
+        LIMIT 1
+    ) as latestVersion ON TRUE
     WHERE
-        workflow."tenantId" = $1::uuid
-        AND workflowVersions."deletedAt" IS NULL
-    ORDER BY "workflowId", "order" DESC
+        workflow."tenantId" = $6::uuid
 )
 SELECT
-    count(c.*)
+    count(*)
 FROM
     latest_versions
 JOIN
     "WorkflowTriggers" as t ON t."workflowVersionId" = latest_versions."workflowVersionId"
 JOIN
     "WorkflowTriggerCronRef" as c ON c."parentId" = t."id"
-JOIN
-    "Workflow" w on w."id" = latest_versions."workflowId"
 WHERE
     t."deletedAt" IS NULL
-    AND w."tenantId" = $1::uuid
-    AND ($2::uuid IS NULL OR c."id" = $2::uuid)
-    AND ($3::uuid IS NULL OR w."id" = $3::uuid)
-    AND ($4::jsonb IS NULL OR
-        c."additionalMetadata" @> $4::jsonb)
-    AND ($5::TEXT IS NULL OR c."name" = $5::TEXT)
-    AND ($6::TEXT IS NULL OR w."name" = $6::TEXT)
+    AND ($1::uuid IS NULL OR c."id" = $1::uuid)
+    AND ($2::uuid IS NULL OR latest_versions."workflowId" = $2::uuid)
+    AND ($3::jsonb IS NULL OR
+        c."additionalMetadata" @> $3::jsonb)
+    AND ($4::TEXT IS NULL OR c."name" = $4::TEXT)
+    AND ($5::TEXT IS NULL OR latest_versions."workflowName" = $5::TEXT)
 `
 
 type CountCronWorkflowsParams struct {
-	Tenantid           uuid.UUID   `json:"tenantid"`
 	CronTriggerId      *uuid.UUID  `json:"cronTriggerId"`
 	WorkflowId         *uuid.UUID  `json:"workflowId"`
 	AdditionalMetadata []byte      `json:"additionalMetadata"`
 	CronName           pgtype.Text `json:"cronName"`
 	WorkflowName       pgtype.Text `json:"workflowName"`
+	Tenantid           uuid.UUID   `json:"tenantid"`
 }
 
 // Get all of the latest workflow versions for the tenant
 func (q *Queries) CountCronWorkflows(ctx context.Context, db DBTX, arg CountCronWorkflowsParams) (int64, error) {
 	row := db.QueryRow(ctx, countCronWorkflows,
-		arg.Tenantid,
 		arg.CronTriggerId,
 		arg.WorkflowId,
 		arg.AdditionalMetadata,
 		arg.CronName,
 		arg.WorkflowName,
+		arg.Tenantid,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -356,23 +359,30 @@ func (q *Queries) GetScheduledWorkflowMetaByIds(ctx context.Context, db DBTX, ar
 
 const listCronWorkflows = `-- name: ListCronWorkflows :many
 WITH latest_versions AS (
-    SELECT DISTINCT ON("workflowId")
-        workflowVersions."id" AS "workflowVersionId",
-        workflowVersions."workflowId"
+    SELECT
+        latestVersion."id" AS "workflowVersionId",
+        workflow."id" AS "workflowId",
+        workflow."name" AS "workflowName",
+        workflow."tenantId"
     FROM
-        "WorkflowVersion" as workflowVersions
-    JOIN
-        "Workflow" as workflow ON workflow."id" = workflowVersions."workflowId"
+        "Workflow" as workflow
+    JOIN LATERAL (
+        SELECT workflowVersions."id"
+        FROM "WorkflowVersion" as workflowVersions
+        WHERE
+            workflowVersions."workflowId" = workflow."id"
+            AND workflowVersions."deletedAt" IS NULL
+        ORDER BY workflowVersions."order" DESC
+        LIMIT 1
+    ) as latestVersion ON TRUE
     WHERE
-        workflow."tenantId" = $1::uuid
-        AND workflowVersions."deletedAt" IS NULL
-    ORDER BY "workflowId", "order" DESC
+        workflow."tenantId" = $9::uuid
 )
 SELECT
     latest_versions."workflowVersionId",
-    w."name" as "workflowName",
-    w."id" as "workflowId",
-    w."tenantId",
+    latest_versions."workflowName",
+    latest_versions."workflowId",
+    latest_versions."tenantId",
     t."id" as "triggerId",
     c."id" as "cronId",
     t.id, t."createdAt", t."updatedAt", t."deletedAt", t."workflowVersionId", t."tenantId",
@@ -383,31 +393,27 @@ JOIN
     "WorkflowTriggers" as t ON t."workflowVersionId" = latest_versions."workflowVersionId"
 JOIN
     "WorkflowTriggerCronRef" as c ON c."parentId" = t."id"
-JOIN
-    "Workflow" w on w."id" = latest_versions."workflowId"
 WHERE
     t."deletedAt" IS NULL
-    AND w."tenantId" = $1::uuid
-    AND ($2::uuid IS NULL OR c."id" = $2::uuid)
-    AND ($3::uuid IS NULL OR w."id" = $3::uuid)
-    AND ($4::jsonb IS NULL OR
-        c."additionalMetadata" @> $4::jsonb)
-    AND ($5::TEXT IS NULL OR c."name" = $5::TEXT)
-    AND ($6::TEXT IS NULL OR w."name" = $6::TEXT)
+    AND ($1::uuid IS NULL OR c."id" = $1::uuid)
+    AND ($2::uuid IS NULL OR latest_versions."workflowId" = $2::uuid)
+    AND ($3::jsonb IS NULL OR
+        c."additionalMetadata" @> $3::jsonb)
+    AND ($4::TEXT IS NULL OR c."name" = $4::TEXT)
+    AND ($5::TEXT IS NULL OR latest_versions."workflowName" = $5::TEXT)
 ORDER BY
-    case when $7 = 'name ASC' THEN w."name" END ASC,
-    case when $7 = 'name DESC' THEN w."name" END DESC,
-    case when $7 = 'createdAt ASC' THEN c."createdAt" END ASC ,
-    case when $7 = 'createdAt DESC' THEN c."createdAt" END DESC,
+    case when $6 = 'name ASC' THEN latest_versions."workflowName" END ASC,
+    case when $6 = 'name DESC' THEN latest_versions."workflowName" END DESC,
+    case when $6 = 'createdAt ASC' THEN c."createdAt" END ASC ,
+    case when $6 = 'createdAt DESC' THEN c."createdAt" END DESC,
     t."id" ASC
 OFFSET
-    COALESCE($8, 0)
+    COALESCE($7, 0)
 LIMIT
-    COALESCE($9, 50)
+    COALESCE($8, 50)
 `
 
 type ListCronWorkflowsParams struct {
-	Tenantid           uuid.UUID   `json:"tenantid"`
 	CronTriggerId      *uuid.UUID  `json:"cronTriggerId"`
 	WorkflowId         *uuid.UUID  `json:"workflowId"`
 	AdditionalMetadata []byte      `json:"additionalMetadata"`
@@ -416,6 +422,7 @@ type ListCronWorkflowsParams struct {
 	Orderby            interface{} `json:"orderby"`
 	Offset             interface{} `json:"offset"`
 	Limit              interface{} `json:"limit"`
+	Tenantid           uuid.UUID   `json:"tenantid"`
 }
 
 type ListCronWorkflowsRow struct {
@@ -449,7 +456,6 @@ type ListCronWorkflowsRow struct {
 // Get all of the latest workflow versions for the tenant
 func (q *Queries) ListCronWorkflows(ctx context.Context, db DBTX, arg ListCronWorkflowsParams) ([]*ListCronWorkflowsRow, error) {
 	rows, err := db.Query(ctx, listCronWorkflows,
-		arg.Tenantid,
 		arg.CronTriggerId,
 		arg.WorkflowId,
 		arg.AdditionalMetadata,
@@ -458,6 +464,7 @@ func (q *Queries) ListCronWorkflows(ctx context.Context, db DBTX, arg ListCronWo
 		arg.Orderby,
 		arg.Offset,
 		arg.Limit,
+		arg.Tenantid,
 	)
 	if err != nil {
 		return nil, err

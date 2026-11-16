@@ -22,6 +22,7 @@ import (
 
 type GRPCClient struct {
 	l     *zerolog.Logger
+	conn  *grpc.ClientConn
 	admin admincontracts.AdminServiceClient
 }
 
@@ -146,12 +147,22 @@ func NewGRPCClient(fs ...GRPCClientOpt) (*GRPCClient, error) {
 
 	return &GRPCClient{
 		l:     opts.l,
+		conn:  conn,
 		admin: admincontracts.NewAdminServiceClient(conn),
 	}, nil
 }
 
 func (c *GRPCClient) Admin() admincontracts.AdminServiceClient {
 	return c.admin
+}
+
+// Close shuts down the underlying gRPC connection.
+func (c *GRPCClient) Close() error {
+	if c.conn == nil {
+		return nil
+	}
+
+	return c.conn.Close()
 }
 
 func AuthContext(ctx context.Context, token string) context.Context {

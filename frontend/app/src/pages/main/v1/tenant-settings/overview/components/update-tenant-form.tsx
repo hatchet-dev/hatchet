@@ -1,6 +1,7 @@
 import { Button } from '@/components/v1/ui/button';
 import { Input } from '@/components/v1/ui/input';
 import { Spinner } from '@/components/v1/ui/loading.tsx';
+import useCanWrite from '@/hooks/use-can-write';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -24,6 +25,7 @@ export function UpdateTenantForm({
   ...props
 }: UpdateTenantSettingsProps) {
   const { tenant } = useTenantDetails();
+  const canWrite = useCanWrite();
 
   const {
     handleSubmit,
@@ -59,12 +61,14 @@ export function UpdateTenantForm({
           autoCapitalize="none"
           autoCorrect="off"
           className="w-[220px]"
-          disabled={props.isLoading}
+          disabled={props.isLoading || !canWrite}
         />
-        <Button disabled={props.isLoading} className="w-fit">
-          {props.isLoading && <Spinner />}
-          Save
-        </Button>
+        {canWrite && (
+          <Button disabled={props.isLoading} className="w-fit">
+            {props.isLoading && <Spinner />}
+            Save
+          </Button>
+        )}
       </div>
       {nameError && <div className="text-sm text-red-500">{nameError}</div>}
     </form>

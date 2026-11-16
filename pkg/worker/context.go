@@ -43,22 +43,36 @@ type HatchetWorkerContext interface {
 type HatchetContext interface {
 	context.Context
 
+	// SetContext replaces the underlying context.Context, for example to attach a deadline.
 	SetContext(ctx context.Context)
 
+	// GetContext returns the underlying context.Context.
 	GetContext() context.Context
 
+	// Worker returns the worker executing the task, which exposes its ID, labels, and
+	// registered workflows.
 	Worker() HatchetWorkerContext
 
+	// StepOutput decodes the output of the named upstream step into target, which must
+	// be a pointer. Prefer ParentOutput, which takes a task reference instead of a name.
 	StepOutput(step string, target interface{}) error
 
+	// TriggerDataKeys lists the keys available to TriggerData.
 	TriggerDataKeys() []string
 
+	// TriggerData decodes the payload of a matched trigger condition (such as a wait-for
+	// event) into target, which must be a pointer.
 	TriggerData(key string, target interface{}) error
 
+	// StepRunErrors returns the errors of upstream task runs, keyed by task name.
+	// Intended for use in an on-failure task.
 	StepRunErrors() map[string]string
 
+	// TriggeredByEvent reports whether the current run was triggered by an event.
 	TriggeredByEvent() bool
 
+	// WorkflowInput decodes the workflow input into target, which must be a pointer.
+	// Prefer the typed input argument passed to the task function.
 	WorkflowInput(target interface{}) error
 
 	// BatchInputInto decodes the buffered items of a batch task's START_BATCH action into
@@ -66,46 +80,80 @@ type HatchetContext interface {
 	// item's task run external id.
 	BatchInputInto(target interface{}) error
 
+	// UserData decodes the user data attached to the step into target, which must be a
+	// pointer.
 	UserData(target interface{}) error
 
+	// AdditionalMetadata returns the additional metadata sent with the current run.
 	AdditionalMetadata() map[string]string
 
+	// StepName returns the name of the currently running task.
 	StepName() string
 
+	// StepRunId returns the ID of the current task run.
 	StepRunId() string
 
+	// StepId returns the ID of the step (the task declaration, not the run).
 	StepId() string
 
+	// WorkflowRunId returns the ID of the current workflow run.
 	WorkflowRunId() string
 
+	// WorkflowId returns the ID of the workflow this task belongs to, or nil if unknown.
 	WorkflowId() *string
 
+	// WorkflowVersionId returns the ID of the workflow version this task belongs to, or
+	// nil if unknown.
 	WorkflowVersionId() *string
 
+	// Log sends a log line to the Hatchet API for the current task run.
 	Log(message string)
 
+	// StreamEvent sends a raw stream event for the current task run, which separate
+	// consumers can subscribe to.
 	StreamEvent(message []byte)
 
+	// PutStream sends a stream event for the current task run, which separate consumers
+	// can subscribe to.
 	PutStream(message string)
 
+	// SpawnWorkflow triggers a child workflow run from within the current task. Prefer
+	// passing this context to a workflow's Run method, which spawns a child run
+	// automatically.
 	SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*client.Workflow, error)
 
+	// SpawnWorkflows triggers multiple child workflow runs from within the current task.
 	SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([]*client.Workflow, error)
 
+	// ReleaseSlot manually releases the worker slot held by the current task run to free
+	// up capacity. Advanced feature; use with caution.
 	ReleaseSlot() error
 
+	// RefreshTimeout extends the execution timeout of the current task run by the given
+	// duration string, such as "5m".
 	RefreshTimeout(incrementTimeoutBy string) error
 
+	// PauseRateLimit keeps queued runs that use the rate limit key from starting until the given time.
+	// It returns the time the key is paused until.
+	PauseRateLimit(key string, until time.Time) (time.Time, error)
+
+	// RetryCount returns the number of times the current task run has been retried.
 	RetryCount() int
 
+	// ParentOutput decodes the output of a parent task into output, which must be a
+	// pointer. Pass the task reference returned by NewTask.
 	ParentOutput(parent create.NamedTask, output interface{}) error
 
+	// WasSkipped reports whether the given parent task was skipped.
 	WasSkipped(parent create.NamedTask) bool
 
+	// TenantId returns the ID of the tenant the run is executing in.
 	TenantId() string
 
+	// WorkerId returns the ID of the worker executing the task.
 	WorkerId() string
 
+	// ActionId returns the action ID of the currently running task.
 	ActionId() string
 
 	// DurableTaskInvocationCount returns the invocation count for durable task replay tracking.
@@ -116,21 +164,37 @@ type HatchetContext interface {
 
 	action() *client.Action
 
+	// CurChildIndex returns the index that will be assigned to the next spawned child
+	// workflow. For internal use by the SDK's child workflow bookkeeping.
 	CurChildIndex() int
+	// IncChildIndex increments the child workflow index. For internal use by the SDK's
+	// child workflow bookkeeping.
 	IncChildIndex()
 
+	// Priority returns the priority the current run was triggered with.
 	Priority() int32
 
+	// FilterPayload returns the payload of the event filter that matched, if the run was
+	// triggered through a filter.
 	FilterPayload() map[string]interface{}
 
+	// ParentWorkflowRunId returns the workflow run ID of the parent run, if this run was
+	// spawned as a child workflow.
 	ParentWorkflowRunId() *string
 
+	// ChildIndex returns the index of this run among its parent's child workflow runs,
+	// if applicable.
 	ChildIndex() *int32
 
+	// ChildKey returns the deduplication key this run was spawned with, if applicable.
 	ChildKey() *string
 
+	// TriggeringEventId returns the ID of the event that triggered this run, if it was
+	// triggered by an event.
 	TriggeringEventId() *string
 
+	// TriggeringEventKey returns the key of the event that triggered this run, if it was
+	// triggered by an event.
 	TriggeringEventKey() *string
 }
 
@@ -550,6 +614,16 @@ func (h *hatchetContext) RefreshTimeout(incrementTimeoutBy string) error {
 	return nil
 }
 
+func (h *hatchetContext) PauseRateLimit(key string, until time.Time) (time.Time, error) {
+	pausedUntil, err := h.c.Admin().PauseRateLimit(h, key, until)
+
+	if err != nil {
+		return time.Time{}, fmt.Errorf("failed to pause rate limit: %w", err)
+	}
+
+	return pausedUntil, nil
+}
+
 // Deprecated: StreamEvent is an internal method used by the new Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) StreamEvent(message []byte) {
@@ -649,7 +723,7 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 
 	// Only inject traceparent if the caller hasn't already set one (e.g. the
 	// new Go SDK's RunNoWait injects a traceparent pointing to its own
-	// hatchet.run_workflow span — we must not overwrite it).
+	// hatchet.run_workflow span, which must not be overwritten).
 	if opts.AdditionalMetadata == nil || (*opts.AdditionalMetadata)["traceparent"] == "" {
 		opts.AdditionalMetadata = injectTraceparent(h.GetContext(), opts.AdditionalMetadata)
 	}
@@ -708,6 +782,7 @@ type SpawnWorkflowsOpts struct {
 	Input               any
 	Key                 *string
 	Sticky              *bool
+	Priority            *int32
 	AdditionalMetadata  *map[string]string
 	DesiredWorkerLabels map[string]*types.DesiredWorkerLabel
 }
@@ -758,6 +833,7 @@ func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([
 				ChildKey:            c.Key,
 				DesiredWorkerId:     desiredWorker,
 				AdditionalMetadata:  c.AdditionalMetadata,
+				Priority:            c.Priority,
 				DesiredWorkerLabels: c.DesiredWorkerLabels,
 			},
 		}
@@ -767,14 +843,14 @@ func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([
 		triggerWorkflows,
 	)
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to spawn workflow: %w", err)
-	}
-
 	createdWorkflows := make([]*client.Workflow, len(workflowRunIds))
 
 	for i, workflowRunId := range workflowRunIds {
 		createdWorkflows[i] = client.NewWorkflow(workflowRunId, listener)
+	}
+
+	if err != nil {
+		return createdWorkflows, fmt.Errorf("failed to spawn workflow: %w", err)
 	}
 
 	return createdWorkflows, nil
@@ -924,8 +1000,6 @@ func (wc *hatchetWorkerContext) HasWorkflow(workflowName string) bool {
 	return wc.worker.registered_workflows[workflowName]
 }
 
-// Deprecated: SingleWaitResult is an internal type used by the new Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type SingleWaitResult struct {
 	*WaitResult
 
@@ -939,14 +1013,12 @@ func newSingleWaitResult(key string, wr *WaitResult) *SingleWaitResult {
 	}
 }
 
-// Deprecated: Unmarshal is an internal method used by the new Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+// Unmarshal decodes the matched event or condition payload into in, which must
+// be a pointer. hatchet.EventInto is a convenience wrapper around it.
 func (w *SingleWaitResult) Unmarshal(in interface{}) error {
 	return w.WaitResult.Unmarshal(w.key, in)
 }
 
-// Deprecated: WaitResult is an internal type used by the new Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type WaitResult struct {
 	allResults map[string]map[string][]map[string]interface{}
 }
@@ -965,20 +1037,16 @@ func newWaitResult(dataBytes []byte) (*WaitResult, error) {
 	}, nil
 }
 
-// Deprecated: ErrMarshalKeyNotFound is an internal type used by the new Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type ErrMarshalKeyNotFound struct {
 	Key string
 }
 
-// Deprecated: Error is an internal method used by the new Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (e ErrMarshalKeyNotFound) Error() string {
 	return fmt.Sprintf("key %s not found", e.Key)
 }
 
-// Deprecated: Keys is an internal method used by the new Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+// Keys returns the readable keys of the conditions that produced this result,
+// such as user event keys and "sleep:<duration>" entries.
 func (w *WaitResult) Keys() []string {
 	keys := make([]string, 0, len(w.allResults))
 
@@ -991,8 +1059,8 @@ func (w *WaitResult) Keys() []string {
 	return keys
 }
 
-// Deprecated: Unmarshal is an internal method used by the new Go SDK.
-// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+// Unmarshal decodes the payload matched for the given condition key into in,
+// which must be a pointer.
 func (w *WaitResult) Unmarshal(key string, in interface{}) error {
 	eNotFound := ErrMarshalKeyNotFound{
 		Key: key,
@@ -1033,7 +1101,9 @@ type DurableHatchetContext interface {
 	SleepFor(duration time.Duration) (*SingleWaitResult, error)
 
 	// WaitForEvent pauses execution until the specified user event is received.
-	WaitForEvent(eventKey, expression string) (*SingleWaitResult, error)
+	// Options such as condition.WithEventScope and condition.WithConsiderEventsSince
+	// can be used to scope the wait and match events pushed before the wait started.
+	WaitForEvent(eventKey, expression string, opts ...condition.UserEventConditionOpt) (*SingleWaitResult, error)
 
 	// WaitFor pauses execution until the specified conditions are met.
 	// Conditions are "global" meaning they will wait in real time regardless of transient failures
@@ -1085,10 +1155,10 @@ func (d *durableHatchetContext) SleepFor(duration time.Duration) (*SingleWaitRes
 }
 
 // WaitForEvent implements the DurableHatchetContext.WaitForEvent method.
-func (d *durableHatchetContext) WaitForEvent(eventKey, expression string) (*SingleWaitResult, error) {
+func (d *durableHatchetContext) WaitForEvent(eventKey, expression string, opts ...condition.UserEventConditionOpt) (*SingleWaitResult, error) {
 	namespace := d.c.Namespace()
 	eventKey = clientconfig.ApplyNamespace(eventKey, &namespace)
-	wr, err := d.waitFor(condition.UserEventCondition(eventKey, expression), "wait_for_event", eventKey)
+	wr, err := d.waitFor(condition.UserEventCondition(eventKey, expression, opts...), "wait_for_event", eventKey)
 
 	if err != nil {
 		return nil, err
@@ -1248,7 +1318,9 @@ func (d *durableHatchetContext) Memo(key string, fn func() (any, error)) (json.R
 			return nil, fmt.Errorf("failed to marshal memo result: %w", err)
 		}
 
-		listener.SendMemoCompleted(ack.Ref, memoKey, payload)
+		if err := listener.SendMemoCompleted(d.GetContext(), ack.Ref, memoKey, payload); err != nil {
+			return nil, fmt.Errorf("failed to send memo completion: %w", err)
+		}
 
 		d.memoMu.Lock()
 		d.memoCache[key] = payload

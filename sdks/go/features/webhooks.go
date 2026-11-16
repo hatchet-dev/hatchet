@@ -21,12 +21,13 @@ type BasicAuth struct {
 func (a BasicAuth) toCreateRequest(opts CreateWebhookOpts) (rest.V1CreateWebhookRequest, error) {
 	var req rest.V1CreateWebhookRequest
 	err := req.FromV1CreateWebhookRequestBasicAuth(rest.V1CreateWebhookRequestBasicAuth{
-		Name:               opts.Name,
-		SourceName:         opts.SourceName,
-		EventKeyExpression: opts.EventKeyExpression,
-		ScopeExpression:    opts.ScopeExpression,
-		StaticPayload:      opts.StaticPayload,
-		AuthType:           rest.V1CreateWebhookRequestBasicAuthAuthType("BASIC"),
+		Name:                         opts.Name,
+		SourceName:                   opts.SourceName,
+		EventKeyExpression:           opts.EventKeyExpression,
+		ScopeExpression:              opts.ScopeExpression,
+		StaticPayload:                opts.StaticPayload,
+		ReturnEventAsResponsePayload: opts.ReturnEventAsResponsePayload,
+		AuthType:                     rest.V1CreateWebhookRequestBasicAuthAuthType("BASIC"),
 		Auth: rest.V1WebhookBasicAuth{
 			Username: a.Username,
 			Password: a.Password,
@@ -43,12 +44,13 @@ type APIKeyAuth struct {
 func (a APIKeyAuth) toCreateRequest(opts CreateWebhookOpts) (rest.V1CreateWebhookRequest, error) {
 	var req rest.V1CreateWebhookRequest
 	err := req.FromV1CreateWebhookRequestAPIKey(rest.V1CreateWebhookRequestAPIKey{
-		Name:               opts.Name,
-		SourceName:         opts.SourceName,
-		EventKeyExpression: opts.EventKeyExpression,
-		ScopeExpression:    opts.ScopeExpression,
-		StaticPayload:      opts.StaticPayload,
-		AuthType:           rest.V1CreateWebhookRequestAPIKeyAuthType("API_KEY"),
+		Name:                         opts.Name,
+		SourceName:                   opts.SourceName,
+		EventKeyExpression:           opts.EventKeyExpression,
+		ScopeExpression:              opts.ScopeExpression,
+		StaticPayload:                opts.StaticPayload,
+		ReturnEventAsResponsePayload: opts.ReturnEventAsResponsePayload,
+		AuthType:                     rest.V1CreateWebhookRequestAPIKeyAuthType("API_KEY"),
 		Auth: rest.V1WebhookAPIKeyAuth{
 			HeaderName: a.HeaderName,
 			ApiKey:     a.APIKey,
@@ -67,12 +69,13 @@ type HMACAuth struct {
 func (a HMACAuth) toCreateRequest(opts CreateWebhookOpts) (rest.V1CreateWebhookRequest, error) {
 	var req rest.V1CreateWebhookRequest
 	err := req.FromV1CreateWebhookRequestHMAC(rest.V1CreateWebhookRequestHMAC{
-		Name:               opts.Name,
-		SourceName:         opts.SourceName,
-		EventKeyExpression: opts.EventKeyExpression,
-		ScopeExpression:    opts.ScopeExpression,
-		StaticPayload:      opts.StaticPayload,
-		AuthType:           rest.V1CreateWebhookRequestHMACAuthType("HMAC"),
+		Name:                         opts.Name,
+		SourceName:                   opts.SourceName,
+		EventKeyExpression:           opts.EventKeyExpression,
+		ScopeExpression:              opts.ScopeExpression,
+		StaticPayload:                opts.StaticPayload,
+		ReturnEventAsResponsePayload: opts.ReturnEventAsResponsePayload,
+		AuthType:                     rest.V1CreateWebhookRequestHMACAuthType("HMAC"),
 		Auth: rest.V1WebhookHMACAuth{
 			SigningSecret:       a.SigningSecret,
 			SignatureHeaderName: a.SignatureHeaderName,
@@ -93,12 +96,13 @@ type SvixAuth struct {
 func (a SvixAuth) toCreateRequest(opts CreateWebhookOpts) (rest.V1CreateWebhookRequest, error) {
 	var req rest.V1CreateWebhookRequest
 	err := req.FromV1CreateWebhookRequestHMAC(rest.V1CreateWebhookRequestHMAC{
-		Name:               opts.Name,
-		SourceName:         rest.SVIX,
-		EventKeyExpression: opts.EventKeyExpression,
-		ScopeExpression:    opts.ScopeExpression,
-		StaticPayload:      opts.StaticPayload,
-		AuthType:           rest.V1CreateWebhookRequestHMACAuthType("HMAC"),
+		Name:                         opts.Name,
+		SourceName:                   rest.SVIX,
+		EventKeyExpression:           opts.EventKeyExpression,
+		ScopeExpression:              opts.ScopeExpression,
+		StaticPayload:                opts.StaticPayload,
+		ReturnEventAsResponsePayload: opts.ReturnEventAsResponsePayload,
+		AuthType:                     rest.V1CreateWebhookRequestHMACAuthType("HMAC"),
 		Auth: rest.V1WebhookHMACAuth{
 			SigningSecret:       a.SigningSecret,
 			SignatureHeaderName: "svix-signature",
@@ -110,18 +114,20 @@ func (a SvixAuth) toCreateRequest(opts CreateWebhookOpts) (rest.V1CreateWebhookR
 }
 
 type CreateWebhookOpts struct {
-	Name               string
-	SourceName         rest.V1WebhookSourceName
-	EventKeyExpression string
-	ScopeExpression    *string
-	StaticPayload      *map[string]interface{}
-	Auth               WebhookAuth
+	Name                         string
+	SourceName                   rest.V1WebhookSourceName
+	EventKeyExpression           string
+	ScopeExpression              *string
+	StaticPayload                *map[string]interface{}
+	ReturnEventAsResponsePayload *bool
+	Auth                         WebhookAuth
 }
 
 type UpdateWebhookOpts struct {
-	EventKeyExpression *string
-	ScopeExpression    *string
-	StaticPayload      *map[string]interface{}
+	EventKeyExpression           *string
+	ScopeExpression              *string
+	StaticPayload                *map[string]interface{}
+	ReturnEventAsResponsePayload *bool
 }
 
 // WebhooksClient provides methods for managing webhook configurations
@@ -213,9 +219,10 @@ func (c *WebhooksClient) Update(ctx context.Context, webhookName string, opts Up
 		c.tenantId,
 		webhookName,
 		rest.V1UpdateWebhookRequest{
-			EventKeyExpression: opts.EventKeyExpression,
-			ScopeExpression:    opts.ScopeExpression,
-			StaticPayload:      opts.StaticPayload,
+			EventKeyExpression:           opts.EventKeyExpression,
+			ScopeExpression:              opts.ScopeExpression,
+			StaticPayload:                opts.StaticPayload,
+			ReturnEventAsResponsePayload: opts.ReturnEventAsResponsePayload,
 		},
 	)
 	if err != nil {

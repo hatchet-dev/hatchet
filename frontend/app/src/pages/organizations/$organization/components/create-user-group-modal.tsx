@@ -1,4 +1,5 @@
 import { Button } from '@/components/v1/ui/button';
+import { Checkbox } from '@/components/v1/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -19,6 +20,7 @@ import {
 import { TenantMemberRoleType } from '@/lib/api/generated/control-plane/data-contracts';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
+import { payloadsLockedForRole } from '@/pages/main/v1/tenant-settings/components/member-primitives';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
@@ -46,6 +48,7 @@ export function CreateUserGroupModal({
   );
   const [tags, setTags] = useState<string[]>([]);
   const [newTag, setNewTag] = useState('');
+  const [canViewPayloads, setCanViewPayloads] = useState(true);
 
   const availableTagsToAdd = useMemo(
     () => allTenantTags.filter((tag) => !tags.includes(tag)),
@@ -69,13 +72,18 @@ export function CreateUserGroupModal({
       name: string;
       role: TenantMemberRoleType;
       tags: string[];
+      canViewPayloads: boolean;
     }) => {
       // The create endpoint doesn't accept tags, so set them right after.
       // If setting tags fails, the group still exists — the error surfaces
       // and tags can be added from the edit modal.
       const group = await orgApi
         .userGroupCreateMutation(organizationId)
-        .mutationFn({ name: data.name, role: data.role });
+        .mutationFn({
+          name: data.name,
+          role: data.role,
+          canViewPayloads: data.canViewPayloads,
+        });
 
       if (data.tags.length > 0 && group?.metadata?.id) {
         await orgApi
@@ -93,12 +101,14 @@ export function CreateUserGroupModal({
       setRole(TenantMemberRoleType.MEMBER);
       setTags([]);
       setNewTag('');
+      setCanViewPayloads(true);
       onOpenChange(false);
     },
     onError: handleApiError,
   });
 
   const isPending = createMutation.isPending;
+  const payloadsLocked = payloadsLockedForRole(role);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -142,8 +152,28 @@ export function CreateUserGroupModal({
                 <SelectItem value={TenantMemberRoleType.OWNER}>
                   Owner
                 </SelectItem>
+                <SelectItem value={TenantMemberRoleType.VIEWER}>
+                  Viewer
+                </SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="flex items-start gap-2">
+            <Checkbox
+              id="group-canViewPayloads"
+              checked={payloadsLocked || canViewPayloads}
+              onCheckedChange={(checked) =>
+                setCanViewPayloads(checked === true)
+              }
+              disabled={isPending || payloadsLocked}
+            />
+            <div className="grid gap-1">
+              <Label htmlFor="group-canViewPayloads">Can view payloads</Label>
+              <p className="text-xs text-muted-foreground">
+                Owners and admins always see payloads. Uncheck to hide inputs,
+                outputs, and events from members of this group.
+              </p>
+            </div>
           </div>
           <div className="space-y-2">
             <Label>Tags</Label>
@@ -224,7 +254,14 @@ export function CreateUserGroupModal({
               Cancel
             </Button>
             <Button
-              onClick={() => createMutation.mutate({ name, role, tags })}
+              onClick={() =>
+                createMutation.mutate({
+                  name,
+                  role,
+                  tags,
+                  canViewPayloads: payloadsLocked ? true : canViewPayloads,
+                })
+              }
               disabled={isPending || !name.trim()}
             >
               {isPending ? 'Creating...' : 'Create Group'}

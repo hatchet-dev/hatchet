@@ -15,10 +15,13 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 const UserSessionKey string = "user_id"
+
+var ErrSessionRevoked = errors.New("session revoked")
 
 type sessionDataJSON struct {
 	Data []byte `json:"data"`
@@ -123,6 +126,10 @@ func NewUserSessionStore(fs ...UserSessionStoreOpt) (*UserSessionStore, error) {
 	keyPairs := [][]byte{}
 
 	for _, key := range opts.cookieSecrets {
+		if err := encryption.CheckHMACKey([]byte(key)); err != nil {
+			return nil, fmt.Errorf("cookie secret: %w", err)
+		}
+
 		keyPairs = append(keyPairs, []byte(key))
 	}
 
@@ -191,8 +198,10 @@ func (store *UserSessionStore) New(r *http.Request, name string) (*sessions.Sess
 			if err != nil {
 				if errors.Is(err, pgx.ErrNoRows) {
 					err = nil
+					session.ID = ""
 				} else if strings.Contains(err.Error(), "expired timestamp") {
 					err = nil
+					session.ID = ""
 					session.IsNew = false
 				}
 			} else {
@@ -238,12 +247,13 @@ func (store *UserSessionStore) Save(r *http.Request, w http.ResponseWriter, sess
 		return fmt.Errorf("invalid session ID: %w", err)
 	}
 
-	if session.ID == "" {
-		// Generate a random session UUID
+	mintedHere := session.ID == ""
+
+	if mintedHere {
 		session.ID = uuid.New().String()
 	}
 
-	if err := store.save(r.Context(), session); err != nil {
+	if err := store.save(r.Context(), session, mintedHere); err != nil {
 		return err
 	}
 
@@ -253,13 +263,55 @@ func (store *UserSessionStore) Save(r *http.Request, w http.ResponseWriter, sess
 		return err
 	}
 
+	dropSetCookies(w.Header(), session.Name())
 	http.SetCookie(w, sessions.NewCookie(session.Name(), encoded, session.Options))
 	return nil
 }
 
+func dropSetCookies(h http.Header, name string) {
+	kept := make([]string, 0, len(h["Set-Cookie"]))
+
+	for _, c := range h["Set-Cookie"] {
+		if !strings.HasPrefix(c, name+"=") {
+			kept = append(kept, c)
+		}
+	}
+
+	if len(kept) == 0 {
+		h.Del("Set-Cookie")
+		return
+	}
+
+	h["Set-Cookie"] = kept
+}
+
+// Rotate deletes the row of the session cached for this request and saves its values under a
+// newly minted ID, so an ID known before a privilege change can't follow the session across it.
+func (store *UserSessionStore) Rotate(r *http.Request, w http.ResponseWriter) error {
+	session, err := store.Get(r, store.cookieName)
+	if err != nil {
+		return err
+	}
+
+	if session.ID != "" {
+		oldID, err := uuid.Parse(session.ID)
+		if err != nil {
+			return fmt.Errorf("invalid session ID: %w", err)
+		}
+
+		if _, err := store.repo.Delete(r.Context(), oldID); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+	}
+
+	session.ID = ""
+
+	return session.Save(r, w)
+}
+
 // save writes encoded session.Values to a database record.
 // writes to http_sessions table by default.
-func (store *UserSessionStore) save(ctx context.Context, session *sessions.Session) error {
+func (store *UserSessionStore) save(ctx context.Context, session *sessions.Session, mintedHere bool) error {
 	if session.ID == "" {
 		return fmt.Errorf("session ID required but not set")
 	}
@@ -311,9 +363,8 @@ func (store *UserSessionStore) save(ctx context.Context, session *sessions.Sessi
 
 	repo := store.repo
 
-	_, err = repo.GetById(ctx, sessionId)
-
-	if err != nil && errors.Is(err, pgx.ErrNoRows) {
+	// an ID that came from the cookie must never be inserted
+	if mintedHere {
 		_, err := repo.Create(ctx, &v1.CreateSessionOpts{
 			ID:        sessionId,
 			Data:      jsonBytes,
@@ -328,6 +379,10 @@ func (store *UserSessionStore) save(ctx context.Context, session *sessions.Sessi
 		Data:   jsonBytes,
 		UserId: userId,
 	})
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrSessionRevoked
+	}
 
 	return err
 }

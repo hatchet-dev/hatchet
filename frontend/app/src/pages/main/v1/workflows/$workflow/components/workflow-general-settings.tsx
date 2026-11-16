@@ -1,5 +1,4 @@
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
-import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 import { Badge } from '@/components/v1/ui/badge';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Label } from '@/components/v1/ui/label';
@@ -20,6 +19,12 @@ function formatLimitStrategy(strategy: ConcurrencyLimitStrategy): string {
       return 'Queue Newest';
     case ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN:
       return 'Group Round Robin';
+    case ConcurrencyLimitStrategy.CANCEL_NEWEST:
+      return 'Cancel Newest';
+    case ConcurrencyLimitStrategy.CANCEL_QUEUED_EXCEPT_NEWEST:
+      return 'Cancel Queued Except Newest';
+    case ConcurrencyLimitStrategy.CANCEL_QUEUED_EXCEPT_OLDEST:
+      return 'Cancel Queued Except Oldest';
     default: {
       const exhaustiveCheck: never = strategy;
       return exhaustiveCheck;
@@ -65,7 +70,14 @@ export default function WorkflowGeneralSettings({
         <ConfigurationSettings workflow={workflow} />
       </SettingsSection>
 
-      <CopyWorkflowConfigButton workflowConfig={workflow.workflowConfig} />
+      <SettingsSection title="Config">
+        <CodeHighlighter
+          className="my-1 max-w-3xl"
+          language="json"
+          code={JSON.stringify(workflow.workflowConfig ?? {}, null, 2)}
+          maxHeight="24rem"
+        />
+      </SettingsSection>
     </div>
   );
 }

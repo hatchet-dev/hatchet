@@ -4,8 +4,10 @@ import { ThreeColumnLayout } from '@/components/layout/three-column-layout';
 import { SidePanel } from '@/components/v1/nav/side-panel';
 import { Loading } from '@/components/v1/ui/loading';
 import useControlPlane from '@/hooks/use-control-plane';
+import { FeatureFlagId, useIsFeatureEnabled } from '@/hooks/use-feature-flags';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useTenantDetails } from '@/hooks/use-tenant';
+import { useTenantEntitlements } from '@/hooks/use-tenant-entitlements';
 import { queries } from '@/lib/api';
 import {
   MembershipsContextType,
@@ -13,7 +15,7 @@ import {
   useContextFromParent,
 } from '@/lib/outlet';
 import { OutletWithContext, useOutletContext } from '@/lib/router-helpers';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ReactNode, useEffect, useMemo } from 'react';
 
 export function MainShell({ children }: { children?: ReactNode }) {
@@ -39,14 +41,46 @@ export function MainShell({ children }: { children?: ReactNode }) {
     );
   }, [queryClient, tenantId]);
 
+  const listManagedWorkersQuery = useQuery({
+    ...queries.cloud.listManagedWorkers(tenantId ?? ''),
+    enabled: isControlPlaneEnabled && !!tenantId,
+  });
+
+  const hasManagedWorkers =
+    (listManagedWorkersQuery.data?.rows?.length || 0) > 0;
+
+  const { entitlements } = useTenantEntitlements();
+  const hasDurableStreams = !!entitlements?.durableStreams;
+  const hasServerlessEndpoints = !!entitlements?.serverlessOperator;
+  const hasSandboxProviders = !!entitlements?.sandboxOperator;
+
+  const { isEnabled: isConcurrencyEnabled } = useIsFeatureEnabled(
+    FeatureFlagId.ConcurrencyPageEnabled,
+    false,
+  );
+
   const navSections = useMemo(
     () =>
       sideNavItems({
         canBill,
         isControlPlaneEnabled,
         orgId,
+        hasManagedWorkers,
+        hasServerlessEndpoints,
+        hasSandboxProviders,
+        hasDurableStreams,
+        isConcurrencyEnabled,
       }),
-    [canBill, isControlPlaneEnabled, orgId],
+    [
+      canBill,
+      isControlPlaneEnabled,
+      orgId,
+      hasManagedWorkers,
+      hasServerlessEndpoints,
+      hasSandboxProviders,
+      hasDurableStreams,
+      isConcurrencyEnabled,
+    ],
   );
 
   const childCtx = useContextFromParent({

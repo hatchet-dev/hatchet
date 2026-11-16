@@ -74,6 +74,43 @@ func TestPubSubTenantFanout(t *testing.T) {
 	require.NoError(t, cleanupSub2())
 }
 
+// Every engine tailing topics subscribes to the one wake topic, so each must
+// get every wake rather than competing for it.
+func TestPubSubStreamWakeFanout(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	ps := newTestPubSub(t)
+
+	wg := &sync.WaitGroup{}
+	wg.Add(2)
+
+	msg, err := msgqueue.NewTenantMessage(uuid.New(), msgqueue.MsgIDStreamMessage, true, false, msgqueue.StreamWake{Topic: "t"})
+	require.NoError(t, err)
+
+	handler := func(received *msgqueue.Message) error {
+		defer wg.Done()
+		assert.Equal(t, msg.Payloads, received.Payloads)
+		return nil
+	}
+
+	cleanupSub1, err := ps.Sub(msgqueue.StreamWakeTopic(), handler)
+	require.NoError(t, err)
+
+	cleanupSub2, err := ps.Sub(msgqueue.StreamWakeTopic(), handler)
+	require.NoError(t, err)
+
+	// give the exclusive queues time to bind
+	time.Sleep(1 * time.Second)
+
+	require.NoError(t, ps.Pub(ctx, msgqueue.StreamWakeTopic(), msg))
+
+	wg.Wait()
+
+	require.NoError(t, cleanupSub1())
+	require.NoError(t, cleanupSub2())
+}
+
 func TestPubSubAtMostOnce(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

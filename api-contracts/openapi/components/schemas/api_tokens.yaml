@@ -7,6 +7,9 @@ APIToken:
       type: string
       description: The name of the API token.
       maxLength: 255
+    readOnly:
+      type: boolean
+      description: Whether the token is limited to viewer access over REST and cannot use gRPC.
     expiresAt:
       type: string
       format: date-time
@@ -15,6 +18,7 @@ APIToken:
     - metadata
     - name
     - expiresAt
+    - readOnly
 
 CreateAPITokenRequest:
   type: object
@@ -23,6 +27,9 @@ CreateAPITokenRequest:
       type: string
       description: A name for the API token.
       maxLength: 255
+    readOnly:
+      type: boolean
+      description: Limit the token to viewer access over REST and deny all gRPC calls. Defaults to false.
     expiresIn:
       type: string
       description: The duration for which the token is valid.

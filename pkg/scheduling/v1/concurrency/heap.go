@@ -53,9 +53,10 @@ func (h *heap[T]) begin() {
 }
 
 // commit closes the undo scope and discards the journal, making the recorded writes permanent from
-// the heap's perspective.
+// the heap's perspective. Releasing the journal keeps one large batch from pinning its capacity for
+// the life of the heap.
 func (h *heap[T]) commit() {
-	h.journal = h.journal[:0]
+	h.journal = nil
 	h.recording = false
 }
 
@@ -75,7 +76,7 @@ func (h *heap[T]) rollback() {
 			h.insert(e.value)
 		}
 	}
-	h.journal = h.journal[:0]
+	h.journal = nil
 }
 
 func (h *heap[T]) insert(value T) {

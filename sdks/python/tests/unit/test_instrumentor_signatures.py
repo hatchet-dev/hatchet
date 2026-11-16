@@ -12,12 +12,12 @@ from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 
 WRAPPED_PAIRS = [
     (
-        "worker.runner.runner.Runner.handle_start_step_run",
-        "_wrap_handle_start_step_run",
+        "worker.runner.runner.Runner.handle_start_task_run",
+        "_wrap_handle_start_task_run",
     ),
     ("worker.runner.runner.Runner.handle_cancel_action", "_wrap_handle_cancel_action"),
-    ("clients.events.EventClient.push", "_wrap_push_event"),
-    ("clients.events.EventClient.bulk_push", "_wrap_bulk_push_event"),
+    ("features.events.EventClient.push", "_wrap_push_event"),
+    ("features.events.EventClient.bulk_push", "_wrap_bulk_push_event"),
     ("clients.admin.AdminClient.run_workflow", "_wrap_run_workflow"),
     ("clients.admin.AdminClient.aio_run_workflow", "_wrap_async_run_workflow"),
     ("clients.admin.AdminClient.schedule_workflow", "_wrap_schedule_workflow"),

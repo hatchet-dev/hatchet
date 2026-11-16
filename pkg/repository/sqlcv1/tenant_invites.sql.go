@@ -37,23 +37,26 @@ INSERT INTO "TenantInviteLink" (
     "inviterEmail",
     "inviteeEmail",
     "expires",
-    "role"
+    "role",
+    "canViewPayloads"
 ) VALUES (
     gen_random_uuid(),
     $1::uuid,
     $2::text,
     $3::text,
     $4::timestamp,
-    $5::"TenantMemberRole"
-) RETURNING id, "createdAt", "updatedAt", "tenantId", "inviterEmail", "inviteeEmail", expires, status, role
+    $5::"TenantMemberRole",
+    COALESCE($6::boolean, true)
+) RETURNING id, "createdAt", "updatedAt", "tenantId", "inviterEmail", "inviteeEmail", expires, status, role, "canViewPayloads"
 `
 
 type CreateTenantInviteParams struct {
-	Tenantid     uuid.UUID        `json:"tenantid"`
-	Inviteremail string           `json:"inviteremail"`
-	Inviteeemail string           `json:"inviteeemail"`
-	Expires      pgtype.Timestamp `json:"expires"`
-	Role         TenantMemberRole `json:"role"`
+	Tenantid        uuid.UUID        `json:"tenantid"`
+	Inviteremail    string           `json:"inviteremail"`
+	Inviteeemail    string           `json:"inviteeemail"`
+	Expires         pgtype.Timestamp `json:"expires"`
+	Role            TenantMemberRole `json:"role"`
+	CanViewPayloads pgtype.Bool      `json:"canViewPayloads"`
 }
 
 func (q *Queries) CreateTenantInvite(ctx context.Context, db DBTX, arg CreateTenantInviteParams) (*TenantInviteLink, error) {
@@ -63,6 +66,7 @@ func (q *Queries) CreateTenantInvite(ctx context.Context, db DBTX, arg CreateTen
 		arg.Inviteeemail,
 		arg.Expires,
 		arg.Role,
+		arg.CanViewPayloads,
 	)
 	var i TenantInviteLink
 	err := row.Scan(
@@ -75,6 +79,7 @@ func (q *Queries) CreateTenantInvite(ctx context.Context, db DBTX, arg CreateTen
 		&i.Expires,
 		&i.Status,
 		&i.Role,
+		&i.CanViewPayloads,
 	)
 	return &i, err
 }
@@ -93,7 +98,7 @@ func (q *Queries) DeleteTenantInvite(ctx context.Context, db DBTX, id uuid.UUID)
 
 const getExistingInvite = `-- name: GetExistingInvite :one
 SELECT
-    id, "createdAt", "updatedAt", "tenantId", "inviterEmail", "inviteeEmail", expires, status, role
+    id, "createdAt", "updatedAt", "tenantId", "inviterEmail", "inviteeEmail", expires, status, role, "canViewPayloads"
 FROM
     "TenantInviteLink"
 WHERE
@@ -121,13 +126,14 @@ func (q *Queries) GetExistingInvite(ctx context.Context, db DBTX, arg GetExistin
 		&i.Expires,
 		&i.Status,
 		&i.Role,
+		&i.CanViewPayloads,
 	)
 	return &i, err
 }
 
 const getInviteById = `-- name: GetInviteById :one
 SELECT
-    id, "createdAt", "updatedAt", "tenantId", "inviterEmail", "inviteeEmail", expires, status, role
+    id, "createdAt", "updatedAt", "tenantId", "inviterEmail", "inviteeEmail", expires, status, role, "canViewPayloads"
 FROM
     "TenantInviteLink"
 WHERE
@@ -147,13 +153,14 @@ func (q *Queries) GetInviteById(ctx context.Context, db DBTX, id uuid.UUID) (*Te
 		&i.Expires,
 		&i.Status,
 		&i.Role,
+		&i.CanViewPayloads,
 	)
 	return &i, err
 }
 
 const listInvitesByTenantId = `-- name: ListInvitesByTenantId :many
 SELECT
-    id, "createdAt", "updatedAt", "tenantId", "inviterEmail", "inviteeEmail", expires, status, role
+    id, "createdAt", "updatedAt", "tenantId", "inviterEmail", "inviteeEmail", expires, status, role, "canViewPayloads"
 FROM
     "TenantInviteLink"
 WHERE
@@ -195,6 +202,7 @@ func (q *Queries) ListInvitesByTenantId(ctx context.Context, db DBTX, arg ListIn
 			&i.Expires,
 			&i.Status,
 			&i.Role,
+			&i.CanViewPayloads,
 		); err != nil {
 			return nil, err
 		}
@@ -208,7 +216,7 @@ func (q *Queries) ListInvitesByTenantId(ctx context.Context, db DBTX, arg ListIn
 
 const listTenantInvitesByEmail = `-- name: ListTenantInvitesByEmail :many
 SELECT
-    iv.id, iv."createdAt", iv."updatedAt", iv."tenantId", iv."inviterEmail", iv."inviteeEmail", iv.expires, iv.status, iv.role,
+    iv.id, iv."createdAt", iv."updatedAt", iv."tenantId", iv."inviterEmail", iv."inviteeEmail", iv.expires, iv.status, iv.role, iv."canViewPayloads",
     t."name" as "tenantName"
 FROM
     "TenantInviteLink" iv
@@ -221,16 +229,17 @@ WHERE
 `
 
 type ListTenantInvitesByEmailRow struct {
-	ID           uuid.UUID        `json:"id"`
-	CreatedAt    pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt    pgtype.Timestamp `json:"updatedAt"`
-	TenantId     uuid.UUID        `json:"tenantId"`
-	InviterEmail string           `json:"inviterEmail"`
-	InviteeEmail string           `json:"inviteeEmail"`
-	Expires      pgtype.Timestamp `json:"expires"`
-	Status       InviteLinkStatus `json:"status"`
-	Role         TenantMemberRole `json:"role"`
-	TenantName   string           `json:"tenantName"`
+	ID              uuid.UUID        `json:"id"`
+	CreatedAt       pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
+	TenantId        uuid.UUID        `json:"tenantId"`
+	InviterEmail    string           `json:"inviterEmail"`
+	InviteeEmail    string           `json:"inviteeEmail"`
+	Expires         pgtype.Timestamp `json:"expires"`
+	Status          InviteLinkStatus `json:"status"`
+	Role            TenantMemberRole `json:"role"`
+	CanViewPayloads bool             `json:"canViewPayloads"`
+	TenantName      string           `json:"tenantName"`
 }
 
 func (q *Queries) ListTenantInvitesByEmail(ctx context.Context, db DBTX, inviteeemail string) ([]*ListTenantInvitesByEmailRow, error) {
@@ -252,6 +261,7 @@ func (q *Queries) ListTenantInvitesByEmail(ctx context.Context, db DBTX, invitee
 			&i.Expires,
 			&i.Status,
 			&i.Role,
+			&i.CanViewPayloads,
 			&i.TenantName,
 		); err != nil {
 			return nil, err
@@ -269,20 +279,27 @@ UPDATE
     "TenantInviteLink"
 SET
     "status" = COALESCE($1::"InviteLinkStatus", "status"),
-    "role" = COALESCE($2::"TenantMemberRole", "role")
+    "role" = COALESCE($2::"TenantMemberRole", "role"),
+    "canViewPayloads" = COALESCE($3::boolean, "canViewPayloads")
 WHERE
-    "id" = $3::uuid
-RETURNING id, "createdAt", "updatedAt", "tenantId", "inviterEmail", "inviteeEmail", expires, status, role
+    "id" = $4::uuid
+RETURNING id, "createdAt", "updatedAt", "tenantId", "inviterEmail", "inviteeEmail", expires, status, role, "canViewPayloads"
 `
 
 type UpdateTenantInviteParams struct {
-	Status NullInviteLinkStatus `json:"status"`
-	Role   NullTenantMemberRole `json:"role"`
-	ID     uuid.UUID            `json:"id"`
+	Status          NullInviteLinkStatus `json:"status"`
+	Role            NullTenantMemberRole `json:"role"`
+	CanViewPayloads pgtype.Bool          `json:"canViewPayloads"`
+	ID              uuid.UUID            `json:"id"`
 }
 
 func (q *Queries) UpdateTenantInvite(ctx context.Context, db DBTX, arg UpdateTenantInviteParams) (*TenantInviteLink, error) {
-	row := db.QueryRow(ctx, updateTenantInvite, arg.Status, arg.Role, arg.ID)
+	row := db.QueryRow(ctx, updateTenantInvite,
+		arg.Status,
+		arg.Role,
+		arg.CanViewPayloads,
+		arg.ID,
+	)
 	var i TenantInviteLink
 	err := row.Scan(
 		&i.ID,
@@ -294,6 +311,7 @@ func (q *Queries) UpdateTenantInvite(ctx context.Context, db DBTX, arg UpdateTen
 		&i.Expires,
 		&i.Status,
 		&i.Role,
+		&i.CanViewPayloads,
 	)
 	return &i, err
 }

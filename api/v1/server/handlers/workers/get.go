@@ -72,5 +72,17 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *sqlcv1.Tenant, req
 	respStepRuns := make([]gen.RecentStepRuns, 0)
 	workerResp.RecentStepRuns = &respStepRuns
 
+	// Evicted runs hold no slots, so for operator workers the evicted count is the only
+	// visible signal of how many runs are in flight but waiting on durable events.
+	if worker.Worker.OperatorId != nil {
+		evictedCount, err := t.config.V1.Operators().CountEvictedDAGOrchestratorRuns(reqCtx, tenant.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		evictedCountInt := int(evictedCount)
+		workerResp.EvictedDurableTaskCount = &evictedCountInt
+	}
+
 	return gen.WorkerGet200JSONResponse(workerResp), nil
 }

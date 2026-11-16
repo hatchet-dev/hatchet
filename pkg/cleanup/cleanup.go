@@ -2,11 +2,30 @@ package cleanup
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/rs/zerolog"
 )
+
+// ErrTeardown is wrapped into every error Run returns, so a caller that
+// tolerates another error in the same chain (for example the cancellation that
+// aborted a startup) can still tell that a cleanup fn failed.
+var ErrTeardown = errors.New("teardown failed")
+
+// OnlyCancelled reports whether err is nil, or contains context.Canceled
+// without ErrTeardown. It does not establish where the cancellation came from
+// or exclude other errors in the same tree. A caller that joins Run's error to
+// the cancellation it requested uses it in place of errors.Is, which would
+// accept the tree even when a cleanup fn failed.
+func OnlyCancelled(err error) bool {
+	if err == nil {
+		return true
+	}
+
+	return errors.Is(err, context.Canceled) && !errors.Is(err, ErrTeardown)
+}
 
 type CleanupFn struct {
 	Fn   func() error
@@ -69,7 +88,7 @@ func (c *Cleanup) Run() error {
 		lines <- fmt.Sprintf("shutting down %s (%d/%d)", fn.Name, i+1, len(c.Fns))
 		before := time.Now()
 		if err := fn.Fn(); err != nil {
-			return fmt.Errorf("could not teardown %s: %w", fn.Name, err)
+			return fmt.Errorf("%w: %s: %w", ErrTeardown, fn.Name, err)
 		}
 		lines <- fmt.Sprintf("successfully shutdown %s in %s (%d/%d)\n", fn.Name, time.Since(before), i+1, len(c.Fns))
 	}

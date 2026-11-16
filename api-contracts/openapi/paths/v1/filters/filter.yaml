@@ -3,6 +3,7 @@ V1FilterGetDeleteUpdate:
     x-resources: ["tenant", "v1-filter"]
     description: Get a filter by its id
     operationId: v1-filter:get
+    x-payloads: true
     parameters:
       - description: The tenant id
         in: path
@@ -41,6 +42,8 @@ V1FilterGetDeleteUpdate:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get a filter
     tags:
       - Filter
@@ -48,6 +51,7 @@ V1FilterGetDeleteUpdate:
     x-resources: ["tenant", "v1-filter"]
     description: Delete a filter
     operationId: v1-filter:delete
+    x-payloads: true
     parameters:
       - description: The tenant id
         in: path
@@ -92,12 +96,16 @@ V1FilterGetDeleteUpdate:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
+    summary: Delete a filter
     tags:
       - Filter
   patch:
     x-resources: ["tenant", "v1-filter"]
     description: Update a filter
     operationId: v1-filter:update
+    x-payloads: true
     parameters:
       - description: The tenant id
         in: path
@@ -149,6 +157,9 @@ V1FilterGetDeleteUpdate:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
+    summary: Update a filter
     tags:
       - Filter
 
@@ -157,6 +168,7 @@ V1FilterListCreate:
     x-resources: ["tenant"]
     description: Lists all filters for a tenant.
     operationId: v1-filter:list
+    x-payloads: true
     parameters:
       - description: The tenant id
         in: path
@@ -221,6 +233,8 @@ V1FilterListCreate:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: List filters
     tags:
       - Filter
@@ -228,6 +242,7 @@ V1FilterListCreate:
     x-resources: ["tenant"]
     description: Create a new filter
     operationId: v1-filter:create
+    x-payloads: true
     parameters:
       - description: The tenant id
         in: path
@@ -270,6 +285,8 @@ V1FilterListCreate:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+      "429":
+        $ref: "../../../components/responses/_index.yaml#/TooManyRequests"
     summary: Create a filter
     tags:
       - Filter

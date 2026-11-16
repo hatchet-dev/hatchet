@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
@@ -16,7 +17,10 @@ const MAX_RATE_LIMIT_UPDATE_FREQUENCY = 500 * time.Millisecond // avoid boundary
 type rateLimit struct {
 	key          string
 	val          int
+	limitValue   int32
+	window       string
 	nextRefillAt *time.Time
+	pausedUntil  *time.Time
 }
 
 type rateLimitSet map[string]*rateLimit
@@ -41,19 +45,31 @@ type rateLimiter struct {
 	dbRateLimitsMu sync.RWMutex
 	dbRateLimits   rateLimitSet
 
+	// lastFlushAt is when dbRateLimits was read, guarded by dbRateLimitsMu
+	lastFlushAt time.Time
+
+	// pausesEndedCh receives the tenant id when a flush finds a pause has ended, so held runs are released right away
+	pausesEndedCh chan<- uuid.UUID
+
+	// dynamic rate limit definitions read by the queuers, written on the next flush
+	pendingDefinitionsMu sync.Mutex
+	pendingDefinitions   map[string]v1.RateLimitDefinition
+
 	cleanup func()
 }
 
-func newRateLimiter(conf *sharedConfig, tenantId uuid.UUID) *rateLimiter {
+func newRateLimiter(conf *sharedConfig, tenantId uuid.UUID, pausesEndedCh chan<- uuid.UUID) *rateLimiter {
 	l := conf.l.With().Str("tenant_id", tenantId.String()).Logger()
 
 	rl := &rateLimiter{
-		rateLimitRepo: conf.repo.RateLimit(),
-		tenantId:      tenantId,
-		l:             &l,
-		unacked:       make(map[int64]rateLimitSet),
-		unflushed:     make(rateLimitSet),
-		dbRateLimits:  make(rateLimitSet),
+		rateLimitRepo:      conf.repo.RateLimit(),
+		tenantId:           tenantId,
+		l:                  &l,
+		unacked:            make(map[int64]rateLimitSet),
+		unflushed:          make(rateLimitSet),
+		dbRateLimits:       make(rateLimitSet),
+		pendingDefinitions: make(map[string]v1.RateLimitDefinition),
+		pausesEndedCh:      pausesEndedCh,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -80,7 +96,7 @@ func (r *rateLimiter) loopFlush(ctx context.Context) {
 			err := r.flushToDatabase(ctx)
 
 			if err != nil {
-				r.l.Error().Ctx(ctx).Err(err).Msg("error flushing rate limits to database")
+				logger.ShutdownAware(ctx, r.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error flushing rate limits to database")
 			}
 		}
 	}
@@ -97,6 +113,9 @@ type rateLimitResult struct {
 	exceededUnits int32
 	exceededVal   int32
 	nextRefillAt  *time.Time
+
+	// pausedUntil is set when a paused key blocked the task, and is also its nextRefillAt
+	pausedUntil *time.Time
 }
 
 // use returns true if the rate limits are not exceeded, false otherwise
@@ -109,7 +128,8 @@ func (r *rateLimiter) use(ctx context.Context, taskId int64, rls map[string]int3
 		err := r.flushToDatabase(ctx)
 
 		if err != nil {
-			r.l.Error().Ctx(ctx).Err(err).Msg("error flushing rate limits to database")
+			logger.ShutdownAware(ctx, r.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error flushing rate limits to database")
+
 			return res
 		}
 
@@ -120,12 +140,43 @@ func (r *rateLimiter) use(ctx context.Context, taskId int64, rls map[string]int3
 		err := r.flushToDatabase(ctx)
 
 		if err != nil {
-			r.l.Error().Ctx(ctx).Err(err).Msg("error flushing rate limits to database")
+			logger.ShutdownAware(ctx, r.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error flushing rate limits to database")
+
+			return res
+		}
+	}
+
+	// a pause that ended after the snapshot was read may have been extended since, and acting on the stale
+	// deadline would dispatch every run that was parked behind it
+	if expiredAt, ok := r.pauseExpiredSinceFlush(rls); ok {
+		err := r.refresh(ctx, expiredAt)
+
+		if err != nil {
+			logger.ShutdownAware(ctx, r.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error refreshing paused rate limits")
+
 			return res
 		}
 	}
 
 	currRls := r.copyDbRateLimits()
+
+	// a pause wins over an exhausted window, since the window may refill long before the pause ends
+	now := time.Now().UTC()
+
+	for k, v := range rls {
+		if currRl, ok := currRls[k]; ok && currRl.pausedUntil != nil && currRl.pausedUntil.After(now) {
+			if res.pausedUntil == nil || currRl.pausedUntil.After(*res.pausedUntil) {
+				res.exceededKey = k
+				res.exceededUnits = v
+				res.pausedUntil = currRl.pausedUntil
+				res.nextRefillAt = currRl.pausedUntil
+			}
+		}
+	}
+
+	if res.pausedUntil != nil {
+		return res
+	}
 
 	// we need to subtract any relevant unacked and unflushed rate limits for updates
 	r.subtractUnacked(rls, currRls)
@@ -172,6 +223,32 @@ func (r *rateLimiter) rateLimitsExist(rls map[string]int32) bool {
 	return true
 }
 
+// pauseExpiredSinceFlush returns the latest pause deadline among the keys that has passed since the snapshot was read
+func (r *rateLimiter) pauseExpiredSinceFlush(rls map[string]int32) (time.Time, bool) {
+	r.dbRateLimitsMu.RLock()
+	defer r.dbRateLimitsMu.RUnlock()
+
+	now := time.Now().UTC()
+
+	var expiredAt time.Time
+	found := false
+
+	for k := range rls {
+		rl, ok := r.dbRateLimits[k]
+
+		if !ok || rl.pausedUntil == nil || rl.pausedUntil.After(now) || !rl.pausedUntil.After(r.lastFlushAt) {
+			continue
+		}
+
+		if !found || rl.pausedUntil.After(expiredAt) {
+			expiredAt = *rl.pausedUntil
+			found = true
+		}
+	}
+
+	return expiredAt, found
+}
+
 func (r *rateLimiter) shouldRefill() bool {
 	r.nextRefillAtMu.Lock()
 	defer r.nextRefillAtMu.Unlock()
@@ -198,6 +275,7 @@ func (r *rateLimiter) copyDbRateLimits() rateLimitSet {
 			key:          k,
 			val:          v.val,
 			nextRefillAt: v.nextRefillAt,
+			pausedUntil:  v.pausedUntil,
 		}
 	}
 
@@ -281,9 +359,71 @@ func (r *rateLimiter) nack(taskId int64) {
 	delete(r.unacked, taskId)
 }
 
+func (r *rateLimiter) addDefinitions(definitions map[string]v1.RateLimitDefinition) {
+	if r == nil || len(definitions) == 0 {
+		return
+	}
+
+	r.pendingDefinitionsMu.Lock()
+	defer r.pendingDefinitionsMu.Unlock()
+
+	if r.pendingDefinitions == nil {
+		r.pendingDefinitions = make(map[string]v1.RateLimitDefinition)
+	}
+
+	for k, def := range definitions {
+		r.pendingDefinitions[k] = def
+	}
+}
+
+// takeChangedDefinitions drains the pending definitions, keeping only those that differ from the database. Callers must hold dbRateLimitsMu.
+func (r *rateLimiter) takeChangedDefinitions() map[string]v1.RateLimitDefinition {
+	r.pendingDefinitionsMu.Lock()
+	defer r.pendingDefinitionsMu.Unlock()
+
+	changed := make(map[string]v1.RateLimitDefinition)
+
+	for k, def := range r.pendingDefinitions {
+		if curr, ok := r.dbRateLimits[k]; ok && curr.limitValue == def.LimitValue && curr.window == def.Window {
+			continue
+		}
+
+		changed[k] = def
+	}
+
+	r.pendingDefinitions = make(map[string]v1.RateLimitDefinition)
+
+	return changed
+}
+
+// restoreDefinitions requeues definitions from a failed flush; definitions added since the flush started are newer and win.
+func (r *rateLimiter) restoreDefinitions(definitions map[string]v1.RateLimitDefinition) {
+	r.pendingDefinitionsMu.Lock()
+	defer r.pendingDefinitionsMu.Unlock()
+
+	if r.pendingDefinitions == nil {
+		r.pendingDefinitions = make(map[string]v1.RateLimitDefinition)
+	}
+
+	for k, def := range definitions {
+		if _, ok := r.pendingDefinitions[k]; !ok {
+			r.pendingDefinitions[k] = def
+		}
+	}
+}
+
 // flushToDatabase involves writing the rate limits and reading new rate limits from the
 // database
 func (r *rateLimiter) flushToDatabase(ctx context.Context) error {
+	return r.flush(ctx, nil)
+}
+
+// refresh reads the rate limits regardless of the refill deadline, unless a flush has already read them after staleBefore
+func (r *rateLimiter) refresh(ctx context.Context, staleBefore time.Time) error {
+	return r.flush(ctx, &staleBefore)
+}
+
+func (r *rateLimiter) flush(ctx context.Context, staleBefore *time.Time) error {
 	r.unflushedMu.Lock()
 	defer r.unflushedMu.Unlock()
 
@@ -293,23 +433,34 @@ func (r *rateLimiter) flushToDatabase(ctx context.Context) error {
 	r.nextRefillAtMu.Lock()
 	defer r.nextRefillAtMu.Unlock()
 
-	// check the refill time to avoid unnecessary database calls
-	if r.nextRefillAt != nil {
+	// concurrent callers that saw the same stale snapshot only need one of them to read
+	if staleBefore != nil && !r.lastFlushAt.Before(*staleBefore) {
+		return nil
+	}
+
+	definitions := r.takeChangedDefinitions()
+
+	// check the refill time to avoid unnecessary database calls; new or changed definitions can't wait,
+	// since use() treats a key with no row as unavailable
+	if staleBefore == nil && r.nextRefillAt != nil && len(definitions) == 0 {
 		if r.nextRefillAt.After(time.Now().UTC()) {
 			return nil
 		}
 	}
 
+	readAt := time.Now().UTC()
+
 	// copy the unflushed rate limits to a new map
-	updates := make(map[string]int)
+	usage := make(map[string]int)
 
 	for k, v := range r.unflushed {
-		updates[k] = v.val
+		usage[k] = v.val
 	}
 
-	newRateLimits, nextRefillAt, err := r.rateLimitRepo.UpdateRateLimits(ctx, r.tenantId, updates)
+	newRateLimits, nextRefillAt, err := r.rateLimitRepo.FlushRateLimits(ctx, r.tenantId, usage, definitions)
 
 	if err != nil {
+		r.restoreDefinitions(definitions)
 		return err
 	}
 
@@ -324,6 +475,14 @@ func (r *rateLimiter) flushToDatabase(ctx context.Context) error {
 		r.nextRefillAt = nextRefillAt
 	}
 
+	previouslyPaused := make([]string, 0)
+
+	for k, v := range r.dbRateLimits {
+		if v.pausedUntil != nil {
+			previouslyPaused = append(previouslyPaused, k)
+		}
+	}
+
 	r.dbRateLimits = make(rateLimitSet)
 
 	// update the db rate limits
@@ -331,15 +490,46 @@ func (r *rateLimiter) flushToDatabase(ctx context.Context) error {
 		key := newVal.Key
 		next := newVal.NextRefillAt.Time
 
+		var pausedUntil *time.Time
+
+		if newVal.PausedUntil.Valid {
+			t := newVal.PausedUntil.Time
+			pausedUntil = &t
+		}
+
 		r.dbRateLimits[key] = &rateLimit{
 			key:          key,
 			val:          int(newVal.Value),
+			limitValue:   newVal.LimitValue,
+			window:       newVal.Window,
 			nextRefillAt: &next,
+			pausedUntil:  pausedUntil,
 		}
 	}
+
+	r.lastFlushAt = readAt
 
 	// clear the unflushed rate limits
 	r.unflushed = make(rateLimitSet)
 
+	for _, k := range previouslyPaused {
+		if rl, ok := r.dbRateLimits[k]; !ok || rl.pausedUntil == nil {
+			r.notifyPausesEnded()
+			break
+		}
+	}
+
 	return nil
+}
+
+func (r *rateLimiter) notifyPausesEnded() {
+	if r.pausesEndedCh == nil {
+		return
+	}
+
+	// the task controller's periodic release covers a dropped signal
+	select {
+	case r.pausesEndedCh <- r.tenantId:
+	default:
+	}
 }

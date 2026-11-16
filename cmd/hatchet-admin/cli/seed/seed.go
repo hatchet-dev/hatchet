@@ -16,6 +16,7 @@ import (
 )
 
 func SeedDatabase(dc *database.Layer) error {
+	l := dc.GetLogger()
 	shouldSeedUser := dc.Seed.AdminEmail != "" && dc.Seed.AdminPassword != ""
 	var userID uuid.UUID
 
@@ -71,9 +72,10 @@ func SeedDatabase(dc *database.Layer) error {
 			}
 
 			sqlcTenant, err := dc.V1.Tenant().CreateTenant(context.Background(), &v1.CreateTenantOpts{
-				ID:   &tenantID,
-				Name: dc.Seed.DefaultTenantName,
-				Slug: dc.Seed.DefaultTenantSlug,
+				ID:           &tenantID,
+				Name:         dc.Seed.DefaultTenantName,
+				Slug:         dc.Seed.DefaultTenantSlug,
+				Entitlements: &dc.DefaultTenantEntitlements,
 			})
 
 			if err != nil {
@@ -86,7 +88,7 @@ func SeedDatabase(dc *database.Layer) error {
 				return err
 			}
 
-			fmt.Println("created tenant", tenant.ID.String())
+			l.Info().Str("tenant_id", tenant.ID.String()).Msg("created tenant")
 
 			// add the user to the tenant
 			_, err = dc.V1.Tenant().CreateTenantMember(context.Background(), tenant.ID, &v1.CreateTenantMemberOpts{
@@ -142,6 +144,7 @@ func seedAuthDisabledToken(dc *database.Layer) error {
 		TenantId:  &tenantID,
 		Name:      &name,
 		Internal:  true,
+		ReadOnly:  false,
 	})
 
 	return err

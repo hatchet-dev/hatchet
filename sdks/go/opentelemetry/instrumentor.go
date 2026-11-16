@@ -35,10 +35,20 @@ type instrumentorOptions struct {
 	tracerProvider  *sdktrace.TracerProvider
 	bspOptions      []sdktrace.BatchSpanProcessorOption
 	enableCollector bool
+	token           string
 }
 
 // InstrumentorOption configures the Instrumentor.
 type InstrumentorOption func(*instrumentorOptions)
+
+// WithToken sets the API token used to reach the Hatchet collector, taking
+// precedence over HATCHET_CLIENT_TOKEN. The endpoint and TLS settings are
+// derived from the token as they are for the client.
+func WithToken(token string) InstrumentorOption {
+	return func(o *instrumentorOptions) {
+		o.token = token
+	}
+}
 
 // WithTracerProvider sets a custom TracerProvider. If not set, a new one is created.
 // The provider must be an SDK TracerProvider to support adding span processors.
@@ -103,7 +113,14 @@ func NewInstrumentor(opts ...InstrumentorOption) (*Instrumentor, error) {
 			return nil, fmt.Errorf("failed to load client config for OTel collector: %w", err)
 		}
 
-		clientCfg, err := loader.GetClientConfigFromConfigFile(nil, cfgFile)
+		var tokenOverride *string
+		if o.token != "" {
+			tokenOverride = &o.token
+		} else if cfgFile.Token == "" {
+			return nil, fmt.Errorf("a Hatchet API token is required for the OTel collector: pass opentelemetry.WithToken, set HATCHET_CLIENT_TOKEN, or use opentelemetry.DisableHatchetCollector()")
+		}
+
+		clientCfg, err := loader.GetClientConfigFromConfigFile(tokenOverride, cfgFile)
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve client config for OTel collector: %w", err)
 		}

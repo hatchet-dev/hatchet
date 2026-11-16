@@ -1,10 +1,15 @@
 import sleep from '@hatchet/util/sleep';
-import { V1TaskStatus } from '@hatchet/clients/rest/generated/data-contracts';
+import {
+  V1DurableEventLogKind,
+  V1TaskStatus,
+} from '@hatchet/clients/rest/generated/data-contracts';
 import Hatchet from '@hatchet/index';
 import { makeE2EClient, poll, checkDurableEvictionSupport } from '../__e2e__/harness';
 import {
   evictableSleep,
   evictableWaitForEvent,
+  evictableMemoThenWaitForEvent,
+  MEMO_EVENT_KEY,
   evictableChildSpawn,
   evictableChildBulkSpawn,
   multipleEviction,
@@ -15,6 +20,25 @@ import {
   EVENT_KEY,
   evictableSleepForGracefulTermination,
 } from './workflow';
+import { DURABLE_WAIT_MARKED } from './graceful-worker';
+
+const TS_NODE_BIN = require.resolve('ts-node/dist/bin.js');
+
+// Spawns the worker script via `node <ts-node bin>` directly rather than
+// through a package-manager `exec` subcommand (e.g. `pnpm exec`), since the
+// package manager available on PATH varies across CI matrix entries (pnpm vs bun).
+async function spawnWorker(scriptPath: string, env: NodeJS.ProcessEnv) {
+  const { spawn } = await import('child_process');
+  return spawn(
+    process.execPath,
+    [TS_NODE_BIN, '-r', 'tsconfig-paths/register', '-P', 'tsconfig.json', scriptPath],
+    {
+      cwd: process.cwd(),
+      env,
+      stdio: 'pipe',
+    }
+  );
+}
 
 function getTaskStatuses(details: any): V1TaskStatus[] {
   return (details?.tasks || []).map((t: any) => t.status);
@@ -90,6 +114,37 @@ describe('durable-eviction-e2e', () => {
         intervalMs: interval,
         shouldStop: (details: any) => details != null && hasEvictedTask(details),
         label: 'isEvicted=true',
+      }
+    );
+  }
+
+  // Shutting the worker down evicts only the runs it already knows are waiting,
+  // and a run counts as waiting once the engine has acked its waitFor. A run
+  // reports RUNNING as soon as it is assigned, so terminating the worker on
+  // RUNNING can land before the sleep is registered and evict nothing. Wait for
+  // the unsatisfied WAIT_FOR entry instead. Also wait for startedAt, which is
+  // set from the STARTED event in OLAP: the eviction's DURABLE_EVICTED event is
+  // written to OLAP on a separate path, and a STARTED event that lands after it
+  // flips the task back to RUNNING and clears isEvicted.
+  async function pollUntilDurableWaitRegistered(runId: string) {
+    return poll(
+      async () => {
+        const details = await hatchet.runs.get(runId);
+        const [task] = details.tasks || [];
+        if (!task?.startedAt) return undefined;
+        const taskId = getTaskExternalId(details);
+        if (!taskId) return undefined;
+        const { data } = await hatchet.api.v1DurableTaskEventLogList(hatchet.tenantId, taskId);
+        return data;
+      },
+      {
+        timeoutMs: 30_000,
+        intervalMs: 500,
+        shouldStop: (entries) =>
+          (entries || []).some(
+            (entry) => entry.kind === V1DurableEventLogKind.WAIT_FOR && !entry.isSatisfied
+          ),
+        label: 'durable wait registered',
       }
     );
   }
@@ -194,6 +249,26 @@ describe('durable-eviction-e2e', () => {
 
     const result = await ref.output;
     expect(result.status).toBe('completed');
+  }, 180_000);
+
+  it('memo before wait-for-event does not block completion delivery on replay', async () => {
+    if (requireEviction()) return;
+    const ref = await evictableMemoThenWaitForEvent.runNoWait({});
+    const runId = await ref.getWorkflowRunId();
+
+    await pollUntilStatus(runId, V1TaskStatus.RUNNING);
+    const details = await pollUntilEvicted(runId);
+    const taskId = getTaskExternalId(details);
+    expect(taskId).toBeDefined();
+
+    await hatchet.runs.restoreTask(taskId!);
+    await pollUntilStatus(runId, V1TaskStatus.RUNNING);
+
+    await hatchet.events.push(MEMO_EVENT_KEY, {});
+
+    const result = await ref.output;
+    expect(result.status).toBe('completed');
+    expect(result.memoizedNow).toBeDefined();
   }, 180_000);
 
   it('evictable child spawn is evicted after TTL', async () => {
@@ -342,29 +417,12 @@ describe('durable-eviction-e2e', () => {
 
   it('capacity eviction fires with durable_slots=1 and ttl=undefined', async () => {
     if (requireEviction()) return;
-    const { spawn } = await import('child_process');
 
-    const workerProc = spawn(
-      'pnpm',
-      [
-        'exec',
-        'ts-node',
-        '-r',
-        'tsconfig-paths/register',
-        '-P',
-        'tsconfig.json',
-        'src/v1/examples/durable_eviction/capacity-worker.ts',
-      ],
-      {
-        cwd: process.cwd(),
-        env: {
-          ...process.env,
-          HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: 'true',
-          HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT: '8105',
-        },
-        stdio: 'pipe',
-      }
-    );
+    const workerProc = await spawnWorker('src/v1/examples/durable_eviction/capacity-worker.ts', {
+      ...process.env,
+      HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: 'true',
+      HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT: '8105',
+    });
 
     workerProc.stdout?.on('data', () => {});
     workerProc.stderr?.on('data', () => {});
@@ -405,29 +463,12 @@ describe('durable-eviction-e2e', () => {
 
   it('capacity eviction restore completes', async () => {
     if (requireEviction()) return;
-    const { spawn } = await import('child_process');
 
-    const workerProc = spawn(
-      'pnpm',
-      [
-        'exec',
-        'ts-node',
-        '-r',
-        'tsconfig-paths/register',
-        '-P',
-        'tsconfig.json',
-        'src/v1/examples/durable_eviction/capacity-worker.ts',
-      ],
-      {
-        cwd: process.cwd(),
-        env: {
-          ...process.env,
-          HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: 'true',
-          HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT: '8106',
-        },
-        stdio: 'pipe',
-      }
-    );
+    const workerProc = await spawnWorker('src/v1/examples/durable_eviction/capacity-worker.ts', {
+      ...process.env,
+      HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: 'true',
+      HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT: '8106',
+    });
 
     workerProc.stdout?.on('data', () => {});
     workerProc.stderr?.on('data', () => {});
@@ -472,7 +513,6 @@ describe('durable-eviction-e2e', () => {
 
   it('graceful termination evicts waiting runs', async () => {
     if (requireEviction()) return;
-    const { spawn } = await import('child_process');
 
     const namespace = 'graceful-termination-evicts-waiting-runs';
 
@@ -480,30 +520,26 @@ describe('durable-eviction-e2e', () => {
       namespace,
     });
 
-    const workerProc = spawn(
-      'pnpm',
-      [
-        'exec',
-        'ts-node',
-        '-r',
-        'tsconfig-paths/register',
-        '-P',
-        'tsconfig.json',
-        'src/v1/examples/durable_eviction/worker.ts',
-      ],
-      {
-        cwd: process.cwd(),
-        env: {
-          ...process.env,
-          HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: 'true',
-          HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT: '8104',
-          HATCHET_CLIENT_NAMESPACE: 'graceful-termination-evicts-waiting-runs',
-        },
-        stdio: 'pipe',
-      }
-    );
+    const workerProc = await spawnWorker('src/v1/examples/durable_eviction/graceful-worker.ts', {
+      ...process.env,
+      HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: 'true',
+      HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT: '8104',
+      HATCHET_CLIENT_NAMESPACE: 'graceful-termination-evicts-waiting-runs',
+    });
 
-    workerProc.stdout?.on('data', () => {});
+    // The engine's WAIT_FOR entry appears before the worker has processed the
+    // ack, and only a run the SDK has marked as waiting is evicted on
+    // shutdown, so the worker prints a line when that happens and the test
+    // waits for it as well.
+    let resolveWaitMarked: () => void = () => {};
+    const waitMarked = new Promise<void>((resolve) => {
+      resolveWaitMarked = resolve;
+    });
+    let workerStdout = '';
+    workerProc.stdout?.on('data', (chunk: Buffer) => {
+      workerStdout += chunk.toString();
+      if (workerStdout.includes(DURABLE_WAIT_MARKED)) resolveWaitMarked();
+    });
     workerProc.stderr?.on('data', () => {});
 
     try {
@@ -531,7 +567,13 @@ describe('durable-eviction-e2e', () => {
 
       const runId = await ref.getWorkflowRunId();
 
-      await pollUntilStatus(runId, V1TaskStatus.RUNNING);
+      await pollUntilDurableWaitRegistered(runId);
+      await Promise.race([
+        waitMarked,
+        sleep(30_000).then(() => {
+          throw new Error('worker did not mark the durable wait within 30000ms');
+        }),
+      ]);
 
       workerProc.kill('SIGTERM');
 

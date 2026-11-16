@@ -2,18 +2,16 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-
 	"github.com/hatchet-dev/hatchet/pkg/cleanup"
+	hatchetprom "github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 
-	"github.com/rs/zerolog"
-
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
 	adminv1 "github.com/hatchet-dev/hatchet/internal/services/admin/v1"
 	metricscontroller "github.com/hatchet-dev/hatchet/internal/services/controllers/metrics"
@@ -22,19 +20,22 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/task"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	"github.com/hatchet-dev/hatchet/internal/services/grpc"
+	"github.com/hatchet-dev/hatchet/internal/services/grpcoperator"
 	"github.com/hatchet-dev/hatchet/internal/services/health"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/internal/services/otelcol"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	schedulerv1 "github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
+	streamssvc "github.com/hatchet-dev/hatchet/internal/services/streams"
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
-	"github.com/hatchet-dev/hatchet/pkg/config/shared"
+	"github.com/hatchet-dev/hatchet/pkg/o11yusage"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 
+	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -103,7 +104,13 @@ func Run(
 	cleanup.Add(server.Disconnect, "database")
 
 	if err != nil {
-		return fmt.Errorf("could not run with config: %w", err)
+		// a start step failed, or observed the context being cancelled while
+		// the engine was still starting. Run the cleanups registered so far
+		// before reporting the error; otherwise the pools, queue channels and
+		// background goroutines of a partially started engine outlive Run. A
+		// component whose own Start failed registered nothing and is left to
+		// the process exit
+		return errors.Join(fmt.Errorf("could not run with config: %w", err), cleanup.Run())
 	}
 
 	l.Debug().Msgf("interrupt received, shutting down")
@@ -119,6 +126,10 @@ func Run(
 }
 
 func RunWithConfig(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.Cleanup) error {
+	if err := syncEventKeyWorkflows(sc, cleanup); err != nil {
+		return err
+	}
+
 	isV1 := sc.HasService("all") || sc.HasService("scheduler") || sc.HasService("controllers") || sc.HasService("grpc-api")
 
 	if isV1 {
@@ -127,8 +138,56 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig, cleanup *cleanu
 	return runV0Config(ctx, sc, cleanup)
 }
 
-func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.Cleanup) error {
+// syncEventKeyWorkflows keeps each engine's cached lists of the workflows an event key triggers
+// in step with workflow versions created on any engine. This engine announces every version it
+// creates, and drops a tenant's cached lists whenever any engine announces one for the tenant.
+func syncEventKeyWorkflows(sc *server.ServerConfig, cleanup *cleanup.Cleanup) error {
+	sc.V1.Workflows().RegisterVersionCreatedCallback(func(ctx context.Context, tenantId uuid.UUID) {
+		msg := &msgqueue.Message{ID: msgqueue.MsgIDWorkflowVersionCreated, TenantID: tenantId}
+
+		// Off the registration request: a stalled broker can block a publish past its context,
+		// and other engines receive the announcement asynchronously either way.
+		go func() {
+			pubCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer cancel()
+
+			if err := sc.PubSubV1.Pub(pubCtx, msgqueue.WorkflowVersionCreatedTopic(), msg); err != nil {
+				sc.Logger.Warn().Ctx(pubCtx).Err(err).Msg("could not announce new workflow version")
+			}
+		}()
+	})
+
+	unsub, err := sc.PubSubV1.Sub(msgqueue.WorkflowVersionCreatedTopic(), func(msg *msgqueue.Message) error {
+		sc.V1.Triggers().InvalidateEventKeyWorkflows(msg.TenantID)
+		return nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("could not subscribe to new workflow versions: %w", err)
+	}
+
+	cleanup.Add(unsub, "workflow version subscription")
+
+	return nil
+}
+
+// startO11yUsage returns a func, for the caller to defer, that registers the final flush after
+// every cleanup the caller registers, since the services stopped by those still add bytes.
+func startO11yUsage(sc *server.ServerConfig, cleanup *cleanup.Cleanup) (*o11yusage.Aggregator, func()) {
+	if sc.O11yUsageFlush == nil {
+		return nil, func() {}
+	}
+
+	agg := o11yusage.NewAggregator(sc.Logger, sc.Runtime.O11yUsageFlushInterval, sc.O11yUsageFlush)
+	agg.Start()
+
+	return agg, func() { cleanup.Add(agg.Shutdown, "o11y-usage") }
+}
+
+func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.Cleanup) (err error) {
 	var l = sc.Logger
+	o11yUsage, registerO11yUsageShutdown := startO11yUsage(sc, cleanup)
+	defer registerO11yUsageShutdown()
 
 	telemetryShutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
 		ServiceName:   sc.OpenTelemetry.ServiceName,
@@ -141,9 +200,28 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		return fmt.Errorf("could not initialize tracer: %w", err)
 	}
 
+	var healthCleanup func() error
+
+	// On a successful start the health and telemetry cleanups are registered
+	// last, so that probes report not-ready for the whole teardown. A start
+	// that fails after they are up never reaches that registration, so it is
+	// done here; otherwise the health listener outlives the engine and holds
+	// its port against the next engine to start.
+	defer func() {
+		if err == nil {
+			return
+		}
+
+		if healthCleanup != nil {
+			cleanup.Add(healthCleanup, "health")
+		}
+
+		cleanup.Add(telemetryShutdown, "telemetry")
+	}()
+
 	if sc.Prometheus.Enabled {
 		cleanup.Add(
-			startPrometheus(l, sc.Prometheus),
+			hatchetprom.StartServer(l, sc.Prometheus.Address, sc.Prometheus.Path),
 			"prometheus",
 		)
 	}
@@ -157,7 +235,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	p.AddCleanupMethods(cleanup)
 
 	var h *health.Health
-	var healthCleanup func() error
 	healthProbes := sc.HasService("health")
 	if healthProbes {
 		h = health.New(sc.V1.Health(), sc.MessageQueueV1, sc.Version, l)
@@ -227,6 +304,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	if sc.HasService("ticker") {
 		t, err := ticker.New(
 			ticker.WithMessageQueueV1(sc.MessageQueueV1),
+			ticker.WithPubSub(sc.PubSubV1),
 			ticker.WithRepositoryV1(sc.V1),
 			ticker.WithLogger(sc.Logger),
 			ticker.WithTenantAlerter(sc.TenantAlerter),
@@ -247,6 +325,12 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	}
 
 	if sc.HasService("queue") || sc.HasService("jobscontroller") || sc.HasService("workflowscontroller") {
+		retention, err := corePartitionRetention(sc)
+
+		if err != nil {
+			return err
+		}
+
 		tasks, err := task.New(
 			task.WithAlerter(sc.Alerter),
 			task.WithMessageQueue(sc.MessageQueueV1),
@@ -256,6 +340,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			task.WithPartition(p),
 			task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
 			task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
+			task.WithMaxRetryAfter(retention),
 			task.WithAnalyzeCronInterval(sc.CronOperations.TaskAnalyzeCronInterval),
 			task.WithPrometheusGate(sc.PrometheusGate),
 		)
@@ -295,6 +380,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			olap.WithMQQos(sc.Operations.OLAPMQQos),
 			olap.WithMaxRequeueCount(sc.MQMaxDeathCount),
 			olap.WithPrometheusGate(sc.PrometheusGate),
+			olap.WithAuditLogOutbox(sc.AuditLogOutbox),
 		)
 
 		if err != nil {
@@ -381,6 +467,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			ingestor.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 			ingestor.WithAnalytics(sc.Analytics),
 			ingestor.WithPrometheusGate(sc.PrometheusGate),
+			ingestor.WithO11yUsage(o11yUsage),
 		)
 
 		if err != nil {
@@ -420,6 +507,14 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			return fmt.Errorf("could not create admin service (v1): %w", err)
 		}
 
+		// the operators this dispatcher claims are hosted in process, on the local
+		// dispatcher, from here; the v0 engine serves no durable streams
+		operators, err := startOperatorClaimer(sc, d, adminv1Svc, nil)
+
+		if err != nil {
+			return fmt.Errorf("could not start operator claimer: %w", err)
+		}
+
 		grpcOpts := []grpc.ServerOpt{
 			grpc.WithConfig(sc),
 			grpc.WithIngestor(ei),
@@ -441,6 +536,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				otelcol.WithLogger(sc.Logger),
 				otelcol.WithMaxBatchSize(sc.Observability.MaxBatchSize),
 				otelcol.WithAnalytics(sc.Analytics),
+				otelcol.WithO11yUsage(o11yUsage),
 			)
 
 			if err != nil {
@@ -452,6 +548,34 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 
 		if sc.Runtime.GRPCInsecure {
 			grpcOpts = append(grpcOpts, grpc.WithInsecure())
+		}
+
+		var operatorSvc *grpcoperator.OperatorServiceImpl
+
+		if sc.Runtime.GRPCOperatorsEnabled {
+			operatorSvc, err = grpcoperator.New(
+				grpcoperator.WithDispatcher(d),
+				grpcoperator.WithRepository(sc.V1),
+				grpcoperator.WithLogger(sc.Logger),
+				grpcoperator.WithAnalytics(sc.Analytics),
+				grpcoperator.WithValidator(sc.Validator),
+				grpcoperator.WithMaxListenStreamsPerOperator(sc.Runtime.GRPCOperatorMaxListenStreamsPerOperator),
+				grpcoperator.WithMaxActionsPerOperator(sc.Runtime.GRPCOperatorMaxActionsPerOperator),
+			)
+
+			if err != nil {
+				return fmt.Errorf("could not create grpc operator service: %w", err)
+			}
+
+			grpcOpts = append(grpcOpts, grpc.WithOperatorService(operatorSvc))
+		}
+
+		// the in-engine serverless operator opens its sessions on the same in-process host; it
+		// is a no-op unless enabled
+		stopServerlessOperator, err := startServerlessOperator(sc, d, operators.host)
+
+		if err != nil {
+			return fmt.Errorf("could not start serverless operator: %w", err)
 		}
 
 		// create the grpc server
@@ -468,6 +592,23 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		}
 
 		cleanupGrpcApi := func() error {
+			// flag this dispatcher as leaving first, so other dispatchers start claiming its
+			// operators now rather than after the drain, and it claims nothing more itself
+			if err := d.MarkDraining(context.Background()); err != nil {
+				l.Error().Err(err).Msg("could not mark dispatcher as draining; its operators are handed over when it is deleted instead")
+			}
+
+			// the serverless operator closes its registrations (and deactivates their workers)
+			// before the dispatcher drains, while events can still be reported
+			if err := stopServerlessOperator(); err != nil {
+				return err
+			}
+
+			// the claimed operators are paused, drained and closed next, for the same reason
+			if err := operators.stop(); err != nil {
+				return err
+			}
+
 			// hang up long-lived subscriber streams first so that GracefulStop does not
 			// block on them until the pod is killed
 			d.CancelStreamSessions()
@@ -490,6 +631,11 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				}
 				if err := adminv1Svc.Cleanup(); err != nil {
 					return fmt.Errorf("failed to cleanup adminv1 service: %w", err)
+				}
+				if operatorSvc != nil {
+					if err := operatorSvc.Cleanup(); err != nil {
+						return fmt.Errorf("failed to cleanup grpc operator service: %w", err)
+					}
 				}
 				if err := ei.Cleanup(); err != nil {
 					return fmt.Errorf("failed to cleanup ingestor: %w", err)
@@ -541,8 +687,10 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	return nil
 }
 
-func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.Cleanup) error {
+func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.Cleanup) (err error) {
 	var l = sc.Logger
+	o11yUsage, registerO11yUsageShutdown := startO11yUsage(sc, cleanup)
+	defer registerO11yUsageShutdown()
 
 	telemetryShutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
 		ServiceName:   sc.OpenTelemetry.ServiceName,
@@ -555,8 +703,27 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		return fmt.Errorf("could not initialize tracer: %w", err)
 	}
 
+	var healthCleanup func() error
+
+	// On a successful start the health and telemetry cleanups are registered
+	// last, so that probes report not-ready for the whole teardown. A start
+	// that fails after they are up never reaches that registration, so it is
+	// done here; otherwise the health listener outlives the engine and holds
+	// its port against the next engine to start.
+	defer func() {
+		if err == nil {
+			return
+		}
+
+		if healthCleanup != nil {
+			cleanup.Add(healthCleanup, "health")
+		}
+
+		cleanup.Add(telemetryShutdown, "telemetry")
+	}()
+
 	if sc.Prometheus.Enabled {
-		cleanup.Add(startPrometheus(l, sc.Prometheus), "prometheus")
+		cleanup.Add(hatchetprom.StartServer(l, sc.Prometheus.Address, sc.Prometheus.Path), "prometheus")
 	}
 
 	p, err := partition.NewPartition(l, sc.V1.Tenant())
@@ -569,7 +736,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 
 	healthProbes := sc.Runtime.Healthcheck
 	var h *health.Health
-	var healthCleanup func() error
 
 	if healthProbes {
 		h = health.New(sc.V1.Health(), sc.MessageQueueV1, sc.Version, l)
@@ -593,6 +759,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 
 		t, err := ticker.New(
 			ticker.WithMessageQueueV1(sc.MessageQueueV1),
+			ticker.WithPubSub(sc.PubSubV1),
 			ticker.WithRepositoryV1(sc.V1),
 			ticker.WithLogger(sc.Logger),
 			ticker.WithTenantAlerter(sc.TenantAlerter),
@@ -635,6 +802,12 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		)
 
 		if isControllerActive(sc.PausedControllers, TaskController) {
+			retention, err := corePartitionRetention(sc)
+
+			if err != nil {
+				return err
+			}
+
 			tasks, err := task.New(
 				task.WithAlerter(sc.Alerter),
 				task.WithMessageQueue(sc.MessageQueueV1),
@@ -646,6 +819,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
 				task.WithOpsPoolJitter(sc.Operations),
 				task.WithReplayEnabled(sc.Runtime.ReplayEnabled),
+				task.WithMaxRetryAfter(retention),
 				task.WithAnalyzeCronInterval(sc.CronOperations.TaskAnalyzeCronInterval),
 				task.WithPrometheusGate(sc.PrometheusGate),
 			)
@@ -687,6 +861,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				olap.WithMQQos(sc.Operations.OLAPMQQos),
 				olap.WithMaxRequeueCount(sc.MQMaxDeathCount),
 				olap.WithPrometheusGate(sc.PrometheusGate),
+				olap.WithAuditLogOutbox(sc.AuditLogOutbox),
 			)
 
 			if err != nil {
@@ -827,6 +1002,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			ingestor.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 			ingestor.WithAnalytics(sc.Analytics),
 			ingestor.WithPrometheusGate(sc.PrometheusGate),
+			ingestor.WithO11yUsage(o11yUsage),
 		)
 
 		if err != nil {
@@ -867,6 +1043,26 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			return fmt.Errorf("could not create admin service (v1): %w", err)
 		}
 
+		streamsSvc, err := streamssvc.NewService(
+			streamssvc.WithPubSub(sc.PubSubV1),
+			streamssvc.WithRepositoryV1(sc.V1),
+			streamssvc.WithLogger(sc.Logger),
+			streamssvc.WithUsage(o11yUsage),
+			streamssvc.WithAnalytics(sc.Analytics),
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not create streams service: %w", err)
+		}
+
+		// the operators this dispatcher claims are hosted in process, on the local
+		// dispatcher and streams service, from here
+		operators, err := startOperatorClaimer(sc, d, adminv1Svc, streamsSvc)
+
+		if err != nil {
+			return fmt.Errorf("could not start operator claimer: %w", err)
+		}
+
 		grpcOpts := []grpc.ServerOpt{
 			grpc.WithConfig(sc),
 			grpc.WithIngestor(ei),
@@ -874,6 +1070,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			grpc.WithDispatcherV1(d.V1()),
 			grpc.WithAdmin(adminSvc),
 			grpc.WithAdminV1(adminv1Svc),
+			grpc.WithStreamsV1(streamsSvc),
 			grpc.WithLogger(sc.Logger),
 			grpc.WithAlerter(sc.Alerter),
 			grpc.WithTLSConfig(sc.TLSConfig),
@@ -888,6 +1085,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				otelcol.WithLogger(sc.Logger),
 				otelcol.WithMaxBatchSize(sc.Observability.MaxBatchSize),
 				otelcol.WithAnalytics(sc.Analytics),
+				otelcol.WithO11yUsage(o11yUsage),
 			)
 
 			if err != nil {
@@ -899,6 +1097,34 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 
 		if sc.Runtime.GRPCInsecure {
 			grpcOpts = append(grpcOpts, grpc.WithInsecure())
+		}
+
+		var operatorSvc *grpcoperator.OperatorServiceImpl
+
+		if sc.Runtime.GRPCOperatorsEnabled {
+			operatorSvc, err = grpcoperator.New(
+				grpcoperator.WithDispatcher(d),
+				grpcoperator.WithRepository(sc.V1),
+				grpcoperator.WithLogger(sc.Logger),
+				grpcoperator.WithAnalytics(sc.Analytics),
+				grpcoperator.WithValidator(sc.Validator),
+				grpcoperator.WithMaxListenStreamsPerOperator(sc.Runtime.GRPCOperatorMaxListenStreamsPerOperator),
+				grpcoperator.WithMaxActionsPerOperator(sc.Runtime.GRPCOperatorMaxActionsPerOperator),
+			)
+
+			if err != nil {
+				return fmt.Errorf("could not create grpc operator service: %w", err)
+			}
+
+			grpcOpts = append(grpcOpts, grpc.WithOperatorService(operatorSvc))
+		}
+
+		// the in-engine serverless operator opens its sessions on the same in-process host; it
+		// is a no-op unless enabled
+		stopServerlessOperator, err := startServerlessOperator(sc, d, operators.host)
+
+		if err != nil {
+			return fmt.Errorf("could not start serverless operator: %w", err)
 		}
 
 		// create the grpc server
@@ -915,9 +1141,27 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		}
 
 		grpcApiCleanup := func() error {
+			// flag this dispatcher as leaving first, so other dispatchers start claiming its
+			// operators now rather than after the drain, and it claims nothing more itself
+			if err := d.MarkDraining(context.Background()); err != nil {
+				l.Error().Err(err).Msg("could not mark dispatcher as draining; its operators are handed over when it is deleted instead")
+			}
+
+			// the serverless operator closes its registrations (and deactivates their workers)
+			// before the dispatcher drains, while events can still be reported
+			if err := stopServerlessOperator(); err != nil {
+				return err
+			}
+
+			// the claimed operators are paused, drained and closed next, for the same reason
+			if err := operators.stop(); err != nil {
+				return err
+			}
+
 			// hang up long-lived subscriber streams first so that GracefulStop does not
 			// block on them until the pod is killed
 			d.CancelStreamSessions()
+			streamsSvc.CancelStreamSessions()
 
 			g := new(errgroup.Group)
 
@@ -938,8 +1182,16 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				if err := adminv1Svc.Cleanup(); err != nil {
 					return fmt.Errorf("failed to cleanup adminv1 service: %w", err)
 				}
+				if operatorSvc != nil {
+					if err := operatorSvc.Cleanup(); err != nil {
+						return fmt.Errorf("failed to cleanup grpc operator service: %w", err)
+					}
+				}
 				if err := ei.Cleanup(); err != nil {
 					return fmt.Errorf("failed to cleanup ingestor: %w", err)
+				}
+				if err := streamsSvc.Cleanup(); err != nil {
+					return fmt.Errorf("failed to cleanup streams service: %w", err)
 				}
 				return nil
 			})
@@ -987,37 +1239,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	return nil
 }
 
-func startPrometheus(l *zerolog.Logger, c shared.PrometheusConfigFile) func() error {
-	mux := http.NewServeMux()
-	mux.Handle(c.Path, promhttp.Handler())
-
-	srv := &http.Server{
-		Addr:              c.Address,
-		Handler:           mux,
-		ReadHeaderTimeout: 5 * time.Second,
-	}
-
-	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			l.Error().Err(err).Msg("failed to start prometheus server")
-		}
-	}()
-
-	l.Info().Msgf("Prometheus server started on %s", c.Address)
-
-	return func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		if err := srv.Shutdown(ctx); err != nil {
-			return fmt.Errorf("failed to shutdown prometheus server: %w", err)
-		}
-
-		l.Info().Msg("Prometheus server shutdown gracefully")
-		return nil
-	}
-}
-
 type ControllerName string
 
 const (
@@ -1031,4 +1252,15 @@ func isControllerActive(pausedControllers map[string]bool, controllerName Contro
 	}
 
 	return false
+}
+
+// corePartitionRetention caps task-requested retry delays, since a task's rows are dropped once its partition ages out.
+func corePartitionRetention(sc *server.ServerConfig) (time.Duration, error) {
+	retention, err := time.ParseDuration(sc.Runtime.Limits.CorePartitionRetentionOrDefault())
+
+	if err != nil {
+		return 0, fmt.Errorf("could not parse core partition retention: %w", err)
+	}
+
+	return retention, nil
 }

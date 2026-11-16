@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/durable"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
@@ -51,14 +52,13 @@ func (tc *TasksControllerImpl) handleDurableRestoreTask(ctx context.Context, ten
 		return fmt.Errorf("failed to batch-restore evicted tasks: %w", err)
 	}
 
-	restoredByTaskId := make(map[int64]*sqlcv1.RestoreEvictedTasksRow, len(restoredRows))
-	for _, r := range restoredRows {
-		restoredByTaskId[r.TaskID] = r
-	}
+	restoredByTaskId := enumerables.KeyBy(restoredRows, func(r *sqlcv1.RestoreEvictedTasksRow) int64 {
+		return r.TaskID
+	})
 
 	invCountOpts := make([]v1.IdInsertedAt, 0, len(flatTasks))
 	for _, t := range flatTasks {
-		invCountOpts = append(invCountOpts, v1.IdInsertedAt{ID: t.ID, InsertedAt: t.InsertedAt})
+		invCountOpts = append(invCountOpts, v1.IdInsertedAt{ID: t.ID, InsertedAtUnixMicros: t.InsertedAt.Time.UnixMicro()})
 	}
 
 	invocationCounts, err := tc.repov1.DurableEvents().GetDurableTaskInvocationCounts(ctx, tenantId, invCountOpts)
@@ -76,7 +76,7 @@ func (tc *TasksControllerImpl) handleDurableRestoreTask(ctx context.Context, ten
 		}
 
 		var durableInvCount int32
-		if count, ok := invocationCounts[v1.IdInsertedAt{ID: t.ID, InsertedAt: t.InsertedAt}]; ok && count != nil {
+		if count, ok := invocationCounts[v1.IdInsertedAt{ID: t.ID, InsertedAtUnixMicros: t.InsertedAt.Time.UnixMicro()}]; ok && count != nil {
 			durableInvCount = *count
 		}
 

@@ -56,7 +56,9 @@ func ToV1WebhookList(webhooks []*sqlcv1.V1IncomingWebhook) gen.V1WebhookList {
 	}
 }
 
-func ToV1WebhookResponse(message, challenge *string, event *sqlcv1.Event) (*gen.V1WebhookResponse, error) {
+func ToV1WebhookResponse(message, challenge *string, event *sqlcv1.Event, opts ...PayloadOption) (*gen.V1WebhookResponse, error) {
+	o := applyPayloadOptions(opts)
+
 	res := &gen.V1WebhookResponse{
 		Message:   message,
 		Challenge: challenge,
@@ -84,7 +86,7 @@ func ToV1WebhookResponse(message, challenge *string, event *sqlcv1.Event) (*gen.
 			v1Event.AdditionalMetadata = &additionalMetadata
 		}
 
-		if len(event.Data) > 0 {
+		if o.includePayloads && len(event.Data) > 0 {
 			var data map[string]interface{}
 
 			err := json.Unmarshal(event.Data, &data)

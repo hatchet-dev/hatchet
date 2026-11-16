@@ -1,4 +1,6 @@
 import { AuthPage } from '../components/auth-page';
+import { DirectSignInDisabled } from '../components/direct-sign-in-disabled';
+import useApiMeta from '../hooks/use-api-meta';
 import { UserRegisterForm } from './components/user-register-form';
 import { useUserApi } from '@/lib/api/user-wrapper';
 import { useApiError } from '@/lib/hooks';
@@ -9,6 +11,13 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 
 export default function Register() {
+  const { meta } = useApiMeta();
+  const schemes = meta?.auth?.schemes ?? [];
+
+  if (meta && schemes.length === 0) {
+    return <DirectSignInDisabled />;
+  }
+
   return (
     <AuthPage
       title="Create an account"

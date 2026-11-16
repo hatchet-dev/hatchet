@@ -104,26 +104,30 @@ export function SidePanel() {
 
           <div className="sticky top-0 z-20 flex w-full flex-row items-center justify-between bg-background px-4 pb-2 pt-4">
             <div className="flex flex-row items-center gap-x-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={goBack}
-                disabled={!canGoBack}
-                className="flex-shrink-0 rounded-sm border opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-              >
-                <ChevronLeftIcon className="size-4" />
-                <span className="sr-only">Go Back</span>
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={goForward}
-                disabled={!canGoForward}
-                className="flex-shrink-0 rounded-sm border opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-              >
-                <ChevronRightIcon className="size-4" />
-                <span className="sr-only">Go Forward</span>
-              </Button>
+              {!maybeContent.hideHistory && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={goBack}
+                    disabled={!canGoBack}
+                    className="flex-shrink-0 rounded-sm border opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  >
+                    <ChevronLeftIcon className="size-4" />
+                    <span className="sr-only">Go Back</span>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={goForward}
+                    disabled={!canGoForward}
+                    className="flex-shrink-0 rounded-sm border opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  >
+                    <ChevronRightIcon className="size-4" />
+                    <span className="sr-only">Go Forward</span>
+                  </Button>
+                </>
+              )}
             </div>
             <div>
               <Button

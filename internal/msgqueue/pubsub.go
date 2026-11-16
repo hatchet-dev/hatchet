@@ -2,6 +2,8 @@ package msgqueue
 
 import (
 	"context"
+	"encoding/base64"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -19,7 +21,31 @@ const (
 
 	// TopicKindSchedulerPartition wakes the scheduler owning a partition.
 	TopicKindSchedulerPartition TopicKind = "scheduler-partition"
+
+	// TopicKindStreamWake fans durable-stream wakes out to every engine.
+	TopicKindStreamWake TopicKind = "stream-wake"
+
+	// TopicKindCronRefresh fans cron changes out to every ticker.
+	TopicKindCronRefresh TopicKind = "cron-refresh"
+
+	// TopicKindWorkflowVersionCreated fans new workflow versions out to every engine.
+	TopicKindWorkflowVersionCreated TopicKind = "workflow-version-created"
 )
+
+// Fanout reports whether every subscriber of a topic of this kind gets its own
+// copy of each message. A scheduler partition topic has a single subscriber.
+//
+// The switch names every kind so that the exhaustive linter flags a new one.
+func (k TopicKind) Fanout() bool {
+	switch k {
+	case TopicKindTenantStream, TopicKindStreamWake, TopicKindCronRefresh, TopicKindWorkflowVersionCreated:
+		return true
+	case TopicKindSchedulerPartition:
+		return false
+	}
+
+	return true
+}
 
 // Topic identifies a best-effort pub/sub destination.
 type Topic struct {
@@ -53,6 +79,76 @@ func SchedulerPartitionTopic(partitionId string) Topic {
 		name: fmt.Sprintf("%s_scheduler_v1", partitionId),
 		kind: TopicKindSchedulerPartition,
 	}
+}
+
+// StreamWakeTopic is one topic for every stream wake, so each engine needs one
+// subscription and user-chosen names never reach a subject or queue name.
+func StreamWakeTopic() Topic {
+	return Topic{
+		name: "stream_wake_v1",
+		kind: TopicKindStreamWake,
+	}
+}
+
+// CronRefreshTopic tells every ticker that a tenant's crons changed. Tickers
+// also re-read their crons every 15s, so a lost message only delays the change.
+func CronRefreshTopic() Topic {
+	return Topic{
+		name: "cron_refresh_v1",
+		kind: TopicKindCronRefresh,
+	}
+}
+
+// WorkflowVersionCreatedTopic tells every engine that a tenant has a new workflow
+// version, so each drops the event key lookups it cached for the tenant. Those
+// lookups also expire after 5s, so a lost message only delays the change.
+func WorkflowVersionCreatedTopic() Topic {
+	return Topic{
+		name: "workflow_version_created_v1",
+		kind: TopicKindWorkflowVersionCreated,
+	}
+}
+
+// StreamWake's tenant is its message's TenantID.
+type StreamWake struct {
+	Namespace string `json:"namespace"`
+	Topic     string `json:"topic"`
+}
+
+// keeps wake messages small on every pubsub backend
+const maxStreamWakeBytes = 4 * 1024
+
+// streamWakeWireSize approximates w as a base64 JSON payload plus separators.
+func streamWakeWireSize(w StreamWake) int {
+	const jsonOverhead = len(`{"namespace":"","topic":""}`)
+
+	return base64.StdEncoding.EncodedLen(len(w.Namespace)+len(w.Topic)+jsonOverhead) + 3
+}
+
+// PubStreamWakes batches wakes into messages under maxStreamWakeBytes.
+func PubStreamWakes(ctx context.Context, ps PubSub, tenantId uuid.UUID, wakes []StreamWake) error {
+	var errs error
+
+	for len(wakes) > 0 {
+		n, size := 0, 0
+
+		// the first wake always goes in, so a batch is never empty
+		for n < len(wakes) && (n == 0 || size+streamWakeWireSize(wakes[n]) <= maxStreamWakeBytes) {
+			size += streamWakeWireSize(wakes[n])
+			n++
+		}
+
+		wakeMsg, err := NewTenantMessage(tenantId, MsgIDStreamMessage, true, false, wakes[:n]...)
+
+		if err != nil {
+			return err
+		}
+
+		errs = errors.Join(errs, ps.Pub(ctx, StreamWakeTopic(), wakeMsg))
+		wakes = wakes[n:]
+	}
+
+	return errs
 }
 
 // PubSub is a best-effort, non-durable, at-most-once pub/sub mechanism.

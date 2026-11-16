@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
@@ -107,6 +108,10 @@ func (c *testHatchetContext) ReleaseSlot() error {
 }
 
 func (c *testHatchetContext) RefreshTimeout(incrementIntervalBy string) error {
+	panic("not implemented")
+}
+
+func (c *testHatchetContext) PauseRateLimit(key string, until time.Time) (time.Time, error) {
 	panic("not implemented")
 }
 

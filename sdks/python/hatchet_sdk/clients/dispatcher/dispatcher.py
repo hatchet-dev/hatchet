@@ -41,7 +41,7 @@ DEFAULT_REGISTER_TIMEOUT = 30
 
 
 class DispatcherClient:
-    def __init__(self, config: ClientConfig):
+    def __init__(self, config: ClientConfig) -> None:
         self.token = config.token
         self.config = config
 
@@ -76,13 +76,13 @@ class DispatcherClient:
         aio_client = self._get_or_create_aio_client()
 
         proto_labels: dict[str, WorkerLabels] = {
-            label.key: label.to_proto() for label in labels if label.key is not None
+            label.key: label.to_proto() for label in labels
         }
         for key, value in self.config.worker_preset_labels.items():
             proto_labels[key] = WorkerLabels(str_value=str(value))
 
         response = cast(
-            WorkerRegisterResponse,
+            "WorkerRegisterResponse",
             # fixme: figure out how to get typing right here
             await aio_client.Register(
                 WorkerRegisterRequest(
@@ -122,8 +122,8 @@ class DispatcherClient:
 
         try:
             response = cast(
-                GetVersionResponse,
-                await aio_client.GetVersion(  # type: ignore
+                "GetVersionResponse",
+                await aio_client.GetVersion(  # type: ignore[attr-defined]
                     GetVersionRequest(),
                     timeout=DEFAULT_REGISTER_TIMEOUT,
                     metadata=create_authorization_header(self.token),
@@ -136,22 +136,23 @@ class DispatcherClient:
 
         return response.version
 
-    async def send_step_action_event(
+    async def send_task_action_event(
         self,
         action: Action,
         event_type: StepActionEventType,
         payload: str | None,
         should_not_retry: bool,
+        retry_after_ms: int | None = None,
     ) -> ActionEventResponse | None:
         try:
-            return await self._try_send_step_action_event(
-                action, event_type, payload, should_not_retry
+            return await self._try_send_task_action_event(
+                action, event_type, payload, should_not_retry, retry_after_ms
             )
         except Exception:
             was_completed = event_type == STEP_EVENT_TYPE_COMPLETED
             was_failed = event_type == STEP_EVENT_TYPE_FAILED
 
-            message = f"failed to send step action event {event_type} for action {action.action_id}."
+            message = f"failed to send task action event {event_type} for action {action.action_id}."
 
             if was_completed:
                 message += "**IMPORTANT**: the task completed successfully on the worker, but the engine failed to receive the completed event."
@@ -172,12 +173,13 @@ class DispatcherClient:
         before_sleep=tenacity_before_sleep,
         retry=tenacity.retry_if_exception(tenacity_should_retry),
     )
-    async def _try_send_step_action_event(
+    async def _try_send_task_action_event(
         self,
         action: Action,
         event_type: StepActionEventType,
         payload: str | None,
         should_not_retry: bool,
+        retry_after_ms: int | None = None,
     ) -> ActionEventResponse:
         aio_client = self._get_or_create_aio_client()
 
@@ -188,19 +190,20 @@ class DispatcherClient:
             worker_id=action.worker_id,
             job_id=action.job_id,
             job_run_id=action.job_run_id,
-            task_id=action.step_id,
-            task_run_external_id=action.step_run_id,
+            task_id=action.task_id,
+            task_run_external_id=action.task_run_external_id,
             action_id=action.action_id,
             event_timestamp=event_timestamp,
             event_type=event_type,
             event_payload=payload,
             retry_count=action.retry_count,
             should_not_retry=should_not_retry,
+            retry_after_ms=retry_after_ms,
         )
 
         try:
             return cast(
-                ActionEventResponse,
+                "ActionEventResponse",
                 await aio_client.SendStepActionEvent(
                     event,
                     metadata=create_authorization_header(self.token),
@@ -238,6 +241,7 @@ class DispatcherClient:
                     event_payload=item.payload or "",
                     retry_count=action.retry_count,
                     should_not_retry=item.should_not_retry,
+                    retry_after_ms=item.retry_after_ms,
                 )
                 for item in items
             ],
@@ -260,7 +264,7 @@ class DispatcherClient:
         event = self._build_batch_action_event(action, event_type, items)
 
         return cast(
-            ActionEventResponse,
+            "ActionEventResponse",
             client.SendBatchActionEvent(  # type: ignore[attr-defined]
                 event,
                 metadata=create_authorization_header(self.token),
@@ -304,7 +308,7 @@ class DispatcherClient:
 
         try:
             return cast(
-                ActionEventResponse,
+                "ActionEventResponse",
                 await aio_client.SendBatchActionEvent(  # type: ignore[attr-defined]
                     event,
                     metadata=create_authorization_header(self.token),
@@ -322,28 +326,37 @@ class DispatcherClient:
         client = self._get_or_create_client()
 
         return cast(
-            ActionEventResponse,
+            "ActionEventResponse",
             client.PutOverridesData(
                 data,
                 metadata=create_authorization_header(self.token),
             ),
         )
 
-    def release_slot(self, step_run_id: str) -> None:
+    def release_slot(self, task_run_external_id: str) -> None:
         client = self._get_or_create_client()
 
         client.ReleaseSlot(
-            ReleaseSlotRequest(task_run_external_id=step_run_id),
+            ReleaseSlotRequest(task_run_external_id=task_run_external_id),
             timeout=DEFAULT_REGISTER_TIMEOUT,
             metadata=create_authorization_header(self.token),
         )
 
-    def refresh_timeout(self, step_run_id: str, increment_by: str) -> None:
+    async def aio_release_slot(self, task_run_external_id: str) -> None:
+        aio_client = self._get_or_create_aio_client()
+
+        await aio_client.ReleaseSlot(
+            ReleaseSlotRequest(task_run_external_id=task_run_external_id),
+            timeout=DEFAULT_REGISTER_TIMEOUT,
+            metadata=create_authorization_header(self.token),
+        )
+
+    def refresh_timeout(self, task_run_external_id: str, increment_by: str) -> None:
         client = self._get_or_create_client()
 
         client.RefreshTimeout(
             RefreshTimeoutRequest(
-                task_run_external_id=step_run_id,
+                task_run_external_id=task_run_external_id,
                 increment_timeout_by=increment_by,
             ),
             timeout=DEFAULT_REGISTER_TIMEOUT,
@@ -358,11 +371,7 @@ class DispatcherClient:
         client.UpsertWorkerLabels(
             UpsertWorkerLabelsRequest(
                 worker_id=worker_id,
-                labels={
-                    label.key: label.to_proto()
-                    for label in labels
-                    if label.key is not None
-                },
+                labels={label.key: label.to_proto() for label in labels},
             ),
             timeout=DEFAULT_REGISTER_TIMEOUT,
             metadata=create_authorization_header(self.token),
@@ -371,21 +380,15 @@ class DispatcherClient:
     async def async_upsert_worker_labels(
         self,
         worker_id: str | None,
-        labels: dict[str, str | int],
+        labels: list[WorkerLabel],
     ) -> None:
         aio_client = self._get_or_create_aio_client()
 
-        worker_labels = {}
-
-        for key, value in labels.items():
-            if isinstance(value, int):
-                worker_labels[key] = WorkerLabels(int_value=value)
-            else:
-                worker_labels[key] = WorkerLabels(str_value=str(value))
-
-        # fixme: figure out how to get typing right here
         await aio_client.UpsertWorkerLabels(
-            UpsertWorkerLabelsRequest(worker_id=worker_id, labels=worker_labels),
+            UpsertWorkerLabelsRequest(
+                worker_id=worker_id,
+                labels={label.key: label.to_proto() for label in labels},
+            ),
             timeout=DEFAULT_REGISTER_TIMEOUT,
             metadata=create_authorization_header(self.token),
         )

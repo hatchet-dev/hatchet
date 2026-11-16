@@ -91,11 +91,16 @@ func (q *Queries) BulkMeterTenantResources(ctx context.Context, db DBTX, arg Bul
 }
 
 const countTenantWorkers = `-- name: CountTenantWorkers :one
-SELECT COUNT(distinct id) AS "count"
-FROM "Worker"
-WHERE "tenantId" = $1::uuid
-AND "lastHeartbeatAt" >= NOW() - '30 seconds'::INTERVAL
-AND "isActive" = true
+SELECT COUNT(distinct w.id) AS "count"
+FROM "Worker" w
+WHERE
+    w."tenantId" = $1::uuid
+    AND w."lastHeartbeatAt" >= NOW() - '30 seconds'::INTERVAL
+    AND w."isActive" = true
+    -- a worker the in-process operator host created is engine infrastructure and is not
+    -- metered; every other worker, an operator's or an SDK's, counts (see
+    -- CreateWorkerOpts.IsExemptFromLimits in worker.go)
+    AND NOT w."isExemptFromLimits"
 `
 
 func (q *Queries) CountTenantWorkers(ctx context.Context, db DBTX, tenantid uuid.UUID) (int64, error) {
@@ -391,6 +396,10 @@ FROM input_values iv
 ON CONFLICT ("tenantId", "resource") DO UPDATE SET
     "limitValue" = EXCLUDED."limitValue",
     "alarmValue" = EXCLUDED."alarmValue",
+    -- Keep an existing window when the input omits one (NULL after NULLIF), so
+    -- partial entitlement syncs cannot clear the meter window and break alert dedupe.
+    "window" = COALESCE(EXCLUDED."window", "TenantResourceLimit"."window"),
+    "customValueMeter" = EXCLUDED."customValueMeter",
     "updatedAt" = CURRENT_TIMESTAMP
 `
 

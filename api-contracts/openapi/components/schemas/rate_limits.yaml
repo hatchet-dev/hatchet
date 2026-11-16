@@ -20,6 +20,11 @@ RateLimit:
       format: date-time
       example: 2022-12-13T15:06:48.888358-05:00
       description: The last time the rate limit was refilled.
+    pausedUntil:
+      type: string
+      format: date-time
+      example: 2022-12-13T15:06:48.888358-05:00
+      description: When the rate limit's pause ends, if it is paused. Runs that consume a paused key stay queued until then.
   required:
     - key
     - tenantId

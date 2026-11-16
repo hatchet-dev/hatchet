@@ -30,11 +30,12 @@ func (t *TenantService) TenantInviteUpdate(ctx echo.Context, request gen.TenantI
 
 	// construct the database query
 	updateOpts := &v1.UpdateTenantInviteOpts{
-		Role: v1.StringPtr(string(request.Body.Role)),
+		Role:            v1.StringPtr(string(request.Body.Role)),
+		CanViewPayloads: request.Body.CanViewPayloads,
 	}
 
 	// update the invite
-	invite, err := t.config.V1.TenantInvite().UpdateTenantInvite(ctx.Request().Context(), invite.ID, updateOpts)
+	invite, err := t.config.V1.TenantInvite().UpdateTenantInvite(ctx.Request().Context(), invite.TenantId, invite.ID, updateOpts)
 
 	if err != nil {
 		return nil, err

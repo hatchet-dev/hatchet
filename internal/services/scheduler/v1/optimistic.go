@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	schedulingv1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 )
@@ -38,11 +39,7 @@ func (s *Scheduler) RunOptimisticSchedulingFromEvents(ctx context.Context, tenan
 		return nil, err
 	}
 
-	eventIdToOpts := make(map[uuid.UUID]v1.EventTriggerOpts)
-
-	for _, opt := range opts {
-		eventIdToOpts[opt.ExternalId] = opt
-	}
+	eventIdToOpts := enumerables.KeyBy(opts, func(opt v1.EventTriggerOpts) uuid.UUID { return opt.ExternalId })
 
 	go func() { // #nosec G118 -- intentionally decoupled from request context so signaling survives the response, bounded by its own timeout
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

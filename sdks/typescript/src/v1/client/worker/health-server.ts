@@ -52,6 +52,10 @@ export class HealthServer {
 
     if (url === '/health' && req.method === 'GET') {
       await this.handleHealth(res);
+    } else if (url === '/readyz' && req.method === 'GET') {
+      this.handleReadyz(res);
+    } else if (url === '/livez' && req.method === 'GET') {
+      this.handleLivez(res);
     } else if (url === '/metrics' && req.method === 'GET') {
       await this.handleMetrics(res);
     } else {
@@ -70,8 +74,32 @@ export class HealthServer {
       nodeVersion: process.version,
     };
 
+    // Always return 200 for compatibility with consumers that inspect the JSON
+    // status. Use /readyz when the HTTP status must indicate readiness.
     res.writeHead(200, { 'Content-Type': 'application/json' });
     await res.end(JSON.stringify(response));
+  }
+
+  // Kubernetes-style readiness probe: 200 only when the worker is HEALTHY
+  // (registered and holding an action listener), 503 otherwise. Unlike
+  // /health, this is a plain status-code contract a vanilla `httpGet` probe
+  // can consume directly, with no body to parse.
+  private handleReadyz(res: ServerResponse): void {
+    const ready = this.getStatus() === workerStatus.HEALTHY;
+    res.writeHead(ready ? 200 : 503, { 'Content-Type': 'text/plain' });
+    res.end(ready ? 'ok' : 'not ready');
+  }
+
+  // Kubernetes-style liveness probe: 200 whenever this handler can run at
+  // all, deliberately independent of Hatchet connectivity. A worker that has
+  // temporarily lost its action listener (UNHEALTHY) should be pulled from
+  // rotation via /readyz, not killed and restarted via /livez — restarting
+  // does nothing to fix an upstream Hatchet outage and drops in-flight work.
+  // /livez only needs to fail when the process itself is deadlocked/wedged,
+  // which this HTTP response reaching the caller already disproves.
+  private handleLivez(res: ServerResponse): void {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('ok');
   }
 
   private initializeMetrics(): void {

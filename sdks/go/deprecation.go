@@ -47,7 +47,7 @@ type DeprecationOpts struct {
 
 	// ErrorWindow is how long after start the notice is an error log.
 	// After this window, calls have a 20% chance of returning an error.
-	// If zero (default), the error/raise phase is never reached — the notice
+	// If zero (default), the error/raise phase is never reached and the notice
 	// stays at error-level logging indefinitely.
 	ErrorWindow time.Duration
 }

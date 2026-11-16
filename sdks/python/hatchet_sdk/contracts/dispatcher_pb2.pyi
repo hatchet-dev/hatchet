@@ -181,7 +181,7 @@ class UpsertWorkerLabelsResponse(_message.Message):
     def __init__(self, tenant_id: _Optional[str] = ..., worker_id: _Optional[str] = ...) -> None: ...
 
 class AssignedAction(_message.Message):
-    __slots__ = ("tenant_id", "workflow_run_id", "get_group_key_run_id", "job_id", "job_name", "job_run_id", "task_id", "task_run_external_id", "action_id", "action_type", "action_payload", "task_name", "retry_count", "additional_metadata", "child_workflow_index", "child_workflow_key", "parent_workflow_run_id", "priority", "workflow_id", "workflow_version_id", "durable_task_invocation_count", "triggering_event_external_id", "triggering_event_key", "batchId", "batchSize", "batchIndex", "batchStartPayload", "batchKey")
+    __slots__ = ("tenant_id", "workflow_run_id", "get_group_key_run_id", "job_id", "job_name", "job_run_id", "task_id", "task_run_external_id", "action_id", "action_type", "action_payload", "task_name", "retry_count", "additional_metadata", "child_workflow_index", "child_workflow_key", "parent_workflow_run_id", "priority", "workflow_id", "workflow_version_id", "durable_task_invocation_count", "triggering_event_external_id", "triggering_event_key", "batchId", "batchSize", "batchIndex", "batchStartPayload", "batchKey", "task_inserted_at")
     TENANT_ID_FIELD_NUMBER: _ClassVar[int]
     WORKFLOW_RUN_ID_FIELD_NUMBER: _ClassVar[int]
     GET_GROUP_KEY_RUN_ID_FIELD_NUMBER: _ClassVar[int]
@@ -210,6 +210,7 @@ class AssignedAction(_message.Message):
     BATCHINDEX_FIELD_NUMBER: _ClassVar[int]
     BATCHSTARTPAYLOAD_FIELD_NUMBER: _ClassVar[int]
     BATCHKEY_FIELD_NUMBER: _ClassVar[int]
+    TASK_INSERTED_AT_FIELD_NUMBER: _ClassVar[int]
     tenant_id: str
     workflow_run_id: str
     get_group_key_run_id: str
@@ -238,7 +239,8 @@ class AssignedAction(_message.Message):
     batchIndex: int
     batchStartPayload: BatchStartPayload
     batchKey: str
-    def __init__(self, tenant_id: _Optional[str] = ..., workflow_run_id: _Optional[str] = ..., get_group_key_run_id: _Optional[str] = ..., job_id: _Optional[str] = ..., job_name: _Optional[str] = ..., job_run_id: _Optional[str] = ..., task_id: _Optional[str] = ..., task_run_external_id: _Optional[str] = ..., action_id: _Optional[str] = ..., action_type: _Optional[_Union[ActionType, str]] = ..., action_payload: _Optional[str] = ..., task_name: _Optional[str] = ..., retry_count: _Optional[int] = ..., additional_metadata: _Optional[str] = ..., child_workflow_index: _Optional[int] = ..., child_workflow_key: _Optional[str] = ..., parent_workflow_run_id: _Optional[str] = ..., priority: _Optional[int] = ..., workflow_id: _Optional[str] = ..., workflow_version_id: _Optional[str] = ..., durable_task_invocation_count: _Optional[int] = ..., triggering_event_external_id: _Optional[str] = ..., triggering_event_key: _Optional[str] = ..., batchId: _Optional[str] = ..., batchSize: _Optional[int] = ..., batchIndex: _Optional[int] = ..., batchStartPayload: _Optional[_Union[BatchStartPayload, _Mapping]] = ..., batchKey: _Optional[str] = ...) -> None: ...
+    task_inserted_at: _timestamp_pb2.Timestamp
+    def __init__(self, tenant_id: _Optional[str] = ..., workflow_run_id: _Optional[str] = ..., get_group_key_run_id: _Optional[str] = ..., job_id: _Optional[str] = ..., job_name: _Optional[str] = ..., job_run_id: _Optional[str] = ..., task_id: _Optional[str] = ..., task_run_external_id: _Optional[str] = ..., action_id: _Optional[str] = ..., action_type: _Optional[_Union[ActionType, str]] = ..., action_payload: _Optional[str] = ..., task_name: _Optional[str] = ..., retry_count: _Optional[int] = ..., additional_metadata: _Optional[str] = ..., child_workflow_index: _Optional[int] = ..., child_workflow_key: _Optional[str] = ..., parent_workflow_run_id: _Optional[str] = ..., priority: _Optional[int] = ..., workflow_id: _Optional[str] = ..., workflow_version_id: _Optional[str] = ..., durable_task_invocation_count: _Optional[int] = ..., triggering_event_external_id: _Optional[str] = ..., triggering_event_key: _Optional[str] = ..., batchId: _Optional[str] = ..., batchSize: _Optional[int] = ..., batchIndex: _Optional[int] = ..., batchStartPayload: _Optional[_Union[BatchStartPayload, _Mapping]] = ..., batchKey: _Optional[str] = ..., task_inserted_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
 class BatchStartPayload(_message.Message):
     __slots__ = ("triggerReason", "triggerTime", "expectedSize")
@@ -289,7 +291,7 @@ class GroupKeyActionEvent(_message.Message):
     def __init__(self, worker_id: _Optional[str] = ..., workflow_run_id: _Optional[str] = ..., get_group_key_run_id: _Optional[str] = ..., action_id: _Optional[str] = ..., event_timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., event_type: _Optional[_Union[GroupKeyActionEventType, str]] = ..., event_payload: _Optional[str] = ...) -> None: ...
 
 class StepActionEvent(_message.Message):
-    __slots__ = ("worker_id", "job_id", "job_run_id", "task_id", "task_run_external_id", "action_id", "event_timestamp", "event_type", "event_payload", "retry_count", "should_not_retry")
+    __slots__ = ("worker_id", "job_id", "job_run_id", "task_id", "task_run_external_id", "action_id", "event_timestamp", "event_type", "event_payload", "retry_count", "should_not_retry", "retry_after_ms")
     WORKER_ID_FIELD_NUMBER: _ClassVar[int]
     JOB_ID_FIELD_NUMBER: _ClassVar[int]
     JOB_RUN_ID_FIELD_NUMBER: _ClassVar[int]
@@ -301,6 +303,7 @@ class StepActionEvent(_message.Message):
     EVENT_PAYLOAD_FIELD_NUMBER: _ClassVar[int]
     RETRY_COUNT_FIELD_NUMBER: _ClassVar[int]
     SHOULD_NOT_RETRY_FIELD_NUMBER: _ClassVar[int]
+    RETRY_AFTER_MS_FIELD_NUMBER: _ClassVar[int]
     worker_id: str
     job_id: str
     job_run_id: str
@@ -312,19 +315,22 @@ class StepActionEvent(_message.Message):
     event_payload: str
     retry_count: int
     should_not_retry: bool
-    def __init__(self, worker_id: _Optional[str] = ..., job_id: _Optional[str] = ..., job_run_id: _Optional[str] = ..., task_id: _Optional[str] = ..., task_run_external_id: _Optional[str] = ..., action_id: _Optional[str] = ..., event_timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., event_type: _Optional[_Union[StepActionEventType, str]] = ..., event_payload: _Optional[str] = ..., retry_count: _Optional[int] = ..., should_not_retry: bool = ...) -> None: ...
+    retry_after_ms: int
+    def __init__(self, worker_id: _Optional[str] = ..., job_id: _Optional[str] = ..., job_run_id: _Optional[str] = ..., task_id: _Optional[str] = ..., task_run_external_id: _Optional[str] = ..., action_id: _Optional[str] = ..., event_timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., event_type: _Optional[_Union[StepActionEventType, str]] = ..., event_payload: _Optional[str] = ..., retry_count: _Optional[int] = ..., should_not_retry: bool = ..., retry_after_ms: _Optional[int] = ...) -> None: ...
 
 class BatchActionEventItem(_message.Message):
-    __slots__ = ("task_run_external_id", "event_payload", "retry_count", "should_not_retry")
+    __slots__ = ("task_run_external_id", "event_payload", "retry_count", "should_not_retry", "retry_after_ms")
     TASK_RUN_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
     EVENT_PAYLOAD_FIELD_NUMBER: _ClassVar[int]
     RETRY_COUNT_FIELD_NUMBER: _ClassVar[int]
     SHOULD_NOT_RETRY_FIELD_NUMBER: _ClassVar[int]
+    RETRY_AFTER_MS_FIELD_NUMBER: _ClassVar[int]
     task_run_external_id: str
     event_payload: str
     retry_count: int
     should_not_retry: bool
-    def __init__(self, task_run_external_id: _Optional[str] = ..., event_payload: _Optional[str] = ..., retry_count: _Optional[int] = ..., should_not_retry: bool = ...) -> None: ...
+    retry_after_ms: int
+    def __init__(self, task_run_external_id: _Optional[str] = ..., event_payload: _Optional[str] = ..., retry_count: _Optional[int] = ..., should_not_retry: bool = ..., retry_after_ms: _Optional[int] = ...) -> None: ...
 
 class BatchActionEvent(_message.Message):
     __slots__ = ("worker_id", "job_id", "action_id", "batch_id", "event_timestamp", "event_type", "items")

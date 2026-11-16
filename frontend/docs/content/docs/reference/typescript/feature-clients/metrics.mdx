@@ -18,9 +18,9 @@ Returns the queue metrics for the current tenant.
 
 Parameters
 
-| Parameter | Type            | Description                  |
-| --------- | --------------- | ---------------------------- |
-| `opts?`   | `RequestParams` | The options for the request. |
+| Parameter | Type                | Description                  |
+| --------- | ------------------- | ---------------------------- |
+| `opts?`   | `RestRequestParams` | The options for the request. |
 
 Returns
 
@@ -57,7 +57,7 @@ Parameters
 | `query.triggering_event_external_id?` | `string`                                                                                                                                                                                       | The id of the event that triggered the task **Format** uuid **Min Length** 36 **Max Length** 36 |
 | `query.until?`                        | `string`                                                                                                                                                                                       | The end time to get metrics for **Format** date-time                                            |
 | `query.workflow_ids?`                 | `string`[]                                                                                                                                                                                     | The workflow id to find runs for                                                                |
-| `requestParams?`                      | `RequestParams`                                                                                                                                                                                | Optional request-level overrides (headers, signal, etc.).                                       |
+| `requestParams?`                      | `RestRequestParams`                                                                                                                                                                            | Optional request-level overrides (headers, signal, etc.).                                       |
 
 Returns
 

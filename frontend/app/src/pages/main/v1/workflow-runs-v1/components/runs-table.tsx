@@ -1,10 +1,15 @@
 import { TabOption } from '../$run/v2components/step-run-detail/step-run-detail';
 import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
 import { useRunsContext } from '../hooks/runs-provider';
+import { useReplayAsNew } from '../hooks/use-replay-as-new';
 import { AdditionalMetadataProp } from '../hooks/use-runs-table-filters';
 import { RunsEmptyGraphic } from './runs-empty-graphic';
+import { RunsFilterSidebar } from './runs-filter-sidebar';
 import { RequestTimeoutCloudCTAEmptyState } from './runs-timeout-empty-state';
-import { V1WorkflowRunsMetricsView } from './task-runs-metrics';
+import {
+  QueueMetricsButton,
+  V1WorkflowRunsMetricsView,
+} from './task-runs-metrics';
 import { columns, TaskRunColumn } from './v1/task-runs-columns';
 import {
   DataPoint,
@@ -12,6 +17,7 @@ import {
 } from '@/components/v1/molecules/charts/zoomable';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
+import { RetentionUpgradeDialog } from '@/components/v1/retention-upgrade-dialog';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import {
   Dialog,
@@ -24,10 +30,13 @@ import { Separator } from '@/components/v1/ui/separator';
 import { Skeleton } from '@/components/v1/ui/skeleton';
 import { Toaster } from '@/components/v1/ui/toaster';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { FeatureFlagId, useIsFeatureEnabled } from '@/hooks/use-feature-flags';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { queries, V1TaskStatus } from '@/lib/api';
+import { withPolling } from '@/lib/api/polling';
 import { docsPages } from '@/lib/generated/docs';
+import { formatRetentionPeriod } from '@/lib/utils/retention';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -50,12 +59,14 @@ const GetWorkflowChart = () => {
   );
 
   const workflowRunEventsMetricsQuery = useQuery({
-    ...queries.v1TaskRuns.pointMetrics(tenantId, {
-      createdAfter: apiFilters.since,
-      finishedBefore: apiFilters.until,
-    }),
+    ...withPolling(
+      queries.v1TaskRuns.pointMetrics(tenantId, {
+        createdAfter: apiFilters.since,
+        finishedBefore: apiFilters.until,
+      }),
+      refetchInterval,
+    ),
     placeholderData: (prev) => prev,
-    refetchInterval,
   });
 
   if (workflowRunEventsMetricsQuery.isLoading) {
@@ -80,6 +91,7 @@ const GetWorkflowChart = () => {
       }}
       zoom={zoom}
       showYAxis={false}
+      stacked
       className="h-24 min-h-24"
     />
   );
@@ -99,7 +111,6 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
     isStatusCountsLoading,
     isQueueMetricsLoading,
     isRefetching,
-    runStatusCounts,
     queueMetrics,
     actionModalParams,
     selectedActionType,
@@ -122,6 +133,12 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
     },
     fetchTimedOut,
   } = useRunsContext();
+
+  const { isEnabled: isSidebarEnabled } = useIsFeatureEnabled(
+    FeatureFlagId.RunsFilterSidebarEnabled,
+    false,
+  );
+  const sidebarLayout = isSidebarEnabled === true;
 
   const [selectedAdditionalMetaRunId, setSelectedAdditionalMetaRunId] =
     useState<string | null>(null);
@@ -167,6 +184,12 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
     [filters],
   );
 
+  const {
+    canReplayAsNew,
+    replayAsNew,
+    dialog: replayAsNewDialog,
+  } = useReplayAsNew();
+
   const tableColumns = useMemo(
     () =>
       columns(
@@ -176,6 +199,7 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
         handleTaskRunIdClick,
         handleAdditionalMetadataOpenChange,
         handleIdempotencyKeyClick,
+        canReplayAsNew ? replayAsNew : undefined,
       ),
     [
       tenantId,
@@ -184,6 +208,8 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
       handleTaskRunIdClick,
       handleAdditionalMetadataOpenChange,
       handleIdempotencyKeyClick,
+      canReplayAsNew,
+      replayAsNew,
     ],
   );
 
@@ -204,8 +230,6 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
     return () => clearInterval(interval);
   }, [filters, filters.isCustomTimeRange, filters.updateCurrentTimeWindow]);
 
-  const isRunningFirstLoad = isRunsLoading || isStatusCountsLoading;
-
   const allStatusCount = Object.values(V1TaskStatus).length;
   const hasActiveFilters =
     (filters.apiFilters.statuses?.length ?? allStatusCount) < allStatusCount ||
@@ -214,17 +238,23 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
     !!filters.apiFilters.runningFilter ||
     filters.isCustomTimeRange ||
     filters.timeWindow !== '1d';
-  const isDefaultOneDayWindow =
-    !filters.isCustomTimeRange && filters.timeWindow === '1d';
+  const retainedLabel = filters.retentionPeriod
+    ? formatRetentionPeriod(filters.retentionPeriod)
+    : '1 day';
+
+  const endActions =
+    sidebarLayout && !hideCounts && !hideMetrics
+      ? [<QueueMetricsButton key="queue-metrics" />]
+      : [];
 
   const leftActions = [
-    ...(!hideCounts
+    ...(!sidebarLayout && !hideCounts
       ? [
           <div key="metrics" className="mr-auto flex justify-start">
-            {runStatusCounts.length > 0 ? (
-              <V1WorkflowRunsMetricsView />
-            ) : (
+            {isStatusCountsLoading ? (
               <Skeleton className="h-8 w-[40vw] max-w-[800px]" />
+            ) : (
+              <V1WorkflowRunsMetricsView />
             )}
           </div>,
         ]
@@ -241,8 +271,8 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
       : []),
   ];
 
-  return (
-    <div className="flex h-full flex-col gap-y-2 overflow-hidden">
+  const content = (
+    <>
       <Toaster />
 
       <TriggerWorkflowForm
@@ -250,6 +280,8 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
         show={showTriggerWorkflow}
         onClose={() => setShowTriggerWorkflow(false)}
       />
+
+      {replayAsNewDialog}
 
       {!hideMetrics && (
         <Dialog open={showQueueMetrics} onOpenChange={setShowQueueMetrics}>
@@ -273,6 +305,12 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
 
       {!hideMetrics && <GetWorkflowChart />}
 
+      <RetentionUpgradeDialog
+        attempt={filters.retentionGate.attempt}
+        retentionPeriod={filters.retentionPeriod}
+        onClose={filters.retentionGate.close}
+      />
+
       <div className="min-h-0 flex-1">
         <DataTable
           emptyState={
@@ -289,15 +327,15 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
             ) : (
               <EmptyState
                 title="No runs found"
-                description="Runs are individual executions of your tasks and workflows. Dispatch a task to see runs appear here."
+                description={`No runs in the last ${retainedLabel}.`}
                 docPage={docsPages.v1.quickstart}
                 docLabel="Learn about running tasks"
                 buttons={
-                  isDefaultOneDayWindow
+                  filters.isDefaultOneDayWindow
                     ? [
                         {
-                          label: 'Search past 7 days',
-                          onClick: () => filters.setTimeWindow('7d'),
+                          label: 'Search all retained history',
+                          onClick: filters.searchAllRetainedHistory,
                         },
                       ]
                     : undefined
@@ -305,13 +343,14 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
               />
             )
           }
-          isLoading={isRunningFirstLoad}
+          isLoading={isRunsLoading}
           columns={tableColumns}
           columnVisibility={columnVisibility}
           setColumnVisibility={setColumnVisibility}
           data={tableRows}
           filters={toolbarFilters}
           leftActions={leftActions}
+          endActions={endActions}
           columnFilters={filters.columnFilters}
           setColumnFilters={(updaterOrValue) => {
             if (typeof updaterOrValue === 'function') {
@@ -342,7 +381,27 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
             actionModalParams,
           }}
           onResetFilters={filters.resetFilters}
+          filtersInSidebar={sidebarLayout}
         />
+      </div>
+    </>
+  );
+
+  if (!sidebarLayout) {
+    return (
+      <div className="flex h-full flex-col gap-y-2 overflow-hidden">
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <div className="runs-layout h-full">
+      <div className="runs-layout-inner">
+        <RunsFilterSidebar />
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-y-2 overflow-hidden">
+          {content}
+        </div>
       </div>
     </div>
   );

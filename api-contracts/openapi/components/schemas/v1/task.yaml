@@ -46,6 +46,7 @@ V1TaskSummary:
       format: date-time
       description: The timestamp the task run finished.
     input:
+      x-payload: true
       type: object
       x-go-type: openapi.NonNullableJSON
       x-go-type-import:
@@ -57,6 +58,7 @@ V1TaskSummary:
       type: integer
       description: The number of spawned children tasks
     output:
+      x-payload: true
       type: object
       x-go-type: openapi.NonNullableJSON
       x-go-type-import:
@@ -124,6 +126,9 @@ V1TaskSummary:
     idempotencyKey:
       type: string
       description: The idempotency key that was claimed by the task run
+    payloadsRestricted:
+      type: boolean
+      description: True when input, output, and event payload fields were omitted because the caller cannot view payloads. Additional metadata is still included.
   required:
     - metadata
     - createdAt
@@ -175,6 +180,16 @@ V1TaskSummaryList:
   required:
     - pagination
     - rows
+
+V1WorkflowRunCount:
+  type: object
+  properties:
+    count:
+      type: integer
+      format: int64
+      description: The number of workflow runs matching the filters
+  required:
+    - count
 
 V1WorkflowRunDisplayNameList:
   type: object
@@ -248,6 +263,7 @@ V1TaskEvent:
     errorMessage:
       type: string
     output:
+      x-payload: true
       type: string
     workerId:
       type: string

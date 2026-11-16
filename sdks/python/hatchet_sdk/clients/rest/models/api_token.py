@@ -17,7 +17,7 @@ import re  # noqa: F401
 import json
 
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictBool
 from typing import Any, ClassVar, Dict, List
 from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
@@ -34,10 +34,14 @@ class APIToken(BaseModel):
     name: Annotated[str, Field(strict=True, max_length=255)] = Field(
         description="The name of the API token."
     )
+    read_only: StrictBool = Field(
+        description="Whether the token is limited to viewer access over REST and cannot use gRPC.",
+        alias="readOnly",
+    )
     expires_at: datetime = Field(
         description="When the API token expires.", alias="expiresAt"
     )
-    __properties: ClassVar[List[str]] = ["metadata", "name", "expiresAt"]
+    __properties: ClassVar[List[str]] = ["metadata", "name", "readOnly", "expiresAt"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -98,6 +102,7 @@ class APIToken(BaseModel):
                     else None
                 ),
                 "name": obj.get("name"),
+                "readOnly": obj.get("readOnly"),
                 "expiresAt": obj.get("expiresAt"),
             }
         )

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"hash/fnv"
 	"slices"
 	"time"
 
@@ -178,6 +177,9 @@ type SatisfiedEntry struct {
 	SatisfiedOrder        *int64
 	InvocationCount       int32
 	DurableTaskExternalId uuid.UUID
+	// RedeliveryCount is non-zero only when this entry is being re-dispatched from the
+	// dead-letter path; it bounds that retry loop.
+	RedeliveryCount int32
 }
 
 type MatchRepository interface {
@@ -185,6 +187,8 @@ type MatchRepository interface {
 
 	ProcessUserEventMatches(ctx context.Context, tenantId uuid.UUID, events []CandidateEventMatch) (*EventMatchResults, error)
 	ProcessInternalEventMatches(ctx context.Context, tenantId uuid.UUID, events []CandidateEventMatch) (*EventMatchResults, error)
+
+	EvalBoolExpr(ctx context.Context, expr string, vars map[string]interface{}) (bool, error)
 }
 
 type MatchRepositoryImpl struct {
@@ -195,6 +199,10 @@ func newMatchRepository(s *sharedRepository) MatchRepository {
 	return &MatchRepositoryImpl{
 		sharedRepository: s,
 	}
+}
+
+func (r *sharedRepository) EvalBoolExpr(ctx context.Context, expr string, vars map[string]interface{}) (bool, error) {
+	return r.boolExprEvaluator.EvalBoolExpr(ctx, expr, vars)
 }
 
 func (r *sharedRepository) registerSignalMatchConditions(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, signalMatches []ExternalCreateSignalMatchOpts) error {
@@ -230,13 +238,15 @@ func (r *sharedRepository) registerSignalMatchConditions(ctx context.Context, tx
 					return fmt.Errorf("user event condition requires a user event key")
 				}
 
-				conditions = append(conditions, r.userEventCondition(
+				userEventCondition := r.userEventCondition(
 					condition.OrGroupId,
 					condition.ReadableDataKey,
 					*condition.UserEventKey,
 					condition.Expression,
 					sqlcv1.V1MatchConditionActionCREATE,
-				))
+				)
+				userEventCondition.EventResourceHint = condition.UserEventScope
+				conditions = append(conditions, userEventCondition)
 			}
 		}
 
@@ -261,12 +271,14 @@ func (r *sharedRepository) registerSignalMatchConditions(ctx context.Context, tx
 }
 
 func (m *MatchRepositoryImpl) RegisterSignalMatchConditions(ctx context.Context, tenantId uuid.UUID, signalMatches []ExternalCreateSignalMatchOpts) error {
+	db := m.pool.ForTenant(tenantId)
+
 	// TODO: ADD BACK VALIDATION
 	// if err := m.v.Validate(signalMatches); err != nil {
 	// 	return err
 	// }
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, m.pool, m.l)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, m.l)
 
 	if err != nil {
 		return err
@@ -285,9 +297,31 @@ func (m *MatchRepositoryImpl) RegisterSignalMatchConditions(ctx context.Context,
 	return nil
 }
 
+// ownedTaskInputStoreOpts skips tasks that read their input from their run's payload row.
+func ownedTaskInputStoreOpts(tasks []*V1TaskWithPayload) []StorePayloadOpts {
+	storePayloadOpts := make([]StorePayloadOpts, 0, len(tasks))
+
+	for _, task := range tasks {
+		if task.PayloadReferenceID != nil {
+			continue
+		}
+
+		storePayloadOpts = append(storePayloadOpts, PayloadRef[TaskInputShape]{
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt,
+			ExternalId: task.ExternalID,
+			TenantId:   task.TenantID,
+		}.StoreOpts(NewPayload[TaskInputShape](task.TaskInputPayload)))
+	}
+
+	return storePayloadOpts
+}
+
 // ProcessInternalEventMatches processes a list of internal events
 func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, tenantId uuid.UUID, events []CandidateEventMatch) (*EventMatchResults, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, m.pool, m.l)
+	db := m.pool.ForTenant(tenantId)
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, m.l)
 
 	if err != nil {
 		return nil, err
@@ -301,18 +335,7 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 		return nil, err
 	}
 
-	storePayloadOpts := make([]StorePayloadOpts, len(res.CreatedTasks))
-
-	for i, task := range res.CreatedTasks {
-		storePayloadOpts[i] = StorePayloadOpts{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			ExternalId: task.ExternalID,
-			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-			Payload:    task.Payload,
-			TenantId:   task.TenantID,
-		}
-	}
+	storePayloadOpts := ownedTaskInputStoreOpts(res.CreatedTasks)
 
 	if len(storePayloadOpts) > 0 {
 		err = m.payloadStore.Store(ctx, tx, storePayloadOpts...)
@@ -331,7 +354,9 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 
 // ProcessUserEventMatches processes a list of user events
 func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenantId uuid.UUID, events []CandidateEventMatch) (*EventMatchResults, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, m.pool, m.l)
+	db := m.pool.ForTenant(tenantId)
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, m.l)
 
 	if err != nil {
 		return nil, err
@@ -345,17 +370,7 @@ func (m *MatchRepositoryImpl) ProcessUserEventMatches(ctx context.Context, tenan
 		return nil, err
 	}
 
-	storePayloadOpts := make([]StorePayloadOpts, len(res.CreatedTasks))
-	for i, task := range res.CreatedTasks {
-		storePayloadOpts[i] = StorePayloadOpts{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			ExternalId: task.ExternalID,
-			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-			Payload:    task.Payload,
-			TenantId:   task.TenantID,
-		}
-	}
+	storePayloadOpts := ownedTaskInputStoreOpts(res.CreatedTasks)
 
 	if len(storePayloadOpts) > 0 {
 		err = m.payloadStore.Store(ctx, tx, storePayloadOpts...)
@@ -380,6 +395,10 @@ type DurableTaskNodeIdKey struct {
 }
 
 func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, events []CandidateEventMatch, eventType sqlcv1.V1EventType) (*EventMatchResults, error) {
+	return m.processEventMatchesForTarget(ctx, tx, tenantId, events, eventType, nil)
+}
+
+func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, events []CandidateEventMatch, eventType sqlcv1.V1EventType, targetMatchID *int64) (*EventMatchResults, error) {
 	start := time.Now()
 
 	res := &EventMatchResults{}
@@ -387,25 +406,35 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 	eventKeysWithHints := make([]string, 0, len(events))
 	eventKeysWithoutHints := make([]string, 0, len(events))
 	resourceHints := make([]string, 0, len(events))
-	uniqueEventKeys := make(map[string]struct{})
+	type eventKeyWithHint struct {
+		key  string
+		hint string
+	}
+
+	uniqueEventKeysWithHints := make(map[eventKeyWithHint]struct{})
+	uniqueEventKeysWithoutHints := make(map[string]struct{})
 	idsToEvents := make(map[uuid.UUID]CandidateEventMatch)
 
 	for _, event := range events {
 		idsToEvents[event.ID] = event
 
-		if event.ResourceHint == nil {
-			if _, ok := uniqueEventKeys[event.Key]; ok {
-				continue
+		// User event conditions without a resource hint match every scope.
+		if eventType == sqlcv1.V1EventTypeUSER || event.ResourceHint == nil {
+			if _, ok := uniqueEventKeysWithoutHints[event.Key]; !ok {
+				uniqueEventKeysWithoutHints[event.Key] = struct{}{}
+				eventKeysWithoutHints = append(eventKeysWithoutHints, event.Key)
 			}
 		}
 
-		uniqueEventKeys[event.Key] = struct{}{}
-
 		if event.ResourceHint != nil {
+			keyWithHint := eventKeyWithHint{key: event.Key, hint: *event.ResourceHint}
+			if _, ok := uniqueEventKeysWithHints[keyWithHint]; ok {
+				continue
+			}
+
+			uniqueEventKeysWithHints[keyWithHint] = struct{}{}
 			eventKeysWithHints = append(eventKeysWithHints, event.Key)
 			resourceHints = append(resourceHints, *event.ResourceHint)
-		} else {
-			eventKeysWithoutHints = append(eventKeysWithoutHints, event.Key)
 		}
 	}
 
@@ -446,6 +475,12 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		}
 
 		matchConditions = append(matchConditions, matchConditionsWithoutHints...)
+	}
+
+	if targetMatchID != nil {
+		matchConditions = slices.DeleteFunc(matchConditions, func(condition *sqlcv1.ListMatchConditionsForEventRow) bool {
+			return condition.V1MatchID != *targetMatchID
+		})
 	}
 
 	// pass match conditions through CEL expressions parser
@@ -519,6 +554,10 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 	satisfiedMatches := make([]*sqlcv1.SaveSatisfiedMatchConditionsRow, 0)
 
 	if len(satisfiedMatchIds) > 0 {
+		if err := sqlchelpers.DisableJITForTransaction(ctx, tx); err != nil {
+			return nil, err
+		}
+
 		satisfiedMatches, err = m.queries.SaveSatisfiedMatchConditions(
 			ctx,
 			tx,
@@ -551,26 +590,27 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 	if len(dagIds) > 0 {
 		dagInputDatas, err := m.queries.GetDAGData(ctx, tx, sqlcv1.GetDAGDataParams{
-			Dagids:         dagIds,
-			Daginsertedats: dagInsertedAts,
+			Dagids:           dagIds,
+			Daginsertedats:   dagInsertedAts,
+			Mindaginsertedat: sqlchelpers.MinTimestamptz(dagInsertedAts),
 		})
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to get DAG data: %w", err)
 		}
 
-		retrievePayloadOpts := make([]RetrievePayloadOpts, len(dagInputDatas))
+		retrievePayloadOpts := make([]PayloadRef[DAGInputShape], len(dagInputDatas))
 		for i, dagData := range dagInputDatas {
-			retrievePayloadOpts[i] = RetrievePayloadOpts{
-				Id:         dagData.DagID,
-				InsertedAt: dagData.DagInsertedAt,
-				Type:       sqlcv1.V1PayloadTypeDAGINPUT,
-				TenantId:   tenantId,
-				ExternalId: dagData.ExternalID,
+			retrievePayloadOpts[i] = PayloadRef[DAGInputShape]{
+				Id:                 dagData.DagID,
+				InsertedAt:         dagData.DagInsertedAt,
+				TenantId:           tenantId,
+				ExternalId:         dagData.ExternalID,
+				PayloadReferenceId: dagData.PayloadReferenceID,
 			}
 		}
 
-		payloads, err := m.payloadStore.Retrieve(ctx, tx, retrievePayloadOpts...)
+		payloads, err := m.payloadStore.DAGInputs().Retrieve(ctx, tx, retrievePayloadOpts...)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to retrieve dag input payloads: %w", err)
@@ -579,25 +619,21 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		dagIdsToInput := make(map[int64][]byte)
 		dagIdsToMetadata := make(map[int64][]byte)
 		dagIdsToDesiredWorkerLabels := make(map[int64][]byte)
+		dagIdsToPayloadReferenceId := make(map[int64]*uuid.UUID)
 
 		for _, dagData := range dagInputDatas {
-			retrieveOpts := RetrievePayloadOpts{
-				Id:         dagData.DagID,
-				InsertedAt: dagData.DagInsertedAt,
-				Type:       sqlcv1.V1PayloadTypeDAGINPUT,
-				TenantId:   tenantId,
-				ExternalId: dagData.ExternalID,
+			retrieveOpts := PayloadRef[DAGInputShape]{
+				Id:                 dagData.DagID,
+				InsertedAt:         dagData.DagInsertedAt,
+				TenantId:           tenantId,
+				ExternalId:         dagData.ExternalID,
+				PayloadReferenceId: dagData.PayloadReferenceID,
 			}
 
-			payload, ok := payloads[retrieveOpts]
-
-			if !ok {
-				payload = dagData.Input
-			}
-
-			dagIdsToInput[dagData.DagID] = payload
+			dagIdsToInput[dagData.DagID] = RetrievePayloadOrFallback(payloads, retrieveOpts, dagData.Input).Bytes()
 			dagIdsToMetadata[dagData.DagID] = dagData.AdditionalMetadata
 			dagIdsToDesiredWorkerLabels[dagData.DagID] = dagData.DesiredWorkerLabels
+			dagIdsToPayloadReferenceId[dagData.DagID] = dagData.PayloadReferenceID
 		}
 
 		// determine which tasks to create based on step ids
@@ -638,12 +674,13 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 					switch matchData.Action() {
 					case sqlcv1.V1MatchConditionActionQUEUE:
-						opt.Input = m.newTaskInput(input, matchData, nil)
+						opt.Input = m.newTaskInput(input, matchData, nil, nil)
 						opt.InitialState = sqlcv1.V1TaskInitialStateQUEUED
 					case sqlcv1.V1MatchConditionActionCANCEL:
 						opt.InitialState = sqlcv1.V1TaskInitialStateCANCELLED
 					case sqlcv1.V1MatchConditionActionSKIP:
 						opt.InitialState = sqlcv1.V1TaskInitialStateSKIPPED
+					case sqlcv1.V1MatchConditionActionCREATE, sqlcv1.V1MatchConditionActionCREATEMATCH:
 					}
 
 					replayTaskOpts = append(replayTaskOpts, opt)
@@ -660,18 +697,20 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 					switch matchData.Action() {
 					case sqlcv1.V1MatchConditionActionQUEUE:
-						opt.Input = m.newTaskInput(input, matchData, nil)
+						opt.Input = m.newTaskInput(input, matchData, nil, nil)
 						opt.DesiredWorkerId = m.DesiredWorkerId(opt.Input)
 						opt.InitialState = sqlcv1.V1TaskInitialStateQUEUED
 					case sqlcv1.V1MatchConditionActionCANCEL:
 						opt.InitialState = sqlcv1.V1TaskInitialStateCANCELLED
 					case sqlcv1.V1MatchConditionActionSKIP:
 						opt.InitialState = sqlcv1.V1TaskInitialStateSKIPPED
+					case sqlcv1.V1MatchConditionActionCREATE, sqlcv1.V1MatchConditionActionCREATEMATCH:
 					}
 
 					if match.TriggerDagID.Valid && match.TriggerDagInsertedAt.Valid {
 						opt.DagId = &match.TriggerDagID.Int64
 						opt.DagInsertedAt = match.TriggerDagInsertedAt
+						opt.PayloadReferenceId = m.sharedRunInputPayloadReferenceId(dagIdsToPayloadReferenceId[match.TriggerDagID.Int64])
 
 						// Prefer labels stored on the match; fall back to the DAG for rows
 						// created before the migration added trigger_desired_worker_labels.
@@ -768,6 +807,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 	errorMessages := make([]string, 0)
 	payloadsToStore := make([]StorePayloadOpts, 0)
 	idInsertedAtNodeIdToSatisfiedEntry := make(map[DurableTaskNodeIdKey]SatisfiedEntry)
+	minDurableTaskInsertedAt := time.Time{}
 
 	for _, match := range satisfiedMatches {
 		durableTaskExternalId := match.SignalTaskExternalID
@@ -816,16 +856,40 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			}
 
 			errorMessages = append(errorMessages, errorMsgToInsert)
+
+			if minDurableTaskInsertedAt.IsZero() || durableTaskInsertedAt.Time.Before(minDurableTaskInsertedAt) {
+				minDurableTaskInsertedAt = durableTaskInsertedAt.Time
+			}
+		}
+	}
+
+	// NOTE: need an explicit lock here to prevent segfault caused by Postgres bug, see this issue: https://github.com/hatchet-dev/hatchet/issues/5101
+	if len(durableTaskIds) > 0 {
+		tenantIds := make([]uuid.UUID, len(durableTaskIds))
+		for i := range tenantIds {
+			tenantIds[i] = tenantId
+		}
+
+		_, err := m.queries.GetAndLockLogFilesWithBranchPoints(ctx, tx, sqlcv1.GetAndLockLogFilesWithBranchPointsParams{
+			Durabletaskids:           durableTaskIds,
+			Durabletaskinsertedats:   durableTaskInsertedAts,
+			Tenantids:                tenantIds,
+			Mindurabletaskinsertedat: sqlchelpers.TimestamptzFromTime(minDurableTaskInsertedAt),
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to lock durable event log files: %w", err)
 		}
 	}
 
 	entries, err := m.queries.UpdateDurableEventLogEntriesSatisfied(ctx, tx, sqlcv1.UpdateDurableEventLogEntriesSatisfiedParams{
-		Nodeids:                durableTaskNodeIds,
-		Branchids:              durableTaskBranchIds,
-		Durabletaskids:         durableTaskIds,
-		Durabletaskinsertedats: durableTaskInsertedAts,
-		Childtaskisfailures:    isFailures,
-		Childtaskerrormessages: errorMessages,
+		Nodeids:                  durableTaskNodeIds,
+		Branchids:                durableTaskBranchIds,
+		Durabletaskids:           durableTaskIds,
+		Durabletaskinsertedats:   durableTaskInsertedAts,
+		Childtaskisfailures:      isFailures,
+		Childtaskerrormessages:   errorMessages,
+		Mindurabletaskinsertedat: sqlchelpers.TimestamptzFromTime(minDurableTaskInsertedAt),
 	})
 
 	if err != nil {
@@ -862,14 +926,12 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		initialEntry.SatisfiedOrder = satisfiedOrderPtr(cb.SatisfiedOrder)
 
 		if len(initialEntry.Data) > 0 {
-			payloadsToStore = append(payloadsToStore, StorePayloadOpts{
+			payloadsToStore = append(payloadsToStore, PayloadRef[DurableEventLogEntryResultDataShape]{
 				Id:         cb.ID,
 				InsertedAt: cb.InsertedAt,
-				Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
-				Payload:    initialEntry.Data,
 				ExternalId: cb.ResultPayloadExternalID,
 				TenantId:   tenantId,
-			})
+			}.StoreOpts(NewPayload[DurableEventLogEntryResultDataShape](initialEntry.Data)))
 		}
 
 		satisfiedEntries = append(satisfiedEntries, initialEntry)
@@ -921,6 +983,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			eventKeys,
 			nil,
 			nil,
+			nil,
 		)
 
 		if err != nil {
@@ -951,42 +1014,15 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 		Value: attribute.IntValue(len(conditions)),
 	})
 
-	// parse CEL expressions
 	programs := make(map[int64]cel.Program)
 	conditionIdsToConditions := make(map[int64]*sqlcv1.ListMatchConditionsForEventRow)
 
 	for _, condition := range conditions {
-		expr := condition.Expression.String
-
-		if expr == "" {
-			expr = "true"
+		program, err := m.boolExprEvaluator.Compile(condition.Expression.String)
+		if err != nil {
+			m.l.Error().Ctx(ctx).Err(err).Msgf("failed to compile CEL expression: %s", condition.Expression.String)
+			continue
 		}
-
-		hasher := fnv.New64a()
-		hasher.Write([]byte(expr))
-		exprHash := hasher.Sum64()
-
-		program, ok := m.celProgramCache.Get(exprHash)
-
-		if !ok {
-			ast, issues := m.env.Compile(expr)
-
-			if issues != nil && issues.Err() != nil {
-				m.l.Error().Ctx(ctx).Err(issues.Err()).Msgf("failed to compile CEL expression: %s", expr)
-				continue
-			}
-
-			compiled, err := m.env.Program(ast)
-
-			if err != nil {
-				m.l.Error().Ctx(ctx).Err(err).Msgf("failed to create CEL program: %s", expr)
-				continue
-			}
-
-			m.celProgramCache.Add(exprHash, compiled)
-			program = compiled
-		}
-
 		programs[condition.ID] = program
 		conditionIdsToConditions[condition.ID] = condition
 	}
@@ -1044,7 +1080,11 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 				continue
 			}
 
-			if condition.EventResourceHint.Valid && condition.EventResourceHint.String != *event.ResourceHint {
+			if condition.EventResourceHint.Valid {
+				if event.ResourceHint == nil || condition.EventResourceHint.String != *event.ResourceHint {
+					continue
+				}
+			} else if eventType != sqlcv1.V1EventTypeUSER && event.ResourceHint != nil {
 				continue
 			}
 
@@ -1286,6 +1326,11 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 		}
 	}
 
+	// a COPY with zero rows still costs a round trip (CopyIn + CopyDone) and writes nothing
+	if len(matchConditionParams) == 0 {
+		return nil
+	}
+
 	_, err := m.queries.CreateMatchConditions(ctx, tx, matchConditionParams)
 
 	if err != nil {
@@ -1311,8 +1356,11 @@ func getConditionParam(tenantId uuid.UUID, createdMatchId int64, condition Group
 
 	// fixme: checking that the EventResourceHint is not a zero-valued uuid is a workaround,
 	// but there's likely a bug somewhere upstream where it's set to that instead of being nil,
-	// which would be better to fix at the root
-	if condition.EventResourceHint != nil && *condition.EventResourceHint != uuid.Nil.String() {
+	// which would be better to fix at the root. This only applies to INTERNAL conditions, whose
+	// hint is always an internally-generated task external ID; USER conditions carry a
+	// caller-supplied scope string, which must always be taken literally (a scope value that
+	// happens to equal the zero UUID is not a bug).
+	if condition.EventResourceHint != nil && (condition.EventType != sqlcv1.V1EventTypeINTERNAL || *condition.EventResourceHint != uuid.Nil.String()) {
 		param.EventResourceHint = sqlchelpers.TextFromStr(*condition.EventResourceHint)
 	}
 
@@ -1470,8 +1518,7 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 						condition.Expression.String,
 						condition.Action,
 					))
-				default:
-					// PARENT_OVERRIDE is another kind, but it isn't processed here
+				case sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE:
 					continue
 				}
 			}

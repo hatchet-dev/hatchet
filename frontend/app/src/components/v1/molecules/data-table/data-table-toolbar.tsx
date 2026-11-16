@@ -1,4 +1,5 @@
-import { DataTableOptions } from './data-table-options';
+import { DataTableColumnsButton, DataTableOptions } from './data-table-options';
+import { ToolbarType } from './toolbar-type';
 import { RefetchIntervalDropdown } from '@/components/refetch-interval-dropdown';
 import { Spinner } from '@/components/v1/ui/loading';
 import {
@@ -17,25 +18,19 @@ export interface FilterOption {
   subOptions?: FilterOption[];
 }
 
-export enum ToolbarType {
-  Checkbox = 'checkbox',
-  Radio = 'radio',
-  KeyValue = 'key-value',
-  Array = 'array',
-  Switch = 'switch',
-  TimeRange = 'time-range',
-  Search = 'search',
-}
+export { ToolbarType };
 
 export interface TimeRangeConfig {
   onTimeWindowChange?: (value: string) => void;
   onCreatedAfterChange?: (date?: string) => void;
   onFinishedBeforeChange?: (date?: string) => void;
   onClearTimeRange?: () => void;
+  onRetentionBlocked?: (date: Date) => void;
   currentTimeWindow?: string;
   isCustomTimeRange?: boolean;
   createdAfter?: string;
   finishedBefore?: string;
+  retentionPeriod?: string;
 }
 
 export interface FilterSearchConfig {
@@ -76,6 +71,7 @@ interface DataTableToolbarProps<TData> {
   filters: ToolbarFilters;
   leftActions?: JSX.Element[];
   rightActions?: JSX.Element[];
+  endActions?: JSX.Element[];
   searchBar?: JSX.Element;
   showColumnToggle?: boolean;
   isLoading?: boolean;
@@ -84,6 +80,7 @@ interface DataTableToolbarProps<TData> {
   refetchProps?: RefetchProps;
   tableActions?: ShowTableActionsProps;
   onResetFilters?: () => void;
+  filtersInSidebar?: boolean;
 }
 
 export function DataTableToolbar<TData>({
@@ -91,6 +88,7 @@ export function DataTableToolbar<TData>({
   filters,
   leftActions,
   rightActions = [],
+  endActions,
   searchBar,
   showColumnToggle,
   isLoading = false,
@@ -99,6 +97,7 @@ export function DataTableToolbar<TData>({
   refetchProps,
   tableActions,
   onResetFilters,
+  filtersInSidebar = false,
 }: DataTableToolbarProps<TData>) {
   const visibleFilters = filters.filter((filter) => {
     if (hiddenFilters.includes(filter.columnId)) {
@@ -133,15 +132,23 @@ export function DataTableToolbar<TData>({
               onRefetch={refetchProps.onRefetch}
             />
           )}
-          {(hasFilters || showColumnToggle) && (
-            <DataTableOptions
-              table={table}
-              filters={visibleFilters}
-              hiddenFilters={hiddenFilters}
-              columnKeyToName={columnKeyToName}
-              onResetFilters={onResetFilters}
-            />
-          )}
+          {filtersInSidebar
+            ? showColumnToggle && (
+                <DataTableColumnsButton
+                  table={table}
+                  columnKeyToName={columnKeyToName}
+                />
+              )
+            : (hasFilters || showColumnToggle) && (
+                <DataTableOptions
+                  table={table}
+                  filters={visibleFilters}
+                  hiddenFilters={hiddenFilters}
+                  columnKeyToName={columnKeyToName}
+                  onResetFilters={onResetFilters}
+                />
+              )}
+          {endActions}
         </div>
       </div>
     </div>

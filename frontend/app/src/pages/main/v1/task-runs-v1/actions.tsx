@@ -18,6 +18,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/v1/ui/tooltip';
+import useCanWrite from '@/hooks/use-can-write';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, {
   queries,
@@ -380,12 +381,13 @@ export const TaskRunActionButton = ({
 }) => {
   const { actionModalParams } = useRunsContext();
   const params = paramOverrides || actionModalParams;
+  const canWrite = useCanWrite();
 
   switch (actionType) {
     case 'cancel':
       return (
         <BaseActionButton
-          disabled={disabled}
+          disabled={disabled || !canWrite}
           params={{ ...params, actionType: 'cancel' }}
           icon={<XCircleIcon className="size-4" />}
           label={'Cancel'}
@@ -397,7 +399,7 @@ export const TaskRunActionButton = ({
     case 'replay':
       return (
         <BaseActionButton
-          disabled={disabled}
+          disabled={disabled || !canWrite}
           params={{ ...params, actionType: 'replay' }}
           icon={<Repeat1 className="size-4" />}
           label={'Replay'}

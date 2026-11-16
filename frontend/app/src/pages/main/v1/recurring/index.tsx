@@ -15,6 +15,7 @@ import {
 import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { WorkflowsGuard } from '@/components/v1/molecules/empty-state/workflows-guard';
 import { Button } from '@/components/v1/ui/button';
+import useCanWrite from '@/hooks/use-can-write';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { CronWorkflows } from '@/lib/api';
@@ -39,6 +40,7 @@ export default function CronsPage() {
 
 function CronsTable() {
   const { tenantId } = useCurrentTenantId();
+  const canWrite = useCanWrite();
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
@@ -99,9 +101,17 @@ function CronsTable() {
         setSelectedJobId,
         isUpdatePending,
         updatingCronId,
+        canWrite,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tenantId, selectedJobId, isUpdatePending, updatingCronId, triggerNow],
+    [
+      tenantId,
+      selectedJobId,
+      isUpdatePending,
+      updatingCronId,
+      triggerNow,
+      canWrite,
+    ],
   );
 
   const filters: ToolbarFilters = [
@@ -118,15 +128,17 @@ function CronsTable() {
     },
   ];
 
-  const actions = [
-    <Button
-      key="create-cron"
-      onClick={() => setTriggerWorkflow(true)}
-      variant="cta"
-    >
-      Create Cron Job
-    </Button>,
-  ];
+  const actions = canWrite
+    ? [
+        <Button
+          key="create-cron"
+          onClick={() => setTriggerWorkflow(true)}
+          variant="cta"
+        >
+          Create Cron Job
+        </Button>,
+      ]
+    : [];
 
   return (
     <>

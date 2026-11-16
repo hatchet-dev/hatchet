@@ -11,10 +11,12 @@ export function AuthPage({
   title,
   basicSection,
   altAction,
+  showLocalAuth,
 }: {
   title: string;
   basicSection: React.ReactNode;
   altAction: React.ReactNode;
+  showLocalAuth?: boolean;
 }) {
   useErrorParam();
   const { meta, isLoading } = useApiMeta();
@@ -36,6 +38,7 @@ export function AuthPage({
     ssoEnabled && 'sso',
   ].filter(Boolean) as Array<'google' | 'github' | 'sso'>;
 
+  const localAuthVisible = showLocalAuth ?? basicEnabled;
   const sections = [
     providers.length > 0 && (
       <SocialAuthButtons
@@ -44,7 +47,7 @@ export function AuthPage({
         setSsoExpanded={setSsoExpanded}
       />
     ),
-    !ssoExpanded && basicEnabled && basicSection,
+    !ssoExpanded && localAuthVisible && basicSection,
   ].filter(Boolean);
 
   return (

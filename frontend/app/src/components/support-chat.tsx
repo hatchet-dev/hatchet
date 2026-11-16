@@ -1,3 +1,4 @@
+import { useTheme } from '@/components/hooks/use-theme.tsx';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { User } from '@/lib/api';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
@@ -30,6 +31,7 @@ const SupportChat: React.FC<PropsWithChildren & SupportChatProps> = ({
   children,
 }) => {
   const { meta } = useApiMeta();
+  const { currentlyVisibleTheme } = useTheme();
 
   const { tenant } = useTenantDetails();
 
@@ -50,6 +52,14 @@ const SupportChat: React.FC<PropsWithChildren & SupportChatProps> = ({
     document.body.appendChild(document.createElement('script')).innerHTML =
       pylonScript;
   }, [APP_ID]);
+
+  useEffect(() => {
+    if (!APP_ID) {
+      return;
+    }
+
+    (window as any).Pylon?.('setTheme', currentlyVisibleTheme);
+  }, [APP_ID, currentlyVisibleTheme]);
 
   useEffect(() => {
     if (!APP_ID || !user) {

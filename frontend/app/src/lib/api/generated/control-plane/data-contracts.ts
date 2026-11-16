@@ -14,11 +14,7 @@ export enum TenantMemberRoleType {
   OWNER = "OWNER",
   ADMIN = "ADMIN",
   MEMBER = "MEMBER",
-}
-
-export enum AuditLogActorType {
-  User = "user",
-  ApiKey = "api_key",
+  VIEWER = "VIEWER",
 }
 
 export enum CouponFrequency {
@@ -45,6 +41,7 @@ export enum SubscriptionPlanCode {
   Developer = "developer",
   Team = "team",
   Scale = "scale",
+  PayAsYouGo = "pay-as-you-go",
   Dedicated = "dedicated",
 }
 
@@ -67,6 +64,7 @@ export enum OrganizationAvailableShardClass {
 export enum OrganizationInviteTenantRole {
   ADMIN = "ADMIN",
   MEMBER = "MEMBER",
+  VIEWER = "VIEWER",
 }
 
 export enum OrganizationInviteStatus {
@@ -90,6 +88,28 @@ export enum TenantStatusType {
 export enum OrganizationMemberRoleType {
   OWNER = "OWNER",
   MEMBER = "MEMBER",
+}
+
+export enum OrganizationSignupAttribution {
+  Search = "search",
+  XTwitter = "x_twitter",
+  Linkedin = "linkedin",
+  HackerNews = "hacker_news",
+  Reddit = "reddit",
+  Github = "github",
+  BlogArticle = "blog_article",
+  FriendColleague = "friend_colleague",
+  ConferenceEvent = "conference_event",
+  AiAssistant = "ai_assistant",
+  SearchForAlternative = "search_for_alternative",
+  Other = "other",
+}
+
+export enum OrganizationOnboardingSDK {
+  PYTHON = "PYTHON",
+  TYPESCRIPT = "TYPESCRIPT",
+  GO = "GO",
+  RUBY = "RUBY",
 }
 
 export interface APIControlPlaneMetadata {
@@ -166,6 +186,36 @@ import type { UserChangePasswordRequest } from '@/lib/api/generated/data-contrac
 
 import type { UserRegisterRequest } from '@/lib/api/generated/data-contracts';
 
+export interface MagicLinkRequest {
+  /**
+   * The email address that should receive a one-time login link.
+   * @format email
+   */
+  email: string;
+}
+
+export interface MagicLinkConfirmRequest {
+  /**
+   * The single-use login token from the email link.
+   * @minLength 1
+   * @maxLength 512
+   */
+  token: string;
+}
+
+export interface MagicLinkAccepted {
+  /**
+   * Always true. The response does not reveal whether an account exists or whether an email was sent.
+   * @example true
+   */
+  accepted: boolean;
+  /**
+   * Seconds to wait before requesting another link for the same address. The same value is returned for every request.
+   * @example 60
+   */
+  resendCooldownSeconds: number;
+}
+
 export interface Organization {
   metadata: APIResourceMeta;
   /** Name of the organization */
@@ -177,6 +227,14 @@ export interface Organization {
    * @format int64
    */
   inactivity_timeout?: number;
+  /** The organization's current subscription. Omitted when the organization has no current subscription. */
+  subscription?: OrganizationCurrentSubscription;
+}
+
+export interface OrganizationCurrentSubscription {
+  metadata: APIResourceMeta;
+  /** The plan of the current subscription. */
+  plan: SubscriptionPlanCode;
 }
 
 export interface OrganizationForUser {
@@ -191,6 +249,8 @@ export interface OrganizationForUser {
 export interface OrganizationForUserList {
   rows: OrganizationForUser[];
   pagination: PaginationResponse;
+  /** Whether this user can create another free organization they would own. */
+  canCreateOrganization?: boolean;
 }
 
 export interface CreateOrganizationRequest {
@@ -200,6 +260,24 @@ export interface CreateOrganizationRequest {
    * @maxLength 256
    */
   name: string;
+  /**
+   * What the user would like to build with Hatchet
+   * @maxLength 1000
+   */
+  whatToBuild?: string;
+  /** Which SDK the user is planning to use */
+  sdk?: OrganizationOnboardingSDK;
+  /**
+   * How the user first heard about Hatchet, every option they selected
+   * @maxItems 12
+   * @uniqueItems true
+   */
+  attribution?: OrganizationSignupAttribution[];
+  /**
+   * Free-text answer when attribution includes "other"
+   * @maxLength 500
+   */
+  attributionOther?: string;
 }
 
 export interface UpdateOrganizationRequest {
@@ -222,6 +300,8 @@ export interface OrganizationMember {
    * @format email
    */
   email: string;
+  /** Whether the member has at least one MFA method. Only returned to organization owners. */
+  mfaEnabled?: boolean;
 }
 
 export interface OrganizationMemberList {
@@ -288,7 +368,7 @@ export interface CreateManagementTokenRequest {
   name: string;
   /** @default "30D" */
   duration?: ManagementTokenDuration;
-  /** Optional tags to scope this token. When set, the token can only access or create tenants whose tags are a subset of these tags. An empty or omitted list grants full access to the org. */
+  /** Optional tags to scope this token to tenants. Tags exist on tenants, not on the organization, its members, or its invites. When set, the token can only access or create tenants whose tags are a non-empty subset of these tags (a tenant tagged "*" is always in scope; a tenant with no tags never is). It cannot update the organization, change or remove members, or delete invites, because those resources have no tags to match against the token. An empty or omitted list grants full access to the organization. */
   tags?: string[];
 }
 
@@ -381,6 +461,8 @@ export interface OrganizationInviteTenant {
   tenantRole: OrganizationInviteTenantRole;
   /** The name of the tenant */
   tenantName: string;
+  /** Whether the invitee can view payloads on this tenant after accepting. Defaults to true. */
+  canViewPayloads?: boolean;
 }
 
 export interface CreateOrganizationInviteTenant {
@@ -391,6 +473,8 @@ export interface CreateOrganizationInviteTenant {
   tenantId: string;
   /** The tenant role the invitee is granted. Defaults to MEMBER. */
   tenantRole?: OrganizationInviteTenantRole;
+  /** Whether the invitee can view payloads on this tenant after accepting. Defaults to true. */
+  canViewPayloads?: boolean;
 }
 
 export interface CreateOrganizationInviteRequest {
@@ -496,6 +580,8 @@ export interface APIToken {
   metadata: APIResourceMeta;
   /** The name of the API token */
   name: string;
+  /** Whether the token is limited to viewer access over REST and cannot use gRPC */
+  readOnly: boolean;
   /**
    * The timestamp at which the token expires
    * @format date-time
@@ -513,6 +599,8 @@ export interface CreateTenantAPITokenRequest {
   name: string;
   /** The duration for which the token should be valid (e.g., "30d", "90d") */
   expiresIn?: string;
+  /** Limit the token to viewer access over REST and deny all gRPC calls. Defaults to false. */
+  readOnly?: boolean;
 }
 
 export interface CreateTenantAPITokenResponse {
@@ -819,6 +907,225 @@ export interface Coupon {
   percent?: number;
 }
 
+export interface OrganizationInvoiceLineItemDiscount {
+  /** Discount amount in cents. */
+  amountOffCents: number;
+  /**
+   * Percentage discount, when the reward is a percent-off coupon.
+   * @format float
+   */
+  percentOff?: number;
+  /** Display name of the applied reward, when available. */
+  rewardName?: string;
+}
+
+export interface OrganizationInvoiceLineItem {
+  /** Plan or feature name to display for this line item. */
+  displayName: string;
+  /** Detailed description of the line item. */
+  description: string;
+  /** Amount before discounts and tax, in cents. */
+  subtotalCents: number;
+  /** Amount after discounts and tax, in cents. */
+  totalCents: number;
+  /** Autumn plan ID this line item belongs to. */
+  planId: string;
+  /** Autumn feature ID for usage line items, when present. */
+  featureId?: string;
+  /**
+   * Quantity billed for this line item.
+   * @format double
+   */
+  quantity: number;
+  /**
+   * Start of the usage or billing period for this line item.
+   * @format date-time
+   */
+  periodStart?: string;
+  /**
+   * End of the usage or billing period for this line item.
+   * @format date-time
+   */
+  periodEnd?: string;
+  /** Discounts applied to this line item. */
+  discounts?: OrganizationInvoiceLineItemDiscount[];
+}
+
+export interface OrganizationInvoicePreview {
+  /** Plan IDs contributing line items to this upcoming invoice. */
+  planIds: string[];
+  /**
+   * When this invoice will be created.
+   * @format date-time
+   */
+  invoiceAt: string;
+  /** ISO currency code for the invoice amounts. */
+  currency: string;
+  /** Total before discounts, in cents. */
+  subtotalCents: number;
+  /** Total after discounts, in cents. */
+  totalCents: number;
+  /** Usage accrued in the closing cycle plus recurring charges for the opening cycle. */
+  lineItems: OrganizationInvoiceLineItem[];
+}
+
+export interface OrganizationInvoice {
+  /** Plan IDs included on this invoice. */
+  planIds: string[];
+  /** Stripe invoice ID. */
+  stripeId: string;
+  /** Billing processor that owns this invoice. */
+  processorType?: string;
+  /** Invoice status (paid, open, draft, void, uncollectible). */
+  status: string;
+  /** Invoice total in cents. */
+  totalCents: number;
+  /** ISO currency code for the invoice amounts. */
+  currency: string;
+  /**
+   * When the invoice was created.
+   * @format date-time
+   */
+  createdAt: string;
+  /** URL to open the hosted invoice page. */
+  hostedInvoiceUrl?: string;
+}
+
+export interface OrganizationInvoices {
+  /** Upcoming invoices for the organization's subscriptions. */
+  invoicePreviews: OrganizationInvoicePreview[];
+  /** Previously issued invoices, most recent first. */
+  invoices: OrganizationInvoice[];
+}
+
+export interface OrganizationUsageFeature {
+  /** Autumn feature identifier. */
+  featureId: string;
+  /** Human-readable feature name. */
+  name: string;
+  /**
+   * Usage consumed in the current billing period.
+   * @format int64
+   */
+  usage: number;
+  /**
+   * Included or granted usage for this feature in the current period.
+   * @format int64
+   */
+  includedUsage: number;
+  /** Whether this feature has unlimited usage. */
+  unlimited: boolean;
+}
+
+export interface OrganizationUsage {
+  /** Current-period usage versus included balances, one row per feature. */
+  features: OrganizationUsageFeature[];
+  /**
+   * Start of the current billing period, when known.
+   * @format date-time
+   */
+  periodStart?: string;
+  /**
+   * End of the current billing period, when known.
+   * @format date-time
+   */
+  periodEnd?: string;
+}
+
+export interface OrganizationUsageTimeseriesPoint {
+  /**
+   * UTC calendar day for this bucket.
+   * @format date
+   */
+  date: string;
+  /**
+   * Billable task runs on this day.
+   * @format int64
+   */
+  taskRuns: number;
+  /**
+   * Billable external events on this day.
+   * @format int64
+   */
+  events: number;
+  /**
+   * Payload bytes of durable stream messages stored on this day.
+   * @format int64
+   */
+  streamPublishedBytes: number;
+  /**
+   * Payload bytes of durable stream messages sent to subscribers on this day, once per subscriber.
+   * @format int64
+   */
+  streamDeliveredBytes: number;
+}
+
+export interface OrganizationUsageTimeseriesTenant {
+  /**
+   * Tenant identifier.
+   * @format uuid
+   */
+  tenantId: string;
+  /** Tenant display name. */
+  tenantName: string;
+  /** Tenant slug. */
+  tenantSlug: string;
+  /**
+   * Billable task runs for this tenant in the requested window.
+   * @format int64
+   */
+  taskRuns: number;
+  /**
+   * Billable external events for this tenant in the requested window.
+   * @format int64
+   */
+  events: number;
+  /**
+   * Payload bytes of durable stream messages this tenant stored in the requested window.
+   * @format int64
+   */
+  streamPublishedBytes: number;
+  /**
+   * Payload bytes of durable stream messages sent to this tenant's subscribers in the requested window.
+   * @format int64
+   */
+  streamDeliveredBytes: number;
+  /**
+   * Live cron count on the shard. Omitted when the shard count could not be loaded.
+   * @format int64
+   */
+  crons?: number;
+  /**
+   * Live pending scheduled-run count on the shard. Omitted when the shard count could not be loaded.
+   * @format int64
+   */
+  scheduledRuns?: number;
+  /**
+   * Live webhook endpoint count on the shard. Omitted when the shard count could not be loaded.
+   * @format int64
+   */
+  webhooks?: number;
+  /** Daily usage for this tenant, including zero days. Same calendar as the organization series. */
+  series?: OrganizationUsageTimeseriesPoint[];
+}
+
+export interface OrganizationUsageTimeseries {
+  /**
+   * Inclusive start of the queried window.
+   * @format date-time
+   */
+  start: string;
+  /**
+   * Exclusive end of the queried window.
+   * @format date-time
+   */
+  end: string;
+  /** Organization-wide daily usage, including zero days. */
+  series: OrganizationUsageTimeseriesPoint[];
+  /** Per-tenant totals for the same window. */
+  tenants: OrganizationUsageTimeseriesTenant[];
+}
+
 export interface OrganizationEntitlements {
   /** @example false */
   canSSO: boolean;
@@ -826,6 +1133,33 @@ export interface OrganizationEntitlements {
   prometheusMetrics: boolean;
   /** @example false */
   auditLogs: boolean;
+  users: OrganizationResourceLimit;
+  tenants: OrganizationResourceLimit;
+}
+
+export interface OrganizationResourceLimit {
+  /**
+   * The maximum number of this resource allowed. -1 when unlimited.
+   * @format int64
+   * @example 1
+   */
+  limit: number;
+  /**
+   * The current number of this resource counted toward the limit.
+   * @format int64
+   * @example 1
+   */
+  used: number;
+  /**
+   * Whether this resource has no limit.
+   * @example false
+   */
+  unlimited: boolean;
+  /**
+   * Whether another resource of this type can be created or invited.
+   * @example false
+   */
+  canCreate: boolean;
 }
 
 /**
@@ -839,47 +1173,8 @@ export type ShardRegionKey = string;
 export interface AddOrgMembersToTenantRequest {
   /** IDs of org members to add to the tenant. */
   memberIds: string[];
-}
-
-export interface AuditLog {
-  /**
-   * The ID of the audit log
-   * @format uuid
-   */
-  id: string;
-  /**
-   * The timestamp at which the audit log was inserted
-   * @format date-time
-   */
-  insertedAt: string;
-  /**
-   * The ID of the tenant
-   * @format uuid
-   */
-  tenantId: string;
-  /** The type of the actor */
-  actorType: AuditLogActorType;
-  /**
-   * The ID of the actor
-   * @format uuid
-   */
-  actorId: string;
-  /** The action that was performed */
-  action: string;
-  /** The correlation ID */
-  correlationId?: string;
-  /** The ID of the resource */
-  resourceId: string;
-  /** The type of the resource */
-  resourceType: string;
-  /** The IP address of the actor */
-  ipAddress?: string;
-  /** The user agent of the actor */
-  userAgent?: string;
-}
-
-export interface AuditLogList {
-  rows: AuditLog[];
+  /** Whether the added members can view payloads on this tenant. Defaults to true. */
+  canViewPayloads?: boolean;
 }
 
 export interface UserGroup {
@@ -892,6 +1187,8 @@ export interface UserGroup {
   tags: string[];
   /** Number of organization members in this group */
   memberCount: number;
+  /** Whether members of this group can view payloads on tag-synced tenants. Most restrictive matching group wins. Defaults to true. */
+  canViewPayloads?: boolean;
 }
 
 export type UserGroupList = UserGroup[];
@@ -904,6 +1201,8 @@ export interface CreateUserGroupRequest {
   name: string;
   /** Tenant role to grant members when synced to a matching tenant */
   role: TenantMemberRoleType;
+  /** Whether members of this group can view payloads on matching tenants. Defaults to true. */
+  canViewPayloads?: boolean;
 }
 
 export interface UpdateUserGroupRequest {
@@ -914,6 +1213,8 @@ export interface UpdateUserGroupRequest {
   name?: string;
   /** New tenant role to grant members */
   role?: TenantMemberRoleType;
+  /** Whether members of this group can view payloads on matching tenants. */
+  canViewPayloads?: boolean;
 }
 
 export interface UserGroupMemberList {

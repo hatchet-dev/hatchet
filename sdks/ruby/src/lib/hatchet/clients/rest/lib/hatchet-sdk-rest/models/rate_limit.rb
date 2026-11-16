@@ -33,6 +33,9 @@ module HatchetSdkRest
     # The last time the rate limit was refilled.
     attr_accessor :last_refill
 
+    # When the rate limit's pause ends, if it is paused. Runs that consume a paused key stay queued until then.
+    attr_accessor :paused_until
+
     # Attribute mapping from ruby-style variable name to JSON key.
     def self.attribute_map
       {
@@ -41,7 +44,8 @@ module HatchetSdkRest
         :'limit_value' => :'limitValue',
         :'value' => :'value',
         :'window' => :'window',
-        :'last_refill' => :'lastRefill'
+        :'last_refill' => :'lastRefill',
+        :'paused_until' => :'pausedUntil'
       }
     end
 
@@ -63,7 +67,8 @@ module HatchetSdkRest
         :'limit_value' => :'Integer',
         :'value' => :'Integer',
         :'window' => :'String',
-        :'last_refill' => :'Time'
+        :'last_refill' => :'Time',
+        :'paused_until' => :'Time'
       }
     end
 
@@ -123,6 +128,10 @@ module HatchetSdkRest
         self.last_refill = attributes[:'last_refill']
       else
         self.last_refill = nil
+      end
+
+      if attributes.key?(:'paused_until')
+        self.paused_until = attributes[:'paused_until']
       end
     end
 
@@ -241,7 +250,8 @@ module HatchetSdkRest
           limit_value == o.limit_value &&
           value == o.value &&
           window == o.window &&
-          last_refill == o.last_refill
+          last_refill == o.last_refill &&
+          paused_until == o.paused_until
     end
 
     # @see the `==` method
@@ -253,7 +263,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [key, tenant_id, limit_value, value, window, last_refill].hash
+      [key, tenant_id, limit_value, value, window, last_refill, paused_until].hash
     end
 
     # Builds the object from hash

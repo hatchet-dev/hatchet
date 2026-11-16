@@ -12,6 +12,7 @@ const (
 	TokenAlertExpiringTemplate = "token-expiring" // nolint: gosec
 	ResourceLimitAlertTemplate = "resource-limit-alert"
 	OrganizationInviteTemplate = "organization-invite"
+	MagicLinkTemplate          = "magic-link"
 )
 
 type TenantInviteEmailData struct {
@@ -60,6 +61,11 @@ type SendEmailFromTemplateRequest struct {
 	TemplateAlias string      `json:"TemplateAlias"`
 }
 
+type MagicLinkEmailData struct {
+	ActionURL string `json:"action_url"`
+	ExpiresIn string `json:"expires_in"`
+}
+
 type EmailService interface {
 	// for clients to show email settings
 	IsValid() bool
@@ -72,6 +78,8 @@ type EmailService interface {
 	// Used for extending the email provider for sending additional templated emails
 	SendTemplateEmail(ctx context.Context, to, templateAlias string, templateModelData interface{}, bccSupport bool) error
 	SendTemplateEmailBCC(ctx context.Context, bcc, templateAlias string, templateModelData interface{}, bccSupport bool) error
+
+	SendMagicLinkEmail(ctx context.Context, to string, data MagicLinkEmailData) error
 }
 
 type NoOpService struct{}
@@ -101,5 +109,9 @@ func (s *NoOpService) SendTemplateEmail(ctx context.Context, to, templateAlias s
 }
 
 func (s *NoOpService) SendTemplateEmailBCC(ctx context.Context, bcc, templateAlias string, templateModelData interface{}, bccSupport bool) error {
+	return nil
+}
+
+func (s *NoOpService) SendMagicLinkEmail(ctx context.Context, to string, data MagicLinkEmailData) error {
 	return nil
 }

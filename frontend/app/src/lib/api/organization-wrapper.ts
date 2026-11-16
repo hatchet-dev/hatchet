@@ -4,14 +4,22 @@ import type { CreateNewTenantForOrganizationRequest as CloudCreateNewTenantForOr
 import type {
   CreateNewTenantForOrganizationRequest as ControlPlaneCreateNewTenantForOrganizationRequest,
   CreateOrganizationInviteRequest as ControlPlaneCreateOrganizationInviteRequest,
+  CreateOrganizationRequest as ControlPlaneCreateOrganizationRequest,
   OrganizationMemberRoleType as ControlPlaneOrganizationMemberRoleType,
   UpdateOrganizationMemberRequest as ControlPlaneUpdateOrganizationMemberRequest,
 } from '@/lib/api/generated/control-plane/data-contracts';
 import { useMemo } from 'react';
 
+// The cloud request plus the control-plane-only onboarding fields.
+// `attribution`/`attributionOther` must only be sent when the control plane is
+// enabled.
 type OrganizationCreateRequest = Parameters<
   typeof cloudApi.organizationCreate
->[0];
+>[0] &
+  Pick<
+    ControlPlaneCreateOrganizationRequest,
+    'attribution' | 'attributionOther'
+  >;
 type OrganizationUpdateRequest = {
   name?: string;
   inactivity_timeout?: string;
@@ -47,7 +55,7 @@ export type OrganizationInviteCreateRequest = Parameters<
   Pick<ControlPlaneCreateOrganizationInviteRequest, 'tenants' | 'userGroupIds'>;
 type OrganizationTenantMembersAddRequest = Parameters<
   typeof cloudApi.organizationTenantMembersAdd
->[2];
+>[2] & { canViewPayloads?: boolean };
 
 export function useOrganizationApi() {
   const { isControlPlaneEnabled } = useControlPlane();
@@ -172,7 +180,9 @@ export function useOrganizationApi() {
           (
             await (isControlPlaneEnabled
               ? controlPlaneApi.organizationCreate(data)
-              : cloudApi.organizationCreate(data))
+              : // The legacy cloud API does not accept the onboarding
+                // fields, so only the name is forwarded.
+                cloudApi.organizationCreate({ name: data.name }))
           ).data,
       }),
 
@@ -187,6 +197,12 @@ export function useOrganizationApi() {
                   data as { name: string },
                 ))
           ).data,
+      }),
+
+      organizationArchiveMutation: (organization: string) => ({
+        mutationKey: ['organization:archive', organization] as const,
+        mutationFn: async () =>
+          (await controlPlaneApi.organizationArchive(organization)).data,
       }),
 
       organizationCreateTenantMutation: (organization: string) => ({
@@ -392,11 +408,16 @@ export function useOrganizationApi() {
 
       userGroupCreateMutation: (organization: string) => ({
         mutationKey: ['organization:user-groups:create', organization] as const,
-        mutationFn: async (data: { name: string; role: string }) =>
+        mutationFn: async (data: {
+          name: string;
+          role: string;
+          canViewPayloads?: boolean;
+        }) =>
           (
             await controlPlaneApi.organizationUserGroupsCreate(organization, {
               name: data.name,
               role: data.role as import('@/lib/api/generated/control-plane/data-contracts').TenantMemberRoleType,
+              canViewPayloads: data.canViewPayloads,
             })
           ).data,
       }),
@@ -422,7 +443,11 @@ export function useOrganizationApi() {
           organization,
           userGroup,
         ] as const,
-        mutationFn: async (data: { name?: string; role?: string }) =>
+        mutationFn: async (data: {
+          name?: string;
+          role?: string;
+          canViewPayloads?: boolean;
+        }) =>
           (
             await controlPlaneApi.organizationUserGroupUpdate(
               organization,

@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from '@/components/v1/ui/select';
 import { Textarea } from '@/components/v1/ui/textarea';
+import useCanWrite from '@/hooks/use-can-write';
 import { V1CreateFilterRequest } from '@/lib/api';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Filter } from 'lucide-react';
@@ -188,6 +189,11 @@ export function FilterCreateButton({
   isCreating,
 }: Omit<FilterCreateFormProps, 'isOpen' | 'onClose'>) {
   const [isOpen, setIsOpen] = useState(false);
+  const canWrite = useCanWrite();
+
+  if (!canWrite) {
+    return null;
+  }
 
   return (
     <>

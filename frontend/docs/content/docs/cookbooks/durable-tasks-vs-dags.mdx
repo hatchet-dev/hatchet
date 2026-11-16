@@ -28,8 +28,7 @@ flowchart LR
     G -->|Reply received| B
     H -->|Loop until resolved| B
 
-    linkStyle 7 stroke:#d73a49,stroke-width:3px
-    linkStyle 8 stroke:#d73a49,stroke-width:3px
+    linkStyle 7,8 stroke:#BC46DD
 ```
 
 Durable tasks handle these cases by letting you write control flow directly in code. Hatchet checkpoints progress around waits and [child spawning](/v1/child-spawning), evicts the task from the worker slot while it waits, and resumes from the checkpoint when the wait resolves. The workflow can pause for an arbitrary duration, pick up exactly where it left off, and make its next decision based on what actually happened.

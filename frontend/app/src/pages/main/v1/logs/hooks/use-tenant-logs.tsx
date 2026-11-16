@@ -3,6 +3,8 @@ import { LOG_LEVEL_TO_API } from '@/components/v1/cloud/logging/log-search/types
 import { LogLine } from '@/components/v1/cloud/logging/log-search/use-logs';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import useControlPlane from '@/hooks/use-control-plane';
+import { useRetentionGate } from '@/hooks/use-retention-gate';
+import { useTenantDetails } from '@/hooks/use-tenant';
 import {
   V1LogLine,
   V1LogLineOrderByDirection,
@@ -11,6 +13,16 @@ import {
 } from '@/lib/api';
 import api, { SELF_HOSTED_LIST_TIMEOUT_MS } from '@/lib/api/api';
 import { useSearchParams } from '@/lib/router-helpers';
+import {
+  defaultTimeWindowForRetention,
+  getRetentionBoundary,
+  isBeforeRetention,
+  isTimeWindowOutsideRetention,
+  largestAllowedTimeWindow,
+  TIME_WINDOW_HOURS,
+  TIME_WINDOW_PRESETS,
+  type TimeWindowPreset,
+} from '@/lib/utils/retention';
 import { appRoutes } from '@/router';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
@@ -21,11 +33,11 @@ import { z } from 'zod';
 const LOGS_PER_PAGE = 100;
 const FILTER_KEY = 'tenant-logs-filters';
 
-export type TimeWindow = '1h' | '6h' | '1d' | '7d';
+export type TimeWindow = TimeWindowPreset;
 
 const filterSchema = z.object({
   q: z.string().optional(),
-  tw: z.enum(['1h', '6h', '1d', '7d']).default('1d'),
+  tw: z.enum(TIME_WINDOW_PRESETS).default('1d'),
   // custom time range set by chart drag; overrides tw when present
   since: z.string().optional(),
   until: z.string().optional(),
@@ -34,8 +46,9 @@ const filterSchema = z.object({
 type FilterState = z.infer<typeof filterSchema>;
 
 function getSinceFromTimeWindow(tw: TimeWindow): string {
-  const hours = { '1h': 1, '6h': 6, '1d': 24, '7d': 168 }[tw];
-  return new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+  return new Date(
+    Date.now() - TIME_WINDOW_HOURS[tw] * 60 * 60 * 1000,
+  ).toISOString();
 }
 
 function logKey(log: LogLine): string {
@@ -56,6 +69,9 @@ function mapToLogLines(rows: V1LogLine[]): LogLine[] {
 
 export function useTenantLogs() {
   const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
+  const { tenant } = useTenantDetails();
+  const retentionPeriod = tenant?.dataRetentionPeriod;
+  const retentionGate = useRetentionGate(retentionPeriod);
   const { refetchInterval } = useRefetchInterval();
   const { isSelfHosted } = useControlPlane();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -110,20 +126,10 @@ export function useTenantLogs() {
     return id ? [id] : undefined;
   }, [parsedQuery.workflow, workflowNameToId]);
 
-  // Stable since: computed once per filter change, not on every render
-  const [since, setSince] = useState(
+  const since = useMemo(
     () => filters.since ?? getSinceFromTimeWindow(filters.tw),
+    [filters.since, filters.tw],
   );
-
-  useEffect(() => {
-    setSince(filters.since ?? getSinceFromTimeWindow(filters.tw));
-  }, [
-    filters.tw,
-    filters.since,
-    filters.until,
-    parsedQuery.level,
-    parsedQuery.search,
-  ]);
 
   const logsQuery = useInfiniteQuery({
     queryKey: [
@@ -135,7 +141,13 @@ export function useTenantLogs() {
       parsedQuery.search,
       workflowIds,
     ],
-    queryFn: async ({ pageParam }: { pageParam: string | undefined }) => {
+    queryFn: async ({
+      pageParam,
+      signal,
+    }: {
+      pageParam: string | undefined;
+      signal: AbortSignal;
+    }) => {
       const timeout = isSelfHosted ? SELF_HOSTED_LIST_TIMEOUT_MS : undefined;
 
       try {
@@ -156,7 +168,7 @@ export function useTenantLogs() {
             ...(workflowIds && { workflow_ids: workflowIds }),
             order_by_direction: V1LogLineOrderByDirection.DESC,
           },
-          { timeout },
+          { timeout, signal },
         );
         setFetchTimedOut(false);
         return response.data;
@@ -213,16 +225,20 @@ export function useTenantLogs() {
       parsedQuery.search,
       workflowIds,
     ],
-    queryFn: async () => {
-      const response = await api.v1TenantLogLineGetPointMetrics(tenantId, {
-        since,
-        ...(filters.until && { until: filters.until }),
-        ...(parsedQuery.level && {
-          levels: [LOG_LEVEL_TO_API[parsedQuery.level]],
-        }),
-        ...(parsedQuery.search && { search: parsedQuery.search }),
-        ...(workflowIds && { workflow_ids: workflowIds }),
-      });
+    queryFn: async ({ signal }) => {
+      const response = await api.v1TenantLogLineGetPointMetrics(
+        tenantId,
+        {
+          since,
+          ...(filters.until && { until: filters.until }),
+          ...(parsedQuery.level && {
+            levels: [LOG_LEVEL_TO_API[parsedQuery.level]],
+          }),
+          ...(parsedQuery.search && { search: parsedQuery.search }),
+          ...(workflowIds && { workflow_ids: workflowIds }),
+        },
+        { signal },
+      );
       return response.data;
     },
     refetchInterval,
@@ -231,25 +247,57 @@ export function useTenantLogs() {
 
   const setCustomTimeRange = useCallback(
     (newSince: string, newUntil: string) => {
-      setFilters({ since: newSince, until: newUntil });
+      retentionGate.trySince(newSince, () => {
+        setFilters({ since: newSince, until: newUntil });
+      });
     },
-    [setFilters],
+    [setFilters, retentionGate],
   );
 
   const setTimeWindow = useCallback(
     (tw: TimeWindow) => {
+      retentionGate.tryTimeWindow(tw, () => {
+        setSearchParams((prev) => ({
+          ...Object.fromEntries(prev.entries()),
+          [FILTER_KEY]: JSON.stringify({
+            ...filters,
+            tw,
+            since: undefined,
+            until: undefined,
+          }),
+        }));
+      });
+    },
+    [filters, setSearchParams, retentionGate],
+  );
+
+  useEffect(() => {
+    if (!retentionPeriod) {
+      return;
+    }
+    if (filters.since && isBeforeRetention(filters.since, retentionPeriod)) {
+      const boundary = getRetentionBoundary(retentionPeriod);
+      if (boundary) {
+        setFilters({ since: boundary.toISOString() });
+      }
+      return;
+    }
+    if (
+      !filters.since &&
+      isTimeWindowOutsideRetention(filters.tw, retentionPeriod)
+    ) {
+      const next = largestAllowedTimeWindow(retentionPeriod);
       setSearchParams((prev) => ({
         ...Object.fromEntries(prev.entries()),
         [FILTER_KEY]: JSON.stringify({
           ...filters,
-          tw,
+          tw: next,
           since: undefined,
           until: undefined,
         }),
       }));
-    },
-    [filters, setSearchParams],
-  );
+    }
+  }, [retentionPeriod, filters, setFilters, setSearchParams]);
 
   const clearTimeRange = useCallback(() => {
     setSearchParams((prev) => ({
@@ -263,8 +311,12 @@ export function useTenantLogs() {
   }, [filters, setSearchParams]);
 
   const setCustomSince = useCallback(
-    (newSince: string | undefined) => setFilters({ since: newSince }),
-    [setFilters],
+    (newSince: string | undefined) => {
+      retentionGate.trySince(newSince, () => {
+        setFilters({ since: newSince });
+      });
+    },
+    [setFilters, retentionGate],
   );
 
   const setCustomUntil = useCallback(
@@ -276,7 +328,9 @@ export function useTenantLogs() {
 
   const hasActiveFilters =
     (filters.q ?? '').trim() !== '' || isCustomTimeRange || filters.tw !== '1d';
-  const isDefaultOneDayWindow = !isCustomTimeRange && filters.tw === '1d';
+  const isDefaultOneDayWindow =
+    !isCustomTimeRange &&
+    filters.tw === defaultTimeWindowForRetention(retentionPeriod);
 
   const resetFilters = useCallback(() => {
     setSearchParams((prev) => {
@@ -315,5 +369,9 @@ export function useTenantLogs() {
     hasActiveFilters,
     isDefaultOneDayWindow,
     resetFilters,
+    searchAllRetainedHistory: () =>
+      setTimeWindow(largestAllowedTimeWindow(retentionPeriod)),
+    retentionPeriod,
+    retentionGate,
   };
 }

@@ -12,6 +12,7 @@ import {
 } from '@/components/v1/ui/dialog';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
+import useCanWrite from '@/hooks/use-can-write';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import { controlPlaneApi } from '@/lib/api/api';
 import { queries } from '@/lib/api/queries';
@@ -27,6 +28,7 @@ import { useEffect, useState } from 'react';
 function ManagedWorkersImpl() {
   const { tenant, billing, can, organizationId } = useTenantDetails();
   const { tenantId } = useCurrentTenantId();
+  const canWrite = useCanWrite();
 
   const [portalLoading, setPortalLoading] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -132,23 +134,24 @@ function ManagedWorkersImpl() {
           <h2 className="text-2xl font-bold leading-tight text-foreground">
             Managed Compute
           </h2>
-          {canCreateMoreWorkerPools ? (
-            <Link
-              to={appRoutes.tenantManagedWorkersCreateRoute.to}
-              params={{ tenant: tenantId }}
-            >
-              <Button leftIcon={<PlusIcon className="size-4" />}>
-                Add Service
+          {canWrite &&
+            (canCreateMoreWorkerPools ? (
+              <Link
+                to={appRoutes.tenantManagedWorkersCreateRoute.to}
+                params={{ tenant: tenantId }}
+              >
+                <Button leftIcon={<PlusIcon className="size-4" />}>
+                  Add Service
+                </Button>
+              </Link>
+            ) : (
+              <Button
+                onClick={handleAddWorkerPool}
+                leftIcon={<PlusIcon className="size-4" />}
+              >
+                Add Service ({workerPoolCount}/{getWorkerPoolLimit()})
               </Button>
-            </Link>
-          ) : (
-            <Button
-              onClick={handleAddWorkerPool}
-              leftIcon={<PlusIcon className="size-4" />}
-            >
-              Add Service ({workerPoolCount}/{getWorkerPoolLimit()})
-            </Button>
-          )}
+            ))}
         </div>
         <Separator className="my-4" />
         {listManagedWorkersQuery.isLoading ? (

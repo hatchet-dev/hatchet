@@ -3,6 +3,8 @@ linters:
   default: none
   enable:
     - errcheck
+    - exhaustive
+    - gochecksumtype
     - gocritic
     - gosec
     - govet
@@ -12,6 +14,13 @@ linters:
     - unconvert
     - unused
   settings:
+    exhaustive:
+      check:
+        - switch
+      default-signifies-exhaustive: false
+      explicit-exhaustive-switch: false
+      explicit-exhaustive-map: false
+      package-scope-only: false
     govet:
       enable-all: true
       disable:
@@ -62,9 +71,13 @@ linters:
           - staticcheck
         text: "SA1019:"
       - path: "internal/cel/cel.go"
-        text: "SA1019: cel.Declarations is deprecated"
+        text: "SA1019: (.*/)?cel\\.Declarations is deprecated"
       - path: "internal/msgqueue/rabbitmq/rabbitmq.go"
         text: "SA1019: msg.Retries is deprecated"
+      - path: "^(cmd|sdks/go|pkg/client|pkg/v1)/(.+)\\.go$"
+        linters:
+          - exhaustive
+          - gochecksumtype
 
     paths:
       - third_party$

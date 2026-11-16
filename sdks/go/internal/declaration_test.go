@@ -89,6 +89,53 @@ func TestWorkflowDump_DefaultFilters(t *testing.T) {
 	}
 }
 
+func TestWorkflowDump_ConcurrencyExceptStrategies(t *testing.T) {
+	cases := []struct {
+		name     string
+		strategy types.WorkflowConcurrencyLimitStrategy
+		want     contracts.ConcurrencyLimitStrategy
+	}{
+		{
+			name:     "cancel except newest",
+			strategy: types.CancelQueuedExceptNewest,
+			want:     contracts.ConcurrencyLimitStrategy_CANCEL_QUEUED_EXCEPT_NEWEST,
+		},
+		{
+			name:     "cancel except oldest",
+			strategy: types.CancelQueuedExceptOldest,
+			want:     contracts.ConcurrencyLimitStrategy_CANCEL_QUEUED_EXCEPT_OLDEST,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			maxRuns := int32(1)
+
+			wf := &workflowDeclarationImpl[any, any]{
+				name:             "test-workflow",
+				tasks:            []*task.TaskDeclaration[any]{},
+				durableTasks:     []*task.DurableTaskDeclaration[any]{},
+				taskFuncs:        make(map[string]any),
+				durableTaskFuncs: make(map[string]any),
+				outputSetters:    make(map[string]func(*any, any)),
+				Concurrency: []types.Concurrency{
+					{
+						Expression:    "input.group",
+						MaxRuns:       &maxRuns,
+						LimitStrategy: &tc.strategy,
+					},
+				},
+			}
+
+			req, _, _, _ := wf.Dump()
+
+			require.Len(t, req.ConcurrencyArr, 1)
+			require.NotNil(t, req.ConcurrencyArr[0].LimitStrategy)
+			assert.Equal(t, tc.want, *req.ConcurrencyArr[0].LimitStrategy)
+		})
+	}
+}
+
 func mustMarshal(t *testing.T, v any) []byte {
 	t.Helper()
 	b, err := json.Marshal(v)

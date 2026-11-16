@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/encryption"
 )
 
 var printVersion bool
@@ -27,11 +29,16 @@ var configDirectory string
 var rootCmd = &cobra.Command{
 	Use:   "hatchet-lite",
 	Short: "hatchet-lite runs a Hatchet instance with static files, API and engine all served on the same instance.",
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		return encryption.RequireFIPSBuild()
+	},
 	Run: func(cmd *cobra.Command, args []string) {
 		if printVersion {
 			fmt.Println(Version)
 			os.Exit(0)
 		}
+
+		cmdutils.SetMemoryLimit(context.Background())
 
 		cf := loader.NewConfigLoader(configDirectory)
 		interruptChan := cmdutils.InterruptChan()

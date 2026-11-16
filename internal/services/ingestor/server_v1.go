@@ -3,9 +3,13 @@ package ingestor
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
@@ -13,8 +17,7 @@ import (
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *sqlcv1.Tenant, req *contracts.PutStreamEventRequest) (*contracts.PutStreamEventResponse, error) {
@@ -23,13 +26,17 @@ func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *sqlcv1.Tena
 	taskExternalId, err := uuid.Parse(req.TaskRunExternalId)
 
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, "task external run id is not a valid uuid")
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("task external run id is not a valid uuid"))
 	}
 
 	// get single task
-	task, err := i.getSingleTask(ctx, tenantId, taskExternalId, false)
+	task, err := i.repov1.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, false)
 
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("task run not found: %s", taskExternalId))
+		}
+
 		return nil, err
 	}
 
@@ -61,25 +68,25 @@ func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *sqlcv1.Tena
 	return &contracts.PutStreamEventResponse{}, nil
 }
 
-func (i *IngestorImpl) getSingleTask(ctx context.Context, tenantId, taskExternalId uuid.UUID, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error) {
-	return i.repov1.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, skipCache)
-}
-
 func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *sqlcv1.Tenant, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
 	tenantId := tenant.ID
 	taskExternalId, err := uuid.Parse(req.TaskRunExternalId)
 
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, "task external run id is not a valid uuid")
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("task external run id is not a valid uuid"))
 	}
 
 	if !i.isLogIngestionEnabled {
 		return &contracts.PutLogResponse{}, nil
 	}
 
-	task, err := i.getSingleTask(ctx, tenantId, taskExternalId, false)
+	task, err := i.repov1.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, false)
 
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("task run not found: %s", taskExternalId))
+		}
+
 		return nil, err
 	}
 
@@ -95,13 +102,13 @@ func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *sqlcv1.Tenant, req 
 		// Validate that metadata is valid JSON
 		var metadataMap map[string]interface{}
 		if err := json.Unmarshal([]byte(req.Metadata), &metadataMap); err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "Invalid metadata JSON: %v", err)
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid metadata JSON: %v", err))
 		}
 
 		// Re-marshal to ensure consistent formatting
 		metadata, err = json.Marshal(metadataMap)
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "Failed to marshal metadata: %v", err)
+			return nil, fmt.Errorf("Failed to marshal metadata: %w", err)
 		}
 	}
 
@@ -129,17 +136,21 @@ func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *sqlcv1.Tenant, req 
 	if apiErrors, err := i.v.ValidateAPI(opts); err != nil {
 		return nil, err
 	} else if apiErrors != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", apiErrors.String())
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", apiErrors.String()))
 	}
 
 	if err := v1.ValidateJSONB(opts.Metadata, "additionalMetadata"); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", err))
 	}
 
 	err = i.repov1.Logs().PutLog(ctx, tenantId, opts)
 
 	if err != nil {
 		return nil, err
+	}
+
+	if i.o11yUsage != nil {
+		i.o11yUsage.AddLogs(tenantId, int64(proto.Size(req)))
 	}
 
 	return &contracts.PutLogResponse{}, nil

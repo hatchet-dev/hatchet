@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -29,6 +30,12 @@ func (tc *TasksControllerImpl) processTaskRetryQueueItems(ctx context.Context, t
 
 	if num := len(retryQueueItems); num > 0 {
 		tc.l.Info().Ctx(ctx).Msgf("reassigning %d step runs", num)
+
+		// a trigger requeues the released items, which cannot wake the scheduler, so without this
+		// they wait for the queuer's next poll, which backs off to tens of seconds on a quiet queue
+		if notifyErr := tc.notifySchedulerOfReleasedRetries(ctx, tenantIdUUID, retryQueueItems); notifyErr != nil {
+			tc.l.Error().Ctx(ctx).Err(notifyErr).Msg("could not notify scheduler of released retry queue items")
+		}
 	}
 
 	for _, task := range retryQueueItems {
@@ -68,4 +75,41 @@ func (tc *TasksControllerImpl) processTaskRetryQueueItems(ctx context.Context, t
 	}
 
 	return shouldContinue, nil
+}
+
+func (tc *TasksControllerImpl) notifySchedulerOfReleasedRetries(ctx context.Context, tenantId uuid.UUID, retryQueueItems []*sqlcv1.V1RetryQueueItem) error {
+	taskIds := make([]int64, 0, len(retryQueueItems))
+
+	for _, item := range retryQueueItems {
+		taskIds = append(taskIds, item.TaskID)
+	}
+
+	tasks, err := tc.repov1.Tasks().ListTasks(ctx, tenantId, taskIds)
+
+	if err != nil {
+		return fmt.Errorf("could not list released tasks: %w", err)
+	}
+
+	queueNames := make([]string, 0, len(tasks))
+	concurrencyStrategyIds := make([]int64, 0)
+
+	for _, task := range tasks {
+		// a task with a concurrency strategy is released into its first strategy's slots rather than
+		// onto its queue, and that strategy notifies the queue once it lets the task through
+		if len(task.ConcurrencyStrategyIds) > 0 {
+			concurrencyStrategyIds = append(concurrencyStrategyIds, task.ConcurrencyStrategyIds[0])
+			continue
+		}
+
+		queueNames = append(queueNames, task.Queue)
+	}
+
+	queueNames = enumerables.Uniq(queueNames)
+	concurrencyStrategyIds = enumerables.Uniq(concurrencyStrategyIds)
+
+	if len(queueNames) == 0 && len(concurrencyStrategyIds) == 0 {
+		return nil
+	}
+
+	return tc.notifySchedulerOfRequeuedItems(ctx, tenantId, queueNames, concurrencyStrategyIds)
 }

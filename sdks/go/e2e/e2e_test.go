@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
@@ -119,6 +120,25 @@ func pollUntilEvicted(
 		}
 		for _, task := range details.TaskRuns {
 			if task.IsEvicted {
+				return true, nil
+			}
+		}
+		return false, nil
+	})
+}
+
+// pollUntilRestored waits until a task is running and no longer marked evicted.
+// Restore can leave IsEvicted true for a short window; later eviction checks
+// must not treat that stale flag as a new eviction.
+func pollUntilRestored(t *testing.T, ctx context.Context, client *hatchet.Client, runID string) {
+	t.Helper()
+	pollUntil(t, ctx, func() (bool, error) {
+		details, err := client.Runs().GetDetails(ctx, uuid.MustParse(runID))
+		if err != nil {
+			return false, err
+		}
+		for _, task := range details.TaskRuns {
+			if string(task.Status) == string(rest.V1TaskStatusRUNNING) && !task.IsEvicted {
 				return true, nil
 			}
 		}

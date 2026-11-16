@@ -1,6 +1,6 @@
 import { ConcurrencyLimitStrategy, RateLimitDuration } from '@hatchet/protoc/v1/workflows';
 import { Conditions } from './conditions';
-import { Duration } from './client/duration';
+import { Duration, durationToMs } from './client/duration';
 import { InputType, OutputType, UnknownInputType } from './types';
 import { Context, DurableContext } from './client/worker/context';
 import { EvictionPolicy } from './client/worker/eviction/eviction-policy';
@@ -13,7 +13,7 @@ export { ConcurrencyLimitStrategy, WorkerLabelComparator };
  */
 export type Concurrency = {
   /**
-   * required the CEL expression to use for concurrency
+   * required: the CEL expression to use for concurrency
    *
    * @example
    * ```
@@ -23,11 +23,20 @@ export type Concurrency = {
   expression: string;
 
   /**
-   * (optional) the maximum number of concurrent workflow runs
+   * (optional) the maximum number of concurrent runs: a fixed number, or a CEL
+   * expression over task input computing the max runs for that task's concurrency
+   * group. With an expression, a group's effective limit is the value from its most
+   * recently created task.
    *
    * default: 1
+   *
+   * @example
+   * ```
+   * maxRuns: 5
+   * maxRuns: "input.tier == 'premium' ? 10 : 1"
+   * ```
    */
-  maxRuns?: number;
+  maxRuns?: number | string;
 
   /**
    * (optional) the strategy to use when the concurrency limit is reached
@@ -35,6 +44,20 @@ export type Concurrency = {
    * default: CANCEL_IN_PROGRESS
    */
   limitStrategy?: ConcurrencyLimitStrategy;
+
+  /**
+   * (required when isTenantScoped) the strategy name; unique per tenant for tenant-scoped
+   * strategies
+   */
+  name?: string;
+
+  /**
+   * (optional) when true, the entry defines (or updates in place) a tenant-scoped strategy
+   * shared across workflows, keyed by name: every task declaring the same name consumes
+   * the same concurrency limit. The position in the concurrency list is the chain order,
+   * and chains sharing tenant-scoped strategies must order them consistently.
+   */
+  isTenantScoped?: boolean;
 };
 
 /**
@@ -88,6 +111,28 @@ export class NonRetryableError extends Error {
   constructor(message?: string) {
     super(message);
     this.name = 'NonRetryableError';
+
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
+export type RetryAfterOpts = {
+  /**
+   * The delay before the next attempt, e.g. `'90s'`, `{ minutes: 5 }`, or a number of milliseconds.
+   */
+  after: Duration;
+};
+
+/**
+ * Throw from a task to retry it after a delay of its choosing. The retry counts against the task's `retries`.
+ */
+export class RetryAfterError extends Error {
+  readonly afterMs: number;
+
+  constructor(message: string | undefined, opts: RetryAfterOpts) {
+    super(message);
+    this.name = 'RetryAfterError';
+    this.afterMs = Math.max(Math.round(durationToMs(opts.after)), 0);
 
     Object.setPrototypeOf(this, new.target.prototype);
   }

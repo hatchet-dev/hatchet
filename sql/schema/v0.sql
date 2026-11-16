@@ -44,7 +44,10 @@ CREATE TYPE "LimitResource" AS ENUM (
     'WORKER_SLOT',
     'CRON',
     'SCHEDULE',
-    'INCOMING_WEBHOOK'
+    'INCOMING_WEBHOOK',
+    'STREAM_TOPIC',
+    'STREAM_MESSAGE',
+    'STREAM_RETENTION'
 );
 
 -- CreateEnum
@@ -104,7 +107,7 @@ CREATE TYPE "StepRunStatus" AS ENUM (
 CREATE TYPE "StickyStrategy" AS ENUM ('SOFT', 'HARD');
 
 -- CreateEnum
-CREATE TYPE "TenantMemberRole" AS ENUM ('OWNER', 'ADMIN', 'MEMBER');
+CREATE TYPE "TenantMemberRole" AS ENUM ('OWNER', 'ADMIN', 'MEMBER', 'VIEWER');
 
 -- CreateEnum
 -- IMPORTANT: keep values in sync with api-contracts/openapi/components/schemas/tenant.yaml#TenantEnvironment
@@ -152,6 +155,7 @@ CREATE TABLE "APIToken" (
     "tenantId" UUID,
     "nextAlertAt" TIMESTAMP(3),
     "internal" BOOLEAN NOT NULL DEFAULT false,
+    "readOnly" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "APIToken_pkey" PRIMARY KEY ("id")
 );
@@ -455,6 +459,7 @@ CREATE TABLE "Step" (
     "retryMaxBackoff" INTEGER,
     "scheduleTimeout" TEXT NOT NULL DEFAULT '5m',
     "isDurable" BOOLEAN NOT NULL DEFAULT false,
+    "isDagOrchestrator" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "Step_pkey" PRIMARY KEY ("id")
 );
@@ -666,6 +671,7 @@ CREATE TABLE "TenantInviteLink" (
     "expires" TIMESTAMP(3) NOT NULL,
     "status" "InviteLinkStatus" NOT NULL DEFAULT 'PENDING',
     "role" "TenantMemberRole" NOT NULL DEFAULT 'OWNER',
+    "canViewPayloads" BOOLEAN NOT NULL DEFAULT true,
 
     CONSTRAINT "TenantInviteLink_pkey" PRIMARY KEY ("id")
 );
@@ -678,6 +684,7 @@ CREATE TABLE "TenantMember" (
     "tenantId" UUID NOT NULL,
     "userId" UUID NOT NULL,
     "role" "TenantMemberRole" NOT NULL,
+    "canViewPayloads" BOOLEAN NOT NULL DEFAULT true,
 
     CONSTRAINT "TenantMember_pkey" PRIMARY KEY ("id")
 );
@@ -857,16 +864,29 @@ CREATE TABLE "Worker" (
     "maxRuns" INTEGER NOT NULL DEFAULT 100,
     "isActive" BOOLEAN NOT NULL DEFAULT false,
     "lastListenerEstablished" TIMESTAMP(3),
+    -- Identifies the listener session that last activated the worker. A session may only
+    -- deactivate the worker while its id is still stored here; a session whose id has been
+    -- replaced was superseded by a newer listener and must not mark the worker inactive.
+    "lastListenerSessionId" UUID,
     "isPaused" BOOLEAN NOT NULL DEFAULT false,
     "type" "WorkerType" NOT NULL DEFAULT 'SELFHOSTED',
     "webhookId" UUID,
+    "operatorId" UUID,
     "language" "WorkerSDKS",
     "languageVersion" TEXT,
     "os" TEXT,
     "runtimeExtra" TEXT,
     "sdkVersion" TEXT,
     "durableTaskDispatcherId" UUID,
+    -- The canonical digest of the worker's linked action set (ComputeWorkerActionHash). NULL
+    -- for workers registered before the column existed, and for operator workers between a
+    -- delta that changed their links and the refresh at the end of the delta sequence; the
+    -- scheduler reads such workers' actions through the join instead of the hash cache.
     "actionHash" BYTEA,
+    -- Count of the worker's "_ActionToWorker" rows, read only for operator workers.
+    "operatorActionCount" INTEGER NOT NULL DEFAULT 0,
+    -- Set at creation by the host: in-process operator workers are exempt, wire-registered ones are metered.
+    "isExemptFromLimits" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "Worker_pkey" PRIMARY KEY ("id")
 );
@@ -893,6 +913,8 @@ CREATE TABLE "WorkerLabel" (
     CONSTRAINT "WorkerLabel_pkey" PRIMARY KEY ("id")
 );
 
+CREATE TYPE "WorkflowPauseQueueBehavior" AS ENUM ('QUEUE', 'DROP');
+
 -- CreateTable
 CREATE TABLE "Workflow" (
     "id" UUID NOT NULL,
@@ -903,8 +925,25 @@ CREATE TABLE "Workflow" (
     "name" TEXT NOT NULL,
     "description" TEXT,
     "isPaused" BOOLEAN DEFAULT false,
+    "pausedWorkflowCronRunQueueBehavior" "WorkflowPauseQueueBehavior",
+    "pausedWorkflowScheduledRunQueueBehavior" "WorkflowPauseQueueBehavior",
+    "pausedWorkflowQueueTTL" INTERVAL,
 
-    CONSTRAINT "Workflow_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "Workflow_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "Workflow_PausedWorkflowCheck" CHECK (
+        (
+            "isPaused" = FALSE
+            AND "pausedWorkflowCronRunQueueBehavior" IS NULL
+            AND "pausedWorkflowScheduledRunQueueBehavior" IS NULL
+            AND "pausedWorkflowQueueTTL" IS NULL
+        )
+        OR (
+            "isPaused" = TRUE
+            AND "pausedWorkflowCronRunQueueBehavior" IS NOT NULL
+            AND "pausedWorkflowScheduledRunQueueBehavior" IS NOT NULL
+            AND "pausedWorkflowQueueTTL" IS NOT NULL
+        )
+    )
 );
 
 -- CreateTable
@@ -1026,6 +1065,8 @@ CREATE TABLE "WorkflowTriggerCronRef" (
     CONSTRAINT "WorkflowTriggerCronRef_pkey" PRIMARY KEY ("id")
 );
 
+CREATE INDEX "WorkflowTriggerCronRef_parentId_name_idx" ON "WorkflowTriggerCronRef" ("parentId", "name");
+
 -- CreateTable
 CREATE TABLE "WorkflowTriggerEventRef" (
     "parentId" UUID NOT NULL,
@@ -1093,6 +1134,8 @@ CREATE TABLE
         "idempotencyKeyExpression" TEXT,
         "idempotencyKeyTtlMs" BIGINT,
         "idempotencyMethod" idempotency_method,
+        "isUsingDagOperator" BOOLEAN NOT NULL DEFAULT false,
+        "dagShape" JSONB,
         CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
     );
 
@@ -1424,6 +1467,7 @@ CREATE UNIQUE INDEX "UserPassword_userId_key" ON "UserPassword" ("userId" ASC);
 -- CreateIndex
 CREATE UNIQUE INDEX "UserSession_id_key" ON "UserSession" ("id" ASC);
 CREATE INDEX ix_user_session_cre_at_exp_at ON "UserSession" ("createdAt") INCLUDE ("expiresAt");
+CREATE INDEX ix_user_session_user_id ON "UserSession" ("userId") WHERE "userId" IS NOT NULL;
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WebhookWorker_id_key" ON "WebhookWorker" ("id" ASC);
@@ -1452,6 +1496,12 @@ CREATE INDEX "Worker_tenantId_lastHeartbeatAt_idx" ON "Worker" ("tenantId", "las
 
 -- CreateIndex
 CREATE INDEX "Worker_tenantId_actionHash_idx" ON "Worker" ("tenantId", "actionHash");
+
+-- CreateIndex
+CREATE INDEX "Worker_tenantId_operatorId_idx" ON "Worker" ("tenantId", "operatorId");
+
+-- CreateIndex
+CREATE INDEX "Worker_tenantId_operatorId_active_idx" ON "Worker" ("tenantId", "operatorId") WHERE "isActive" AND "operatorId" IS NOT NULL;
 
 -- CreateIndex
 CREATE INDEX "WorkerAssignEvent_workerId_id_idx" ON "WorkerAssignEvent" ("workerId" ASC, "id" ASC);

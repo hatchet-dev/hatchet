@@ -8,7 +8,6 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
@@ -36,7 +35,7 @@ func main() {
 
 	// Task with retries and concurrency control
 	var maxRuns int32 = 2
-	strategy := types.GroupRoundRobin
+	strategy := hatchet.GroupRoundRobin
 
 	_ = workflow.NewTask("unreliable-task", func(ctx hatchet.Context, input TaskInput) (TaskOutput, error) {
 		attempt := ctx.RetryCount()
@@ -60,7 +59,7 @@ func main() {
 		hatchet.WithRetries(3),
 		hatchet.WithRetryBackoff(2.0, 60), // Exponential backoff: 2s, 4s, 8s, then cap at 60s
 		hatchet.WithExecutionTimeout(30*time.Second),
-		hatchet.WithConcurrency(&types.Concurrency{
+		hatchet.WithConcurrency(&hatchet.Concurrency{
 			Expression:    "input.category", // Limit concurrency per category
 			MaxRuns:       &maxRuns,         // Max 2 concurrent tasks per category
 			LimitStrategy: &strategy,        // Round-robin distribution

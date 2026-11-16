@@ -7,7 +7,6 @@ import pytest
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.runnables.workflow import BaseWorkflow
 from hatchet_sdk.utils.slots import resolve_worker_slot_config
-from hatchet_sdk.worker.slot_types import SlotType
 
 
 def test_client_host_port_overrides() -> None:
@@ -45,7 +44,7 @@ def test_resolve_slot_config_no_durable() -> None:
         workflows=None,
     )
 
-    assert resolved == {SlotType.DEFAULT: 100}
+    assert resolved == {"default": 100}
 
 
 def test_resolve_slot_config_only_durable() -> None:
@@ -63,7 +62,7 @@ def test_resolve_slot_config_only_durable() -> None:
         workflows=cast(list[BaseWorkflow[Any]], [DummyWorkflow()]),
     )
 
-    assert resolved == {SlotType.DURABLE: 1000}
+    assert resolved == {"durable": 1000}
 
 
 def test_resolve_slot_config_mixed() -> None:
@@ -85,7 +84,7 @@ def test_resolve_slot_config_mixed() -> None:
         workflows=cast(list[BaseWorkflow[Any]], [DummyWorkflow()]),
     )
 
-    assert resolved == {SlotType.DEFAULT: 100, SlotType.DURABLE: 1000}
+    assert resolved == {"default": 100, "durable": 1000}
 
 
 def test_resolve_slot_config_custom_type_raises_when_missing() -> None:

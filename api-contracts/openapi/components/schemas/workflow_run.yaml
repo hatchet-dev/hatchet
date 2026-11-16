@@ -190,6 +190,7 @@ ScheduledWorkflows:
       type: string
       format: date-time
     input:
+      x-payload: true
       type: object
       additionalProperties: true
     additionalMetadata:
@@ -389,6 +390,7 @@ CronWorkflows:
     name:
       type: string
     input:
+      x-payload: true
       type: object
       additionalProperties: true
     additionalMetadata:

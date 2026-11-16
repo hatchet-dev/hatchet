@@ -23,7 +23,8 @@
     "improving-performance",
     "read-replicas",
     "sampling",
-    "smtp-server"
+    "smtp-server",
+    "fips"
   ],
   "title": "Self-Hosting",
   "root": true,

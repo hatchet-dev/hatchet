@@ -18,34 +18,34 @@ class IdempotencyMethod(Enum):
     STATUS = "STATUS"
 
 
-class BaseIdemotencyConfig(BaseModel, ABC):
+class BaseIdempotencyConfig(BaseModel, ABC):
     key_expression: str
 
     @abstractmethod
     def to_proto(self) -> IdempotencyConfigProto: ...
 
 
-class TTLBasedIdempotencyConfig(BaseIdemotencyConfig):
+class TTLBasedIdempotencyConfig(BaseIdempotencyConfig):
     ttl: timedelta
 
     def to_proto(self) -> IdempotencyConfigProto:
         return IdempotencyConfigProto(
             expression=self.key_expression,
             ttl_ms=int(self.ttl.total_seconds() * 1000),
-            method=convert_python_enum_to_proto(  # type: ignore[arg-type]
+            method=convert_python_enum_to_proto(
                 IdempotencyMethod.TTL, IdempotencyMethodProto
             ),
         )
 
 
-class StatusBasedIdempotencyConfig(BaseIdemotencyConfig):
+class StatusBasedIdempotencyConfig(BaseIdempotencyConfig):
     fallback_ttl: timedelta
 
     def to_proto(self) -> IdempotencyConfigProto:
         return IdempotencyConfigProto(
             expression=self.key_expression,
             ttl_ms=int(self.fallback_ttl.total_seconds() * 1000),
-            method=convert_python_enum_to_proto(  # type: ignore[arg-type]
+            method=convert_python_enum_to_proto(
                 IdempotencyMethod.STATUS, IdempotencyMethodProto
             ),
         )

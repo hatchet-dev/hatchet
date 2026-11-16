@@ -2,15 +2,21 @@ import { V1RunIndicator } from '../../../components/run-statuses';
 import { RunsTable } from '../../../components/runs-table';
 import { RunsProvider } from '../../../hooks/runs-provider';
 import { useIsTaskRunSkipped } from '../../../hooks/use-is-task-run-skipped';
+import {
+  replayAsNewDisabledReason,
+  useReplayAsNew,
+} from '../../../hooks/use-replay-as-new';
 import { useRunDetailSearch } from '../../../hooks/use-run-detail-search';
 import { isTerminalState } from '../../../hooks/use-workflow-details';
 import { TaskRunMiniMap } from '../mini-map';
+import { PausedWorkflowNotice } from '../paused-workflow-notice';
 import { StepRunEvents } from '../step-run-events-for-workflow-run';
 import { Observability } from './observability/observability';
 import { V1StepRunOutput } from './step-run-output';
 import { TaskRunLogs } from './task-run-logs';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
+import { RestrictedPayloads } from '@/components/v1/shared/restricted-payloads';
 import { Button } from '@/components/v1/ui/button';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Loading } from '@/components/v1/ui/loading';
@@ -23,6 +29,7 @@ import {
 import { V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
 import { emptyGolangUUID, formatDuration } from '@/lib/utils';
 import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
+import { ReplaySplitButton } from '@/pages/main/v1/task-runs-v1/replay-split-button';
 import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
@@ -127,6 +134,7 @@ export const TaskRunDetail = ({
   });
 
   const { isSkipped } = useIsTaskRunSkipped({ taskRunId });
+  const { canReplayAsNew, replayAsNew, dialog } = useReplayAsNew();
   const taskRun = taskRunQuery.data;
 
   if (taskRunQuery.isLoading) {
@@ -139,6 +147,7 @@ export const TaskRunDetail = ({
 
   return (
     <div className="flex w-full flex-col gap-4 h-full">
+      {dialog}
       <div className="flex flex-row items-center justify-between">
         <div className="flex w-full flex-row items-center justify-between">
           <div className="flex flex-row items-center gap-4">
@@ -162,12 +171,15 @@ export const TaskRunDetail = ({
         <div className="side-responsive-inner flex w-full flex-col items-start gap-2">
           <div className="flex flex-row items-center gap-2">
             <RunsProvider tableKey="task-run-detail">
-              <TaskRunActionButton
-                actionType="replay"
-                paramOverrides={{ externalIds: [taskRunId] }}
-                disabled={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
-                showModal={false}
-                showLabel
+              <ReplaySplitButton
+                externalId={taskRunId}
+                replayDisabled={
+                  !TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)
+                }
+                onReplayAsNew={
+                  canReplayAsNew ? () => replayAsNew(taskRun) : undefined
+                }
+                replayAsNewDisabledReason={replayAsNewDisabledReason(taskRun)}
               />
               <TaskRunActionButton
                 actionType="cancel"
@@ -213,6 +225,10 @@ export const TaskRunDetail = ({
             Logs
           </TabsTrigger>
         </TabsList>
+        <PausedWorkflowNotice
+          workflowId={taskRun.workflowId}
+          status={taskRun.status}
+        />
         <TabsContent value="overview" className="flex min-h-0 flex-1 flex-col">
           <div className="relative flex w-full bg-slate-100 dark:bg-slate-900">
             <TaskRunMiniMap
@@ -293,12 +309,16 @@ export const TaskRunDetail = ({
               value={TabOption.Input}
               className="flex-1 min-h-0 overflow-y-auto"
             >
-              {taskRun.input && (
-                <CodeHighlighter
-                  className="my-4"
-                  language="json"
-                  code={JSON.stringify(taskRun.input, null, 2)}
-                />
+              {taskRun.payloadsRestricted ? (
+                <RestrictedPayloads />
+              ) : (
+                taskRun.input && (
+                  <CodeHighlighter
+                    className="my-4"
+                    language="json"
+                    code={JSON.stringify(taskRun.input, null, 2)}
+                  />
+                )
               )}
             </TabsContent>
             <TabsContent

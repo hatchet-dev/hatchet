@@ -3,20 +3,22 @@ import logging
 import queue
 import threading
 from collections.abc import Awaitable, Callable
+from contextlib import suppress
+from contextvars import Context
 from dataclasses import dataclass
 from typing import Any, Literal, ParamSpec, TypeVar
 
 from pydantic import BaseModel, Field
 
-from hatchet_sdk.clients.events import EventClient
+from hatchet_sdk.features.events import EventClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
     ctx_additional_metadata,
     ctx_hatchet_context,
     ctx_hatchet_span_attributes,
-    ctx_step_run_id,
     ctx_task_retry_count,
+    ctx_task_run_external_id,
     ctx_worker_id,
     ctx_workflow_run_id,
 )
@@ -41,7 +43,7 @@ P = ParamSpec("P")
 class ContextVarToCopyStr(BaseModel):
     name: Literal[
         "ctx_workflow_run_id",
-        "ctx_step_run_id",
+        "ctx_task_run_external_id",
         "ctx_action_key",
         "ctx_worker_id",
     ]
@@ -93,8 +95,8 @@ def copy_context_vars(
     for var in ctx_vars:
         if var.var.name == "ctx_workflow_run_id":
             ctx_workflow_run_id.set(var.var.value)
-        elif var.var.name == "ctx_step_run_id":
-            ctx_step_run_id.set(var.var.value)
+        elif var.var.name == "ctx_task_run_external_id":
+            ctx_task_run_external_id.set(var.var.value)
         elif var.var.name == "ctx_task_retry_count":
             ctx_task_retry_count.set(var.var.value)
         elif var.var.name == "ctx_action_key":
@@ -119,15 +121,17 @@ def copy_context_vars(
 @dataclass
 class LogRecord:
     message: str
-    step_run_id: str
+    task_run_external_id: str
     level: LogLevel
     task_retry_count: int
 
 
 class AsyncLogSender:
-    def __init__(self, event_client: EventClient):
+    def __init__(self, event_client: EventClient) -> None:
         self._event_client = event_client
-        self.q: queue.SimpleQueue[LogRecord | STOP_LOOP_TYPE] = queue.SimpleQueue()
+        self.q: queue.Queue[LogRecord | STOP_LOOP_TYPE] = queue.Queue(
+            maxsize=event_client.client_config.log_queue_size
+        )
         self._thread: threading.Thread | None = None
 
     def _consume(self) -> None:
@@ -136,9 +140,9 @@ class AsyncLogSender:
             if record == STOP_LOOP:
                 break
             try:
-                self._event_client.log(
+                self._event_client._log(
                     message=record.message,
-                    step_run_id=record.step_run_id,
+                    task_run_external_id=record.task_run_external_id,
                     level=record.level,
                     task_retry_count=record.task_retry_count,
                 )
@@ -146,7 +150,11 @@ class AsyncLogSender:
                 logger.exception("failed to send log to Hatchet")
 
     def publish(self, record: LogRecord | STOP_LOOP_TYPE) -> None:
-        self.q.put(record)
+        try:
+            self.q.put_nowait(record)
+        except queue.Full:
+            # logged outside the task's context so that `LogForwardingHandler` does not forward the warning back into this full queue
+            Context().run(logger.warning, "log queue is full, dropping log message")
 
     def start(self) -> None:
         self._thread = threading.Thread(target=self._consume, daemon=True)
@@ -155,29 +163,30 @@ class AsyncLogSender:
     def stop(self, timeout: float = 5.0) -> None:
         if self._thread is None:
             return
-        self.q.put(STOP_LOOP)
+        with suppress(queue.Full):
+            self.q.put(STOP_LOOP, timeout=timeout)
         self._thread.join(timeout)
         self._thread = None
 
 
 class LogForwardingHandler(logging.Handler):
-    def __init__(self, log_sender: AsyncLogSender):
+    def __init__(self, log_sender: AsyncLogSender) -> None:
         super().__init__()
 
         self.log_sender = log_sender
 
     def emit(self, record: logging.LogRecord) -> None:
         log_entry = self.format(record)
-        step_run_id = ctx_step_run_id.get()
+        task_run_external_id = ctx_task_run_external_id.get()
         task_retry_count = ctx_task_retry_count.get()
 
-        if not step_run_id:
+        if not task_run_external_id:
             return
 
         self.log_sender.publish(
             LogRecord(
                 message=log_entry,
-                step_run_id=step_run_id,
+                task_run_external_id=task_run_external_id,
                 level=LogLevel.from_levelname(record.levelname),
                 task_retry_count=task_retry_count or 0,
             )

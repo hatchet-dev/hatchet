@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -90,6 +89,7 @@ func (r *WorkflowResult) Results() (interface{}, error) {
 }
 
 // Result waits for the workflow run to complete and returns the results.
+// It waits indefinitely; use ResultWithContext to bound the wait.
 //
 // AddWorkflowRun is attempted once; it uses bounded synchronous reconnect
 // (StreamSyncMaxAttempts) for send and subscribe failures. The background
@@ -98,60 +98,88 @@ func (r *Workflow) Result() (*WorkflowResult, error) {
 	return r.result(nil)
 }
 
-// ResultWithContext waits for the workflow run to complete and logs if the
-// caller's context ends after the result subscription was sent successfully.
-// Context cancellation is diagnostic only and does not change Result behavior.
+// ResultWithContext waits for the workflow run to complete and returns the
+// results. The whole wait is bounded by ctx, including the subscription
+// setup (connect and send retries with their backoff sleeps): if ctx ends
+// first, the wait stops and the returned error wraps ctx.Err(), so callers
+// can check errors.Is(err, context.DeadlineExceeded) or context.Canceled.
+// A connect or send attempt already in flight when ctx ends never blocks the
+// caller; it is left to finish in the background, bounded by the stream's
+// own lifecycle, and any registration it makes is removed. Ending the wait
+// only drops this subscription; the shared listener stays up for other
+// waiters and the run itself keeps executing on the engine.
 func (r *Workflow) ResultWithContext(ctx context.Context) (*WorkflowResult, error) {
 	return r.result(ctx)
 }
 
+// result subscribes to the run's terminal event and waits for it. A nil ctx
+// waits indefinitely; otherwise both the subscription setup and the wait end
+// with ctx.Err() when ctx ends. The subscription is removed on every return
+// path, and the run keeps executing on the engine regardless of how the wait
+// ended.
 func (r *Workflow) result(ctx context.Context) (*WorkflowResult, error) {
 	resChan := make(chan *WorkflowResult, 1)
 	failChan := make(chan error, 1)
 	sessionId := uuid.NewString()
 
-	err := r.listener.addWorkflowRun(r.workflowRunId, sessionId,
-		func(event WorkflowRunEvent) error {
-			resChan <- &WorkflowResult{workflowRun: event}
-			return nil
-		},
-		func(err error) {
-			select {
-			case failChan <- err:
-			default:
-			}
-		},
-	)
+	onEvent := func(event WorkflowRunEvent) error {
+		// Non-blocking: the waiter may already have returned on ctx and
+		// stopped reading, and this runs on the listener's dispatch
+		// goroutine.
+		select {
+		case resChan <- &WorkflowResult{workflowRun: event}:
+		default:
+		}
+		return nil
+	}
+	onError := func(err error) {
+		select {
+		case failChan <- err:
+		default:
+		}
+	}
+
+	var err error
+	if ctx == nil {
+		err = r.listener.addWorkflowRun(r.workflowRunId, sessionId, onEvent, onError)
+	} else {
+		err = r.listener.addWorkflowRunContext(ctx, r.workflowRunId, sessionId, onEvent, onError)
+	}
 	if err != nil {
 		r.listener.RemoveWorkflowRun(r.workflowRunId, sessionId)
 		return nil, fmt.Errorf("failed to listen for workflow events: %w", err)
 	}
 	defer r.listener.RemoveWorkflowRun(r.workflowRunId, sessionId)
 
-	waitStarted := time.Now()
 	var contextDone <-chan struct{}
 	if ctx != nil {
 		contextDone = ctx.Done()
 	}
 
-	for {
-		select {
-		case res := <-resChan:
-			for _, stepRunResult := range res.workflowRun.Results {
-				if stepRunResult.Error != nil {
-					return nil, fmt.Errorf("%s", *stepRunResult.Error)
-				}
+	return awaitWorkflowResult(r.workflowRunId, resChan, failChan, contextDone, func() error { return ctx.Err() })
+}
+
+// awaitWorkflowResult is the wait loop behind result, split out so it can be
+// exercised without a listener. contextDone may be nil, in which case the
+// wait never ends on its own; ctxErr is only called once contextDone fires.
+func awaitWorkflowResult(
+	workflowRunId string,
+	resChan <-chan *WorkflowResult,
+	failChan <-chan error,
+	contextDone <-chan struct{},
+	ctxErr func() error,
+) (*WorkflowResult, error) {
+	select {
+	case res := <-resChan:
+		for _, stepRunResult := range res.workflowRun.Results {
+			if stepRunResult.Error != nil {
+				return nil, fmt.Errorf("%s", *stepRunResult.Error)
 			}
-			return res, nil
-		case err := <-failChan:
-			return nil, fmt.Errorf("workflow run listener terminated while waiting for %s: %w", r.workflowRunId, err)
-		case <-contextDone:
-			r.listener.l.Warn().
-				Err(ctx.Err()).
-				Str("workflow_run_id", r.workflowRunId).
-				Dur("wait_duration", time.Since(waitStarted)).
-				Msg("workflow result still pending after subscription send succeeded")
-			contextDone = nil
 		}
+		return res, nil
+	case err := <-failChan:
+		return nil, fmt.Errorf("workflow run listener terminated while waiting for %s: %w", workflowRunId, err)
+	case <-contextDone:
+		return nil, fmt.Errorf("waiting for workflow run %s result: %w", workflowRunId, ctxErr())
 	}
 }

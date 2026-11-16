@@ -73,6 +73,7 @@ interface SearchBarWithFiltersProps<
    * If omitted, `onChange` is used as a fallback.
    */
   onSubmit?: (value: string) => void;
+  submitOnChange?: boolean;
 
   // Autocomplete functions (domain-specific)
   getAutocomplete: (
@@ -158,6 +159,7 @@ export function SearchBarWithFilters<
   value,
   onChange,
   onSubmit,
+  submitOnChange = false,
   getAutocomplete,
   applySuggestion,
   autocompleteContext,
@@ -407,10 +409,13 @@ export function SearchBarWithFilters<
               type="text"
               value={localValue}
               onChange={(e) => {
-                // Only update local state for autocomplete
-                // Don't trigger parent onChange until Enter is pressed or value suggestion is selected
+                // Unless submitOnChange is set, only update local state for autocomplete and
+                // don't trigger parent onChange until Enter is pressed or value suggestion is selected
                 const newValue = e.target.value;
                 setLocalValue(newValue);
+                if (submitOnChange) {
+                  onChange(newValue);
+                }
                 // Open dropdown when user types (if there are suggestions)
                 if (newValue.length > 0) {
                   setIsOpen(true);
@@ -436,7 +441,7 @@ export function SearchBarWithFilters<
               }}
               placeholder={placeholder}
               className={cn(
-                'pl-9 pr-8',
+                'pl-9 pr-8 focus-visible:ring-0 focus-visible:border-ring',
                 hasColoredFilters && 'text-transparent',
               )}
               style={

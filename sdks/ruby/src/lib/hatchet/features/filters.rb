@@ -8,10 +8,10 @@ module Hatchet
     # listing, updating, and deleting filters in the Hatchet system.
     #
     # @example Listing filters
-    #   filters = filters_client.list(limit: 10, workflow_ids: ["wf-1"])
+    #   filters = hatchet.filters.list(limit: 10, workflow_ids: ["wf-1"])
     #
     # @example Creating a filter
-    #   filter = filters_client.create(
+    #   filter = hatchet.filters.create(
     #     workflow_id: "wf-1",
     #     expression: 'input.priority > 5',
     #     scope: "high-priority"
@@ -40,7 +40,7 @@ module Hatchet
       # @return [Object] A list of filters matching the specified criteria
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   filters = filters_client.list(limit: 10, workflow_ids: ["wf-1"])
+      #   filters = hatchet.filters.list(limit: 10, workflow_ids: ["wf-1"])
       def list(limit: nil, offset: nil, workflow_ids: nil, scopes: nil)
         @filter_api.v1_filter_list(
           @config.tenant_id,
@@ -59,7 +59,7 @@ module Hatchet
       # @return [Object] The filter details
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   filter = filters_client.get("filter-123")
+      #   filter = hatchet.filters.get("filter-123")
       def get(filter_id)
         @filter_api.v1_filter_get(@config.tenant_id, filter_id)
       end
@@ -73,7 +73,7 @@ module Hatchet
       # @return [Object] The created filter
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   filter = filters_client.create(
+      #   filter = hatchet.filters.create(
       #     workflow_id: "wf-1",
       #     expression: 'input.value > 10',
       #     scope: "my-scope",
@@ -95,7 +95,7 @@ module Hatchet
       # @return [Object] The deleted filter
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   filters_client.delete("filter-123")
+      #   hatchet.filters.delete("filter-123")
       def delete(filter_id)
         @filter_api.v1_filter_delete(@config.tenant_id, filter_id)
       end
@@ -107,7 +107,7 @@ module Hatchet
       # @return [Object] The updated filter
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   filters_client.update("filter-123", { expression: 'input.value > 20' })
+      #   hatchet.filters.update("filter-123", { expression: 'input.value > 20' })
       def update(filter_id, updates)
         update_request = HatchetSdkRest::V1UpdateFilterRequest.new(updates)
         @filter_api.v1_filter_update(@config.tenant_id, filter_id, update_request)

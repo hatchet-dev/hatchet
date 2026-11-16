@@ -6,11 +6,10 @@ import (
 	"fmt"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
@@ -48,13 +47,10 @@ func (i *IngestorImpl) ingestEventV1(ctx context.Context, tenant *sqlcv1.Tenant,
 	}
 
 	if !canCreateEvents {
-		return nil, status.Error(
-			codes.ResourceExhausted,
-			fmt.Sprintf("tenant has reached %d%% of its events limit", eLimit),
-		)
+		return nil, connect.NewError(connect.CodeResourceExhausted, fmt.Errorf("tenant has reached %d%% of its events limit", eLimit))
 	}
 
-	opt := eventToPayload(tenantId, key, data, metadata, priority, scope, triggeringWebhookName)
+	opt := i.eventToPayload(tenantId, key, data, metadata, priority, scope, triggeringWebhookName)
 
 	events, err := i.ingest(ctx, tenant, opt)
 
@@ -109,6 +105,7 @@ func (i *IngestorImpl) ingest(ctx context.Context, tenant *sqlcv1.Tenant, eventO
 				Priority:              event.EventPriority,
 				Scope:                 event.EventScope,
 				TriggeringWebhookName: event.TriggeringWebhookName,
+				PayloadReferenceId:    event.PayloadReferenceId,
 			})
 		}
 
@@ -162,6 +159,7 @@ func (i *IngestorImpl) ingest(ctx context.Context, tenant *sqlcv1.Tenant, eventO
 				Priority:              event.EventPriority,
 				Scope:                 event.EventScope,
 				TriggeringWebhookName: event.TriggeringWebhookName,
+				PayloadReferenceId:    event.PayloadReferenceId,
 			}
 		}
 
@@ -232,16 +230,13 @@ func (i *IngestorImpl) bulkIngestEventV1(ctx context.Context, tenant *sqlcv1.Ten
 	}
 
 	if !canCreateEvents {
-		return nil, status.Error(
-			codes.ResourceExhausted,
-			fmt.Sprintf("tenant has reached %d%% of its events limit", eLimit),
-		)
+		return nil, connect.NewError(connect.CodeResourceExhausted, fmt.Errorf("tenant has reached %d%% of its events limit", eLimit))
 	}
 
 	payloads := make([]tasktypes.UserEventTaskPayload, 0, len(eventOpts))
 
 	for _, event := range eventOpts {
-		payloads = append(payloads, eventToPayload(tenantId, event.Key, event.Data, event.AdditionalMetadata, event.Priority, event.Scope, event.TriggeringWebhookName))
+		payloads = append(payloads, i.eventToPayload(tenantId, event.Key, event.Data, event.AdditionalMetadata, event.Priority, event.Scope, event.TriggeringWebhookName))
 	}
 
 	return i.ingest(ctx, tenant, payloads...)
@@ -253,7 +248,7 @@ func (i *IngestorImpl) ingestReplayedEventV1(ctx context.Context, tenant *sqlcv1
 
 	tenantId := tenant.ID
 
-	opt := eventToPayload(tenantId, replayedEvent.Key, replayedEvent.Data, replayedEvent.AdditionalMetadata, nil, nil, nil)
+	opt := i.eventToPayload(tenantId, replayedEvent.Key, replayedEvent.Data, replayedEvent.AdditionalMetadata, nil, nil, nil)
 
 	events, err := i.ingest(ctx, tenant, opt)
 
@@ -268,8 +263,15 @@ func (i *IngestorImpl) ingestReplayedEventV1(ctx context.Context, tenant *sqlcv1
 	return events[0], nil
 }
 
-func eventToPayload(tenantId uuid.UUID, key string, data, additionalMeta []byte, priority *int32, scope *string, triggeringWebhookName *string) tasktypes.UserEventTaskPayload {
+func (i *IngestorImpl) eventToPayload(tenantId uuid.UUID, key string, data, additionalMeta []byte, priority *int32, scope *string, triggeringWebhookName *string) tasktypes.UserEventTaskPayload {
 	eventId := uuid.New()
+
+	var payloadReferenceId *uuid.UUID
+
+	if i.repov1.Payloads().PayloadConsolidationEnabled() {
+		referenceId := v1.NewPayloadReferenceId()
+		payloadReferenceId = &referenceId
+	}
 
 	// FIXME: Should `SeenAt` be set on the SDK when the event is created?
 	eventSeenAt := time.Now().UTC()
@@ -283,6 +285,7 @@ func eventToPayload(tenantId uuid.UUID, key string, data, additionalMeta []byte,
 		EventPriority:           priority,
 		EventScope:              scope,
 		TriggeringWebhookName:   triggeringWebhookName,
+		PayloadReferenceId:      payloadReferenceId,
 	}
 }
 

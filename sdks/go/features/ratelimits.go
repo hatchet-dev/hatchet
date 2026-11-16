@@ -3,6 +3,7 @@ package features
 
 import (
 	"context"
+	"time"
 
 	"github.com/cockroachdb/errors"
 	"github.com/google/uuid"
@@ -54,6 +55,17 @@ func (c *RateLimitsClient) Upsert(opts CreateRatelimitOpts) error {
 	}
 
 	return nil
+}
+
+// Pause holds queued runs that use the key until the given time.
+// It returns the time the key is paused until.
+func (c *RateLimitsClient) Pause(ctx context.Context, key string, until time.Time) (time.Time, error) {
+	pausedUntil, err := c.admin.PauseRateLimit(ctx, key, until)
+	if err != nil {
+		return time.Time{}, errors.Wrap(err, "failed to pause rate limit")
+	}
+
+	return pausedUntil, nil
 }
 
 // List retrieves rate limits based on the provided parameters (optional).

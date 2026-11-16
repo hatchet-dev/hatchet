@@ -250,6 +250,26 @@ module Hatchet
           @v0_stub.put_rate_limit(request, metadata: @config.auth_metadata)
         end
 
+        # Pause a rate limit key via v0 WorkflowService.
+        #
+        # @param key [String] Rendered rate limit key
+        # @param until_time [Time] Time to pause the key until
+        # @return [Time] The time the key is paused until
+        def pause_rate_limit(key:, until_time:)
+          ensure_connected!
+
+          until_time = until_time.to_time
+
+          request = ::PauseRateLimitRequest.new(
+            key: key,
+            paused_until: Google::Protobuf::Timestamp.new(seconds: until_time.to_i, nanos: until_time.nsec),
+          )
+
+          response = @v0_stub.pause_rate_limit(request, metadata: @config.auth_metadata)
+
+          Time.at(response.paused_until.seconds, response.paused_until.nanos, :nsec).utc
+        end
+
         # Close the connection.
         def close
           @v0_stub = nil

@@ -1,0 +1,1209 @@
+package dagoperator
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
+	"go.opentelemetry.io/otel/attribute"
+
+	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
+)
+
+type dagCancelledError struct {
+	taskActionId string
+}
+
+func (e *dagCancelledError) Error() string {
+	return fmt.Sprintf("task %q was cancelled", e.taskActionId)
+}
+
+func isDagCancelledErr(err error) bool {
+	var e *dagCancelledError
+	return errors.As(err, &e)
+}
+
+// dagChildFailedError signals that the DAG reached a terminal outcome because a child task failed.
+// It is distinct from operational errors (failing to build the DAG, trigger a step, etc.): a child
+// failure is deterministic under replay, so retrying the orchestrator can never change the outcome.
+type dagChildFailedError struct {
+	taskActionId string
+	errorMessage string
+}
+
+func (e *dagChildFailedError) Error() string {
+	return fmt.Sprintf("child task %q failed: %s", e.taskActionId, e.errorMessage)
+}
+
+func isDagChildFailedErr(err error) bool {
+	var e *dagChildFailedError
+	return errors.As(err, &e)
+}
+
+type dagEngineError struct {
+	errorType    v1contracts.DurableTaskErrorType
+	errorMessage string
+}
+
+func (e *dagEngineError) Error() string {
+	return fmt.Sprintf("durable task error from engine (%s): %s", e.errorType, e.errorMessage)
+}
+
+func isDagEngineErr(err error) bool {
+	var e *dagEngineError
+	return errors.As(err, &e)
+}
+
+func clientErrorMessageForDagErr(err error) (message string, ok bool) {
+	var childFailedErr *dagChildFailedError
+	var cancelledErr *dagCancelledError
+	var celFailureErr *operator.DAGStepCELFailureError
+	var nonDeterminismErr *repository.NonDeterminismError
+	var engineErr *dagEngineError
+
+	switch {
+	case errors.As(err, &childFailedErr):
+		return childFailedErr.errorMessage, true
+	case errors.As(err, &cancelledErr):
+		return repository.TaskCancelledErrorMessage, true
+	case errors.As(err, &celFailureErr):
+		return celFailureErr.Error(), true
+	case errors.As(err, &nonDeterminismErr):
+		return nonDeterminismErr.Error(), true
+	case errors.As(err, &engineErr) && engineErr.errorType == v1contracts.DurableTaskErrorType_DURABLE_TASK_ERROR_TYPE_NONDETERMINISM:
+		return engineErr.errorMessage, true
+	default:
+		return "", false
+	}
+}
+
+func isDagNonRetryablePgErr(err error) bool {
+	var pgErr *pgconn.PgError
+
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+
+	return pgerrcode.IsIntegrityConstraintViolation(pgErr.Code) ||
+		pgerrcode.IsDataException(pgErr.Code) ||
+		pgerrcode.IsProgramLimitExceeded(pgErr.Code)
+}
+
+type dagEvictedError struct {
+	reason string
+}
+
+func (e *dagEvictedError) Error() string {
+	return fmt.Sprintf("invocation evicted by the engine: %s", e.reason)
+}
+
+func isDagEvictedErr(err error) bool {
+	var evicted *dagEvictedError
+	var staleInvocation *repository.StaleInvocationError
+	return errors.As(err, &evicted) || errors.As(err, &staleInvocation)
+}
+
+// stepTriggerRequest is one ready step of the batch the dag hands to triggerSteps.
+type stepTriggerRequest struct {
+	actionId         string
+	workflowName     string
+	childIndex       int32
+	parentTaskRunIds []uuid.UUID
+	isSkipped        bool
+	isCancelled      bool
+	parentReExecuted bool
+}
+
+// triggerStepsFn triggers a batch of ready steps together and returns one result per
+// request, in request order.
+type triggerStepsFn = func(ctx context.Context, reqs []stepTriggerRequest) ([]*operator.DAGStepTriggerResult, error)
+
+type dag struct {
+	// ch is the invocation's pipe to the engine, opened by the host with the handshake done.
+	ch           operator.DurableChannel
+	evalBoolExpr func(ctx context.Context, expr string, vars map[string]interface{}) (bool, error)
+	triggerSteps triggerStepsFn
+
+	tasks []*task
+
+	// onFailureTask has no parents to gate on (see evaluateOnFailure) and is nil if the workflow
+	// has none; once resolved it's appended to tasks so isDone/end-of-run scanning cover it too.
+	onFailureTask *task
+
+	pendingTasks    []*task
+	externalId      uuid.UUID
+	workerId        uuid.UUID
+	invocationCount int32
+	input           string
+	err             error
+
+	pendingWaitAcks []*pendingWaitAck
+
+	// pendingEntryCompletions holds completions in arrival order until they are applied, one at a
+	// time and only while no registration is in flight (see applyNextEntryCompletion).
+	pendingEntryCompletions []pendingEntryCompletion
+
+	// cache of the result of each parent override condition, evaluated once when the
+	// referenced parent completes instead of repeatedly on every readiness check
+	conditionMatches map[*sqlcv1.V1StepMatchCondition]bool
+}
+
+type conditionKind int
+
+const (
+	conditionKindWait conditionKind = iota
+	conditionKindSkip
+	conditionKindCancel
+)
+
+// pendingEntryCompletion is an EntryCompleted held until applyNextEntryCompletion applies it.
+type pendingEntryCompletion struct {
+	nodeId       int64
+	branchId     int64
+	isFailure    bool
+	errorMessage string
+	payload      []byte
+}
+
+type pendingWaitAck struct {
+	task *task
+	kind conditionKind
+}
+
+type task struct {
+	actionId     string
+	workflowName string
+	readableId   string
+	index        int32
+	parents      []*task
+	isCompleted  bool
+	isFailed     bool
+	isCancelled  bool
+	isTriggered  bool
+	isSkipped    bool
+	errorMessage string
+	output       map[string]interface{}
+
+	// reExecuted is true when the task ran as part of the current replay rather than being a
+	// cached result from an earlier branch; children of a re-executed parent must re-run too
+	reExecuted bool
+
+	isWaiting       bool
+	isWaitSatisfied bool
+	waitNodeId      int64
+	waitBranchId    int64
+
+	skipWatchRegistered bool
+	skipWatchFired      bool
+	skipWatchNodeId     int64
+	skipWatchBranchId   int64
+
+	cancelWatchRegistered bool
+	cancelWatchFired      bool
+	cancelWatchNodeId     int64
+	cancelWatchBranchId   int64
+
+	stepConditions []*sqlcv1.V1StepMatchCondition
+
+	nodeId                int64
+	branchId              int64
+	workflowRunExternalId *uuid.UUID
+}
+
+func dagDurableTask(
+	ctx context.Context,
+	tasks []*task,
+	onFailureTask *task,
+	externalId uuid.UUID,
+	workerId uuid.UUID,
+	invocationCount int32,
+	input string,
+	ch operator.DurableChannel,
+	evalBoolExpr func(ctx context.Context, expr string, vars map[string]interface{}) (bool, error),
+	triggerSteps triggerStepsFn,
+) error {
+	ctx, span := telemetry.NewSpan(ctx, "dag.dagDurableTask")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("dag.external_id", externalId.String()),
+		attribute.Int("dag.invocation_count", int(invocationCount)),
+		attribute.Int("dag.task_count", len(tasks)),
+		attribute.Bool("dag.has_on_failure", onFailureTask != nil),
+	)
+
+	d := &dag{
+		tasks:            tasks,
+		onFailureTask:    onFailureTask,
+		pendingTasks:     append([]*task{}, tasks...),
+		ch:               ch,
+		evalBoolExpr:     evalBoolExpr,
+		externalId:       externalId,
+		workerId:         workerId,
+		invocationCount:  invocationCount,
+		input:            input,
+		triggerSteps:     triggerSteps,
+		conditionMatches: make(map[*sqlcv1.V1StepMatchCondition]bool),
+	}
+
+	for !d.isDone() {
+		if err := d.taskEmitter(ctx); err != nil {
+			return err
+		}
+
+		if triggered, err := d.evaluateOnFailure(ctx); err != nil {
+			return err
+		} else if triggered {
+			continue
+		}
+
+		if d.isDone() {
+			break
+		}
+
+		if len(d.pendingWaitAcks) == 0 && d.applyNextEntryCompletion(ctx) {
+			continue
+		}
+
+		resp, err := d.awaitResponse(ctx)
+
+		if err != nil {
+			return err
+		}
+
+		d.taskConsumer(ctx, resp)
+	}
+
+	if d.err != nil {
+		return d.err
+	}
+
+	for _, t := range d.tasks {
+		if t.isFailed {
+			return &dagChildFailedError{taskActionId: t.actionId, errorMessage: t.errorMessage}
+		}
+	}
+
+	for _, t := range d.tasks {
+		if t.isCancelled {
+			return &dagCancelledError{taskActionId: t.actionId}
+		}
+	}
+
+	return nil
+}
+
+var blockedStatusReportInterval = 10 * time.Second
+
+// awaitResponse blocks until the engine sends the next response; while nothing arrives it
+// reports the entries the run is blocked on every blockedStatusReportInterval so the engine can
+// evict an idle invocation. The span is here to reveal bottlenecks, especially on child
+// spawning, in the traces.
+func (d *dag) awaitResponse(ctx context.Context) (*v1contracts.DurableTaskResponse, error) {
+	_, span := telemetry.NewSpan(ctx, "dag.awaitResponse")
+	defer span.End()
+
+	awaitingChildren, awaitingConditions := 0, 0
+
+	for _, t := range d.tasks {
+		switch {
+		case t.isTriggered && !t.isCompleted:
+			awaitingChildren++
+		case t.isWaiting && !t.isWaitSatisfied:
+			awaitingConditions++
+		}
+	}
+
+	span.SetAttributes(
+		attribute.Int("dag.awaiting_child_count", awaitingChildren),
+		attribute.Int("dag.awaiting_condition_count", awaitingConditions),
+		attribute.Int("dag.pending_task_count", len(d.pendingTasks)),
+	)
+
+	for {
+		recvCtx, cancel := context.WithTimeout(ctx, blockedStatusReportInterval)
+		resp, err := d.ch.Recv(recvCtx)
+		cancel()
+
+		if err == nil {
+			return resp, nil
+		}
+
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+
+		if !errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("durable task session closed: %w", err)
+		}
+
+		if err := d.reportBlockedOnDurableEvents(ctx); err != nil {
+			return nil, err
+		}
+	}
+}
+
+// tells the dispatcher which unsatisfied durable event log entries we've been blocked on so
+// it can evict the durable task to free its slot
+func (d *dag) reportBlockedOnDurableEvents(ctx context.Context) error {
+	if len(d.pendingWaitAcks) > 0 || len(d.pendingEntryCompletions) > 0 {
+		return nil
+	}
+
+	entries := d.outstandingWaitingEntries()
+
+	if len(entries) == 0 {
+		return nil
+	}
+
+	return d.send(ctx, &v1contracts.DurableTaskRequest{
+		Message: &v1contracts.DurableTaskRequest_WorkerStatus{
+			WorkerStatus: &v1contracts.DurableTaskWorkerStatusRequest{
+				WorkerId:       d.workerId.String(),
+				WaitingEntries: entries,
+			},
+		},
+	})
+}
+
+func (d *dag) outstandingWaitingEntries() []*v1contracts.DurableTaskAwaitedCompletedEntry {
+	var entries []*v1contracts.DurableTaskAwaitedCompletedEntry
+
+	appendEntry := func(nodeId, branchId int64) {
+		entries = append(entries, &v1contracts.DurableTaskAwaitedCompletedEntry{
+			DurableTaskExternalId: d.externalId.String(),
+			InvocationCount:       d.invocationCount,
+			NodeId:                nodeId,
+			BranchId:              branchId,
+		})
+	}
+
+	for _, t := range d.tasks {
+		if t.isTriggered && !t.isCompleted {
+			appendEntry(t.nodeId, t.branchId)
+		}
+
+		if t.isWaiting && !t.isWaitSatisfied {
+			appendEntry(t.waitNodeId, t.waitBranchId)
+		}
+
+		if t.skipWatchRegistered && !t.skipWatchFired {
+			appendEntry(t.skipWatchNodeId, t.skipWatchBranchId)
+		}
+
+		if t.cancelWatchRegistered && !t.cancelWatchFired {
+			appendEntry(t.cancelWatchNodeId, t.cancelWatchBranchId)
+		}
+	}
+
+	return entries
+}
+
+func (d *dag) taskEmitter(ctx context.Context) error {
+	ctx, span := telemetry.NewSpan(ctx, "dag.taskEmitter")
+	defer span.End()
+
+	if d.err != nil {
+		return nil
+	}
+
+	for {
+		progressed, err := d.emitReadyTasks(ctx)
+		if err != nil {
+			return err
+		}
+
+		if !progressed {
+			return nil
+		}
+	}
+}
+
+func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
+	ctx, span := telemetry.NewSpan(ctx, "dag.emitReadyTasks")
+	defer span.End()
+
+	span.SetAttributes(attribute.Int("dag.pending_task_count", len(d.pendingTasks)))
+
+	progressed := false
+
+	readyAtPassStart := make(map[*task]bool, len(d.pendingTasks))
+	for _, t := range d.pendingTasks {
+		ready := true
+		for _, p := range t.parents {
+			if !p.isCompleted {
+				ready = false
+				break
+			}
+		}
+		readyAtPassStart[t] = ready
+	}
+
+	stillPending := d.pendingTasks[:0]
+	readySteps := make([]readyStep, 0)
+
+	registerConditionAfterTriggeringReadySteps := func(t *task, kind conditionKind, satisfiedGroups ...map[uuid.UUID]bool) error {
+		if len(readySteps) > 0 {
+			if err := d.triggerReadySteps(ctx, readySteps); err != nil {
+				return err
+			}
+
+			readySteps = readySteps[:0]
+			progressed = true
+		}
+
+		return d.registerCondition(ctx, t, kind, satisfiedGroups...)
+	}
+
+	for _, t := range d.pendingTasks {
+		if t.isTriggered || t.isSkipped {
+			continue
+		}
+
+		if !readyAtPassStart[t] {
+			stillPending = append(stillPending, t)
+			continue
+		}
+
+		cancelled := false
+		for _, p := range t.parents {
+			if p.isCancelled || p.isFailed {
+				cancelled = true
+				break
+			}
+		}
+
+		skip := false
+
+		if !cancelled {
+			if allParentsSkipped(t) {
+				skip = true
+			} else {
+				skip, cancelled = d.evaluateParentConditions(ctx, t)
+			}
+
+			if !skip && !cancelled {
+				// One registration is in flight at a time: the channel admits one ack-bearing
+				// request until its ack arrives, and the ack is what gives the registration its
+				// node id (see taskConsumer). A task whose registration has to wait for a
+				// pending ack stays pending and is picked up again once the ack is consumed.
+				if d.hasEventOrSleepConditions(t, conditionKindSkip) && !t.skipWatchRegistered {
+					if len(d.pendingWaitAcks) > 0 {
+						stillPending = append(stillPending, t)
+						continue
+					}
+
+					if err := registerConditionAfterTriggeringReadySteps(t, conditionKindSkip); err != nil {
+						d.err = err
+						return progressed, d.err
+					}
+					t.skipWatchRegistered = true
+				}
+
+				if d.hasEventOrSleepConditions(t, conditionKindCancel) && !t.cancelWatchRegistered {
+					if len(d.pendingWaitAcks) > 0 {
+						stillPending = append(stillPending, t)
+						continue
+					}
+
+					if err := registerConditionAfterTriggeringReadySteps(t, conditionKindCancel); err != nil {
+						d.err = err
+						return progressed, d.err
+					}
+					t.cancelWatchRegistered = true
+				}
+
+				if t.cancelWatchFired {
+					cancelled = true
+				} else if t.skipWatchFired {
+					skip = true
+				}
+
+				if !skip && !cancelled && d.hasEventOrSleepConditions(t, conditionKindWait) && !t.isWaitSatisfied {
+					if !t.isWaiting {
+						satisfiedGroups := d.evaluateWaitParentConditions(ctx, t)
+
+						if d.allWaitGroupsSatisfied(t, satisfiedGroups) {
+							t.isWaitSatisfied = true
+						} else {
+							if len(d.pendingWaitAcks) > 0 {
+								stillPending = append(stillPending, t)
+								continue
+							}
+
+							if err := registerConditionAfterTriggeringReadySteps(t, conditionKindWait, satisfiedGroups); err != nil {
+								d.err = err
+								return progressed, d.err
+							}
+							t.isWaiting = true
+						}
+					}
+					if !t.isWaitSatisfied {
+						stillPending = append(stillPending, t)
+						continue
+					}
+				}
+			}
+		}
+
+		// A run trigger is ingested directly by the dispatcher, outside the session channel that
+		// carries WAITFOR registrations, so emitting one while a registration is still un-acked
+		// lets the run overtake it in the log and claim its node id, which the engine then
+		// reports as nondeterminism on replay. An ack is only sent after the registration is
+		// ingested, so an empty pendingWaitAcks means every registration holds its node id.
+		if len(d.pendingWaitAcks) > 0 {
+			stillPending = append(stillPending, t)
+			continue
+		}
+
+		parentReExecuted := false
+		for _, p := range t.parents {
+			if p.reExecuted {
+				parentReExecuted = true
+				break
+			}
+		}
+
+		readySteps = append(readySteps, readyStep{task: t, isSkipped: skip, isCancelled: cancelled, parentReExecuted: parentReExecuted})
+	}
+
+	d.pendingTasks = stillPending
+
+	if len(readySteps) == 0 {
+		return progressed, nil
+	}
+
+	if err := d.triggerReadySteps(ctx, readySteps); err != nil {
+		d.err = err
+		return progressed, d.err
+	}
+
+	return true, nil
+}
+
+func (d *dag) triggerReadySteps(ctx context.Context, readySteps []readyStep) error {
+	// every ready step shares the parents that finished before it, so one trigger call
+	// appends and spawns all of them at once instead of a round trip per step
+	parentTaskRunIds := d.finishedTaskRunIds()
+	reqs := make([]stepTriggerRequest, len(readySteps))
+
+	for i, step := range readySteps {
+		reqs[i] = stepTriggerRequest{
+			actionId:         step.task.actionId,
+			workflowName:     step.task.workflowName,
+			childIndex:       step.task.index,
+			parentTaskRunIds: parentTaskRunIds,
+			isSkipped:        step.isSkipped,
+			isCancelled:      step.isCancelled,
+			parentReExecuted: step.parentReExecuted,
+		}
+	}
+
+	results, err := d.triggerSteps(ctx, reqs)
+	if err != nil {
+		recordChildrenCreatedBeforeTriggerFailure(readySteps, results)
+
+		return fmt.Errorf("failed to trigger %d ready steps: %w", len(readySteps), err)
+	}
+
+	if len(results) != len(readySteps) {
+		return fmt.Errorf("triggered %d steps but received %d results", len(readySteps), len(results))
+	}
+
+	for i, step := range readySteps {
+		if err := d.applyTriggerResult(ctx, step, results[i]); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func recordChildrenCreatedBeforeTriggerFailure(readySteps []readyStep, results []*operator.DAGStepTriggerResult) {
+	if len(results) != len(readySteps) {
+		return
+	}
+
+	for i, step := range readySteps {
+		step.task.workflowRunExternalId = &results[i].WorkflowRunExternalId
+		step.task.isTriggered = true
+	}
+}
+
+// readyStep is a step whose parents all finished, together with the decision the dag took
+// for it from its parents' outcomes and its skip and cancel conditions.
+type readyStep struct {
+	task             *task
+	isSkipped        bool
+	isCancelled      bool
+	parentReExecuted bool
+}
+
+func (d *dag) applyTriggerResult(ctx context.Context, step readyStep, result *operator.DAGStepTriggerResult) error {
+	t := step.task
+	t.reExecuted = result.ReExecuted
+
+	if step.isCancelled {
+		t.isCancelled = true
+	} else if step.isSkipped {
+		t.isSkipped = true
+		t.isCompleted = true
+		t.output = map[string]interface{}{"skipped": true}
+
+		if err := d.evaluateConditionsForParent(ctx, t); err != nil {
+			return err
+		}
+	}
+
+	t.nodeId = result.NodeId
+	t.branchId = result.BranchId
+	t.workflowRunExternalId = &result.WorkflowRunExternalId
+	t.isTriggered = true
+
+	// A satisfied entry (a replayed, skipped or cancelled step) is delivered on the channel
+	// like any other completion, so every triggered step is awaited there.
+	return d.expectChild(t)
+}
+
+// expectChild tells the channel a child's completion is awaited. The child was created by the
+// direct trigger callback, not by a trigger_runs request on the channel, so no ack names its
+// entry; the channel holds an entry completion until the ack naming it, and this registration
+// is what stands in for that ack. It runs as soon as the ref is known: the child may already
+// have finished, in which case the channel delivers the held completion at once.
+func (d *dag) expectChild(t *task) error {
+	if err := d.ch.ExpectEntry(t.branchId, t.nodeId); err != nil {
+		return fmt.Errorf("could not await the completion of step %q: %w", t.actionId, err)
+	}
+
+	return nil
+}
+
+func (d *dag) taskConsumer(ctx context.Context, resp *v1contracts.DurableTaskResponse) {
+	_, span := telemetry.NewSpan(ctx, "dag.taskConsumer")
+	defer span.End()
+
+	if resp == nil || resp.Message == nil {
+		return
+	}
+
+	span.SetAttributes(attribute.String("dag.response_type", fmt.Sprintf("%T", resp.Message)))
+
+	switch m := resp.Message.(type) {
+	case *v1contracts.DurableTaskResponse_WaitForAck:
+		ref := m.WaitForAck.GetRef()
+		if ref == nil || len(d.pendingWaitAcks) == 0 {
+			return
+		}
+		// Correlate in FIFO order: the dispatcher processes requests sequentially,
+		// so acks arrive in the same order we sent the WAITFOR requests.
+		ack := d.pendingWaitAcks[0]
+		d.pendingWaitAcks = d.pendingWaitAcks[1:]
+		switch ack.kind {
+		case conditionKindSkip:
+			ack.task.skipWatchNodeId = ref.GetNodeId()
+			ack.task.skipWatchBranchId = ref.GetBranchId()
+		case conditionKindCancel:
+			ack.task.cancelWatchNodeId = ref.GetNodeId()
+			ack.task.cancelWatchBranchId = ref.GetBranchId()
+		case conditionKindWait:
+			ack.task.waitNodeId = ref.GetNodeId()
+			ack.task.waitBranchId = ref.GetBranchId()
+		}
+
+	case *v1contracts.DurableTaskResponse_EntryCompleted:
+		ref := m.EntryCompleted.GetRef()
+		if ref == nil {
+			return
+		}
+
+		d.pendingEntryCompletions = append(d.pendingEntryCompletions, pendingEntryCompletion{
+			nodeId:       ref.GetNodeId(),
+			branchId:     ref.GetBranchId(),
+			isFailure:    m.EntryCompleted.GetIsFailure(),
+			errorMessage: m.EntryCompleted.GetErrorMessage(),
+			payload:      m.EntryCompleted.GetPayload(),
+		})
+
+	case *v1contracts.DurableTaskResponse_ServerEvict:
+		if m.ServerEvict.GetDurableTaskExternalId() != d.externalId.String() ||
+			m.ServerEvict.GetInvocationCount() != d.invocationCount {
+			return
+		}
+
+		d.err = &dagEvictedError{reason: m.ServerEvict.GetReason()}
+
+	case *v1contracts.DurableTaskResponse_Error:
+		if ref := m.Error.GetRef(); ref != nil && ref.GetDurableTaskExternalId() != d.externalId.String() {
+			return
+		}
+
+		// Dropping this would leave the run waiting forever for an ack or completion that
+		// will never arrive (e.g. a nondeterminism error means the wait was never committed).
+		d.err = &dagEngineError{errorType: m.Error.GetErrorType(), errorMessage: m.Error.GetErrorMessage()}
+	}
+}
+
+// tryApplyEntryCompletion attempts to match a completion against a registered skip/cancel/wait
+// watch or a triggered task's node/branch id, applying it if found. Returns false if nothing
+// currently known matches.
+func (d *dag) tryApplyEntryCompletion(ctx context.Context, entry pendingEntryCompletion) bool {
+	for _, t := range d.tasks {
+		if t.skipWatchRegistered && !t.skipWatchFired && t.skipWatchNodeId == entry.nodeId && t.skipWatchBranchId == entry.branchId {
+			t.skipWatchFired = true
+			return true
+		}
+
+		if t.cancelWatchRegistered && !t.cancelWatchFired && t.cancelWatchNodeId == entry.nodeId && t.cancelWatchBranchId == entry.branchId {
+			t.cancelWatchFired = true
+			return true
+		}
+
+		if t.isWaiting && !t.isWaitSatisfied && t.waitNodeId == entry.nodeId && t.waitBranchId == entry.branchId {
+			t.isWaitSatisfied = true
+			return true
+		}
+
+		if t.nodeId != entry.nodeId || t.branchId != entry.branchId {
+			continue
+		}
+
+		if err := d.applyCompletion(ctx, t, entry.isFailure, entry.errorMessage, entry.payload); err != nil {
+			d.err = err
+		}
+
+		return true
+	}
+
+	return false
+}
+
+// applyNextEntryCompletion applies the oldest held completion that matches a known entry. It is
+// only called with no registration in flight and nothing left to emit, so the log's order depends
+// only on the order completions arrive in, and a replay that receives them early in that same
+// order writes the same log.
+func (d *dag) applyNextEntryCompletion(ctx context.Context) bool {
+	for i, entry := range d.pendingEntryCompletions {
+		if d.tryApplyEntryCompletion(ctx, entry) {
+			d.pendingEntryCompletions = append(d.pendingEntryCompletions[:i], d.pendingEntryCompletions[i+1:]...)
+			return true
+		}
+	}
+
+	return false
+}
+
+// finishedTaskRunIds lists every task that has reached a terminal state, including failed ones. The
+// dispatcher resolves each id to the task's latest COMPLETED or FAILED event at dispatch time, so a
+// step created cancelled because its parent failed still receives the parent's output once the parent
+// is replayed and succeeds, and a failed parent lands in step_run_errors rather than being omitted.
+func (d *dag) finishedTaskRunIds() []uuid.UUID {
+	var taskRunIds []uuid.UUID
+
+	for _, t := range d.tasks {
+		if t.isCompleted && t.workflowRunExternalId != nil {
+			taskRunIds = append(taskRunIds, *t.workflowRunExternalId)
+		}
+	}
+
+	return taskRunIds
+}
+
+func (d *dag) applyCompletion(ctx context.Context, t *task, isFailure bool, errorMessage string, payload []byte) error {
+	t.isCompleted = true
+
+	if isFailure && !t.isCancelled {
+		if errorMessage == repository.TaskCancelledErrorMessage {
+			t.isCancelled = true
+		} else {
+			t.isFailed = true
+			t.errorMessage = errorMessage
+		}
+	} else if len(payload) > 0 {
+		outputData := make(map[string]interface{})
+		if err := json.Unmarshal(payload, &outputData); err == nil {
+			if outputData == nil {
+				outputData = map[string]interface{}{}
+			}
+			t.output = outputData
+			if skipped, ok := outputData["skipped"].(bool); ok && skipped {
+				t.isSkipped = true
+			}
+			if cancelled, ok := outputData["cancelled"].(bool); ok && cancelled {
+				t.isCancelled = true
+			}
+		}
+	} else if !isFailure && !t.isCancelled {
+		t.output = map[string]interface{}{}
+	}
+
+	return d.evaluateConditionsForParent(ctx, t)
+}
+
+func (d *dag) evaluateConditionsForParent(ctx context.Context, parent *task) error {
+	if parent.output == nil {
+		return nil
+	}
+
+	ctx, span := telemetry.NewSpan(ctx, "dag.evaluateConditionsForParent")
+	defer span.End()
+
+	span.SetAttributes(attribute.String("dag.parent_readable_id", parent.readableId))
+
+	for _, t := range d.tasks {
+		for _, cond := range t.stepConditions {
+			if cond.Kind != sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE {
+				continue
+			}
+			if cond.ParentReadableID.String != parent.readableId {
+				continue
+			}
+			if _, ok := d.conditionMatches[cond]; ok {
+				continue
+			}
+
+			expr := cond.Expression.String
+			if expr == "" {
+				expr = "true"
+			}
+
+			matched, err := d.evalBoolExpr(ctx, expr, map[string]interface{}{"output": parent.output})
+			if err != nil {
+				// A condition that cannot be evaluated (e.g. a key missing from the parent output)
+				// counts as not matched instead of failing the DAG.
+				span.RecordError(fmt.Errorf("condition %q on task %q could not be evaluated: %w", expr, t.actionId, err))
+				matched = false
+			}
+
+			d.conditionMatches[cond] = matched
+		}
+	}
+
+	// getting rid of memory here so we don't hold onto the output for the lifetime of the DAG
+	parent.output = nil
+
+	return nil
+}
+
+func allParentsSkipped(t *task) bool {
+	if len(t.parents) == 0 {
+		return false
+	}
+
+	for _, p := range t.parents {
+		if !p.isSkipped {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (d *dag) isDone() bool {
+	if d.err != nil {
+		return true
+	}
+
+	for _, t := range d.tasks {
+		if !t.isCompleted {
+			return false
+		}
+	}
+
+	// Not yet in d.tasks until evaluateOnFailure resolves it.
+	if d.onFailureTask != nil && !d.onFailureTask.isCompleted {
+		return false
+	}
+
+	return true
+}
+
+func (d *dag) evaluateOnFailure(ctx context.Context) (bool, error) {
+	if d.onFailureTask == nil || d.onFailureTask.isTriggered {
+		return false, nil
+	}
+
+	// Same ordering constraint as emitReadyTasks: a run trigger must not overtake an un-acked
+	// WAITFOR registration in the log.
+	if len(d.pendingWaitAcks) > 0 {
+		return false, nil
+	}
+
+	anyFailed := false
+	allOthersDone := true
+
+	for _, t := range d.tasks {
+		if t.isFailed {
+			anyFailed = true
+		}
+		if !t.isCompleted {
+			allOthersDone = false
+		}
+	}
+
+	if !anyFailed && !allOthersDone {
+		return false, nil
+	}
+
+	ctx, span := telemetry.NewSpan(ctx, "dag.evaluateOnFailure")
+	defer span.End()
+
+	skip := !anyFailed
+
+	span.SetAttributes(
+		attribute.String("dag.on_failure_action_id", d.onFailureTask.actionId),
+		attribute.Bool("dag.on_failure_skipped", skip),
+	)
+
+	results, err := d.triggerSteps(ctx, []stepTriggerRequest{{
+		actionId:         d.onFailureTask.actionId,
+		workflowName:     d.onFailureTask.workflowName,
+		childIndex:       d.onFailureTask.index,
+		parentTaskRunIds: d.finishedTaskRunIds(),
+		isSkipped:        skip,
+	}})
+	if err != nil {
+		d.err = fmt.Errorf("failed to trigger on-failure step %q: %w", d.onFailureTask.actionId, err)
+		return false, d.err
+	}
+
+	if len(results) != 1 {
+		d.err = fmt.Errorf("triggered the on-failure step but received %d results", len(results))
+		return false, d.err
+	}
+
+	result := results[0]
+
+	d.onFailureTask.reExecuted = result.ReExecuted
+	d.onFailureTask.nodeId = result.NodeId
+	d.onFailureTask.branchId = result.BranchId
+	d.onFailureTask.workflowRunExternalId = &result.WorkflowRunExternalId
+	d.onFailureTask.isTriggered = true
+
+	if skip {
+		d.onFailureTask.isSkipped = true
+		d.onFailureTask.isCompleted = true
+		d.onFailureTask.output = map[string]interface{}{"skipped": true}
+	}
+
+	d.tasks = append(d.tasks, d.onFailureTask)
+
+	if err := d.expectChild(d.onFailureTask); err != nil {
+		d.err = err
+		return true, d.err
+	}
+
+	return true, nil
+}
+
+func (d *dag) evaluateParentConditions(ctx context.Context, t *task) (skip bool, cancel bool) {
+	_, span := telemetry.NewSpan(ctx, "dag.evaluateParentConditions")
+	defer span.End()
+
+	type groupKey struct {
+		action    sqlcv1.V1MatchConditionAction
+		orGroupId uuid.UUID
+	}
+	groupResults := make(map[groupKey]bool)
+	groupActions := make(map[groupKey]sqlcv1.V1MatchConditionAction)
+
+	for _, cond := range t.stepConditions {
+		if cond.Kind != sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE {
+			continue
+		}
+		if cond.Action != sqlcv1.V1MatchConditionActionSKIP && cond.Action != sqlcv1.V1MatchConditionActionCANCEL {
+			continue
+		}
+
+		matched, ok := d.conditionMatches[cond]
+		if !ok {
+			continue
+		}
+
+		key := groupKey{action: cond.Action, orGroupId: cond.OrGroupID}
+		groupActions[key] = cond.Action
+		if matched {
+			groupResults[key] = true
+		} else if _, seen := groupResults[key]; !seen {
+			groupResults[key] = false
+		}
+	}
+
+	skipGroups := make(map[uuid.UUID]bool)
+	cancelGroups := make(map[uuid.UUID]bool)
+	skipTotal, cancelTotal := 0, 0
+
+	for key, satisfied := range groupResults {
+		switch groupActions[key] {
+		case sqlcv1.V1MatchConditionActionSKIP:
+			skipTotal++
+			if satisfied {
+				skipGroups[key.orGroupId] = true
+			}
+		case sqlcv1.V1MatchConditionActionCANCEL:
+			cancelTotal++
+			if satisfied {
+				cancelGroups[key.orGroupId] = true
+			}
+		case sqlcv1.V1MatchConditionActionCREATE, sqlcv1.V1MatchConditionActionQUEUE, sqlcv1.V1MatchConditionActionCREATEMATCH:
+		}
+	}
+
+	if cancelTotal > 0 && len(cancelGroups) == cancelTotal {
+		return false, true
+	}
+	if skipTotal > 0 && len(skipGroups) == skipTotal {
+		return true, false
+	}
+
+	return false, false
+}
+
+func getMatchConditionActionForWatchKind(kind conditionKind) sqlcv1.V1MatchConditionAction {
+	switch kind {
+	case conditionKindSkip:
+		return sqlcv1.V1MatchConditionActionSKIP
+	case conditionKindCancel:
+		return sqlcv1.V1MatchConditionActionCANCEL
+	case conditionKindWait:
+		return sqlcv1.V1MatchConditionActionQUEUE
+	}
+
+	return sqlcv1.V1MatchConditionActionQUEUE
+}
+
+func (d *dag) hasEventOrSleepConditions(t *task, kind conditionKind) bool {
+	action := getMatchConditionActionForWatchKind(kind)
+
+	for _, c := range t.stepConditions {
+		if c.Action != action {
+			continue
+		}
+
+		if c.Kind == sqlcv1.V1StepMatchConditionKindSLEEP || c.Kind == sqlcv1.V1StepMatchConditionKindUSEREVENT {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (d *dag) evaluateWaitParentConditions(ctx context.Context, t *task) map[uuid.UUID]bool {
+	_, span := telemetry.NewSpan(ctx, "dag.evaluateWaitParentConditions")
+	defer span.End()
+
+	satisfied := make(map[uuid.UUID]bool)
+
+	for _, c := range t.stepConditions {
+		if c.Action != sqlcv1.V1MatchConditionActionQUEUE {
+			continue
+		}
+		if c.Kind != sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE {
+			continue
+		}
+		if satisfied[c.OrGroupID] {
+			continue
+		}
+
+		matched, ok := d.conditionMatches[c]
+		if !ok {
+			continue
+		}
+
+		if matched {
+			satisfied[c.OrGroupID] = true
+		}
+	}
+
+	return satisfied
+}
+
+func (d *dag) allWaitGroupsSatisfied(t *task, satisfiedGroups map[uuid.UUID]bool) bool {
+	for _, c := range t.stepConditions {
+		if c.Action != sqlcv1.V1MatchConditionActionQUEUE {
+			continue
+		}
+		if !satisfiedGroups[c.OrGroupID] {
+			return false
+		}
+	}
+	return true
+}
+
+// send writes req to the invocation's channel. The channel reads the engine's responses on
+// its own, so a send while responses are undelivered cannot deadlock against the engine's
+// sequential delivery.
+func (d *dag) send(ctx context.Context, req *v1contracts.DurableTaskRequest) error {
+	return d.ch.Send(ctx, req)
+}
+
+func (d *dag) registerCondition(ctx context.Context, t *task, kind conditionKind, satisfiedGroups ...map[uuid.UUID]bool) error {
+	_, span := telemetry.NewSpan(ctx, "dag.registerCondition")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("dag.task_action_id", t.actionId),
+		attribute.Int("dag.condition_kind", int(kind)),
+	)
+
+	action := getMatchConditionActionForWatchKind(kind)
+	conditions := &v1contracts.DurableEventListenerConditions{}
+
+	var skip map[uuid.UUID]bool
+	if len(satisfiedGroups) > 0 {
+		skip = satisfiedGroups[0]
+	}
+
+	for _, c := range t.stepConditions {
+		if c.Action != action {
+			continue
+		}
+		if skip[c.OrGroupID] {
+			continue
+		}
+		switch c.Kind {
+		case sqlcv1.V1StepMatchConditionKindSLEEP:
+			conditions.SleepConditions = append(conditions.SleepConditions, &v1contracts.SleepMatchCondition{
+				Base: &v1contracts.BaseMatchCondition{
+					ReadableDataKey: c.ReadableDataKey,
+					OrGroupId:       c.OrGroupID.String(),
+				},
+				SleepFor: c.SleepDuration.String,
+			})
+		case sqlcv1.V1StepMatchConditionKindUSEREVENT:
+			conditions.UserEventConditions = append(conditions.UserEventConditions, &v1contracts.UserEventMatchCondition{
+				Base: &v1contracts.BaseMatchCondition{
+					ReadableDataKey: c.ReadableDataKey,
+					OrGroupId:       c.OrGroupID.String(),
+					Expression:      c.Expression.String,
+				},
+				UserEventKey: c.EventKey.String,
+			})
+		case sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE:
+		}
+	}
+
+	if err := d.send(ctx, &v1contracts.DurableTaskRequest{
+		Message: &v1contracts.DurableTaskRequest_WaitFor{
+			WaitFor: &v1contracts.DurableTaskWaitForRequest{
+				DurableTaskExternalId: d.externalId.String(),
+				InvocationCount:       d.invocationCount,
+				WaitForConditions:     conditions,
+			},
+		},
+	}); err != nil {
+		return err
+	}
+
+	d.pendingWaitAcks = append(d.pendingWaitAcks, &pendingWaitAck{task: t, kind: kind})
+
+	return nil
+}

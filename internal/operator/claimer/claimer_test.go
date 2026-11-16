@@ -1,0 +1,464 @@
+//go:build !e2e && !load && !rampup && !integration
+
+package claimer_test
+
+import (
+	"context"
+	"errors"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/hatchet-dev/hatchet/internal/operator/claimer"
+	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
+	"github.com/hatchet-dev/hatchet/pkg/operator/operatortest"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+)
+
+const eventually = 5 * time.Second
+
+// testKind is the kind the tests' factory builds; the DAG kind needs a repository.
+const testKind = sqlcv1.V1OperatorKindHTTPAPI
+
+// fakeOperator records its lifecycle. release, when set, blocks Drain until it is closed.
+type fakeOperator struct {
+	mu       sync.Mutex
+	session  operator.Session
+	started  bool
+	drained  bool
+	startErr error
+	release  chan struct{}
+}
+
+func (f *fakeOperator) HandleAction(context.Context, *contracts.AssignedAction) error { return nil }
+
+func (f *fakeOperator) Start(_ context.Context, s operator.Session) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.started = true
+	f.session = s
+
+	return f.startErr
+}
+
+func (f *fakeOperator) Drain(ctx context.Context) {
+	if f.release != nil {
+		select {
+		case <-f.release:
+		case <-ctx.Done():
+		}
+	}
+
+	f.mu.Lock()
+	f.drained = true
+	f.mu.Unlock()
+}
+
+func (f *fakeOperator) isDrained() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.drained
+}
+
+// fakeHost opens recording sessions and remembers what it was asked to open.
+type fakeHost struct {
+	mu       sync.Mutex
+	opens    []operator.Identity
+	opts     []operator.OpenOpts
+	sessions map[uuid.UUID]*operatortest.Session
+	openErr  error
+}
+
+func newFakeHost() *fakeHost {
+	return &fakeHost{sessions: map[uuid.UUID]*operatortest.Session{}}
+}
+
+func (h *fakeHost) Open(_ context.Context, id operator.Identity, o operator.OpenOpts) (operator.Session, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	h.opens = append(h.opens, id)
+	h.opts = append(h.opts, o)
+
+	if h.openErr != nil {
+		return nil, h.openErr
+	}
+
+	s := operatortest.NewSession(id.TenantId, *id.OperatorId)
+	h.sessions[*id.OperatorId] = s
+
+	return s, nil
+}
+
+func (h *fakeHost) session(operatorId uuid.UUID) *operatortest.Session {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	return h.sessions[operatorId]
+}
+
+func (h *fakeHost) openCount() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	return len(h.opens)
+}
+
+// fakeClaims answers the claim query with whatever the test set, and remembers what it was
+// asked for.
+type fakeClaims struct {
+	mu    sync.Mutex
+	rows  []*sqlcv1.ClaimOperatorsRow
+	err   error
+	asked []repository.ClaimOperatorsOpts
+}
+
+func (c *fakeClaims) ClaimOperators(_ context.Context, _ uuid.UUID, opts repository.ClaimOperatorsOpts) ([]*sqlcv1.ClaimOperatorsRow, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.asked = append(c.asked, opts)
+
+	return c.rows, c.err
+}
+
+func (c *fakeClaims) lastAsked() (repository.ClaimOperatorsOpts, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if len(c.asked) == 0 {
+		return repository.ClaimOperatorsOpts{}, false
+	}
+
+	return c.asked[len(c.asked)-1], true
+}
+
+// set makes the claim return the rows as held, which is how it returns a row from the first poll
+// after the claimer opened it.
+func (c *fakeClaims) set(rows ...*sqlcv1.V1Operator) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.rows = held(rows...)
+}
+
+// held is a claim result of rows this dispatcher holds.
+func held(ops ...*sqlcv1.V1Operator) []*sqlcv1.ClaimOperatorsRow {
+	return claimRows(true, ops)
+}
+
+// taken is a claim result of rows this dispatcher newly took.
+func taken(ops ...*sqlcv1.V1Operator) []*sqlcv1.ClaimOperatorsRow {
+	return claimRows(false, ops)
+}
+
+func claimRows(isHeld bool, ops []*sqlcv1.V1Operator) []*sqlcv1.ClaimOperatorsRow {
+	rows := make([]*sqlcv1.ClaimOperatorsRow, len(ops))
+
+	for i, op := range ops {
+		rows[i] = &sqlcv1.ClaimOperatorsRow{V1Operator: *op, Held: isHeld}
+	}
+
+	return rows
+}
+
+type harness struct {
+	*claimer.Claimer
+
+	host      *fakeHost
+	claims    *fakeClaims
+	operators map[uuid.UUID]*fakeOperator
+	mu        sync.Mutex
+}
+
+func newHarness(t *testing.T, opts ...claimer.Opt) *harness {
+	t.Helper()
+
+	h := &harness{host: newFakeHost(), claims: &fakeClaims{}, operators: map[uuid.UUID]*fakeOperator{}}
+	l := zerolog.Nop()
+
+	factory := func(op *sqlcv1.V1Operator) (operator.Operator, operator.OpenOpts, error) {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+
+		fake, ok := h.operators[op.ID]
+
+		if !ok {
+			fake = &fakeOperator{}
+			h.operators[op.ID] = fake
+		}
+
+		return fake, operator.OpenOpts{SlotConfig: map[string]int32{"durable": 2}}, nil
+	}
+
+	c, err := claimer.New(append([]claimer.Opt{
+		claimer.WithHost(h.host),
+		claimer.WithClaims(h.claims),
+		claimer.WithDispatcherId(uuid.New()),
+		claimer.WithFactory(testKind, factory),
+		claimer.WithLogger(&l),
+	}, opts...)...)
+	require.NoError(t, err)
+
+	h.Claimer = c
+
+	return h
+}
+
+func (h *harness) operator(op *sqlcv1.V1Operator) *fakeOperator {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	return h.operators[op.ID]
+}
+
+func row() *sqlcv1.V1Operator {
+	return &sqlcv1.V1Operator{ID: uuid.New(), TenantID: uuid.New(), Name: "op", Kind: testKind, Config: []byte(`{}`)}
+}
+
+// A newly claimed row is opened through the host by id, with the operator as the handler, and
+// started on its session; reconciling the same result again changes nothing.
+func TestReconcileHostsClaimedRows(t *testing.T) {
+	h := newHarness(t)
+	op := row()
+
+	h.Reconcile(t.Context(), held(op))
+
+	require.Equal(t, 1, h.host.openCount())
+	assert.Equal(t, op.TenantID, h.host.opens[0].TenantId)
+	require.NotNil(t, h.host.opens[0].OperatorId)
+	assert.Equal(t, op.ID, *h.host.opens[0].OperatorId)
+	assert.Equal(t, map[string]int32{"durable": 2}, h.host.opts[0].SlotConfig, "the factory's options are used")
+
+	fake := h.operator(op)
+	assert.Equal(t, fake, h.host.opts[0].Handler, "the operator is the session's handler")
+	assert.True(t, fake.started)
+	assert.Equal(t, h.host.session(op.ID), fake.session)
+	assert.Equal(t, 1, h.Running())
+
+	h.Reconcile(t.Context(), held(op))
+	assert.Equal(t, 1, h.host.openCount(), "a row already hosted is not opened again")
+
+	// a kind with no factory is left alone
+	h.Reconcile(t.Context(), held(op, &sqlcv1.V1Operator{ID: uuid.New(), Kind: sqlcv1.V1OperatorKindGRPC}))
+	assert.Equal(t, 1, h.host.openCount())
+	assert.Equal(t, 1, h.Running())
+}
+
+// A row that leaves the claim result is torn down in the host's order: pause, drain, close.
+func TestReconcileTearsDownLostRows(t *testing.T) {
+	h := newHarness(t)
+	op := row()
+
+	h.Reconcile(t.Context(), held(op))
+	require.Equal(t, 1, h.Running())
+
+	h.Reconcile(t.Context(), nil)
+	assert.Zero(t, h.Running())
+
+	session := h.host.session(op.ID)
+	fake := h.operator(op)
+
+	require.Eventually(t, session.Closed, eventually, time.Millisecond)
+	assert.Equal(t, []string{"pause", "close"}, session.Ops())
+	assert.True(t, fake.isDrained())
+
+	// the row coming back is hosted on a new session
+	h.Reconcile(t.Context(), held(op))
+	assert.Equal(t, 2, h.host.openCount())
+	assert.NotEqual(t, session, h.host.session(op.ID))
+}
+
+// A running row the claim returns newly taken rather than held has lost its worker: another
+// dispatcher's registration released it while this one's heartbeat lagged. It is torn down, and
+// the next result opens it again on a new session.
+func TestReconcileReopensARowItNoLongerHolds(t *testing.T) {
+	h := newHarness(t)
+	op := row()
+
+	h.Reconcile(t.Context(), taken(op))
+	require.Equal(t, 1, h.Running())
+
+	session := h.host.session(op.ID)
+
+	h.Reconcile(t.Context(), taken(op))
+	assert.Zero(t, h.Running(), "the row is torn down")
+	require.Eventually(t, session.Closed, eventually, time.Millisecond)
+	assert.Equal(t, 1, h.host.openCount(), "and not opened again in the same pass")
+
+	h.Reconcile(t.Context(), taken(op))
+	assert.Equal(t, 2, h.host.openCount())
+	assert.NotEqual(t, session, h.host.session(op.ID))
+}
+
+// The worker is paused before the operator drains, and the session is closed only after the
+// drain finished.
+func TestTeardownPausesBeforeDrainAndClosesAfter(t *testing.T) {
+	h := newHarness(t)
+	op := row()
+
+	h.mu.Lock()
+	h.operators[op.ID] = &fakeOperator{release: make(chan struct{})}
+	h.mu.Unlock()
+
+	h.Reconcile(t.Context(), held(op))
+	h.Reconcile(t.Context(), nil)
+
+	session := h.host.session(op.ID)
+	fake := h.operator(op)
+
+	require.Eventually(t, func() bool { return len(session.Ops()) == 1 }, eventually, time.Millisecond)
+	assert.Equal(t, []string{"pause"}, session.Ops(), "the pause is committed while the drain is still running")
+	assert.False(t, session.Closed())
+	assert.False(t, fake.isDrained())
+
+	close(fake.release)
+
+	require.Eventually(t, session.Closed, eventually, time.Millisecond)
+	assert.Equal(t, []string{"pause", "close"}, session.Ops())
+	assert.True(t, fake.isDrained())
+}
+
+// A row whose session cannot be opened, or whose operator does not start, is retried on the
+// next poll rather than remembered as running.
+func TestReconcileFailuresAreRetried(t *testing.T) {
+	h := newHarness(t)
+	op := row()
+
+	h.host.openErr = errors.New("no tenant")
+	h.Reconcile(t.Context(), held(op))
+	assert.Zero(t, h.Running())
+
+	h.host.openErr = nil
+	h.mu.Lock()
+	h.operators[op.ID] = &fakeOperator{startErr: errors.New("no workflows")}
+	h.mu.Unlock()
+
+	h.Reconcile(t.Context(), held(op))
+	assert.Zero(t, h.Running())
+	assert.True(t, h.host.session(op.ID).Closed(), "the session of an operator that did not start is closed")
+
+	h.mu.Lock()
+	h.operators[op.ID] = &fakeOperator{}
+	h.mu.Unlock()
+
+	h.Reconcile(t.Context(), held(op))
+	assert.Equal(t, 1, h.Running())
+}
+
+// Start polls at once and then on the interval; a failed claim changes nothing; Stop tears
+// every hosted operator down and waits for the teardowns.
+func TestStartPollsAndStopTearsDown(t *testing.T) {
+	h := newHarness(t, claimer.WithPollInterval(5*time.Millisecond))
+	a, b := row(), row()
+
+	h.claims.set(a, b)
+	h.Start(t.Context())
+
+	require.Eventually(t, func() bool { return h.Running() == 2 }, eventually, time.Millisecond)
+
+	h.claims.mu.Lock()
+	h.claims.err = errors.New("db down")
+	h.claims.mu.Unlock()
+
+	time.Sleep(20 * time.Millisecond)
+	assert.Equal(t, 2, h.Running(), "a failed claim query tears nothing down")
+
+	h.claims.mu.Lock()
+	h.claims.err = nil
+	h.claims.mu.Unlock()
+	h.claims.set(a)
+
+	require.Eventually(t, func() bool { return h.Running() == 1 }, eventually, time.Millisecond)
+	require.Eventually(t, h.host.session(b.ID).Closed, eventually, time.Millisecond)
+
+	h.Stop(t.Context())
+
+	assert.Zero(t, h.Running())
+	assert.Equal(t, []string{"pause", "close"}, h.host.session(a.ID).Ops())
+	assert.True(t, h.operator(a).isDrained())
+
+	// stopping again is a no-op, and nothing is hosted afterwards
+	h.Stop(t.Context())
+	assert.Equal(t, 2, h.host.openCount())
+}
+
+// A drain that outlives the teardown timeout does not hold the session open forever.
+func TestTeardownTimeout(t *testing.T) {
+	h := newHarness(t, claimer.WithTeardownTimeout(20*time.Millisecond))
+	op := row()
+
+	h.mu.Lock()
+	h.operators[op.ID] = &fakeOperator{release: make(chan struct{})}
+	h.mu.Unlock()
+
+	h.Reconcile(t.Context(), held(op))
+
+	h.Stop(t.Context())
+
+	assert.True(t, h.host.session(op.ID).Closed(), "the session is closed once the drain timed out")
+}
+
+// A claimed GRPC row is a contract operator the engine leases; which operator to build is
+// said by the row's name, so its factory is found by name. A GRPC row with no factory of its
+// name, or any row of a kind with no factory, is left alone.
+func TestReconcileBuildsGRPCRowsByName(t *testing.T) {
+	var built []string
+
+	named := func(op *sqlcv1.V1Operator) (operator.Operator, operator.OpenOpts, error) {
+		built = append(built, op.Name)
+		return &fakeOperator{}, operator.OpenOpts{}, nil
+	}
+
+	h := newHarness(t, claimer.WithNamedFactory("serverless", named))
+
+	serverless := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: uuid.New(), Name: "serverless", Kind: sqlcv1.V1OperatorKindGRPC, LeasingManager: sqlcv1.V1OperatorLeasingManagerDISPATCHER}
+	unknown := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: uuid.New(), Name: "nobody-builds-this", Kind: sqlcv1.V1OperatorKindGRPC, LeasingManager: sqlcv1.V1OperatorLeasingManagerDISPATCHER}
+	dag := &sqlcv1.V1Operator{ID: uuid.New(), TenantID: uuid.New(), Name: "serverless", Kind: sqlcv1.V1OperatorKindDAG, LeasingManager: sqlcv1.V1OperatorLeasingManagerDISPATCHER}
+
+	h.Reconcile(t.Context(), held(serverless, unknown, dag))
+
+	assert.Equal(t, []string{"serverless"}, built, "the named factory builds GRPC rows of its name only")
+	require.Equal(t, 1, h.host.openCount())
+	assert.Equal(t, serverless.ID, *h.host.opens[0].OperatorId, "a DISPATCHER row is opened by id")
+	assert.Equal(t, 1, h.Running())
+
+	// the rows with no factory stay unhosted on later polls without being retried
+	h.Reconcile(t.Context(), held(serverless, unknown, dag))
+	assert.Equal(t, []string{"serverless"}, built)
+	assert.Equal(t, 1, h.host.openCount())
+}
+
+// The claim asks for the kinds and GRPC names the claimer has a factory for, so the claim
+// query never hands it a row it cannot build.
+func TestClaimAsksForBuildableRows(t *testing.T) {
+	named := func(*sqlcv1.V1Operator) (operator.Operator, operator.OpenOpts, error) {
+		return &fakeOperator{}, operator.OpenOpts{}, nil
+	}
+
+	h := newHarness(t, claimer.WithNamedFactory("serverless", named))
+
+	h.Start(t.Context())
+	t.Cleanup(func() { h.Stop(context.Background()) })
+
+	var asked repository.ClaimOperatorsOpts
+
+	require.Eventually(t, func() bool {
+		var ok bool
+		asked, ok = h.claims.lastAsked()
+
+		return ok
+	}, eventually, time.Millisecond)
+
+	assert.Equal(t, []sqlcv1.V1OperatorKind{testKind}, asked.Kinds)
+	assert.Equal(t, []string{"serverless"}, asked.GRPCNames)
+}

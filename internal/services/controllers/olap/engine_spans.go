@@ -34,6 +34,7 @@ type engineSpanEvent struct {
 	workflowID         uuid.UUID
 	workflowVersionID  uuid.UUID
 	stepID             uuid.UUID
+	isDagOrchestrator  bool
 }
 
 type taskRetryKey struct {
@@ -404,6 +405,9 @@ func (tc *OLAPControllerImpl) synthesizeEngineSpans(ctx context.Context, tenantI
 	batchStartedTimes := make(map[taskRetryKey]time.Time)
 
 	for _, e := range events {
+		if e.isDagOrchestrator {
+			continue
+		}
 		switch e.eventType {
 		case sqlcv1.V1EventTypeOlapSTARTED:
 			batchStartedTimes[taskRetryKey{e.taskID, e.retryCount}] = e.eventTimestamp
@@ -417,6 +421,25 @@ func (tc *OLAPControllerImpl) synthesizeEngineSpans(ctx context.Context, tenantI
 			sqlcv1.V1EventTypeOlapTIMEDOUT,
 			sqlcv1.V1EventTypeOlapSCHEDULINGTIMEDOUT:
 			terminalEvents = append(terminalEvents, e)
+		case sqlcv1.V1EventTypeOlapRETRYING,
+			sqlcv1.V1EventTypeOlapREASSIGNED,
+			sqlcv1.V1EventTypeOlapRETRIEDBYUSER,
+			sqlcv1.V1EventTypeOlapCREATED,
+			sqlcv1.V1EventTypeOlapQUEUED,
+			sqlcv1.V1EventTypeOlapREQUEUEDNOWORKER,
+			sqlcv1.V1EventTypeOlapREQUEUEDRATELIMIT,
+			sqlcv1.V1EventTypeOlapASSIGNED,
+			sqlcv1.V1EventTypeOlapACKNOWLEDGED,
+			sqlcv1.V1EventTypeOlapSLOTRELEASED,
+			sqlcv1.V1EventTypeOlapTIMEOUTREFRESHED,
+			sqlcv1.V1EventTypeOlapRATELIMITERROR,
+			sqlcv1.V1EventTypeOlapSKIPPED,
+			sqlcv1.V1EventTypeOlapCOULDNOTSENDTOWORKER,
+			sqlcv1.V1EventTypeOlapDURABLEEVICTED,
+			sqlcv1.V1EventTypeOlapDURABLERESTORING,
+			sqlcv1.V1EventTypeOlapBATCHBUFFERED,
+			sqlcv1.V1EventTypeOlapWAITINGFORBATCH,
+			sqlcv1.V1EventTypeOlapBATCHFLUSHED:
 		}
 	}
 
@@ -555,6 +578,29 @@ func stepRunStatusMessage(e engineSpanEvent) string {
 		return "scheduling timed out"
 	case sqlcv1.V1EventTypeOlapFAILED:
 		return "task failed"
+	case sqlcv1.V1EventTypeOlapRETRYING,
+		sqlcv1.V1EventTypeOlapREASSIGNED,
+		sqlcv1.V1EventTypeOlapRETRIEDBYUSER,
+		sqlcv1.V1EventTypeOlapCREATED,
+		sqlcv1.V1EventTypeOlapQUEUED,
+		sqlcv1.V1EventTypeOlapREQUEUEDNOWORKER,
+		sqlcv1.V1EventTypeOlapREQUEUEDRATELIMIT,
+		sqlcv1.V1EventTypeOlapASSIGNED,
+		sqlcv1.V1EventTypeOlapACKNOWLEDGED,
+		sqlcv1.V1EventTypeOlapSENTTOWORKER,
+		sqlcv1.V1EventTypeOlapSLOTRELEASED,
+		sqlcv1.V1EventTypeOlapSTARTED,
+		sqlcv1.V1EventTypeOlapTIMEOUTREFRESHED,
+		sqlcv1.V1EventTypeOlapFINISHED,
+		sqlcv1.V1EventTypeOlapRATELIMITERROR,
+		sqlcv1.V1EventTypeOlapSKIPPED,
+		sqlcv1.V1EventTypeOlapCOULDNOTSENDTOWORKER,
+		sqlcv1.V1EventTypeOlapDURABLEEVICTED,
+		sqlcv1.V1EventTypeOlapDURABLERESTORING,
+		sqlcv1.V1EventTypeOlapBATCHBUFFERED,
+		sqlcv1.V1EventTypeOlapWAITINGFORBATCH,
+		sqlcv1.V1EventTypeOlapBATCHFLUSHED:
+		return ""
 	default:
 		return ""
 	}

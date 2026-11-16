@@ -10,7 +10,7 @@ module Hatchet
     # updating, bulk operations, listing, and retrieving scheduled workflow runs.
     #
     # @example Creating a scheduled workflow
-    #   scheduled = scheduled_client.create(
+    #   scheduled = hatchet.scheduled.create(
     #     workflow_name: "my-workflow",
     #     trigger_at: Time.now + 3600,
     #     input: { key: "value" },
@@ -44,7 +44,7 @@ module Hatchet
       # @return [Object] The created scheduled workflow instance
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   scheduled = scheduled_client.create(
+      #   scheduled = hatchet.scheduled.create(
       #     workflow_name: "my-workflow",
       #     trigger_at: Time.now + 3600,
       #     input: { key: "value" },
@@ -70,7 +70,7 @@ module Hatchet
       # @return [void]
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   scheduled_client.delete("scheduled-123")
+      #   hatchet.scheduled.delete("scheduled-123")
       def delete(scheduled_id)
         @workflow_api.workflow_scheduled_delete(@config.tenant_id, scheduled_id)
       end
@@ -85,7 +85,7 @@ module Hatchet
       # @return [Object] The updated scheduled workflow instance
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   scheduled_client.update("scheduled-123", trigger_at: Time.now + 7200)
+      #   hatchet.scheduled.update("scheduled-123", trigger_at: Time.now + 7200)
       def update(scheduled_id, trigger_at:)
         request = HatchetSdkRest::UpdateScheduledWorkflowRunRequest.new(
           trigger_at: trigger_at.utc.iso8601,
@@ -139,7 +139,7 @@ module Hatchet
       # @return [Object] The bulk update response containing updated IDs and per-item errors
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   scheduled_client.bulk_update([
+      #   hatchet.scheduled.bulk_update([
       #     { id: "scheduled-1", trigger_at: Time.now + 3600 },
       #     { id: "scheduled-2", trigger_at: Time.now + 7200 }
       #   ])
@@ -171,7 +171,7 @@ module Hatchet
       # @return [Object] A list of scheduled workflows matching the provided filters
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   scheduled = scheduled_client.list(limit: 10, workflow_id: "wf-1")
+      #   scheduled = hatchet.scheduled.list(limit: 10, workflow_id: "wf-1")
       def list(offset: nil, limit: nil, workflow_id: nil, parent_workflow_run_id: nil,
                statuses: nil, additional_metadata: nil, order_by_field: nil, order_by_direction: nil)
         @workflow_api.workflow_scheduled_list(
@@ -195,7 +195,7 @@ module Hatchet
       # @return [Object] The requested scheduled workflow instance
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   scheduled = scheduled_client.get("scheduled-123")
+      #   scheduled = hatchet.scheduled.get("scheduled-123")
       def get(scheduled_id)
         @workflow_api.workflow_scheduled_get(@config.tenant_id, scheduled_id)
       end

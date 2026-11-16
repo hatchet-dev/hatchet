@@ -1,0 +1,39 @@
+module Hatchet
+  module Features
+    class StreamEvent < Struct[untyped]
+      attr_accessor payload: String
+      attr_accessor cursor: String
+      attr_accessor created_at: Time?
+
+      def initialize: (payload: String, cursor: String, ?created_at: Time?) -> void
+    end
+
+    class StreamTopicMetadata < Struct[untyped]
+      attr_accessor namespace: String
+      attr_accessor topic: String
+      attr_accessor tenant_id: String
+      attr_accessor message_count: Integer
+      attr_accessor latest_cursor: String?
+      attr_accessor last_published_at: Time?
+
+      def initialize: (namespace: String, topic: String, tenant_id: String, message_count: Integer, ?latest_cursor: String?, ?last_published_at: Time?) -> void
+    end
+
+    class Streams
+      class Config < Struct[untyped]
+        attr_accessor payload_request_attempts: Integer
+        attr_accessor resubscribe_min_delay_seconds: Numeric
+        attr_accessor resubscribe_max_delay_seconds: Numeric
+
+        def initialize: (?payload_request_attempts: Integer, ?resubscribe_min_delay_seconds: Numeric, ?resubscribe_max_delay_seconds: Numeric) -> void
+      end
+
+      def initialize: (untyped rest_client, untyped channel, Hatchet::Config config, ?streams_config: Config) -> void
+      def publish: (String topic, String message, ?namespace: String, ?batch_timeout: Numeric?) -> void
+      def topic_metadata: (String topic, ?namespace: String) -> StreamTopicMetadata
+      def reset: (String topic, ?namespace: String, ?cursor: String?) -> void
+      def subscribe: (String topic, ?namespace: String, ?cursor: String?) { (StreamEvent) -> void } -> void
+                   | (String topic, ?namespace: String, ?cursor: String?) -> Enumerator[StreamEvent, void]
+    end
+  end
+end

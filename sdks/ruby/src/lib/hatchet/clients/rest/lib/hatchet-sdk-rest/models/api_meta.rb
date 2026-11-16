@@ -46,6 +46,9 @@ module HatchetSdkRest
     # the embedded worker API token, only set on authdisabled builds
     attr_accessor :auth_disabled_token
 
+    # whether this instance is running in embedded mode
+    attr_accessor :embedded
+
     # Attribute mapping from ruby-style variable name to JSON key.
     def self.attribute_map
       {
@@ -59,7 +62,8 @@ module HatchetSdkRest
         :'observability_enabled' => :'observabilityEnabled',
         :'prometheus_server_enabled' => :'prometheusServerEnabled',
         :'auth_disabled' => :'authDisabled',
-        :'auth_disabled_token' => :'authDisabledToken'
+        :'auth_disabled_token' => :'authDisabledToken',
+        :'embedded' => :'embedded'
       }
     end
 
@@ -86,7 +90,8 @@ module HatchetSdkRest
         :'observability_enabled' => :'Boolean',
         :'prometheus_server_enabled' => :'Boolean',
         :'auth_disabled' => :'Boolean',
-        :'auth_disabled_token' => :'String'
+        :'auth_disabled_token' => :'String',
+        :'embedded' => :'Boolean'
       }
     end
 
@@ -155,6 +160,10 @@ module HatchetSdkRest
       if attributes.key?(:'auth_disabled_token')
         self.auth_disabled_token = attributes[:'auth_disabled_token']
       end
+
+      if attributes.key?(:'embedded')
+        self.embedded = attributes[:'embedded']
+      end
     end
 
     # Show invalid properties with the reasons. Usually used together with valid?
@@ -187,7 +196,8 @@ module HatchetSdkRest
           observability_enabled == o.observability_enabled &&
           prometheus_server_enabled == o.prometheus_server_enabled &&
           auth_disabled == o.auth_disabled &&
-          auth_disabled_token == o.auth_disabled_token
+          auth_disabled_token == o.auth_disabled_token &&
+          embedded == o.embedded
     end
 
     # @see the `==` method
@@ -199,7 +209,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [auth, pylon_app_id, posthog, allow_signup, allow_invites, allow_create_tenant, allow_change_password, observability_enabled, prometheus_server_enabled, auth_disabled, auth_disabled_token].hash
+      [auth, pylon_app_id, posthog, allow_signup, allow_invites, allow_create_tenant, allow_change_password, observability_enabled, prometheus_server_enabled, auth_disabled, auth_disabled_token, embedded].hash
     end
 
     # Builds the object from hash

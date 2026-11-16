@@ -17,18 +17,20 @@ export function GenericError({
 
   return (
     <ErrorPageLayout
-      icon={<TriangleAlert className="h-6 w-6" />}
+      icon={<TriangleAlert className="size-4" />}
       title="Something went wrong"
       description={statusText || 'An unexpected error occurred.'}
       actions={
         <>
           <Button
+            size="sm"
             leftIcon={<RefreshCw className="h-4 w-4" />}
             onClick={() => window.location.reload()}
           >
             Reload
           </Button>
           <Button
+            size="sm"
             onClick={() => navigate({ to: appRoutes.authenticatedRoute.to })}
             variant="outline"
           >
@@ -37,13 +39,13 @@ export function GenericError({
         </>
       }
     >
-      <div className="flex justify-center">
+      <div className="flex">
         <Badge variant="secondary" className="font-mono">
           {status ?? 'error'}
         </Badge>
       </div>
 
-      <div className="mx-auto w-full max-w-prose rounded-md border bg-muted/20 p-3 text-left font-mono text-xs text-muted-foreground">
+      <div className="w-full rounded-md border bg-muted/20 p-3 text-left font-mono text-xs text-muted-foreground">
         <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground/70">
           Path
         </div>

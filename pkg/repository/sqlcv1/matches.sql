@@ -136,7 +136,9 @@ WITH match_counts AS (
         (v1_match_id, id) IN (SELECT v1_match_id, id FROM locked_conditions)
     RETURNING
         v1_match_id AS id
-), matches_with_data AS (
+), matches_with_data AS MATERIALIZED (
+    -- Materialized so the correlated aggregate below runs once per result match. Inlined, the
+    -- planner re-evaluates it for every row of the final join, which is quadratic in the batch.
     SELECT
         m.id,
         m.action,
@@ -241,6 +243,41 @@ WHERE tenant_id = @tenantId::uuid
 ORDER BY e.seen_at DESC
 ;
 
+-- name: GetActiveMatchForDurableWait :one
+WITH inputs AS (
+    SELECT
+        UNNEST(@eventKeys::text[]) AS event_key,
+        UNNEST(@eventScopes::text[]) AS event_resource_hint
+), relevant_match_conditions AS (
+    SELECT v1_match_id
+    FROM v1_match_condition
+    WHERE tenant_id = @tenantId::uuid
+        AND event_type = 'USER'
+        AND is_satisfied = FALSE
+        AND (event_key, event_resource_hint) IN (
+            SELECT event_key, event_resource_hint
+            FROM inputs
+        )
+)
+
+SELECT id
+FROM v1_match
+WHERE
+    tenant_id = @tenantId::uuid
+    AND kind = 'SIGNAL'
+    AND signal_task_id = @durableTaskId::bigint
+    AND signal_task_inserted_at = @durableTaskInsertedAt::timestamptz
+    AND signal_task_external_id = @durableTaskExternalId::uuid
+    AND durable_event_log_entry_node_id = @nodeId::bigint
+    AND durable_event_log_entry_branch_id = @branchId::bigint
+    AND is_satisfied = FALSE
+    AND id IN (
+        SELECT v1_match_id
+        FROM relevant_match_conditions
+    )
+LIMIT 1
+;
+
 -- name: CleanupMatchWithMatchConditions :exec
 WITH deleted_match_ids AS (
     DELETE FROM
@@ -257,3 +294,32 @@ DELETE FROM
     v1_match_condition
 WHERE
     v1_match_id IN (SELECT id FROM deleted_match_ids);
+
+-- name: DeleteCompletionMatchesHeldOnChildTasks :exec
+WITH input AS (
+    SELECT
+        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST(@childTaskExternalIds::UUID[]) AS child_task_external_id
+), deleted_matches AS (
+    DELETE FROM
+        v1_match m
+    USING
+        input i
+    JOIN
+        v1_match_condition mc ON mc.tenant_id = @tenantId::UUID
+        AND mc.event_type = 'INTERNAL'
+        AND mc.event_key = 'COMPLETED'
+        AND mc.is_satisfied = FALSE
+        AND mc.event_resource_hint = i.child_task_external_id::TEXT
+    WHERE
+        m.id = mc.v1_match_id
+        AND m.signal_task_id = i.durable_task_id
+        AND m.signal_task_inserted_at = i.durable_task_inserted_at
+    RETURNING
+        m.id
+)
+DELETE FROM
+    v1_match_condition
+WHERE
+    v1_match_id IN (SELECT id FROM deleted_matches);

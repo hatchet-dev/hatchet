@@ -4,6 +4,8 @@ interface BatchedItem<T> {
   originalIndices: number[];
 }
 
+const utf8 = new TextEncoder();
+
 export function batch<T>(payloads: T[], numElm: number, maxBytes: number): Array<BatchedItem<T>> {
   const batches: Array<BatchedItem<T>> = [];
 
@@ -13,7 +15,7 @@ export function batch<T>(payloads: T[], numElm: number, maxBytes: number): Array
 
   for (let i = 0; i < payloads.length; i += 1) {
     const request = payloads[i];
-    const requestSize = Buffer.byteLength(JSON.stringify(request), 'utf8');
+    const requestSize = utf8.encode(JSON.stringify(request)).byteLength;
 
     // Check if adding this request would exceed either the payload limit or batch size
     if (

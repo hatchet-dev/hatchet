@@ -4,12 +4,12 @@ import logging
 import multiprocessing.synchronize
 import signal
 import time
-import warnings
 from dataclasses import dataclass
 from datetime import timedelta
-from enum import Enum
+from enum import StrEnum
 from multiprocessing import Queue
-from typing import Any
+from queue import Empty
+from typing import TYPE_CHECKING, Any
 
 import grpc
 from aiohttp import web
@@ -17,8 +17,6 @@ from aiohttp.web_request import Request
 from aiohttp.web_response import Response
 from prometheus_client import Gauge, generate_latest
 
-from hatchet_sdk.client import Client
-from hatchet_sdk.clients.dispatcher.action_listener import ActionListener
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.dispatcher_pb2 import (
@@ -26,24 +24,31 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     ActionEventResponse,
     StepActionEventType,
 )
+from hatchet_sdk.features.workers import WorkersClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action, ActionType, BatchEventItem
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
-    ctx_step_run_id,
     ctx_task_retry_count,
+    ctx_task_run_external_id,
     ctx_worker_id,
     ctx_workflow_run_id,
 )
 from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.backoff import exp_backoff_sleep
 from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE
+from hatchet_sdk.worker.slot_usage import SharedSlotUsageByPool, read_slot_usage
+
+if TYPE_CHECKING:
+    from multiprocessing import Queue
+
+    from hatchet_sdk.clients.dispatcher.action_listener import ActionListener
 
 ACTION_EVENT_RETRY_COUNT = 5
 STARTING_UNHEALTHY_AFTER_SECONDS = 10.0
 
 
-class HealthStatus(str, Enum):
+class HealthStatus(StrEnum):
     STARTING = "STARTING"
     HEALTHY = "HEALTHY"
     UNHEALTHY = "UNHEALTHY"
@@ -55,6 +60,7 @@ class ActionEvent:
     type: Any  # TODO type
     payload: str | None
     should_not_retry: bool
+    retry_after_ms: int | None = None
 
 
 @dataclass
@@ -65,6 +71,8 @@ class QueuedBatchActionEvent:
     type: StepActionEventType
     items: list[BatchEventItem]
 
+
+MAX_EVENTS_PER_SEND_LOOP_ITERATION = 1000
 
 BLOCKED_THREAD_WARNING = "THE TIME TO START THE TASK RUN IS TOO LONG, THE EVENT LOOP MAY BE BLOCKED. See https://docs.hatchet.run/blog/warning-event-loop-blocked for details and debugging help."
 
@@ -78,12 +86,12 @@ class WorkerActionListenerProcess:
         config: ClientConfig,
         action_queue: "Queue[Action]",
         event_queue: "Queue[ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE]",
-        handle_kill: bool,
-        debug: bool,
         labels: list[WorkerLabel],
         worker_id_queue: "Queue[str]",
         stop_event: "multiprocessing.synchronize.Event",
+        shared_slot_usage_by_pool: SharedSlotUsageByPool | None = None,
     ) -> None:
+        self.shared_slot_usage_by_pool = shared_slot_usage_by_pool or {}
         self.name = name
         self.actions = actions
         self.slot_config = slot_config
@@ -92,36 +100,34 @@ class WorkerActionListenerProcess:
         self.config = config
         self.action_queue = action_queue
         self.event_queue = event_queue
-        self.debug = debug
         self.labels = labels
-        self.handle_kill = handle_kill
         self.worker_id_queue = worker_id_queue
         self._stop_event = stop_event
 
         self._health_runner: web.AppRunner | None = None
         self._listener_health_gauge: Gauge | None = None
         self._event_loop_lag_gauge: Gauge | None = None
+        self._used_slots_gauge: Gauge | None = None
+        self._slot_limit_gauge: Gauge | None = None
         self._event_loop_monitor_task: asyncio.Task[None] | None = None
         self._event_loop_last_lag_seconds: float = 0.0
         self._event_loop_blocked_since: float | None = None
-        self._waiting_steps_blocked_since: float | None = None
+        self._waiting_tasks_blocked_since: float | None = None
         self._starting_since: float = time.time()
 
         self.listener: ActionListener | None = None
         self.killing = False
         self.action_loop_task: asyncio.Task[None] | None = None
+        self.blocked_main_loop: asyncio.Task[None] | None = None
         self.event_send_loop_task: asyncio.Task[None] | None = None
         self._stop_event_task: asyncio.Task[None] | None = None
-        self.running_step_runs: dict[str, float] = {}
-        self.step_action_events: set[asyncio.Task[ActionEventResponse | None]] = set()
+        self.running_task_runs: dict[str, float] = {}
+        self.task_action_events: set[asyncio.Task[ActionEventResponse | None]] = set()
 
-        if self.debug:
+        if self.config.debug:
             logger.setLevel(logging.DEBUG)
 
-        self.client = Client(config=self.config, debug=self.debug)
-
-        # explicit no-op on SIGINT and SIGTERM because shutdown is completely controlled
-        # by the parent worker process
+        self._workers_client = WorkersClient(self.config)
         loop = asyncio.get_event_loop()
         loop.add_signal_handler(signal.SIGINT, lambda: None)
         loop.add_signal_handler(signal.SIGTERM, lambda: None)
@@ -135,24 +141,16 @@ class WorkerActionListenerProcess:
                 "hatchet_worker_event_loop_lag_seconds",
                 "Event loop lag in seconds (listener process)",
             )
-
-    @property
-    def slots(self) -> int:
-        warnings.warn(
-            "WorkerActionListenerProcess.slots is deprecated; use slot_config['default'] instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._slots
-
-    @property
-    def durable_slots(self) -> int:
-        warnings.warn(
-            "WorkerActionListenerProcess.durable_slots is deprecated; use slot_config['durable'] instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._durable_slots
+            self._used_slots_gauge = Gauge(
+                "hatchet_worker_used_slots",
+                "Slots currently used by running tasks, by slot pool",
+                ["slot_pool"],
+            )
+            self._slot_limit_gauge = Gauge(
+                "hatchet_worker_slot_limit",
+                "Configured slot limit, by slot pool",
+                ["slot_pool"],
+            )
 
     async def _monitor_event_loop(self) -> None:
         # If the loop is blocked, this coroutine itself can't run; when it resumes,
@@ -168,7 +166,7 @@ class WorkerActionListenerProcess:
             # report a continuously increasing lag value (time since first detected block).
             if (
                 timedelta(seconds=lag)
-                >= self.config.healthcheck.event_loop_block_threshold_seconds
+                >= self.config.healthcheck.event_loop_block_threshold
             ):
                 if self._event_loop_blocked_since is None:
                     self._event_loop_blocked_since = start + interval
@@ -180,9 +178,14 @@ class WorkerActionListenerProcess:
 
             if (
                 timedelta(seconds=lag)
-                < self.config.healthcheck.event_loop_block_threshold_seconds
+                < self.config.healthcheck.event_loop_block_threshold
             ):
                 self._event_loop_blocked_since = None
+
+    def _parent_is_dead(self) -> bool:
+        if (parent_process := multiprocessing.parent_process()) is None:
+            return False
+        return not parent_process.is_alive()
 
     def _starting_timed_out(self) -> bool:
         return (time.time() - self._starting_since) > STARTING_UNHEALTHY_AFTER_SECONDS
@@ -195,17 +198,17 @@ class WorkerActionListenerProcess:
         if (
             self._event_loop_blocked_since is not None
             and timedelta(seconds=(time.time() - self._event_loop_blocked_since))
-            > self.config.healthcheck.event_loop_block_threshold_seconds
+            > self.config.healthcheck.event_loop_block_threshold
         ):
             return HealthStatus.UNHEALTHY
 
-        # If steps have been waiting to start for longer than the threshold,
+        # If tasks have been waiting to start for longer than the threshold,
         # treat this as unhealthy as well (this is what triggers the
-        # "Waiting Steps" blocked-loop warning).
+        # "Waiting Tasks" blocked-loop warning).
         if (
-            self._waiting_steps_blocked_since is not None
-            and timedelta(seconds=(time.time() - self._waiting_steps_blocked_since))
-            > self.config.healthcheck.event_loop_block_threshold_seconds
+            self._waiting_tasks_blocked_since is not None
+            and timedelta(seconds=(time.time() - self._waiting_tasks_blocked_since))
+            > self.config.healthcheck.event_loop_block_threshold
         ):
             return HealthStatus.UNHEALTHY
 
@@ -239,16 +242,19 @@ class WorkerActionListenerProcess:
 
         return HealthStatus.HEALTHY if ok else HealthStatus.UNHEALTHY
 
-    async def _health_handler(self, request: Request) -> Response:
+    async def _health_handler(self, _request: Request) -> Response:
         status = self._compute_health()
         ok = status == HealthStatus.HEALTHY
 
         # Keep this response minimal because the endpoint is public.
-        response = {"status": status.value}
+        response = {
+            "status": status.value,
+            "slots": self._slot_usage_and_limit_by_pool(),
+        }
 
         return web.json_response(response, status=200 if ok else 503)
 
-    async def _metrics_handler(self, request: Request) -> Response:
+    async def _metrics_handler(self, _request: Request) -> Response:
         status = self._compute_health()
         ok = status == HealthStatus.HEALTHY
 
@@ -258,8 +264,23 @@ class WorkerActionListenerProcess:
         if self._event_loop_lag_gauge is not None:
             self._event_loop_lag_gauge.set(self._event_loop_last_lag_seconds)
 
+        for pool, slots in self._slot_usage_and_limit_by_pool().items():
+            if self._used_slots_gauge is not None:
+                self._used_slots_gauge.labels(slot_pool=pool).set(slots["used"])
+
+            if self._slot_limit_gauge is not None:
+                self._slot_limit_gauge.labels(slot_pool=pool).set(slots["limit"])
+
         # Note: this is a local Prometheus endpoint for the worker process itself.
         return web.Response(body=generate_latest(), content_type="text/plain")
+
+    def _slot_usage_and_limit_by_pool(self) -> dict[str, dict[str, int]]:
+        used_slots_by_pool = read_slot_usage(self.shared_slot_usage_by_pool)
+
+        return {
+            pool: {"used": used_slots_by_pool.get(pool, 0), "limit": limit}
+            for pool, limit in self.slot_config.items()
+        }
 
     async def start_health_server(self) -> None:
         if not self.config.healthcheck.enabled:
@@ -319,8 +340,7 @@ class WorkerActionListenerProcess:
 
     async def start(self, retry_attempt: int = 0) -> None:
         if retry_attempt > 5:
-            logger.error("could not start action listener")
-            return
+            raise RuntimeError("could not start action listener")
 
         logger.debug(f"starting action listener: {self.name}")
 
@@ -341,7 +361,7 @@ class WorkerActionListenerProcess:
             self.worker_id_queue.put(self.listener.worker_id)
         except grpc.RpcError:
             logger.exception("could not start action listener")
-            return
+            raise
 
         # Start both loops as background tasks
         self.action_loop_task = asyncio.create_task(self.start_action_loop())
@@ -350,41 +370,68 @@ class WorkerActionListenerProcess:
         self._stop_event_task = asyncio.create_task(self._wait_for_stop_event())
 
     # TODO move event methods to separate class
-    async def _get_event(self) -> ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE:
+    async def _get_event(
+        self, timeout_seconds: float
+    ) -> ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE:
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self.event_queue.get)
+        return await loop.run_in_executor(
+            None, self.event_queue.get, True, timeout_seconds
+        )
+
+    def _drain_ready_events(
+        self, first_event: ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE
+    ) -> list[ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE]:
+        events = [first_event]
+        with contextlib.suppress(Empty):
+            while len(events) < MAX_EVENTS_PER_SEND_LOOP_ITERATION:
+                events.append(self.event_queue.get_nowait())
+        return events
 
     async def start_event_send_loop(self) -> None:
-        while True:
-            event = await self._get_event()
-            if event == STOP_LOOP:
-                logger.debug("stopping event send loop...")
-                break
+        stopping = False
+        while not stopping:
+            try:
+                first_event = await self._get_event(timeout_seconds=1.0)
+            except Empty:
+                if self._parent_is_dead():
+                    logger.error("stopping event send loop, parent is dead...")
+                    # setting the stop event manually because we need to unblock the thread waiting on it in
+                    # _wait_for_stop_event and trigger the normal stop path, since the parent is dead at this point
+                    # so it can't set it for us
+                    self._stop_event.set()
+                    break
+                continue
 
-            logger.debug(f"tx: event: {event.action.action_id}/{event.type}")
-            t = asyncio.create_task(self.send_event(event))
-            self.step_action_events.add(t)
-            t.add_done_callback(lambda t: self.step_action_events.discard(t))
+            for event in self._drain_ready_events(first_event):
+                if event == STOP_LOOP:
+                    logger.debug("stopping event send loop...")
+                    stopping = True
+                    break
+
+                logger.debug(f"tx: event: {event.action.action_id}/{event.type}")
+                t = asyncio.create_task(self.send_event(event))
+                self.task_action_events.add(t)
+                t.add_done_callback(lambda t: self.task_action_events.discard(t))
 
     async def start_blocked_main_loop(self) -> None:
         threshold = 1
         while not self.killing:
             count = 0
-            for start_time in self.running_step_runs.values():
+            for start_time in self.running_task_runs.values():
                 diff = self.now() - start_time
                 if diff > threshold:
                     count += 1
 
             if count > 0:
-                if self._waiting_steps_blocked_since is None:
-                    self._waiting_steps_blocked_since = time.time()
-                blocked_for = time.time() - self._waiting_steps_blocked_since
-                # Continuously increasing "lag length" while we're blocked waiting for steps to start.
+                if self._waiting_tasks_blocked_since is None:
+                    self._waiting_tasks_blocked_since = time.time()
+                blocked_for = time.time() - self._waiting_tasks_blocked_since
+                # Continuously increasing "lag length" while we're blocked waiting for tasks to start.
                 logger.warning(
-                    f"{BLOCKED_THREAD_WARNING} Waiting Steps {count} blocked_for={blocked_for:.1f}s"
+                    f"{BLOCKED_THREAD_WARNING} Waiting Tasks {count} blocked_for={blocked_for:.1f}s"
                 )
             else:
-                self._waiting_steps_blocked_since = None
+                self._waiting_tasks_blocked_since = None
             await asyncio.sleep(1)
 
     async def send_event(
@@ -402,9 +449,9 @@ class WorkerActionListenerProcess:
                     )
                 )
 
-                self.step_action_events.add(send_batch_event_task)
+                self.task_action_events.add(send_batch_event_task)
                 send_batch_event_task.add_done_callback(
-                    lambda t: self.step_action_events.discard(t)
+                    lambda t: self.task_action_events.discard(t)
                 )
                 return
 
@@ -416,10 +463,12 @@ class WorkerActionListenerProcess:
                     # one on the action loop and one on the event loop
                     # ideally we change the first to an ack to set the time
                     if event.type == STEP_EVENT_TYPE_STARTED:
-                        if event.action.step_run_id in self.running_step_runs:
+                        if event.action.task_run_external_id in self.running_task_runs:
                             diff = (
                                 self.now()
-                                - self.running_step_runs[event.action.step_run_id]
+                                - self.running_task_runs[
+                                    event.action.task_run_external_id
+                                ]
                             )
                             if diff > 0.1:
                                 logger.warning(
@@ -427,29 +476,32 @@ class WorkerActionListenerProcess:
                                 )
                             else:
                                 logger.debug(f"start time: {diff}")
-                            del self.running_step_runs[event.action.step_run_id]
+                            del self.running_task_runs[
+                                event.action.task_run_external_id
+                            ]
                         else:
-                            self.running_step_runs[event.action.step_run_id] = (
-                                self.now()
-                            )
+                            self.running_task_runs[
+                                event.action.task_run_external_id
+                            ] = self.now()
 
                     send_started_event_task = asyncio.create_task(
-                        self.dispatcher_client.send_step_action_event(
+                        self.dispatcher_client.send_task_action_event(
                             event.action,
                             event.type,
                             event.payload,
                             event.should_not_retry,
+                            event.retry_after_ms,
                         )
                     )
 
-                    self.step_action_events.add(send_started_event_task)
+                    self.task_action_events.add(send_started_event_task)
                     send_started_event_task.add_done_callback(
-                        lambda t: self.step_action_events.discard(t)
+                        lambda t: self.task_action_events.discard(t)
                     )
                 case ActionType.CANCEL_STEP_RUN:
                     logger.debug("unimplemented event send")
                 case ActionType.START_BATCH:
-                    # START_BATCH is a coordination signal; it does not emit step action events.
+                    # START_BATCH is a coordination signal; it does not emit task action events.
                     logger.debug("skipping event send for START_BATCH")
                 case _:
                     logger.error("unknown action type for event send")
@@ -473,7 +525,7 @@ class WorkerActionListenerProcess:
                 if action is None:
                     break
 
-                ctx_step_run_id.set(action.step_run_id)
+                ctx_task_run_external_id.set(action.task_run_external_id)
                 ctx_workflow_run_id.set(action.workflow_run_id)
                 ctx_worker_id.set(action.worker_id)
                 ctx_action_key.set(action.key)
@@ -491,17 +543,19 @@ class WorkerActionListenerProcess:
                             )
                         )
                         logger.info(
-                            f"rx: start step run: {action.step_run_id}/{action.action_id}"
+                            f"rx: start task run: {action.task_run_external_id}/{action.action_id}"
                         )
 
                         # TODO handle this case better...
-                        if action.step_run_id in self.running_step_runs:
+                        if action.task_run_external_id in self.running_task_runs:
                             logger.warning(
-                                f"step run already running: {action.step_run_id}"
+                                f"task run already running: {action.task_run_external_id}"
                             )
 
                     case ActionType.CANCEL_STEP_RUN:
-                        logger.info(f"rx: cancel step run: {action.step_run_id}")
+                        logger.info(
+                            f"rx: cancel task run: {action.task_run_external_id}"
+                        )
                     case ActionType.START_BATCH:
                         logger.info(
                             f"rx: start batch: {action.action_id}/{action.batch_id} expected={action.batch_start.expected_size if action.batch_start else None}"
@@ -569,11 +623,10 @@ def worker_action_listener_process(
     config: ClientConfig,
     action_queue: "Queue[Action]",
     event_queue: "Queue[ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE]",
-    handle_kill: bool,
-    debug: bool,
     labels: list[WorkerLabel],
     worker_id_queue: "Queue[str]",
     stop_event: "multiprocessing.synchronize.Event",
+    shared_slot_usage_by_pool: SharedSlotUsageByPool | None = None,
 ) -> None:
     async def run() -> None:
         process = WorkerActionListenerProcess(
@@ -583,14 +636,17 @@ def worker_action_listener_process(
             config=config,
             action_queue=action_queue,
             event_queue=event_queue,
-            handle_kill=handle_kill,
-            debug=debug,
             labels=labels,
             worker_id_queue=worker_id_queue,
             stop_event=stop_event,
+            shared_slot_usage_by_pool=shared_slot_usage_by_pool,
         )
         await process.start_health_server()
-        await process.start()
+        try:
+            await process.start()
+        except BaseException:
+            await process.stop_health_server()
+            raise
 
         # Stay alive until the parent worker puts STOP_LOOP in the event_queue.
         # That happens only after all active task runs have finished and their
@@ -602,27 +658,28 @@ def worker_action_listener_process(
         # Drain any in-flight send_event tasks before shutting down.
         # event_send_loop creates them as fire-and-forget; if we exit before
         # they complete asyncio.run() will cancel them, dropping completion events.
-        if process.step_action_events:
+        if process.task_action_events:
             await asyncio.gather(
-                *list(process.step_action_events), return_exceptions=True
+                *list(process.task_action_events), return_exceptions=True
             )
-
         # wait for stop_event_task to finish before continuing
         if process._stop_event_task is not None and not process._stop_event_task.done():
             try:
                 await process._stop_event_task
             except Exception:
                 logger.exception("error waiting for action loop to stop")
-
         # Only now — with the action stream confirmed stopped and all tasks
         # finished before STOP_LOOP arrived — is it safe to stop heartbeating
         # and unregister from the engine.
         process.finalize_listener_cleanup()
-
         for task in [process.action_loop_task, process.blocked_main_loop]:
             if task is not None and not task.done():
                 task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await task
+
+        if process._parent_is_dead():
+            for queue in (action_queue, worker_id_queue):
+                queue.cancel_join_thread()
 
     asyncio.run(run())

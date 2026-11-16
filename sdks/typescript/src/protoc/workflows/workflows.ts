@@ -383,6 +383,18 @@ export interface PutRateLimitRequest {
 
 export interface PutRateLimitResponse {}
 
+export interface PauseRateLimitRequest {
+  /** (required) the rendered key for the rate limit */
+  key: string;
+  /** (required) runs that consume the key stay queued until this time; an earlier time never shortens an active pause */
+  pausedUntil: Date | undefined;
+}
+
+export interface PauseRateLimitResponse {
+  /** the time the key is paused until, which can be later than the requested time if it was already paused */
+  pausedUntil: Date | undefined;
+}
+
 function createBasePutWorkflowRequest(): PutWorkflowRequest {
   return { opts: undefined };
 }
@@ -2560,6 +2572,150 @@ export const PutRateLimitResponse: MessageFns<PutRateLimitResponse> = {
   },
 };
 
+function createBasePauseRateLimitRequest(): PauseRateLimitRequest {
+  return { key: '', pausedUntil: undefined };
+}
+
+export const PauseRateLimitRequest: MessageFns<PauseRateLimitRequest> = {
+  encode(message: PauseRateLimitRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.key !== '') {
+      writer.uint32(10).string(message.key);
+    }
+    if (message.pausedUntil !== undefined) {
+      Timestamp.encode(toTimestamp(message.pausedUntil), writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): PauseRateLimitRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBasePauseRateLimitRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.key = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.pausedUntil = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): PauseRateLimitRequest {
+    return {
+      key: isSet(object.key) ? globalThis.String(object.key) : '',
+      pausedUntil: isSet(object.pausedUntil)
+        ? fromJsonTimestamp(object.pausedUntil)
+        : isSet(object.paused_until)
+          ? fromJsonTimestamp(object.paused_until)
+          : undefined,
+    };
+  },
+
+  toJSON(message: PauseRateLimitRequest): unknown {
+    const obj: any = {};
+    if (message.key !== '') {
+      obj.key = message.key;
+    }
+    if (message.pausedUntil !== undefined) {
+      obj.pausedUntil = message.pausedUntil.toISOString();
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<PauseRateLimitRequest>): PauseRateLimitRequest {
+    return PauseRateLimitRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<PauseRateLimitRequest>): PauseRateLimitRequest {
+    const message = createBasePauseRateLimitRequest();
+    message.key = object.key ?? '';
+    message.pausedUntil = object.pausedUntil ?? undefined;
+    return message;
+  },
+};
+
+function createBasePauseRateLimitResponse(): PauseRateLimitResponse {
+  return { pausedUntil: undefined };
+}
+
+export const PauseRateLimitResponse: MessageFns<PauseRateLimitResponse> = {
+  encode(message: PauseRateLimitResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.pausedUntil !== undefined) {
+      Timestamp.encode(toTimestamp(message.pausedUntil), writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): PauseRateLimitResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBasePauseRateLimitResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.pausedUntil = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): PauseRateLimitResponse {
+    return {
+      pausedUntil: isSet(object.pausedUntil)
+        ? fromJsonTimestamp(object.pausedUntil)
+        : isSet(object.paused_until)
+          ? fromJsonTimestamp(object.paused_until)
+          : undefined,
+    };
+  },
+
+  toJSON(message: PauseRateLimitResponse): unknown {
+    const obj: any = {};
+    if (message.pausedUntil !== undefined) {
+      obj.pausedUntil = message.pausedUntil.toISOString();
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<PauseRateLimitResponse>): PauseRateLimitResponse {
+    return PauseRateLimitResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<PauseRateLimitResponse>): PauseRateLimitResponse {
+    const message = createBasePauseRateLimitResponse();
+    message.pausedUntil = object.pausedUntil ?? undefined;
+    return message;
+  },
+};
+
 /** WorkflowService represents a set of RPCs for managing workflows. */
 export type WorkflowServiceDefinition = typeof WorkflowServiceDefinition;
 export const WorkflowServiceDefinition = {
@@ -2606,6 +2762,14 @@ export const WorkflowServiceDefinition = {
       responseStream: false,
       options: {},
     },
+    pauseRateLimit: {
+      name: 'PauseRateLimit',
+      requestType: PauseRateLimitRequest as typeof PauseRateLimitRequest,
+      requestStream: false,
+      responseType: PauseRateLimitResponse as typeof PauseRateLimitResponse,
+      responseStream: false,
+      options: {},
+    },
   },
 } as const;
 
@@ -2630,6 +2794,10 @@ export interface WorkflowServiceImplementation<CallContextExt = {}> {
     request: PutRateLimitRequest,
     context: CallContext & CallContextExt
   ): Promise<DeepPartial<PutRateLimitResponse>>;
+  pauseRateLimit(
+    request: PauseRateLimitRequest,
+    context: CallContext & CallContextExt
+  ): Promise<DeepPartial<PauseRateLimitResponse>>;
 }
 
 export interface WorkflowServiceClient<CallOptionsExt = {}> {
@@ -2653,6 +2821,10 @@ export interface WorkflowServiceClient<CallOptionsExt = {}> {
     request: DeepPartial<PutRateLimitRequest>,
     options?: CallOptions & CallOptionsExt
   ): Promise<PutRateLimitResponse>;
+  pauseRateLimit(
+    request: DeepPartial<PauseRateLimitRequest>,
+    options?: CallOptions & CallOptionsExt
+  ): Promise<PauseRateLimitResponse>;
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;

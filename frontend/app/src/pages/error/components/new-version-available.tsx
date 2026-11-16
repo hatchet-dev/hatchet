@@ -21,13 +21,16 @@ export function NewVersionAvailable() {
 
   return (
     <ErrorPageLayout
-      icon={<CloudDownload className="h-6 w-6" />}
+      icon={<CloudDownload className="size-4" />}
       title="Update available"
       description="A new version of the app is available."
       actions={
         <>
-          <Button onClick={() => window.location.reload()}>Reload</Button>
+          <Button size="sm" onClick={() => window.location.reload()}>
+            Reload
+          </Button>
           <Button
+            size="sm"
             leftIcon={<Home className="h-4 w-4" />}
             onClick={() => navigate({ to: appRoutes.authenticatedRoute.to })}
             variant="outline"
@@ -37,13 +40,13 @@ export function NewVersionAvailable() {
         </>
       }
     >
-      <div className="flex justify-center">
+      <div className="flex">
         <Badge variant="secondary" className="font-mono">
           update
         </Badge>
       </div>
 
-      <div className="mx-auto w-full max-w-prose rounded-md border bg-muted/20 p-3 text-left font-mono text-xs text-muted-foreground">
+      <div className="w-full rounded-md border bg-muted/20 p-3 text-left font-mono text-xs text-muted-foreground">
         <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground/70">
           Path
         </div>

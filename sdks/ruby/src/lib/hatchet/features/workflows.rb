@@ -8,10 +8,10 @@ module Hatchet
     # If you're looking for runs, use the Runs client instead.
     #
     # @example Getting a workflow
-    #   workflow = workflows_client.get("workflow-id")
+    #   workflow = hatchet.workflows.get("workflow-id")
     #
     # @example Listing workflows
-    #   workflows = workflows_client.list(workflow_name: "my-workflow", limit: 10)
+    #   workflows = hatchet.workflows.list(workflow_name: "my-workflow", limit: 10)
     #
     # @since 0.1.0
     class Workflows
@@ -33,7 +33,7 @@ module Hatchet
       # @return [Object] The workflow details
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   workflow = workflows_client.get("workflow-123")
+      #   workflow = hatchet.workflows.get("workflow-123")
       def get(workflow_id)
         @workflow_api.workflow_get(workflow_id)
       end
@@ -46,7 +46,7 @@ module Hatchet
       # @return [Object] A list of workflows
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   workflows = workflows_client.list(workflow_name: "my-workflow", limit: 10, offset: 0)
+      #   workflows = hatchet.workflows.list(workflow_name: "my-workflow", limit: 10, offset: 0)
       def list(workflow_name: nil, limit: nil, offset: nil)
         @workflow_api.workflow_list(
           @config.tenant_id,
@@ -65,7 +65,7 @@ module Hatchet
       # @return [Object] The workflow version
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   version = workflows_client.get_version("workflow-123", version: "v2")
+      #   version = hatchet.workflows.get_version("workflow-123", version: "v2")
       def get_version(workflow_id, version: nil)
         @workflow_api.workflow_version_get(workflow_id, { version: version })
       end
@@ -78,9 +78,54 @@ module Hatchet
       # @return [void]
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   workflows_client.delete("workflow-123")
+      #   hatchet.workflows.delete("workflow-123")
       def delete(workflow_id)
         @workflow_api.workflow_delete(workflow_id)
+      end
+
+      # Pause a workflow. While paused, new runs of the workflow are queued but not started.
+      #
+      # @param workflow_id [String] The ID of the workflow to pause
+      # @param queue_ttl [Integer, String] How long runs stay queued while the workflow is paused before they are dropped, in seconds or as a duration string (e.g. "1h30m")
+      # @param paused_workflow_cron_run_queue_behavior [String] The behavior of cron runs triggered while the workflow is paused ("QUEUE" or "DROP")
+      # @param paused_workflow_scheduled_run_queue_behavior [String] The behavior of scheduled runs triggered while the workflow is paused ("QUEUE" or "DROP")
+      # @return [HatchetSdkRest::Workflow] The updated workflow
+      # @raise [HatchetSdkRest::ApiError] If the API request fails
+      # @example
+      #   hatchet.workflows.pause("workflow-123", queue_ttl: 3600)
+      def pause(
+        workflow_id,
+        queue_ttl:,
+        paused_workflow_cron_run_queue_behavior: HatchetSdkRest::WorkflowPauseScheduledCronRunQueueBehavior::QUEUE,
+        paused_workflow_scheduled_run_queue_behavior: HatchetSdkRest::WorkflowPauseScheduledCronRunQueueBehavior::QUEUE
+      )
+        pause_request = HatchetSdkRest::PauseWorkflowRequestPause.new(
+          action: "pause",
+          paused_workflow_queue_ttl: queue_ttl.is_a?(String) ? queue_ttl : "#{queue_ttl}s",
+          paused_workflow_cron_run_queue_behavior: paused_workflow_cron_run_queue_behavior,
+          paused_workflow_scheduled_run_queue_behavior: paused_workflow_scheduled_run_queue_behavior,
+        )
+
+        @workflow_api.workflow_update(
+          workflow_id,
+          HatchetSdkRest::WorkflowUpdateRequest.new(pause: pause_request),
+        )
+      end
+
+      # Unpause a workflow
+      #
+      # @param workflow_id [String] The ID of the workflow to unpause
+      # @return [HatchetSdkRest::Workflow] The updated workflow
+      # @raise [HatchetSdkRest::ApiError] If the API request fails
+      # @example
+      #   hatchet.workflows.unpause("workflow-123")
+      def unpause(workflow_id)
+        @workflow_api.workflow_update(
+          workflow_id,
+          HatchetSdkRest::WorkflowUpdateRequest.new(
+            pause: HatchetSdkRest::PauseWorkflowRequestUnpause.new(action: "unpause"),
+          ),
+        )
       end
     end
   end

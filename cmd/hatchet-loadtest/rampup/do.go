@@ -146,7 +146,9 @@ func do(duration time.Duration, startEventsPerSecond, amount int, increase, dela
 	}()
 
 	registered := make(chan error, 1)
+	runDone := make(chan struct{})
 	go func() {
+		defer close(runDone)
 		run(ctx, delay, concurrency, maxAcceptableDuration, hook, executed, executionTimes, registered)
 	}()
 
@@ -158,11 +160,14 @@ func do(duration time.Duration, startEventsPerSecond, amount int, increase, dela
 
 	time.Sleep(after)
 
+	// emit() has already waited for its push workers, so these are safe to close.
 	close(scheduled)
-	close(executed)
 	close(scheduledTimes)
-	close(executionTimes)
-	close(hook)
+
+	// Stop the worker before closing channels it still writes to. run()
+	// serializes those sends with the close so late callbacks cannot race.
+	cancel()
+	<-runDone
 
 	finalScheduledResult := <-scheduledResult
 	finalExecutionResult := <-executionResult

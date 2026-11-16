@@ -26,7 +26,8 @@ func newValidator() *validator.Validate {
 	validate := validator.New()
 
 	celParser := cel.NewCELParser()
-	cronParser := cron.NewParser(cron.SecondOptional | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+	// Matches the parser gocron uses in the ticker, so validation accepts exactly what the ticker can schedule.
+	cronParser := cron.NewParser(cron.SecondOptional | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
 
 	_ = validate.RegisterValidation("hatchetName", func(fl validator.FieldLevel) bool {
 		return NameRegex.MatchString(fl.Field().String())
@@ -87,6 +88,16 @@ func newValidator() *validator.Validate {
 
 	_ = validate.RegisterValidation("celsteprunstr", func(fl validator.FieldLevel) bool {
 		_, err := celParser.ParseStepRun(fl.Field().String())
+
+		return err == nil
+	})
+
+	_ = validate.RegisterValidation("celmaxrunsint", func(fl validator.FieldLevel) bool {
+		return celParser.ValidateWorkflowStringAsInt(fl.Field().String()) == nil
+	})
+
+	_ = validate.RegisterValidation("celidempotencykeystr", func(fl validator.FieldLevel) bool {
+		_, err := celParser.ParseIdempotencyKey(fl.Field().String())
 
 		return err == nil
 	})

@@ -1,9 +1,26 @@
+import { useLocalStorageState } from './use-local-storage-state';
 import api from '@/lib/api';
 import { FeatureFlagId } from '@/lib/api/generated/data-contracts';
 import { useAppContext } from '@/providers/app-context';
 import { useQuery } from '@tanstack/react-query';
 
 export { FeatureFlagId };
+
+type FeatureFlagOverrides = Partial<Record<FeatureFlagId, boolean>>;
+
+const FEATURE_FLAG_OVERRIDES_KEY = 'hatchet:dev-feature-flag-overrides';
+
+// Set from the devtools footer so flags can be flipped locally without PostHog.
+export const useFeatureFlagOverrides = () =>
+  useLocalStorageState<FeatureFlagOverrides>(FEATURE_FLAG_OVERRIDES_KEY, {});
+
+// Chosen once per build so the hook call order is stable. Production gets a
+// no-op: a stray localStorage entry can't enable unreleased features there, and
+// flag checks don't pay for storage reads or window listeners.
+const useFeatureFlagOverride: (flag: FeatureFlagId) => boolean | undefined =
+  import.meta.env.DEV
+    ? (flag) => useFeatureFlagOverrides()[0][flag]
+    : () => undefined;
 
 type UseIsFeatureEnabledResult =
   | {
@@ -23,8 +40,9 @@ export const useIsFeatureEnabled = (
   isEnabledIfNoPosthog: boolean,
 ): UseIsFeatureEnabledResult => {
   const { tenantId } = useAppContext();
+  const override = useFeatureFlagOverride(flagName);
 
-  const { data, isLoading, isFetching } = useQuery({
+  const { data, isError } = useQuery({
     queryKey: ['feature-flag', tenantId, flagName, isEnabledIfNoPosthog],
     queryFn: async () => {
       if (!tenantId) {
@@ -44,7 +62,11 @@ export const useIsFeatureEnabled = (
     refetchOnReconnect: false,
   });
 
-  if (isLoading || isFetching) {
+  if (override !== undefined) {
+    return { isEnabled: override, isLoading: false };
+  }
+
+  if (tenantId && !data && !isError) {
     // fixme: not sure if this is the right behavior here
     // should we default to `isEnabledIfNoPosthog` while loading, or should we
     // default to `false` until we know for sure?
@@ -56,6 +78,6 @@ export const useIsFeatureEnabled = (
 
   return {
     isEnabled: data?.isEnabled ?? isEnabledIfNoPosthog,
-    isLoading: isLoading || isFetching,
+    isLoading: false,
   };
 };

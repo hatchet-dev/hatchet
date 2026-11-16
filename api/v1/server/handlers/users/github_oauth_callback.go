@@ -21,6 +21,10 @@ import (
 
 // Note: we want all errors to redirect, otherwise the user will be greeted with raw JSON in the middle of the login flow.
 func (u *UserService) UserUpdateGithubOauthCallback(ctx echo.Context, _ gen.UserUpdateGithubOauthCallbackRequestObject) (gen.UserUpdateGithubOauthCallbackResponseObject, error) {
+	if u.config.Auth.ConfigFile.DirectUserLoginDisabled() || !u.config.Auth.ConfigFile.Github.Enabled {
+		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, nil, "User signup is disabled.")
+	}
+
 	isValid, _, err := authn.NewSessionHelpers(u.config.SessionStore).ValidateOAuthState(ctx, "github")
 
 	if err != nil || !isValid {
@@ -115,7 +119,7 @@ func (u *UserService) upsertGithubUserFromToken(ctx context.Context, config *ser
 
 	switch err {
 	case nil:
-		user, err = u.config.V1.User().UpdateUser(ctx, user.ID, &v1.UpdateUserOpts{
+		user, err = u.config.V1.User().UpdateUserFromOAuth(ctx, user.ID, &v1.UpdateUserOpts{
 			EmailVerified: v1.BoolPtr(gInfo.EmailVerified),
 			Name:          v1.StringPtr(gInfo.Name),
 			OAuth:         oauthOpts,

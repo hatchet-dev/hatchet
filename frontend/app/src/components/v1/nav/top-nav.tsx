@@ -54,6 +54,9 @@ import React from 'react';
 interface TopNavProps {
   user?: User;
   tenantMemberships: TenantMember[];
+  // Hides the breadcrumbs during a full-screen onboarding takeover, where they
+  // are out of context. The tenant switcher stays so tenants can be changed.
+  onboardingActive?: boolean;
 }
 
 const THEME_OPTIONS = [
@@ -67,6 +70,8 @@ function AccountDropdown({ user }: { user?: User }) {
   const { logoutMutation } = useUserUniverse();
   const { theme, setTheme } = useTheme();
   const authDisabled = useAuthDisabled();
+  const { isControlPlaneEnabled } = useControlPlane();
+  const { organizationId } = useTenantDetails();
 
   if (!user) {
     return null;
@@ -104,6 +109,16 @@ function AccountDropdown({ user }: { user?: User }) {
           <p className="truncate text-xs text-muted-foreground">{user.email}</p>
         </div>
         <DropdownMenuSeparator />
+        {isControlPlaneEnabled && organizationId && (
+          <DropdownMenuItem asChild>
+            <Link
+              to={appRoutes.organizationUserRoute.to}
+              params={{ organization: organizationId }}
+            >
+              Multifactor Auth
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSub>
           <DropdownMenuSubTrigger className="cursor-pointer">
             <ThemeIcon className="mr-2 size-4" />
@@ -144,7 +159,11 @@ function AccountDropdown({ user }: { user?: User }) {
   );
 }
 
-export default function TopNav({ user, tenantMemberships }: TopNavProps) {
+export default function TopNav({
+  user,
+  tenantMemberships,
+  onboardingActive,
+}: TopNavProps) {
   const {
     toggleSidebarOpen,
     isWide,
@@ -196,7 +215,15 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
     !!user && tenantMemberships?.length > 0 && !!tenant;
 
   return (
-    <header className="z-50 h-16 w-full  bg-background">
+    <header
+      className={cn(
+        'h-16 w-full bg-background',
+        // The onboarding overlay (z-[110]) competes directly with the header,
+        // since the content cell is not a stacking context. At z-50 it would
+        // cover the tenant switcher popover, which is a header descendant.
+        onboardingActive ? 'z-[120]' : 'z-50',
+      )}
+    >
       {/* Mobile header */}
       <div className="flex h-16 items-center px-4 md:hidden">
         <div className="flex items-center gap-3">
@@ -272,7 +299,7 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
         </div>
 
         <div className="min-w-0 px-8">
-          {breadcrumbs.length > 0 && (
+          {!onboardingActive && breadcrumbs.length > 0 && (
             <Breadcrumb>
               <BreadcrumbList>
                 {breadcrumbs.map((crumb, index) => (

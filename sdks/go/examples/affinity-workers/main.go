@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
@@ -49,7 +48,7 @@ func main() {
 				"memory": {
 					Value:      256,
 					Required:   true,
-					Comparator: types.ComparatorPtr(types.WorkerLabelComparator_LESS_THAN),
+					Comparator: hatchet.ComparatorPtr(hatchet.WorkerLabelComparatorLessThan),
 				},
 			}),
 		)

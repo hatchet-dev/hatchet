@@ -1,11 +1,14 @@
 package tasks
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
 	transformers "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
@@ -21,12 +24,19 @@ func (t *TasksService) V1DagListTasks(ctx echo.Context, request gen.V1DagListTas
 	tenantMember, err := t.config.V1.Tenant().GetTenantMemberByUserID(ctx.Request().Context(), tenantId, user.ID)
 
 	if err != nil {
+		var limitErr *fairpool.LimitError
+		if errors.As(err, &limitErr) {
+			return nil, err
+		}
+
 		return nil, unauthorized
 	}
 
 	if tenantMember == nil {
 		return nil, unauthorized
 	}
+
+	ctx.Set("tenant-member", tenantMember)
 
 	dagIds := request.Params.DagIds
 
@@ -41,7 +51,7 @@ func (t *TasksService) V1DagListTasks(ctx echo.Context, request gen.V1DagListTas
 		return nil, err
 	}
 
-	result := transformers.ToDagChildren(tasks, taskIdToDagExternalId)
+	result := transformers.ToDagChildren(tasks, taskIdToDagExternalId, transformers.WithPayloads(authz.CanViewPayloads(ctx)))
 
 	// Search for api errors to see how we handle errors in other cases
 	return gen.V1DagListTasks200JSONResponse(

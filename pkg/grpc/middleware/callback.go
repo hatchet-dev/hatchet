@@ -3,8 +3,8 @@ package middleware
 import (
 	"context"
 
+	"connectrpc.com/connect"
 	"github.com/rs/zerolog"
-	"google.golang.org/grpc"
 
 	"github.com/hatchet-dev/hatchet/pkg/constants"
 )
@@ -22,18 +22,33 @@ func TriggerCallback(ctx context.Context) {
 	}
 }
 
+// TriggerResourceCallback reports one committed resource to the request's callback. Each call
+// builds its own context, so resources reported in a loop don't share values.
+func TriggerResourceCallback(ctx context.Context, resourceType constants.ResourceTypeValue, resourceID string, correlationID *string) {
+	ctx = context.WithValue(ctx, constants.ResourceIdKey, resourceID)
+	ctx = context.WithValue(ctx, constants.ResourceTypeKey, resourceType)
+
+	if correlationID != nil {
+		ctx = context.WithValue(ctx, constants.CorrelationIdKey, *correlationID)
+	}
+
+	TriggerCallback(ctx)
+}
+
 // CallbackInterceptor creates an interceptor that can receive callbacks from handlers
-func CallbackInterceptor(logger *zerolog.Logger, onCallback func(ctx context.Context) error) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		// Store method name in context for callback
-		ctx = context.WithValue(ctx, constants.GRPCMethodKey, info.FullMethod)
+func CallbackInterceptor(logger *zerolog.Logger, onCallback func(ctx context.Context) error) connect.UnaryInterceptorFunc {
+	return func(next connect.UnaryFunc) connect.UnaryFunc {
+		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+			// Store method name in context for callback
+			ctx = context.WithValue(ctx, constants.GRPCMethodKey, req.Spec().Procedure)
 
-		ctx = WithCallback(ctx, func(callbackCtx context.Context) {
-			if err := onCallback(callbackCtx); err != nil {
-				logger.Error().Err(err).Msg("Callback error")
-			}
-		})
+			ctx = WithCallback(ctx, func(callbackCtx context.Context) {
+				if err := onCallback(callbackCtx); err != nil {
+					logger.Error().Err(err).Msg("Callback error")
+				}
+			})
 
-		return handler(ctx, req)
+			return next(ctx, req)
+		}
 	}
 }

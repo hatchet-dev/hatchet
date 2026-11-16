@@ -59,6 +59,8 @@ type SchedulingPool struct {
 
 	concurrencyResultsCh chan *ConcurrencyResults
 
+	rateLimitPausesEndedCh chan uuid.UUID
+
 	optimisticSchedulingEnabled bool
 	optimisticSemaphore         chan struct{}
 }
@@ -82,6 +84,7 @@ func NewSchedulingPool(
 ) (*SchedulingPool, func() error, error) {
 	resultsCh := make(chan *QueueResults, 1000)
 	concurrencyResultsCh := make(chan *ConcurrencyResults, 1000)
+	rateLimitPausesEndedCh := make(chan uuid.UUID, 1000)
 	semaphore := make(chan struct{}, optimisticSlots)
 
 	s := &SchedulingPool{
@@ -103,6 +106,7 @@ func NewSchedulingPool(
 		},
 		resultsCh:                   resultsCh,
 		concurrencyResultsCh:        concurrencyResultsCh,
+		rateLimitPausesEndedCh:      rateLimitPausesEndedCh,
 		setMu:                       newMu(l),
 		optimisticSchedulingEnabled: optimisticSchedulingEnabled,
 		optimisticSemaphore:         semaphore,
@@ -124,6 +128,11 @@ func (p *SchedulingPool) GetResultsCh() chan *QueueResults {
 
 func (p *SchedulingPool) GetConcurrencyResultsCh() chan *ConcurrencyResults {
 	return p.concurrencyResultsCh
+}
+
+// GetRateLimitPausesEndedCh receives a tenant id whenever one of the tenant's rate limit pauses ends
+func (p *SchedulingPool) GetRateLimitPausesEndedCh() chan uuid.UUID {
+	return p.rateLimitPausesEndedCh
 }
 
 func (p *SchedulingPool) cleanup() {
@@ -175,11 +184,9 @@ func (p *SchedulingPool) SetTenants(tenants []*sqlcv1.Tenant) {
 		p.tenants.Delete(tm.tenantId)
 	}
 
-	go func() {
-		// it is safe to cleanup tenants in a separate goroutine because we no longer have pointers to
-		// any cleaned up tenants in the map
-		p.cleanupTenants(toCleanup)
-	}()
+	// Hold setMu through cleanup so a subsequent reconciliation cannot recreate a
+	// tenant before its old manager releases leases on the shared outbox.
+	p.cleanupTenants(toCleanup)
 
 	go p.Extensions.SetTenants(tenants)
 }
@@ -224,9 +231,22 @@ func (p *SchedulingPool) NotifyConcurrency(ctx context.Context, tenantId uuid.UU
 	}
 }
 
+// NotifyRateLimitsChanged rereads the tenant's rate limits right away, so a new pause applies before the next refill
+func (p *SchedulingPool) NotifyRateLimitsChanged(ctx context.Context, tenantId uuid.UUID) {
+	if tm := p.getTenantManager(tenantId, false); tm != nil {
+		tm.notifyRateLimitsChanged(ctx)
+	}
+}
+
 func (p *SchedulingPool) NotifyNewWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) {
 	if tm := p.getTenantManager(tenantId, false); tm != nil {
 		tm.notifyNewWorker(ctx, workerId)
+	}
+}
+
+func (p *SchedulingPool) RemoveWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) {
+	if tm := p.getTenantManager(tenantId, false); tm != nil {
+		tm.removeWorker(ctx, workerId)
 	}
 }
 
@@ -247,7 +267,7 @@ func (p *SchedulingPool) getTenantManager(tenantId uuid.UUID, storeIfNotFound bo
 
 	if !ok {
 		if storeIfNotFound {
-			tm = newTenantManager(p.cf, tenantId, p.resultsCh, p.concurrencyResultsCh, p.Extensions)
+			tm = newTenantManager(p.cf, tenantId, p.resultsCh, p.concurrencyResultsCh, p.rateLimitPausesEndedCh, p.Extensions)
 			p.tenants.Store(tenantId, tm)
 		} else {
 			return nil

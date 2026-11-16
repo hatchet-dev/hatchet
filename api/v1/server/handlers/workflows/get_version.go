@@ -55,6 +55,14 @@ func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.Workf
 		return nil, fmt.Errorf("error fetching version: %s", err)
 	}
 
+	// The tenant filter in the lookup prevents cross-tenant reads; this keeps a caller from
+	// reading a version of one workflow through another workflow's path within the tenant.
+	if row.WorkflowVersion.WorkflowId != workflow.Workflow.ID {
+		return gen.WorkflowVersionGet404JSONResponse(
+			apierrors.NewAPIErrors("version not found"),
+		), nil
+	}
+
 	resp := transformers.ToWorkflowVersion(
 		&row.WorkflowVersion,
 		&workflow.Workflow,

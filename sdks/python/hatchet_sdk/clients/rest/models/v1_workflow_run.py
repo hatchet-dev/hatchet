@@ -17,7 +17,7 @@ import re  # noqa: F401
 import json
 
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
 from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
@@ -80,6 +80,11 @@ class V1WorkflowRun(BaseModel):
     parent_task_external_id: Optional[
         Annotated[str, Field(min_length=36, strict=True, max_length=36)]
     ] = Field(default=None, alias="parentTaskExternalId")
+    payloads_restricted: Optional[StrictBool] = Field(
+        default=None,
+        description="True when input, output, and event payload fields were omitted because the caller cannot view payloads. Additional metadata is still included.",
+        alias="payloadsRestricted",
+    )
     __properties: ClassVar[List[str]] = [
         "metadata",
         "status",
@@ -96,6 +101,7 @@ class V1WorkflowRun(BaseModel):
         "input",
         "createdAt",
         "parentTaskExternalId",
+        "payloadsRestricted",
     ]
 
     model_config = ConfigDict(
@@ -170,6 +176,7 @@ class V1WorkflowRun(BaseModel):
                 "input": obj.get("input"),
                 "createdAt": obj.get("createdAt"),
                 "parentTaskExternalId": obj.get("parentTaskExternalId"),
+                "payloadsRestricted": obj.get("payloadsRestricted"),
             }
         )
         return _obj

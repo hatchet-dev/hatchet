@@ -112,6 +112,9 @@ type BatchActionEventItem struct {
 
 	// a flag indicating if the task should _not_ be retried (FAILED only)
 	ShouldNotRetry *bool
+
+	// the delay in milliseconds before the next attempt (FAILED only)
+	RetryAfterMs *int64
 }
 
 // BatchActionEvent reports a single lifecycle event covering one or more members of a
@@ -233,6 +236,9 @@ type ActionEvent struct {
 
 	// If this is an error, whether to retry on failure
 	ShouldNotRetry *bool
+
+	// If this is an error, the delay in milliseconds before the next attempt
+	RetryAfterMs *int64
 }
 
 type ActionEventResponse struct {
@@ -412,6 +418,7 @@ func (d *dispatcherClientImpl) SendStepActionEvent(ctx context.Context, in *Acti
 		EventPayload:      string(payloadBytes),
 		RetryCount:        &in.RetryCount,
 		ShouldNotRetry:    in.ShouldNotRetry,
+		RetryAfterMs:      in.RetryAfterMs,
 	})
 
 	if err != nil {
@@ -452,6 +459,7 @@ func (d *dispatcherClientImpl) SendBatchActionEvent(ctx context.Context, in *Bat
 			EventPayload:      string(payloadBytes),
 			RetryCount:        item.RetryCount,
 			ShouldNotRetry:    item.ShouldNotRetry,
+			RetryAfterMs:      item.RetryAfterMs,
 		}
 	}
 

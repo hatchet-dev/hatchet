@@ -1,0 +1,292 @@
+/**
+ * Turns the user's declarations into what the handler needs: one registration request per
+ * workflow (the SDK's `CreateWorkflowVersionRequest`), the task functions keyed by action
+ * id, and the subset of action ids this endpoint serves.
+ */
+import {
+  createActionId,
+  normalizeWorkflowDefinition,
+  onFailureTaskName,
+  workflowToProto,
+} from '@hatchet-dev/typescript-sdk/edge/index.js';
+import type {
+  BaseWorkflowDeclaration,
+  Context,
+  CreateWorkflowVersionRequest,
+  DurableContext,
+  WorkflowDefinition,
+} from '@hatchet-dev/typescript-sdk/edge/index.js';
+import { isPureTask } from './declarations';
+
+export type TaskRunner = (ctx: Context<any, any>) => unknown;
+export type DurableTaskRunner = (ctx: DurableContext<any, any>) => unknown;
+
+export interface RegisteredWorkflow {
+  /** The workflow name as registered, lowercased. */
+  name: string;
+  declaration: BaseWorkflowDeclaration<any, any>;
+  /** The normalized definition the registration was built from, unsupported options removed. */
+  definition: WorkflowDefinition;
+  /** The SDK's registration request for the workflow. */
+  proto: CreateWorkflowVersionRequest;
+  /** Every action id the workflow derives, on-failure and on-success tasks included. */
+  actions: string[];
+}
+
+export interface Registry {
+  workflows: RegisteredWorkflow[];
+  /** Task functions by action id, for every non-durable task. */
+  runners: Map<string, TaskRunner>;
+  /** Action ids of durable tasks; served over the relay, never over a POST. */
+  durableActions: Set<string>;
+  /** Task functions by action id, for every durable task. */
+  durableRunners: Map<string, DurableTaskRunner>;
+  /** Action ids this endpoint serves. */
+  served: Set<string>;
+  /**
+   * Action ids of every non-durable task except the pure ones: the operator invokes them
+   * over the invocation socket rather than a POST, so they can await child runs. Advertised
+   * as `streams` in the healthcheck when the adapter can accept the socket.
+   */
+  streamActions: Set<string>;
+  /**
+   * Action ids of the tasks declared with `hatchetClient: false`: functions of their input
+   * that never talk to Hatchet, delivered over a POST and run under a context whose
+   * client-backed members throw.
+   */
+  pureActions: Set<string>;
+  hasWorkflow(workflowName: string): boolean;
+}
+
+export type ServeEntry = BaseWorkflowDeclaration<any, any> | string;
+
+/**
+ * Declaration options that need a worker. They are removed from the registration and
+ * warned about once each; the operator owns routing, slots and eviction.
+ */
+const IGNORED_TASK_OPTIONS: Record<string, string> = {
+  slotCost: 'a serverless endpoint has no worker slots',
+  slotRequests: 'a serverless endpoint has no worker slots',
+  batch: 'batch tasks are not supported; the task is registered as a plain task',
+  desiredWorkerLabels: 'worker labels do not apply; the operator routes by action id',
+  evictionPolicy: "the endpoint's inline wait budget decides when a durable task evicts",
+};
+
+const IGNORED_WORKFLOW_OPTIONS: Record<string, string> = {
+  sticky: 'sticky assignment needs a worker; the operator routes by action id',
+};
+
+type Warn = (message: string) => void;
+
+export function buildRegistry(
+  workflows: BaseWorkflowDeclaration<any, any>[],
+  serve?: ServeEntry[],
+  warn: Warn = (message) => console.warn(message)
+): Registry {
+  const ignored = new Map<string, string[]>();
+  const noteIgnored = (option: string, where: string) => {
+    const list = ignored.get(option) ?? [];
+    list.push(where);
+    ignored.set(option, list);
+  };
+
+  const registered: RegisteredWorkflow[] = [];
+  const runners = new Map<string, TaskRunner>();
+  const durableActions = new Set<string>();
+  const durableRunners = new Map<string, DurableTaskRunner>();
+  const streamActions = new Set<string>();
+  const pureActions = new Set<string>();
+  const seenNames = new Set<string>();
+
+  for (const declaration of workflows) {
+    const definition = normalizeWorkflowDefinition(sanitize(declaration.definition, noteIgnored));
+    const proto = workflowToProto(definition);
+    const { name } = definition;
+
+    if (seenNames.has(name)) {
+      throw new Error(`workflow "${name}" is declared twice`);
+    }
+
+    seenNames.add(name);
+
+    const actions: string[] = [];
+    // Action ids lowercase the task name, so two tasks may collide without sharing a name;
+    // the runner and the purity of such a pair would be whichever was declared last.
+    const declaredAs = new Map<string, string>();
+    const claim = (task: { name: string }) => {
+      const actionId = createActionId(name, task.name);
+      const previous = declaredAs.get(actionId);
+
+      if (previous !== undefined) {
+        throw new Error(
+          `workflow "${name}" declares tasks "${previous}" and "${task.name}", which share the action id "${actionId}"`
+        );
+      }
+
+      declaredAs.set(actionId, task.name);
+      actions.push(actionId);
+
+      return actionId;
+    };
+
+    for (const task of definition._tasks) {
+      const actionId = claim(task);
+
+      if (task.fn) {
+        const { fn } = task;
+        runners.set(actionId, (ctx) => fn(ctx.input, ctx as any));
+      }
+    }
+
+    // Purity is marked on the declaration's own entries, while the normalized definition
+    // holds copies of them plus the on-success task the SDK generates, so each task is
+    // matched to its entry by name. A task without an entry of its own (the on-success
+    // task) talks to Hatchet like any other and gets the socket.
+    const entries = new Map(declaration.definition._tasks.map((task) => [task.name, task]));
+
+    for (const task of definition._tasks) {
+      const actionId = createActionId(name, task.name);
+      const entry = entries.get(task.name);
+
+      if (entry && isPureTask(entry)) {
+        pureActions.add(actionId);
+      } else {
+        streamActions.add(actionId);
+      }
+    }
+
+    for (const task of definition._durableTasks) {
+      const actionId = claim(task);
+      durableActions.add(actionId);
+
+      if (task.fn) {
+        const { fn } = task;
+        durableRunners.set(actionId, (ctx) => fn(ctx.input, ctx));
+      }
+    }
+
+    const onFailureFn = definition.onFailure
+      ? typeof definition.onFailure === 'function'
+        ? definition.onFailure
+        : definition.onFailure.fn
+      : undefined;
+
+    if (onFailureFn) {
+      const actionId = onFailureTaskName(definition);
+      const previous = declaredAs.get(actionId);
+
+      if (previous !== undefined) {
+        throw new Error(
+          `workflow "${name}" declares a task "${previous}" whose action id "${actionId}" is the on-failure task's`
+        );
+      }
+
+      actions.push(actionId);
+      runners.set(actionId, (ctx) => onFailureFn(ctx.input, ctx as any));
+      // An on-failure task is a non-durable task with no option of its own.
+      streamActions.add(actionId);
+    }
+
+    registered.push({ name, declaration, definition, proto, actions });
+  }
+
+  for (const [option, where] of ignored) {
+    const reason = IGNORED_TASK_OPTIONS[option] ?? IGNORED_WORKFLOW_OPTIONS[option];
+    warn(`@hatchet-dev/serverless: ignoring "${option}" on ${where.join(', ')}: ${reason}`);
+  }
+
+  return {
+    workflows: registered,
+    runners,
+    durableActions,
+    durableRunners,
+    served: servedActions(registered, serve),
+    streamActions,
+    pureActions,
+    hasWorkflow: (workflowName) => seenNames.has(workflowName.toLowerCase()),
+  };
+}
+
+function servedActions(workflows: RegisteredWorkflow[], serve?: ServeEntry[]): Set<string> {
+  if (!serve) {
+    return new Set(workflows.flatMap((workflow) => workflow.actions));
+  }
+
+  // An empty list in the healthcheck means "every action of the declared workflows" to the
+  // operator, the opposite of what an empty `serve` asks for.
+  if (serve.length === 0) {
+    throw new Error(
+      '`serve` is empty: list the tasks this endpoint serves, or omit `serve` to serve every declared task'
+    );
+  }
+
+  const selected = new Set<string>();
+
+  for (const entry of serve) {
+    if (typeof entry === 'string') {
+      selected.add(entry.toLowerCase());
+      continue;
+    }
+
+    const workflow = workflows.find((candidate) => candidate.declaration === entry);
+
+    if (!workflow) {
+      throw new Error(`serve lists workflow "${entry.definition.name}", which is not in workflows`);
+    }
+
+    for (const actionId of workflow.actions) {
+      selected.add(actionId);
+    }
+  }
+
+  return selected;
+}
+
+/**
+ * Returns a copy of the definition with the options that need a worker removed, reporting
+ * each removal. The declaration itself is never mutated: the same declarations may also be
+ * registered by a worker elsewhere.
+ */
+function sanitize(
+  definition: WorkflowDefinition,
+  noteIgnored: (option: string, where: string) => void
+): WorkflowDefinition {
+  const copy: WorkflowDefinition = { ...definition };
+  const workflowName = definition.name;
+
+  for (const option of Object.keys(IGNORED_WORKFLOW_OPTIONS)) {
+    if ((copy as Record<string, unknown>)[option] !== undefined) {
+      noteIgnored(option, workflowName);
+      delete (copy as Record<string, unknown>)[option];
+    }
+  }
+
+  if (copy.taskDefaults?.workerLabels !== undefined) {
+    noteIgnored('desiredWorkerLabels', `${workflowName} (taskDefaults.workerLabels)`);
+    const { workerLabels: _workerLabels, ...taskDefaults } = copy.taskDefaults;
+    copy.taskDefaults = taskDefaults;
+  }
+
+  const stripTask = <T extends { name: string }>(task: T): T => {
+    const stripped = { ...task } as Record<string, unknown>;
+
+    for (const option of Object.keys(IGNORED_TASK_OPTIONS)) {
+      if (stripped[option] !== undefined) {
+        noteIgnored(option, `${workflowName}:${task.name}`);
+        delete stripped[option];
+      }
+    }
+
+    return stripped as T;
+  };
+
+  copy._tasks = definition._tasks.map(stripTask);
+  copy._durableTasks = definition._durableTasks.map(stripTask);
+
+  if (copy.onFailure && typeof copy.onFailure !== 'function') {
+    copy.onFailure = stripTask({ ...copy.onFailure, name: 'on-failure' });
+    delete (copy.onFailure as Record<string, unknown>).name;
+  }
+
+  return copy;
+}

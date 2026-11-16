@@ -324,7 +324,7 @@ function handleToolsCall(
   }
 
   if (toolName === "get_docs") {
-    return handleGetDocs();
+    return handleGetDocs(id);
   }
 
   if (toolName === "get_full_docs") {
@@ -446,7 +446,7 @@ function handleSearchDocs(
   };
 }
 
-function handleGetDocs(): JsonRpcResponse {
+function handleGetDocs(id: string | number | null): JsonRpcResponse {
   const docsPath = path.join(process.cwd(), "public", "llms.txt");
   let content = "";
   try {
@@ -454,7 +454,7 @@ function handleGetDocs(): JsonRpcResponse {
   } catch {
     return {
       jsonrpc: "2.0",
-      id: null,
+      id,
       error: {
         code: -32603,
         message: "Failed to read documentation index file",
@@ -464,7 +464,7 @@ function handleGetDocs(): JsonRpcResponse {
 
   return {
     jsonrpc: "2.0",
-    id: null,
+    id,
     result: {
       content: [{ type: "text", text: content }],
     },
@@ -494,24 +494,6 @@ function handleGetFullDocs(id: string | number | null): JsonRpcResponse {
       content: [{ type: "text", text: content }],
     },
   };
-}
-
-// ---------------------------------------------------------------------------
-// Agent instruction tools
-// ---------------------------------------------------------------------------
-const PAGES_DIR = path.join(process.cwd(), "pages", "agent-instructions");
-
-function readAgentPage(slug: string): string | null {
-  // Try generated markdown first, fall back to MDX source
-  const llmsPath = path.join(LLMS_DIR, "agent-instructions", `${slug}.md`);
-  if (fs.existsSync(llmsPath)) {
-    return fs.readFileSync(llmsPath, "utf-8");
-  }
-  const mdxPath = path.join(PAGES_DIR, `${slug}.mdx`);
-  if (fs.existsSync(mdxPath)) {
-    return fs.readFileSync(mdxPath, "utf-8");
-  }
-  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -587,39 +569,15 @@ export async function OPTIONS() {
 export async function GET(req: Request) {
   const accept = (req.headers.get("accept") || "").toLowerCase();
 
+  // NOTE: Stateless MCP servers that do not send server-initiated notifications
+  // must return 405 Method Not Allowed for SSE GET streams per the Streamable HTTP
+  // spec, otherwise clients keep reconnecting and holding serverless functions open.
   if (accept.includes("text/event-stream")) {
-    const encoder = new TextEncoder();
-    let keepAlive: ReturnType<typeof setInterval>;
-    const stream = new ReadableStream({
-      start(controller) {
-        controller.enqueue(encoder.encode(": connected\n\n"));
-        keepAlive = setInterval(() => {
-          try {
-            controller.enqueue(encoder.encode(": ping\n\n"));
-          } catch {
-            clearInterval(keepAlive);
-          }
-        }, 15_000);
-        req.signal.addEventListener("abort", () => {
-          clearInterval(keepAlive);
-          try {
-            controller.close();
-          } catch {
-            void 0;
-          }
-        });
-      },
-      cancel() {
-        clearInterval(keepAlive);
-      },
-    });
-
-    return new Response(stream, {
+    return new Response(null, {
+      status: 405,
       headers: {
         ...CORS_HEADERS,
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache, no-transform",
-        Connection: "keep-alive",
+        Allow: "POST, DELETE, OPTIONS",
       },
     });
   }

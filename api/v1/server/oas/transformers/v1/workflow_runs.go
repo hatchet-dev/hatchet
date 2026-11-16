@@ -11,8 +11,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames map[uuid.UUID]string, actionId string) gen.V1TaskSummary {
-	additionalMetadata := jsonToMap(task.AdditionalMetadata)
+func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames map[uuid.UUID]string, actionId string, opts ...PayloadOption) gen.V1TaskSummary {
+	o := applyPayloadOptions(opts)
 
 	var finishedAt *time.Time
 
@@ -34,11 +34,19 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 	}
 
 	input := jsonToMap(task.Input)
-
 	var output map[string]interface{}
+	additionalMetadata := jsonToMap(task.AdditionalMetadata)
+	additionalMetadataPtr := &additionalMetadata
+	var payloadsRestricted *bool
 
-	if len(task.Output) > 0 {
-		output = jsonToMap(task.Output)
+	if o.includePayloads {
+		if len(task.Output) > 0 {
+			output = jsonToMap(task.Output)
+		}
+	} else {
+		input = emptyJSON()
+		output = emptyJSON()
+		payloadsRestricted = boolPtr(true)
 	}
 
 	workflowVersionId := task.WorkflowVersionId
@@ -75,6 +83,11 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 
 	status, isEvicted := mapOlapStatus(string(task.ReadableStatus))
 
+	runType := gen.V1WorkflowTypeDAG
+	if task.Kind == sqlcv1.V1RunKindTASK {
+		runType = gen.V1WorkflowTypeTASK
+	}
+
 	summary := gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
 			Id:        task.ExternalID.String(),
@@ -88,7 +101,7 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 		FinishedAt:            finishedAt,
 		Input:                 input,
 		Output:                output,
-		AdditionalMetadata:    &additionalMetadata,
+		AdditionalMetadata:    additionalMetadataPtr,
 		ErrorMessage:          &task.ErrorMessage,
 		Status:                status,
 		TenantId:              task.TenantID,
@@ -97,7 +110,7 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 		TaskExternalId:        task.ExternalID,
 		TaskId:                taskId,
 		TaskInsertedAt:        task.InsertedAt.Time,
-		Type:                  gen.V1WorkflowTypeDAG,
+		Type:                  runType,
 		WorkflowName:          workflowName,
 		StepId:                &stepId,
 		ActionId:              &actionId,
@@ -106,6 +119,7 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 		Attempt:               &attempt,
 		ParentTaskExternalId:  parentTaskExternalId,
 		IdempotencyKey:        task.IdempotencyKey,
+		PayloadsRestricted:    payloadsRestricted,
 	}
 
 	if isEvicted {
@@ -121,6 +135,7 @@ func ToWorkflowRunMany(
 	taskIdToActionId map[int64]string,
 	workflowIdsToNames map[uuid.UUID]string,
 	total int, limit, offset int64,
+	opts ...PayloadOption,
 ) gen.V1TaskSummaryList {
 	toReturn := make([]gen.V1TaskSummary, len(tasks))
 
@@ -137,7 +152,7 @@ func ToWorkflowRunMany(
 			}
 		}
 
-		toReturn[i] = WorkflowRunDataToV1TaskSummary(task, workflowIdsToNames, actionId)
+		toReturn[i] = WorkflowRunDataToV1TaskSummary(task, workflowIdsToNames, actionId, opts...)
 
 		children, ok := dagExternalIdToChildren[dagExternalId]
 
@@ -160,9 +175,9 @@ func ToWorkflowRunMany(
 	}
 }
 
-func PopulateTaskRunDataRowToV1TaskSummary(task *v1.TaskWithPayloads, workflowName *string) gen.V1TaskSummary {
+func PopulateTaskRunDataRowToV1TaskSummary(task *v1.TaskWithPayloads, workflowName *string, opts ...PayloadOption) gen.V1TaskSummary {
+	o := applyPayloadOptions(opts)
 	workflowVersionID := task.WorkflowVersionID
-	additionalMetadata := jsonToMap(task.AdditionalMetadata)
 
 	var finishedAt *time.Time
 
@@ -185,6 +200,15 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *v1.TaskWithPayloads, workflowNa
 
 	input := jsonToMap(task.InputPayload)
 	output := jsonToMap(task.OutputPayload)
+	additionalMetadata := jsonToMap(task.AdditionalMetadata)
+	additionalMetadataPtr := &additionalMetadata
+	var payloadsRestricted *bool
+
+	if !o.includePayloads {
+		input = emptyJSON()
+		output = emptyJSON()
+		payloadsRestricted = boolPtr(true)
+	}
 
 	stepId := task.StepID
 
@@ -212,7 +236,7 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *v1.TaskWithPayloads, workflowNa
 		FinishedAt:            finishedAt,
 		Input:                 input,
 		Output:                output,
-		AdditionalMetadata:    &additionalMetadata,
+		AdditionalMetadata:    additionalMetadataPtr,
 		ErrorMessage:          &task.ErrorMessage.String,
 		Status:                taskStatus,
 		TenantId:              task.TenantID,
@@ -231,6 +255,7 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *v1.TaskWithPayloads, workflowNa
 		WorkflowRunExternalId: task.WorkflowRunID,
 		ParentTaskExternalId:  task.ParentTaskExternalID,
 		IdempotencyKey:        idempotencyKey,
+		PayloadsRestricted:    payloadsRestricted,
 	}
 
 	if isEvicted {
@@ -244,12 +269,13 @@ func TaskRunDataRowToWorkflowRunsMany(
 	tasks []*v1.TaskWithPayloads,
 	taskIdToWorkflowName map[int64]string,
 	total int, limit, offset int64,
+	opts ...PayloadOption,
 ) gen.V1TaskSummaryList {
 	toReturn := make([]gen.V1TaskSummary, len(tasks))
 
 	for i, task := range tasks {
 		workflowName := taskIdToWorkflowName[task.ID]
-		toReturn[i] = PopulateTaskRunDataRowToV1TaskSummary(task, &workflowName)
+		toReturn[i] = PopulateTaskRunDataRowToV1TaskSummary(task, &workflowName, opts...)
 	}
 
 	currentPage := (offset / limit) + 1

@@ -3,6 +3,7 @@ package users
 import (
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
@@ -57,12 +58,18 @@ func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdat
 	}
 
 	user, err := u.config.V1.User().UpdateUser(ctx.Request().Context(), userId, &v1.UpdateUserOpts{
-		Password: newPass,
+		Password:       newPass,
+		RevokeSessions: true,
 	})
 
 	if err != nil {
 		u.config.Logger.Err(err).Msg("failed to update user password")
 		return gen.UserUpdatePassword400JSONResponse(apierrors.NewAPIErrors(ErrInvalidCredentials)), nil
+	}
+
+	if err := authn.NewSessionHelpers(u.config.SessionStore).RotateSession(ctx); err != nil {
+		u.config.Logger.Err(err).Msg("failed to rotate session after password change")
+		return nil, err
 	}
 
 	return gen.UserUpdatePassword200JSONResponse(

@@ -245,16 +245,14 @@ func TestMultipleEvictionCycle(t *testing.T) {
 	// First eviction cycle
 	pollUntilRunStatus(t, ctx, sharedClient, ref.RunId, string(rest.V1TaskStatusRUNNING))
 	pollUntilEvicted(t, ctx, sharedClient, ref.RunId)
-	assert.True(t, hasEvictedTask(t, ctx, ref.RunId), "first eviction failed")
 
 	taskID := getFirstTaskExternalID(t, ctx, ref.RunId)
 	_, err = sharedClient.Runs().Restore(ctx, taskID)
 	require.NoError(t, err)
 
-	// Second eviction cycle
-	pollUntilRunStatus(t, ctx, sharedClient, ref.RunId, string(rest.V1TaskStatusRUNNING))
+	// Wait until the first eviction flag is cleared so the next poll is a new cycle.
+	pollUntilRestored(t, ctx, sharedClient, ref.RunId)
 	pollUntilEvicted(t, ctx, sharedClient, ref.RunId)
-	assert.True(t, hasEvictedTask(t, ctx, ref.RunId), "second eviction failed")
 
 	taskID = getFirstTaskExternalID(t, ctx, ref.RunId)
 	_, err = sharedClient.Runs().Restore(ctx, taskID)

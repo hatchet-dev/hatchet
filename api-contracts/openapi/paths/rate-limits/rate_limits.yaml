@@ -3,6 +3,7 @@ withTenant:
     x-resources: ["tenant"]
     description: Lists all rate limits for a tenant.
     operationId: rate-limit:list
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -64,6 +65,8 @@ withTenant:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: List rate limits
     tags:
       - Rate Limits
@@ -71,6 +74,7 @@ withTenant:
     x-resources: ["tenant"]
     description: Delete a rate limit for a tenant.
     operationId: rate-limit:delete
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -102,6 +106,8 @@ withTenant:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Delete rate limit
     tags:
       - Rate Limits

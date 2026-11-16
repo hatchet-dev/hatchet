@@ -46,6 +46,7 @@ export const columns = ({
   setSelectedJobId,
   isUpdatePending,
   updatingCronId,
+  canWrite,
 }: {
   tenantId: string;
   onDeleteClick: (row: CronWorkflows) => void;
@@ -55,6 +56,7 @@ export const columns = ({
   setSelectedJobId: (jobId: string | null) => void;
   isUpdatePending: boolean;
   updatingCronId: string | undefined;
+  canWrite: boolean;
 }): ColumnDef<CronWorkflows>[] => {
   return [
     {
@@ -222,28 +224,33 @@ export const columns = ({
         <div className="flex flex-row justify-center">
           <TableRowActions
             row={row.original}
-            actions={[
-              {
-                label: 'Trigger Now',
-                onClick: () => onTriggerClick(row.original),
-              },
-              {
-                label: row.original.enabled ? 'Disable' : 'Enable',
-                onClick: () => onEnableClick(row.original),
-                disabled:
-                  isUpdatePending && updatingCronId === row.original.metadata.id
-                    ? 'Update in progress'
-                    : undefined,
-              },
-              {
-                label: 'Delete',
-                onClick: () => onDeleteClick(row.original),
-                disabled:
-                  row.original.method !== 'API'
-                    ? 'This cron was created via a code definition. Delete it from the code definition instead.'
-                    : undefined,
-              },
-            ]}
+            actions={
+              canWrite
+                ? [
+                    {
+                      label: 'Trigger Now',
+                      onClick: () => onTriggerClick(row.original),
+                    },
+                    {
+                      label: row.original.enabled ? 'Disable' : 'Enable',
+                      onClick: () => onEnableClick(row.original),
+                      disabled:
+                        isUpdatePending &&
+                        updatingCronId === row.original.metadata.id
+                          ? 'Update in progress'
+                          : undefined,
+                    },
+                    {
+                      label: 'Delete',
+                      onClick: () => onDeleteClick(row.original),
+                      disabled:
+                        row.original.method !== 'API'
+                          ? 'This cron was created via a code definition. Delete it from the code definition instead.'
+                          : undefined,
+                    },
+                  ]
+                : []
+            }
           />
         </div>
       ),

@@ -6,6 +6,7 @@ import { Callout, Card, Cards, Steps, Tabs } from "@/components/nextra-compat";
 import { snippets } from "@/lib/generated/snippets";
 import { Snippet } from "@/components/code";
 import UniversalTabs from "@/components/UniversalTabs";
+import { BatchTasks } from "@/components/flow-animations/BatchTasks";
 
 # Batch Tasks
 
@@ -22,6 +23,8 @@ the batched execution is hidden. It is called, and receives output, the same way
 as a normal task. Though each batch will be executed in one handler function,
 the call site only receives output corresponding to its input, not the output
 for the entire batch.
+
+<BatchTasks />
 
 ## Batch flushing behavior
 
@@ -54,7 +57,7 @@ In the following example, the batch task will be executed once 3 tasks have accu
 
 To allow for accumulation of multiple batches simultaneously using the same workflow, batch keys can be used.
 For example, if you had multiple tenants, and wanted to ensure that each batch execution did not mix inputs from multiple
-tenants, batch keys can be used to partition the inputs. In the following example, the batches will flush independently based on the `group` value.
+tenants, batch keys can be used to partition the inputs. The batch key is a [CEL expression](/v1/cel-expressions) evaluated against the run's input and additional metadata. In the following example, the batches will flush independently based on the `group` value.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab>

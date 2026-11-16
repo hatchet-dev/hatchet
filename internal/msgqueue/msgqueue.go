@@ -43,8 +43,15 @@ const (
 	TASK_PROCESSING_QUEUE        staticQueue = "task_processing_queue_v2"
 	OLAP_QUEUE                   staticQueue = "olap_queue_v2"
 	DISPATCHER_DEAD_LETTER_QUEUE staticQueue = "dispatcher_dlq_v2"
-	TICKER_UPDATE_QUEUE          staticQueue = "ticker_update_queue_v2"
 )
+
+// RetiredQueues are static queues that no current version reads or writes. The
+// RabbitMQ backend deletes each one at startup, with its dead letter queues,
+// once nothing consumes it. Messages left in them are dropped, so only add a
+// queue whose messages are safe to lose.
+var RetiredQueues = []Queue{
+	staticQueue("ticker_update_queue_v2"),
+}
 
 func (s staticQueue) Name() string {
 	return string(s)

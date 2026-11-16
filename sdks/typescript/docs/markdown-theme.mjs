@@ -5,18 +5,18 @@ export function load(app) {
   app.renderer.defineTheme('hatchet-ts-docs', HatchetDocsTheme);
 }
 
+// Headings for `*Client` class names are auto-spaced from camel case (e.g.
+// RatelimitsClient -> "Ratelimits Client", CELClient -> "CEL Client"); this map is
+// only for genuinely irregular names that the rule must not touch.
 const HEADING_RENAMES = {
-  CronClient: 'Cron Client',
-  FiltersClient: 'Filters Client',
-  MetricsClient: 'Metrics Client',
-  RateLimitsClient: 'Rate Limits Client',
-  RunsClient: 'Runs Client',
-  LogsClient: 'Logs Client',
-  SchedulesClient: 'Schedules Client',
-  WorkersClient: 'Workers Client',
-  WorkflowsClient: 'Workflows Client',
-  WebhooksClient: 'Webhooks Client',
+  HatchetClient: 'HatchetClient',
 };
+
+function spaceCamelCase(name) {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
+}
 
 const HEADINGS_TO_REMOVE = [
   'Type Parameters',
@@ -72,7 +72,7 @@ function unescapeHeadingUnderscores(content) {
 
 function spaceOutHeadings(content) {
   return content.replace(/^(#{1,6} )(\S+)$/gm, (match, hashes, name) =>
-    hashes + (HEADING_RENAMES[name] ?? name)
+    hashes + (HEADING_RENAMES[name] ?? (name.endsWith('Client') ? spaceCamelCase(name) : name))
   );
 }
 

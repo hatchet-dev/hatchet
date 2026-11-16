@@ -17,6 +17,9 @@ export const channelFactory = (config: ClientConfig, credentials: ChannelCredent
     'grpc.keepalive_time_ms': 10 * 1000,
     // Allow keepalive pings when there are no gRPC calls.
     'grpc.keepalive_permit_without_calls': 1,
+    // Allow bounded assignment bursts while the worker event loop is busy. grpc-js
+    // applies this receive budget to both the HTTP/2 stream and connection windows.
+    'grpc-node.flow_control_window': 4 * 1024 * 1024,
     // Enable gzip compression for all calls on this channel
     'grpc.default_compression_algorithm': 2, // 2 = Gzip compression
     'grpc.max_send_message_length': config.grpc_max_send_message_length ?? 4 * 1024 * 1024,

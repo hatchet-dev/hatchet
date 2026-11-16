@@ -16,7 +16,7 @@ from pydantic import validate_call, Field, StrictFloat, StrictStr, StrictInt
 from typing import Any, Dict, List, Optional, Tuple, Union
 from typing_extensions import Annotated
 
-from pydantic import Field, StrictInt
+from pydantic import Field, StrictBool, StrictInt
 from typing import List, Optional
 from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.models.update_worker_request import UpdateWorkerRequest
@@ -102,6 +102,7 @@ class WorkerApi:
             "200": "Worker",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -173,6 +174,7 @@ class WorkerApi:
             "200": "Worker",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -244,6 +246,7 @@ class WorkerApi:
             "200": "Worker",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -326,6 +329,12 @@ class WorkerApi:
             Optional[List[Annotated[str, Field(min_length=1, strict=True)]]],
             Field(description="Filter by worker labels"),
         ] = None,
+        include_operators: Annotated[
+            Optional[StrictBool],
+            Field(
+                description="Whether to include engine-managed operator workers, which are hidden by default"
+            ),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -352,6 +361,8 @@ class WorkerApi:
         :type statuses: List[WorkerStatus]
         :param labels: Filter by worker labels
         :type labels: List[str]
+        :param include_operators: Whether to include engine-managed operator workers, which are hidden by default
+        :type include_operators: bool
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -380,6 +391,7 @@ class WorkerApi:
             limit=limit,
             statuses=statuses,
             labels=labels,
+            include_operators=include_operators,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -390,6 +402,7 @@ class WorkerApi:
             "200": "WorkerList",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -422,6 +435,12 @@ class WorkerApi:
             Optional[List[Annotated[str, Field(min_length=1, strict=True)]]],
             Field(description="Filter by worker labels"),
         ] = None,
+        include_operators: Annotated[
+            Optional[StrictBool],
+            Field(
+                description="Whether to include engine-managed operator workers, which are hidden by default"
+            ),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -448,6 +467,8 @@ class WorkerApi:
         :type statuses: List[WorkerStatus]
         :param labels: Filter by worker labels
         :type labels: List[str]
+        :param include_operators: Whether to include engine-managed operator workers, which are hidden by default
+        :type include_operators: bool
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -476,6 +497,7 @@ class WorkerApi:
             limit=limit,
             statuses=statuses,
             labels=labels,
+            include_operators=include_operators,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -486,6 +508,7 @@ class WorkerApi:
             "200": "WorkerList",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -518,6 +541,12 @@ class WorkerApi:
             Optional[List[Annotated[str, Field(min_length=1, strict=True)]]],
             Field(description="Filter by worker labels"),
         ] = None,
+        include_operators: Annotated[
+            Optional[StrictBool],
+            Field(
+                description="Whether to include engine-managed operator workers, which are hidden by default"
+            ),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -544,6 +573,8 @@ class WorkerApi:
         :type statuses: List[WorkerStatus]
         :param labels: Filter by worker labels
         :type labels: List[str]
+        :param include_operators: Whether to include engine-managed operator workers, which are hidden by default
+        :type include_operators: bool
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -572,6 +603,7 @@ class WorkerApi:
             limit=limit,
             statuses=statuses,
             labels=labels,
+            include_operators=include_operators,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -582,6 +614,7 @@ class WorkerApi:
             "200": "WorkerList",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -595,6 +628,7 @@ class WorkerApi:
         limit,
         statuses,
         labels,
+        include_operators,
         _request_auth,
         _content_type,
         _headers,
@@ -636,6 +670,10 @@ class WorkerApi:
         if labels is not None:
 
             _query_params.append(("labels", labels))
+
+        if include_operators is not None:
+
+            _query_params.append(("includeOperators", include_operators))
 
         # process the header parameters
         # process the form parameters
@@ -732,6 +770,7 @@ class WorkerApi:
             "200": "Worker",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -809,6 +848,7 @@ class WorkerApi:
             "200": "Worker",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -886,6 +926,7 @@ class WorkerApi:
             "200": "Worker",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout

@@ -2,186 +2,97 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-import { Button } from "./button";
 import { CookieIcon } from "@radix-ui/react-icons";
 import posthog from "posthog-js";
+import { useConsent } from "@/context/ConsentContext";
 
-export function cookieConsentGiven() {
-  if (!localStorage.getItem("cookie_consent")) {
-    return "undecided";
-  }
-  return localStorage.getItem("cookie_consent");
-}
-
-export default function CookieConsent({
-  variant = "default",
-  demo = false,
-  onAcceptCallback = () => {},
-  onDeclineCallback = () => {},
-}) {
+export default function CookieConsent() {
+  const { region, isHydrated, hasExplicitChoice, grantConsent, denyConsent } =
+    useConsent();
   const [isOpen, setIsOpen] = useState(false);
-  const [hide, setHide] = useState(false);
+  const [hide, setHide] = useState(true);
 
-  // Also called on mount for returning visitors (to sync localStorage from
-  // the cross-subdomain cookie), so the consent event is captured in the
-  // click handlers below, not here.
-  const accept = useCallback(() => {
+  // In the EEA, the UK and Switzerland nothing non-essential has run yet, so
+  // the banner asks. Everywhere else analytics is already on by default, so it
+  // says so and offers the way out rather than requesting permission it has
+  // already assumed.
+  const isRequest = region === "restricted";
+
+  useEffect(() => {
+    if (!isHydrated) return;
+
+    if (hasExplicitChoice) {
+      setIsOpen(false);
+      const timeout = setTimeout(() => setHide(true), 700);
+      return () => clearTimeout(timeout);
+    }
+
+    setHide(false);
+    setIsOpen(true);
+  }, [isHydrated, hasExplicitChoice]);
+
+  const dismiss = useCallback(() => {
     setIsOpen(false);
-    // eslint-disable-next-line no-restricted-syntax
-    document.cookie =
-      "cookieConsent=true; expires=Fri, 31 Dec 9999 23:59:59 GMT";
-
-    localStorage.setItem("cookie_consent", "yes");
-
-    // Dispatch custom event to notify other components
-    window.dispatchEvent(new Event("cookie-consent-change"));
-
-    setTimeout(() => {
-      setHide(true);
-    }, 700);
-    onAcceptCallback();
-  }, [onAcceptCallback]);
-
-  const decline = useCallback(() => {
-    setIsOpen(false);
-    localStorage.setItem("cookie_consent", "no");
-
-    // Dispatch custom event to notify other components
-    window.dispatchEvent(new Event("cookie-consent-change"));
-
-    setTimeout(() => {
-      setHide(true);
-    }, 700);
-    onDeclineCallback();
-  }, [onDeclineCallback]);
+    setTimeout(() => setHide(true), 700);
+  }, []);
 
   const acceptClick = useCallback(() => {
     posthog.capture("accept-cookies", { accepted: true });
-    accept();
-  }, [accept]);
+    grantConsent();
+    dismiss();
+  }, [grantConsent, dismiss]);
 
   const declineClick = useCallback(() => {
     posthog.capture("accept-cookies", { accepted: false });
-    decline();
-  }, [decline]);
+    denyConsent();
+    dismiss();
+  }, [denyConsent, dismiss]);
 
-  useEffect(() => {
-    try {
-      setIsOpen(true);
+  const body = isRequest
+    ? "We use cookies and similar technologies for analytics and marketing. You can allow these cookies or continue with only essential cookies."
+    : "We use cookies and similar technologies for analytics and marketing. They are on by default here — you can opt out at any time.";
+  const acceptLabel = isRequest ? "Accept" : "Got it";
+  const declineLabel = isRequest ? "Decline" : "Opt out";
 
-      if (
-        document.cookie.includes("cookieConsent=true") ||
-        localStorage.getItem("cookie_consent") === "yes"
-      ) {
-        accept();
-      }
-
-      if (
-        document.cookie.includes("cookieConsent=true") ||
-        localStorage.getItem("cookie_consent") === "no"
-      ) {
-        if (!demo) {
-          setIsOpen(false);
-          setTimeout(() => {
-            setHide(true);
-          }, 700);
-        }
-      }
-    } catch (e) {
-      console.error("Error checking cookie consent:", e);
-    }
-  }, [accept, demo]);
-
-  // Default banner
-  if (variant === "default") {
-    return (
-      <div
-        className={cn(
-          "fixed z-[200] bottom-0 left-0 right-0 sm:left-4 sm:bottom-4 w-full sm:max-w-md duration-700",
-          !isOpen
-            ? "transition-[opacity,transform] translate-y-8 opacity-0"
-            : "transition-[opacity,transform] translate-y-0 opacity-100",
-          hide && "hidden",
-        )}
-      >
-        <div className="dark:bg-card bg-background rounded-md m-3 border border-border shadow-lg">
-          <div className="grid gap-2">
-            <div className="border-b border-border h-14 flex items-center justify-between p-4">
-              <h1 className="text-lg font-medium">We use cookies</h1>
-              <CookieIcon className="h-[1.2rem] w-[1.2rem]" />
-            </div>
-            <div className="p-4">
-              <p className="text-sm font-normal text-start">
-                We use cookies and similar technologies for analytics and
-                marketing. You can allow these cookies or continue with only
-                essential cookies.
-                <br />
-                <br />
-                <span className="text-xs">
-                  By clicking "
-                  <span className="font-medium opacity-80">Accept</span>", you
-                  agree to our use of cookies.
-                </span>
-                <br />
-                <a
-                  href="https://hatchet.run/policies/cookie"
-                  className="text-xs underline"
-                >
-                  Learn more.
-                </a>
-              </p>
-            </div>
-            <div className="flex gap-2 p-4 py-5 border-t border-border dark:bg-background/20">
-              <Button onClick={acceptClick} className="w-full">
-                Accept
-              </Button>
-              <Button
-                onClick={declineClick}
-                className="w-full"
-                variant="secondary"
-              >
-                Decline
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Small banner variant
   return (
     <div
       className={cn(
-        "fixed z-[200] bottom-0 left-0 right-0 sm:left-4 sm:bottom-4 w-full sm:max-w-md duration-700",
-        !isOpen
-          ? "transition-[opacity,transform] translate-y-8 opacity-0"
-          : "transition-[opacity,transform] translate-y-0 opacity-100",
+        "fixed z-[200] bottom-0 left-0 right-0 sm:left-auto sm:right-4 sm:bottom-4 w-full sm:max-w-sm transition-opacity duration-700",
+        !isOpen ? "opacity-0 pointer-events-none" : "opacity-100",
         hide && "hidden",
       )}
     >
-      <div className="m-3 dark:bg-card bg-background border border-border rounded-lg">
-        <div className="flex items-center justify-between p-3">
-          <h1 className="text-lg font-medium">We use cookies</h1>
-          <CookieIcon className="h-[1.2rem] w-[1.2rem]" />
-        </div>
-        <div className="p-3 -mt-2">
-          <p className="text-sm text-left text-muted-foreground">
-            We use cookies and similar technologies for analytics and marketing.
-            You can allow these cookies or continue with only essential cookies.
+      <div className="m-3 rounded-lg border border-fd-border bg-fd-popover text-fd-popover-foreground shadow-lg">
+        <div className="p-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold">We use cookies</h2>
+            <CookieIcon className="h-4 w-4 text-fd-muted-foreground" />
+          </div>
+          <p className="mt-2 text-[13px] leading-relaxed text-fd-muted-foreground">
+            {body}{" "}
+            <a
+              href="https://hatchet.run/policies/cookie"
+              className="underline underline-offset-2 hover:text-fd-foreground"
+            >
+              Learn more.
+            </a>
           </p>
-        </div>
-        <div className="p-3 flex items-center gap-2 mt-2 border-t">
-          <Button onClick={acceptClick} className="w-full h-9 rounded-full">
-            accept
-          </Button>
-          <Button
-            onClick={declineClick}
-            className="w-full h-9 rounded-full"
-            variant="outline"
-          >
-            decline
-          </Button>
+          <div className="mt-4 flex gap-2">
+            <button
+              type="button"
+              onClick={acceptClick}
+              className="h-8 flex-1 cursor-pointer rounded-md bg-fd-primary text-[13px] font-medium text-white transition-colors hover:bg-fd-primary/90 dark:bg-white dark:text-fd-primary-foreground dark:hover:bg-white/90"
+            >
+              {acceptLabel}
+            </button>
+            <button
+              type="button"
+              onClick={declineClick}
+              className="h-8 flex-1 cursor-pointer rounded-md border border-fd-border text-[13px] font-medium text-fd-foreground transition-colors hover:bg-fd-accent"
+            >
+              {declineLabel}
+            </button>
+          </div>
         </div>
       </div>
     </div>

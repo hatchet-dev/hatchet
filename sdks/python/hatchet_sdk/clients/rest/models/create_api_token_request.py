@@ -16,7 +16,7 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, Field, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
 from typing_extensions import Annotated
 from typing import Optional, Set
@@ -31,12 +31,17 @@ class CreateAPITokenRequest(BaseModel):
     name: Annotated[str, Field(strict=True, max_length=255)] = Field(
         description="A name for the API token."
     )
+    read_only: Optional[StrictBool] = Field(
+        default=None,
+        description="Limit the token to viewer access over REST and deny all gRPC calls. Defaults to false.",
+        alias="readOnly",
+    )
     expires_in: Optional[StrictStr] = Field(
         default=None,
         description="The duration for which the token is valid.",
         alias="expiresIn",
     )
-    __properties: ClassVar[List[str]] = ["name", "expiresIn"]
+    __properties: ClassVar[List[str]] = ["name", "readOnly", "expiresIn"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -87,6 +92,10 @@ class CreateAPITokenRequest(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate(
-            {"name": obj.get("name"), "expiresIn": obj.get("expiresIn")}
+            {
+                "name": obj.get("name"),
+                "readOnly": obj.get("readOnly"),
+                "expiresIn": obj.get("expiresIn"),
+            }
         )
         return _obj

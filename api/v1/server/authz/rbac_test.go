@@ -11,16 +11,76 @@ import (
 )
 
 var adminAndOwnerOnly = []string{
+	"TenantEntitlementsUpdate",
 	"TenantInviteList",
 	"TenantInviteCreate",
 	"TenantInviteUpdate",
 	"TenantInviteDelete",
 	"TenantMemberList",
 	"TenantMemberUpdate",
-	// members cannot create API tokens for a tenant, because they have admin permissions
-	"ApiTokenList",
+	// members can list API tokens (read-only) but cannot create or revoke them, because
+	// tokens carry admin-level permissions
 	"ApiTokenCreate",
 	"ApiTokenUpdateRevoke",
+}
+
+// memberOnlyOps are operations available to MEMBER (and above) that VIEWER should not have -
+// anything that triggers, creates, updates, deletes, cancels, replays, or reruns tenant state.
+// Keep this in sync with the exclusions applied when building the VIEWER permission list in rbac.yaml.
+var memberOnlyOps = []string{
+	"ApiTokenList",
+	"StepRunUpdateCancel",
+	"TenantUpdate",
+	"WorkflowRunUpdateReplay",
+	"WorkflowScheduledBulkUpdate",
+	"SnsCreate",
+	"V1TaskCancel",
+	"V1StreamPayloadUpload",
+	"V1WebhookDelete",
+	"V1WebhookUpdate",
+	"CronWorkflowTriggerCreate",
+	"WorkerUpdate",
+	"WorkflowRunCreate",
+	"EventCreateBulk",
+	"ScheduledWorkflowRunCreate",
+	"AlertEmailGroupCreate",
+	"SnsDelete",
+	"RateLimitDelete",
+	"EventUpdateCancel",
+	"TenantCreate",
+	"WebhookCreate",
+	"V1WorkflowRunCreate",
+	"SnsUpdate",
+	"EventUpdateReplay",
+	"V1DurableTaskBranch",
+	"V1WebhookCreate",
+	"V1FilterCreate",
+	"WorkflowScheduledBulkDelete",
+	"V1FilterDelete",
+	"V1FilterUpdate",
+	"SlackWebhookDelete",
+	"UserUpdateSlackOauthStart",
+	"UserUpdateSlackOauthCallback",
+	"TenantMemberDelete",
+	"WorkflowScheduledDelete",
+	"WorkflowScheduledUpdate",
+	"WorkflowUpdate",
+	"WorkflowDelete",
+	"V1TaskReplay",
+	"V1TaskRestore",
+	"WorkflowRunCancel",
+	"WebhookDelete",
+	"AlertEmailGroupUpdate",
+	"AlertEmailGroupDelete",
+	"EventCreate",
+	"StepRunUpdateRerun",
+	"WorkflowCronDelete",
+	"WorkflowCronUpdate",
+	"WorkflowCronTrigger",
+	"WorkflowScheduledTrigger",
+	"V1ServerlessEndpointCreate",
+	"V1ServerlessEndpointUpdate",
+	"V1ServerlessEndpointDelete",
 }
 
 func operationIdsFromSpec() []string {
@@ -49,7 +109,82 @@ func TestAuthorizeTenantOperations(t *testing.T) {
 	}
 }
 
+func TestAuthorizeTenantOperationsViewer(t *testing.T) {
+	r, err := newHatchetAuthorizer()
+	assert.Nil(t, err)
+	allOperations := operationIdsFromSpec()
+	for _, operationId := range allOperations {
+		expectAuthorized := !rbac.OperationIn(operationId, adminAndOwnerOnly) && !rbac.OperationIn(operationId, memberOnlyOps)
+		assert.Equal(
+			t,
+			expectAuthorized,
+			r.IsAuthorized(string(sqlcv1.TenantMemberRoleVIEWER), operationId),
+			"operationId: %s", operationId,
+		)
+	}
+}
+
+func TestAuthorizeTenantOperationsViewerRepresentativeSample(t *testing.T) {
+	r, err := newHatchetAuthorizer()
+	assert.Nil(t, err)
+
+	deniedForViewer := []string{
+		"WorkflowRunCreate",
+		"V1TaskCancel",
+		"V1TaskReplay",
+		"EventCreate",
+		"WorkflowCronTrigger",
+		"WorkflowScheduledTrigger",
+		"RateLimitDelete",
+		"TenantUpdate",
+		"TenantMemberDelete",
+		"TenantCreate",
+	}
+	for _, operationId := range deniedForViewer {
+		assert.False(t, r.IsAuthorized(string(sqlcv1.TenantMemberRoleVIEWER), operationId), "operationId: %s", operationId)
+	}
+
+	allowedForViewer := []string{
+		"WorkflowRunList",
+		"WorkflowRunGet",
+		"V1TaskGet",
+		"TenantGet",
+		"EventList",
+		"TenantInviteAccept",
+		"TenantInviteReject",
+		"UserUpdateLogin",
+		"UserUpdateLogout",
+	}
+	for _, operationId := range allowedForViewer {
+		assert.True(t, r.IsAuthorized(string(sqlcv1.TenantMemberRoleVIEWER), operationId), "operationId: %s", operationId)
+	}
+}
+
 func TestValidateSpec(t *testing.T) {
 	_, err := newHatchetAuthorizer()
 	assert.Nil(t, err)
+}
+
+func TestAuthorizeApiTokenOperationsByRole(t *testing.T) {
+	r, err := newHatchetAuthorizer()
+	assert.Nil(t, err)
+
+	cases := []struct {
+		role   sqlcv1.TenantMemberRole
+		list   bool
+		create bool
+		revoke bool
+	}{
+		{sqlcv1.TenantMemberRoleOWNER, true, true, true},
+		{sqlcv1.TenantMemberRoleADMIN, true, true, true},
+		{sqlcv1.TenantMemberRoleMEMBER, true, false, false},
+		{sqlcv1.TenantMemberRoleVIEWER, false, false, false},
+	}
+
+	for _, c := range cases {
+		role := string(c.role)
+		assert.Equal(t, c.list, r.IsAuthorized(role, "ApiTokenList"), "role %s: ApiTokenList", role)
+		assert.Equal(t, c.create, r.IsAuthorized(role, "ApiTokenCreate"), "role %s: ApiTokenCreate", role)
+		assert.Equal(t, c.revoke, r.IsAuthorized(role, "ApiTokenUpdateRevoke"), "role %s: ApiTokenUpdateRevoke", role)
+	}
 }

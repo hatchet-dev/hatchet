@@ -3,14 +3,13 @@ import api, { controlPlaneApi } from '@/lib/api/api';
 import { OrganizationForUserList } from '@/lib/api/generated/cloud/data-contracts';
 import { TenantMember } from '@/lib/api/generated/data-contracts';
 import { useApiError } from '@/lib/hooks';
-import { appRoutes } from '@/router';
+import { reloadToLogin } from '@/lib/redirect';
 import {
   useMutation,
   UseMutationResult,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
 import { AxiosError } from 'axios';
 import { createContext, useCallback, useContext, useMemo } from 'react';
 import invariant from 'tiny-invariant';
@@ -23,6 +22,10 @@ type UserUniverse = {
   isLoaded: boolean;
   isFetching: boolean;
   organizations: OrganizationForUserList['rows'] | null;
+  // True when the control plane has not reported a free-organization cap.
+  // A missing flag stays allowed so self-hosted and first-org onboarding
+  // are unchanged.
+  canCreateOrganization: boolean;
   tenantMemberships: TenantMember[] | null;
   invalidate: () => Promise<void>;
   logoutMutation: UseMutationResult<
@@ -41,10 +44,12 @@ type UserUniverse = {
       tenantMemberships: TenantMember[];
       // null when self-hosted; rows (possibly empty) when control plane is on
       organizations: OrganizationForUserList['rows'] | null;
+      canCreateOrganization: boolean;
     }
   | {
       isLoaded: false;
       organizations: null;
+      canCreateOrganization: boolean;
       tenantMemberships: null;
     }
 );
@@ -55,6 +60,7 @@ type PossibleQueryResponses =
   | {
       isControlPlaneEnabled: true;
       organizations: OrganizationForUserList['rows'];
+      canCreateOrganization: boolean;
       tenantMemberships: TenantMember[];
     }
   | {
@@ -83,6 +89,8 @@ export const userUniverseQuery = (isControlPlaneEnabled: boolean) => ({
       ? {
           isControlPlaneEnabled,
           organizations,
+          canCreateOrganization:
+            organizationsResult?.data.canCreateOrganization !== false,
           tenantMemberships: membershipRows,
         }
       : {
@@ -100,7 +108,6 @@ export function UserUniverseProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const navigate = useNavigate();
   const { handleApiError } = useApiError({});
   const { isControlPlaneEnabled, isControlPlaneLoading } = useControlPlane();
   const tenantMembershipAndOrganizationsQuery = useQuery({
@@ -132,9 +139,7 @@ export function UserUniverseProvider({
     },
     onError: handleApiError,
     onSettled: () => {
-      // always clear on logout attempt, even if the request fails
-      queryClient.clear();
-      navigate({ to: appRoutes.authLoginRoute.to });
+      reloadToLogin();
     },
   });
 
@@ -170,6 +175,8 @@ export function UserUniverseProvider({
           isFetching,
           organizations:
             tenantMembershipAndOrganizationsQuery.data.organizations,
+          canCreateOrganization:
+            tenantMembershipAndOrganizationsQuery.data.canCreateOrganization,
           tenantMemberships:
             tenantMembershipAndOrganizationsQuery.data.tenantMemberships,
           get,
@@ -182,6 +189,7 @@ export function UserUniverseProvider({
         isLoaded: true,
         isFetching,
         organizations: null,
+        canCreateOrganization: true,
         tenantMemberships:
           tenantMembershipAndOrganizationsQuery.data.tenantMemberships,
         get,
@@ -194,6 +202,7 @@ export function UserUniverseProvider({
       isLoaded: false,
       isFetching,
       organizations: null,
+      canCreateOrganization: true,
       tenantMemberships: null,
       get,
       invalidate,

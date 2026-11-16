@@ -6,6 +6,7 @@ These are instructions for an AI agent to trigger a Hatchet workflow and poll un
 
 - A Hatchet worker must be running (`hatchet worker dev -p HATCHET_PROFILE`). If no worker is running, the task will stay QUEUED forever.
 - You must know the workflow name and have the input JSON ready.
+- These commands need a profile. If the worker runs in embedded mode for local development, trigger from code in the worker process instead; see `local-dev-embedded.md`.
 
 ## Step 1: Write Input to a Temp File
 

@@ -9,6 +9,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
@@ -93,9 +94,11 @@ func (t *WorkflowService) WorkflowScheduledList(ctx echo.Context, request gen.Wo
 
 	rows := make([]gen.ScheduledWorkflows, len(scheduled))
 
+	canViewPayloads := transformers.WithPayloads(authz.CanViewPayloads(ctx))
+
 	for i, workflow := range scheduled {
 		workflowCp := workflow
-		rows[i] = *transformers.ToScheduledWorkflowsFromSQLC(workflowCp)
+		rows[i] = *transformers.ToScheduledWorkflowsFromSQLC(workflowCp, canViewPayloads)
 	}
 
 	// use the total rows and limit to calculate the total pages

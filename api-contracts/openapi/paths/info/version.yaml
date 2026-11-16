@@ -3,12 +3,12 @@ version:
     description: Get the version of the server
     summary: We return the version for the currently running server
     operationId: info:get:version
+    x-payloads: false
     security: []
     x-security-optional: true
     responses:
       "200":
         description: The version of the server
-        required: true
         content:
           application/json:
             schema:

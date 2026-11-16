@@ -61,6 +61,12 @@ export function settingsNavGroups(opts: {
           to: appRoutes.tenantSettingsResourceLimitsRoute.to,
           params,
         },
+        {
+          key: 'labs',
+          name: 'Labs Preview',
+          to: appRoutes.tenantSettingsLabsRoute.to,
+          params,
+        },
       ],
     });
   }
@@ -111,7 +117,7 @@ export function settingsNavGroups(opts: {
           ? [
               {
                 key: 'organization-sso',
-                name: 'SSO',
+                name: 'Single Sign-On',
                 to: appRoutes.organizationSsoRoute.to,
                 params,
               },
@@ -120,9 +126,9 @@ export function settingsNavGroups(opts: {
         ...(opts.isControlPlaneEnabled
           ? [
               {
-                key: 'organization-audit-log',
-                name: 'Audit Log',
-                to: appRoutes.organizationAuditLogRoute.to,
+                key: 'organization-compliance',
+                name: 'Compliance',
+                to: appRoutes.organizationComplianceRoute.to,
                 params,
               },
             ]
@@ -137,6 +143,19 @@ export function settingsNavGroups(opts: {
               },
             ]
           : []),
+      ],
+    });
+
+    groups.push({
+      key: 'user',
+      title: 'User',
+      items: [
+        {
+          key: 'user-security',
+          name: 'Multifactor Auth',
+          to: appRoutes.organizationUserRoute.to,
+          params,
+        },
       ],
     });
   }

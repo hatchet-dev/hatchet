@@ -5,9 +5,10 @@ package client
 // Invariant tests for the reconnect handoff, driven through the public
 // listener API (the internals are a blackbox)
 //
-// The property under test:
+// The properties under test:
 //
 //	Every AddWorkflowRun that returns no error has its run ID sent to the server.
+//	A successful registration remains receivable after a clean stream stop.
 
 import (
 	"context"
@@ -32,14 +33,19 @@ import (
 
 // recordingStream is a mock subscribe stream that records every run ID it
 // accepts, so tests can assert which subscriptions each stream instance
-// received. It models the two ways a real stream dies:
+// received. It can also deliver server events (deliver) and models the ways
+// a real stream dies:
 //
-//   - breakRecv: server hangup. Recv fails, but the half-dead stream still
-//     accepts local Sends without error.
+//   - breakRecv: server hangup. Recv fails with Unavailable, but the
+//     half-dead stream still accepts local Sends without error.
 //   - breakAll: full transport failure. Sends fail too.
+//   - stopClean: server ends the stream with codes.Canceled, which the
+//     client classifies as a clean stop rather than a failure.
 type recordingStream struct {
 	onSend   func(s *recordingStream, runID string)
 	recvDead chan struct{}
+	events   chan *dispatchercontracts.WorkflowRunEvent
+	recvErr  error
 	sent     map[string]int
 	id       int
 	mu       sync.Mutex
@@ -61,11 +67,35 @@ func (s *recordingStream) Send(req *dispatchercontracts.SubscribeToWorkflowRunsR
 }
 
 func (s *recordingStream) Recv() (*dispatchercontracts.WorkflowRunEvent, error) {
-	<-s.recvDead
-	return nil, status.Error(codes.Unavailable, "recv on broken stream")
+	select {
+	case ev := <-s.events:
+		return ev, nil
+	case <-s.recvDead:
+		return nil, s.recvErr
+	}
 }
 
-func (s *recordingStream) breakRecv() { s.recvOnce.Do(func() { close(s.recvDead) }) }
+// deliver hands a server event to the stream's next Recv.
+func (s *recordingStream) deliver(ev *dispatchercontracts.WorkflowRunEvent) {
+	s.events <- ev
+}
+
+// breakRecvWith ends the receive side exactly once with the given error;
+// later calls (including CloseSend) keep the first error.
+func (s *recordingStream) breakRecvWith(err error) {
+	s.recvOnce.Do(func() {
+		s.recvErr = err
+		close(s.recvDead)
+	})
+}
+
+func (s *recordingStream) breakRecv() {
+	s.breakRecvWith(status.Error(codes.Unavailable, "recv on broken stream"))
+}
+
+func (s *recordingStream) stopClean() {
+	s.breakRecvWith(status.Error(codes.Canceled, "server ended the stream cleanly"))
+}
 
 func (s *recordingStream) breakAll() {
 	s.sendDead.Store(true)
@@ -106,6 +136,7 @@ func (f *recordingStreamFactory) constructor(context.Context) (dispatchercontrac
 		id:       len(f.streams),
 		onSend:   f.onSend,
 		recvDead: make(chan struct{}),
+		events:   make(chan *dispatchercontracts.WorkflowRunEvent, 1),
 		sent:     map[string]int{},
 	}
 	f.streams = append(f.streams, s)
@@ -142,6 +173,51 @@ func waitOrFatal(t *testing.T, ch <-chan struct{}, what string) {
 	case <-time.After(5 * time.Second):
 		t.Fatalf("timed out waiting for %s", what)
 	}
+}
+
+// TestRegistrationRemainsReceivableAfterCleanStreamStop asserts that a
+// successful AddWorkflowRun remains receivable after the current receive
+// stream stops cleanly: the listener must open a replacement stream, replay
+// the run ID, and deliver the run's event to the registered handler.
+//
+// codes.Canceled exercises the clean-stop classification (the path where a
+// pre-fix listener exited and orphaned its registrations); this does not
+// claim that this exact race caused #4711.
+func TestRegistrationRemainsReceivableAfterCleanStreamStop(t *testing.T) {
+	logger := zerolog.Nop()
+	factory := &recordingStreamFactory{}
+	listener := newTestWorkflowRunsListener(t, &logger, factory.constructor, nil)
+
+	received := make(chan WorkflowRunEvent, 1)
+	require.NoError(t, listener.AddWorkflowRun("run-1", "session-1", func(ev WorkflowRunEvent) error {
+		received <- ev
+		return nil
+	}))
+	require.Equal(t, 1, factory.count())
+	require.True(t, factory.get(0).saw("run-1"))
+
+	// The registration has succeeded; only now does the server stop the
+	// stream cleanly, so the ordering is deterministic.
+	factory.get(0).stopClean()
+
+	// Registered work must keep the listener alive: a replacement stream
+	// appears and the run ID is replayed onto it.
+	require.Eventually(t, func() bool {
+		return factory.count() >= 2 && factory.get(1).saw("run-1")
+	}, 5*time.Second, time.Millisecond,
+		"listener stopped after a clean stream stop instead of reconnecting for its registered run")
+
+	// The event delivered on the replacement stream reaches the handler
+	// registered before the stop.
+	factory.get(1).deliver(&dispatchercontracts.WorkflowRunEvent{WorkflowRunId: "run-1"})
+	select {
+	case ev := <-received:
+		assert.Equal(t, "run-1", ev.WorkflowRunId)
+	case <-time.After(5 * time.Second):
+		t.Fatal("handler registered before the clean stop never received its event")
+	}
+
+	require.NoError(t, listener.Close())
 }
 
 // TestAddWorkflowRunDuringReconnectLandsOnReplacement holds a reconnect open

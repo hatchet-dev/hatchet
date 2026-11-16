@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -46,23 +47,27 @@ func newIntervalSettingsRepository(shared *sharedRepository) IntervalSettingsRep
 }
 
 func (r *intervalSettingsRepository) ReadAllIntervals(ctx context.Context, operationId string) (map[string]time.Duration, error) {
-	intervals, err := r.queries.ListIntervalsByOperationId(ctx, r.pool, operationId)
+	intervals, err := r.queries.ListIntervalsByOperationId(ctx, r.pool.ForShared(), operationId)
 
 	if err != nil {
 		return nil, err
 	}
 
-	res := make(map[string]time.Duration)
-
-	for _, interval := range intervals {
-		res[interval.TenantID.String()] = time.Duration(interval.IntervalNanoseconds)
-	}
+	res := enumerables.ToMap(
+		intervals,
+		func(interval *sqlcv1.V1OperationIntervalSettings) string { return interval.TenantID.String() },
+		func(interval *sqlcv1.V1OperationIntervalSettings) time.Duration {
+			return time.Duration(interval.IntervalNanoseconds)
+		},
+	)
 
 	return res, nil
 }
 
 func (r *intervalSettingsRepository) ReadInterval(ctx context.Context, operationId string, tenantId uuid.UUID) (time.Duration, error) {
-	interval, err := r.queries.ReadInterval(ctx, r.pool, sqlcv1.ReadIntervalParams{
+	db := r.pool.ForTenant(tenantId)
+
+	interval, err := r.queries.ReadInterval(ctx, db, sqlcv1.ReadIntervalParams{
 		Operationid: operationId,
 		Tenantid:    tenantId,
 	})
@@ -81,7 +86,9 @@ func (r *intervalSettingsRepository) ReadInterval(ctx context.Context, operation
 }
 
 func (r *intervalSettingsRepository) SetInterval(ctx context.Context, operationId string, tenantId uuid.UUID, d time.Duration) (time.Duration, error) {
-	interval, err := r.queries.UpsertInterval(ctx, r.pool, sqlcv1.UpsertIntervalParams{
+	db := r.pool.ForTenant(tenantId)
+
+	interval, err := r.queries.UpsertInterval(ctx, db, sqlcv1.UpsertIntervalParams{
 		Intervalnanoseconds: int64(d),
 		Operationid:         operationId,
 		Tenantid:            tenantId,

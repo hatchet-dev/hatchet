@@ -20,7 +20,11 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 from hatchet_sdk.clients.rest.models.job import Job
+from hatchet_sdk.clients.rest.models.workflow_pause_scheduled_cron_run_queue_behavior import (
+    WorkflowPauseScheduledCronRunQueueBehavior,
+)
 from hatchet_sdk.clients.rest.models.workflow_tag import WorkflowTag
+from hatchet_sdk.clients.rest.models.workflow_triggers import WorkflowTriggers
 from typing import Optional, Set
 from typing_extensions import Self
 
@@ -38,6 +42,20 @@ class Workflow(BaseModel):
     is_paused: Optional[StrictBool] = Field(
         default=None, description="Whether the workflow is paused.", alias="isPaused"
     )
+    paused_workflow_cron_run_queue_behavior: Optional[
+        WorkflowPauseScheduledCronRunQueueBehavior
+    ] = Field(
+        default=None,
+        description="The behavior of cron runs triggered while the workflow is paused.",
+        alias="pausedWorkflowCronRunQueueBehavior",
+    )
+    paused_workflow_scheduled_run_queue_behavior: Optional[
+        WorkflowPauseScheduledCronRunQueueBehavior
+    ] = Field(
+        default=None,
+        description="The behavior of scheduled runs triggered while the workflow is paused.",
+        alias="pausedWorkflowScheduledRunQueueBehavior",
+    )
     versions: Optional[List[WorkflowVersionMeta]] = None
     tags: Optional[List[WorkflowTag]] = Field(
         default=None, description="The tags of the workflow."
@@ -48,15 +66,22 @@ class Workflow(BaseModel):
     tenant_id: StrictStr = Field(
         description="The tenant id of the workflow.", alias="tenantId"
     )
+    triggers: Optional[WorkflowTriggers] = Field(
+        default=None,
+        description="The event and cron triggers declared on the latest workflow version.",
+    )
     __properties: ClassVar[List[str]] = [
         "metadata",
         "name",
         "description",
         "isPaused",
+        "pausedWorkflowCronRunQueueBehavior",
+        "pausedWorkflowScheduledRunQueueBehavior",
         "versions",
         "tags",
         "jobs",
         "tenantId",
+        "triggers",
     ]
 
     model_config = ConfigDict(
@@ -120,6 +145,9 @@ class Workflow(BaseModel):
                 if _item_jobs:
                     _items.append(_item_jobs.to_dict())
             _dict["jobs"] = _items
+        # override the default output from pydantic by calling `to_dict()` of triggers
+        if self.triggers:
+            _dict["triggers"] = self.triggers.to_dict()
         return _dict
 
     @classmethod
@@ -141,6 +169,12 @@ class Workflow(BaseModel):
                 "name": obj.get("name"),
                 "description": obj.get("description"),
                 "isPaused": obj.get("isPaused"),
+                "pausedWorkflowCronRunQueueBehavior": obj.get(
+                    "pausedWorkflowCronRunQueueBehavior"
+                ),
+                "pausedWorkflowScheduledRunQueueBehavior": obj.get(
+                    "pausedWorkflowScheduledRunQueueBehavior"
+                ),
                 "versions": (
                     [WorkflowVersionMeta.from_dict(_item) for _item in obj["versions"]]
                     if obj.get("versions") is not None
@@ -157,6 +191,11 @@ class Workflow(BaseModel):
                     else None
                 ),
                 "tenantId": obj.get("tenantId"),
+                "triggers": (
+                    WorkflowTriggers.from_dict(obj["triggers"])
+                    if obj.get("triggers") is not None
+                    else None
+                ),
             }
         )
         return _obj

@@ -1,0 +1,233 @@
+package repository
+
+import (
+	"context"
+	"errors"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+)
+
+type OperatorRepository interface {
+	CreateOperator(ctx context.Context, tenantId uuid.UUID, opts CreateOperatorOpts) (*sqlcv1.V1Operator, error)
+	GetOperatorById(ctx context.Context, operatorId uuid.UUID) (*sqlcv1.V1Operator, error)
+	ListOperators(ctx context.Context, tenantId uuid.UUID, opts ListOperatorsOpts) ([]*sqlcv1.V1Operator, int64, error)
+	UpdateOperator(ctx context.Context, tenantId, operatorId uuid.UUID, opts UpdateOperatorOpts) (*sqlcv1.V1Operator, error)
+	DeleteOperator(ctx context.Context, tenantId, operatorId uuid.UUID) (*sqlcv1.V1Operator, error)
+
+	// ClaimOperators returns the DISPATCHER rows this dispatcher should run, among the ones opts
+	// says it can build: every row it holds, through an active worker of the row on it, marked
+	// Held, plus rows with a free replica, up to its fair share of the replicas across live
+	// dispatchers. It does not create workers; the claimer registers one per claimed row through
+	// the operator service, and the worker's operatorId is what later polls see as the assignment.
+	ClaimOperators(ctx context.Context, dispatcherId uuid.UUID, opts ClaimOperatorsOpts) ([]*sqlcv1.ClaimOperatorsRow, error)
+
+	// UpsertOperator registers an operator by (tenant, name, kind), returning the existing row
+	// on repeat registrations with its leasing manager set to the one given. Each registration
+	// owns its own worker, created through WorkerRepository.CreateNewWorker with
+	// CreateWorkerOpts.OperatorId and linked via "Worker"."operatorId".
+	UpsertOperator(ctx context.Context, tenantId uuid.UUID, opts UpsertOperatorOpts) (*sqlcv1.V1Operator, error)
+
+	// ListDAGOrchestrationActions returns the orchestration action IDs ("{name}_orchestrator")
+	// for all DAG workflows of a tenant. The DAG operator polls this to keep its registered
+	// actions in sync with the tenant's DAGs.
+	ListDAGOrchestrationActions(ctx context.Context, tenantId uuid.UUID) ([]string, error)
+
+	// CountEvictedDAGOrchestratorRuns returns the number of DAG orchestrator runs for the
+	// tenant that are currently evicted while waiting on durable events. They hold no worker
+	// slots, so this is the only way to see how many runs the DAG operator has in flight.
+	CountEvictedDAGOrchestratorRuns(ctx context.Context, tenantId uuid.UUID) (int64, error)
+}
+
+type operatorRepository struct {
+	*sharedRepository
+}
+
+func newOperatorRepository(shared *sharedRepository) OperatorRepository {
+	return &operatorRepository{
+		sharedRepository: shared,
+	}
+}
+
+type CreateOperatorOpts struct {
+	Name string                `json:"name" validate:"required"`
+	Kind sqlcv1.V1OperatorKind `json:"kind" validate:"required,oneof=DAG GRPC"`
+
+	// LeasingManager is who keeps the operator alive: for a DISPATCHER row the dispatcher claims
+	// the row and builds the operator from a factory, a SELF row registers its own workers.
+	LeasingManager sqlcv1.V1OperatorLeasingManager `json:"leasing_manager" validate:"required,oneof=SELF DISPATCHER"`
+	Config         []byte                          `json:"config" validate:"required"`
+}
+
+func (r *operatorRepository) CreateOperator(ctx context.Context, tenantId uuid.UUID, opts CreateOperatorOpts) (*sqlcv1.V1Operator, error) {
+	return r.createOperatorTxs(ctx, r.pool.ForTenant(tenantId), tenantId, opts)
+}
+
+func (s *sharedRepository) createOperatorTxs(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, opts CreateOperatorOpts) (*sqlcv1.V1Operator, error) {
+	if err := s.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	operator, err := s.queries.CreateOperator(ctx, tx, sqlcv1.CreateOperatorParams{
+		Tenantid:       tenantId,
+		Name:           opts.Name,
+		Kind:           opts.Kind,
+		LeasingManager: opts.LeasingManager,
+		Config:         opts.Config,
+	})
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+
+	return operator, err
+}
+
+type UpsertOperatorOpts struct {
+	Name string                `validate:"required"`
+	Kind sqlcv1.V1OperatorKind `validate:"required,oneof=DAG GRPC"`
+
+	// LeasingManager is what the row is set to whether it is created or found.
+	LeasingManager sqlcv1.V1OperatorLeasingManager `validate:"required,oneof=SELF DISPATCHER"`
+}
+
+func (r *operatorRepository) UpsertOperator(ctx context.Context, tenantId uuid.UUID, opts UpsertOperatorOpts) (*sqlcv1.V1Operator, error) {
+	db := r.pool.ForTenant(tenantId)
+
+	if err := r.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	return r.queries.UpsertOperator(ctx, db, sqlcv1.UpsertOperatorParams{
+		Tenantid:       tenantId,
+		Name:           opts.Name,
+		Kind:           opts.Kind,
+		LeasingManager: opts.LeasingManager,
+	})
+}
+
+func (r *operatorRepository) GetOperatorById(ctx context.Context, operatorId uuid.UUID) (*sqlcv1.V1Operator, error) {
+	return r.queries.GetOperator(ctx, r.pool.ForShared(), operatorId)
+}
+
+type ListOperatorsOpts struct {
+	// Kind optionally filters to a single operator kind.
+	Kind   *sqlcv1.V1OperatorKind `json:"kind"`
+	Limit  int64                  `json:"limit" validate:"omitnil,min=1"`
+	Offset int64                  `json:"offset" validate:"omitnil,min=0"`
+}
+
+func (r *operatorRepository) ListOperators(ctx context.Context, tenantId uuid.UUID, opts ListOperatorsOpts) ([]*sqlcv1.V1Operator, int64, error) {
+	db := r.pool.ForTenant(tenantId)
+
+	if err := r.v.Validate(opts); err != nil {
+		return nil, 0, err
+	}
+
+	kind := nullOperatorKind(opts.Kind)
+
+	operators, err := r.queries.ListOperators(ctx, db, sqlcv1.ListOperatorsParams{
+		Tenantid:       tenantId,
+		Kind:           kind,
+		Operatorlimit:  opts.Limit,
+		Operatoroffset: opts.Offset,
+	})
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	count, err := r.queries.CountOperators(ctx, db, sqlcv1.CountOperatorsParams{
+		Tenantid: tenantId,
+		Kind:     kind,
+	})
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return operators, count, nil
+}
+
+type UpdateOperatorOpts struct {
+	Name   *string `json:"name"`
+	Config []byte  `json:"config"`
+}
+
+func (r *operatorRepository) UpdateOperator(ctx context.Context, tenantId, operatorId uuid.UUID, opts UpdateOperatorOpts) (*sqlcv1.V1Operator, error) {
+	db := r.pool.ForTenant(tenantId)
+
+	params := sqlcv1.UpdateOperatorParams{
+		Tenantid: tenantId,
+		ID:       operatorId,
+		Config:   opts.Config,
+	}
+
+	if opts.Name != nil {
+		params.Name = pgtype.Text{
+			String: *opts.Name,
+			Valid:  true,
+		}
+	}
+
+	return r.queries.UpdateOperator(ctx, db, params)
+}
+
+func (r *operatorRepository) DeleteOperator(ctx context.Context, tenantId, operatorId uuid.UUID) (*sqlcv1.V1Operator, error) {
+	db := r.pool.ForTenant(tenantId)
+
+	return r.queries.DeleteOperator(ctx, db, sqlcv1.DeleteOperatorParams{
+		Tenantid: tenantId,
+		ID:       operatorId,
+	})
+}
+
+// nullOperatorKind maps an optional kind filter to the nullable sqlc type.
+func nullOperatorKind(kind *sqlcv1.V1OperatorKind) sqlcv1.NullV1OperatorKind {
+	if kind == nil {
+		return sqlcv1.NullV1OperatorKind{}
+	}
+
+	return sqlcv1.NullV1OperatorKind{
+		V1OperatorKind: *kind,
+		Valid:          true,
+	}
+}
+
+// ClaimOperatorsOpts is what the claiming dispatcher can build.
+type ClaimOperatorsOpts struct {
+	// Kinds are the kinds built by kind. GRPC rows are built by name only, whatever Kinds says.
+	Kinds []sqlcv1.V1OperatorKind
+
+	// GRPCNames are the names of the GRPC rows, contract operators, built in process.
+	GRPCNames []string
+}
+
+func (r *operatorRepository) ClaimOperators(ctx context.Context, dispatcherId uuid.UUID, opts ClaimOperatorsOpts) ([]*sqlcv1.ClaimOperatorsRow, error) {
+	kinds := make([]string, len(opts.Kinds))
+
+	for i, kind := range opts.Kinds {
+		kinds[i] = string(kind)
+	}
+
+	return r.queries.ClaimOperators(ctx, r.pool.ForShared(), sqlcv1.ClaimOperatorsParams{
+		Dispatcherid: dispatcherId,
+		Kinds:        kinds,
+		Grpcnames:    opts.GRPCNames,
+	})
+}
+
+func (r *operatorRepository) ListDAGOrchestrationActions(ctx context.Context, tenantId uuid.UUID) ([]string, error) {
+	db := r.pool.ForTenant(tenantId)
+
+	return r.queries.ListDAGOrchestrationActionsForTenant(ctx, db, tenantId)
+}
+
+func (r *operatorRepository) CountEvictedDAGOrchestratorRuns(ctx context.Context, tenantId uuid.UUID) (int64, error) {
+	db := r.pool.ForTenant(tenantId)
+
+	return r.queries.CountEvictedDAGOrchestratorRuns(ctx, db, tenantId)
+}

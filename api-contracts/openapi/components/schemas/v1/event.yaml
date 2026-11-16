@@ -34,6 +34,7 @@ V1Event:
       type: object
       description: Additional metadata for the event.
     payload:
+      x-payload: true
       type: object
       description: The payload of the event, which can be any JSON-serializable object.
     scope:
@@ -51,6 +52,9 @@ V1Event:
     triggeringWebhookName:
       type: string
       description: The name of the webhook that triggered this event, if applicable.
+    payloadsRestricted:
+      type: boolean
+      description: True when the event payload was omitted because the caller cannot view payloads. Additional metadata is still included.
 
   required:
     - metadata

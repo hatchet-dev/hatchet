@@ -34,8 +34,9 @@ repos:
       - id: check-yaml
         exclude: (^examples/|^cmd/hatchet-cli/cli/templates/)
   - repo: https://github.com/golangci/golangci-lint
-    rev: v2.12.2
+    rev: v2.15.0
     hooks:
       - id: golangci-lint
-        args: ["--config=.golangci.yml", "--allow-parallel-runners"]
+        entry: bash hack/dev/golangci-lint-changed-packages.sh
+        pass_filenames: true
         exclude: ^(examples/|sdks/guides/go/|sdks/go/examples/)

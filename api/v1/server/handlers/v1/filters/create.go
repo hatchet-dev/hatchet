@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
@@ -51,7 +52,7 @@ func (t *V1FiltersService) V1FilterCreate(ctx echo.Context, request gen.V1Filter
 		return nil, fmt.Errorf("failed to create filter")
 	}
 
-	transformed := transformers.ToV1Filter(filter)
+	transformed := transformers.ToV1Filter(filter, transformers.WithPayloads(authz.CanViewPayloads(ctx)))
 
 	return gen.V1FilterCreate200JSONResponse(transformed), nil
 }

@@ -1,6 +1,7 @@
 import { config } from './config';
 import { NotFound } from './pages/error/components/not-found';
 import ErrorBoundary from './pages/error/index.tsx';
+import { concurrencySearchSchema } from './pages/main/v1/concurrency/search';
 import Root from './pages/root.tsx';
 import { userUniverseQuery } from './providers/user-universe';
 import api, { TenantMember } from '@/lib/api';
@@ -70,6 +71,21 @@ const authRegisterRoute = createRoute({
   ),
 });
 
+const authMFARoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'auth/mfa',
+  component: lazyRouteComponent(() => import('./pages/auth/mfa'), 'default'),
+});
+
+const authMagicLinkRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'auth/magic-link',
+  component: lazyRouteComponent(
+    () => import('./pages/auth/magic-link'),
+    'default',
+  ),
+});
+
 const onboardingVerifyRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'onboarding/verify-email',
@@ -87,12 +103,6 @@ const onboardingVerifyRoute = createRoute({
     () => import('./pages/onboarding/verify-email'),
     'default',
   ),
-});
-
-const redeemOffersRoute = createRoute({
-  getParentRoute: () => authenticatedRoute,
-  path: 'redeem',
-  component: lazyRouteComponent(() => import('./pages/redeem'), 'default'),
 });
 
 const organizationsRoute = createRoute({
@@ -187,9 +197,29 @@ const organizationSsoRoute = createRoute({
 const organizationAuditLogRoute = createRoute({
   getParentRoute: () => organizationSettingsLayoutRoute,
   path: 'audit-log',
+  loader: ({ params }) => {
+    throw redirect({
+      to: appRoutes.organizationComplianceRoute.to,
+      params,
+    });
+  },
+});
+
+const organizationComplianceRoute = createRoute({
+  getParentRoute: () => organizationSettingsLayoutRoute,
+  path: 'compliance',
   component: lazyRouteComponent(
     () => import('./pages/organizations/$organization/sections'),
-    'OrganizationAuditLogPage',
+    'OrganizationCompliancePage',
+  ),
+});
+
+const organizationUserRoute = createRoute({
+  getParentRoute: () => organizationSettingsLayoutRoute,
+  path: 'user',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/settings/user'),
+    'default',
   ),
 });
 
@@ -311,7 +341,7 @@ const organizationLegacyAuditLogRoute = createRoute({
   path: 'audit-log',
   loader: ({ params }) => {
     throw redirect({
-      to: appRoutes.organizationAuditLogRoute.to,
+      to: appRoutes.organizationComplianceRoute.to,
       params,
     });
   },
@@ -538,6 +568,25 @@ const tenantRateLimitsRoute = createRoute({
   ),
 });
 
+const tenantStreamsRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'streams',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/streams'),
+    'default',
+  ),
+});
+
+export const tenantConcurrencyRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'concurrency',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/concurrency'),
+    'default',
+  ),
+  validateSearch: concurrencySearchSchema,
+});
+
 const tenantScheduledRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'scheduled',
@@ -581,6 +630,31 @@ const tenantOverviewRoute = createRoute({
     () => import('./pages/main/v1/overview/index.tsx'),
     'default',
   ),
+});
+
+// The "run your first task" onboarding. It is a real, tenant-scoped route so
+// it survives a refresh and can be linked to, but it renders the Overview: the
+// onboarding itself is an overlay that the authenticated shell opens whenever
+// this route matches (it has to cover the sidebar, which a page cannot do).
+// The chosen path and current step live in the search params.
+const onboardingSearchSchema = z.object({
+  path: z.enum(['agent', 'manual']).optional().catch(undefined),
+  step: z
+    .enum(['path', 'usecase', 'setup', 'runagent', 'runtask', 'finish'])
+    .optional()
+    .catch(undefined),
+});
+
+export type OnboardingSearch = z.infer<typeof onboardingSearchSchema>;
+
+export const tenantOnboardingRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'onboarding',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/overview/index.tsx'),
+    'default',
+  ),
+  validateSearch: onboardingSearchSchema,
 });
 
 const tenantRunsRoute = createRoute({
@@ -636,6 +710,42 @@ const tenantWorkerRoute = createRoute({
   path: 'workers/$worker',
   component: lazyRouteComponent(
     () => import('./pages/main/v1/workers/$worker'),
+    'default',
+  ),
+});
+
+const tenantEndpointsRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'endpoints',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/endpoints'),
+    'default',
+  ),
+});
+
+const tenantEndpointRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'endpoints/$endpoint',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/endpoints/$endpoint'),
+    'default',
+  ),
+});
+
+const tenantSandboxProvidersRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'sandbox-providers',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/sandbox-providers'),
+    'default',
+  ),
+});
+
+const tenantSandboxProviderRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'sandbox-providers/$sandboxProvider',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/sandbox-providers/$sandboxProvider'),
     'default',
   ),
 });
@@ -901,6 +1011,15 @@ const tenantSettingsResourceLimitsRoute = createRoute({
   ),
 });
 
+const tenantSettingsLabsRoute = createRoute({
+  getParentRoute: () => tenantSettingsLayoutRoute,
+  path: 'labs',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/tenant-settings/labs'),
+    'default',
+  ),
+});
+
 const tenantLegacySettingsIngestorsRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'tenant-settings/ingestors',
@@ -1028,6 +1147,7 @@ const tenantSettingsSubpathRedirect = createRoute({
       tenantSettingsMembersRoute.path,
       tenantSettingsOrganizationRoute.path,
       tenantSettingsOverviewRoute.path,
+      tenantSettingsLabsRoute.path,
     ].map((p) => p.split('/').pop());
 
     if (!tenantId || !subpath || !allowedSubpaths.includes(subpath)) {
@@ -1046,17 +1166,24 @@ const tenantRoutes = [
   tenantFiltersRoute,
   tenantWebhooksRoute,
   tenantRateLimitsRoute,
+  tenantStreamsRoute,
+  tenantConcurrencyRoute,
   tenantScheduledRoute,
   tenantCronJobsRoute,
   tenantWorkflowsRoute,
   tenantWorkflowRoute,
   tenantOverviewRoute,
+  tenantOnboardingRoute,
   tenantRunsRoute,
   tenantRunRoute,
   tenantTaskRunsRoute,
   tenantWorkersRoute,
   tenantWorkersAllRoute,
   tenantWorkerRoute,
+  tenantEndpointsRoute,
+  tenantEndpointRoute,
+  tenantSandboxProvidersRoute,
+  tenantSandboxProviderRoute,
   tenantManagedWorkersRoute,
   tenantManagedWorkersTemplateRoute,
   tenantManagedWorkersCreateRoute,
@@ -1081,6 +1208,7 @@ const tenantRoutes = [
     tenantSettingsAlertingRoute,
     tenantSettingsBillingRoute,
     tenantSettingsResourceLimitsRoute,
+    tenantSettingsLabsRoute,
     tenantSettingsIngestorsRoute,
     tenantSettingsIntegrationsRoute,
     tenantSettingsOrganizationRoute,
@@ -1093,13 +1221,14 @@ const tenantRoutes = [
 
 const routeTree = rootRoute.addChildren([
   authRoute.addChildren([authLoginRoute, authRegisterRoute]),
+  authMagicLinkRoute,
+  authMFARoute,
   onboardingVerifyRoute,
   authenticatedRoute.addChildren([
     onboardingCreateTenantRoute,
     onboardingCreateOrganizationRoute,
     onboardingNoTenantsRoute,
     onboardingInvitesRoute,
-    redeemOffersRoute,
     organizationsRoute.addChildren([
       organizationSettingsLayoutRoute.addChildren([
         organizationsIndexRoute,
@@ -1111,6 +1240,8 @@ const routeTree = rootRoute.addChildren([
         organizationRegionsRoute,
         organizationSsoRoute,
         organizationAuditLogRoute,
+        organizationComplianceRoute,
+        organizationUserRoute,
         organizationUserGroupsRoute,
       ]),
       organizationsIndexRedirectRoute,
@@ -1151,8 +1282,9 @@ export const appRoutes = {
   authRoute,
   authLoginRoute,
   authRegisterRoute,
+  authMagicLinkRoute,
+  authMFARoute,
   onboardingVerifyRoute,
-  redeemOffersRoute,
   organizationsRoute,
   organizationSettingsLayoutRoute,
   organizationsIndexRoute,
@@ -1164,6 +1296,8 @@ export const appRoutes = {
   organizationRegionsRoute,
   organizationSsoRoute,
   organizationAuditLogRoute,
+  organizationComplianceRoute,
+  organizationUserRoute,
   organizationUserGroupsRoute,
   organizationsIndexRedirectRoute,
   organizationLegacyBillingRoute,
@@ -1193,17 +1327,24 @@ export const appRoutes = {
   tenantFiltersRoute,
   tenantWebhooksRoute,
   tenantRateLimitsRoute,
+  tenantStreamsRoute,
+  tenantConcurrencyRoute,
   tenantScheduledRoute,
   tenantCronJobsRoute,
   tenantWorkflowsRoute,
   tenantWorkflowRoute,
   tenantOverviewRoute,
+  tenantOnboardingRoute,
   tenantRunsRoute,
   tenantRunRoute,
   tenantTaskRunsRoute,
   tenantWorkersRoute,
   tenantWorkersAllRoute,
   tenantWorkerRoute,
+  tenantEndpointsRoute,
+  tenantEndpointRoute,
+  tenantSandboxProvidersRoute,
+  tenantSandboxProviderRoute,
   tenantManagedWorkersRoute,
   tenantManagedWorkersTemplateRoute,
   tenantManagedWorkersCreateRoute,
@@ -1218,6 +1359,7 @@ export const appRoutes = {
   tenantSettingsAlertingRoute,
   tenantSettingsBillingRoute,
   tenantSettingsResourceLimitsRoute,
+  tenantSettingsLabsRoute,
   tenantSettingsIngestorsRoute,
   tenantSettingsIntegrationsRoute,
   tenantSettingsOrganizationRoute,

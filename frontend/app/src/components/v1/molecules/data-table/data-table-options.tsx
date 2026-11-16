@@ -8,6 +8,7 @@ import {
   ToolbarType,
 } from './data-table-toolbar';
 import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
+import { TimeRangeSelect } from '@/components/v1/molecules/time-picker/time-range-select';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import { Checkbox } from '@/components/v1/ui/checkbox';
@@ -36,7 +37,7 @@ import {
   isCustomTimeRangeKey,
   timeWindowKey,
 } from '@/pages/main/v1/workflow-runs-v1/components/v1/task-runs-columns';
-import { XCircleIcon } from '@heroicons/react/24/outline';
+import { TableCellsIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import { Cross2Icon, MixerHorizontalIcon } from '@radix-ui/react-icons';
 import { ChevronDownIcon } from '@radix-ui/react-icons';
 import { ColumnFiltersState, Table } from '@tanstack/react-table';
@@ -113,6 +114,8 @@ function FilterControl<TData>({
                       config.onCreatedAfterChange?.(date?.toISOString())
                     }
                     triggerClassName="w-full"
+                    retentionPeriod={config.retentionPeriod}
+                    onBlockedDate={config.onRetentionBlocked}
                   />
                 </div>
                 <div className="w-full space-y-1">
@@ -127,6 +130,8 @@ function FilterControl<TData>({
                       config.onFinishedBeforeChange?.(date?.toISOString())
                     }
                     triggerClassName="w-full"
+                    retentionPeriod={config.retentionPeriod}
+                    onBlockedDate={config.onRetentionBlocked}
                   />
                 </div>
               </div>
@@ -134,25 +139,15 @@ function FilterControl<TData>({
           )}
 
           {!config.isCustomTimeRange && (
-            <div className="space-y-1">
-              <Select
-                value={
-                  config.isCustomTimeRange ? 'custom' : config.currentTimeWindow
-                }
-                onValueChange={(value) => config.onTimeWindowChange?.(value)}
-              >
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="Choose time range" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1h">1 hour</SelectItem>
-                  <SelectItem value="6h">6 hours</SelectItem>
-                  <SelectItem value="1d">1 day</SelectItem>
-                  <SelectItem value="7d">7 days</SelectItem>
-                  <SelectItem value="custom">Custom</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <TimeRangeSelect
+              value={
+                config.isCustomTimeRange
+                  ? 'custom'
+                  : (config.currentTimeWindow ?? '1d')
+              }
+              onChange={(value) => config.onTimeWindowChange?.(value)}
+              retentionPeriod={config.retentionPeriod}
+            />
           )}
         </div>
       );
@@ -781,6 +776,26 @@ function FiltersContent<TData>({
         </div>
       </div>
     </div>
+  );
+}
+
+export function DataTableColumnsButton<TData>({
+  table,
+  columnKeyToName,
+}: ColumnsContentProps<TData>) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="flex-shrink-0">
+          <TableCellsIcon className="size-4" />
+          <span className="cq-xl:inline ml-2 hidden text-sm">Columns</span>
+          <ChevronDownIcon className="cq-xl:inline ml-2 hidden size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64 p-0 shadow-lg">
+        <ColumnsContent table={table} columnKeyToName={columnKeyToName} />
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

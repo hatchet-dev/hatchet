@@ -1,6 +1,7 @@
 package webhooksv1
 
 import (
+	"crypto/fips140"
 	"crypto/hmac"
 	"crypto/md5"  // #nosec G501 -- only used as an HMAC primitive to support third-party webhook providers that mandate HMAC-MD5; HMAC remains sound even with MD5
 	"crypto/sha1" // #nosec G505 -- only used as an HMAC primitive to support third-party webhook providers that mandate HMAC-SHA1; HMAC remains sound even with SHA1
@@ -22,9 +23,11 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 	"github.com/hatchet-dev/hatchet/internal/cel"
+	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -86,7 +89,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 	}
 
 	if isChallenge {
-		res, err := transformers.ToV1WebhookResponse(nil, challengeResponse, nil)
+		res, err := transformers.ToV1WebhookResponse(nil, challengeResponse, nil, transformers.WithPayloads(authz.CanViewPayloads(ctx)))
 		if err != nil {
 			return nil, fmt.Errorf("failed to transform response: %w", err)
 		}
@@ -169,7 +172,10 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 						payloadMap[key] = values[0]
 					}
 				}
-			default:
+			case sqlcv1.V1IncomingWebhookSourceNameGITHUB,
+				sqlcv1.V1IncomingWebhookSourceNameSTRIPE,
+				sqlcv1.V1IncomingWebhookSourceNameLINEAR,
+				sqlcv1.V1IncomingWebhookSourceNameSVIX:
 				/* For other webhook sources, form-encoded data is unexpected - return error */
 				return gen.V1WebhookReceive400JSONResponse{
 					Errors: []gen.APIError{
@@ -208,7 +214,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 			return gen.V1WebhookReceive400JSONResponse{
 				Errors: []gen.APIError{
 					{
-						Description: "Failed to unmarshal static payload: " + unmarshalErr.Error(),
+						Description: "failed to unmarshal static payload",
 					},
 				},
 			}, nil
@@ -331,6 +337,8 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 			}, nil
 		}
 
+		w.config.Logger.Err(err).Str("webhook", webhookName).Str("tenant", tenantId.String()).Msg("failed to ingest event on webhook receive")
+
 		return nil, fmt.Errorf("failed to ingest event")
 	}
 
@@ -338,7 +346,7 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 		return gen.V1WebhookReceive204Response{}, nil
 	}
 
-	res, err := transformers.ToV1WebhookResponse(repository.StringPtr("ok"), nil, ev)
+	res, err := transformers.ToV1WebhookResponse(repository.StringPtr("ok"), nil, ev, transformers.WithPayloads(authz.CanViewPayloads(ctx)))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to transform response: %w", err)
@@ -347,7 +355,23 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 	return gen.V1WebhookReceive200JSONResponse(*res), nil
 }
 
+func checkHMACAlgorithm(algorithm sqlcv1.V1IncomingWebhookHmacAlgorithm) error {
+	switch algorithm {
+	case sqlcv1.V1IncomingWebhookHmacAlgorithmMD5, sqlcv1.V1IncomingWebhookHmacAlgorithmSHA1:
+		if fips140.Enabled() {
+			return fmt.Errorf("HMAC algorithm %s is not permitted in FIPS mode; use SHA256 or SHA512", algorithm)
+		}
+	case sqlcv1.V1IncomingWebhookHmacAlgorithmSHA256, sqlcv1.V1IncomingWebhookHmacAlgorithmSHA512:
+	}
+
+	return nil
+}
+
 func computeHMACSignature(payload []byte, secret []byte, algorithm sqlcv1.V1IncomingWebhookHmacAlgorithm, encoding sqlcv1.V1IncomingWebhookHmacEncoding) (string, error) {
+	if err := checkHMACAlgorithm(algorithm); err != nil {
+		return "", err
+	}
+
 	var hashFunc func() hash.Hash
 	switch algorithm {
 	case sqlcv1.V1IncomingWebhookHmacAlgorithmSHA1:
@@ -362,7 +386,12 @@ func computeHMACSignature(payload []byte, secret []byte, algorithm sqlcv1.V1Inco
 		return "", fmt.Errorf("unsupported HMAC algorithm: %s", algorithm)
 	}
 
-	h := hmac.New(hashFunc, secret)
+	h, err := encryption.NewHMAC(hashFunc, secret)
+
+	if err != nil {
+		return "", err
+	}
+
 	h.Write(payload)
 	signature := h.Sum(nil)
 
@@ -430,8 +459,26 @@ func (w *V1WebhooksService) performChallenge(webhookPayload []byte, webhook sqlc
 		}
 
 		return false, nil, nil
+	case sqlcv1.V1IncomingWebhookSourceNameGENERIC,
+		sqlcv1.V1IncomingWebhookSourceNameGITHUB,
+		sqlcv1.V1IncomingWebhookSourceNameSTRIPE,
+		sqlcv1.V1IncomingWebhookSourceNameLINEAR,
+		sqlcv1.V1IncomingWebhookSourceNameSVIX:
+		return false, nil, nil
 	default:
 		return false, nil, nil
+	}
+}
+
+// internalValidationError logs err and returns a response whose text does not include it.
+// A 500 validation error is stored as a validation failure and then returned for the server
+// error handler to replace.
+func (w *V1WebhooksService) internalValidationError(err error, message string) *ValidationError {
+	w.config.Logger.Error().Err(err).Msg(message)
+
+	return &ValidationError{
+		Code:      http.StatusInternalServerError,
+		ErrorText: message,
 	}
 }
 
@@ -465,10 +512,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 			decryptedPassword, err := w.config.Encryption.Decrypt(webhook.AuthBasicPassword, "v1_webhook_basic_auth_password")
 
 			if err != nil {
-				return false, &ValidationError{
-					Code:      http.StatusInternalServerError,
-					ErrorText: fmt.Sprintf("failed to decrypt basic auth password: %s", err),
-				}
+				return false, w.internalValidationError(err, "failed to decrypt webhook credentials")
 			}
 
 			usernameMatch := hmac.Equal([]byte(username), []byte(webhook.AuthBasicUsername.String))
@@ -493,10 +537,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 			decryptedApiKey, err := w.config.Encryption.Decrypt(webhook.AuthApiKeyKey, "v1_webhook_api_key")
 
 			if err != nil {
-				return false, &ValidationError{
-					Code:      http.StatusInternalServerError,
-					ErrorText: fmt.Sprintf("failed to decrypt api key: %s", err),
-				}
+				return false, w.internalValidationError(err, "failed to decrypt webhook credentials")
 			}
 
 			if !hmac.Equal([]byte(apiKey), decryptedApiKey) {
@@ -518,10 +559,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 			decryptedSigningSecret, err := w.config.Encryption.Decrypt(webhook.AuthHmacWebhookSigningSecret, "v1_webhook_hmac_signing_secret")
 
 			if err != nil {
-				return false, &ValidationError{
-					Code:      http.StatusInternalServerError,
-					ErrorText: fmt.Sprintf("failed to decrypt HMAC signing secret: %s", err),
-				}
+				return false, w.internalValidationError(err, "failed to decrypt webhook credentials")
 			}
 
 			algorithm := webhook.AuthHmacAlgorithm.V1IncomingWebhookHmacAlgorithm
@@ -530,10 +568,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 			expectedSignature, err := computeHMACSignature(webhookPayload, decryptedSigningSecret, algorithm, encoding)
 
 			if err != nil {
-				return false, &ValidationError{
-					Code:      http.StatusInternalServerError,
-					ErrorText: fmt.Sprintf("failed to compute HMAC signature: %s", err),
-				}
+				return false, w.internalValidationError(err, "failed to compute HMAC signature")
 			}
 
 			if !signaturesMatch(signature, expectedSignature) {
@@ -593,10 +628,7 @@ func (w *V1WebhooksService) validateSlackWebhook(webhookPayload []byte, webhook 
 	decryptedSigningSecret, err := w.config.Encryption.Decrypt(webhook.AuthHmacWebhookSigningSecret, "v1_webhook_hmac_signing_secret")
 
 	if err != nil {
-		return false, &ValidationError{
-			Code:      http.StatusInternalServerError,
-			ErrorText: fmt.Sprintf("failed to decrypt HMAC signing secret: %s", err),
-		}
+		return false, w.internalValidationError(err, "failed to decrypt webhook credentials")
 	}
 
 	sigBaseString := fmt.Sprintf("v0:%d:%s", timestamp, webhookPayload)
@@ -604,10 +636,7 @@ func (w *V1WebhooksService) validateSlackWebhook(webhookPayload []byte, webhook 
 	hash, err := computeHMACSignature([]byte(sigBaseString), decryptedSigningSecret, algorithm, encoding)
 
 	if err != nil {
-		return false, &ValidationError{
-			Code:      http.StatusInternalServerError,
-			ErrorText: fmt.Sprintf("failed to compute HMAC signature: %s", err),
-		}
+		return false, w.internalValidationError(err, "failed to compute HMAC signature")
 	}
 
 	expectedSignature := fmt.Sprintf("v0=%s", hash)
@@ -696,10 +725,7 @@ func (w *V1WebhooksService) validateStripeWebhook(webhookPayload []byte, webhook
 
 	decryptedSigningSecret, err := w.config.Encryption.Decrypt(webhook.AuthHmacWebhookSigningSecret, "v1_webhook_hmac_signing_secret")
 	if err != nil {
-		return false, &ValidationError{
-			Code:      http.StatusInternalServerError,
-			ErrorText: fmt.Sprintf("failed to decrypt HMAC signing secret: %s", err),
-		}
+		return false, w.internalValidationError(err, "failed to decrypt webhook credentials")
 	}
 
 	algorithm := webhook.AuthHmacAlgorithm.V1IncomingWebhookHmacAlgorithm
@@ -710,10 +736,7 @@ func (w *V1WebhooksService) validateStripeWebhook(webhookPayload []byte, webhook
 	expectedSignature, err := computeHMACSignature([]byte(signedPayload), decryptedSigningSecret, algorithm, encoding)
 
 	if err != nil {
-		return false, &ValidationError{
-			Code:      http.StatusForbidden,
-			ErrorText: fmt.Sprintf("failed to compute HMAC signature: %s", err),
-		}
+		return false, w.internalValidationError(err, "failed to compute HMAC signature")
 	}
 
 	if !signaturesMatch(signature, expectedSignature) {
@@ -733,18 +756,12 @@ func (w *V1WebhooksService) validateSvixWebhook(webhookPayload []byte, webhook s
 	decryptedSigningSecret, err := w.config.Encryption.Decrypt(webhook.AuthHmacWebhookSigningSecret, "v1_webhook_hmac_signing_secret")
 
 	if err != nil {
-		return false, &ValidationError{
-			Code:      http.StatusInternalServerError,
-			ErrorText: fmt.Sprintf("failed to decrypt SVIX signing secret: %s", err),
-		}
+		return false, w.internalValidationError(err, "failed to decrypt webhook credentials")
 	}
 
 	key, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(string(decryptedSigningSecret), "whsec_"))
 	if err != nil {
-		return false, &ValidationError{
-			Code:      http.StatusInternalServerError,
-			ErrorText: fmt.Sprintf("failed to decode SVIX signing secret: %s", err),
-		}
+		return false, w.internalValidationError(err, "failed to decode webhook signing secret")
 	}
 
 	headers := request.Header
@@ -783,10 +800,7 @@ func (w *V1WebhooksService) validateSvixWebhook(webhookPayload []byte, webhook s
 
 	computedSignature, err := svixSign(key, msgId, timestamp, webhookPayload)
 	if err != nil {
-		return false, &ValidationError{
-			Code:      http.StatusInternalServerError,
-			ErrorText: fmt.Sprintf("failed to sign SVIX payload: %s", err),
-		}
+		return false, w.internalValidationError(err, "failed to sign webhook payload")
 	}
 	expectedSignature := []byte(strings.Split(computedSignature, ",")[1])
 
@@ -864,7 +878,12 @@ func svixVerifyTimestamp(timestamp time.Time) error {
 func svixSign(key []byte, msgId string, timestamp time.Time, payload []byte) (string, error) {
 	toSign := fmt.Sprintf("%s.%d.%s", msgId, timestamp.Unix(), payload)
 
-	h := hmac.New(sha256.New, key)
+	h, err := encryption.NewHMAC(sha256.New, key)
+
+	if err != nil {
+		return "", err
+	}
+
 	h.Write([]byte(toSign))
 	sig := make([]byte, base64.StdEncoding.EncodedLen(h.Size()))
 	base64.StdEncoding.Encode(sig, h.Sum(nil))

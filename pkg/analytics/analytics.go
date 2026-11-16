@@ -15,16 +15,17 @@ const (
 	Token    Resource = "api-token"
 	Workflow Resource = "workflow"
 
-	Event       Resource = "event"
-	WorkflowRun Resource = "workflow-run"
-	TaskRun     Resource = "task-run"
-	DurableTask Resource = "durable-task"
-	Worker      Resource = "worker"
-	RateLimit   Resource = "rate-limit"
-	Webhook     Resource = "webhook"
-	Log         Resource = "log"
-	StreamEvent Resource = "stream-event"
-	OtelSpan    Resource = "otel-span"
+	Event         Resource = "event"
+	WorkflowRun   Resource = "workflow-run"
+	TaskRun       Resource = "task-run"
+	DurableTask   Resource = "durable-task"
+	Worker        Resource = "worker"
+	RateLimit     Resource = "rate-limit"
+	Webhook       Resource = "webhook"
+	Log           Resource = "log"
+	StreamEvent   Resource = "stream-event"
+	DurableStream Resource = "durable-stream"
+	OtelSpan      Resource = "otel-span"
 )
 
 type Action string
@@ -52,7 +53,14 @@ const (
 	Branch    Action = "branch"
 	Memo      Action = "memo"
 	WaitFor   Action = "wait-for"
+	Connect   Action = "connect"
+	Publish   Action = "publish"
 )
+
+// Totals are additive integers summed into one aggregated event. They are flushed
+// as properties and are not part of the bucket key, so calls that differ only in
+// their totals share a bucket.
+type Totals map[string]int64
 
 type Properties map[string]interface{}
 
@@ -71,19 +79,34 @@ const (
 	APITokenIDKey     = contextKey("api_token_id")
 	TenantIDKey       = contextKey("tenant_id")
 	OrganizationIDKey = contextKey("organization_id")
+	AccountIDKey      = contextKey("account_id")
 	UserIDKey         = contextKey("user_id")
 	SourceKey         = contextKey("source")
 
 	SourceMetadataKey = "x-hatchet-source"
+
+	// CLIVersionMetadataKey and CLICommandMetadataKey carry CLI build and
+	// subcommand details alongside SourceMetadataKey. They are advisory: a client
+	// can set them to anything, so treat the values as reporting detail rather
+	// than as anything to branch on.
+	CLIVersionMetadataKey = "x-hatchet-cli-version"
+	CLICommandMetadataKey = "x-hatchet-cli-command"
 )
+
+type FeatureFlagUser struct {
+	ID    uuid.UUID
+	Email string
+}
 
 type Analytics interface {
 	Enqueue(ctx context.Context, resource Resource, action Action, resourceId string, properties Properties)
 	Count(ctx context.Context, resource Resource, action Action, props ...Properties)
+	// CountN records n occurrences, plus totals summed into the same bucket as Count.
+	CountN(ctx context.Context, resource Resource, action Action, n int64, totals Totals, props ...Properties)
 	Identify(userId uuid.UUID, properties Properties)
 	Tenant(tenantId uuid.UUID, data Properties)
 	Group(groupType string, groupKey string, data Properties)
-	IsFeatureEnabled(ctx context.Context, flagKey string, tenantID uuid.UUID, isEnabledIfNoPosthog bool) (bool, error)
+	IsFeatureEnabled(ctx context.Context, flagKey string, tenantID uuid.UUID, user *FeatureFlagUser, isEnabledIfNoPosthog bool) (bool, error)
 	Close() error
 }
 
@@ -103,6 +126,17 @@ func TenantIDFromContext(ctx context.Context) *uuid.UUID {
 
 func OrganizationIDFromContext(ctx context.Context) *uuid.UUID {
 	if id, ok := ctx.Value(OrganizationIDKey).(uuid.UUID); ok && id != uuid.Nil {
+		return &id
+	}
+	return nil
+}
+
+// AccountIDFromContext returns the account an event belongs to, if one was set.
+// An account groups the users, organizations and tenants of a single customer.
+// Unlike a tenant or token it is not an actor, so it never contributes a
+// distinct id — see DistinctID.
+func AccountIDFromContext(ctx context.Context) *uuid.UUID {
+	if id, ok := ctx.Value(AccountIDKey).(uuid.UUID); ok && id != uuid.Nil {
 		return &id
 	}
 	return nil
@@ -169,13 +203,16 @@ func (a NoOpAnalytics) Enqueue(ctx context.Context, resource Resource, action Ac
 func (a NoOpAnalytics) Count(ctx context.Context, resource Resource, action Action, props ...Properties) {
 }
 
+func (a NoOpAnalytics) CountN(ctx context.Context, resource Resource, action Action, n int64, totals Totals, props ...Properties) {
+}
+
 func (a NoOpAnalytics) Identify(userId uuid.UUID, properties Properties) {}
 
 func (a NoOpAnalytics) Tenant(tenantId uuid.UUID, data Properties) {}
 
 func (a NoOpAnalytics) Group(groupType string, groupKey string, data Properties) {}
 
-func (a NoOpAnalytics) IsFeatureEnabled(_ context.Context, _ string, _ uuid.UUID, isEnabledIfNoPosthog bool) (bool, error) {
+func (a NoOpAnalytics) IsFeatureEnabled(_ context.Context, _ string, _ uuid.UUID, _ *FeatureFlagUser, isEnabledIfNoPosthog bool) (bool, error) {
 	return isEnabledIfNoPosthog, nil
 }
 

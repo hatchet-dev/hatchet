@@ -22,6 +22,7 @@ export const workflowLanguageOptions = {
 export const installMethodOptions = {
   native: { value: 'native', label: 'Native (Recommended)' },
   homebrew: { value: 'homebrew', label: 'Homebrew' },
+  npm: { value: 'npm', label: 'npm' },
 } as const;
 
 export type WorkflowStepKey = keyof typeof workflowStepOptions;

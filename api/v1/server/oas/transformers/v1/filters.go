@@ -7,10 +7,12 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func ToV1Filter(filter *sqlcv1.V1Filter) gen.V1Filter {
+func ToV1Filter(filter *sqlcv1.V1Filter, opts ...PayloadOption) gen.V1Filter {
+	o := applyPayloadOptions(opts)
+
 	var payload map[string]interface{}
 
-	if filter.Payload != nil {
+	if o.includePayloads && filter.Payload != nil {
 		payload = jsonToMap(filter.Payload)
 	}
 
@@ -29,11 +31,11 @@ func ToV1Filter(filter *sqlcv1.V1Filter) gen.V1Filter {
 	}
 }
 
-func ToV1FilterList(filters []*sqlcv1.V1Filter, total, limit, offset int64) gen.V1FilterList {
+func ToV1FilterList(filters []*sqlcv1.V1Filter, total, limit, offset int64, opts ...PayloadOption) gen.V1FilterList {
 	rows := make([]gen.V1Filter, len(filters))
 
 	for i, filter := range filters {
-		rows[i] = ToV1Filter(filter)
+		rows[i] = ToV1Filter(filter, opts...)
 	}
 
 	currentPage := offset / limit

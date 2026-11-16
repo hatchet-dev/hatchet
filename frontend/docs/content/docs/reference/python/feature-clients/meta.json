@@ -1,12 +1,17 @@
 {
   "pages": [
-    "cron",
+    "cel",
+    "crons",
+    "events",
     "filters",
     "logs",
     "metrics",
     "rate_limits",
     "runs",
     "scheduled",
+    "streams",
+    "stubs",
+    "tenant",
     "webhooks",
     "workers",
     "workflows"

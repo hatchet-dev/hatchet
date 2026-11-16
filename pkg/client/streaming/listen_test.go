@@ -1,0 +1,532 @@
+package streaming
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
+	"github.com/hatchet-dev/hatchet/pkg/client/retry"
+)
+
+func TestListenReconnectingStreamHandlesEventsAndStopsOnEOF(t *testing.T) {
+	// Recv blocks like a real stream and reports EOF only once the channel is
+	// closed, so the test's send and Listen's first Recv can run in any order.
+	recvChan := make(chan testListenEvent, 1)
+	client := &testListenClient{
+		recvFn: func() (testListenEvent, error) {
+			event, ok := <-recvChan
+			if !ok {
+				return testListenEvent{}, io.EOF
+			}
+			return event, nil
+		},
+	}
+
+	var handled atomic.Value
+	stream := newTestListenStream(t, client, func(ctx context.Context) (*testListenClient, error) {
+		return client, nil
+	})
+
+	listenErr := make(chan error, 1)
+	go func() {
+		listenErr <- Listen(context.Background(), stream,
+			func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
+			func(event testListenEvent) error {
+				handled.Store(event.value)
+				return nil
+			},
+			NewClassifier(func(context.Context) bool { return false }),
+		)
+	}()
+
+	recvChan <- testListenEvent{value: "event-1"}
+	require.Eventually(t, func() bool {
+		return handled.Load() == "event-1"
+	}, time.Second, 10*time.Millisecond)
+
+	close(recvChan)
+	require.NoError(t, <-listenErr)
+	assert.True(t, client.closeCalled.Load())
+}
+
+func TestListenReconnectingStreamContextCancellationReturnsNil(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	client := &testListenClient{
+		recvFn: func() (testListenEvent, error) {
+			cancel()
+			return testListenEvent{}, status.Error(codes.Canceled, "canceled")
+		},
+	}
+
+	stream := newTestListenStream(t, client, func(ctx context.Context) (*testListenClient, error) {
+		return client, nil
+	})
+
+	err := Listen(ctx, stream,
+		func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
+		func(testListenEvent) error { return nil },
+		NewClassifier(func(context.Context) bool { return true }),
+	)
+	require.NoError(t, err)
+}
+
+func TestListenReconnectingStreamPermanentRecvErrorReturnsError(t *testing.T) {
+	recvErr := status.Error(codes.PermissionDenied, "permission denied")
+	client := &testListenClient{
+		recvFn: func() (testListenEvent, error) {
+			return testListenEvent{}, recvErr
+		},
+	}
+
+	stream := newTestListenStream(t, client, func(ctx context.Context) (*testListenClient, error) {
+		t.Fatal("constructor should not run after permanent receive error")
+		return nil, nil
+	})
+
+	err := Listen(context.Background(), stream,
+		func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
+		func(testListenEvent) error { return nil },
+		NewClassifier(func(context.Context) bool { return true }),
+	)
+	require.ErrorIs(t, err, recvErr)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+}
+
+func TestListenReconnectingStreamReconnectsOnEOFWhenPolicyAllows(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	initialClient := &testListenClient{
+		recvFn: func() (testListenEvent, error) {
+			return testListenEvent{}, io.EOF
+		},
+	}
+	replacementRecv := make(chan testListenEvent, 1)
+	replacementClient := &testListenClient{
+		recvFn: func() (testListenEvent, error) {
+			event, ok := <-replacementRecv
+			if !ok {
+				return testListenEvent{}, io.EOF
+			}
+			return event, nil
+		},
+	}
+	constructorCalls := atomic.Int32{}
+
+	stream := newTestListenStream(t, initialClient, func(ctx context.Context) (*testListenClient, error) {
+		constructorCalls.Add(1)
+		return replacementClient, nil
+	})
+
+	var handled atomic.Value
+	listenErr := make(chan error, 1)
+	go func() {
+		listenErr <- Listen(ctx, stream,
+			func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
+			func(event testListenEvent) error {
+				handled.Store(event.value)
+				cancel()
+				return nil
+			},
+			NewClassifier(func(context.Context) bool { return ctx.Err() == nil }),
+		)
+	}()
+
+	require.Eventually(t, func() bool {
+		return constructorCalls.Load() == 1
+	}, time.Second, 10*time.Millisecond)
+
+	replacementRecv <- testListenEvent{value: "after-reconnect"}
+	require.Eventually(t, func() bool {
+		return handled.Load() == "after-reconnect"
+	}, time.Second, 10*time.Millisecond)
+
+	close(replacementRecv)
+	require.NoError(t, <-listenErr)
+}
+
+func TestListenReconnectingStreamChecksEOFPolicyEachRecvError(t *testing.T) {
+	policyCalls := atomic.Int32{}
+	recvCalls := atomic.Int32{}
+	client := &testListenClient{
+		recvFn: func() (testListenEvent, error) {
+			recvCalls.Add(1)
+			return testListenEvent{}, io.EOF
+		},
+	}
+
+	constructorCalls := atomic.Int32{}
+	stream := newTestListenStream(t, client, func(ctx context.Context) (*testListenClient, error) {
+		constructorCalls.Add(1)
+		return client, nil
+	})
+
+	err := Listen(context.Background(), stream,
+		func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
+		func(testListenEvent) error { return nil },
+		NewClassifier(func(context.Context) bool {
+			return policyCalls.Add(1) == 1
+		}),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, int32(2), policyCalls.Load())
+	assert.Equal(t, int32(2), recvCalls.Load())
+	assert.Equal(t, int32(1), constructorCalls.Load())
+}
+
+func TestListenReconnectingStreamNoProgressReconnectsBeforeCap(t *testing.T) {
+	recvCalls := atomic.Int32{}
+	constructorCalls := atomic.Int32{}
+
+	client := &testListenClient{
+		recvFn: func() (testListenEvent, error) {
+			if recvCalls.Add(1) == 1 {
+				return testListenEvent{}, fmt.Errorf("plain recv error")
+			}
+			return testListenEvent{}, io.EOF
+		},
+	}
+
+	stream := newTestListenStream(t, client, func(ctx context.Context) (*testListenClient, error) {
+		constructorCalls.Add(1)
+		return client, nil
+	})
+
+	err := Listen(context.Background(), stream,
+		func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
+		func(testListenEvent) error { return nil },
+		NewClassifier(func(context.Context) bool { return false }),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, int32(1), constructorCalls.Load())
+	assert.Equal(t, int32(2), recvCalls.Load())
+}
+
+func TestListenStreamNoProgressStopsAtCap(t *testing.T) {
+	recvCalls := atomic.Int32{}
+	constructorCalls := atomic.Int32{}
+	client := &testListenClient{
+		recvFn: func() (testListenEvent, error) {
+			recvCalls.Add(1)
+			return testListenEvent{}, fmt.Errorf("plain recv error")
+		},
+	}
+
+	stream := newTestListenStream(t, client, func(ctx context.Context) (*testListenClient, error) {
+		constructorCalls.Add(1)
+		return nil, fmt.Errorf("plain connect error")
+	})
+
+	err := Listen(context.Background(), stream,
+		func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
+		func(testListenEvent) error { return nil },
+		NewClassifier(func(context.Context) bool { return true }),
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "made no progress")
+	assert.Equal(t, int32(1), recvCalls.Load())
+	assert.GreaterOrEqual(t, constructorCalls.Load(), int32(MaxConsecutiveNoProgress-2))
+}
+
+func TestListenStreamNoProgressFatalClassifierStopsImmediately(t *testing.T) {
+	recvErr := fmt.Errorf("plain recv error")
+	recvCalls := atomic.Int32{}
+	client := &testListenClient{
+		recvFn: func() (testListenEvent, error) {
+			recvCalls.Add(1)
+			return testListenEvent{}, recvErr
+		},
+	}
+
+	stream := newTestListenStream(t, client, func(ctx context.Context) (*testListenClient, error) {
+		t.Fatal("constructor should not run when no-progress policy stops immediately")
+		return nil, nil
+	})
+
+	base := NewClassifier(func(context.Context) bool { return false })
+	classify := func(ctx context.Context, err error) Verdict {
+		if v := base(ctx, err); v != VerdictNoProgress {
+			return v
+		}
+		return VerdictStopError
+	}
+
+	err := Listen(context.Background(), stream,
+		func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
+		func(testListenEvent) error { return nil },
+		classify,
+	)
+	require.ErrorIs(t, err, recvErr)
+	assert.Equal(t, int32(1), recvCalls.Load())
+}
+
+func TestListenStreamConnectsUseLifecycleContext(t *testing.T) {
+	listenCtx := context.Background()
+
+	var constructorCtx atomic.Value
+	recvCalls := atomic.Int32{}
+	client := &testListenClient{
+		recvFn: func() (testListenEvent, error) {
+			if recvCalls.Add(1) == 1 {
+				return testListenEvent{}, status.Error(codes.Unavailable, "broken")
+			}
+			return testListenEvent{}, io.EOF
+		},
+	}
+
+	stream := newTestListenStream(t, client, func(ctx context.Context) (*testListenClient, error) {
+		constructorCtx.Store(ctx)
+		return client, nil
+	})
+
+	err := Listen(listenCtx, stream,
+		func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
+		func(testListenEvent) error { return nil },
+		NewClassifier(func(context.Context) bool {
+			return recvCalls.Load() == 1
+		}),
+	)
+	require.NoError(t, err)
+
+	storedCtx := constructorCtx.Load().(context.Context)
+	assert.Equal(t, stream.LifecycleContext(), storedCtx)
+}
+
+func TestListenReconnectingStreamGenerationChangeFastPath(t *testing.T) {
+	releaseReconnect := make(chan struct{})
+	initialClient := &testListenClient{
+		recvFn: func() (testListenEvent, error) {
+			return testListenEvent{}, status.Error(codes.Unavailable, "broken")
+		},
+	}
+	replacementClient := &testListenClient{
+		recvFn: func() (testListenEvent, error) {
+			return testListenEvent{}, io.EOF
+		},
+	}
+
+	constructorCalls := atomic.Int32{}
+	stream := newTestListenStream(t, initialClient, func(ctx context.Context) (*testListenClient, error) {
+		if constructorCalls.Add(1) == 1 {
+			<-releaseReconnect
+		}
+		return replacementClient, nil
+	})
+
+	listenErr := make(chan error, 1)
+	go func() {
+		listenErr <- Listen(context.Background(), stream,
+			func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
+			func(testListenEvent) error { return nil },
+			NewClassifier(func(context.Context) bool { return false }),
+		)
+	}()
+
+	require.Eventually(t, func() bool {
+		return constructorCalls.Load() == 1
+	}, time.Second, 10*time.Millisecond)
+
+	stream.sendMu.Lock()
+	installErr := stream.installClientLocked(replacementClient)
+	stream.sendMu.Unlock()
+	require.NoError(t, installErr)
+	close(releaseReconnect)
+
+	require.NoError(t, <-listenErr)
+	assert.Equal(t, int32(1), constructorCalls.Load())
+}
+
+// A sender's RetrySend that reconnects while the receive loop is backing off must not be
+// followed by a second reconnect from the loop: the loop adopts the sender's client.
+func TestListenReconnectingStreamAdoptsClientInstalledDuringBackoff(t *testing.T) {
+	initialClient := &testListenClient{
+		recvFn: func() (testListenEvent, error) {
+			return testListenEvent{}, status.Error(codes.Unavailable, "broken")
+		},
+	}
+	replacementClient := &testListenClient{
+		recvFn: func() (testListenEvent, error) {
+			return testListenEvent{}, io.EOF
+		},
+	}
+
+	constructorCalls := atomic.Int32{}
+	stream := newTestListenStream(t, initialClient, func(ctx context.Context) (*testListenClient, error) {
+		constructorCalls.Add(1)
+		return replacementClient, nil
+	})
+
+	// a sender's reconnect lands while the loop is backing off
+	stream.SetSleep(func(context.Context, int) error {
+		stream.sendMu.Lock()
+		defer stream.sendMu.Unlock()
+		return stream.installClientLocked(replacementClient)
+	})
+
+	err := Listen(context.Background(), stream,
+		func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
+		func(testListenEvent) error { return nil },
+		NewClassifier(func(context.Context) bool { return false }),
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, int32(0), constructorCalls.Load(), "the loop must adopt the installed client rather than reconnect")
+}
+
+// The receive loop and a sender see the same client fail; the sender reconnects at once while
+// the loop is still backing off. Exactly one stream is opened, and both end up on it.
+func TestListenAndRetrySendReconnectOnceForOneFailure(t *testing.T) {
+	for i := 0; i < 50; i++ {
+		var sendFailures atomic.Int32
+		initialClient := &testListenClient{
+			recvFn: func() (testListenEvent, error) {
+				return testListenEvent{}, status.Error(codes.Unavailable, "broken")
+			},
+			sendFn: func() error {
+				if sendFailures.Add(1) == 1 {
+					return status.Error(codes.Unavailable, "broken")
+				}
+				return nil
+			},
+		}
+		replacementClient := &testListenClient{
+			recvFn: func() (testListenEvent, error) {
+				return testListenEvent{}, io.EOF
+			},
+			sendFn: func() error { return nil },
+		}
+
+		constructorCalls := atomic.Int32{}
+		stream := newTestListenStream(t, initialClient, func(ctx context.Context) (*testListenClient, error) {
+			constructorCalls.Add(1)
+			time.Sleep(time.Millisecond)
+			return replacementClient, nil
+		})
+		// the loop's backoff outlasts the sender's reconnect, so the sender finishes first
+		// and the loop wakes to a generation that has already moved on
+		stream.SetSleep(func(context.Context, int) error {
+			time.Sleep(5 * time.Millisecond)
+			return nil
+		})
+
+		listenErr := make(chan error, 1)
+		go func() {
+			listenErr <- Listen(context.Background(), stream,
+				func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
+				func(testListenEvent) error { return nil },
+				NewClassifier(func(context.Context) bool { return false }),
+			)
+		}()
+
+		require.NoError(t, stream.RetrySend(context.Background(), func(c *testListenClient) error { return c.Send() }))
+		require.NoError(t, <-listenErr)
+		assert.Equal(t, int32(1), constructorCalls.Load(), "iteration %d opened %d streams for one failure", i, constructorCalls.Load())
+	}
+}
+
+func TestListenReconnectingStreamClosesListenedClientOnExit(t *testing.T) {
+	initialClient := &testListenClient{
+		recvFn: func() (testListenEvent, error) {
+			return testListenEvent{}, io.EOF
+		},
+	}
+	replacementClient := &testListenClient{
+		recvFn: func() (testListenEvent, error) {
+			return testListenEvent{}, io.EOF
+		},
+	}
+
+	stream := newTestListenStream(t, initialClient, func(ctx context.Context) (*testListenClient, error) {
+		return replacementClient, nil
+	})
+
+	require.NoError(t, Listen(context.Background(), stream,
+		func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
+		func(testListenEvent) error { return nil },
+		NewClassifier(func(context.Context) bool { return false }),
+	))
+	assert.True(t, initialClient.closeCalled.Load())
+	assert.False(t, replacementClient.closeCalled.Load())
+}
+
+func TestListenStreamReconnectsUnboundedlyOnTransientErrors(t *testing.T) {
+	constructorCalls := atomic.Int32{}
+	ctx, cancel := context.WithCancel(context.Background())
+
+	stream := newTestListenStream(t, nil, func(ctx context.Context) (*testListenClient, error) {
+		if constructorCalls.Add(1) >= retry.StreamSyncMaxAttempts+1 {
+			cancel()
+		}
+		return nil, status.Error(codes.Unavailable, "still down")
+	})
+
+	err := Listen(ctx, stream,
+		func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
+		func(testListenEvent) error { return nil },
+		NewClassifier(func(context.Context) bool { return true }),
+	)
+	require.NoError(t, err)
+	assert.Greater(t, constructorCalls.Load(), int32(retry.StreamSyncMaxAttempts))
+}
+
+func TestListenStreamRetryableRecvFailureAppliesReconnectBackoff(t *testing.T) {
+	var sleepAttempts []int
+	recvCalls := atomic.Int32{}
+
+	client := &testListenClient{
+		recvFn: func() (testListenEvent, error) {
+			if recvCalls.Add(1) == 1 {
+				return testListenEvent{}, status.Error(codes.Unavailable, "transient")
+			}
+			return testListenEvent{}, io.EOF
+		},
+	}
+
+	stream := newTestListenStream(t, client, func(ctx context.Context) (*testListenClient, error) {
+		return client, nil
+	})
+	stream.SetSleep(func(_ context.Context, attempt int) error {
+		sleepAttempts = append(sleepAttempts, attempt)
+		return nil
+	})
+
+	err := Listen(context.Background(), stream,
+		func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
+		func(testListenEvent) error { return nil },
+		NewClassifier(func(context.Context) bool { return false }),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, []int{0}, sleepAttempts)
+}
+
+func TestListenStreamSleepCancellationReturnsNil(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	stream := newTestListenStream(t, &testListenClient{
+		recvFn: func() (testListenEvent, error) {
+			return testListenEvent{}, status.Error(codes.Unavailable, "stream broken")
+		},
+	}, func(ctx context.Context) (*testListenClient, error) {
+		return nil, status.Error(codes.Unavailable, "still down")
+	})
+	stream.SetSleep(func(sleepCtx context.Context, _ int) error {
+		cancel()
+		return sleepCtx.Err()
+	})
+
+	err := Listen(ctx, stream,
+		func(c *testListenClient) (testListenEvent, error) { return c.Recv() },
+		func(testListenEvent) error { return nil },
+		NewClassifier(func(context.Context) bool { return true }),
+	)
+	require.NoError(t, err)
+}

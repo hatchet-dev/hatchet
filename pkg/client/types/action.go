@@ -30,8 +30,14 @@ func (o Action) IntegrationVerbString() string {
 	return fmt.Sprintf("%s:%s", o.Service, o.Verb)
 }
 
-// ParseActionID parses an action ID into its constituent parts.
+// ParseActionID parses an action ID into its constituent parts. A semicolon is rejected
+// anywhere in the id: it is the separator the worker action hash frames ids with, so an id
+// carrying one could make two different action sets hash equal within a tenant.
 func ParseActionID(actionID string) (Action, error) {
+	if strings.Contains(actionID, ";") {
+		return Action{}, fmt.Errorf("invalid action id %s, must not contain ; (semicolon)", actionID)
+	}
+
 	parts := strings.Split(actionID, ":")
 	numParts := len(parts)
 

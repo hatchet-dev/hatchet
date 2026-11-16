@@ -20,7 +20,6 @@ import {
   APIErrors,
   APIMetaAuth,
   APITokenList,
-  AuditLogList,
   CreateManagementTokenRequest,
   CreateManagementTokenResponse,
   CreateNewTenantForOrganizationRequest,
@@ -32,6 +31,9 @@ import {
   CreateTenantInviteRequest,
   CreateUserGroupRequest,
   ListAPIMetaIntegration,
+  MagicLinkAccepted,
+  MagicLinkConfirmRequest,
+  MagicLinkRequest,
   ManagementTokenList,
   Organization,
   OrganizationAvailableShardList,
@@ -40,10 +42,13 @@ import {
   OrganizationEntitlements,
   OrganizationForUserList,
   OrganizationInviteList,
+  OrganizationInvoices,
   OrganizationMember,
   OrganizationPaymentMethodList,
   OrganizationTenant,
   OrganizationTenantResourceLimitsList,
+  OrganizationUsage,
+  OrganizationUsageTimeseries,
   RejectOrganizationInviteRequest,
   RejectTenantInviteRequest,
   RemoveOrganizationMembersRequest,
@@ -151,6 +156,46 @@ export class Api<
   cloudUserUpdateLogin = (data: UserLoginRequest, params: RequestParams = {}) =>
     this.request<User, APIErrors>({
       path: `/api/v1/control-plane/users/login`,
+      method: "POST",
+      body: data,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Sends a one-time login link when the address is allowed to use one. The response is the same when the address is unknown, already registered, required to use SSO, cooling down, or when delivery fails.
+   *
+   * @tags User
+   * @name CloudUserCreateMagicLink
+   * @summary Request magic login link
+   * @request POST:/api/v1/control-plane/users/magic-link
+   */
+  cloudUserCreateMagicLink = (
+    data: MagicLinkRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<MagicLinkAccepted, APIErrors>({
+      path: `/api/v1/control-plane/users/magic-link`,
+      method: "POST",
+      body: data,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Confirms a one-time login link and creates a browser session. The link is consumed only by this request.
+   *
+   * @tags User
+   * @name CloudUserUpdateMagicLink
+   * @summary Confirm magic login link
+   * @request POST:/api/v1/control-plane/users/magic-link/confirm
+   */
+  cloudUserUpdateMagicLink = (
+    data: MagicLinkConfirmRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<User, APIErrors>({
+      path: `/api/v1/control-plane/users/magic-link/confirm`,
       method: "POST",
       body: data,
       type: ContentType.Json,
@@ -415,6 +460,23 @@ export class Api<
       ...params,
     });
   /**
+   * @description Archive an organization
+   *
+   * @tags Management
+   * @name OrganizationArchive
+   * @summary Archive Organization
+   * @request DELETE:/api/v1/control-plane/organizations/{organization}
+   * @secure
+   */
+  organizationArchive = (organization: string, params: RequestParams = {}) =>
+    this.request<Organization, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}`,
+      method: "DELETE",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
    * @description Create a new tenant in the organization
    *
    * @tags Management
@@ -458,61 +520,6 @@ export class Api<
       ...params,
     });
   /**
-   * @description List audit logs across the organization's tenants (federated across shards)
-   *
-   * @tags Management
-   * @name OrganizationListAuditLogs
-   * @summary List Audit Logs for Organization
-   * @request GET:/api/v1/control-plane/organizations/{organization}/audit-logs
-   * @secure
-   */
-  organizationListAuditLogs = (
-    organization: string,
-    query?: {
-      /**
-       * Optional tenant ID to scope results to a single tenant
-       * @format uuid
-       * @minLength 36
-       * @maxLength 36
-       */
-      tenant?: string;
-      /**
-       * The maximum number of rows to return
-       * @format int32
-       * @min 1
-       * @max 1000
-       * @default 1000
-       */
-      limit?: number;
-      /**
-       * The number of rows to skip for pagination
-       * @format int32
-       * @min 0
-       * @default 0
-       */
-      offset?: number;
-      /**
-       * The start of the time range (RFC3339). When omitted, defaults to the beginning of the retained audit history (i.e. results are not limited to a recent window); the response is still bounded by limit and offset, returning the most recent rows first.
-       * @format date-time
-       */
-      since?: string;
-      /**
-       * The end of the time range (RFC3339). When omitted, defaults to the current time.
-       * @format date-time
-       */
-      until?: string;
-    },
-    params: RequestParams = {},
-  ) =>
-    this.request<AuditLogList, APIError>({
-      path: `/api/v1/control-plane/organizations/${organization}/audit-logs`,
-      method: "GET",
-      query: query,
-      secure: true,
-      format: "json",
-      ...params,
-    });
-  /**
    * @description Delete (archive) a tenant in the organization
    *
    * @tags Management
@@ -530,7 +537,7 @@ export class Api<
       ...params,
     });
   /**
-   * @description Transfer a tenant to a different organization. Requires organization OWNER permissions on both source and destination organizations. Every user who is currently a member of the tenant is automatically added to the destination organization as a MEMBER (their existing tenant-level role is preserved).
+   * @description Transfer a tenant to a different organization. Requires organization OWNER permissions on both source and destination organizations. Every user who is currently a member of the tenant is automatically added to the destination organization as a MEMBER (their existing tenant-level role is preserved). Returns 404 when the destination organization doesn't exist or the caller isn't an owner there.
    *
    * @tags Management
    * @name OrganizationTenantTransfer
@@ -554,7 +561,7 @@ export class Api<
       ...params,
     });
   /**
-   * @description Preview which of this tenant's current members would be newly added to destinationOrganizationId if the tenant were transferred there right now (members who already belong to the destination org are omitted, since they wouldn't actually change). Requires the same OWNER-of-both-orgs permission as the transfer itself.
+   * @description Preview which of this tenant's current members would be newly added to destinationOrganizationId if the tenant were transferred there right now (members who already belong to the destination org are omitted, since they wouldn't actually change). Requires the same OWNER-of-both-orgs permission as the transfer itself. Returns 404, not 403, when the destination organization doesn't exist or the caller isn't an owner there, so a caller can't distinguish "no such organization" from "not yours" and enumerate organization IDs.
    *
    * @tags Management
    * @name OrganizationTenantTransferPreview
@@ -1719,6 +1726,81 @@ export class Api<
     this.request<OrganizationCreditBalance, APIErrors>({
       path: `/api/v1/control-plane/billing/organizations/${organization}/credit-balance`,
       method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get upcoming invoice previews and previous invoices for an organization
+   *
+   * @tags Billing
+   * @name OrganizationInvoicesGet
+   * @summary Get invoices for an organization
+   * @request GET:/api/v1/control-plane/billing/organizations/{organization}/invoices
+   * @secure
+   */
+  organizationInvoicesGet = (
+    organization: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<OrganizationInvoices, APIErrors>({
+      path: `/api/v1/control-plane/billing/organizations/${organization}/invoices`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get current-period usage versus included balances for an organization
+   *
+   * @tags Billing
+   * @name OrganizationUsageGet
+   * @summary Get usage for an organization
+   * @request GET:/api/v1/control-plane/billing/organizations/{organization}/usage
+   * @secure
+   */
+  organizationUsageGet = (organization: string, params: RequestParams = {}) =>
+    this.request<OrganizationUsage, APIErrors>({
+      path: `/api/v1/control-plane/billing/organizations/${organization}/usage`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get daily task-run and event usage for an organization, aggregated from shard Timescale via fanout
+   *
+   * @tags Billing
+   * @name OrganizationUsageTimeseriesGet
+   * @summary Get usage timeseries for an organization
+   * @request GET:/api/v1/control-plane/billing/organizations/{organization}/usage/timeseries
+   * @secure
+   */
+  organizationUsageTimeseriesGet = (
+    organization: string,
+    query?: {
+      /**
+       * Inclusive start of the usage window. Defaults to 30 days before end.
+       * @format date-time
+       */
+      start?: string;
+      /**
+       * Exclusive end of the usage window. Defaults to now.
+       * @format date-time
+       */
+      end?: string;
+      /**
+       * When set, restrict the series and tenant breakdown to this tenant.
+       * @format uuid
+       */
+      tenantId?: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<OrganizationUsageTimeseries, APIErrors>({
+      path: `/api/v1/control-plane/billing/organizations/${organization}/usage/timeseries`,
+      method: "GET",
+      query: query,
       secure: true,
       format: "json",
       ...params,

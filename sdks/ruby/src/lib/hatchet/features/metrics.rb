@@ -13,10 +13,10 @@ module Hatchet
     # Prometheus metrics, task statistics, and task metrics from the Hatchet system.
     #
     # @example Getting queue metrics
-    #   metrics = metrics_client.get_queue_metrics
+    #   metrics = hatchet.metrics.get_queue_metrics
     #
     # @example Getting task metrics
-    #   task_metrics = metrics_client.get_task_metrics(
+    #   task_metrics = hatchet.metrics.get_task_metrics(
     #     since: Time.now - 86400,
     #     workflow_ids: ["wf-1"]
     #   )
@@ -41,7 +41,7 @@ module Hatchet
       # @return [Hash] The current queue metrics
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   queues = metrics_client.get_queue_metrics
+      #   queues = hatchet.metrics.get_queue_metrics
       def get_queue_metrics
         result = @tenant_api.tenant_get_step_run_queue_metrics(@config.tenant_id)
         result.queues || {}
@@ -52,7 +52,7 @@ module Hatchet
       # @return [String] The metrics in Prometheus text format
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   prometheus_text = metrics_client.scrape_tenant_prometheus_metrics
+      #   prometheus_text = hatchet.metrics.scrape_tenant_prometheus_metrics
       def scrape_tenant_prometheus_metrics
         @tenant_api.tenant_get_prometheus_metrics(@config.tenant_id)
       end
@@ -62,7 +62,7 @@ module Hatchet
       # @return [Object] The task statistics
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   stats = metrics_client.get_task_stats
+      #   stats = hatchet.metrics.get_task_stats
       def get_task_stats
         @tenant_api.tenant_get_task_stats(@config.tenant_id)
       end
@@ -77,7 +77,7 @@ module Hatchet
       # @return [TaskMetrics] Task metrics with counts per status
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   metrics = metrics_client.get_task_metrics(
+      #   metrics = hatchet.metrics.get_task_metrics(
       #     since: Time.now - 86400,
       #     workflow_ids: ["wf-1"]
       #   )

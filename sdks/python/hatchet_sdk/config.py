@@ -1,9 +1,8 @@
 import json
 from collections.abc import Callable
 from datetime import timedelta
-from enum import Enum
 from logging import Logger, getLogger
-from typing import overload
+from typing import ClassVar, Literal, overload
 
 import tenacity
 from pydantic import Field, field_validator, model_validator
@@ -12,6 +11,18 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from hatchet_sdk.logger import logger
 from hatchet_sdk.token import get_addresses_from_jwt, get_tenant_id_from_jwt
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
+
+
+def parse_timedelta_from_seconds(value: timedelta | int | float | str) -> timedelta:
+    if isinstance(value, timedelta):
+        return value
+
+    if isinstance(value, int | float):
+        return timedelta(seconds=float(value))
+
+    seconds = value.strip().removesuffix("s").strip()
+
+    return timedelta(seconds=float(seconds))
 
 
 def create_settings_config(env_prefix: str) -> SettingsConfigDict:
@@ -27,7 +38,7 @@ class ClientTLSConfig(BaseSettings):
         env_prefix="HATCHET_CLIENT_TLS_",
     )
 
-    strategy: str = "tls"
+    strategy: Literal["tls", "mtls", "none"] = "tls"
     cert_file: str | None = None
     key_file: str | None = None
     root_ca_file: str | None = None
@@ -41,28 +52,18 @@ class HealthcheckConfig(BaseSettings):
 
     port: int = 8001
     enabled: bool = False
-    event_loop_block_threshold_seconds: timedelta = Field(
+    event_loop_block_threshold: timedelta = Field(
         default=timedelta(seconds=5),
-        description="If the worker listener process event loop appears blocked longer than this threshold, /health returns 503. Value is interpreted as seconds.",
+        description="If the worker listener process event loop appears blocked longer than this threshold, /health returns 503. Numeric values are interpreted as seconds.",
     )
     bind_address: str | None = "0.0.0.0"
 
-    @field_validator("event_loop_block_threshold_seconds", mode="before")
+    @field_validator("event_loop_block_threshold", mode="before")
     @classmethod
-    def validate_event_loop_block_threshold_seconds(
+    def validate_event_loop_block_threshold(
         cls, value: timedelta | int | float | str
     ) -> timedelta:
-        if isinstance(value, timedelta):
-            return value
-
-        if isinstance(value, int | float):
-            return timedelta(seconds=float(value))
-
-        v = value.strip()
-        if v.endswith("s"):
-            v = v[:-1].strip()
-
-        return timedelta(seconds=float(v))
+        return parse_timedelta_from_seconds(value)
 
     @field_validator("bind_address", mode="after")
     @classmethod
@@ -86,7 +87,7 @@ class OpenTelemetryConfig(BaseSettings):
         description='Note that if specifying this field via an environment variable, the variable must be a valid JSON array. For example: \'["action_name", "action_payload"]\'',
     )
 
-    include_task_name_in_start_step_run_span_name: bool = False
+    include_task_name_in_span_name: bool = False
 
     individual_run_spans_for_bulk_run: bool = Field(
         default=False,
@@ -100,14 +101,7 @@ class OpenTelemetryConfig(BaseSettings):
     )
 
 
-class HTTPMethod(str, Enum):
-    GET = "GET"
-    DELETE = "DELETE"
-    POST = "POST"
-    PUT = "PUT"
-    PATCH = "PATCH"
-    HEAD = "HEAD"
-    OPTIONS = "OPTIONS"
+HTTPMethod = Literal["GET", "DELETE", "POST", "PUT", "PATCH", "HEAD", "OPTIONS"]
 
 
 def tenacity_before_sleep(retry_state: tenacity.RetryCallState) -> None:
@@ -138,14 +132,111 @@ class TenacityConfig(BaseSettings):
         description="Enable retries for REST transport errors (timeout, connection, TLS). Default: off.",
     )
     retry_transport_methods: list[HTTPMethod] = Field(
-        default_factory=lambda: [HTTPMethod.GET, HTTPMethod.DELETE],
+        default=["GET", "DELETE"],
         description="HTTP methods to retry on transport errors when retry_transport_errors is enabled; excludes POST/PUT/PATCH by default due to idempotency concerns.",
     )
     wait: type[tenacity.wait.wait_base] = tenacity.wait_exponential_jitter
     before_sleep: Callable[[tenacity.RetryCallState], None] = tenacity_before_sleep
 
 
+DEFAULT_EMBEDDED_READY_TIMEOUT = timedelta(minutes=5)
+
+
+class EmbeddedHatchetConfig(BaseSettings):
+    """
+    Configuration for the embedded Hatchet engine started by `Hatchet.from_embedded()`.
+    Set it on `ClientConfig.embedded`. Every field can also be set via an environment
+    variable prefixed with `HATCHET_CLIENT_EMBEDDED_`, e.g. `HATCHET_CLIENT_EMBEDDED_DATABASE_URL`.
+    You can read more about the embedded engine in [the docs](https://docs.hatchet.run/v1/embedded).
+    """
+
+    model_config: ClassVar[SettingsConfigDict] = create_settings_config(
+        env_prefix="HATCHET_CLIENT_EMBEDDED_",
+    )
+
+    version: str | None = Field(
+        default=None,
+        description=(
+            "The hatchet-embedded release tag to download. Defaults to the latest "
+            "release. Tags correspond to the Hatchet engine version baked into "
+            "the sidecar, so pinning this pins the engine."
+        ),
+    )
+
+    binary_path: str | None = Field(
+        default=None,
+        description="Path to an existing sidecar binary. When set, the download is skipped.",
+    )
+
+    checksum: str | None = Field(
+        default=None,
+        description=(
+            "The expected sha256 hex digest of the sidecar binary. When set, it "
+            "replaces the release's checksums.txt as the trust anchor, so a "
+            "compromised release channel cannot substitute the binary. Pin it "
+            "together with `version`."
+        ),
+    )
+
+    database_url: str | None = Field(
+        default=None,
+        description="Connection string for an existing Postgres to use instead of the bundled one.",
+    )
+
+    postgres_data_dir: str | None = Field(
+        default=None,
+        description=(
+            "Directory to store the bundled Postgres runtime and data under. "
+            "Defaults to a per-project directory derived from the working directory."
+        ),
+    )
+
+    grpc_port: int | None = Field(
+        default=None,
+        description="Override the port the embedded engine's gRPC server listens on.",
+    )
+
+    api_port: int | None = Field(
+        default=None,
+        description="Override the port the embedded REST API listens on.",
+    )
+
+    start_api: bool = Field(
+        default=True,
+        description="Set to `False` to start only the engine and gRPC server, without the REST API.",
+    )
+
+    run_migrations: bool = Field(
+        default=True,
+        description="Set to `False` to skip running database migrations on startup.",
+    )
+
+    rabbitmq_url: str | None = Field(
+        default=None,
+        description="Connection string for a RabbitMQ instance to use as the message queue instead of Postgres.",
+    )
+
+    log_level: str | None = Field(
+        default=None,
+        description="Log level for the embedded engine.",
+    )
+
+    ready_timeout: timedelta = Field(
+        default=DEFAULT_EMBEDDED_READY_TIMEOUT,
+        description=(
+            "How long to wait for the embedded engine to become ready before "
+            "raising an error. Defaults to 5 minutes. Numeric values are interpreted as seconds."
+        ),
+    )
+
+    @field_validator("ready_timeout", mode="before")
+    @classmethod
+    def validate_ready_timeout(cls, value: timedelta | int | float | str) -> timedelta:
+        return parse_timedelta_from_seconds(value)
+
+
 DEFAULT_HOST_PORT = "localhost:7070"
+DEFAULT_SYNC_RESULT_POLL_INTERVAL = timedelta(seconds=1)
 
 
 class ClientConfig(BaseSettings):
@@ -167,7 +258,10 @@ class ClientConfig(BaseSettings):
     healthcheck: HealthcheckConfig = Field(default_factory=lambda: HealthcheckConfig())
     otel: OpenTelemetryConfig = Field(default_factory=lambda: OpenTelemetryConfig())
 
-    listener_v2_timeout: int | None = None
+    action_listener_timeout: timedelta | None = Field(
+        default=None,
+        description="The gRPC timeout on the worker's action listener stream. Numeric values are interpreted as seconds.",
+    )
     grpc_max_recv_message_length: int = Field(
         default=4 * 1024 * 1024, description="4MB default"
     )
@@ -184,12 +278,46 @@ class ClientConfig(BaseSettings):
     disable_log_capture: bool = False
     log_queue_size: int = 1000
     force_shutdown_on_shutdown_signal: bool = False
-    tenacity: TenacityConfig = TenacityConfig()
+    tenacity: TenacityConfig = Field(default_factory=lambda: TenacityConfig())
+    embedded: EmbeddedHatchetConfig | None = None
+
+    sync_result_poll_interval: timedelta = Field(
+        default=DEFAULT_SYNC_RESULT_POLL_INTERVAL,
+        ge=DEFAULT_SYNC_RESULT_POLL_INTERVAL,
+        description=(
+            "Time between GetRunDetails polls when waiting for a workflow "
+            "result on the sync path. Cannot be set below 1 second. Numeric "
+            "values are interpreted as seconds."
+        ),
+    )
+
+    @field_validator("sync_result_poll_interval", mode="before")
+    @classmethod
+    def validate_sync_result_poll_interval(
+        cls, value: timedelta | int | float | str
+    ) -> timedelta:
+        return parse_timedelta_from_seconds(value)
+
+    @field_validator("action_listener_timeout", mode="before")
+    @classmethod
+    def validate_action_listener_timeout(
+        cls, value: timedelta | int | float | str | None
+    ) -> timedelta | None:
+        return None if value is None else parse_timedelta_from_seconds(value)
 
     @model_validator(mode="after")
     def validate_token_and_tenant(self) -> "ClientConfig":
+        # the embedded engine issues its own token once it starts, so a config
+        # with `embedded` set but no token yet is a valid, pre-flight state;
+        # `resolve_embedded_connection` fills the token in, and this validator
+        # runs for real on the resulting config
+        if self.embedded is not None and not self.token:
+            return self
+
         if not self.token:
-            raise ValueError("Token must be set")
+            raise ValueError(
+                "API token is required. Set it via the HATCHET_CLIENT_TOKEN environment variable. For local development, you can run Hatchet embedded via `Hatchet.from_embedded()`. More docs here: https://docs.hatchet.run/v1/embedded"
+            )
 
         if not self.token.startswith("ey"):
             raise ValueError(
@@ -203,6 +331,9 @@ class ClientConfig(BaseSettings):
 
     @model_validator(mode="after")
     def validate_addresses(self) -> "ClientConfig":
+        if self.embedded is not None and not self.token:
+            return self
+
         ## If nothing is set, read from the token
         ## If either is set, override what's in the JWT
         server_url_from_jwt, grpc_broadcast_address_from_jwt = get_addresses_from_jwt(

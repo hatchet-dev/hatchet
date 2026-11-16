@@ -1,0 +1,177 @@
+---
+title: "Filters"
+---
+
+# Filters Client
+
+Filters client for interacting with Hatchet's filters API.
+
+This class provides a high-level interface for creating, retrieving, listing, updating, and deleting filters in the Hatchet system.
+
+```ruby
+filters = hatchet.filters.list(limit: 10, workflow_ids: ["wf-1"])
+```
+
+```ruby
+filter = hatchet.filters.create(
+  workflow_id: "wf-1",
+  expression: 'input.priority > 5',
+  scope: "high-priority"
+)
+```
+
+It is available on the main client as `hatchet.filters`.
+
+Methods:
+
+| Name     | Description                          |
+| -------- | ------------------------------------ |
+| `list`   | List filters for the current tenant. |
+| `get`    | Get a filter by its ID.              |
+| `create` | Create a new filter.                 |
+| `delete` | Delete a filter by its ID.           |
+| `update` | Update a filter by its ID.           |
+
+### Functions
+
+#### `list`
+
+List filters for the current tenant.
+
+```ruby
+filters = hatchet.filters.list(limit: 10, workflow_ids: ["wf-1"])
+```
+
+Parameters:
+
+| Name           | Type                   | Description                              | Default |
+| -------------- | ---------------------- | ---------------------------------------- | ------- |
+| `limit`        | `Integer \| nil`       | The maximum number of filters to return. | `nil`   |
+| `offset`       | `Integer \| nil`       | The number of filters to skip.           | `nil`   |
+| `workflow_ids` | `Array<String> \| nil` | A list of workflow IDs to filter by.     | `nil`   |
+| `scopes`       | `Array<String> \| nil` | A list of scopes to filter by.           | `nil`   |
+
+Returns:
+
+| Type     | Description                                        |
+| -------- | -------------------------------------------------- |
+| `Object` | A list of filters matching the specified criteria. |
+
+Raises:
+
+| Type                       | Description               |
+| -------------------------- | ------------------------- |
+| `HatchetSdkRest::ApiError` | If the API request fails. |
+
+#### `get`
+
+Get a filter by its ID.
+
+```ruby
+filter = hatchet.filters.get("filter-123")
+```
+
+Parameters:
+
+| Name        | Type     | Description                       | Default    |
+| ----------- | -------- | --------------------------------- | ---------- |
+| `filter_id` | `String` | The ID of the filter to retrieve. | _required_ |
+
+Returns:
+
+| Type     | Description         |
+| -------- | ------------------- |
+| `Object` | The filter details. |
+
+Raises:
+
+| Type                       | Description               |
+| -------------------------- | ------------------------- |
+| `HatchetSdkRest::ApiError` | If the API request fails. |
+
+#### `create`
+
+Create a new filter.
+
+```ruby
+filter = hatchet.filters.create(
+  workflow_id: "wf-1",
+  expression: 'input.value > 10',
+  scope: "my-scope",
+  payload: { threshold: 10 }
+)
+```
+
+Parameters:
+
+| Name          | Type          | Description                                          | Default    |
+| ------------- | ------------- | ---------------------------------------------------- | ---------- |
+| `workflow_id` | `String`      | The ID of the workflow to associate with the filter. | _required_ |
+| `expression`  | `String`      | The CEL expression to evaluate for the filter.       | _required_ |
+| `scope`       | `String`      | The scope for the filter.                            | _required_ |
+| `payload`     | `Hash \| nil` | The payload to send with the filter.                 | `nil`      |
+
+Returns:
+
+| Type     | Description         |
+| -------- | ------------------- |
+| `Object` | The created filter. |
+
+Raises:
+
+| Type                       | Description               |
+| -------------------------- | ------------------------- |
+| `HatchetSdkRest::ApiError` | If the API request fails. |
+
+#### `delete`
+
+Delete a filter by its ID.
+
+```ruby
+hatchet.filters.delete("filter-123")
+```
+
+Parameters:
+
+| Name        | Type     | Description                     | Default    |
+| ----------- | -------- | ------------------------------- | ---------- |
+| `filter_id` | `String` | The ID of the filter to delete. | _required_ |
+
+Returns:
+
+| Type     | Description         |
+| -------- | ------------------- |
+| `Object` | The deleted filter. |
+
+Raises:
+
+| Type                       | Description               |
+| -------------------------- | ------------------------- |
+| `HatchetSdkRest::ApiError` | If the API request fails. |
+
+#### `update`
+
+Update a filter by its ID.
+
+```ruby
+hatchet.filters.update("filter-123", { expression: 'input.value > 20' })
+```
+
+Parameters:
+
+| Name        | Type     | Description                         | Default    |
+| ----------- | -------- | ----------------------------------- | ---------- |
+| `filter_id` | `String` | The ID of the filter to update.     | _required_ |
+| `updates`   | `Hash`   | The updates to apply to the filter. | _required_ |
+
+Returns:
+
+| Type     | Description         |
+| -------- | ------------------- |
+| `Object` | The updated filter. |
+
+Raises:
+
+| Type                       | Description               |
+| -------------------------- | ------------------------- |
+| `HatchetSdkRest::ApiError` | If the API request fails. |

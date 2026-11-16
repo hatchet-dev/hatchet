@@ -2,6 +2,7 @@ package webhooksv1
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -10,6 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -35,10 +37,15 @@ func (w *V1WebhooksService) V1WebhookCreate(ctx echo.Context, request gen.V1Webh
 
 	params, err := w.constructCreateOpts(tenant.ID, *request.Body)
 	if err != nil {
+		var internal *webhookInternalError
+		if errors.As(err, &internal) {
+			return nil, err
+		}
+
 		return gen.V1WebhookCreate400JSONResponse{
 			Errors: []gen.APIError{
 				{
-					Description: fmt.Sprintf("failed to construct webhook create params: %v", err),
+					Description: err.Error(),
 				},
 			},
 		}, nil
@@ -118,7 +125,7 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId uuid.UUID, request gen.
 		passwordEncrypted, err := w.config.Encryption.Encrypt([]byte(basicAuth.Auth.Password), "v1_webhook_basic_auth_password")
 
 		if err != nil {
-			return params, fmt.Errorf("failed to encrypt basic auth password: %s", err.Error())
+			return params, &webhookInternalError{err: fmt.Errorf("failed to encrypt basic auth password: %w", err)}
 		}
 
 		authConfig.BasicAuth = &v1.BasicAuthCredentials{
@@ -154,7 +161,7 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId uuid.UUID, request gen.
 		apiKeyEncrypted, err := w.config.Encryption.Encrypt([]byte(apiKeyAuth.Auth.ApiKey), "v1_webhook_api_key")
 
 		if err != nil {
-			return params, fmt.Errorf("failed to encrypt api key: %s", err.Error())
+			return params, &webhookInternalError{err: fmt.Errorf("failed to encrypt api key: %w", err)}
 		}
 
 		authConfig.APIKeyAuth = &v1.APIKeyAuthCredentials{
@@ -181,6 +188,14 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId uuid.UUID, request gen.
 			return params, fmt.Errorf("failed to parse hmac auth: %w", err)
 		}
 
+		if err := checkHMACAlgorithm(sqlcv1.V1IncomingWebhookHmacAlgorithm(hmacAuth.Auth.Algorithm)); err != nil {
+			return params, err
+		}
+
+		if err := encryption.CheckHMACKey([]byte(hmacAuth.Auth.SigningSecret)); err != nil {
+			return params, err
+		}
+
 		authConfig := v1.AuthConfig{
 			Type: sqlcv1.V1IncomingWebhookAuthTypeHMAC,
 		}
@@ -188,7 +203,7 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId uuid.UUID, request gen.
 		signingSecretEncrypted, err := w.config.Encryption.Encrypt([]byte(hmacAuth.Auth.SigningSecret), "v1_webhook_hmac_signing_secret")
 
 		if err != nil {
-			return params, fmt.Errorf("failed to encrypt api key: %s", err.Error())
+			return params, &webhookInternalError{err: fmt.Errorf("failed to encrypt signing secret: %w", err)}
 		}
 
 		authConfig.HMACAuth = &v1.HMACAuthCredentials{
@@ -216,6 +231,20 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId uuid.UUID, request gen.
 	}
 
 	return params, nil
+}
+
+// webhookInternalError is an encryption failure. Its text names key material handling, so the
+// handler returns it for the server error handler to replace.
+type webhookInternalError struct {
+	err error
+}
+
+func (e *webhookInternalError) Error() string {
+	return e.err.Error()
+}
+
+func (e *webhookInternalError) Unwrap() error {
+	return e.err
 }
 
 func returnEventResponsePayloadOrDefault(requestReturnEventAsResponsePayload *bool) bool {

@@ -36,7 +36,7 @@ def emit_events(hatchet: Hatchet, total_events: int, events_per_second: int) -> 
         }
 
         try:
-            hatchet.event.push("compression-test:event", event)
+            hatchet.events.push("compression-test:event", event)
             event_id += 1
             if event_id % 50 == 0:
                 print(f"Emitted {event_id} events...")
@@ -61,13 +61,13 @@ def main() -> None:
     workflow = hatchet.workflow(
         name=workflow_name,
         on_events=["compression-test:event"],
+        input_validator=dict[str, Any],
     )
 
     @workflow.task()
-    def step1(input_data: Any, ctx: Context) -> dict[str, Any]:
-        # EmptyModel allows extra fields, access as attributes
+    def step1(input_data: dict[str, Any], ctx: Context) -> dict[str, Any]:
         # The event data is passed as the workflow input
-        event_id = getattr(input_data, "id", None)
+        event_id = input_data.get("id")
         print(f"Processing event {event_id}")
         return {
             "processed": True,

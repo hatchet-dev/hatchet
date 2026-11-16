@@ -21,6 +21,9 @@ module HatchetSdkRest
     # The role of the user in the tenant.
     attr_accessor :role
 
+    # Whether the invited user can view payloads. Defaults to true.
+    attr_accessor :can_view_payloads
+
     class EnumAttributeValidator
       attr_reader :datatype
       attr_reader :allowable_values
@@ -47,7 +50,8 @@ module HatchetSdkRest
     def self.attribute_map
       {
         :'email' => :'email',
-        :'role' => :'role'
+        :'role' => :'role',
+        :'can_view_payloads' => :'canViewPayloads'
       }
     end
 
@@ -65,7 +69,8 @@ module HatchetSdkRest
     def self.openapi_types
       {
         :'email' => :'String',
-        :'role' => :'TenantMemberRole'
+        :'role' => :'TenantMemberRole',
+        :'can_view_payloads' => :'Boolean'
       }
     end
 
@@ -101,6 +106,10 @@ module HatchetSdkRest
         self.role = attributes[:'role']
       else
         self.role = nil
+      end
+
+      if attributes.key?(:'can_view_payloads')
+        self.can_view_payloads = attributes[:'can_view_payloads']
       end
     end
 
@@ -155,7 +164,8 @@ module HatchetSdkRest
       return true if self.equal?(o)
       self.class == o.class &&
           email == o.email &&
-          role == o.role
+          role == o.role &&
+          can_view_payloads == o.can_view_payloads
     end
 
     # @see the `==` method
@@ -167,7 +177,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [email, role].hash
+      [email, role, can_view_payloads].hash
     end
 
     # Builds the object from hash

@@ -16,6 +16,7 @@ import {
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import useCanWrite from '@/hooks/use-can-write';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { queries } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
@@ -35,6 +36,7 @@ function ExpandedWorkflowImpl() {
   const navigate = useNavigate();
   const [deleteWorker, setDeleteWorker] = useState(false);
   const { tenantId } = useCurrentTenantId();
+  const canWrite = useCanWrite();
   const { refetchInterval } = useRefetchInterval();
 
   const params = useParams({ from: appRoutes.tenantManagedWorkerRoute.to });
@@ -188,30 +190,34 @@ function ExpandedWorkflowImpl() {
               fieldErrors={fieldErrors}
             />
             <Separator className="my-4" />
-            <h4 className="mt-8 text-lg font-bold leading-tight text-foreground">
-              Danger Zone
-            </h4>
-            <Separator className="my-4" />
-            <Button
-              variant="destructive"
-              onClick={() => {
-                setDeleteWorker(true);
-              }}
-            >
-              Delete Managed Worker
-            </Button>
+            {canWrite && (
+              <>
+                <h4 className="mt-8 text-lg font-bold leading-tight text-foreground">
+                  Danger Zone
+                </h4>
+                <Separator className="my-4" />
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    setDeleteWorker(true);
+                  }}
+                >
+                  Delete Managed Worker
+                </Button>
 
-            <ConfirmDialog
-              title={`Delete managed worker`}
-              description={`Are you sure you want to delete the managed worker ${managedWorker.name}? This action cannot be undone, and will immediately tear these workers down.`}
-              submitLabel={'Delete'}
-              onSubmit={deleteManagedWorkerMutation.mutate}
-              onCancel={function (): void {
-                setDeleteWorker(false);
-              }}
-              isLoading={deleteManagedWorkerMutation.isPending}
-              isOpen={deleteWorker}
-            />
+                <ConfirmDialog
+                  title={`Delete managed worker`}
+                  description={`Are you sure you want to delete the managed worker ${managedWorker.name}? This action cannot be undone, and will immediately tear these workers down.`}
+                  submitLabel={'Delete'}
+                  onSubmit={deleteManagedWorkerMutation.mutate}
+                  onCancel={function (): void {
+                    setDeleteWorker(false);
+                  }}
+                  isLoading={deleteManagedWorkerMutation.isPending}
+                  isOpen={deleteWorker}
+                />
+              </>
+            )}
           </TabsContent>
         </Tabs>
       </div>

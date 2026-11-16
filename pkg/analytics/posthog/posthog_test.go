@@ -1,6 +1,7 @@
 package posthog
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -88,5 +89,68 @@ func TestFlushCount_UnknownEventTimesOmitted(t *testing.T) {
 	}
 	if v, ok := capture.Properties["aggregate_last_event_at"]; ok {
 		t.Errorf("expected no aggregate_last_event_at, got %v", v)
+	}
+}
+
+func TestEnqueue_SetsAccountGroupFromContext(t *testing.T) {
+	fake := &fakeClient{}
+	p := newTestAnalytics(fake)
+
+	accountID := uuid.New()
+	orgID := uuid.New()
+
+	ctx := context.WithValue(context.Background(), analytics.AccountIDKey, accountID)
+	ctx = context.WithValue(ctx, analytics.OrganizationIDKey, orgID)
+
+	p.Enqueue(ctx, analytics.User, analytics.Create, "resource-1", nil)
+
+	capture := captureFrom(t, fake)
+
+	if capture.Groups == nil {
+		t.Fatal("expected groups to be set")
+	}
+
+	if got := capture.Groups["account"]; got != accountID {
+		t.Errorf("expected account group %v, got %v", accountID, got)
+	}
+
+	// The account must not displace the groups that were already supported.
+	if got := capture.Groups["organization"]; got != orgID {
+		t.Errorf("expected organization group %v, got %v", orgID, got)
+	}
+}
+
+// An account is a grouping, not an actor: it must never become the distinct id,
+// or account-scoped events would masquerade as a person.
+func TestEnqueue_AccountAloneDoesNotProduceDistinctID(t *testing.T) {
+	fake := &fakeClient{}
+	p := newTestAnalytics(fake)
+
+	accountID := uuid.New()
+	ctx := context.WithValue(context.Background(), analytics.AccountIDKey, accountID)
+
+	p.Enqueue(ctx, analytics.User, analytics.Create, "resource-1", nil)
+
+	capture := captureFrom(t, fake)
+
+	if capture.DistinctId != "" {
+		t.Errorf("expected an empty distinct id for an account-only context, got %q", capture.DistinctId)
+	}
+
+	if got := capture.Groups["account"]; got != accountID {
+		t.Errorf("expected account group %v, got %v", accountID, got)
+	}
+}
+
+func TestEnqueue_NoGroupsWhenContextIsEmpty(t *testing.T) {
+	fake := &fakeClient{}
+	p := newTestAnalytics(fake)
+
+	p.Enqueue(context.Background(), analytics.User, analytics.Create, "resource-1", nil)
+
+	capture := captureFrom(t, fake)
+
+	if capture.Groups != nil {
+		t.Errorf("expected no groups, got %v", capture.Groups)
 	}
 }

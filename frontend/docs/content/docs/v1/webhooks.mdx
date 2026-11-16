@@ -31,7 +31,7 @@ The **Source** indicates the source of the webhook, which can be a pre-provided 
 
 #### Event Key Expression
 
-The **Event Key Expression** is a [CEL](https://cel.dev/) expression that you can use to create a dynamic event key from the payload and headers of the incoming webhook. You can either set this to a constant value, like `webhook`, or you could set it to something dynamic using those two options. Some examples:
+The **Event Key Expression** is a [CEL](/v1/cel-expressions) expression that you can use to create a dynamic event key from the payload and headers of the incoming webhook. You can either set this to a constant value, like `webhook`, or you could set it to something dynamic using those two options. Some examples:
 
 1. `'stripe:' + input.type` would create event keys where `'stripe:'` is a prefix for all keys indicating the webhook came from Stripe, and `input.type` selects the `type` field off of the webhook payload and uses it to create the final event key. The result might look something like `stripe:payment_intent.created`.
 2. `'github:' + headers['x-github-event'] + ':' + input.action` could create a key like `github:star:created`
@@ -46,7 +46,7 @@ The **Event Key Expression** is a [CEL](https://cel.dev/) expression that you ca
 
 #### Scope Expression (Optional)
 
-The **Scope Expression** is an optional [CEL](https://cel.dev/) expression that evaluates to a string used to filter which workflows to trigger. This is useful when you have multiple workflows listening to the same event key but want to route to specific workflows based on the webhook content.
+The **Scope Expression** is an optional [CEL](/v1/cel-expressions) expression that evaluates to a string used to filter which workflows to trigger. This is useful when you have multiple workflows listening to the same event key but want to route to specific workflows based on the webhook content.
 
 Like the event key expression, you have access to `input` (the webhook payload) and `headers` (the request headers). Some examples:
 

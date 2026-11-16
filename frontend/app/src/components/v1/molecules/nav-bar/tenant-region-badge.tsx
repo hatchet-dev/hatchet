@@ -18,12 +18,13 @@ export function TenantRegionBadge({
     <Badge
       variant="outline"
       className={cn(
-        'max-w-[9rem] shrink-0 truncate px-1.5 py-0 text-[10px] font-normal',
+        'max-w-[9rem] shrink-0 px-1.5 py-0 text-[10px] font-normal',
         className,
       )}
       title={region}
     >
-      {label}
+      {/* Badge is a flex container, so the ellipsis needs its own element. */}
+      <span className="truncate">{label}</span>
     </Badge>
   );
 }

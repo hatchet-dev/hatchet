@@ -28,6 +28,7 @@ module Hatchet
 
         def get_run_details: (external_id: String) -> untyped
         def put_rate_limit: (key: String, limit: Integer, duration: Symbol) -> untyped
+        def pause_rate_limit: (key: String, until_time: Time) -> Time
         def close: () -> void
       end
     end

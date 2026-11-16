@@ -1,0 +1,11 @@
+{
+  "pages": [
+    "index",
+    "client",
+    "context",
+    "embedded",
+    "feature-clients",
+    "runnables"
+  ],
+  "title": "Go SDK"
+}

@@ -124,16 +124,18 @@ UPDATE "TenantInviteLink"
 SET
     "updatedAt" = $1::timestamp,
     "status" = COALESCE($2::"InviteLinkStatus", "status"),
-    "role" = COALESCE($3::"TenantMemberRole", "role")
-WHERE "id" = $4::uuid
-RETURNING id, "createdAt", "updatedAt", "tenantId", "inviterEmail", "inviteeEmail", expires, status, role
+    "role" = COALESCE($3::"TenantMemberRole", "role"),
+    "canViewPayloads" = COALESCE($4::boolean, "canViewPayloads")
+WHERE "id" = $5::uuid
+RETURNING id, "createdAt", "updatedAt", "tenantId", "inviterEmail", "inviteeEmail", expires, status, role, "canViewPayloads"
 `
 
 type SyncUpdateTenantInviteParams struct {
-	Updatedat pgtype.Timestamp     `json:"updatedat"`
-	Status    NullInviteLinkStatus `json:"status"`
-	Role      NullTenantMemberRole `json:"role"`
-	ID        uuid.UUID            `json:"id"`
+	Updatedat       pgtype.Timestamp     `json:"updatedat"`
+	Status          NullInviteLinkStatus `json:"status"`
+	Role            NullTenantMemberRole `json:"role"`
+	CanViewPayloads pgtype.Bool          `json:"canViewPayloads"`
+	ID              uuid.UUID            `json:"id"`
 }
 
 func (q *Queries) SyncUpdateTenantInvite(ctx context.Context, db DBTX, arg SyncUpdateTenantInviteParams) (*TenantInviteLink, error) {
@@ -141,6 +143,7 @@ func (q *Queries) SyncUpdateTenantInvite(ctx context.Context, db DBTX, arg SyncU
 		arg.Updatedat,
 		arg.Status,
 		arg.Role,
+		arg.CanViewPayloads,
 		arg.ID,
 	)
 	var i TenantInviteLink
@@ -154,6 +157,7 @@ func (q *Queries) SyncUpdateTenantInvite(ctx context.Context, db DBTX, arg SyncU
 		&i.Expires,
 		&i.Status,
 		&i.Role,
+		&i.CanViewPayloads,
 	)
 	return &i, err
 }
@@ -162,19 +166,26 @@ const syncUpdateTenantMember = `-- name: SyncUpdateTenantMember :one
 UPDATE "TenantMember"
 SET
     "updatedAt" = $1::timestamp,
-    "role" = $2::"TenantMemberRole"
-WHERE "id" = $3::uuid
-RETURNING id, "createdAt", "updatedAt", "tenantId", "userId", role
+    "role" = $2::"TenantMemberRole",
+    "canViewPayloads" = COALESCE($3::boolean, "canViewPayloads")
+WHERE "id" = $4::uuid
+RETURNING id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayloads"
 `
 
 type SyncUpdateTenantMemberParams struct {
-	Updatedat pgtype.Timestamp `json:"updatedat"`
-	Role      TenantMemberRole `json:"role"`
-	ID        uuid.UUID        `json:"id"`
+	Updatedat       pgtype.Timestamp `json:"updatedat"`
+	Role            TenantMemberRole `json:"role"`
+	CanViewPayloads pgtype.Bool      `json:"canViewPayloads"`
+	ID              uuid.UUID        `json:"id"`
 }
 
 func (q *Queries) SyncUpdateTenantMember(ctx context.Context, db DBTX, arg SyncUpdateTenantMemberParams) (*TenantMember, error) {
-	row := db.QueryRow(ctx, syncUpdateTenantMember, arg.Updatedat, arg.Role, arg.ID)
+	row := db.QueryRow(ctx, syncUpdateTenantMember,
+		arg.Updatedat,
+		arg.Role,
+		arg.CanViewPayloads,
+		arg.ID,
+	)
 	var i TenantMember
 	err := row.Scan(
 		&i.ID,
@@ -183,6 +194,7 @@ func (q *Queries) SyncUpdateTenantMember(ctx context.Context, db DBTX, arg SyncU
 		&i.TenantId,
 		&i.UserId,
 		&i.Role,
+		&i.CanViewPayloads,
 	)
 	return &i, err
 }
@@ -329,7 +341,8 @@ INSERT INTO "TenantInviteLink" (
     "inviteeEmail",
     "expires",
     "role",
-    "status"
+    "status",
+    "canViewPayloads"
 ) VALUES (
     $1::uuid,
     $2::timestamp,
@@ -339,27 +352,30 @@ INSERT INTO "TenantInviteLink" (
     $6::text,
     $7::timestamp,
     $8::"TenantMemberRole",
-    $9::"InviteLinkStatus"
+    $9::"InviteLinkStatus",
+    COALESCE($10::boolean, true)
 ) ON CONFLICT ("id") DO UPDATE SET
     "updatedAt" = $3::timestamp,
     "inviterEmail" = $5::text,
     "inviteeEmail" = $6::text,
     "expires" = $7::timestamp,
     "role" = $8::"TenantMemberRole",
-    "status" = $9::"InviteLinkStatus"
-RETURNING id, "createdAt", "updatedAt", "tenantId", "inviterEmail", "inviteeEmail", expires, status, role
+    "status" = $9::"InviteLinkStatus",
+    "canViewPayloads" = COALESCE($10::boolean, "TenantInviteLink"."canViewPayloads")
+RETURNING id, "createdAt", "updatedAt", "tenantId", "inviterEmail", "inviteeEmail", expires, status, role, "canViewPayloads"
 `
 
 type SyncUpsertTenantInviteParams struct {
-	ID           uuid.UUID        `json:"id"`
-	Createdat    pgtype.Timestamp `json:"createdat"`
-	Updatedat    pgtype.Timestamp `json:"updatedat"`
-	Tenantid     uuid.UUID        `json:"tenantid"`
-	Inviteremail string           `json:"inviteremail"`
-	Inviteeemail string           `json:"inviteeemail"`
-	Expires      pgtype.Timestamp `json:"expires"`
-	Role         TenantMemberRole `json:"role"`
-	Status       InviteLinkStatus `json:"status"`
+	ID              uuid.UUID        `json:"id"`
+	Createdat       pgtype.Timestamp `json:"createdat"`
+	Updatedat       pgtype.Timestamp `json:"updatedat"`
+	Tenantid        uuid.UUID        `json:"tenantid"`
+	Inviteremail    string           `json:"inviteremail"`
+	Inviteeemail    string           `json:"inviteeemail"`
+	Expires         pgtype.Timestamp `json:"expires"`
+	Role            TenantMemberRole `json:"role"`
+	Status          InviteLinkStatus `json:"status"`
+	CanViewPayloads pgtype.Bool      `json:"canViewPayloads"`
 }
 
 func (q *Queries) SyncUpsertTenantInvite(ctx context.Context, db DBTX, arg SyncUpsertTenantInviteParams) (*TenantInviteLink, error) {
@@ -373,6 +389,7 @@ func (q *Queries) SyncUpsertTenantInvite(ctx context.Context, db DBTX, arg SyncU
 		arg.Expires,
 		arg.Role,
 		arg.Status,
+		arg.CanViewPayloads,
 	)
 	var i TenantInviteLink
 	err := row.Scan(
@@ -385,6 +402,7 @@ func (q *Queries) SyncUpsertTenantInvite(ctx context.Context, db DBTX, arg SyncU
 		&i.Expires,
 		&i.Status,
 		&i.Role,
+		&i.CanViewPayloads,
 	)
 	return &i, err
 }
@@ -396,27 +414,31 @@ INSERT INTO "TenantMember" (
     "updatedAt",
     "tenantId",
     "userId",
-    "role"
+    "role",
+    "canViewPayloads"
 ) VALUES (
     $1::uuid,
     $2::timestamp,
     $3::timestamp,
     $4::uuid,
     $5::uuid,
-    $6::"TenantMemberRole"
+    $6::"TenantMemberRole",
+    COALESCE($7::boolean, true)
 ) ON CONFLICT ("id") DO UPDATE SET
     "updatedAt" = $3::timestamp,
-    "role" = $6::"TenantMemberRole"
-RETURNING id, "createdAt", "updatedAt", "tenantId", "userId", role
+    "role" = $6::"TenantMemberRole",
+    "canViewPayloads" = COALESCE($7::boolean, "TenantMember"."canViewPayloads")
+RETURNING id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayloads"
 `
 
 type SyncUpsertTenantMemberParams struct {
-	ID        uuid.UUID        `json:"id"`
-	Createdat pgtype.Timestamp `json:"createdat"`
-	Updatedat pgtype.Timestamp `json:"updatedat"`
-	Tenantid  uuid.UUID        `json:"tenantid"`
-	Userid    uuid.UUID        `json:"userid"`
-	Role      TenantMemberRole `json:"role"`
+	ID              uuid.UUID        `json:"id"`
+	Createdat       pgtype.Timestamp `json:"createdat"`
+	Updatedat       pgtype.Timestamp `json:"updatedat"`
+	Tenantid        uuid.UUID        `json:"tenantid"`
+	Userid          uuid.UUID        `json:"userid"`
+	Role            TenantMemberRole `json:"role"`
+	CanViewPayloads pgtype.Bool      `json:"canViewPayloads"`
 }
 
 func (q *Queries) SyncUpsertTenantMember(ctx context.Context, db DBTX, arg SyncUpsertTenantMemberParams) (*TenantMember, error) {
@@ -427,6 +449,7 @@ func (q *Queries) SyncUpsertTenantMember(ctx context.Context, db DBTX, arg SyncU
 		arg.Tenantid,
 		arg.Userid,
 		arg.Role,
+		arg.CanViewPayloads,
 	)
 	var i TenantMember
 	err := row.Scan(
@@ -436,6 +459,7 @@ func (q *Queries) SyncUpsertTenantMember(ctx context.Context, db DBTX, arg SyncU
 		&i.TenantId,
 		&i.UserId,
 		&i.Role,
+		&i.CanViewPayloads,
 	)
 	return &i, err
 }

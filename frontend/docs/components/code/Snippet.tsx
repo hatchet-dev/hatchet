@@ -11,6 +11,7 @@ const languageToHighlightAbbreviation = (language: Language) => {
     case "python":
       return "py";
     case "typescript":
+    case "typescript_sandbox":
       return "ts";
     case "go":
       return "go";
@@ -32,7 +33,7 @@ export const Snippet = ({ src }: { src: SnippetType }) => {
     <CodeBlock
       source={{
         githubUrl: src.githubUrl,
-        raw: src.content,
+        raw: src.content.trimEnd(),
         language: languageToHighlightAbbreviation(src.language),
         codePath: src.codePath,
       }}

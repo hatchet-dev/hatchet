@@ -2,6 +2,7 @@ package durable
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -21,8 +22,8 @@ func DispatchCallbacks(ctx context.Context, l *zerolog.Logger, mq msgqueue.Messa
 
 	for _, cb := range callbacks {
 		idInsertedAtTuples = append(idInsertedAtTuples, v1.IdInsertedAt{
-			ID:         cb.DurableTaskId,
-			InsertedAt: cb.DurableTaskInsertedAt,
+			ID:                   cb.DurableTaskId,
+			InsertedAtUnixMicros: cb.DurableTaskInsertedAt.Time.UnixMicro(),
 		})
 	}
 
@@ -33,11 +34,14 @@ func DispatchCallbacks(ctx context.Context, l *zerolog.Logger, mq msgqueue.Messa
 	}
 
 	dispatcherToMsgs := make(map[uuid.UUID][]*msgqueue.Message)
+	restorePublished := make(map[uuid.UUID]struct{})
+
+	var publishErrs []error
 
 	for _, cb := range callbacks {
 		key := v1.IdInsertedAt{
-			ID:         cb.DurableTaskId,
-			InsertedAt: cb.DurableTaskInsertedAt,
+			ID:                   cb.DurableTaskId,
+			InsertedAtUnixMicros: cb.DurableTaskInsertedAt.Time.UnixMicro(),
 		}
 
 		dispatcherLookup, ok := idInsertedAtToDispatcherId[key]
@@ -48,6 +52,12 @@ func DispatchCallbacks(ctx context.Context, l *zerolog.Logger, mq msgqueue.Messa
 		}
 
 		if dispatcherLookup.IsEvicted {
+			if _, ok := restorePublished[cb.DurableTaskExternalId]; ok {
+				continue
+			}
+
+			restorePublished[cb.DurableTaskExternalId] = struct{}{}
+
 			l.Debug().Msgf("task %d is evicted, publishing restore message", cb.DurableTaskId)
 
 			restoreMsg, err := tasktypes.DurableRestoreTaskMessage(tenantId, cb.DurableTaskExternalId, "callback satisfied while task evicted")
@@ -57,7 +67,7 @@ func DispatchCallbacks(ctx context.Context, l *zerolog.Logger, mq msgqueue.Messa
 			}
 
 			if err := mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, restoreMsg); err != nil {
-				l.Error().Err(err).Msgf("failed to publish restore message for task %s", cb.DurableTaskExternalId.String())
+				publishErrs = append(publishErrs, fmt.Errorf("failed to publish restore message for task %s: %w", cb.DurableTaskExternalId.String(), err))
 			}
 			continue
 		}
@@ -78,6 +88,7 @@ func DispatchCallbacks(ctx context.Context, l *zerolog.Logger, mq msgqueue.Messa
 			cb.SatisfiedOrder,
 			cb.ChildTaskIsFailure,
 			cb.ChildTaskErrorMessage,
+			cb.RedeliveryCount,
 		)
 		if err != nil {
 			l.Error().Err(err).Msgf("failed to create callback completed message for task %s node %d", cb.DurableTaskExternalId.String(), cb.NodeId)
@@ -90,10 +101,10 @@ func DispatchCallbacks(ctx context.Context, l *zerolog.Logger, mq msgqueue.Messa
 	for dispatcherId, msgs := range dispatcherToMsgs {
 		for _, m := range msgs {
 			if err := mq.SendMessage(ctx, msgqueue.QueueTypeFromDispatcherID(dispatcherId), m); err != nil {
-				l.Error().Err(err).Msgf("failed to send callback completed message to dispatcher %s", dispatcherId.String())
+				publishErrs = append(publishErrs, fmt.Errorf("failed to send callback completed message to dispatcher %s: %w", dispatcherId.String(), err))
 			}
 		}
 	}
 
-	return nil
+	return errors.Join(publishErrs...)
 }

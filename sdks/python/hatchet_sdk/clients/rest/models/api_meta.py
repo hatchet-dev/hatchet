@@ -76,6 +76,9 @@ class APIMeta(BaseModel):
         description="the embedded worker API token, only set on authdisabled builds",
         alias="authDisabledToken",
     )
+    embedded: Optional[StrictBool] = Field(
+        default=None, description="whether this instance is running in embedded mode"
+    )
     __properties: ClassVar[List[str]] = [
         "auth",
         "pylonAppId",
@@ -88,6 +91,7 @@ class APIMeta(BaseModel):
         "prometheusServerEnabled",
         "authDisabled",
         "authDisabledToken",
+        "embedded",
     ]
 
     model_config = ConfigDict(
@@ -165,6 +169,7 @@ class APIMeta(BaseModel):
                 "prometheusServerEnabled": obj.get("prometheusServerEnabled"),
                 "authDisabled": obj.get("authDisabled"),
                 "authDisabledToken": obj.get("authDisabledToken"),
+                "embedded": obj.get("embedded"),
             }
         )
         return _obj

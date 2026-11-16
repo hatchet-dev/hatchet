@@ -43,6 +43,9 @@ export enum FeatureFlagId {
   TenantLogWorkflowFilterEnabled = "tenant-log-workflow-filter-enabled",
   TraceMinimapEnabled = "trace-minimap-enabled",
   OrganizationSsoEnabled = "organization-sso-enabled",
+  OperatorDetailsEnabled = "operator-details-enabled",
+  ConcurrencyPageEnabled = "concurrency-page-enabled",
+  RunsFilterSidebarEnabled = "runs-filter-sidebar-enabled",
 }
 
 export enum WebhookWorkerRequestMethod {
@@ -140,6 +143,9 @@ export enum ConcurrencyLimitStrategy {
   DROP_NEWEST = "DROP_NEWEST",
   QUEUE_NEWEST = "QUEUE_NEWEST",
   GROUP_ROUND_ROBIN = "GROUP_ROUND_ROBIN",
+  CANCEL_NEWEST = "CANCEL_NEWEST",
+  CANCEL_QUEUED_EXCEPT_NEWEST = "CANCEL_QUEUED_EXCEPT_NEWEST",
+  CANCEL_QUEUED_EXCEPT_OLDEST = "CANCEL_QUEUED_EXCEPT_OLDEST",
 }
 
 export enum CronWorkflowsOrderByField {
@@ -177,6 +183,11 @@ export enum ScheduledWorkflowsMethod {
   API = "API",
 }
 
+export enum WorkflowPauseScheduledCronRunQueueBehavior {
+  DROP = "DROP",
+  QUEUE = "QUEUE",
+}
+
 export enum RateLimitOrderByDirection {
   Asc = "asc",
   Desc = "desc",
@@ -211,6 +222,7 @@ export enum TenantMemberRole {
   OWNER = "OWNER",
   ADMIN = "ADMIN",
   MEMBER = "MEMBER",
+  VIEWER = "VIEWER",
 }
 
 export enum TenantResource {
@@ -227,6 +239,31 @@ export enum TenantResource {
 export enum V1CELDebugResponseStatus {
   SUCCESS = "SUCCESS",
   ERROR = "ERROR",
+}
+
+/** How far a failed healthcheck got. REQUEST: no HTTP response (DNS, TLS, connection, timeout or a blocked destination). STATUS: the endpoint answered with a non-2xx status. PARSE: the body is not a healthcheck response. CATALOG: the response parsed but the workflows or actions it declares were refused. */
+export enum V1ServerlessEndpointCheckStage {
+  REQUEST = "REQUEST",
+  STATUS = "STATUS",
+  PARSE = "PARSE",
+  CATALOG = "CATALOG",
+}
+
+/** HEALTHCHECK_FAILED: a healthcheck failed; recorded at the start of a failure streak and whenever the error changes. UNHEALTHY: the endpoint's health flipped to unhealthy. HEALTHY: the endpoint's health flipped to healthy, or its healthchecks succeed again after a streak of failures too short to flip it. CATALOG_REGISTERED: a changed set of workflows and actions was registered. CATALOG_REJECTED: the engine refused the declared workflows. DELIVERY_FAILED: a task delivered to the endpoint failed. HEALTHCHECK_FAILED, CATALOG_REJECTED, DELIVERY_FAILED and HEALTHY are each recorded at most once per endpoint every 30 seconds, and an endpoint records at most 120 events an hour; what is held back is counted in details.suppressed of the next event of the same kind. */
+export enum V1ServerlessEndpointEventKind {
+  HEALTHCHECK_FAILED = "HEALTHCHECK_FAILED",
+  UNHEALTHY = "UNHEALTHY",
+  HEALTHY = "HEALTHY",
+  CATALOG_REGISTERED = "CATALOG_REGISTERED",
+  CATALOG_REJECTED = "CATALOG_REJECTED",
+  DELIVERY_FAILED = "DELIVERY_FAILED",
+}
+
+/** The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS and VERCEL name the platform the endpoint is deployed on, which the dashboard uses to guide setup and diagnose failures. */
+export enum V1ServerlessEndpointKind {
+  GENERIC_HTTP = "GENERIC_HTTP",
+  CLOUDFLARE_WORKERS = "CLOUDFLARE_WORKERS",
+  VERCEL = "VERCEL",
 }
 
 export enum V1WebhookHMACEncoding {
@@ -255,6 +292,23 @@ export enum V1WebhookSourceName {
   SLACK = "SLACK",
   LINEAR = "LINEAR",
   SVIX = "SVIX",
+}
+
+/** What happens to a run when its key has no free slot. NONE is the database default and is not set on registered strategies. */
+export enum V1ConcurrencyLimitStrategy {
+  V1ConcurrencyLimitStrategyNone = "NONE",
+  V1ConcurrencyLimitStrategyGroupRoundRobin = "GROUP_ROUND_ROBIN",
+  V1ConcurrencyLimitStrategyCancelInProgress = "CANCEL_IN_PROGRESS",
+  V1ConcurrencyLimitStrategyCancelNewest = "CANCEL_NEWEST",
+  V1ConcurrencyLimitStrategyCancelQueuedExceptNewest = "CANCEL_QUEUED_EXCEPT_NEWEST",
+  V1ConcurrencyLimitStrategyCancelQueuedExceptOldest = "CANCEL_QUEUED_EXCEPT_OLDEST",
+}
+
+/** Where a concurrency strategy is defined. SHARED strategies are named, tenant-wide and can be used by tasks in several workflows. */
+export enum V1ConcurrencyScope {
+  V1ConcurrencyScopeShared = "SHARED",
+  V1ConcurrencyScopeWorkflow = "WORKFLOW",
+  V1ConcurrencyScopeTask = "TASK",
 }
 
 export enum TenantEnvironment {
@@ -477,6 +531,8 @@ export interface V1TaskSummary {
   parentTaskExternalId?: string;
   /** The idempotency key that was claimed by the task run */
   idempotencyKey?: string;
+  /** True when input, output, and event payload fields were omitted because the caller cannot view payloads. Additional metadata is still included. */
+  payloadsRestricted?: boolean;
 }
 
 export interface APIError {
@@ -646,6 +702,14 @@ export interface V1TaskSummaryList {
   rows: V1TaskSummary[];
 }
 
+export interface V1WorkflowRunCount {
+  /**
+   * The number of workflow runs matching the filters
+   * @format int64
+   */
+  count: number;
+}
+
 export interface V1WorkflowRunDisplayName {
   metadata: APIResourceMeta;
   displayName: string;
@@ -722,6 +786,8 @@ export interface V1WorkflowRun {
    * @maxLength 36
    */
   parentTaskExternalId?: string;
+  /** True when input, output, and event payload fields were omitted because the caller cannot view payloads. Additional metadata is still included. */
+  payloadsRestricted?: boolean;
 }
 
 export interface WorkflowRunShapeItemForWorkflowRunDetails {
@@ -851,6 +917,38 @@ export interface V1DurableEventLogEntry {
 }
 
 export type V1DurableEventLogList = V1DurableEventLogEntry[];
+
+export interface V1StreamPayloadRef {
+  /** Publish the message with this as its payload_ref */
+  ref: string;
+}
+
+export interface V1StreamTopic {
+  /** The topic's namespace, empty for the default namespace */
+  namespace: string;
+  topic: string;
+  /** @format date-time */
+  createdAt: string;
+  /** @format date-time */
+  lastPublishedAt: string;
+  /**
+   * The number of messages within the tenant's retention
+   * @format int64
+   */
+  messageCount: number;
+  /**
+   * Subscribers without a cursor start after this offset, 0 to start from the oldest retained message
+   * @format int64
+   */
+  startingOffset: number;
+}
+
+export interface V1StreamTopicList {
+  pagination: PaginationResponse;
+  /** How long messages are kept, and how long a topic is kept after its last publish */
+  retentionHours: number;
+  rows: V1StreamTopic[];
+}
 
 export interface OtelSpan {
   traceId: string;
@@ -996,6 +1094,8 @@ export interface Tenant {
   serverUrl?: string;
   /** Control-plane shard region for the tenant (e.g. aws:us-west-2). */
   region?: string;
+  /** The data retention period for the tenant, e.g. 720h. */
+  dataRetentionPeriod?: string;
 }
 
 export interface V1EventWorkflowRunSummary {
@@ -1066,6 +1166,8 @@ export interface V1Event {
   triggeredRuns?: V1EventTriggeredRun[];
   /** The name of the webhook that triggered this event, if applicable. */
   triggeringWebhookName?: string;
+  /** True when the event payload was omitted because the caller cannot view payloads. Additional metadata is still included. */
+  payloadsRestricted?: boolean;
 }
 
 export interface V1EventList {
@@ -1076,6 +1178,123 @@ export interface V1EventList {
 export interface EventKeyList {
   pagination?: PaginationResponse;
   rows?: EventKey[];
+}
+
+export interface V1ConcurrencyStrategyUsage {
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  workflowId: string;
+  workflowName: string;
+  taskName: string;
+}
+
+export interface V1ConcurrencyStrategy {
+  /**
+   * The strategy id. Unique within a scope; WORKFLOW ids can collide with SHARED and TASK ids.
+   * @format int64
+   */
+  id: number;
+  /** Where a concurrency strategy is defined. SHARED strategies are named, tenant-wide and can be used by tasks in several workflows. */
+  scope: V1ConcurrencyScope;
+  /** The shared strategy's name, the workflow name for WORKFLOW strategies, or the task name for TASK strategies. */
+  name: string;
+  /**
+   * The workflow the strategy is defined on. Unset for SHARED strategies.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  workflowId?: string;
+  /** Unset for SHARED strategies. */
+  workflowName?: string;
+  /**
+   * The workflow version the strategy is attached to. Unset for SHARED strategies.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  workflowVersionId?: string;
+  /** The workflow version's user-defined label, when one was set. Unset for SHARED strategies. */
+  workflowVersion?: string;
+  /** The task the strategy is defined on. Only set for TASK strategies. */
+  taskName?: string;
+  /** Tasks on their workflow's latest version that use this strategy. Only set for SHARED strategies. */
+  usedBy?: V1ConcurrencyStrategyUsage[];
+  /** Whether no latest workflow version uses this strategy, and it is only listed because runs of an older version still hold or wait for its slots. */
+  isDraining: boolean;
+  /** The CEL expression that computes a run's key. */
+  expression: string;
+  /** What happens to a run when its key has no free slot. NONE is the database default and is not set on registered strategies. */
+  limitStrategy: V1ConcurrencyLimitStrategy;
+  /**
+   * The static max runs per key.
+   * @format int32
+   */
+  maxRuns: number;
+  /** CEL expression computing max runs per key from the task input, when set. Overrides maxRuns. */
+  maxRunsExpression?: string;
+  /**
+   * Keys with at least one run running or queued.
+   * @format int64
+   */
+  keyCount: number;
+  /**
+   * Keys with at least one queued run.
+   * @format int64
+   */
+  queuedKeyCount: number;
+  /**
+   * Running runs, each holding a slot.
+   * @format int64
+   */
+  runningCount: number;
+  /**
+   * Queued runs.
+   * @format int64
+   */
+  queuedCount: number;
+  /**
+   * When the longest-queued run was created. Unset when nothing is queued.
+   * @format date-time
+   */
+  oldestQueuedAt?: string;
+  /** The key of the longest-queued run. Unset when nothing is queued. */
+  oldestQueuedKey?: string;
+}
+
+export interface V1ConcurrencyStrategyList {
+  rows: V1ConcurrencyStrategy[];
+}
+
+export interface V1ConcurrencyKey {
+  key: string;
+  /**
+   * The effective max runs for this key. With a max runs expression, this is the value evaluated for the key's most recent run.
+   * @format int32
+   */
+  maxRuns: number;
+  /** @format int64 */
+  runningCount: number;
+  /** @format int64 */
+  queuedCount: number;
+  /**
+   * When the longest-queued run on this key was created. Unset when nothing is queued.
+   * @format date-time
+   */
+  oldestQueuedAt?: string;
+}
+
+export interface V1ConcurrencyKeyList {
+  pagination?: PaginationResponse;
+  rows: V1ConcurrencyKey[];
+  /**
+   * The number of keys matching the filters, across all pages.
+   * @format int64
+   */
+  total: number;
 }
 
 export interface V1Filter {
@@ -1235,6 +1454,178 @@ export interface V1UpdateWebhookRequest {
   returnEventAsResponsePayload?: boolean;
 }
 
+/** The health of the endpoint as last observed by the serverless operator. Written on state transitions only, so changedAt is the time the endpoint last flipped between healthy and unhealthy. */
+export interface V1ServerlessEndpointStatus {
+  /** Whether the last healthcheck succeeded. Absent until the operator has polled the endpoint at least once. */
+  healthy?: boolean;
+  /** The error from the last failed healthcheck, if the endpoint is unhealthy. */
+  error?: string;
+  /**
+   * When the healthy flag last changed.
+   * @format date-time
+   */
+  changedAt?: string;
+  /** The action ids the operator registered for this endpoint from its last healthcheck, as the endpoint declared them. Several endpoints of a tenant may register the same action; each then serves it. */
+  registeredActions: string[];
+}
+
+export interface V1ServerlessEndpoint {
+  metadata: APIResourceMeta;
+  /**
+   * The ID of the tenant that owns this endpoint.
+   * @format uuid
+   */
+  tenantId: string;
+  /** The name of the endpoint. Unique within the tenant. */
+  name: string;
+  /** The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS and VERCEL name the platform the endpoint is deployed on, which the dashboard uses to guide setup and diagnose failures. */
+  kind: V1ServerlessEndpointKind;
+  /** The HTTPS URL (port 443) polled periodically to discover the workflows this endpoint serves. */
+  healthcheckUrl: string;
+  /** The HTTPS URL (port 443) that assigned tasks are delivered to. */
+  triggerUrl: string;
+  /**
+   * The per-request timeout backstop for trigger requests, in seconds.
+   * @format int32
+   */
+  requestTimeoutSeconds: number;
+  /**
+   * How often the healthcheck URL is polled, in seconds.
+   * @format int32
+   */
+  pollIntervalSeconds: number;
+  /**
+   * How long a trigger request may block waiting for a durable result before the operator falls back to the websocket durable protocol, in milliseconds.
+   * @format int32
+   */
+  inlineWaitBudgetMs: number;
+  /** Worker labels applied to the connection-backed worker the operator creates for this endpoint. */
+  labels: Record<string, any>;
+  /** Whether the operator polls and dispatches to this endpoint. */
+  enabled: boolean;
+  /** The health of the endpoint as last observed by the serverless operator. Written on state transitions only, so changedAt is the time the endpoint last flipped between healthy and unhealthy. */
+  status: V1ServerlessEndpointStatus;
+}
+
+export interface V1ServerlessEndpointList {
+  pagination?: PaginationResponse;
+  rows?: V1ServerlessEndpoint[];
+}
+
+export interface V1CreateServerlessEndpointRequest {
+  /** The name of the endpoint. Unique within the tenant. */
+  name: string;
+  /** The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS and VERCEL name the platform the endpoint is deployed on, which the dashboard uses to guide setup and diagnose failures. */
+  kind?: V1ServerlessEndpointKind;
+  /** The HTTPS URL (port 443) polled periodically to discover the workflows this endpoint serves. */
+  healthcheckUrl: string;
+  /** The HTTPS URL (port 443) that assigned tasks are delivered to. */
+  triggerUrl: string;
+  /**
+   * The secret used to HMAC-sign requests delivered to the endpoint. At least 32 characters. Write-only: it is stored encrypted and never returned in responses.
+   * @minLength 32
+   */
+  signingSecret: string;
+  /**
+   * The per-request timeout backstop for trigger requests, in seconds. Defaults to 300.
+   * @format int32
+   */
+  requestTimeoutSeconds?: number;
+  /**
+   * How often the healthcheck URL is polled, in seconds. Defaults to 30.
+   * @format int32
+   */
+  pollIntervalSeconds?: number;
+  /**
+   * The inline wait budget for durable results, in milliseconds. Defaults to 5000.
+   * @format int32
+   */
+  inlineWaitBudgetMs?: number;
+  /** Worker labels applied to the worker the operator creates for this endpoint. */
+  labels?: Record<string, any>;
+  /** Whether the operator polls and dispatches to this endpoint. Defaults to true. */
+  enabled?: boolean;
+}
+
+/** Fields to update on a serverless endpoint. Omitted fields are left unchanged. */
+export interface V1UpdateServerlessEndpointRequest {
+  /** The name of the endpoint. Unique within the tenant. */
+  name?: string;
+  /** The kind of serverless endpoint. GENERIC_HTTP is any HTTPS endpoint that implements the serverless endpoint contract; CLOUDFLARE_WORKERS and VERCEL name the platform the endpoint is deployed on, which the dashboard uses to guide setup and diagnose failures. */
+  kind?: V1ServerlessEndpointKind;
+  /** The HTTPS URL (port 443) polled periodically to discover the workflows this endpoint serves. */
+  healthcheckUrl?: string;
+  /** The HTTPS URL (port 443) that assigned tasks are delivered to. */
+  triggerUrl?: string;
+  /**
+   * A new secret used to HMAC-sign requests delivered to the endpoint. At least 32 characters. Provide a value to rotate the secret; it is never returned in responses.
+   * @minLength 32
+   */
+  signingSecret?: string;
+  /**
+   * The per-request timeout backstop for trigger requests, in seconds.
+   * @format int32
+   */
+  requestTimeoutSeconds?: number;
+  /**
+   * How often the healthcheck URL is polled, in seconds.
+   * @format int32
+   */
+  pollIntervalSeconds?: number;
+  /**
+   * The inline wait budget for durable results, in milliseconds.
+   * @format int32
+   */
+  inlineWaitBudgetMs?: number;
+  /** Worker labels applied to the worker the operator creates for this endpoint. Replaces the existing labels. */
+  labels?: Record<string, any>;
+  /** Whether the operator polls and dispatches to this endpoint. */
+  enabled?: boolean;
+}
+
+export interface V1ServerlessEndpointEventDetails {
+  /** How far a failed healthcheck got. REQUEST: no HTTP response (DNS, TLS, connection, timeout or a blocked destination). STATUS: the endpoint answered with a non-2xx status. PARSE: the body is not a healthcheck response. CATALOG: the response parsed but the workflows or actions it declares were refused. */
+  stage?: V1ServerlessEndpointCheckStage;
+  url?: string;
+  /** @format int32 */
+  statusCode?: number;
+  /** @format int32 */
+  durationMs?: number;
+  /** The start of the response body, at most 1 KiB. Omitted for members who cannot view payloads. */
+  responseExcerpt?: string;
+  actions?: string[];
+  workflows?: string[];
+  /** @format uuid */
+  taskRunExternalId?: string;
+  actionId?: string;
+  /** @format int32 */
+  retryCount?: number;
+  /** Whether the engine will retry the failed delivery. */
+  retryable?: boolean;
+  /**
+   * Events of this kind since the previous one that were not recorded on their own, because they came too soon after it or past the endpoint's event budget.
+   * @format int32
+   */
+  suppressed?: number;
+  /** Whether the details were cut to bound the event's size: the workflows and actions lists keep their first 50 entries, and long names are shortened. */
+  truncated?: boolean;
+}
+
+export interface V1ServerlessEndpointEvent {
+  /** @format int64 */
+  id: number;
+  /** @format date-time */
+  createdAt: string;
+  /** HEALTHCHECK_FAILED: a healthcheck failed; recorded at the start of a failure streak and whenever the error changes. UNHEALTHY: the endpoint's health flipped to unhealthy. HEALTHY: the endpoint's health flipped to healthy, or its healthchecks succeed again after a streak of failures too short to flip it. CATALOG_REGISTERED: a changed set of workflows and actions was registered. CATALOG_REJECTED: the engine refused the declared workflows. DELIVERY_FAILED: a task delivered to the endpoint failed. HEALTHCHECK_FAILED, CATALOG_REJECTED, DELIVERY_FAILED and HEALTHY are each recorded at most once per endpoint every 30 seconds, and an endpoint records at most 120 events an hour; what is held back is counted in details.suppressed of the next event of the same kind. */
+  kind: V1ServerlessEndpointEventKind;
+  message: string;
+  details: V1ServerlessEndpointEventDetails;
+}
+
+export interface V1ServerlessEndpointEventList {
+  rows: V1ServerlessEndpointEvent[];
+}
+
 export interface V1CELDebugRequest {
   /** The CEL expression to evaluate */
   expression: string;
@@ -1324,6 +1715,11 @@ export interface APIMeta {
    * @example "eyJhbGciOiJFUzI1NiIs..."
    */
   authDisabledToken?: string;
+  /**
+   * whether this instance is running in embedded mode
+   * @example false
+   */
+  embedded?: boolean;
 }
 
 export interface APIMetaIntegration {
@@ -1428,6 +1824,25 @@ export interface TenantResourcePolicy {
   limits: TenantResourceLimit[];
 }
 
+export interface TenantEntitlements {
+  auditLogs: boolean;
+  prometheusMetrics: boolean;
+  strictAdditionalMetadataFilters: boolean;
+  dagOperator: boolean;
+  durableStreams: boolean;
+  serverlessOperator: boolean;
+  sandboxOperator: boolean;
+}
+
+export interface UpdateTenantEntitlementsRequest {
+  /** Whether the tenant has opted into durable streams. */
+  durableStreams?: boolean;
+  /** Whether the tenant has opted into the serverless operator. */
+  serverlessOperator?: boolean;
+  /** Whether the tenant has opted into the sandbox operator. */
+  sandboxOperator?: boolean;
+}
+
 export interface UpdateTenantAlertEmailGroupRequest {
   /** A list of emails for users */
   emails: string[];
@@ -1490,6 +1905,8 @@ export interface TenantMember {
   user: UserTenantPublic;
   /** The role of the user in the tenant. */
   role: TenantMemberRole;
+  /** Whether this member can view task, event, and log payloads in the dashboard and REST API. OWNER and ADMIN always can, regardless of this flag. Defaults to true. */
+  canViewPayloads?: boolean;
   /** The tenant associated with this tenant member. */
   tenant?: Tenant;
   /** Whether this membership was explicitly granted (as opposed to synced via user-group tags). Only explicit members can have their role edited or be removed. */
@@ -1507,6 +1924,8 @@ export interface TenantInvite {
   email: string;
   /** The role of the user in the tenant. */
   role: TenantMemberRole;
+  /** Whether the invited user can view payloads. Defaults to true. */
+  canViewPayloads?: boolean;
   /** The tenant id associated with this tenant invite. */
   tenantId: string;
   /** The tenant name for the tenant. */
@@ -1597,11 +2016,15 @@ export interface CreateTenantInviteRequest {
   email: string;
   /** The role of the user in the tenant. */
   role: TenantMemberRole;
+  /** Whether the invited user can view payloads. Defaults to true. */
+  canViewPayloads?: boolean;
 }
 
 export interface UpdateTenantInviteRequest {
   /** The role of the user in the tenant. */
   role: TenantMemberRole;
+  /** Whether the invited user can view payloads. */
+  canViewPayloads?: boolean;
 }
 
 export interface APIToken {
@@ -1611,6 +2034,8 @@ export interface APIToken {
    * @maxLength 255
    */
   name: string;
+  /** Whether the token is limited to viewer access over REST and cannot use gRPC. */
+  readOnly: boolean;
   /**
    * When the API token expires.
    * @format date-time
@@ -1629,6 +2054,8 @@ export interface CreateAPITokenRequest {
    * @maxLength 255
    */
   name: string;
+  /** Limit the token to viewer access over REST and deny all gRPC calls. Defaults to false. */
+  readOnly?: boolean;
   /** The duration for which the token is valid. */
   expiresIn?: string;
 }
@@ -1768,6 +2195,12 @@ export interface RateLimit {
    * @example "2022-12-13T15:06:48.888358-05:00"
    */
   lastRefill: string;
+  /**
+   * When the rate limit's pause ends, if it is paused. Runs that consume a paused key stay queued until then.
+   * @format date-time
+   * @example "2022-12-13T15:06:48.888358-05:00"
+   */
+  pausedUntil?: string;
 }
 
 export interface RateLimitList {
@@ -1783,6 +2216,8 @@ export interface TenantMemberList {
 export interface UpdateTenantMemberRequest {
   /** The role of the user in the tenant. */
   role: TenantMemberRole;
+  /** Whether this member can view payloads. Ignored for OWNER and ADMIN, who always can. */
+  canViewPayloads?: boolean;
 }
 
 export interface EventData {
@@ -1798,6 +2233,10 @@ export interface Workflow {
   description?: string;
   /** Whether the workflow is paused. */
   isPaused?: boolean;
+  /** The behavior of cron runs triggered while the workflow is paused. */
+  pausedWorkflowCronRunQueueBehavior?: WorkflowPauseScheduledCronRunQueueBehavior;
+  /** The behavior of scheduled runs triggered while the workflow is paused. */
+  pausedWorkflowScheduledRunQueueBehavior?: WorkflowPauseScheduledCronRunQueueBehavior;
   versions?: WorkflowVersionMeta[];
   /** The tags of the workflow. */
   tags?: WorkflowTag[];
@@ -1805,6 +2244,8 @@ export interface Workflow {
   jobs?: Job[];
   /** The tenant id of the workflow. */
   tenantId: string;
+  /** The event and cron triggers declared on the latest workflow version. */
+  triggers?: WorkflowTriggers;
 }
 
 export interface WorkflowVersionMeta {
@@ -1851,6 +2292,24 @@ export interface Job {
   steps: Step[];
   /** The timeout of the job. */
   timeout?: string;
+}
+
+export interface WorkflowTriggerEventRef {
+  parent_id?: string;
+  event_key?: string;
+}
+
+export interface WorkflowTriggerCronRef {
+  parent_id?: string;
+  cron?: string;
+}
+
+export interface WorkflowTriggers {
+  metadata?: APIResourceMeta;
+  workflow_version_id?: string;
+  tenant_id?: string;
+  events?: WorkflowTriggerEventRef[];
+  crons?: WorkflowTriggerCronRef[];
 }
 
 export interface WorkflowList {
@@ -2042,9 +2501,28 @@ export interface WorkflowRunsCancelRequest {
   workflowRunIds: string[];
 }
 
+export interface PauseWorkflowRequestPause {
+  /** Discriminator indicating this request pauses the workflow. */
+  action: "pause";
+  /** The behavior of cron runs triggered while the workflow is paused. */
+  pausedWorkflowCronRunQueueBehavior: WorkflowPauseScheduledCronRunQueueBehavior;
+  /** The behavior of scheduled runs triggered while the workflow is paused. */
+  pausedWorkflowScheduledRunQueueBehavior: WorkflowPauseScheduledCronRunQueueBehavior;
+  /** The TTL for queued runs while the workflow is paused before they get dropped, expressed as a Go-style duration string (e.g. "1d7h30m"). */
+  pausedWorkflowQueueTTL: string;
+}
+
+export interface PauseWorkflowRequestUnpause {
+  /** Discriminator indicating this request unpauses the workflow. */
+  action: "unpause";
+}
+
+export type PauseWorkflowRequest =
+  | PauseWorkflowRequestPause
+  | PauseWorkflowRequestUnpause;
+
 export interface WorkflowUpdateRequest {
-  /** Whether the workflow is paused. */
-  isPaused?: boolean;
+  pause?: PauseWorkflowRequest;
 }
 
 export interface WorkflowConcurrency {
@@ -2057,24 +2535,6 @@ export interface WorkflowConcurrency {
   limitStrategy: ConcurrencyLimitStrategy;
   /** An action which gets the concurrency group for the WorkflowRun. */
   getConcurrencyGroup: string;
-}
-
-export interface WorkflowTriggerEventRef {
-  parent_id?: string;
-  event_key?: string;
-}
-
-export interface WorkflowTriggerCronRef {
-  parent_id?: string;
-  cron?: string;
-}
-
-export interface WorkflowTriggers {
-  metadata?: APIResourceMeta;
-  workflow_version_id?: string;
-  tenant_id?: string;
-  events?: WorkflowTriggerEventRef[];
-  crons?: WorkflowTriggerCronRef[];
 }
 
 export interface ConcurrencySetting {
@@ -2475,6 +2935,13 @@ export interface Worker {
    */
   webhookId?: string;
   runtimeInfo?: WorkerRuntimeInfo;
+  /**
+   * The id of the operator that owns this worker, if it is an engine-managed operator worker.
+   * @format uuid
+   */
+  operatorId?: string;
+  /** The number of durable task runs owned by this operator that are currently evicted while waiting on durable events. Evicted runs hold no slots. Only set for operator workers. */
+  evictedDurableTaskCount?: number;
 }
 
 export interface WorkerList {

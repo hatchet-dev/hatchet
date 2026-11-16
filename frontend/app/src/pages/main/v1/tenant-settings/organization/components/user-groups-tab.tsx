@@ -14,7 +14,10 @@ import {
 } from '@/lib/api/generated/control-plane/data-contracts';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
-import { RoleBadge } from '@/pages/main/v1/tenant-settings/components/member-primitives';
+import {
+  payloadsLockedForRole,
+  RoleBadge,
+} from '@/pages/main/v1/tenant-settings/components/member-primitives';
 import { TagBadge } from '@/pages/main/v1/tenant-settings/organization/components/tag-badge';
 import { CreateUserGroupModal } from '@/pages/organizations/$organization/components/create-user-group-modal';
 import { EditUserGroupModal } from '@/pages/organizations/$organization/components/edit-user-group-modal';
@@ -79,6 +82,16 @@ export function UserGroupsTab({
       columnLabel: 'Members',
       cellRenderer: (row: UserGroup) => (
         <span className="text-sm">{row.memberCount}</span>
+      ),
+    },
+    {
+      columnLabel: 'Payloads',
+      cellRenderer: (row: UserGroup) => (
+        <span className="text-sm text-muted-foreground">
+          {payloadsLockedForRole(row.role) || row.canViewPayloads !== false
+            ? 'Visible'
+            : 'Hidden'}
+        </span>
       ),
     },
     {

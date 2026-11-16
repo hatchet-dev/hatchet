@@ -17,6 +17,7 @@ import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { useApiError } from '@/lib/hooks';
 import {
   MemberEmail,
+  payloadsLockedForRole,
   RoleBadge,
 } from '@/pages/main/v1/tenant-settings/components/member-primitives';
 import { useMutation } from '@tanstack/react-query';
@@ -79,6 +80,17 @@ export function MemberTable({
         columnLabel: 'Role',
         cellRenderer: (member: TenantMember) => (
           <RoleBadge role={member.role} />
+        ),
+      },
+      {
+        columnLabel: 'Payloads',
+        cellRenderer: (member: TenantMember) => (
+          <span className="text-sm text-muted-foreground">
+            {payloadsLockedForRole(member.role) ||
+            member.canViewPayloads !== false
+              ? 'Visible'
+              : 'Hidden'}
+          </span>
         ),
       },
       {
@@ -176,7 +188,10 @@ function EditMemberRoleDialog({
     onError: (error: AxiosError) => handleApiError(error),
   });
 
-  const handleSubmit = (data: { role: TenantMemberRole }) => {
+  const handleSubmit = (data: {
+    role: TenantMemberRole;
+    canViewPayloads: boolean;
+  }) => {
     setFormErrors([]);
     if (member.role === TenantMemberRole.OWNER && !canManageOrganization) {
       setFormErrors([

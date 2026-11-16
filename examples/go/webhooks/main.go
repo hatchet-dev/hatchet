@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 
+	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
+	"github.com/hatchet-dev/hatchet/sdks/go/features"
 )
 
 func main() {
@@ -146,6 +149,22 @@ func main() {
 		},
 		hatchet.WithWorkflowEvents("slack:interaction:block_actions"),
 	)
+
+	// > Create webhook returning the event as the response payload
+	returnEvent := true
+	_, err = client.Webhooks().Create(context.Background(), features.CreateWebhookOpts{
+		Name:                         "incoming-payments",
+		SourceName:                   rest.GENERIC,
+		EventKeyExpression:           `"stripe:" + input.type`,
+		ReturnEventAsResponsePayload: &returnEvent,
+		Auth: features.APIKeyAuth{
+			HeaderName: "X-Api-Key",
+			APIKey:     "your-api-key",
+		},
+	})
+	if err != nil {
+		log.Printf("failed to create webhook: %v", err)
+	}
 
 	worker, err := client.NewWorker("webhook-worker",
 		hatchet.WithWorkflows(

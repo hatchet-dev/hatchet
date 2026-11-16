@@ -107,16 +107,20 @@ func (p *PosthogAnalytics) Enqueue(ctx context.Context, resource analytics.Resou
 	}
 
 	orgID := analytics.OrganizationIDFromContext(ctx)
+	accountID := analytics.AccountIDFromContext(ctx)
 
 	var group posthog.Groups
 
-	if tenantID != nil || orgID != nil {
+	if tenantID != nil || orgID != nil || accountID != nil {
 		group = posthog.NewGroups()
 		if tenantID != nil {
 			group.Set("tenant", *tenantID)
 		}
 		if orgID != nil {
 			group.Set("organization", *orgID)
+		}
+		if accountID != nil {
+			group.Set("account", *accountID)
 		}
 	}
 
@@ -133,6 +137,10 @@ func (p *PosthogAnalytics) Enqueue(ctx context.Context, resource analytics.Resou
 }
 
 func (p *PosthogAnalytics) Count(ctx context.Context, resource analytics.Resource, action analytics.Action, props ...analytics.Properties) {
+	p.CountN(ctx, resource, action, 1, nil, props...)
+}
+
+func (p *PosthogAnalytics) CountN(ctx context.Context, resource analytics.Resource, action analytics.Action, n int64, totals analytics.Totals, props ...analytics.Properties) {
 	tenantID := analytics.TenantIDFromContext(ctx)
 	tokenID := analytics.TokenIDFromContext(ctx)
 
@@ -151,7 +159,7 @@ func (p *PosthogAnalytics) Count(ctx context.Context, resource analytics.Resourc
 		merged["source"] = string(source)
 	}
 
-	p.aggregator.Count(resource, action, tid, tokenID, 1, merged)
+	p.aggregator.CountTotals(resource, action, tid, tokenID, n, totals, merged)
 }
 
 func (p *PosthogAnalytics) flushCount(resource analytics.Resource, action analytics.Action, tenantID uuid.UUID, tokenID *uuid.UUID, count int64, firstEventAt, lastEventAt time.Time, properties analytics.Properties) {
@@ -217,14 +225,19 @@ func (p *PosthogAnalytics) Group(groupType string, groupKey string, data analyti
 	}
 }
 
-func (p *PosthogAnalytics) IsFeatureEnabled(_ context.Context, flagKey string, tenantID uuid.UUID, isEnabledIfNoPosthog bool) (bool, error) {
-	result, err := (*p.client).IsFeatureEnabled(
-		posthog.FeatureFlagPayload{
-			Key:        flagKey,
-			DistinctId: analytics.DistinctID(nil, nil, &tenantID),
-			Groups:     posthog.NewGroups().Set("tenant", tenantID.String()),
-		},
-	)
+func (p *PosthogAnalytics) IsFeatureEnabled(_ context.Context, flagKey string, tenantID uuid.UUID, user *analytics.FeatureFlagUser, isEnabledIfNoPosthog bool) (bool, error) {
+	payload := posthog.FeatureFlagPayload{
+		Key:        flagKey,
+		DistinctId: analytics.DistinctID(nil, nil, &tenantID),
+		Groups:     posthog.NewGroups().Set("tenant", tenantID.String()),
+	}
+
+	if user != nil {
+		payload.DistinctId = analytics.DistinctID(&user.ID, nil, &tenantID)
+		payload.PersonProperties = posthog.NewProperties().Set("email", user.Email)
+	}
+
+	result, err := (*p.client).IsFeatureEnabled(payload)
 
 	if err != nil {
 		p.l.Error().Err(err).Str("flag_key", flagKey).Str("tenant_id", tenantID.String()).Msg("error evaluating feature flag, returning default value")

@@ -11,9 +11,9 @@ module Hatchet
     # the REST API for read operations (list, get, etc.).
     #
     # @example Creating an event
-    #   response = events.push(
-    #     key: "user-login",
-    #     data: { user_id: 123, action: "login" },
+    #   response = hatchet.events.push(
+    #     "user-login",
+    #     { user_id: 123, action: "login" },
     #     additional_metadata: { ip_address: "192.168.1.1" }
     #   )
     #
@@ -53,7 +53,7 @@ module Hatchet
       # @raise [ArgumentError] If required parameters are missing
       # @raise [Hatchet::Error] If the API request fails or returns an error
       # @example Creating a simple event
-      #   response = events.create(
+      #   response = hatchet.events.create(
       #     key: "user-login",
       #     data: { user_id: 123, action: "login" },
       #     additional_metadata: { ip_address: "192.168.1.1" }
@@ -80,7 +80,7 @@ module Hatchet
       # @return [Object] The gRPC response containing the created event details
       # @raise [Hatchet::Error] If the API request fails or returns an error
       # @example Push a simple event
-      #   response = events.push(
+      #   response = hatchet.events.push(
       #     "user-signup",
       #     { user_id: 456, email: "user@example.com" },
       #     additional_metadata: { source: "web" }
@@ -106,7 +106,7 @@ module Hatchet
       #     { key: "user-signup", data: { user_id: 1 } },
       #     { key: "user-login", data: { user_id: 1 }, priority: 1 }
       #   ]
-      #   response = events.bulk_push(events_data)
+      #   response = hatchet.events.bulk_push(events_data)
       def bulk_push(events, namespace: nil)
         grpc_events = events.map do |event|
           {
@@ -135,7 +135,7 @@ module Hatchet
       # @return [HatchetSdkRest::V1EventList] List of events matching the filters
       # @raise [Hatchet::Error] If the API request fails or returns an error
       # @example List recent events
-      #   events = events_client.list(
+      #   events = hatchet.events.list(
       #     limit: 10,
       #     since: Time.now - 24 * 60 * 60,
       #     keys: ["user-signup", "user-login"]

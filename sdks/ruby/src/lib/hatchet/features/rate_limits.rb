@@ -8,7 +8,7 @@ module Hatchet
     # rate limits using the gRPC Admin client.
     #
     # @example Setting a rate limit
-    #   rate_limits_client.put(key: "api-calls", limit: 100, duration: :SECOND)
+    #   hatchet.rate_limits.put(key: "api-calls", limit: 100, duration: :SECOND)
     #
     # @since 0.1.0
     class RateLimits
@@ -31,9 +31,22 @@ module Hatchet
       # @return [void]
       # @raise [GRPC::BadStatus] If the gRPC request fails
       # @example
-      #   rate_limits_client.put(key: "api-calls", limit: 100, duration: :SECOND)
+      #   hatchet.rate_limits.put(key: "api-calls", limit: 100, duration: :SECOND)
       def put(key:, limit:, duration: :SECOND)
         @admin_grpc.put_rate_limit(key: key, limit: limit, duration: duration)
+      end
+
+      # Pause a rate limit key.
+      # Queued runs that consume it stay queued until the given time.
+      #
+      # @param key [String] The rendered rate limit key to pause
+      # @param until_time [Time] The time to pause the key until. An earlier time never shortens an existing pause.
+      # @return [Time] The time the key is paused until
+      # @raise [GRPC::BadStatus] If the gRPC request fails
+      # @example
+      #   hatchet.rate_limits.pause(key: "upstream-api:tenant-123", until_time: Time.now + 30)
+      def pause(key:, until_time:)
+        @admin_grpc.pause_rate_limit(key: key, until_time: until_time)
       end
     end
   end

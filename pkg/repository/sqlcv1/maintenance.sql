@@ -1,0 +1,32 @@
+-- name: FindInvalidIndexes :many
+-- Finds parent indexes on partitioned tables that are marked invalid but can be fixed now.
+-- An index on a partitioned table is really one index per partition plus a parent entry that
+-- ties them together. Postgres marks the parent valid only once every partition has a valid
+-- copy attached to it.
+--
+-- Skips parents where any partition is still missing its copy. Indexes created with
+-- CREATE INDEX ... ON ONLY start out that way on purpose and stay invalid until the old
+-- partitions without the index are dropped. Re-attaching can't fix them yet, and it would
+-- still lock the child index and block reads and writes on that partition.
+SELECT
+    parent_table.relname AS parent_table_name,
+    parent_index.relname AS parent_index_name,
+    MIN(child_index.relname)::name AS example_child_index_name
+FROM pg_catalog.pg_index parent_idx
+JOIN pg_catalog.pg_class parent_index ON parent_index.oid = parent_idx.indexrelid
+JOIN pg_catalog.pg_class parent_table ON parent_table.oid = parent_idx.indrelid
+JOIN pg_catalog.pg_namespace parent_namespace ON parent_namespace.oid = parent_table.relnamespace
+JOIN pg_catalog.pg_inherits child_inh ON child_inh.inhparent = parent_index.oid
+JOIN pg_catalog.pg_class child_index ON child_index.oid = child_inh.inhrelid
+JOIN pg_catalog.pg_index child_idx ON child_idx.indexrelid = child_index.oid
+WHERE NOT parent_idx.indisvalid
+  AND parent_table.relkind = 'p'
+  AND parent_namespace.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+  AND (parent_table.relname LIKE '%olap%') = @isOlap::boolean
+GROUP BY parent_table.oid, parent_table.relname, parent_index.relname
+HAVING COUNT(*) FILTER (WHERE child_idx.indisvalid) = (
+    SELECT COUNT(*)
+    FROM pg_catalog.pg_inherits table_inh
+    WHERE table_inh.inhparent = parent_table.oid
+)
+ORDER BY parent_index.relname;

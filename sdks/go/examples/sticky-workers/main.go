@@ -3,8 +3,6 @@ package v1_workflows
 import (
 	"fmt"
 
-	"github.com/hatchet-dev/hatchet/pkg/client/types"
-	"github.com/hatchet-dev/hatchet/pkg/worker"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
@@ -22,11 +20,11 @@ type StickyDagResult struct {
 // > Sticky DAG
 func StickyDag(client *hatchet.Client) *hatchet.Workflow {
 	stickyDag := client.NewWorkflow("sticky-dag",
-		hatchet.WithWorkflowStickyStrategy(types.StickyStrategy_SOFT),
+		hatchet.WithWorkflowStickyStrategy(hatchet.StickyStrategySoft),
 	)
 
 	_ = stickyDag.NewTask("sticky-task",
-		func(ctx worker.HatchetContext, input StickyInput) (interface{}, error) {
+		func(ctx hatchet.Context, input StickyInput) (interface{}, error) {
 			workerId := ctx.Worker().ID()
 
 			return &StickyResult{
@@ -36,7 +34,7 @@ func StickyDag(client *hatchet.Client) *hatchet.Workflow {
 	)
 
 	_ = stickyDag.NewTask("sticky-task-2",
-		func(ctx worker.HatchetContext, input StickyInput) (interface{}, error) {
+		func(ctx hatchet.Context, input StickyInput) (interface{}, error) {
 			workerId := ctx.Worker().ID()
 
 			return &StickyResult{
@@ -69,7 +67,7 @@ func Child(client *hatchet.Client) *hatchet.StandaloneTask {
 // > Sticky Child
 func Sticky(client *hatchet.Client) *hatchet.StandaloneTask {
 	sticky := client.NewStandaloneTask("sticky-task",
-		func(ctx worker.HatchetContext, input StickyInput) (*StickyResult, error) {
+		func(ctx hatchet.Context, input StickyInput) (*StickyResult, error) {
 			// Run a child workflow on the same worker
 			childWorkflow := Child(client)
 			childResult, err := childWorkflow.Run(ctx, ChildInput{N: 1}, hatchet.WithRunSticky(true))

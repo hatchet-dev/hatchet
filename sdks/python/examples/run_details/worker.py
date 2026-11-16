@@ -4,7 +4,8 @@ import time
 
 from pydantic import BaseModel
 
-from hatchet_sdk import Context, Hatchet
+from datetime import timedelta
+from hatchet_sdk import Context, Hatchet, SleepCondition
 
 
 class MockInput(BaseModel):
@@ -22,7 +23,8 @@ class RandomSum(BaseModel):
 hatchet = Hatchet()
 
 run_detail_test_workflow = hatchet.workflow(
-    name="RunDetailTest", input_validator=MockInput
+    name="run-detail-test",
+    input_validator=MockInput,
 )
 
 

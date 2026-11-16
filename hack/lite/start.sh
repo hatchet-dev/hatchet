@@ -23,4 +23,4 @@ if ./hatchet-admin authdisabled; then
 fi
 
 # Run the Go binary
-./hatchet-lite --config ./config
+exec ./hatchet-lite --config ./config

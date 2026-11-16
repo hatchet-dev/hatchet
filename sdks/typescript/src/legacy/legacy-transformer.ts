@@ -6,41 +6,10 @@ import type { CreateWorkflowOpts } from '../v1/declaration';
 import type { CreateWorkflowTaskOpts, Concurrency } from '../v1/task';
 import type { Duration } from '../v1/client/duration';
 
+import { isLegacyWorkflow, warnLegacyWorkflow } from './legacy-workflow';
+
 export type { Workflow as LegacyWorkflow } from '@hatchet/legacy/workflow';
-
-const LEGACY_WORKFLOW_WARNING = [
-  '',
-  '\x1b[33m╔══════════════════════════════════════════════════════════════════════════════╗',
-  '║                                                                              ║',
-  '║   ⚠  DEPRECATION WARNING: Legacy workflow format detected.                   ║',
-  '║                                                                              ║',
-  '║   Please migrate to the v1 SDK:                                              ║',
-  '║   https://docs.hatchet.run/home/migration-guide-typescript                   ║',
-  '║                                                                              ║',
-  '╚══════════════════════════════════════════════════════════════════════════════╝\x1b[0m',
-  '',
-].join('\n');
-
-/**
- * Type guard: returns true if the workflow is a legacy v0 Workflow (not a BaseWorkflowDeclaration).
- */
-export function isLegacyWorkflow(workflow: unknown): workflow is Workflow {
-  return (
-    workflow != null &&
-    typeof workflow === 'object' &&
-    !(workflow instanceof BaseWorkflowDeclaration) &&
-    'id' in workflow &&
-    'steps' in workflow &&
-    Array.isArray((workflow as any).steps)
-  );
-}
-
-/**
- * Emits a deprecation warning for legacy workflow usage.
- */
-export function warnLegacyWorkflow(): void {
-  console.warn(LEGACY_WORKFLOW_WARNING);
-}
+export { isLegacyWorkflow, warnLegacyWorkflow };
 
 /**
  * Transforms a legacy v0 Workflow into a v1 WorkflowDeclaration.

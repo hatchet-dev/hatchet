@@ -1,0 +1,26 @@
+{
+  "name": "@hatchet-dev/cli",
+  "version": "0.0.0",
+  "description": "Command-line interface for Hatchet workflow orchestration",
+  "license": "MIT",
+  "homepage": "https://hatchet.run",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hatchet-dev/hatchet.git",
+    "directory": "cmd/hatchet-cli/npm"
+  },
+  "bin": {
+    "hatchet": "bin/hatchet.js"
+  },
+  "files": ["bin", "README.md", "LICENSE"],
+  "publishConfig": {
+    "access": "public"
+  },
+  "optionalDependencies": {
+    "@hatchet-dev/cli-darwin-arm64": "0.0.0",
+    "@hatchet-dev/cli-darwin-x64": "0.0.0",
+    "@hatchet-dev/cli-linux-arm64": "0.0.0",
+    "@hatchet-dev/cli-linux-x64": "0.0.0",
+    "@hatchet-dev/cli-win32-x64": "0.0.0"
+  }
+}

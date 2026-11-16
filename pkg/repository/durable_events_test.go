@@ -9,7 +9,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -170,40 +169,6 @@ func TestResolveBranchForNode_SiblingBranchForkAfterSibling(t *testing.T) {
 	assert.Equal(t, resolveBranchForNode(4, 2, branchPoints), int64(2))
 }
 
-func satisfiedEntry(nodeID, branchID, order int64) *sqlcv1.V1DurableEventLogEntry {
-	return &sqlcv1.V1DurableEventLogEntry{
-		NodeID:         nodeID,
-		BranchID:       branchID,
-		SatisfiedOrder: pgtype.Int8{Int64: order, Valid: true},
-	}
-}
-
-func TestLatestSatisfiedOrderForBranchPrefix_ForkFromFirstNode(t *testing.T) {
-	assert.Equal(t, int64(0), latestSatisfiedOrderForBranchPrefix(nil, 1, nil))
-}
-
-func TestLatestSatisfiedOrderForBranchPrefix_ForkAfterCachedPrefix(t *testing.T) {
-	entries := []*sqlcv1.V1DurableEventLogEntry{
-		satisfiedEntry(1, 1, 1),
-	}
-
-	assert.Equal(t, int64(1), latestSatisfiedOrderForBranchPrefix(entries, 1, nil))
-}
-
-func TestLatestSatisfiedOrderForBranchPrefix_IgnoresSiblingBranches(t *testing.T) {
-	branchPoints := map[int64]*sqlcv1.V1DurableEventLogBranchPoint{
-		2: {FirstNodeIDInNewBranch: 2, ParentBranchID: 1, NextBranchID: 2},
-		3: {FirstNodeIDInNewBranch: 2, ParentBranchID: 1, NextBranchID: 3},
-	}
-	entries := []*sqlcv1.V1DurableEventLogEntry{
-		satisfiedEntry(1, 1, 10),
-		satisfiedEntry(2, 2, 7),
-		satisfiedEntry(2, 3, 99),
-	}
-
-	assert.Equal(t, int64(10), latestSatisfiedOrderForBranchPrefix(entries, 2, branchPoints))
-}
-
 func strPtr(s string) *string { return &s }
 
 func keyFromKind(t *testing.T, kind sqlcv1.V1DurableEventLogKind, triggerOpts *WorkflowNameTriggerOpts, waitForConditions []CreateExternalSignalConditionOpt) string {
@@ -284,6 +249,40 @@ func TestCreateIdempotencyKey_WithAndWithoutTriggerOpts(t *testing.T) {
 	}, nil)
 
 	assert.NotEqual(t, without, with)
+}
+
+func int64Ptr(i int64) *int64 { return &i }
+
+func dagStepTriggerOpts(actionId string, childIndex int64) *WorkflowNameTriggerOpts {
+	return &WorkflowNameTriggerOpts{
+		IsDagStepTrigger: true,
+		TriggerTaskData: &TriggerTaskData{
+			WorkflowName:   "my-dag",
+			Data:           []byte(`{"x":1}`),
+			TargetActionId: strPtr(actionId),
+			ChildIndex:     int64Ptr(childIndex),
+		},
+	}
+}
+
+func TestCreateIdempotencyKey_DagStepsOfSameWorkflowDiffer(t *testing.T) {
+	stepA := keyFromKind(t, sqlcv1.V1DurableEventLogKindRUN, dagStepTriggerOpts("my-dag:step-a", 9), nil)
+	stepB := keyFromKind(t, sqlcv1.V1DurableEventLogKindRUN, dagStepTriggerOpts("my-dag:step-b", 13), nil)
+
+	assert.NotEqual(t, stepA, stepB)
+}
+
+func TestIdempotencyKeyMatches_DagStepIsNeverCheckedForNonDeterminism(t *testing.T) {
+	opt := GetOrCreateLogEntryOpt{IdempotencyKey: []byte("key-hashed-from-compact-input"), IsDagStepTrigger: true}
+
+	assert.True(t, opt.idempotencyKeyMatches([]byte("key-hashed-from-spaced-input")))
+}
+
+func TestIdempotencyKeyMatches_ChildRunMatchesByKey(t *testing.T) {
+	opt := GetOrCreateLogEntryOpt{IdempotencyKey: []byte("key")}
+
+	assert.True(t, opt.idempotencyKeyMatches([]byte("key")))
+	assert.False(t, opt.idempotencyKeyMatches([]byte("other key")))
 }
 
 func int32Ptr(i int32) *int32 { return &i }

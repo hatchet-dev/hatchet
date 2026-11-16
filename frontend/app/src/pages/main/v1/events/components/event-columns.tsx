@@ -163,6 +163,10 @@ export const columns = ({
         <DataTableColumnHeader column={column} title={EventColumn.payload} />
       ),
       cell: ({ row }) => {
+        if (row.original.payloadsRestricted) {
+          return <div className="text-xs text-muted-foreground">Hidden</div>;
+        }
+
         if (!row.original.payload) {
           return <div></div>;
         }

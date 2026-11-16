@@ -1,18 +1,20 @@
 on:
-  workflow_run:
-    workflows: ["Create prerelease w/ binaries and static assets"]
+  release:
     types:
-      - completed
+      - released
   workflow_dispatch:
     inputs:
       tag:
         description: "Tag to use for the release"
         required: true
 name: Release
+permissions:
+  contents: read
+  packages: write
+  id-token: write
 jobs:
   verify:
       runs-on: ubuntu-latest
-      if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
       outputs:
         tag: ${{ steps.tag_name.outputs.tag }}
         should_publish: ${{ steps.skip.outputs.should_publish }}
@@ -22,13 +24,18 @@ jobs:
             if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
               echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
             else
-              echo "tag=${{ github.event.workflow_run.head_branch }}" >> "$GITHUB_OUTPUT"
+              echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
             fi
 
+        - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+          with:
+            ref: ${{ steps.tag_name.outputs.tag }}
+
+        # A tag without a CHANGELOG.md section is a CLI-only release: no latest images, no load tests.
         - id: skip
           run: |
             tag="${{ steps.tag_name.outputs.tag }}"
-            if echo "$tag" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            if echo "$tag" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$' && [ -n "$(./hack/ci/release-notes-cli.sh "$tag")" ]; then
               echo "should_publish=true" >> "$GITHUB_OUTPUT"
             else
               echo "should_publish=false" >> "$GITHUB_OUTPUT"
@@ -47,7 +54,7 @@ jobs:
         optimistic-scheduling: ["true", "false"]
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.verify.outputs.tag }}
           fetch-depth: 0
@@ -58,9 +65,9 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26"
+          go-version-file: go.mod
 
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
@@ -73,7 +80,7 @@ jobs:
 
       - name: Test
         run: |
-          go test -tags load ./... -p 5 -v -race -failfast -timeout 20m
+          go test -tags load ./... -p 5 -race -failfast -timeout 20m
         env:
           TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
           TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
@@ -84,9 +91,21 @@ jobs:
     if: needs.verify.outputs.should_publish == 'true'
     runs-on: ubuntu-latest
     steps:
+      - &update-ca-certificates
+        name: Update CA certificates
+        # Runner images predate Ubuntu's ca-certificates fix for the compromised eMudhra CAs (USN-8944-1); drop this step once they ship 20260816ubuntu0.* or later.
+        run: |
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 -o DPkg::Lock::Timeout=120 update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=120 install -y --only-upgrade ca-certificates
+          v=$(dpkg-query -W -f='${Version}' ca-certificates)
+          dpkg --compare-versions "$v" ge 20260816 || { echo "::error::ca-certificates $v predates USN-8944-1"; exit 1; }
+          # dockerd keeps the roots it loaded at first use.
+          sudo systemctl restart docker
       - name: Get tag name
         id: tag_name
         run: echo "tag=${{ needs.verify.outputs.tag }}" >> "$GITHUB_OUTPUT"
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -100,6 +119,10 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-arm64
 
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-api:latest
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-api:latest
+          sbom: false
       - name: Pull and push hatchet-engine
         run: |
           docker pull ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-arm64
@@ -110,6 +133,10 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-arm64
 
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-engine:latest
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-engine:latest
+          sbom: false
       - name: Pull and push hatchet-admin
         run: |
           docker pull ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-arm64
@@ -120,6 +147,10 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-arm64
 
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-admin:latest
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-admin:latest
+          sbom: false
       - name: Pull and push hatchet-frontend
         run: |
           docker pull ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-arm64
@@ -130,6 +161,10 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-arm64
 
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-frontend:latest
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-frontend:latest
+          sbom: false
       - name: Pull and push hatchet-migrate
         run: |
           docker pull ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-arm64
@@ -140,6 +175,10 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-arm64
 
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-migrate:latest
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-migrate:latest
+          sbom: false
       - name: Pull and push hatchet-lite
         run: |
           docker pull ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-arm64
@@ -150,6 +189,10 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-arm64
 
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-lite:latest
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-lite:latest
+          sbom: false
       - name: Pull and push dev images
         run: |
           for img in hatchet-api hatchet-engine hatchet-admin hatchet-lite hatchet-dashboard; do
@@ -162,6 +205,15 @@ jobs:
 
             docker manifest push ghcr.io/hatchet-dev/hatchet/$img-dev:latest
           done
+      - uses: ./.github/actions/sign-image
+        with:
+          sbom: false
+          images: |
+            ghcr.io/hatchet-dev/hatchet/hatchet-api-dev:latest
+            ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:latest
+            ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:latest
+            ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev:latest
+            ghcr.io/hatchet-dev/hatchet/hatchet-dashboard-dev:latest
       - name: Pull and push hatchet-dashboard
         run: |
           docker pull ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-arm64
@@ -172,6 +224,10 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-arm64
 
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:latest
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:latest
+          sbom: false
       - name: Pull and push hatchet-loadtest
         run: |
           docker pull ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-arm64
@@ -182,3 +238,44 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-arm64
 
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:latest
+      - uses: ./.github/actions/sign-image
+        with:
+          images: ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:latest
+          sbom: false
+  push-hatchet-server-fips:
+    name: Push latest fips
+    needs: [verify]
+    if: needs.verify.outputs.should_publish == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - *update-ca-certificates
+      - name: Get tag name
+        id: tag_name
+        run: echo "tag=${{ needs.verify.outputs.tag }}" >> "$GITHUB_OUTPUT"
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Pull and push fips images
+        run: |
+          for img in hatchet-api hatchet-engine hatchet-admin hatchet-migrate hatchet-frontend hatchet-lite hatchet-dashboard; do
+            docker pull ghcr.io/hatchet-dev/hatchet/$img-fips:${{steps.tag_name.outputs.tag}}-arm64
+            docker pull ghcr.io/hatchet-dev/hatchet/$img-fips:${{steps.tag_name.outputs.tag}}-amd64
+
+            docker manifest create ghcr.io/hatchet-dev/hatchet/$img-fips:latest \
+              ghcr.io/hatchet-dev/hatchet/$img-fips:${{steps.tag_name.outputs.tag}}-amd64 \
+              ghcr.io/hatchet-dev/hatchet/$img-fips:${{steps.tag_name.outputs.tag}}-arm64
+
+            docker manifest push ghcr.io/hatchet-dev/hatchet/$img-fips:latest
+          done
+      - uses: ./.github/actions/sign-image
+        with:
+          sbom: false
+          images: |
+            ghcr.io/hatchet-dev/hatchet/hatchet-api-fips:latest
+            ghcr.io/hatchet-dev/hatchet/hatchet-engine-fips:latest
+            ghcr.io/hatchet-dev/hatchet/hatchet-admin-fips:latest
+            ghcr.io/hatchet-dev/hatchet/hatchet-migrate-fips:latest
+            ghcr.io/hatchet-dev/hatchet/hatchet-frontend-fips:latest
+            ghcr.io/hatchet-dev/hatchet/hatchet-lite-fips:latest
+            ghcr.io/hatchet-dev/hatchet/hatchet-dashboard-fips:latest

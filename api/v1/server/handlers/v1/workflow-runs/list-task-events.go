@@ -3,6 +3,7 @@ package workflowruns
 import (
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -21,13 +22,14 @@ func (t *V1WorkflowRunsService) V1WorkflowRunTaskEventsList(ctx echo.Context, re
 		ctx.Request().Context(),
 		tenantId,
 		workflowRun.ExternalID,
+		false,
 	)
 
 	if err != nil {
 		return nil, err
 	}
 
-	result := transformers.ToWorkflowRunTaskRunEventsMany(taskRunEvents)
+	result := transformers.ToWorkflowRunTaskRunEventsMany(taskRunEvents, transformers.WithPayloads(authz.CanViewPayloads(ctx)))
 
 	// Search for api errors to see how we handle errors in other cases
 	return gen.V1WorkflowRunTaskEventsList200JSONResponse(

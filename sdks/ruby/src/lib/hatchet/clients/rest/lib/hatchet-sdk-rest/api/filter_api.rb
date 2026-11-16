@@ -102,6 +102,7 @@ module HatchetSdkRest
     end
 
     # Delete a filter
+    # Delete a filter
     # @param tenant [String] The tenant id
     # @param v1_filter [String] The filter id to delete
     # @param [Hash] opts the optional parameters
@@ -111,6 +112,7 @@ module HatchetSdkRest
       data
     end
 
+    # Delete a filter
     # Delete a filter
     # @param tenant [String] The tenant id
     # @param v1_filter [String] The filter id to delete
@@ -353,6 +355,7 @@ module HatchetSdkRest
     end
 
     # Update a filter
+    # Update a filter
     # @param tenant [String] The tenant id
     # @param v1_filter [String] The filter id to update
     # @param v1_update_filter_request [V1UpdateFilterRequest] The input to the filter update
@@ -363,6 +366,7 @@ module HatchetSdkRest
       data
     end
 
+    # Update a filter
     # Update a filter
     # @param tenant [String] The tenant id
     # @param v1_filter [String] The filter id to update

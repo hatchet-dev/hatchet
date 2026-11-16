@@ -1,0 +1,67 @@
+---
+title: "CEL"
+---
+
+# CEL Client
+
+CEL client for debugging CEL expressions within Hatchet.
+
+This class provides a high-level interface for testing and debugging CEL (Common Expression Language) expressions used in filters and conditions.
+
+```ruby
+result = hatchet.cel.debug(
+  expression: 'input.value > 10',
+  input: { value: 15 }
+)
+if result.result.status == 'success'
+  puts "Output: #{result.result.output}"
+else
+  puts "Error: #{result.result.error}"
+end
+```
+
+It is available on the main client as `hatchet.cel`.
+
+Methods:
+
+| Name    | Description                                                       |
+| ------- | ----------------------------------------------------------------- |
+| `debug` | Debug a CEL expression with provided input and optional metadata. |
+
+### Functions
+
+#### `debug`
+
+Debug a CEL expression with provided input and optional metadata.
+
+Useful for testing and validating CEL expressions and debugging issues in production.
+
+```ruby
+result = hatchet.cel.debug(
+  expression: 'input.count > 5 && metadata.env == "prod"',
+  input: { count: 10 },
+  additional_metadata: { env: 'prod' }
+)
+```
+
+Parameters:
+
+| Name                  | Type          | Description                                                                 | Default    |
+| --------------------- | ------------- | --------------------------------------------------------------------------- | ---------- |
+| `expression`          | `String`      | The CEL expression to debug.                                                | _required_ |
+| `input`               | `Hash`        | The input, which simulates the workflow run input.                          | _required_ |
+| `additional_metadata` | `Hash \| nil` | Additional metadata simulating metadata sent with an event or workflow run. | `nil`      |
+| `filter_payload`      | `Hash \| nil` | The filter payload simulating a payload set on a previously-created filter. | `nil`      |
+
+Returns:
+
+| Type                  | Description                                            |
+| --------------------- | ------------------------------------------------------ |
+| `CELEvaluationResult` | A result containing either a CELSuccess or CELFailure. |
+
+Raises:
+
+| Type                       | Description                                        |
+| -------------------------- | -------------------------------------------------- |
+| `RuntimeError`             | If no response is received from the CEL debug API. |
+| `HatchetSdkRest::ApiError` | If the API request fails.                          |

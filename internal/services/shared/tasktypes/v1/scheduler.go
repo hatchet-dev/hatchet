@@ -87,6 +87,23 @@ func NotifyTaskCreated(tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload) (*msgq
 
 type TaskAssignedBulkTaskPayload struct {
 	WorkerIdToTaskIds map[uuid.UUID][]int64 `json:"worker_id_to_task_ids" validate:"required"`
+	// lets the dispatcher tell the assigned attempt from a later one on the same worker
+	WorkerIdToTaskRetryCounts map[uuid.UUID]map[int64]int32 `json:"worker_id_to_task_retry_counts,omitempty"`
+}
+
+func (p *TaskAssignedBulkTaskPayload) Add(workerId uuid.UUID, taskId int64, retryCount int32) {
+	if p.WorkerIdToTaskIds == nil {
+		p.WorkerIdToTaskIds = make(map[uuid.UUID][]int64)
+		p.WorkerIdToTaskRetryCounts = make(map[uuid.UUID]map[int64]int32)
+	}
+
+	p.WorkerIdToTaskIds[workerId] = append(p.WorkerIdToTaskIds[workerId], taskId)
+
+	if p.WorkerIdToTaskRetryCounts[workerId] == nil {
+		p.WorkerIdToTaskRetryCounts[workerId] = make(map[int64]int32)
+	}
+
+	p.WorkerIdToTaskRetryCounts[workerId][taskId] = retryCount
 }
 
 type BatchTaskItem struct {
@@ -137,6 +154,26 @@ func NotifyNewWorker(tenantId uuid.UUID, workerId uuid.UUID) (*msgqueue.Message,
 	)
 }
 
+type WorkerDispatcherChangedPayload struct {
+	WorkerId     uuid.UUID `json:"worker_id"`
+	DispatcherId uuid.UUID `json:"dispatcher_id"`
+}
+
+func NotifyWorkerDispatcherChanged(tenantId, workerId, dispatcherId uuid.UUID) (*msgqueue.Message, error) {
+	payload := WorkerDispatcherChangedPayload{
+		WorkerId:     workerId,
+		DispatcherId: dispatcherId,
+	}
+
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDWorkerDispatcherChanged,
+		true,
+		false,
+		payload,
+	)
+}
+
 type NewQueuePayload struct {
 	QueueName string `json:"queue_name"`
 }
@@ -170,5 +207,19 @@ func NotifyNewConcurrencyStrategy(tenantId uuid.UUID, strategyId int64) (*msgque
 		true,
 		false,
 		payload,
+	)
+}
+
+type rateLimitsChangedPayload struct{}
+
+// NotifyRateLimitsChanged tells the tenant's scheduler to reread its rate limits now instead of at the next refill,
+// sent when a change such as a pause must apply to runs the scheduler already holds in memory.
+func NotifyRateLimitsChanged(tenantId uuid.UUID) (*msgqueue.Message, error) {
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDRateLimitsChanged,
+		true,
+		false,
+		rateLimitsChangedPayload{},
 	)
 }

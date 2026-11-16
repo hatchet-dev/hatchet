@@ -16,13 +16,19 @@ WITH partitions AS (
     JOIN pg_class parent ON pg_inherits.inhparent = parent.oid
     JOIN pg_class child ON pg_inherits.inhrelid = child.oid
     WHERE parent.relname = 'v1_payload'
-    ORDER BY child.relname DESC
-	LIMIT $1::INTEGER
 )
 
 SELECT partition_name, lower_bound AS partition_date
 FROM partitions
-WHERE lower_bound <= $2::DATE
+WHERE
+    lower_bound <= $2::DATE
+    AND NOT EXISTS (
+        SELECT 1
+        FROM v1_payload_cutover_job_offset offsets
+        WHERE offsets.key = partitions.lower_bound AND offsets.is_completed
+    )
+ORDER BY partition_date ASC -- finish old partitions before starting new ones
+LIMIT $1::INTEGER
 `
 
 type FindV1PayloadPartitionsBeforeDateRow struct {

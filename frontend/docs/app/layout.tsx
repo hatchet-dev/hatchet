@@ -1,4 +1,5 @@
 import "@/styles/global.css";
+import { Inter } from "next/font/google";
 import { RootProvider } from "fumadocs-ui/provider/next";
 import { Suspense, type ReactNode } from "react";
 import { LanguageProvider } from "@/context/LanguageContext";
@@ -8,16 +9,34 @@ import CookieConsent from "@/components/ui/cookie-banner";
 import { ThemeQueryParam } from "@/components/ThemeQueryParam";
 import HatchetSearchDialog from "@/components/HatchetSearchDialog";
 
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+});
+
 export const metadata = {
+  metadataBase: new URL("https://docs.hatchet.run"),
   title: {
     default: "Hatchet Documentation",
     template: "%s - Hatchet Documentation",
+  },
+  openGraph: {
+    siteName: "Hatchet Documentation",
+    type: "website",
+    images: ["/og.png"],
+  },
+  twitter: {
+    card: "summary_large_image",
   },
 };
 
 export default function Layout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html
+      lang="en"
+      className={`dark ${inter.variable}`}
+      suppressHydrationWarning
+    >
       <head>
         <link rel="icon" type="image/png" href="/favicon.ico" />
         <link rel="prefetch" href="/llms-search-index.json" />

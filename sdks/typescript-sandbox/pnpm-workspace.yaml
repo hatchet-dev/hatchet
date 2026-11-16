@@ -1,0 +1,12 @@
+packages:
+  - .
+
+# Installs refuse packages published less than a day ago, matching the SDK's policy.
+minimumReleaseAge: 1440
+
+# Dependency install scripts are opt-in under pnpm 10. esbuild fetches its platform binary.
+# protobufjs has a postinstall that does nothing the SDK needs.
+onlyBuiltDependencies:
+  - esbuild
+ignoredBuiltDependencies:
+  - protobufjs

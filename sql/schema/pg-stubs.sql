@@ -107,3 +107,13 @@ SELECT
     NULL::text AS query
 WHERE
     false;
+
+-- goose creates this table when it runs the migrations
+CREATE VIEW goose_db_version AS
+SELECT
+    NULL::integer AS id,
+    NULL::bigint AS version_id,
+    NULL::boolean AS is_applied,
+    NULL::timestamp without time zone AS tstamp
+WHERE
+    false;

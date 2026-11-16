@@ -2,8 +2,11 @@ package tasks
 
 import (
 	"github.com/labstack/echo/v4"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -68,6 +71,12 @@ func (t *TasksService) V1TaskReplay(ctx echo.Context, request gen.V1TaskReplayRe
 	)
 
 	if err != nil {
+		if e, ok := status.FromError(err); ok && e.Code() == codes.InvalidArgument {
+			return gen.V1TaskReplay400JSONResponse(
+				apierrors.NewAPIErrors(e.Message()),
+			), nil
+		}
+
 		return nil, err
 	}
 

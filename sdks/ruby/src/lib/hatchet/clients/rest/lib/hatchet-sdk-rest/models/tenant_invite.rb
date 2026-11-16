@@ -29,6 +29,9 @@ module HatchetSdkRest
     # The time that this invite expires.
     attr_accessor :expires
 
+    # Whether the invited user can view payloads. Defaults to true.
+    attr_accessor :can_view_payloads
+
     # The tenant name for the tenant.
     attr_accessor :tenant_name
 
@@ -62,6 +65,7 @@ module HatchetSdkRest
         :'role' => :'role',
         :'tenant_id' => :'tenantId',
         :'expires' => :'expires',
+        :'can_view_payloads' => :'canViewPayloads',
         :'tenant_name' => :'tenantName'
       }
     end
@@ -84,6 +88,7 @@ module HatchetSdkRest
         :'role' => :'TenantMemberRole',
         :'tenant_id' => :'String',
         :'expires' => :'Time',
+        :'can_view_payloads' => :'Boolean',
         :'tenant_name' => :'String'
       }
     end
@@ -138,6 +143,10 @@ module HatchetSdkRest
         self.expires = attributes[:'expires']
       else
         self.expires = nil
+      end
+
+      if attributes.key?(:'can_view_payloads')
+        self.can_view_payloads = attributes[:'can_view_payloads']
       end
 
       if attributes.key?(:'tenant_name')
@@ -245,6 +254,7 @@ module HatchetSdkRest
           role == o.role &&
           tenant_id == o.tenant_id &&
           expires == o.expires &&
+          can_view_payloads == o.can_view_payloads &&
           tenant_name == o.tenant_name
     end
 
@@ -257,7 +267,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [metadata, email, role, tenant_id, expires, tenant_name].hash
+      [metadata, email, role, tenant_id, expires, can_view_payloads, tenant_name].hash
     end
 
     # Builds the object from hash

@@ -14,6 +14,8 @@ export function RoleBadge({ role }: { role: string }) {
   return <Badge variant="outline">{formatMemberRole(role)}</Badge>;
 }
 
+export { payloadsLockedForRole } from '@/lib/payload-permissions';
+
 export function MemberEmail({ email }: { email?: string }) {
   return <span className="text-[13px] text-muted-foreground">{email}</span>;
 }

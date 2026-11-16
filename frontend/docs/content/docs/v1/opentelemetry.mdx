@@ -116,6 +116,7 @@ defer instrumentor.Shutdown(context.Background())
 | Option                                           | Description                                                            |
 | ------------------------------------------------ | ---------------------------------------------------------------------- |
 | `hatchetotel.WithTracerProvider(tp)`             | Use a custom `*sdktrace.TracerProvider` instead of creating a new one. |
+| `hatchetotel.WithToken(token)`                   | Token for the Hatchet collector; overrides `HATCHET_CLIENT_TOKEN`.     |
 | `hatchetotel.DisableHatchetCollector()`          | Disable sending traces to the Hatchet engine's OTLP collector.         |
 | `hatchetotel.WithBatchSpanProcessorOptions(...)` | Configure the `BatchSpanProcessor` for the Hatchet collector.          |
 

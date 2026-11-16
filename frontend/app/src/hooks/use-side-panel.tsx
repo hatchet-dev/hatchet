@@ -1,5 +1,6 @@
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 import { V1Event, V1Filter, ScheduledWorkflows } from '@/lib/api';
+import { KeysSidePanel } from '@/pages/main/v1/concurrency/components/keys-side-panel';
 import { ExpandedEventContent } from '@/pages/main/v1/events';
 import { FilterDetailView } from '@/pages/main/v1/filters/components/filter-detail-view';
 import { ExpandedScheduledRunContent } from '@/pages/main/v1/scheduled-runs/components/expanded-scheduled-run-content';
@@ -26,6 +27,8 @@ import {
 type SidePanelContent = {
   component: React.ReactNode;
   actions?: React.ReactNode;
+  // hides the back/forward buttons, for content whose page tracks the selection itself
+  hideHistory?: boolean;
 };
 
 type SidePanelData = {
@@ -79,6 +82,14 @@ type UseSidePanelProps =
       content: {
         group: SpanGroupInfo;
         onClose?: () => void;
+      };
+    }
+  | {
+      type: 'concurrency-keys';
+      content: {
+        tenantId: string;
+        strategy: string;
+        initialSearch?: string;
       };
     };
 
@@ -165,6 +176,17 @@ function useSidePanelData(): SidePanelData {
       case 'group-details':
         return {
           component: <GroupDetail {...props.content} />,
+        };
+      case 'concurrency-keys':
+        return {
+          // keyed so opening another strategy resets the panel's filters
+          component: (
+            <KeysSidePanel
+              key={`${props.content.strategy}:${props.content.initialSearch ?? ''}`}
+              {...props.content}
+            />
+          ),
+          hideHistory: true,
         };
       default:
         const exhaustiveCheck: never = panelType;

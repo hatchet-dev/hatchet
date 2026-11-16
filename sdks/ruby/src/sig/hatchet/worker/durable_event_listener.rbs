@@ -3,6 +3,9 @@ module Hatchet
     class DurableEventListener
       DEFAULT_RECONNECT_INTERVAL: Integer
       EVICTION_ACK_TIMEOUT_SECONDS: Float
+      WORKER_STATUS_RESEND_INTERVAL_SECONDS: Float
+      WORKER_STATUS_RESEND_MIN_PENDING_SECONDS: Float
+      WORKER_STATUS_MAX_ENTRIES_PER_REQUEST: Integer
 
       class WaitForEvent < Struct[untyped]
         attr_accessor wait_for_conditions: untyped

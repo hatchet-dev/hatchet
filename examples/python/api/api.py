@@ -5,9 +5,8 @@ hatchet = Hatchet()
 
 def main() -> None:
     workflow_list = hatchet.workflows.list()
-    rows = workflow_list.rows or []
 
-    for workflow in rows:
+    for workflow in workflow_list:
         print(workflow.name)
         print(workflow.metadata.id)
         print(workflow.metadata.created_at)

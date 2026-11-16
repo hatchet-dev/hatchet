@@ -6,6 +6,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
@@ -18,7 +19,7 @@ func (t *V1FiltersService) V1FilterUpdate(ctx echo.Context, request gen.V1Filter
 	filter := ctx.Get("v1-filter").(*sqlcv1.V1Filter)
 
 	var payload []byte
-	if request.Body.Payload != nil {
+	if request.Body.Payload != nil && authz.CanViewPayloads(ctx) {
 		marshalledPayload, err := json.Marshal(request.Body.Payload)
 
 		if err != nil {
@@ -42,7 +43,7 @@ func (t *V1FiltersService) V1FilterUpdate(ctx echo.Context, request gen.V1Filter
 		return nil, fmt.Errorf("failed to update filter: %w", err)
 	}
 
-	transformed := transformers.ToV1Filter(filter)
+	transformed := transformers.ToV1Filter(filter, transformers.WithPayloads(authz.CanViewPayloads(ctx)))
 
 	return gen.V1FilterUpdate200JSONResponse(transformed), nil
 }

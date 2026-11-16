@@ -23,7 +23,7 @@ module Hatchet
     # CEL (Common Expression Language) expressions used in filters and conditions.
     #
     # @example Debugging a CEL expression
-    #   result = cel_client.debug(
+    #   result = hatchet.cel.debug(
     #     expression: 'input.value > 10',
     #     input: { value: 15 }
     #   )
@@ -59,7 +59,7 @@ module Hatchet
       # @raise [RuntimeError] If no response is received from the CEL debug API
       # @raise [HatchetSdkRest::ApiError] If the API request fails
       # @example
-      #   result = cel_client.debug(
+      #   result = hatchet.cel.debug(
       #     expression: 'input.count > 5 && metadata.env == "prod"',
       #     input: { count: 10 },
       #     additional_metadata: { env: 'prod' }

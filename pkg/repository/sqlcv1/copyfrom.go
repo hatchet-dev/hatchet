@@ -44,42 +44,6 @@ func (q *Queries) BulkAddMessage(ctx context.Context, db DBTX, arg []BulkAddMess
 	return db.CopyFrom(ctx, []string{"MessageQueueItem"}, []string{"payload", "queueId", "readAfter", "expiresAt"}, &iteratorForBulkAddMessage{rows: arg})
 }
 
-// iteratorForBulkCreateEventTriggers implements pgx.CopyFromSource.
-type iteratorForBulkCreateEventTriggers struct {
-	rows                 []BulkCreateEventTriggersParams
-	skippedFirstNextCall bool
-}
-
-func (r *iteratorForBulkCreateEventTriggers) Next() bool {
-	if len(r.rows) == 0 {
-		return false
-	}
-	if !r.skippedFirstNextCall {
-		r.skippedFirstNextCall = true
-		return true
-	}
-	r.rows = r.rows[1:]
-	return len(r.rows) > 0
-}
-
-func (r iteratorForBulkCreateEventTriggers) Values() ([]interface{}, error) {
-	return []interface{}{
-		r.rows[0].RunID,
-		r.rows[0].RunInsertedAt,
-		r.rows[0].EventID,
-		r.rows[0].EventSeenAt,
-		r.rows[0].FilterID,
-	}, nil
-}
-
-func (r iteratorForBulkCreateEventTriggers) Err() error {
-	return nil
-}
-
-func (q *Queries) BulkCreateEventTriggers(ctx context.Context, db DBTX, arg []BulkCreateEventTriggersParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"v1_event_to_run_olap"}, []string{"run_id", "run_inserted_at", "event_id", "event_seen_at", "filter_id"}, &iteratorForBulkCreateEventTriggers{rows: arg})
-}
-
 // iteratorForCreateDAGData implements pgx.CopyFromSource.
 type iteratorForCreateDAGData struct {
 	rows                 []CreateDAGDataParams
@@ -192,6 +156,8 @@ func (r iteratorForCreateTaskEventsOLAP) Values() ([]interface{}, error) {
 		r.rows[0].AdditionalEventMessage,
 		r.rows[0].ExternalID,
 		r.rows[0].DurableInvocationCount,
+		r.rows[0].IsDagOrchestrator,
+		r.rows[0].PayloadReferenceID,
 	}, nil
 }
 
@@ -200,7 +166,7 @@ func (r iteratorForCreateTaskEventsOLAP) Err() error {
 }
 
 func (q *Queries) CreateTaskEventsOLAP(ctx context.Context, db DBTX, arg []CreateTaskEventsOLAPParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"v1_task_events_olap"}, []string{"tenant_id", "task_id", "task_inserted_at", "event_type", "workflow_id", "event_timestamp", "readable_status", "retry_count", "error_message", "output", "worker_id", "additional__event_data", "additional__event_message", "external_id", "durable_invocation_count"}, &iteratorForCreateTaskEventsOLAP{rows: arg})
+	return db.CopyFrom(ctx, []string{"v1_task_events_olap"}, []string{"tenant_id", "task_id", "task_inserted_at", "event_type", "workflow_id", "event_timestamp", "readable_status", "retry_count", "error_message", "output", "worker_id", "additional__event_data", "additional__event_message", "external_id", "durable_invocation_count", "is_dag_orchestrator", "payload_reference_id"}, &iteratorForCreateTaskEventsOLAP{rows: arg})
 }
 
 // iteratorForInsertLogLine implements pgx.CopyFromSource.

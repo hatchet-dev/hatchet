@@ -1,0 +1,144 @@
+/**
+ * `@hatchet-dev/serverless`: serve Hatchet tasks from a serverless runtime without a worker
+ * process. Declare tasks with `hatchet.task(...)`, hand them to an adapter
+ * (`@hatchet-dev/serverless/cloudflare`) and register the endpoint with Hatchet; the
+ * serverless operator polls the endpoint and delivers runs to it over signed requests.
+ *
+ * The handler takes an optional `client` (the SDK's core client, built from a token in the
+ * platform's secret store) for the `ctx` methods that reach the engine; child results are
+ * awaited over the invocation socket. See LIMITATIONS.md for what `ctx` can and cannot do.
+ *
+ * Nothing exported here imports from Node or from the SDK outside its edge and core entries.
+ * @module Serverless
+ */
+import { declarations, type ServerlessDeclarations } from './handler/declarations';
+
+/**
+ * The declaration factories (`task`, `durableTask`, `workflow`, `batchTask`) bound to no
+ * client, with the `hatchetClient` option on a task: every task is invoked over the
+ * invocation websocket, where it can await child runs, except one declared with
+ * `hatchet.task({ name, fn, hatchetClient: false })`, a function of its input that is
+ * delivered over a signed POST. `run`, `schedule` and `cron` on the declarations throw;
+ * trigger runs through a `HatchetCore` (`hatchet.run(echo, input)` accepts the declaration)
+ * or the regular SDK.
+ */
+export const hatchet: ServerlessDeclarations = declarations();
+
+export { ServerlessWorkflowDeclaration, isPureTask } from './handler/declarations';
+export type { ServerlessDeclarations, HatchetClientOption } from './handler/declarations';
+
+export { createHandler, normalizeBasePath } from './handler';
+export type {
+  DurableHooks,
+  DurableSocket,
+  EnvResolver,
+  HandlerOptions,
+  ServerlessHandler,
+  ServerlessRuntimeName,
+} from './handler';
+export { clientConfigFromEnv, createClientResolver, isHatchetCore } from './handler/client';
+export type { ClientEnv, ClientOption, ClientSource } from './handler/client';
+export { ServerlessLimitationError, isServerlessLimitationError } from './handler/errors';
+export { ServerlessRuntime, ConsoleLogger, clientFromContext } from './handler/context';
+export type { ConsoleLike, ServerlessRuntimeOptions } from './handler/context';
+export { RunStreamClosedError, RunWatcher, TaskRunRef, outputsOf } from './handler/runs';
+export { StreamClosedError, createTaskClient } from './handler/task-client';
+export type {
+  RunEventsOptions,
+  StreamEvent,
+  TaskClient,
+  TaskRunsClient,
+  TaskStreamsClient,
+} from './handler/task-client';
+export { FrameTransport } from './handler/durable/transport';
+export type { FrameTransportOptions } from './handler/durable/transport';
+export {
+  LISTEN_FOR_DURABLE_EVENT,
+  MAX_SOCKET_STREAMS,
+  SOCKET_STREAM_PROCEDURES,
+  SUBSCRIBE_STREAM,
+  SUBSCRIBE_TO_WORKFLOW_EVENTS,
+  SUBSCRIBE_TO_WORKFLOW_RUNS,
+  SocketStreams,
+  StreamCloseCode,
+  StreamOpenError,
+  streamCloseCodeName,
+} from './handler/durable/streams';
+export type { SocketStream, SocketStreamsOptions, StreamListener } from './handler/durable/streams';
+export { runDurableInvocation } from './handler/durable/invocation';
+export type { DurableInvocationOptions } from './handler/durable/invocation';
+export { decodeFrame, encodeFrame, frameKind } from './handler/durable/frames';
+export type { ServeEntry } from './handler/registry';
+
+// The core client, so a Worker can build one for its own handlers with one import.
+export { HatchetCore, WorkflowRunRef } from '@hatchet-dev/typescript-sdk/core/index.js';
+export type {
+  CoreClientConfig,
+  ResultOptions,
+  StreamCallOptions,
+} from '@hatchet-dev/typescript-sdk/core/index.js';
+export {
+  constantTimeEqual,
+  isFreshTimestamp,
+  parseTimestamp,
+  signHex,
+  verifyBodySignature,
+  verifySignedBody,
+  verifyUpgradeSignature,
+} from './handler/signature';
+export type {
+  BodyVerification,
+  UpgradeVerification,
+  VerifyBodyOptions,
+  VerifyUpgradeOptions,
+} from './handler/signature';
+export { NonceSet } from './handler/nonce-set';
+export type { NonceOutcome } from './handler/nonce-set';
+export * from './handler/contract';
+
+// The SDK surface a task author needs.
+export {
+  Context,
+  DurableContext,
+  NonRetryableError,
+  TaskRunTerminatedError,
+  BaseWorkflowDeclaration,
+  TaskWorkflowDeclaration,
+  WorkflowDeclaration,
+  Priority,
+} from '@hatchet-dev/typescript-sdk/edge/index.js';
+export type {
+  Declarations,
+  CreateTaskWorkflowOpts,
+  CreateDurableTaskWorkflowOpts,
+  CreateWorkflowOpts,
+  CreateBatchTaskWorkflowOpts,
+  CreateWorkflowTaskOpts,
+  CreateWorkflowDurableTaskOpts,
+  WorkflowDefinition,
+  TaskOutput,
+  TaskOutputType,
+  InputType,
+  OutputType,
+  JsonObject,
+  Duration,
+  ContextRuntime,
+  DurableTransport,
+} from '@hatchet-dev/typescript-sdk/edge/index.js';
+
+// The wire contract, generated from api-contracts/v1/serverless.proto.
+export type {
+  ServerlessHealthcheckRequest,
+  ServerlessHealthcheckResponse,
+  ServerlessTriggerRequest,
+  ServerlessTriggerError,
+  ServerlessDurableFrame,
+  ServerlessFirstFrame,
+  ServerlessDoneFrame,
+  ServerlessErrorFrame,
+  ServerlessStreamOpen,
+  ServerlessStreamMessage,
+  ServerlessStreamClose,
+  ServerlessTaskOptions,
+} from './generated/proto/v1/serverless';
+export type { WorkflowEvent, WorkflowRunEvent, StepRunResult } from './generated/proto/dispatcher';

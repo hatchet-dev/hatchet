@@ -16,7 +16,8 @@ import (
 )
 
 // mockConcurrencyRepo is an in-memory ConcurrencyRepository: ReadConcurrencySlotsForIndexing
-// replays a fixed set of rows and UpdateConcurrencySlots captures its inputs for assertions.
+// replays a fixed set of rows and UpdateConcurrencySlots captures its inputs for assertions and
+// reports the filled slots as queued.
 // The pgx.Tx handed to UpdateConcurrencySlots is opaque here, so tests pass a nil tx.
 type mockConcurrencyRepo struct {
 	indexRows []*sqlcv1.ListConcurrencySlotsForIndexingRow
@@ -54,7 +55,11 @@ func (m *mockConcurrencyRepo) UpdateConcurrencySlotsTx(ctx context.Context, tx p
 	if m.updateResult != nil {
 		return m.updateResult, nil
 	}
-	return &repository.RunConcurrencyResult{}, nil
+	res := &repository.RunConcurrencyResult{}
+	for i := range filledSlots {
+		res.Queued = append(res.Queued, repository.TaskWithQueue{TaskIdInsertedAtRetryCount: &filledSlots[i]})
+	}
+	return res, nil
 }
 
 func (m *mockConcurrencyRepo) UpdateConcurrencySlots(ctx context.Context, tenantId uuid.UUID, strategyId int64, filledSlots []repository.TaskIdInsertedAtRetryCount, cancelledSlots []repository.CancelledSlotInput) (*repository.RunConcurrencyResult, error) {
@@ -63,6 +68,9 @@ func (m *mockConcurrencyRepo) UpdateConcurrencySlots(ctx context.Context, tenant
 
 // remaining interface methods are unused by these tests.
 func (m *mockConcurrencyRepo) UpdateConcurrencyStrategyIsActive(ctx context.Context, tenantId uuid.UUID, strategy *sqlcv1.V1StepConcurrency) error {
+	return nil
+}
+func (m *mockConcurrencyRepo) CheckAndDeactivateTenantConcurrency(ctx context.Context, tenantId uuid.UUID, strategyId int64) error {
 	return nil
 }
 func (m *mockConcurrencyRepo) RunConcurrencyStrategy(ctx context.Context, tenantId uuid.UUID, strategy *sqlcv1.V1StepConcurrency) (*repository.RunConcurrencyResult, error) {

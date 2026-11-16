@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/docker/docker/client"
 	dockercontext "github.com/docker/go-sdk/context"
+	"github.com/moby/moby/client"
 )
 
 func TestDockerContextResolution(t *testing.T) {

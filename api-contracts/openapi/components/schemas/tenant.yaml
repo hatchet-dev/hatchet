@@ -26,6 +26,9 @@ Tenant:
     region:
       type: string
       description: Control-plane shard region for the tenant (e.g. aws:us-west-2).
+    dataRetentionPeriod:
+      type: string
+      description: The data retention period for the tenant, e.g. 720h.
   required:
     - metadata
     - name
@@ -191,6 +194,45 @@ TenantResourcePolicy:
     - limits
   type: object
 
+TenantEntitlements:
+  properties:
+    auditLogs:
+      type: boolean
+    prometheusMetrics:
+      type: boolean
+    strictAdditionalMetadataFilters:
+      type: boolean
+    dagOperator:
+      type: boolean
+    durableStreams:
+      type: boolean
+    serverlessOperator:
+      type: boolean
+    sandboxOperator:
+      type: boolean
+  required:
+    - auditLogs
+    - prometheusMetrics
+    - strictAdditionalMetadataFilters
+    - dagOperator
+    - durableStreams
+    - serverlessOperator
+    - sandboxOperator
+  type: object
+
+UpdateTenantEntitlementsRequest:
+  properties:
+    durableStreams:
+      type: boolean
+      description: Whether the tenant has opted into durable streams.
+    serverlessOperator:
+      type: boolean
+      description: Whether the tenant has opted into the serverless operator.
+    sandboxOperator:
+      type: boolean
+      description: Whether the tenant has opted into the sandbox operator.
+  type: object
+
 TenantMember:
   properties:
     metadata:
@@ -201,6 +243,9 @@ TenantMember:
     role:
       $ref: "#/TenantMemberRole"
       description: The role of the user in the tenant.
+    canViewPayloads:
+      type: boolean
+      description: Whether this member can view task, event, and log payloads in the dashboard and REST API. OWNER and ADMIN always can, regardless of this flag. Defaults to true.
     tenant:
       $ref: "#/Tenant"
       description: The tenant associated with this tenant member.
@@ -228,6 +273,7 @@ TenantMemberRole:
     - "OWNER"
     - "ADMIN"
     - "MEMBER"
+    - "VIEWER"
   type: string
 
 TenantList:
@@ -252,6 +298,9 @@ CreateTenantInviteRequest:
       description: The role of the user in the tenant.
       x-oapi-codegen-extra-tags:
         validate: "required"
+    canViewPayloads:
+      type: boolean
+      description: Whether the invited user can view payloads. Defaults to true.
   required:
     - email
     - role
@@ -314,6 +363,9 @@ UpdateTenantInviteRequest:
       description: The role of the user in the tenant.
       x-oapi-codegen-extra-tags:
         validate: "required"
+    canViewPayloads:
+      type: boolean
+      description: Whether the invited user can view payloads.
   required:
     - role
   type: object
@@ -325,6 +377,9 @@ UpdateTenantMemberRequest:
       description: The role of the user in the tenant.
       x-oapi-codegen-extra-tags:
         validate: "required"
+    canViewPayloads:
+      type: boolean
+      description: Whether this member can view payloads. Ignored for OWNER and ADMIN, who always can.
   required:
     - role
   type: object
@@ -339,6 +394,9 @@ TenantInvite:
     role:
       $ref: "#/TenantMemberRole"
       description: The role of the user in the tenant.
+    canViewPayloads:
+      type: boolean
+      description: Whether the invited user can view payloads. Defaults to true.
     tenantId:
       type: string
       description: The tenant id associated with this tenant invite.

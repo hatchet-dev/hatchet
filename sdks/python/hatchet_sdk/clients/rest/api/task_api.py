@@ -118,6 +118,7 @@ class TaskApi:
             "200": "List[V1DagChildren]",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -197,6 +198,7 @@ class TaskApi:
             "200": "List[V1DagChildren]",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -276,6 +278,7 @@ class TaskApi:
             "200": "List[V1DagChildren]",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -414,6 +417,7 @@ class TaskApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -493,6 +497,7 @@ class TaskApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -572,6 +577,7 @@ class TaskApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -718,6 +724,7 @@ class TaskApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -801,6 +808,7 @@ class TaskApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -884,6 +892,7 @@ class TaskApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -1021,6 +1030,7 @@ class TaskApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -1098,6 +1108,7 @@ class TaskApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -1175,6 +1186,7 @@ class TaskApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -1315,6 +1327,7 @@ class TaskApi:
             "200": "V1TaskPointMetrics",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -1400,6 +1413,7 @@ class TaskApi:
             "200": "V1TaskPointMetrics",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -1485,6 +1499,7 @@ class TaskApi:
             "200": "V1TaskPointMetrics",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -1677,6 +1692,7 @@ class TaskApi:
             "200": "List[V1TaskRunMetric]",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -1791,6 +1807,7 @@ class TaskApi:
             "200": "List[V1TaskRunMetric]",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -1905,6 +1922,7 @@ class TaskApi:
             "200": "List[V1TaskRunMetric]",
             "400": "APIErrors",
             "403": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -2083,6 +2101,7 @@ class TaskApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -2162,6 +2181,7 @@ class TaskApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -2241,6 +2261,7 @@ class TaskApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
             "501": "APIErrors",
         }
         response_data = self.api_client.call_api(
@@ -2375,6 +2396,7 @@ class TaskApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -2445,6 +2467,7 @@ class TaskApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -2515,6 +2538,7 @@ class TaskApi:
             "400": "APIErrors",
             "403": "APIErrors",
             "404": "APIErrors",
+            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout

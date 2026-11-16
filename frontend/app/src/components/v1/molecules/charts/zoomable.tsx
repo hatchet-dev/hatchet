@@ -65,6 +65,7 @@ type ZoomableChartProps<T extends string> = {
   showYAxis?: boolean;
   kind: 'bar' | 'line' | 'area';
   className?: string;
+  stacked?: boolean;
 };
 
 export function ZoomableChart<T extends string>({
@@ -74,6 +75,7 @@ export function ZoomableChart<T extends string>({
   showYAxis = true,
   kind = 'bar',
   className,
+  stacked = false,
 }: ZoomableChartProps<T>) {
   const [refAreaLeft, setRefAreaLeft] = useState<string | null>(null);
   const [refAreaRight, setRefAreaRight] = useState<string | null>(null);
@@ -179,6 +181,7 @@ export function ZoomableChart<T extends string>({
           refAreaRight,
           chartConfig,
           dataKeys,
+          stacked,
         })}
       </div>
     </ChartContainer>
@@ -210,6 +213,7 @@ type ChildChartProps<T extends string> = {
   refAreaRight: string | null;
   chartConfig: ChartConfig;
   dataKeys: string[];
+  stacked?: boolean;
 };
 
 function ChildBarChart<T extends string>({
@@ -223,6 +227,7 @@ function ChildBarChart<T extends string>({
   refAreaRight,
   chartConfig,
   dataKeys,
+  stacked = false,
 }: ChildChartProps<T>) {
   return (
     <ResponsiveContainer width="100%" height="100%">
@@ -273,6 +278,7 @@ function ChildBarChart<T extends string>({
             fillOpacity={1}
             fill={chartConfig[key].color}
             isAnimationActive={false}
+            stackId={stacked ? 'stack' : undefined}
           />
         ))}
 

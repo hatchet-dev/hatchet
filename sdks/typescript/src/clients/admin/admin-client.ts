@@ -4,22 +4,20 @@ import {
   CreateWorkflowVersionOpts,
   RateLimitDuration,
   WorkflowServiceClient,
-  WorkflowServiceDefinition,
 } from '@hatchet/protoc/workflows';
 import { toHatchetError } from '@util/errors/hatchet-error';
+import { emitV0RemovedWarning } from '@util/v0-deprecation-warning';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import { Logger } from '@hatchet/util/logger';
 import { retrier } from '@hatchet/util/retrier';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 
-import {
-  AdminServiceClient,
-  AdminServiceDefinition,
-  CreateWorkflowVersionRequest,
-} from '@hatchet/protoc/v1/workflows';
+import { AdminServiceClient, CreateWorkflowVersionRequest } from '@hatchet/protoc/v1/workflows';
 import { Priority, RunsClient, WorkerLabelComparator } from '@hatchet/v1';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
+import { serializePayload } from '@hatchet/util/serialize-payload';
 import { DesiredWorkerLabels } from '@hatchet/protoc/v1/shared/trigger';
+import { createNodeTransport, type Transport } from '@clients/transport';
 import { Api } from '../rest';
 import {
   WebhookWorkerCreateRequest,
@@ -27,15 +25,16 @@ import {
   WorkflowRunStatusList,
 } from '../rest/generated/data-contracts';
 import { RunListenerClient } from '../listeners/run-listener/child-listener-client';
+import { createV1AdminRpc, createWorkflowsRpc } from './rpc';
 
-type DesiredWorkerLabelOpt = {
+export type DesiredWorkerLabelOpt = {
   value: string | number;
   required?: boolean;
   weight?: number;
   comparator?: WorkerLabelComparator;
 };
 
-function convertDesiredWorkerLabels(
+export function convertDesiredWorkerLabels(
   labels: Record<string, DesiredWorkerLabelOpt>
 ): Record<string, DesiredWorkerLabels> {
   return Object.fromEntries(
@@ -91,18 +90,23 @@ export class AdminClient {
   listenerClient: RunListenerClient;
   workflows: RunsClient | undefined;
 
+  /**
+   * The positional `channel` and `factory` parameters are part of the public constructor
+   * signature; the unary calls go over `transport` and the streaming clients own the channel.
+   */
   constructor(
     config: ClientConfig,
-    channel: Channel,
-    factory: ClientFactory,
+    _channel: Channel,
+    _factory: ClientFactory,
     api: Api,
     tenantId: string,
     listenerClient: RunListenerClient,
-    workflows: RunsClient | undefined
+    workflows: RunsClient | undefined,
+    transport: Transport = createNodeTransport(config)
   ) {
     this.config = config;
-    this.client = factory.create(WorkflowServiceDefinition, channel);
-    this.v1Client = factory.create(AdminServiceDefinition, channel);
+    this.client = createWorkflowsRpc(transport);
+    this.v1Client = createV1AdminRpc(transport);
     this.api = api;
     this.tenantId = tenantId;
     this.logger = config.logger(`Admin`, config.log_level);
@@ -123,6 +127,10 @@ export class AdminClient {
    * @param workflow a workflow definition to create
    */
   async putWorkflow(workflow: CreateWorkflowVersionOpts) {
+    // a v0 workflow definition sent straight to the engine, the one v0 use that never
+    // reaches the legacy transformer
+    emitV0RemovedWarning('workflow');
+
     try {
       return await retrier(async () => this.client.putWorkflow({ opts: workflow }), this.logger);
     } catch (e: unknown) {
@@ -238,7 +246,7 @@ export class AdminClient {
     const computedName = applyNamespace(workflowName, this.config.namespace);
 
     try {
-      const inputStr = JSON.stringify(input);
+      const inputStr = serializePayload(input);
 
       const opts = options ?? {};
       const {
@@ -255,7 +263,7 @@ export class AdminClient {
         ...rest,
         // API expects `parentTaskRunExternalId`; accept the old name as an alias.
         parentTaskRunExternalId: parentTaskRunExternalId ?? parentStepRunId,
-        additionalMetadata: additionalMetadata ? JSON.stringify(additionalMetadata) : undefined,
+        additionalMetadata: additionalMetadata ? serializePayload(additionalMetadata) : undefined,
         priority: opts.priority,
         desiredWorkerLabels: desiredWorkerLabels
           ? convertDesiredWorkerLabels(desiredWorkerLabels)
@@ -302,7 +310,7 @@ export class AdminClient {
     // Prepare workflows to be triggered in bulk
     const workflowRequests = workflowRuns.map(({ workflowName, input, options }) => {
       const computedName = applyNamespace(workflowName, this.config.namespace);
-      const inputStr = JSON.stringify(input);
+      const inputStr = serializePayload(input);
 
       const opts = options ?? {};
       const {
@@ -318,7 +326,7 @@ export class AdminClient {
         input: inputStr,
         ...rest,
         parentTaskRunExternalId: parentTaskRunExternalId ?? parentStepRunId,
-        additionalMetadata: additionalMetadata ? JSON.stringify(additionalMetadata) : undefined,
+        additionalMetadata: additionalMetadata ? serializePayload(additionalMetadata) : undefined,
         desiredWorkerLabels: desiredWorkerLabels
           ? convertDesiredWorkerLabels(desiredWorkerLabels)
           : {},
@@ -475,7 +483,7 @@ export class AdminClient {
       let input: string | undefined;
 
       if (options?.input) {
-        input = JSON.stringify(options.input);
+        input = serializePayload(options.input);
       }
 
       this.client.scheduleWorkflow({

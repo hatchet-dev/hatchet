@@ -11,6 +11,8 @@ import {
   runningFilterKey,
   idempotencyKeyKey,
 } from '../components/v1/task-runs-columns';
+import { useRetentionGate } from '@/hooks/use-retention-gate';
+import { useTenantDetails } from '@/hooks/use-tenant';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
 import {
   V1AdditionalMetadataOperator,
@@ -18,28 +20,26 @@ import {
   V1TaskStatus,
 } from '@/lib/api';
 import { useSearchParams } from '@/lib/router-helpers';
+import {
+  defaultTimeWindowForRetention,
+  getRetentionBoundary,
+  isBeforeRetention,
+  isTimeWindowOutsideRetention,
+  largestAllowedTimeWindow,
+  TIME_WINDOW_HOURS,
+  TIME_WINDOW_PRESETS,
+  type TimeWindowPreset,
+} from '@/lib/utils/retention';
 import { ColumnFiltersState } from '@tanstack/react-table';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { z } from 'zod';
 
-type TimeWindow = '1h' | '6h' | '1d' | '7d';
+type TimeWindow = TimeWindowPreset;
 
-const getCreatedAfterFromTimeRange = (timeWindow: TimeWindow): string => {
-  switch (timeWindow) {
-    case '1h':
-      return new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    case '6h':
-      return new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
-    case '1d':
-      return new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    case '7d':
-      return new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    default: {
-      const exhaustiveCheck: never = timeWindow;
-      throw new Error(`Unhandled time range: ${exhaustiveCheck}`);
-    }
-  }
-};
+const getCreatedAfterFromTimeRange = (timeWindow: TimeWindow): string =>
+  new Date(
+    Date.now() - TIME_WINDOW_HOURS[timeWindow] * 60 * 60 * 1000,
+  ).toISOString();
 
 export type AdditionalMetadataProp = {
   key: string;
@@ -73,11 +73,15 @@ export type FilterActions = {
   ) => void;
   setColumnFilters: (filters: ColumnFiltersState) => void;
   resetFilters: () => void;
+  searchAllRetainedHistory: () => void;
+  retentionPeriod?: string;
+  retentionGate: ReturnType<typeof useRetentionGate>;
+  isDefaultOneDayWindow: boolean;
 };
 
 const createApiFilterSchema = (initialValues?: { workflowIds?: string[] }) =>
   z.object({
-    tw: z.enum(['1h', '6h', '1d', '7d']).default('1d'), // time window preset
+    tw: z.enum(TIME_WINDOW_PRESETS).default('1d'), // time window preset
     ctr: z.boolean().default(false), // whether using custom range
     s: z.string().optional(), // since
     u: z.string().optional(), // until
@@ -115,6 +119,9 @@ export const useRunsTableFilters = (
   const paramKey = tableKey + '-workflow-runs-filters';
   const apiFilterSchema = createApiFilterSchema(initialValues);
   const [, setSearchParams] = useSearchParams();
+  const { tenant } = useTenantDetails();
+  const retentionPeriod = tenant?.dataRetentionPeriod;
+  const retentionGate = useRetentionGate(retentionPeriod);
 
   const zodFiltersHook = useZodColumnFilters(apiFilterSchema, paramKey, {
     tw: timeWindowKey,
@@ -171,14 +178,16 @@ export const useRunsTableFilters = (
 
   const setTimeWindow = useCallback(
     (timeWindow: TimeWindow) => {
-      setZodState({
-        tw: timeWindow,
-        ctr: false,
-        s: getCreatedAfterFromTimeRange(timeWindow),
-        u: undefined,
+      retentionGate.tryTimeWindow(timeWindow, () => {
+        setZodState({
+          tw: timeWindow,
+          ctr: false,
+          s: getCreatedAfterFromTimeRange(timeWindow),
+          u: undefined,
+        });
       });
     },
-    [setZodState],
+    [setZodState, retentionGate],
   );
 
   const updateCurrentTimeWindow = useCallback(() => {
@@ -193,10 +202,12 @@ export const useRunsTableFilters = (
   const setCustomTimeRange = useCallback(
     (range: { start: string; end: string } | null) => {
       if (range) {
-        setZodState({
-          ctr: true,
-          s: range.start,
-          u: range.end,
+        retentionGate.trySince(range.start, () => {
+          setZodState({
+            ctr: true,
+            s: range.start,
+            u: range.end,
+          });
         });
       } else {
         setZodState({
@@ -206,8 +217,45 @@ export const useRunsTableFilters = (
         });
       }
     },
-    [setZodState, timeWindow],
+    [setZodState, timeWindow, retentionGate],
   );
+
+  useEffect(() => {
+    if (!retentionPeriod) {
+      return;
+    }
+    if (
+      rawCreatedAfter &&
+      isBeforeRetention(rawCreatedAfter, retentionPeriod)
+    ) {
+      const boundary = getRetentionBoundary(retentionPeriod);
+      if (boundary) {
+        setZodState({
+          ctr: true,
+          s: boundary.toISOString(),
+        });
+      }
+      return;
+    }
+    if (
+      !isCustomTimeRange &&
+      isTimeWindowOutsideRetention(timeWindow, retentionPeriod)
+    ) {
+      const next = largestAllowedTimeWindow(retentionPeriod);
+      setZodState({
+        tw: next,
+        ctr: false,
+        s: getCreatedAfterFromTimeRange(next),
+        u: undefined,
+      });
+    }
+  }, [
+    retentionPeriod,
+    rawCreatedAfter,
+    isCustomTimeRange,
+    timeWindow,
+    setZodState,
+  ]);
 
   const setStatuses = useCallback(
     (statuses: V1TaskStatus[]) => {
@@ -306,5 +354,12 @@ export const useRunsTableFilters = (
     setAdditionalMetadataOperator,
     setColumnFilters,
     resetFilters,
+    searchAllRetainedHistory: () =>
+      setTimeWindow(largestAllowedTimeWindow(retentionPeriod)),
+    retentionPeriod,
+    retentionGate,
+    isDefaultOneDayWindow:
+      !isCustomTimeRange &&
+      timeWindow === defaultTimeWindowForRetention(retentionPeriod),
   };
 };

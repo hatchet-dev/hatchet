@@ -49,7 +49,14 @@ WITH input AS (
 		unnest($35::uuid[]) AS triggering_event_external_id,
 		unnest($36::text[]) AS triggering_event_key,
 		unnest($37::text[]) AS idempotency_key,
-		unnest($38::text[]) AS batch_key
+		unnest($38::text[]) AS batch_key,
+		unnest($39::boolean[]) AS is_dag_orchestrator,
+		unnest_nd_1d($40::integer[][]) AS concurrency_max_runs,
+		unnest($41::uuid[]) AS payload_reference_id,
+		unnest($42::jsonb[]) AS triggers,
+		unnest($43::jsonb[]) AS dag_parent_task_run_ids,
+		unnest($44::jsonb[]) AS child_task_desired_worker_labels,
+		unnest($45::smallint[]) AS task_input_payload_version
 )
 INSERT INTO v1_task (
     tenant_id,
@@ -90,7 +97,14 @@ INSERT INTO v1_task (
 	triggering_event_external_id,
 	triggering_event_key,
 	idempotency_key,
-	batch_key
+	batch_key,
+	is_dag_orchestrator,
+	concurrency_max_runs,
+	payload_reference_id,
+	triggers,
+	dag_parent_task_run_ids,
+	child_task_desired_worker_labels,
+	task_input_payload_version
 )
 SELECT
     i.tenant_id,
@@ -134,13 +148,23 @@ SELECT
 	CASE
 		WHEN sbc.batch_max_size IS NOT NULL AND sbc.batch_max_size >= 1 THEN COALESCE(NULLIF(BTRIM(i.batch_key), ''), 'default')
 		ELSE NULLIF(BTRIM(i.batch_key), '')
-	END
+	END,
+	i.is_dag_orchestrator,
+	i.concurrency_max_runs,
+	i.payload_reference_id,
+	i.triggers,
+	CASE
+		WHEN i.dag_parent_task_run_ids IS NULL THEN NULL
+		ELSE ARRAY(SELECT jsonb_array_elements_text(i.dag_parent_task_run_ids)::uuid)
+	END,
+	i.child_task_desired_worker_labels,
+	i.task_input_payload_version
 FROM
     input i
 LEFT JOIN
 	v1_step_batch_config sbc ON sbc.step_id = i.step_id
 RETURNING
-    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, batch_key
+    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, batch_key, is_dag_orchestrator, concurrency_max_runs, payload_reference_id, task_input_payload_version
 `
 
 type CreateTasksParams struct {
@@ -169,6 +193,7 @@ type CreateTasksParams struct {
 	Concurrencyparentstrategyids [][]pgtype.Int8      `json:"concurrencyparentstrategyids"`
 	ConcurrencyStrategyIds       [][]int64            `json:"concurrencyStrategyIds"`
 	ConcurrencyKeys              [][]string           `json:"concurrencyKeys"`
+	ConcurrencyMaxRuns           [][]pgtype.Int4      `json:"concurrencyMaxRuns"`
 	ParentTaskExternalIds        []*uuid.UUID         `json:"parentTaskExternalIds"`
 	ParentTaskIds                []pgtype.Int8        `json:"parentTaskIds"`
 	ParentTaskInsertedAts        []pgtype.Timestamptz `json:"parentTaskInsertedAts"`
@@ -183,8 +208,14 @@ type CreateTasksParams struct {
 	DesiredWorkerLabels          [][]byte             `json:"desiredWorkerLabels"`
 	TriggeringEventExternalIds   []*uuid.UUID         `json:"triggeringEventExternalIds"`
 	TriggeringEventKeys          []pgtype.Text        `json:"triggeringEventKeys"`
+	IsDagOrchestrators           []bool               `json:"isDagOrchestrators"`
 	IdempotencyKeys              []pgtype.Text        `json:"idempotencyKeys"`
 	BatchKeys                    []string             `json:"batchKeys"`
+	PayloadReferenceIds          []*uuid.UUID         `json:"payloadReferenceIds"`
+	Triggers                     [][]byte             `json:"triggers"`
+	DagParentTaskRunIds          [][]byte             `json:"dagParentTaskRunIds"`
+	ChildTaskDesiredWorkerLabels [][]byte             `json:"childTaskDesiredWorkerLabels"`
+	TaskInputPayloadVersions     []int16              `json:"taskInputPayloadVersions"`
 }
 
 func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParams) ([]*V1Task, error) {
@@ -240,6 +271,13 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 		arg.TriggeringEventKeys,
 		arg.IdempotencyKeys,
 		arg.BatchKeys,
+		arg.IsDagOrchestrators,
+		arg.ConcurrencyMaxRuns,
+		arg.PayloadReferenceIds,
+		arg.Triggers,
+		arg.DagParentTaskRunIds,
+		arg.ChildTaskDesiredWorkerLabels,
+		arg.TaskInputPayloadVersions,
 	)
 	if err != nil {
 		return nil, err
@@ -292,6 +330,10 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 			&i.TriggeringEventKey,
 			&i.IdempotencyKey,
 			&i.BatchKey,
+			&i.IsDagOrchestrator,
+			&i.ConcurrencyMaxRuns,
+			&i.PayloadReferenceID,
+			&i.TaskInputPayloadVersion,
 		); err != nil {
 			return nil, err
 		}
@@ -327,7 +369,8 @@ WITH locked_tasks AS (
 		UNNEST($6::TEXT[]) AS event_key,
 		UNNEST($7::JSONB[]) AS data,
 		UNNEST($8::UUID[]) as external_id,
-		UNNEST($9::UUID[]) as child_external_id
+		UNNEST($9::UUID[]) as child_external_id,
+		UNNEST($10::UUID[]) as payload_reference_id
 )
 INSERT INTO v1_task_event (
     tenant_id,
@@ -338,7 +381,8 @@ INSERT INTO v1_task_event (
     event_key,
     data,
 	external_id,
-	child_external_id
+	child_external_id,
+	payload_reference_id
 )
 SELECT
     $1::uuid,
@@ -349,7 +393,8 @@ SELECT
     i.event_key,
     i.data,
 	i.external_id,
-	NULLIF(i.child_external_id, '00000000-0000-0000-0000-000000000000'::UUID) AS child_external_id
+	NULLIF(i.child_external_id, '00000000-0000-0000-0000-000000000000'::UUID) AS child_external_id,
+	NULLIF(i.payload_reference_id, '00000000-0000-0000-0000-000000000000'::UUID) AS payload_reference_id
 FROM
     input i
 ON CONFLICT (tenant_id, task_id, task_inserted_at, event_type, event_key) WHERE event_key IS NOT NULL DO NOTHING
@@ -365,20 +410,22 @@ RETURNING
 	v1_task_event.created_at,
 	v1_task_event.data,
 	v1_task_event.external_id,
-	v1_task_event.child_external_id
+	v1_task_event.child_external_id,
+	v1_task_event.payload_reference_id
 ;
 `
 
 type CreateTaskEventsParams struct {
-	Tenantid         uuid.UUID            `json:"tenantid"`
-	Taskids          []int64              `json:"taskids"`
-	Taskinsertedats  []pgtype.Timestamptz `json:"taskinsertedats"`
-	Retrycounts      []int32              `json:"retrycounts"`
-	Eventtypes       []string             `json:"eventtypes"`
-	Eventkeys        []pgtype.Text        `json:"eventkeys"`
-	Datas            [][]byte             `json:"datas"`
-	Externalids      []uuid.UUID          `json:"externalids"`
-	Childexternalids []uuid.UUID          `json:"childexternalids"`
+	Tenantid            uuid.UUID            `json:"tenantid"`
+	Taskids             []int64              `json:"taskids"`
+	Taskinsertedats     []pgtype.Timestamptz `json:"taskinsertedats"`
+	Retrycounts         []int32              `json:"retrycounts"`
+	Eventtypes          []string             `json:"eventtypes"`
+	Eventkeys           []pgtype.Text        `json:"eventkeys"`
+	Datas               [][]byte             `json:"datas"`
+	Externalids         []uuid.UUID          `json:"externalids"`
+	Childexternalids    []uuid.UUID          `json:"childexternalids"`
+	Payloadreferenceids []uuid.UUID          `json:"payloadreferenceids"`
 }
 
 // We get a FOR UPDATE lock on tasks to prevent concurrent writes to the task events
@@ -394,6 +441,7 @@ func (q *Queries) CreateTaskEvents(ctx context.Context, db DBTX, arg CreateTaskE
 		arg.Datas,
 		arg.Externalids,
 		arg.Childexternalids,
+		arg.Payloadreferenceids,
 	)
 
 	if err != nil {
@@ -418,6 +466,7 @@ func (q *Queries) CreateTaskEvents(ctx context.Context, db DBTX, arg CreateTaskE
 			&i.Data,
 			&i.ExternalID,
 			&i.ChildExternalID,
+			&i.PayloadReferenceID,
 		); err != nil {
 			return nil, err
 		}
@@ -443,28 +492,43 @@ WITH input AS (
         unnest($7::jsonb[]) AS desired_worker_label,
         unnest($8::uuid[]) AS triggering_event_external_id,
         unnest($9::text[]) AS triggering_event_key,
-		unnest($10::text[]) AS batch_key
+		unnest($10::text[]) AS batch_key,
+		unnest_nd_1d($11::integer[][]) AS concurrency_max_runs,
+		unnest($12::jsonb[]) AS triggers,
+		unnest($13::jsonb[]) AS dag_parent_task_run_ids,
+		unnest($14::jsonb[]) AS child_task_desired_worker_labels
 )
+
 UPDATE
     v1_task
 SET
     retry_count = retry_count + 1,
     app_retry_count = 0,
     internal_retry_count = 0,
-    input = CASE WHEN i.input IS NOT NULL THEN i.input ELSE v1_task.input END,
+    input = '{}'::jsonb,
     initial_state = i.initial_state,
     concurrency_keys = i.concurrency_keys,
+    concurrency_max_runs = i.concurrency_max_runs,
     initial_state_reason = i.initial_state_reason,
     desired_worker_label = COALESCE(i.desired_worker_label, v1_task.desired_worker_label),
     triggering_event_external_id = COALESCE(i.triggering_event_external_id, v1_task.triggering_event_external_id),
     triggering_event_key = COALESCE(i.triggering_event_key, v1_task.triggering_event_key),
-    batch_key = COALESCE(NULLIF(BTRIM(i.batch_key), ''), v1_task.batch_key)
+    batch_key = COALESCE(NULLIF(BTRIM(i.batch_key), ''), v1_task.batch_key),
+    triggers = COALESCE(i.triggers, v1_task.triggers),
+    dag_parent_task_run_ids = COALESCE(
+        CASE
+            WHEN i.dag_parent_task_run_ids IS NULL THEN NULL
+            ELSE ARRAY(SELECT jsonb_array_elements_text(i.dag_parent_task_run_ids)::uuid)
+        END,
+        v1_task.dag_parent_task_run_ids
+    ),
+    child_task_desired_worker_labels = COALESCE(i.child_task_desired_worker_labels, v1_task.child_task_desired_worker_labels)
 FROM
     input i
 WHERE
 	(v1_task.id, v1_task.inserted_at) = (i.task_id, i.task_inserted_at)
 RETURNING
-    v1_task.id, v1_task.inserted_at, v1_task.tenant_id, v1_task.queue, v1_task.action_id, v1_task.step_id, v1_task.step_readable_id, v1_task.workflow_id, v1_task.schedule_timeout, v1_task.step_timeout, v1_task.priority, v1_task.sticky, v1_task.desired_worker_id, v1_task.external_id, v1_task.display_name, v1_task.input, v1_task.retry_count, v1_task.internal_retry_count, v1_task.app_retry_count, v1_task.additional_metadata, v1_task.dag_id, v1_task.dag_inserted_at, v1_task.parent_task_id, v1_task.child_index, v1_task.child_key, v1_task.initial_state, v1_task.initial_state_reason, v1_task.concurrency_parent_strategy_ids, v1_task.concurrency_strategy_ids, v1_task.concurrency_keys, v1_task.retry_backoff_factor, v1_task.retry_max_backoff, v1_task.desired_worker_label, v1_task.triggering_event_external_id, v1_task.triggering_event_key, v1_task.batch_key
+    v1_task.id, v1_task.inserted_at, v1_task.tenant_id, v1_task.queue, v1_task.action_id, v1_task.step_id, v1_task.step_readable_id, v1_task.workflow_id, v1_task.schedule_timeout, v1_task.step_timeout, v1_task.priority, v1_task.sticky, v1_task.desired_worker_id, v1_task.external_id, v1_task.display_name, v1_task.input, v1_task.retry_count, v1_task.internal_retry_count, v1_task.app_retry_count, v1_task.additional_metadata, v1_task.dag_id, v1_task.dag_inserted_at, v1_task.parent_task_id, v1_task.child_index, v1_task.child_key, v1_task.initial_state, v1_task.initial_state_reason, v1_task.concurrency_parent_strategy_ids, v1_task.concurrency_strategy_ids, v1_task.concurrency_keys, v1_task.retry_backoff_factor, v1_task.retry_max_backoff, v1_task.desired_worker_label, v1_task.triggering_event_external_id, v1_task.triggering_event_key, v1_task.batch_key, v1_task.concurrency_max_runs, v1_task.payload_reference_id, v1_task.task_input_payload_version
 `
 
 type ReplayTasksParams struct {
@@ -475,12 +539,16 @@ type ReplayTasksParams struct {
 	// FIXME: pgx doesn't like multi-dimensional arrays with different lengths, these types
 	// probably need to change. Current hack is to group tasks by their step id where these
 	// multi-dimensional arrays are the same length.
-	Concurrencykeys            [][]string    `json:"concurrencykeys"`
-	InitialStateReasons        []pgtype.Text `json:"initialStateReasons"`
-	DesiredWorkerLabels        [][]byte      `json:"desiredWorkerLabels"`
-	TriggeringEventExternalIds []*uuid.UUID  `json:"triggeringEventExternalIds"`
-	TriggeringEventKeys        []pgtype.Text `json:"triggeringEventKeys"`
-	BatchKeys                  []string      `json:"batchKeys"`
+	Concurrencykeys              [][]string      `json:"concurrencykeys"`
+	ConcurrencyMaxRuns           [][]pgtype.Int4 `json:"concurrencyMaxRuns"`
+	InitialStateReasons          []pgtype.Text   `json:"initialStateReasons"`
+	DesiredWorkerLabels          [][]byte        `json:"desiredWorkerLabels"`
+	TriggeringEventExternalIds   []*uuid.UUID    `json:"triggeringEventExternalIds"`
+	TriggeringEventKeys          []pgtype.Text   `json:"triggeringEventKeys"`
+	BatchKeys                    []string        `json:"batchKeys"`
+	Triggers                     [][]byte        `json:"triggers"`
+	DagParentTaskRunIds          [][]byte        `json:"dagParentTaskRunIds"`
+	ChildTaskDesiredWorkerLabels [][]byte        `json:"childTaskDesiredWorkerLabels"`
 }
 
 // NOTE: at this point, we assume we have a lock on tasks and therefor we can update the tasks
@@ -496,6 +564,10 @@ func (q *Queries) ReplayTasks(ctx context.Context, db DBTX, arg ReplayTasksParam
 		arg.TriggeringEventExternalIds,
 		arg.TriggeringEventKeys,
 		arg.BatchKeys,
+		arg.ConcurrencyMaxRuns,
+		arg.Triggers,
+		arg.DagParentTaskRunIds,
+		arg.ChildTaskDesiredWorkerLabels,
 	)
 	if err != nil {
 		return nil, err
@@ -541,6 +613,9 @@ func (q *Queries) ReplayTasks(ctx context.Context, db DBTX, arg ReplayTasksParam
 			&i.TriggeringEventExternalID,
 			&i.TriggeringEventKey,
 			&i.BatchKey,
+			&i.ConcurrencyMaxRuns,
+			&i.PayloadReferenceID,
+			&i.TaskInputPayloadVersion,
 		); err != nil {
 			return nil, err
 		}
@@ -681,20 +756,26 @@ WHERE
 
 const releaseBatchedQueueItems = `-- name: ReleaseBatchedQueueItems :batchexec
 WITH input AS (
-    SELECT
-        task_id, task_inserted_at, retry_count
-    FROM
-        (
-            SELECT
-                unnest($1::bigint[]) AS task_id,
-                unnest($2::timestamptz[]) AS task_inserted_at,
-                unnest($3::integer[]) AS retry_count
-        ) AS subquery
+	SELECT
+		unnest($1::bigint[]) AS task_id,
+		unnest($2::timestamptz[]) AS task_inserted_at,
+		unnest($3::integer[]) AS retry_count
+), batched_queue_items_to_delete AS (
+	SELECT
+		task_id, task_inserted_at, retry_count
+	FROM
+		v1_batched_queue_item
+	WHERE
+		(task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
+	ORDER BY
+		task_id, task_inserted_at, retry_count
+	FOR UPDATE
 )
+
 DELETE FROM
     v1_batched_queue_item
 WHERE
-    (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
+    (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM batched_queue_items_to_delete)
 `
 
 const releaseRateLimitedQueueItems = `-- name: ReleaseRateLimitedQueueItems :batchexec
@@ -748,6 +829,30 @@ WHERE
     )
 `
 
+const releasePausedWorkflowQueueItems = `-- name: ReleasePausedWorkflowQueueItems :batchexec
+WITH input AS (
+    SELECT
+        unnest($1::bigint[]) AS task_id,
+        unnest($2::timestamptz[]) AS task_inserted_at,
+        unnest($3::integer[]) AS retry_count
+), paused_items_to_delete AS (
+    SELECT
+        task_id, task_inserted_at, retry_count
+    FROM
+        v1_paused_workflow_queue_item
+    WHERE
+        (task_inserted_at, task_id, retry_count) IN (SELECT task_inserted_at, task_id, retry_count FROM input)
+    ORDER BY
+        task_inserted_at, task_id, retry_count
+    FOR UPDATE
+)
+
+DELETE FROM
+    v1_paused_workflow_queue_item
+WHERE
+    (task_inserted_at, task_id, retry_count) IN (SELECT task_inserted_at, task_id, retry_count FROM paused_items_to_delete)
+`
+
 const releaseTasks = `-- name: ReleaseTasks :batchmany
 WITH input AS (
     SELECT
@@ -793,7 +898,11 @@ SELECT
     i.retry_count::int AS retry_count,
     t.retry_count = i.retry_count AS is_current_retry,
     t.concurrency_strategy_ids,
-	t.idempotency_key
+	t.idempotency_key,
+    t.is_dag_orchestrator,
+    t.parent_task_external_id,
+    t.parent_task_id,
+    t.parent_task_inserted_at
 FROM
     v1_task t
 JOIN
@@ -822,6 +931,10 @@ type ReleaseTasksRow struct {
 	IsCurrentRetry         bool               `json:"is_current_retry"`
 	ConcurrencyStrategyIds []int64            `json:"concurrency_strategy_ids"`
 	IdempotencyKey         pgtype.Text        `json:"idempotency_key"`
+	IsDagOrchestrator      bool               `json:"is_dag_orchestrator"`
+	ParentTaskExternalID   *uuid.UUID         `json:"parent_task_external_id"`
+	ParentTaskID           pgtype.Int8        `json:"parent_task_id"`
+	ParentTaskInsertedAt   pgtype.Timestamptz `json:"parent_task_inserted_at"`
 }
 
 func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksParams) ([]*ReleaseTasksRow, error) {
@@ -854,6 +967,10 @@ func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksPar
 				&i.IsCurrentRetry,
 				&i.ConcurrencyStrategyIds,
 				&i.IdempotencyKey,
+				&i.IsDagOrchestrator,
+				&i.ParentTaskExternalID,
+				&i.ParentTaskID,
+				&i.ParentTaskInsertedAt,
 			); err != nil {
 				errCh <- err
 				close(rowsCh)
@@ -874,6 +991,7 @@ func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksPar
 	batch.Queue(lockParentConcurrencySlots, vals...)
 	batch.Queue(releaseConcurrencySlots, vals...)
 	batch.Queue(releaseRateLimitedQueueItems, vals...)
+	batch.Queue(releasePausedWorkflowQueueItems, vals...)
 
 	br := db.SendBatch(ctx, batch)
 	err := br.Close()
@@ -1009,7 +1127,8 @@ WITH to_insert AS (
         -- Scopes are nullable
         UNNEST($6::TEXT[]) AS scope,
         -- Webhook names are nullable
-        UNNEST($7::TEXT[]) AS triggering_webhook_name
+        UNNEST($7::TEXT[]) AS triggering_webhook_name,
+		UNNEST($8::UUID[]) AS payload_reference_id
 )
 
 INSERT INTO v1_event (
@@ -1019,13 +1138,14 @@ INSERT INTO v1_event (
     key,
     additional_metadata,
     scope,
-	triggering_webhook_name
+	triggering_webhook_name,
+    payload_reference_id
 )
 
-SELECT tenant_id, external_id, seen_at, key, additional_metadata, scope, triggering_webhook_name
+SELECT tenant_id, external_id, seen_at, key, additional_metadata, scope, triggering_webhook_name, payload_reference_id
 FROM to_insert
 ON CONFLICT (external_id, seen_at) DO NOTHING
-RETURNING tenant_id, id, external_id, seen_at, key, additional_metadata, scope, triggering_webhook_name
+RETURNING tenant_id, id, external_id, seen_at, key, additional_metadata, scope, triggering_webhook_name, payload_reference_id
 `
 
 type BulkCreateEventsParams struct {
@@ -1036,6 +1156,7 @@ type BulkCreateEventsParams struct {
 	Additionalmetadatas    [][]byte             `json:"additionalmetadatas"`
 	Scopes                 []pgtype.Text        `json:"scopes"`
 	TriggeringWebhookNames []pgtype.Text        `json:"triggeringWebhookName"`
+	PayloadReferenceIDs    []*uuid.UUID         `json:"payloadReferenceIds"`
 }
 
 func (q *Queries) BulkCreateEvents(ctx context.Context, db DBTX, arg BulkCreateEventsParams) ([]*V1Event, error) {
@@ -1047,6 +1168,7 @@ func (q *Queries) BulkCreateEvents(ctx context.Context, db DBTX, arg BulkCreateE
 		arg.Additionalmetadatas,
 		arg.Scopes,
 		arg.TriggeringWebhookNames,
+		arg.PayloadReferenceIDs,
 	)
 	if err != nil {
 		return nil, err
@@ -1064,6 +1186,437 @@ func (q *Queries) BulkCreateEvents(ctx context.Context, db DBTX, arg BulkCreateE
 			&i.AdditionalMetadata,
 			&i.Scope,
 			&i.TriggeringWebhookName,
+			&i.PayloadReferenceID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+// note: this is an overwrite because sqlc can't seem to figure out that the return type is `[]uuid.UUID` and not `[]*uuid.UUID` even though
+// we filter out null ids in the query
+const listDurableOrchestratorChildTaskExternalIds = `-- name: ListDurableOrchestratorChildTaskExternalIds :many
+SELECT DISTINCT e.child_task_external_id
+FROM v1_lookup_table l
+JOIN v1_task orch ON (orch.id, orch.inserted_at, orch.is_dag_orchestrator) = (l.task_id, l.inserted_at, TRUE)
+JOIN v1_durable_event_log_entry e ON (e.durable_task_id, e.durable_task_inserted_at) = (orch.id, orch.inserted_at)
+WHERE
+    l.external_id = ANY($1::uuid[])
+    AND e.kind = 'RUN'
+    AND e.child_task_external_id IS NOT NULL
+`
+
+func (q *Queries) ListDurableOrchestratorChildTaskExternalIds(ctx context.Context, db DBTX, externalids []uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := db.Query(ctx, listDurableOrchestratorChildTaskExternalIds, externalids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var child_task_external_id uuid.UUID
+		if err := rows.Scan(&child_task_external_id); err != nil {
+			return nil, err
+		}
+		items = append(items, child_task_external_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTasksForDispatch = `-- name: ListTasksForDispatch :many
+SELECT
+    v1_task.id, v1_task.inserted_at, v1_task.tenant_id, v1_task.queue, v1_task.action_id, v1_task.step_id, v1_task.step_readable_id, v1_task.workflow_id, v1_task.workflow_version_id, v1_task.workflow_run_id, v1_task.schedule_timeout, v1_task.step_timeout, v1_task.priority, v1_task.sticky, v1_task.desired_worker_id, v1_task.external_id, v1_task.display_name, v1_task.input, v1_task.retry_count, v1_task.internal_retry_count, v1_task.app_retry_count, v1_task.step_index, v1_task.additional_metadata, v1_task.dag_id, v1_task.dag_inserted_at, v1_task.parent_task_external_id, v1_task.parent_task_id, v1_task.parent_task_inserted_at, v1_task.child_index, v1_task.child_key, v1_task.initial_state, v1_task.initial_state_reason, v1_task.concurrency_parent_strategy_ids, v1_task.concurrency_strategy_ids, v1_task.concurrency_keys, v1_task.batch_key, v1_task.retry_backoff_factor, v1_task.retry_max_backoff, v1_task.is_durable, v1_task.desired_worker_label, v1_task.triggering_event_external_id, v1_task.triggering_event_key, v1_task.idempotency_key, v1_task.is_dag_orchestrator, v1_task.concurrency_max_runs, v1_task.payload_reference_id, v1_task.triggers, v1_task.dag_parent_task_run_ids, v1_task.child_task_desired_worker_labels, v1_task.task_input_payload_version,
+    tr.task_id, tr.task_inserted_at, tr.retry_count, tr.worker_id, tr.batch_id, tr.batch_size, tr.batch_index, tr.batch_key, tr.tenant_id, tr.timeout_at, tr.evicted_at, tr.assigned_at, tr.acked_at,
+    p.id AS payload_id,
+    p.inserted_at AS payload_inserted_at,
+    p.external_id AS payload_external_id,
+    p.type AS payload_type,
+    p.location AS payload_location,
+    p.external_location_key AS payload_external_location_key,
+    p.inline_content AS payload_inline_content,
+    p.updated_at AS payload_updated_at
+FROM unnest((SELECT $2::bigint[])) AS ids(id)
+JOIN v1_task ON v1_task.tenant_id = $1::uuid
+    AND v1_task.id = ids.id
+JOIN v1_task_runtime tr ON tr.task_id = v1_task.id
+    AND tr.task_inserted_at = v1_task.inserted_at
+    AND tr.retry_count = v1_task.retry_count
+    AND tr.tenant_id = v1_task.tenant_id
+LEFT JOIN LATERAL read_payloads(
+    ARRAY[v1_task.tenant_id],
+    ARRAY[v1_task.id],
+    ARRAY[v1_task.inserted_at],
+    ARRAY['TASK_INPUT'::v1_payload_type],
+    ARRAY[COALESCE(v1_task.payload_reference_id, '00000000-0000-0000-0000-000000000000'::uuid)]
+) p ON true
+`
+
+// ListTasksForDispatchRow is hand-written because sqlc types the columns of a LEFT JOIN LATERAL
+// function as NOT NULL.
+type ListTasksForDispatchRow struct {
+	V1Task        V1Task        `json:"v1_task"`
+	V1TaskRuntime V1TaskRuntime `json:"v1_task_runtime"`
+	V1Payload     *V1Payload    `json:"v1_payload"`
+}
+
+// The ids go through unnest of a scalar subquery so the custom and generic plans are costed the same
+// (an initplan output is estimated at ten rows either way). With the array as a direct parameter, the
+// custom plan knows the real length and wins for short arrays, so every execution is planned again.
+//
+// A task appears once per payload row read_payloads returns for it, and once with a nil V1Payload
+// when it has none. A zero uuid stands in for a missing payload_reference_id.
+func (q *Queries) ListTasksForDispatch(ctx context.Context, db DBTX, tenantId uuid.UUID, ids []int64) ([]*ListTasksForDispatchRow, error) {
+	rows, err := db.Query(ctx, listTasksForDispatch, tenantId, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]*ListTasksForDispatchRow, 0, len(ids))
+	for rows.Next() {
+		var (
+			i                          ListTasksForDispatchRow
+			payloadID                  pgtype.Int8
+			payloadInsertedAt          pgtype.Timestamptz
+			payloadExternalID          *uuid.UUID
+			payloadType                NullV1PayloadType
+			payloadLocation            NullV1PayloadLocation
+			payloadExternalLocationKey pgtype.Text
+			payloadInlineContent       []byte
+			payloadUpdatedAt           pgtype.Timestamptz
+		)
+		if err := rows.Scan(
+			&i.V1Task.ID,
+			&i.V1Task.InsertedAt,
+			&i.V1Task.TenantID,
+			&i.V1Task.Queue,
+			&i.V1Task.ActionID,
+			&i.V1Task.StepID,
+			&i.V1Task.StepReadableID,
+			&i.V1Task.WorkflowID,
+			&i.V1Task.WorkflowVersionID,
+			&i.V1Task.WorkflowRunID,
+			&i.V1Task.ScheduleTimeout,
+			&i.V1Task.StepTimeout,
+			&i.V1Task.Priority,
+			&i.V1Task.Sticky,
+			&i.V1Task.DesiredWorkerID,
+			&i.V1Task.ExternalID,
+			&i.V1Task.DisplayName,
+			&i.V1Task.Input,
+			&i.V1Task.RetryCount,
+			&i.V1Task.InternalRetryCount,
+			&i.V1Task.AppRetryCount,
+			&i.V1Task.StepIndex,
+			&i.V1Task.AdditionalMetadata,
+			&i.V1Task.DagID,
+			&i.V1Task.DagInsertedAt,
+			&i.V1Task.ParentTaskExternalID,
+			&i.V1Task.ParentTaskID,
+			&i.V1Task.ParentTaskInsertedAt,
+			&i.V1Task.ChildIndex,
+			&i.V1Task.ChildKey,
+			&i.V1Task.InitialState,
+			&i.V1Task.InitialStateReason,
+			&i.V1Task.ConcurrencyParentStrategyIds,
+			&i.V1Task.ConcurrencyStrategyIds,
+			&i.V1Task.ConcurrencyKeys,
+			&i.V1Task.BatchKey,
+			&i.V1Task.RetryBackoffFactor,
+			&i.V1Task.RetryMaxBackoff,
+			&i.V1Task.IsDurable,
+			&i.V1Task.DesiredWorkerLabel,
+			&i.V1Task.TriggeringEventExternalID,
+			&i.V1Task.TriggeringEventKey,
+			&i.V1Task.IdempotencyKey,
+			&i.V1Task.IsDagOrchestrator,
+			&i.V1Task.ConcurrencyMaxRuns,
+			&i.V1Task.PayloadReferenceID,
+			&i.V1Task.Triggers,
+			&i.V1Task.DagParentTaskRunIds,
+			&i.V1Task.ChildTaskDesiredWorkerLabels,
+			&i.V1Task.TaskInputPayloadVersion,
+			&i.V1TaskRuntime.TaskID,
+			&i.V1TaskRuntime.TaskInsertedAt,
+			&i.V1TaskRuntime.RetryCount,
+			&i.V1TaskRuntime.WorkerID,
+			&i.V1TaskRuntime.BatchID,
+			&i.V1TaskRuntime.BatchSize,
+			&i.V1TaskRuntime.BatchIndex,
+			&i.V1TaskRuntime.BatchKey,
+			&i.V1TaskRuntime.TenantID,
+			&i.V1TaskRuntime.TimeoutAt,
+			&i.V1TaskRuntime.EvictedAt,
+			&i.V1TaskRuntime.AssignedAt,
+			&i.V1TaskRuntime.AckedAt,
+			&payloadID,
+			&payloadInsertedAt,
+			&payloadExternalID,
+			&payloadType,
+			&payloadLocation,
+			&payloadExternalLocationKey,
+			&payloadInlineContent,
+			&payloadUpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		if payloadID.Valid {
+			i.V1Payload = &V1Payload{
+				TenantID:            i.V1Task.TenantID,
+				ID:                  payloadID.Int64,
+				InsertedAt:          payloadInsertedAt,
+				ExternalID:          *payloadExternalID,
+				Type:                payloadType.V1PayloadType,
+				Location:            payloadLocation.V1PayloadLocation,
+				ExternalLocationKey: payloadExternalLocationKey,
+				InlineContent:       payloadInlineContent,
+				UpdatedAt:           payloadUpdatedAt,
+			}
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listFlattenedTasks = `-- name: ListFlattenedTasks :many
+SELECT
+    t.id,
+    t.inserted_at,
+    t.retry_count,
+    t.external_id,
+    t.workflow_run_id,
+    t.additional_metadata,
+    t.dag_id,
+    t.dag_inserted_at,
+    t.parent_task_id,
+    t.child_index,
+    t.child_key,
+    t.step_readable_id,
+    t.external_id AS workflow_run_external_id,
+    t.workflow_id,
+    t.step_id,
+    t.is_dag_orchestrator,
+    t.workflow_version_id,
+    t.parent_task_external_id,
+    t.is_durable,
+    t.task_input_payload_version,
+    t.payload_reference_id,
+    NULL::uuid AS dag_payload_reference_id
+FROM
+    unnest($1::bigint[], $2::timestamptz[]) AS i(id, inserted_at)
+JOIN
+    v1_task t ON t.id = i.id AND t.inserted_at = i.inserted_at
+WHERE
+    t.inserted_at >= $3::timestamptz
+    AND t.inserted_at <= $4::timestamptz
+`
+
+const listFlattenedDagTasks = `-- name: ListFlattenedDagTasks :many
+SELECT
+    t.id,
+    t.inserted_at,
+    t.retry_count,
+    t.external_id,
+    t.workflow_run_id,
+    t.additional_metadata,
+    t.dag_id,
+    t.dag_inserted_at,
+    t.parent_task_id,
+    t.child_index,
+    t.child_key,
+    t.step_readable_id,
+    i.external_id AS workflow_run_external_id,
+    t.workflow_id,
+    t.step_id,
+    t.is_dag_orchestrator,
+    t.workflow_version_id,
+    t.parent_task_external_id,
+    t.is_durable,
+    t.task_input_payload_version,
+    t.payload_reference_id,
+    d.payload_reference_id AS dag_payload_reference_id
+FROM
+    unnest($1::bigint[], $2::timestamptz[], $3::uuid[]) AS i(id, inserted_at, external_id)
+JOIN
+    v1_dag d ON d.id = i.id AND d.inserted_at = i.inserted_at
+JOIN
+    v1_dag_to_task dt ON dt.dag_id = d.id AND dt.dag_inserted_at = d.inserted_at
+JOIN
+    v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
+WHERE
+    d.inserted_at >= $4::timestamptz
+    AND d.inserted_at <= $5::timestamptz
+    AND dt.dag_inserted_at >= $4::timestamptz
+    AND dt.dag_inserted_at <= $5::timestamptz
+    -- a DAG's tasks are never inserted before the DAG itself
+    AND t.inserted_at >= $4::timestamptz
+`
+
+type FlattenExternalIdsParams struct {
+	Externalids []uuid.UUID `json:"externalids"`
+	Tenantid    uuid.UUID   `json:"tenantid"`
+}
+
+type FlattenExternalIdsRow struct {
+	ID                      int64              `json:"id"`
+	InsertedAt              pgtype.Timestamptz `json:"inserted_at"`
+	RetryCount              int32              `json:"retry_count"`
+	ExternalID              uuid.UUID          `json:"external_id"`
+	WorkflowRunID           uuid.UUID          `json:"workflow_run_id"`
+	AdditionalMetadata      []byte             `json:"additional_metadata"`
+	DagID                   pgtype.Int8        `json:"dag_id"`
+	DagInsertedAt           pgtype.Timestamptz `json:"dag_inserted_at"`
+	ParentTaskID            pgtype.Int8        `json:"parent_task_id"`
+	ChildIndex              pgtype.Int8        `json:"child_index"`
+	ChildKey                pgtype.Text        `json:"child_key"`
+	StepReadableID          string             `json:"step_readable_id"`
+	WorkflowRunExternalID   uuid.UUID          `json:"workflow_run_external_id"`
+	WorkflowID              uuid.UUID          `json:"workflow_id"`
+	StepID                  uuid.UUID          `json:"step_id"`
+	IsDagOrchestrator       bool               `json:"is_dag_orchestrator"`
+	WorkflowVersionID       uuid.UUID          `json:"workflow_version_id"`
+	ParentTaskExternalID    *uuid.UUID         `json:"parent_task_external_id"`
+	IsDurable               pgtype.Bool        `json:"is_durable"`
+	TaskInputPayloadVersion int16              `json:"task_input_payload_version"`
+	PayloadReferenceID      *uuid.UUID         `json:"payload_reference_id"`
+	DagPayloadReferenceID   *uuid.UUID         `json:"dag_payload_reference_id"`
+}
+
+// flattenKeys collects the primary keys that one kind of v1_lookup_table row (task or DAG) points
+// at, along with the inserted_at range they span.
+type flattenKeys struct {
+	minInsertedAt pgtype.Timestamptz
+	maxInsertedAt pgtype.Timestamptz
+	ids           []int64
+	insertedAts   []pgtype.Timestamptz
+	externalIds   []uuid.UUID
+}
+
+func (k *flattenKeys) add(id int64, insertedAt pgtype.Timestamptz, externalId uuid.UUID) {
+	if len(k.ids) == 0 || insertedAt.Time.Before(k.minInsertedAt.Time) {
+		k.minInsertedAt = insertedAt
+	}
+
+	if len(k.ids) == 0 || insertedAt.Time.After(k.maxInsertedAt.Time) {
+		k.maxInsertedAt = insertedAt
+	}
+
+	k.ids = append(k.ids, id)
+	k.insertedAts = append(k.insertedAts, insertedAt)
+	k.externalIds = append(k.externalIds, externalId)
+}
+
+// FlattenExternalIds returns the tasks behind a set of external ids: the task itself for a task's
+// external id, and every task in the DAG for a DAG's external id.
+//
+// The ids are resolved through v1_lookup_table in a statement of their own, and the inserted_at
+// range of the rows they point at is then passed to the v1_task and v1_dag statements as plain
+// parameters under forceCustomPlan. That is what lets the planner prune those tables to the
+// partitions inside the range. A range computed within the statement that reads v1_task is only
+// known once it is executing, by which point every partition has been locked and initialized, and
+// on a cached generic plan the partitions are locked before the parameters are looked at.
+//
+// The statements do not share a snapshot unless db is a transaction. Lookup rows are written in the
+// same statement as the row they point at and are never updated, so a later snapshot still finds it.
+func (q *Queries) FlattenExternalIds(ctx context.Context, db DBTX, arg FlattenExternalIdsParams) ([]*FlattenExternalIdsRow, error) {
+	if len(arg.Externalids) == 0 {
+		return nil, nil
+	}
+
+	lookups, err := q.LookupExternalIds(ctx, db, LookupExternalIdsParams(arg))
+	if err != nil {
+		return nil, err
+	}
+
+	var tasks, dags flattenKeys
+
+	for _, l := range lookups {
+		if l.TaskID.Valid {
+			tasks.add(l.TaskID.Int64, l.InsertedAt, l.ExternalID)
+		}
+
+		if l.DagID.Valid {
+			dags.add(l.DagID.Int64, l.InsertedAt, l.ExternalID)
+		}
+	}
+
+	var items []*FlattenExternalIdsRow
+
+	if len(tasks.ids) > 0 {
+		rows, err := db.Query(ctx, listFlattenedTasks, forceCustomPlan,
+			tasks.ids,
+			tasks.insertedAts,
+			tasks.minInsertedAt,
+			tasks.maxInsertedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		items, err = appendFlattenExternalIdsRows(items, rows)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if len(dags.ids) > 0 {
+		rows, err := db.Query(ctx, listFlattenedDagTasks, forceCustomPlan,
+			dags.ids,
+			dags.insertedAts,
+			dags.externalIds,
+			dags.minInsertedAt,
+			dags.maxInsertedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		items, err = appendFlattenExternalIdsRows(items, rows)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return items, nil
+}
+
+func appendFlattenExternalIdsRows(items []*FlattenExternalIdsRow, rows pgx.Rows) ([]*FlattenExternalIdsRow, error) {
+	defer rows.Close()
+	for rows.Next() {
+		var i FlattenExternalIdsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.InsertedAt,
+			&i.RetryCount,
+			&i.ExternalID,
+			&i.WorkflowRunID,
+			&i.AdditionalMetadata,
+			&i.DagID,
+			&i.DagInsertedAt,
+			&i.ParentTaskID,
+			&i.ChildIndex,
+			&i.ChildKey,
+			&i.StepReadableID,
+			&i.WorkflowRunExternalID,
+			&i.WorkflowID,
+			&i.StepID,
+			&i.IsDagOrchestrator,
+			&i.WorkflowVersionID,
+			&i.ParentTaskExternalID,
+			&i.IsDurable,
+			&i.TaskInputPayloadVersion,
+			&i.PayloadReferenceID,
+			&i.DagPayloadReferenceID,
 		); err != nil {
 			return nil, err
 		}

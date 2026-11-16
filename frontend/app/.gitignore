@@ -31,3 +31,6 @@ src/lib/generated
 cypress/screenshots
 cypress/videos
 cypress/support/seeded-users.generated.ts
+
+# Storybook
+storybook-static

@@ -20,6 +20,9 @@ module HatchetSdkRest
     # The name of the API token.
     attr_accessor :name
 
+    # Whether the token is limited to viewer access over REST and cannot use gRPC.
+    attr_accessor :read_only
+
     # When the API token expires.
     attr_accessor :expires_at
 
@@ -28,6 +31,7 @@ module HatchetSdkRest
       {
         :'metadata' => :'metadata',
         :'name' => :'name',
+        :'read_only' => :'readOnly',
         :'expires_at' => :'expiresAt'
       }
     end
@@ -47,6 +51,7 @@ module HatchetSdkRest
       {
         :'metadata' => :'APIResourceMeta',
         :'name' => :'String',
+        :'read_only' => :'Boolean',
         :'expires_at' => :'Time'
       }
     end
@@ -85,6 +90,12 @@ module HatchetSdkRest
         self.name = nil
       end
 
+      if attributes.key?(:'read_only')
+        self.read_only = attributes[:'read_only']
+      else
+        self.read_only = nil
+      end
+
       if attributes.key?(:'expires_at')
         self.expires_at = attributes[:'expires_at']
       else
@@ -109,6 +120,10 @@ module HatchetSdkRest
         invalid_properties.push('invalid value for "name", the character length must be smaller than or equal to 255.')
       end
 
+      if @read_only.nil?
+        invalid_properties.push('invalid value for "read_only", read_only cannot be nil.')
+      end
+
       if @expires_at.nil?
         invalid_properties.push('invalid value for "expires_at", expires_at cannot be nil.')
       end
@@ -123,6 +138,7 @@ module HatchetSdkRest
       return false if @metadata.nil?
       return false if @name.nil?
       return false if @name.to_s.length > 255
+      return false if @read_only.nil?
       return false if @expires_at.nil?
       true
     end
@@ -152,6 +168,16 @@ module HatchetSdkRest
     end
 
     # Custom attribute writer method with validation
+    # @param [Object] read_only Value to be assigned
+    def read_only=(read_only)
+      if read_only.nil?
+        fail ArgumentError, 'read_only cannot be nil'
+      end
+
+      @read_only = read_only
+    end
+
+    # Custom attribute writer method with validation
     # @param [Object] expires_at Value to be assigned
     def expires_at=(expires_at)
       if expires_at.nil?
@@ -168,6 +194,7 @@ module HatchetSdkRest
       self.class == o.class &&
           metadata == o.metadata &&
           name == o.name &&
+          read_only == o.read_only &&
           expires_at == o.expires_at
     end
 
@@ -180,7 +207,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [metadata, name, expires_at].hash
+      [metadata, name, read_only, expires_at].hash
     end
 
     # Builds the object from hash

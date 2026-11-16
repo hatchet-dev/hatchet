@@ -49,6 +49,115 @@ type CreateMatchConditionsParams struct {
 	Data              []byte                 `json:"data"`
 }
 
+const deleteCompletionMatchesHeldOnChildTasks = `-- name: DeleteCompletionMatchesHeldOnChildTasks :exec
+WITH input AS (
+    SELECT
+        UNNEST($1::BIGINT[]) AS durable_task_id,
+        UNNEST($2::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST($3::UUID[]) AS child_task_external_id
+), deleted_matches AS (
+    DELETE FROM
+        v1_match m
+    USING
+        input i
+    JOIN
+        v1_match_condition mc ON mc.tenant_id = $4::UUID
+        AND mc.event_type = 'INTERNAL'
+        AND mc.event_key = 'COMPLETED'
+        AND mc.is_satisfied = FALSE
+        AND mc.event_resource_hint = i.child_task_external_id::TEXT
+    WHERE
+        m.id = mc.v1_match_id
+        AND m.signal_task_id = i.durable_task_id
+        AND m.signal_task_inserted_at = i.durable_task_inserted_at
+    RETURNING
+        m.id
+)
+DELETE FROM
+    v1_match_condition
+WHERE
+    v1_match_id IN (SELECT id FROM deleted_matches)
+`
+
+type DeleteCompletionMatchesHeldOnChildTasksParams struct {
+	Durabletaskids         []int64              `json:"durabletaskids"`
+	Durabletaskinsertedats []pgtype.Timestamptz `json:"durabletaskinsertedats"`
+	Childtaskexternalids   []uuid.UUID          `json:"childtaskexternalids"`
+	Tenantid               uuid.UUID            `json:"tenantid"`
+}
+
+func (q *Queries) DeleteCompletionMatchesHeldOnChildTasks(ctx context.Context, db DBTX, arg DeleteCompletionMatchesHeldOnChildTasksParams) error {
+	_, err := db.Exec(ctx, deleteCompletionMatchesHeldOnChildTasks,
+		arg.Durabletaskids,
+		arg.Durabletaskinsertedats,
+		arg.Childtaskexternalids,
+		arg.Tenantid,
+	)
+	return err
+}
+
+const getActiveMatchForDurableWait = `-- name: GetActiveMatchForDurableWait :one
+WITH inputs AS (
+    SELECT
+        UNNEST($7::text[]) AS event_key,
+        UNNEST($8::text[]) AS event_resource_hint
+), relevant_match_conditions AS (
+    SELECT v1_match_id
+    FROM v1_match_condition
+    WHERE tenant_id = $1::uuid
+        AND event_type = 'USER'
+        AND is_satisfied = FALSE
+        AND (event_key, event_resource_hint) IN (
+            SELECT event_key, event_resource_hint
+            FROM inputs
+        )
+)
+
+SELECT id
+FROM v1_match
+WHERE
+    tenant_id = $1::uuid
+    AND kind = 'SIGNAL'
+    AND signal_task_id = $2::bigint
+    AND signal_task_inserted_at = $3::timestamptz
+    AND signal_task_external_id = $4::uuid
+    AND durable_event_log_entry_node_id = $5::bigint
+    AND durable_event_log_entry_branch_id = $6::bigint
+    AND is_satisfied = FALSE
+    AND id IN (
+        SELECT v1_match_id
+        FROM relevant_match_conditions
+    )
+LIMIT 1
+`
+
+type GetActiveMatchForDurableWaitParams struct {
+	Tenantid              uuid.UUID          `json:"tenantid"`
+	Durabletaskid         int64              `json:"durabletaskid"`
+	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
+	Durabletaskexternalid uuid.UUID          `json:"durabletaskexternalid"`
+	Nodeid                int64              `json:"nodeid"`
+	Branchid              int64              `json:"branchid"`
+	Eventkeys             []string           `json:"eventkeys"`
+	Eventscopes           []string           `json:"eventscopes"`
+}
+
+func (q *Queries) GetActiveMatchForDurableWait(ctx context.Context, db DBTX, arg GetActiveMatchForDurableWaitParams) (int64, error) {
+	row := db.QueryRow(ctx, getActiveMatchForDurableWait,
+		arg.Tenantid,
+		arg.Durabletaskid,
+		arg.Durabletaskinsertedat,
+		arg.Durabletaskexternalid,
+		arg.Nodeid,
+		arg.Branchid,
+		arg.Eventkeys,
+		arg.Eventscopes,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getPreviousMatchingEventsByKeysWithScopeHint = `-- name: GetPreviousMatchingEventsByKeysWithScopeHint :many
 WITH inputs AS (
     SELECT
@@ -57,7 +166,7 @@ WITH inputs AS (
         UNNEST($4::text[]) AS scope
 )
 
-SELECT e.id, e.seen_at, e.tenant_id, e.external_id, e.key, e.additional_metadata, e.scope, e.triggering_webhook_name
+SELECT e.id, e.seen_at, e.tenant_id, e.external_id, e.key, e.additional_metadata, e.scope, e.triggering_webhook_name, e.payload_reference_id
 FROM v1_event e
 JOIN inputs i ON i.key = e.key AND e.seen_at >= i.since AND e.scope = i.scope
 WHERE tenant_id = $1::uuid
@@ -94,6 +203,7 @@ func (q *Queries) GetPreviousMatchingEventsByKeysWithScopeHint(ctx context.Conte
 			&i.AdditionalMetadata,
 			&i.Scope,
 			&i.TriggeringWebhookName,
+			&i.PayloadReferenceID,
 		); err != nil {
 			return nil, err
 		}
@@ -321,7 +431,9 @@ WITH match_counts AS (
         (v1_match_id, id) IN (SELECT v1_match_id, id FROM locked_conditions)
     RETURNING
         v1_match_id AS id
-), matches_with_data AS (
+), matches_with_data AS MATERIALIZED (
+    -- Materialized so the correlated aggregate below runs once per result match. Inlined, the
+    -- planner re-evaluates it for every row of the final join, which is quadratic in the batch.
     SELECT
         m.id,
         m.action,

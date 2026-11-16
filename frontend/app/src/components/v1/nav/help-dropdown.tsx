@@ -67,11 +67,15 @@ export function HelpDropdown({
   align = 'end',
   side,
   className,
+  icon,
 }: {
   triggerVariant?: 'icon' | 'split';
   align?: React.ComponentProps<typeof DropdownMenuContent>['align'];
   side?: React.ComponentProps<typeof DropdownMenuContent>['side'];
   className?: string;
+  // Overrides the glyph on the default icon trigger. Lets callers (e.g. the
+  // onboarding footer's life-ring) reuse this whole menu with a different icon.
+  icon?: React.ReactNode;
 }) {
   const pylon = usePylon();
   const [open, setOpen] = useState(false);
@@ -134,7 +138,9 @@ export function HelpDropdown({
         hoverTextSide="right"
         className={className}
       >
-        <BiHelpCircle className="h-6 w-6 cursor-pointer text-foreground" />
+        {icon ?? (
+          <BiHelpCircle className="h-6 w-6 cursor-pointer text-foreground" />
+        )}
       </Button>
     );
   })();

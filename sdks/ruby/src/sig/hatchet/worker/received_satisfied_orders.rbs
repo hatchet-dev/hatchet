@@ -1,0 +1,11 @@
+module Hatchet
+  module WorkerRuntime
+    class ReceivedSatisfiedOrders
+      def initialize: () -> void
+      def record: (untyped completed) -> void
+      def to_proto_for: (Array[[String, Integer, Integer, Integer]] callback_keys) -> Array[untyped]
+      def delete_through: (String durable_task_external_id, Integer invocation_count) -> void
+      def clear: () -> void
+    end
+  end
+end

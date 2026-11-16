@@ -20,19 +20,21 @@ Your **workers** (the processes that execute your workflow steps) will connect t
 
 ## Deployment Options
 
-The fastest way to get a Hatchet instance running locally is with the [Hatchet CLI](/cli) (which wraps Hatchet Lite):
+The fastest way to get a Hatchet instance running locally is with the [Hatchet CLI](/reference/cli) (which wraps Hatchet Lite):
 
 ```sh
 hatchet server start
 ```
 
+For local development, see [Running Hatchet Locally](/v1/running-locally) for lighter options, including embedded mode with no Docker or token.
+
 There are currently three supported ways to self-host the Hatchet Control Plane:
 
 Docker:
 
-1. [Hatchet Lite](./self-hosting/hatchet-lite.mdx) - Single docker image with bundled engine and API (development, testing, or low-throughput production)
-2. [Docker Compose](./self-hosting/docker-compose.mdx) - Multi-container setup with PostgreSQL and RabbitMQ (production)
+1. [Hatchet Lite](/self-hosting/hatchet-lite) - Single docker image with bundled engine and API (development, testing, or low-throughput production)
+2. [Docker Compose](/self-hosting/docker-compose) - Multi-container setup with PostgreSQL and RabbitMQ
 
 Kubernetes:
 
-1. [Quickstart with Helm](./self-hosting/kubernetes-quickstart.mdx) - Production-ready Helm charts (production)
+1. [Quickstart with Helm](/self-hosting/kubernetes-quickstart) - Production-ready Helm charts (production)

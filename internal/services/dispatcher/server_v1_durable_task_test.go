@@ -4,29 +4,31 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/require"
 
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/rpcstream"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/streams"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-// fakeDurableTaskServer stubs the bidi stream; the embedded interface is left nil
-// because the handler only uses Context and Recv on these test paths.
+// fakeDurableTaskServer stubs the bidi stream: the handler only uses the context and the
+// receiving half on these test paths, so sends are discarded.
 type fakeDurableTaskServer struct {
-	contracts.V1Dispatcher_DurableTaskServer
-
 	ctx  context.Context
 	recv func() (*contracts.DurableTaskRequest, error)
 }
 
-func (f *fakeDurableTaskServer) Context() context.Context { return f.ctx }
-
-func (f *fakeDurableTaskServer) Recv() (*contracts.DurableTaskRequest, error) { return f.recv() }
+func (f *fakeDurableTaskServer) Send(*contracts.DurableTaskResponse) error { return nil }
 
 func newTestDispatcher() *DispatcherServiceImpl {
 	l := zerolog.Nop()
@@ -34,6 +36,8 @@ func newTestDispatcher() *DispatcherServiceImpl {
 	return &DispatcherServiceImpl{
 		l:              &l,
 		streamSessions: streams.NewRegistry(),
+		durableBudgets: newDurableTaskBudgets(&l, 0),
+		analytics:      analytics.NoOpAnalytics{},
 	}
 }
 
@@ -42,11 +46,14 @@ func tenantContext() context.Context {
 	return context.WithValue(context.Background(), "tenant", &sqlcv1.Tenant{ID: uuid.New()})
 }
 
-func runDurableTask(d *DispatcherServiceImpl, server contracts.V1Dispatcher_DurableTaskServer) <-chan error {
+func runDurableTask(d *DispatcherServiceImpl, server *fakeDurableTaskServer) <-chan error {
 	done := make(chan error, 1)
 
 	go func() {
-		done <- d.DurableTask(server)
+		sender := rpcstream.NewSender[contracts.DurableTaskResponse](context.Background(), server)
+		defer sender.Close()
+
+		done <- d.durableTask(server.ctx, server.recv, sender)
 	}()
 
 	return done
@@ -113,6 +120,75 @@ func TestDurableTaskSurfacesRecvError(t *testing.T) {
 	}
 }
 
+// RegisterDurableTask gives operators the channel-based equivalent of the DurableTask
+// stream: the task is registered up front so async responses route to the returned channel,
+// and cancelling the context tears the session down (deregisters the invocation, closes the
+// response channel, and makes further sends error rather than panic).
+func TestRegisterDurableTaskBridgesResponsesAndCleansUp(t *testing.T) {
+	d := newTestDispatcher()
+	ctx, cancel := context.WithCancel(tenantContext())
+	t.Cleanup(cancel)
+
+	externalId := uuid.New()
+	tenantId := ctx.Value("tenant").(*sqlcv1.Tenant).ID
+
+	_, respCh, err := d.RegisterDurableTask(ctx, externalId)
+	if err != nil {
+		t.Fatalf("RegisterDurableTask returned error: %v", err)
+	}
+
+	inv, ok := d.durableInvocations.Load(durableInvocationsKey{tenantId, externalId})
+	if !ok {
+		t.Fatal("expected invocation to be registered for externalId up front")
+	}
+
+	// An async response routed through the invocation (as the dispatcher does when a
+	// wait-for is satisfied) must reach the response channel.
+	want := &contracts.DurableTaskResponse{
+		Message: &contracts.DurableTaskResponse_RegisterWorker{
+			RegisterWorker: &contracts.DurableTaskResponseRegisterWorker{WorkerId: "w1"},
+		},
+	}
+
+	sendErr := make(chan error, 1)
+	go func() { sendErr <- inv.send(want) }()
+
+	select {
+	case got := <-respCh:
+		if got != want {
+			t.Fatalf("unexpected response delivered: %v", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("response was not delivered to the channel")
+	}
+
+	if err := <-sendErr; err != nil {
+		t.Fatalf("send returned error: %v", err)
+	}
+
+	// Cancelling tears the session down.
+	cancel()
+
+	select {
+	case _, open := <-respCh:
+		if open {
+			t.Fatal("expected respCh to be closed after cancel")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("respCh was not closed after cancel")
+	}
+
+	// The close happens after the deregister in the same teardown, so by now it's gone.
+	if _, ok := d.durableInvocations.Load(durableInvocationsKey{tenantId, externalId}); ok {
+		t.Fatal("expected invocation to be deregistered after cancel")
+	}
+
+	// Sends after teardown return an error rather than panicking on the closed channel.
+	if err := inv.send(want); err == nil {
+		t.Fatal("expected send after teardown to return an error")
+	}
+}
+
 func TestDurableTaskReturnsNilOnEOF(t *testing.T) {
 	d := newTestDispatcher()
 
@@ -129,4 +205,226 @@ func TestDurableTaskReturnsNilOnEOF(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("DurableTask did not return after EOF")
 	}
+}
+
+type fakeFoundTask struct {
+	v1.Repository
+	v1.TaskRepository
+}
+
+func (f fakeFoundTask) Tasks() v1.TaskRepository { return f }
+func (fakeFoundTask) GetTaskByExternalId(context.Context, uuid.UUID, uuid.UUID, bool) (*sqlcv1.FlattenExternalIdsRow, error) {
+	return &sqlcv1.FlattenExternalIdsRow{}, nil
+}
+
+func TestHandleWaitForNilConditionBaseReturnsInvalidArgument(t *testing.T) {
+	d := newTestDispatcher()
+	d.repo = fakeFoundTask{}
+
+	for _, c := range []*contracts.DurableEventListenerConditions{
+		{SleepConditions: []*contracts.SleepMatchCondition{{}}},
+		{UserEventConditions: []*contracts.UserEventMatchCondition{{}}},
+	} {
+		req := &contracts.DurableTaskWaitForRequest{DurableTaskExternalId: uuid.NewString(), WaitForConditions: c}
+		err := d.handleWaitFor(context.Background(), &durableTaskInvocation{}, req)
+		require.Equal(t, connect.CodeInvalidArgument, connect.CodeOf(err), err)
+	}
+}
+
+type failingTaskLookup struct {
+	v1.Repository
+	v1.TaskRepository
+}
+
+func (f failingTaskLookup) Tasks() v1.TaskRepository { return f }
+func (failingTaskLookup) GetTaskByExternalId(context.Context, uuid.UUID, uuid.UUID, bool) (*sqlcv1.FlattenExternalIdsRow, error) {
+	return nil, errors.New("pq: connection to 10.0.0.1 reset")
+}
+
+// The worker blocks on the ack of a memo, trigger_runs or wait_for request, so a request that
+// fails must be answered with an error for that invocation. Only an invalid request's message
+// reaches the worker.
+func TestDurableTaskAnswersFailedRequestsWithError(t *testing.T) {
+	taskId := uuid.NewString()
+	const invocationCount = 3
+
+	cases := []struct {
+		name        string
+		repo        v1.Repository
+		req         *contracts.DurableTaskRequest
+		wantMessage string
+	}{
+		{
+			name: "memo",
+			repo: failingTaskLookup{},
+			req: &contracts.DurableTaskRequest{Message: &contracts.DurableTaskRequest_Memo{
+				Memo: &contracts.DurableTaskMemoRequest{DurableTaskExternalId: taskId, InvocationCount: invocationCount},
+			}},
+			wantMessage: "the engine failed to handle this request",
+		},
+		{
+			name: "trigger_runs",
+			repo: failingTaskLookup{},
+			req: &contracts.DurableTaskRequest{Message: &contracts.DurableTaskRequest_TriggerRuns{
+				TriggerRuns: &contracts.DurableTaskTriggerRunsRequest{DurableTaskExternalId: taskId, InvocationCount: invocationCount},
+			}},
+			wantMessage: "the engine failed to handle this request",
+		},
+		{
+			name: "wait_for",
+			repo: failingTaskLookup{},
+			req: &contracts.DurableTaskRequest{Message: &contracts.DurableTaskRequest_WaitFor{
+				WaitFor: &contracts.DurableTaskWaitForRequest{DurableTaskExternalId: taskId, InvocationCount: invocationCount},
+			}},
+			wantMessage: "the engine failed to handle this request",
+		},
+		{
+			name: "invalid wait_for",
+			repo: fakeFoundTask{},
+			req: &contracts.DurableTaskRequest{Message: &contracts.DurableTaskRequest_WaitFor{
+				WaitFor: &contracts.DurableTaskWaitForRequest{
+					DurableTaskExternalId: taskId,
+					InvocationCount:       invocationCount,
+					WaitForConditions:     &contracts.DurableEventListenerConditions{SleepConditions: []*contracts.SleepMatchCondition{{}}},
+				},
+			}},
+			wantMessage: "or group id is not a valid uuid",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			d := newTestDispatcher()
+			d.repo = c.repo
+
+			ctx, cancel := context.WithCancel(tenantContext())
+			t.Cleanup(cancel)
+
+			reqCh, respCh, err := d.RegisterDurableTask(ctx, uuid.MustParse(taskId))
+			require.NoError(t, err)
+
+			reqCh <- c.req
+
+			select {
+			case resp := <-respCh:
+				errResp := resp.GetError()
+				require.NotNil(t, errResp, "expected an error response, got %v", resp)
+				require.Equal(t, taskId, errResp.GetRef().GetDurableTaskExternalId())
+				require.Equal(t, int32(invocationCount), errResp.GetRef().GetInvocationCount())
+				require.True(t, strings.HasPrefix(errResp.GetErrorMessage(), c.wantMessage), errResp.GetErrorMessage())
+			case <-time.After(5 * time.Second):
+				t.Fatal("the failed request was never answered")
+			}
+		})
+	}
+}
+
+type panickingRepo struct {
+	v1.Repository
+	calls chan struct{}
+}
+
+func (r panickingRepo) Tasks() v1.TaskRepository {
+	r.calls <- struct{}{}
+	panic("boom")
+}
+
+func TestDurableTaskRecoversFromHandlerPanics(t *testing.T) {
+	d := newTestDispatcher()
+	calls := make(chan struct{}, 3)
+	d.repo = panickingRepo{calls: calls}
+
+	taskId := uuid.NewString()
+	memo := &contracts.DurableTaskRequest{Message: &contracts.DurableTaskRequest_Memo{
+		Memo: &contracts.DurableTaskMemoRequest{DurableTaskExternalId: taskId},
+	}}
+	status := &contracts.DurableTaskRequest{Message: &contracts.DurableTaskRequest_WorkerStatus{
+		WorkerStatus: &contracts.DurableTaskWorkerStatusRequest{
+			WaitingEntries: []*contracts.DurableTaskAwaitedCompletedEntry{{DurableTaskExternalId: taskId}},
+		},
+	}}
+
+	reqs := []*contracts.DurableTaskRequest{memo, status, status}
+	server := &fakeDurableTaskServer{
+		ctx: tenantContext(),
+		recv: func() (*contracts.DurableTaskRequest, error) {
+			// wait for the previous request's handler to panic, so the second status needs the
+			// worker-status runner to have survived the first
+			if len(reqs) < 3 {
+				<-calls
+			}
+
+			if len(reqs) == 0 {
+				return nil, io.EOF
+			}
+
+			req := reqs[0]
+			reqs = reqs[1:]
+
+			return req, nil
+		},
+	}
+
+	select {
+	case err := <-runDurableTask(d, server):
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("a request after a panicking one was never handled")
+	}
+}
+
+type gatedRepo struct {
+	v1.Repository
+	started chan struct{}
+	release chan struct{}
+}
+
+func (r gatedRepo) Tasks() v1.TaskRepository {
+	r.started <- struct{}{}
+	<-r.release
+	panic("handler done")
+}
+
+func TestDurableTaskStopsStartingHandlersWhenStreamBudgetIsHeld(t *testing.T) {
+	d := newTestDispatcher()
+	repo := gatedRepo{started: make(chan struct{}, 3), release: make(chan struct{})}
+	d.repo = repo
+
+	payload := make([]byte, d.durableBudgets.streamBytes*6/10)
+	memo := &contracts.DurableTaskRequest{Message: &contracts.DurableTaskRequest_Memo{
+		Memo: &contracts.DurableTaskMemoRequest{DurableTaskExternalId: uuid.NewString(), Payload: payload},
+	}}
+
+	sent := 0
+	server := &fakeDurableTaskServer{
+		ctx: tenantContext(),
+		recv: func() (*contracts.DurableTaskRequest, error) {
+			if sent == 3 {
+				return nil, io.EOF
+			}
+			sent++
+			return memo, nil
+		},
+	}
+
+	done := runDurableTask(d, server)
+
+	<-repo.started
+	select {
+	case <-repo.started:
+		t.Fatal("second handler started while the first held the stream budget")
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	close(repo.release)
+
+	for range 2 {
+		select {
+		case <-repo.started:
+		case <-time.After(5 * time.Second):
+			t.Fatal("handler did not start after the budget was released")
+		}
+	}
+
+	require.NoError(t, <-done)
 }

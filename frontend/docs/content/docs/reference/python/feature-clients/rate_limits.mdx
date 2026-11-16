@@ -10,12 +10,55 @@ The rate limits client is a wrapper for Hatchet's gRPC API that makes it easier 
 
 Methods:
 
-| Name      | Description                       |
-| --------- | --------------------------------- |
-| `aio_put` | Put a rate limit for a given key. |
-| `put`     | Put a rate limit for a given key. |
+| Name        | Description                          |
+| ----------- | ------------------------------------ |
+| `aio_list`  | List all rate limits for the tenant. |
+| `aio_pause` | Pause a rate limit key.              |
+| `aio_put`   | Put a rate limit for a given key.    |
+| `list`      | List all rate limits for the tenant. |
+| `pause`     | Pause a rate limit key.              |
+| `put`       | Put a rate limit for a given key.    |
 
 ### Functions
+
+#### `aio_list`
+
+List all rate limits for the tenant.
+
+Parameters:
+
+| Name                 | Type                                             | Description                                  | Default |
+| -------------------- | ------------------------------------------------ | -------------------------------------------- | ------- |
+| `offset`             | `int \| None`                                    | The number of results to skip.               | `None`  |
+| `limit`              | `int \| None`                                    | The maximum number of results to return.     | `None`  |
+| `search`             | `str \| None`                                    | A search query to filter rate limits by key. | `None`  |
+| `order_by_field`     | `Literal['key', 'value', 'limit_value'] \| None` | The field to order results by.               | `None`  |
+| `order_by_direction` | `Literal['asc', 'desc'] \| None`                 | The direction to order results.              | `None`  |
+
+Returns:
+
+| Type              | Description            |
+| ----------------- | ---------------------- |
+| `list[RateLimit]` | A list of rate limits. |
+
+#### `aio_pause`
+
+Pause a rate limit key.
+
+Queued runs that consume it stay queued until the given time.
+
+Parameters:
+
+| Name    | Type       | Description                                                                                                            | Default    |
+| ------- | ---------- | ---------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `key`   | `str`      | The rendered rate limit key to pause.                                                                                  | _required_ |
+| `until` | `datetime` | The time to pause the key until. Naive datetimes are treated as UTC. An earlier time never shortens an existing pause. | _required_ |
+
+Returns:
+
+| Type       | Description                       |
+| ---------- | --------------------------------- |
+| `datetime` | The time the key is paused until. |
 
 #### `aio_put`
 
@@ -23,11 +66,11 @@ Put a rate limit for a given key.
 
 Parameters:
 
-| Name       | Type                | Description                        | Default    |
-| ---------- | ------------------- | ---------------------------------- | ---------- |
-| `key`      | `str`               | The key to set the rate limit for. | _required_ |
-| `limit`    | `int`               | The rate limit to set.             | _required_ |
-| `duration` | `RateLimitDuration` | The duration of the rate limit.    | `SECOND`   |
+| Name       | Type                                                                  | Description                        | Default    |
+| ---------- | --------------------------------------------------------------------- | ---------------------------------- | ---------- |
+| `key`      | `str`                                                                 | The key to set the rate limit for. | _required_ |
+| `limit`    | `int`                                                                 | The rate limit to set.             | _required_ |
+| `duration` | `Literal['SECOND', 'MINUTE', 'HOUR', 'DAY', 'WEEK', 'MONTH', 'YEAR']` | The duration of the rate limit.    | `'SECOND'` |
 
 Returns:
 
@@ -35,17 +78,56 @@ Returns:
 | ------ | ----------- |
 | `None` | None        |
 
+#### `list`
+
+List all rate limits for the tenant.
+
+Parameters:
+
+| Name                 | Type                                             | Description                                  | Default |
+| -------------------- | ------------------------------------------------ | -------------------------------------------- | ------- |
+| `offset`             | `int \| None`                                    | The number of results to skip.               | `None`  |
+| `limit`              | `int \| None`                                    | The maximum number of results to return.     | `None`  |
+| `search`             | `str \| None`                                    | A search query to filter rate limits by key. | `None`  |
+| `order_by_field`     | `Literal['key', 'value', 'limit_value'] \| None` | The field to order results by.               | `None`  |
+| `order_by_direction` | `Literal['asc', 'desc'] \| None`                 | The direction to order results.              | `None`  |
+
+Returns:
+
+| Type              | Description            |
+| ----------------- | ---------------------- |
+| `list[RateLimit]` | A list of rate limits. |
+
+#### `pause`
+
+Pause a rate limit key.
+
+Queued runs that consume it stay queued until the given time.
+
+Parameters:
+
+| Name    | Type       | Description                                                                                                            | Default    |
+| ------- | ---------- | ---------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `key`   | `str`      | The rendered rate limit key to pause.                                                                                  | _required_ |
+| `until` | `datetime` | The time to pause the key until. Naive datetimes are treated as UTC. An earlier time never shortens an existing pause. | _required_ |
+
+Returns:
+
+| Type       | Description                       |
+| ---------- | --------------------------------- |
+| `datetime` | The time the key is paused until. |
+
 #### `put`
 
 Put a rate limit for a given key.
 
 Parameters:
 
-| Name       | Type                | Description                        | Default    |
-| ---------- | ------------------- | ---------------------------------- | ---------- |
-| `key`      | `str`               | The key to set the rate limit for. | _required_ |
-| `limit`    | `int`               | The rate limit to set.             | _required_ |
-| `duration` | `RateLimitDuration` | The duration of the rate limit.    | `SECOND`   |
+| Name       | Type                                                                  | Description                        | Default    |
+| ---------- | --------------------------------------------------------------------- | ---------------------------------- | ---------- |
+| `key`      | `str`                                                                 | The key to set the rate limit for. | _required_ |
+| `limit`    | `int`                                                                 | The rate limit to set.             | _required_ |
+| `duration` | `Literal['SECOND', 'MINUTE', 'HOUR', 'DAY', 'WEEK', 'MONTH', 'YEAR']` | The duration of the rate limit.    | `'SECOND'` |
 
 Returns:
 

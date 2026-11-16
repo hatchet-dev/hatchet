@@ -29,6 +29,31 @@ function makeManager() {
 }
 
 describe('DurableEvictionManager', () => {
+  describe('evictAllWaiting', () => {
+    it('evicts a run that enters a wait after the shutdown snapshot was taken', async () => {
+      const { manager, cancelLocal, requestEvictionWithAck } = makeManager();
+
+      manager.registerRun('run-1/0', 'ext-1', 1, undefined);
+      manager.registerRun('run-2/0', 'ext-2', 1, undefined);
+      manager.markWaiting('run-1/0', 'sleep', 's1');
+
+      await expect(manager.evictAllWaiting()).resolves.toBe(1);
+      expect(cancelLocal).toHaveBeenCalledWith('run-1/0', 1);
+      expect(cancelLocal).not.toHaveBeenCalledWith('run-2/0', 1);
+
+      manager.markWaiting('run-2/0', 'waitFor', 'node:7');
+      await Promise.resolve();
+
+      expect(requestEvictionWithAck).toHaveBeenLastCalledWith(
+        'run-2/0',
+        expect.objectContaining({ taskRunExternalId: 'ext-2' }),
+        'Worker shutdown while waiting on waitFor(node:7)'
+      );
+      expect(cancelLocal).toHaveBeenCalledWith('run-2/0', 1);
+      expect(manager.cache.get('run-2/0')).toBeUndefined();
+    });
+  });
+
   describe('handleServerEviction', () => {
     it('cancels and unregisters the matching run when invocationCount matches', () => {
       const { manager, cancelLocal } = makeManager();
@@ -42,7 +67,7 @@ describe('DurableEvictionManager', () => {
 
       manager.handleServerEviction('ext-1', 2);
 
-      expect(cancelLocal).toHaveBeenCalledWith('run-1/0');
+      expect(cancelLocal).toHaveBeenCalledWith('run-1/0', 2);
       expect(manager.cache.get('run-1/0')).toBeUndefined();
     });
 
@@ -76,7 +101,7 @@ describe('DurableEvictionManager', () => {
       manager.handleServerEviction('ext-1', 1);
 
       expect(cancelLocal).toHaveBeenCalledTimes(1);
-      expect(cancelLocal).toHaveBeenCalledWith('run-1/0');
+      expect(cancelLocal).toHaveBeenCalledWith('run-1/0', 1);
       expect(manager.cache.get('run-1/0')).toBeUndefined();
       expect(manager.cache.get('run-2/0')).toBeDefined();
     });
@@ -109,7 +134,7 @@ describe('DurableEvictionManager', () => {
 
       manager.handleServerEviction('ext-1', 5);
 
-      expect(cancelLocal).toHaveBeenCalledWith('run-1/0');
+      expect(cancelLocal).toHaveBeenCalledWith('run-1/0', 5);
       expect(manager.cache.get('run-1/0')).toBeUndefined();
     });
   });

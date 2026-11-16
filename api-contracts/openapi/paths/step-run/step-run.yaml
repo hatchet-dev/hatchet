@@ -3,6 +3,7 @@ stepRunScoped:
     x-resources: ["tenant", "step-run"]
     description: Get a step run by id
     operationId: step-run:get
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -47,6 +48,8 @@ stepRunScoped:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: The step run was not found
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get step run
     tags:
       - Step Run
@@ -56,6 +59,7 @@ rerunStepRun:
     x-resources: ["tenant", "step-run"]
     description: Reruns a step run
     operationId: step-run:update:rerun
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -101,6 +105,8 @@ rerunStepRun:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Rerun step run
     tags:
       - Step Run
@@ -110,6 +116,7 @@ cancelStepRun:
     x-resources: ["tenant", "step-run"]
     description: Attempts to cancel a step run
     operationId: step-run:update:cancel
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -148,6 +155,8 @@ cancelStepRun:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Attempts to cancel a step run
     tags:
       - Step Run
@@ -157,6 +166,7 @@ getSchema:
     x-resources: ["tenant", "step-run"]
     description: Get the schema for a step run
     operationId: step-run:get:schema
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -201,6 +211,8 @@ getSchema:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: The step run was not found
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: Get step run schema
     tags:
       - Step Run
@@ -209,6 +221,7 @@ listEvents:
     x-resources: ["tenant", "step-run"]
     description: List events for a step run
     operationId: step-run:list:events
+    x-payloads: false
     parameters:
       - description: The step run id
         in: path
@@ -258,6 +271,8 @@ listEvents:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: The step run was not found
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: List events for step run
     tags:
       - Step Run
@@ -267,6 +282,7 @@ listStepRunEventsForWorkflowRun:
     x-resources: ["tenant"]
     description: List events for all step runs for a workflow run
     operationId: workflow-run:list:step-run-events
+    x-payloads: false
     parameters:
       - description: The tenant id
         in: path
@@ -318,6 +334,8 @@ listStepRunEventsForWorkflowRun:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: The step run was not found
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: List events for all step runs for a workflow run
     tags:
       - Step Run
@@ -326,6 +344,7 @@ listArchives:
     x-resources: ["tenant", "step-run"]
     description: List archives for a step run
     operationId: step-run:list:archives
+    x-payloads: false
     parameters:
       - description: The step run id
         in: path
@@ -375,6 +394,8 @@ listArchives:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: The step run was not found
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
     summary: List archives for step run
     tags:
       - Step Run

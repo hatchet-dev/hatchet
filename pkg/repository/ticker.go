@@ -74,7 +74,9 @@ func newTickerRepository(shared *sharedRepository) TickerRepository {
 }
 
 func (t *tickerRepository) IsTenantAlertActive(ctx context.Context, tenantId uuid.UUID) (bool, time.Time, error) {
-	res, err := t.queries.IsTenantAlertActive(ctx, t.pool, tenantId)
+	db := t.pool.ForTenant(tenantId)
+
+	res, err := t.queries.IsTenantAlertActive(ctx, db, tenantId)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -92,7 +94,7 @@ func (t *tickerRepository) CreateNewTicker(ctx context.Context, opts *CreateTick
 		return nil, err
 	}
 
-	return t.queries.CreateTicker(ctx, t.pool, opts.ID)
+	return t.queries.CreateTicker(ctx, t.pool.ForShared(), opts.ID)
 }
 
 func (t *tickerRepository) UpdateTicker(ctx context.Context, tickerId uuid.UUID, opts *UpdateTickerOpts) (*sqlcv1.Ticker, error) {
@@ -102,7 +104,7 @@ func (t *tickerRepository) UpdateTicker(ctx context.Context, tickerId uuid.UUID,
 
 	return t.queries.UpdateTicker(
 		ctx,
-		t.pool,
+		t.pool.ForShared(),
 		sqlcv1.UpdateTickerParams{
 			ID:              tickerId,
 			LastHeartbeatAt: sqlchelpers.TimestampFromTime(opts.LastHeartbeatAt.UTC()),
@@ -127,7 +129,7 @@ func (t *tickerRepository) ListTickers(ctx context.Context, opts *ListTickerOpts
 
 	return t.queries.ListTickers(
 		ctx,
-		t.pool,
+		t.pool.ForShared(),
 		params,
 	)
 }
@@ -135,7 +137,7 @@ func (t *tickerRepository) ListTickers(ctx context.Context, opts *ListTickerOpts
 func (t *tickerRepository) DeactivateTicker(ctx context.Context, tickerId uuid.UUID) error {
 	_, err := t.queries.DeactivateTicker(
 		ctx,
-		t.pool,
+		t.pool.ForShared(),
 		tickerId,
 	)
 
@@ -143,21 +145,21 @@ func (t *tickerRepository) DeactivateTicker(ctx context.Context, tickerId uuid.U
 }
 
 func (t *tickerRepository) PollCronSchedules(ctx context.Context, tickerId uuid.UUID) ([]*sqlcv1.PollCronSchedulesRow, error) {
-	return t.queries.PollCronSchedules(ctx, t.pool, tickerId)
+	return t.queries.PollCronSchedules(ctx, t.pool.ForShared(), tickerId)
 }
 
 func (t *tickerRepository) PollScheduledWorkflows(ctx context.Context, tickerId uuid.UUID) ([]*sqlcv1.PollScheduledWorkflowsRow, error) {
-	return t.queries.PollScheduledWorkflows(ctx, t.pool, tickerId)
+	return t.queries.PollScheduledWorkflows(ctx, t.pool.ForShared(), tickerId)
 }
 
 func (t *tickerRepository) PollTenantAlerts(ctx context.Context, tickerId uuid.UUID) ([]*sqlcv1.PollTenantAlertsRow, error) {
-	return t.queries.PollTenantAlerts(ctx, t.pool, tickerId)
+	return t.queries.PollTenantAlerts(ctx, t.pool.ForShared(), tickerId)
 }
 
 func (t *tickerRepository) PollExpiringTokens(ctx context.Context) ([]*sqlcv1.PollExpiringTokensRow, error) {
-	return t.queries.PollExpiringTokens(ctx, t.pool)
+	return t.queries.PollExpiringTokens(ctx, t.pool.ForShared())
 }
 
 func (t *tickerRepository) PollTenantResourceLimitAlerts(ctx context.Context) ([]*sqlcv1.TenantResourceLimitAlert, error) {
-	return t.queries.PollTenantResourceLimitAlerts(ctx, t.pool)
+	return t.queries.PollTenantResourceLimitAlerts(ctx, t.pool.ForShared())
 }

@@ -28,6 +28,53 @@ type executionEvent struct {
 	duration  time.Duration
 }
 
+// executionKey identifies one task run the load test expects exactly once: the
+// action (workflow and step, so the fanout copies and the DAG steps of one
+// event are distinct runs) and the event that triggered it.
+type executionKey struct {
+	action  string
+	eventID int64
+}
+
+// executionTally counts task executions and how many of them were the first
+// for their key. The tool pushes every event once and configures no retries,
+// so a second execution of a key is the engine dispatching a task run twice;
+// it is reported as a duplicate instead of being folded into the executed
+// count, where it would mask a lost event.
+type executionTally struct {
+	mu      sync.Mutex
+	count   int64
+	uniques int64
+	seen    map[executionKey]struct{}
+}
+
+func newExecutionTally() *executionTally {
+	return &executionTally{seen: map[executionKey]struct{}{}}
+}
+
+// record counts one execution and reports whether its key was executed before.
+func (t *executionTally) record(key executionKey) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	t.count++
+	if _, dup := t.seen[key]; dup {
+		return true
+	}
+	t.seen[key] = struct{}{}
+	t.uniques++
+
+	return false
+}
+
+// counts returns the executions so far and how many distinct keys they cover.
+func (t *executionTally) counts() (count, uniques int64) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	return t.count, t.uniques
+}
+
 func run(ctx context.Context, config LoadTestConfig, executions chan<- executionEvent, registered chan<- error) (int64, int64) {
 	hatchet, err := v1.NewHatchetClient(
 		v1.Config{
@@ -40,34 +87,18 @@ func run(ctx context.Context, config LoadTestConfig, executions chan<- execution
 		panic(err)
 	}
 
-	mx := sync.Mutex{}
-	var count int64
-	var uniques int64
-	var executed []int64
+	tally := newExecutionTally()
 
 	step := func(ctx v0worker.HatchetContext, input Event) (any, error) {
 		took := time.Since(input.CreatedAt)
 		l.Info().Msgf("executing %d took %s", input.ID, took)
 
-		mx.Lock()
 		executions <- executionEvent{input.CreatedAt, took}
-		// detect duplicate in executed slice
-		var duplicate bool
-		// for i := 0; i < len(executed)-1; i++ {
-		// 	if executed[i] == input.ID {
-		// 		duplicate = true
-		// 		break
-		// 	}
-		// }
-		if duplicate {
-			l.Warn().Str("step-run-id", ctx.StepRunId()).Msgf("duplicate %d", input.ID)
+
+		key := executionKey{action: ctx.ActionId(), eventID: input.ID}
+		if tally.record(key) {
+			l.Warn().Str("step-run-id", ctx.StepRunId()).Str("action", key.action).Msgf("duplicate execution of event %d", input.ID)
 		}
-		if !duplicate {
-			uniques++
-		}
-		count++
-		executed = append(executed, input.ID)
-		mx.Unlock()
 
 		time.Sleep(config.Delay)
 
@@ -203,7 +234,5 @@ func run(ctx context.Context, config LoadTestConfig, executions chan<- execution
 		panic(fmt.Errorf("error cleaning up: %w", err))
 	}
 
-	mx.Lock()
-	defer mx.Unlock()
-	return count, uniques
+	return tally.counts()
 }

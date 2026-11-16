@@ -30,7 +30,12 @@ export const useWorkflows = ({ key }: UseWorkflowsProps) => {
     columnFilters,
     setColumnFilters,
     resetFilters,
-  } = useZodColumnFilters(workflowQuerySchema, paramKey, { s: nameKey });
+  } = useZodColumnFilters(
+    workflowQuerySchema,
+    paramKey,
+    { s: nameKey },
+    { replaceHistoryEntryOnChange: true },
+  );
 
   const [debouncedSearch] = useDebounce(search, 300);
 
@@ -80,6 +85,7 @@ export const useWorkflows = ({ key }: UseWorkflowsProps) => {
     numWorkflows,
     isLoading: listWorkflowQuery.isLoading,
     isRefetching: listWorkflowQuery.isRefetching,
+    isPlaceholderData: listWorkflowQuery.isPlaceholderData,
     error: listWorkflowQuery.error,
     refetch: listWorkflowQuery.refetch,
     pagination,

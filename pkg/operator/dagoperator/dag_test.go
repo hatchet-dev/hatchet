@@ -1,0 +1,1931 @@
+package dagoperator
+
+import (
+	"context"
+	"encoding/json"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
+	internalcel "github.com/hatchet-dev/hatchet/internal/cel"
+	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+)
+
+// triggerStepFn is the step-trigger callback the dag invokes for each task; matches the
+// signature dagDurableTask expects.
+type triggerStepFn = func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error)
+
+// oneStepAtATime adapts a per-step trigger to the batched signature the dag calls.
+func oneStepAtATime(triggerStep triggerStepFn) triggerStepsFn {
+	return func(ctx context.Context, reqs []stepTriggerRequest) ([]*operator.DAGStepTriggerResult, error) {
+		results := make([]*operator.DAGStepTriggerResult, 0, len(reqs))
+
+		for _, req := range reqs {
+			result, err := triggerStep(ctx, req.actionId, req.workflowName, req.childIndex, req.parentTaskRunIds, req.isSkipped, req.isCancelled, req.parentReExecuted)
+
+			if err != nil {
+				return nil, err
+			}
+
+			results = append(results, result)
+		}
+
+		return results, nil
+	}
+}
+
+func newTestTask(readableId, actionId string, index int32, parents ...*task) *task {
+	return &task{
+		actionId:     actionId,
+		workflowName: "test-workflow",
+		readableId:   readableId,
+		index:        index,
+		parents:      parents,
+	}
+}
+
+func stubTriggerStep(t *testing.T, async map[string]bool) triggerStepFn {
+	var nextId int64 = 1
+
+	return func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
+		nodeId := nextId
+		nextId++
+
+		result := &operator.DAGStepTriggerResult{
+			NodeId:                nodeId,
+			BranchId:              nodeId,
+			WorkflowRunExternalId: uuid.New(),
+		}
+
+		switch {
+		case isCancelled:
+			result.IsSatisfied = true
+			result.ResultPayload, _ = json.Marshal(map[string]any{"cancelled": true})
+		case isSkipped:
+			// dag itself marks the task skipped/completed without needing IsSatisfied.
+		case async[actionId]:
+			// left unsatisfied; test drives completion via responseCh.
+		default:
+			result.IsSatisfied = true
+			result.ResultPayload, _ = json.Marshal(map[string]any{"ok": true})
+		}
+
+		return result, nil
+	}
+}
+
+type fakeDispatcher struct {
+	acks           chan *v1contracts.DurableEventLogEntryRef
+	workerStatuses chan *v1contracts.DurableTaskWorkerStatusRequest
+}
+
+func newFakeDispatcher(requestCh chan *v1contracts.DurableTaskRequest, responseCh chan *v1contracts.DurableTaskResponse, stop <-chan struct{}) *fakeDispatcher {
+	fd := &fakeDispatcher{
+		acks:           make(chan *v1contracts.DurableEventLogEntryRef, 16),
+		workerStatuses: make(chan *v1contracts.DurableTaskWorkerStatusRequest, 16),
+	}
+
+	go func() {
+		var nextId int64 = 1000
+
+		for {
+			select {
+			case <-stop:
+				return
+			case req, ok := <-requestCh:
+				if !ok {
+					return
+				}
+
+				if workerStatus := req.GetWorkerStatus(); workerStatus != nil {
+					select {
+					case fd.workerStatuses <- workerStatus:
+					default:
+					}
+					continue
+				}
+
+				waitFor := req.GetWaitFor()
+				if waitFor == nil {
+					continue
+				}
+
+				ref := &v1contracts.DurableEventLogEntryRef{
+					DurableTaskExternalId: waitFor.DurableTaskExternalId,
+					InvocationCount:       waitFor.InvocationCount,
+					NodeId:                nextId,
+					BranchId:              nextId,
+				}
+				nextId++
+
+				select {
+				case responseCh <- &v1contracts.DurableTaskResponse{
+					Message: &v1contracts.DurableTaskResponse_WaitForAck{
+						WaitForAck: &v1contracts.DurableTaskEventWaitForAckResponse{Ref: ref},
+					},
+				}:
+				case <-stop:
+					return
+				}
+
+				select {
+				case fd.acks <- ref:
+				case <-stop:
+					return
+				}
+			}
+		}
+	}()
+
+	return fd
+}
+
+// testChannel is a DurableChannel over the test's raw channel pair, driven from the dag's
+// goroutine alone. Like the engine's channel it never lets a send deadlock against the fake
+// dispatcher's blocking delivery: responses that arrive while a send waits are queued for the
+// next Recv. Unlike the engine's channel it applies no ordering, so the dag's own handling of
+// an entry that races ahead of its ack is what these tests exercise, and it reads responses
+// only when the dag asks, so a test that observes the dag's state after the fake dispatcher
+// delivered a response sees the dag's writes.
+type testChannel struct {
+	requestCh  chan *v1contracts.DurableTaskRequest
+	responseCh chan *v1contracts.DurableTaskResponse
+	queued     []*v1contracts.DurableTaskResponse
+	closed     chan struct{}
+	closeOnce  sync.Once
+}
+
+func newTestChannel(requestCh chan *v1contracts.DurableTaskRequest, responseCh chan *v1contracts.DurableTaskResponse) *testChannel {
+	return &testChannel{requestCh: requestCh, responseCh: responseCh, closed: make(chan struct{})}
+}
+
+func (c *testChannel) Send(ctx context.Context, req *v1contracts.DurableTaskRequest) error {
+	for {
+		select {
+		case c.requestCh <- req:
+			return nil
+		case resp, ok := <-c.responseCh:
+			if !ok {
+				return operator.ErrSessionEnded
+			}
+
+			c.queued = append(c.queued, resp)
+		case <-c.closed:
+			return operator.ErrChannelClosed
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+func (c *testChannel) Recv(ctx context.Context) (*v1contracts.DurableTaskResponse, error) {
+	if len(c.queued) > 0 {
+		resp := c.queued[0]
+		c.queued = c.queued[1:]
+
+		return resp, nil
+	}
+
+	select {
+	case resp, ok := <-c.responseCh:
+		if !ok {
+			return nil, operator.ErrSessionEnded
+		}
+
+		return resp, nil
+	case <-c.closed:
+		return nil, operator.ErrChannelClosed
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+// ExpectEntry is a no-op: the test channel applies no ordering, so nothing is ever held.
+func (c *testChannel) ExpectEntry(int64, int64) error { return nil }
+
+func (c *testChannel) Close() error {
+	c.closeOnce.Do(func() { close(c.closed) })
+	return nil
+}
+
+func sendEntryCompleted(t *testing.T, responseCh chan *v1contracts.DurableTaskResponse, ref *v1contracts.DurableEventLogEntryRef, payload []byte) {
+	t.Helper()
+
+	select {
+	case responseCh <- &v1contracts.DurableTaskResponse{
+		Message: &v1contracts.DurableTaskResponse_EntryCompleted{
+			EntryCompleted: &v1contracts.DurableTaskEventLogEntryCompletedResponse{
+				Ref:     ref,
+				Payload: payload,
+			},
+		},
+	}:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out sending EntryCompleted response")
+	}
+}
+
+// like the dispatcher, delivers a satisfied trigger result as an EntryCompleted, in trigger order.
+// The per-step callback runs once per request of a batch, in request order.
+func deliverSatisfiedResults(triggerStep triggerStepFn, responseCh chan *v1contracts.DurableTaskResponse, stop <-chan struct{}) triggerStepsFn {
+	previousBatchDelivered := make(chan struct{})
+	close(previousBatchDelivered)
+
+	return func(ctx context.Context, reqs []stepTriggerRequest) ([]*operator.DAGStepTriggerResult, error) {
+		results := make([]*operator.DAGStepTriggerResult, 0, len(reqs))
+		completions := make([]*v1contracts.DurableTaskResponse, 0, len(reqs))
+
+		for _, req := range reqs {
+			result, err := triggerStep(ctx, req.actionId, req.workflowName, req.childIndex, req.parentTaskRunIds, req.isSkipped, req.isCancelled, req.parentReExecuted)
+
+			if err != nil {
+				return nil, err
+			}
+
+			results = append(results, result)
+
+			if !result.IsSatisfied {
+				continue
+			}
+
+			completions = append(completions, &v1contracts.DurableTaskResponse{
+				Message: &v1contracts.DurableTaskResponse_EntryCompleted{
+					EntryCompleted: &v1contracts.DurableTaskEventLogEntryCompletedResponse{
+						Ref:          &v1contracts.DurableEventLogEntryRef{NodeId: result.NodeId, BranchId: result.BranchId},
+						Payload:      result.ResultPayload,
+						IsFailure:    result.IsFailure,
+						ErrorMessage: result.ErrorMessage,
+					},
+				},
+			})
+		}
+
+		deliverAfter := previousBatchDelivered
+		delivered := make(chan struct{})
+		previousBatchDelivered = delivered
+
+		go func() {
+			defer close(delivered)
+
+			select {
+			case <-deliverAfter:
+			case <-stop:
+				return
+			}
+
+			for _, completion := range completions {
+				select {
+				case responseCh <- completion:
+				case <-stop:
+					return
+				}
+			}
+		}()
+
+		return results, nil
+	}
+}
+
+type dagHarness struct {
+	errCh      chan error
+	responseCh chan *v1contracts.DurableTaskResponse
+	fd         *fakeDispatcher
+	externalId uuid.UUID
+	cleanup    func()
+}
+
+func startDAG(t *testing.T, tasks []*task, triggerStep triggerStepFn) *dagHarness {
+	t.Helper()
+
+	return startDAGFull(t, tasks, nil, triggerStep)
+}
+
+func startDAGFull(t *testing.T, tasks []*task, onFailureTask *task, triggerStep triggerStepFn) *dagHarness {
+	t.Helper()
+
+	evaluator, err := internalcel.NewBoolExprEvaluator()
+	require.NoError(t, err)
+
+	requestCh := make(chan *v1contracts.DurableTaskRequest)
+	responseCh := make(chan *v1contracts.DurableTaskResponse)
+
+	stop := make(chan struct{})
+
+	fd := newFakeDispatcher(requestCh, responseCh, stop)
+	ch := newTestChannel(requestCh, responseCh)
+
+	errCh := make(chan error, 1)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+
+	externalId := uuid.New()
+
+	go func() {
+		errCh <- dagDurableTask(ctx, tasks, onFailureTask, externalId, uuid.New(), 1, "{}", ch, evaluator.EvalBoolExpr, deliverSatisfiedResults(triggerStep, responseCh, stop))
+	}()
+
+	return &dagHarness{
+		errCh:      errCh,
+		responseCh: responseCh,
+		fd:         fd,
+		externalId: externalId,
+		cleanup: func() {
+			close(stop)
+			cancel()
+			_ = ch.Close()
+		},
+	}
+}
+
+func (h *dagHarness) waitErr(t *testing.T) error {
+	t.Helper()
+
+	select {
+	case err := <-h.errCh:
+		return err
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for dag to finish")
+		return nil
+	}
+}
+
+func (h *dagHarness) waitAck(t *testing.T) *v1contracts.DurableEventLogEntryRef {
+	t.Helper()
+
+	select {
+	case ref := <-h.fd.acks:
+		return ref
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for wait condition ack")
+		return nil
+	}
+}
+
+func runDAG(t *testing.T, tasks []*task, triggerStep triggerStepFn) (error, chan *v1contracts.DurableTaskResponse, func()) {
+	t.Helper()
+
+	h := startDAG(t, tasks, triggerStep)
+
+	return h.waitErr(t), h.responseCh, h.cleanup
+}
+
+type asyncTriggered struct {
+	actionId string
+	ref      *v1contracts.DurableEventLogEntryRef
+}
+
+func asyncTrigger(async map[string]bool) (triggerStepFn, chan asyncTriggered) {
+	triggered := make(chan asyncTriggered, 16)
+	var nextId int64 = 1
+
+	fn := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
+		nodeId := nextId
+		nextId++
+
+		result := &operator.DAGStepTriggerResult{
+			NodeId:                nodeId,
+			BranchId:              nodeId,
+			WorkflowRunExternalId: uuid.New(),
+		}
+
+		switch {
+		case isCancelled:
+			result.IsSatisfied = true
+			result.ResultPayload = mapToJson(map[string]interface{}{"cancelled": true})
+		case isSkipped:
+			// the dag marks the skip itself; no IsSatisfied needed.
+		case async[actionId]:
+			triggered <- asyncTriggered{
+				actionId: actionId,
+				ref:      &v1contracts.DurableEventLogEntryRef{NodeId: nodeId, BranchId: nodeId},
+			}
+		default:
+			result.IsSatisfied = true
+			result.ResultPayload = mapToJson(map[string]interface{}{"ok": true})
+		}
+
+		return result, nil
+	}
+
+	return fn, triggered
+}
+
+func recvTriggered(t *testing.T, ch chan asyncTriggered) asyncTriggered {
+	t.Helper()
+
+	select {
+	case at := <-ch:
+		return at
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for a step to be triggered")
+		return asyncTriggered{}
+	}
+}
+
+func mapToJson(v interface{}) []byte {
+	b, _ := json.Marshal(v)
+	return b
+}
+
+func sendEntryFailed(t *testing.T, responseCh chan *v1contracts.DurableTaskResponse, ref *v1contracts.DurableEventLogEntryRef, errMsg string) {
+	t.Helper()
+
+	select {
+	case responseCh <- &v1contracts.DurableTaskResponse{
+		Message: &v1contracts.DurableTaskResponse_EntryCompleted{
+			EntryCompleted: &v1contracts.DurableTaskEventLogEntryCompletedResponse{
+				Ref:          ref,
+				IsFailure:    true,
+				ErrorMessage: strPtr(errMsg),
+			},
+		},
+	}:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out sending EntryCompleted failure response")
+	}
+}
+
+func TestDag_LinearNoConditions(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1, a)
+
+	err, _, cleanup := runDAG(t, []*task{a, b}, stubTriggerStep(t, nil))
+	defer cleanup()
+
+	require.NoError(t, err)
+	require.True(t, a.isCompleted)
+	require.True(t, b.isCompleted)
+	require.False(t, a.isFailed || b.isFailed)
+	require.False(t, a.isCancelled || b.isCancelled)
+}
+
+func TestDag_ParentFailurePropagatesToChild(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1, a)
+
+	triggerStep := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
+		if actionId == "action-a" {
+			return &operator.DAGStepTriggerResult{
+				NodeId:                1,
+				BranchId:              1,
+				WorkflowRunExternalId: uuid.New(),
+				IsSatisfied:           true,
+				IsFailure:             true,
+				ErrorMessage:          strPtr("boom"),
+			}, nil
+		}
+
+		require.True(t, isCancelled, "child of a failed parent should be triggered as cancelled")
+
+		payload, _ := json.Marshal(map[string]interface{}{"cancelled": true})
+		return &operator.DAGStepTriggerResult{
+			NodeId:                2,
+			BranchId:              2,
+			WorkflowRunExternalId: uuid.New(),
+			IsSatisfied:           true,
+			ResultPayload:         payload,
+		}, nil
+	}
+
+	err, _, cleanup := runDAG(t, []*task{a, b}, triggerStep)
+	defer cleanup()
+
+	require.Error(t, err)
+	require.True(t, isDagChildFailedErr(err))
+	require.True(t, a.isFailed)
+}
+
+func TestDag_ParentReExecutedPropagation(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1)
+	c := newTestTask("c", "action-c", 2, a, b)
+	d := newTestTask("d", "action-d", 3, b)
+	e := newTestTask("e", "action-e", 4, c)
+
+	received := make(map[string]bool)
+	var nextId int64 = 1
+
+	triggerStep := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
+		received[actionId] = parentReExecuted
+
+		nodeId := nextId
+		nextId++
+
+		payload, _ := json.Marshal(map[string]interface{}{"ok": true})
+
+		return &operator.DAGStepTriggerResult{
+			NodeId:                nodeId,
+			BranchId:              nodeId,
+			WorkflowRunExternalId: uuid.New(),
+			IsSatisfied:           true,
+			ResultPayload:         payload,
+			ReExecuted:            actionId == "action-a" || parentReExecuted,
+		}, nil
+	}
+
+	err, _, cleanup := runDAG(t, []*task{a, b, c, d, e}, triggerStep)
+	defer cleanup()
+
+	require.NoError(t, err)
+	require.Equal(t, map[string]bool{
+		"action-a": false,
+		"action-b": false,
+		"action-c": true,
+		"action-d": false,
+		"action-e": true,
+	}, received)
+}
+
+func TestDag_SkipConditionOnParentOutput(t *testing.T) {
+	run := func(t *testing.T, shouldSkip bool) *task {
+		a := newTestTask("a", "action-a", 0)
+		b := newTestTask("b", "action-b", 1, a)
+
+		b.stepConditions = []*sqlcv1.V1StepMatchCondition{
+			{
+				Kind:             sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE,
+				Action:           sqlcv1.V1MatchConditionActionSKIP,
+				OrGroupID:        uuid.New(),
+				Expression:       sqlchelpers.TextFromStr("output.shouldSkip == true"),
+				ParentReadableID: sqlchelpers.TextFromStr("a"),
+			},
+		}
+
+		triggerStep := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
+			if actionId == "action-a" {
+				payload, _ := json.Marshal(map[string]interface{}{"shouldSkip": shouldSkip})
+				return &operator.DAGStepTriggerResult{
+					NodeId: 1, BranchId: 1, WorkflowRunExternalId: uuid.New(),
+					IsSatisfied: true, ResultPayload: payload,
+				}, nil
+			}
+
+			require.Equal(t, shouldSkip, isSkipped, "child's skip state should mirror the parent-override condition")
+			return &operator.DAGStepTriggerResult{
+				NodeId: 2, BranchId: 2, WorkflowRunExternalId: uuid.New(), IsSatisfied: true,
+			}, nil
+		}
+
+		err, _, cleanup := runDAG(t, []*task{a, b}, triggerStep)
+		defer cleanup()
+
+		require.NoError(t, err)
+		require.True(t, a.isCompleted)
+		require.Nil(t, a.output, "parent output should be dropped once its dependents' conditions have been evaluated so we don't hold it in memory for the duration of the dag (to avoid leaking memory)")
+		return b
+	}
+
+	t.Run("condition matches -> child skipped", func(t *testing.T) {
+		b := run(t, true)
+		require.True(t, b.isSkipped)
+		require.True(t, b.isCompleted)
+	})
+
+	t.Run("condition doesn't match -> child runs", func(t *testing.T) {
+		b := run(t, false)
+		require.False(t, b.isSkipped)
+		require.True(t, b.isCompleted)
+	})
+}
+
+func TestDag_EmptyParentOutputEvaluatesConditionsAgainstEmptyObject(t *testing.T) {
+	for name, payload := range map[string][]byte{"no payload": nil, "null payload": []byte("null")} {
+		t.Run(name, func(t *testing.T) {
+			a := newTestTask("a", "action-a", 0)
+			b := newTestTask("b", "action-b", 1, a)
+
+			b.stepConditions = []*sqlcv1.V1StepMatchCondition{
+				{
+					Kind:             sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE,
+					Action:           sqlcv1.V1MatchConditionActionSKIP,
+					OrGroupID:        uuid.New(),
+					Expression:       sqlchelpers.TextFromStr("!has(output.flag)"),
+					ParentReadableID: sqlchelpers.TextFromStr("a"),
+				},
+			}
+
+			triggerStep := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
+				result := &operator.DAGStepTriggerResult{
+					NodeId: int64(childIndex) + 1, BranchId: 1, WorkflowRunExternalId: uuid.New(), IsSatisfied: true,
+				}
+				if actionId == "action-a" {
+					result.ResultPayload = payload
+				}
+
+				return result, nil
+			}
+
+			err, _, cleanup := runDAG(t, []*task{a, b}, triggerStep)
+			defer cleanup()
+
+			require.NoError(t, err)
+			require.True(t, b.isSkipped)
+			require.True(t, b.isCompleted)
+		})
+	}
+}
+
+func TestDag_ConditionEvalErrorCountsAsNotMatched(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1, a)
+
+	b.stepConditions = []*sqlcv1.V1StepMatchCondition{
+		{
+			Kind:             sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE,
+			Action:           sqlcv1.V1MatchConditionActionCANCEL,
+			OrGroupID:        uuid.New(),
+			Expression:       sqlchelpers.TextFromStr("output.flag == true"),
+			ParentReadableID: sqlchelpers.TextFromStr("a"),
+		},
+	}
+
+	triggerStep := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
+		require.False(t, isCancelled, "a cancel condition that cannot be evaluated must not cancel the child")
+		payload, _ := json.Marshal(map[string]interface{}{"output": map[string]interface{}{"result": "ok"}})
+		return &operator.DAGStepTriggerResult{
+			NodeId: int64(childIndex) + 1, BranchId: 1, WorkflowRunExternalId: uuid.New(),
+			IsSatisfied: true, ResultPayload: payload,
+		}, nil
+	}
+
+	err, _, cleanup := runDAG(t, []*task{a, b}, triggerStep)
+	defer cleanup()
+
+	require.NoError(t, err, "a parent output missing a key referenced by a child's condition must not fail the DAG")
+	require.True(t, b.isCompleted)
+	require.False(t, b.isCancelled)
+	require.False(t, b.isSkipped)
+}
+
+func TestDag_CancelConditionOnParentOutput(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1, a)
+
+	b.stepConditions = []*sqlcv1.V1StepMatchCondition{
+		{
+			Kind:             sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE,
+			Action:           sqlcv1.V1MatchConditionActionCANCEL,
+			OrGroupID:        uuid.New(),
+			Expression:       sqlchelpers.TextFromStr("output.shouldCancel == true"),
+			ParentReadableID: sqlchelpers.TextFromStr("a"),
+		},
+	}
+
+	triggerStep := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
+		if actionId == "action-a" {
+			payload, _ := json.Marshal(map[string]interface{}{"shouldCancel": true})
+			return &operator.DAGStepTriggerResult{
+				NodeId: 1, BranchId: 1, WorkflowRunExternalId: uuid.New(),
+				IsSatisfied: true, ResultPayload: payload,
+			}, nil
+		}
+
+		require.True(t, isCancelled, "child should be triggered as cancelled")
+		payload, _ := json.Marshal(map[string]interface{}{"cancelled": true})
+		return &operator.DAGStepTriggerResult{
+			NodeId: 2, BranchId: 2, WorkflowRunExternalId: uuid.New(),
+			IsSatisfied: true, ResultPayload: payload,
+		}, nil
+	}
+
+	err, _, cleanup := runDAG(t, []*task{a, b}, triggerStep)
+	defer cleanup()
+
+	require.Error(t, err)
+	require.True(t, isDagCancelledErr(err))
+	require.True(t, b.isCancelled)
+}
+
+func TestDag_SleepWaitCondition(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1, a)
+
+	b.stepConditions = []*sqlcv1.V1StepMatchCondition{
+		{
+			Kind:            sqlcv1.V1StepMatchConditionKindSLEEP,
+			Action:          sqlcv1.V1MatchConditionActionQUEUE,
+			OrGroupID:       uuid.New(),
+			ReadableDataKey: "sleep-1",
+			SleepDuration:   sqlchelpers.TextFromStr("5s"),
+		},
+	}
+
+	evaluator, err := internalcel.NewBoolExprEvaluator()
+	require.NoError(t, err)
+
+	requestCh := make(chan *v1contracts.DurableTaskRequest)
+	responseCh := make(chan *v1contracts.DurableTaskResponse)
+	stop := make(chan struct{})
+	defer close(stop)
+
+	fd := newFakeDispatcher(requestCh, responseCh, stop)
+	ch := newTestChannel(requestCh, responseCh)
+	defer ch.Close()
+
+	errCh := make(chan error, 1)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	go func() {
+		errCh <- dagDurableTask(ctx, []*task{a, b}, nil, uuid.New(), uuid.New(), 1, "{}", ch, evaluator.EvalBoolExpr, deliverSatisfiedResults(stubTriggerStep(t, nil), responseCh, stop))
+	}()
+
+	var ref *v1contracts.DurableEventLogEntryRef
+	select {
+	case ref = <-fd.acks:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for sleep condition to be registered")
+	}
+
+	require.True(t, b.isWaiting)
+	require.False(t, b.isCompleted)
+
+	sendEntryCompleted(t, responseCh, ref, nil)
+
+	select {
+	case err := <-errCh:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for dag to finish after sleep fired")
+	}
+
+	require.True(t, b.isWaitSatisfied)
+	require.True(t, b.isCompleted)
+}
+
+func TestDag_SkipOrGroupAcrossParents(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1)
+	c := newTestTask("c", "action-c", 2, a, b)
+	d := newTestTask("d", "action-d", 3, c)
+	e := newTestTask("e", "action-e", 4, d)
+	f := newTestTask("f", "action-f", 5, c, d)
+	g := newTestTask("g", "action-g", 6, a, f)
+
+	orGroup := uuid.New()
+	c.stepConditions = []*sqlcv1.V1StepMatchCondition{
+		{
+			Kind:             sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE,
+			Action:           sqlcv1.V1MatchConditionActionSKIP,
+			OrGroupID:        orGroup,
+			Expression:       sqlchelpers.TextFromStr("output.shouldSkip == true"),
+			ParentReadableID: sqlchelpers.TextFromStr("a"),
+		},
+		{
+			Kind:             sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE,
+			Action:           sqlcv1.V1MatchConditionActionSKIP,
+			OrGroupID:        orGroup,
+			Expression:       sqlchelpers.TextFromStr("output.shouldSkip == true"),
+			ParentReadableID: sqlchelpers.TextFromStr("b"),
+		},
+	}
+
+	triggerStep := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
+		switch actionId {
+		case "action-a":
+			payload, _ := json.Marshal(map[string]interface{}{"shouldSkip": false})
+			return &operator.DAGStepTriggerResult{
+				NodeId: 1, BranchId: 1, WorkflowRunExternalId: uuid.New(),
+				IsSatisfied: true, ResultPayload: payload,
+			}, nil
+		case "action-b":
+			payload, _ := json.Marshal(map[string]interface{}{"shouldSkip": true})
+			return &operator.DAGStepTriggerResult{
+				NodeId: 2, BranchId: 2, WorkflowRunExternalId: uuid.New(),
+				IsSatisfied: true, ResultPayload: payload,
+			}, nil
+		case "action-c":
+			payload, _ := json.Marshal(map[string]interface{}{"ok": true})
+			return &operator.DAGStepTriggerResult{
+				NodeId: 3, BranchId: 3, WorkflowRunExternalId: uuid.New(),
+				IsSatisfied: true, ResultPayload: payload,
+			}, nil
+		case "action-g":
+			require.False(t, isSkipped, "g should not be skipped because one of its parents (a) is not")
+			return &operator.DAGStepTriggerResult{
+				NodeId: 4, BranchId: 4, WorkflowRunExternalId: uuid.New(),
+				IsSatisfied: true,
+			}, nil
+		default:
+			require.True(t, isSkipped, "c (and downstream) should be skipped once the shared or-group is satisfied by b")
+			return &operator.DAGStepTriggerResult{NodeId: 3, BranchId: 3, WorkflowRunExternalId: uuid.New()}, nil
+		}
+	}
+
+	err, _, cleanup := runDAG(t, []*task{a, b, c, d, e, f, g}, triggerStep)
+	defer cleanup()
+
+	require.NoError(t, err)
+	require.True(t, c.isSkipped)
+	require.True(t, c.isCompleted)
+	require.True(t, d.isSkipped)
+	require.True(t, d.isCompleted)
+	require.True(t, e.isSkipped)
+	require.True(t, e.isCompleted)
+	require.True(t, f.isSkipped)
+	require.True(t, f.isCompleted)
+	require.False(t, g.isSkipped, "g should not be skipped because one of its parents (a) is not")
+	require.True(t, g.isCompleted)
+}
+
+func TestDag_AsyncCompletionViaEntryCompleted(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1, a)
+
+	trigger, triggered := asyncTrigger(map[string]bool{"action-a": true, "action-b": true})
+
+	h := startDAG(t, []*task{a, b}, trigger)
+	defer h.cleanup()
+
+	first := recvTriggered(t, triggered)
+	require.Equal(t, "action-a", first.actionId)
+
+	// b depends on a, so it must not be triggered until a's completion lands.
+	select {
+	case unexpected := <-triggered:
+		t.Fatalf("%q triggered before its parent completed", unexpected.actionId)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	sendEntryCompleted(t, h.responseCh, first.ref, mapToJson(map[string]interface{}{"ok": true}))
+
+	second := recvTriggered(t, triggered)
+	require.Equal(t, "action-b", second.actionId)
+
+	sendEntryCompleted(t, h.responseCh, second.ref, mapToJson(map[string]interface{}{"ok": true}))
+
+	require.NoError(t, h.waitErr(t))
+	require.True(t, a.isCompleted && b.isCompleted)
+	require.False(t, a.isFailed || b.isFailed)
+	require.False(t, a.isCancelled || b.isCancelled)
+}
+
+func recordingTrigger(satisfied map[string]bool) (triggerStepFn, chan asyncTriggered) {
+	triggered := make(chan asyncTriggered, 16)
+	var nextId int64 = 1
+
+	fn := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
+		nodeId := nextId
+		nextId++
+
+		result := &operator.DAGStepTriggerResult{
+			NodeId:                nodeId,
+			BranchId:              nodeId,
+			WorkflowRunExternalId: uuid.New(),
+			IsSatisfied:           satisfied[actionId],
+			ResultPayload:         mapToJson(map[string]interface{}{"ok": true}),
+		}
+
+		triggered <- asyncTriggered{
+			actionId: actionId,
+			ref:      &v1contracts.DurableEventLogEntryRef{NodeId: nodeId, BranchId: nodeId},
+		}
+
+		return result, nil
+	}
+
+	return fn, triggered
+}
+
+func TestDag_ReplayEmitsStepsInOriginalOrder(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1)
+	d := newTestTask("d", "action-d", 2, b)
+	c := newTestTask("c", "action-c", 3, a)
+
+	trigger, triggered := recordingTrigger(map[string]bool{"action-a": true, "action-b": true})
+
+	h := startDAG(t, []*task{a, b, d, c}, trigger)
+	defer h.cleanup()
+
+	var order []string
+	for range 4 {
+		order = append(order, recvTriggered(t, triggered).actionId)
+	}
+
+	require.Equal(t, []string{"action-a", "action-b", "action-c", "action-d"}, order)
+}
+
+func TestDag_AsyncFailureViaEntryCompleted(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1, a)
+
+	trigger, triggered := asyncTrigger(map[string]bool{"action-a": true})
+
+	h := startDAG(t, []*task{a, b}, trigger)
+	defer h.cleanup()
+
+	first := recvTriggered(t, triggered)
+	require.Equal(t, "action-a", first.actionId)
+
+	sendEntryFailed(t, h.responseCh, first.ref, "boom")
+
+	err := h.waitErr(t)
+	require.Error(t, err)
+	require.True(t, isDagChildFailedErr(err))
+	require.True(t, a.isFailed)
+	require.True(t, b.isCancelled)
+}
+
+func TestDag_AsyncCancelViaErrorMessage(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1, a)
+
+	trigger, triggered := asyncTrigger(map[string]bool{"action-a": true})
+
+	h := startDAG(t, []*task{a, b}, trigger)
+	defer h.cleanup()
+
+	first := recvTriggered(t, triggered)
+
+	sendEntryFailed(t, h.responseCh, first.ref, repository.TaskCancelledErrorMessage)
+
+	err := h.waitErr(t)
+	require.Error(t, err)
+	require.True(t, isDagCancelledErr(err))
+	require.True(t, a.isCancelled)
+	require.False(t, a.isFailed)
+	require.True(t, b.isCancelled, "child of a cancelled parent should be triggered as cancelled")
+	require.False(t, b.isFailed)
+}
+
+// Reproduces the restore race behind spurious nondeterminism errors: a wait registration is
+// still un-acked (i.e. possibly not yet ingested into the log) while a completion for an
+// earlier registration arrives. The resulting run trigger is ingested outside the session
+// channel, so emitting it before the ack would let it claim the registration's node id.
+func TestDag_RunTriggerDeferredUntilWaitForAcksDrain(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1, a)
+	c := newTestTask("c", "action-c", 2, a)
+
+	b.stepConditions = []*sqlcv1.V1StepMatchCondition{
+		{
+			Kind:            sqlcv1.V1StepMatchConditionKindUSEREVENT,
+			Action:          sqlcv1.V1MatchConditionActionQUEUE,
+			OrGroupID:       uuid.New(),
+			ReadableDataKey: "event-1",
+			EventKey:        sqlchelpers.TextFromStr("some:event"),
+		},
+	}
+	c.stepConditions = []*sqlcv1.V1StepMatchCondition{
+		{
+			Kind:            sqlcv1.V1StepMatchConditionKindSLEEP,
+			Action:          sqlcv1.V1MatchConditionActionQUEUE,
+			OrGroupID:       uuid.New(),
+			ReadableDataKey: "sleep-1",
+			SleepDuration:   sqlchelpers.TextFromStr("5s"),
+		},
+	}
+
+	evaluator, err := internalcel.NewBoolExprEvaluator()
+	require.NoError(t, err)
+
+	requestCh := make(chan *v1contracts.DurableTaskRequest)
+	responseCh := make(chan *v1contracts.DurableTaskResponse)
+	stop := make(chan struct{})
+	defer close(stop)
+
+	firstAck := make(chan *v1contracts.DurableEventLogEntryRef, 1)
+	secondAck := make(chan *v1contracts.DurableEventLogEntryRef, 1)
+	releaseSecondAck := make(chan struct{})
+
+	sendAck := func(ref *v1contracts.DurableEventLogEntryRef) bool {
+		select {
+		case responseCh <- &v1contracts.DurableTaskResponse{
+			Message: &v1contracts.DurableTaskResponse_WaitForAck{
+				WaitForAck: &v1contracts.DurableTaskEventWaitForAckResponse{Ref: ref},
+			},
+		}:
+			return true
+		case <-stop:
+			return false
+		}
+	}
+
+	go func() {
+		var nextId int64 = 2000
+		waitForCount := 0
+
+		for {
+			select {
+			case <-stop:
+				return
+			case req, ok := <-requestCh:
+				if !ok {
+					return
+				}
+
+				waitFor := req.GetWaitFor()
+				if waitFor == nil {
+					continue
+				}
+
+				waitForCount++
+				ref := &v1contracts.DurableEventLogEntryRef{
+					DurableTaskExternalId: waitFor.DurableTaskExternalId,
+					InvocationCount:       waitFor.InvocationCount,
+					NodeId:                nextId,
+					BranchId:              nextId,
+				}
+				nextId++
+
+				if waitForCount == 2 {
+					go func() {
+						select {
+						case <-releaseSecondAck:
+						case <-stop:
+							return
+						}
+						if sendAck(ref) {
+							secondAck <- ref
+						}
+					}()
+					continue
+				}
+
+				if sendAck(ref) {
+					firstAck <- ref
+				}
+			}
+		}
+	}()
+
+	triggeredCh := make(chan string, 16)
+	base := stubTriggerStep(t, nil)
+	triggerStep := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
+		triggeredCh <- actionId
+		return base(ctx, actionId, workflowName, childIndex, parentTaskRunIds, isSkipped, isCancelled, parentReExecuted)
+	}
+
+	ch := newTestChannel(requestCh, responseCh)
+	defer ch.Close()
+
+	errCh := make(chan error, 1)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	go func() {
+		errCh <- dagDurableTask(ctx, []*task{a, b, c}, nil, uuid.New(), uuid.New(), 1, "{}", ch, evaluator.EvalBoolExpr, deliverSatisfiedResults(triggerStep, responseCh, stop))
+	}()
+
+	requireTriggered := func(want string) {
+		t.Helper()
+		select {
+		case got := <-triggeredCh:
+			require.Equal(t, want, got)
+		case <-time.After(5 * time.Second):
+			t.Fatalf("timed out waiting for %s to be triggered", want)
+		}
+	}
+
+	requireTriggered("action-a")
+
+	var bRef *v1contracts.DurableEventLogEntryRef
+	select {
+	case bRef = <-firstAck:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for the first wait registration ack")
+	}
+
+	sendEntryCompleted(t, responseCh, bRef, nil)
+
+	select {
+	case got := <-triggeredCh:
+		t.Fatalf("step %s was triggered while a wait registration was still un-acked", got)
+	case <-time.After(300 * time.Millisecond):
+	}
+
+	close(releaseSecondAck)
+
+	requireTriggered("action-b")
+
+	var cRef *v1contracts.DurableEventLogEntryRef
+	select {
+	case cRef = <-secondAck:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for the second wait registration ack")
+	}
+
+	sendEntryCompleted(t, responseCh, cRef, nil)
+
+	requireTriggered("action-c")
+
+	select {
+	case err := <-errCh:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for dag to finish")
+	}
+
+	require.True(t, b.isCompleted)
+	require.True(t, c.isCompleted)
+}
+
+type waitRegistrationCountingChannel struct {
+	operator.DurableChannel
+	waitRegistrationsSent int
+}
+
+func (c *waitRegistrationCountingChannel) Send(ctx context.Context, req *v1contracts.DurableTaskRequest) error {
+	if req.GetWaitFor() != nil {
+		c.waitRegistrationsSent++
+	}
+
+	return c.DurableChannel.Send(ctx, req)
+}
+
+func TestDag_ReadyStepIsTriggeredBeforeLaterStepRegistersWaitCondition(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1)
+
+	b.stepConditions = []*sqlcv1.V1StepMatchCondition{
+		{
+			Kind:            sqlcv1.V1StepMatchConditionKindUSEREVENT,
+			Action:          sqlcv1.V1MatchConditionActionQUEUE,
+			OrGroupID:       uuid.New(),
+			ReadableDataKey: "event-1",
+			EventKey:        sqlchelpers.TextFromStr("some:event"),
+		},
+	}
+
+	evaluator, err := internalcel.NewBoolExprEvaluator()
+	require.NoError(t, err)
+
+	requestCh := make(chan *v1contracts.DurableTaskRequest)
+	responseCh := make(chan *v1contracts.DurableTaskResponse)
+	stop := make(chan struct{})
+	defer close(stop)
+
+	waitRegistrationAcks := make(chan *v1contracts.DurableEventLogEntryRef, 1)
+
+	go func() {
+		for {
+			select {
+			case <-stop:
+				return
+			case req := <-requestCh:
+				waitFor := req.GetWaitFor()
+				if waitFor == nil {
+					continue
+				}
+
+				ref := &v1contracts.DurableEventLogEntryRef{
+					DurableTaskExternalId: waitFor.DurableTaskExternalId,
+					InvocationCount:       waitFor.InvocationCount,
+					NodeId:                2000,
+					BranchId:              2000,
+				}
+
+				select {
+				case responseCh <- &v1contracts.DurableTaskResponse{
+					Message: &v1contracts.DurableTaskResponse_WaitForAck{
+						WaitForAck: &v1contracts.DurableTaskEventWaitForAckResponse{Ref: ref},
+					},
+				}:
+					waitRegistrationAcks <- ref
+				case <-stop:
+					return
+				}
+			}
+		}
+	}()
+
+	ch := &waitRegistrationCountingChannel{DurableChannel: newTestChannel(requestCh, responseCh)}
+	defer ch.Close()
+
+	waitRegistrationsSentWhenATriggered := make(chan int, 1)
+	base := stubTriggerStep(t, nil)
+	triggerStep := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
+		if actionId == "action-a" {
+			waitRegistrationsSentWhenATriggered <- ch.waitRegistrationsSent
+		}
+
+		return base(ctx, actionId, workflowName, childIndex, parentTaskRunIds, isSkipped, isCancelled, parentReExecuted)
+	}
+
+	errCh := make(chan error, 1)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	go func() {
+		errCh <- dagDurableTask(ctx, []*task{a, b}, nil, uuid.New(), uuid.New(), 1, "{}", ch, evaluator.EvalBoolExpr, deliverSatisfiedResults(triggerStep, responseCh, stop))
+	}()
+
+	select {
+	case sent := <-waitRegistrationsSentWhenATriggered:
+		require.Zero(t, sent, "step a was triggered after step b's wait registration was sent, so the two race for the same node id")
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for step a to be triggered")
+	}
+
+	select {
+	case bRef := <-waitRegistrationAcks:
+		sendEntryCompleted(t, responseCh, bRef, nil)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for step b's wait registration ack")
+	}
+
+	select {
+	case err := <-errCh:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for dag to finish")
+	}
+
+	require.True(t, a.isCompleted)
+	require.True(t, b.isCompleted)
+}
+
+func TestDag_SleepSkipWatch(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1, a)
+
+	b.stepConditions = []*sqlcv1.V1StepMatchCondition{
+		{
+			Kind:            sqlcv1.V1StepMatchConditionKindUSEREVENT,
+			Action:          sqlcv1.V1MatchConditionActionQUEUE,
+			OrGroupID:       uuid.New(),
+			ReadableDataKey: "wait-1",
+			EventKey:        sqlchelpers.TextFromStr("go"),
+		},
+		{
+			Kind:            sqlcv1.V1StepMatchConditionKindSLEEP,
+			Action:          sqlcv1.V1MatchConditionActionSKIP,
+			OrGroupID:       uuid.New(),
+			ReadableDataKey: "skip-after",
+			SleepDuration:   sqlchelpers.TextFromStr("5s"),
+		},
+	}
+
+	h := startDAG(t, []*task{a, b}, stubTriggerStep(t, nil))
+	defer h.cleanup()
+
+	skipRef := h.waitAck(t)
+	h.waitAck(t)
+
+	sendEntryCompleted(t, h.responseCh, skipRef, nil)
+
+	require.NoError(t, h.waitErr(t))
+	require.True(t, b.isSkipped)
+	require.True(t, b.isCompleted)
+	require.False(t, b.isCancelled)
+}
+
+func TestDag_UserEventCancelWatch(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1, a)
+
+	b.stepConditions = []*sqlcv1.V1StepMatchCondition{
+		{
+			Kind:            sqlcv1.V1StepMatchConditionKindSLEEP,
+			Action:          sqlcv1.V1MatchConditionActionQUEUE,
+			OrGroupID:       uuid.New(),
+			ReadableDataKey: "wait-1",
+			SleepDuration:   sqlchelpers.TextFromStr("5s"),
+		},
+		{
+			Kind:            sqlcv1.V1StepMatchConditionKindUSEREVENT,
+			Action:          sqlcv1.V1MatchConditionActionCANCEL,
+			OrGroupID:       uuid.New(),
+			ReadableDataKey: "cancel-on",
+			EventKey:        sqlchelpers.TextFromStr("cancel"),
+		},
+	}
+
+	h := startDAG(t, []*task{a, b}, stubTriggerStep(t, nil))
+	defer h.cleanup()
+
+	cancelRef := h.waitAck(t)
+	h.waitAck(t)
+
+	sendEntryCompleted(t, h.responseCh, cancelRef, nil)
+
+	err := h.waitErr(t)
+	require.Error(t, err)
+	require.True(t, isDagCancelledErr(err))
+	require.True(t, b.isCancelled)
+}
+
+func TestDag_CancelWatchWithSkipWatchRegistered(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1, a)
+
+	b.stepConditions = []*sqlcv1.V1StepMatchCondition{
+		{
+			Kind:            sqlcv1.V1StepMatchConditionKindUSEREVENT,
+			Action:          sqlcv1.V1MatchConditionActionQUEUE,
+			OrGroupID:       uuid.New(),
+			ReadableDataKey: "wait-1",
+			EventKey:        sqlchelpers.TextFromStr("go"),
+		},
+		{
+			Kind:            sqlcv1.V1StepMatchConditionKindSLEEP,
+			Action:          sqlcv1.V1MatchConditionActionSKIP,
+			OrGroupID:       uuid.New(),
+			ReadableDataKey: "skip-after",
+			SleepDuration:   sqlchelpers.TextFromStr("5s"),
+		},
+		{
+			Kind:            sqlcv1.V1StepMatchConditionKindSLEEP,
+			Action:          sqlcv1.V1MatchConditionActionCANCEL,
+			OrGroupID:       uuid.New(),
+			ReadableDataKey: "cancel-after",
+			SleepDuration:   sqlchelpers.TextFromStr("5s"),
+		},
+	}
+
+	h := startDAG(t, []*task{a, b}, stubTriggerStep(t, nil))
+	defer h.cleanup()
+
+	h.waitAck(t)
+	cancelRef := h.waitAck(t)
+	h.waitAck(t)
+
+	sendEntryCompleted(t, h.responseCh, cancelRef, nil)
+
+	err := h.waitErr(t)
+	require.Error(t, err)
+	require.True(t, isDagCancelledErr(err))
+	require.True(t, b.isCancelled)
+	require.False(t, b.isSkipped)
+}
+
+func TestDag_CancelBeatsSkipParentOverride(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1, a)
+
+	b.stepConditions = []*sqlcv1.V1StepMatchCondition{
+		{
+			Kind:             sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE,
+			Action:           sqlcv1.V1MatchConditionActionSKIP,
+			OrGroupID:        uuid.New(),
+			Expression:       sqlchelpers.TextFromStr("output.flag == true"),
+			ParentReadableID: sqlchelpers.TextFromStr("a"),
+		},
+		{
+			Kind:             sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE,
+			Action:           sqlcv1.V1MatchConditionActionCANCEL,
+			OrGroupID:        uuid.New(),
+			Expression:       sqlchelpers.TextFromStr("output.flag == true"),
+			ParentReadableID: sqlchelpers.TextFromStr("a"),
+		},
+	}
+
+	triggerStep := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
+		if actionId == "action-a" {
+			return &operator.DAGStepTriggerResult{
+				NodeId: 1, BranchId: 1, WorkflowRunExternalId: uuid.New(),
+				IsSatisfied: true, ResultPayload: mapToJson(map[string]interface{}{"flag": true}),
+			}, nil
+		}
+
+		require.True(t, isCancelled, "cancel must take precedence over skip")
+		require.False(t, isSkipped)
+		return &operator.DAGStepTriggerResult{
+			NodeId: 2, BranchId: 2, WorkflowRunExternalId: uuid.New(),
+			IsSatisfied: true, ResultPayload: mapToJson(map[string]interface{}{"cancelled": true}),
+		}, nil
+	}
+
+	err, _, cleanup := runDAG(t, []*task{a, b}, triggerStep)
+	defer cleanup()
+
+	require.Error(t, err)
+	require.True(t, isDagCancelledErr(err))
+	require.True(t, b.isCancelled)
+	require.False(t, b.isSkipped)
+}
+
+func TestDag_MultipleSkipGroupsAllRequired(t *testing.T) {
+	run := func(t *testing.T, aFlag, bFlag bool) *task {
+		a := newTestTask("a", "action-a", 0)
+		b := newTestTask("b", "action-b", 1)
+		c := newTestTask("c", "action-c", 2, a, b)
+
+		c.stepConditions = []*sqlcv1.V1StepMatchCondition{
+			{
+				Kind:             sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE,
+				Action:           sqlcv1.V1MatchConditionActionSKIP,
+				OrGroupID:        uuid.New(),
+				Expression:       sqlchelpers.TextFromStr("output.skip == true"),
+				ParentReadableID: sqlchelpers.TextFromStr("a"),
+			},
+			{
+				Kind:             sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE,
+				Action:           sqlcv1.V1MatchConditionActionSKIP,
+				OrGroupID:        uuid.New(),
+				Expression:       sqlchelpers.TextFromStr("output.skip == true"),
+				ParentReadableID: sqlchelpers.TextFromStr("b"),
+			},
+		}
+
+		triggerStep := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
+			switch actionId {
+			case "action-a":
+				return &operator.DAGStepTriggerResult{
+					NodeId: 1, BranchId: 1, WorkflowRunExternalId: uuid.New(),
+					IsSatisfied: true, ResultPayload: mapToJson(map[string]interface{}{"skip": aFlag}),
+				}, nil
+			case "action-b":
+				return &operator.DAGStepTriggerResult{
+					NodeId: 2, BranchId: 2, WorkflowRunExternalId: uuid.New(),
+					IsSatisfied: true, ResultPayload: mapToJson(map[string]interface{}{"skip": bFlag}),
+				}, nil
+			default:
+				return &operator.DAGStepTriggerResult{
+					NodeId: 3, BranchId: 3, WorkflowRunExternalId: uuid.New(),
+					IsSatisfied: true, ResultPayload: mapToJson(map[string]interface{}{"ok": true}),
+				}, nil
+			}
+		}
+
+		err, _, cleanup := runDAG(t, []*task{a, b, c}, triggerStep)
+		defer cleanup()
+
+		require.NoError(t, err)
+		return c
+	}
+
+	t.Run("both groups match -> skipped", func(t *testing.T) {
+		c := run(t, true, true)
+		require.True(t, c.isSkipped)
+	})
+
+	t.Run("one group matches -> runs", func(t *testing.T) {
+		c := run(t, true, false)
+		require.False(t, c.isSkipped)
+		require.True(t, c.isCompleted)
+	})
+
+	t.Run("neither group matches -> runs", func(t *testing.T) {
+		c := run(t, false, false)
+		require.False(t, c.isSkipped)
+		require.True(t, c.isCompleted)
+	})
+}
+
+func TestDag_Diamond(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1, a)
+	c := newTestTask("c", "action-c", 2, a)
+	d := newTestTask("d", "action-d", 3, b, c)
+
+	trigger, triggered := asyncTrigger(map[string]bool{
+		"action-a": true, "action-b": true, "action-c": true, "action-d": true,
+	})
+
+	h := startDAG(t, []*task{a, b, c, d}, trigger)
+	defer h.cleanup()
+
+	first := recvTriggered(t, triggered)
+	require.Equal(t, "action-a", first.actionId)
+	sendEntryCompleted(t, h.responseCh, first.ref, mapToJson(map[string]interface{}{"ok": true}))
+
+	second := recvTriggered(t, triggered)
+	third := recvTriggered(t, triggered)
+	require.ElementsMatch(t, []string{"action-b", "action-c"}, []string{second.actionId, third.actionId})
+
+	sendEntryCompleted(t, h.responseCh, second.ref, mapToJson(map[string]interface{}{"ok": true}))
+
+	select {
+	case unexpected := <-triggered:
+		t.Fatalf("%q triggered before both fan-in parents completed", unexpected.actionId)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	sendEntryCompleted(t, h.responseCh, third.ref, mapToJson(map[string]interface{}{"ok": true}))
+
+	fourth := recvTriggered(t, triggered)
+	require.Equal(t, "action-d", fourth.actionId)
+	sendEntryCompleted(t, h.responseCh, fourth.ref, mapToJson(map[string]interface{}{"ok": true}))
+
+	require.NoError(t, h.waitErr(t))
+	for _, task := range []*task{a, b, c, d} {
+		require.True(t, task.isCompleted && !task.isFailed && !task.isCancelled)
+	}
+}
+
+func TestDag_MultipleIndependentRoots(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1)
+	c := newTestTask("c", "action-c", 2, a, b)
+	d := newTestTask("d", "action-d", 3)
+
+	trigger, triggered := asyncTrigger(map[string]bool{"action-a": true, "action-b": true, "action-d": true})
+
+	h := startDAG(t, []*task{a, b, c, d}, trigger)
+	defer h.cleanup()
+
+	first := recvTriggered(t, triggered)
+	second := recvTriggered(t, triggered)
+	third := recvTriggered(t, triggered)
+	require.ElementsMatch(t, []string{"action-a", "action-b", "action-d"}, []string{first.actionId, second.actionId, third.actionId})
+
+	sendEntryCompleted(t, h.responseCh, first.ref, mapToJson(map[string]interface{}{"ok": true}))
+
+	select {
+	case unexpected := <-triggered:
+		t.Fatalf("%q triggered before all roots completed", unexpected.actionId)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	sendEntryCompleted(t, h.responseCh, second.ref, mapToJson(map[string]interface{}{"ok": true}))
+	sendEntryCompleted(t, h.responseCh, third.ref, mapToJson(map[string]interface{}{"ok": true}))
+
+	require.NoError(t, h.waitErr(t))
+	require.True(t, a.isCompleted && b.isCompleted && c.isCompleted && d.isCompleted)
+}
+
+func TestDag_SkippedAndFailedParentChildCancelled(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1)
+	c := newTestTask("c", "action-c", 2, a, b)
+
+	triggerStep := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
+		switch actionId {
+		case "action-a":
+			return &operator.DAGStepTriggerResult{
+				NodeId: 1, BranchId: 1, WorkflowRunExternalId: uuid.New(),
+				IsSatisfied: true, ResultPayload: mapToJson(map[string]interface{}{"skipped": true}),
+			}, nil
+		case "action-b":
+			return &operator.DAGStepTriggerResult{
+				NodeId: 2, BranchId: 2, WorkflowRunExternalId: uuid.New(),
+				IsSatisfied: true, IsFailure: true, ErrorMessage: strPtr("boom"),
+			}, nil
+		default:
+			require.True(t, isCancelled, "c should be cancelled because a parent failed")
+			return &operator.DAGStepTriggerResult{
+				NodeId: 3, BranchId: 3, WorkflowRunExternalId: uuid.New(),
+				IsSatisfied: true, ResultPayload: mapToJson(map[string]interface{}{"cancelled": true}),
+			}, nil
+		}
+	}
+
+	err, _, cleanup := runDAG(t, []*task{a, b, c}, triggerStep)
+	defer cleanup()
+
+	require.Error(t, err)
+	require.True(t, isDagChildFailedErr(err))
+	require.True(t, a.isSkipped)
+	require.True(t, b.isFailed)
+	require.True(t, c.isCancelled)
+	require.False(t, c.isFailed)
+	require.False(t, c.isSkipped)
+}
+
+func strPtr(s string) *string { return new(s) }
+
+func TestDag_OnFailureTriggersOnSiblingFailure(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	onFailure := newTestTask("on-failure", "action-on-failure", 1)
+
+	trigger, triggered := asyncTrigger(map[string]bool{"action-a": true, "action-on-failure": true})
+
+	h := startDAGFull(t, []*task{a}, onFailure, trigger)
+	defer h.cleanup()
+
+	first := recvTriggered(t, triggered)
+	require.Equal(t, "action-a", first.actionId)
+
+	sendEntryFailed(t, h.responseCh, first.ref, "boom")
+
+	second := recvTriggered(t, triggered)
+	require.Equal(t, "action-on-failure", second.actionId)
+
+	sendEntryCompleted(t, h.responseCh, second.ref, mapToJson(map[string]interface{}{"ok": true}))
+
+	err := h.waitErr(t)
+	require.Error(t, err)
+	require.True(t, isDagChildFailedErr(err))
+	require.True(t, a.isFailed)
+	require.True(t, onFailure.isTriggered)
+	require.False(t, onFailure.isSkipped)
+	require.True(t, onFailure.isCompleted)
+}
+
+func TestDag_OnFailureSkippedWhenAllTasksSucceed(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1)
+	onFailure := newTestTask("on-failure", "action-on-failure", 2)
+
+	h := startDAGFull(t, []*task{a, b}, onFailure, stubTriggerStep(t, nil))
+	defer h.cleanup()
+
+	err := h.waitErr(t)
+	require.NoError(t, err)
+	require.True(t, a.isCompleted)
+	require.True(t, b.isCompleted)
+	require.True(t, onFailure.isTriggered)
+	require.True(t, onFailure.isSkipped)
+	require.True(t, onFailure.isCompleted)
+}
+
+func TestDag_OnFailureNotTriggeredByCancellation(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	onFailure := newTestTask("on-failure", "action-on-failure", 1)
+
+	triggerStep := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error) {
+		switch actionId {
+		case "action-a":
+			return &operator.DAGStepTriggerResult{
+				NodeId: 1, BranchId: 1, WorkflowRunExternalId: uuid.New(),
+				IsSatisfied: true, ResultPayload: mapToJson(map[string]interface{}{"cancelled": true}),
+			}, nil
+		default:
+			require.True(t, isSkipped, "on-failure should be skipped, not run, for a cancelled (not failed) sibling")
+			return &operator.DAGStepTriggerResult{
+				NodeId: 2, BranchId: 2, WorkflowRunExternalId: uuid.New(),
+			}, nil
+		}
+	}
+
+	h := startDAGFull(t, []*task{a}, onFailure, triggerStep)
+	defer h.cleanup()
+
+	err := h.waitErr(t)
+	require.Error(t, err)
+	require.True(t, isDagCancelledErr(err))
+	require.True(t, a.isCancelled)
+	require.True(t, onFailure.isTriggered)
+	require.True(t, onFailure.isSkipped)
+}
+
+func TestDag_EntryCompletedRacesAheadOfWaitForAck(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1, a)
+
+	b.stepConditions = []*sqlcv1.V1StepMatchCondition{
+		{
+			Kind:            sqlcv1.V1StepMatchConditionKindUSEREVENT,
+			Action:          sqlcv1.V1MatchConditionActionQUEUE,
+			OrGroupID:       uuid.New(),
+			ReadableDataKey: "wait-1",
+			EventKey:        sqlchelpers.TextFromStr("go"),
+		},
+		{
+			Kind:            sqlcv1.V1StepMatchConditionKindSLEEP,
+			Action:          sqlcv1.V1MatchConditionActionSKIP,
+			OrGroupID:       uuid.New(),
+			ReadableDataKey: "skip-after",
+			SleepDuration:   sqlchelpers.TextFromStr("5s"),
+		},
+	}
+
+	evaluator, err := internalcel.NewBoolExprEvaluator()
+	require.NoError(t, err)
+
+	requestCh := make(chan *v1contracts.DurableTaskRequest)
+	responseCh := make(chan *v1contracts.DurableTaskResponse)
+	stop := make(chan struct{})
+	defer close(stop)
+
+	ch := newTestChannel(requestCh, responseCh)
+	defer ch.Close()
+
+	errCh := make(chan error, 1)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	go func() {
+		errCh <- dagDurableTask(ctx, []*task{a, b}, nil, uuid.New(), uuid.New(), 1, "{}", ch, evaluator.EvalBoolExpr, deliverSatisfiedResults(stubTriggerStep(t, nil), responseCh, stop))
+	}()
+
+	// Drive the dispatcher side ourselves (instead of using newFakeDispatcher) so we can choose
+	// to deliver the skip watch's EntryCompleted before the WaitForAck that would normally
+	// precede it. b registers its skip watch first and holds its wait watch until that
+	// registration is acknowledged (one registration is in flight at a time). Completions are
+	// applied only once no registration is in flight and nothing more can be emitted, so b
+	// registers its wait watch before the held skip is applied.
+	recvWaitFor := func() *v1contracts.DurableTaskWaitForRequest {
+		t.Helper()
+		select {
+		case req := <-requestCh:
+			waitFor := req.GetWaitFor()
+			require.NotNil(t, waitFor)
+			return waitFor
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for a condition registration request")
+			return nil
+		}
+	}
+
+	skipWaitFor := recvWaitFor()
+
+	ref := &v1contracts.DurableEventLogEntryRef{
+		DurableTaskExternalId: skipWaitFor.DurableTaskExternalId,
+		InvocationCount:       skipWaitFor.InvocationCount,
+		NodeId:                4242,
+		BranchId:              4242,
+	}
+
+	sendEntryCompleted(t, responseCh, ref, nil)
+
+	sendAck := func(ref *v1contracts.DurableEventLogEntryRef) {
+		t.Helper()
+		select {
+		case responseCh <- &v1contracts.DurableTaskResponse{
+			Message: &v1contracts.DurableTaskResponse_WaitForAck{
+				WaitForAck: &v1contracts.DurableTaskEventWaitForAckResponse{Ref: ref},
+			},
+		}:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out sending WaitForAck")
+		}
+	}
+
+	sendAck(ref)
+
+	waitWaitFor := recvWaitFor()
+	sendAck(&v1contracts.DurableEventLogEntryRef{
+		DurableTaskExternalId: waitWaitFor.DurableTaskExternalId,
+		InvocationCount:       waitWaitFor.InvocationCount,
+		NodeId:                4343,
+		BranchId:              4343,
+	})
+
+	select {
+	case err := <-errCh:
+		require.NoError(t, err)
+	case req := <-requestCh:
+		t.Fatalf("the dag registered another condition after its skip watch fired: %v", req)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for dag to finish; the raced EntryCompleted was likely dropped instead of buffered")
+	}
+
+	require.True(t, b.isSkipped)
+	require.True(t, b.isCompleted)
+	require.False(t, b.isCancelled)
+}
+
+func shortenBlockedStatusReportInterval(t *testing.T, interval time.Duration) {
+	t.Helper()
+
+	previous := blockedStatusReportInterval
+	blockedStatusReportInterval = interval
+	t.Cleanup(func() {
+		blockedStatusReportInterval = previous
+	})
+}
+
+func (h *dagHarness) waitWorkerStatus(t *testing.T) *v1contracts.DurableTaskWorkerStatusRequest {
+	t.Helper()
+
+	select {
+	case status := <-h.fd.workerStatuses:
+		return status
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for a worker status report")
+		return nil
+	}
+}
+
+func sendServerEvict(t *testing.T, responseCh chan *v1contracts.DurableTaskResponse, externalId string, reason string) {
+	t.Helper()
+
+	select {
+	case responseCh <- &v1contracts.DurableTaskResponse{
+		Message: &v1contracts.DurableTaskResponse_ServerEvict{
+			ServerEvict: &v1contracts.DurableTaskServerEvictNotice{
+				DurableTaskExternalId: externalId,
+				InvocationCount:       1,
+				Reason:                reason,
+			},
+		},
+	}:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out sending ServerEvict response")
+	}
+}
+
+func TestDag_ReportsBlockedStatusWhileAwaitingChild(t *testing.T) {
+	shortenBlockedStatusReportInterval(t, 20*time.Millisecond)
+
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1, a)
+
+	trigger, triggered := asyncTrigger(map[string]bool{"action-a": true})
+
+	h := startDAG(t, []*task{a, b}, trigger)
+	defer h.cleanup()
+
+	first := recvTriggered(t, triggered)
+	require.Equal(t, "action-a", first.actionId)
+
+	status := h.waitWorkerStatus(t)
+	require.Len(t, status.WaitingEntries, 1)
+	entry := status.WaitingEntries[0]
+	require.Equal(t, h.externalId.String(), entry.DurableTaskExternalId)
+	require.Equal(t, int32(1), entry.InvocationCount)
+	require.Equal(t, first.ref.NodeId, entry.NodeId)
+	require.Equal(t, first.ref.BranchId, entry.BranchId)
+
+	sendEntryCompleted(t, h.responseCh, first.ref, mapToJson(map[string]interface{}{"ok": true}))
+
+	require.NoError(t, h.waitErr(t))
+	require.True(t, a.isCompleted && b.isCompleted)
+}
+
+func TestDag_ServerEvictEndsRunWithEvictedError(t *testing.T) {
+	shortenBlockedStatusReportInterval(t, 20*time.Millisecond)
+
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1, a)
+
+	trigger, triggered := asyncTrigger(map[string]bool{"action-a": true})
+
+	h := startDAG(t, []*task{a, b}, trigger)
+	defer h.cleanup()
+
+	first := recvTriggered(t, triggered)
+	require.Equal(t, "action-a", first.actionId)
+
+	h.waitWorkerStatus(t)
+
+	sendServerEvict(t, h.responseCh, h.externalId.String(), "operator run is blocked waiting on durable events")
+
+	err := h.waitErr(t)
+	require.Error(t, err)
+	require.True(t, isDagEvictedErr(err))
+	require.False(t, a.isCompleted)
+	require.False(t, b.isTriggered)
+}
+
+func TestDag_ServerEvictForDifferentTaskIgnored(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+
+	trigger, triggered := asyncTrigger(map[string]bool{"action-a": true})
+
+	h := startDAG(t, []*task{a}, trigger)
+	defer h.cleanup()
+
+	first := recvTriggered(t, triggered)
+
+	sendServerEvict(t, h.responseCh, uuid.NewString(), "not for this run")
+
+	sendEntryCompleted(t, h.responseCh, first.ref, mapToJson(map[string]interface{}{"ok": true}))
+
+	require.NoError(t, h.waitErr(t))
+	require.True(t, a.isCompleted)
+}
+
+func TestDag_ServerEvictForOlderInvocationIgnored(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+
+	trigger, triggered := asyncTrigger(map[string]bool{"action-a": true})
+
+	h := startDAG(t, []*task{a}, trigger)
+	defer h.cleanup()
+
+	first := recvTriggered(t, triggered)
+
+	select {
+	case h.responseCh <- &v1contracts.DurableTaskResponse{
+		Message: &v1contracts.DurableTaskResponse_ServerEvict{
+			ServerEvict: &v1contracts.DurableTaskServerEvictNotice{
+				DurableTaskExternalId: h.externalId.String(),
+				InvocationCount:       0,
+				Reason:                "delayed notice for a previous invocation",
+			},
+		},
+	}:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out sending ServerEvict response")
+	}
+
+	sendEntryCompleted(t, h.responseCh, first.ref, mapToJson(map[string]interface{}{"ok": true}))
+
+	require.NoError(t, h.waitErr(t))
+	require.True(t, a.isCompleted)
+}
+
+func TestDag_NoBlockedStatusReportBeforeInterval(t *testing.T) {
+	a := newTestTask("a", "action-a", 0)
+	b := newTestTask("b", "action-b", 1, a)
+
+	trigger, triggered := asyncTrigger(map[string]bool{"action-a": true, "action-b": true})
+
+	h := startDAG(t, []*task{a, b}, trigger)
+	defer h.cleanup()
+
+	first := recvTriggered(t, triggered)
+	sendEntryCompleted(t, h.responseCh, first.ref, mapToJson(map[string]interface{}{"ok": true}))
+
+	second := recvTriggered(t, triggered)
+	sendEntryCompleted(t, h.responseCh, second.ref, mapToJson(map[string]interface{}{"ok": true}))
+
+	require.NoError(t, h.waitErr(t))
+	require.True(t, a.isCompleted && b.isCompleted)
+
+	select {
+	case status := <-h.fd.workerStatuses:
+		t.Fatalf("dag reported blocked status before the interval elapsed: %v", status)
+	default:
+	}
+}

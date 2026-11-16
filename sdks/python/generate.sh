@@ -61,7 +61,9 @@ rm -rf $tmp_dir
 
 MIN_GRPCIO_VERSION=$(grep '"grpcio>=' pyproject.toml | cut -d'"' -f2 | cut -d'=' -f2 | cut -d',' -f1)
 
-poetry add "grpcio@$MIN_GRPCIO_VERSION" "grpcio-tools@$MIN_GRPCIO_VERSION"
+# grpcio-tools is codegen-only, so install it into the venv without adding it
+# to the SDK's runtime dependencies
+poetry run pip install "grpcio==$MIN_GRPCIO_VERSION" "grpcio-tools==$MIN_GRPCIO_VERSION"
 
 
 proto_paths=(
@@ -72,6 +74,7 @@ proto_paths=(
   "../../api-contracts v1/shared/trigger.proto"
   "../../api-contracts v1/dispatcher.proto"
   "../../api-contracts v1/workflows.proto"
+  "../../api-contracts v1/streams.proto"
 )
 
 for entry in "${proto_paths[@]}"; do
@@ -95,8 +98,6 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 else
   find ./hatchet_sdk/contracts -type f -name '*.py.*' -exec sed -i 's/from v1/from hatchet_sdk.contracts.v1/g' {} +
 fi
-
-git restore pyproject.toml poetry.lock
 
 poetry lock
 poetry install --all-extras

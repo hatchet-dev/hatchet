@@ -16,8 +16,9 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool
+from pydantic import BaseModel, ConfigDict
 from typing import Any, ClassVar, Dict, List, Optional
+from hatchet_sdk.clients.rest.models.pause_workflow_request import PauseWorkflowRequest
 from typing import Optional, Set
 from typing_extensions import Self
 
@@ -27,10 +28,8 @@ class WorkflowUpdateRequest(BaseModel):
     WorkflowUpdateRequest
     """  # noqa: E501
 
-    is_paused: Optional[StrictBool] = Field(
-        default=None, description="Whether the workflow is paused.", alias="isPaused"
-    )
-    __properties: ClassVar[List[str]] = ["isPaused"]
+    pause: Optional[PauseWorkflowRequest] = None
+    __properties: ClassVar[List[str]] = ["pause"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -69,6 +68,9 @@ class WorkflowUpdateRequest(BaseModel):
             exclude=excluded_fields,
             exclude_none=True,
         )
+        # override the default output from pydantic by calling `to_dict()` of pause
+        if self.pause:
+            _dict["pause"] = self.pause.to_dict()
         return _dict
 
     @classmethod
@@ -80,5 +82,13 @@ class WorkflowUpdateRequest(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({"isPaused": obj.get("isPaused")})
+        _obj = cls.model_validate(
+            {
+                "pause": (
+                    PauseWorkflowRequest.from_dict(obj["pause"])
+                    if obj.get("pause") is not None
+                    else None
+                )
+            }
+        )
         return _obj

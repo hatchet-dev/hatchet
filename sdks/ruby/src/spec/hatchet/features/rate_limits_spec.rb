@@ -47,4 +47,20 @@ RSpec.describe Hatchet::Features::RateLimits do
       )
     end
   end
+
+  describe "#pause" do
+    it "pauses a rate limit key and returns the time it is paused until" do
+      until_time = Time.utc(2030, 1, 1)
+      paused_until = Time.utc(2030, 1, 1, 1)
+      allow(admin_grpc).to receive(:pause_rate_limit).and_return(paused_until)
+
+      result = rate_limits_client.pause(key: "upstream-api:tenant-123", until_time: until_time)
+
+      expect(admin_grpc).to have_received(:pause_rate_limit).with(
+        key: "upstream-api:tenant-123",
+        until_time: until_time,
+      )
+      expect(result).to eq(paused_until)
+    end
+  end
 end

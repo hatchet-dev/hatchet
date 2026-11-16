@@ -1,0 +1,39 @@
+/*
+ * Marketing-parity design tokens for Flow diagrams and animated components,
+ * ported from hatchet-marketing/src/styles/global.css.
+ *
+ * Scoped to `.flow-scope` (carried by Flow.Root's frame and the Mermaid
+ * wrapper) rather than :root, because the fumadocs/shadcn variable sets in
+ * global.css already use `--fg` and `--accent` as raw HSL triplets, while
+ * these are complete colors. Ported component CSS (var(--fg), var(--accent-1),
+ * calc(var(--rlh) * n), …) resolves against this scope.
+ *
+ * `--rlh` replaces the marketing site's `rlh` units (root line-height there is
+ * `--scalefactor`; the docs root line-height differs, so `rlh` can't be used
+ * directly).
+ */
+
+.flow-scope {
+  --rlh: clamp(0.75rem, 0.6384rem + 0.4464vw, 1rem);
+  --micro: clamp(0.5625rem, 0.456rem + 0.4261vw, 0.75rem);
+  --small: clamp(0.75rem, 0.679rem + 0.2841vw, 0.875rem);
+  --font-mono: "dm-mono", ui-monospace, SFMono-Regular, monospace;
+
+  --bg: hsl(0 0% 100%);
+  --fg: hsl(var(--navy));
+  --fg-secondary: hsl(var(--navy) / var(--opacity-8));
+  --fg-tertiary: hsl(var(--navy) / var(--opacity-5));
+  --fg-border: hsl(var(--navy) / var(--opacity-2));
+  --accent: hsl(var(--blue));
+  --accent-1: hsl(var(--magenta));
+  --accent-2: hsl(var(--yellow));
+  --accent-3: hsl(var(--green));
+}
+
+.dark .flow-scope {
+  --bg: hsl(var(--navy));
+  --fg: hsl(var(--cyan));
+  --fg-secondary: hsl(var(--cyan) / var(--opacity-8));
+  --fg-tertiary: hsl(var(--cyan) / var(--opacity-5));
+  --fg-border: hsl(var(--cyan) / var(--opacity-2));
+}

@@ -6,11 +6,41 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/sessions"
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 )
+
+func TestSessionKeepsUserUnverified(t *testing.T) {
+	tests := []struct {
+		name  string
+		value interface{}
+		set   bool
+		want  bool
+	}{
+		{name: "session without a value follows the user", set: false, want: false},
+		{name: "verified", value: "true", set: true, want: false},
+		{name: "verified bool", value: true, set: true, want: false},
+		{name: "unverified", value: "false", set: true, want: true},
+		{name: "unverified bool", value: false, set: true, want: true},
+		{name: "unknown value counts as unverified", value: 1, set: true, want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			session := sessions.NewSession(nil, "test")
+			if tt.set {
+				session.Values[sessionEmailVerifiedKey] = tt.value
+			}
+
+			if got := sessionKeepsUserUnverified(session); got != tt.want {
+				t.Fatalf("sessionKeepsUserUnverified() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
 
 func TestSessionSaveError(t *testing.T) {
 	logger := zerolog.Nop()

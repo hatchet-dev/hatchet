@@ -1,0 +1,151 @@
+package dispatcher
+
+import (
+	"context"
+	"encoding/json"
+	"testing"
+
+	"github.com/google/uuid"
+	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+)
+
+func newDagChildStepRunData(t *testing.T, parentExternalIds ...uuid.UUID) *v1.V1StepRunData {
+	t.Helper()
+
+	return &v1.V1StepRunData{
+		DagParentTaskRunIds: parentExternalIds,
+	}
+}
+
+func parentOutputEvent(t *testing.T, externalId uuid.UUID, stepReadableId string, output any) *v1.TaskOutputEvent {
+	t.Helper()
+
+	b, err := json.Marshal(output)
+	require.NoError(t, err)
+
+	return &v1.TaskOutputEvent{
+		TaskExternalId: externalId,
+		StepReadableID: stepReadableId,
+		Output:         b,
+	}
+}
+
+// unmarshalParents round-trips the step run data the same way a worker would when it receives the
+// dispatched task, confirming resolveDagParentOutputs' effect actually survives serialization.
+func unmarshalParents(t *testing.T, stepRunData *v1.V1StepRunData) map[string]map[string]interface{} {
+	t.Helper()
+
+	var data v1.V1StepRunData
+	require.NoError(t, json.Unmarshal(stepRunData.Bytes(), &data))
+
+	return data.Parents
+}
+
+func TestResolveDagParentOutputs_PopulatesParentsFromBatch(t *testing.T) {
+	parentA := uuid.New()
+	parentB := uuid.New()
+
+	// taskX depends on both parentA and parentB; taskY depends only on parentB. This mirrors
+	// what populateTaskData builds: a single dagParentOutputs batch shared across every
+	// dag-child task in the dispatch batch, each pulling out only its own parents.
+	taskX := newDagChildStepRunData(t, parentA, parentB)
+	taskY := newDagChildStepRunData(t, parentB)
+
+	dagParentOutputs := map[uuid.UUID]*v1.TaskOutputEvent{
+		parentA: parentOutputEvent(t, parentA, "step_a", map[string]int{"random_number": 1}),
+		parentB: parentOutputEvent(t, parentB, "step_b", map[string]int{"random_number": 2}),
+	}
+
+	resolveDagParentOutputs(context.Background(), zerologNop(), []*v1.V1StepRunData{taskX, taskY}, dagParentOutputs)
+
+	xParents := unmarshalParents(t, taskX)
+	assert.Equal(t, map[string]interface{}{"random_number": float64(1)}, xParents["step_a"])
+	assert.Equal(t, map[string]interface{}{"random_number": float64(2)}, xParents["step_b"])
+	assert.Len(t, xParents, 2)
+
+	yParents := unmarshalParents(t, taskY)
+	assert.Equal(t, map[string]interface{}{"random_number": float64(2)}, yParents["step_b"])
+	assert.Len(t, yParents, 1, "taskY never listed parentA, so it must not see step_a's output")
+}
+
+// TestResolveDagParentOutputs_DoesNotLeakAcrossDifferentDagRuns is the regression test for the
+// bug the batching redesign fixes: two unrelated DAG runs can both have a step named "start",
+// so the shared dagParentOutputs batch must be keyed by parent external ID, never by step
+// readable ID, or one run's output would silently clobber the other's.
+func TestResolveDagParentOutputs_DoesNotLeakAcrossDifferentDagRuns(t *testing.T) {
+	runOneParent := uuid.New()
+	runTwoParent := uuid.New()
+
+	runOneChild := newDagChildStepRunData(t, runOneParent)
+	runTwoChild := newDagChildStepRunData(t, runTwoParent)
+
+	dagParentOutputs := map[uuid.UUID]*v1.TaskOutputEvent{
+		runOneParent: parentOutputEvent(t, runOneParent, "start", map[string]int{"random_number": 1}),
+		runTwoParent: parentOutputEvent(t, runTwoParent, "start", map[string]int{"random_number": 99}),
+	}
+
+	resolveDagParentOutputs(context.Background(), zerologNop(), []*v1.V1StepRunData{runOneChild, runTwoChild}, dagParentOutputs)
+
+	runOneParents := unmarshalParents(t, runOneChild)
+	runTwoParents := unmarshalParents(t, runTwoChild)
+
+	assert.Equal(t, map[string]interface{}{"random_number": float64(1)}, runOneParents["start"])
+	assert.Equal(t, map[string]interface{}{"random_number": float64(99)}, runTwoParents["start"])
+}
+
+// TestResolveDagParentOutputs_IsolatesMissingOrUnparsableParents checks that a gap in
+// dagParentOutputs (e.g. a parent the batched/fallback lookup couldn't find) or a malformed
+// payload for one parent only drops that one entry rather than the whole task's Parents map,
+// and never affects a sibling task in the same batch.
+func TestResolveDagParentOutputs_IsolatesMissingOrUnparsableParents(t *testing.T) {
+	goodParent := uuid.New()
+	missingParent := uuid.New()
+	malformedParent := uuid.New()
+
+	affected := newDagChildStepRunData(t, goodParent, missingParent, malformedParent)
+	sibling := newDagChildStepRunData(t, goodParent)
+
+	dagParentOutputs := map[uuid.UUID]*v1.TaskOutputEvent{
+		goodParent: parentOutputEvent(t, goodParent, "good", map[string]int{"random_number": 7}),
+		malformedParent: {
+			TaskExternalId: malformedParent,
+			StepReadableID: "malformed",
+			Output:         []byte("{not valid json"),
+		},
+		// missingParent intentionally absent, simulating a lookup that never resolved it.
+	}
+
+	resolveDagParentOutputs(context.Background(), zerologNop(), []*v1.V1StepRunData{affected, sibling}, dagParentOutputs)
+
+	affectedParents := unmarshalParents(t, affected)
+	assert.Equal(t, map[string]interface{}{"random_number": float64(7)}, affectedParents["good"])
+	assert.NotContains(t, affectedParents, "missing")
+	assert.NotContains(t, affectedParents, "malformed")
+	assert.Len(t, affectedParents, 1)
+
+	siblingParents := unmarshalParents(t, sibling)
+	assert.Equal(t, map[string]interface{}{"random_number": float64(7)}, siblingParents["good"])
+	assert.Len(t, siblingParents, 1, "the malformed/missing parents on a different task must not affect this sibling")
+}
+
+func zerologNop() *zerolog.Logger {
+	l := zerolog.Nop()
+	return &l
+}
+
+func TestResolveDagParentOutputs_EmptyOutputIsEmptyObject(t *testing.T) {
+	parent := uuid.New()
+	child := newDagChildStepRunData(t, parent)
+
+	dagParentOutputs := map[uuid.UUID]*v1.TaskOutputEvent{
+		parent: {TaskExternalId: parent, StepReadableID: "returns_none"},
+	}
+
+	resolveDagParentOutputs(context.Background(), zerologNop(), []*v1.V1StepRunData{child}, dagParentOutputs)
+
+	assert.Equal(t, map[string]interface{}{}, unmarshalParents(t, child)["returns_none"])
+}

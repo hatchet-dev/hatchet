@@ -1,4 +1,5 @@
 import { Button } from '@/components/v1/ui/button';
+import { Checkbox } from '@/components/v1/ui/checkbox';
 import {
   DialogContent,
   DialogHeader,
@@ -29,6 +30,7 @@ const EXPIRES_IN_OPTS = {
 const schema = z.object({
   name: z.string().min(1).max(255),
   expiresIn: z.string().optional(),
+  readOnly: z.boolean(),
 });
 
 interface CreateTokenDialogProps {
@@ -51,6 +53,7 @@ export function CreateTokenDialog({
     formState: { errors },
   } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
+    defaultValues: { readOnly: false },
   });
 
   const nameError = errors.name?.message?.toString() || props.fieldErrors?.name;
@@ -88,7 +91,7 @@ export function CreateTokenDialog({
         >
           <div className="grid gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="email">Name</Label>
+              <Label htmlFor="api-token-name">Name</Label>
               <Input
                 {...register('name')}
                 id="api-token-name"
@@ -101,32 +104,58 @@ export function CreateTokenDialog({
                 <div className="text-sm text-red-500">{nameError}</div>
               )}
             </div>
-            <Label htmlFor="expiresIn">Expires In</Label>
-            <Controller
-              control={control}
-              defaultValue={EXPIRES_IN_OPTS['100 years']}
-              name="expiresIn"
-              render={({ field }) => {
-                return (
-                  <Select onValueChange={field.onChange} {...field}>
-                    <SelectTrigger id="expiresIn">
-                      <SelectValue
-                        id="expiresInSelected"
-                        placeholder="Select a duration"
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(EXPIRES_IN_OPTS).map(([label, value]) => (
-                        <SelectItem key={value} value={value}>
-                          {label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                );
-              }}
-            />
-
+            <div className="grid gap-2">
+              <Label htmlFor="expiresIn">Expires In</Label>
+              <Controller
+                control={control}
+                defaultValue={EXPIRES_IN_OPTS['100 years']}
+                name="expiresIn"
+                render={({ field }) => {
+                  return (
+                    <Select onValueChange={field.onChange} {...field}>
+                      <SelectTrigger id="expiresIn">
+                        <SelectValue
+                          id="expiresInSelected"
+                          placeholder="Select a duration"
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(EXPIRES_IN_OPTS).map(
+                          ([label, value]) => (
+                            <SelectItem key={value} value={value}>
+                              {label}
+                            </SelectItem>
+                          ),
+                        )}
+                      </SelectContent>
+                    </Select>
+                  );
+                }}
+              />
+            </div>
+            <div className="flex items-start gap-2">
+              <Controller
+                control={control}
+                name="readOnly"
+                render={({ field }) => (
+                  <Checkbox
+                    id="api-token-read-only"
+                    checked={field.value}
+                    onCheckedChange={(checked) =>
+                      field.onChange(checked === true)
+                    }
+                    disabled={props.isLoading}
+                  />
+                )}
+              />
+              <div className="grid gap-1">
+                <Label htmlFor="api-token-read-only">Read-only</Label>
+                <p className="text-xs text-muted-foreground">
+                  Viewer access to the REST API only. Cannot connect workers or
+                  use gRPC.
+                </p>
+              </div>
+            </div>
             <Button disabled={props.isLoading}>
               {props.isLoading && <Spinner />}
               Generate token

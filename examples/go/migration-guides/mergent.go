@@ -1,4 +1,4 @@
-package mergent
+package migrationguides
 
 import (
 	"bytes"

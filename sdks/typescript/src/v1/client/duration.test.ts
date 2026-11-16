@@ -49,6 +49,13 @@ describe('durationToMs', () => {
     expect(durationToMs('1h30m5s')).toBe(5_405_000);
   });
 
+  it('parses fractional units', () => {
+    expect(durationToMs('0.5s')).toBe(500);
+    expect(durationToMs('.25s')).toBe(250);
+    expect(durationToMs('1.5h')).toBe(5_400_000);
+    expect(durationToMs('1h0.5m')).toBe(3_630_000);
+  });
+
   it('converts a DurationObject', () => {
     expect(durationToMs({ hours: 1, minutes: 30, seconds: 5 })).toBe(5_405_000);
     expect(durationToMs({ seconds: 10 })).toBe(10_000);

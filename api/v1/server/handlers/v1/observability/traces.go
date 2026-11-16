@@ -1,8 +1,12 @@
 package observability
 
 import (
+	"errors"
+
+	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	transformers "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -38,11 +42,23 @@ func (t *V1ObservabilityService) V1ObservabilityGetTrace(ctx echo.Context, reque
 
 	traceId, err := olap.LookUpTraceId(ctx.Request().Context(), tenant.ID, request.Params.RunExternalId)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return gen.V1ObservabilityGetTrace404JSONResponse(
+				apierrors.NewAPIErrors("trace not found"),
+			), nil
+		}
+
 		return nil, err
 	}
 
 	result, err := olap.ListSpansByTraceId(ctx.Request().Context(), tenant.ID, traceId, offset, limit)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return gen.V1ObservabilityGetTrace404JSONResponse(
+				apierrors.NewAPIErrors("trace not found"),
+			), nil
+		}
+
 		return nil, err
 	}
 
