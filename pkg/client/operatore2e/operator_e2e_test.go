@@ -294,7 +294,7 @@ func assertStaysQueued(t *testing.T, ctx context.Context, sdk *hatchet.Client, r
 		if err != nil {
 			t.Logf("poll error: %v", err)
 		} else {
-			require.Equal(t, enums.V1ReadableStatusOlapQUEUED, d.Status, "run %s must stay queued while no worker has its action: %+v", runId, d.TaskRuns)
+			require.Equal(t, enums.V1TaskStatusQUEUED, d.Status, "run %s must stay queued while no worker has its action: %+v", runId, d.TaskRuns)
 		}
 		select {
 		case <-ctx.Done():
