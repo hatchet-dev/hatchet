@@ -31,7 +31,7 @@ for the entire batch.
 Batches will accumulate tasks continuously, preventing them from executing until one of the following conditions is true:
 
 - The max size for the batch is reached.
-- The maximum interval has elapsed since the last batch flush.
+- The maximum interval has elapsed since the first task was added to the batch. If you don't set a maximum interval, it defaults to 1 second.
 - The size of the payloads for the buffered tasks has exceeded the 4Mb gRPC message limit.
 
 In the following example, the batch task will be executed once 3 tasks have accumulated, or every 200ms, whichever comes first.
@@ -82,6 +82,10 @@ tenants, batch keys can be used to partition the inputs. The batch key is a [CEL
   </Tabs.Tab>
 </UniversalTabs>
 
+## Concurrent batches
+
+`groupMaxRuns` limits how many batches with the same batch key can run at once. If you don't set it, the limit is 100. While a batch key is at its limit, batches that are ready to flush stay buffered until one of that key's running batches finishes. Without a batch key, every run of the task shares one key, so the limit applies to the whole task.
+
 ## Broadcasting outputs
 
 In the default case, batch outputs are mapped 1-1 back to the callers. So if you called a batch task with input `a` and `b` at separate
@@ -115,3 +119,10 @@ the same output to every task buffered into the same batch. See the batch flushi
     />
   </Tabs.Tab>
 </UniversalTabs>
+
+## Failures, retries, and ordering
+
+- If the handler throws, every member of the batch fails with that error. The handler can't fail individual members.
+- Batch tasks aren't retried. Setting `retries` on a batch task has no effect, so a member fails on its first attempt.
+- A run is placed in at most one batch per attempt. If the worker running a batch stops responding, the batch's members fail when they reach their execution timeout.
+- The order of members in the handler's input isn't guaranteed.

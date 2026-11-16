@@ -5,6 +5,12 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- The `BatchTaskConfig` docs no longer say a batch flushes once `groupMaxRuns` is exceeded. While a group has `groupMaxRuns` batches running, its ready batches stay buffered. The docs also give the engine defaults: `maxInterval` is 1s, measured from when a batch's first item is buffered, and `groupMaxRuns` is 100.
+
 ## [1.47.2] - 2026-11-13
 
 ### Fixed

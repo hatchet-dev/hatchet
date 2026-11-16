@@ -2,8 +2,8 @@
 
 module Hatchet
   # Configures a task as a batch task: concurrent runs are buffered and dispatched together
-  # as a single execution once max_size is reached, max_interval_ms elapses, or (if
-  # group_key is set) once group_max_runs concurrent batches per group are exceeded.
+  # as a single execution once max_size is reached or max_interval_ms elapses. While a group
+  # has group_max_runs batches running, its ready batches stay buffered.
   #
   # When batch is set on a task, the task's block receives a single Hash argument mapping
   # each buffered run's task-run external id to that run's input, instead of a single input
@@ -16,22 +16,22 @@ module Hatchet
     # @return [Integer] Maximum number of items buffered before the batch is flushed
     attr_reader :max_size
 
-    # @return [Integer, nil] Maximum time to wait before flushing a partially-filled batch, in milliseconds
+    # @return [Integer, nil] Maximum time to wait before flushing a partially-filled batch, in milliseconds. Defaults to 1000.
     attr_reader :max_interval_ms
 
     # @return [String, nil] CEL expression evaluated against each item's input to partition items into independent batches
     attr_reader :group_key
 
-    # @return [Integer, nil] Maximum number of concurrent batches per group
+    # @return [Integer, nil] Maximum number of batches per group that can run at once. Defaults to 100.
     attr_reader :group_max_runs
 
     # @return [Boolean] When true, the block returns a single value broadcast to every member of the batch
     attr_reader :broadcast_output
 
     # @param max_size [Integer] Maximum items per batch. Must be positive.
-    # @param max_interval_ms [Integer, nil] Time before batch flushes, in milliseconds. Must be positive when provided.
+    # @param max_interval_ms [Integer, nil] Time before batch flushes, in milliseconds, measured from the first buffered item. Defaults to 1000; must be positive when provided.
     # @param group_key [String, nil] CEL expression to partition batches, e.g. "input.group"
-    # @param group_max_runs [Integer, nil] Concurrent batches per group. Must be positive when provided.
+    # @param group_max_runs [Integer, nil] Batches per group that can run at once. Defaults to 100; must be positive when provided.
     # @param broadcast_output [Boolean] Whether the block's return value is broadcast to every batch member
     def initialize(max_size:, max_interval_ms: nil, group_key: nil, group_max_runs: nil, broadcast_output: false)
       raise ArgumentError, "max_size must be positive" unless max_size.positive?

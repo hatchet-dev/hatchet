@@ -41,7 +41,7 @@ type fakeBatchRepo struct {
 	reserveFunc func(call *fakeReserveCall) (bool, error)
 }
 
-func (f *fakeBatchRepo) ListBatchResources(ctx context.Context) ([]*sqlcv1.ListDistinctBatchResourcesRow, error) {
+func (f *fakeBatchRepo) ListBatchResources(context.Context, []uuid.UUID) ([]*sqlcv1.ListDistinctBatchResourcesRow, error) {
 	return nil, nil
 }
 
@@ -329,7 +329,6 @@ func TestBatchSchedulerFlushOnBatchSize(t *testing.T) {
 
 	resource := &sqlcv1.ListDistinctBatchResourcesRow{
 		StepID:       stepId,
-		BatchKey:     "batch",
 		BatchMaxSize: 2,
 	}
 
@@ -369,7 +368,6 @@ func TestBatchSchedulerFlushOnInterval(t *testing.T) {
 
 	resource := &sqlcv1.ListDistinctBatchResourcesRow{
 		StepID:           stepId,
-		BatchKey:         "interval",
 		BatchMaxSize:     10,
 		BatchMaxInterval: pgtype.Int4{Int32: 50, Valid: true},
 	}
@@ -402,7 +400,6 @@ func TestBatchSchedulerAssignAndDispatchCommitsAssignments(t *testing.T) {
 		tenantId,
 		&sqlcv1.ListDistinctBatchResourcesRow{
 			StepID:            stepId,
-			BatchKey:          "group",
 			BatchMaxSize:      2,
 			BatchGroupMaxRuns: pgtype.Int4{Int32: 1, Valid: true},
 		},
@@ -523,7 +520,6 @@ func TestBatchSchedulerUsesSingleSlotForBatch(t *testing.T) {
 		tenantId,
 		&sqlcv1.ListDistinctBatchResourcesRow{
 			StepID:       stepId,
-			BatchKey:     "single-slot",
 			BatchMaxSize: 3,
 		},
 		queueFactory,
@@ -635,7 +631,6 @@ func TestBatchSchedulerScheduleTimeout(t *testing.T) {
 
 	resource := &sqlcv1.ListDistinctBatchResourcesRow{
 		StepID:       stepId,
-		BatchKey:     "timeout-batch",
 		BatchMaxSize: 5,
 	}
 
@@ -704,7 +699,6 @@ func TestBatchSchedulerHandlesMultipleBatchKeysForStep(t *testing.T) {
 
 	resource := &sqlcv1.ListDistinctBatchResourcesRow{
 		StepID:       stepId,
-		BatchKey:     "a", // representative row only; the scheduler covers every batch key for the step
 		BatchMaxSize: 2,
 	}
 
@@ -776,7 +770,6 @@ func TestBatchSchedulerReconcilesBuffersInSingleCall(t *testing.T) {
 
 	resource := &sqlcv1.ListDistinctBatchResourcesRow{
 		StepID:       stepId,
-		BatchKey:     "a",
 		BatchMaxSize: 100, // large enough that nothing flushes during this test
 	}
 
@@ -841,7 +834,6 @@ func TestBatchSchedulerRespectsBatchSizeWithMultiplePendingItems(t *testing.T) {
 
 	resource := &sqlcv1.ListDistinctBatchResourcesRow{
 		StepID:           stepId,
-		BatchKey:         "",
 		BatchMaxSize:     1,
 		BatchMaxInterval: pgtype.Int4{Int32: 100, Valid: true},
 	}
@@ -905,7 +897,6 @@ func TestBatchSchedulerExcludesBufferedIdsFromRefetch(t *testing.T) {
 
 	resource := &sqlcv1.ListDistinctBatchResourcesRow{
 		StepID:       stepId,
-		BatchKey:     "a",
 		BatchMaxSize: 100, // large enough that nothing flushes during this test
 	}
 
@@ -957,7 +948,6 @@ func TestBatchSchedulerFlushDeadlineStartsAtFirstBufferedItem(t *testing.T) {
 
 	resource := &sqlcv1.ListDistinctBatchResourcesRow{
 		StepID:           stepId,
-		BatchKey:         "reused",
 		BatchMaxSize:     100,
 		BatchMaxInterval: pgtype.Int4{Int32: 10_000, Valid: true},
 	}
@@ -1027,7 +1017,6 @@ func TestBatchSchedulerEvictsEmptiedGroupWithStaleDeadline(t *testing.T) {
 		tenantId,
 		&sqlcv1.ListDistinctBatchResourcesRow{
 			StepID:           stepId,
-			BatchKey:         "emptied",
 			BatchMaxSize:     100,
 			BatchMaxInterval: pgtype.Int4{Int32: 10_000, Valid: true},
 		},
