@@ -37,6 +37,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "PI_E2E=1 vitest run test/e2e",
     "lint": "pnpm run eslint:check && pnpm run prettier:check",
     "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix",
     "eslint:check": "eslint \"src/**/*.ts\" \"test/**/*.ts\" \"examples/coding-agent/*.ts\"",

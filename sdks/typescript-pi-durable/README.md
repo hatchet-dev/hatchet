@@ -156,8 +156,13 @@ pnpm lint
 pnpm typecheck
 pnpm test                       # unit tests
 PI_SANDBOX_TESTS=1 pnpm test    # also pi-durable's ExecutionEnv conformance suite, against a real sandbox
+pnpm test:e2e                   # sessions against a real engine, with a fake sandbox provider and model
 pnpm build
 ```
+
+`pnpm test:e2e` needs a Hatchet engine with durable streams, and a client configured for it (`HATCHET_CLIENT_TOKEN`
+and friends). It needs no sandbox provider or model API key: the tests serve the sandbox task from local folders and
+script the model with pi-ai's faux provider.
 
 ## Release
 
