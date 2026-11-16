@@ -8,6 +8,7 @@
 //   owner after a worker dies (retries), a run at the time of the next sleep (a scheduled run), and the sandboxes the
 //   tools run in.
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { createHash } from 'node:crypto';
 import { setTimeout as sleep } from 'node:timers/promises';
 import type { WatchHandle } from '@earendil-works/chord';
 import { BACKGROUND_CONTEXT as context, type Context } from '@earendil-works/chord/context';
@@ -65,7 +66,10 @@ export type SessionTaskOptions = {
     workspace?: string;
     /** A sandbox with no calls for this long stops; the next call restarts it from its snapshot. Default 30 minutes. */
     idleTimeoutMs?: number;
-    /** Fills a conversation's first sandbox, for example with a repository. Forks start from a snapshot instead. */
+    /**
+     * Fills a conversation's first sandbox, for example with a repository. Forks start from a snapshot instead. When an
+     * attempt fails after the sandbox was created, the next one seeds the same sandbox again, so make it safe to repeat.
+     */
     seed?: (sandbox: Sandbox, sessionId: string) => Promise<void>;
   };
   /** Every conversation of a session is aborted, and later inputs rejected, once the session has spent this much. Default: no cap. */
@@ -94,6 +98,15 @@ const checkpointEvery32 = (_value: unknown, _ops: unknown, info: { deltasSinceBa
 const WAKE_GRACE_MS = 2_000;
 
 const MAX_REJECTED = 20;
+
+/** Tries at preparing a conversation's sandbox before its input is rejected; a provider can be briefly unavailable. */
+const SANDBOX_ATTEMPTS = 3;
+
+/** The gRPC status the engine answers a stream cursor with once retention deleted its message. */
+const GRPC_OUT_OF_RANGE = 11;
+
+const cursorExpired = (error: unknown) =>
+  (error as { code?: unknown } | undefined)?.code === GRPC_OUT_OF_RANGE;
 
 /** What the host has applied. The inbox cursor commits with the work, so a new owner resumes after it. */
 export const HostDoc = defineDoc<{
@@ -219,7 +232,13 @@ class SessionHost {
     );
 
     for (const id of host?.conversations ?? [root.id]) await this.watch(id as ConversationId);
-    await this.ensureSandbox(root.id);
+    // Not fatal: the first input prepares the sandbox again, and a rejection shows the reason in the view.
+    await this.ensureSandbox(root.id).catch((error) =>
+      this.log(
+        `could not prepare the sandbox of conversation ${root.id}: ${String(error)}`,
+        'error'
+      )
+    );
     this.state = 'running';
     this.schedulePublish();
     this.harness.resume();
@@ -315,8 +334,9 @@ class SessionHost {
     watch.start(async () => this.schedulePublish());
   }
 
-  private createSandbox(from: string | undefined, metadata: Record<string, string>) {
+  private createSandbox(from: string | undefined, metadata: Record<string, string>, id?: string) {
     return this.hatchet.sandbox.create({
+      id,
       template: this.options.sandbox.template,
       from,
       idleTimeoutMs: this.options.sandbox.idleTimeoutMs ?? 30 * 60_000,
@@ -324,11 +344,27 @@ class SessionHost {
     });
   }
 
+  /**
+   * A conversation's sandbox ID is fixed, so an attempt that fails after creating the sandbox leaves it for the next
+   * attempt to reuse. Sandbox IDs allow only lowercase letters, digits and hyphens, so the session id is hashed.
+   */
+  private sandboxIdOf(id: ConversationId): string {
+    const session = createHash('sha256')
+      .update(`${this.taskName}/${this.sessionId}`)
+      .digest('hex')
+      .slice(0, 16);
+    return `pi-${session}-c${id}`;
+  }
+
   /** A conversation's first input needs a sandbox it owns: a fresh, seeded one, or one from its snapshot. */
   private async ensureSandbox(id: ConversationId) {
     const current = await this.harness.snapshot(SandboxDoc, id, context);
     if (current?.sandboxId && current.owner === id) return;
-    const sandbox = await this.createSandbox(current?.snapshotId, { conversation: String(id) });
+    const sandboxId = this.sandboxIdOf(id);
+    const [existing] = await this.hatchet.sandbox.list({ sandboxId });
+    const sandbox = existing
+      ? await this.hatchet.sandbox.connect(sandboxId, { template: this.options.sandbox.template })
+      : await this.createSandbox(current?.snapshotId, { conversation: String(id) }, sandboxId);
     if (!current?.snapshotId) await this.options.sandbox.seed?.(sandbox, this.sessionId);
     const snapshotId = await latestSnapshot(this.hatchet, sandbox.sandboxId);
     const conversation = (await this.harness.conversation(id, context))!;
@@ -342,6 +378,23 @@ class SessionHost {
     this.log(
       `conversation ${id} runs in sandbox ${sandbox.sandboxId} (workspace ${this.options.sandbox.workspace ?? DEFAULT_WORKSPACE})`
     );
+  }
+
+  /** Returns why the sandbox could not be prepared, once every try failed. */
+  private async prepareSandbox(id: ConversationId): Promise<string | undefined> {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await this.ensureSandbox(id);
+        return;
+      } catch (error) {
+        if (attempt >= SANDBOX_ATTEMPTS) return `could not prepare its sandbox: ${String(error)}`;
+        this.log(
+          `could not prepare the sandbox of conversation ${id}, trying again: ${String(error)}`,
+          'warn'
+        );
+        await sleep(1000 * 2 ** (attempt - 1));
+      }
+    }
   }
 
   private async readInbox(signal: AbortSignal) {
@@ -382,7 +435,17 @@ class SessionHost {
           this.lastApplied = Date.now();
         }
       } catch (error) {
-        if (!signal.aborted) this.log(`inbox stream ended: ${String(error)}`, 'warn');
+        if (signal.aborted) break;
+        if (cursorExpired(error)) {
+          // Retention deleted the message at the cursor, so every message the topic still holds comes after it.
+          this.log(
+            `the inbox cursor expired, reading from the oldest message the inbox still holds: ${String(error)}`,
+            'warn'
+          );
+          this.appliedCursor = undefined;
+        } else {
+          this.log(`inbox stream ended: ${String(error)}`, 'warn');
+        }
       }
       // the engine may hang up a subscription; read again from the committed cursor
       if (!signal.aborted) await sleep(500);
@@ -414,7 +477,8 @@ class SessionHost {
         if (cap !== undefined && (await this.spent()) >= cap) {
           return `the session has spent its $${cap} cap`;
         }
-        await this.ensureSandbox(conversation.id);
+        const unprepared = await this.prepareSandbox(conversation.id);
+        if (unprepared) return unprepared;
         await conversation.submit(
           {
             type: 'input',
@@ -427,7 +491,7 @@ class SessionHost {
         return;
       }
       case 'abort':
-        void conversation.abort(context);
+        this.abort(conversation);
         return;
       case 'fork': {
         const host = await this.harness.snapshot(HostDoc, context);
@@ -479,8 +543,20 @@ class SessionHost {
     );
     for (const id of this.views.keys()) {
       const conversation = await this.harness.conversation(id as ConversationId, context);
-      if (conversation) void conversation.abort(context);
+      if (conversation) this.abort(conversation);
     }
+  }
+
+  /**
+   * Not awaited: an abort resolves only once the conversation is idle. It rejects if the harness closes first, which
+   * must not become an unhandled rejection that stops the worker.
+   */
+  private abort(conversation: { id: ConversationId; abort(context: Context): Promise<void> }) {
+    conversation
+      .abort(context)
+      .catch((error) =>
+        this.log(`could not abort conversation ${conversation.id}: ${String(error)}`, 'warn')
+      );
   }
 
   private schedulePublish() {
