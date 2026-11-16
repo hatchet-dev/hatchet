@@ -203,15 +203,15 @@ func (c *Canvas) drawCenteredText(x, y, width, height int, text string, status r
 // getStatusColor returns the color for a task status
 func getStatusColor(status rest.V1TaskStatus) lipgloss.AdaptiveColor {
 	switch status {
-	case enums.V1ReadableStatusOlapCOMPLETED:
+	case enums.V1TaskStatusCOMPLETED:
 		return styles.StatusSuccessColor
-	case enums.V1ReadableStatusOlapFAILED:
+	case enums.V1TaskStatusFAILED:
 		return styles.StatusFailedColor
-	case enums.V1ReadableStatusOlapCANCELLED:
+	case enums.V1TaskStatusCANCELLED:
 		return styles.StatusCancelledColor
-	case enums.V1ReadableStatusOlapRUNNING:
+	case enums.V1TaskStatusRUNNING:
 		return styles.StatusInProgressColor
-	case enums.V1ReadableStatusOlapQUEUED:
+	case enums.V1TaskStatusQUEUED:
 		return styles.StatusQueuedColor
 	default:
 		return styles.MutedColor

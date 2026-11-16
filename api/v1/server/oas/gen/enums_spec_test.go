@@ -28,10 +28,10 @@ var enumValues = map[string][]string{
 	"V1IncomingWebhookAuthType":      values(enums.AllV1IncomingWebhookAuthTypeValues()),
 	"V1IncomingWebhookHmacAlgorithm": values(enums.AllV1IncomingWebhookHmacAlgorithmValues()),
 	"V1IncomingWebhookSourceName":    values(enums.AllV1IncomingWebhookSourceNameValues()),
-	"V1ReadableStatusOlap":           values(enums.AllV1ReadableStatusOlapValues()),
 	"V1RunKind":                      values(enums.AllV1RunKindValues()),
 	"V1ServerlessEndpointEventKind":  values(enums.AllV1ServerlessEndpointEventKindValues()),
 	"V1ServerlessEndpointKind":       values(enums.AllV1ServerlessEndpointKindValues()),
+	"V1TaskStatus":                   values(enums.AllV1TaskStatusValues()),
 }
 
 func TestSharedEnumsMatchSpec(t *testing.T) {

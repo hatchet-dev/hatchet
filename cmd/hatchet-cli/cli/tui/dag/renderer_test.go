@@ -50,19 +50,19 @@ func TestRenderLinearGraph(t *testing.T) {
 
 	tasks := []rest.V1TaskSummary{
 		{
-			Status: enums.V1ReadableStatusOlapCOMPLETED,
+			Status: enums.V1TaskStatusCOMPLETED,
 			Metadata: rest.APIResourceMeta{
 				Id: mustUUID("").String(),
 			},
 		},
 		{
-			Status: enums.V1ReadableStatusOlapRUNNING,
+			Status: enums.V1TaskStatusRUNNING,
 			Metadata: rest.APIResourceMeta{
 				Id: mustUUID("").String(),
 			},
 		},
 		{
-			Status: enums.V1ReadableStatusOlapQUEUED,
+			Status: enums.V1TaskStatusQUEUED,
 			Metadata: rest.APIResourceMeta{
 				Id: mustUUID("").String(),
 			},

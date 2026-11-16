@@ -3,14 +3,10 @@ import {
   statusKey,
 } from '../components/v1/task-runs-columns';
 import { useRunsContext } from './runs-provider';
-import {
-  FILTERABLE_TASK_STATUSES,
-  V1RunningFilter,
-  V1TaskStatus,
-} from '@/lib/api';
+import { V1RunningFilter, V1TaskStatus } from '@/lib/api';
 import { useCallback, useMemo } from 'react';
 
-const ALL_STATUSES = FILTERABLE_TASK_STATUSES;
+const ALL_STATUSES = Object.values(V1TaskStatus);
 
 // The URL stores "no status filter" as every status selected, so the sidebar
 // works on the explicit selection and translates back on write.

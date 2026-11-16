@@ -415,7 +415,6 @@ export enum V1TaskStatus {
   COMPLETED = 'COMPLETED',
   CANCELLED = 'CANCELLED',
   FAILED = 'FAILED',
-  EVICTED = 'EVICTED',
 }
 
 export interface APIResourceMeta {

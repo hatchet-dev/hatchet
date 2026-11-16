@@ -127,15 +127,15 @@ type WorkflowRun struct {
 func taskStatusFromProto(s v1contracts.RunStatus) rest.V1TaskStatus {
 	switch s {
 	case v1contracts.RunStatus_COMPLETED:
-		return enums.V1ReadableStatusOlapCOMPLETED
+		return enums.V1TaskStatusCOMPLETED
 	case v1contracts.RunStatus_CANCELLED:
-		return enums.V1ReadableStatusOlapCANCELLED
+		return enums.V1TaskStatusCANCELLED
 	case v1contracts.RunStatus_FAILED:
-		return enums.V1ReadableStatusOlapFAILED
+		return enums.V1TaskStatusFAILED
 	case v1contracts.RunStatus_RUNNING:
-		return enums.V1ReadableStatusOlapRUNNING
+		return enums.V1TaskStatusRUNNING
 	default:
-		return enums.V1ReadableStatusOlapQUEUED
+		return enums.V1TaskStatusQUEUED
 	}
 }
 

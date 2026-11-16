@@ -294,8 +294,7 @@ V1TaskStatus:
     - COMPLETED
     - CANCELLED
     - FAILED
-    - EVICTED
-  x-go-type: enums.V1ReadableStatusOlap
+  x-go-type: enums.V1TaskStatus
   x-go-type-import:
     path: github.com/hatchet-dev/hatchet/pkg/enums
 

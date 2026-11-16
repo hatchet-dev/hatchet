@@ -566,7 +566,7 @@ func waitTimeout(seconds int) time.Duration {
 
 func isTerminalStatus(status rest.V1TaskStatus) bool {
 	switch status {
-	case enums.V1ReadableStatusOlapCOMPLETED, enums.V1ReadableStatusOlapFAILED, enums.V1ReadableStatusOlapCANCELLED:
+	case enums.V1TaskStatusCOMPLETED, enums.V1TaskStatusFAILED, enums.V1TaskStatusCANCELLED:
 		return true
 	default:
 		return false
@@ -671,7 +671,7 @@ func runSummary(details *rest.V1WorkflowRunDetails) map[string]any {
 
 	var failedTasks []map[string]any
 	for _, task := range details.Tasks {
-		if task.Status == enums.V1ReadableStatusOlapFAILED && task.ErrorMessage != nil && *task.ErrorMessage != "" {
+		if task.Status == enums.V1TaskStatusFAILED && task.ErrorMessage != nil && *task.ErrorMessage != "" {
 			failedTasks = append(failedTasks, map[string]any{
 				"task":         task.DisplayName,
 				"errorMessage": *task.ErrorMessage,

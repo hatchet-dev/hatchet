@@ -684,10 +684,10 @@ func (e *testEnv) waitForCompletion(tn *tenant, runId string, timeout time.Durat
 		}
 
 		switch d.Status {
-		case enums.V1ReadableStatusOlapCOMPLETED:
+		case enums.V1TaskStatusCOMPLETED:
 			details = d
 			return true, nil
-		case enums.V1ReadableStatusOlapFAILED, enums.V1ReadableStatusOlapCANCELLED:
+		case enums.V1TaskStatusFAILED, enums.V1TaskStatusCANCELLED:
 			e.t.Fatalf("run %s ended with status %s: %s", runId, d.Status, describeTasks(d))
 		}
 

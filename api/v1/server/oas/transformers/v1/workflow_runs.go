@@ -82,7 +82,7 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 		parentTaskExternalId = &parentTaskExternalIdValue
 	}
 
-	status, isEvicted := mapOlapStatus(string(task.ReadableStatus))
+	status, isEvicted := mapOlapStatus(task.ReadableStatus)
 
 	runType := enums.V1RunKindDAG
 	if task.Kind == enums.V1RunKindTASK {
@@ -216,7 +216,7 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *v1.TaskWithPayloads, workflowNa
 	retryCount := int(task.RetryCount)
 	attempt := retryCount + 1
 
-	taskStatus, isEvicted := mapOlapStatus(string(task.Status))
+	taskStatus, isEvicted := mapOlapStatus(task.Status)
 
 	var idempotencyKey *string
 

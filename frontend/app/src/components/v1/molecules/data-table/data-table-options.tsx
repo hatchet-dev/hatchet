@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
-import { FILTERABLE_TASK_STATUSES, V1TaskStatus } from '@/lib/api';
+import { V1TaskStatus } from '@/lib/api';
 import {
   additionalMetadataOperatorKey,
   flattenDAGsKey,
@@ -592,7 +592,7 @@ export function DataTableOptions<TData>({
       cf?.filter((f) => {
         if (
           f.id === statusKey &&
-          arraysEqual(f.value as V1TaskStatus[], FILTERABLE_TASK_STATUSES)
+          arraysEqual(f.value as V1TaskStatus[], Object.values(V1TaskStatus))
         ) {
           return false;
         }

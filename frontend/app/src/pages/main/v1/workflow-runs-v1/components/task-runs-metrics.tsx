@@ -1,6 +1,6 @@
 import { useRunsContext } from '../hooks/runs-provider';
 import { Badge } from '@/components/v1/ui/badge';
-import { FILTERABLE_TASK_STATUSES, V1TaskStatus } from '@/lib/api';
+import { V1TaskStatus } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { CheckCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { PlayIcon, X, Ban, ChartColumn } from 'lucide-react';
@@ -17,7 +17,6 @@ function statusToFriendlyName(status: V1TaskStatus) {
     case V1TaskStatus.QUEUED:
       return 'Queued';
     case V1TaskStatus.RUNNING:
-    case V1TaskStatus.EVICTED:
       return 'Running';
     default:
       const exhaustivenessCheck: never = status;
@@ -34,7 +33,6 @@ function statusToIcon(status: V1TaskStatus) {
     case V1TaskStatus.CANCELLED:
       return Ban;
     case V1TaskStatus.RUNNING:
-    case V1TaskStatus.EVICTED:
       return PlayIcon;
     case V1TaskStatus.QUEUED:
       return ClockIcon;
@@ -63,7 +61,7 @@ function MetricBadge({
     (status: V1TaskStatus) => {
       const isSelected = currentStatuses.includes(status);
 
-      const allStatuses = FILTERABLE_TASK_STATUSES;
+      const allStatuses = Object.values(V1TaskStatus);
 
       const isAllSelected =
         currentStatuses.length === allStatuses.length &&

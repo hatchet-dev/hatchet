@@ -898,15 +898,15 @@ func parseStatuses(strs []string) ([]rest.V1TaskStatus, error) {
 	for _, s := range strs {
 		switch strings.ToUpper(s) {
 		case "QUEUED":
-			statuses = append(statuses, enums.V1ReadableStatusOlapQUEUED)
+			statuses = append(statuses, enums.V1TaskStatusQUEUED)
 		case "RUNNING":
-			statuses = append(statuses, enums.V1ReadableStatusOlapRUNNING)
+			statuses = append(statuses, enums.V1TaskStatusRUNNING)
 		case "COMPLETED":
-			statuses = append(statuses, enums.V1ReadableStatusOlapCOMPLETED)
+			statuses = append(statuses, enums.V1TaskStatusCOMPLETED)
 		case "FAILED":
-			statuses = append(statuses, enums.V1ReadableStatusOlapFAILED)
+			statuses = append(statuses, enums.V1TaskStatusFAILED)
 		case "CANCELLED":
-			statuses = append(statuses, enums.V1ReadableStatusOlapCANCELLED)
+			statuses = append(statuses, enums.V1TaskStatusCANCELLED)
 		default:
 			return nil, fmt.Errorf("invalid status %q (valid: QUEUED,RUNNING,COMPLETED,FAILED,CANCELLED)", s)
 		}

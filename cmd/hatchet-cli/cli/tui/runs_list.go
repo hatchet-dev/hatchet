@@ -402,15 +402,15 @@ func (v *RunsListView) View() string {
 
 	for _, metric := range v.metrics {
 		switch metric.Status {
-		case enums.V1ReadableStatusOlapCOMPLETED:
+		case enums.V1TaskStatusCOMPLETED:
 			completed = metric.Count
-		case enums.V1ReadableStatusOlapRUNNING:
+		case enums.V1TaskStatusRUNNING:
 			running = metric.Count
-		case enums.V1ReadableStatusOlapQUEUED:
+		case enums.V1TaskStatusQUEUED:
 			queued = metric.Count
-		case enums.V1ReadableStatusOlapFAILED:
+		case enums.V1TaskStatusFAILED:
 			failed = metric.Count
-		case enums.V1ReadableStatusOlapCANCELLED:
+		case enums.V1TaskStatusCANCELLED:
 			cancelled = metric.Count
 		}
 		total += metric.Count
@@ -860,7 +860,7 @@ func formatTaskDuration(task *rest.V1TaskSummary) string {
 	switch {
 	case task.FinishedAt != nil:
 		duration = task.FinishedAt.Sub(*task.StartedAt)
-	case task.Status == enums.V1ReadableStatusOlapRUNNING:
+	case task.Status == enums.V1TaskStatusRUNNING:
 		duration = time.Since(*task.StartedAt)
 	default:
 		return "-"

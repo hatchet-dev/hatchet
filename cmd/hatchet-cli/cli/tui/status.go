@@ -21,31 +21,31 @@ type StatusStyle struct {
 // Matches frontend createV1RunStatusVariant from run-statuses.tsx
 func GetV1TaskStatusStyle(status rest.V1TaskStatus) StatusStyle {
 	switch status {
-	case enums.V1ReadableStatusOlapCOMPLETED:
+	case enums.V1TaskStatusCOMPLETED:
 		return StatusStyle{
 			Text:       "Succeeded",
 			Foreground: styles.StatusSuccessColor,
 			Background: styles.StatusSuccessBg,
 		}
-	case enums.V1ReadableStatusOlapFAILED:
+	case enums.V1TaskStatusFAILED:
 		return StatusStyle{
 			Text:       "Failed",
 			Foreground: styles.StatusFailedColor,
 			Background: styles.StatusFailedBg,
 		}
-	case enums.V1ReadableStatusOlapCANCELLED:
+	case enums.V1TaskStatusCANCELLED:
 		return StatusStyle{
 			Text:       "Cancelled",
 			Foreground: styles.StatusCancelledColor,
 			Background: styles.StatusCancelledBg,
 		}
-	case enums.V1ReadableStatusOlapRUNNING:
+	case enums.V1TaskStatusRUNNING:
 		return StatusStyle{
 			Text:       "Running",
 			Foreground: styles.StatusInProgressColor,
 			Background: styles.StatusInProgressBg,
 		}
-	case enums.V1ReadableStatusOlapQUEUED:
+	case enums.V1TaskStatusQUEUED:
 		return StatusStyle{
 			Text:       "Queued",
 			Foreground: styles.StatusQueuedColor,
@@ -64,15 +64,15 @@ func GetV1TaskStatusStyle(status rest.V1TaskStatus) StatusStyle {
 // Use this for table cells since bubbles table doesn't support per-cell colors
 func FormatV1TaskStatusForTable(status rest.V1TaskStatus) string {
 	switch status {
-	case enums.V1ReadableStatusOlapCOMPLETED:
+	case enums.V1TaskStatusCOMPLETED:
 		return "✓ Succeeded"
-	case enums.V1ReadableStatusOlapFAILED:
+	case enums.V1TaskStatusFAILED:
 		return "✗ Failed"
-	case enums.V1ReadableStatusOlapCANCELLED:
+	case enums.V1TaskStatusCANCELLED:
 		return "○ Cancelled"
-	case enums.V1ReadableStatusOlapRUNNING:
+	case enums.V1TaskStatusRUNNING:
 		return "● Running"
-	case enums.V1ReadableStatusOlapQUEUED:
+	case enums.V1TaskStatusQUEUED:
 		return "◦ Queued"
 	default:
 		return "? Unknown"

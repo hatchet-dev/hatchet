@@ -205,7 +205,7 @@ func (c *TimingCollector) sweep(ctx context.Context, out chan<- PhaseSample) {
 	since := c.windowStart
 	c.mu.Unlock()
 
-	statuses := []rest.V1TaskStatus{enums.V1ReadableStatusOlapCOMPLETED, enums.V1ReadableStatusOlapFAILED}
+	statuses := []rest.V1TaskStatus{enums.V1TaskStatusCOMPLETED, enums.V1TaskStatusFAILED}
 
 	var offset int64
 

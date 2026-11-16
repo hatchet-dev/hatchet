@@ -2227,7 +2227,7 @@ type V1TaskRunMetric struct {
 type V1TaskRunMetrics = []V1TaskRunMetric
 
 // V1TaskStatus defines model for V1TaskStatus.
-type V1TaskStatus = enums.V1ReadableStatusOlap
+type V1TaskStatus = enums.V1TaskStatus
 
 // V1TaskSummary defines model for V1TaskSummary.
 type V1TaskSummary struct {

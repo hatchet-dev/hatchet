@@ -161,7 +161,7 @@ func TestHandleTriggerRunWaitsForCompletion(t *testing.T) {
 		tenantID:     "tenant-local",
 		triggerRunID: runID,
 		runs: map[string]*rest.V1WorkflowRunDetails{
-			runID: runDetails(runID, enums.V1ReadableStatusOlapCOMPLETED, map[string]any{"result": "ok"}, ""),
+			runID: runDetails(runID, enums.V1TaskStatusCOMPLETED, map[string]any{"result": "ok"}, ""),
 		},
 	}
 	server := newTestServer(t, engine, &fakeFeedbackSender{}, "local")
@@ -213,7 +213,7 @@ func TestHandleGetRun(t *testing.T) {
 	engine := &fakeEngine{
 		tenantID: "tenant-local",
 		runs: map[string]*rest.V1WorkflowRunDetails{
-			runID: runDetails(runID, enums.V1ReadableStatusOlapFAILED, nil, "boom"),
+			runID: runDetails(runID, enums.V1TaskStatusFAILED, nil, "boom"),
 		},
 	}
 	server := newTestServer(t, engine, &fakeFeedbackSender{}, "local")
@@ -268,7 +268,7 @@ func TestHandleReplayRunInPlace(t *testing.T) {
 	engine := &fakeEngine{
 		tenantID: "tenant-local",
 		runs: map[string]*rest.V1WorkflowRunDetails{
-			runID: runDetails(runID, enums.V1ReadableStatusOlapFAILED, nil, "boom"),
+			runID: runDetails(runID, enums.V1TaskStatusFAILED, nil, "boom"),
 		},
 	}
 	server := newTestServer(t, engine, &fakeFeedbackSender{}, "local")
@@ -287,8 +287,8 @@ func TestHandleReplayRunWithNewInputTriggersFreshRun(t *testing.T) {
 		tenantID:     "tenant-local",
 		triggerRunID: newRunID,
 		runs: map[string]*rest.V1WorkflowRunDetails{
-			oldRunID: runDetails(oldRunID, enums.V1ReadableStatusOlapFAILED, nil, "boom"),
-			newRunID: runDetails(newRunID, enums.V1ReadableStatusOlapCOMPLETED, map[string]any{"fixed": true}, ""),
+			oldRunID: runDetails(oldRunID, enums.V1TaskStatusFAILED, nil, "boom"),
+			newRunID: runDetails(newRunID, enums.V1TaskStatusCOMPLETED, map[string]any{"fixed": true}, ""),
 		},
 		workflowNames: map[string]string{"11111111-1111-1111-1111-111111111111": "simple"},
 	}

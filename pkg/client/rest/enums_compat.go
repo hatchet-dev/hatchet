@@ -68,11 +68,11 @@ const (
 	V1TaskEventTypeTIMEDOUT                            = enums.V1EventTypeOlapTIMEDOUT
 	V1TaskEventTypeTIMEOUTREFRESHED                    = enums.V1EventTypeOlapTIMEOUTREFRESHED
 	V1TaskEventTypeWAITINGFORBATCH                     = enums.V1EventTypeOlapWAITINGFORBATCH
-	V1TaskStatusCANCELLED                              = enums.V1ReadableStatusOlapCANCELLED
-	V1TaskStatusCOMPLETED                              = enums.V1ReadableStatusOlapCOMPLETED
-	V1TaskStatusFAILED                                 = enums.V1ReadableStatusOlapFAILED
-	V1TaskStatusQUEUED                                 = enums.V1ReadableStatusOlapQUEUED
-	V1TaskStatusRUNNING                                = enums.V1ReadableStatusOlapRUNNING
+	V1TaskStatusCANCELLED                              = enums.V1TaskStatusCANCELLED
+	V1TaskStatusCOMPLETED                              = enums.V1TaskStatusCOMPLETED
+	V1TaskStatusFAILED                                 = enums.V1TaskStatusFAILED
+	V1TaskStatusQUEUED                                 = enums.V1TaskStatusQUEUED
+	V1TaskStatusRUNNING                                = enums.V1TaskStatusRUNNING
 	V1WebhookAuthTypeAPIKEY                            = enums.V1IncomingWebhookAuthTypeAPIKEY
 	V1WebhookAuthTypeBASIC                             = enums.V1IncomingWebhookAuthTypeBASIC
 	V1WebhookAuthTypeHMAC                              = enums.V1IncomingWebhookAuthTypeHMAC

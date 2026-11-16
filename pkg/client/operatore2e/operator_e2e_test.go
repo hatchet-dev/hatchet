@@ -270,10 +270,10 @@ func waitForCompletion(t *testing.T, ctx context.Context, sdk *hatchet.Client, r
 			return false, err
 		}
 		switch d.Status {
-		case enums.V1ReadableStatusOlapCOMPLETED:
+		case enums.V1TaskStatusCOMPLETED:
 			details = d
 			return true, nil
-		case enums.V1ReadableStatusOlapFAILED, enums.V1ReadableStatusOlapCANCELLED:
+		case enums.V1TaskStatusFAILED, enums.V1TaskStatusCANCELLED:
 			t.Fatalf("run %s ended with status %s: %+v", runId, d.Status, d.TaskRuns)
 		}
 		return false, nil

@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- The REST client accepts the `EVICTED` task status, the `BATCH_BUFFERED` task event type, and the `STREAM_TOPIC`, `STREAM_MESSAGE` and `STREAM_RETENTION` tenant resources, which the engine already returns.
+- The REST client accepts the `BATCH_BUFFERED` task event type and the `STREAM_TOPIC`, `STREAM_MESSAGE` and `STREAM_RETENTION` tenant resources, which the engine already returns.
 
 ## [0.12.2] - 2026-11-10
 

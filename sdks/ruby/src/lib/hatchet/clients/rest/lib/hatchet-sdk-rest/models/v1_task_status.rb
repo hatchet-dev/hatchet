@@ -20,10 +20,9 @@ module HatchetSdkRest
     COMPLETED = "COMPLETED".freeze
     CANCELLED = "CANCELLED".freeze
     FAILED = "FAILED".freeze
-    EVICTED = "EVICTED".freeze
 
     def self.all_vars
-      @all_vars ||= [QUEUED, RUNNING, COMPLETED, CANCELLED, FAILED, EVICTED].freeze
+      @all_vars ||= [QUEUED, RUNNING, COMPLETED, CANCELLED, FAILED].freeze
     end
 
     # Builds the enum from string
