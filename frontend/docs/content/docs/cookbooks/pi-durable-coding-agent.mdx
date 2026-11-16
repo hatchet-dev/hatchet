@@ -202,7 +202,9 @@ A message the session cannot apply, such as an input for a conversation that doe
 
 ### Test failover
 
-Send a task that takes a while, such as "Fix the failing test", and stop the worker that owns the session while a command is running. The view shows the run's attempt. Within a few seconds, Hatchet retries the session task on the other worker, which resumes the session from its storage: the agent carries on from the tool call it was in, in the same sandbox.
+Send a task that takes a while, such as "Fix the failing test", and stop the worker that owns the session while a command is running. Once the engine sees that the worker is gone, which takes about 30 seconds, another run of the session task takes over on the other worker and resumes the session from its storage, in the same sandbox. The view shows the new run and its attempt.
+
+The command that was running is not run again, because it may have partly run. The agent gets it back as an error, `Tool bash was interrupted and may have partially run`, and decides what to do next, for example run it again.
 
 </Steps>
 
