@@ -84,7 +84,7 @@ func setupStepConcurrencyStrategy(
 	require.Len(t, strategies, 1)
 
 	strat := strategies[0]
-	require.Equal(t, strategyType, strat.Strategy)
+	require.Equal(t, strategyType, string(strat.Strategy))
 	require.Equal(t, maxRuns, strat.MaxConcurrency)
 	require.False(t, strat.ParentStrategyID.Valid, "step-level concurrency should have no parent")
 
