@@ -20,10 +20,10 @@ import {
   ChevronRightIcon,
 } from '@heroicons/react/24/outline';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useParams } from '@tanstack/react-router';
+import { useNavigate, useParams, useRouter } from '@tanstack/react-router';
 import { useSetAtom } from 'jotai';
 import { LogOut, ShieldX, Undo2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 function TenantPickerItem({
   membership,
@@ -132,6 +132,29 @@ export function TenantForbidden() {
     pendingInvitesQuery.isFetching,
     pendingInvitesQuery.data?.inviteCount,
   ]);
+
+  // Accepting an org invite, or picking "Maybe later" after a tenant invite,
+  // grants access without navigating, and closing the modal alone leaves this
+  // error rendered. Re-run the route loader once access appears. Only on a
+  // transition from no access: if the membership was already there when the
+  // memberships loaded, the 403 has another cause and retrying would loop.
+  const router = useRouter();
+  const hadAccessOnLoad = useRef<boolean>();
+  useEffect(() => {
+    if (!tenant || !tenantMemberships) {
+      return;
+    }
+    const hasAccess = tenantMemberships.some(
+      (m) => m.tenant?.metadata.id === tenant,
+    );
+    if (hadAccessOnLoad.current === undefined) {
+      hadAccessOnLoad.current = hasAccess;
+      return;
+    }
+    if (hasAccess && !hadAccessOnLoad.current) {
+      void router.invalidate();
+    }
+  }, [tenant, tenantMemberships, router]);
 
   const { userUpdateLogoutMutation } = useUserApi();
   const logoutMutation = useMutation({
