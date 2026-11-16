@@ -30,6 +30,7 @@ class V1TaskStatus(str, Enum):
     COMPLETED = "COMPLETED"
     CANCELLED = "CANCELLED"
     FAILED = "FAILED"
+    EVICTED = "EVICTED"
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

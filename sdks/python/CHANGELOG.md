@@ -5,6 +5,12 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.46.1] - 2026-11-16
+
+### Fixed
+
+- The REST client can read runs with the `EVICTED` status, task events of type `BATCH_BUFFERED`, and the `STREAM_TOPIC`, `STREAM_MESSAGE` and `STREAM_RETENTION` tenant resource limits, which the engine already returns. `RunStatus.from_v1_task_status` maps `EVICTED` to `RUNNING`.
+
 ## [1.46.0] - 2026-11-12
 
 ### Added

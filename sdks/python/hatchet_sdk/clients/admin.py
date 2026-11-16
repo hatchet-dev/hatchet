@@ -96,6 +96,9 @@ class RunStatus(str, Enum):
             return RunStatus.RUNNING
         if v1_task_status == V1TaskStatus.QUEUED:
             return RunStatus.QUEUED
+        # an evicted durable run resumes, so callers treat it as still running
+        if v1_task_status == V1TaskStatus.EVICTED:
+            return RunStatus.RUNNING
 
         raise ValueError(f"Unknown V1TaskStatus: {v1_task_status}")
 
