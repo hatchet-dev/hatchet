@@ -132,8 +132,8 @@ WHERE "tenantId" = $1::uuid
 `
 
 type GetTenantResourceLimitParams struct {
-	Tenantid uuid.UUID               `json:"tenantid"`
-	Resource enums.NullLimitResource `json:"resource"`
+	Tenantid uuid.UUID            `json:"tenantid"`
+	Resource *enums.LimitResource `json:"resource"`
 }
 
 type GetTenantResourceLimitRow struct {
@@ -281,9 +281,9 @@ RETURNING id, "createdAt", "updatedAt", resource, "tenantId", "limitValue", "ala
 `
 
 type MeterTenantResourceParams struct {
-	Numresources int32                   `json:"numresources"`
-	Tenantid     uuid.UUID               `json:"tenantid"`
-	Resource     enums.NullLimitResource `json:"resource"`
+	Numresources int32                `json:"numresources"`
+	Tenantid     uuid.UUID            `json:"tenantid"`
+	Resource     *enums.LimitResource `json:"resource"`
 }
 
 func (q *Queries) MeterTenantResource(ctx context.Context, db DBTX, arg MeterTenantResourceParams) (*TenantResourceLimit, error) {

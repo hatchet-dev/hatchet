@@ -1210,18 +1210,18 @@ RETURNING id, tenant_id, name, kind, healthcheck_url, trigger_url, signing_secre
 `
 
 type UpdateServerlessEndpointParams struct {
-	Name                  pgtype.Text                        `json:"name"`
-	Kind                  enums.NullV1ServerlessEndpointKind `json:"kind"`
-	HealthcheckUrl        pgtype.Text                        `json:"healthcheckUrl"`
-	TriggerUrl            pgtype.Text                        `json:"triggerUrl"`
-	SigningSecretEnc      pgtype.Text                        `json:"signingSecretEnc"`
-	RequestTimeoutSeconds pgtype.Int4                        `json:"requestTimeoutSeconds"`
-	PollIntervalSeconds   pgtype.Int4                        `json:"pollIntervalSeconds"`
-	InlineWaitBudgetMs    pgtype.Int4                        `json:"inlineWaitBudgetMs"`
-	Labels                []byte                             `json:"labels"`
-	Enabled               pgtype.Bool                        `json:"enabled"`
-	Tenantid              uuid.UUID                          `json:"tenantid"`
-	ID                    uuid.UUID                          `json:"id"`
+	Name                  pgtype.Text                     `json:"name"`
+	Kind                  *enums.V1ServerlessEndpointKind `json:"kind"`
+	HealthcheckUrl        pgtype.Text                     `json:"healthcheckUrl"`
+	TriggerUrl            pgtype.Text                     `json:"triggerUrl"`
+	SigningSecretEnc      pgtype.Text                     `json:"signingSecretEnc"`
+	RequestTimeoutSeconds pgtype.Int4                     `json:"requestTimeoutSeconds"`
+	PollIntervalSeconds   pgtype.Int4                     `json:"pollIntervalSeconds"`
+	InlineWaitBudgetMs    pgtype.Int4                     `json:"inlineWaitBudgetMs"`
+	Labels                []byte                          `json:"labels"`
+	Enabled               pgtype.Bool                     `json:"enabled"`
+	Tenantid              uuid.UUID                       `json:"tenantid"`
+	ID                    uuid.UUID                       `json:"id"`
 }
 
 // The partition is never updatable: it decides which lease unit owns the endpoint.

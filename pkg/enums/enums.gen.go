@@ -3,7 +3,6 @@
 package enums
 
 import (
-	"database/sql/driver"
 	"fmt"
 )
 
@@ -32,29 +31,6 @@ func (e *LimitResource) Scan(src interface{}) error {
 		return fmt.Errorf("unsupported scan type for LimitResource: %T", src)
 	}
 	return nil
-}
-
-type NullLimitResource struct {
-	LimitResource LimitResource `json:"LimitResource"`
-	Valid         bool          `json:"valid"` // Valid is true if LimitResource is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullLimitResource) Scan(value interface{}) error {
-	if value == nil {
-		ns.LimitResource, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.LimitResource.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullLimitResource) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.LimitResource), nil
 }
 
 func (e LimitResource) Valid() bool {
@@ -108,29 +84,6 @@ func (e *TenantMajorEngineVersion) Scan(src interface{}) error {
 	return nil
 }
 
-type NullTenantMajorEngineVersion struct {
-	TenantMajorEngineVersion TenantMajorEngineVersion `json:"TenantMajorEngineVersion"`
-	Valid                    bool                     `json:"valid"` // Valid is true if TenantMajorEngineVersion is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullTenantMajorEngineVersion) Scan(value interface{}) error {
-	if value == nil {
-		ns.TenantMajorEngineVersion, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.TenantMajorEngineVersion.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullTenantMajorEngineVersion) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.TenantMajorEngineVersion), nil
-}
-
 func (e TenantMajorEngineVersion) Valid() bool {
 	switch e {
 	case TenantMajorEngineVersionV0,
@@ -166,29 +119,6 @@ func (e *TenantMemberRole) Scan(src interface{}) error {
 		return fmt.Errorf("unsupported scan type for TenantMemberRole: %T", src)
 	}
 	return nil
-}
-
-type NullTenantMemberRole struct {
-	TenantMemberRole TenantMemberRole `json:"TenantMemberRole"`
-	Valid            bool             `json:"valid"` // Valid is true if TenantMemberRole is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullTenantMemberRole) Scan(value interface{}) error {
-	if value == nil {
-		ns.TenantMemberRole, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.TenantMemberRole.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullTenantMemberRole) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.TenantMemberRole), nil
 }
 
 func (e TenantMemberRole) Valid() bool {
@@ -234,29 +164,6 @@ func (e *V1ConcurrencyStrategy) Scan(src interface{}) error {
 	return nil
 }
 
-type NullV1ConcurrencyStrategy struct {
-	V1ConcurrencyStrategy V1ConcurrencyStrategy `json:"v1_concurrency_strategy"`
-	Valid                 bool                  `json:"valid"` // Valid is true if V1ConcurrencyStrategy is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1ConcurrencyStrategy) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1ConcurrencyStrategy, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1ConcurrencyStrategy.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1ConcurrencyStrategy) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1ConcurrencyStrategy), nil
-}
-
 func (e V1ConcurrencyStrategy) Valid() bool {
 	switch e {
 	case V1ConcurrencyStrategyNONE,
@@ -299,29 +206,6 @@ func (e *V1DurableEventLogKind) Scan(src interface{}) error {
 		return fmt.Errorf("unsupported scan type for V1DurableEventLogKind: %T", src)
 	}
 	return nil
-}
-
-type NullV1DurableEventLogKind struct {
-	V1DurableEventLogKind V1DurableEventLogKind `json:"v1_durable_event_log_kind"`
-	Valid                 bool                  `json:"valid"` // Valid is true if V1DurableEventLogKind is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1DurableEventLogKind) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1DurableEventLogKind, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1DurableEventLogKind.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1DurableEventLogKind) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1DurableEventLogKind), nil
 }
 
 func (e V1DurableEventLogKind) Valid() bool {
@@ -383,29 +267,6 @@ func (e *V1EventTypeOlap) Scan(src interface{}) error {
 		return fmt.Errorf("unsupported scan type for V1EventTypeOlap: %T", src)
 	}
 	return nil
-}
-
-type NullV1EventTypeOlap struct {
-	V1EventTypeOlap V1EventTypeOlap `json:"v1_event_type_olap"`
-	Valid           bool            `json:"valid"` // Valid is true if V1EventTypeOlap is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1EventTypeOlap) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1EventTypeOlap, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1EventTypeOlap.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1EventTypeOlap) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1EventTypeOlap), nil
 }
 
 func (e V1EventTypeOlap) Valid() bool {
@@ -492,29 +353,6 @@ func (e *V1IncomingWebhookAuthType) Scan(src interface{}) error {
 	return nil
 }
 
-type NullV1IncomingWebhookAuthType struct {
-	V1IncomingWebhookAuthType V1IncomingWebhookAuthType `json:"v1_incoming_webhook_auth_type"`
-	Valid                     bool                      `json:"valid"` // Valid is true if V1IncomingWebhookAuthType is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1IncomingWebhookAuthType) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1IncomingWebhookAuthType, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1IncomingWebhookAuthType.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1IncomingWebhookAuthType) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1IncomingWebhookAuthType), nil
-}
-
 func (e V1IncomingWebhookAuthType) Valid() bool {
 	switch e {
 	case V1IncomingWebhookAuthTypeBASIC,
@@ -552,29 +390,6 @@ func (e *V1IncomingWebhookHmacAlgorithm) Scan(src interface{}) error {
 		return fmt.Errorf("unsupported scan type for V1IncomingWebhookHmacAlgorithm: %T", src)
 	}
 	return nil
-}
-
-type NullV1IncomingWebhookHmacAlgorithm struct {
-	V1IncomingWebhookHmacAlgorithm V1IncomingWebhookHmacAlgorithm `json:"v1_incoming_webhook_hmac_algorithm"`
-	Valid                          bool                           `json:"valid"` // Valid is true if V1IncomingWebhookHmacAlgorithm is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1IncomingWebhookHmacAlgorithm) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1IncomingWebhookHmacAlgorithm, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1IncomingWebhookHmacAlgorithm.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1IncomingWebhookHmacAlgorithm) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1IncomingWebhookHmacAlgorithm), nil
 }
 
 func (e V1IncomingWebhookHmacAlgorithm) Valid() bool {
@@ -618,29 +433,6 @@ func (e *V1IncomingWebhookSourceName) Scan(src interface{}) error {
 		return fmt.Errorf("unsupported scan type for V1IncomingWebhookSourceName: %T", src)
 	}
 	return nil
-}
-
-type NullV1IncomingWebhookSourceName struct {
-	V1IncomingWebhookSourceName V1IncomingWebhookSourceName `json:"v1_incoming_webhook_source_name"`
-	Valid                       bool                        `json:"valid"` // Valid is true if V1IncomingWebhookSourceName is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1IncomingWebhookSourceName) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1IncomingWebhookSourceName, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1IncomingWebhookSourceName.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1IncomingWebhookSourceName) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1IncomingWebhookSourceName), nil
 }
 
 func (e V1IncomingWebhookSourceName) Valid() bool {
@@ -690,29 +482,6 @@ func (e *V1ReadableStatusOlap) Scan(src interface{}) error {
 	return nil
 }
 
-type NullV1ReadableStatusOlap struct {
-	V1ReadableStatusOlap V1ReadableStatusOlap `json:"v1_readable_status_olap"`
-	Valid                bool                 `json:"valid"` // Valid is true if V1ReadableStatusOlap is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1ReadableStatusOlap) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1ReadableStatusOlap, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1ReadableStatusOlap.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1ReadableStatusOlap) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1ReadableStatusOlap), nil
-}
-
 func (e V1ReadableStatusOlap) Valid() bool {
 	switch e {
 	case V1ReadableStatusOlapQUEUED,
@@ -756,29 +525,6 @@ func (e *V1RunKind) Scan(src interface{}) error {
 	return nil
 }
 
-type NullV1RunKind struct {
-	V1RunKind V1RunKind `json:"v1_run_kind"`
-	Valid     bool      `json:"valid"` // Valid is true if V1RunKind is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1RunKind) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1RunKind, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1RunKind.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1RunKind) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1RunKind), nil
-}
-
 func (e V1RunKind) Valid() bool {
 	switch e {
 	case V1RunKindTASK,
@@ -816,29 +562,6 @@ func (e *V1ServerlessEndpointEventKind) Scan(src interface{}) error {
 		return fmt.Errorf("unsupported scan type for V1ServerlessEndpointEventKind: %T", src)
 	}
 	return nil
-}
-
-type NullV1ServerlessEndpointEventKind struct {
-	V1ServerlessEndpointEventKind V1ServerlessEndpointEventKind `json:"v1_serverless_endpoint_event_kind"`
-	Valid                         bool                          `json:"valid"` // Valid is true if V1ServerlessEndpointEventKind is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1ServerlessEndpointEventKind) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1ServerlessEndpointEventKind, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1ServerlessEndpointEventKind.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1ServerlessEndpointEventKind) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1ServerlessEndpointEventKind), nil
 }
 
 func (e V1ServerlessEndpointEventKind) Valid() bool {
@@ -883,29 +606,6 @@ func (e *V1ServerlessEndpointKind) Scan(src interface{}) error {
 		return fmt.Errorf("unsupported scan type for V1ServerlessEndpointKind: %T", src)
 	}
 	return nil
-}
-
-type NullV1ServerlessEndpointKind struct {
-	V1ServerlessEndpointKind V1ServerlessEndpointKind `json:"v1_serverless_endpoint_kind"`
-	Valid                    bool                     `json:"valid"` // Valid is true if V1ServerlessEndpointKind is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1ServerlessEndpointKind) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1ServerlessEndpointKind, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1ServerlessEndpointKind.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1ServerlessEndpointKind) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1ServerlessEndpointKind), nil
 }
 
 func (e V1ServerlessEndpointKind) Valid() bool {

@@ -252,10 +252,7 @@ func (r *tenantInviteRepository) UpdateTenantInvite(ctx context.Context, tenantI
 	}
 
 	if opts.Role != nil {
-		params.Role = enums.NullTenantMemberRole{
-			TenantMemberRole: enums.TenantMemberRole(*opts.Role),
-			Valid:            true,
-		}
+		params.Role = new(enums.TenantMemberRole(*opts.Role))
 	}
 
 	if opts.Status != nil {

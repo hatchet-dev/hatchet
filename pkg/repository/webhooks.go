@@ -164,10 +164,7 @@ func (r *webhookRepository) CreateWebhook(ctx context.Context, tenantId uuid.UUI
 
 		params.Authapikeykey = opts.AuthConfig.APIKeyAuth.EncryptedKey
 	case enums.V1IncomingWebhookAuthTypeHMAC:
-		params.AuthHmacAlgorithm = enums.NullV1IncomingWebhookHmacAlgorithm{
-			V1IncomingWebhookHmacAlgorithm: opts.AuthConfig.HMACAuth.Algorithm,
-			Valid:                          true,
-		}
+		params.AuthHmacAlgorithm = &opts.AuthConfig.HMACAuth.Algorithm
 		params.AuthHmacEncoding = sqlcv1.NullV1IncomingWebhookHmacEncoding{
 			V1IncomingWebhookHmacEncoding: opts.AuthConfig.HMACAuth.Encoding,
 			Valid:                         true,

@@ -702,11 +702,7 @@ func (a *AdminServiceImpl) newTriggerOpt(
 	}
 
 	if len(req.DesiredWorkerLabels) > 0 {
-		labels, err := protoMapToDesiredWorkerLabels(req.DesiredWorkerLabels)
-		if err != nil {
-			return nil, connect.NewError(connect.CodeInvalidArgument, err)
-		}
-		t.DesiredWorkerLabels = labels
+		t.DesiredWorkerLabels = protoMapToDesiredWorkerLabels(req.DesiredWorkerLabels)
 	}
 
 	if req.Priority != nil {
@@ -1158,9 +1154,10 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 					continue
 				}
 
-				c, err := enums.FromProtoPtr[sqlcv1.WorkerLabelComparator](v.Comparator)
-				if err != nil {
-					return nil, err
+				var c *string
+				if v.Comparator != nil {
+					cPtr := v.Comparator.String()
+					c = &cPtr
 				}
 
 				(affinity)[k] = v1.DesiredWorkerLabelOpts{
@@ -1169,7 +1166,7 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 					IntValue:   v.IntValue,
 					Required:   v.Required,
 					Weight:     v.Weight,
-					Comparator: (*string)(c),
+					Comparator: c,
 				}
 			}
 		}
@@ -1232,11 +1229,10 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 					UnitsExpr: rateLimit.UnitsExpr,
 				}
 
-				dur, err := enums.FromProtoPtr[string](rateLimit.Duration)
-				if err != nil {
-					return nil, err
+				if rateLimit.Duration != nil {
+					dur := rateLimit.Duration.String()
+					opt.Duration = &dur
 				}
-				opt.Duration = dur
 
 				if rateLimit.Units != nil {
 					units := int(*rateLimit.Units)
@@ -1496,21 +1492,17 @@ func putWorkflowFeatureFlags(req *contracts.CreateWorkflowVersionRequest) map[st
 	)
 }
 
-func protoMapToDesiredWorkerLabels(m map[string]*contracts.DesiredWorkerLabels) ([]*sqlcv1.GetDesiredLabelsRow, error) {
+func protoMapToDesiredWorkerLabels(m map[string]*contracts.DesiredWorkerLabels) []*sqlcv1.GetDesiredLabelsRow {
 	labels := make([]*sqlcv1.GetDesiredLabelsRow, 0, len(m))
 	for key, label := range m {
-		row, err := v1.ProtoToDesiredWorkerLabel(
+		labels = append(labels, v1.ProtoToDesiredWorkerLabel(
 			key,
 			label.StrValue,
 			label.IntValue,
 			label.Required,
 			label.Weight,
 			label.Comparator,
-		)
-		if err != nil {
-			return nil, err
-		}
-		labels = append(labels, row)
+		))
 	}
-	return labels, nil
+	return labels
 }

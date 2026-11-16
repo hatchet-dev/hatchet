@@ -73,22 +73,22 @@ RETURNING tenant_id, name, source_name, event_key_expression, scope_expression, 
 `
 
 type CreateWebhookParams struct {
-	Tenantid                     uuid.UUID                                `json:"tenantid"`
-	Name                         string                                   `json:"name"`
-	Sourcename                   enums.V1IncomingWebhookSourceName        `json:"sourcename"`
-	Eventkeyexpression           string                                   `json:"eventkeyexpression"`
-	ScopeExpression              pgtype.Text                              `json:"scopeExpression"`
-	StaticPayload                []byte                                   `json:"staticPayload"`
-	Returneventasresponsepayload bool                                     `json:"returneventasresponsepayload"`
-	Authmethod                   enums.V1IncomingWebhookAuthType          `json:"authmethod"`
-	AuthBasicUsername            pgtype.Text                              `json:"authBasicUsername"`
-	Authbasicpassword            []byte                                   `json:"authbasicpassword"`
-	AuthApiKeyHeaderName         pgtype.Text                              `json:"authApiKeyHeaderName"`
-	Authapikeykey                []byte                                   `json:"authapikeykey"`
-	AuthHmacAlgorithm            enums.NullV1IncomingWebhookHmacAlgorithm `json:"authHmacAlgorithm"`
-	AuthHmacEncoding             NullV1IncomingWebhookHmacEncoding        `json:"authHmacEncoding"`
-	AuthHmacSignatureHeaderName  pgtype.Text                              `json:"authHmacSignatureHeaderName"`
-	Authhmacwebhooksigningsecret []byte                                   `json:"authhmacwebhooksigningsecret"`
+	Tenantid                     uuid.UUID                             `json:"tenantid"`
+	Name                         string                                `json:"name"`
+	Sourcename                   enums.V1IncomingWebhookSourceName     `json:"sourcename"`
+	Eventkeyexpression           string                                `json:"eventkeyexpression"`
+	ScopeExpression              pgtype.Text                           `json:"scopeExpression"`
+	StaticPayload                []byte                                `json:"staticPayload"`
+	Returneventasresponsepayload bool                                  `json:"returneventasresponsepayload"`
+	Authmethod                   enums.V1IncomingWebhookAuthType       `json:"authmethod"`
+	AuthBasicUsername            pgtype.Text                           `json:"authBasicUsername"`
+	Authbasicpassword            []byte                                `json:"authbasicpassword"`
+	AuthApiKeyHeaderName         pgtype.Text                           `json:"authApiKeyHeaderName"`
+	Authapikeykey                []byte                                `json:"authapikeykey"`
+	AuthHmacAlgorithm            *enums.V1IncomingWebhookHmacAlgorithm `json:"authHmacAlgorithm"`
+	AuthHmacEncoding             NullV1IncomingWebhookHmacEncoding     `json:"authHmacEncoding"`
+	AuthHmacSignatureHeaderName  pgtype.Text                           `json:"authHmacSignatureHeaderName"`
+	Authhmacwebhooksigningsecret []byte                                `json:"authhmacwebhooksigningsecret"`
 }
 
 func (q *Queries) CreateWebhook(ctx context.Context, db DBTX, arg CreateWebhookParams) (*V1IncomingWebhook, error) {

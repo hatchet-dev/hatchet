@@ -234,17 +234,14 @@ func (a *AdminServiceImpl) PutRateLimit(ctx context.Context, req *contracts.PutR
 	}
 
 	limit := int(req.Limit)
-	duration, err := enums.FromProto[string](req.Duration)
-	if err != nil {
-		return nil, connect.NewError(connect.CodeInvalidArgument, err)
-	}
+	duration := req.Duration.String()
 
 	createOpts := &v1.UpsertRateLimitOpts{
 		Limit:    limit,
 		Duration: &duration,
 	}
 
-	_, err = a.repov1.RateLimit().UpsertRateLimit(ctx, tenantId, req.Key, createOpts)
+	_, err := a.repov1.RateLimit().UpsertRateLimit(ctx, tenantId, req.Key, createOpts)
 
 	if err != nil {
 		return nil, err
@@ -430,9 +427,10 @@ func getCreateTaskOpts(steps []*contracts.CreateWorkflowStepOpts, scheduleTimeou
 					continue
 				}
 
-				c, err := enums.FromProtoPtr[sqlcv1.WorkerLabelComparator](v.Comparator)
-				if err != nil {
-					return nil, connect.NewError(connect.CodeInvalidArgument, err)
+				var c *string
+				if v.Comparator != nil {
+					cPtr := v.Comparator.String()
+					c = &cPtr
 				}
 
 				affinity[k] = v1.DesiredWorkerLabelOpts{
@@ -441,7 +439,7 @@ func getCreateTaskOpts(steps []*contracts.CreateWorkflowStepOpts, scheduleTimeou
 					IntValue:   v.IntValue,
 					Required:   v.Required,
 					Weight:     v.Weight,
-					Comparator: (*string)(c),
+					Comparator: c,
 				}
 			}
 		}
@@ -491,11 +489,10 @@ func getCreateTaskOpts(steps []*contracts.CreateWorkflowStepOpts, scheduleTimeou
 					UnitsExpr: rateLimit.UnitsExpr,
 				}
 
-				dur, err := enums.FromProtoPtr[string](rateLimit.Duration)
-				if err != nil {
-					return nil, connect.NewError(connect.CodeInvalidArgument, err)
+				if rateLimit.Duration != nil {
+					dur := rateLimit.Duration.String()
+					opt.Duration = &dur
 				}
-				opt.Duration = dur
 
 				if rateLimit.Units != nil {
 					units := int(*rateLimit.Units)

@@ -233,10 +233,7 @@ func (r *serverlessEndpointRepository) Update(ctx context.Context, tenantId, end
 	}
 
 	if opts.Kind != nil {
-		params.Kind = enums.NullV1ServerlessEndpointKind{
-			V1ServerlessEndpointKind: *opts.Kind,
-			Valid:                    true,
-		}
+		params.Kind = opts.Kind
 	}
 
 	if opts.Labels != nil {

@@ -289,9 +289,6 @@ func (r *tenantAlertingRepository) GetTenantResourceLimitState(ctx context.Conte
 
 	return r.queries.GetTenantResourceLimit(ctx, db, sqlcv1.GetTenantResourceLimitParams{
 		Tenantid: tenantId,
-		Resource: enums.NullLimitResource{
-			LimitResource: enums.LimitResource(resource),
-			Valid:         true,
-		},
+		Resource: new(enums.LimitResource(resource)),
 	})
 }

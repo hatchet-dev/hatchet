@@ -213,10 +213,7 @@ func (t *tenantLimitRepository) canCreate(ctx context.Context, dbtx sqlcv1.DBTX,
 
 	limit, err := t.queries.GetTenantResourceLimit(ctx, dbtx, sqlcv1.GetTenantResourceLimitParams{
 		Tenantid: tenantId,
-		Resource: enums.NullLimitResource{
-			LimitResource: resource,
-			Valid:         true,
-		},
+		Resource: &resource,
 	})
 
 	if err != nil && errors.Is(err, pgx.ErrNoRows) {
@@ -230,10 +227,7 @@ func (t *tenantLimitRepository) canCreate(ctx context.Context, dbtx sqlcv1.DBTX,
 
 		limit, err = t.queries.GetTenantResourceLimit(ctx, dbtx, sqlcv1.GetTenantResourceLimitParams{
 			Tenantid: tenantId,
-			Resource: enums.NullLimitResource{
-				LimitResource: resource,
-				Valid:         true,
-			},
+			Resource: &resource,
 		})
 		if err != nil {
 			return false, 0, err
@@ -551,7 +545,7 @@ func (t *tenantLimitRepository) StreamRetention(ctx context.Context, tenantId uu
 
 	limit, err := t.queries.GetTenantResourceLimit(ctx, t.pool.ForTenant(tenantId), sqlcv1.GetTenantResourceLimitParams{
 		Tenantid: tenantId,
-		Resource: enums.NullLimitResource{LimitResource: enums.LimitResourceSTREAMRETENTION, Valid: true},
+		Resource: new(enums.LimitResourceSTREAMRETENTION),
 	})
 
 	switch {

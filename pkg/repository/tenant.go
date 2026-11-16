@@ -51,7 +51,7 @@ type UpdateTenantOpts struct {
 
 	AlertMemberEmails *bool `validate:"omitempty"`
 
-	Version *enums.NullTenantMajorEngineVersion `validate:"omitempty"`
+	Version *enums.TenantMajorEngineVersion `validate:"omitempty"`
 
 	DataRetentionPeriod *string `validate:"omitempty,duration"`
 }
@@ -316,12 +316,9 @@ func (r *tenantRepository) CreateTenant(ctx context.Context, opts *CreateTenantO
 		Slug:                opts.Slug,
 		Name:                opts.Name,
 		DataRetentionPeriod: dataRetentionPeriod,
-		Version: enums.NullTenantMajorEngineVersion{
-			TenantMajorEngineVersion: engineVersion,
-			Valid:                    true,
-		},
-		OnboardingData: onboardingData,
-		Environment:    environment,
+		Version:             &engineVersion,
+		OnboardingData:      onboardingData,
+		Environment:         environment,
 	})
 
 	if err != nil {
@@ -387,8 +384,8 @@ func (r *tenantRepository) UpdateTenant(ctx context.Context, id uuid.UUID, opts 
 		params.AlertMemberEmails = sqlchelpers.BoolFromBoolean(*opts.AlertMemberEmails)
 	}
 
-	if opts.Version != nil && opts.Version.Valid {
-		params.Version = *opts.Version
+	if opts.Version != nil {
+		params.Version = opts.Version
 	}
 
 	if opts.DataRetentionPeriod != nil {
@@ -547,10 +544,7 @@ func (r *tenantRepository) UpdateTenantMember(ctx context.Context, tenantId uuid
 	}
 
 	if opts.Role != nil {
-		params.Role = enums.NullTenantMemberRole{
-			TenantMemberRole: enums.TenantMemberRole(*opts.Role),
-			Valid:            true,
-		}
+		params.Role = new(enums.TenantMemberRole(*opts.Role))
 	}
 
 	if opts.CanViewPayloads != nil {

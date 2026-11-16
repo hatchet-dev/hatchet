@@ -4282,24 +4282,24 @@ type V1IdempotencyKey struct {
 }
 
 type V1IncomingWebhook struct {
-	TenantID                     uuid.UUID                                `json:"tenant_id"`
-	Name                         string                                   `json:"name"`
-	SourceName                   enums.V1IncomingWebhookSourceName        `json:"source_name"`
-	EventKeyExpression           string                                   `json:"event_key_expression"`
-	ScopeExpression              pgtype.Text                              `json:"scope_expression"`
-	StaticPayload                []byte                                   `json:"static_payload"`
-	ReturnEventAsResponsePayload bool                                     `json:"return_event_as_response_payload"`
-	AuthMethod                   enums.V1IncomingWebhookAuthType          `json:"auth_method"`
-	AuthBasicUsername            pgtype.Text                              `json:"auth__basic__username"`
-	AuthBasicPassword            []byte                                   `json:"auth__basic__password"`
-	AuthApiKeyHeaderName         pgtype.Text                              `json:"auth__api_key__header_name"`
-	AuthApiKeyKey                []byte                                   `json:"auth__api_key__key"`
-	AuthHmacAlgorithm            enums.NullV1IncomingWebhookHmacAlgorithm `json:"auth__hmac__algorithm"`
-	AuthHmacEncoding             NullV1IncomingWebhookHmacEncoding        `json:"auth__hmac__encoding"`
-	AuthHmacSignatureHeaderName  pgtype.Text                              `json:"auth__hmac__signature_header_name"`
-	AuthHmacWebhookSigningSecret []byte                                   `json:"auth__hmac__webhook_signing_secret"`
-	InsertedAt                   pgtype.Timestamptz                       `json:"inserted_at"`
-	UpdatedAt                    pgtype.Timestamptz                       `json:"updated_at"`
+	TenantID                     uuid.UUID                             `json:"tenant_id"`
+	Name                         string                                `json:"name"`
+	SourceName                   enums.V1IncomingWebhookSourceName     `json:"source_name"`
+	EventKeyExpression           string                                `json:"event_key_expression"`
+	ScopeExpression              pgtype.Text                           `json:"scope_expression"`
+	StaticPayload                []byte                                `json:"static_payload"`
+	ReturnEventAsResponsePayload bool                                  `json:"return_event_as_response_payload"`
+	AuthMethod                   enums.V1IncomingWebhookAuthType       `json:"auth_method"`
+	AuthBasicUsername            pgtype.Text                           `json:"auth__basic__username"`
+	AuthBasicPassword            []byte                                `json:"auth__basic__password"`
+	AuthApiKeyHeaderName         pgtype.Text                           `json:"auth__api_key__header_name"`
+	AuthApiKeyKey                []byte                                `json:"auth__api_key__key"`
+	AuthHmacAlgorithm            *enums.V1IncomingWebhookHmacAlgorithm `json:"auth__hmac__algorithm"`
+	AuthHmacEncoding             NullV1IncomingWebhookHmacEncoding     `json:"auth__hmac__encoding"`
+	AuthHmacSignatureHeaderName  pgtype.Text                           `json:"auth__hmac__signature_header_name"`
+	AuthHmacWebhookSigningSecret []byte                                `json:"auth__hmac__webhook_signing_secret"`
+	InsertedAt                   pgtype.Timestamptz                    `json:"inserted_at"`
+	UpdatedAt                    pgtype.Timestamptz                    `json:"updated_at"`
 }
 
 type V1IncomingWebhookValidationFailuresOlap struct {

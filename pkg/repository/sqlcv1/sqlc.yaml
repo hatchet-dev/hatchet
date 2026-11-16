@@ -95,7 +95,8 @@ sql:
             nullable: true
             go_type:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
-              type: "NullTenantMemberRole"
+              type: "TenantMemberRole"
+              pointer: true
           - db_type: "TenantMajorEngineVersion"
             go_type:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
@@ -104,7 +105,8 @@ sql:
             nullable: true
             go_type:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
-              type: "NullTenantMajorEngineVersion"
+              type: "TenantMajorEngineVersion"
+              pointer: true
           - db_type: "LimitResource"
             go_type:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
@@ -113,7 +115,8 @@ sql:
             nullable: true
             go_type:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
-              type: "NullLimitResource"
+              type: "LimitResource"
+              pointer: true
           - db_type: "v1_concurrency_strategy"
             go_type:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
@@ -122,7 +125,8 @@ sql:
             nullable: true
             go_type:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
-              type: "NullV1ConcurrencyStrategy"
+              type: "V1ConcurrencyStrategy"
+              pointer: true
           - db_type: "v1_durable_event_log_kind"
             go_type:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
@@ -131,7 +135,8 @@ sql:
             nullable: true
             go_type:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
-              type: "NullV1DurableEventLogKind"
+              type: "V1DurableEventLogKind"
+              pointer: true
           - db_type: "v1_event_type_olap"
             go_type:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
@@ -140,7 +145,8 @@ sql:
             nullable: true
             go_type:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
-              type: "NullV1EventTypeOlap"
+              type: "V1EventTypeOlap"
+              pointer: true
           - db_type: "v1_incoming_webhook_auth_type"
             go_type:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
@@ -149,7 +155,8 @@ sql:
             nullable: true
             go_type:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
-              type: "NullV1IncomingWebhookAuthType"
+              type: "V1IncomingWebhookAuthType"
+              pointer: true
           - db_type: "v1_incoming_webhook_hmac_algorithm"
             go_type:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
@@ -158,7 +165,8 @@ sql:
             nullable: true
             go_type:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
-              type: "NullV1IncomingWebhookHmacAlgorithm"
+              type: "V1IncomingWebhookHmacAlgorithm"
+              pointer: true
           - db_type: "v1_incoming_webhook_source_name"
             go_type:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
@@ -167,7 +175,8 @@ sql:
             nullable: true
             go_type:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
-              type: "NullV1IncomingWebhookSourceName"
+              type: "V1IncomingWebhookSourceName"
+              pointer: true
           - db_type: "v1_readable_status_olap"
             go_type:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
@@ -176,7 +185,8 @@ sql:
             nullable: true
             go_type:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
-              type: "NullV1ReadableStatusOlap"
+              type: "V1ReadableStatusOlap"
+              pointer: true
           - db_type: "v1_run_kind"
             go_type:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
@@ -185,7 +195,8 @@ sql:
             nullable: true
             go_type:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
-              type: "NullV1RunKind"
+              type: "V1RunKind"
+              pointer: true
           - db_type: "v1_serverless_endpoint_event_kind"
             go_type:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
@@ -194,7 +205,8 @@ sql:
             nullable: true
             go_type:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
-              type: "NullV1ServerlessEndpointEventKind"
+              type: "V1ServerlessEndpointEventKind"
+              pointer: true
           - db_type: "v1_serverless_endpoint_kind"
             go_type:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
@@ -203,7 +215,8 @@ sql:
             nullable: true
             go_type:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
-              type: "NullV1ServerlessEndpointKind"
+              type: "V1ServerlessEndpointKind"
+              pointer: true
           - db_type: "uuidrange"
             go_type:
               type: "UUIDRange"

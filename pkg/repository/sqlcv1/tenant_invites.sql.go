@@ -288,10 +288,10 @@ RETURNING id, "createdAt", "updatedAt", "tenantId", "inviterEmail", "inviteeEmai
 `
 
 type UpdateTenantInviteParams struct {
-	Status          NullInviteLinkStatus       `json:"status"`
-	Role            enums.NullTenantMemberRole `json:"role"`
-	CanViewPayloads pgtype.Bool                `json:"canViewPayloads"`
-	ID              uuid.UUID                  `json:"id"`
+	Status          NullInviteLinkStatus    `json:"status"`
+	Role            *enums.TenantMemberRole `json:"role"`
+	CanViewPayloads pgtype.Bool             `json:"canViewPayloads"`
+	ID              uuid.UUID               `json:"id"`
 }
 
 func (q *Queries) UpdateTenantInvite(ctx context.Context, db DBTX, arg UpdateTenantInviteParams) (*TenantInviteLink, error) {
