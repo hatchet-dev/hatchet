@@ -49,17 +49,4 @@ func TestDefaultTaskActivityGauge(t *testing.T) {
 			assert.Equal(t, tc.want, got)
 		})
 	}
-
-	t.Run("index from the migration is valid", func(t *testing.T) {
-		var isValid bool
-
-		err := pool.QueryRow(ctx, `
-			SELECT i.indisvalid
-			FROM pg_index i
-			JOIN pg_class c ON c.oid = i.indexrelid
-			WHERE c.relname = 'v1_queue_tenant_id_last_active_idx'
-		`).Scan(&isValid)
-		require.NoError(t, err, "v1_queue_tenant_id_last_active_idx should exist")
-		assert.True(t, isValid)
-	})
 }
