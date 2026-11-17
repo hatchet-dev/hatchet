@@ -3046,7 +3046,7 @@ func (r *sharedRepository) operatorStepChildrenCompletingDirectly(ctx context.Co
 	stepChildrenSkipMatch := r.operatorStepChildrenSkipCompletionMatch(ctx, tx, tenantId)
 	childExternalIds := make([]string, 0, len(completions))
 
-	// other children may have a match even with the flag on: non-durable parents and replays still create them
+	// other children may have a match even with the flag on: they were spawned by an instance with the flag off
 	for _, completion := range completions {
 		task := completion.ReleasedTask
 

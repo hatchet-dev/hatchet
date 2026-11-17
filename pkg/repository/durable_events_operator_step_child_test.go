@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -179,4 +180,60 @@ func TestOperatorStepChildCancellationSatisfiesTheEntryAsAFailure(t *testing.T) 
 	require.True(t, entries[0].ChildTaskIsFailure)
 	require.NotNil(t, entries[0].ChildTaskErrorMessage)
 	require.Equal(t, TaskCancelledErrorMessage, *entries[0].ChildTaskErrorMessage)
+}
+
+func TestDurableParentsSingleTaskChildHasNoCompletionMatchWithDirectSpawn(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	repos := newUserEventScopeTestRepositories(t, pool)
+	repos.shared.childRunDirectSpawn = true
+
+	workflows := &workflowRepository{sharedRepository: repos.shared}
+	_, err := workflows.PutWorkflowVersion(ctx, internalTenantId, minimalWorkflowOpts("durable-child", "v1", nil))
+	require.NoError(t, err)
+
+	parent := createUserEventScopeTestTask(t, ctx, repos, internalTenantId, 501)
+	parentInsertedAt := parent.InsertedAt.Time
+	childIndex := int64(0)
+
+	ingested, err := repos.durable.IngestDurableTaskEvent(ctx, IngestDurableTaskEventOpts{
+		BaseIngestEventOpts: &BaseIngestEventOpts{
+			Task:            parent,
+			Kind:            enums.V1DurableEventLogKindRUN,
+			InvocationCount: 1,
+			TenantId:        internalTenantId,
+		},
+		TriggerRuns: &IngestTriggerRunsOpts{
+			TriggerOpts: []*WorkflowNameTriggerOpts{{
+				TriggerTaskData: &TriggerTaskData{
+					WorkflowName:         "durable-child",
+					Data:                 []byte(`{}`),
+					ParentExternalId:     &parent.ExternalID,
+					ParentTaskId:         &parent.ID,
+					ParentTaskInsertedAt: &parentInsertedAt,
+					ChildIndex:           &childIndex,
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	createdTasks, _, _, err := repos.durable.TriggerPendingRunEntries(ctx, internalTenantId, []TriggerPendingRunEntriesOpt{{
+		Task:        parent,
+		PendingRuns: ingested.TriggerRunsResult.PendingTriggers,
+	}})
+	require.NoError(t, err)
+	require.Len(t, createdTasks, 1)
+
+	childHint := createdTasks[0].ExternalID.String()
+	completionConditions, err := repos.shared.queries.ListMatchConditionsForEventWithHint(ctx, pool, sqlcv1.ListMatchConditionsForEventWithHintParams{
+		Tenantid:           internalTenantId,
+		Eventtype:          sqlcv1.V1EventTypeINTERNAL,
+		Eventkeys:          []string{string(sqlcv1.V1TaskEventTypeCOMPLETED)},
+		Eventresourcehints: []string{childHint},
+	})
+	require.NoError(t, err)
+	require.Empty(t, completionConditions)
 }
