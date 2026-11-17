@@ -4,6 +4,10 @@ from typing import TYPE_CHECKING, ParamSpec, TypeVar
 
 import grpc
 import tenacity
+from google.rpc import (  # type: ignore[import-untyped]
+    error_details_pb2,
+    status_pb2,
+)
 
 from hatchet_sdk.clients.rest.exceptions import (
     NotFoundError,
@@ -14,6 +18,7 @@ from hatchet_sdk.clients.rest.exceptions import (
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from datetime import timedelta
 
     from hatchet_sdk.config import TenacityConfig
 
@@ -26,11 +31,14 @@ def tenacity_retry(func: Callable[P, R], config: TenacityConfig) -> Callable[P, 
         return func
 
     def should_retry(ex: BaseException) -> bool:
-        return tenacity_should_retry(ex, config)
+        return (
+            tenacity_should_retry(ex, config)
+            and _server_retry_delay(ex) <= MAX_SERVER_RETRY_DELAY_SECONDS
+        )
 
     return tenacity.retry(
         reraise=True,
-        wait=config.wait(),
+        wait=wait_server_retry_delay(config.wait()),
         stop=tenacity.stop_after_attempt(config.max_attempts),
         before_sleep=config.before_sleep,
         retry=tenacity.retry_if_exception(should_retry),
@@ -73,3 +81,51 @@ def tenacity_should_retry(
         return False
 
     return False
+
+
+MAX_SERVER_RETRY_DELAY_SECONDS = 5.0
+"""The longest wait the SDK accepts from a server's RetryInfo delay. The wait blocks the caller,
+so tenacity_retry fails a call at once with the server's error when the server asks for longer."""
+
+
+def wait_server_retry_delay(
+    fallback: Callable[[tenacity.RetryCallState], float],
+) -> Callable[[tenacity.RetryCallState], float]:
+    """Wait the fallback's delay, unless the failed attempt carried a RetryInfo delay. Then wait
+    that delay, doubled for each retry the call has already made and capped at
+    MAX_SERVER_RETRY_DELAY_SECONDS, which is the client behavior RetryInfo documents. A server
+    that keeps throttling repeats the same delay, so without the doubling the client would not
+    back off.
+    """
+
+    def wait(retry_state: tenacity.RetryCallState) -> float:
+        assert retry_state.outcome is not None
+        server_delay = _server_retry_delay(retry_state.outcome.exception())
+        if server_delay > 0:
+            delay = server_delay
+            for _ in range(retry_state.attempt_number - 1):
+                delay = min(delay * 2, MAX_SERVER_RETRY_DELAY_SECONDS)
+
+            return delay
+
+        # Tenacity's wait strategies keep no state between calls; each wait is computed from
+        # retry_state.attempt_number, so skipping the fallback here leaves later waits unchanged.
+        return fallback(retry_state)
+
+    return wait
+
+
+def _server_retry_delay(ex: BaseException | None) -> float:
+    """Seconds to wait from a gRPC error's RetryInfo detail, or 0."""
+    if not isinstance(ex, (grpc.Call, grpc.aio.AioRpcError)):
+        return 0
+
+    for key, value in ex.trailing_metadata() or ():
+        if key == "grpc-status-details-bin":
+            for detail in status_pb2.Status.FromString(value).details:
+                info = error_details_pb2.RetryInfo()
+                if detail.Unpack(info):
+                    delay: timedelta = info.retry_delay.ToTimedelta()
+                    return delay.total_seconds()
+
+    return 0
