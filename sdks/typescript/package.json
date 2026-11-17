@@ -1,6 +1,6 @@
 {
   "name": "@hatchet-dev/typescript-sdk",
-  "version": "1.47.3",
+  "version": "1.47.4",
   "engines": {
     "node": ">=22"
   },

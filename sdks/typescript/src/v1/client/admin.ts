@@ -81,7 +81,7 @@ export class AdminClient {
     try {
       return await retrier(async () => this.adminGrpc.putWorkflow(workflow), this.logger);
     } catch (e: any) {
-      throw new HatchetError(e.message);
+      throw new HatchetError(e.message, { cause: e });
     }
   }
 
@@ -131,7 +131,7 @@ export class AdminClient {
       if (isAlreadyExists(e)) {
         throw new IdempotencyCollisionError(extractExistingRunId(e));
       }
-      throw new HatchetError(e instanceof Error ? e.message : String(e));
+      throw new HatchetError(e instanceof Error ? e.message : String(e), { cause: e });
     }
   }
 
@@ -201,7 +201,7 @@ export class AdminClient {
         const collision = extractBulkTriggerCollision(e);
         if (collision) throw collision;
       }
-      throw new HatchetError(e instanceof Error ? (e as Error).message : String(e));
+      throw new HatchetError(e instanceof Error ? (e as Error).message : String(e), { cause: e });
     }
   }
 
