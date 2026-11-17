@@ -538,6 +538,54 @@ func TestScheduleDeleteBehindWorkflowDeleteCountsOnce(t *testing.T) {
 	require.Equal(t, int64(1), rows[0].ScheduledRunCount, "only the other workflow's schedule remains")
 }
 
+func TestScheduleDeleteLocksOnlyTheTenantsSchedules(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	workflows, schedules, _ := newAllocatedResourcesTestRepos(pool)
+
+	otherTenantId := uuid.New()
+	_, err := pool.Exec(ctx, `INSERT INTO "Tenant" ("id", "name", "slug") VALUES ($1, $2, $3)`, otherTenantId, "Other Tenant", "allocated-other-tenant")
+	require.NoError(t, err)
+
+	own, err := workflows.PutWorkflowVersion(ctx, internalTenantId, minimalWorkflowOpts("allocated-lock-scope-own", "v1", nil))
+	require.NoError(t, err)
+
+	other, err := workflows.PutWorkflowVersion(ctx, otherTenantId, minimalWorkflowOpts("allocated-lock-scope-other", "v1", nil))
+	require.NoError(t, err)
+
+	ownSchedule, err := schedules.CreateScheduledWorkflow(ctx, internalTenantId, &CreateScheduledWorkflowRunForWorkflowOpts{
+		WorkflowId:       own.WorkflowVersion.WorkflowId,
+		ScheduledTrigger: time.Now().UTC().Add(time.Hour),
+	})
+	require.NoError(t, err)
+
+	otherSchedule, err := schedules.CreateScheduledWorkflow(ctx, otherTenantId, &CreateScheduledWorkflowRunForWorkflowOpts{
+		WorkflowId:       other.WorkflowVersion.WorkflowId,
+		ScheduledTrigger: time.Now().UTC().Add(time.Hour),
+	})
+	require.NoError(t, err)
+
+	scheduleDelete, err := pool.Begin(ctx)
+	require.NoError(t, err)
+
+	defer func() { _ = scheduleDelete.Rollback(ctx) }()
+
+	counted, err := schedules.countLockedSchedules(ctx, scheduleDelete, internalTenantId, []uuid.UUID{ownSchedule.ID, otherSchedule.ID}, true)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), counted)
+
+	lockNoWait := func(id uuid.UUID) error {
+		_, err := pool.Exec(ctx, `SELECT "id" FROM "WorkflowTriggerScheduledRef" WHERE "id" = $1 FOR UPDATE NOWAIT`, id)
+
+		return err
+	}
+
+	require.Error(t, lockNoWait(ownSchedule.ID), "the tenant's own schedule is held by the delete")
+	require.NoError(t, lockNoWait(otherSchedule.ID), "another tenant's schedule stays unlocked")
+}
+
 func countAllocatedResourceDeltas(ctx context.Context, t *testing.T, pool *pgxpool.Pool) int {
 	t.Helper()
 

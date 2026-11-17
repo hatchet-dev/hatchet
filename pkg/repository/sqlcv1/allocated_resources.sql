@@ -272,11 +272,18 @@ WHERE c."id" = @id::uuid;
 -- these schedules, in id order. The caller reads which of them still count in
 -- a later statement, whose snapshot then includes what that transaction
 -- committed.
-SELECT "id"
-FROM "WorkflowTriggerScheduledRef"
-WHERE "id" = ANY(@ids::uuid[])
-ORDER BY "id"
-FOR UPDATE;
+-- Only the tenant's own schedules are locked, since the ids can come straight
+-- from an API request. Deleted versions and workflows are not filtered out:
+-- a schedule on one may be held by the workflow delete this waits for.
+SELECT s."id"
+FROM "WorkflowTriggerScheduledRef" s
+JOIN "WorkflowVersion" v ON s."parentId" = v."id"
+JOIN "Workflow" w ON v."workflowId" = w."id"
+WHERE
+    s."id" = ANY(@ids::uuid[])
+    AND w."tenantId" = @tenantId::uuid
+ORDER BY s."id"
+FOR UPDATE OF s;
 
 -- name: LockSchedulesCountedTowardAllocation :many
 -- Returns the schedules that still contribute to the count, in id order.

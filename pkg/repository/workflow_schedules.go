@@ -307,7 +307,7 @@ func (w *workflowScheduleRepository) lockedCronCountDelta(ctx context.Context, d
 // before it commits, so the count read after the lock sees either the live
 // workflow or the committed delete, and the schedule is subtracted once.
 func (w *workflowScheduleRepository) countLockedSchedules(ctx context.Context, db sqlcv1.DBTX, tenantId uuid.UUID, ids []uuid.UUID, apiOnly bool) (int64, error) {
-	if err := w.queries.LockSchedules(ctx, db, ids); err != nil {
+	if err := w.queries.LockSchedules(ctx, db, sqlcv1.LockSchedulesParams{Ids: ids, Tenantid: tenantId}); err != nil {
 		return 0, err
 	}
 

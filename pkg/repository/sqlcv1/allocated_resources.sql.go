@@ -385,19 +385,31 @@ func (q *Queries) InsertAllocatedResourceCountDelta(ctx context.Context, db DBTX
 }
 
 const lockSchedules = `-- name: LockSchedules :exec
-SELECT "id"
-FROM "WorkflowTriggerScheduledRef"
-WHERE "id" = ANY($1::uuid[])
-ORDER BY "id"
-FOR UPDATE
+SELECT s."id"
+FROM "WorkflowTriggerScheduledRef" s
+JOIN "WorkflowVersion" v ON s."parentId" = v."id"
+JOIN "Workflow" w ON v."workflowId" = w."id"
+WHERE
+    s."id" = ANY($1::uuid[])
+    AND w."tenantId" = $2::uuid
+ORDER BY s."id"
+FOR UPDATE OF s
 `
+
+type LockSchedulesParams struct {
+	Ids      []uuid.UUID `json:"ids"`
+	Tenantid uuid.UUID   `json:"tenantid"`
+}
 
 // Waits for a workflow delete or another schedule delete that holds one of
 // these schedules, in id order. The caller reads which of them still count in
 // a later statement, whose snapshot then includes what that transaction
 // committed.
-func (q *Queries) LockSchedules(ctx context.Context, db DBTX, ids []uuid.UUID) error {
-	_, err := db.Exec(ctx, lockSchedules, ids)
+// Only the tenant's own schedules are locked, since the ids can come straight
+// from an API request. Deleted versions and workflows are not filtered out:
+// a schedule on one may be held by the workflow delete this waits for.
+func (q *Queries) LockSchedules(ctx context.Context, db DBTX, arg LockSchedulesParams) error {
+	_, err := db.Exec(ctx, lockSchedules, arg.Ids, arg.Tenantid)
 	return err
 }
 
