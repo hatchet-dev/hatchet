@@ -1922,9 +1922,9 @@ func (r *workflowRepository) DeleteWorkflow(ctx context.Context, tenantId uuid.U
 	}
 	defer rollback()
 
-	// Cron writes take this version lock and schedule writes take its share
-	// lock, so both wait for the delete. Schedules are locked after it, which
-	// is also the order version registration uses when it moves them.
+	// Cron writes take this version lock and schedule creates take its share
+	// lock, so both wait for the delete. Schedule deletes wait on the schedule
+	// locks taken next.
 	versionId, err := lockLatestWorkflowVersion(ctx, r.queries, tx, workflowId)
 	if err != nil && !errors.Is(err, errNoLiveWorkflowVersion) {
 		return nil, err

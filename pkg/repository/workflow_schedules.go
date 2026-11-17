@@ -1,12 +1,10 @@
 package repository
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -304,26 +302,13 @@ func (w *workflowScheduleRepository) lockedCronCountDelta(ctx context.Context, d
 	return w.cronCountDelta(ctx, db, tenantId, id, nextEnabled)
 }
 
-// countLockedSchedules takes the share lock on each schedule's workflow
-// version, then locks the schedules that still count, and returns how many of
-// those there are.
+// countLockedSchedules locks the schedules, then returns how many of them
+// still count. A workflow delete locks the schedules it removes from the count
+// before it commits, so the count read after the lock sees either the live
+// workflow or the committed delete, and the schedule is subtracted once.
 func (w *workflowScheduleRepository) countLockedSchedules(ctx context.Context, db sqlcv1.DBTX, tenantId uuid.UUID, ids []uuid.UUID, apiOnly bool) (int64, error) {
-	workflowIDs, err := w.queries.ListScheduleWorkflowIDs(ctx, db, sqlcv1.ListScheduleWorkflowIDsParams{
-		Ids:      ids,
-		Tenantid: tenantId,
-	})
-	if err != nil {
+	if err := w.queries.LockSchedules(ctx, db, ids); err != nil {
 		return 0, err
-	}
-
-	slices.SortFunc(workflowIDs, func(a, b uuid.UUID) int {
-		return bytes.Compare(a[:], b[:])
-	})
-
-	for _, workflowID := range workflowIDs {
-		if err := shareLatestWorkflowVersion(ctx, w.queries, db, workflowID); err != nil && !errors.Is(err, errNoLiveWorkflowVersion) {
-			return 0, err
-		}
 	}
 
 	locked, err := w.queries.LockSchedulesCountedTowardAllocation(ctx, db, sqlcv1.LockSchedulesCountedTowardAllocationParams{

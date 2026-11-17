@@ -384,40 +384,21 @@ func (q *Queries) InsertAllocatedResourceCountDelta(ctx context.Context, db DBTX
 	return err
 }
 
-const listScheduleWorkflowIDs = `-- name: ListScheduleWorkflowIDs :many
-SELECT DISTINCT w."id"
-FROM "WorkflowTriggerScheduledRef" s
-JOIN "WorkflowVersion" v ON s."parentId" = v."id"
-JOIN "Workflow" w ON v."workflowId" = w."id"
-WHERE
-    s."id" = ANY($1::uuid[])
-    AND w."tenantId" = $2::uuid
-ORDER BY w."id"
+const lockSchedules = `-- name: LockSchedules :exec
+SELECT "id"
+FROM "WorkflowTriggerScheduledRef"
+WHERE "id" = ANY($1::uuid[])
+ORDER BY "id"
+FOR UPDATE
 `
 
-type ListScheduleWorkflowIDsParams struct {
-	Ids      []uuid.UUID `json:"ids"`
-	Tenantid uuid.UUID   `json:"tenantid"`
-}
-
-func (q *Queries) ListScheduleWorkflowIDs(ctx context.Context, db DBTX, arg ListScheduleWorkflowIDsParams) ([]uuid.UUID, error) {
-	rows, err := db.Query(ctx, listScheduleWorkflowIDs, arg.Ids, arg.Tenantid)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []uuid.UUID
-	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+// Waits for a workflow delete or another schedule delete that holds one of
+// these schedules, in id order. The caller reads which of them still count in
+// a later statement, whose snapshot then includes what that transaction
+// committed.
+func (q *Queries) LockSchedules(ctx context.Context, db DBTX, ids []uuid.UUID) error {
+	_, err := db.Exec(ctx, lockSchedules, ids)
+	return err
 }
 
 const lockSchedulesCountedTowardAllocation = `-- name: LockSchedulesCountedTowardAllocation :many
@@ -450,10 +431,12 @@ type LockSchedulesCountedTowardAllocationParams struct {
 	Apionly  bool        `json:"apionly"`
 }
 
-// Locks the schedules that still contribute to the count, in id order, and
-// returns those ids. apiOnly limits the set to API schedules, the set bulk
-// delete removes. The caller holds each workflow's latest version share lock
-// first.
+// Returns the schedules that still contribute to the count, in id order.
+// apiOnly limits the set to API schedules, the set bulk delete removes. The
+// caller has locked the schedules with LockSchedules in an earlier statement.
+// Run on its own, a row this statement waits for is returned with the version
+// and workflow as they were before the wait, so a schedule a workflow delete
+// has just removed from the count would be counted again.
 func (q *Queries) LockSchedulesCountedTowardAllocation(ctx context.Context, db DBTX, arg LockSchedulesCountedTowardAllocationParams) ([]uuid.UUID, error) {
 	rows, err := db.Query(ctx, lockSchedulesCountedTowardAllocation, arg.Ids, arg.Tenantid, arg.Apionly)
 	if err != nil {

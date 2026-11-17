@@ -267,21 +267,24 @@ JOIN "WorkflowVersion" v ON v."id" = t."workflowVersionId"
 JOIN "Workflow" w ON w."id" = v."workflowId"
 WHERE c."id" = @id::uuid;
 
--- name: ListScheduleWorkflowIDs :many
-SELECT DISTINCT w."id"
-FROM "WorkflowTriggerScheduledRef" s
-JOIN "WorkflowVersion" v ON s."parentId" = v."id"
-JOIN "Workflow" w ON v."workflowId" = w."id"
-WHERE
-    s."id" = ANY(@ids::uuid[])
-    AND w."tenantId" = @tenantId::uuid
-ORDER BY w."id";
+-- name: LockSchedules :exec
+-- Waits for a workflow delete or another schedule delete that holds one of
+-- these schedules, in id order. The caller reads which of them still count in
+-- a later statement, whose snapshot then includes what that transaction
+-- committed.
+SELECT "id"
+FROM "WorkflowTriggerScheduledRef"
+WHERE "id" = ANY(@ids::uuid[])
+ORDER BY "id"
+FOR UPDATE;
 
 -- name: LockSchedulesCountedTowardAllocation :many
--- Locks the schedules that still contribute to the count, in id order, and
--- returns those ids. apiOnly limits the set to API schedules, the set bulk
--- delete removes. The caller holds each workflow's latest version share lock
--- first.
+-- Returns the schedules that still contribute to the count, in id order.
+-- apiOnly limits the set to API schedules, the set bulk delete removes. The
+-- caller has locked the schedules with LockSchedules in an earlier statement.
+-- Run on its own, a row this statement waits for is returned with the version
+-- and workflow as they were before the wait, so a schedule a workflow delete
+-- has just removed from the count would be counted again.
 SELECT s."id"
 FROM "WorkflowTriggerScheduledRef" s
 JOIN "WorkflowVersion" v ON s."parentId" = v."id"

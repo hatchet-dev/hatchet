@@ -468,6 +468,76 @@ func TestAllocatedScheduleCountMatchesLiveRowsUnderConcurrency(t *testing.T) {
 	}
 }
 
+// A schedule delete that waits on a workflow delete for the schedule's row must not subtract the
+// schedule a second time. The workflow delete here holds no version lock the schedule delete
+// waits on, which is the case when a version registered in between gave the two different
+// latest versions.
+func TestScheduleDeleteBehindWorkflowDeleteCountsOnce(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	workflows, schedules, _ := newAllocatedResourcesTestRepos(pool)
+
+	kept, err := workflows.PutWorkflowVersion(ctx, internalTenantId, minimalWorkflowOpts("allocated-delete-order-kept", "v1", nil))
+	require.NoError(t, err)
+
+	deleted, err := workflows.PutWorkflowVersion(ctx, internalTenantId, minimalWorkflowOpts("allocated-delete-order-deleted", "v1", nil))
+	require.NoError(t, err)
+
+	_, err = schedules.CreateScheduledWorkflow(ctx, internalTenantId, &CreateScheduledWorkflowRunForWorkflowOpts{
+		WorkflowId:       kept.WorkflowVersion.WorkflowId,
+		ScheduledTrigger: time.Now().UTC().Add(time.Hour),
+	})
+	require.NoError(t, err)
+
+	schedule, err := schedules.CreateScheduledWorkflow(ctx, internalTenantId, &CreateScheduledWorkflowRunForWorkflowOpts{
+		WorkflowId:       deleted.WorkflowVersion.WorkflowId,
+		ScheduledTrigger: time.Now().UTC().Add(time.Hour),
+	})
+	require.NoError(t, err)
+
+	workflowDelete, err := pool.Begin(ctx)
+	require.NoError(t, err)
+
+	defer func() { _ = workflowDelete.Rollback(ctx) }()
+
+	locked, err := schedules.queries.LockWorkflowSchedulesTowardAllocation(ctx, workflowDelete, sqlcv1.LockWorkflowSchedulesTowardAllocationParams{
+		Workflowid: deleted.WorkflowVersion.WorkflowId,
+		Tenantid:   internalTenantId,
+	})
+	require.NoError(t, err)
+	require.Len(t, locked, 1)
+
+	_, err = schedules.queries.SoftDeleteWorkflow(ctx, workflowDelete, deleted.WorkflowVersion.WorkflowId)
+	require.NoError(t, err)
+
+	require.NoError(t, adjustAllocatedResourceCounts(ctx, schedules.queries, workflowDelete, internalTenantId, allocatedResourceCountDelta{ScheduledRun: -1}))
+
+	scheduleDeleteDone := make(chan error, 1)
+
+	go func() {
+		scheduleDeleteDone <- schedules.DeleteScheduledWorkflow(ctx, internalTenantId, schedule.ID)
+	}()
+
+	require.Eventually(t, func() bool {
+		var waiting int
+		err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock'`).Scan(&waiting)
+
+		return err == nil && waiting == 1
+	}, 10*time.Second, 10*time.Millisecond, "the schedule delete should wait on the workflow delete")
+
+	require.NoError(t, workflowDelete.Commit(ctx))
+	require.NoError(t, <-scheduleDeleteDone)
+
+	requireScheduleCountMatchesLiveRows(ctx, t, pool, schedules)
+
+	rows, err := schedules.CountAllocatedResourcesByTenant(ctx, []uuid.UUID{internalTenantId})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Equal(t, int64(1), rows[0].ScheduledRunCount, "only the other workflow's schedule remains")
+}
+
 func countAllocatedResourceDeltas(ctx context.Context, t *testing.T, pool *pgxpool.Pool) int {
 	t.Helper()
 

@@ -41,11 +41,10 @@ func lockLatestWorkflowVersion(ctx context.Context, q *sqlcv1.Queries, db sqlcv1
 }
 
 // shareLatestWorkflowVersion takes a shared lock on the latest live version of
-// the workflow. Schedule count changes take it before they read or write. It
-// waits for a version registration or workflow delete holding
-// lockLatestWorkflowVersion, so the two cannot both apply a delta for the same
-// schedule, and schedule changes on the same workflow do not wait on each
-// other.
+// the workflow. A schedule create takes it before it inserts. It waits for a
+// workflow delete holding lockLatestWorkflowVersion, so the delete either
+// counts the new schedule or the create finds no live version, and creates on
+// the same workflow do not wait on each other.
 func shareLatestWorkflowVersion(ctx context.Context, q *sqlcv1.Queries, db sqlcv1.DBTX, workflowId uuid.UUID) error {
 	_, err := q.ShareLockWorkflowVersion(ctx, db, workflowId)
 	if errors.Is(err, pgx.ErrNoRows) {
