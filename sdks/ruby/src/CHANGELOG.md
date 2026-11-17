@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The `Hatchet::BatchTaskConfig` docs no longer say a batch flushes once `group_max_runs` is exceeded. While a group has `group_max_runs` batches running, its ready batches stay buffered. The docs also give the engine defaults: `max_interval_ms` is 1000, measured from when a batch's first item is buffered, and `group_max_runs` is 100.
 
+## [0.12.4] - 2026-11-17
+
+### Fixed
+
+- Triggering a run, bulk triggering and pushing events, one at a time or in bulk, now retry when the engine throttles the call with `RESOURCE_EXHAUSTED` and a `google.rpc.RetryInfo` detail, waiting the delay the server asks for. Other errors, including `RESOURCE_EXHAUSTED` without `RetryInfo`, are raised at once as before. The wait doubles with each retry up to 5 seconds and is extended by a random amount of up to 20%, so that clients throttled together do not all retry at the same moment. At most 5 attempts are made, and a call the server asks to wait longer than 5 seconds fails at once with the server's error.
+
+## [0.12.3] - 2026-11-16
+
+### Fixed
+
+- The REST client accepts the `BATCH_BUFFERED` task event type and the `STREAM_TOPIC`, `STREAM_MESSAGE` and `STREAM_RETENTION` tenant resources, which the engine already returns.
+
 ## [0.12.2] - 2026-11-10
 
 ### Fixed

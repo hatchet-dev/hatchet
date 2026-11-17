@@ -76,6 +76,14 @@ type Queuer struct {
 	unassigned   map[int64]*sqlcv1.V1QueueItem
 	unassignedMu mutex
 
+	// unassignedCount mirrors len(unassigned) so it can be read without unassignedMu,
+	// which a refill holds across its database read.
+	unassignedCount atomic.Int64
+
+	// delayedWakePending is set for the whole wait of a queueAfter wake, so a second
+	// request during that wait does not start another one.
+	delayedWakePending atomic.Bool
+
 	// consecutiveEmptyPolls counts loop iterations whose refill returned no items. It is only
 	// accessed from the loopQueue goroutine.
 	consecutiveEmptyPolls int
@@ -182,6 +190,23 @@ func (q *Queuer) queue(ctx context.Context) {
 	case q.notifyQueueCh <- telemetry.GetCarrier(telemetryCtx):
 	default:
 	}
+}
+
+// queueAfter wakes loopQueue after delay. A queuer with a delayed wake already pending
+// keeps that one, so overlapping callers cost a single poll.
+func (q *Queuer) queueAfter(ctx context.Context, delay time.Duration) {
+	if !q.delayedWakePending.CompareAndSwap(false, true) {
+		return
+	}
+
+	time.AfterFunc(delay, func() {
+		q.delayedWakePending.Store(false)
+		q.queue(ctx)
+	})
+}
+
+func (q *Queuer) hasUnassigned() bool {
+	return q.unassignedCount.Load() > 0
 }
 
 func (q *Queuer) loopQueue(ctx context.Context) {
@@ -652,6 +677,8 @@ func (q *Queuer) ack(r *assignResults) {
 		delete(q.unacked, rateLimitedItem.qi.ID)
 		q.unassigned[rateLimitedItem.qi.ID] = rateLimitedItem.qi
 	}
+
+	q.unassignedCount.Store(int64(len(q.unassigned)))
 }
 
 func (q *Queuer) unackedToUnassigned(items []*sqlcv1.V1QueueItem) {
@@ -665,6 +692,8 @@ func (q *Queuer) unackedToUnassigned(items []*sqlcv1.V1QueueItem) {
 		delete(q.unacked, item.ID)
 		q.unassigned[item.ID] = item
 	}
+
+	q.unassignedCount.Store(int64(len(q.unassigned)))
 }
 
 func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {

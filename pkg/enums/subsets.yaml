@@ -1,0 +1,7 @@
+# API-facing subsets of the database enums; hack/sqlc/extract-enums.go generates subsets.gen.go from this file.
+# New database values are included by default, so the OpenAPI drift test fails until the spec or this file accounts for them.
+V1TaskStatus:
+  from: V1ReadableStatusOlap
+  exclude:
+    # stored separately so it can be filtered on, but reported as RUNNING with isEvicted set
+    - EVICTED

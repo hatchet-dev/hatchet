@@ -51,6 +51,9 @@ V1WebhookAuthType:
     - BASIC
     - API_KEY
     - HMAC
+  x-go-type: enums.V1IncomingWebhookAuthType
+  x-go-type-import:
+    path: github.com/hatchet-dev/hatchet/pkg/enums
 
 # TODO: Add more sources here as we support them
 # IMPORTANT: Keep these in sync with the database enum v1_incoming_webhook_source_name
@@ -63,6 +66,9 @@ V1WebhookSourceName:
     - SLACK
     - LINEAR
     - SVIX
+  x-go-type: enums.V1IncomingWebhookSourceName
+  x-go-type-import:
+    path: github.com/hatchet-dev/hatchet/pkg/enums
 
 V1WebhookHMACAlgorithm:
   type: string
@@ -71,6 +77,9 @@ V1WebhookHMACAlgorithm:
     - SHA256
     - SHA512
     - MD5
+  x-go-type: enums.V1IncomingWebhookHmacAlgorithm
+  x-go-type-import:
+    path: github.com/hatchet-dev/hatchet/pkg/enums
 
 V1WebhookHMACEncoding:
   type: string

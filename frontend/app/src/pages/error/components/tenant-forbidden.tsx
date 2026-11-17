@@ -1,9 +1,11 @@
 import { ErrorPageLayout } from './layout';
+import { InviteModal } from '@/components/modals/invite-modal';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useOrganizations } from '@/hooks/use-organizations';
+import { usePendingInvites } from '@/hooks/use-pending-invites';
 import { TenantMember } from '@/lib/api';
 import { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
 import { useUserApi } from '@/lib/api/user-wrapper';
@@ -18,10 +20,10 @@ import {
   ChevronRightIcon,
 } from '@heroicons/react/24/outline';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useParams } from '@tanstack/react-router';
+import { useNavigate, useParams, useRouter } from '@tanstack/react-router';
 import { useSetAtom } from 'jotai';
 import { LogOut, ShieldX, Undo2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 function TenantPickerItem({
   membership,
@@ -110,6 +112,49 @@ export function TenantForbidden() {
   const { tenantMemberships } = useUserUniverse();
   const { organizations, getOrganizationForTenant, isTenantArchivedInOrg } =
     useOrganizations();
+
+  // A 403 on a tenant route is rendered by the root error boundary, which
+  // replaces the authenticated layout and the InviteModal it mounts. Without
+  // this, a user who was just invited to the tenant would only see "Access
+  // denied" with no way to accept the invite.
+  const { pendingInvitesQuery } = usePendingInvites();
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  useEffect(() => {
+    if (
+      pendingInvitesQuery.isSuccess &&
+      !pendingInvitesQuery.isFetching &&
+      (pendingInvitesQuery.data?.inviteCount ?? 0) > 0
+    ) {
+      setInviteModalOpen(true);
+    }
+  }, [
+    pendingInvitesQuery.isSuccess,
+    pendingInvitesQuery.isFetching,
+    pendingInvitesQuery.data?.inviteCount,
+  ]);
+
+  // Accepting an org invite, or picking "Maybe later" after a tenant invite,
+  // grants access without navigating, and closing the modal alone leaves this
+  // error rendered. Re-run the route loader once access appears. Only on a
+  // transition from no access: if the membership was already there when the
+  // memberships loaded, the 403 has another cause and retrying would loop.
+  const router = useRouter();
+  const hadAccessOnLoad = useRef<boolean>();
+  useEffect(() => {
+    if (!tenant || !tenantMemberships) {
+      return;
+    }
+    const hasAccess = tenantMemberships.some(
+      (m) => m.tenant?.metadata.id === tenant,
+    );
+    if (hadAccessOnLoad.current === undefined) {
+      hadAccessOnLoad.current = hasAccess;
+      return;
+    }
+    if (hasAccess && !hadAccessOnLoad.current) {
+      void router.invalidate();
+    }
+  }, [tenant, tenantMemberships, router]);
 
   const { userUpdateLogoutMutation } = useUserApi();
   const logoutMutation = useMutation({
@@ -267,6 +312,10 @@ export function TenantForbidden() {
           Sign out
         </Button>
       </div>
+      <InviteModal
+        isOpen={inviteModalOpen}
+        onClose={() => setInviteModalOpen(false)}
+      />
     </ErrorPageLayout>
   );
 }

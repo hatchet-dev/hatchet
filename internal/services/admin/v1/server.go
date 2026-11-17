@@ -20,6 +20,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/statusutils"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
@@ -497,7 +498,7 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 
 	canCreateTR, trLimit, err := a.repo.TenantLimit().CanCreate(
 		ctx,
-		sqlcv1.LimitResourceTASKRUN,
+		enums.LimitResourceTASKRUN,
 		tenantId,
 		// NOTE: this isn't actually the number of tasks per workflow run, but we're just checking to see
 		// if we've exceeded the limit
@@ -973,11 +974,9 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 		onFailureTask = &onFailureTasks[0]
 	}
 
-	var sticky *string
-
-	if req.Sticky != nil {
-		s := req.Sticky.String()
-		sticky = &s
+	sticky, err := enums.FromProtoPtr[sqlcv1.StickyStrategy](req.Sticky)
+	if err != nil {
+		return nil, err
 	}
 
 	var concurrency []v1.CreateConcurrencyOpts
@@ -993,11 +992,9 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("a name is required for tenant-scoped concurrency"))
 		}
 
-		var limitStrategy *string
-
-		if req.Concurrency.LimitStrategy != nil && req.Concurrency.LimitStrategy.String() != "" {
-			s := req.Concurrency.LimitStrategy.String()
-			limitStrategy = &s
+		limitStrategy, err := enums.FromProtoPtr[enums.V1ConcurrencyStrategy](req.Concurrency.LimitStrategy)
+		if err != nil {
+			return nil, err
 		}
 
 		var name string
@@ -1007,7 +1004,7 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 		}
 
 		concurrency = append(concurrency, v1.CreateConcurrencyOpts{
-			LimitStrategy:     limitStrategy,
+			LimitStrategy:     (*string)(limitStrategy),
 			Expression:        req.Concurrency.Expression,
 			MaxRuns:           req.Concurrency.MaxRuns,
 			Name:              name,
@@ -1027,11 +1024,9 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("a name is required for tenant-scoped concurrency"))
 		}
 
-		var limitStrategy *string
-
-		if c.LimitStrategy != nil && c.LimitStrategy.String() != "" {
-			s := c.LimitStrategy.String()
-			limitStrategy = &s
+		limitStrategy, err := enums.FromProtoPtr[enums.V1ConcurrencyStrategy](c.LimitStrategy)
+		if err != nil {
+			return nil, err
 		}
 
 		var name string
@@ -1041,7 +1036,7 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 		}
 
 		concurrency = append(concurrency, v1.CreateConcurrencyOpts{
-			LimitStrategy:     limitStrategy,
+			LimitStrategy:     (*string)(limitStrategy),
 			Expression:        c.Expression,
 			MaxRuns:           c.MaxRuns,
 			Name:              name,
@@ -1084,7 +1079,11 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 		method := sqlcv1.IdempotencyMethodTTL
 
 		if req.Idempotency.Method != nil {
-			method = sqlcv1.IdempotencyMethod(req.Idempotency.Method.String())
+			m, err := enums.FromProto[sqlcv1.IdempotencyMethod](*req.Idempotency.Method)
+			if err != nil {
+				return nil, err
+			}
+			method = m
 		}
 
 		idempotency = &v1.IdempotencyConfig{
@@ -1103,7 +1102,7 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 		CronInput:       cronInput,
 		Tasks:           tasks,
 		OnFailure:       onFailureTask,
-		Sticky:          sticky,
+		Sticky:          (*string)(sticky),
 		DefaultPriority: req.DefaultPriority,
 		DefaultFilters:  defaultFilters,
 		InputJsonSchema: req.InputJsonSchema,
@@ -1267,10 +1266,15 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 
 					eventKey := userEventCondition.UserEventKey
 
+					action, err := enums.FromProto[sqlcv1.V1MatchConditionAction](userEventCondition.Base.Action)
+					if err != nil {
+						return nil, err
+					}
+
 					steps[j].TriggerConditions = append(steps[j].TriggerConditions, v1.CreateStepMatchConditionOpt{
 						MatchConditionKind: "USER_EVENT",
 						ReadableDataKey:    userEventCondition.Base.ReadableDataKey,
-						Action:             userEventCondition.Base.Action.String(),
+						Action:             string(action),
 						OrGroupId:          orGroupId,
 						Expression:         userEventCondition.Base.Expression,
 						EventKey:           &eventKey,
@@ -1299,10 +1303,15 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 						return nil, fmt.Errorf("invalid OrGroupId in SleepCondition for step %s: %w", stepCp.ReadableId, err)
 					}
 
+					action, err := enums.FromProto[sqlcv1.V1MatchConditionAction](sleepCondition.Base.Action)
+					if err != nil {
+						return nil, err
+					}
+
 					steps[j].TriggerConditions = append(steps[j].TriggerConditions, v1.CreateStepMatchConditionOpt{
 						MatchConditionKind: "SLEEP",
 						ReadableDataKey:    sleepCondition.Base.ReadableDataKey,
-						Action:             sleepCondition.Base.Action.String(),
+						Action:             string(action),
 						OrGroupId:          orGroupId,
 						SleepDuration:      &duration,
 					})
@@ -1331,10 +1340,15 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 						return nil, fmt.Errorf("invalid OrGroupId in ParentOverrideCondition for step %s: %w", stepCp.ReadableId, err)
 					}
 
+					action, err := enums.FromProto[sqlcv1.V1MatchConditionAction](parentOverrideCondition.Base.Action)
+					if err != nil {
+						return nil, err
+					}
+
 					steps[j].TriggerConditions = append(steps[j].TriggerConditions, v1.CreateStepMatchConditionOpt{
 						MatchConditionKind: "PARENT_OVERRIDE",
 						ReadableDataKey:    parentReadableId,
-						Action:             parentOverrideCondition.Base.Action.String(),
+						Action:             string(action),
 						Expression:         parentOverrideCondition.Base.Expression,
 						OrGroupId:          orGroupId,
 						ParentReadableId:   &parentReadableId,
@@ -1361,11 +1375,9 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 					return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("a name is required for tenant-scoped concurrency (step %s)", stepCp.ReadableId))
 				}
 
-				var limitStrategy *string
-
-				if concurrency.LimitStrategy != nil && concurrency.LimitStrategy.String() != "" {
-					s := concurrency.LimitStrategy.String()
-					limitStrategy = &s
+				limitStrategy, err := enums.FromProtoPtr[enums.V1ConcurrencyStrategy](concurrency.LimitStrategy)
+				if err != nil {
+					return nil, err
 				}
 
 				var name string
@@ -1377,7 +1389,7 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 				steps[j].Concurrency = append(steps[j].Concurrency, v1.CreateConcurrencyOpts{
 					Expression:        concurrency.Expression,
 					MaxRuns:           concurrency.MaxRuns,
-					LimitStrategy:     limitStrategy,
+					LimitStrategy:     (*string)(limitStrategy),
 					Name:              name,
 					IsTenantScoped:    tenantScoped,
 					MaxRunsExpression: concurrency.MaxRunsExpression,
@@ -1483,18 +1495,13 @@ func putWorkflowFeatureFlags(req *contracts.CreateWorkflowVersionRequest) map[st
 func protoMapToDesiredWorkerLabels(m map[string]*contracts.DesiredWorkerLabels) []*sqlcv1.GetDesiredLabelsRow {
 	labels := make([]*sqlcv1.GetDesiredLabelsRow, 0, len(m))
 	for key, label := range m {
-		var comparator *string
-		if label.Comparator != nil {
-			c := label.Comparator.String()
-			comparator = &c
-		}
 		labels = append(labels, v1.ProtoToDesiredWorkerLabel(
 			key,
 			label.StrValue,
 			label.IntValue,
 			label.Required,
 			label.Weight,
-			comparator,
+			label.Comparator,
 		))
 	}
 	return labels

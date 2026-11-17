@@ -13,7 +13,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 )
 
 const (
@@ -208,7 +208,7 @@ func (p *endpointPoller) pollOnce(ctx context.Context) {
 		// The streak's first error and each changed error are recorded. One the recorder
 		// holds back stays pending, offered again on every poll until it is written.
 		if p.failures == 1 || err.Error() != p.lastFailureEvent {
-			if p.r.events.record(p.ep, sqlcv1.V1ServerlessEndpointEventKindHEALTHCHECKFAILED, err.Error(), details) {
+			if p.r.events.record(p.ep, enums.V1ServerlessEndpointEventKindHEALTHCHECKFAILED, err.Error(), details) {
 				p.lastFailureEvent = err.Error()
 			}
 		}
@@ -235,7 +235,7 @@ func (p *endpointPoller) pollOnce(ctx context.Context) {
 	// recorded here: the dashboard can then tell a failure that is over from one still
 	// going on. A streak that did flip the status ends with the HEALTHY transition instead.
 	if failed > 0 && status.healthy && cfg.healthKnown && cfg.healthy {
-		p.r.events.record(p.ep, sqlcv1.V1ServerlessEndpointEventKindHEALTHY,
+		p.r.events.record(p.ep, enums.V1ServerlessEndpointEventKindHEALTHY,
 			fmt.Sprintf("healthchecks succeed again after %d failed %s", failed, pluralize(failed, "poll")), nil)
 	}
 
@@ -285,7 +285,7 @@ func (p *endpointPoller) apply(ctx context.Context, res *healthcheckResult) poll
 
 		if errors.As(err, &rejection) {
 			message = rejection.Error()
-			if p.rejectedEventHash != res.hash && p.r.events.record(p.ep, sqlcv1.V1ServerlessEndpointEventKindCATALOGREJECTED, err.Error(), details) {
+			if p.rejectedEventHash != res.hash && p.r.events.record(p.ep, enums.V1ServerlessEndpointEventKindCATALOGREJECTED, err.Error(), details) {
 				p.rejectedEventHash = res.hash
 			}
 
@@ -296,7 +296,7 @@ func (p *endpointPoller) apply(ctx context.Context, res *healthcheckResult) poll
 	}
 
 	if p.catalogChanged {
-		p.r.events.record(p.ep, sqlcv1.V1ServerlessEndpointEventKindCATALOGREGISTERED,
+		p.r.events.record(p.ep, enums.V1ServerlessEndpointEventKindCATALOGREGISTERED,
 			fmt.Sprintf("registered %d workflows and %d actions", len(res.workflows), len(res.actions)),
 			&eventDetails{Workflows: workflowNames(res), Actions: res.actions})
 		p.catalogChanged = false
@@ -453,9 +453,9 @@ func (r *runner) writeStatus(ctx context.Context, ts *tenantState, ep *cachedEnd
 
 	switch {
 	case !healthy && (!known || previous.healthy):
-		r.events.record(ep, sqlcv1.V1ServerlessEndpointEventKindUNHEALTHY, statusError, details)
+		r.events.record(ep, enums.V1ServerlessEndpointEventKindUNHEALTHY, statusError, details)
 	case healthy && (!known || !previous.healthy):
-		r.events.record(ep, sqlcv1.V1ServerlessEndpointEventKindHEALTHY, "endpoint is healthy", nil)
+		r.events.record(ep, enums.V1ServerlessEndpointEventKindHEALTHY, "endpoint is healthy", nil)
 	}
 }
 

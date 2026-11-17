@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -84,10 +85,10 @@ func (m *mockConcurrencyRepo) ListTenantsWithManyStepConcurrencies(ctx context.C
 }
 
 func newTestStrategy(repo repository.ConcurrencyRepository, maxConcurrency int32) *ConcurrencyStrategy {
-	return newTestStrategyKind(repo, maxConcurrency, sqlcv1.V1ConcurrencyStrategyGROUPROUNDROBIN)
+	return newTestStrategyKind(repo, maxConcurrency, enums.V1ConcurrencyStrategyGROUPROUNDROBIN)
 }
 
-func newTestStrategyKind(repo repository.ConcurrencyRepository, maxConcurrency int32, kind sqlcv1.V1ConcurrencyStrategy) *ConcurrencyStrategy {
+func newTestStrategyKind(repo repository.ConcurrencyRepository, maxConcurrency int32, kind enums.V1ConcurrencyStrategy) *ConcurrencyStrategy {
 	l := zerolog.Nop()
 	return &ConcurrencyStrategy{
 		subQueues: make(map[string]*subQueue),

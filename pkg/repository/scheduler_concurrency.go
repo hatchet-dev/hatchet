@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -278,37 +279,37 @@ func (c *ConcurrencyRepositoryImpl) RunConcurrencyStrategy(
 	strategy *sqlcv1.V1StepConcurrency,
 ) (res *RunConcurrencyResult, err error) {
 	switch strategy.Strategy {
-	case sqlcv1.V1ConcurrencyStrategyGROUPROUNDROBIN:
+	case enums.V1ConcurrencyStrategyGROUPROUNDROBIN:
 		res, err = c.runGroupRoundRobin(ctx, tenantId, strategy)
 
 		if err != nil {
 			return nil, fmt.Errorf("group round robin (strategy ID: %d): %w", strategy.ID, err)
 		}
-	case sqlcv1.V1ConcurrencyStrategyCANCELINPROGRESS:
+	case enums.V1ConcurrencyStrategyCANCELINPROGRESS:
 		res, err = c.runCancelInProgress(ctx, tenantId, strategy)
 
 		if err != nil {
 			return nil, fmt.Errorf("cancel in progress (strategy ID: %d): %w", strategy.ID, err)
 		}
-	case sqlcv1.V1ConcurrencyStrategyCANCELNEWEST:
+	case enums.V1ConcurrencyStrategyCANCELNEWEST:
 		res, err = c.runCancelNewest(ctx, tenantId, strategy)
 
 		if err != nil {
 			return nil, fmt.Errorf("cancel newest (strategy ID: %d): %w", strategy.ID, err)
 		}
-	case sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST:
+	case enums.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST:
 		res, err = c.runCancelQueuedExceptNewest(ctx, tenantId, strategy)
 
 		if err != nil {
 			return nil, fmt.Errorf("cancel except newest (strategy ID: %d): %w", strategy.ID, err)
 		}
-	case sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST:
+	case enums.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTOLDEST:
 		res, err = c.runCancelQueuedExceptOldest(ctx, tenantId, strategy)
 
 		if err != nil {
 			return nil, fmt.Errorf("cancel except oldest (strategy ID: %d): %w", strategy.ID, err)
 		}
-	case sqlcv1.V1ConcurrencyStrategyNONE:
+	case enums.V1ConcurrencyStrategyNONE:
 	}
 
 	// No strategy branch ran. This should no longer be reachable (every enum value has a

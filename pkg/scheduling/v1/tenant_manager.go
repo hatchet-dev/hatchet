@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"math/rand/v2"
 	"sync"
 	"time"
 
@@ -14,6 +15,19 @@ import (
 
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+)
+
+const (
+	// newWorkerWakeRate is how many idle queuers one new worker wakes per second. Each wake
+	// polls the database, so this is the poll rate that worker can start.
+	newWorkerWakeRate = 5000
+
+	// minNewWorkerWakeSpread is the shortest spread worth applying. Below it, the tenant has
+	// few enough queuers to wake together.
+	minNewWorkerWakeSpread = 100 * time.Millisecond
+
+	// maxNewWorkerWakeSpread caps how long an idle queuer waits to see a new worker.
+	maxNewWorkerWakeSpread = 5 * time.Second
 )
 
 type notifierMsg[T any] struct {
@@ -213,14 +227,7 @@ func (t *tenantManager) listenForWorkerLeases(ctx context.Context) {
 
 				t.replenish(ctx)
 
-				// notify all queues to check if the new worker can take any tasks
-				t.queuersMu.RLock()
-
-				for _, q := range t.queuers {
-					q.queue(ctx)
-				}
-
-				t.queuersMu.RUnlock()
+				t.wakeQueuersForNewWorker(ctx)
 			} else {
 				t.scheduler.setWorkers(msg.items)
 			}
@@ -561,6 +568,37 @@ func (t *tenantManager) notifyBatchedQueueItems(items []*sqlcv1.V1QueueItem) {
 			t.l.Error().Err(err).Msg("error notifying new batch steps")
 		}
 	}()
+}
+
+// newWorkerWakeSpread is the window over which idle queuers are woken for a new worker.
+// Zero means they are woken together.
+func newWorkerWakeSpread(queuerCount int) time.Duration {
+	spread := time.Duration(queuerCount) * time.Second / newWorkerWakeRate
+
+	if spread < minNewWorkerWakeSpread {
+		return 0
+	}
+
+	return min(spread, maxNewWorkerWakeSpread)
+}
+
+// wakeQueuersForNewWorker wakes every queuer so it checks its queue against the new worker.
+// Queuers holding items they could not assign are woken now. The rest are spread at random
+// over newWorkerWakeSpread, because waking them together starts one database poll per queuer.
+func (t *tenantManager) wakeQueuersForNewWorker(ctx context.Context) {
+	t.queuersMu.RLock()
+	defer t.queuersMu.RUnlock()
+
+	spread := newWorkerWakeSpread(len(t.queuers))
+
+	for _, q := range t.queuers {
+		if spread == 0 || q.hasUnassigned() {
+			q.queue(ctx)
+			continue
+		}
+
+		q.queueAfter(ctx, rand.N(spread)) //nolint:gosec
+	}
 }
 
 // notifyQueuers wakes the queuers for the given queue names, so items that

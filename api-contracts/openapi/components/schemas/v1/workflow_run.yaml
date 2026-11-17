@@ -159,6 +159,9 @@ V1DurableEventLogKind:
     - RUN
     - WAIT_FOR
     - MEMO
+  x-go-type: enums.V1DurableEventLogKind
+  x-go-type-import:
+    path: github.com/hatchet-dev/hatchet/pkg/enums
 
 V1DurableWaitConditionKind:
   type: string
