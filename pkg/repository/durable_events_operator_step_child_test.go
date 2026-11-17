@@ -237,3 +237,51 @@ func TestDurableParentsSingleTaskChildHasNoCompletionMatchWithDirectSpawn(t *tes
 	require.NoError(t, err)
 	require.Empty(t, completionConditions)
 }
+
+func TestChildSpawnedBeforeDeterministicIdsKeepsItsRecordedId(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	tenantID := uuid.New()
+	repos := newUserEventScopeTestRepositories(t, pool)
+
+	parentSpawningBeforeEnablement := createUserEventScopeTestTask(t, ctx, repos, tenantID, 401)
+	childWithRecordedId := ingestDagStepTrigger(t, ctx, repos.durable, tenantID, parentSpawningBeforeEnablement, 1, "my-dag:step-a", 1)
+
+	repos.shared.childRunDirectSpawn = true
+
+	respawnedChild := ingestDagStepTrigger(t, ctx, repos.durable, tenantID, parentSpawningBeforeEnablement, 1, "my-dag:step-a", 1)
+	require.True(t, respawnedChild.AlreadyExisted)
+	require.Equal(t, childWithRecordedId.WorkflowRunExternalId, respawnedChild.WorkflowRunExternalId)
+
+	parentSpawningAfterEnablement := createUserEventScopeTestTask(t, ctx, repos, tenantID, 402)
+	childWithDeterministicId := ingestDagStepTrigger(t, ctx, repos.durable, tenantID, parentSpawningAfterEnablement, 1, "my-dag:step-a", 1)
+
+	spawnKey := getChildSignalEventKey(parentSpawningAfterEnablement.ExternalID, dagStepSpawnStepIndex, 1, nil)
+	require.Equal(t, deterministicChildExternalId(parentSpawningAfterEnablement.ExternalID, spawnKey), childWithDeterministicId.WorkflowRunExternalId)
+
+	respawnedDeterministicChild := ingestDagStepTrigger(t, ctx, repos.durable, tenantID, parentSpawningAfterEnablement, 1, "my-dag:step-a", 1)
+	require.True(t, respawnedDeterministicChild.AlreadyExisted)
+	require.Equal(t, childWithDeterministicId.WorkflowRunExternalId, respawnedDeterministicChild.WorkflowRunExternalId)
+}
+
+func TestChildSpawnedWithDeterministicIdKeepsItAfterDisablement(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	tenantID := uuid.New()
+	repos := newUserEventScopeTestRepositories(t, pool)
+
+	repos.shared.childRunDirectSpawn = true
+
+	parent := createUserEventScopeTestTask(t, ctx, repos, tenantID, 403)
+	childWithDeterministicId := ingestDagStepTrigger(t, ctx, repos.durable, tenantID, parent, 1, "my-dag:step-a", 1)
+
+	repos.shared.childRunDirectSpawn = false
+
+	respawnedChild := ingestDagStepTrigger(t, ctx, repos.durable, tenantID, parent, 1, "my-dag:step-a", 1)
+	require.True(t, respawnedChild.AlreadyExisted)
+	require.Equal(t, childWithDeterministicId.WorkflowRunExternalId, respawnedChild.WorkflowRunExternalId)
+}

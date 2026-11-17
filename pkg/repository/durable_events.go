@@ -1694,11 +1694,16 @@ type taskIdSpawnKey struct {
 }
 
 func (r *durableEventsRepository) resolveChildExternalIdsForBatch(ctx context.Context, tx sqlcv1.DBTX, tasks []resolveChildExternalIdsTask) error {
+	if r.childRunDirectSpawn {
+		return r.assignDeterministicChildExternalIds(ctx, tx, tasks)
+	}
+
 	ctx, span := telemetry.NewSpan(ctx, "resolve-child-external-ids")
 	defer span.End()
 
 	candidateIdByKey := make(map[taskIdSpawnKey]uuid.UUID)
 	optsByKey := make(map[taskIdSpawnKey][]*WorkflowNameTriggerOpts)
+	taskByKey := make(map[taskIdSpawnKey]*sqlcv1.FlattenExternalIdsRow)
 	params := sqlcv1.BulkUpsertDurableChildSignalCreatedEventsParams{}
 
 	for _, t := range tasks {
@@ -1713,8 +1718,10 @@ func (r *durableEventsRepository) resolveChildExternalIdsForBatch(ctx context.Co
 			key := taskIdSpawnKey{taskId: t.task.ID, spawnKey: spawnKey}
 
 			if _, seen := candidateIdByKey[key]; !seen {
-				childExternalId := uuid.New()
+				// a child spawned while SERVER_CHILD_RUN_DIRECT_SPAWN was on has this id but no SIGNAL_CREATED event
+				childExternalId := deterministicChildExternalId(*opt.ParentExternalId, spawnKey)
 				candidateIdByKey[key] = childExternalId
+				taskByKey[key] = t.task
 
 				params.Tenantids = append(params.Tenantids, t.tenantId)
 				params.Durabletaskids = append(params.Durabletaskids, t.task.ID)
@@ -1750,21 +1757,158 @@ func (r *durableEventsRepository) resolveChildExternalIdsForBatch(ctx context.Co
 		func(row *sqlcv1.BulkUpsertDurableChildSignalCreatedEventsRow) uuid.UUID { return *row.ChildExternalID },
 	)
 
-	for key, opts := range optsByKey {
-		resolvedId, ok := resolvedIdByKey[key]
-
-		if !ok {
+	for key := range optsByKey {
+		if _, ok := resolvedIdByKey[key]; !ok {
 			return fmt.Errorf("no child external id resolved for task %d spawn key %s", key.taskId, key.spawnKey)
 		}
+	}
+
+	keysWithRunEntry, err := r.listSpawnKeysWithRunEntries(ctx, tx, taskByKey, resolvedIdByKey)
+
+	if err != nil {
+		return err
+	}
+
+	for key, opts := range optsByKey {
+		resolvedId := resolvedIdByKey[key]
+		_, hasRunEntry := keysWithRunEntry[key]
+		wasSpawnedBefore := resolvedId != candidateIdByKey[key] || hasRunEntry
 
 		for i, opt := range opts {
 			opt.ExternalId = resolvedId
 			// only the first opt for a spawn key may trigger a new child; the rest reuse it
-			opt.ShouldSkip = i > 0 || resolvedId != candidateIdByKey[key]
+			opt.ShouldSkip = i > 0 || wasSpawnedBefore
 		}
 	}
 
 	return nil
+}
+
+func (r *durableEventsRepository) assignDeterministicChildExternalIds(ctx context.Context, tx sqlcv1.DBTX, tasks []resolveChildExternalIdsTask) error {
+	ctx, span := telemetry.NewSpan(ctx, "assign-deterministic-child-external-ids")
+	defer span.End()
+
+	optsByKey := make(map[taskIdSpawnKey][]*WorkflowNameTriggerOpts)
+	parentExternalIdByKey := make(map[taskIdSpawnKey]uuid.UUID)
+	taskByKey := make(map[taskIdSpawnKey]*sqlcv1.FlattenExternalIdsRow)
+	childSpawns := make([]childSpawn, 0)
+
+	for _, t := range tasks {
+		for _, opt := range t.triggerOpts {
+			spawnKey := opt.childSpawnKey()
+
+			if spawnKey == "" {
+				opt.ExternalId = uuid.New()
+				continue
+			}
+
+			key := taskIdSpawnKey{taskId: t.task.ID, spawnKey: spawnKey}
+
+			if _, seen := optsByKey[key]; !seen {
+				parentExternalIdByKey[key] = *opt.ParentExternalId
+				taskByKey[key] = t.task
+				childSpawns = append(childSpawns, childSpawn{
+					tenantId:             t.tenantId,
+					parentTaskId:         t.task.ID,
+					parentTaskInsertedAt: t.task.InsertedAt,
+					spawnKey:             spawnKey,
+				})
+			}
+
+			optsByKey[key] = append(optsByKey[key], opt)
+		}
+	}
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "n_tasks", Value: len(tasks)},
+		telemetry.AttributeKV{Key: "n_keys", Value: len(childSpawns)},
+	)
+
+	if len(childSpawns) == 0 {
+		return nil
+	}
+
+	recordedIdByKey, err := r.listChildExternalIdsRecordedOnSignalCreatedEvents(ctx, tx, childSpawns)
+
+	if err != nil {
+		return err
+	}
+
+	childExternalIdByKey := make(map[taskIdSpawnKey]uuid.UUID, len(optsByKey))
+
+	for key := range optsByKey {
+		childExternalId, wasRecorded := recordedIdByKey[key]
+
+		if !wasRecorded {
+			childExternalId = deterministicChildExternalId(parentExternalIdByKey[key], key.spawnKey)
+		}
+
+		childExternalIdByKey[key] = childExternalId
+	}
+
+	keysWithRunEntry, err := r.listSpawnKeysWithRunEntries(ctx, tx, taskByKey, childExternalIdByKey)
+
+	if err != nil {
+		return err
+	}
+
+	for key, opts := range optsByKey {
+		_, wasSpawnedBefore := keysWithRunEntry[key]
+
+		for i, opt := range opts {
+			opt.ExternalId = childExternalIdByKey[key]
+			// only the first opt for a spawn key may trigger a new child; the rest reuse it
+			opt.ShouldSkip = i > 0 || wasSpawnedBefore
+		}
+	}
+
+	return nil
+}
+
+func (r *durableEventsRepository) listSpawnKeysWithRunEntries(ctx context.Context, tx sqlcv1.DBTX, taskByKey map[taskIdSpawnKey]*sqlcv1.FlattenExternalIdsRow, childExternalIdByKey map[taskIdSpawnKey]uuid.UUID) (map[taskIdSpawnKey]struct{}, error) {
+	params := sqlcv1.ListChildTaskExternalIdsWithRunEntriesParams{
+		Durabletaskids:           make([]int64, 0, len(childExternalIdByKey)),
+		Durabletaskinsertedats:   make([]pgtype.Timestamptz, 0, len(childExternalIdByKey)),
+		Childtaskexternalids:     make([]uuid.UUID, 0, len(childExternalIdByKey)),
+		Mindurabletaskinsertedat: sqlchelpers.TimestamptzFromTime(time.Now().UTC()),
+	}
+
+	for key, childExternalId := range childExternalIdByKey {
+		task := taskByKey[key]
+
+		params.Durabletaskids = append(params.Durabletaskids, task.ID)
+		params.Durabletaskinsertedats = append(params.Durabletaskinsertedats, task.InsertedAt)
+		params.Childtaskexternalids = append(params.Childtaskexternalids, childExternalId)
+
+		if task.InsertedAt.Time.Before(params.Mindurabletaskinsertedat.Time) {
+			params.Mindurabletaskinsertedat = task.InsertedAt
+		}
+	}
+
+	childrenWithRunEntries, err := r.queries.ListChildTaskExternalIdsWithRunEntries(ctx, tx, params)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list child runs which already have a log entry: %w", err)
+	}
+
+	type taskIdChildExternalId struct {
+		taskId          int64
+		childExternalId uuid.UUID
+	}
+
+	hasRunEntry := enumerables.ToSet(childrenWithRunEntries, func(row *sqlcv1.ListChildTaskExternalIdsWithRunEntriesRow) taskIdChildExternalId {
+		return taskIdChildExternalId{taskId: row.DurableTaskID, childExternalId: *row.ChildTaskExternalID}
+	})
+
+	keysWithRunEntry := make(map[taskIdSpawnKey]struct{})
+
+	for key, childExternalId := range childExternalIdByKey {
+		if _, ok := hasRunEntry[taskIdChildExternalId{taskId: key.taskId, childExternalId: childExternalId}]; ok {
+			keysWithRunEntry[key] = struct{}{}
+		}
+	}
+
+	return keysWithRunEntry, nil
 }
 
 func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context, batch map[durableTaskId]IngestDurableTaskEventOpts) (map[durableTaskId]*appendDurableEventLogResult, map[durableTaskId]error, error) {

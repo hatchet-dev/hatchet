@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -104,9 +105,113 @@ func (c *ChildWorkflowSignalCreatedData) Bytes() []byte {
 	return b
 }
 
+type childSpawn struct {
+	parentTaskInsertedAt pgtype.Timestamptz
+	spawnKey             string
+	parentTaskId         int64
+	tenantId             uuid.UUID
+}
+
+func deterministicChildExternalId(parentExternalId uuid.UUID, spawnKey string) uuid.UUID {
+	return uuid.NewSHA1(parentExternalId, []byte(spawnKey))
+}
+
+// children spawned before deterministic ids were enabled keep the random id recorded on a SIGNAL_CREATED event
+func (s *sharedRepository) listChildExternalIdsRecordedOnSignalCreatedEvents(ctx context.Context, db sqlcv1.DBTX, childSpawns []childSpawn) (map[taskIdSpawnKey]uuid.UUID, error) {
+	params := sqlcv1.ListChildExternalIdsRecordedOnSignalCreatedEventsParams{
+		Tenantids:               make([]uuid.UUID, 0, len(childSpawns)),
+		Parenttaskids:           make([]int64, 0, len(childSpawns)),
+		Parenttaskinsertedats:   make([]pgtype.Timestamptz, 0, len(childSpawns)),
+		Eventkeys:               make([]string, 0, len(childSpawns)),
+		Minparenttaskinsertedat: sqlchelpers.TimestamptzFromTime(time.Now().UTC()),
+	}
+
+	for _, spawn := range childSpawns {
+		params.Tenantids = append(params.Tenantids, spawn.tenantId)
+		params.Parenttaskids = append(params.Parenttaskids, spawn.parentTaskId)
+		params.Parenttaskinsertedats = append(params.Parenttaskinsertedats, spawn.parentTaskInsertedAt)
+		params.Eventkeys = append(params.Eventkeys, spawn.spawnKey)
+
+		if spawn.parentTaskInsertedAt.Time.Before(params.Minparenttaskinsertedat.Time) {
+			params.Minparenttaskinsertedat = spawn.parentTaskInsertedAt
+		}
+	}
+
+	rows, err := s.queries.ListChildExternalIdsRecordedOnSignalCreatedEvents(ctx, db, params)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list child external ids recorded on signal created events: %w", err)
+	}
+
+	return enumerables.ToMap(
+		rows,
+		func(row *sqlcv1.ListChildExternalIdsRecordedOnSignalCreatedEventsRow) taskIdSpawnKey {
+			return taskIdSpawnKey{taskId: row.TaskID, spawnKey: row.EventKey.String}
+		},
+		func(row *sqlcv1.ListChildExternalIdsRecordedOnSignalCreatedEventsRow) uuid.UUID {
+			return *row.ChildExternalID
+		},
+	), nil
+}
+
+func (s *sharedRepository) populateDeterministicExternalIdsForWorkflow(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error {
+	optsByKey := make(map[taskIdSpawnKey][]*WorkflowNameTriggerOpts)
+	childSpawns := make([]childSpawn, 0, len(opts))
+
+	for _, opt := range opts {
+		spawnKey := opt.childSpawnKey()
+
+		if spawnKey == "" || opt.ParentTaskId == nil || opt.ParentTaskInsertedAt == nil {
+			opt.ExternalId = uuid.New()
+			continue
+		}
+
+		opt.ExternalId = deterministicChildExternalId(*opt.ParentExternalId, spawnKey)
+
+		key := taskIdSpawnKey{taskId: *opt.ParentTaskId, spawnKey: spawnKey}
+
+		// the trigger path only dedupes against runs committed earlier, not against others in this batch
+		if _, seen := optsByKey[key]; seen {
+			opt.ShouldSkip = true
+		} else {
+			childSpawns = append(childSpawns, childSpawn{
+				tenantId:             tenantId,
+				parentTaskId:         *opt.ParentTaskId,
+				parentTaskInsertedAt: sqlchelpers.TimestamptzFromTime(*opt.ParentTaskInsertedAt),
+				spawnKey:             spawnKey,
+			})
+		}
+
+		optsByKey[key] = append(optsByKey[key], opt)
+	}
+
+	if len(childSpawns) == 0 {
+		return nil
+	}
+
+	recordedIdByKey, err := s.listChildExternalIdsRecordedOnSignalCreatedEvents(ctx, s.pool.ForTenant(tenantId), childSpawns)
+
+	if err != nil {
+		return err
+	}
+
+	for key, recordedId := range recordedIdByKey {
+		for _, opt := range optsByKey[key] {
+			opt.ExternalId = recordedId
+			opt.ShouldSkip = true
+		}
+	}
+
+	return nil
+}
+
 // GenerateExternalIdsForWorkflow generates external ids and additional looks up child workflows and whether they
 // already exist.
 func (s *sharedRepository) PopulateExternalIdsForWorkflow(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error {
+	if s.childRunDirectSpawn {
+		return s.populateDeterministicExternalIdsForWorkflow(ctx, tenantId, opts)
+	}
+
 	db := s.pool.ForTenant(tenantId)
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, s.l)
@@ -277,7 +382,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 			continue
 		}
 
-		generatedId := uuid.New()
+		generatedId := deterministicChildExternalId(*opt.ParentExternalId, opt.childSpawnKey())
 		opt.ExternalId = generatedId
 
 		data := newChildWorkflowSignalCreatedData(generatedId, opt)

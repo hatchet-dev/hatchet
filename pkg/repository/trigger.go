@@ -2194,6 +2194,13 @@ func (r *sharedRepository) registerChildWorkflows(
 		}
 	}
 
+	// a child spawned with a deterministic id has no SIGNAL_CREATED event to find it by
+	for _, tuple := range tuples {
+		if tuple.parentTaskId != nil && tuple.targetActionId == nil {
+			rootExternalIdsToLookup = append(rootExternalIdsToLookup, tuple.externalId)
+		}
+	}
+
 	// get the child external IDs that have already been written
 	existingExternalIds, err := r.queries.LookupExternalIds(ctx, tx, sqlcv1.LookupExternalIdsParams{
 		Tenantid:    tenantId,

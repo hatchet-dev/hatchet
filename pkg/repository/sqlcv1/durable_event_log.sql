@@ -500,6 +500,48 @@ RETURNING
     v1_task_event.child_external_id
 ;
 
+-- name: ListChildExternalIdsRecordedOnSignalCreatedEvents :many
+WITH input AS (
+    SELECT
+        UNNEST(@tenantIds::UUID[]) AS tenant_id,
+        UNNEST(@parentTaskIds::BIGINT[]) AS task_id,
+        UNNEST(@parentTaskInsertedAts::TIMESTAMPTZ[]) AS task_inserted_at,
+        UNNEST(@eventKeys::TEXT[]) AS event_key
+)
+
+SELECT
+    e.task_id,
+    e.event_key,
+    e.child_external_id
+FROM v1_task_event e
+JOIN input i ON (i.tenant_id, i.task_id, i.task_inserted_at, i.event_key) = (e.tenant_id, e.task_id, e.task_inserted_at, e.event_key)
+WHERE
+    e.event_type = 'SIGNAL_CREATED'
+    AND e.child_external_id IS NOT NULL
+    AND e.task_inserted_at >= @minParentTaskInsertedAt::TIMESTAMPTZ
+;
+
+-- name: ListChildTaskExternalIdsWithRunEntries :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST(@childTaskExternalIds::UUID[]) AS child_task_external_id
+)
+
+SELECT DISTINCT
+    durable_task_id,
+    child_task_external_id
+FROM v1_durable_event_log_entry
+WHERE
+    kind = 'RUN'
+    AND durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+    AND (durable_task_id, durable_task_inserted_at, child_task_external_id) IN (
+        SELECT durable_task_id, durable_task_inserted_at, child_task_external_id
+        FROM inputs
+    )
+;
+
 -- name: ListUnsatisfiedRunEntriesForChildTaskExternalIds :many
 WITH inputs AS (
     SELECT

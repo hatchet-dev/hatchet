@@ -836,6 +836,125 @@ func (q *Queries) IncrementLogFileInvocationCounts(ctx context.Context, db DBTX,
 	return items, nil
 }
 
+const listChildExternalIdsRecordedOnSignalCreatedEvents = `-- name: ListChildExternalIdsRecordedOnSignalCreatedEvents :many
+WITH input AS (
+    SELECT
+        UNNEST($2::UUID[]) AS tenant_id,
+        UNNEST($3::BIGINT[]) AS task_id,
+        UNNEST($4::TIMESTAMPTZ[]) AS task_inserted_at,
+        UNNEST($5::TEXT[]) AS event_key
+)
+
+SELECT
+    e.task_id,
+    e.event_key,
+    e.child_external_id
+FROM v1_task_event e
+JOIN input i ON (i.tenant_id, i.task_id, i.task_inserted_at, i.event_key) = (e.tenant_id, e.task_id, e.task_inserted_at, e.event_key)
+WHERE
+    e.event_type = 'SIGNAL_CREATED'
+    AND e.child_external_id IS NOT NULL
+    AND e.task_inserted_at >= $1::TIMESTAMPTZ
+`
+
+type ListChildExternalIdsRecordedOnSignalCreatedEventsParams struct {
+	Minparenttaskinsertedat pgtype.Timestamptz   `json:"minparenttaskinsertedat"`
+	Tenantids               []uuid.UUID          `json:"tenantids"`
+	Parenttaskids           []int64              `json:"parenttaskids"`
+	Parenttaskinsertedats   []pgtype.Timestamptz `json:"parenttaskinsertedats"`
+	Eventkeys               []string             `json:"eventkeys"`
+}
+
+type ListChildExternalIdsRecordedOnSignalCreatedEventsRow struct {
+	TaskID          int64       `json:"task_id"`
+	EventKey        pgtype.Text `json:"event_key"`
+	ChildExternalID *uuid.UUID  `json:"child_external_id"`
+}
+
+func (q *Queries) ListChildExternalIdsRecordedOnSignalCreatedEvents(ctx context.Context, db DBTX, arg ListChildExternalIdsRecordedOnSignalCreatedEventsParams) ([]*ListChildExternalIdsRecordedOnSignalCreatedEventsRow, error) {
+	rows, err := db.Query(ctx, listChildExternalIdsRecordedOnSignalCreatedEvents,
+		arg.Minparenttaskinsertedat,
+		arg.Tenantids,
+		arg.Parenttaskids,
+		arg.Parenttaskinsertedats,
+		arg.Eventkeys,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListChildExternalIdsRecordedOnSignalCreatedEventsRow
+	for rows.Next() {
+		var i ListChildExternalIdsRecordedOnSignalCreatedEventsRow
+		if err := rows.Scan(&i.TaskID, &i.EventKey, &i.ChildExternalID); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listChildTaskExternalIdsWithRunEntries = `-- name: ListChildTaskExternalIdsWithRunEntries :many
+WITH inputs AS (
+    SELECT
+        UNNEST($2::BIGINT[]) AS durable_task_id,
+        UNNEST($3::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST($4::UUID[]) AS child_task_external_id
+)
+
+SELECT DISTINCT
+    durable_task_id,
+    child_task_external_id
+FROM v1_durable_event_log_entry
+WHERE
+    kind = 'RUN'
+    AND durable_task_inserted_at >= $1::TIMESTAMPTZ
+    AND (durable_task_id, durable_task_inserted_at, child_task_external_id) IN (
+        SELECT durable_task_id, durable_task_inserted_at, child_task_external_id
+        FROM inputs
+    )
+`
+
+type ListChildTaskExternalIdsWithRunEntriesParams struct {
+	Mindurabletaskinsertedat pgtype.Timestamptz   `json:"mindurabletaskinsertedat"`
+	Durabletaskids           []int64              `json:"durabletaskids"`
+	Durabletaskinsertedats   []pgtype.Timestamptz `json:"durabletaskinsertedats"`
+	Childtaskexternalids     []uuid.UUID          `json:"childtaskexternalids"`
+}
+
+type ListChildTaskExternalIdsWithRunEntriesRow struct {
+	DurableTaskID       int64      `json:"durable_task_id"`
+	ChildTaskExternalID *uuid.UUID `json:"child_task_external_id"`
+}
+
+func (q *Queries) ListChildTaskExternalIdsWithRunEntries(ctx context.Context, db DBTX, arg ListChildTaskExternalIdsWithRunEntriesParams) ([]*ListChildTaskExternalIdsWithRunEntriesRow, error) {
+	rows, err := db.Query(ctx, listChildTaskExternalIdsWithRunEntries,
+		arg.Mindurabletaskinsertedat,
+		arg.Durabletaskids,
+		arg.Durabletaskinsertedats,
+		arg.Childtaskexternalids,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListChildTaskExternalIdsWithRunEntriesRow
+	for rows.Next() {
+		var i ListChildTaskExternalIdsWithRunEntriesRow
+		if err := rows.Scan(&i.DurableTaskID, &i.ChildTaskExternalID); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDurableEventLogEntriesBeforeNode = `-- name: ListDurableEventLogEntriesBeforeNode :many
 SELECT tenant_id, external_id, result_payload_external_id, child_task_external_id, child_task_is_failure, child_task_error_message, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, branch_id, idempotency_key, is_satisfied, satisfied_at, satisfied_order, user_message, wait_data, triggered_at
 FROM v1_durable_event_log_entry
