@@ -355,24 +355,27 @@ func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Dat
 
 const defaultTaskActivityGauge = `-- name: DefaultTaskActivityGauge :one
 SELECT
-    COUNT(*)
+    COALESCE(MAX(last_active) > $1::timestamptz, FALSE)::BOOLEAN AS has_activity
 FROM
     v1_queue
 WHERE
-    tenant_id = $1::uuid
-    AND last_active > $2::timestamptz
+    tenant_id = $2::uuid
 `
 
 type DefaultTaskActivityGaugeParams struct {
-	Tenantid    uuid.UUID          `json:"tenantid"`
 	Activesince pgtype.Timestamptz `json:"activesince"`
+	Tenantid    uuid.UUID          `json:"tenantid"`
 }
 
-func (q *Queries) DefaultTaskActivityGauge(ctx context.Context, db DBTX, arg DefaultTaskActivityGaugeParams) (int64, error) {
-	row := db.QueryRow(ctx, defaultTaskActivityGauge, arg.Tenantid, arg.Activesince)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
+// Whether any of the tenant's queues has been active since the cutoff. Written as MAX rather than
+// EXISTS so that the planner reads the newest entry of v1_queue_tenant_id_last_active_idx: with
+// EXISTS it expects an early match and seq scans the table, which never ends early for a tenant
+// whose queues are all stale.
+func (q *Queries) DefaultTaskActivityGauge(ctx context.Context, db DBTX, arg DefaultTaskActivityGaugeParams) (bool, error) {
+	row := db.QueryRow(ctx, defaultTaskActivityGauge, arg.Activesince, arg.Tenantid)
+	var has_activity bool
+	err := row.Scan(&has_activity)
+	return has_activity, err
 }
 
 const deleteMatchingSignalEvents = `-- name: DeleteMatchingSignalEvents :exec

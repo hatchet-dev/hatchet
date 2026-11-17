@@ -298,6 +298,8 @@ CREATE TABLE v1_queue (
     CONSTRAINT v1_queue_pkey PRIMARY KEY (tenant_id, name)
 );
 
+CREATE INDEX v1_queue_tenant_id_last_active_idx ON v1_queue (tenant_id, last_active);
+
 CREATE TYPE v1_sticky_strategy AS ENUM ('NONE', 'SOFT', 'HARD');
 
 CREATE TYPE v1_task_initial_state AS ENUM ('QUEUED', 'CANCELLED', 'SKIPPED', 'FAILED');

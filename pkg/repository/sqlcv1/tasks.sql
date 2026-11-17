@@ -192,13 +192,16 @@ FROM
 ;
 
 -- name: DefaultTaskActivityGauge :one
+-- Whether any of the tenant's queues has been active since the cutoff. Written as MAX rather than
+-- EXISTS so that the planner reads the newest entry of v1_queue_tenant_id_last_active_idx: with
+-- EXISTS it expects an early match and seq scans the table, which never ends early for a tenant
+-- whose queues are all stale.
 SELECT
-    COUNT(*)
+    COALESCE(MAX(last_active) > @activeSince::timestamptz, FALSE)::BOOLEAN AS has_activity
 FROM
     v1_queue
 WHERE
-    tenant_id = @tenantId::uuid
-    AND last_active > @activeSince::timestamptz;
+    tenant_id = @tenantId::uuid;
 
 -- name: GetTaskByExternalId :one
 -- Resolve the task key before reading v1_task. Joining the lookup row directly
