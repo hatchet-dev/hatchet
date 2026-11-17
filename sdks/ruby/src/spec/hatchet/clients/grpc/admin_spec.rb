@@ -32,7 +32,8 @@ RSpec.describe Hatchet::Clients::Grpc::Admin do
       )
 
       expect(admin.trigger_workflow("wf")).to eq("run-1")
-      expect(Hatchet::Clients::Grpc::ServerRetryDelay).to have_received(:sleep).with(0.2).once
+      # The server's 0.2 seconds, extended at random by up to 20%.
+      expect(Hatchet::Clients::Grpc::ServerRetryDelay).to have_received(:sleep).with(a_value_between(0.2, 0.24)).once
     end
   end
 
