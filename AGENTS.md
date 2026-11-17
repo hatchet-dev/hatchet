@@ -8,10 +8,6 @@
 
 - Comments should explain non-obvious intent, invariants, or constraints in the current code. Do not mention the old implementation/state (for example, "preserve the behavior of the original query"); state the current rule directly.
 
-## Database Connections
-
-- Code that holds a transaction or a checked-out connection passes it (as `sqlcv1.DBTX`) to every query it makes, including through helpers and other repositories, and never takes a second connection from the same pool. A cache or fast path that usually skips the second checkout still counts: once every connection is held by a caller waiting for one more, none is released and the process stops serving database work. A cached lookup used inside a transaction gets a variant that reads a cache miss on the caller's transaction, such as `hasEntitlementTx` in `pkg/repository/tenant_entitlement.go`. Greptile checks the same rule (`no-nested-pool-acquire` in `.greptile/config.json`); keep the two in sync.
-
 ## Tests
 
 - Do not include customer names, tenant names, or production namespace names in test names, fixtures, comments, or logs. Describe the scenario by structural properties instead (for example, `dense_high_action_fanout`, not a customer or shard name).
