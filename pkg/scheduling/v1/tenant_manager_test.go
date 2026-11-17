@@ -5,6 +5,7 @@ package v1
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -173,6 +174,72 @@ func TestTenantManagerCleanupReleasesConcurrencyTopicLeases(t *testing.T) {
 	}, outbox.releases[0].topics)
 	require.True(t, outbox.releases[0].holdersStopped, "topics must be released only after their managers have stopped")
 	require.Empty(t, tm.concurrencyStrategies)
+}
+
+// idleTestQueuers returns queuers with no queue loop running, so a wake stays buffered in
+// notifyQueueCh where a test can observe it.
+func idleTestQueuers(l *zerolog.Logger, n int) []*Queuer {
+	queuers := make([]*Queuer, n)
+
+	for i := range queuers {
+		queuers[i] = &Queuer{l: l, notifyQueueCh: make(chan map[string]string, 1)}
+	}
+
+	return queuers
+}
+
+func wokenCount(queuers []*Queuer) int {
+	woken := 0
+
+	for _, q := range queuers {
+		woken += len(q.notifyQueueCh)
+	}
+
+	return woken
+}
+
+// A spread shorter than minNewWorkerWakeSpread is not applied, and the window never exceeds
+// maxNewWorkerWakeSpread.
+func TestTenantManagerNewWorkerWakeSpread(t *testing.T) {
+	require.Zero(t, newWorkerWakeSpread(0))
+	require.Zero(t, newWorkerWakeSpread(499), "a spread under the minimum is not applied")
+	require.Equal(t, minNewWorkerWakeSpread, newWorkerWakeSpread(500))
+	require.Equal(t, 5500*time.Second/newWorkerWakeRate, newWorkerWakeSpread(5500))
+	require.Equal(t, maxNewWorkerWakeSpread, newWorkerWakeSpread(1_000_000))
+}
+
+// A tenant with few queuers wakes all of them as soon as a worker joins.
+func TestTenantManagerNewWorkerWakesFewQueuersTogether(t *testing.T) {
+	l := zerolog.Nop()
+	tm := &tenantManager{l: l, queuers: idleTestQueuers(&l, 10)}
+
+	tm.wakeQueuersForNewWorker(context.Background())
+
+	require.Equal(t, 10, wokenCount(tm.queuers))
+}
+
+// A tenant with many queuers wakes the ones holding unassigned items as soon as a worker
+// joins and spreads the wakes of the rest, without dropping any.
+func TestTenantManagerNewWorkerSpreadsIdleQueuerWakes(t *testing.T) {
+	l := zerolog.Nop()
+
+	idle := idleTestQueuers(&l, 2500)
+	holding := idleTestQueuers(&l, 3)
+
+	for _, q := range holding {
+		q.unassignedCount.Store(1)
+	}
+
+	tm := &tenantManager{l: l, queuers: slices.Concat(idle, holding)}
+
+	tm.wakeQueuersForNewWorker(context.Background())
+
+	require.Equal(t, len(holding), wokenCount(holding), "queuers holding unassigned items must not wait")
+	require.Less(t, wokenCount(idle), len(idle)/2, "idle queuers must not all wake together")
+
+	require.Eventually(t, func() bool {
+		return wokenCount(idle) == len(idle)
+	}, 5*time.Second, 10*time.Millisecond, "every idle queuer must still be woken")
 }
 
 // A tenant whose managers hold no topic leases has nothing to release.

@@ -480,6 +480,34 @@ func TestQueuerQueueCoalescesIntoBufferedWake(t *testing.T) {
 	require.Len(t, q.notifyQueueCh, 1, "once the buffered wake-up is consumed the next one is delivered, canceled context or not")
 }
 
+// TestQueuerQueueAfterCoalescesPendingWakes pins the same rule for a delayed wake: a second
+// request while one is waiting does not start its own, and a request made after it has fired
+// is delivered.
+func TestQueuerQueueAfterCoalescesPendingWakes(t *testing.T) {
+	l := zerolog.Nop()
+	q := &Queuer{l: &l, notifyQueueCh: make(chan map[string]string, 1)}
+	ctx := context.Background()
+
+	q.queueAfter(ctx, 20*time.Millisecond)
+	q.queueAfter(ctx, 20*time.Millisecond)
+
+	require.Eventually(t, func() bool {
+		return len(q.notifyQueueCh) == 1
+	}, time.Second, time.Millisecond)
+
+	<-q.notifyQueueCh
+
+	require.Never(t, func() bool {
+		return len(q.notifyQueueCh) > 0
+	}, 100*time.Millisecond, 5*time.Millisecond, "the second request must not produce its own wake")
+
+	q.queueAfter(ctx, time.Millisecond)
+
+	require.Eventually(t, func() bool {
+		return len(q.notifyQueueCh) == 1
+	}, time.Second, time.Millisecond, "a request made after the pending wake fired must be delivered")
+}
+
 // failingFlushQueueRepo always has two items to hand out and fails every flush.
 type failingFlushQueueRepo struct {
 	fakeQueueRepository
