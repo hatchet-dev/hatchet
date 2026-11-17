@@ -4181,4 +4181,4 @@ test = ["boto3", "botocore", "psycopg", "pytest", "pytest-asyncio", "pytest-env"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<4"
-content-hash = "0026511bdb59adc93b5c0b0b031bc2603b4ba2d4354eaef0e97d9e18e36a9350"
+content-hash = "a9d346c57341fa1f2a6fb891fffbb25fe2376f82989e0bc2afd0e6fc5daebf9d"
