@@ -184,7 +184,7 @@ class SessionHost {
     private readonly sessionId: string,
     private readonly ctx: TaskContext<SessionTaskInput>
   ) {
-    this.topics = sessionTopics(taskName, sessionId);
+    this.topics = sessionTopics(taskName, sessionId, hatchet.config.namespace);
   }
 
   /** Logs to the task run, so the line shows up on the run in the dashboard. Hatchet keeps 1000 lines per task. */
@@ -346,11 +346,12 @@ class SessionHost {
 
   /**
    * A conversation's sandbox ID is fixed, so an attempt that fails after creating the sandbox leaves it for the next
-   * attempt to reuse. Sandbox IDs allow only lowercase letters, digits and hyphens, so the session id is hashed.
+   * attempt to reuse. It includes the client's namespace, like the session's topics. Sandbox IDs allow only lowercase
+   * letters, digits and hyphens, so the namespace, task name and session id are hashed.
    */
   private sandboxIdOf(id: ConversationId): string {
     const session = createHash('sha256')
-      .update(`${this.taskName}/${this.sessionId}`)
+      .update(`${this.hatchet.config.namespace ?? ''}${this.taskName}/${this.sessionId}`)
       .digest('hex')
       .slice(0, 16);
     return `pi-${session}-c${id}`;

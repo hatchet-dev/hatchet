@@ -18,6 +18,13 @@ describe('sessionTopics', () => {
       view: 'pi-session-view-abc',
     });
   });
+
+  it('prefixes both topics with the namespace', () => {
+    expect(sessionTopics('pi-session', 'abc', 'team_')).toEqual({
+      inbox: 'team_pi-session-inbox-abc',
+      view: 'team_pi-session-view-abc',
+    });
+  });
 });
 
 describe('ClientMessage', () => {

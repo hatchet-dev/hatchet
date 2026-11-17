@@ -4,13 +4,15 @@ import { z } from 'zod';
 export const SessionId = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
 
 /**
- * The two topics of one session of the task `taskName`:
+ * The two topics of one session of the task `taskName`. `namespace` is the client's namespace, so deployments in
+ * different namespaces of one tenant never share a session's topics.
  * - `inbox`: clients publish here; the host reads it from the cursor it last committed. Never reset.
  * - `view`: the host publishes a full SessionView here after commits, and resets the topic before each one, so a
  *   reader that connects without a cursor starts at the newest view.
  */
-export function sessionTopics(taskName: string, sessionId: string) {
-  return { inbox: `${taskName}-inbox-${sessionId}`, view: `${taskName}-view-${sessionId}` };
+export function sessionTopics(taskName: string, sessionId: string, namespace = '') {
+  const prefix = `${namespace}${taskName}`;
+  return { inbox: `${prefix}-inbox-${sessionId}`, view: `${prefix}-view-${sessionId}` };
 }
 
 const conversationId = z.number().int().nonnegative();

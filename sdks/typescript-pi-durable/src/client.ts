@@ -45,7 +45,7 @@ export class SessionClient {
     SessionId.parse(sessionId);
     const inbox: InboxMessage = { ...ClientMessage.parse(message), requestId: randomUUID() };
     await this.hatchet.streams.publish(
-      sessionTopics(this.taskName, sessionId).inbox,
+      sessionTopics(this.taskName, sessionId, this.hatchet.config.namespace).inbox,
       JSON.stringify(inbox)
     );
     await this.wake(sessionId);
@@ -58,7 +58,7 @@ export class SessionClient {
    */
   async *views(sessionId: string, signal?: AbortSignal): AsyncGenerator<SessionView> {
     SessionId.parse(sessionId);
-    const topic = sessionTopics(this.taskName, sessionId).view;
+    const topic = sessionTopics(this.taskName, sessionId, this.hatchet.config.namespace).view;
     while (!signal?.aborted) {
       try {
         for await (const event of this.hatchet.streams.events(topic, { signal })) {
