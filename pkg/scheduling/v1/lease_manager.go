@@ -163,7 +163,10 @@ func (l *LeaseManager) sendBatches(batches []*sqlcv1.ListDistinctBatchResourcesR
 func (l *LeaseManager) drainBatchesCh() {
 	for {
 		select {
-		case <-l.batchesCh:
+		case _, ok := <-l.batchesCh:
+			if !ok {
+				return
+			}
 		default:
 			return
 		}
@@ -521,6 +524,13 @@ func (l *LeaseManager) notifyNewConcurrencyStrategy(ctx context.Context, strateg
 }
 
 func (l *LeaseManager) acquireBatchLeases(ctx context.Context) error {
+	l.processMu.RLock()
+	defer l.processMu.RUnlock()
+
+	if l.cleanedUp {
+		return nil
+	}
+
 	l.batchLeasesMu.Lock()
 	defer l.batchLeasesMu.Unlock()
 

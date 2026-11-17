@@ -123,6 +123,6 @@ the same output to every task buffered into the same batch. See the batch flushi
 ## Failures, retries, and ordering
 
 - If the handler throws, every member of the batch fails with that error. The handler can't fail individual members.
-- Batch tasks aren't retried. Setting `retries` on a batch task has no effect, so a member fails on its first attempt.
-- A run is placed in at most one batch per attempt. If the worker running a batch stops responding, the batch's members fail when they reach their execution timeout.
+- Handler failures aren't retried. Setting `retries` on a batch task has no effect, so a member fails on its first attempt.
+- A run is placed in at most one batch per attempt. If the worker running a batch stops sending heartbeats for 30 seconds, the batch's members are reassigned and can run in a new batch.
 - The order of members in the handler's input isn't guaranteed.
