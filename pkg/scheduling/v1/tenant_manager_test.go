@@ -223,7 +223,9 @@ func TestTenantManagerNewWorkerWakesFewQueuersTogether(t *testing.T) {
 func TestTenantManagerNewWorkerSpreadsIdleQueuerWakes(t *testing.T) {
 	l := zerolog.Nop()
 
-	idle := idleTestQueuers(&l, 2500)
+	// Four seconds of spread, so the check below still sees fewer than half the idle queuers
+	// woken after a stall of about two seconds.
+	idle := idleTestQueuers(&l, 4*newWorkerWakeRate)
 	holding := idleTestQueuers(&l, 3)
 
 	for _, q := range holding {
@@ -239,7 +241,7 @@ func TestTenantManagerNewWorkerSpreadsIdleQueuerWakes(t *testing.T) {
 
 	require.Eventually(t, func() bool {
 		return wokenCount(idle) == len(idle)
-	}, 5*time.Second, 10*time.Millisecond, "every idle queuer must still be woken")
+	}, 10*time.Second, 10*time.Millisecond, "every idle queuer must still be woken")
 }
 
 // A tenant whose managers hold no topic leases has nothing to release.
