@@ -2986,11 +2986,16 @@ func (r *durableEventsRepository) ListDurableEventLog(ctx context.Context, tenan
 // operatorStepChildrenSkipCompletionMatch reports whether the tenant's operator step children may
 // be spawned without a completion match. Until every engine pod satisfies entries directly, a pod
 // that still resolves completions through matching would otherwise never finish such a step, so
-// the match is kept unless the tenant is entitled, and kept on a lookup error.
+// the match is kept unless SERVER_CHILD_RUN_DIRECT_SPAWN is on or the tenant is entitled, and kept
+// on a lookup error.
 //
 // Every caller is inside a transaction, so the entitlement is read on tx rather than on a second
 // pooled connection.
 func (r *sharedRepository) operatorStepChildrenSkipCompletionMatch(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID) bool {
+	if r.childRunDirectSpawn {
+		return true
+	}
+
 	if r.entitlements == nil {
 		return false
 	}
@@ -3026,7 +3031,7 @@ func isOperatorStepChild(parentTaskId pgtype.Int8, parentTaskInsertedAt pgtype.T
 		*parentTaskExternalId == workflowRunId
 }
 
-// with the entitlement flag off, children report through their completion match like they did before direct completion existed.
+// with SERVER_CHILD_RUN_DIRECT_SPAWN and the entitlement flag off, children report through their completion match like they did before direct completion existed.
 // there's a race condition around the flag being changed where a child that was spawned while the flag was on has no match
 // (the flag was rolled back, or this process still has the old value cached after it was enabled), so we need to check if each
 // child has a completion match and complete the ones without one directly, otherwise their orchestrator would never hear from them.

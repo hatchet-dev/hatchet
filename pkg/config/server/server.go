@@ -135,6 +135,12 @@ type TaskOperationLimitsConfigFile struct {
 	// engine version that doesn't, running tasks look unacked and get reassigned while they're still running.
 	ReassignUnackedTasks bool `mapstructure:"reassignUnackedTasks" json:"reassignUnackedTasks,omitempty" default:"false"`
 
+	// ChildRunDirectSpawn lets the DAG operator's step children skip the completion match and satisfy their
+	// orchestrator's log entry directly, for every tenant rather than only those with the operator step direct
+	// completion entitlement. Only enable it once every engine instance supports it: during a rolling deploy, an
+	// engine version that doesn't would never hear the child's completion.
+	ChildRunDirectSpawn bool `mapstructure:"childRunDirectSpawn" json:"childRunDirectSpawn,omitempty" default:"false"`
+
 	// RetryQueueLimit is the limit for how many retry queue items to process in a single operation
 	RetryQueueLimit int `mapstructure:"retryQueueLimit" json:"retryQueueLimit,omitempty" default:"1000"`
 
@@ -1314,6 +1320,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.durableEventBufferMaxConcurrentFlushes", "SERVER_DURABLE_EVENT_BUFFER_MAX_CONCURRENT_FLUSHES")
 	_ = v.BindEnv("runtime.streamEventBufferTimeout", "SERVER_STREAM_EVENT_BUFFER_TIMEOUT")
 	_ = v.BindEnv("runtime.taskOperationLimits.reassignUnackedTasks", "SERVER_REASSIGN_UNACKED_TASKS")
+	_ = v.BindEnv("runtime.taskOperationLimits.childRunDirectSpawn", "SERVER_CHILD_RUN_DIRECT_SPAWN")
 
 	// payload store options
 	_ = v.BindEnv("payloadStore.externalCutoverProcessInterval", "SERVER_PAYLOAD_STORE_EXTERNAL_CUTOVER_PROCESS_INTERVAL")
