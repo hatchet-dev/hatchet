@@ -547,6 +547,19 @@ describe('HatchetCore.runNoWait', () => {
       existingRunExternalId: 'existing-run',
     });
   });
+
+  it('keeps the engine error as the cause of the HatchetError it throws', async () => {
+    const engine = fakeEngine();
+    engine.failTriggersWith(new ConnectError('throttled', Code.ResourceExhausted));
+    const client = makeClient(engine);
+
+    const error = await client.runNoWait('wf', {}).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(HatchetError);
+    const { cause } = error as HatchetError;
+    expect(cause).toBeInstanceOf(ConnectError);
+    expect((cause as ConnectError).code).toBe(Code.ResourceExhausted);
+  });
 });
 
 describe('HatchetCore.rateLimits.pause', () => {

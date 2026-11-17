@@ -251,7 +251,7 @@ export class InternalWorker {
       await registeredWorkflow;
       this.workflow_registry.push(workflow);
     } catch (e: any) {
-      throw new HatchetError(`Could not register workflow: ${e.message}`);
+      throw new HatchetError(`Could not register workflow: ${e.message}`, { cause: e });
     }
 
     this.registerActions(workflow);

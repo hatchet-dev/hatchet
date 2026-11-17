@@ -283,6 +283,8 @@ You can add non-idempotent methods to `retry_transport_methods`, but only do so 
 
 Python SDK client retries use exponential backoff with jitter. Fine-grained backoff timing is not currently configurable through `TenacityConfig`.
 
+A call that Hatchet throttles is handled differently; see [When Hatchet throttles a call](#when-hatchet-throttles-a-call).
+
 ## Go SDK Client Retry Behavior
 
 The retry behavior described above is for task execution inside Hatchet. The Go SDK also retries some REST and gRPC calls that the SDK itself makes to Hatchet.
@@ -335,6 +337,8 @@ For HTTP 429 responses on idempotent reads, the Go SDK honors a valid `Retry-Aft
   retries all unary RPCs, including writes, in this release.
 </Callout>
 
+A call that Hatchet throttles is handled differently; see [When Hatchet throttles a call](#when-hatchet-throttles-a-call).
+
 ### Configuring Go SDK client retries
 
 Use environment variables to disable SDK client retries:
@@ -355,6 +359,38 @@ If both variables are set, all SDK client retries are disabled.
   are one-shot unless `GetBody` is set or the SDK buffers and rebuilds the body.
   The generated REST clients do not set `GetBody`.
 </Callout>
+
+## When Hatchet throttles a call
+
+Hatchet can refuse a gRPC call it cannot take right now, for example when a tenant sends runs or events faster than a rate limit allows. The refusal is `RESOURCE_EXHAUSTED` with a `google.rpc.RetryInfo` detail that says how long to wait. The Go, Python, TypeScript and Ruby SDKs all treat it the same way:
+
+1. The SDK waits the delay the server asked for, in place of its own backoff, and tries again.
+2. If the call is throttled again, the wait doubles with each retry the call has already made, up to 5 seconds.
+3. Each wait is extended by a random amount of up to 20%, so that clients throttled at the same moment do not all come back at the same moment. The SDK never retries sooner than the server asked.
+4. The call is attempted at most 5 times. In Python the configured `max_attempts` applies instead, and in TypeScript a lower configured attempt count still applies.
+5. If the server asks for a wait longer than 5 seconds, the SDK does not retry. The call fails at once.
+
+When the call fails, your code gets the server's error, and its message says why the call was refused:
+
+| SDK        | Error                                                                                                                                                        |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Go         | An error wrapping the gRPC status. `status.FromError` gives the `ResourceExhausted` code and the `RetryInfo` detail.                                         |
+| Python     | The `grpc.RpcError`, whose `code()` is `RESOURCE_EXHAUSTED`.                                                                                                 |
+| TypeScript | A `HatchetError`. The `ConnectError` with the `ResourceExhausted` code is in its `cause` chain.                                                              |
+| Ruby       | `Hatchet::ResourceExhaustedError` for triggers, whose `cause` is the `GRPC::ResourceExhausted` error, and `GRPC::ResourceExhausted` itself for event pushes. |
+
+None of the SDKs exposes the server's delay as a field of the error yet. It is in the error's `RetryInfo` detail.
+
+This applies to the following calls. Stream calls and REST calls are not covered.
+
+| SDK        | Calls                                                                                                                                                                                |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Go         | Every unary gRPC call except the calls a worker makes to the dispatcher, such as reporting a task's result, which keep the SDK's own backoff.                                        |
+| Python     | The unary gRPC calls that `TenacityConfig` governs. The calls a worker makes to report a task's progress and result keep their own retry schedule.                                   |
+| TypeScript | The calls the SDK retries over its Connect gRPC client, such as triggers, bulk triggers, event pushes and workflow registration. A worker's calls to the dispatcher are not covered. |
+| Ruby       | Triggers, bulk triggers and event pushes, one at a time or in bulk. The Ruby SDK retries nothing else.                                                                               |
+
+`RESOURCE_EXHAUSTED` without a `RetryInfo` detail, such as a plan limit, is not treated this way. The Go, Python and TypeScript SDKs retry it on their own backoff, and the Ruby SDK raises it at once.
 
 ## Conclusion
 
