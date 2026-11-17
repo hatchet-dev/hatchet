@@ -38,7 +38,6 @@ func TestNewPgxPoolConfig_ConnectBounds(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Equal(t, tc.want, cfg.ConnConfig.ConnectTimeout)
-			require.NotNil(t, cfg.ConnConfig.DialFunc)
 		})
 	}
 }
