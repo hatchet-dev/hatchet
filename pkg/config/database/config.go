@@ -37,6 +37,15 @@ type ConfigFile struct {
 	MaxConnLifetime time.Duration `mapstructure:"maxConnLifetime" json:"maxConnLifetime,omitempty" default:"15m"`
 	MaxConnIdleTime time.Duration `mapstructure:"maxConnIdleTime" json:"maxConnIdleTime,omitempty" default:"1m"`
 
+	// DialTimeout bounds the TCP connect of every new connection. During a failover the old
+	// primary's address can drop packets, and a dial to it holds a pool slot until this fires.
+	DialTimeout time.Duration `mapstructure:"dialTimeout" json:"dialTimeout,omitempty" default:"3s"`
+
+	// ConnectTimeout bounds the connect (dial, TLS, auth) and, separately, the connection setup
+	// queries. It overrides connect_timeout in the database URL. Keep it above the multi-second
+	// stalls a live but overloaded server can show during startup, or those turn into errors.
+	ConnectTimeout time.Duration `mapstructure:"connectTimeout" json:"connectTimeout,omitempty" default:"15s"`
+
 	// FairpoolTenantMaxPercent is the share of the pool one tenant may hold.
 	// 100 (the default) installs no cap. Values from 1 to 99 cap each tenant at that percent of MaxConns.
 	FairpoolTenantMaxPercent int `mapstructure:"fairpoolTenantMaxPercent" json:"fairpoolTenantMaxPercent,omitempty" default:"100"`
@@ -89,6 +98,11 @@ type Layer struct {
 	// need LISTEN (e.g. the postgres PubSub) must build their pools from this.
 	DirectDatabaseURL string
 
+	// DialTimeout and ConnectTimeout bound new connections on the layer's pools. Pools built
+	// from DirectDatabaseURL apply them too.
+	DialTimeout    time.Duration
+	ConnectTimeout time.Duration
+
 	ReadReplicaPool *pgxpool.Pool
 
 	// DDLPool is meant for DDL-modifying operations like DETACH PARTITION CONCURRENTLY, which
@@ -133,6 +147,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("minConns", "DATABASE_MIN_CONNS")
 	_ = v.BindEnv("maxConnLifetime", "DATABASE_MAX_CONN_LIFETIME")
 	_ = v.BindEnv("maxConnIdleTime", "DATABASE_MAX_CONN_IDLE_TIME")
+	_ = v.BindEnv("dialTimeout", "DATABASE_DIAL_TIMEOUT")
+	_ = v.BindEnv("connectTimeout", "DATABASE_CONNECT_TIMEOUT")
 	_ = v.BindEnv("fairpoolTenantMaxPercent", "DATABASE_FAIRPOOL_TENANT_MAX_PERCENT")
 	_ = v.BindEnv("fairpoolSharedMaxPercent", "DATABASE_FAIRPOOL_SHARED_MAX_PERCENT")
 	_ = v.BindEnv("fairpoolTenantMaxWait", "DATABASE_FAIRPOOL_TENANT_MAX_WAIT")

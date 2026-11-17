@@ -222,6 +222,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		MinConns:        int32(cf.MinConns), // nolint: gosec
 		MaxConnLifetime: cf.MaxConnLifetime,
 		MaxConnIdleTime: cf.MaxConnIdleTime,
+		DialTimeout:     cf.DialTimeout,
+		ConnectTimeout:  cf.ConnectTimeout,
 	})
 	if err != nil {
 		return nil, err
@@ -288,6 +290,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 			MinConns:        int32(cf.ReadReplicaMinConns), // nolint: gosec
 			MaxConnLifetime: cf.MaxConnLifetime,
 			MaxConnIdleTime: cf.MaxConnIdleTime,
+			DialTimeout:     cf.DialTimeout,
+			ConnectTimeout:  cf.ConnectTimeout,
 		})
 
 		if err != nil {
@@ -323,6 +327,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		MinConns:        int32(cf.DDLPoolMinConns), // nolint: gosec
 		MaxConnLifetime: cf.MaxConnLifetime,
 		MaxConnIdleTime: cf.MaxConnIdleTime,
+		DialTimeout:     cf.DialTimeout,
+		ConnectTimeout:  cf.ConnectTimeout,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not parse direct database url: %w", err)
@@ -418,6 +424,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		},
 		Pool:              pool,
 		DirectDatabaseURL: databaseUrl,
+		DialTimeout:       cf.DialTimeout,
+		ConnectTimeout:    cf.ConnectTimeout,
 		DDLPool:           ddlPool,
 		V1:                v1,
 		Seed:              cf.Seed,
@@ -1004,6 +1012,8 @@ func createPubSubV1(dc *database.Layer, cf *server.ServerConfigFile, l *zerolog.
 		pubsubPoolConfig.MaxConns = cf.MessageQueue.PubSub.Postgres.MaxConns
 		pubsubPoolConfig.MinConns = cf.MessageQueue.PubSub.Postgres.MinConns
 		pubsubPoolConfig.ConnConfig.Tracer = newOTelPgxTracer()
+
+		boundPgxConnect(pubsubPoolConfig.ConnConfig, dc.DialTimeout, dc.ConnectTimeout)
 
 		pubsubPool, err := pgxpool.NewWithConfig(context.Background(), pubsubPoolConfig)
 
