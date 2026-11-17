@@ -830,7 +830,7 @@ func (r *tenantRepository) withRebalanceLock(ctx context.Context, partitionKind 
 
 	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
 
-	if _, err := tx.Exec(ctx, "SET statement_timeout=5000"); err != nil {
+	if _, err := tx.Exec(ctx, "SET LOCAL statement_timeout=5000"); err != nil {
 		return err
 	}
 

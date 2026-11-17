@@ -164,7 +164,9 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 		}
 	}()
 
-	ctx, cancel := cmdutils.NewInterruptContext()
+	// built from the channel the API and the wait below share, so an interrupt that arrives before
+	// this point still cancels the engine
+	ctx, cancel := cmdutils.InterruptContextFromChan(interruptCh)
 	defer cancel()
 
 	engineDone := make(chan struct{})
@@ -200,6 +202,8 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 	}()
 
 	<-interruptCh
+
+	cancel()
 
 	// The engine deletes its partitions and releases its leases in its cleanups. Exiting before
 	// they run leaves the next process waiting for the partitions to be judged inactive. A second
