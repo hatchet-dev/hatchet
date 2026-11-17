@@ -2298,6 +2298,7 @@ func (r *durableEventsRepository) TriggerPendingRunEntries(ctx context.Context, 
 
 	triggerOpts := make([]*WorkflowNameTriggerOpts, 0, len(claimedSet))
 	externalIdToEventLogEntryPK := make(map[uuid.UUID]DurableTaskEventLogEntryKey, len(claimedSet))
+	// poorly named: with SERVER_CHILD_RUN_DIRECT_SPAWN on, this holds every durable child, not just DAG steps
 	dagStepChildExternalIds := make(map[uuid.UUID]struct{})
 	stepChildrenSkipMatch := r.operatorStepChildrenSkipCompletionMatch(ctx, tx, tenantId)
 
@@ -2318,7 +2319,7 @@ func (r *durableEventsRepository) TriggerPendingRunEntries(ctx context.Context, 
 			triggerOpts = append(triggerOpts, p.TriggerOpts)
 			externalIdToEventLogEntryPK[p.TriggerOpts.ExternalId] = k
 
-			if p.TriggerOpts.IsDagStepTrigger && stepChildrenSkipMatch {
+			if r.childRunDirectSpawn || (p.TriggerOpts.IsDagStepTrigger && stepChildrenSkipMatch) {
 				dagStepChildExternalIds[p.TriggerOpts.ExternalId] = struct{}{}
 			}
 		}
@@ -3017,11 +3018,13 @@ type OperatorStepChildCompletion struct {
 	OutputEvent  *TaskOutputEvent
 }
 
-// IsOperatorStepChild reports whether a released task was spawned by a DAG orchestrator for one
-// of its steps. The DAG operator groups every step child under the orchestrator's run id and names
-// the orchestrator as the parent, so the two ids coincide only for operator step children.
+// poorly named: besides operator step children (which share the orchestrator's run id), this covers
+// a single-task child run and the orchestrator of an operator DAG child (which own their run id)
 func IsOperatorStepChild(task *sqlcv1.ReleaseTasksRow) bool {
-	return isOperatorStepChild(task.ParentTaskID, task.ParentTaskInsertedAt, task.ParentTaskExternalID, task.WorkflowRunID)
+	return task.ParentTaskID.Valid &&
+		task.ParentTaskInsertedAt.Valid &&
+		task.ParentTaskExternalID != nil &&
+		(*task.ParentTaskExternalID == task.WorkflowRunID || task.ExternalID == task.WorkflowRunID)
 }
 
 func isOperatorStepChild(parentTaskId pgtype.Int8, parentTaskInsertedAt pgtype.Timestamptz, parentTaskExternalId *uuid.UUID, workflowRunId uuid.UUID) bool {
@@ -3036,13 +3039,25 @@ func isOperatorStepChild(parentTaskId pgtype.Int8, parentTaskInsertedAt pgtype.T
 // (the flag was rolled back, or this process still has the old value cached after it was enabled), so we need to check if each
 // child has a completion match and complete the ones without one directly, otherwise their orchestrator would never hear from them.
 func (r *sharedRepository) operatorStepChildrenCompletingDirectly(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, completions []OperatorStepChildCompletion) ([]OperatorStepChildCompletion, error) {
-	if len(completions) == 0 || r.operatorStepChildrenSkipCompletionMatch(ctx, tx, tenantId) {
+	if len(completions) == 0 {
 		return completions, nil
 	}
 
-	childExternalIds := enumerables.Map(completions, func(completion OperatorStepChildCompletion) string {
-		return completion.ReleasedTask.ExternalID.String()
-	})
+	stepChildrenSkipMatch := r.operatorStepChildrenSkipCompletionMatch(ctx, tx, tenantId)
+	childExternalIds := make([]string, 0, len(completions))
+
+	// other children may have a match even with the flag on: non-durable parents and replays still create them
+	for _, completion := range completions {
+		task := completion.ReleasedTask
+
+		if !stepChildrenSkipMatch || !isOperatorStepChild(task.ParentTaskID, task.ParentTaskInsertedAt, task.ParentTaskExternalID, task.WorkflowRunID) {
+			childExternalIds = append(childExternalIds, task.ExternalID.String())
+		}
+	}
+
+	if len(childExternalIds) == 0 {
+		return completions, nil
+	}
 
 	completionConditions, err := r.queries.ListMatchConditionsForEventWithHint(ctx, tx, sqlcv1.ListMatchConditionsForEventWithHintParams{
 		Tenantid:  tenantId,
