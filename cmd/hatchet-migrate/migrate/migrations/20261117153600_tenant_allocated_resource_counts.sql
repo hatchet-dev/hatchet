@@ -8,15 +8,24 @@ CREATE TABLE tenant_allocated_resource_count (
     webhook_count BIGINT NOT NULL DEFAULT 0
 );
 
+CREATE TABLE tenant_allocated_resource_count_delta (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    tenant_id UUID NOT NULL,
+    cron_count BIGINT NOT NULL DEFAULT 0,
+    scheduled_run_count BIGINT NOT NULL DEFAULT 0,
+    webhook_count BIGINT NOT NULL DEFAULT 0
+);
+
+CREATE INDEX tenant_allocated_resource_count_delta_tenant_id_idx ON tenant_allocated_resource_count_delta (tenant_id);
+
 CREATE OR REPLACE FUNCTION tenant_allocated_resource_count_on_schedule_fire()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    UPDATE tenant_allocated_resource_count AS c
-    SET scheduled_run_count = GREATEST(c.scheduled_run_count - 1, 0)
-    WHERE c.tenant_id = NEW."tenantId"
-      AND EXISTS (
+    INSERT INTO tenant_allocated_resource_count_delta (tenant_id, scheduled_run_count)
+    SELECT NEW."tenantId", -1
+    WHERE EXISTS (
         SELECT 1
         FROM "WorkflowTriggerScheduledRef" s
         JOIN "WorkflowVersion" v ON s."parentId" = v."id"
@@ -25,7 +34,7 @@ BEGIN
           AND s."deletedAt" IS NULL
           AND v."deletedAt" IS NULL
           AND w."deletedAt" IS NULL
-      );
+    );
 
     RETURN NULL;
 END;
@@ -37,8 +46,7 @@ FOR EACH ROW
 WHEN (NEW."scheduledId" IS NOT NULL)
 EXECUTE FUNCTION tenant_allocated_resource_count_on_schedule_fire();
 
--- One-time backfill. The unfiltered read replaces this table from live crons,
--- pending schedules, and incoming webhooks.
+-- One-time backfill from live crons, pending schedules, and incoming webhooks.
 SET LOCAL statement_timeout = 0;
 
 WITH latest_versions AS (
@@ -118,6 +126,7 @@ FROM fresh;
 
 DROP TRIGGER IF EXISTS tenant_allocated_resource_count_schedule_fire ON "WorkflowRunTriggeredBy";
 DROP FUNCTION IF EXISTS tenant_allocated_resource_count_on_schedule_fire();
+DROP TABLE IF EXISTS tenant_allocated_resource_count_delta;
 DROP TABLE IF EXISTS tenant_allocated_resource_count;
 
 -- +goose StatementEnd

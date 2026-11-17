@@ -2,38 +2,96 @@
 -- One row per tenant with a cron, a pending schedule, or a webhook.
 -- A tenant whose three counts are all zero is absent.
 -- NULL tenantIds returns every such tenant.
+-- A count is the tenant's count row plus its deltas. Compaction moves deltas
+-- onto the count row in one statement, so this statement's snapshot holds each
+-- change exactly once.
+WITH counts AS (
+    SELECT tenant_id, cron_count, scheduled_run_count, webhook_count
+    FROM tenant_allocated_resource_count
+    WHERE
+        sqlc.narg('tenantIds')::uuid[] IS NULL
+        OR tenant_id = ANY(sqlc.narg('tenantIds')::uuid[])
+
+    UNION ALL
+
+    SELECT tenant_id, cron_count, scheduled_run_count, webhook_count
+    FROM tenant_allocated_resource_count_delta
+    WHERE
+        sqlc.narg('tenantIds')::uuid[] IS NULL
+        OR tenant_id = ANY(sqlc.narg('tenantIds')::uuid[])
+)
 SELECT
+    tenant_id,
+    GREATEST(SUM(cron_count), 0)::bigint AS cron_count,
+    GREATEST(SUM(scheduled_run_count), 0)::bigint AS scheduled_run_count,
+    GREATEST(SUM(webhook_count), 0)::bigint AS webhook_count
+FROM counts
+GROUP BY tenant_id
+HAVING
+    SUM(cron_count) > 0
+    OR SUM(scheduled_run_count) > 0
+    OR SUM(webhook_count) > 0
+ORDER BY tenant_id;
+
+-- name: InsertAllocatedResourceCountDelta :exec
+INSERT INTO tenant_allocated_resource_count_delta (
     tenant_id,
     cron_count,
     scheduled_run_count,
     webhook_count
-FROM tenant_allocated_resource_count
-WHERE (
-    sqlc.narg('tenantIds')::uuid[] IS NULL
-    OR tenant_id = ANY(sqlc.narg('tenantIds')::uuid[])
+) VALUES (
+    @tenantId::uuid,
+    @cronDelta::bigint,
+    @scheduleDelta::bigint,
+    @webhookDelta::bigint
+);
+
+-- name: CompactAllocatedResourceCountDeltas :one
+-- Folds the oldest batchSize deltas into the count rows and returns how many
+-- it folded. Deltas another compaction is folding are skipped.
+WITH claimed AS (
+    DELETE FROM tenant_allocated_resource_count_delta
+    WHERE id IN (
+        SELECT id
+        FROM tenant_allocated_resource_count_delta
+        ORDER BY id
+        LIMIT @batchSize::integer
+        FOR UPDATE SKIP LOCKED
+    )
+    RETURNING tenant_id, cron_count, scheduled_run_count, webhook_count
+), folded AS (
+    INSERT INTO tenant_allocated_resource_count AS c (
+        tenant_id,
+        cron_count,
+        scheduled_run_count,
+        webhook_count
+    )
+    SELECT
+        tenant_id,
+        SUM(cron_count),
+        SUM(scheduled_run_count),
+        SUM(webhook_count)
+    FROM claimed
+    GROUP BY tenant_id
+    -- one lock order for every compaction touching the same tenants
+    ORDER BY tenant_id
+    ON CONFLICT (tenant_id) DO UPDATE SET
+        cron_count = c.cron_count + EXCLUDED.cron_count,
+        scheduled_run_count = c.scheduled_run_count + EXCLUDED.scheduled_run_count,
+        webhook_count = c.webhook_count + EXCLUDED.webhook_count
 )
-AND (
-    cron_count > 0
-    OR scheduled_run_count > 0
-    OR webhook_count > 0
-)
-ORDER BY 1;
+SELECT COUNT(*)
+FROM claimed;
 
--- name: LockAllocatedResourceCountTable :exec
--- EXCLUSIVE blocks writers for the rest of this transaction and waits for
--- writers already in the table. A plain read is still allowed. The rebuild
--- deletes every row and inserts the replacement, so a writer must not commit
--- a new tenant row between those two statements.
-LOCK TABLE tenant_allocated_resource_count IN EXCLUSIVE MODE;
-
--- name: DeleteAllocatedResourceCounts :exec
-DELETE FROM tenant_allocated_resource_count;
-
--- name: InsertAllocatedResourceCounts :exec
--- Replaces tenant_allocated_resource_count. An enabled cron is counted on the
--- latest live version of a live workflow. A pending schedule is not deleted,
--- is on a live version and workflow, and has not fired. A webhook is every
--- incoming webhook row.
+-- name: CorrectAllocatedResourceCounts :exec
+-- Appends, for each tenant whose stored count differs from its live rows, the
+-- delta that makes them equal. An enabled cron is counted on the latest live
+-- version of a live workflow. A pending schedule is not deleted, is on a live
+-- version and workflow, and has not fired. A webhook is every incoming
+-- webhook row.
+-- A write commits its row and its delta together, so the live rows and the
+-- stored count in this statement's snapshot cover the same writes, and a write
+-- that commits later adds its own delta on top of the correction.
 WITH latest_versions AS (
     SELECT DISTINCT ON (v."workflowId")
         v.id,
@@ -94,32 +152,54 @@ fresh AS (
     FROM cron_counts c
     FULL OUTER JOIN schedule_counts s ON s.tenant_id = c.tenant_id
     FULL OUTER JOIN webhook_counts wh ON wh.tenant_id = COALESCE(c.tenant_id, s.tenant_id)
-)
-INSERT INTO tenant_allocated_resource_count (
-    tenant_id,
-    cron_count,
-    scheduled_run_count,
-    webhook_count
-)
-SELECT tenant_id, cron_count, scheduled_run_count, webhook_count
-FROM fresh;
+),
+stored AS (
+    SELECT
+        tenant_id,
+        SUM(cron_count)::bigint AS cron_count,
+        SUM(scheduled_run_count)::bigint AS scheduled_run_count,
+        SUM(webhook_count)::bigint AS webhook_count
+    FROM (
+        SELECT tenant_id, cron_count, scheduled_run_count, webhook_count
+        FROM tenant_allocated_resource_count
 
--- name: AdjustAllocatedResourceCounts :exec
-INSERT INTO tenant_allocated_resource_count AS c (
+        UNION ALL
+
+        SELECT tenant_id, cron_count, scheduled_run_count, webhook_count
+        FROM tenant_allocated_resource_count_delta
+    ) counts
+    GROUP BY tenant_id
+)
+INSERT INTO tenant_allocated_resource_count_delta (
     tenant_id,
     cron_count,
     scheduled_run_count,
     webhook_count
-) VALUES (
-    @tenantId::uuid,
-    GREATEST(@cronDelta::bigint, 0),
-    GREATEST(@scheduleDelta::bigint, 0),
-    GREATEST(@webhookDelta::bigint, 0)
 )
-ON CONFLICT (tenant_id) DO UPDATE SET
-    cron_count = GREATEST(c.cron_count + @cronDelta::bigint, 0),
-    scheduled_run_count = GREATEST(c.scheduled_run_count + @scheduleDelta::bigint, 0),
-    webhook_count = GREATEST(c.webhook_count + @webhookDelta::bigint, 0);
+SELECT
+    COALESCE(f.tenant_id, s.tenant_id),
+    COALESCE(f.cron_count, 0) - COALESCE(s.cron_count, 0),
+    COALESCE(f.scheduled_run_count, 0) - COALESCE(s.scheduled_run_count, 0),
+    COALESCE(f.webhook_count, 0) - COALESCE(s.webhook_count, 0)
+FROM fresh f
+FULL OUTER JOIN stored s ON s.tenant_id = f.tenant_id
+WHERE
+    COALESCE(f.cron_count, 0) <> COALESCE(s.cron_count, 0)
+    OR COALESCE(f.scheduled_run_count, 0) <> COALESCE(s.scheduled_run_count, 0)
+    OR COALESCE(f.webhook_count, 0) <> COALESCE(s.webhook_count, 0);
+
+-- name: ShareLockWorkflowVersion :one
+-- Waits for a LockWorkflowVersion holder and makes the next one wait, without
+-- waiting on other holders of this lock. A schedule insert's foreign key check
+-- takes the same lock on the version row.
+SELECT "id"
+FROM "WorkflowVersion"
+WHERE
+    "workflowId" = @workflowId::uuid
+    AND "deletedAt" IS NULL
+ORDER BY "order" DESC
+LIMIT 1
+FOR KEY SHARE;
 
 -- name: CountEnabledCronsOnVersion :one
 SELECT count(*)::bigint
@@ -200,7 +280,8 @@ ORDER BY w."id";
 -- name: LockSchedulesCountedTowardAllocation :many
 -- Locks the schedules that still contribute to the count, in id order, and
 -- returns those ids. apiOnly limits the set to API schedules, the set bulk
--- delete removes. The caller holds each workflow's latest version lock first.
+-- delete removes. The caller holds each workflow's latest version share lock
+-- first.
 SELECT s."id"
 FROM "WorkflowTriggerScheduledRef" s
 JOIN "WorkflowVersion" v ON s."parentId" = v."id"

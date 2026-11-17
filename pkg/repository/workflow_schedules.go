@@ -152,9 +152,14 @@ type WorkflowScheduleRepository interface {
 
 	// CountAllocatedResourcesByTenant returns live cron, pending schedule, and
 	// incoming-webhook counts grouped by tenant (one row per tenant). A
-	// nil/empty tenantIds slice rebuilds the count table from the live rows
-	// and returns every non-zero tenant. A non-empty slice reads the table.
-	CountAllocatedResourcesByTenant(ctx context.Context, tenantIds []uuid.UUID) ([]*sqlcv1.TenantAllocatedResourceCount, error)
+	// non-empty tenantIds slice reads the stored counts. A nil/empty slice
+	// first corrects any stored count that differs from the live rows, then
+	// returns every non-zero tenant.
+	CountAllocatedResourcesByTenant(ctx context.Context, tenantIds []uuid.UUID) ([]*sqlcv1.CountAllocatedResourcesByTenantRow, error)
+
+	// CompactAllocatedResourceCounts folds the allocated resource count deltas
+	// that writes have appended into the per-tenant count rows.
+	CompactAllocatedResourceCounts(ctx context.Context) error
 
 	// RegisterAllocatedResourceChangeCallback runs after a successful create,
 	// delete, or enable/disable of a cron or scheduled run. The callback
@@ -185,31 +190,11 @@ func (w *workflowScheduleRepository) notifyAllocatedResourceChange(tenantId uuid
 	}
 }
 
-func (w *workflowScheduleRepository) CountAllocatedResourcesByTenant(ctx context.Context, tenantIds []uuid.UUID) ([]*sqlcv1.TenantAllocatedResourceCount, error) {
+func (w *workflowScheduleRepository) CountAllocatedResourcesByTenant(ctx context.Context, tenantIds []uuid.UUID) ([]*sqlcv1.CountAllocatedResourcesByTenantRow, error) {
 	db := w.pool.ForShared()
 
 	if len(tenantIds) == 0 {
-		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, w.l)
-
-		if err != nil {
-			return nil, err
-		}
-
-		defer rollback()
-
-		if err := w.queries.LockAllocatedResourceCountTable(ctx, tx); err != nil {
-			return nil, err
-		}
-
-		if err := w.queries.DeleteAllocatedResourceCounts(ctx, tx); err != nil {
-			return nil, err
-		}
-
-		if err := w.queries.InsertAllocatedResourceCounts(ctx, tx); err != nil {
-			return nil, err
-		}
-
-		if err := commit(ctx); err != nil {
+		if err := w.correctAllocatedResourceCounts(ctx); err != nil {
 			return nil, err
 		}
 
@@ -217,6 +202,45 @@ func (w *workflowScheduleRepository) CountAllocatedResourcesByTenant(ctx context
 	}
 
 	return w.queries.CountAllocatedResourcesByTenant(ctx, db, tenantIds)
+}
+
+// correctAllocatedResourceCounts appends the deltas that bring the stored
+// counts back to the live rows. It takes no lock a cron, schedule, or webhook
+// write waits on.
+func (w *workflowScheduleRepository) correctAllocatedResourceCounts(ctx context.Context) error {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool.ForShared(), w.l)
+
+	if err != nil {
+		return err
+	}
+
+	defer rollback()
+
+	if err := w.queries.AdvisoryLock(ctx, tx, allocatedResourceCountCorrectionLockKey); err != nil {
+		return fmt.Errorf("could not take the allocated resource count correction lock: %w", err)
+	}
+
+	if err := w.queries.CorrectAllocatedResourceCounts(ctx, tx); err != nil {
+		return fmt.Errorf("could not correct allocated resource counts: %w", err)
+	}
+
+	return commit(ctx)
+}
+
+func (w *workflowScheduleRepository) CompactAllocatedResourceCounts(ctx context.Context) error {
+	db := w.pool.ForShared()
+
+	for {
+		folded, err := w.queries.CompactAllocatedResourceCountDeltas(ctx, db, allocatedResourceCountCompactionBatchSize)
+
+		if err != nil {
+			return fmt.Errorf("could not compact allocated resource count deltas: %w", err)
+		}
+
+		if folded < allocatedResourceCountCompactionBatchSize {
+			return nil
+		}
+	}
 }
 
 // cronCountDelta is the change in the enabled-on-latest cron count for this
@@ -280,8 +304,9 @@ func (w *workflowScheduleRepository) lockedCronCountDelta(ctx context.Context, d
 	return w.cronCountDelta(ctx, db, tenantId, id, nextEnabled)
 }
 
-// countLockedSchedules locks each schedule's workflow version, then the
-// schedules that still count, and returns how many of those there are.
+// countLockedSchedules takes the share lock on each schedule's workflow
+// version, then locks the schedules that still count, and returns how many of
+// those there are.
 func (w *workflowScheduleRepository) countLockedSchedules(ctx context.Context, db sqlcv1.DBTX, tenantId uuid.UUID, ids []uuid.UUID, apiOnly bool) (int64, error) {
 	workflowIDs, err := w.queries.ListScheduleWorkflowIDs(ctx, db, sqlcv1.ListScheduleWorkflowIDsParams{
 		Ids:      ids,
@@ -296,7 +321,7 @@ func (w *workflowScheduleRepository) countLockedSchedules(ctx context.Context, d
 	})
 
 	for _, workflowID := range workflowIDs {
-		if _, err := lockLatestWorkflowVersion(ctx, w.queries, db, workflowID); err != nil && !errors.Is(err, errNoLiveWorkflowVersion) {
+		if err := shareLatestWorkflowVersion(ctx, w.queries, db, workflowID); err != nil && !errors.Is(err, errNoLiveWorkflowVersion) {
 			return 0, err
 		}
 	}
@@ -354,7 +379,7 @@ func (w *workflowScheduleRepository) CreateScheduledWorkflow(ctx context.Context
 
 	defer rollback()
 
-	if _, err := lockLatestWorkflowVersion(ctx, w.queries, tx, opts.WorkflowId); err != nil {
+	if err := shareLatestWorkflowVersion(ctx, w.queries, tx, opts.WorkflowId); err != nil {
 		return nil, fmt.Errorf("locking workflow version: %w", err)
 	}
 

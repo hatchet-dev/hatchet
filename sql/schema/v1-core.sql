@@ -3591,11 +3591,9 @@ REFERENCING NEW TABLE AS new_table
 FOR EACH STATEMENT
 EXECUTE FUNCTION after_v1_concurrency_slot_update_outbox_function();
 
--- Per-tenant allocated resource counts. Writes add their delta in the same
--- transaction. The unfiltered read replaces the table from live rows.
--- A firing scheduled run decrements the schedule count here when that insert
--- does not go through the schedule repository. The schedule must still be on
--- a live workflow; a workflow delete has already removed it from the count.
+-- Per-tenant allocated resource counts. A tenant's count is its row here plus
+-- its rows in tenant_allocated_resource_count_delta. Only compaction writes
+-- this table, so a cron, schedule, or webhook write never waits on a count row.
 CREATE TABLE tenant_allocated_resource_count (
     tenant_id UUID PRIMARY KEY,
     cron_count BIGINT NOT NULL DEFAULT 0,
@@ -3603,15 +3601,30 @@ CREATE TABLE tenant_allocated_resource_count (
     webhook_count BIGINT NOT NULL DEFAULT 0
 );
 
+-- Changes not yet folded into tenant_allocated_resource_count. A write appends
+-- its change in its own transaction. Compaction adds a batch of these onto the
+-- count rows and deletes them in one statement.
+CREATE TABLE tenant_allocated_resource_count_delta (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    tenant_id UUID NOT NULL,
+    cron_count BIGINT NOT NULL DEFAULT 0,
+    scheduled_run_count BIGINT NOT NULL DEFAULT 0,
+    webhook_count BIGINT NOT NULL DEFAULT 0
+);
+
+CREATE INDEX tenant_allocated_resource_count_delta_tenant_id_idx ON tenant_allocated_resource_count_delta (tenant_id);
+
+-- A firing scheduled run drops out of the schedule count here when that insert
+-- does not go through the schedule repository. The schedule must still be on
+-- a live workflow; a workflow delete has already removed it from the count.
 CREATE OR REPLACE FUNCTION tenant_allocated_resource_count_on_schedule_fire()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    UPDATE tenant_allocated_resource_count AS c
-    SET scheduled_run_count = GREATEST(c.scheduled_run_count - 1, 0)
-    WHERE c.tenant_id = NEW."tenantId"
-      AND EXISTS (
+    INSERT INTO tenant_allocated_resource_count_delta (tenant_id, scheduled_run_count)
+    SELECT NEW."tenantId", -1
+    WHERE EXISTS (
         SELECT 1
         FROM "WorkflowTriggerScheduledRef" s
         JOIN "WorkflowVersion" v ON s."parentId" = v."id"
@@ -3620,7 +3633,7 @@ BEGIN
           AND s."deletedAt" IS NULL
           AND v."deletedAt" IS NULL
           AND w."deletedAt" IS NULL
-      );
+    );
 
     RETURN NULL;
 END;

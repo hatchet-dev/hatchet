@@ -3814,6 +3814,14 @@ type TenantAllocatedResourceCount struct {
 	WebhookCount      int64     `json:"webhook_count"`
 }
 
+type TenantAllocatedResourceCountDelta struct {
+	ID                int64     `json:"id"`
+	TenantID          uuid.UUID `json:"tenant_id"`
+	CronCount         int64     `json:"cron_count"`
+	ScheduledRunCount int64     `json:"scheduled_run_count"`
+	WebhookCount      int64     `json:"webhook_count"`
+}
+
 type TenantEntitlement struct {
 	TenantID                        uuid.UUID          `json:"tenant_id"`
 	AuditLogs                       bool               `json:"audit_logs"`

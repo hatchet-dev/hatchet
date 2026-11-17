@@ -224,6 +224,21 @@ func (t *TickerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not create poll cron schedules job: %w", err)
 	}
 
+	_, err = t.s.NewJob(
+		// counts are read as count rows plus deltas, so this interval only bounds how many
+		// deltas a read has to sum
+		gocron.DurationJob(time.Second*5),
+		gocron.NewTask(
+			t.runCompactAllocatedResourceCounts(ctx),
+		),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not create compact allocated resource counts job: %w", err)
+	}
+
 	// poll for expiring tokens every 15 minutes
 	_, err = t.s.NewJob(
 		gocron.DurationJob(time.Minute*15),
@@ -285,6 +300,14 @@ func (t *TickerImpl) Start() (func() error, error) {
 	}
 
 	return cleanup, nil
+}
+
+func (t *TickerImpl) runCompactAllocatedResourceCounts(ctx context.Context) func() {
+	return func() {
+		if err := t.repov1.WorkflowSchedules().CompactAllocatedResourceCounts(ctx); err != nil && ctx.Err() == nil {
+			t.l.Err(err).Ctx(ctx).Msg("could not compact allocated resource counts")
+		}
+	}
 }
 
 func (t *TickerImpl) runUpdateHeartbeat(ctx context.Context) func() {
