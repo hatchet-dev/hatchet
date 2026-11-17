@@ -40,12 +40,6 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER tenant_allocated_resource_count_schedule_fire
-AFTER INSERT ON "WorkflowRunTriggeredBy"
-FOR EACH ROW
-WHEN (NEW."scheduledId" IS NOT NULL)
-EXECUTE FUNCTION tenant_allocated_resource_count_on_schedule_fire();
-
 -- One-time backfill from live crons, pending schedules, and incoming webhooks.
 SET LOCAL statement_timeout = 0;
 
@@ -118,6 +112,16 @@ INSERT INTO tenant_allocated_resource_count (
 )
 SELECT tenant_id, cron_count, scheduled_run_count, webhook_count
 FROM fresh;
+
+-- Created after the backfill. CREATE TRIGGER locks "WorkflowRunTriggeredBy"
+-- against writes until this transaction commits, and deleting a schedule
+-- writes to that table through the ON DELETE SET NULL of its scheduledId
+-- foreign key, so schedule fires and deletes would wait for the backfill.
+CREATE TRIGGER tenant_allocated_resource_count_schedule_fire
+AFTER INSERT ON "WorkflowRunTriggeredBy"
+FOR EACH ROW
+WHEN (NEW."scheduledId" IS NOT NULL)
+EXECUTE FUNCTION tenant_allocated_resource_count_on_schedule_fire();
 
 -- +goose StatementEnd
 
