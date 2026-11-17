@@ -17,6 +17,14 @@ export const DEFAULT_MAX_JITTER = 100; // milliseconds
 export const MAX_SERVER_RETRY_DELAY = 5_000; // milliseconds
 
 /**
+ * The most a wait on a server's `RetryInfo` delay is extended, as a share of the wait. Clients
+ * throttled at the same moment get the same delay; the random extension keeps them from all
+ * coming back at the same moment. It only extends the wait, since a retry before the server's
+ * delay would be refused.
+ */
+export const SERVER_RETRY_DELAY_JITTER = 0.2;
+
+/**
  * The most attempts made at a call once one of its attempts carried a `RetryInfo` delay, the
  * same as in the other Hatchet SDKs, so a throttled call fails alike in each of them. A lower
  * configured attempt count still applies.
@@ -68,9 +76,10 @@ export async function retrier<T>(fn: () => Promise<T>, logger: Logger, config?: 
       // A throttled call says how long to wait; that delay replaces the client's own backoff.
       // It is doubled for each retry already made, up to the cap, which is the client behavior
       // RetryInfo documents: a server that keeps throttling repeats the same delay, so without
-      // the doubling the client would not back off.
+      // the doubling the client would not back off. The wait is then extended by a random share.
       if (serverDelay > 0) {
-        await sleep(Math.min(serverDelay * 2 ** i, MAX_SERVER_RETRY_DELAY));
+        const wait = Math.min(serverDelay * 2 ** i, MAX_SERVER_RETRY_DELAY);
+        await sleep(wait * (1 + Math.random() * SERVER_RETRY_DELAY_JITTER));
       } else {
         const exponentialDelay = interval * 2 ** i * 1000;
         const jitter = Math.random() * maxJitter;

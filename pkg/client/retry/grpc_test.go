@@ -60,6 +60,7 @@ func TestGRPCThrottledCallScenarios(t *testing.T) {
 	require.NoError(t, err)
 
 	var file struct {
+		Jitter    float64 `json:"jitter"`
 		Scenarios []struct {
 			Name     string  `json:"name"`
 			DelaysMs []int64 `json:"delays_ms"`
@@ -69,40 +70,53 @@ func TestGRPCThrottledCallScenarios(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(raw, &file))
 	require.NotEmpty(t, file.Scenarios)
+	require.Positive(t, file.Jitter)
+
+	// The random source held at its lowest and at its highest value.
+	randoms := []struct {
+		name   string
+		jitter func(maxExclusive int64) int64
+		extend float64
+	}{
+		{"shortest waits", func(int64) int64 { return 0 }, 1},
+		{"longest waits", func(maxExclusive int64) int64 { return maxExclusive - 1 }, 1 + file.Jitter},
+	}
 
 	for _, sc := range file.Scenarios {
-		t.Run(sc.Name, func(t *testing.T) {
-			t.Parallel()
+		for _, random := range randoms {
+			t.Run(sc.Name+", "+random.name, func(t *testing.T) {
+				t.Parallel()
 
-			backoff := grpcFullJitterBackoff(func(int64) int64 { return 0 })
-			serverDelay := new(time.Duration)
-			ctx := context.WithValue(context.Background(), serverRetryDelayKey{}, serverDelay)
+				backoff := grpcFullJitterBackoff(random.jitter)
+				serverDelay := new(time.Duration)
+				ctx := context.WithValue(context.Background(), serverRetryDelayKey{}, serverDelay)
 
-			waits := []time.Duration{}
-			succeeded := false
-			for attempt := uint(0); attempt < grpcMaxRetries; attempt++ {
-				if attempt > 0 {
-					waits = append(waits, backoff(ctx, attempt))
+				waits := []time.Duration{}
+				succeeded := false
+				for attempt := uint(0); attempt < grpcMaxRetries; attempt++ {
+					if attempt > 0 {
+						waits = append(waits, backoff(ctx, attempt))
+					}
+					if int(attempt) == len(sc.DelaysMs) {
+						succeeded = true
+						break
+					}
+
+					err := throttled(t, time.Duration(sc.DelaysMs[attempt])*time.Millisecond)
+					*serverDelay = retryInfoDelay(err)
+					if !retriableWithinServerDelayCap(err) {
+						break
+					}
 				}
-				if int(attempt) == len(sc.DelaysMs) {
-					succeeded = true
-					break
-				}
 
-				err := throttled(t, time.Duration(sc.DelaysMs[attempt])*time.Millisecond)
-				*serverDelay = retryInfoDelay(err)
-				if !retriableWithinServerDelayCap(err) {
-					break
+				require.Len(t, waits, len(sc.WaitsMs))
+				for i, ms := range sc.WaitsMs {
+					want := float64(time.Duration(ms)*time.Millisecond) * random.extend
+					assert.InDelta(t, want, float64(waits[i]), float64(time.Microsecond), "wait %d", i)
 				}
-			}
-
-			wantWaits := []time.Duration{}
-			for _, ms := range sc.WaitsMs {
-				wantWaits = append(wantWaits, time.Duration(ms)*time.Millisecond)
-			}
-			assert.Equal(t, wantWaits, waits)
-			assert.Equal(t, sc.Succeeds, succeeded)
-		})
+				assert.Equal(t, sc.Succeeds, succeeded)
+			})
+		}
 	}
 }
 

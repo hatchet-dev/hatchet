@@ -24,6 +24,11 @@ module Hatchet
         # delay would be refused.
         MAX_DELAY_SECONDS = 5.0
 
+        # The most a wait is extended, as a share of the wait. Clients throttled at the same moment
+        # get the same delay; the random extension keeps them from all coming back at the same
+        # moment. It only extends the wait, since a retry before the server's delay would be refused.
+        JITTER = 0.2
+
         module_function
 
         # @yield The gRPC call, run again for each retry
@@ -36,7 +41,8 @@ module Hatchet
             delay = retry_delay(e)
             raise unless delay&.positive? && delay <= MAX_DELAY_SECONDS && attempt < MAX_ATTEMPTS
 
-            sleep([delay * (2**(attempt - 1)), MAX_DELAY_SECONDS].min)
+            wait = [delay * (2**(attempt - 1)), MAX_DELAY_SECONDS].min
+            sleep(wait * (1 + rand(0.0..JITTER)))
             attempt += 1
             retry
           end

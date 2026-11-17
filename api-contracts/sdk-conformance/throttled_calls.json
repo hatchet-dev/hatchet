@@ -1,5 +1,6 @@
 {
-  "description": "How every Hatchet SDK treats a unary gRPC call that the engine throttles. The Go, Python, TypeScript and Ruby SDK tests all run these scenarios, so the SDKs cannot drift apart. In each scenario the call fails with RESOURCE_EXHAUSTED and a google.rpc.RetryInfo delay of delays_ms[i] on attempt i, and succeeds on the next attempt if the SDK makes one. waits_ms are the waits the SDK must make between attempts, in order; it makes one more request than it waits. succeeds says whether the call returns a result or the last error.",
+  "description": "How every Hatchet SDK treats a unary gRPC call that the engine throttles. The Go, Python, TypeScript and Ruby SDK tests all run these scenarios, so the SDKs cannot drift apart. In each scenario the call fails with RESOURCE_EXHAUSTED and a google.rpc.RetryInfo delay of delays_ms[i] on attempt i, and succeeds on the next attempt if the SDK makes one. waits_ms are the shortest waits the SDK may make between attempts, in order; it makes one more request than it waits. So that clients throttled together do not all come back together, the SDK extends each wait by a random share of it, from nothing up to jitter. A test holds the SDK's random source at its lowest and at its highest value and expects waits_ms and waits_ms times (1 + jitter). succeeds says whether the call returns a result or the last error.",
+  "jitter": 0.2,
   "scenarios": [
     {
       "name": "one throttle waits the server's delay",

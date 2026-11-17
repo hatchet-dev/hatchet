@@ -1,6 +1,7 @@
 """Unit tests for retries that wait the delay a server asks for in a google.rpc.RetryInfo detail."""
 
 import json
+import random
 import time
 from collections.abc import Callable, Iterator
 from concurrent import futures
@@ -21,12 +22,14 @@ from hatchet_sdk.config import TenacityConfig
 
 OWN_WAIT = 0.2
 
-SCENARIOS: list[dict[str, Any]] = json.loads(
+THROTTLED_CALLS: dict[str, Any] = json.loads(
     (
         Path(__file__).resolve().parents[4]
         / "api-contracts/sdk-conformance/throttled_calls.json"
     ).read_text()
-)["scenarios"]
+)
+SCENARIOS: list[dict[str, Any]] = THROTTLED_CALLS["scenarios"]
+JITTER: float = THROTTLED_CALLS["jitter"]
 
 
 class OwnWait(tenacity.wait_fixed):
@@ -91,12 +94,23 @@ def throttling_server(failures: list[status_pb2.Status]) -> Iterator[int]:
         server.stop(None)
 
 
+@pytest.fixture(autouse=True)
+def shortest_waits(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Holds the random source at its lowest value, so a wait on a server delay is not extended."""
+    monkeypatch.setattr(random, "uniform", lambda low, _high: low)
+
+
 @pytest.mark.parametrize("scenario", SCENARIOS, ids=[s["name"] for s in SCENARIOS])
+@pytest.mark.parametrize("longest_waits", [False, True], ids=["shortest", "longest"])
 def test_throttled_call_scenario(
-    scenario: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    scenario: dict[str, Any], longest_waits: bool, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Runs a scenario that every Hatchet SDK's tests share, with the default attempt limit."""
+    """Runs a scenario that every Hatchet SDK's tests share, with the default attempt limit and
+    the random source held at its lowest or its highest value."""
     monkeypatch.setattr(time, "sleep", lambda _seconds: None)
+    if longest_waits:
+        monkeypatch.setattr(random, "uniform", lambda _low, high: high)
+    extend = 1 + JITTER if longest_waits else 1
     delays = [delay_ms / 1000 for delay_ms in scenario["delays_ms"]]
     errors: list[grpc.aio.AioRpcError] = []
     calls = 0
@@ -119,12 +133,19 @@ def test_throttled_call_scenario(
             retried()
         assert raised.value is errors[-1]
 
-    assert waits == [pytest.approx(wait_ms / 1000) for wait_ms in scenario["waits_ms"]]
+    assert waits == [
+        pytest.approx(wait_ms / 1000 * extend) for wait_ms in scenario["waits_ms"]
+    ]
     assert calls == len(waits) + 1
 
 
-def test_retry_waits_the_server_delay_of_the_failed_attempt() -> None:
-    """Runs against a real gRPC server, so the errors are the ones grpcio raises."""
+def test_retry_waits_the_server_delay_of_the_failed_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Runs against a real gRPC server, so the errors are the ones grpcio raises. The random
+    source is held at its highest value, so only the wait on a server delay is extended.
+    """
+    monkeypatch.setattr(random, "uniform", lambda _low, high: high)
     failures = [
         failure(grpc.StatusCode.RESOURCE_EXHAUSTED, 0.3),
         failure(grpc.StatusCode.RESOURCE_EXHAUSTED, 0.0),
@@ -146,7 +167,7 @@ def test_retry_waits_the_server_delay_of_the_failed_attempt() -> None:
 
     # The server's delay, then the client's own wait after a delay of zero and after an error
     # without one: a delay is used once and does not carry over.
-    assert waits == [pytest.approx(0.3), OWN_WAIT, OWN_WAIT]
+    assert waits == [pytest.approx(0.3 * (1 + JITTER)), OWN_WAIT, OWN_WAIT]
 
 
 async def test_async_call_waits_the_server_delay() -> None:

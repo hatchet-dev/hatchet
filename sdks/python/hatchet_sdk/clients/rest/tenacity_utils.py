@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 from typing import TYPE_CHECKING, ParamSpec, TypeVar
 
 import grpc
@@ -88,14 +89,21 @@ MAX_SERVER_RETRY_DELAY_SECONDS = 5.0
 so tenacity_retry fails a call at once with the server's error when the server asks for longer."""
 
 
+SERVER_RETRY_DELAY_JITTER = 0.2
+"""The most a wait on a server's RetryInfo delay is extended, as a share of the wait. Clients
+throttled at the same moment get the same delay; the random extension keeps them from all coming
+back at the same moment. It only extends the wait, since a retry before the server's delay would
+be refused."""
+
+
 def wait_server_retry_delay(
     fallback: Callable[[tenacity.RetryCallState], float],
 ) -> Callable[[tenacity.RetryCallState], float]:
     """Wait the fallback's delay, unless the failed attempt carried a RetryInfo delay. Then wait
     that delay, doubled for each retry the call has already made and capped at
-    MAX_SERVER_RETRY_DELAY_SECONDS, which is the client behavior RetryInfo documents. A server
-    that keeps throttling repeats the same delay, so without the doubling the client would not
-    back off.
+    MAX_SERVER_RETRY_DELAY_SECONDS, which is the client behavior RetryInfo documents, and extended
+    by up to SERVER_RETRY_DELAY_JITTER. A server that keeps throttling repeats the same delay, so
+    without the doubling the client would not back off.
     """
 
     def wait(retry_state: tenacity.RetryCallState) -> float:
@@ -106,7 +114,7 @@ def wait_server_retry_delay(
             for _ in range(retry_state.attempt_number - 1):
                 delay = min(delay * 2, MAX_SERVER_RETRY_DELAY_SECONDS)
 
-            return delay
+            return delay * (1 + random.uniform(0, SERVER_RETRY_DELAY_JITTER))
 
         # Tenacity's wait strategies keep no state between calls; each wait is computed from
         # retry_state.attempt_number, so skipping the fallback here leaves later waits unchanged.

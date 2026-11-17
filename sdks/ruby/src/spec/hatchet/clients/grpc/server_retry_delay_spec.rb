@@ -31,28 +31,38 @@ RSpec.describe Hatchet::Clients::Grpc::ServerRetryDelay do
 
   let(:waits) { [] }
 
-  before { allow(described_class).to receive(:sleep) { |seconds| waits << seconds } }
+  # The random source is held at its lowest value unless an example says otherwise.
+  before do
+    allow(described_class).to receive(:sleep) { |seconds| waits << seconds }
+    allow(described_class).to receive(:rand, &:begin)
+  end
 
   # The rule every Hatchet SDK follows for a throttled call, shared with the other SDKs' tests.
   scenarios_path = File.expand_path(
     "../../../../../../../api-contracts/sdk-conformance/throttled_calls.json",
     __dir__,
   )
-  JSON.parse(File.read(scenarios_path)).fetch("scenarios").each do |scenario|
-    it scenario.fetch("name") do
-      errors = scenario.fetch("delays_ms").map do |ms|
-        throttled(seconds: ms / 1000, nanos: (ms % 1000) * 1_000_000)
-      end
-      expected_waits = scenario.fetch("waits_ms").map { |ms| be_within(1e-9).of(ms / 1000.0) }
+  throttled_calls = JSON.parse(File.read(scenarios_path))
+  jitter = throttled_calls.fetch("jitter")
+  throttled_calls.fetch("scenarios").each do |scenario|
+    # Each scenario runs with the random source held at its lowest and at its highest value.
+    { "shortest" => 1, "longest" => 1 + jitter }.each do |length, extend|
+      it "#{scenario.fetch("name")}, #{length} waits" do
+        allow(described_class).to receive(:rand, &:end) if length == "longest"
+        errors = scenario.fetch("delays_ms").map do |ms|
+          throttled(seconds: ms / 1000, nanos: (ms % 1000) * 1_000_000)
+        end
+        expected_waits = scenario.fetch("waits_ms").map { |ms| be_within(1e-9).of(ms / 1000.0 * extend) }
 
-      outcome, calls = call_with(*errors)
+        outcome, calls = call_with(*errors)
 
-      expect(waits).to match(expected_waits)
-      expect(calls).to eq(expected_waits.length + 1)
-      if scenario.fetch("succeeds")
-        expect(outcome).to eq(:ok)
-      else
-        expect(outcome).to be_a(GRPC::ResourceExhausted)
+        expect(waits).to match(expected_waits)
+        expect(calls).to eq(expected_waits.length + 1)
+        if scenario.fetch("succeeds")
+          expect(outcome).to eq(:ok)
+        else
+          expect(outcome).to be_a(GRPC::ResourceExhausted)
+        end
       end
     end
   end

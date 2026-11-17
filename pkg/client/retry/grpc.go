@@ -111,14 +111,22 @@ func retryInfoDelay(err error) time.Duration {
 	return 0
 }
 
-// grpcMaxServerRetryDelay is the longest RetryInfo delay the client waits between attempts. A
-// server that asks for a longer one fails the call, since the wait blocks the caller.
+// grpcMaxServerRetryDelay is the longest RetryInfo delay the client accepts, and the cap on that
+// delay as it doubles across retries. A server that asks for a longer one fails the call, since the
+// wait blocks the caller.
 const grpcMaxServerRetryDelay = 5 * time.Second
+
+// grpcServerRetryDelayJitterPercent is the most a wait on a RetryInfo delay is extended, as a
+// percentage of the wait. Clients throttled at the same moment get the same delay; the random
+// extension keeps them from all coming back at the same moment. It only extends the wait, since a
+// retry before the server's delay would be refused.
+const grpcServerRetryDelayJitterPercent = 20
 
 // grpcFullJitterBackoff waits a full-jitter delay, unless the previous attempt carried a RetryInfo
 // delay. Then it waits that delay, doubled for each retry the call has already made and capped at
-// grpcMaxServerRetryDelay, which is the client behavior RetryInfo documents. A server that keeps
-// throttling repeats the same delay, so without the doubling the client would not back off.
+// grpcMaxServerRetryDelay, which is the client behavior RetryInfo documents, and extended by up to
+// grpcServerRetryDelayJitterPercent. A server that keeps throttling repeats the same delay, so
+// without the doubling the client would not back off.
 func grpcFullJitterBackoff(jitter func(int64) int64) grpc_retry.BackoffFunc {
 	return func(ctx context.Context, attempt uint) time.Duration {
 		// go-grpc-middleware passes attempt=1 for the first retry backoff.
@@ -129,7 +137,9 @@ func grpcFullJitterBackoff(jitter func(int64) int64) grpc_retry.BackoffFunc {
 				wait *= 2
 			}
 
-			return min(wait, grpcMaxServerRetryDelay)
+			wait = min(wait, grpcMaxServerRetryDelay)
+
+			return wait + time.Duration(jitter(int64(wait)*grpcServerRetryDelayJitterPercent/100+1))
 		}
 
 		zeroBasedAttempt := int(attempt) - 1

@@ -13,13 +13,14 @@ const sleepMock = jest.mocked(sleep);
 const logger = DEFAULT_LOGGER('retrier-test', 'OFF');
 
 /** The throttled-call rule all Hatchet SDKs share; its `description` explains the format. */
-const { scenarios } = JSON.parse(
+const { scenarios, jitter } = JSON.parse(
   readFileSync(
     join(__dirname, '../../../../api-contracts/sdk-conformance/throttled_calls.json'),
     'utf8'
   )
 ) as {
   scenarios: { name: string; delays_ms: number[]; waits_ms: number[]; succeeds: boolean }[];
+  jitter: number;
 };
 
 /*
@@ -109,22 +110,33 @@ describe('retrier', () => {
     expect(retryInfo(300)).toBe(RETRY_INFO_300MS);
   });
 
-  it.each(scenarios)('shared throttled-call scenario: $name', async (scenario) => {
-    const errors = scenario.delays_ms.map((ms) => grpcError(Code.ResourceExhausted, retryInfo(ms)));
-    const fn = jest.fn(async () => 'ok');
-    for (const error of errors) {
-      fn.mockRejectedValueOnce(error);
-    }
+  // Each scenario runs with the random source held at its lowest and at its highest value.
+  describe.each([
+    { waits: 'shortest', random: 0, extend: 1 },
+    { waits: 'longest', random: 1, extend: 1 + jitter },
+  ])('shared throttled-call scenarios, $waits waits', ({ random, extend }) => {
+    it.each(scenarios)('$name', async (scenario) => {
+      jest.spyOn(Math, 'random').mockReturnValue(random);
+      const errors = scenario.delays_ms.map((ms) =>
+        grpcError(Code.ResourceExhausted, retryInfo(ms))
+      );
+      const fn = jest.fn(async () => 'ok');
+      for (const error of errors) {
+        fn.mockRejectedValueOnce(error);
+      }
 
-    const result = retrier(fn, logger);
+      const result = retrier(fn, logger);
 
-    if (scenario.succeeds) {
-      await expect(result).resolves.toBe('ok');
-    } else {
-      await expect(result).rejects.toBe(errors[scenario.waits_ms.length]);
-    }
-    expect(sleepMock.mock.calls.map(([ms]) => ms)).toEqual(scenario.waits_ms);
-    expect(fn).toHaveBeenCalledTimes(scenario.waits_ms.length + 1);
+      if (scenario.succeeds) {
+        await expect(result).resolves.toBe('ok');
+      } else {
+        await expect(result).rejects.toBe(errors[scenario.waits_ms.length]);
+      }
+      const waits = sleepMock.mock.calls.map(([ms]) => ms);
+      expect(waits).toHaveLength(scenario.waits_ms.length);
+      scenario.waits_ms.forEach((ms, i) => expect(waits[i]).toBeCloseTo(ms * extend, 6));
+      expect(fn).toHaveBeenCalledTimes(scenario.waits_ms.length + 1);
+    });
   });
 
   it('after a throttle, later attempts that fail another way keep the throttled attempt limit and back off on their own schedule', async () => {
@@ -136,8 +148,10 @@ describe('retrier', () => {
 
     await expect(retrier(fn, logger)).rejects.toThrow('throttled');
     expect(fn).toHaveBeenCalledTimes(MAX_THROTTLED_ATTEMPTS);
-    // The server's delay is used once and does not carry over to the later waits.
-    expect(sleepMock.mock.calls.map(([ms]) => ms)).toEqual([300, 250, 450, 850]);
+    // The server's delay, extended by half the jitter, is used once and does not carry over.
+    const [throttledWait, ...ownWaits] = sleepMock.mock.calls.map(([ms]) => ms);
+    expect(throttledWait).toBeCloseTo(330, 6);
+    expect(ownWaits).toEqual([250, 450, 850]);
     // The retried throttle is not logged as an error; the four other failures are.
     expect(logError).toHaveBeenCalledTimes(MAX_THROTTLED_ATTEMPTS - 1);
   });

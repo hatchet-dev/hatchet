@@ -149,7 +149,7 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - The `hatchet.durable.wait_for` span reports the actual number of conditions in `hatchet.num_conditions` instead of always 2, and leaves out `hatchet.signal_key` when the key was generated.
 - `HatchetInstrumentor.uninstrument()` now also unwraps `events.aio_push` and `events.aio_bulk_push`.
 - The REST client can read task events of type `BATCH_BUFFERED` and the `STREAM_TOPIC`, `STREAM_MESSAGE` and `STREAM_RETENTION` tenant resource limits, which the engine already returns.
-- Retried unary gRPC calls that fail with a `google.rpc.RetryInfo` detail, such as `RESOURCE_EXHAUSTED` when the engine throttles a call, now wait the delay the server asks for instead of the SDK's own backoff. If the call keeps being throttled, the wait doubles with each retry, up to 5 seconds. A call the server asks to wait longer than 5 seconds fails at once with the server's error. The attempt limit and which errors are retried are otherwise unchanged.
+- Retried unary gRPC calls that fail with a `google.rpc.RetryInfo` detail, such as `RESOURCE_EXHAUSTED` when the engine throttles a call, now wait the delay the server asks for instead of the SDK's own backoff. If the call keeps being throttled, the wait doubles with each retry, up to 5 seconds. Each wait is extended by a random amount of up to 20%, so that clients throttled together do not all retry at the same moment. A call the server asks to wait longer than 5 seconds fails at once with the server's error. The attempt limit and which errors are retried are otherwise unchanged.
 
 ## [1.46.0] - 2026-11-12
 

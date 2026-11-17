@@ -366,8 +366,9 @@ Hatchet can refuse a gRPC call it cannot take right now, for example when a tena
 
 1. The SDK waits the delay the server asked for, in place of its own backoff, and tries again.
 2. If the call is throttled again, the wait doubles with each retry the call has already made, up to 5 seconds.
-3. The call is attempted at most 5 times. In Python the configured `max_attempts` applies instead, and in TypeScript a lower configured attempt count still applies.
-4. If the server asks for a wait longer than 5 seconds, the SDK does not retry. The call fails at once.
+3. Each wait is extended by a random amount of up to 20%, so that clients throttled at the same moment do not all come back at the same moment. The SDK never retries sooner than the server asked.
+4. The call is attempted at most 5 times. In Python the configured `max_attempts` applies instead, and in TypeScript a lower configured attempt count still applies.
+5. If the server asks for a wait longer than 5 seconds, the SDK does not retry. The call fails at once.
 
 When the call fails, your code gets the server's error, and its message says why the call was refused:
 
