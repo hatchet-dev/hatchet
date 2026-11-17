@@ -16,6 +16,26 @@ RSpec.describe Hatchet::Clients::Grpc::Admin do
     admin.instance_variable_set(:@v1_stub, v1_stub)
   end
 
+  describe "#trigger_workflow" do
+    it "retries a call the engine throttled and returns the run id" do
+      retry_info = Google::Rpc::RetryInfo.new(retry_delay: Google::Protobuf::Duration.new(nanos: 200_000_000))
+      status = Google::Rpc::Status.new(
+        code: GRPC::Core::StatusCodes::RESOURCE_EXHAUSTED,
+        details: [Google::Protobuf::Any.pack(retry_info)],
+      )
+      throttled = GRPC::ResourceExhausted.new("throttled", { "grpc-status-details-bin" => Google::Rpc::Status.encode(status) })
+      allow(config).to receive(:apply_namespace) { |name, **| name }
+      allow(Hatchet::Clients::Grpc::ServerRetryDelay).to receive(:sleep)
+      allow(v0_stub).to receive(:trigger_workflow).and_invoke(
+        ->(*, **) { raise throttled },
+        ->(*, **) { TriggerWorkflowResponse.new(workflow_run_id: "run-1") },
+      )
+
+      expect(admin.trigger_workflow("wf")).to eq("run-1")
+      expect(Hatchet::Clients::Grpc::ServerRetryDelay).to have_received(:sleep).with(0.2).once
+    end
+  end
+
   describe "#pause_rate_limit" do
     it "sends the key and time and returns the time the engine reports" do
       until_time = Time.utc(2030, 1, 1, 0, 0, 0.5r)
