@@ -19,6 +19,12 @@ import (
 
 const (
 	heartbeatTimeout = time.Second * 5
+
+	// heartbeatInterval and rebalanceInactiveInterval, with the 20 second staleness threshold in the
+	// rebalance statements, bound how long a tenant stays on the partition of a process that died
+	// without running its cleanups: up to the threshold plus one rebalance interval.
+	heartbeatInterval         = time.Second * 5
+	rebalanceInactiveInterval = time.Second * 10
 )
 
 type Partition struct {
@@ -125,7 +131,7 @@ func (p *Partition) StartControllerPartition(ctx context.Context) (func() error,
 
 	// start the schedules
 	_, err = p.controllerCron.NewJob(
-		gocron.DurationJob(time.Second*20),
+		gocron.DurationJob(heartbeatInterval),
 		gocron.NewTask(
 			p.runControllerPartitionHeartbeat(ctx), // nolint: errcheck
 		),
@@ -152,7 +158,7 @@ func (p *Partition) StartControllerPartition(ctx context.Context) (func() error,
 	}
 
 	_, err = p.controllerCron.NewJob(
-		gocron.DurationJob(time.Minute*1),
+		gocron.DurationJob(rebalanceInactiveInterval),
 		gocron.NewTask(
 			func() {
 				rebalanceInactiveControllerPartitions(ctx, p.l, p.repo) // nolint: errcheck
@@ -165,6 +171,8 @@ func (p *Partition) StartControllerPartition(ctx context.Context) (func() error,
 	}
 
 	p.controllerCron.Start()
+
+	rebalanceInactiveControllerPartitions(ctx, p.l, p.repo) // nolint: errcheck
 
 	return cleanup, nil
 }
@@ -244,7 +252,7 @@ func (p *Partition) StartSchedulerPartition(ctx context.Context) (func() error, 
 
 	// start the schedules
 	_, err = p.schedulerCron.NewJob(
-		gocron.DurationJob(time.Second*20),
+		gocron.DurationJob(heartbeatInterval),
 		gocron.NewTask(
 			p.runSchedulerPartitionHeartbeat(ctx), // nolint: errcheck
 		),
@@ -271,7 +279,7 @@ func (p *Partition) StartSchedulerPartition(ctx context.Context) (func() error, 
 	}
 
 	_, err = p.schedulerCron.NewJob(
-		gocron.DurationJob(time.Minute*1),
+		gocron.DurationJob(rebalanceInactiveInterval),
 		gocron.NewTask(
 			func() {
 				rebalanceInactiveSchedulerPartitions(ctx, p.l, p.repo) // nolint: errcheck
@@ -345,7 +353,7 @@ func (p *Partition) StartTenantWorkerPartition(ctx context.Context) (func() erro
 
 	// start the schedules
 	_, err = p.workerCron.NewJob(
-		gocron.DurationJob(time.Second*20),
+		gocron.DurationJob(heartbeatInterval),
 		gocron.NewTask(
 			p.runTenantWorkerPartitionHeartbeat(ctx), // nolint: errcheck
 		),
@@ -372,7 +380,7 @@ func (p *Partition) StartTenantWorkerPartition(ctx context.Context) (func() erro
 	}
 
 	_, err = p.workerCron.NewJob(
-		gocron.DurationJob(time.Minute*1),
+		gocron.DurationJob(rebalanceInactiveInterval),
 		gocron.NewTask(
 			func() {
 				rebalanceInactiveTenantWorkerPartitions(ctx, p.l, p.repo) // nolint: errcheck
@@ -385,6 +393,8 @@ func (p *Partition) StartTenantWorkerPartition(ctx context.Context) (func() erro
 	}
 
 	p.workerCron.Start()
+
+	rebalanceInactiveTenantWorkerPartitions(ctx, p.l, p.repo) // nolint: errcheck
 
 	return cleanup, nil
 }

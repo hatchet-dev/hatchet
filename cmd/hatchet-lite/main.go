@@ -8,7 +8,9 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -52,6 +54,9 @@ var rootCmd = &cobra.Command{
 
 // Version will be linked by an ldflag during build
 var Version = "v0.1.0-alpha.0"
+
+// shutdownTimeout bounds how long hatchet-lite waits for the engine and API cleanups after an interrupt.
+const shutdownTimeout = 30 * time.Second
 
 func main() {
 	rootCmd.PersistentFlags().BoolVar(
@@ -135,7 +140,11 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 	}
 
 	// api process
+	apiDone := make(chan struct{})
+
 	go func() {
+		defer close(apiDone)
+
 		api.Start(cf, interruptCh, version, disableSecurityCheck) // nolint:errcheck
 	}()
 
@@ -158,7 +167,11 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 	ctx, cancel := cmdutils.NewInterruptContext()
 	defer cancel()
 
+	engineDone := make(chan struct{})
+
 	go func() {
+		defer close(engineDone)
+
 		if err := engine.Run(ctx, cf, version, disableSecurityCheck); err != nil {
 			log.Printf("engine failure: %s", err.Error())
 			os.Exit(1)
@@ -187,6 +200,27 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 	}()
 
 	<-interruptCh
+
+	// The engine deletes its partitions and releases its leases in its cleanups. Exiting before
+	// they run leaves the next process waiting for the partitions to be judged inactive. A second
+	// interrupt skips the wait.
+	secondInterrupt := make(chan os.Signal, 1)
+	signal.Notify(secondInterrupt, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(secondInterrupt)
+
+	deadline := time.After(shutdownTimeout)
+
+	for _, done := range []chan struct{}{engineDone, apiDone} {
+		select {
+		case <-done:
+		case <-secondInterrupt:
+			log.Printf("second interrupt received, exiting without waiting for cleanup")
+			os.Exit(1)
+		case <-deadline:
+			log.Printf("shutdown did not complete within %s, exiting", shutdownTimeout)
+			return nil
+		}
+	}
 
 	return nil
 }
