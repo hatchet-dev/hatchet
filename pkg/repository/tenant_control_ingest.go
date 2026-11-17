@@ -8,9 +8,17 @@ import (
 // TenantRateLimitedError is returned by TenantLimit().CanCreate and TenantControl().Admit for new
 // runs and events of a tenant over the ingest rate an operator set. It wraps ErrResourceExhausted.
 type TenantRateLimitedError struct {
-	// RetryAfter is how long until the same request would be admitted, if nothing else is.
+	// RetryAfter is how long the caller is told to wait: until the same request would be admitted,
+	// if nothing else is, and at least minIngestRetryAfter.
 	RetryAfter time.Duration
 }
+
+// minIngestRetryAfter is the shortest wait a refused request is told. The SDKs double the wait on
+// each further refusal and give up after five attempts, so they keep trying for about 15 times the
+// first one. A single item is only 1/perSecond of a second from admission, and a burst of such
+// requests told that would all give up within a fraction of a second. A second costs no
+// throughput: the bucket keeps the tokens that refill while the caller waits.
+const minIngestRetryAfter = time.Second
 
 func (e *TenantRateLimitedError) Error() string {
 	return ErrResourceExhausted.Error() + ": tenant is rate limited by an operator"

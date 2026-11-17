@@ -153,7 +153,8 @@ both metrics as it last read them; their series exist only while a control is
 set. The limit is applied by each process on its own, so a tenant served by
 several engine or API processes is admitted up to that many times the limit.
 Refused calls get `ResourceExhausted` with a `RetryInfo` delay over gRPC and
-`429` with `Retry-After` over HTTP.
+`429` with `Retry-After` over HTTP. The delay is the time until the call would
+be admitted, and at least 1 second.
 
 The publish duration and transit histograms are labelled by `kind` (the
 pub/sub backend: `rabbitmq`, `postgres`, or `nats`) and `topic_kind`;

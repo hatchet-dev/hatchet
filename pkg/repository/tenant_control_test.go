@@ -245,8 +245,7 @@ func TestCanCreateMetersIngestRate(t *testing.T) {
 			require.False(t, ok)
 			require.ErrorAs(t, err, &refusal)
 			require.ErrorIs(t, err, ErrResourceExhausted)
-			require.Positive(t, refusal.RetryAfter)
-			require.LessOrEqual(t, refusal.RetryAfter, 20*time.Millisecond, "one item at 50 a second is at most 20 ms away")
+			require.Equal(t, minIngestRetryAfter, refusal.RetryAfter, "one item at 50 a second is at most 20 ms away, under the minimum")
 			refused++
 		}
 
@@ -280,7 +279,7 @@ func TestCanCreateMetersIngestRate(t *testing.T) {
 	require.NoError(t, repo.refresh(ctx))
 	require.NoError(t, repo.Admit(limited, 10))
 	require.ErrorAs(t, repo.Admit(limited, 1), &refusal)
-	require.InDelta(t, 100*time.Millisecond, refusal.RetryAfter, float64(10*time.Millisecond))
+	require.Equal(t, minIngestRetryAfter, refusal.RetryAfter)
 
 	// Clearing drops the bucket: the tenant is unlimited, and the same limit set again starts full.
 	_, err = repo.Clear(ctx, limited)

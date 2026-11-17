@@ -98,7 +98,7 @@ func (r *tenantControlRepository) Admit(tenantId uuid.UUID, items int) error {
 	if wait := control.ingest.take(items, time.Now()); wait > 0 {
 		control.refused.Add(float64(items))
 
-		return &TenantRateLimitedError{RetryAfter: wait}
+		return &TenantRateLimitedError{RetryAfter: max(wait, minIngestRetryAfter)}
 	}
 
 	return nil
