@@ -189,7 +189,9 @@ func (s *sharedRepository) populateDeterministicExternalIdsForWorkflow(ctx conte
 		return nil
 	}
 
-	recordedIdByKey, err := s.listChildExternalIdsRecordedOnSignalCreatedEvents(ctx, s.pool.ForTenant(tenantId), childSpawns)
+	db := s.pool.ForTenant(tenantId)
+
+	recordedIdByKey, err := s.listChildExternalIdsRecordedOnSignalCreatedEvents(ctx, db, childSpawns)
 
 	if err != nil {
 		return err
@@ -198,6 +200,38 @@ func (s *sharedRepository) populateDeterministicExternalIdsForWorkflow(ctx conte
 	for key, recordedId := range recordedIdByKey {
 		for _, opt := range optsByKey[key] {
 			opt.ExternalId = recordedId
+			opt.ShouldSkip = true
+		}
+	}
+
+	deterministicChildExternalIds := make([]uuid.UUID, 0, len(optsByKey))
+
+	for key, optsForKey := range optsByKey {
+		if _, wasRecorded := recordedIdByKey[key]; !wasRecorded {
+			deterministicChildExternalIds = append(deterministicChildExternalIds, optsForKey[0].ExternalId)
+		}
+	}
+
+	if len(deterministicChildExternalIds) == 0 {
+		return nil
+	}
+
+	alreadySpawnedChildren, err := s.queries.LookupExternalIds(ctx, db, sqlcv1.LookupExternalIdsParams{
+		Tenantid:    tenantId,
+		Externalids: deterministicChildExternalIds,
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to list child runs which were already spawned: %w", err)
+	}
+
+	alreadySpawnedChildExternalIds := enumerables.ToSet(alreadySpawnedChildren, func(lookupRow *sqlcv1.V1LookupTable) uuid.UUID {
+		return lookupRow.ExternalID
+	})
+
+	// a skipped child never reaches the trigger path, which would meter it as a new task run
+	for _, opt := range opts {
+		if _, wasAlreadySpawned := alreadySpawnedChildExternalIds[opt.ExternalId]; wasAlreadySpawned {
 			opt.ShouldSkip = true
 		}
 	}

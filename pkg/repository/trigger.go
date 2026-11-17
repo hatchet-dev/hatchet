@@ -3021,6 +3021,20 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 	[]triggerTuple,
 	error,
 ) {
+	// two requests for the same child can land in one batch (a retried spawn request), and neither is committed for the other to find
+	seenChildExternalIds := make(map[uuid.UUID]struct{})
+
+	opts = enumerables.Filter(opts, func(opt *WorkflowNameTriggerOpts) bool {
+		if opt.ParentTaskId == nil {
+			return true
+		}
+
+		_, isRepeatedRequest := seenChildExternalIds[opt.ExternalId]
+		seenChildExternalIds[opt.ExternalId] = struct{}{}
+
+		return !isRepeatedRequest
+	})
+
 	// each (workflowVersionId, opt) is a separate workflow that we need to create
 	triggerOpts := make([]triggerTuple, 0, len(opts))
 

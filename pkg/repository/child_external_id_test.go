@@ -36,7 +36,7 @@ func TestRetriedRegularParentSpawnsTheSameChildWhenDeterministicIdsAreToggled(t 
 	parentInsertedAt := parent.InsertedAt.Time
 	childIndex := int64(0)
 
-	spawnChild := func() (uuid.UUID, int) {
+	requestChild := func() *WorkflowNameTriggerOpts {
 		opt := &WorkflowNameTriggerOpts{TriggerTaskData: &TriggerTaskData{
 			WorkflowName:         "regular-child",
 			Data:                 []byte(`{}`),
@@ -48,28 +48,31 @@ func TestRetriedRegularParentSpawnsTheSameChildWhenDeterministicIdsAreToggled(t 
 
 		require.NoError(t, triggers.PopulateExternalIdsForWorkflow(ctx, internalTenantId, []*WorkflowNameTriggerOpts{opt}))
 
-		if opt.ShouldSkip {
-			return opt.ExternalId, 0
-		}
+		return opt
+	}
 
-		children, _, _, _, err := triggers.TriggerFromWorkflowNames(ctx, internalTenantId, []*WorkflowNameTriggerOpts{opt})
+	triggerRequested := func(opts ...*WorkflowNameTriggerOpts) int {
+		children, _, _, _, err := triggers.TriggerFromWorkflowNames(ctx, internalTenantId, opts)
 		require.NoError(t, err)
 
-		return opt.ExternalId, len(children)
+		return len(children)
 	}
 
 	repos.shared.childRunDirectSpawn = true
 
-	childExternalId, created := spawnChild()
-	require.Equal(t, 1, created)
+	firstRequest, requestMadeBeforeTheFirstWasTriggered := requestChild(), requestChild()
+	require.False(t, firstRequest.ShouldSkip)
+	require.False(t, requestMadeBeforeTheFirstWasTriggered.ShouldSkip)
+	require.Equal(t, firstRequest.ExternalId, requestMadeBeforeTheFirstWasTriggered.ExternalId)
+	require.Equal(t, 1, triggerRequested(firstRequest, requestMadeBeforeTheFirstWasTriggered))
 
-	retriedChildExternalId, created := spawnChild()
-	require.Equal(t, 0, created)
-	require.Equal(t, childExternalId, retriedChildExternalId)
+	retriedRequest := requestChild()
+	require.True(t, retriedRequest.ShouldSkip)
+	require.Equal(t, firstRequest.ExternalId, retriedRequest.ExternalId)
 
 	repos.shared.childRunDirectSpawn = false
 
-	retriedChildExternalId, created = spawnChild()
-	require.Equal(t, 0, created)
-	require.Equal(t, childExternalId, retriedChildExternalId)
+	retriedRequestAfterDisablement := requestChild()
+	require.Equal(t, firstRequest.ExternalId, retriedRequestAfterDisablement.ExternalId)
+	require.Equal(t, 0, triggerRequested(retriedRequestAfterDisablement))
 }
