@@ -482,24 +482,28 @@ func TestQueuerQueueCoalescesIntoBufferedWake(t *testing.T) {
 
 // TestQueuerQueueAfterCoalescesPendingWakes pins the same rule for a delayed wake: a second
 // request while one is waiting does not start its own, and a request made after it has fired
-// is delivered.
+// is delivered. The second deadline is later, and the first wake is drained before it.
+// notifyQueueCh holds one wake, so two timers with the same deadline can both fire before the
+// drain and look coalesced.
 func TestQueuerQueueAfterCoalescesPendingWakes(t *testing.T) {
 	l := zerolog.Nop()
 	q := &Queuer{l: &l, notifyQueueCh: make(chan map[string]string, 1)}
 	ctx := context.Background()
 
+	const secondDelay = 300 * time.Millisecond
+
 	q.queueAfter(ctx, 20*time.Millisecond)
-	q.queueAfter(ctx, 20*time.Millisecond)
+	q.queueAfter(ctx, secondDelay)
 
 	require.Eventually(t, func() bool {
 		return len(q.notifyQueueCh) == 1
-	}, time.Second, time.Millisecond)
+	}, secondDelay/2, time.Millisecond)
 
 	<-q.notifyQueueCh
 
 	require.Never(t, func() bool {
 		return len(q.notifyQueueCh) > 0
-	}, 100*time.Millisecond, 5*time.Millisecond, "the second request must not produce its own wake")
+	}, secondDelay, 5*time.Millisecond, "the second request must not produce its own wake")
 
 	q.queueAfter(ctx, time.Millisecond)
 
