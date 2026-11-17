@@ -135,10 +135,7 @@ type TaskOperationLimitsConfigFile struct {
 	// engine version that doesn't, running tasks look unacked and get reassigned while they're still running.
 	ReassignUnackedTasks bool `mapstructure:"reassignUnackedTasks" json:"reassignUnackedTasks,omitempty" default:"false"`
 
-	// ChildRunDirectSpawn lets the DAG operator's step children skip the completion match and satisfy their
-	// orchestrator's log entry directly, for every tenant rather than only those with the operator step direct
-	// completion entitlement. Only enable it once every engine instance supports it: during a rolling deploy, an
-	// engine version that doesn't would never hear the child's completion.
+	// ChildRunDirectSpawn determines whether child runs should use the matching logic or be spawned directly without it
 	ChildRunDirectSpawn bool `mapstructure:"childRunDirectSpawn" json:"childRunDirectSpawn,omitempty" default:"false"`
 
 	// RetryQueueLimit is the limit for how many retry queue items to process in a single operation
