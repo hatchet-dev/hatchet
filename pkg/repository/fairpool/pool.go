@@ -253,7 +253,7 @@ func (p *Pool) acquire(ctx context.Context) (*pgxpool.Conn, error) {
 	if err != nil && ctx.Err() == nil && acquireCtx.Err() != nil {
 		// Not wrapped: callers treat context.DeadlineExceeded as the client's own deadline and
 		// return it without logging, but an exhausted pool is an engine failure.
-		return nil, fmt.Errorf("fairpool: no free connection in the %s pool after %s", p.name, p.acquireTimeout)
+		return nil, fmt.Errorf("fairpool: timed out waiting for a free connection from the %s pool after %s", p.name, p.acquireTimeout)
 	}
 
 	return conn, err

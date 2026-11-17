@@ -744,7 +744,7 @@ func TestCheckoutFailsWhenPoolIsHeld(t *testing.T) {
 				opCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 				err := op(opCtx, caller, table)
 				cancel()
-				require.ErrorContains(t, err, "no free connection", opName)
+				require.ErrorContains(t, err, "timed out waiting for a free connection", opName)
 				require.NotErrorIs(t, err, context.DeadlineExceeded, opName)
 			}
 
