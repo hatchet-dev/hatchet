@@ -8,7 +8,11 @@ from hatchet_sdk.clients.listeners.run_event_listener import (
     RunEventListenerClient,
 )
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
-from hatchet_sdk.exceptions import FailedTaskRunExceptionGroup, TaskRunError
+from hatchet_sdk.exceptions import (
+    CancelledRunError,
+    FailedTaskRunExceptionGroup,
+    TaskRunError,
+)
 
 if TYPE_CHECKING:
     from hatchet_sdk.clients.admin import AdminClient
@@ -87,7 +91,8 @@ class WorkflowRunRef:
         :raises TimeoutError: If the run does not complete within the timeout.
         :raises RuntimeError: If fetching the run's status fails repeatedly.
         :raises FailedTaskRunExceptionGroup: If the run fails.
-        :raises ValueError: If the run is cancelled or in an unexpected state.
+        :raises CancelledRunError: If the run is cancelled.
+        :raises ValueError: If the run is in an unexpected state.
         """
         deadline = (
             time.monotonic() + timeout.total_seconds() if timeout is not None else None
@@ -143,7 +148,7 @@ class WorkflowRunRef:
                 } or {}
 
             if details.status == "CANCELLED":
-                raise ValueError(f"Workflow run {self.workflow_run_id} was cancelled.")
+                raise CancelledRunError(self.workflow_run_id)
 
             raise ValueError(
                 f"Workflow run {self.workflow_run_id} has not completed yet."

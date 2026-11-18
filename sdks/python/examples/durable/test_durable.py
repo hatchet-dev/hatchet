@@ -36,7 +36,7 @@ from examples.durable.worker import (
     wait_for_two_events_second_pushed_first,
 )
 from examples.test_utils import poll_for_runs, wait_for_replay, wait_for_running_status
-from hatchet_sdk import FailedTaskRunExceptionGroup, Hatchet
+from hatchet_sdk import CancelledRunError, Hatchet
 
 TIMING_TOLERANCE = 2.0
 
@@ -158,10 +158,8 @@ async def test_durable_sleep_cancel_replay(hatchet: Hatchet) -> None:
     await wait_for_running_status(hatchet, first_sleep.workflow_run_id)
     await hatchet.runs.aio_cancel(first_sleep.workflow_run_id)
 
-    with pytest.raises(FailedTaskRunExceptionGroup) as exc_info:
+    with pytest.raises(CancelledRunError):
         await first_sleep.aio_result()
-
-    assert "HatchetError: task was cancelled" in str(exc_info.value)
 
     replay_start = time.time()
     await hatchet.runs.aio_replay(

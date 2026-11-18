@@ -64,6 +64,15 @@ class IdempotencyCollisionError(Exception):
         self.existing_run_external_id = existing_run_external_id
 
 
+class CancelledRunError(ValueError):
+    def __init__(self, workflow_run_id: str) -> None:
+        super().__init__(workflow_run_id)
+        self.workflow_run_id = workflow_run_id
+
+    def __str__(self) -> str:
+        return f"Workflow run {self.workflow_run_id} was cancelled."
+
+
 class BulkTriggerIdempotencyCollisionError(Exception):
     def __init__(
         self,

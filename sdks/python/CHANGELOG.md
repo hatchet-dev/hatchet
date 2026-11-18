@@ -56,6 +56,7 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 
 ### Changed
 
+- `aio_result` on `WorkflowRunRef` and `TaskRunRef` raises `CancelledRunError` for a cancelled run, like `result` does. Previously it returned the outputs of the tasks that finished, usually `{}`.
 - Python 3.11 or newer is required.
 - Optional parameters that follow a method's main arguments are keyword-only, so passing them positionally raises a `TypeError`. This covers `run`, `aio_run`, `run_many`, `aio_run_many`, `create_bulk_run_item`, `schedule`, `aio_schedule`, `create_cron`, `aio_create_cron`, `create_filter`, `aio_create_filter`, `list_runs`, `aio_list_runs`, `pause`, `aio_pause`, `mock_run`, and `aio_mock_run` on workflows and tasks; the `task`, `durable_task`, `batch_task`, `on_failure_task`, and `on_success_task` decorators on a workflow (after `name`); `hatchet.worker` and the `Worker` constructor; `poll_interval` on `WorkflowRunRef.result` and `TaskRunRef.result`; `SleepCondition`, `UserEventCondition`, and `ParentCondition`; the `label` parameter on `ctx.aio_sleep_for` and `ctx.aio_sleep_until`; `streams.aio_reset`; every `HatchetInstrumentor` parameter; and, along with their `aio_` variants, `cel.debug`, `crons.create`, `crons.list`, `events.push`, `events.list`, `filters.create`, `filters.list`, `logs.list`, `metrics.get_task_metrics`, `rate_limits.put`, `rate_limits.list`, `runs.list`, `runs.create`, `runs.reset_durable_task`, `scheduled.create`, `scheduled.list`, `streams.topic_metadata`, `webhooks.create`, `webhooks.update`, `webhooks.list`, `workflows.list`, `workflows.get_version`, and `workflows.pause`. Pass these arguments by keyword. `input` and `additional_metadata` on `crons.create` and `scheduled.create` are still required.
 - `hatchet.event` has been renamed to `hatchet.events`, and `hatchet.cron` has been renamed to `hatchet.crons`, consistent with the other (plural) feature clients.
@@ -125,6 +126,7 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 
 ### Added
 
+- `CancelledRunError`, exported from `hatchet_sdk`, which `result` and `aio_result` raise for a cancelled run. It has a `workflow_run_id` attribute and is a subclass of `ValueError`, which `result` raised for a cancelled run before.
 - `result` and `aio_result` on `WorkflowRunRef` and `TaskRunRef` accept an optional `timeout` (a `timedelta`) and raise `TimeoutError` when it elapses.
 - `CronTrigger`, `ScheduledRun`, and `TaskRunSummary`, the SDK's own models for cron triggers, scheduled runs, and task run summaries.
 - `SleepResult`, `EventWaitResult`, `OrGroupResult`, `HTTPMethod`, `CronTrigger`, `ScheduledRun`, `TaskRunSummary`, `TaskRunDetail`, `WorkflowRunDetail`, `TaskMetrics`, `NotFoundError`, `WebhookBasicAuth`, `WebhookAPIKeyAuth`, `WebhookHMACAuth`, `WebhookSourceName`, `WebhookHMACAlgorithm`, and `WebhookHMACEncoding` are exported from `hatchet_sdk`, so every type a public method accepts or returns can be imported from the top level.

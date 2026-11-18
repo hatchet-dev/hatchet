@@ -13,6 +13,7 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
 )
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
 from hatchet_sdk.exceptions import (
+    CancelledRunError,
     DedupeViolationError,
     FailedTaskRunExceptionGroup,
     TaskRunError,
@@ -52,6 +53,10 @@ class PooledWorkflowRunListener(
                 f"Workflow run {workflow_run_id} failed.",
                 [TaskRunError._deserialize(e) for e in errors],
             )
+
+        ## the engine reports a cancelled task with an error that is set but empty
+        if any(result.HasField("error") for result in event.results):
+            raise CancelledRunError(workflow_run_id)
 
         return {
             result.task_name: json.loads(result.output)
