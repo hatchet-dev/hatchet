@@ -2157,6 +2157,43 @@ files = [
 ]
 
 [[package]]
+name = "nodeenv"
+version = "1.12.0"
+description = "Node.js virtual environment builder"
+optional = true
+python-versions = ">=3.10"
+groups = ["main"]
+markers = "extra == \"lint\""
+files = [
+    {file = "nodeenv-1.12.0-py3-none-any.whl", hash = "sha256:80644d65c10cc2be12e3e4b54b3367ff288c7ad24ae75c2dcc65454fc7449d4d"},
+    {file = "nodeenv-1.12.0.tar.gz", hash = "sha256:4ea7f88339310afebc3253f2c7a91b94bacf97d73a36a5c108962abdfaca501e"},
+]
+
+[package.extras]
+certifi = ["certifi"]
+completion = ["shtab (>=1.11)"]
+
+[[package]]
+name = "nodejs-wheel-binaries"
+version = "24.19.0"
+description = "unoffical Node.js package"
+optional = true
+python-versions = ">=3.7"
+groups = ["main"]
+markers = "extra == \"lint\""
+files = [
+    {file = "nodejs_wheel_binaries-24.19.0-py2.py3-none-macosx_13_0_arm64.whl", hash = "sha256:e12cbfd69089504e42fb14194ce734a9dcf3eb38c820ca63dd511d36fb964e9c"},
+    {file = "nodejs_wheel_binaries-24.19.0-py2.py3-none-macosx_13_0_x86_64.whl", hash = "sha256:1c890adf4b7e6556ccc1ca66c866bb81884b6c9a581dee4e530dc7f78fb9d514"},
+    {file = "nodejs_wheel_binaries-24.19.0-py2.py3-none-manylinux_2_28_aarch64.whl", hash = "sha256:4e029dadfae1295876063c96b236f673487e8c27379fe146c1e2250283520227"},
+    {file = "nodejs_wheel_binaries-24.19.0-py2.py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:4196a947bcc883f2003ab101762d729f3e99b5e86b75bd09151563403e2eceb8"},
+    {file = "nodejs_wheel_binaries-24.19.0-py2.py3-none-musllinux_1_2_aarch64.whl", hash = "sha256:352e048ab4dd35e7de5f338d1cc4fcbf77a0e93da30bf7336a8217ee246b31d7"},
+    {file = "nodejs_wheel_binaries-24.19.0-py2.py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:28d078b2ced9e2069516e652dc4b1380e7a1a7f2d3934eccd1611586d283ba4c"},
+    {file = "nodejs_wheel_binaries-24.19.0-py2.py3-none-win_amd64.whl", hash = "sha256:67e3abeb9c3830cae8c8487ae8a2af7cc27dfa75af06145cee5ca7d1857c81bd"},
+    {file = "nodejs_wheel_binaries-24.19.0-py2.py3-none-win_arm64.whl", hash = "sha256:d9074c665ea68b04e183d82482c86dc907d3a9bd15eb6cf85542cb785266bb36"},
+    {file = "nodejs_wheel_binaries-24.19.0.tar.gz", hash = "sha256:db217eef8cab8551667863379b08db4d9067403f6cbbe87481eb40edceb8aa9b"},
+]
+
+[[package]]
 name = "openai"
 version = "2.53.0"
 description = "The official Python library for the openai API"
@@ -2995,6 +3032,29 @@ pyyaml = "*"
 extra = ["pygments (>=2.19.1)"]
 
 [[package]]
+name = "pyright"
+version = "1.1.414"
+description = "Command line wrapper for pyright"
+optional = true
+python-versions = ">=3.7"
+groups = ["main"]
+markers = "extra == \"lint\""
+files = [
+    {file = "pyright-1.1.414-py3-none-any.whl", hash = "sha256:2a6b4b3298c9eec174c5ed83bd338de6eee82df2992f3e1930e6199d381be36f"},
+    {file = "pyright-1.1.414.tar.gz", hash = "sha256:523c0a97c60da6333234955c277730c9cf4f5bd6d5399e7b7d2b0fc5d3599524"},
+]
+
+[package.dependencies]
+nodeenv = ">=1.6.0"
+nodejs-wheel-binaries = {version = "*", optional = true, markers = "extra == \"nodejs\""}
+typing-extensions = ">=4.1"
+
+[package.extras]
+all = ["nodejs-wheel-binaries", "twine (>=3.4.1)"]
+dev = ["twine (>=3.4.1)"]
+nodejs = ["nodejs-wheel-binaries"]
+
+[[package]]
 name = "pytest"
 version = "9.1.1"
 description = "pytest: simple powerful testing with Python"
@@ -3677,6 +3737,35 @@ slack = ["slack-sdk"]
 telegram = ["requests"]
 
 [[package]]
+name = "ty"
+version = "0.0.106"
+description = "An extremely fast Python type checker, written in Rust."
+optional = true
+python-versions = ">=3.8"
+groups = ["main"]
+markers = "extra == \"lint\""
+files = [
+    {file = "ty-0.0.106-py3-none-linux_armv6l.whl", hash = "sha256:b0ff16e5b64bf068f6e0301f28d579e931739f13ae88d8de9d6af1469060c1d5"},
+    {file = "ty-0.0.106-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:51047d2d7b6d7a30ec76487b69eaa6ef09da0c295a3ec352e526e822d1dc2599"},
+    {file = "ty-0.0.106-py3-none-macosx_11_0_arm64.whl", hash = "sha256:b2a19df72d929af7ed19a9fb26f01a87f4288f60bbe38fd320e5e114bf703dec"},
+    {file = "ty-0.0.106-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:10cfd2e50087d55977c01a02b09004eb813818b32e317edfbb2551c5c5f97c37"},
+    {file = "ty-0.0.106-py3-none-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:3bc1a1dce9aa9a10cfd1fc80fdb5a20da91b154d8189588c462eb89b1fcfc78a"},
+    {file = "ty-0.0.106-py3-none-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:cef30798b1124aa7fa9b7d02b1457cdd9affd358f936fcc5942ef7683fc4dd64"},
+    {file = "ty-0.0.106-py3-none-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:083ed7163448667e4b0d9820f22fe94eb99f255dd9e023f8db44ef049df828b8"},
+    {file = "ty-0.0.106-py3-none-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:2c8db8a2a22c9fd573e8fc26e483d78bee06a1c6d9ea9bfc2a4d3c531d16120f"},
+    {file = "ty-0.0.106-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:21a5688abc3af3a20dc25cb64d8a4266e31dc61500872299661235ac17e2d7e7"},
+    {file = "ty-0.0.106-py3-none-manylinux_2_31_riscv64.whl", hash = "sha256:24d7f1d4466935dcfa72e3b869fb9eb6b789cb8f81eff53a8947e70207580296"},
+    {file = "ty-0.0.106-py3-none-musllinux_1_2_aarch64.whl", hash = "sha256:cf13d456d11dc5b3bdae03fa505639583eac46aea307b0ee0119cfb0cfd0a68b"},
+    {file = "ty-0.0.106-py3-none-musllinux_1_2_armv7l.whl", hash = "sha256:0f38fe0a9a9d2374cc65b19f12115b9138be137192076f0b6f564bbdde10ba93"},
+    {file = "ty-0.0.106-py3-none-musllinux_1_2_i686.whl", hash = "sha256:f2bd0ee0f0fc1833796412e5941c0aefb785972631cb3ac69b97547ea1419624"},
+    {file = "ty-0.0.106-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:7dd69cc5a0799b49c53e7409788f3ecda771aec3e2ab41dc9fbb8404d4985448"},
+    {file = "ty-0.0.106-py3-none-win32.whl", hash = "sha256:abc014208c2ad86894f7104d512930279091b858edc5a916d8590d893b3b466f"},
+    {file = "ty-0.0.106-py3-none-win_amd64.whl", hash = "sha256:567eaec32dce407d1788f592d726d2b595710cccc660b0cafe1ec76f6f9b43f0"},
+    {file = "ty-0.0.106-py3-none-win_arm64.whl", hash = "sha256:a67bc2b1069bfab17003bcd4eedf64608de4a435573e356882b9f84c56e7de51"},
+    {file = "ty-0.0.106.tar.gz", hash = "sha256:70eee20bc3b22ceb3ce8f1abfe811088c1e102aa96160b9a543954710eda7008"},
+]
+
+[[package]]
 name = "types-beautifulsoup4"
 version = "4.12.0.20250516"
 description = "Typing stubs for beautifulsoup4"
@@ -4173,7 +4262,7 @@ type = ["pytest-mypy"]
 [extras]
 claude = ["claude-agent-sdk", "mcp"]
 docs = ["bs4", "fastapi", "griffe-pydantic", "markdownify", "mkdocs", "mkdocstrings", "pydoclint", "types-beautifulsoup4", "uvicorn"]
-lint = ["black", "click", "mypy", "psutil", "ruff", "types-grpcio", "types-grpcio-status", "types-protobuf", "types-psutil", "types-requests"]
+lint = ["black", "click", "mypy", "psutil", "pyright", "ruff", "ty", "types-grpcio", "types-grpcio-status", "types-protobuf", "types-psutil", "types-requests"]
 openai = ["openai-agents"]
 otel = ["opentelemetry-api", "opentelemetry-distro", "opentelemetry-exporter-otlp", "opentelemetry-exporter-otlp-proto-http", "opentelemetry-instrumentation", "opentelemetry-sdk"]
 test = ["boto3", "botocore", "psycopg", "pytest", "pytest-asyncio", "pytest-env", "pytest-retry", "pytest-xdist", "requests"]
@@ -4181,4 +4270,4 @@ test = ["boto3", "botocore", "psycopg", "pytest", "pytest-asyncio", "pytest-env"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<4"
-content-hash = "a9d346c57341fa1f2a6fb891fffbb25fe2376f82989e0bc2afd0e6fc5daebf9d"
+content-hash = "1bae97e89f70c252f2813ff90d2872dff7b62f4994ab594c848a452f7c008fa0"

@@ -1,8 +1,9 @@
+# pyright: basic
 import base64
 import os
 
-from langfuse import Langfuse  # type: ignore
-from langfuse.openai import AsyncOpenAI  # type: ignore
+from langfuse import Langfuse  # type: ignore[import-not-found]  # ty: ignore
+from langfuse.openai import AsyncOpenAI  # type: ignore[import-not-found]  # ty: ignore
 
 # > Configure Langfuse
 LANGFUSE_AUTH = base64.b64encode(

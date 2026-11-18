@@ -7,7 +7,7 @@ from examples.concurrency_cancel_in_progress_task_level.worker import (
     WorkflowInput,
     concurrency_cancel_in_progress_task_level_workflow,
 )
-from hatchet_sdk import Hatchet, RunStatus, WorkflowRunRef
+from hatchet_sdk import Hatchet, WorkflowRunRef
 
 
 @pytest.mark.asyncio(loop_scope="session")

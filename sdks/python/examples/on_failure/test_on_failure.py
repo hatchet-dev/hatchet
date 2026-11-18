@@ -9,19 +9,15 @@ from examples.on_failure.worker import (
     on_failure_wf,
     on_failure_wf_with_details,
 )
-from hatchet_sdk import Hatchet, RunStatus
+from hatchet_sdk import FailedTaskRunExceptionGroup, Hatchet
 from hatchet_sdk.clients.admin import WorkflowRunDetail
 
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_run_timeout(hatchet: Hatchet) -> None:
     run = on_failure_wf.run(wait_for_result=False)
-    try:
+    with pytest.raises(FailedTaskRunExceptionGroup, match="step1 failed"):
         await run.aio_result()
-
-        assert False, "Expected workflow to timeout"
-    except Exception as e:
-        assert "step1 failed" in str(e)
 
     @tenacity.retry(
         stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=4, max=10)

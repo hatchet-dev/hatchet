@@ -1,4 +1,4 @@
-from typing import Any, TypeVar, cast, overload
+from typing import TypeVar, cast, overload
 
 T = TypeVar("T")
 K = TypeVar("K")
@@ -25,9 +25,7 @@ def remove_null_unicode_character(
 def remove_null_unicode_character(data: R, replacement: str = "") -> R: ...
 
 
-def remove_null_unicode_character(
-    data: dict[K, T] | list[T] | tuple[T, ...] | R, replacement: str = ""
-) -> str | dict[K, T] | list[T] | tuple[T, ...] | R:
+def remove_null_unicode_character(data: object, replacement: str = "") -> object:
     """
     Recursively traverse a dictionary (a task's output) and remove the unicode escape sequence \\u0000 which will cause unexpected behavior in Hatchet.
 
@@ -42,23 +40,22 @@ def remove_null_unicode_character(
         return data.replace("\u0000", replacement)
 
     if isinstance(data, dict):
+        mapping = cast("dict[object, object]", data)
         return {
             remove_null_unicode_character(
-                cast("Any", key), replacement
-            ): remove_null_unicode_character(cast("Any", value), replacement)
-            for key, value in data.items()
+                key, replacement
+            ): remove_null_unicode_character(value, replacement)
+            for key, value in mapping.items()
         }
 
     if isinstance(data, list):
-        return [
-            remove_null_unicode_character(cast("Any", item), replacement)
-            for item in data
-        ]
+        items = cast("list[object]", data)
+        return [remove_null_unicode_character(item, replacement) for item in items]
 
     if isinstance(data, tuple):
+        tuple_items = cast("tuple[object, ...]", data)
         return tuple(
-            remove_null_unicode_character(cast("Any", item), replacement)
-            for item in data
+            remove_null_unicode_character(item, replacement) for item in tuple_items
         )
 
     return data

@@ -1,10 +1,9 @@
 import asyncio
 from collections.abc import AsyncGenerator
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from random import choice
 from subprocess import Popen
 from typing import Any, Literal
-from uuid import uuid4
 
 import pytest
 import pytest_asyncio
@@ -13,7 +12,6 @@ from pydantic import BaseModel
 from examples.priority.worker import DEFAULT_PRIORITY, SLEEP_TIME, priority_workflow
 from hatchet_sdk import Hatchet, Priority
 from hatchet_sdk.types.priority import priority_to_int
-from hatchet_sdk.types.run_status import RunStatus
 
 TestPriority = Literal["low", "medium", "high", "default"]
 
@@ -71,7 +69,7 @@ async def test_priority(
     hatchet: Hatchet, dummy_runs: None, on_demand_worker: Popen[Any], test_run_id: str
 ) -> None:
     choices: list[TestPriority] = ["low", "medium", "high", "default"]
-    N = 30
+    run_count = 30
 
     run_refs = await priority_workflow.aio_run_many(
         [
@@ -83,8 +81,8 @@ async def test_priority(
                     "test_run_id": test_run_id,
                 },
             )
-            for ix in range(N)
-            for pr in [choice(choices)]
+            for ix in range(run_count)
+            for pr in (choice(choices),)
         ],
         wait_for_result=False,
     )
@@ -113,8 +111,8 @@ async def test_priority(
         [
             RunPriorityStartedAt(
                 priority=(r.additional_metadata or {}).get("priority") or "low",
-                started_at=r.started_at or datetime.min,
-                finished_at=r.finished_at or datetime.min,
+                started_at=r.started_at or datetime.min.replace(tzinfo=UTC),
+                finished_at=r.finished_at or datetime.min.replace(tzinfo=UTC),
             )
             for r in runs
         ],
@@ -122,7 +120,7 @@ async def test_priority(
     )
 
     assert len(runs_ids_started_ats) == len(run_refs)
-    assert len(runs_ids_started_ats) == N
+    assert len(runs_ids_started_ats) == run_count
 
     for i in range(len(runs_ids_started_ats) - 1):
         curr = runs_ids_started_ats[i]
@@ -154,7 +152,7 @@ async def test_priority_via_scheduling(
     sleep_time = 3
     n = 30
     choices: list[TestPriority] = ["low", "medium", "high", "default"]
-    run_at = datetime.now(tz=timezone.utc) + timedelta(seconds=sleep_time)
+    run_at = datetime.now(tz=UTC) + timedelta(seconds=sleep_time)
 
     versions = await asyncio.gather(
         *[
@@ -168,7 +166,7 @@ async def test_priority_via_scheduling(
                 },
             )
             for ix in range(n)
-            for pr in [choice(choices)]
+            for pr in (choice(choices),)
         ]
     )
 
@@ -205,8 +203,8 @@ async def test_priority_via_scheduling(
         [
             RunPriorityStartedAt(
                 priority=(r.additional_metadata or {}).get("priority") or "low",
-                started_at=r.started_at or datetime.min,
-                finished_at=r.finished_at or datetime.min,
+                started_at=r.started_at or datetime.min.replace(tzinfo=UTC),
+                finished_at=r.finished_at or datetime.min.replace(tzinfo=UTC),
             )
             for r in runs
         ],
@@ -264,7 +262,7 @@ async def crons(
 
 
 def time_until_next_minute() -> float:
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     next_minute = (now + timedelta(minutes=1)).replace(second=0, microsecond=0)
 
     return (next_minute - now).total_seconds()
@@ -315,8 +313,8 @@ async def test_priority_via_cron(
         [
             RunPriorityStartedAt(
                 priority=(r.additional_metadata or {}).get("priority") or "low",
-                started_at=r.started_at or datetime.min,
-                finished_at=r.finished_at or datetime.min,
+                started_at=r.started_at or datetime.min.replace(tzinfo=UTC),
+                finished_at=r.finished_at or datetime.min.replace(tzinfo=UTC),
             )
             for r in runs
         ],

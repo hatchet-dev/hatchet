@@ -1,8 +1,8 @@
 import asyncio
+import contextlib
 import time
 from collections.abc import Callable
 from typing import Any
-from uuid import uuid4
 
 import pytest
 
@@ -13,7 +13,7 @@ from examples.bug_tests.payload_bug_on_replay.worker import (
     step1,
     step2,
 )
-from hatchet_sdk import Hatchet, RunStatus, WorkflowRunRef
+from hatchet_sdk import CancelledRunError, Hatchet, WorkflowRunRef
 from hatchet_sdk.clients.rest.models.v1_workflow_run_details import V1WorkflowRunDetails
 
 
@@ -41,12 +41,11 @@ async def _wait_for_replayed_result(
     # returns, so a single read can still hand back the pre-replay result.
     deadline = time.monotonic() + timeout
     while True:
-        result = await ref.aio_result()
-        if step2.name in result and not result[step1.name]["should_cancel"]:
-            return result
-        assert (
-            time.monotonic() < deadline
-        ), f"the replayed run never produced a result; last result seen: {result}"
+        with contextlib.suppress(CancelledRunError):
+            result = await ref.aio_result()
+            if step2.name in result and not result[step1.name]["should_cancel"]:
+                return result
+        assert time.monotonic() < deadline, "the replayed run never produced a result"
         await asyncio.sleep(0.5)
 
 
@@ -64,9 +63,11 @@ async def test_payload_replay_bug(hatchet: Hatchet, test_run_id: str) -> None:
         wait_for_result=False,
     )
 
-    result = await ref.aio_result()
+    with pytest.raises(CancelledRunError):
+        await ref.aio_result()
 
-    step_1_output = StepOutput.model_validate(result[step1.name])
+    details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
+    step_1_output = StepOutput.model_validate(details.task_runs[step1.name].output)
 
     assert step_1_output.should_cancel is True
 

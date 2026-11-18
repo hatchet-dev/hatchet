@@ -1,3 +1,7 @@
+# the snippets below assign results to show the return values, without using them
+# ruff: noqa: F841
+# pyright: reportUnusedVariable=false
+
 from pydantic import BaseModel
 
 from hatchet_sdk import Context, Hatchet

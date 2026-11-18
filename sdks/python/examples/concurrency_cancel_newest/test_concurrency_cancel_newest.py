@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 
 import pytest
 
@@ -7,7 +8,7 @@ from examples.concurrency_cancel_newest.worker import (
     concurrency_cancel_newest_workflow,
 )
 from examples.test_utils import poll_for_runs
-from hatchet_sdk import Hatchet, RunStatus
+from hatchet_sdk import Hatchet
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -37,10 +38,8 @@ async def test_run(hatchet: Hatchet, test_run_id: str) -> None:
     await to_run.aio_result()
 
     for ref in to_cancel:
-        try:
+        with contextlib.suppress(Exception):
             await ref.aio_result()
-        except Exception:
-            pass
 
     await poll_for_runs(
         hatchet,

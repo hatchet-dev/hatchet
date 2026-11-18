@@ -218,7 +218,7 @@ async def batch_broadcast(
 )
 async def batch_cancel(_: dict[BatchMemberId, SimpleInput], context: Context) -> None:
     await context.aio_cancel()
-    return None
+    return
 
 
 @hatchet.task(input_validator=SimpleInput)
@@ -248,10 +248,7 @@ async def child_batch(
 async def batch_child_spawn(
     inp: dict[BatchMemberId, SimpleInput], context: Context
 ) -> dict[BatchMemberId, ChildOutput]:
-    return {
-        id: await child.aio_run(SimpleInput(message="blahblah"))
-        for id, inp in inp.items()
-    }
+    return {id: await child.aio_run(SimpleInput(message="blahblah")) for id in inp}
 
 
 @hatchet.batch_task(
@@ -267,13 +264,7 @@ async def batch_child_batch_spawn(
     async def inner(id: str, inp: SimpleInput) -> Any:
         return id, await child_batch.aio_run(inp)
 
-    ret = {
-        id: result
-        for id, result in await asyncio.gather(
-            *(inner(id, inp) for id, inp in inp.items())
-        )
-    }
-    return ret
+    return dict(await asyncio.gather(*(inner(id, inp) for id, inp in inp.items())))
 
 
 def main() -> None:

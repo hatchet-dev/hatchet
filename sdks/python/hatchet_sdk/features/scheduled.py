@@ -1,4 +1,5 @@
 import asyncio
+import builtins
 import datetime
 from typing import TYPE_CHECKING, Literal
 
@@ -292,7 +293,7 @@ class ScheduledClient(BaseRestClient):
     def bulk_delete(
         self,
         *,
-        scheduled_ids: list[str] | None = None,
+        scheduled_ids: builtins.list[str] | None = None,
         workflow_id: str | None = None,
         parent_workflow_run_id: str | None = None,
         parent_task_run_id: str | None = None,
@@ -351,7 +352,7 @@ class ScheduledClient(BaseRestClient):
     async def aio_bulk_delete(
         self,
         *,
-        scheduled_ids: list[str] | None = None,
+        scheduled_ids: builtins.list[str] | None = None,
         workflow_id: str | None = None,
         parent_workflow_run_id: str | None = None,
         parent_task_run_id: str | None = None,
@@ -379,7 +380,8 @@ class ScheduledClient(BaseRestClient):
     def bulk_update(
         self,
         updates: (
-            list[ScheduledWorkflowsBulkUpdateItem] | list[tuple[str, datetime.datetime]]
+            builtins.list[ScheduledWorkflowsBulkUpdateItem]
+            | builtins.list[tuple[str, datetime.datetime]]
         ),
     ) -> ScheduledWorkflowsBulkUpdateResponse:
         """
@@ -413,7 +415,8 @@ class ScheduledClient(BaseRestClient):
     async def aio_bulk_update(
         self,
         updates: (
-            list[ScheduledWorkflowsBulkUpdateItem] | list[tuple[str, datetime.datetime]]
+            builtins.list[ScheduledWorkflowsBulkUpdateItem]
+            | builtins.list[tuple[str, datetime.datetime]]
         ),
     ) -> ScheduledWorkflowsBulkUpdateResponse:
         """
@@ -430,11 +433,11 @@ class ScheduledClient(BaseRestClient):
         limit: int | None = None,
         workflow_id: str | None = None,
         parent_workflow_run_id: str | None = None,
-        statuses: list[ScheduledRunStatusFilter] | None = None,
+        statuses: builtins.list[ScheduledRunStatusFilter] | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         order_by_field: ScheduledRunOrderByField | None = None,
         order_by_direction: OrderByDirection | None = None,
-    ) -> list[ScheduledRun]:
+    ) -> builtins.list[ScheduledRun]:
         """
         Retrieves a list of scheduled workflows based on provided filters.
 
@@ -468,11 +471,11 @@ class ScheduledClient(BaseRestClient):
         limit: int | None = None,
         workflow_id: str | None = None,
         parent_workflow_run_id: str | None = None,
-        statuses: list[ScheduledRunStatusFilter] | None = None,
+        statuses: builtins.list[ScheduledRunStatusFilter] | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         order_by_field: ScheduledRunOrderByField | None = None,
         order_by_direction: OrderByDirection | None = None,
-    ) -> list[ScheduledRun]:
+    ) -> builtins.list[ScheduledRun]:
         """
         Retrieves a list of scheduled workflows based on provided filters.
 

@@ -3,10 +3,10 @@ import time
 from examples.durable.worker import (
     EVENT_KEY,
     SLEEP_TIME,
+    AwaitedEvent,
     durable_workflow,
     ephemeral_workflow,
     hatchet,
-    AwaitedEvent,
 )
 
 durable_workflow.run(wait_for_result=False)

@@ -7,7 +7,7 @@ from examples.concurrency_cancel_in_progress.worker import (
     concurrency_cancel_in_progress_workflow,
 )
 from examples.test_utils import poll_for_runs
-from hatchet_sdk import Hatchet, RunStatus, WorkflowRunRef
+from hatchet_sdk import Hatchet, WorkflowRunRef
 
 
 @pytest.mark.asyncio(loop_scope="session")

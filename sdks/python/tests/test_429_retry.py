@@ -1,3 +1,5 @@
+# pyright: reportUnknownMemberType=false, reportUnknownVariableType=false
+# ApiException is generated code whose status and reason attributes are untyped.
 """Unit tests for HTTP 429 Too Many Requests retry behavior."""
 
 import pytest

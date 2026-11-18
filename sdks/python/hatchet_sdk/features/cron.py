@@ -1,4 +1,5 @@
 import asyncio
+import builtins
 from datetime import datetime
 from typing import TYPE_CHECKING, Literal
 
@@ -251,7 +252,7 @@ class CronClient(BaseRestClient):
         order_by_direction: OrderByDirection | None = None,
         workflow_name: str | None = None,
         cron_name: str | None = None,
-    ) -> list[CronTrigger]:
+    ) -> builtins.list[CronTrigger]:
         """
         Retrieve a list of all workflow cron triggers matching the criteria.
 
@@ -289,7 +290,7 @@ class CronClient(BaseRestClient):
         order_by_direction: OrderByDirection | None = None,
         workflow_name: str | None = None,
         cron_name: str | None = None,
-    ) -> list[CronTrigger]:
+    ) -> builtins.list[CronTrigger]:
         """
         Retrieve a list of all workflow cron triggers matching the criteria.
 

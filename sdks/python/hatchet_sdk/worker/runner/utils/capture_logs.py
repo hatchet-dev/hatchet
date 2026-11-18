@@ -26,9 +26,9 @@ from hatchet_sdk.runnables.contextvars import (
 try:
     from opentelemetry import context as otel_context
 
-    _HAS_OTEL = True
+    _opentelemetry_is_installed = True
 except ImportError:
-    _HAS_OTEL = False
+    _opentelemetry_is_installed = False
 from hatchet_sdk.utils.typing import (
     STOP_LOOP,
     STOP_LOOP_TYPE,
@@ -86,12 +86,7 @@ class ContextVarToCopy(BaseModel):
     ) = Field(discriminator="name")
 
 
-def copy_context_vars(
-    ctx_vars: list[ContextVarToCopy],
-    func: Callable[P, T],
-    *args: P.args,
-    **kwargs: P.kwargs,
-) -> T:
+def set_context_vars(ctx_vars: list[ContextVarToCopy]) -> None:
     for var in ctx_vars:
         if var.var.name == "ctx_workflow_run_id":
             ctx_workflow_run_id.set(var.var.value)
@@ -110,12 +105,12 @@ def copy_context_vars(
         elif var.var.name == "ctx_hatchet_span_attributes":
             ctx_hatchet_span_attributes.set(var.var.value)
         elif var.var.name == "ctx_otel_context":
-            if _HAS_OTEL and var.var.value is not None:
-                otel_context.attach(var.var.value)
+            if _opentelemetry_is_installed and var.var.value is not None:
+                otel_context.attach(  # pyright: ignore[reportPossiblyUnboundVariable]
+                    var.var.value
+                )
         else:
             raise ValueError(f"Unknown context variable name: {var.var.name}")
-
-    return func(*args, **kwargs)
 
 
 @dataclass

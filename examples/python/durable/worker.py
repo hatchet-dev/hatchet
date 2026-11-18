@@ -9,13 +9,13 @@ from hatchet_sdk import (
     Context,
     DurableContext,
     EventWaitResult,
+    EvictionPolicy,
     Hatchet,
     OrGroupResult,
     SleepCondition,
     SleepResult,
     UserEventCondition,
     or_,
-    EvictionPolicy,
 )
 from hatchet_sdk.exceptions import NonDeterminismError
 

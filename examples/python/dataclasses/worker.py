@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import Literal
 
 from hatchet_sdk import Context, Hatchet
 

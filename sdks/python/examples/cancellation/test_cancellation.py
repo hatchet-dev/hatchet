@@ -3,7 +3,7 @@ import asyncio
 import pytest
 
 from examples.cancellation.worker import cancellation_workflow
-from hatchet_sdk import Hatchet, RunStatus
+from hatchet_sdk import Hatchet
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -21,4 +21,4 @@ async def test_cancellation(hatchet: Hatchet) -> None:
 
         break
     else:
-        assert False, "Workflow run did not cancel in time"
+        pytest.fail("Workflow run did not cancel in time")

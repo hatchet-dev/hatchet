@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from pydantic import BaseModel
 
@@ -261,7 +261,7 @@ async def create_schedules(customer_id: str) -> tuple[str, str]:
 
     scheduled = await hatchet.scheduled.aio_create(
         workflow_name=weekly_report.name,
-        trigger_at=datetime.now(tz=timezone.utc) + timedelta(days=1),
+        trigger_at=datetime.now(tz=UTC) + timedelta(days=1),
         input={"kind": "weekly"},
         additional_metadata={"customer_id": customer_id},
     )

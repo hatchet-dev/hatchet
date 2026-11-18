@@ -44,6 +44,6 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    slots = cast(int | None, args.slots) or 100
+    slots = cast("int | None", args.slots) or 100
 
     main(slots)

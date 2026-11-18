@@ -1,6 +1,7 @@
 import asyncio
+import builtins
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, Literal
 
 from google.protobuf import timestamp_pb2
 
@@ -125,15 +126,12 @@ class RateLimitsClient(BaseRestClient):
             client.PauseRateLimit, self.client_config.tenacity
         )
 
-        response = cast(
-            "v0_workflow_protos.PauseRateLimitResponse",
-            pause_rate_limit(
-                v0_workflow_protos.PauseRateLimitRequest(
-                    key=key,
-                    paused_until=paused_until,
-                ),
-                metadata=create_authorization_header(self.client_config.token),
+        response = pause_rate_limit(
+            v0_workflow_protos.PauseRateLimitRequest(
+                key=key,
+                paused_until=paused_until,
             ),
+            metadata=create_authorization_header(self.client_config.token),
         )
 
         return response.paused_until.ToDatetime(tzinfo=UTC)
@@ -160,7 +158,7 @@ class RateLimitsClient(BaseRestClient):
         search: str | None = None,
         order_by_field: RateLimitOrderByField | None = None,
         order_by_direction: OrderByDirection | None = None,
-    ) -> list[RateLimit]:
+    ) -> builtins.list[RateLimit]:
         """
         List all rate limits for the tenant.
 
@@ -189,7 +187,7 @@ class RateLimitsClient(BaseRestClient):
         search: str | None = None,
         order_by_field: RateLimitOrderByField | None = None,
         order_by_direction: OrderByDirection | None = None,
-    ) -> list[RateLimit]:
+    ) -> builtins.list[RateLimit]:
         """
         List all rate limits for the tenant.
 

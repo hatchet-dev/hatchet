@@ -196,7 +196,8 @@ A type checker will not flag these, so check them by hand:
 - **`ClientTLSConfig.strategy` is validated.** A value other than `"tls"`, `"mtls"`, or `"none"` now fails at construction time instead of being treated as insecure.
 - **The `HATCHET_CLIENT_WORKER_HEALTHCHECK_EVENT_LOOP_BLOCK_THRESHOLD_SECONDS` environment variable is no longer read.** Rename it to `HATCHET_CLIENT_WORKER_HEALTHCHECK_EVENT_LOOP_BLOCK_THRESHOLD`.
 - **`grpcio-tools` is no longer installed with the SDK.** Add it to your own dependencies if you import it.
-- **`ref.result()` and `ref.aio_result()` raise `RuntimeError` instead of `ValueError` when fetching the run's status fails repeatedly.** A cancelled run still raises `ValueError`.
+- **`ref.result()` and `ref.aio_result()` raise `RuntimeError` instead of `ValueError` when fetching the run's status fails repeatedly.**
+- **`ref.aio_result()` raises `CancelledRunError` for a cancelled run instead of returning the outputs of the tasks that finished (usually `{}`).** `ref.result()` raises it too. `CancelledRunError` is a subclass of `ValueError`, so code that catches `ValueError` from `ref.result()` keeps working.
 - **`parent_id`, `parent_step_run_id`, `child_index`, and `desired_worker_id` are no longer valid in `OpenTelemetryConfig.excluded_attributes`** or `HATCHET_CLIENT_OPENTELEMETRY_EXCLUDED_ATTRIBUTES`. Remove them, or building the `ClientConfig` fails.
 - **`from hatchet_sdk import RunStatus`, `Priority`, and the other former enums still succeed.** The names remain as `Literal` type aliases, so the import works but member access such as `RunStatus.COMPLETED` raises `AttributeError`, and `isinstance(value, RunStatus)` raises `TypeError`. See [enums replaced by strings](#enums-replaced-by-strings).
 
@@ -1118,7 +1119,7 @@ result = ref.result(2.0)
 result = ref.result(poll_interval=timedelta(seconds=2))
 ```
 
-If fetching the run's status fails repeatedly, `result` and `aio_result` now raise `RuntimeError` instead of `ValueError`. A cancelled run still raises `ValueError`.
+If fetching the run's status fails repeatedly, `result` and `aio_result` now raise `RuntimeError` instead of `ValueError`. A cancelled run raises `CancelledRunError`, a subclass of `ValueError`, from both `result` and `aio_result`. Previously `aio_result` returned the outputs of the tasks that finished, usually `{}`, instead of raising.
 
 #### Worker startup failures raise and `start()` returns on shutdown
 

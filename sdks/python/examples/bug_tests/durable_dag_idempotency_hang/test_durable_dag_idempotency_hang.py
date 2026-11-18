@@ -1,12 +1,13 @@
+from uuid import uuid4
+
 import pytest
 
-from hatchet_sdk import Hatchet
 from examples.bug_tests.durable_dag_idempotency_hang.worker import (
+    IdempotencyHangPayload,
     durable_dag_idempotency_hang_bug_repro_wf,
     durable_dag_status_based_idempotency_wf,
-    IdempotencyHangPayload,
 )
-from uuid import uuid4
+from hatchet_sdk import Hatchet
 
 
 @pytest.mark.timeout(5, func_only=True)

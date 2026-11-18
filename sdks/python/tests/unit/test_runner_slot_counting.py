@@ -62,8 +62,10 @@ def _make_action(task: Any, action_type: ActionType, **batch_fields: Any) -> Act
 async def _wait_until_used_default_slots(runner: Runner, expected: int) -> None:
     async def poll() -> None:
         # Polls shared memory written by the runner, so there is no asyncio.Event to wait on.
-        while read_slot_usage(runner.shared_slot_usage_by_pool)["default"] != expected:
-            await asyncio.sleep(0.01)  # noqa: ASYNC110
+        while (  # noqa: ASYNC110
+            read_slot_usage(runner.shared_slot_usage_by_pool)["default"] != expected
+        ):
+            await asyncio.sleep(0.01)
 
     await asyncio.wait_for(poll(), timeout=10)
 

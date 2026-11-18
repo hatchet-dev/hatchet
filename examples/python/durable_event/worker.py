@@ -1,4 +1,4 @@
-from hatchet_sdk import DurableContext, Hatchet, UserEventCondition
+from hatchet_sdk import DurableContext, Hatchet
 
 hatchet = Hatchet()
 

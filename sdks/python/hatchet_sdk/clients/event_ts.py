@@ -3,7 +3,6 @@ from collections.abc import Callable
 from typing import Generic, TypeVar, cast, overload
 
 import grpc.aio
-from grpc._cython import cygrpc  # type: ignore[attr-defined]
 
 from hatchet_sdk.logger import logger
 
@@ -41,7 +40,10 @@ class UnexpectedEOF:
 
 @overload
 async def read_with_interrupt(
-    listener: grpc.aio.UnaryStreamCall[TRequest, TResponse],
+    listener: (
+        grpc.aio.UnaryStreamCall[TRequest, TResponse]
+        | grpc.aio.StreamStreamCall[TRequest, TResponse]
+    ),
     interrupt: ThreadSafeEvent,
     key_generator: Callable[[TResponse], str],
 ) -> ReadWithInterruptResult[TResponse] | UnexpectedEOF: ...
@@ -49,21 +51,27 @@ async def read_with_interrupt(
 
 @overload
 async def read_with_interrupt(
-    listener: grpc.aio.UnaryStreamCall[TRequest, TResponse],
+    listener: (
+        grpc.aio.UnaryStreamCall[TRequest, TResponse]
+        | grpc.aio.StreamStreamCall[TRequest, TResponse]
+    ),
     interrupt: ThreadSafeEvent,
     key_generator: None = None,
 ) -> ReadWithInterruptResult[TResponse] | UnexpectedEOF: ...
 
 
 async def read_with_interrupt(
-    listener: grpc.aio.UnaryStreamCall[TRequest, TResponse],
+    listener: (
+        grpc.aio.UnaryStreamCall[TRequest, TResponse]
+        | grpc.aio.StreamStreamCall[TRequest, TResponse]
+    ),
     interrupt: ThreadSafeEvent,
     key_generator: Callable[[TResponse], str] | None = None,
 ) -> ReadWithInterruptResult[TResponse] | UnexpectedEOF:
     try:
         result = cast("TResponse", await listener.read())
 
-        if result is cygrpc.EOF:
+        if result is grpc.aio.EOF:
             logger.warning("received EOF from engine")
             return UnexpectedEOF()
 
