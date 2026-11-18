@@ -154,6 +154,8 @@ type Scheduler struct {
 	promGate *prometheus.Gate
 
 	queueMetrics *queueMetricsPoller
+
+	tenantBacklogs *tenantBacklogPoller
 }
 
 func New(
@@ -220,6 +222,7 @@ func New(
 		signaler:               signaler,
 		promGate:               opts.promGate,
 		queueMetrics:           newQueueMetricsPoller(opts.repov1.Tasks(), opts.l),
+		tenantBacklogs:         newTenantBacklogPoller(opts.repov1.Tasks(), opts.l),
 	}
 
 	return q, nil
@@ -260,6 +263,19 @@ func (s *Scheduler) Start() (func() error, error) {
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule queue metrics polling: %w", err)
+	}
+
+	_, err = s.s.NewJob(
+		gocron.DurationJob(tenantBacklogPollInterval),
+		gocron.NewTask(
+			s.runPollTenantBacklogs(ctx),
+		),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule tenant backlog polling: %w", err)
 	}
 
 	s.s.Start()
