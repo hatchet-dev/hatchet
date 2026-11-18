@@ -55,17 +55,7 @@ func (d *Debugger) BeforeAcquire(ctx context.Context, conn *pgx.Conn) bool {
 		return true
 	}
 
-	_, file, line, ok := runtime.Caller(5)
-
-	caller := "unknown"
-
-	if ok {
-		if strings.Contains(file, "tx.go") {
-			_, file, line, _ = runtime.Caller(6)
-		}
-
-		caller = fmt.Sprintf("%s:%d", file, line)
-	}
+	caller := acquireCaller()
 
 	d.callerMu.Lock()
 	d.callerCounts[caller]++
@@ -93,6 +83,35 @@ func (d *Debugger) AfterRelease(conn *pgx.Conn) bool {
 	d.callerMu.Unlock()
 
 	return true
+}
+
+// acquireCaller returns the first frame above the pool plumbing: pgxpool, the fairpool gate
+// and handle, the sqlchelpers transaction helpers, and this package. The depth of that
+// plumbing depends on whether the checkout is gated, so the stack is walked instead of
+// indexed at a fixed depth.
+func acquireCaller() string {
+	pcs := make([]uintptr, 32)
+	n := runtime.Callers(2, pcs)
+	frames := runtime.CallersFrames(pcs[:n])
+
+	for {
+		frame, more := frames.Next()
+
+		if !isPoolPlumbing(frame.File) {
+			return fmt.Sprintf("%s:%d", frame.File, frame.Line)
+		}
+
+		if !more {
+			return "unknown"
+		}
+	}
+}
+
+func isPoolPlumbing(file string) bool {
+	return strings.Contains(file, "jackc/pgx") ||
+		strings.Contains(file, "pkg/repository/fairpool/") ||
+		strings.Contains(file, "pkg/repository/debugger/") ||
+		strings.Contains(file, "pkg/repository/sqlchelpers/tx.go")
 }
 
 type callerCount struct {
