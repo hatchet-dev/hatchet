@@ -81,8 +81,9 @@ type Queuer struct {
 	delayedWakePending atomic.Bool
 
 	// only accessed from the loopQueue goroutine
-	consecutiveEmptyPolls     int
-	earliestRateLimitRefillAt time.Time
+	consecutiveEmptyPolls               int
+	earliestRateLimitRefillAt           time.Time
+	earliestUnassignedScheduleTimeoutAt time.Time
 }
 
 // nextPollInterval returns the duration until the next poll of the queue. The interval doubles
@@ -110,11 +111,13 @@ func (q *Queuer) nextPollInterval() time.Duration {
 
 	jitteredInterval := interval + rand.N(interval/2) //nolint:gosec
 
-	if q.earliestRateLimitRefillAt.IsZero() {
-		return jitteredInterval
+	for _, deadline := range []time.Time{q.earliestRateLimitRefillAt, q.earliestUnassignedScheduleTimeoutAt} {
+		if !deadline.IsZero() {
+			jitteredInterval = min(jitteredInterval, max(time.Until(deadline), queuePollInterval))
+		}
 	}
 
-	return min(jitteredInterval, max(time.Until(q.earliestRateLimitRefillAt), queuePollInterval))
+	return jitteredInterval
 }
 
 func newQueuer(conf *sharedConfig, tenantId uuid.UUID, queueName string, s *Scheduler, resultsCh chan<- *QueueResults) *Queuer {
@@ -376,9 +379,18 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		unassignedReturned := 0
 
 		isEmptyPoll := true
+		q.earliestUnassignedScheduleTimeoutAt = time.Time{}
 
 		for r := range assignCh {
 			isEmptyPoll = isEmptyPoll && r.canWaitForRestoredCapacity()
+
+			for _, qi := range r.unassigned {
+				scheduleTimeoutAt := qi.ScheduleTimeoutAt.Time
+
+				if !scheduleTimeoutAt.IsZero() && (q.earliestUnassignedScheduleTimeoutAt.IsZero() || scheduleTimeoutAt.Before(q.earliestUnassignedScheduleTimeoutAt)) {
+					q.earliestUnassignedScheduleTimeoutAt = scheduleTimeoutAt
+				}
+			}
 
 			wg.Add(1)
 

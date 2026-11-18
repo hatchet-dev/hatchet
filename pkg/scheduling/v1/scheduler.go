@@ -744,7 +744,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 				}
 			}
 
-			if totalSlots == 0 {
+			if totalSlots == 0 && (len(actionWorkerIds) == 0 || !storedAction.IsStarved()) {
 				delete(s.actions, actionId)
 				actionsRemoved++
 				continue
