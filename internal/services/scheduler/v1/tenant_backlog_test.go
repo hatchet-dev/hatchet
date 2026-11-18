@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	repov1 "github.com/hatchet-dev/hatchet/pkg/repository"
@@ -44,10 +45,90 @@ func (f *fakeBacklogTasks) GetTenantBacklogs(_ context.Context, tenantIds []uuid
 	return res, nil
 }
 
+// fakeBacklogHolds records the hold updates it is given.
+type fakeBacklogHolds struct {
+	repov1.TenantBacklogHoldRepository
+
+	updates []backlogHoldUpdate
+}
+
+type backlogHoldUpdate struct {
+	limit    int64
+	measured map[uuid.UUID]repov1.TenantBacklog
+}
+
+func (f *fakeBacklogHolds) Update(_ context.Context, limit int64, measured map[uuid.UUID]repov1.TenantBacklog) error {
+	f.updates = append(f.updates, backlogHoldUpdate{limit: limit, measured: measured})
+	return nil
+}
+
+func TestTenantBacklogPollerUpdatesHolds(t *testing.T) {
+	l := zerolog.Nop()
+	tenantId := uuid.New()
+
+	for name, tc := range map[string]struct {
+		limit int64
+		want  repov1.TenantBacklog
+	}{
+		"under the default ceiling":             {limit: 1_000, want: repov1.TenantBacklog{Queued: tenantBacklogCeiling}},
+		"above the default ceiling measures up": {limit: 2 * tenantBacklogCeiling, want: repov1.TenantBacklog{Queued: 2 * tenantBacklogCeiling}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			tasks := &fakeBacklogTasks{backlogs: map[uuid.UUID]repov1.TenantBacklog{tenantId: {Queued: 10 * tenantBacklogCeiling}}}
+			holds := &fakeBacklogHolds{}
+			p := newTenantBacklogPoller(tasks, holds, tc.limit, &l)
+
+			p.poll(context.Background(), []uuid.UUID{tenantId})
+			require.Len(t, holds.updates, 1)
+			assert.Equal(t, tc.limit, holds.updates[0].limit)
+			assert.Equal(t, map[uuid.UUID]repov1.TenantBacklog{tenantId: tc.want}, holds.updates[0].measured)
+
+			// a failed measurement leaves the holds as they are
+			tasks.err = assert.AnError
+			p.poll(context.Background(), []uuid.UUID{tenantId})
+			require.Len(t, holds.updates, 1)
+		})
+	}
+
+	t.Run("limit 0 makes no call", func(t *testing.T) {
+		tasks := &fakeBacklogTasks{backlogs: map[uuid.UUID]repov1.TenantBacklog{tenantId: {Queued: 10 * tenantBacklogCeiling}}}
+		holds := &fakeBacklogHolds{}
+		p := newTenantBacklogPoller(tasks, holds, 0, &l)
+
+		p.poll(context.Background(), []uuid.UUID{tenantId})
+		assert.Empty(t, holds.updates)
+		assert.Equal(t, map[string]float64{"state=queued": tenantBacklogCeiling}, collectGaugeSeries(t, prometheus.TenantBacklog, tenantId.String()))
+
+		p.poll(context.Background(), nil)
+	})
+}
+
+// A limit below the floor lowers the floor to the limit, so every held tenant has series.
+func TestTenantBacklogPollerFloorFollowsALowerLimit(t *testing.T) {
+	l := zerolog.Nop()
+	held := uuid.New()
+	under := uuid.New()
+
+	tasks := &fakeBacklogTasks{backlogs: map[uuid.UUID]repov1.TenantBacklog{
+		held:  {Paused: 100},
+		under: {Paused: 99},
+	}}
+	p := newTenantBacklogPoller(tasks, &fakeBacklogHolds{}, 100, &l)
+
+	p.poll(context.Background(), []uuid.UUID{held, under})
+	assert.Equal(t, map[string]float64{"state=paused": 100}, collectGaugeSeries(t, prometheus.TenantBacklog, held.String()))
+	assert.Empty(t, collectGaugeSeries(t, prometheus.TenantBacklog, under.String()))
+
+	// a limit above the floor leaves the floor as it is
+	assert.Equal(t, int64(tenantBacklogFloor), newTenantBacklogPoller(tasks, nil, 10*tenantBacklogFloor, &l).floor)
+
+	p.poll(context.Background(), nil)
+}
+
 func TestTenantBacklogPollerSeries(t *testing.T) {
 	l := zerolog.Nop()
 	tasks := &fakeBacklogTasks{}
-	p := newTenantBacklogPoller(tasks, &l)
+	p := newTenantBacklogPoller(tasks, nil, 0, &l)
 
 	spread := uuid.New()
 	atFloor := uuid.New()

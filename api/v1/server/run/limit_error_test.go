@@ -17,13 +17,21 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 )
 
 func throttledStatus(t *testing.T, retryAfter time.Duration) error {
 	t.Helper()
 
-	st, err := status.New(codes.ResourceExhausted, "throttled").WithDetails(&errdetails.RetryInfo{RetryDelay: durationpb.New(retryAfter)})
+	return engineThrottle(t, "throttled", retryAfter)
+}
+
+// engineThrottle is the status the engine answers a throttled call with.
+func engineThrottle(t *testing.T, message string, retryAfter time.Duration) error {
+	t.Helper()
+
+	st, err := status.New(codes.ResourceExhausted, message).WithDetails(&errdetails.RetryInfo{RetryDelay: durationpb.New(retryAfter)})
 	require.NoError(t, err)
 
 	return st.Err()
@@ -33,15 +41,19 @@ func TestRetryableLimitErrorHandler(t *testing.T) {
 	e := echo.New()
 	e.HTTPErrorHandler = retryableLimitErrorHandler(e.DefaultHTTPErrorHandler)
 
+	backlogRefusal := &repository.TenantBacklogOverLimitError{Backlog: 12, Limit: 10, LargestState: "retry"}
+
 	for name, tc := range map[string]struct {
-		err        error
-		retryAfter string
-		want       int
+		err         error
+		retryAfter  string
+		want        int
+		description string
 	}{
-		"limit error":                    {err: fmt.Errorf("trigger: %w", &fairpool.LimitError{Key: "shared", Limit: 2}), want: http.StatusTooManyRequests, retryAfter: "1"},
-		"proxied throttle":               {err: throttledStatus(t, 2*time.Second), want: http.StatusTooManyRequests, retryAfter: "2"},
-		"proxied throttle rounds up":     {err: throttledStatus(t, 1500*time.Millisecond), want: http.StatusTooManyRequests, retryAfter: "2"},
-		"proxied throttle without delay": {err: throttledStatus(t, 0), want: http.StatusTooManyRequests, retryAfter: "1"},
+		"limit error":                    {err: fmt.Errorf("trigger: %w", &fairpool.LimitError{Key: "shared", Limit: 2}), want: http.StatusTooManyRequests, retryAfter: "1", description: "too many concurrent database operations, retry shortly"},
+		"proxied throttle":               {err: throttledStatus(t, 2*time.Second), want: http.StatusTooManyRequests, retryAfter: "2", description: "throttled"},
+		"proxied throttle rounds up":     {err: throttledStatus(t, 1500*time.Millisecond), want: http.StatusTooManyRequests, retryAfter: "2", description: "throttled"},
+		"proxied throttle without delay": {err: throttledStatus(t, 0), want: http.StatusTooManyRequests, retryAfter: "1", description: "throttled"},
+		"proxied backlog refusal":        {err: fmt.Errorf("trigger: %w", engineThrottle(t, backlogRefusal.Error(), repository.TenantBacklogRetryAfter)), want: http.StatusTooManyRequests, retryAfter: "5", description: backlogRefusal.Error()},
 		"proxied resource exhausted":     {err: status.Error(codes.ResourceExhausted, "limit"), want: http.StatusInternalServerError},
 		"proxied unavailable":            {err: status.Error(codes.Unavailable, "down"), want: http.StatusInternalServerError},
 		"other error":                    {err: fmt.Errorf("boom"), want: http.StatusInternalServerError},
@@ -66,7 +78,7 @@ func TestRetryableLimitErrorHandler(t *testing.T) {
 			var body gen.APIErrors
 			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 			require.Len(t, body.Errors, 1)
-			require.Equal(t, "too many concurrent database operations, retry shortly", body.Errors[0].Description)
+			require.Equal(t, tc.description, body.Errors[0].Description)
 		})
 	}
 }

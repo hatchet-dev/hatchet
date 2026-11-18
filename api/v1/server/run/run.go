@@ -263,17 +263,19 @@ func hatchetIPExtractor(trustPrivateProxies bool, trustedProxies []string, logge
 }
 
 // retryableLimitErrorHandler answers 429 with a Retry-After header and an APIErrors body when a
-// request was throttled by the connection cap, and defers to next for everything else. Handlers
-// that proxy to the engine see the engine's cap as a ResourceExhausted status carrying RetryInfo;
-// a ResourceExhausted status without it is a tenant quota and keeps the default handling.
+// request was throttled, and defers to next for everything else. A request is throttled by this
+// server's connection cap, or by the engine when a handler proxies to it: the engine's connection
+// cap and its tenant backlog limit both answer with a ResourceExhausted status carrying RetryInfo,
+// and the body carries the engine's message. A ResourceExhausted status without RetryInfo is a
+// tenant quota and keeps the default handling.
 func retryableLimitErrorHandler(next echo.HTTPErrorHandler) echo.HTTPErrorHandler {
 	return func(err error, c echo.Context) {
 		var limitErr *fairpool.LimitError
 
 		if errors.As(err, &limitErr) {
-			writeThrottled(fairpool.RetryAfter, c)
-		} else if retryAfter, ok := proxy.ThrottleRetryAfter(err); ok {
-			writeThrottled(retryAfter, c)
+			writeThrottled(fairpool.RetryAfter, "too many concurrent database operations, retry shortly", c)
+		} else if retryAfter, message, ok := proxy.Throttle(err); ok {
+			writeThrottled(retryAfter, message, c)
 		} else {
 			next(err, c)
 		}
@@ -282,7 +284,7 @@ func retryableLimitErrorHandler(next echo.HTTPErrorHandler) echo.HTTPErrorHandle
 
 // writeThrottled writes the 429 response. The cause stays with the caller: the access logger
 // records the error returned by the handler chain, not what is written here.
-func writeThrottled(retryAfter time.Duration, c echo.Context) {
+func writeThrottled(retryAfter time.Duration, message string, c echo.Context) {
 	if c.Response().Committed {
 		return
 	}
@@ -294,7 +296,7 @@ func writeThrottled(retryAfter time.Duration, c echo.Context) {
 	if c.Request().Method == http.MethodHead {
 		err = c.NoContent(http.StatusTooManyRequests)
 	} else {
-		err = c.JSON(http.StatusTooManyRequests, apierrors.NewAPIErrors("too many concurrent database operations, retry shortly"))
+		err = c.JSON(http.StatusTooManyRequests, apierrors.NewAPIErrors(message))
 	}
 
 	if err != nil {

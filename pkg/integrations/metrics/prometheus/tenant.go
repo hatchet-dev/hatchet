@@ -33,6 +33,7 @@ const (
 	TenantQueueSizeTotal                        TenantHatchetMetric = "hatchet_tenant_queue_size"
 	TenantAdditionalMetadataQueueSize           TenantHatchetMetric = "hatchet_tenant_additional_metadata_queue_size"
 	TenantBacklogTotal                          TenantHatchetMetric = "hatchet_tenant_backlog"
+	TenantBacklogRefusedTotal                   TenantHatchetMetric = "hatchet_tenant_backlog_refused_total"
 )
 
 var (
@@ -222,5 +223,14 @@ var (
 			Help: "Accepted tasks of the tenant that are not running, by state: queued, concurrency, rate_limited, batched, paused or retry. Reported only while the tenant's total is at or above a floor; each state is capped at a ceiling, and a value equal to the ceiling means at least that many",
 		},
 		[]string{"tenant_id", "state"},
+	)
+
+	// TenantBacklogRefused has a series only for tenants that have had runs refused.
+	TenantBacklogRefused = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: string(TenantBacklogRefusedTotal),
+			Help: "New runs refused because the tenant's backlog was at or over the limit; a refused bulk trigger counts each of its runs",
+		},
+		[]string{"tenant_id"},
 	)
 )

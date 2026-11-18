@@ -27,12 +27,20 @@ const (
 	tenantBacklogFloor = 1_000
 )
 
-// tenantBacklogPoller measures the backlog of every tenant on this scheduler partition and
-// reports it as hatchet_tenant_backlog. It is only accessed from a singleton gocron job, so
-// its state needs no locking.
+// tenantBacklogPoller measures the backlog of every tenant on this scheduler partition,
+// reports it as hatchet_tenant_backlog and, with a limit, writes the tenants' backlog holds.
+// It is only accessed from a singleton gocron job, so its state needs no locking.
 type tenantBacklogPoller struct {
 	tasks repov1.TaskRepository
+	holds repov1.TenantBacklogHoldRepository
 	l     *zerolog.Logger
+
+	// limit is the backlog at or over which a tenant is held; 0 means off.
+	limit int64
+
+	// floor is the smallest total that gets series. It is at most the limit, so every held
+	// tenant has series.
+	floor int64
 
 	// reported is the set of hatchet_tenant_backlog series.
 	reported map[backlogSeriesKey]struct{}
@@ -43,18 +51,29 @@ type backlogSeriesKey struct {
 	state    string
 }
 
-func newTenantBacklogPoller(tasks repov1.TaskRepository, l *zerolog.Logger) *tenantBacklogPoller {
+func newTenantBacklogPoller(tasks repov1.TaskRepository, holds repov1.TenantBacklogHoldRepository, limit int64, l *zerolog.Logger) *tenantBacklogPoller {
+	floor := int64(tenantBacklogFloor)
+
+	if limit > 0 {
+		floor = min(floor, limit)
+	}
+
 	return &tenantBacklogPoller{
 		tasks:    tasks,
+		holds:    holds,
 		l:        l,
+		limit:    limit,
+		floor:    floor,
 		reported: make(map[backlogSeriesKey]struct{}),
 	}
 }
 
-// poll measures every given tenant's backlog in one repository call and reports it. On an
-// error the previous series stay until a later pass succeeds.
+// poll measures every given tenant's backlog in one repository call, reports it and, with a
+// limit, writes the tenants' backlog holds. On a failed measurement the previous series and
+// holds stay; holds that are not renewed expire.
 func (p *tenantBacklogPoller) poll(ctx context.Context, tenantIds []uuid.UUID) {
-	backlogs, err := p.tasks.GetTenantBacklogs(ctx, tenantIds, tenantBacklogCeiling)
+	// a limit above the default ceiling must still be reachable
+	backlogs, err := p.tasks.GetTenantBacklogs(ctx, tenantIds, max(tenantBacklogCeiling, p.limit))
 
 	if err != nil {
 		p.l.Error().Err(err).Msg("could not poll tenant backlogs")
@@ -62,6 +81,14 @@ func (p *tenantBacklogPoller) poll(ctx context.Context, tenantIds []uuid.UUID) {
 	}
 
 	p.apply(backlogs)
+
+	if p.limit == 0 {
+		return
+	}
+
+	if err := p.holds.Update(ctx, p.limit, backlogs); err != nil {
+		p.l.Error().Err(err).Msg("could not update tenant backlog holds")
+	}
 }
 
 // apply leaves exactly one series per non-empty state of each tenant in backlogs whose total
@@ -71,7 +98,7 @@ func (p *tenantBacklogPoller) apply(backlogs map[uuid.UUID]repov1.TenantBacklog)
 	reported := make(map[backlogSeriesKey]struct{})
 
 	for tenantId, backlog := range backlogs {
-		if backlog.Total() < tenantBacklogFloor {
+		if backlog.Total() < p.floor {
 			continue
 		}
 

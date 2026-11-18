@@ -490,6 +490,12 @@ func (a *AdminServiceImpl) handleOperatorDAGStepReplays(
 func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contracts.TriggerWorkflowRunRequest) (*contracts.TriggerWorkflowRunResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
+
+	// first, so that refusing a held tenant costs no database work
+	if err := a.repo.TenantBacklogHolds().Admit(tenantId, 1); err != nil {
+		return nil, err
+	}
+
 	a.analytics.Count(ctx, analytics.WorkflowRun, analytics.Create, analytics.Props(
 		"has_priority", req.Priority != nil,
 		"has_additional_meta", len(req.AdditionalMetadata) > 0,

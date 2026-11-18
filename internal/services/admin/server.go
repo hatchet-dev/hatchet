@@ -23,6 +23,12 @@ import (
 )
 
 func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *v1contracts.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error) {
+	// first, so that refusing a held tenant costs no database work; a child run is refused too,
+	// since fan-out from running tasks is how most backlogs grow
+	if err := a.repov1.TenantBacklogHolds().Admit(ctx.Value("tenant").(*sqlcv1.Tenant).ID, 1); err != nil {
+		return nil, err
+	}
+
 	a.analytics.Count(ctx, analytics.WorkflowRun, analytics.Create, analytics.Props(
 		"has_priority", req.Priority != nil,
 		"is_child", req.ParentId != nil,
@@ -34,6 +40,11 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *v1contracts
 }
 
 func (a *AdminServiceImpl) BulkTriggerWorkflow(ctx context.Context, req *contracts.BulkTriggerWorkflowRequest) (*contracts.BulkTriggerWorkflowResponse, error) {
+	// as in TriggerWorkflow; the whole call is refused, and counts every run in it
+	if err := a.repov1.TenantBacklogHolds().Admit(ctx.Value("tenant").(*sqlcv1.Tenant).ID, len(req.Workflows)); err != nil {
+		return nil, err
+	}
+
 	for _, w := range req.Workflows {
 		a.analytics.Count(ctx, analytics.WorkflowRun, analytics.Create, analytics.Props(
 			"has_priority", w.Priority != nil,

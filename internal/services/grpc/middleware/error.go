@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"runtime/debug"
 	"strings"
+	"time"
 
 	"connectrpc.com/connect"
 	"github.com/jackc/pgx/v5"
@@ -17,6 +18,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/errors"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 )
 
@@ -43,17 +45,17 @@ func expectedStatus(ctx context.Context, err error) error {
 		return connect.NewError(connect.CodeNotFound, goerrors.New("not found"))
 	}
 
-	// The connection cap is throttling, so it maps to ResourceExhausted. The RetryInfo detail
-	// marks it as transient, which tells it apart from a tenant quota of the same code.
+	// The connection cap and the backlog limit are throttling, so they map to ResourceExhausted.
+	// The RetryInfo detail marks them as transient, which tells them apart from a tenant quota
+	// of the same code.
 	var limitErr *fairpool.LimitError
 	if goerrors.As(err, &limitErr) {
-		throttled := connect.NewError(connect.CodeResourceExhausted, goerrors.New("resource exhausted: too many concurrent database operations for this tenant, retry shortly"))
+		return throttled("resource exhausted: too many concurrent database operations for this tenant, retry shortly", fairpool.RetryAfter)
+	}
 
-		if detail, detailErr := connect.NewErrorDetail(&errdetails.RetryInfo{RetryDelay: durationpb.New(fairpool.RetryAfter)}); detailErr == nil {
-			throttled.AddDetail(detail)
-		}
-
-		return throttled
+	var backlogErr *repository.TenantBacklogOverLimitError
+	if goerrors.As(err, &backlogErr) {
+		return throttled(backlogErr.Error(), repository.TenantBacklogRetryAfter)
 	}
 
 	// Extensions can return gRPC status errors. Convert their code and details here;
@@ -72,6 +74,17 @@ func expectedStatus(ctx context.Context, err error) error {
 	}
 
 	return nil
+}
+
+// throttled is a ResourceExhausted error that tells the caller to retry after retryAfter.
+func throttled(message string, retryAfter time.Duration) *connect.Error {
+	err := connect.NewError(connect.CodeResourceExhausted, goerrors.New(message))
+
+	if detail, detailErr := connect.NewErrorDetail(&errdetails.RetryInfo{RetryDelay: durationpb.New(retryAfter)}); detailErr == nil {
+		err.AddDetail(detail)
+	}
+
+	return err
 }
 
 type ErrorInterceptor struct {
