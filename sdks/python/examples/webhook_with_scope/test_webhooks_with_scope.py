@@ -57,11 +57,11 @@ async def send_webhook_request(
     username: str = TEST_BASIC_USERNAME,
     password: str = TEST_BASIC_PASSWORD,
 ) -> AsyncGenerator[ClientResponse, Any]:
-    auth = aiohttp.BasicAuth(username, password)
+    headers = {"Authorization": aiohttp.encode_basic_auth(username, password)}
 
     async with (
         aiohttp.ClientSession() as session,
-        session.post(url, json=body, auth=auth) as response,
+        session.post(url, json=body, headers=headers) as response,
     ):
         yield response
 
@@ -245,14 +245,17 @@ async def test_scope_expression_from_headers(
     ) as incoming_webhook:
         assert incoming_webhook.scope_expression == "headers['x-custom-scope']"
 
-        auth = aiohttp.BasicAuth(TEST_BASIC_USERNAME, TEST_BASIC_PASSWORD)
         async with (
             aiohttp.ClientSession() as session,
             await session.post(
                 url(hatchet, incoming_webhook.name),
                 json=webhook_body.model_dump(),
-                auth=auth,
-                headers={"X-Custom-Scope": "header-scope-value"},
+                headers={
+                    "Authorization": aiohttp.encode_basic_auth(
+                        TEST_BASIC_USERNAME, TEST_BASIC_PASSWORD
+                    ),
+                    "X-Custom-Scope": "header-scope-value",
+                },
             ) as response,
         ):
             assert response.status == 200

@@ -36,7 +36,9 @@ pytestmark = pytest.mark.parametrize(
 
 async def collect_stream(hatchet: Hatchet, run_id: str) -> tuple[float, list[str]]:
     t0 = time.monotonic()
-    chunks = [chunk async for chunk in hatchet.runs.aio_subscribe_to_stream(run_id)]
+    with pytest.warns(DeprecationWarning, match="aio_subscribe_to_stream"):
+        stream = hatchet.runs.aio_subscribe_to_stream(run_id)
+    chunks = [chunk async for chunk in stream]
     return time.monotonic() - t0, chunks
 
 

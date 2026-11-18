@@ -26,7 +26,10 @@ async def test_streaming_ordering_and_completeness(
     ix = 0
     anna_karenina = ""
 
-    async for chunk in hatchet.runs.aio_subscribe_to_stream(ref.workflow_run_id):
+    with pytest.warns(DeprecationWarning, match="aio_subscribe_to_stream"):
+        stream = hatchet.runs.aio_subscribe_to_stream(ref.workflow_run_id)
+
+    async for chunk in stream:
         assert chunks[ix] == chunk
         ix += 1
         anna_karenina += chunk

@@ -85,10 +85,11 @@ async def send_webhook_request(
     headers: dict[str, str] | None = None,
 ) -> AsyncGenerator[aiohttp.ClientResponse, None]:
     request_headers = headers or {}
-    auth = None
 
     if auth_type == "BASIC" and auth_data:
-        auth = aiohttp.BasicAuth(auth_data["username"], auth_data["password"])
+        request_headers["Authorization"] = aiohttp.encode_basic_auth(
+            auth_data["username"], auth_data["password"]
+        )
     elif auth_type == "API_KEY" and auth_data:
         request_headers[auth_data["header_name"]] = auth_data["api_key"]
     elif auth_type == "HMAC" and auth_data:
@@ -103,9 +104,7 @@ async def send_webhook_request(
 
     async with (
         aiohttp.ClientSession() as session,
-        session.post(
-            url, json=body.model_dump(), auth=auth, headers=request_headers
-        ) as response,
+        session.post(url, json=body.model_dump(), headers=request_headers) as response,
     ):
         yield response
 
