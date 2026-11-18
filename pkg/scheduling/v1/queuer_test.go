@@ -90,6 +90,31 @@ func TestQueuer_NoAssignmentBacksOff(t *testing.T) {
 	require.Equal(t, 0, q.consecutiveEmptyPolls)
 }
 
+// A later refill does not replace an earlier pending one, and an earlier refill moves
+// a later pending one forward.
+func TestQueuer_WakeAtKeepsEarliestRefill(t *testing.T) {
+	newQ := func() *Queuer {
+		l := zerolog.Nop()
+		return &Queuer{tenantId: uuid.New(), l: &l, notifyQueueCh: make(chan map[string]string, 1)}
+	}
+
+	t.Run("earlier after later", func(t *testing.T) {
+		q := newQ()
+		q.wakeAt(time.Now().Add(time.Hour))
+		q.wakeAt(time.Now().Add(20 * time.Millisecond))
+
+		require.Eventually(t, func() bool { return len(q.notifyQueueCh) == 1 }, time.Second, time.Millisecond)
+	})
+
+	t.Run("later after earlier", func(t *testing.T) {
+		q := newQ()
+		q.wakeAt(time.Now().Add(20 * time.Millisecond))
+		q.wakeAt(time.Now().Add(time.Hour))
+
+		require.Eventually(t, func() bool { return len(q.notifyQueueCh) == 1 }, time.Second, time.Millisecond)
+	})
+}
+
 func newRequeueTestQueuer(repo v1repo.QueueRepository) *Queuer {
 	l := zerolog.Nop()
 
@@ -570,6 +595,54 @@ func TestQueuer_FailedFlushDoesNotReplayItself(t *testing.T) {
 	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
 	seedActionPools(t, s, "A", newSlot(w, v1repo.SlotTypeDefault))
 
+	repo, q := startFailingFlushQueuer(t, tenantId, s)
+
+	epoch := s.capacityEpochNow()
+
+	q.queue(context.Background())
+	waitFor(t, repo.flushed, "the first flush did not run")
+
+	// the poll floor is 1 s, so a second flush within 300 ms can only be a replay
+	require.Never(t, func() bool { return repo.flushes.Load() > 1 }, 300*time.Millisecond, 5*time.Millisecond,
+		"a tick whose own nack returned the slot must not replay itself")
+	require.False(t, s.isWorkerCapacityUpdated(epoch), "the nack is not an epoch change")
+
+	// the nacked slot is back for the next tick; the missed item is retryable in
+	// place and the failed one is re-read from the database on the next refill
+	onLoop(t, s, func() {
+		require.Len(t, s.poolsByWorker[workerId][v1repo.SlotTypeDefault].free, 1)
+	})
+	q.unassignedMu.Lock()
+	require.Len(t, q.unassigned, 1)
+	require.Contains(t, q.unassigned, repo.items[1].ID)
+	q.unassignedMu.Unlock()
+}
+
+// A batch whose items are all assigned but whose write fails is not fully written,
+// so it must wait for the poll timer instead of polling again immediately.
+func TestQueuer_FailedFlushOfFullyAssignedBatchDoesNotReplayItself(t *testing.T) {
+	tenantId := uuid.New()
+	workerId := uuid.New()
+
+	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
+
+	// two free slots for two items: every tick assigns both
+	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
+	seedActionPools(t, s, "A", newSlot(w, v1repo.SlotTypeDefault), newSlot(w, v1repo.SlotTypeDefault))
+
+	repo, q := startFailingFlushQueuer(t, tenantId, s)
+
+	q.queue(context.Background())
+	waitFor(t, repo.flushed, "the first flush did not run")
+
+	// the poll floor is 1 s, so a second flush within 300 ms can only be a replay
+	require.Never(t, func() bool { return repo.flushes.Load() > 1 }, 300*time.Millisecond, 5*time.Millisecond,
+		"a fully assigned batch whose write failed must not replay itself")
+}
+
+func startFailingFlushQueuer(t *testing.T, tenantId uuid.UUID, s *Scheduler) (*failingFlushQueueRepo, *Queuer) {
+	t.Helper()
+
 	repo := &failingFlushQueueRepo{
 		items:   []*sqlcv1.V1QueueItem{testQI(tenantId, "A", 1), testQI(tenantId, "A", 2)},
 		flushed: make(chan struct{}),
@@ -602,23 +675,5 @@ func TestQueuer_FailedFlushDoesNotReplayItself(t *testing.T) {
 		<-loopDone
 	})
 
-	epoch := s.capacityEpochNow()
-
-	q.queue(ctx)
-	waitFor(t, repo.flushed, "the first flush did not run")
-
-	// the poll floor is 1 s, so a second flush within 300 ms can only be a replay
-	require.Never(t, func() bool { return repo.flushes.Load() > 1 }, 300*time.Millisecond, 5*time.Millisecond,
-		"a tick whose own nack returned the slot must not replay itself")
-	require.False(t, s.isWorkerCapacityUpdated(epoch), "the nack is not an epoch change")
-
-	// the nacked slot is back for the next tick; the missed item is retryable in
-	// place and the failed one is re-read from the database on the next refill
-	onLoop(t, s, func() {
-		require.Len(t, s.poolsByWorker[workerId][v1repo.SlotTypeDefault].free, 1)
-	})
-	q.unassignedMu.Lock()
-	require.Len(t, q.unassigned, 1)
-	require.Contains(t, q.unassigned, repo.items[1].ID)
-	q.unassignedMu.Unlock()
+	return repo, q
 }

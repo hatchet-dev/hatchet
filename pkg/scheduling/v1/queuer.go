@@ -80,9 +80,15 @@ type Queuer struct {
 	// request during that wait does not start another one.
 	delayedWakePending atomic.Bool
 
-	// consecutiveEmptyPolls counts loop iterations that placed no items. A refill that returns
-	// rows still counts when none of them are assigned, buffered, or batched. It is only
-	// accessed from the loopQueue goroutine.
+	// refillWake is the pending wake for the earliest parked rate-limit refill. It is kept
+	// apart from queueAfter, which keeps the first pending wake rather than the earliest.
+	refillWakeMu    sync.Mutex
+	refillWakeTimer *time.Timer
+	refillWakeAt    time.Time
+
+	// consecutiveEmptyPolls counts loop iterations that made no progress: no item was
+	// assigned, buffered, batched, or rate-limited. A refill that returns rows still counts
+	// when none of them made progress. It is only accessed from the loopQueue goroutine.
 	consecutiveEmptyPolls int
 }
 
@@ -369,12 +375,16 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		startingQiLength := len(qis)
 		processedQiLength := 0
 		unassignedReturned := 0
-		// placed is items that left this poll assigned, buffered, or batched. A scheduling
-		// timeout is not placed: it must not reset the backoff or cause another poll.
-		placed := 0
+		// progress counts items assigned, buffered, batched, or rate-limited by this poll.
+		// A rate-limited item waits for a refill on the normal poll interval, as it did
+		// before backoff counted unplaced rows. A scheduling timeout is not progress.
+		progress := 0
+		// written counts items whose write succeeded as assigned, buffered, or batched.
+		// Only a batch that is fully written polls again immediately.
+		written := 0
 
 		for r := range assignCh {
-			placed += len(r.assigned) + len(r.buffered) + len(r.batched)
+			progress += len(r.assigned) + len(r.buffered) + len(r.batched) + len(r.rateLimited) + len(r.rateLimitedToMove)
 			wg.Add(1)
 
 			// asynchronously flush to database
@@ -387,6 +397,9 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 				countMu.Lock()
 				count += numFlushed
+				if numFlushed > 0 {
+					written += numFlushed - len(ar.schedulingTimedOut)
+				}
 				unassignedReturned += len(ar.unassigned)
 				processedQiLength += len(ar.assigned) + len(ar.buffered) + len(ar.batched) + len(ar.unassigned) + len(ar.schedulingTimedOut) + len(ar.rateLimited) + len(ar.rateLimitedToMove)
 				countMu.Unlock()
@@ -507,24 +520,24 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			).Dur("elapsed", elapsed).Int("item_count", len(qis)).Msg("queue processing took longer than 100ms")
 		}
 
-		q.notePollProgress(placed)
+		q.notePollProgress(progress)
 
-		// re-arm with the interval reflecting whether this poll placed anything.
+		// re-arm with the interval reflecting whether this poll made progress.
 		// notifyQueueCh still runs the loop before this timer fires.
 		resetTimer()
 
-		// if every item was placed, queue again. A batch that returns items unassigned
+		// if every item was written, queue again. A batch that returns items unassigned
 		// re-queues only when the scheduler's worker pools gained capacity during the tick,
 		// so a slot that freed while the batch was running is used now and an unchanged
 		// pool is not spun on.
 		prevQis := qis
 
-		go func(originalStart time.Time, placed int) { // #nosec G118 -- background re-queue loop, intentionally decoupled from any single request's context
+		go func(originalStart time.Time) { // #nosec G118 -- background re-queue loop, intentionally decoupled from any single request's context
 			wg.Wait()
 			span.End()
 
 			countMu.Lock()
-			if len(prevQis) > 0 && placed == len(prevQis) {
+			if len(prevQis) > 0 && written == len(prevQis) {
 				q.queue(context.Background())
 			} else if unassignedReturned > 0 && q.s.isWorkerCapacityUpdated(prevEpoch) {
 				// we might have missed a capacity update while trying to assign slots, so we requeue
@@ -543,14 +556,14 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 					"duration", sinceStart,
 				).Int("item_count", len(prevQis)).Msg("queue took longer than 100ms to process and flush items")
 			}
-		}(start, placed)
+		}(start)
 	}
 }
 
-// notePollProgress records whether this poll placed any items. Zero placed items,
+// notePollProgress records whether this poll made progress. A poll with no progress,
 // including a refill that returned rows, counts toward the backoff.
-func (q *Queuer) notePollProgress(placed int) {
-	if placed == 0 {
+func (q *Queuer) notePollProgress(progress int) {
+	if progress == 0 {
 		q.consecutiveEmptyPolls++
 		return
 	}
@@ -581,10 +594,36 @@ func (q *Queuer) requeueRateLimitedItems(ctx context.Context) {
 	// A parked refill has no message of its own. The poll timer may be backed off,
 	// so wake the loop at the refill time instead of holding the items until it fires.
 	if err == nil && nextRequeueAfter != nil && nextRequeueAfter.After(now) {
-		q.queueAfter(ctx, nextRequeueAfter.Sub(now))
+		q.wakeAt(*nextRequeueAfter)
 	}
 
 	q.nextRateLimitRequeueAt.Store(next.UnixNano())
+}
+
+// wakeAt wakes loopQueue at the given time. A pending wake moves to an earlier
+// time and is kept over a later one.
+func (q *Queuer) wakeAt(at time.Time) {
+	q.refillWakeMu.Lock()
+	defer q.refillWakeMu.Unlock()
+
+	if q.refillWakeTimer != nil && !q.refillWakeAt.After(at) {
+		return
+	}
+
+	if q.refillWakeTimer != nil {
+		q.refillWakeTimer.Stop()
+	}
+
+	q.refillWakeAt = at
+	q.refillWakeTimer = time.AfterFunc(time.Until(at), func() {
+		q.refillWakeMu.Lock()
+		if q.refillWakeAt.Equal(at) {
+			q.refillWakeTimer = nil
+		}
+		q.refillWakeMu.Unlock()
+
+		q.queue(context.Background())
+	})
 }
 
 func (q *Queuer) refillQueue(ctx context.Context) ([]*sqlcv1.V1QueueItem, error) {
