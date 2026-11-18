@@ -1,13 +1,15 @@
 import asyncio
+import builtins
 import datetime
 import json
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
     from hatchet_sdk.clients.rest.api.event_api import EventApi
     from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
+    from hatchet_sdk.contracts.events_pb2_grpc import EventsServiceAsyncStub
 
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.v1_event import V1Event
@@ -130,7 +132,7 @@ class EventClient(BaseRestClient):
         super().__init__(config)
 
         self._client: EventsServiceStub | None = None
-        self._aio_client: EventsServiceStub | None = None
+        self._aio_client: EventsServiceAsyncStub | None = None
 
         self._token = config.token
         self._namespace = config.namespace
@@ -154,7 +156,7 @@ class EventClient(BaseRestClient):
 
         return EventApi(client)
 
-    def _get_or_create_aio_client(self) -> EventsServiceStub:
+    def _get_or_create_aio_client(self) -> "EventsServiceAsyncStub":
         if self._aio_client is None:
             self._aio_client = EventsServiceStub(new_conn(self.client_config, True))
 
@@ -236,10 +238,7 @@ class EventClient(BaseRestClient):
         metadata: tuple[tuple[str, str]],
     ) -> EventProto:
         aio_client = self._get_or_create_aio_client()
-        return cast(
-            "EventProto",
-            await aio_client.Push(request, metadata=metadata),  # type: ignore[misc]
-        )
+        return await aio_client.Push(request, metadata=metadata)
 
     def push(
         self,
@@ -272,17 +271,16 @@ class EventClient(BaseRestClient):
             scope=scope,
         )
 
-        response = cast(
-            "EventProto",
-            push_event(request, metadata=create_authorization_header(self._token)),
+        response = push_event(
+            request, metadata=create_authorization_header(self._token)
         )
 
         return Event.from_proto(response)
 
     async def aio_bulk_push(
         self,
-        events: list[BulkPushEventWithMetadata],
-    ) -> list[Event]:
+        events: builtins.list[BulkPushEventWithMetadata],
+    ) -> builtins.list[Event]:
         """
         Push many events to Hatchet in a single request.
 
@@ -314,15 +312,12 @@ class EventClient(BaseRestClient):
         metadata: tuple[tuple[str, str]],
     ) -> EventsProto:
         aio_client = self._get_or_create_aio_client()
-        return cast(
-            "EventsProto",
-            await aio_client.BulkPush(request, metadata=metadata),  # type: ignore[misc]
-        )
+        return await aio_client.BulkPush(request, metadata=metadata)
 
     def bulk_push(
         self,
-        events: list[BulkPushEventWithMetadata],
-    ) -> list[Event]:
+        events: builtins.list[BulkPushEventWithMetadata],
+    ) -> builtins.list[Event]:
         """
         Push many events to Hatchet in a single request.
 
@@ -346,9 +341,8 @@ class EventClient(BaseRestClient):
 
         bulk_push = tenacity_retry(client.BulkPush, self.client_config.tenacity)
 
-        response = cast(
-            "EventsProto",
-            bulk_push(bulk_request, metadata=create_authorization_header(self._token)),
+        response = bulk_push(
+            bulk_request, metadata=create_authorization_header(self._token)
         )
 
         return [Event.from_proto(event) for event in response.events]
@@ -413,12 +407,7 @@ class EventClient(BaseRestClient):
         metadata: tuple[tuple[str, str]],
     ) -> PutStreamEventResponse:
         client = self._get_or_create_aio_client()
-        return cast(
-            "PutStreamEventResponse",
-            await client.PutStreamEvent(  # type: ignore[misc]
-                request, metadata=metadata
-            ),
-        )
+        return await client.PutStreamEvent(request, metadata=metadata)
 
     async def _aio_stream(
         self, data: str | bytes, task_run_external_id: str, index: int
@@ -436,15 +425,15 @@ class EventClient(BaseRestClient):
         *,
         offset: int | None = None,
         limit: int | None = None,
-        keys: list[str] | None = None,
+        keys: builtins.list[str] | None = None,
         since: datetime.datetime | None = None,
         until: datetime.datetime | None = None,
-        workflow_ids: list[str] | None = None,
-        workflow_run_statuses: list[RunStatus] | None = None,
-        event_ids: list[str] | None = None,
+        workflow_ids: builtins.list[str] | None = None,
+        workflow_run_statuses: builtins.list[RunStatus] | None = None,
+        event_ids: builtins.list[str] | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
-        scopes: list[str] | None = None,
-    ) -> list[Event]:
+        scopes: builtins.list[str] | None = None,
+    ) -> builtins.list[Event]:
         """
         List events that were pushed to the tenant.
 
@@ -479,15 +468,15 @@ class EventClient(BaseRestClient):
         *,
         offset: int | None = None,
         limit: int | None = None,
-        keys: list[str] | None = None,
+        keys: builtins.list[str] | None = None,
         since: datetime.datetime | None = None,
         until: datetime.datetime | None = None,
-        workflow_ids: list[str] | None = None,
-        workflow_run_statuses: list[RunStatus] | None = None,
-        event_ids: list[str] | None = None,
+        workflow_ids: builtins.list[str] | None = None,
+        workflow_run_statuses: builtins.list[RunStatus] | None = None,
+        event_ids: builtins.list[str] | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
-        scopes: list[str] | None = None,
-    ) -> list[Event]:
+        scopes: builtins.list[str] | None = None,
+    ) -> builtins.list[Event]:
         """
         List events that were pushed to the tenant.
 

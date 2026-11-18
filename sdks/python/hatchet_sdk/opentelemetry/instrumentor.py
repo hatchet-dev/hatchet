@@ -1,5 +1,11 @@
 import json
-from collections.abc import Callable, Collection, Coroutine, Iterator, Sequence
+from collections.abc import (
+    Callable,
+    Collection,
+    Coroutine,
+    Generator,
+    Sequence,
+)
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from importlib.metadata import version
@@ -47,6 +53,7 @@ except (RuntimeError, ImportError, ModuleNotFoundError) as e:
     ) from e
 
 import inspect
+import sys
 
 import hatchet_sdk
 from hatchet_sdk import ClientConfig
@@ -444,17 +451,15 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
     ) -> list[Any]:
-        try:
-            import annotationlib  # type: ignore[import-not-found, unused-ignore]
+        if sys.version_info >= (3, 14):
+            import annotationlib
 
             # Python 3.14+ with PEP 749 can fail evaluating annotations lazily,
             # so use Format.STRING to avoid resolving type hints.
             sig = inspect.signature(
-                wrapped_func,
-                annotation_format=annotationlib.Format.STRING,  # type: ignore[call-arg, unused-ignore]
+                wrapped_func, annotation_format=annotationlib.Format.STRING
             )
-        except Exception:
-            # Fallback for Python < 3.14 where annotation_format is not supported
+        else:
             sig = inspect.signature(wrapped_func)
 
         bound_args = sig.bind(*args, **kwargs)
@@ -742,7 +747,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     def _enhanced_workflow_run_configs(
         self,
         workflow_run_configs: list[WorkflowRunTriggerConfig],
-    ) -> Iterator[list[WorkflowRunTriggerConfig]]:
+    ) -> Generator[list[WorkflowRunTriggerConfig], None, None]:
         """Yield the per-item trigger configs with an injected traceparent and
         manage the lifecycle of any per-item spans.
 

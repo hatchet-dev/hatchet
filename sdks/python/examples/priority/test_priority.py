@@ -84,7 +84,7 @@ async def test_priority(
                 },
             )
             for ix in range(N)
-            for pr in [choice(choices)]
+            for pr in (choice(choices),)
         ],
         wait_for_result=False,
     )
@@ -168,7 +168,7 @@ async def test_priority_via_scheduling(
                 },
             )
             for ix in range(n)
-            for pr in [choice(choices)]
+            for pr in (choice(choices),)
         ]
     )
 

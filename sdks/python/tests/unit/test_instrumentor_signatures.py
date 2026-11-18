@@ -1,5 +1,6 @@
 import importlib
 import inspect
+import sys
 import types
 import typing
 from collections.abc import Callable
@@ -52,12 +53,12 @@ def _resolve_method(dotted_path: str) -> Callable[..., Any]:
 
 
 def _get_sig(func: Callable[..., Any]) -> inspect.Signature:
-    try:
-        import annotationlib  # type: ignore[import-not-found, unused-ignore]
+    if sys.version_info >= (3, 14):
+        import annotationlib
 
-        return inspect.signature(func, annotation_format=annotationlib.Format.STRING)  # type: ignore[call-arg, unused-ignore]
-    except Exception:
-        return inspect.signature(func)
+        return inspect.signature(func, annotation_format=annotationlib.Format.STRING)
+
+    return inspect.signature(func)
 
 
 def _get_param_types(func: Callable[..., Any]) -> list[Any] | None:

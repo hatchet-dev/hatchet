@@ -1,7 +1,7 @@
 import asyncio
 from collections.abc import AsyncGenerator
 from enum import StrEnum
-from typing import TypeVar, cast
+from typing import TYPE_CHECKING, TypeVar, cast
 
 import grpc
 from pydantic import BaseModel
@@ -17,6 +17,9 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
 )
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
 from hatchet_sdk.utils.api_auth import create_authorization_header
+
+if TYPE_CHECKING:
+    from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherAsyncStub
 
 DEFAULT_ACTION_LISTENER_RETRY_INTERVAL = 5  # seconds
 DEFAULT_ACTION_LISTENER_RETRY_COUNT = 5
@@ -63,7 +66,7 @@ class RunEventListener:
 
         ## IMPORTANT: This needs to be created lazily so we don't require
         ## an event loop to instantiate the client.
-        self.client: DispatcherStub | None = None
+        self.client: DispatcherAsyncStub | None = None
 
     def __aiter__(self) -> AsyncGenerator[TaskRunEvent, None]:
         return self._generator()

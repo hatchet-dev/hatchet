@@ -21,7 +21,6 @@ DEFAULT_LISTENER_INTERRUPT_INTERVAL = 1800  # 30 minutes
 
 R = TypeVar("R")
 T = TypeVar("T")
-L = TypeVar("L")
 
 SentinelValue = Literal["STOP"]
 SENTINEL_VALUE: SentinelValue = "STOP"
@@ -57,7 +56,7 @@ class Subscription(Generic[T]):
         await self.queue.put("STOP")
 
 
-class PooledListener(Generic[R, T, L], ABC):
+class PooledListener(Generic[R, T], ABC):
     def __init__(self, config: ClientConfig) -> None:
         self.token = config.token
         self.config = config
@@ -70,7 +69,7 @@ class PooledListener(Generic[R, T, L], ABC):
 
         self.requests: asyncio.Queue[R | int] = asyncio.Queue()
 
-        self.listener: grpc.aio.UnaryStreamCall[R, T] | None = None
+        self.listener: grpc.aio.StreamStreamCall[R, T] | None = None
         self.listener_task: asyncio.Task[None] | None = None
 
         self.curr_requester: int = 0
@@ -78,10 +77,6 @@ class PooledListener(Generic[R, T, L], ABC):
         self.events: dict[int, Subscription[T]] = {}
 
         self.interrupter: asyncio.Task[None] | None = None
-
-        ## IMPORTANT: This needs to be created lazily so we don't require
-        ## an event loop to instantiate the client.
-        self.client: L | None = None
 
     async def _interrupter(self) -> None:
         """
@@ -231,12 +226,12 @@ class PooledListener(Generic[R, T, L], ABC):
     @abstractmethod
     async def create_subscription(
         self, request: AsyncIterator[R], metadata: tuple[tuple[str, str]]
-    ) -> grpc.aio.UnaryStreamCall[R, T]:
+    ) -> grpc.aio.StreamStreamCall[R, T]:
         pass
 
     async def _retry_subscribe(
         self,
-    ) -> grpc.aio.UnaryStreamCall[R, T]:
+    ) -> grpc.aio.StreamStreamCall[R, T]:
         retries = 0
         while retries < DEFAULT_LISTENER_RETRY_COUNT:
             try:

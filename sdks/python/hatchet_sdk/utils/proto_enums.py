@@ -9,7 +9,7 @@ TPythonEnum = TypeVar("TPythonEnum", bound=Enum)
 
 
 def convert_python_enum_to_proto(
-    value: TPythonEnum | None, proto_enum: type[TProtoEnumValue]
+    value: Enum | None, proto_enum: type[TProtoEnumValue]
 ) -> TProtoEnumValue | None:
     if value is None:
         return None

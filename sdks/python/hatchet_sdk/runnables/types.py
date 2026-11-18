@@ -33,7 +33,7 @@ from hatchet_sdk.utils.typing import (
 )
 
 if TYPE_CHECKING:
-    from hatchet_sdk.context.context import Context, DurableContext
+    from hatchet_sdk.context.context import DurableContext
 
 
 StickyStrategy = Literal["SOFT", "HARD"]
@@ -77,8 +77,8 @@ class DefaultFilter(BaseModel):
         )
 
 
-TaskPayloadForInternalUse = (
-    type[BaseModel] | type[DataclassInstance] | dict[str, Any] | None
+TaskPayloadForInternalUse: TypeAlias = (
+    BaseModel | DataclassInstance | dict[str, Any] | None
 )
 
 
@@ -132,23 +132,6 @@ class TaskType(StrEnum):
     DEFAULT = "default"
     ON_FAILURE = "on_failure"
     ON_SUCCESS = "on_success"
-
-
-AsyncFunc = Callable[[TWorkflowInput, "Context"], AwaitableLike[R]]
-SyncFunc = Callable[[TWorkflowInput, "Context"], R]
-TaskFunc = AsyncFunc[TWorkflowInput, R] | SyncFunc[TWorkflowInput, R]
-
-
-def is_async_fn(
-    fn: TaskFunc[TWorkflowInput, R],
-) -> TypeGuard[AsyncFunc[TWorkflowInput, R]]:
-    return inspect.iscoroutinefunction(fn)
-
-
-def is_sync_fn(
-    fn: TaskFunc[TWorkflowInput, R],
-) -> TypeGuard[SyncFunc[TWorkflowInput, R]]:
-    return not inspect.iscoroutinefunction(fn)
 
 
 DurableAsyncFunc = Callable[[TWorkflowInput, "DurableContext"], AwaitableLike[R]]

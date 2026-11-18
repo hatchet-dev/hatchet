@@ -39,6 +39,8 @@ otel = [
 
 lint = [
     "mypy==2.1.0",
+    "pyright[nodejs]==1.1.414",
+    "ty==0.0.106",
     "types-protobuf>=5.28.3.20241030",
     "black==26.3.1",
     "click>=8.4.2",
@@ -123,6 +125,49 @@ enable_error_code = [
     "redundant-expr",
     "truthy-iterable",
 ]
+
+[tool.pyright]
+exclude = [
+    "**/.*",
+    "**/__pycache__",
+    "hatchet_sdk/clients/rest/__init__.py",
+    "hatchet_sdk/clients/rest/api",
+    "hatchet_sdk/clients/rest/models",
+    "hatchet_sdk/contracts",
+    "hatchet_sdk/clients/rest/api_client.py",
+    "hatchet_sdk/clients/rest/configuration.py",
+    "hatchet_sdk/clients/rest/exceptions.py",
+    "hatchet_sdk/clients/rest/rest.py",
+    "hatchet_sdk/v0",
+    "site",
+    "examples/dependency_injection/dependency_annotations312.py",
+]
+typeCheckingMode = "standard"
+
+[tool.ty.src]
+exclude = [
+    "hatchet_sdk/clients/rest/api",
+    "hatchet_sdk/clients/rest/models",
+    "hatchet_sdk/contracts",
+    "hatchet_sdk/clients/rest/api_client.py",
+    "hatchet_sdk/clients/rest/configuration.py",
+    "hatchet_sdk/clients/rest/exceptions.py",
+    "hatchet_sdk/clients/rest/rest.py",
+    "hatchet_sdk/v0",
+    "site",
+    "examples/dependency_injection/dependency_annotations312.py",
+]
+
+[tool.ty.rules]
+# mypy owns `type: ignore` hygiene via `warn_unused_ignores`; some ignores are only needed by mypy
+unused-type-ignore-comment = "ignore"
+
+[[tool.ty.overrides]]
+include = ["examples/**", "tests/**"]
+
+[tool.ty.overrides.rules]
+# tests and examples intentionally exercise deprecated APIs
+deprecated = "ignore"
 
 [tool.ruff]
 target-version = "py311"

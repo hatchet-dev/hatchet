@@ -88,6 +88,7 @@ def test_translation__ssl_error_raises_rest_tls_error(
 
     exc = exc_info.value
     assert exc.status == 0
+    assert exc.reason is not None
     assert "SSLError" in exc.reason
     assert "method=GET" in exc.reason
     assert "url=http://localhost:8080/api/test" in exc.reason
@@ -114,6 +115,7 @@ def test_translation__connect_timeout_error_raises_rest_timeout_error(
 
     exc = exc_info.value
     assert exc.status == 0
+    assert exc.reason is not None
     assert "ConnectTimeoutError" in exc.reason
     assert "method=GET" in exc.reason
     assert "url=http://localhost:8080/api/test" in exc.reason
@@ -140,6 +142,7 @@ def test_translation__read_timeout_error_raises_rest_timeout_error(
 
     exc = exc_info.value
     assert exc.status == 0
+    assert exc.reason is not None
     assert "ReadTimeoutError" in exc.reason
     assert "method=GET" in exc.reason
     assert "url=http://localhost:8080/api/test" in exc.reason
@@ -166,6 +169,7 @@ def test_translation__max_retry_error_raises_rest_connection_error(
 
     exc = exc_info.value
     assert exc.status == 0
+    assert exc.reason is not None
     assert "MaxRetryError" in exc.reason
     assert "method=GET" in exc.reason
     assert "url=http://localhost:8080/api/test" in exc.reason
@@ -192,6 +196,7 @@ def test_translation__new_connection_error_raises_rest_connection_error(
 
     exc = exc_info.value
     assert exc.status == 0
+    assert exc.reason is not None
     assert "NewConnectionError" in exc.reason
     assert "method=GET" in exc.reason
     assert "url=http://localhost:8080/api/test" in exc.reason
@@ -216,6 +221,7 @@ def test_translation__protocol_error_raises_rest_protocol_error(
 
     exc = exc_info.value
     assert exc.status == 0
+    assert exc.reason is not None
     assert "ProtocolError" in exc.reason
     assert "method=GET" in exc.reason
     assert "url=http://localhost:8080/api/test" in exc.reason
@@ -356,6 +362,7 @@ def test_diagnostics__reason_includes_all_diagnostic_fields(
         )
 
     reason = exc_info.value.reason
+    assert reason is not None
     assert "SSLError" in reason
     assert "test error message" in reason
     assert "method=POST" in reason
@@ -383,6 +390,7 @@ def test_diagnostics__reason_handles_none_timeout(
         )
 
     reason = exc_info.value.reason
+    assert reason is not None
     assert "timeout=None" in reason
 
 

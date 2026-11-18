@@ -1,6 +1,6 @@
 import json
 from collections.abc import AsyncIterator
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any
 
 import grpc
 import grpc.aio
@@ -18,12 +18,19 @@ from hatchet_sdk.exceptions import (
     TaskRunError,
 )
 
+if TYPE_CHECKING:
+    from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherAsyncStub
+
 DEDUPE_MESSAGE = "DUPLICATE_WORKFLOW_RUN"
 
 
 class PooledWorkflowRunListener(
-    PooledListener[SubscribeToWorkflowRunsRequest, WorkflowRunEvent, DispatcherStub]
+    PooledListener[SubscribeToWorkflowRunsRequest, WorkflowRunEvent]
 ):
+    ## IMPORTANT: This needs to be created lazily so we don't require
+    ## an event loop to instantiate the client.
+    client: "DispatcherAsyncStub | None" = None
+
     def create_request_body(self, item: str) -> SubscribeToWorkflowRunsRequest:
         return SubscribeToWorkflowRunsRequest(
             workflow_run_id=item,
@@ -56,15 +63,12 @@ class PooledWorkflowRunListener(
         self,
         request: AsyncIterator[SubscribeToWorkflowRunsRequest],
         metadata: tuple[tuple[str, str]],
-    ) -> grpc.aio.UnaryStreamCall[SubscribeToWorkflowRunsRequest, WorkflowRunEvent]:
+    ) -> grpc.aio.StreamStreamCall[SubscribeToWorkflowRunsRequest, WorkflowRunEvent]:
         if self.client is None:
             conn = new_conn(self.config, True)
             self.client = DispatcherStub(conn)
 
-        return cast(
-            "grpc.aio.UnaryStreamCall[SubscribeToWorkflowRunsRequest, WorkflowRunEvent]",
-            self.client.SubscribeToWorkflowRuns(
-                request,
-                metadata=metadata,
-            ),
+        return self.client.SubscribeToWorkflowRuns(
+            request,
+            metadata=metadata,
         )

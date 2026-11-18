@@ -37,6 +37,7 @@ from hatchet_sdk.utils.iterables import create_chunks
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 if TYPE_CHECKING:
+    import builtins
     from collections.abc import AsyncIterator
 
     from hatchet_sdk.clients.admin import AdminClient, WorkflowRunDetail
@@ -323,13 +324,13 @@ class RunsClient(BaseRestClient):
     def _perform_action_in_chunks(
         self,
         action: Literal["cancel", "replay"],
-        statuses: list[RunStatus],
+        statuses: builtins.list[RunStatus],
         delay_between_chunks: timedelta,
         chunk_size: int,
         since: datetime | None = None,
         until: datetime | None = None,
         additional_metadata: dict[str, str] | None = None,
-        workflow_ids: list[str] | None = None,
+        workflow_ids: builtins.list[str] | None = None,
     ) -> None:
         """
         Perform a bulk action (cancel or replay) on runs matching the specified filters in chunks.
@@ -383,9 +384,9 @@ class RunsClient(BaseRestClient):
         chunk_size: int = 500,
         since: datetime | None = None,
         until: datetime | None = None,
-        statuses: list[RunStatus] | None = None,
+        statuses: builtins.list[RunStatus] | None = None,
         additional_metadata: dict[str, str] | None = None,
-        workflow_ids: list[str] | None = None,
+        workflow_ids: builtins.list[str] | None = None,
     ) -> None:
         """
         Replay runs matching the specified filters in chunks.
@@ -422,9 +423,9 @@ class RunsClient(BaseRestClient):
         chunk_size: int = 500,
         since: datetime | None = None,
         until: datetime | None = None,
-        statuses: list[RunStatus] | None = None,
+        statuses: builtins.list[RunStatus] | None = None,
         additional_metadata: dict[str, str] | None = None,
-        workflow_ids: list[str] | None = None,
+        workflow_ids: builtins.list[str] | None = None,
     ) -> None:
         """
         Cancel runs matching the specified filters in chunks.
@@ -461,9 +462,9 @@ class RunsClient(BaseRestClient):
         chunk_size: int = 500,
         since: datetime | None = None,
         until: datetime | None = None,
-        statuses: list[RunStatus] | None = None,
+        statuses: builtins.list[RunStatus] | None = None,
         additional_metadata: dict[str, str] | None = None,
-        workflow_ids: list[str] | None = None,
+        workflow_ids: builtins.list[str] | None = None,
     ) -> None:
         """
         Replay runs matching the specified filters in chunks.
@@ -501,9 +502,9 @@ class RunsClient(BaseRestClient):
         chunk_size: int = 500,
         since: datetime | None = None,
         until: datetime | None = None,
-        statuses: list[RunStatus] | None = None,
+        statuses: builtins.list[RunStatus] | None = None,
         additional_metadata: dict[str, str] | None = None,
-        workflow_ids: list[str] | None = None,
+        workflow_ids: builtins.list[str] | None = None,
     ) -> None:
         """
         Cancel runs matching the specified filters in chunks.
@@ -540,14 +541,14 @@ class RunsClient(BaseRestClient):
         until: datetime,
         max_rows: int | None,
         only_tasks: bool,
-        statuses: list[RunStatus] | None,
+        statuses: builtins.list[RunStatus] | None,
         additional_metadata: dict[str, str] | None,
-        workflow_ids: list[str] | None,
+        workflow_ids: builtins.list[str] | None,
         worker_id: str | None,
         parent_task_run_id: str | None,
         triggering_event_id: str | None,
         include_payloads: bool,
-    ) -> list[TaskRunSummary]:
+    ) -> builtins.list[TaskRunSummary]:
         with self.client() as client:
             v1_workflow_run_list = tenacity_retry(
                 self._wra(client).v1_workflow_run_list, self.client_config.tenacity
@@ -588,15 +589,15 @@ class RunsClient(BaseRestClient):
         only_tasks: bool = False,
         offset: int | None = None,
         limit: int | None = None,
-        statuses: list[RunStatus] | None = None,
+        statuses: builtins.list[RunStatus] | None = None,
         until: datetime | None = None,
         additional_metadata: dict[str, str] | None = None,
-        workflow_ids: list[str] | None = None,
+        workflow_ids: builtins.list[str] | None = None,
         worker_id: str | None = None,
         parent_task_run_id: str | None = None,
         triggering_event_id: str | None = None,
         include_payloads: bool = True,
-    ) -> list[TaskRunSummary]:
+    ) -> builtins.list[TaskRunSummary]:
         """
         List task runs according to a set of filters, newest first.
 
@@ -651,15 +652,15 @@ class RunsClient(BaseRestClient):
         only_tasks: bool = False,
         offset: int | None = None,
         limit: int | None = None,
-        statuses: list[RunStatus] | None = None,
+        statuses: builtins.list[RunStatus] | None = None,
         until: datetime | None = None,
         additional_metadata: dict[str, str] | None = None,
-        workflow_ids: list[str] | None = None,
+        workflow_ids: builtins.list[str] | None = None,
         worker_id: str | None = None,
         parent_task_run_id: str | None = None,
         triggering_event_id: str | None = None,
         include_payloads: bool = True,
-    ) -> list[TaskRunSummary]:
+    ) -> builtins.list[TaskRunSummary]:
         """
         List task runs according to a set of filters, newest first.
 

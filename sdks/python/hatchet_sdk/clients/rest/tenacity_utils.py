@@ -129,7 +129,7 @@ def _server_retry_delay(ex: BaseException | None) -> float:
         return 0
 
     for key, value in ex.trailing_metadata() or ():
-        if key == "grpc-status-details-bin":
+        if key == "grpc-status-details-bin" and isinstance(value, bytes):
             for detail in status_pb2.Status.FromString(value).details:
                 info = error_details_pb2.RetryInfo()
                 if detail.Unpack(info):

@@ -86,12 +86,7 @@ class ContextVarToCopy(BaseModel):
     ) = Field(discriminator="name")
 
 
-def copy_context_vars(
-    ctx_vars: list[ContextVarToCopy],
-    func: Callable[P, T],
-    *args: P.args,
-    **kwargs: P.kwargs,
-) -> T:
+def set_context_vars(ctx_vars: list[ContextVarToCopy]) -> None:
     for var in ctx_vars:
         if var.var.name == "ctx_workflow_run_id":
             ctx_workflow_run_id.set(var.var.value)
@@ -111,11 +106,11 @@ def copy_context_vars(
             ctx_hatchet_span_attributes.set(var.var.value)
         elif var.var.name == "ctx_otel_context":
             if _HAS_OTEL and var.var.value is not None:
-                otel_context.attach(var.var.value)
+                otel_context.attach(  # pyright: ignore[reportPossiblyUnboundVariable]
+                    var.var.value
+                )
         else:
             raise ValueError(f"Unknown context variable name: {var.var.name}")
-
-    return func(*args, **kwargs)
 
 
 @dataclass

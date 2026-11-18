@@ -1,5 +1,5 @@
 from collections.abc import AsyncGenerator
-from typing import cast
+from typing import Any, cast
 from uuid import UUID
 
 from psycopg_pool import ConnectionPool
@@ -65,7 +65,7 @@ class Lifespan(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     foo: str
-    pool: ConnectionPool
+    pool: ConnectionPool[Any]
 
 
 async def lifespan() -> AsyncGenerator[Lifespan, None]:

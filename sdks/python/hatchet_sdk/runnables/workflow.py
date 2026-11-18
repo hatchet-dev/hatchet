@@ -71,7 +71,11 @@ from hatchet_sdk.types.trigger import (
 )
 from hatchet_sdk.utils.aio import gather_max_concurrency
 from hatchet_sdk.utils.proto_enums import convert_python_literal_to_proto
-from hatchet_sdk.utils.typing import CoroutineLike, JSONSerializableMapping
+from hatchet_sdk.utils.typing import (
+    CoroutineLike,
+    JSONSerializableMapping,
+    get_function_name,
+)
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 if TYPE_CHECKING:
@@ -359,7 +363,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
     def create_bulk_run_item(
         self,
-        input: TWorkflowInput = cast("TWorkflowInput", None),
+        input: TWorkflowInput | None = None,
         *,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
@@ -417,14 +421,14 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         if target == "bytes":
             return self._config.input_validator.dump_json(
-                input,  # type: ignore[arg-type]
+                input,
                 context=HATCHET_PYDANTIC_SENTINEL,
             ).decode("utf-8")
 
         return cast(
             "JSONSerializableMapping",
             self._config.input_validator.dump_python(
-                input,  # type: ignore[arg-type]
+                input,
                 mode="json",
                 context=HATCHET_PYDANTIC_SENTINEL,
             ),
@@ -601,7 +605,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     def schedule(
         self,
         trigger_at: datetime,
-        input: TWorkflowInput = cast("TWorkflowInput", None),
+        input: TWorkflowInput | None = None,
         *,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
@@ -636,7 +640,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     async def aio_schedule(
         self,
         trigger_at: datetime,
-        input: TWorkflowInput = cast("TWorkflowInput", None),
+        input: TWorkflowInput | None = None,
         *,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
@@ -666,7 +670,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         self,
         cron_name: str,
         expression: str,
-        input: TWorkflowInput = cast("TWorkflowInput", None),
+        input: TWorkflowInput | None = None,
         *,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: Priority | None = None,
@@ -695,7 +699,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         self,
         cron_name: str,
         expression: str,
-        input: TWorkflowInput = cast("TWorkflowInput", None),
+        input: TWorkflowInput | None = None,
         *,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: Priority | None = None,
@@ -1250,7 +1254,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         name: str | None,
         func: Callable[..., Any],
     ) -> str:
-        non_null_name = name or func.__name__
+        non_null_name = name or get_function_name(func)
         return non_null_name.lower()
 
     def task(
@@ -1332,7 +1336,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         ) -> Task[TWorkflowInput, R]:
             labels = desired_worker_labels or []
 
-            task = Task(
+            task = Task[TWorkflowInput, R](
                 _fn=func,
                 is_durable=False,
                 workflow=self,
@@ -1430,16 +1434,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         backoff_factor: float | None = None,
         backoff_max: timedelta | None = None,
     ) -> Callable[
-        [
-            Callable[
-                Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P],
-                dict[BatchMemberId, R]
-                | R
-                | CoroutineLike[dict[BatchMemberId, R]]
-                | CoroutineLike[R],
-            ]
-        ],
-        Task[TWorkflowInput, R],
+        [Callable[Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P], Any]],
+        Task[TWorkflowInput, Any],
     ]:
         """
         .. note::
@@ -1475,18 +1471,12 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         def inner(
             func: Callable[
-                Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P],
-                dict[BatchMemberId, R]
-                | R
-                | CoroutineLike[dict[BatchMemberId, R]]
-                | CoroutineLike[R],
+                Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P], Any
             ],
-        ) -> Task[TWorkflowInput, R]:
+        ) -> Task[TWorkflowInput, Any]:
             labels = desired_worker_labels or []
-            task = Task(
-                _fn=cast(
-                    "Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]", func
-                ),
+            task = Task[TWorkflowInput, Any](
+                _fn=cast("Callable[[TWorkflowInput, Context], Any]", func),
                 is_durable=False,
                 workflow=self,
                 type=TaskType.DEFAULT,
@@ -1608,7 +1598,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         ) -> Task[TWorkflowInput, R]:
             labels = desired_worker_labels or []
 
-            task = Task(
+            task = Task[TWorkflowInput, R](
                 _fn=func,
                 is_durable=True,
                 workflow=self,
@@ -1689,7 +1679,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]
             ],
         ) -> Task[TWorkflowInput, R]:
-            task = Task(
+            task = Task[TWorkflowInput, R](
                 is_durable=False,
                 _fn=func,
                 workflow=self,
@@ -1771,7 +1761,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]
             ],
         ) -> Task[TWorkflowInput, R]:
-            task = Task(
+            task = Task[TWorkflowInput, R](
                 is_durable=False,
                 _fn=func,
                 workflow=self,

@@ -1,4 +1,5 @@
 import asyncio
+import builtins
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -28,7 +29,7 @@ class LogsClient(BaseRestClient):
         limit: int = 1000,
         since: datetime | None = None,
         until: datetime | None = None,
-    ) -> list[V1LogLine]:
+    ) -> builtins.list[V1LogLine]:
         """
         List log lines for a given task run.
 
@@ -49,7 +50,7 @@ class LogsClient(BaseRestClient):
         limit: int = 1000,
         since: datetime | None = None,
         until: datetime | None = None,
-    ) -> list[V1LogLine]:
+    ) -> builtins.list[V1LogLine]:
         """
         List log lines for a given task run.
 

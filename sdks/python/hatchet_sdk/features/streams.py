@@ -3,12 +3,12 @@ import random
 import threading
 import time
 import uuid
-from collections.abc import AsyncGenerator, AsyncIterator, Callable
+from collections.abc import AsyncGenerator, Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from typing import TypeVar, cast
+from typing import TYPE_CHECKING, TypeVar
 
 import grpc
 from pydantic import BaseModel
@@ -25,6 +25,9 @@ from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.v1 import streams_pb2 as streams_protos
 from hatchet_sdk.contracts.v1.streams_pb2_grpc import V1StreamsStub
 from hatchet_sdk.utils.api_auth import create_authorization_header
+
+if TYPE_CHECKING:
+    from hatchet_sdk.contracts.v1.streams_pb2_grpc import V1StreamsAsyncStub
 
 T = TypeVar("T")
 
@@ -207,7 +210,7 @@ class _PublishQueue:
     """One topic's publishes on one event loop; one request is in flight at a time so two never share a seq."""
 
     client: "StreamsClient"
-    stub: V1StreamsStub
+    stub: "V1StreamsAsyncStub"
     namespace: str
     topic: str
 
@@ -350,7 +353,7 @@ class _PublishQueue:
 
         try:
             if self.client._publish_batch_unsupported and len(entries) == 1:
-                await self.stub.Publish(  # type: ignore[misc]
+                await self.stub.Publish(
                     streams_protos.PublishStreamMessageRequest(
                         namespace=self.namespace,
                         topic=self.topic,
@@ -362,7 +365,7 @@ class _PublishQueue:
                     metadata=self.client._metadata(),
                 )
             else:
-                await self.stub.PublishBatch(  # type: ignore[misc]
+                await self.stub.PublishBatch(
                     streams_protos.PublishStreamMessagesRequest(
                         namespace=self.namespace,
                         topic=self.topic,
@@ -394,7 +397,7 @@ class _LoopPublisher:
     """Publish state for one event loop, as an aio channel and asyncio primitives only work on the loop that made them."""
 
     channel: grpc.aio.Channel
-    stub: V1StreamsStub
+    stub: "V1StreamsAsyncStub"
 
     queues_by_namespace_and_topic: dict[tuple[str, str], _PublishQueue] = field(
         default_factory=dict
@@ -493,7 +496,7 @@ class StreamsClient(BaseRestClient):
 
     ## an aio channel is bound to its event loop, so each read opens its own
     @asynccontextmanager
-    async def _open_aio_client(self) -> AsyncIterator[V1StreamsStub]:
+    async def _open_aio_client(self) -> AsyncGenerator["V1StreamsAsyncStub", None]:
         channel = new_conn(self.client_config, True)
         try:
             yield V1StreamsStub(channel)
@@ -618,14 +621,11 @@ class StreamsClient(BaseRestClient):
 
         :return: The topic's metadata.
         """
-        res = cast(
-            "streams_protos.StreamTopicMetadata",
-            self._get_or_create_client().GetTopicMetadata(
-                streams_protos.GetStreamTopicMetadataRequest(
-                    namespace=namespace, topic=topic
-                ),
-                metadata=self._metadata(),
+        res = self._get_or_create_client().GetTopicMetadata(
+            streams_protos.GetStreamTopicMetadataRequest(
+                namespace=namespace, topic=topic
             ),
+            metadata=self._metadata(),
         )
 
         return StreamTopicMetadata(
@@ -673,7 +673,7 @@ class StreamsClient(BaseRestClient):
         )
 
         async with self._open_aio_client() as stub:
-            await stub.Reset(request, metadata=self._metadata())  # type: ignore[misc]
+            await stub.Reset(request, metadata=self._metadata())
 
     async def aio_subscribe(
         self, topic: str, *, namespace: str = "", cursor: str | None = None
@@ -694,12 +694,9 @@ class StreamsClient(BaseRestClient):
 
         async with self._open_aio_client() as stub:
             while True:
-                call = cast(
-                    "grpc.aio.UnaryStreamCall[streams_protos.SubscribeStreamRequest, streams_protos.StreamMessage]",
-                    stub.Subscribe(
-                        _subscribe_request(namespace, topic, cursor),
-                        metadata=self._metadata(),
-                    ),
+                call = stub.Subscribe(
+                    _subscribe_request(namespace, topic, cursor),
+                    metadata=self._metadata(),
                 )
 
                 try:

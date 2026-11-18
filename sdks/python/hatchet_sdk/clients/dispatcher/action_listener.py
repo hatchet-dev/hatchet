@@ -103,7 +103,7 @@ class ActionListener:
                 now = time.time()
                 diff = now - self.time_last_hb_succeeded
                 if diff > heartbeat_delay + 1:
-                    logger.warn(
+                    logger.warning(
                         f"time since last successful heartbeat: {diff:.2f}s, expects {heartbeat_delay}s"
                     )
 
@@ -340,9 +340,7 @@ class ActionListener:
 
         self.last_connection_attempt = current_time
 
-        return cast(
-            "grpc.aio.UnaryStreamCall[WorkerListenRequest, AssignedAction]", listener
-        )
+        return listener
 
     def stop_stream(self) -> None:
         """Stop reading from the action stream, without touching the heartbeat."""

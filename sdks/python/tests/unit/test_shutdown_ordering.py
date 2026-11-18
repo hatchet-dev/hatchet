@@ -6,7 +6,7 @@ import asyncio
 import multiprocessing
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -150,7 +150,7 @@ async def test_stop_event_stops_action_loop_without_kill() -> None:
     # think this worker died, reassigning tasks that are about to finish
     # successfully. cleanup() (which stops the heartbeat) is deferred until
     # finalize_listener_cleanup() is called, after draining is confirmed done.
-    listener.cleanup.assert_not_called()
+    cast("MagicMock", listener.cleanup).assert_not_called()
 
 
 async def test_stop_action_loop_is_idempotent() -> None:
@@ -170,7 +170,7 @@ async def test_stop_action_loop_is_idempotent() -> None:
     await process._stop_action_loop()
     # stop_stream() is called exactly once (the second call short-circuits).
     listener.stop_stream.assert_called_once()
-    listener.cleanup.assert_not_called()  # type: ignore[attr-defined]
+    cast("MagicMock", listener.cleanup).assert_not_called()
 
 
 async def test_finalize_listener_cleanup_stops_heartbeat() -> None:
@@ -183,10 +183,10 @@ async def test_finalize_listener_cleanup_stops_heartbeat() -> None:
     process.listener = listener
 
     await process._stop_action_loop()
-    listener.cleanup.assert_not_called()  # type: ignore[attr-defined]
+    cast("MagicMock", listener.cleanup).assert_not_called()
 
     process.finalize_listener_cleanup()
-    listener.cleanup.assert_called_once()  # type: ignore[attr-defined]
+    cast("MagicMock", listener.cleanup).assert_called_once()
 
 
 async def test_heartbeat_survives_stop_action_loop_until_finalize_cleanup() -> None:

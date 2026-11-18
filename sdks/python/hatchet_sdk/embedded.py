@@ -11,7 +11,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
-from collections.abc import Iterator
+from collections.abc import Generator
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
@@ -35,7 +35,7 @@ _progress_logger = logging.getLogger("hatchet.embedded")
 
 
 @contextlib.contextmanager
-def _slow_notice(start_msg: str, done_msg: str) -> Iterator[None]:
+def _slow_notice(start_msg: str, done_msg: str) -> Generator[None, None, None]:
     """
     Print `start_msg` only if the wrapped block is still running after
     `_SLOW_NOTICE_DELAY_SECONDS` (and `done_msg` once it finishes), so fast

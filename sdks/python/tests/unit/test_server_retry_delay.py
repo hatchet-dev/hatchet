@@ -3,7 +3,7 @@
 import json
 import random
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator, Iterator
 from concurrent import futures
 from contextlib import contextmanager
 from datetime import timedelta
@@ -69,7 +69,7 @@ def recording(waits: list[float]) -> Callable[[tenacity.RetryCallState], None]:
 
 
 @contextmanager
-def throttling_server(failures: list[status_pb2.Status]) -> Iterator[int]:
+def throttling_server(failures: list[status_pb2.Status]) -> Generator[int, None, None]:
     """Serves /test.Throttled/Call, which fails with each of `failures` in turn and then answers
     b"ok". Yields the port."""
 

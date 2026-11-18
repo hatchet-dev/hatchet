@@ -47,7 +47,8 @@ class ControllableStream:
         if kind == "end":
             raise StopAsyncIteration
         if kind == "error":
-            raise value  # type: ignore[misc]
+            assert isinstance(value, BaseException)
+            raise value
         return value
 
 
@@ -209,8 +210,8 @@ async def test_fail_pending_acks_clears_event_acks(harness: _Harness) -> None:
     harness.add_hanging_stream()
     await harness.start()
 
-    future: asyncio.Future[object] = asyncio.get_event_loop().create_future()
-    harness.listener._pending_event_acks[("task1", 1)] = future  # type: ignore[assignment]
+    future = asyncio.get_event_loop().create_future()
+    harness.listener._pending_event_acks[("task1", 1)] = future
 
     harness.listener._fail_pending_acks(ConnectionResetError("disconnected"))
 
@@ -225,11 +226,11 @@ async def test_pending_callbacks_survive_disconnect(harness: _Harness) -> None:
 
     await harness.start()
 
-    future: asyncio.Future[object] = asyncio.get_event_loop().create_future()
+    future = asyncio.get_event_loop().create_future()
     future.add_done_callback(
         lambda f: f.exception() if f.done() and not f.cancelled() else None
     )
-    harness.listener._pending_callbacks[("task1", 1, 0, 1)] = future  # type: ignore[assignment]
+    harness.listener._pending_callbacks[("task1", 1, 0, 1)] = future
 
     await asyncio.sleep(0.15)
 
@@ -261,8 +262,8 @@ async def test_event_acks_rejected_when_stream_ends(harness: _Harness) -> None:
     await harness.start()
     await asyncio.sleep(0.05)
 
-    future: asyncio.Future[object] = asyncio.get_event_loop().create_future()
-    harness.listener._pending_event_acks[("task1", 1)] = future  # type: ignore[assignment]
+    future = asyncio.get_event_loop().create_future()
+    harness.listener._pending_event_acks[("task1", 1)] = future
 
     stream1.end()
     await asyncio.sleep(0.15)
@@ -280,8 +281,8 @@ async def test_event_acks_rejected_when_stream_errors(harness: _Harness) -> None
     await harness.start()
     await asyncio.sleep(0.05)
 
-    future: asyncio.Future[object] = asyncio.get_event_loop().create_future()
-    harness.listener._pending_event_acks[("task1", 1)] = future  # type: ignore[assignment]
+    future = asyncio.get_event_loop().create_future()
+    harness.listener._pending_event_acks[("task1", 1)] = future
 
     stream1.fail(_make_grpc_error(grpc.StatusCode.UNAVAILABLE, "gone"))
     await asyncio.sleep(0.15)

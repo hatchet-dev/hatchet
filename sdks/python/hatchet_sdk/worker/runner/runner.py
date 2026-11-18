@@ -1,6 +1,5 @@
 import asyncio
 import ctypes
-import functools
 import re
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -86,7 +85,7 @@ from hatchet_sdk.worker.runner.utils.capture_logs import (
     ContextVarToCopyOtelContext,
     ContextVarToCopySpanAttributes,
     ContextVarToCopyStr,
-    copy_context_vars,
+    set_context_vars,
 )
 from hatchet_sdk.worker.slot_usage import (
     SharedSlotUsageByPool,
@@ -403,77 +402,76 @@ class Runner:
                 if task._is_async_function:
                     return await task._aio_call(ctx, dependencies)
 
-                pfunc = functools.partial(
+                context_vars_to_copy = [
+                    ContextVarToCopy(
+                        var=ContextVarToCopyStr(
+                            name="ctx_task_run_external_id",
+                            value=action.task_run_external_id,
+                        )
+                    ),
+                    ContextVarToCopy(
+                        var=ContextVarToCopyStr(
+                            name="ctx_workflow_run_id",
+                            value=action.workflow_run_id,
+                        )
+                    ),
+                    ContextVarToCopy(
+                        var=ContextVarToCopyStr(
+                            name="ctx_worker_id",
+                            value=action.worker_id,
+                        )
+                    ),
+                    ContextVarToCopy(
+                        var=ContextVarToCopyStr(
+                            name="ctx_action_key",
+                            value=action.key,
+                        )
+                    ),
+                    ContextVarToCopy(
+                        var=ContextVarToCopyDict(
+                            name="ctx_additional_metadata",
+                            value=action.additional_metadata,
+                        )
+                    ),
+                    ContextVarToCopy(
+                        var=ContextVarToCopyInt(
+                            name="ctx_task_retry_count",
+                            value=action.retry_count,
+                        )
+                    ),
+                    ContextVarToCopy(
+                        var=ContextVarToCopyHatchetContext(
+                            name="ctx_hatchet_context",
+                            value=ctx,
+                        )
+                    ),
+                    ContextVarToCopy(
+                        var=ContextVarToCopySpanAttributes(
+                            name="ctx_hatchet_span_attributes",
+                            value=ctx_hatchet_span_attributes.get(),
+                        )
+                    ),
+                    ContextVarToCopy(
+                        var=ContextVarToCopyOtelContext(
+                            name="ctx_otel_context",
+                            value=(
+                                otel_context.get_current()  # pyright: ignore[reportPossiblyUnboundVariable]
+                                if _HAS_OTEL
+                                else None
+                            ),
+                        )
+                    ),
+                ]
+
+                def run_action_in_thread() -> R:
                     # we must copy the context vars to the new thread, as only asyncio natively supports
                     # contextvars
-                    copy_context_vars,
-                    [
-                        ContextVarToCopy(
-                            var=ContextVarToCopyStr(
-                                name="ctx_task_run_external_id",
-                                value=action.task_run_external_id,
-                            )
-                        ),
-                        ContextVarToCopy(
-                            var=ContextVarToCopyStr(
-                                name="ctx_workflow_run_id",
-                                value=action.workflow_run_id,
-                            )
-                        ),
-                        ContextVarToCopy(
-                            var=ContextVarToCopyStr(
-                                name="ctx_worker_id",
-                                value=action.worker_id,
-                            )
-                        ),
-                        ContextVarToCopy(
-                            var=ContextVarToCopyStr(
-                                name="ctx_action_key",
-                                value=action.key,
-                            )
-                        ),
-                        ContextVarToCopy(
-                            var=ContextVarToCopyDict(
-                                name="ctx_additional_metadata",
-                                value=action.additional_metadata,
-                            )
-                        ),
-                        ContextVarToCopy(
-                            var=ContextVarToCopyInt(
-                                name="ctx_task_retry_count",
-                                value=action.retry_count,
-                            )
-                        ),
-                        ContextVarToCopy(
-                            var=ContextVarToCopyHatchetContext(
-                                name="ctx_hatchet_context",
-                                value=ctx,
-                            )
-                        ),
-                        ContextVarToCopy(
-                            var=ContextVarToCopySpanAttributes(
-                                name="ctx_hatchet_span_attributes",
-                                value=ctx_hatchet_span_attributes.get(),
-                            )
-                        ),
-                        ContextVarToCopy(
-                            var=ContextVarToCopyOtelContext(
-                                name="ctx_otel_context",
-                                value=otel_context.get_current() if _HAS_OTEL else None,
-                            )
-                        ),
-                    ],
-                    self.thread_action_func,
-                    ctx,
-                    task,
-                    action,
-                    dependencies,
-                )
+                    set_context_vars(context_vars_to_copy)
+                    return self.thread_action_func(ctx, task, action, dependencies)
 
                 loop = asyncio.get_event_loop()
                 return await loop.run_in_executor(
-                    self.thread_pool,
-                    pfunc,
+                    self.thread_pool, run_action_in_thread
                 )
             finally:
                 self.cleanup_run_id(action.key)

@@ -381,7 +381,9 @@ class WorkerActionListenerProcess:
     def _drain_ready_events(
         self, first_event: ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE
     ) -> list[ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE]:
-        events = [first_event]
+        events: list[ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE] = [
+            first_event
+        ]
         with contextlib.suppress(Empty):
             while len(events) < MAX_EVENTS_PER_SEND_LOOP_ITERATION:
                 events.append(self.event_queue.get_nowait())

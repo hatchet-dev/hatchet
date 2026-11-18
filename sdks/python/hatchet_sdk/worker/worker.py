@@ -600,10 +600,10 @@ class Worker:
         if self._durable_event_queue is not None:
             self._durable_event_queue.put(STOP_LOOP)
 
-        if self._durable_action_listener_process is not None:
+        durable_action_listener_process = self._durable_action_listener_process
+        if durable_action_listener_process is not None:
             await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: self._durable_action_listener_process.join(),  # type: ignore[union-attr]
+                None, durable_action_listener_process.join
             )
 
         try:

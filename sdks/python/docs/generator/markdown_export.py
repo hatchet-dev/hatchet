@@ -124,7 +124,7 @@ class MarkdownExportPlugin(BasePlugin):  # type: ignore
         return str(self.soup)
 
     def on_post_page(
-        self, output_content: str, page: Page, config: MkDocsConfig
+        self, output_content: str, /, *, page: Page, config: MkDocsConfig
     ) -> str:
         content = self._preprocess_html(output_content)
         md_content = markdownify(content, heading_style="ATX", wrap=False)

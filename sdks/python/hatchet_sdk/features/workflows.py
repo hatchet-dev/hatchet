@@ -3,6 +3,8 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
+    import builtins
+
     from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
     from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
 
@@ -74,7 +76,7 @@ class WorkflowsClient(BaseRestClient):
         workflow_name: str | None = None,
         limit: int | None = None,
         offset: int | None = None,
-    ) -> "list[Workflow]":
+    ) -> "builtins.list[Workflow]":
         """
         List all workflows in the tenant determined by the client config that match optional filters.
 
@@ -94,7 +96,7 @@ class WorkflowsClient(BaseRestClient):
         workflow_name: str | None = None,
         limit: int | None = None,
         offset: int | None = None,
-    ) -> "list[Workflow]":
+    ) -> "builtins.list[Workflow]":
         """
         List all workflows in the tenant determined by the client config that match optional filters.
 

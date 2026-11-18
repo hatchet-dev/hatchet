@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import grpc
 import grpc.aio
@@ -17,7 +17,9 @@ from hatchet_sdk.contracts.events_pb2 import (
     PutStreamEventRequest,
     PutStreamEventResponse,
 )
-from hatchet_sdk.contracts.events_pb2_grpc import EventsServiceStub
+
+if TYPE_CHECKING:
+    from hatchet_sdk.contracts.events_pb2_grpc import EventsServiceAsyncStub
 
 
 def _make_grpc_error(code: grpc.StatusCode, details: str = "") -> grpc.aio.AioRpcError:
@@ -70,7 +72,7 @@ def _event_client(aio_stub: _FakeAioEventsServiceStub) -> EventClient:
     )
     client._token = "token"
     client._namespace = ""
-    client._aio_client = cast(EventsServiceStub, aio_stub)
+    client._aio_client = cast("EventsServiceAsyncStub", aio_stub)
     client._retrying_aio_put_stream_event = tenacity_retry(
         client._put_stream_event, client.client_config.tenacity
     )

@@ -39,6 +39,11 @@ def _spans_by_name(exporter: InMemorySpanExporter, name: str) -> list[ReadableSp
     return [s for s in exporter.get_finished_spans() if s.name == name]
 
 
+def _span_id(span: ReadableSpan) -> int:
+    assert span.context is not None
+    return int(span.context.span_id)
+
+
 @pytest.fixture
 def exporter() -> Iterator[InMemorySpanExporter]:
     provider = TracerProvider()
@@ -85,7 +90,7 @@ def test_run_workflows_creates_no_item_spans_when_flag_disabled(
     assert _spans_by_name(exporter, ITEM_SPAN_NAME) == []
 
     # Every item shares the batch span's traceparent (the legacy behaviour).
-    batch_span_id_hex = format(batch_spans[0].context.span_id, "016x")
+    batch_span_id_hex = format(_span_id(batch_spans[0]), "016x")
     traceparents = [c.options.additional_metadata["traceparent"] for c in captured]
     assert len(set(traceparents)) == 1
     for tp in traceparents:
@@ -109,7 +114,7 @@ def test_run_workflows_creates_one_item_span_per_config_with_unique_traceparent(
     assert len(batch_spans) == 1
     assert len(item_spans) == 3
 
-    batch_span_id = batch_spans[0].context.span_id
+    batch_span_id = _span_id(batch_spans[0])
     for s in item_spans:
         assert s.parent is not None
         assert s.parent.span_id == batch_span_id
@@ -119,7 +124,7 @@ def test_run_workflows_creates_one_item_span_per_config_with_unique_traceparent(
     # not the batch span — this is the regression the PR fixes.
     traceparents = [c.options.additional_metadata["traceparent"] for c in captured]
     assert len(set(traceparents)) == 3
-    item_span_ids = {format(s.context.span_id, "016x") for s in item_spans}
+    item_span_ids = {format(_span_id(s), "016x") for s in item_spans}
     for tp in traceparents:
         # traceparent format: 00-<trace_id>-<span_id>-<flags>
         span_id_hex = tp.split("-")[2]

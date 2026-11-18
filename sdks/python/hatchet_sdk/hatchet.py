@@ -56,7 +56,11 @@ from hatchet_sdk.types.labels import DesiredWorkerLabel, WorkerLabel
 from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.types.rate_limit import RateLimit
 from hatchet_sdk.utils.slots import resolve_worker_slot_config
-from hatchet_sdk.utils.typing import CoroutineLike, JSONSerializableMapping
+from hatchet_sdk.utils.typing import (
+    CoroutineLike,
+    JSONSerializableMapping,
+    get_function_name,
+)
 from hatchet_sdk.worker.worker import LifespanFn, Worker
 
 P = ParamSpec("P")
@@ -554,16 +558,10 @@ class Hatchet:
         idempotency: (
             TTLBasedIdempotencyConfig | StatusBasedIdempotencyConfig | None
         ) = None,
-    ) -> (
-        Callable[
-            [Callable[Concatenate[None, Context, P], R | CoroutineLike[R]]],
-            Standalone[None, R],
-        ]
-        | Callable[
-            [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
-            Standalone[TWorkflowInput, R],
-        ]
-    ):
+    ) -> Callable[
+        [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
+        Standalone[TWorkflowInput, R],
+    ]:
         """
         A decorator to transform a function into a standalone Hatchet task that runs as part of a workflow.
 
@@ -617,7 +615,7 @@ class Hatchet:
                 Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]
             ],
         ) -> Standalone[TWorkflowInput, R]:
-            inferred_name = name or func.__name__
+            inferred_name = name or get_function_name(func)
 
             workflow = Workflow[TWorkflowInput](
                 WorkflowConfig(
@@ -871,7 +869,7 @@ class Hatchet:
                 | CoroutineLike[R],
             ],
         ) -> Standalone[TWorkflowInput, R]:
-            inferred_name = name or func.__name__
+            inferred_name = name or get_function_name(func)
 
             workflow = Workflow[TWorkflowInput](
                 WorkflowConfig(
@@ -1052,20 +1050,14 @@ class Hatchet:
         idempotency: (
             TTLBasedIdempotencyConfig | StatusBasedIdempotencyConfig | None
         ) = None,
-    ) -> (
-        Callable[
-            [Callable[Concatenate[None, DurableContext, P], R | CoroutineLike[R]]],
-            Standalone[None, R],
-        ]
-        | Callable[
-            [
-                Callable[
-                    Concatenate[TWorkflowInput, DurableContext, P], R | CoroutineLike[R]
-                ]
-            ],
-            Standalone[TWorkflowInput, R],
-        ]
-    ):
+    ) -> Callable[
+        [
+            Callable[
+                Concatenate[TWorkflowInput, DurableContext, P], R | CoroutineLike[R]
+            ]
+        ],
+        Standalone[TWorkflowInput, R],
+    ]:
         """
         A decorator to transform a function into a standalone Hatchet _durable_ task that runs as part of a workflow.
 
@@ -1121,7 +1113,7 @@ class Hatchet:
                 Concatenate[TWorkflowInput, DurableContext, P], R | CoroutineLike[R]
             ],
         ) -> Standalone[TWorkflowInput, R]:
-            inferred_name = name or func.__name__
+            inferred_name = name or get_function_name(func)
             workflow = Workflow[TWorkflowInput](
                 WorkflowConfig(
                     name=inferred_name,

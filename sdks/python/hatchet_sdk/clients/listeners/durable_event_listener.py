@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import timedelta
-from typing import Annotated, Literal, Never, Self, cast
+from typing import TYPE_CHECKING, Annotated, Literal, Never, Self
 
 import grpc.aio
 from pydantic import BaseModel, Field
@@ -40,6 +40,9 @@ from hatchet_sdk.types.trigger import TriggerWorkflowOptions
 from hatchet_sdk.utils.api_auth import create_authorization_header
 from hatchet_sdk.utils.cache import DurableInvocationCallbackCache, TTLCache
 from hatchet_sdk.utils.typing import JSONSerializableMapping
+
+if TYPE_CHECKING:
+    from hatchet_sdk.contracts.v1.dispatcher_pb2_grpc import V1DispatcherAsyncStub
 
 DEFAULT_RECONNECT_INTERVAL = 3  # seconds
 
@@ -198,7 +201,7 @@ class DurableEventListener:
         self._worker_id: str | None = None
 
         self._conn: grpc.aio.Channel | None = None
-        self._stub: V1DispatcherStub | None = None
+        self._stub: V1DispatcherAsyncStub | None = None
         self._stream: (
             grpc.aio.StreamStreamCall[DurableTaskRequest, DurableTaskResponse] | None
         ) = None
@@ -264,12 +267,9 @@ class DurableEventListener:
         self._stub = V1DispatcherStub(self._conn)
         self._request_queue = asyncio.Queue()
 
-        self._stream = cast(
-            "grpc.aio.StreamStreamCall[DurableTaskRequest, DurableTaskResponse]",
-            self._stub.DurableTask(
-                self._request_iterator(),  # type: ignore[arg-type]
-                metadata=create_authorization_header(self.token),
-            ),
+        self._stream = self._stub.DurableTask(
+            self._request_iterator(),
+            metadata=create_authorization_header(self.token),
         )
 
         await self._register_worker()

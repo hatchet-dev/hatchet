@@ -48,10 +48,15 @@ async def test_run(hatchet: Hatchet, test_run_id: str) -> None:
     assert details.task_runs["fail_step"].status == "FAILED"
     assert details.task_runs["cancel_step"].status == "CANCELLED"
 
+    step1_output = details.task_runs["step1"].output
+    step2_output = details.task_runs["step2"].output
+    step3_output = details.task_runs["step3"].output
+    assert step1_output is not None
+    assert step2_output is not None
+    assert step3_output is not None
     assert (
-        details.task_runs["step1"].output["random_number"]  # type: ignore[index]
-        + details.task_runs["step2"].output["random_number"]  # type: ignore[index]
-        == details.task_runs["step3"].output["sum"]  # type: ignore[index]
+        step1_output["random_number"] + step2_output["random_number"]
+        == step3_output["sum"]
     )
 
     assert details.task_runs["step4"].output == {"step4": "step4"}

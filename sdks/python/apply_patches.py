@@ -59,27 +59,11 @@ def patch_contract_import_paths(content: str) -> str:
     return content
 
 
-def patch_grpc_dispatcher_import(content: str) -> str:
+def patch_grpc_top_level_contract_imports(content: str) -> str:
     return apply_patch(
         content,
-        r"(?m)^import dispatcher_pb2 as dispatcher__pb2\b",
-        "from hatchet_sdk.contracts import dispatcher_pb2 as dispatcher__pb2",
-    )
-
-
-def patch_grpc_events_import(content: str) -> str:
-    return apply_patch(
-        content,
-        r"(?m)^import events_pb2 as events__pb2\b",
-        "from hatchet_sdk.contracts import events_pb2 as events__pb2",
-    )
-
-
-def patch_grpc_workflows_import(content: str) -> str:
-    return apply_patch(
-        content,
-        r"(?m)^import workflows_pb2 as workflows__pb2\b",
-        "from hatchet_sdk.contracts import workflows_pb2 as workflows__pb2",
+        r"(?m)^import (dispatcher|events|workflows)_pb2 as ",
+        r"from hatchet_sdk.contracts import \1_pb2 as ",
     )
 
 
@@ -727,9 +711,7 @@ if __name__ == "__main__":
 
     grpc_patches: list[Callable[[str], str]] = [
         patch_contract_import_paths,
-        patch_grpc_dispatcher_import,
-        patch_grpc_events_import,
-        patch_grpc_workflows_import,
+        patch_grpc_top_level_contract_imports,
         patch_grpc_init_signature,
     ]
 
@@ -738,6 +720,11 @@ if __name__ == "__main__":
     ]
 
     apply_patches_to_matching_files("hatchet_sdk/contracts", "*_grpc.py", grpc_patches)
+    apply_patches_to_matching_files(
+        "hatchet_sdk/contracts",
+        "*_grpc.pyi",
+        [patch_contract_import_paths, patch_grpc_top_level_contract_imports],
+    )
     apply_patches_to_matching_files("hatchet_sdk/contracts", "*_pb2.py", pb2_patches)
     apply_patches_to_matching_files("hatchet_sdk/contracts", "*_pb2.pyi", pb2_patches)
 

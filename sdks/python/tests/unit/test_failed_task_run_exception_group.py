@@ -23,11 +23,11 @@ def test_exception_group_is_caught_by_except_star_and_not_by_value_error() -> No
         except ValueError:
             pytest.fail("FailedTaskRunExceptionGroup should not be a ValueError")
 
-    caught: list[TaskRunError] = []
+    caught: list[TaskRunError | ExceptionGroup[TaskRunError]] = []
     try:
         raise FailedTaskRunExceptionGroup("run failed", [error])
     except* TaskRunError as matched:
-        caught.extend(matched.exceptions)  # type: ignore[arg-type]
+        caught.extend(matched.exceptions)
 
     assert caught == [error]
 
