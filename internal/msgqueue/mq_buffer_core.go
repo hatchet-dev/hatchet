@@ -255,15 +255,13 @@ func NewBatchBuffer[T any](ctx context.Context, flushInterval time.Duration, max
 }
 
 func (b *BatchBuffer[T]) Enqueue(item T) {
-	select {
-	case b.items <- item:
-	default:
+	b.items <- item
+
+	if len(b.items) >= b.bufferSize {
 		select {
 		case b.capacityRelease <- struct{}{}:
 		default:
 		}
-
-		b.items <- item
 	}
 
 	b.notifier <- struct{}{}
