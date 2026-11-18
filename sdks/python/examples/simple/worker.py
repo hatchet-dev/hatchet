@@ -1,7 +1,11 @@
 # > Simple
-from hatchet_sdk import Context, DurableContext, Hatchet
+from hatchet_sdk import Context, DurableContext, Hatchet, RunStatus
 
 hatchet = Hatchet()
+
+
+def is_running(status: RunStatus) -> bool:
+    return status == "RUNING"
 
 
 @hatchet.task()

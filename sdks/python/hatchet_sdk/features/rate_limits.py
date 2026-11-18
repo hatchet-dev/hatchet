@@ -23,6 +23,7 @@ from hatchet_sdk.contracts.workflows_pb2_grpc import WorkflowServiceStub
 from hatchet_sdk.types.ordering import OrderByDirection
 from hatchet_sdk.types.rate_limit import RateLimitDuration
 from hatchet_sdk.utils.api_auth import create_authorization_header
+from hatchet_sdk.utils.literals import convert_literal_using_mapping
 from hatchet_sdk.utils.proto_enums import convert_python_literal_to_proto
 
 RateLimitOrderByField = Literal["key", "value", "limit_value"]
@@ -211,12 +212,18 @@ class RateLimitsClient(BaseRestClient):
                 limit=limit,
                 search=search,
                 order_by_field=(
-                    _ORDER_BY_FIELD_TO_REST[order_by_field]
+                    convert_literal_using_mapping(
+                        order_by_field, _ORDER_BY_FIELD_TO_REST, "order_by_field"
+                    )
                     if order_by_field is not None
                     else None
                 ),
                 order_by_direction=(
-                    _ORDER_BY_DIRECTION_TO_REST[order_by_direction]
+                    convert_literal_using_mapping(
+                        order_by_direction,
+                        _ORDER_BY_DIRECTION_TO_REST,
+                        "order_by_direction",
+                    )
                     if order_by_direction is not None
                     else None
                 ),
