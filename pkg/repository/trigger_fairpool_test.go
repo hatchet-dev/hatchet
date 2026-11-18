@@ -49,6 +49,7 @@ func TestOwnedTriggerStaysWithinTenantConnectionLimit(t *testing.T) {
 		true,
 		time.Minute,
 		false,
+		false,
 	)
 	defer func() { _ = stop() }()
 

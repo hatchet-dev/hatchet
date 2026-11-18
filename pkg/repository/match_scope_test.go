@@ -41,6 +41,7 @@ func newUserEventScopeTestRepositories(t *testing.T, pool *pgxpool.Pool) userEve
 		false,
 		time.Minute,
 		false,
+		false,
 	)
 	t.Cleanup(func() { _ = cleanup() })
 

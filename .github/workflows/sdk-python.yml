@@ -127,6 +127,7 @@ jobs:
           export SERVER_SECURITY_CHECK_ENABLED=false
           export SERVER_PAYLOAD_STORE_WRAP_TASK_INPUT_IN_STEP_RUN_DATA=false
           export SERVER_PAYLOAD_STORE_ENABLE_PAYLOAD_CONSOLIDATION=true
+          export SERVER_CHILD_RUN_DIRECT_SPAWN=true
 
           go run ./cmd/hatchet-admin quickstart
 
@@ -137,7 +138,7 @@ jobs:
           ON CONFLICT (tenant_id) DO NOTHING;
 
           UPDATE tenant_entitlement
-          SET durable_streams = TRUE, operator_step_direct_completion = TRUE;
+          SET durable_streams = TRUE;
           SQL
 
           go run ./cmd/hatchet-engine --config ./generated/ > engine.log 2>&1 &
