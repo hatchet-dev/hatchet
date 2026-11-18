@@ -61,18 +61,18 @@ List events that were pushed to the tenant.
 
 Parameters:
 
-| Name                    | Type                                                                             | Description                                                                  | Default |
-| ----------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ------- |
-| `offset`                | `int \| None`                                                                    | The number of events to skip.                                                | `None`  |
-| `limit`                 | `int \| None`                                                                    | The maximum number of events to return.                                      | `None`  |
-| `keys`                  | `list[str] \| None`                                                              | Only return events with one of these keys.                                   | `None`  |
-| `since`                 | `datetime \| None`                                                               | Only return events seen at or after this time.                               | `None`  |
-| `until`                 | `datetime \| None`                                                               | Only return events seen at or before this time.                              | `None`  |
-| `workflow_ids`          | `list[str] \| None`                                                              | Only return events that triggered one of these workflows.                    | `None`  |
-| `workflow_run_statuses` | `list[Literal['QUEUED', 'RUNNING', 'COMPLETED', 'CANCELLED', 'FAILED']] \| None` | Only return events that triggered a run in one of these statuses.            | `None`  |
-| `event_ids`             | `list[str] \| None`                                                              | Only return events with one of these IDs.                                    | `None`  |
-| `additional_metadata`   | `JSONSerializableMapping \| None`                                                | Only return events whose additional metadata contains these key-value pairs. | `None`  |
-| `scopes`                | `list[str] \| None`                                                              | Only return events with one of these scopes.                                 | `None`  |
+| Name                    | Type                                                                                      | Description                                                                  | Default |
+| ----------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ------- |
+| `offset`                | `int \| None`                                                                             | The number of events to skip.                                                | `None`  |
+| `limit`                 | `int \| None`                                                                             | The maximum number of events to return.                                      | `None`  |
+| `keys`                  | `list[str] \| None`                                                                       | Only return events with one of these keys.                                   | `None`  |
+| `since`                 | `datetime \| None`                                                                        | Only return events seen at or after this time.                               | `None`  |
+| `until`                 | `datetime \| None`                                                                        | Only return events seen at or before this time.                              | `None`  |
+| `workflow_ids`          | `list[str] \| None`                                                                       | Only return events that triggered one of these workflows.                    | `None`  |
+| `workflow_run_statuses` | `builtins.list[Literal['QUEUED', 'RUNNING', 'COMPLETED', 'CANCELLED', 'FAILED']] \| None` | Only return events that triggered a run in one of these statuses.            | `None`  |
+| `event_ids`             | `list[str] \| None`                                                                       | Only return events with one of these IDs.                                    | `None`  |
+| `additional_metadata`   | `JSONSerializableMapping \| None`                                                         | Only return events whose additional metadata contains these key-value pairs. | `None`  |
+| `scopes`                | `list[str] \| None`                                                                       | Only return events with one of these scopes.                                 | `None`  |
 
 Returns:
 
@@ -138,18 +138,18 @@ List events that were pushed to the tenant.
 
 Parameters:
 
-| Name                    | Type                                                                             | Description                                                                  | Default |
-| ----------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ------- |
-| `offset`                | `int \| None`                                                                    | The number of events to skip.                                                | `None`  |
-| `limit`                 | `int \| None`                                                                    | The maximum number of events to return.                                      | `None`  |
-| `keys`                  | `list[str] \| None`                                                              | Only return events with one of these keys.                                   | `None`  |
-| `since`                 | `datetime \| None`                                                               | Only return events seen at or after this time.                               | `None`  |
-| `until`                 | `datetime \| None`                                                               | Only return events seen at or before this time.                              | `None`  |
-| `workflow_ids`          | `list[str] \| None`                                                              | Only return events that triggered one of these workflows.                    | `None`  |
-| `workflow_run_statuses` | `list[Literal['QUEUED', 'RUNNING', 'COMPLETED', 'CANCELLED', 'FAILED']] \| None` | Only return events that triggered a run in one of these statuses.            | `None`  |
-| `event_ids`             | `list[str] \| None`                                                              | Only return events with one of these IDs.                                    | `None`  |
-| `additional_metadata`   | `JSONSerializableMapping \| None`                                                | Only return events whose additional metadata contains these key-value pairs. | `None`  |
-| `scopes`                | `list[str] \| None`                                                              | Only return events with one of these scopes.                                 | `None`  |
+| Name                    | Type                                                                                      | Description                                                                  | Default |
+| ----------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ------- |
+| `offset`                | `int \| None`                                                                             | The number of events to skip.                                                | `None`  |
+| `limit`                 | `int \| None`                                                                             | The maximum number of events to return.                                      | `None`  |
+| `keys`                  | `list[str] \| None`                                                                       | Only return events with one of these keys.                                   | `None`  |
+| `since`                 | `datetime \| None`                                                                        | Only return events seen at or after this time.                               | `None`  |
+| `until`                 | `datetime \| None`                                                                        | Only return events seen at or before this time.                              | `None`  |
+| `workflow_ids`          | `list[str] \| None`                                                                       | Only return events that triggered one of these workflows.                    | `None`  |
+| `workflow_run_statuses` | `builtins.list[Literal['QUEUED', 'RUNNING', 'COMPLETED', 'CANCELLED', 'FAILED']] \| None` | Only return events that triggered a run in one of these statuses.            | `None`  |
+| `event_ids`             | `list[str] \| None`                                                                       | Only return events with one of these IDs.                                    | `None`  |
+| `additional_metadata`   | `JSONSerializableMapping \| None`                                                         | Only return events whose additional metadata contains these key-value pairs. | `None`  |
+| `scopes`                | `list[str] \| None`                                                                       | Only return events with one of these scopes.                                 | `None`  |
 
 Returns:
 
