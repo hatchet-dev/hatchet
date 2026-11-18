@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
-from typing import Any
+import contextlib
+from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import grpc
@@ -10,7 +10,6 @@ import grpc.aio
 import pytest
 
 from hatchet_sdk.clients.listeners.durable_event_listener import (
-    DEFAULT_RECONNECT_INTERVAL,
     DurableEventListener,
     DurableTaskEventWaitForAck,
     WaitForEvent,
@@ -22,6 +21,9 @@ from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
     DurableTaskResponse,
 )
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import DurableEventListenerConditions
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 _MODULE = "hatchet_sdk.clients.listeners.durable_event_listener"
 
@@ -110,15 +112,11 @@ class _Harness:
         await self.listener.start(worker_id)
 
     async def teardown(self) -> None:
-        try:
+        with contextlib.suppress(Exception):
             await self.listener.stop()
-        except Exception:
-            pass
         for s in self.streams:
-            try:
+            with contextlib.suppress(Exception):
                 s.end()
-            except Exception:
-                pass
         for p in self._patches:
             p.stop()
 
@@ -246,7 +244,7 @@ async def test_fail_pending_acks_clears_eviction_acks_on_disconnect(
 
     await harness.start()
 
-    future: asyncio.Future[None] = asyncio.get_event_loop().create_future()
+    future: asyncio.Future[None] = asyncio.Future()
     harness.listener._pending_eviction_acks[("task1", 1)] = future
 
     await asyncio.sleep(0.15)
@@ -311,15 +309,12 @@ async def test_survives_connect_failure_and_keeps_running(harness: _Harness) -> 
     await harness.start()
     await asyncio.sleep(0.05)
 
-    import hatchet_sdk.clients.listeners.durable_event_listener as mod
-
-    original_new_conn = getattr(mod, "new_conn")
-    setattr(mod, "new_conn", MagicMock(side_effect=ConnectionError("network down")))
-
-    stream1.end()
-    await asyncio.sleep(0.3)
-
-    setattr(mod, "new_conn", original_new_conn)
+    with patch(
+        "hatchet_sdk.clients.listeners.durable_event_listener.new_conn",
+        side_effect=ConnectionError("network down"),
+    ):
+        stream1.end()
+        await asyncio.sleep(0.3)
 
     assert harness.listener._running is True
 
@@ -356,7 +351,7 @@ def _wait_for_event() -> WaitForEvent:
 
 
 def _drain_queue(queue: asyncio.Queue[DurableTaskRequest]) -> list[DurableTaskRequest]:
-    items = []
+    items: list[DurableTaskRequest] = []
     while not queue.empty():
         items.append(queue.get_nowait())
     return items

@@ -231,7 +231,7 @@ class ActionListener:
                             action_payload = ActionPayload()
 
                     batch_start_payload: BatchStartPayload | None = None
-                    if assigned_action.batchStartPayload is not None:
+                    if assigned_action.HasField("batchStartPayload"):
                         batch_start_payload = BatchStartPayload(
                             expected_size=assigned_action.batchStartPayload.expectedSize,
                             trigger_reason=assigned_action.batchStartPayload.triggerReason,

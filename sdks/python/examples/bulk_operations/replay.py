@@ -1,8 +1,8 @@
 # > Setup
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
-from hatchet_sdk import BulkCancelReplayOptions, Hatchet, RunFilter, RunStatus
+from hatchet_sdk import BulkCancelReplayOptions, Hatchet, RunFilter
 
 hatchet = Hatchet()
 
@@ -29,8 +29,8 @@ hatchet.runs.bulk_replay(bulk_replay_by_ids)
 # > Replay by filters
 bulk_replay_by_filters = BulkCancelReplayOptions(
     filters=RunFilter(
-        since=datetime.today() - timedelta(days=1),
-        until=datetime.now(tz=timezone.utc),
+        since=datetime.now(tz=UTC) - timedelta(days=1),
+        until=datetime.now(tz=UTC),
         statuses=["RUNNING"],
         workflow_ids=[workflow.metadata.id],
         additional_metadata={"key": "value"},

@@ -9,7 +9,10 @@ def prepend_import(content: str, import_statement: str) -> str:
         return content
 
     future_import_pattern = r"^from __future__ import [^\n]+\n"
-    future_imports = re.findall(future_import_pattern, content, re.MULTILINE)
+    future_imports = [
+        match.group(0)
+        for match in re.finditer(future_import_pattern, content, re.MULTILINE)
+    ]
     content = re.sub(future_import_pattern, "", content, flags=re.MULTILINE)
 
     match = re.search(r"^import\s+|^from\s+", content, re.MULTILINE)

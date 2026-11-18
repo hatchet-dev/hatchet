@@ -26,9 +26,9 @@ from hatchet_sdk.runnables.contextvars import (
 try:
     from opentelemetry import context as otel_context
 
-    _HAS_OTEL = True
+    _opentelemetry_is_installed = True
 except ImportError:
-    _HAS_OTEL = False
+    _opentelemetry_is_installed = False
 from hatchet_sdk.utils.typing import (
     STOP_LOOP,
     STOP_LOOP_TYPE,
@@ -105,7 +105,7 @@ def set_context_vars(ctx_vars: list[ContextVarToCopy]) -> None:
         elif var.var.name == "ctx_hatchet_span_attributes":
             ctx_hatchet_span_attributes.set(var.var.value)
         elif var.var.name == "ctx_otel_context":
-            if _HAS_OTEL and var.var.value is not None:
+            if _opentelemetry_is_installed and var.var.value is not None:
                 otel_context.attach(  # pyright: ignore[reportPossiblyUnboundVariable]
                     var.var.value
                 )

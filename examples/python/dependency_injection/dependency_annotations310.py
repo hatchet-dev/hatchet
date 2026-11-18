@@ -1,6 +1,7 @@
-from hatchet_sdk.runnables.task import Depends
-from hatchet_sdk import Context
 from typing import Annotated, TypeAlias
+
+from hatchet_sdk import Context
+from hatchet_sdk.runnables.task import Depends
 
 
 async def async_dep(input: None, ctx: Context) -> bool:

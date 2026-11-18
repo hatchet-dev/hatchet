@@ -8,10 +8,10 @@ from examples.child.worker import SimpleInput, child_task
 child_task.run(SimpleInput(message="Hello, World!"))
 
 # > Schedule a Task
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 child_task.schedule(
-    datetime.now(tz=timezone.utc) + timedelta(minutes=5),
+    datetime.now(tz=UTC) + timedelta(minutes=5),
     SimpleInput(message="Hello, World!"),
 )
 

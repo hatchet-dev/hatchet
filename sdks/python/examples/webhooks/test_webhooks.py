@@ -4,7 +4,7 @@ import hmac
 import json
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -22,7 +22,6 @@ from hatchet_sdk import (
     WebhookHMACEncoding,
     WebhookSourceName,
 )
-from hatchet_sdk.types.run_status import RunStatus
 from hatchet_sdk.clients.rest.models.v1_webhook import V1Webhook
 
 TEST_BASIC_USERNAME = "test_user"
@@ -48,7 +47,7 @@ def test_run_id() -> str:
 
 @pytest.fixture
 def test_start() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def create_hmac_signature(
@@ -102,11 +101,13 @@ async def send_webhook_request(
         )
         request_headers[auth_data["header_name"]] = signature
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
+    async with (
+        aiohttp.ClientSession() as session,
+        session.post(
             url, json=body.model_dump(), auth=auth, headers=request_headers
-        ) as response:
-            yield response
+        ) as response,
+    ):
+        yield response
 
 
 @asynccontextmanager
@@ -250,7 +251,7 @@ async def test_basic_auth_success(
 
 
 @pytest.mark.parametrize(
-    "username,password",
+    ("username", "password"),
     [
         ("test_user", "incorrect_password"),
         ("incorrect_user", "test_password"),
@@ -416,7 +417,7 @@ async def test_hmac_success(
 
 
 @pytest.mark.parametrize(
-    "algorithm,encoding",
+    ("algorithm", "encoding"),
     [
         ("SHA1", "HEX"),
         ("SHA256", "BASE64"),

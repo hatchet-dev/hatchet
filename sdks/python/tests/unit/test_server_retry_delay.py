@@ -3,7 +3,7 @@
 import json
 import random
 import time
-from collections.abc import Callable, Generator, Iterator
+from collections.abc import Callable, Generator
 from concurrent import futures
 from contextlib import contextmanager
 from datetime import timedelta
@@ -29,7 +29,19 @@ THROTTLED_CALLS: dict[str, Any] = json.loads(
     ).read_text()
 )
 SCENARIOS: list[dict[str, Any]] = THROTTLED_CALLS["scenarios"]
-JITTER: float = THROTTLED_CALLS["jitter"]
+JITTER = float(THROTTLED_CALLS["jitter"])
+
+
+def lowest_value(low: float, _high: float) -> float:
+    return low
+
+
+def highest_value(_low: float, high: float) -> float:
+    return high
+
+
+def skip_sleep(_seconds: float) -> None:
+    return None
 
 
 class OwnWait(tenacity.wait_fixed):
@@ -45,7 +57,9 @@ def failure(code: grpc.StatusCode, retry_delay: float | None) -> status_pb2.Stat
     if retry_delay is not None:
         delay = duration_pb2.Duration()
         delay.FromTimedelta(timedelta(seconds=retry_delay))
-        status.details.add().Pack(error_details_pb2.RetryInfo(retry_delay=delay))
+        status.details.add().Pack(  # pyright: ignore[reportUnknownMemberType]
+            error_details_pb2.RetryInfo(retry_delay=delay)
+        )
     return status
 
 
@@ -75,7 +89,11 @@ def throttling_server(failures: list[status_pb2.Status]) -> Generator[int, None,
 
     def handle(_request: bytes, context: grpc.ServicerContext) -> bytes:
         if failures:
-            context.abort_with_status(rpc_status.to_status(failures.pop(0)))
+            context.abort_with_status(
+                rpc_status.to_status(  # pyright: ignore[reportUnknownMemberType]
+                    failures.pop(0)
+                )
+            )
         return b"ok"
 
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
@@ -97,7 +115,7 @@ def throttling_server(failures: list[status_pb2.Status]) -> Generator[int, None,
 @pytest.fixture(autouse=True)
 def shortest_waits(monkeypatch: pytest.MonkeyPatch) -> None:
     """Holds the random source at its lowest value, so a wait on a server delay is not extended."""
-    monkeypatch.setattr(random, "uniform", lambda low, _high: low)
+    monkeypatch.setattr(random, "uniform", lowest_value)
 
 
 @pytest.mark.parametrize("scenario", SCENARIOS, ids=[s["name"] for s in SCENARIOS])
@@ -107,9 +125,9 @@ def test_throttled_call_scenario(
 ) -> None:
     """Runs a scenario that every Hatchet SDK's tests share, with the default attempt limit and
     the random source held at its lowest or its highest value."""
-    monkeypatch.setattr(time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(time, "sleep", skip_sleep)
     if longest_waits:
-        monkeypatch.setattr(random, "uniform", lambda _low, high: high)
+        monkeypatch.setattr(random, "uniform", highest_value)
     extend = 1 + JITTER if longest_waits else 1
     delays = [delay_ms / 1000 for delay_ms in scenario["delays_ms"]]
     errors: list[grpc.aio.AioRpcError] = []
@@ -145,7 +163,7 @@ def test_retry_waits_the_server_delay_of_the_failed_attempt(
     """Runs against a real gRPC server, so the errors are the ones grpcio raises. The random
     source is held at its highest value, so only the wait on a server delay is extended.
     """
-    monkeypatch.setattr(random, "uniform", lambda _low, high: high)
+    monkeypatch.setattr(random, "uniform", highest_value)
     failures = [
         failure(grpc.StatusCode.RESOURCE_EXHAUSTED, 0.3),
         failure(grpc.StatusCode.RESOURCE_EXHAUSTED, 0.0),

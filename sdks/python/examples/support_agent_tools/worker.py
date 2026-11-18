@@ -1,8 +1,8 @@
 from examples.support_agent_tools.tools import (
-    hatchet,
-    lookup_customer,
     check_order_status,
     create_ticket,
+    hatchet,
+    lookup_customer,
 )
 
 

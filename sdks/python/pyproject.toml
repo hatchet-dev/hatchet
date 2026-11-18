@@ -124,6 +124,8 @@ enable_error_code = [
     "truthy-bool",
     "redundant-expr",
     "truthy-iterable",
+    "unused-awaitable",
+    "ignore-without-code",
 ]
 
 [tool.pyright]
@@ -142,7 +144,17 @@ exclude = [
     "site",
     "examples/dependency_injection/dependency_annotations312.py",
 ]
-typeCheckingMode = "standard"
+typeCheckingMode = "strict"
+# the SDK deliberately reaches into its own `_` attributes across modules
+reportPrivateUsage = false
+reportUninitializedInstanceVariable = "error"
+reportMatchNotExhaustive = "error"
+executionEnvironments = [
+    # tests and examples intentionally exercise deprecated APIs
+    { root = "tests", extraPaths = ["."], reportDeprecated = false },
+    { root = "examples", extraPaths = ["."], reportDeprecated = false },
+    { root = "." },
+]
 
 [tool.ty.src]
 exclude = [
@@ -161,6 +173,8 @@ exclude = [
 [tool.ty.rules]
 # mypy owns `type: ignore` hygiene via `warn_unused_ignores`; some ignores are only needed by mypy
 unused-type-ignore-comment = "ignore"
+unsound-assignment = "error"
+unsound-return = "error"
 
 [[tool.ty.overrides]]
 include = ["examples/**", "tests/**"]
@@ -212,8 +226,6 @@ select = [
 ]
 ignore = ["E501", "RET503", "FIX", "B008", "PGH004"]
 exclude = [
-    "examples/*",
-    "docs/*",
     "hatchet_sdk/clients/rest/api/*",
     "hatchet_sdk/clients/rest/models/*",
     "hatchet_sdk/contracts",
@@ -225,8 +237,17 @@ exclude = [
     "hatchet_sdk/v0/*",
     "apply_patches.py",
     "site/*",
-    "tests/*",
+    "examples/dependency_injection/dependency_annotations312.py",
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# pytest fixtures are requested as arguments without being used, and examples print their results
+"tests/**" = ["ARG001", "ARG002", "ANN401", "T201", "ASYNC109"]
+"examples/**" = ["ARG001", "ARG002", "ANN401", "T201", "ASYNC109"]
+"docs/**" = ["T201"]
+# these examples block the event loop on purpose, to demonstrate the problem
+"examples/blocked_async/**" = ["ASYNC251"]
+"examples/blocked_loop_blog/**" = ["ASYNC251"]
 
 [tool.ruff.lint.flake8-type-checking]
 runtime-evaluated-base-classes = ["pydantic.BaseModel"]

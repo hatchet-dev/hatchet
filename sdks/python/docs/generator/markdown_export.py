@@ -10,7 +10,7 @@ from mkdocs.structure.pages import Page
 from docs.generator.shared import TMP_GEN_PATH
 
 
-class MarkdownExportPlugin(BasePlugin):  # type: ignore
+class MarkdownExportPlugin(BasePlugin):  # type: ignore[no-untyped-call, type-arg]
     def __init__(self) -> None:
         super().__init__()
         self.soup: BeautifulSoup
@@ -20,7 +20,7 @@ class MarkdownExportPlugin(BasePlugin):  # type: ignore
 
         for span in spans:
             if span.find(string="async") or (
-                span.text and "async" == span.get_text().strip()
+                span.text and span.get_text().strip() == "async"
             ):
                 span.decompose()
 
@@ -29,7 +29,7 @@ class MarkdownExportPlugin(BasePlugin):  # type: ignore
     def _remove_hash_links(self) -> "MarkdownExportPlugin":
         links = self.soup.find_all("a", class_="headerlink")
         for link in links:
-            href = cast(str, link["href"])
+            href = cast("str", link["href"])
             if href.startswith("#"):
                 link.decompose()
 
@@ -96,7 +96,7 @@ class MarkdownExportPlugin(BasePlugin):  # type: ignore
             if not href:
                 continue
 
-            href = cast(str, link["href"])
+            href = cast("str", link["href"])
 
             if href.startswith("https://docs.hatchet.run/"):
                 link["href"] = href.replace(
@@ -124,7 +124,12 @@ class MarkdownExportPlugin(BasePlugin):  # type: ignore
         return str(self.soup)
 
     def on_post_page(
-        self, output_content: str, /, *, page: Page, config: MkDocsConfig
+        self,
+        output_content: str,
+        /,
+        *,
+        page: Page,
+        config: MkDocsConfig,  # noqa: ARG002 - mkdocs passes hook arguments by keyword
     ) -> str:
         content = self._preprocess_html(output_content)
         md_content = markdownify(content, heading_style="ATX", wrap=False)

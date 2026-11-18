@@ -3,8 +3,8 @@ from datetime import timedelta
 from hatchet_sdk import (
     DurableContext,
     Hatchet,
-    SleepCondition,
     OrGroup,
+    SleepCondition,
     UserEventCondition,
 )
 

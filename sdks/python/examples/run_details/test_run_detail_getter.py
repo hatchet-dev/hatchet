@@ -1,11 +1,10 @@
 from uuid import uuid4
 
 import pytest
-import asyncio
 
 from examples.run_details.worker import MockInput, run_detail_test_workflow
 from examples.test_utils import wait_for_running_status
-from hatchet_sdk import Hatchet, RunStatus
+from hatchet_sdk import FailedTaskRunExceptionGroup, Hatchet
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -30,7 +29,7 @@ async def test_run(hatchet: Hatchet, test_run_id: str) -> None:
 
     assert details.done is False
 
-    with pytest.raises(Exception):
+    with pytest.raises(FailedTaskRunExceptionGroup):
         await ref.aio_result()
 
     details = hatchet.runs.get_details(ref.workflow_run_id)

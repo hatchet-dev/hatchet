@@ -102,9 +102,9 @@ if TYPE_CHECKING:
 try:
     from opentelemetry import context as otel_context
 
-    _HAS_OTEL = True
+    _opentelemetry_is_installed = True
 except ImportError:
-    _HAS_OTEL = False
+    _opentelemetry_is_installed = False
 
 
 class Runner:
@@ -186,6 +186,7 @@ class Runner:
         else:
             self.durable_event_listener = None
 
+        self.durable_event_listener_task: asyncio.Task[None] | None = None
         self.durable_eviction_manager: DurableEvictionManager | None = None
 
         self.worker_labels = labels
@@ -194,6 +195,7 @@ class Runner:
         self.log_sender = log_sender
         self.worker_id: str | None = None
 
+        self.monitoring_task: asyncio.Task[None] | None = None
         if self.config.enable_thread_pool_monitoring:
             self.start_background_monitoring()
 
@@ -215,7 +217,6 @@ class Runner:
                 )
                 self.durable_eviction_manager.start()
 
-        t: asyncio.Task[Exception | None] | None = None
         match action.action_type:
             case ActionType.START_STEP_RUN:
                 log = (
@@ -234,10 +235,10 @@ class Runner:
             case _:
                 log = f"unknown action type: {action.action_type}"
                 logger.error(log)
+                return
 
-        if t is not None:
-            self.running_tasks.add(t)
-            t.add_done_callback(lambda task: self.running_tasks.discard(task))
+        self.running_tasks.add(t)
+        t.add_done_callback(lambda task: self.running_tasks.discard(task))
 
     def _eviction_cancel_callback(self, key: ActionKey) -> None:
         """Called from DurableEvictionManager when it evicts a run."""
@@ -456,7 +457,7 @@ class Runner:
                             name="ctx_otel_context",
                             value=(
                                 otel_context.get_current()  # pyright: ignore[reportPossiblyUnboundVariable]
-                                if _HAS_OTEL
+                                if _opentelemetry_is_installed
                                 else None
                             ),
                         )
@@ -588,12 +589,14 @@ class Runner:
                         f"Batch task '{action_id}' must return a dict of outputs"
                     )
 
-                if len(outputs) != len(action.batch_items):
+                outputs_by_task_run_id = cast("dict[BatchMemberId, object]", outputs)
+
+                if len(outputs_by_task_run_id) != len(action.batch_items):
                     raise ValueError(
-                        f"Batch task '{action_id}' returned {len(outputs)} outputs for {len(action.batch_items)} inputs"
+                        f"Batch task '{action_id}' returned {len(outputs_by_task_run_id)} outputs for {len(action.batch_items)} inputs"
                     )
 
-                output_ids = set(outputs)
+                output_ids = set(outputs_by_task_run_id)
                 input_ids = set(action.batch_items)
                 if diff := output_ids.difference(input_ids):
                     raise ValueError(
@@ -603,7 +606,7 @@ class Runner:
                 completed_items: list[BatchEventItem] = []
                 failed_items: list[BatchEventItem] = []
 
-                for task_run_external_id, output in outputs.items():
+                for task_run_external_id, output in outputs_by_task_run_id.items():
                     try:
                         serialized = self.serialize_output(
                             task._validators.task_output, output

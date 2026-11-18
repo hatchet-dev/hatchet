@@ -6,6 +6,7 @@ Remove this module when support for those engines is dropped.
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Any
 
 from hatchet_sdk.clients.listeners.legacy.pre_eviction_durable_event_listener import (
@@ -43,6 +44,6 @@ async def aio_wait_for_pre_eviction(
         config=ctx._runs_client.client_config,
     )
 
-    ctx._durable_event_listener.register_durable_event(request)
+    await asyncio.to_thread(ctx._durable_event_listener.register_durable_event, request)
 
     return await ctx._durable_event_listener.result(task_id, signal_key)

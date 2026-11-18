@@ -11,7 +11,7 @@ from examples.bug_tests.durable_dag_child.worker import (
     multi_spawner_dag,
     parent_dag,
 )
-from hatchet_sdk import Hatchet, RunStatus
+from hatchet_sdk import Hatchet
 from hatchet_sdk.clients.admin import WorkflowRunDetail
 from hatchet_sdk.runnables.workflow import Workflow
 

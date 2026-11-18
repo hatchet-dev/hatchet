@@ -191,11 +191,10 @@ class BulkCancelReplayOptions(BaseModel):
                 filter=self.v1_task_filter,
             )
 
-        if request_type == "cancel":
-            return V1CancelTaskRequest(
-                externalIds=self.ids,
-                filter=self.v1_task_filter,
-            )
+        return V1CancelTaskRequest(
+            externalIds=self.ids,
+            filter=self.v1_task_filter,
+        )
 
 
 LIST_RUNS_PAGE_SIZE = 100

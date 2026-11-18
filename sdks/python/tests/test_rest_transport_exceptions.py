@@ -1,3 +1,5 @@
+# pyright: reportUnknownMemberType=false, reportUnknownVariableType=false
+# ApiException is generated code whose status and reason attributes are untyped.
 """Unit tests for REST transport exception translation.
 
 These tests verify that urllib3 transport exceptions are correctly translated
@@ -28,7 +30,7 @@ from hatchet_sdk.clients.rest.rest import RESTClientObject
 @pytest.fixture
 def rest_client() -> Any:
     config = Configuration(host="http://localhost:8080")
-    return cast(Any, RESTClientObject(config))
+    return cast("Any", RESTClientObject(config))
 
 
 @pytest.fixture
@@ -129,7 +131,7 @@ def test_translation__read_timeout_error_raises_rest_timeout_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     original_exc = urllib3.exceptions.ReadTimeoutError(
-        cast(Any, None), "http://localhost:8080", "Read timed out"
+        cast("Any", None), "http://localhost:8080", "Read timed out"
     )
 
     def mock_request(*args: Any, **kwargs: Any) -> NoReturn:
@@ -156,7 +158,7 @@ def test_translation__max_retry_error_raises_rest_connection_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     original_exc = urllib3.exceptions.MaxRetryError(
-        cast(Any, None), "http://localhost:8080", Exception("Max retries exceeded")
+        cast("Any", None), "http://localhost:8080", Exception("Max retries exceeded")
     )
 
     def mock_request(*args: Any, **kwargs: Any) -> NoReturn:
@@ -183,7 +185,7 @@ def test_translation__new_connection_error_raises_rest_connection_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     original_exc = urllib3.exceptions.NewConnectionError(
-        cast(Any, None), "Failed to establish a new connection"
+        cast("Any", None), "Failed to establish a new connection"
     )
 
     def mock_request(*args: Any, **kwargs: Any) -> NoReturn:
@@ -271,7 +273,7 @@ def test_backward_compat__catching_api_exception_catches_connection_error(
 ) -> None:
     def mock_request(*args: Any, **kwargs: Any) -> NoReturn:
         raise urllib3.exceptions.NewConnectionError(
-            cast(Any, None), "connection failed"
+            cast("Any", None), "connection failed"
         )
 
     monkeypatch.setattr(rest_client.pool_manager, "request", mock_request)
@@ -310,15 +312,17 @@ def test_backward_compat__catching_rest_transport_error_catches_all_subtypes(
             RestTimeoutError,
         ),
         (
-            urllib3.exceptions.ReadTimeoutError(cast(Any, None), "url", "msg"),
+            urllib3.exceptions.ReadTimeoutError(cast("Any", None), "url", "msg"),
             RestTimeoutError,
         ),
         (
-            urllib3.exceptions.MaxRetryError(cast(Any, None), "url", Exception("msg")),
+            urllib3.exceptions.MaxRetryError(
+                cast("Any", None), "url", Exception("msg")
+            ),
             RestConnectionError,
         ),
         (
-            urllib3.exceptions.NewConnectionError(cast(Any, None), "msg"),
+            urllib3.exceptions.NewConnectionError(cast("Any", None), "msg"),
             RestConnectionError,
         ),
         (urllib3.exceptions.ProtocolError("msg"), RestProtocolError),
@@ -376,7 +380,7 @@ def test_diagnostics__reason_handles_none_timeout(
 ) -> None:
     def mock_request(*args: Any, **kwargs: Any) -> NoReturn:
         raise urllib3.exceptions.NewConnectionError(
-            cast(Any, None), "connection refused"
+            cast("Any", None), "connection refused"
         )
 
     monkeypatch.setattr(rest_client.pool_manager, "request", mock_request)
@@ -441,7 +445,7 @@ def test_http_method__connection_error_has_http_method(
 ) -> None:
     def mock_request(*args: Any, **kwargs: Any) -> NoReturn:
         raise urllib3.exceptions.NewConnectionError(
-            cast(Any, None), "connection failed"
+            cast("Any", None), "connection failed"
         )
 
     monkeypatch.setattr(rest_client.pool_manager, "request", mock_request)

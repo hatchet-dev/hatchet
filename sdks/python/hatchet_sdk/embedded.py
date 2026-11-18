@@ -1,7 +1,6 @@
 import atexit
 import contextlib
 import hashlib
-import logging
 import os
 import platform
 import subprocess
@@ -19,8 +18,8 @@ from pathlib import Path
 from pydantic import BaseModel, ValidationError
 from pydantic_settings.sources import DotEnvSettingsSource
 
-import hatchet_sdk.logger  # noqa: F401  (configures the parent "hatchet" logger)
 from hatchet_sdk.config import ClientConfig, ClientTLSConfig, EmbeddedHatchetConfig
+from hatchet_sdk.logger import logger
 
 REPO_URL = "https://github.com/hatchet-dev/hatchet-embedded"
 
@@ -28,10 +27,9 @@ _SLOW_NOTICE_DELAY_SECONDS = 2.0
 _HEARTBEAT_INTERVAL_SECONDS = 30.0
 
 # first-contact progress goes through a child of the SDK's shared "hatchet"
-# logger (importing hatchet_sdk.logger configures the parent), so consumers
-# manage it with standard logging configuration; warm starts print at most one
-# line
-_progress_logger = logging.getLogger("hatchet.embedded")
+# logger, so consumers manage it with standard logging configuration; warm
+# starts print at most one line
+_progress_logger = logger.getChild("embedded")
 
 
 @contextlib.contextmanager
@@ -194,7 +192,7 @@ def _resolve_version(version: str | None) -> str:
 def _expected_checksum(tag: str, asset: str) -> str:
     url = f"{REPO_URL}/releases/download/{tag}/checksums.txt"
     with urllib.request.urlopen(url, timeout=10) as res:
-        checksums: str = res.read().decode()
+        checksums = str(res.read(), encoding="utf-8")
 
     for line in checksums.splitlines():
         parts = line.split()

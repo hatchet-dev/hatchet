@@ -1,19 +1,17 @@
-import pytest
 import asyncio
 import time
 
-from uuid import uuid4
+import pytest
 
-from hatchet_sdk.clients.rest.api.observability_api import ObservabilityApi
-from hatchet_sdk.clients.rest.models.otel_span import OtelSpan
-from hatchet_sdk.types.run_status import RunStatus
-from hatchet_sdk import Hatchet
 from examples.opentelemetry_instrumentation.worker import (
+    SimpleOtelTaskInput,
     otel_simple_task,
     otel_spawn_parent,
     otel_workflow,
-    SimpleOtelTaskInput,
 )
+from hatchet_sdk import Hatchet
+from hatchet_sdk.clients.rest.api.observability_api import ObservabilityApi
+from hatchet_sdk.clients.rest.models.otel_span import OtelSpan
 from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 
 requires_observability = pytest.mark.usefixtures("_skip_unless_observability")
@@ -123,7 +121,8 @@ async def test_otel_spans_created_on_task_run(
     namespaced = hatchet.config.apply_namespace(
         engine_workflow_spans[0].span_attributes.get("hatchet.workflow_name")
     )
-    assert namespaced is not None and namespaced.startswith(otel_simple_task.name)
+    assert namespaced is not None
+    assert namespaced.startswith(otel_simple_task.name)
 
     producer_workflow_spans = [
         s for s in spans if s.span_name == "hatchet.run_workflow"
@@ -319,7 +318,8 @@ async def test_otel_spans_on_dag_run(hatchet: Hatchet) -> None:
     namespaced = hatchet.config.apply_namespace(
         engine_workflow_spans[0].span_attributes.get("hatchet.workflow_name")
     )
-    assert namespaced is not None and namespaced.startswith(otel_workflow.name)
+    assert namespaced is not None
+    assert namespaced.startswith(otel_workflow.name)
 
     producer_workflow_spans = [
         s for s in spans if s.span_name == "hatchet.run_workflow"

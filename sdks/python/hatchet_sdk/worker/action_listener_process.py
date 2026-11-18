@@ -115,6 +115,7 @@ class WorkerActionListenerProcess:
         self._waiting_tasks_blocked_since: float | None = None
         self._starting_since: float = time.time()
 
+        self.dispatcher_client: DispatcherClient | None = None
         self.listener: ActionListener | None = None
         self.killing = False
         self.action_loop_task: asyncio.Task[None] | None = None
@@ -441,6 +442,11 @@ class WorkerActionListenerProcess:
         event: ActionEvent | QueuedBatchActionEvent,
         retry_attempt: int = 1,
     ) -> None:
+        if self.dispatcher_client is None:
+            raise RuntimeError(
+                "cannot send action events before the action listener has started"
+            )
+
         try:
             if isinstance(event, QueuedBatchActionEvent):
                 send_batch_event_task = asyncio.create_task(

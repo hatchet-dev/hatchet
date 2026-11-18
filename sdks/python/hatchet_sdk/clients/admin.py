@@ -7,7 +7,7 @@ from typing import TypeVar, cast
 import grpc
 from google.protobuf import timestamp_pb2
 from google.protobuf.message import Message
-from grpc_status import rpc_status
+from google.rpc import status_pb2  # type: ignore[import-untyped]
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
@@ -63,16 +63,14 @@ def unpack_rpc_error_detail(
     error: grpc.RpcError, detail_type: type[TMessage]
 ) -> TMessage | None:
     ## the sync client raises errors that are also `grpc.Call`s, which carry the status details
-    status = rpc_status.from_call(cast("grpc.Call", error))
+    rpc_call = cast("grpc.Call", error)
 
-    if status is None:
-        return None
-
-    for detail in status.details:
-        if detail.Is(detail_type.DESCRIPTOR):
-            unpacked = detail_type()
-            detail.Unpack(unpacked)
-            return unpacked
+    for key, value in rpc_call.trailing_metadata() or ():
+        if key == "grpc-status-details-bin" and isinstance(value, bytes):
+            for detail in status_pb2.Status.FromString(value).details:
+                unpacked = detail_type()
+                if detail.Unpack(unpacked):  # pyright: ignore[reportUnknownMemberType]
+                    return unpacked
 
     return None
 
@@ -193,7 +191,9 @@ class AdminClient:
         )
 
     def _parse_schedule(self, schedule: datetime) -> timestamp_pb2.Timestamp:
-        if isinstance(schedule, datetime):
+        if isinstance(
+            schedule, datetime
+        ):  # pyright: ignore[reportUnnecessaryIsInstance]
             if not schedule.tzinfo:
                 logger.warning(
                     "Timezone-naive datetime provided for schedule. Interpreting it in this machine's local timezone."

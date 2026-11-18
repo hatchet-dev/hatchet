@@ -219,8 +219,6 @@ def _describe_failed_task_runs(summary: str, exceptions: Sequence[TaskRunError])
 
 
 class FailedTaskRunExceptionGroup(ExceptionGroup[TaskRunError]):
-    _summary: str
-
     def __new__(cls, message: str, exceptions: Sequence[TaskRunError]) -> Self:
         ## `ExceptionGroup` rejects an empty sequence, but a run can fail without
         ## reporting any task errors, so fall back to an error carrying the message.
@@ -235,18 +233,16 @@ class FailedTaskRunExceptionGroup(ExceptionGroup[TaskRunError]):
 
         ## pytest's `match=` and the default traceback only read the group's message,
         ## so the task errors go into it rather than only into `__str__`.
-        group = super().__new__(
+        return super().__new__(
             cls,
             _describe_failed_task_runs(message, exceptions_or_fallback),
             exceptions_or_fallback,
         )
-        group._summary = message
-
-        return group
 
     def __init__(
         self, message: str, exceptions: Sequence[TaskRunError]  # noqa: ARG002
     ) -> None:
+        self._summary = message
         super().__init__(self.message, cast("Sequence[TaskRunError]", self.exceptions))
 
     @property

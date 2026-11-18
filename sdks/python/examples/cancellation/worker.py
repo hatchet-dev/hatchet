@@ -27,7 +27,7 @@ async def self_cancel(input: None, ctx: Context) -> dict[str, str]:
 # > Checking exit flag
 @cancellation_workflow.task()
 def check_flag(input: None, ctx: Context) -> dict[str, str]:
-    for i in range(3):
+    for _ in range(3):
         time.sleep(1)
 
         # Note: Checking the status of the exit flag is mostly useful for cancelling

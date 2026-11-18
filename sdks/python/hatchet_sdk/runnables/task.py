@@ -130,6 +130,10 @@ class Depends(Generic[T, TWorkflowInput]):
         self._fn = fn
 
 
+def is_dependency(obj: object) -> TypeGuard[Depends[Any, Any]]:
+    return isinstance(obj, Depends)
+
+
 def find_dependency_in_annotation(param: Parameter) -> Depends[Any, Any] | None:
     annotation = param.annotation
     if is_typealiastype(annotation):
@@ -139,7 +143,7 @@ def find_dependency_in_annotation(param: Parameter) -> Depends[Any, Any] | None:
         return None
 
     return next(
-        (item for item in get_args(annotation)[1:] if isinstance(item, Depends)),
+        (item for item in get_args(annotation)[1:] if is_dependency(item)),
         None,
     )
 

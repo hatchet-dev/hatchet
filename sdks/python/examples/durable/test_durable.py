@@ -1,45 +1,42 @@
 import asyncio
 import time
+from random import shuffle
+from typing import Any, cast
+from uuid import uuid4
 
 import pytest
-from uuid import uuid4
-import json
-from typing import Any, cast
-from random import shuffle
-from datetime import datetime, timedelta, timezone
 
 from examples.durable.worker import (
     EVENT_KEY,
-    SLEEP_TIME,
     REPLAY_RESET_SLEEP_TIME,
+    SLEEP_TIME,
+    AwaitedEvent,
+    DurableBulkSpawnInput,
+    ErrorRaisingTaskInput,
+    EventLookbackInput,
+    MemoInput,
+    durable_child_key_dedup_replay,
+    durable_non_determinism,
+    durable_replay_reset,
     durable_sleep_event_spawn,
+    durable_spawn_dag,
+    durable_spawn_many_dags,
+    durable_task,
     durable_with_bulk_spawn,
     durable_with_spawn,
     durable_workflow,
-    durable_task,
-    wait_for_sleep_twice,
-    durable_spawn_dag,
-    durable_non_determinism,
-    durable_replay_reset,
-    durable_child_key_dedup_replay,
-    memo_task,
-    MemoInput,
-    DurableBulkSpawnInput,
-    memo_now_caching,
-    AwaitedEvent,
-    EventLookbackInput,
-    wait_for_event_lookback,
-    wait_for_or_event_lookback,
-    wait_for_two_events_second_pushed_first,
-    wait_for_or_group_1,
-    durable_spawn_many_dags,
     error_raising_durable_parent,
     error_raising_task,
-    ErrorRaisingTaskInput,
+    memo_now_caching,
+    memo_task,
+    wait_for_event_lookback,
+    wait_for_or_event_lookback,
+    wait_for_or_group_1,
+    wait_for_sleep_twice,
+    wait_for_two_events_second_pushed_first,
 )
-from hatchet_sdk import Hatchet, RunStatus
-
 from examples.test_utils import poll_for_runs, wait_for_replay, wait_for_running_status
+from hatchet_sdk import FailedTaskRunExceptionGroup, Hatchet
 
 TIMING_TOLERANCE = 2.0
 
@@ -161,9 +158,10 @@ async def test_durable_sleep_cancel_replay(hatchet: Hatchet) -> None:
     await wait_for_running_status(hatchet, first_sleep.workflow_run_id)
     await hatchet.runs.aio_cancel(first_sleep.workflow_run_id)
 
-    with pytest.raises(Exception) as exc_info:
-        assert "HatchetError: task was cancelled" in str(exc_info.value)
+    with pytest.raises(FailedTaskRunExceptionGroup) as exc_info:
         await first_sleep.aio_result()
+
+    assert "HatchetError: task was cancelled" in str(exc_info.value)
 
     replay_start = time.time()
     await hatchet.runs.aio_replay(
@@ -506,7 +504,7 @@ async def test_engine_picks_most_recent_event(hatchet: Hatchet) -> None:
 
     res = await wait_for_event_lookback.aio_run(EventLookbackInput(user_id=user_id))
 
-    payload = cast(dict[str, str], event.payload)
+    payload = cast("dict[str, str]", event.payload)
 
     assert res.event.order == payload["order"]
 

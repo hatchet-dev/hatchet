@@ -375,7 +375,7 @@ class EventClient(BaseRestClient):
     ) -> PutStreamEventRequest:
         if isinstance(data, str):
             data_bytes = data.encode("utf-8")
-        elif isinstance(data, bytes):
+        elif isinstance(data, bytes):  # pyright: ignore[reportUnnecessaryIsInstance]
             data_bytes = data
         else:
             raise ValueError("Invalid data type. Expected str, bytes, or file.")

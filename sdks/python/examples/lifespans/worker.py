@@ -21,7 +21,7 @@ lifespan_workflow = hatchet.workflow(name="LifespanWorkflow")
 
 @lifespan_workflow.task()
 def sync_lifespan_task(input: None, ctx: Context) -> TaskOutput:
-    pool = cast(Lifespan, ctx.lifespan).pool
+    pool = cast("Lifespan", ctx.lifespan).pool
 
     with pool.connection() as conn:
         query = conn.execute("SELECT * FROM v1_lookup_table_olap LIMIT 5;")
@@ -34,7 +34,7 @@ def sync_lifespan_task(input: None, ctx: Context) -> TaskOutput:
 
         return TaskOutput(
             num_rows=len(rows),
-            external_ids=[cast(UUID, row[0]) for row in rows],
+            external_ids=[cast("UUID", row[0]) for row in rows],
         )
 
 
@@ -43,7 +43,7 @@ def sync_lifespan_task(input: None, ctx: Context) -> TaskOutput:
 
 @lifespan_workflow.task()
 async def async_lifespan_task(input: None, ctx: Context) -> TaskOutput:
-    pool = cast(Lifespan, ctx.lifespan).pool
+    pool = cast("Lifespan", ctx.lifespan).pool
 
     with pool.connection() as conn:
         query = conn.execute("SELECT * FROM v1_lookup_table_olap LIMIT 5;")
@@ -56,7 +56,7 @@ async def async_lifespan_task(input: None, ctx: Context) -> TaskOutput:
 
         return TaskOutput(
             num_rows=len(rows),
-            external_ids=[cast(UUID, row[0]) for row in rows],
+            external_ids=[cast("UUID", row[0]) for row in rows],
         )
 
 

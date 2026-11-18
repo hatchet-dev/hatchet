@@ -83,7 +83,7 @@ class OpenTelemetryConfig(BaseSettings):
     )
 
     excluded_attributes: list[OTelAttribute] = Field(
-        default_factory=list,
+        default_factory=list[OTelAttribute],
         description='Note that if specifying this field via an environment variable, the variable must be a valid JSON array. For example: \'["action_name", "action_payload"]\'',
     )
 

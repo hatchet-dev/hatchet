@@ -77,6 +77,7 @@ class PooledListener(Generic[R, T], ABC):
         self.events: dict[int, Subscription[T]] = {}
 
         self.interrupter: asyncio.Task[None] | None = None
+        self.interrupt: ThreadSafeEvent | None = None
 
     async def _interrupter(self) -> None:
         """
@@ -108,8 +109,6 @@ class PooledListener(Generic[R, T], ABC):
 
                         while True:
                             self.interrupt = ThreadSafeEvent()
-                            if self.listener is None:
-                                continue
 
                             t = asyncio.create_task(
                                 read_with_interrupt(

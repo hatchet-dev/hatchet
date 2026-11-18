@@ -313,7 +313,9 @@ class Hatchet:
         """
 
         for workflow in workflows or []:
-            if not isinstance(workflow, BaseWorkflow):
+            if not isinstance(
+                workflow, BaseWorkflow
+            ):  # pyright: ignore[reportUnnecessaryIsInstance]
                 raise TypeError(
                     f"workflows passed to a Hatchet worker need to be either a `Workflow` or a `Standalone`, created via `hatchet.workflow`, `hatchet.task`, or `hatchet.durable_task`. Got {type(workflow)}. hint: you likely passed the result of `Workflow.task`, `Workflow.durable_task`, etc. instead of the workflow itself."
                 )

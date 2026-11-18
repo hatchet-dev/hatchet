@@ -2,7 +2,6 @@ import asyncio
 import time
 from collections.abc import Callable
 from typing import Any
-from uuid import uuid4
 
 import pytest
 
@@ -13,7 +12,7 @@ from examples.bug_tests.payload_bug_on_replay.worker import (
     step1,
     step2,
 )
-from hatchet_sdk import Hatchet, RunStatus, WorkflowRunRef
+from hatchet_sdk import Hatchet, WorkflowRunRef
 from hatchet_sdk.clients.rest.models.v1_workflow_run_details import V1WorkflowRunDetails
 
 

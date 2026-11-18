@@ -1,9 +1,10 @@
 import argparse
-
-from hatchet_sdk import Context, Hatchet, WorkerLabel
-from pydantic import BaseModel
 import asyncio
 from random import random
+
+from pydantic import BaseModel
+
+from hatchet_sdk import Context, Hatchet, WorkerLabel
 
 hatchet = Hatchet()
 

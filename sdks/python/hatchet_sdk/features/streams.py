@@ -17,6 +17,7 @@ from hatchet_sdk.clients.rest.api.streams_api import StreamsApi
 from hatchet_sdk.clients.rest.exceptions import (
     ApiException,
     RestTransportError,
+    ServiceException,
     TooManyRequestsException,
 )
 from hatchet_sdk.clients.v1.api_client import BaseRestClient
@@ -106,20 +107,15 @@ class StreamTopicMetadata(BaseModel):
 
 def _grpc_code(err: BaseException) -> grpc.StatusCode | None:
     if isinstance(err, grpc.RpcError):
-        code = err.code()
-        if isinstance(code, grpc.StatusCode):
-            return code
+        return err.code()
 
     return None
 
 
 def _is_temporary_http_error(err: BaseException) -> bool:
     """A payload request that got no response, a 5xx or a 429 may succeed later."""
-    if isinstance(err, (RestTransportError, TooManyRequestsException)):
-        return True
-
-    return (
-        isinstance(err, ApiException) and err.status is not None and err.status >= 500
+    return isinstance(
+        err, (RestTransportError, TooManyRequestsException, ServiceException)
     )
 
 
@@ -214,7 +210,7 @@ class _PublishQueue:
     namespace: str
     topic: str
 
-    items: list[_QueuedPublish] = field(default_factory=list)
+    items: list[_QueuedPublish] = field(default_factory=list[_QueuedPublish])
     wake: asyncio.Event = field(default_factory=asyncio.Event)
 
     ## seq only advances after a publish succeeds
@@ -400,7 +396,7 @@ class _LoopPublisher:
     stub: "V1StreamsAsyncStub"
 
     queues_by_namespace_and_topic: dict[tuple[str, str], _PublishQueue] = field(
-        default_factory=dict
+        default_factory=dict[tuple[str, str], _PublishQueue]
     )
 
     ## held here because a loop keeps only weak references to its async generators
@@ -521,9 +517,7 @@ class StreamsClient(BaseRestClient):
             try:
                 return request()
             except ApiException as e:
-                temporary = isinstance(e, RestTransportError) or (
-                    e.status is not None and e.status >= 500
-                )
+                temporary = isinstance(e, (RestTransportError, ServiceException))
                 if (
                     not temporary
                     or attempt >= self._streams_config.payload_request_attempts

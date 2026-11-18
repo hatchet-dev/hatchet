@@ -7,8 +7,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -21,7 +20,11 @@ from opentelemetry.trace import StatusCode, get_tracer
 
 from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 from hatchet_sdk.types.trigger import TriggerWorkflowOptions, WorkflowRunTriggerConfig
-from hatchet_sdk.workflow_run import WorkflowRunRef
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    from hatchet_sdk.workflow_run import WorkflowRunRef
 
 BATCH_SPAN_NAME = "hatchet.run_workflows"
 ITEM_SPAN_NAME = "hatchet.run_workflow"
@@ -80,7 +83,7 @@ def test_run_workflows_creates_no_item_spans_when_flag_disabled(
 
     def wrapped(configs: list[WorkflowRunTriggerConfig]) -> list[WorkflowRunRef]:
         captured.extend(configs)
-        return [cast(WorkflowRunRef, MagicMock()) for _ in configs]
+        return [cast("WorkflowRunRef", MagicMock()) for _ in configs]
 
     configs = [_make_config(f"wf-{i}") for i in range(3)]
     instrumentor._wrap_run_workflows(wrapped, MagicMock(), (configs,), {})
@@ -104,7 +107,7 @@ def test_run_workflows_creates_one_item_span_per_config_with_unique_traceparent(
 
     def wrapped(configs: list[WorkflowRunTriggerConfig]) -> list[WorkflowRunRef]:
         captured.extend(configs)
-        return [cast(WorkflowRunRef, MagicMock()) for _ in configs]
+        return [cast("WorkflowRunRef", MagicMock()) for _ in configs]
 
     configs = [_make_config(f"wf-{i}") for i in range(3)]
     instrumentor._wrap_run_workflows(wrapped, MagicMock(), (configs,), {})
@@ -138,7 +141,7 @@ async def test_async_run_workflows_creates_one_item_span_per_config(
     async def wrapped(
         configs: list[WorkflowRunTriggerConfig],
     ) -> list[WorkflowRunRef]:
-        return [cast(WorkflowRunRef, MagicMock()) for _ in configs]
+        return [cast("WorkflowRunRef", MagicMock()) for _ in configs]
 
     configs = [_make_config(f"wf-{i}") for i in range(2)]
     await instrumentor._wrap_async_run_workflows(wrapped, MagicMock(), (configs,), {})
@@ -168,7 +171,7 @@ def test_run_workflows_ends_spans_with_error_when_attribute_build_raises(
 
     def wrapped(configs: list[WorkflowRunTriggerConfig]) -> list[WorkflowRunRef]:
         wrapped_calls.append(configs)
-        return [cast(WorkflowRunRef, MagicMock()) for _ in configs]
+        return [cast("WorkflowRunRef", MagicMock()) for _ in configs]
 
     configs = [_make_config(f"wf-{i}") for i in range(3)]
 

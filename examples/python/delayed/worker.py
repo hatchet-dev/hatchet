@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from pydantic import BaseModel
 
@@ -22,7 +22,7 @@ print_printer_wf = hatchet.workflow(
 
 @print_schedule_wf.task()
 def schedule(input: PrinterInput, ctx: Context) -> None:
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     print(f"the time is \t {now.strftime('%H:%M:%S')}")
     future_time = now + timedelta(seconds=15)
     print(f"scheduling for \t {future_time.strftime('%H:%M:%S')}")
@@ -32,7 +32,7 @@ def schedule(input: PrinterInput, ctx: Context) -> None:
 
 @print_schedule_wf.task()
 def step1(input: PrinterInput, ctx: Context) -> None:
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     print(f"printed at \t {now.strftime('%H:%M:%S')}")
     print(f"message \t {input.message}")
 

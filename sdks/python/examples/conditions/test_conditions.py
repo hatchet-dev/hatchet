@@ -17,7 +17,7 @@ from examples.conditions.worker import (
     wait_for_event_only_workflow,
 )
 from examples.test_utils import wait_for_running_status
-from hatchet_sdk import Hatchet, RunStatus
+from hatchet_sdk import Hatchet
 
 
 async def _wait_for_task_to_complete(

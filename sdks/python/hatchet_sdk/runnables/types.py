@@ -112,7 +112,7 @@ class WorkflowConfig(BaseModel):
     idempotency: TTLBasedIdempotencyConfig | StatusBasedIdempotencyConfig | None = None
 
     task_defaults: TaskDefaults = TaskDefaults()
-    default_filters: list[DefaultFilter] = Field(default_factory=list)
+    default_filters: list[DefaultFilter] = Field(default_factory=list[DefaultFilter])
     default_additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
 
 
@@ -142,7 +142,7 @@ DurableTaskFunc = (
 
 
 def is_durable_async_fn(
-    fn: Callable[..., Any],
+    fn: DurableTaskFunc[TWorkflowInput, R],
 ) -> TypeGuard[DurableAsyncFunc[TWorkflowInput, R]]:
     return inspect.iscoroutinefunction(fn)
 

@@ -9,6 +9,7 @@ from typing import (
     Generic,
     Literal,
     ParamSpec,
+    TypeGuard,
     TypeVar,
     assert_never,
     cast,
@@ -872,7 +873,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
                     )
                 case _ as unreachable:
                     assert_never(unreachable)
-        elif isinstance(self, Standalone):
+        elif is_standalone(self):
             match provider:
                 case "CLAUDE":
                     from hatchet_sdk.runnables.mcp.claude import task_to_claude_mcp
@@ -2358,3 +2359,9 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
     @property
     def output_validator_type(self) -> type[R]:
         return cast("type[R]", self._output_validator._type)
+
+
+def is_standalone(
+    workflow: BaseWorkflow[TWorkflowInput],
+) -> TypeGuard[Standalone[TWorkflowInput, Any]]:
+    return isinstance(workflow, Standalone)

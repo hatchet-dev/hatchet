@@ -106,7 +106,7 @@ class PreEvictionDurableEventListener(
     def register_durable_event(
         self, request: RegisterDurableEventRequest
     ) -> Literal[True]:
-        conn = new_conn(self.config, True)
+        conn = new_conn(self.config, False)
         client = V1DispatcherStub(conn)
 
         register_durable_event = tenacity_retry(

@@ -44,7 +44,7 @@ def _resolve_method(dotted_path: str) -> Callable[..., Any]:
             break
 
     assert mod is not None
-    result = cast(Callable[..., Any], mod)
+    result = cast("Callable[..., Any]", mod)
 
     for attr in parts[split:]:
         result = getattr(result, attr)
@@ -112,7 +112,7 @@ def _get_kwargs_value_types(wrapper: Callable[..., Any]) -> set[Any] | None:
 
 
 @pytest.mark.parametrize(
-    "dotted_path,wrapper_name",
+    ("dotted_path", "wrapper_name"),
     WRAPPED_PAIRS,
     ids=[p[1] for p in WRAPPED_PAIRS],
 )
@@ -139,7 +139,7 @@ def test_wrapper_args_match_wrapped_signature(
         return
 
     for i, (wrapper_type, wrapped_type) in enumerate(
-        zip(wrapper_arg_types, wrapped_types)
+        zip(wrapper_arg_types, wrapped_types, strict=True)
     ):
         assert wrapper_type == wrapped_type, (
             f"{wrapper_name}: arg {i} type mismatch: "
@@ -151,7 +151,7 @@ def test_wrapper_args_match_wrapped_signature(
     if kwargs_types is None:
         return
 
-    all_wrapped_types = set()
+    all_wrapped_types: set[Any] = set()
     for t in wrapped_types:
         all_wrapped_types |= _flatten_union(t)
 

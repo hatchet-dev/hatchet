@@ -1,7 +1,7 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
-from typing import Any, AsyncGenerator
+from datetime import UTC, datetime
+from typing import Any
 from uuid import uuid4
 
 import aiohttp
@@ -17,7 +17,6 @@ from hatchet_sdk import (
     Hatchet,
     WebhookBasicAuth,
 )
-from hatchet_sdk.types.run_status import RunStatus
 from hatchet_sdk.clients.rest.models.v1_webhook import V1Webhook
 
 TEST_BASIC_USERNAME = "test_user"
@@ -48,7 +47,7 @@ def test_run_id() -> str:
 
 @pytest.fixture
 def test_start() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 @asynccontextmanager
@@ -60,9 +59,11 @@ async def send_webhook_request(
 ) -> AsyncGenerator[ClientResponse, Any]:
     auth = aiohttp.BasicAuth(username, password)
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, json=body, auth=auth) as response:
-            yield response
+    async with (
+        aiohttp.ClientSession() as session,
+        session.post(url, json=body, auth=auth) as response,
+    ):
+        yield response
 
 
 @asynccontextmanager
@@ -245,17 +246,19 @@ async def test_scope_expression_from_headers(
         assert incoming_webhook.scope_expression == "headers['x-custom-scope']"
 
         auth = aiohttp.BasicAuth(TEST_BASIC_USERNAME, TEST_BASIC_PASSWORD)
-        async with aiohttp.ClientSession() as session:
-            async with await session.post(
+        async with (
+            aiohttp.ClientSession() as session,
+            await session.post(
                 url(hatchet, incoming_webhook.name),
                 json=webhook_body.model_dump(),
                 auth=auth,
                 headers={"X-Custom-Scope": "header-scope-value"},
-            ) as response:
-                assert response.status == 200
-                data = await response.json()
-                assert data["message"] == "ok"
-                assert data["event"]["metadata"]["id"]
+            ) as response,
+        ):
+            assert response.status == 200
+            data = await response.json()
+            assert data["message"] == "ok"
+            assert data["event"]["metadata"]["id"]
 
         triggered_event = await wait_for_event(
             hatchet, incoming_webhook.name, test_start
