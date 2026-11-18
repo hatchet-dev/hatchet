@@ -1,5 +1,5 @@
 # > Simple
-from hatchet_sdk import Context, DurableContext, Hatchet, RunStatus
+from hatchet_sdk import Context, DurableContext, Hatchet
 
 hatchet = Hatchet()
 
