@@ -14,7 +14,7 @@ permissions:
   id-token: write
 jobs:
   verify:
-      runs-on: ubuntu-latest
+      runs-on: ubuntu-24.04
       outputs:
         tag: ${{ steps.tag_name.outputs.tag }}
         should_publish: ${{ steps.skip.outputs.should_publish }}
@@ -89,7 +89,7 @@ jobs:
     name: Push latest
     needs: [verify]
     if: needs.verify.outputs.should_publish == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - &update-ca-certificates
         name: Update CA certificates
@@ -246,7 +246,7 @@ jobs:
     name: Push latest fips
     needs: [verify]
     if: needs.verify.outputs.should_publish == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - *update-ca-certificates
       - name: Get tag name
