@@ -873,6 +873,8 @@ type assignSingleResult struct {
 	noSlots   bool
 	succeeded bool
 
+	markedStarved bool
+
 	rateLimitResult *scheduleRateLimitResult
 
 	// toBatch indicates this queue item should be moved into the v1 batched queue table,
@@ -1048,6 +1050,7 @@ func (s *Scheduler) tryAssignBatch(
 				for i := range res {
 					if res[i].rateLimitResult == nil && !res[i].toBatch && !res[i].succeeded {
 						res[i].noSlots = false
+						res[i].markedStarved = false
 					}
 				}
 
@@ -1199,6 +1202,7 @@ func (s *Scheduler) handleAssignBatch(
 				}
 
 				s.lookupActionAndMarkStarved(actionId, qis[i].Queue, requests)
+				res[i].markedStarved = true
 			}
 		}
 
@@ -1340,6 +1344,7 @@ func (s *Scheduler) assignSingleton(
 		if (len(candidates) == len(a.workerIds) && isSingleUnitRequest(requests)) ||
 			!hasFreeSlotOfEachType(s.poolsByWorker, a.workerIds, requests, now) {
 			s.markActionStarved(a, qi.Queue, requests)
+			r.markedStarved = true
 		}
 
 		r.noSlots = true
@@ -1550,6 +1555,13 @@ type assignResults struct {
 	schedulingTimedOut []*sqlcv1.V1QueueItem
 	rateLimited        []*scheduleRateLimitResult
 	rateLimitedToMove  []*scheduleRateLimitResult
+
+	unassignedMarkedStarvedCount int
+}
+
+func (r *assignResults) canWaitForRestoredCapacity() bool {
+	return len(r.unassigned) == r.unassignedMarkedStarvedCount &&
+		len(r.assigned)+len(r.buffered)+len(r.batched)+len(r.schedulingTimedOut)+len(r.rateLimited)+len(r.rateLimitedToMove) == 0
 }
 
 func (s *Scheduler) tryAssign(
@@ -1635,6 +1647,7 @@ func (s *Scheduler) tryAssign(
 					batchRateLimited := make([]*scheduleRateLimitResult, 0, len(batchQis))
 					batchRateLimitedToMove := make([]*scheduleRateLimitResult, 0, len(batchQis))
 					batchUnassigned := make([]*sqlcv1.V1QueueItem, 0, len(batchQis))
+					batchUnassignedMarkedStarvedCount := 0
 
 					batchStart := time.Now()
 
@@ -1665,6 +1678,10 @@ func (s *Scheduler) tryAssign(
 							} else {
 								batchUnassigned = append(batchUnassigned, singleRes.qi)
 
+								if singleRes.markedStarved {
+									batchUnassignedMarkedStarvedCount++
+								}
+
 								if !singleRes.noSlots {
 									s.l.Error().Ctx(ctx).Msgf("scheduling failed for queue item %d: expected assignment to fail with either no slots or rate limit exceeded, but failed with neither", singleRes.qi.ID)
 								}
@@ -1691,6 +1708,8 @@ func (s *Scheduler) tryAssign(
 						rateLimited:       batchRateLimited,
 						rateLimitedToMove: batchRateLimitedToMove,
 						unassigned:        batchUnassigned,
+
+						unassignedMarkedStarvedCount: batchUnassignedMarkedStarvedCount,
 					}
 
 					extensionResultsMu.Lock()
