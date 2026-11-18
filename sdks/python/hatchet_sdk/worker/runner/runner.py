@@ -5,7 +5,6 @@ import re
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import is_dataclass
-from enum import Enum
 from textwrap import dedent
 from threading import Thread, current_thread
 from typing import TYPE_CHECKING, Any, Literal, cast, overload
@@ -107,13 +106,6 @@ try:
     _HAS_OTEL = True
 except ImportError:
     _HAS_OTEL = False
-
-
-class WorkerStatus(Enum):
-    INITIALIZED = 1
-    STARTING = 2
-    HEALTHY = 3
-    UNHEALTHY = 4
 
 
 class Runner:
