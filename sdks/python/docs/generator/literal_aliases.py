@@ -91,7 +91,9 @@ class ExpandLiteralAliasAnnotations(griffe.Extension):
         for obj in _documented_objects(pkg):
             if isinstance(obj, griffe.Function):
                 for parameter in obj.parameters:
-                    parameter.annotation = _rewrite_annotation_for_docs(parameter.annotation)
+                    parameter.annotation = _rewrite_annotation_for_docs(
+                        parameter.annotation
+                    )
                 obj.returns = _rewrite_annotation_for_docs(obj.returns)
             elif isinstance(obj, griffe.Attribute):
                 obj.annotation = _rewrite_annotation_for_docs(obj.annotation)
