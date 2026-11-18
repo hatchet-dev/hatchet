@@ -12,7 +12,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -244,14 +244,9 @@ type durableEventIngestRequest struct {
 }
 
 type durableEventIngestBuffer struct {
-	mu                 sync.Mutex
-	pending            []*durableEventIngestRequest
-	flushScheduled     bool
-	lastFlushStartedAt time.Time
-	flushInterval      time.Duration
-	maxBatchSize       int
-	flushSemaphore     chan struct{}
-	ingest             func(ctx context.Context, batch map[durableTaskId]IngestDurableTaskEventOpts) (map[durableTaskId]*appendDurableEventLogResult, map[durableTaskId]error, error)
+	pendingRequests *msgqueue.BatchBuffer[*durableEventIngestRequest]
+	flushSemaphore  chan struct{}
+	ingest          func(ctx context.Context, batch map[durableTaskId]IngestDurableTaskEventOpts) (map[durableTaskId]*appendDurableEventLogResult, map[durableTaskId]error, error)
 }
 
 func newDurableEventIngestBuffer(
@@ -260,12 +255,18 @@ func newDurableEventIngestBuffer(
 	maxBatchSize int,
 	maxConcurrentFlushes int,
 ) *durableEventIngestBuffer {
-	return &durableEventIngestBuffer{
-		flushInterval:  flushInterval,
-		maxBatchSize:   maxBatchSize,
+	b := &durableEventIngestBuffer{
 		flushSemaphore: make(chan struct{}, maxConcurrentFlushes),
 		ingest:         ingest,
 	}
+
+	b.pendingRequests = msgqueue.NewBatchBuffer(context.Background(), flushInterval, maxBatchSize, func(requests []*durableEventIngestRequest) {
+		// the batch buffer only starts the next batch once this function returns, so the flush runs
+		// in its own goroutine to let up to maxConcurrentFlushes batches be written at the same time
+		go b.flush(requests, "buffer_flush")
+	})
+
+	return b
 }
 
 func (b *durableEventIngestBuffer) submit(ctx context.Context, taskId durableTaskId, opts IngestDurableTaskEventOpts) (*appendDurableEventLogResult, error) {
@@ -279,33 +280,7 @@ func (b *durableEventIngestBuffer) submit(ctx context.Context, taskId durableTas
 		responseCh: make(chan durableEventIngestResponse, 1),
 	}
 
-	b.mu.Lock()
-	b.pending = append(b.pending, request)
-
-	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "pending_requests", Value: len(b.pending)})
-
-	var requestsToFlush []*durableEventIngestRequest
-	var flushTrigger string
-
-	timeUntilNextFlushIsAllowed := b.flushInterval - time.Since(b.lastFlushStartedAt)
-
-	switch {
-	case len(b.pending) >= b.maxBatchSize:
-		requestsToFlush = b.takePendingRequestsWhileLocked()
-		flushTrigger = "max_batch_size"
-	case b.flushScheduled:
-	case timeUntilNextFlushIsAllowed <= 0:
-		requestsToFlush = b.takePendingRequestsWhileLocked()
-		flushTrigger = "immediate"
-	default:
-		b.flushScheduled = true
-		go b.flushAfterDelay(timeUntilNextFlushIsAllowed)
-	}
-	b.mu.Unlock()
-
-	if requestsToFlush != nil {
-		go b.flush(requestsToFlush, flushTrigger) // #nosec G118 -- one flush serves many request contexts, so it intentionally runs detached from any single one
-	}
+	b.pendingRequests.Enqueue(request)
 
 	select {
 	case response := <-request.responseCh:
@@ -319,30 +294,6 @@ func (b *durableEventIngestBuffer) submit(ctx context.Context, taskId durableTas
 		return response.result, response.err
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	}
-}
-
-func (b *durableEventIngestBuffer) takePendingRequestsWhileLocked() []*durableEventIngestRequest {
-	requestsToFlush := b.pending
-	b.pending = nil
-	b.flushScheduled = false
-
-	if len(requestsToFlush) > 0 {
-		b.lastFlushStartedAt = time.Now()
-	}
-
-	return requestsToFlush
-}
-
-func (b *durableEventIngestBuffer) flushAfterDelay(delay time.Duration) {
-	time.Sleep(delay)
-
-	b.mu.Lock()
-	requestsToFlush := b.takePendingRequestsWhileLocked()
-	b.mu.Unlock()
-
-	if len(requestsToFlush) > 0 {
-		b.flush(requestsToFlush, "interval")
 	}
 }
 

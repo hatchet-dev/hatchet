@@ -395,9 +395,9 @@ type ConfigFileRuntime struct {
 	// WorkflowRunBufferSize is the buffer size for workflow run event batching in the dispatcher
 	WorkflowRunBufferSize int `mapstructure:"workflowRunBufferSize" json:"workflowRunBufferSize,omitempty" default:"1000"`
 
-	// DurableEventBufferFlushInterval is the maximum amount of time that a durable event log entry we ingest can wait
-	// in a buffer before we try to flush it to the database. If an event comes in and we haven't flushed for longer than this
-	// interval, we'll flush it right away and then reset the timer. Otherwise, we'll wait until the interval next expires (whichever comes first).
+	// DurableEventBufferFlushInterval is the minimum amount of time between batches of durable event log entries that we
+	// flush to the database. If an event comes in and we haven't flushed for longer than this interval, we'll flush it right away.
+	// Otherwise, it waits for the next flush, which can take up to twice this interval, or less if the buffer fills up first.
 	DurableEventBufferFlushInterval time.Duration `mapstructure:"durableEventBufferFlushInterval" json:"durableEventBufferFlushInterval,omitempty" default:"5ms"`
 
 	// DurableEventBufferMaxSize caps how many durable task events a single flush
