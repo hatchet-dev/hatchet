@@ -24,9 +24,9 @@ const (
 	// queuePollInterval is the base polling interval for a queue loop.
 	queuePollInterval = 1 * time.Second
 
-	// emptyPollsBeforeBackoff is the number of consecutive polls which return no queue items
-	// before the loop starts backing off. Enqueues wake the loop immediately via notifyQueueCh,
-	// so backing off only delays polls of queues with no work.
+	// emptyPollsBeforeBackoff is the number of consecutive polls that place no items
+	// before the loop starts backing off. A check-tenant-queue message, a new worker, and a
+	// restored worker slot wake the loop through notifyQueueCh before this timer fires.
 	emptyPollsBeforeBackoff = 3
 
 	// maxQueuePollInterval caps the backed-off polling interval.
@@ -80,7 +80,8 @@ type Queuer struct {
 	// request during that wait does not start another one.
 	delayedWakePending atomic.Bool
 
-	// consecutiveEmptyPolls counts loop iterations whose refill returned no items. It is only
+	// consecutiveEmptyPolls counts loop iterations that placed no items. A refill that returns
+	// rows still counts when none of them are assigned, buffered, or batched. It is only
 	// accessed from the loopQueue goroutine.
 	consecutiveEmptyPolls int
 }
@@ -236,7 +237,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		prevEpoch := q.s.capacityEpochNow()
 
 		// re-arm immediately so early `continue` paths below can't stall the loop; re-armed
-		// again after the refill once the empty-poll streak is known
+		// again after assignment once the empty-poll streak is known
 		resetTimer()
 
 		q.l.Debug().Ctx(ctx).Msg("queue loop tick")
@@ -271,15 +272,6 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 		q.l.Debug().Ctx(ctx).Int("refilled_items", len(qis)).Msg("refilled queue")
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "queue.item_count", Value: len(qis)})
-
-		if len(qis) == 0 {
-			q.consecutiveEmptyPolls++
-		} else {
-			q.consecutiveEmptyPolls = 0
-		}
-
-		// re-arm with the interval reflecting the latest empty-poll streak
-		resetTimer()
 
 		// NOTE: we don't terminate early out of this loop because calling `tryAssign` is necessary
 		// for calling the scheduling extensions.
@@ -377,8 +369,12 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		startingQiLength := len(qis)
 		processedQiLength := 0
 		unassignedReturned := 0
+		// placed is items that left this poll assigned, buffered, or batched. A scheduling
+		// timeout is not placed: it must not reset the backoff or cause another poll.
+		placed := 0
 
 		for r := range assignCh {
+			placed += len(r.assigned) + len(r.buffered) + len(r.batched)
 			wg.Add(1)
 
 			// asynchronously flush to database
@@ -511,15 +507,24 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			).Dur("elapsed", elapsed).Int("item_count", len(qis)).Msg("queue processing took longer than 100ms")
 		}
 
-		// if we processed all queue items, queue again
+		q.notePollProgress(placed)
+
+		// re-arm with the interval reflecting whether this poll placed anything.
+		// notifyQueueCh still runs the loop before this timer fires.
+		resetTimer()
+
+		// if every item was placed, queue again. A batch that returns items unassigned
+		// re-queues only when the scheduler's worker pools gained capacity during the tick,
+		// so a slot that freed while the batch was running is used now and an unchanged
+		// pool is not spun on.
 		prevQis := qis
 
-		go func(originalStart time.Time) { // #nosec G118 -- background re-queue loop, intentionally decoupled from any single request's context
+		go func(originalStart time.Time, placed int) { // #nosec G118 -- background re-queue loop, intentionally decoupled from any single request's context
 			wg.Wait()
 			span.End()
 
 			countMu.Lock()
-			if len(prevQis) > 0 && count == len(prevQis) {
+			if len(prevQis) > 0 && placed == len(prevQis) {
 				q.queue(context.Background())
 			} else if unassignedReturned > 0 && q.s.isWorkerCapacityUpdated(prevEpoch) {
 				// we might have missed a capacity update while trying to assign slots, so we requeue
@@ -538,8 +543,19 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 					"duration", sinceStart,
 				).Int("item_count", len(prevQis)).Msg("queue took longer than 100ms to process and flush items")
 			}
-		}(start)
+		}(start, placed)
 	}
+}
+
+// notePollProgress records whether this poll placed any items. Zero placed items,
+// including a refill that returned rows, counts toward the backoff.
+func (q *Queuer) notePollProgress(placed int) {
+	if placed == 0 {
+		q.consecutiveEmptyPolls++
+		return
+	}
+
+	q.consecutiveEmptyPolls = 0
 }
 
 // requeueRateLimitedItems moves due rate-limited items back into the queue once
@@ -560,6 +576,12 @@ func (q *Queuer) requeueRateLimitedItems(ctx context.Context) {
 		logger.ShutdownAware(ctx, q.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error requeuing rate limited items")
 	} else if nextRequeueAfter != nil && nextRequeueAfter.Before(next) {
 		next = *nextRequeueAfter
+	}
+
+	// A parked refill has no message of its own. The poll timer may be backed off,
+	// so wake the loop at the refill time instead of holding the items until it fires.
+	if err == nil && nextRequeueAfter != nil && nextRequeueAfter.After(now) {
+		q.queueAfter(ctx, nextRequeueAfter.Sub(now))
 	}
 
 	q.nextRateLimitRequeueAt.Store(next.UnixNano())

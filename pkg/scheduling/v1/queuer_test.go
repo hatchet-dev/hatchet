@@ -69,6 +69,27 @@ func TestQueuerRequeuesRateLimitedItemsOnFreshProcess(t *testing.T) {
 // Ensure recordingQueueRepo still satisfies QueueRepository.
 var _ v1repo.QueueRepository = (*recordingQueueRepo)(nil)
 
+// A poll that returns rows but places none counts as empty, so the interval backs off.
+// Placing one item resets it. The check-tenant-queue wake is separate: it sends on
+// notifyQueueCh and does not wait for this timer.
+func TestQueuer_NoAssignmentBacksOff(t *testing.T) {
+	q := &Queuer{}
+
+	for i := 0; i < emptyPollsBeforeBackoff; i++ {
+		q.notePollProgress(0)
+	}
+
+	require.Equal(t, emptyPollsBeforeBackoff, q.consecutiveEmptyPolls)
+	require.Less(t, q.nextPollInterval(), 2*queuePollInterval)
+
+	q.notePollProgress(0)
+	require.Equal(t, emptyPollsBeforeBackoff+1, q.consecutiveEmptyPolls)
+	require.GreaterOrEqual(t, q.nextPollInterval(), 2*queuePollInterval)
+
+	q.notePollProgress(1)
+	require.Equal(t, 0, q.consecutiveEmptyPolls)
+}
+
 func newRequeueTestQueuer(repo v1repo.QueueRepository) *Queuer {
 	l := zerolog.Nop()
 
