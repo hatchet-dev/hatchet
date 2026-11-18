@@ -83,7 +83,7 @@ WITH active_controller_partitions AS (
     FROM
         "ControllerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() - INTERVAL '20 seconds'
 )
 INSERT INTO "Tenant" ("id", "name", "slug", "controllerPartitionId", "dataRetentionPeriod", "version", "onboardingData", "environment")
 VALUES (
@@ -1156,6 +1156,17 @@ func (q *Queries) ListTenantsByTenantWorkerPartitionId(ctx context.Context, db D
 	return items, nil
 }
 
+const lockPartitionRebalance = `-- name: LockPartitionRebalance :exec
+SELECT pg_advisory_xact_lock(hashtext($1::text)::bigint)
+`
+
+// Serializes the rebalance statements of one partition kind for the rest of the transaction, so two
+// instances rebalancing at once do not move the same tenant twice.
+func (q *Queries) LockPartitionRebalance(ctx context.Context, db DBTX, partitionkind string) error {
+	_, err := db.Exec(ctx, lockPartitionRebalance, partitionkind)
+	return err
+}
+
 const populateTenantMembers = `-- name: PopulateTenantMembers :many
 SELECT
     tm.id, tm."createdAt", tm."updatedAt", tm."tenantId", tm."userId", tm.role, tm."canViewPayloads",
@@ -1251,7 +1262,7 @@ WITH active_partitions AS (
     FROM
         "ControllerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() - INTERVAL '20 seconds'
 ),
 tenants_to_update AS (
     SELECT
@@ -1270,7 +1281,7 @@ FROM
     active_partitions AS partitions
 WHERE
     tenants."id" = tenants_to_update."id" AND
-    partitions.row_number = (tenants_to_update.row_number - 1) % (SELECT COUNT(*) FROM active_partitions) + 1
+    partitions.row_number = (tenants_to_update.row_number - 1) % NULLIF((SELECT COUNT(*) FROM active_partitions), 0) + 1
 `
 
 func (q *Queries) RebalanceAllControllerPartitions(ctx context.Context, db DBTX) error {
@@ -1286,7 +1297,7 @@ WITH active_partitions AS (
     FROM
         "SchedulerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() - INTERVAL '20 seconds'
 ),
 tenants_to_update AS (
     SELECT
@@ -1306,7 +1317,7 @@ FROM
     active_partitions AS partitions
 WHERE
     tenants."id" = tenants_to_update."id" AND
-    partitions.row_number = (tenants_to_update.row_number - 1) % (SELECT COUNT(*) FROM active_partitions) + 1
+    partitions.row_number = (tenants_to_update.row_number - 1) % NULLIF((SELECT COUNT(*) FROM active_partitions), 0) + 1
 `
 
 func (q *Queries) RebalanceAllSchedulerPartitions(ctx context.Context, db DBTX) error {
@@ -1322,7 +1333,7 @@ WITH active_partitions AS (
     FROM
         "TenantWorkerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() - INTERVAL '20 seconds'
 ),
 tenants_to_update AS (
     SELECT
@@ -1342,7 +1353,7 @@ FROM
     active_partitions AS partitions
 WHERE
     tenants."id" = tenants_to_update."id" AND
-    partitions.row_number = (tenants_to_update.row_number - 1) % (SELECT COUNT(*) FROM active_partitions) + 1
+    partitions.row_number = (tenants_to_update.row_number - 1) % NULLIF((SELECT COUNT(*) FROM active_partitions), 0) + 1
 `
 
 func (q *Queries) RebalanceAllTenantWorkerPartitions(ctx context.Context, db DBTX) error {
@@ -1358,14 +1369,14 @@ WITH active_partitions AS (
     FROM
         "ControllerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() - INTERVAL '20 seconds'
 ), inactive_partitions AS (
     SELECT
         "id"
     FROM
         "ControllerPartition"
     WHERE
-        "lastHeartbeat" <= NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" <= NOW() - INTERVAL '20 seconds'
 ), tenants_to_update AS (
     SELECT
         tenants."id" AS "id",
@@ -1383,7 +1394,7 @@ WITH active_partitions AS (
         active_partitions AS partitions
     WHERE
     tenants."id" = tenants_to_update."id" AND
-    partitions.row_number = (tenants_to_update.row_number - 1) % (SELECT COUNT(*) FROM active_partitions) + 1
+    partitions.row_number = (tenants_to_update.row_number - 1) % NULLIF((SELECT COUNT(*) FROM active_partitions), 0) + 1
 )
 DELETE FROM "ControllerPartition"
 WHERE "id" IN (SELECT "id" FROM inactive_partitions)
@@ -1402,14 +1413,14 @@ WITH active_partitions AS (
     FROM
         "SchedulerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() - INTERVAL '20 seconds'
 ), inactive_partitions AS (
     SELECT
         "id"
     FROM
         "SchedulerPartition"
     WHERE
-        "lastHeartbeat" <= NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" <= NOW() - INTERVAL '20 seconds'
 ), tenants_to_update AS (
     SELECT
         tenants."id" AS "id",
@@ -1430,7 +1441,7 @@ WITH active_partitions AS (
         active_partitions AS partitions
     WHERE
     tenants."id" = tenants_to_update."id" AND
-    partitions.row_number = (tenants_to_update.row_number - 1) % (SELECT COUNT(*) FROM active_partitions) + 1
+    partitions.row_number = (tenants_to_update.row_number - 1) % NULLIF((SELECT COUNT(*) FROM active_partitions), 0) + 1
 )
 DELETE FROM "SchedulerPartition"
 WHERE "id" IN (SELECT "id" FROM inactive_partitions)
@@ -1449,14 +1460,14 @@ WITH active_partitions AS (
     FROM
         "TenantWorkerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() - INTERVAL '20 seconds'
 ), inactive_partitions AS (
     SELECT
         "id"
     FROM
         "TenantWorkerPartition"
     WHERE
-        "lastHeartbeat" <= NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" <= NOW() - INTERVAL '20 seconds'
 ), tenants_to_update AS (
     SELECT
         tenants."id" AS "id",
@@ -1477,7 +1488,7 @@ WITH active_partitions AS (
         active_partitions AS partitions
     WHERE
     tenants."id" = tenants_to_update."id" AND
-    partitions.row_number = (tenants_to_update.row_number - 1) % (SELECT COUNT(*) FROM active_partitions) + 1
+    partitions.row_number = (tenants_to_update.row_number - 1) % NULLIF((SELECT COUNT(*) FROM active_partitions), 0) + 1
 )
 DELETE FROM "TenantWorkerPartition"
 WHERE "id" IN (SELECT "id" FROM inactive_partitions)

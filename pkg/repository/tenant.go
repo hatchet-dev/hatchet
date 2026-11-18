@@ -817,6 +817,34 @@ func (r *tenantRepository) ListTenantsByWorkerPartition(ctx context.Context, wor
 	return r.queries.ListTenantsByTenantWorkerPartitionId(ctx, r.pool.ForShared(), workerPartitionId)
 }
 
+// withRebalanceLock runs fn in a transaction that holds the advisory lock for one partition kind, so
+// rebalances started at the same time by several instances run one after another. The later one then
+// sees the tenants the earlier one assigned and leaves them alone, instead of re-evaluating its own
+// stale selection against the updated rows and moving them a second time.
+func (r *tenantRepository) withRebalanceLock(ctx context.Context, partitionKind string, fn func(tx sqlcv1.DBTX) error) error {
+	tx, err := r.pool.ForShared().Begin(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
+
+	if _, err := tx.Exec(ctx, "SET LOCAL statement_timeout=5000"); err != nil {
+		return err
+	}
+
+	if err := r.queries.LockPartitionRebalance(ctx, tx, partitionKind); err != nil {
+		return err
+	}
+
+	if err := fn(tx); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
 func (r *tenantRepository) CreateControllerPartition(ctx context.Context) (string, error) {
 
 	partition, err := r.queries.CreateControllerPartition(ctx, r.pool.ForShared(), getPartitionName())
@@ -834,11 +862,15 @@ func (r *tenantRepository) DeleteControllerPartition(ctx context.Context, id str
 }
 
 func (r *tenantRepository) RebalanceAllControllerPartitions(ctx context.Context) error {
-	return r.queries.RebalanceAllControllerPartitions(ctx, r.pool.ForShared())
+	return r.withRebalanceLock(ctx, "controller", func(tx sqlcv1.DBTX) error {
+		return r.queries.RebalanceAllControllerPartitions(ctx, tx)
+	})
 }
 
 func (r *tenantRepository) RebalanceInactiveControllerPartitions(ctx context.Context) error {
-	return r.queries.RebalanceInactiveControllerPartitions(ctx, r.pool.ForShared())
+	return r.withRebalanceLock(ctx, "controller", func(tx sqlcv1.DBTX) error {
+		return r.queries.RebalanceInactiveControllerPartitions(ctx, tx)
+	})
 }
 
 func (r *tenantRepository) CreateTenantWorkerPartition(ctx context.Context) (string, error) {
@@ -857,11 +889,15 @@ func (r *tenantRepository) DeleteTenantWorkerPartition(ctx context.Context, id s
 }
 
 func (r *tenantRepository) RebalanceAllTenantWorkerPartitions(ctx context.Context) error {
-	return r.queries.RebalanceAllTenantWorkerPartitions(ctx, r.pool.ForShared())
+	return r.withRebalanceLock(ctx, "worker", func(tx sqlcv1.DBTX) error {
+		return r.queries.RebalanceAllTenantWorkerPartitions(ctx, tx)
+	})
 }
 
 func (r *tenantRepository) RebalanceInactiveTenantWorkerPartitions(ctx context.Context) error {
-	return r.queries.RebalanceInactiveTenantWorkerPartitions(ctx, r.pool.ForShared())
+	return r.withRebalanceLock(ctx, "worker", func(tx sqlcv1.DBTX) error {
+		return r.queries.RebalanceInactiveTenantWorkerPartitions(ctx, tx)
+	})
 }
 
 func (r *tenantRepository) UpdateSchedulerPartitionHeartbeat(ctx context.Context, partitionId string) (string, error) {
@@ -933,11 +969,15 @@ func (r *tenantRepository) DeleteSchedulerPartition(ctx context.Context, id stri
 }
 
 func (r *tenantRepository) RebalanceAllSchedulerPartitions(ctx context.Context) error {
-	return r.queries.RebalanceAllSchedulerPartitions(ctx, r.pool.ForShared())
+	return r.withRebalanceLock(ctx, "scheduler", func(tx sqlcv1.DBTX) error {
+		return r.queries.RebalanceAllSchedulerPartitions(ctx, tx)
+	})
 }
 
 func (r *tenantRepository) RebalanceInactiveSchedulerPartitions(ctx context.Context) error {
-	return r.queries.RebalanceInactiveSchedulerPartitions(ctx, r.pool.ForShared())
+	return r.withRebalanceLock(ctx, "scheduler", func(tx sqlcv1.DBTX) error {
+		return r.queries.RebalanceInactiveSchedulerPartitions(ctx, tx)
+	})
 }
 
 func (r *tenantRepository) DeleteTenant(ctx context.Context, id uuid.UUID) error {
