@@ -1,4 +1,4 @@
-import { labelsToRows, rowsToLabels } from '../../endpoints/lib/labels';
+import { LabelRow, labelsToRows } from '../../endpoints/lib/labels';
 import { KINDS } from '../lib/kinds';
 import { usePagination } from '@/hooks/use-pagination';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
@@ -155,6 +155,13 @@ export const configValues = (
     }),
   );
 
+const rowsToMetadata = (rows: LabelRow[]): Record<string, string> =>
+  Object.fromEntries(
+    rows
+      .map(({ key, value }) => [key.trim(), value.trim()])
+      .filter(([key, value]) => key !== '' || value !== ''),
+  );
+
 const buildConfig = (
   kind: SandboxProviderKind,
   values: ConfigValues,
@@ -228,7 +235,7 @@ export const buildCreateRequest = (
   defaultTemplate: data.defaultTemplate.trim() || undefined,
   maxIdleTtlSeconds: data.maxIdleTtlSeconds,
   config: buildConfig(data.kind, data.config),
-  labels: rowsToLabels(data.labels),
+  labels: rowsToMetadata(data.labels),
   enabled: data.enabled,
 });
 
@@ -260,6 +267,6 @@ export const buildUpdateRequest = (
   defaultTemplate: data.defaultTemplate.trim(),
   maxIdleTtlSeconds: data.maxIdleTtlSeconds,
   config: buildConfig(provider.kind, data.config, provider.config ?? {}),
-  labels: rowsToLabels(data.labels, provider.labels),
+  labels: rowsToMetadata(data.labels),
   enabled: data.enabled,
 });

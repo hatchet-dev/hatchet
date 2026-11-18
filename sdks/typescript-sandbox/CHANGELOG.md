@@ -10,7 +10,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Eac
 
 ### Added
 
-- `Sandbox.metadata` holds the sandbox's metadata as the operator stored it, which the provider's metadata seeds and the `metadata` given to `create` overrides, plus `hatchet.sandbox.provider`. Every task run of the sandbox carries it as run metadata, so runs can be filtered by any key in the dashboard. It comes from the `$create` and `$connect` results, so an operator that predates them leaves it empty.
+- `Sandbox.metadata` holds the sandbox's metadata as the operator stored it, which the provider's metadata seeds and the `metadata` given to `create` overrides, plus `hatchet.sandbox.provider`. Every task run of the sandbox carries it as run metadata, so runs can be filtered by any key in the dashboard. It comes from the `$create` and `$connect` results, so an operator that predates them leaves it empty. `hatchet.sandbox.delete` tags each deletion run with the deleted sandbox's metadata the same way.
 
 ## [0.1.5] - 2026-11-11
 

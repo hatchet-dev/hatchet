@@ -305,8 +305,8 @@ export class Sandbox {
     deleteOpts.parse(opts);
     const run = turnRunner(client);
     const ids: string[] = [];
-    for (const { sandboxId } of await Sandbox.list(client, opts)) {
-      await run({ fn: '$delete', input: {}, sandboxId });
+    for (const { sandboxId, metadata } of await Sandbox.list(client, opts)) {
+      await run({ fn: '$delete', input: {}, sandboxId }, { metadata });
       ids.push(sandboxId);
     }
     return ids;
