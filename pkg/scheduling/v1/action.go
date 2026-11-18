@@ -27,6 +27,20 @@ type action struct {
 	// purpose: a request for more units than any worker has free is a
 	// constrained item, not starvation.
 	starved map[string]map[slotTypeSetKey]struct{}
+
+	// constrained records, per queue and requested type set, misses by items that only
+	// some of the action's workers can take (sticky HARD, required labels) or that ask
+	// for more units than any worker has free. These are not starvation, so a rebuild
+	// does not restore them from the action's capacity; it restores an entry once one of
+	// its candidate workers has the units the entry needs.
+	constrained map[string]map[slotTypeSetKey]*constrainedMiss
+}
+
+// constrainedMiss is the candidate workers of a queue's constrained misses for one type
+// set, and the fewest units of each type any of those misses asked for.
+type constrainedMiss struct {
+	workerIds map[uuid.UUID]struct{}
+	units     map[string]int32
 }
 
 // slotTypeSetKey is the canonical encoding of the slot types a request asks
@@ -141,6 +155,96 @@ func (a *action) RestoreStarved(poolsByWorker map[uuid.UUID]map[string]*slotPool
 	}
 
 	return restoredQueues
+}
+
+// MarkConstrained records that an item from queue missed while candidates had room
+// elsewhere on the action, or asked for more units than any worker has free. Slot
+// types with no units are not recorded; a request with none records nothing. Runs on
+// the run loop.
+func (a *action) MarkConstrained(queue string, candidates []uuid.UUID, request map[string]int32) {
+	key, ok := slotTypeSetOf(request)
+	if !ok || len(candidates) == 0 {
+		return
+	}
+
+	entries := a.constrained[queue]
+	if entries == nil {
+		if a.constrained == nil {
+			a.constrained = make(map[string]map[slotTypeSetKey]*constrainedMiss, 1)
+		}
+
+		entries = make(map[slotTypeSetKey]*constrainedMiss, 1)
+		a.constrained[queue] = entries
+	}
+
+	miss := entries[key]
+	if miss == nil {
+		miss = &constrainedMiss{
+			workerIds: make(map[uuid.UUID]struct{}, len(candidates)),
+			units:     make(map[string]int32, len(request)),
+		}
+		entries[key] = miss
+	}
+
+	for _, workerId := range candidates {
+		miss.workerIds[workerId] = struct{}{}
+	}
+
+	for slotType, units := range request {
+		if units <= 0 {
+			continue
+		}
+
+		if prev, ok := miss.units[slotType]; !ok || units < prev {
+			miss.units[slotType] = units
+		}
+	}
+}
+
+// RestoreConstrained clears every entry for which one of its candidate workers has the
+// entry's units free in the rebuilt pools, and returns the queues that had at least one
+// entry cleared. Runs on the run loop.
+func (a *action) RestoreConstrained(poolsByWorker map[uuid.UUID]map[string]*slotPool, now time.Time) (restoredQueues []string) {
+	for queue, entries := range a.constrained {
+		restored := false
+
+		for key, miss := range entries {
+			if miss.hasRoom(poolsByWorker, now) {
+				delete(entries, key)
+				restored = true
+			}
+		}
+
+		if len(entries) == 0 {
+			delete(a.constrained, queue)
+		}
+
+		if restored {
+			restoredQueues = append(restoredQueues, queue)
+		}
+	}
+
+	return restoredQueues
+}
+
+func (m *constrainedMiss) hasRoom(poolsByWorker map[uuid.UUID]map[string]*slotPool, now time.Time) bool {
+	for workerId := range m.workerIds {
+		pools := poolsByWorker[workerId]
+		room := true
+
+		for slotType, units := range m.units {
+			if pools[slotType].freeCountAt(now) < int(units) {
+				room = false
+				break
+			}
+		}
+
+		if room {
+			return true
+		}
+	}
+
+	return false
 }
 
 // hasFreeSlotOfEachType reports whether one of the workers has at least one

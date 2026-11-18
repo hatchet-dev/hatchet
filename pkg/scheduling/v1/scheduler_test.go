@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -2016,6 +2017,87 @@ func TestScheduler_Replenish_RebuildsStarvedAction(t *testing.T) {
 	var a2 *action
 	onLoop(t, s, func() { a2 = s.actions["A"] })
 	r = assignOne(t, s, a2, testQI(tenantId, "A", 2), nil, defaultRequest(), nil, nil)
+	require.True(t, r.succeeded)
+}
+
+// A sticky HARD item that misses while another worker of the action has room is
+// not starvation. Its queue is woken by the first rebuild that gives its pinned
+// worker a free slot, and not by one that only shows the other worker's room.
+func TestScheduler_Replenish_RestoresConstrainedMissOnItsWorker(t *testing.T) {
+	tenantId := uuid.New()
+	pinnedId := uuid.New()
+	otherId := uuid.New()
+
+	var pinnedAvailable atomic.Int32
+
+	ar := &mockAssignmentRepo{
+		listActionsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
+			return []*sqlcv1.ListActionsForWorkersRow{
+				{WorkerId: pinnedId, ActionId: sqlchelpers.TextFromStr("A")},
+				{WorkerId: otherId, ActionId: sqlchelpers.TextFromStr("A")},
+			}, nil
+		},
+		listWorkerSlotConfigsFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListWorkerSlotConfigsRow, error) {
+			return []*sqlcv1.ListWorkerSlotConfigsRow{
+				{WorkerID: pinnedId, SlotType: repo.SlotTypeDefault, MaxUnits: 1},
+				{WorkerID: otherId, SlotType: repo.SlotTypeDefault, MaxUnits: 1},
+			}, nil
+		},
+		listAvailableSlotsForWorkersAndTypesFn: func(ctx context.Context, tenantId uuid.UUID, params sqlcv1.ListAvailableSlotsForWorkersAndTypesParams) ([]*sqlcv1.ListAvailableSlotsForWorkersAndTypesRow, error) {
+			return []*sqlcv1.ListAvailableSlotsForWorkersAndTypesRow{
+				{ID: pinnedId, SlotType: repo.SlotTypeDefault, AvailableSlots: pinnedAvailable.Load()},
+				{ID: otherId, SlotType: repo.SlotTypeDefault, AvailableSlots: 1},
+			}, nil
+		},
+	}
+
+	s := newTestScheduler(t, tenantId, ar)
+	s.setWorkers([]*repo.ListActiveWorkersResult{testWorker(pinnedId), testWorker(otherId)})
+
+	var restoredMu sync.Mutex
+	var restored []string
+	s.onCapacityRestored = func(queues []string) {
+		restoredMu.Lock()
+		defer restoredMu.Unlock()
+		restored = append(restored, queues...)
+	}
+	restoredQueues := func() []string {
+		restoredMu.Lock()
+		defer restoredMu.Unlock()
+		return append([]string(nil), restored...)
+	}
+
+	pinned := &worker{ListActiveWorkersResult: testWorker(pinnedId)}
+	other := &worker{ListActiveWorkersResult: testWorker(otherId)}
+	used := newSlot(pinned, repo.SlotTypeDefault)
+	used.used = true
+	a := seedActionPools(t, s, "A", used, newSlot(other, repo.SlotTypeDefault))
+
+	qi := testQI(tenantId, "A", 1)
+	qi.Sticky = sqlcv1.V1StickyStrategyHARD
+	qi.DesiredWorkerID = &pinnedId
+
+	r := assignOne(t, s, a, qi, nil, defaultRequest(), nil, nil)
+	require.True(t, r.noSlots)
+	onLoop(t, s, func() {
+		require.False(t, a.IsStarved(), "the other worker has room, so this is not starvation")
+		require.Contains(t, a.constrained, "q")
+	})
+
+	// the pinned worker is still busy: only the other worker has room
+	require.NoError(t, s.replenish(context.Background(), true))
+	require.Empty(t, restoredQueues())
+	onLoop(t, s, func() { require.Contains(t, s.actions["A"].constrained, "q") })
+
+	// the pinned worker's slot is released
+	pinnedAvailable.Store(1)
+	require.NoError(t, s.replenish(context.Background(), true))
+	require.Equal(t, []string{"q"}, restoredQueues())
+	onLoop(t, s, func() { require.Empty(t, s.actions["A"].constrained) })
+
+	var a2 *action
+	onLoop(t, s, func() { a2 = s.actions["A"] })
+	r = assignOne(t, s, a2, qi, nil, defaultRequest(), nil, nil)
 	require.True(t, r.succeeded)
 }
 

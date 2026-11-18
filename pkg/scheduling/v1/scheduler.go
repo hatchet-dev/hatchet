@@ -85,8 +85,9 @@ type Scheduler struct {
 	replenishTickerMax time.Duration
 
 	// onCapacityRestored, when set, is called outside the run loop after a
-	// replenish rebuilds the pools of actions that had starved and now have
-	// the slots they were missing, with the queues whose items missed. The
+	// replenish rebuilds the pools of actions that had starved, or had
+	// constrained misses whose candidate workers now have room, with the
+	// queues whose items missed. The
 	// tenant manager wakes those queuers so the items are retried right away
 	// instead of on the next poll.
 	onCapacityRestored func(queues []string)
@@ -763,6 +764,10 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 				}
 			}
 
+			for _, queue := range storedAction.RestoreConstrained(nextPoolsByWorker, refreshedAt) {
+				restoredQueues[queue] = struct{}{}
+			}
+
 			storedAction.workerIds = actionWorkerIds
 			storedAction.lastReplenishedSlotCount = totalSlots
 			storedAction.lastReplenishedWorkerCount = len(actionWorkerIds)
@@ -1340,6 +1345,10 @@ func (s *Scheduler) assignSingleton(
 		if (len(candidates) == len(a.workerIds) && isSingleUnitRequest(requests)) ||
 			!hasFreeSlotOfEachType(s.poolsByWorker, a.workerIds, requests, now) {
 			s.markActionStarved(a, qi.Queue, requests)
+		} else {
+			// a queue that backed off has no other wake when a slot frees on one of
+			// these candidates for a task from a different queue
+			a.MarkConstrained(qi.Queue, candidates, requests)
 		}
 
 		r.noSlots = true
