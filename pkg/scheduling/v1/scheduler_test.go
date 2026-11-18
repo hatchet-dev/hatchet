@@ -2101,6 +2101,26 @@ func TestScheduler_Replenish_RestoresConstrainedMissOnItsWorker(t *testing.T) {
 	require.True(t, r.succeeded)
 }
 
+// A constrained entry whose candidates have all left the action is cleared
+// without a wake, and live candidates are kept.
+func TestAction_RestoreConstrainedDropsDepartedWorkers(t *testing.T) {
+	gone := uuid.New()
+	live := uuid.New()
+
+	a := &action{}
+	a.MarkConstrained("pinned", []uuid.UUID{gone}, defaultRequest())
+	a.MarkConstrained("labelled", []uuid.UUID{gone, live}, defaultRequest())
+
+	restored := a.RestoreConstrained(nil, []uuid.UUID{live}, time.Now())
+
+	require.Empty(t, restored, "no candidate has room, so no queue is woken")
+	require.NotContains(t, a.constrained, "pinned")
+	require.Equal(t,
+		map[uuid.UUID]struct{}{live: {}},
+		a.constrained["labelled"][slotTypeSetKey(repo.SlotTypeDefault)].workerIds,
+	)
+}
+
 // A rebuild that still leaves the starved type without free slots reports no
 // restored capacity and leaves the marker set, so the next rebuild keeps
 // trying and the misses in between request nothing.

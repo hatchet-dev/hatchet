@@ -87,9 +87,8 @@ type Scheduler struct {
 	// onCapacityRestored, when set, is called outside the run loop after a
 	// replenish rebuilds the pools of actions that had starved, or had
 	// constrained misses whose candidate workers now have room, with the
-	// queues whose items missed. The
-	// tenant manager wakes those queuers so the items are retried right away
-	// instead of on the next poll.
+	// queues whose items missed. The tenant manager wakes those queuers so the
+	// items are retried right away instead of on the next poll.
 	onCapacityRestored func(queues []string)
 
 	// capacityEpoch is the worker capacity epoch; see isWorkerCapacityUpdated
@@ -764,7 +763,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 				}
 			}
 
-			for _, queue := range storedAction.RestoreConstrained(nextPoolsByWorker, refreshedAt) {
+			for _, queue := range storedAction.RestoreConstrained(nextPoolsByWorker, actionWorkerIds, refreshedAt) {
 				restoredQueues[queue] = struct{}{}
 			}
 

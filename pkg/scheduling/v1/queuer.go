@@ -24,8 +24,8 @@ const (
 	// queuePollInterval is the base polling interval for a queue loop.
 	queuePollInterval = 1 * time.Second
 
-	// emptyPollsBeforeBackoff is the number of consecutive polls that place no items
-	// before the loop starts backing off. A check-tenant-queue message, a new worker, and a
+	// emptyPollsBeforeBackoff is the number of consecutive polls that make no progress
+	// (see consecutiveEmptyPolls) before the loop starts backing off. A check-tenant-queue message, a new worker, and a
 	// restored worker slot wake the loop through notifyQueueCh before this timer fires.
 	emptyPollsBeforeBackoff = 3
 

@@ -203,12 +203,34 @@ func (a *action) MarkConstrained(queue string, candidates []uuid.UUID, request m
 
 // RestoreConstrained clears every entry for which one of its candidate workers has the
 // entry's units free in the rebuilt pools, and returns the queues that had at least one
-// entry cleared. Runs on the run loop.
-func (a *action) RestoreConstrained(poolsByWorker map[uuid.UUID]map[string]*slotPool, now time.Time) (restoredQueues []string) {
+// entry cleared. Candidates no longer serving the action are dropped, and an entry left
+// with none is cleared without a wake: its items have no candidate until a worker joins,
+// and a new worker already wakes queues holding unassigned items. Runs on the run loop.
+func (a *action) RestoreConstrained(poolsByWorker map[uuid.UUID]map[string]*slotPool, workerIds []uuid.UUID, now time.Time) (restoredQueues []string) {
+	if len(a.constrained) == 0 {
+		return nil
+	}
+
+	live := make(map[uuid.UUID]struct{}, len(workerIds))
+	for _, workerId := range workerIds {
+		live[workerId] = struct{}{}
+	}
+
 	for queue, entries := range a.constrained {
 		restored := false
 
 		for key, miss := range entries {
+			for workerId := range miss.workerIds {
+				if _, ok := live[workerId]; !ok {
+					delete(miss.workerIds, workerId)
+				}
+			}
+
+			if len(miss.workerIds) == 0 {
+				delete(entries, key)
+				continue
+			}
+
 			if miss.hasRoom(poolsByWorker, now) {
 				delete(entries, key)
 				restored = true
