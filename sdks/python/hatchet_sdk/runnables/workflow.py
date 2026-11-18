@@ -1433,10 +1433,26 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
         backoff_factor: float | None = None,
         backoff_max: timedelta | None = None,
-    ) -> Callable[
-        [Callable[Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P], Any]],
-        Task[TWorkflowInput, Any],
-    ]:
+    ) -> (
+        Callable[
+            [
+                Callable[
+                    Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P],
+                    R | CoroutineLike[R],
+                ]
+            ],
+            Task[TWorkflowInput, R],
+        ]
+        | Callable[
+            [
+                Callable[
+                    Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P],
+                    dict[BatchMemberId, R] | CoroutineLike[dict[BatchMemberId, R]],
+                ]
+            ],
+            Task[TWorkflowInput, R],
+        ]
+    ):
         """
         .. note::
         **Preview:** This function is in beta and may change in future releases.
@@ -1470,13 +1486,22 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         )
 
         def inner(
-            func: Callable[
-                Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P], Any
-            ],
-        ) -> Task[TWorkflowInput, Any]:
+            func: (
+                Callable[
+                    Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P],
+                    R | CoroutineLike[R],
+                ]
+                | Callable[
+                    Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P],
+                    dict[BatchMemberId, R] | CoroutineLike[dict[BatchMemberId, R]],
+                ]
+            ),
+        ) -> Task[TWorkflowInput, R]:
             labels = desired_worker_labels or []
-            task = Task[TWorkflowInput, Any](
-                _fn=cast("Callable[[TWorkflowInput, Context], Any]", func),
+            task = Task[TWorkflowInput, R](
+                _fn=cast(
+                    "Callable[[TWorkflowInput, Context], R | CoroutineLike[R]]", func
+                ),
                 is_durable=False,
                 workflow=self,
                 type=TaskType.DEFAULT,
