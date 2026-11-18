@@ -4476,7 +4476,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 
 	eventMatches := make([]CreateMatchOpts, 0)
 
-	if len(spawnedChildTasks) > 0 {
+	if len(spawnedChildTasks) > 0 && !r.childRunDirectSpawn {
 		// construct a list of signals to reset
 		signalEventKeys := make([]string, 0)
 		parentTaskIds := make([]int64, 0)

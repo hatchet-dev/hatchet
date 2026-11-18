@@ -2212,6 +2212,10 @@ func (r *sharedRepository) registerChildWorkflows(
 
 	tuplesToSkip = enumerables.ToSet(existingExternalIds, func(dbExternalId *sqlcv1.V1LookupTable) uuid.UUID { return dbExternalId.ExternalID })
 
+	if r.childRunDirectSpawn {
+		return tuplesToSkip, nil
+	}
+
 	createMatchOpts := make([]CreateMatchOpts, 0)
 
 	for i, tuple := range tuples {
