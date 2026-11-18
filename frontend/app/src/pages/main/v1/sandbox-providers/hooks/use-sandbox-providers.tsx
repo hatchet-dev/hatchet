@@ -1,4 +1,5 @@
 import { labelsToRows, rowsToLabels } from '../../endpoints/lib/labels';
+import { KINDS } from '../lib/kinds';
 import { usePagination } from '@/hooks/use-pagination';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { queries } from '@/lib/api';
@@ -121,31 +122,65 @@ const labelRows = z
     }
   });
 
-const configJson = z.string().superRefine((text, ctx) => {
-  if (text.trim() === '') {
-    return;
-  }
+export type ConfigValues = Record<string, string | boolean>;
 
-  try {
-    const parsed = JSON.parse(text);
-
-    if (
-      parsed === null ||
-      typeof parsed !== 'object' ||
-      Array.isArray(parsed)
-    ) {
-      throw new Error('not an object');
+const config = z
+  .record(z.union([z.string(), z.boolean()]))
+  .superRefine((values, ctx) => {
+    for (const [key, value] of Object.entries(values)) {
+      if (typeof value !== 'string' || value.trim() === '') {
+        continue;
+      }
+      if (key === 'workdir' && !value.trim().startsWith('/')) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Enter an absolute path',
+          path: [key],
+        });
+      }
     }
-  } catch {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Config must be a JSON object',
-    });
-  }
-});
+  });
 
-const parseConfig = (text: string): Record<string, unknown> | undefined =>
-  text.trim() === '' ? undefined : JSON.parse(text);
+export const configValues = (
+  kind: SandboxProviderKind,
+  current: Record<string, unknown> = {},
+): ConfigValues =>
+  Object.fromEntries(
+    KINDS[kind].fields.map((f) => {
+      const v = current[f.key];
+      if (f.type === 'boolean') {
+        return [f.key, v === true];
+      }
+      return [f.key, v === undefined || v === null ? '' : String(v)];
+    }),
+  );
+
+const buildConfig = (
+  kind: SandboxProviderKind,
+  values: ConfigValues,
+  current: Record<string, unknown> = {},
+): Record<string, unknown> => {
+  const out: Record<string, unknown> = { ...current };
+  delete out.maxTimeoutSeconds;
+  for (const f of KINDS[kind].fields) {
+    const v = values[f.key];
+    if (f.type === 'boolean') {
+      if (v === true) {
+        out[f.key] = true;
+      } else {
+        delete out[f.key];
+      }
+      continue;
+    }
+    const text = typeof v === 'string' ? v.trim() : '';
+    if (text === '') {
+      delete out[f.key];
+    } else {
+      out[f.key] = f.type === 'number' ? Number(text) : text;
+    }
+  }
+  return out;
+};
 
 const sharedFields = {
   name: z
@@ -158,7 +193,7 @@ const sharedFields = {
     .int()
     .min(60, 'At least 60 seconds')
     .max(604800, 'At most 7 days'),
-  configJson,
+  config,
   labels: labelRows,
   enabled: z.boolean(),
 };
@@ -179,7 +214,7 @@ export const defaultCreateValues = (
   apiKey: '',
   defaultTemplate: '',
   maxIdleTtlSeconds: 900,
-  configJson: '',
+  config: configValues(kind),
   labels: [],
   enabled: true,
 });
@@ -192,7 +227,7 @@ export const buildCreateRequest = (
   apiKey: data.apiKey,
   defaultTemplate: data.defaultTemplate.trim() || undefined,
   maxIdleTtlSeconds: data.maxIdleTtlSeconds,
-  config: parseConfig(data.configJson),
+  config: buildConfig(data.kind, data.config),
   labels: rowsToLabels(data.labels),
   enabled: data.enabled,
 });
@@ -211,10 +246,7 @@ export const updateFormValues = (
   apiKey: '',
   defaultTemplate: provider.defaultTemplate ?? '',
   maxIdleTtlSeconds: provider.maxIdleTtlSeconds,
-  configJson:
-    Object.keys(provider.config ?? {}).length > 0
-      ? JSON.stringify(provider.config, null, 2)
-      : '',
+  config: configValues(provider.kind, provider.config ?? {}),
   labels: labelsToRows(provider.labels),
   enabled: provider.enabled,
 });
@@ -227,7 +259,7 @@ export const buildUpdateRequest = (
   apiKey: data.apiKey === '' ? undefined : data.apiKey,
   defaultTemplate: data.defaultTemplate.trim(),
   maxIdleTtlSeconds: data.maxIdleTtlSeconds,
-  config: parseConfig(data.configJson) ?? {},
+  config: buildConfig(provider.kind, data.config, provider.config ?? {}),
   labels: rowsToLabels(data.labels, provider.labels),
   enabled: data.enabled,
 });

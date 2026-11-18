@@ -1,14 +1,15 @@
+import { DisableProviderDialog } from '../components/disable-provider-dialog';
 import { EventsLog } from '../components/events-log';
 import { SandboxGate } from '../components/gate';
 import { ProviderActionsMenu } from '../components/provider-actions';
-import { ProviderName } from '../components/provider-icon';
+import { ProviderIcon } from '../components/provider-icon';
 import { ProviderStatusBadge } from '../components/provider-status-badge';
 import {
   SANDBOX_PROVIDERS_REFETCH_INTERVAL_MS,
   useSandboxProviderMutations,
 } from '../hooks/use-sandbox-providers';
+import { KINDS } from '../lib/kinds';
 import RelativeDate from '@/components/v1/molecules/relative-date';
-import { Badge } from '@/components/v1/ui/badge';
 import {
   Card,
   CardContent,
@@ -27,7 +28,7 @@ import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { AxiosError, isAxiosError } from 'axios';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
 const Row = ({
   label,
@@ -59,6 +60,7 @@ function SandboxProviderDetailContent() {
   const { handleApiError } = useApiError({});
   const params = useParams({ from: appRoutes.tenantSandboxProviderRoute.to });
   const { update } = useSandboxProviderMutations();
+  const [isDisableOpen, setIsDisableOpen] = useState(false);
 
   const providerQuery = useQuery({
     ...queries.cloud.getSandboxProvider(params.sandboxProvider),
@@ -109,19 +111,26 @@ function SandboxProviderDetailContent() {
   }
 
   const labels = Object.entries(provider.labels ?? {});
-  const config = Object.entries(provider.config ?? {});
+  const config = Object.entries(provider.config ?? {}).map(([key, value]) => ({
+    key,
+    label: KINDS[provider.kind].fields.find((f) => f.key === key)?.label ?? key,
+    value: typeof value === 'boolean' ? (value ? 'On' : 'Off') : String(value),
+  }));
 
   return (
     <div className="h-full w-full flex-grow">
       <div className="mx-auto space-y-6 p-4">
         <div className="flex flex-row flex-wrap items-center justify-between gap-4">
           <div className="flex min-w-0 flex-row items-center gap-3">
-            <Badge variant="outline">
-              <ProviderName kind={provider.kind} />
-            </Badge>
-            <h2 className="truncate text-2xl font-bold leading-tight text-foreground">
-              {provider.name}
-            </h2>
+            <ProviderIcon kind={provider.kind} className="size-8" />
+            <div className="min-w-0">
+              <h2 className="truncate text-2xl font-bold leading-tight text-foreground">
+                {provider.name}
+              </h2>
+              <div className="text-xs text-muted-foreground">
+                {KINDS[provider.kind].label}
+              </div>
+            </div>
             <ProviderStatusBadge provider={provider} />
           </div>
           <div className="flex flex-row items-center gap-3">
@@ -130,18 +139,27 @@ function SandboxProviderDetailContent() {
                 <Switch
                   checked={provider.enabled}
                   disabled={update.isPending}
-                  onCheckedChange={(enabled) =>
+                  onCheckedChange={(enabled) => {
+                    if (!enabled) {
+                      setIsDisableOpen(true);
+                      return;
+                    }
                     update.mutate(
                       { providerId: provider.metadata.id, data: { enabled } },
                       {
                         onError: (error) => handleApiError(error as AxiosError),
                       },
-                    )
-                  }
+                    );
+                  }}
                 />
                 Enabled
               </label>
             )}
+            <DisableProviderDialog
+              provider={provider}
+              open={isDisableOpen}
+              onOpenChange={setIsDisableOpen}
+            />
             <ProviderActionsMenu
               provider={provider}
               onDeleted={() =>
@@ -157,7 +175,7 @@ function SandboxProviderDetailContent() {
         <div className="grid gap-4 lg:grid-cols-2">
           <Card variant="light" className="border-none bg-background">
             <CardHeader>
-              <CardTitle>Configuration</CardTitle>
+              <CardTitle>Settings</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <Row label="Default template">
@@ -169,18 +187,14 @@ function SandboxProviderDetailContent() {
                   <span className="text-muted-foreground">Vendor default</span>
                 )}
               </Row>
-              <Row label="Max idle time">
-                {provider.maxIdleTtlSeconds} seconds
-              </Row>
-              {config.length > 0 && (
-                <Row label="Provider config">
-                  <pre className="overflow-x-auto rounded bg-muted px-2 py-1 font-mono text-xs">
-                    {JSON.stringify(provider.config, null, 2)}
-                  </pre>
+              <Row label="Max idle">{provider.maxIdleTtlSeconds} seconds</Row>
+              {config.map((c) => (
+                <Row key={c.key} label={c.label}>
+                  <code className="font-mono text-xs">{c.value}</code>
                 </Row>
-              )}
+              ))}
               {labels.length > 0 && (
-                <Row label="Labels">
+                <Row label="Metadata">
                   <div className="flex flex-wrap gap-1">
                     {labels.map(([k, v]) => (
                       <code
@@ -205,8 +219,8 @@ function SandboxProviderDetailContent() {
                 {provider.status.healthy === undefined
                   ? 'Not checked yet'
                   : provider.status.healthy
-                    ? 'Accepted by the vendor'
-                    : 'Rejected by the vendor'}
+                    ? 'Accepted'
+                    : 'Rejected'}
               </Row>
               <Row label="Status changed">
                 {provider.status.changedAt ? (
@@ -238,8 +252,7 @@ function SandboxProviderDetailContent() {
           <div>
             <h3 className="text-lg font-semibold">Events</h3>
             <p className="text-sm text-muted-foreground">
-              What the sandbox operator observed about this provider: credential
-              checks, sandbox creations and failures.
+              Credential checks, sandbox creations and failures.
             </p>
           </div>
           {eventsQuery.isError ? (
