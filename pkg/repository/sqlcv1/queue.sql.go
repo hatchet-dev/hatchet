@@ -1374,32 +1374,39 @@ func (q *Queries) ListBatchedQueueItemsToTimeout(ctx context.Context, db DBTX, a
 const listDistinctBatchResources = `-- name: ListDistinctBatchResources :many
 SELECT
     sbc.step_id,
-    b.batch_key,
-    sbc.batch_max_size AS batch_max_size,
-    sbc.batch_max_interval AS batch_max_interval,
-    sbc.batch_group_max_runs AS batch_group_max_runs
+    sbc.batch_max_size,
+    sbc.batch_max_interval,
+    sbc.batch_group_max_runs
 FROM
     v1_step_batch_config sbc
-JOIN LATERAL (
-    SELECT batch_key
-    FROM v1_batched_queue_item
-    WHERE tenant_id = $1::uuid AND step_id = sbc.step_id
-    LIMIT 1
-) b ON true
+WHERE
+    ($1::uuid[] IS NULL OR sbc.step_id = ANY($1::uuid[]))
+    AND EXISTS (
+        SELECT 1
+        FROM v1_batched_queue_item bqi
+        WHERE
+            bqi.tenant_id = $2::uuid
+            AND bqi.step_id = sbc.step_id
+            AND bqi.batch_key <> ''
+    )
 `
+
+type ListDistinctBatchResourcesParams struct {
+	StepIds  []uuid.UUID `json:"stepIds"`
+	Tenantid uuid.UUID   `json:"tenantid"`
+}
 
 type ListDistinctBatchResourcesRow struct {
 	StepID            uuid.UUID   `json:"step_id"`
-	BatchKey          string      `json:"batch_key"`
 	BatchMaxSize      int32       `json:"batch_max_size"`
 	BatchMaxInterval  pgtype.Int4 `json:"batch_max_interval"`
 	BatchGroupMaxRuns pgtype.Int4 `json:"batch_group_max_runs"`
 }
 
-// short circuits using lateral join with LIMIT because we only care about the existence of 1 or more
-// batched queue item rows
-func (q *Queries) ListDistinctBatchResources(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*ListDistinctBatchResourcesRow, error) {
-	rows, err := db.Query(ctx, listDistinctBatchResources, tenantid)
+// Steps with pending batched queue items, optionally limited to stepIds. Items with an empty
+// batch key (a failed group key evaluation) don't count.
+func (q *Queries) ListDistinctBatchResources(ctx context.Context, db DBTX, arg ListDistinctBatchResourcesParams) ([]*ListDistinctBatchResourcesRow, error) {
+	rows, err := db.Query(ctx, listDistinctBatchResources, arg.StepIds, arg.Tenantid)
 	if err != nil {
 		return nil, err
 	}
@@ -1409,7 +1416,6 @@ func (q *Queries) ListDistinctBatchResources(ctx context.Context, db DBTX, tenan
 		var i ListDistinctBatchResourcesRow
 		if err := rows.Scan(
 			&i.StepID,
-			&i.BatchKey,
 			&i.BatchMaxSize,
 			&i.BatchMaxInterval,
 			&i.BatchGroupMaxRuns,

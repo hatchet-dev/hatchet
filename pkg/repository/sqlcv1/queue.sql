@@ -957,22 +957,25 @@ LIMIT
     COALESCE(sqlc.narg('limit')::integer, 1000);
 
 -- name: ListDistinctBatchResources :many
--- short circuits using lateral join with LIMIT because we only care about the existence of 1 or more
--- batched queue item rows
+-- Steps with pending batched queue items, optionally limited to stepIds. Items with an empty
+-- batch key (a failed group key evaluation) don't count.
 SELECT
     sbc.step_id,
-    b.batch_key,
-    sbc.batch_max_size AS batch_max_size,
-    sbc.batch_max_interval AS batch_max_interval,
-    sbc.batch_group_max_runs AS batch_group_max_runs
+    sbc.batch_max_size,
+    sbc.batch_max_interval,
+    sbc.batch_group_max_runs
 FROM
     v1_step_batch_config sbc
-JOIN LATERAL (
-    SELECT batch_key
-    FROM v1_batched_queue_item
-    WHERE tenant_id = @tenantId::uuid AND step_id = sbc.step_id
-    LIMIT 1
-) b ON true;
+WHERE
+    (sqlc.narg('stepIds')::uuid[] IS NULL OR sbc.step_id = ANY(sqlc.narg('stepIds')::uuid[]))
+    AND EXISTS (
+        SELECT 1
+        FROM v1_batched_queue_item bqi
+        WHERE
+            bqi.tenant_id = @tenantId::uuid
+            AND bqi.step_id = sbc.step_id
+            AND bqi.batch_key <> ''
+    );
 
 -- name: MoveQueueItemsToBatchedQueue :many
 WITH locked_qis AS (

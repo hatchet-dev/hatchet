@@ -5,6 +5,12 @@ All notable changes to Hatchet's Ruby SDK will be documented in this changelog.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- The `Hatchet::BatchTaskConfig` docs no longer say a batch flushes once `group_max_runs` is exceeded. While a group has `group_max_runs` batches running, its ready batches stay buffered. The docs also give the engine defaults: `max_interval_ms` is 1000, measured from when a batch's first item is buffered, and `group_max_runs` is 100.
+
 ## [0.12.4] - 2026-11-17
 
 ### Fixed
