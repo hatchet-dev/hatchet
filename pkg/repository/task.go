@@ -734,26 +734,30 @@ func (r *sharedRepository) GetTaskByExternalId(ctx context.Context, tenantId, ta
 	}
 
 	row := sqlcv1.FlattenExternalIdsRow{
-		ID:                    res.ID,
-		InsertedAt:            res.InsertedAt,
-		RetryCount:            res.RetryCount,
-		ExternalID:            res.ExternalID,
-		WorkflowRunID:         res.WorkflowRunID,
-		AdditionalMetadata:    res.AdditionalMetadata,
-		DagID:                 res.DagID,
-		DagInsertedAt:         res.DagInsertedAt,
-		ParentTaskID:          res.ParentTaskID,
-		ChildIndex:            res.ChildIndex,
-		ChildKey:              res.ChildKey,
-		StepReadableID:        res.StepReadableID,
-		WorkflowRunExternalID: res.WorkflowRunID,
-		WorkflowID:            res.WorkflowID,
-		StepID:                res.StepID,
-		IsDurable:             res.IsDurable,
-		IsDagOrchestrator:     res.IsDagOrchestrator,
-		ParentTaskExternalID:  res.ParentTaskExternalID,
-		WorkflowVersionID:     res.WorkflowVersionID,
-		PayloadReferenceID:    res.PayloadReferenceID,
+		ID:                        res.ID,
+		InsertedAt:                res.InsertedAt,
+		RetryCount:                res.RetryCount,
+		ExternalID:                res.ExternalID,
+		WorkflowRunID:             res.WorkflowRunID,
+		AdditionalMetadata:        res.AdditionalMetadata,
+		DagID:                     res.DagID,
+		DagInsertedAt:             res.DagInsertedAt,
+		ParentTaskID:              res.ParentTaskID,
+		ChildIndex:                res.ChildIndex,
+		ChildKey:                  res.ChildKey,
+		StepReadableID:            res.StepReadableID,
+		WorkflowRunExternalID:     res.WorkflowRunID,
+		WorkflowID:                res.WorkflowID,
+		StepID:                    res.StepID,
+		IsDurable:                 res.IsDurable,
+		IsDagOrchestrator:         res.IsDagOrchestrator,
+		ParentTaskExternalID:      res.ParentTaskExternalID,
+		WorkflowVersionID:         res.WorkflowVersionID,
+		PayloadReferenceID:        res.PayloadReferenceID,
+		Priority:                  res.Priority,
+		DesiredWorkerID:           res.DesiredWorkerID,
+		TriggeringEventExternalID: res.TriggeringEventExternalID,
+		TriggeringEventKey:        res.TriggeringEventKey,
 	}
 
 	r.taskLookupCache.Add(key, &row)
@@ -2784,7 +2788,8 @@ func (r *sharedRepository) insertTasks(
 
 		stickies[i] = string(sqlcv1.V1StickyStrategyNONE)
 
-		if stepConfig.WorkflowVersionSticky.Valid {
+		// the orchestrator runs on an operator, never on the desired worker; its steps get the desired worker instead
+		if stepConfig.WorkflowVersionSticky.Valid && !stepConfig.IsDagOrchestrator {
 			stickies[i] = string(stepConfig.WorkflowVersionSticky.StickyStrategy)
 		}
 

@@ -2036,6 +2036,16 @@ func (d *DispatcherServiceImpl) TriggerDAGSteps(ctx context.Context, tenantId uu
 	orchestratorWorkflowRunId := task.ExternalID
 	triggerOpts := make([]*v1.WorkflowNameTriggerOpts, len(reqs))
 
+	var orchestratorPriority *int32
+	if task.Priority.Valid {
+		orchestratorPriority = &task.Priority.Int32
+	}
+
+	var orchestratorTriggeringEventKey *string
+	if task.TriggeringEventKey.Valid {
+		orchestratorTriggeringEventKey = &task.TriggeringEventKey.String
+	}
+
 	for i, req := range reqs {
 		childIndex := int64(req.ChildIndex)
 		stepLabel := req.ActionId
@@ -2053,22 +2063,26 @@ func (d *DispatcherServiceImpl) TriggerDAGSteps(ctx context.Context, tenantId uu
 			TriggerTaskData: &v1.TriggerTaskData{
 				WorkflowName: req.WorkflowName,
 				// Pin to the DAG's original version so a mid-run deploy can't retarget the step.
-				WorkflowVersionId:    &workflowVersionId,
-				TargetActionId:       &actionId,
-				UserMessage:          &stepLabel,
-				Data:                 []byte(req.Input),
-				AdditionalMetadata:   req.AdditionalMetadata,
-				ParentExternalId:     &task.ExternalID,
-				ParentTaskId:         &task.ID,
-				ParentTaskInsertedAt: &task.InsertedAt.Time,
-				ChildIndex:           &childIndex,
-				DagParentTaskRunIds:  req.DagParentTaskRunIds,
-				IsSkipped:            req.IsSkipped,
-				IsCancelled:          req.IsCancelled,
-				DesiredWorkerLabels:  req.DesiredWorkerLabels,
-				WorkflowRunId:        &orchestratorWorkflowRunId,
-				OlapDagId:            &task.ID,
-				OlapDagInsertedAt:    &task.InsertedAt.Time,
+				WorkflowVersionId:         &workflowVersionId,
+				TargetActionId:            &actionId,
+				UserMessage:               &stepLabel,
+				Data:                      []byte(req.Input),
+				AdditionalMetadata:        req.AdditionalMetadata,
+				ParentExternalId:          &task.ExternalID,
+				ParentTaskId:              &task.ID,
+				ParentTaskInsertedAt:      &task.InsertedAt.Time,
+				ChildIndex:                &childIndex,
+				DagParentTaskRunIds:       req.DagParentTaskRunIds,
+				IsSkipped:                 req.IsSkipped,
+				IsCancelled:               req.IsCancelled,
+				DesiredWorkerLabels:       req.DesiredWorkerLabels,
+				Priority:                  orchestratorPriority,
+				DesiredWorkerId:           task.DesiredWorkerID,
+				TriggeringEventExternalId: task.TriggeringEventExternalID,
+				TriggeringEventKey:        orchestratorTriggeringEventKey,
+				WorkflowRunId:             &orchestratorWorkflowRunId,
+				OlapDagId:                 &task.ID,
+				OlapDagInsertedAt:         &task.InsertedAt.Time,
 
 				OrchestratorPayloadReferenceId: task.PayloadReferenceID,
 			},
