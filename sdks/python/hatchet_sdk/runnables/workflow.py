@@ -829,11 +829,17 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         :param **kwargs: Additional arguments that will be passed to the underlying MCP Tool object constructor.
 
 
-        :raises ValueError: if runnable does not have a description.
-        :raises NotImplementedError: If provider does not exist.
+        :raises ValueError: if `provider` is not `"CLAUDE"` or `"OPENAI"`, or the runnable has no description or input validator.
+        :raises NotImplementedError: If the runnable is neither a workflow nor a standalone task.
 
         :returns: The MCP tool configuration object.
         """
+        accepted_providers = get_args(MCPProvider)
+        if provider not in accepted_providers:
+            raise ValueError(
+                f"`provider` must be one of {list(accepted_providers)}. Got: {provider!r}"
+            )
+
         if not self._config.description:
             raise ValueError(
                 f"Runnable '{self._config.name}' has no description. "
