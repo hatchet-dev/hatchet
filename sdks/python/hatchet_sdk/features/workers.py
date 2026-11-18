@@ -1,4 +1,5 @@
 import asyncio
+import builtins
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -45,7 +46,7 @@ class WorkersClient(BaseRestClient):
 
     async def aio_list(
         self,
-    ) -> list[Worker]:
+    ) -> builtins.list[Worker]:
         """
         List all workers in the tenant determined by the client config.
 
@@ -55,7 +56,7 @@ class WorkersClient(BaseRestClient):
 
     def list(
         self,
-    ) -> list[Worker]:
+    ) -> builtins.list[Worker]:
         """
         List all workers in the tenant determined by the client config.
 

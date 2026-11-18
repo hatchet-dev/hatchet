@@ -1,4 +1,5 @@
 import asyncio
+import itertools
 from uuid import uuid4
 
 import pytest
@@ -11,7 +12,7 @@ from examples.concurrency_shared.worker import (
     task_chain,
     task_mixed,
 )
-from hatchet_sdk import Hatchet, RunStatus
+from hatchet_sdk import Hatchet
 from hatchet_sdk.runnables.workflow import Standalone
 
 TOLERANCE_MS = 100
@@ -31,7 +32,7 @@ def assert_serialized(windows: list[RunWindow]) -> None:
     """No two run windows may overlap (max concurrency of 1)."""
     ordered = sorted(windows, key=lambda w: w.start_ms)
 
-    for prev, cur in zip(ordered, ordered[1:]):
+    for prev, cur in itertools.pairwise(ordered):
         assert (
             cur.start_ms >= prev.end_ms - TOLERANCE_MS
         ), f"runs overlapped: {prev} vs {cur}"

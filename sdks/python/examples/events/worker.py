@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import BaseModel
 
 from hatchet_sdk import Context, DefaultFilter, Hatchet
@@ -43,7 +45,7 @@ event_workflow_with_filter = hatchet.workflow(
 
 
 @event_workflow.task()
-def task(input: EventWorkflowInput, ctx: Context) -> dict[str, str]:
+def task(input: EventWorkflowInput, ctx: Context) -> dict[str, Any]:
     print("event received")
 
     return ctx.filter_payload

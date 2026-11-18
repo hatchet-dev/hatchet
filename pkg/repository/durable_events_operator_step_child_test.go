@@ -60,7 +60,16 @@ func TestIsOperatorStepChildRequiresTheOrchestratorAsParentAndRun(t *testing.T) 
 	}
 	require.False(t, IsOperatorStepChild(regularChildWorkflow))
 
-	rootTask := &sqlcv1.ReleaseTasksRow{WorkflowRunID: otherExternalId}
+	singleTaskChildRun := &sqlcv1.ReleaseTasksRow{
+		ExternalID:           otherExternalId,
+		WorkflowRunID:        otherExternalId,
+		ParentTaskExternalID: &orchestratorExternalId,
+		ParentTaskID:         pgtype.Int8{Int64: 1, Valid: true},
+		ParentTaskInsertedAt: pgtype.Timestamptz{Valid: true},
+	}
+	require.True(t, IsOperatorStepChild(singleTaskChildRun))
+
+	rootTask := &sqlcv1.ReleaseTasksRow{ExternalID: otherExternalId, WorkflowRunID: otherExternalId}
 	require.False(t, IsOperatorStepChild(rootTask))
 }
 

@@ -1411,7 +1411,11 @@ SELECT
     t.is_durable,
     t.task_input_payload_version,
     t.payload_reference_id,
-    NULL::uuid AS dag_payload_reference_id
+    NULL::uuid AS dag_payload_reference_id,
+    t.priority,
+    t.desired_worker_id,
+    t.triggering_event_external_id,
+    t.triggering_event_key
 FROM
     unnest($1::bigint[], $2::timestamptz[]) AS i(id, inserted_at)
 JOIN
@@ -1444,7 +1448,11 @@ SELECT
     t.is_durable,
     t.task_input_payload_version,
     t.payload_reference_id,
-    d.payload_reference_id AS dag_payload_reference_id
+    d.payload_reference_id AS dag_payload_reference_id,
+    t.priority,
+    t.desired_worker_id,
+    t.triggering_event_external_id,
+    t.triggering_event_key
 FROM
     unnest($1::bigint[], $2::timestamptz[], $3::uuid[]) AS i(id, inserted_at, external_id)
 JOIN
@@ -1468,28 +1476,32 @@ type FlattenExternalIdsParams struct {
 }
 
 type FlattenExternalIdsRow struct {
-	ID                      int64              `json:"id"`
-	InsertedAt              pgtype.Timestamptz `json:"inserted_at"`
-	RetryCount              int32              `json:"retry_count"`
-	ExternalID              uuid.UUID          `json:"external_id"`
-	WorkflowRunID           uuid.UUID          `json:"workflow_run_id"`
-	AdditionalMetadata      []byte             `json:"additional_metadata"`
-	DagID                   pgtype.Int8        `json:"dag_id"`
-	DagInsertedAt           pgtype.Timestamptz `json:"dag_inserted_at"`
-	ParentTaskID            pgtype.Int8        `json:"parent_task_id"`
-	ChildIndex              pgtype.Int8        `json:"child_index"`
-	ChildKey                pgtype.Text        `json:"child_key"`
-	StepReadableID          string             `json:"step_readable_id"`
-	WorkflowRunExternalID   uuid.UUID          `json:"workflow_run_external_id"`
-	WorkflowID              uuid.UUID          `json:"workflow_id"`
-	StepID                  uuid.UUID          `json:"step_id"`
-	IsDagOrchestrator       bool               `json:"is_dag_orchestrator"`
-	WorkflowVersionID       uuid.UUID          `json:"workflow_version_id"`
-	ParentTaskExternalID    *uuid.UUID         `json:"parent_task_external_id"`
-	IsDurable               pgtype.Bool        `json:"is_durable"`
-	TaskInputPayloadVersion int16              `json:"task_input_payload_version"`
-	PayloadReferenceID      *uuid.UUID         `json:"payload_reference_id"`
-	DagPayloadReferenceID   *uuid.UUID         `json:"dag_payload_reference_id"`
+	ID                        int64              `json:"id"`
+	InsertedAt                pgtype.Timestamptz `json:"inserted_at"`
+	RetryCount                int32              `json:"retry_count"`
+	ExternalID                uuid.UUID          `json:"external_id"`
+	WorkflowRunID             uuid.UUID          `json:"workflow_run_id"`
+	AdditionalMetadata        []byte             `json:"additional_metadata"`
+	DagID                     pgtype.Int8        `json:"dag_id"`
+	DagInsertedAt             pgtype.Timestamptz `json:"dag_inserted_at"`
+	ParentTaskID              pgtype.Int8        `json:"parent_task_id"`
+	ChildIndex                pgtype.Int8        `json:"child_index"`
+	ChildKey                  pgtype.Text        `json:"child_key"`
+	StepReadableID            string             `json:"step_readable_id"`
+	WorkflowRunExternalID     uuid.UUID          `json:"workflow_run_external_id"`
+	WorkflowID                uuid.UUID          `json:"workflow_id"`
+	StepID                    uuid.UUID          `json:"step_id"`
+	IsDagOrchestrator         bool               `json:"is_dag_orchestrator"`
+	WorkflowVersionID         uuid.UUID          `json:"workflow_version_id"`
+	ParentTaskExternalID      *uuid.UUID         `json:"parent_task_external_id"`
+	IsDurable                 pgtype.Bool        `json:"is_durable"`
+	TaskInputPayloadVersion   int16              `json:"task_input_payload_version"`
+	PayloadReferenceID        *uuid.UUID         `json:"payload_reference_id"`
+	DagPayloadReferenceID     *uuid.UUID         `json:"dag_payload_reference_id"`
+	Priority                  pgtype.Int4        `json:"priority"`
+	DesiredWorkerID           *uuid.UUID         `json:"desired_worker_id"`
+	TriggeringEventExternalID *uuid.UUID         `json:"triggering_event_external_id"`
+	TriggeringEventKey        pgtype.Text        `json:"triggering_event_key"`
 }
 
 // flattenKeys collects the primary keys that one kind of v1_lookup_table row (task or DAG) points
@@ -1617,6 +1629,10 @@ func appendFlattenExternalIdsRows(items []*FlattenExternalIdsRow, rows pgx.Rows)
 			&i.TaskInputPayloadVersion,
 			&i.PayloadReferenceID,
 			&i.DagPayloadReferenceID,
+			&i.Priority,
+			&i.DesiredWorkerID,
+			&i.TriggeringEventExternalID,
+			&i.TriggeringEventKey,
 		); err != nil {
 			return nil, err
 		}

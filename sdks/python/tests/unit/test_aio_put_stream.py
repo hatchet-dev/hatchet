@@ -1,15 +1,13 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import grpc
 import grpc.aio
 import pytest
 import tenacity
 
-from hatchet_sdk.features.events import EventClient
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.config import ClientConfig, TenacityConfig
 from hatchet_sdk.context.context import Context
@@ -17,7 +15,12 @@ from hatchet_sdk.contracts.events_pb2 import (
     PutStreamEventRequest,
     PutStreamEventResponse,
 )
-from hatchet_sdk.contracts.events_pb2_grpc import EventsServiceStub
+from hatchet_sdk.features.events import EventClient
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable
+
+    from hatchet_sdk.contracts.events_pb2_grpc import EventsServiceAsyncStub
 
 
 def _make_grpc_error(code: grpc.StatusCode, details: str = "") -> grpc.aio.AioRpcError:
@@ -70,7 +73,7 @@ def _event_client(aio_stub: _FakeAioEventsServiceStub) -> EventClient:
     )
     client._token = "token"
     client._namespace = ""
-    client._aio_client = cast(EventsServiceStub, aio_stub)
+    client._aio_client = cast("EventsServiceAsyncStub", aio_stub)
     client._retrying_aio_put_stream_event = tenacity_retry(
         client._put_stream_event, client.client_config.tenacity
     )
@@ -131,7 +134,7 @@ def _context(event_client: _RecordingEventClient) -> Context:
     ctx = Context.__new__(Context)
     ctx._stream_index = 0
     ctx._task_run_external_id = "step-run-id"
-    ctx._event_client = cast(EventClient, event_client)
+    ctx._event_client = cast("EventClient", event_client)
 
     return ctx
 

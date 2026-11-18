@@ -1,8 +1,8 @@
-# type: ignore
+# pyright: basic
 
 import asyncio
 
-from langfuse import get_client  # type: ignore
+from langfuse import get_client  # type: ignore[import-not-found]  # ty: ignore
 from opentelemetry.trace import StatusCode
 
 from examples.opentelemetry_instrumentation.langfuse.worker import langfuse_task

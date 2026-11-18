@@ -33,7 +33,7 @@ from hatchet_sdk.utils.typing import (
 )
 
 if TYPE_CHECKING:
-    from hatchet_sdk.context.context import Context, DurableContext
+    from hatchet_sdk.context.context import DurableContext
 
 
 StickyStrategy = Literal["SOFT", "HARD"]
@@ -77,8 +77,8 @@ class DefaultFilter(BaseModel):
         )
 
 
-TaskPayloadForInternalUse = (
-    type[BaseModel] | type[DataclassInstance] | dict[str, Any] | None
+TaskPayloadForInternalUse: TypeAlias = (
+    BaseModel | DataclassInstance | dict[str, Any] | None
 )
 
 
@@ -112,7 +112,7 @@ class WorkflowConfig(BaseModel):
     idempotency: TTLBasedIdempotencyConfig | StatusBasedIdempotencyConfig | None = None
 
     task_defaults: TaskDefaults = TaskDefaults()
-    default_filters: list[DefaultFilter] = Field(default_factory=list)
+    default_filters: list[DefaultFilter] = Field(default_factory=list[DefaultFilter])
     default_additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
 
 
@@ -134,23 +134,6 @@ class TaskType(StrEnum):
     ON_SUCCESS = "on_success"
 
 
-AsyncFunc = Callable[[TWorkflowInput, "Context"], AwaitableLike[R]]
-SyncFunc = Callable[[TWorkflowInput, "Context"], R]
-TaskFunc = AsyncFunc[TWorkflowInput, R] | SyncFunc[TWorkflowInput, R]
-
-
-def is_async_fn(
-    fn: TaskFunc[TWorkflowInput, R],
-) -> TypeGuard[AsyncFunc[TWorkflowInput, R]]:
-    return inspect.iscoroutinefunction(fn)
-
-
-def is_sync_fn(
-    fn: TaskFunc[TWorkflowInput, R],
-) -> TypeGuard[SyncFunc[TWorkflowInput, R]]:
-    return not inspect.iscoroutinefunction(fn)
-
-
 DurableAsyncFunc = Callable[[TWorkflowInput, "DurableContext"], AwaitableLike[R]]
 DurableSyncFunc = Callable[[TWorkflowInput, "DurableContext"], R]
 DurableTaskFunc = (
@@ -159,7 +142,7 @@ DurableTaskFunc = (
 
 
 def is_durable_async_fn(
-    fn: Callable[..., Any],
+    fn: DurableTaskFunc[TWorkflowInput, R],
 ) -> TypeGuard[DurableAsyncFunc[TWorkflowInput, R]]:
     return inspect.iscoroutinefunction(fn)
 

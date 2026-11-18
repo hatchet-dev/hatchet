@@ -76,6 +76,12 @@ type TriggerTaskData struct {
 	// (optional) the priority of the task
 	Priority *int32 `json:"priority"`
 
+	// (optional) the event that triggered the run (used by DAG operator to pass the orchestrator's event on to its steps)
+	TriggeringEventExternalId *uuid.UUID `json:"triggering_event_external_id,omitempty"`
+
+	// (optional) see TriggeringEventExternalId
+	TriggeringEventKey *string `json:"triggering_event_key,omitempty"`
+
 	// (optional) overrides for desired worker labels for the task, used for routing a task to a specific worker (or worker pool)
 	DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow `json:"desired_worker_labels"`
 
@@ -2206,6 +2212,10 @@ func (r *sharedRepository) registerChildWorkflows(
 
 	tuplesToSkip = enumerables.ToSet(existingExternalIds, func(dbExternalId *sqlcv1.V1LookupTable) uuid.UUID { return dbExternalId.ExternalID })
 
+	if r.childRunDirectSpawn {
+		return tuplesToSkip, nil
+	}
+
 	createMatchOpts := make([]CreateMatchOpts, 0)
 
 	for i, tuple := range tuples {
@@ -3048,27 +3058,29 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 			}
 
 			triggerOpts = append(triggerOpts, triggerTuple{
-				workflowVersionId:    pinned.ID,
-				workflowId:           pinned.WorkflowId,
-				workflowName:         opt.WorkflowName,
-				externalId:           opt.ExternalId,
-				input:                opt.Data,
-				additionalMetadata:   opt.AdditionalMetadata,
-				desiredWorkerId:      opt.DesiredWorkerId,
-				parentExternalId:     opt.ParentExternalId,
-				parentTaskId:         opt.ParentTaskId,
-				parentTaskInsertedAt: opt.ParentTaskInsertedAt,
-				childIndex:           opt.ChildIndex,
-				childKey:             opt.ChildKey,
-				priority:             opt.Priority,
-				desiredWorkerLabels:  opt.DesiredWorkerLabels,
-				dagParentTaskRunIds:  opt.DagParentTaskRunIds,
-				targetActionId:       opt.TargetActionId,
-				isSkipped:            opt.IsSkipped,
-				isCancelled:          opt.IsCancelled,
-				workflowRunId:        opt.WorkflowRunId,
-				olapDagId:            opt.OlapDagId,
-				olapDagInsertedAt:    opt.OlapDagInsertedAt,
+				workflowVersionId:         pinned.ID,
+				workflowId:                pinned.WorkflowId,
+				workflowName:              opt.WorkflowName,
+				externalId:                opt.ExternalId,
+				input:                     opt.Data,
+				additionalMetadata:        opt.AdditionalMetadata,
+				desiredWorkerId:           opt.DesiredWorkerId,
+				parentExternalId:          opt.ParentExternalId,
+				parentTaskId:              opt.ParentTaskId,
+				parentTaskInsertedAt:      opt.ParentTaskInsertedAt,
+				childIndex:                opt.ChildIndex,
+				childKey:                  opt.ChildKey,
+				priority:                  opt.Priority,
+				desiredWorkerLabels:       opt.DesiredWorkerLabels,
+				triggeringEventExternalId: opt.TriggeringEventExternalId,
+				triggeringEventKey:        opt.TriggeringEventKey,
+				dagParentTaskRunIds:       opt.DagParentTaskRunIds,
+				targetActionId:            opt.TargetActionId,
+				isSkipped:                 opt.IsSkipped,
+				isCancelled:               opt.IsCancelled,
+				workflowRunId:             opt.WorkflowRunId,
+				olapDagId:                 opt.OlapDagId,
+				olapDagInsertedAt:         opt.OlapDagInsertedAt,
 
 				orchestratorPayloadReferenceId: opt.OrchestratorPayloadReferenceId,
 			})
@@ -3109,29 +3121,31 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 			}
 
 			triggerOpts = append(triggerOpts, triggerTuple{
-				workflowVersionId:    workflowVersion.WorkflowVersionId,
-				workflowId:           workflowVersion.WorkflowId,
-				workflowName:         workflowVersion.WorkflowName,
-				isPaused:             workflowVersion.WorkflowIsPaused.Bool,
-				externalId:           opt.ExternalId,
-				input:                opt.Data,
-				additionalMetadata:   opt.AdditionalMetadata,
-				desiredWorkerId:      opt.DesiredWorkerId,
-				parentExternalId:     opt.ParentExternalId,
-				parentTaskId:         opt.ParentTaskId,
-				parentTaskInsertedAt: opt.ParentTaskInsertedAt,
-				childIndex:           opt.ChildIndex,
-				childKey:             opt.ChildKey,
-				priority:             opt.Priority,
-				desiredWorkerLabels:  opt.DesiredWorkerLabels,
-				idempotency:          idempotency,
-				dagParentTaskRunIds:  opt.DagParentTaskRunIds,
-				targetActionId:       opt.TargetActionId,
-				isSkipped:            opt.IsSkipped,
-				isCancelled:          opt.IsCancelled,
-				workflowRunId:        opt.WorkflowRunId,
-				olapDagId:            opt.OlapDagId,
-				olapDagInsertedAt:    opt.OlapDagInsertedAt,
+				workflowVersionId:         workflowVersion.WorkflowVersionId,
+				workflowId:                workflowVersion.WorkflowId,
+				workflowName:              workflowVersion.WorkflowName,
+				isPaused:                  workflowVersion.WorkflowIsPaused.Bool,
+				externalId:                opt.ExternalId,
+				input:                     opt.Data,
+				additionalMetadata:        opt.AdditionalMetadata,
+				desiredWorkerId:           opt.DesiredWorkerId,
+				parentExternalId:          opt.ParentExternalId,
+				parentTaskId:              opt.ParentTaskId,
+				parentTaskInsertedAt:      opt.ParentTaskInsertedAt,
+				childIndex:                opt.ChildIndex,
+				childKey:                  opt.ChildKey,
+				priority:                  opt.Priority,
+				desiredWorkerLabels:       opt.DesiredWorkerLabels,
+				triggeringEventExternalId: opt.TriggeringEventExternalId,
+				triggeringEventKey:        opt.TriggeringEventKey,
+				idempotency:               idempotency,
+				dagParentTaskRunIds:       opt.DagParentTaskRunIds,
+				targetActionId:            opt.TargetActionId,
+				isSkipped:                 opt.IsSkipped,
+				isCancelled:               opt.IsCancelled,
+				workflowRunId:             opt.WorkflowRunId,
+				olapDagId:                 opt.OlapDagId,
+				olapDagInsertedAt:         opt.OlapDagInsertedAt,
 
 				orchestratorPayloadReferenceId: opt.OrchestratorPayloadReferenceId,
 			})

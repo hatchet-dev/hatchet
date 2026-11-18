@@ -20,7 +20,7 @@ def partition_date_range(
     since = _to_utc(since)
     until = _to_utc(until)
 
-    ranges = []
+    ranges: list[tuple[datetime, datetime]] = []
     current_start = since
 
     while current_start < until:

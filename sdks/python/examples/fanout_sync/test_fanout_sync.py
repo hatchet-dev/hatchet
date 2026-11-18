@@ -6,11 +6,11 @@ from hatchet_sdk import Hatchet
 
 
 def test_run() -> None:
-    N = 2
+    child_count = 2
 
-    result = sync_fanout_parent.run(ParentInput(n=N))
+    result = sync_fanout_parent.run(ParentInput(n=child_count))
 
-    assert len(result["spawn"]["results"]) == N
+    assert len(result["spawn"]["results"]) == child_count
 
 
 @pytest.mark.asyncio(loop_scope="session")

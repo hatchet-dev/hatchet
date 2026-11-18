@@ -1,10 +1,8 @@
 import time
-
-from pydantic import BaseModel
+from typing import Any
 
 from opentelemetry.trace import StatusCode, get_tracer
-
-from typing import Any
+from pydantic import BaseModel
 
 from hatchet_sdk import Context, Hatchet
 from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor

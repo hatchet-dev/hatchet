@@ -34,16 +34,27 @@ def _render_literal_type(value: object) -> str | None:
     return None
 
 
-def _expand_literal_aliases(
+def _rewrite_annotation_for_docs(
     annotation: str | griffe.Expr | None,
 ) -> str | griffe.Expr | None:
     if not isinstance(annotation, griffe.Expr):
         return annotation
 
     parts: list[str] = []
-    expanded_any_alias = False
+    rewrote_annotation = False
+    previous_part_was_builtins_qualifier = False
 
     for part in annotation.iterate(flat=True):
+        ## classes with a `list` method annotate with `builtins.list`, which readers know as `list`
+        if isinstance(part, griffe.ExprName) and part.canonical_path == "builtins":
+            previous_part_was_builtins_qualifier = True
+            rewrote_annotation = True
+            continue
+
+        if previous_part_was_builtins_qualifier and part == ".":
+            previous_part_was_builtins_qualifier = False
+            continue
+
         rendered_alias = (
             _render_literal_type(_import_runtime_value(part.canonical_path))
             if isinstance(part, griffe.ExprName)
@@ -54,9 +65,9 @@ def _expand_literal_aliases(
             parts.append(str(part))
         else:
             parts.append(rendered_alias)
-            expanded_any_alias = True
+            rewrote_annotation = True
 
-    return "".join(parts) if expanded_any_alias else annotation
+    return "".join(parts) if rewrote_annotation else annotation
 
 
 def _documented_objects(obj: griffe.Object) -> Iterator[griffe.Object]:
@@ -69,7 +80,7 @@ def _documented_objects(obj: griffe.Object) -> Iterator[griffe.Object]:
 
 
 class ExpandLiteralAliasAnnotations(griffe.Extension):
-    """Show `Literal` type aliases such as `RunStatus` as the strings they allow, since the alias name alone tells a reader nothing."""
+    """Show `Literal` type aliases such as `RunStatus` as the strings they allow, since the alias name alone tells a reader nothing, and drop the `builtins.` qualifier from types."""
 
     def on_package(
         self,
@@ -80,7 +91,9 @@ class ExpandLiteralAliasAnnotations(griffe.Extension):
         for obj in _documented_objects(pkg):
             if isinstance(obj, griffe.Function):
                 for parameter in obj.parameters:
-                    parameter.annotation = _expand_literal_aliases(parameter.annotation)
-                obj.returns = _expand_literal_aliases(obj.returns)
+                    parameter.annotation = _rewrite_annotation_for_docs(
+                        parameter.annotation
+                    )
+                obj.returns = _rewrite_annotation_for_docs(obj.returns)
             elif isinstance(obj, griffe.Attribute):
-                obj.annotation = _expand_literal_aliases(obj.annotation)
+                obj.annotation = _rewrite_annotation_for_docs(obj.annotation)

@@ -11,7 +11,7 @@ from examples.bug_tests.worker_shutdown_no_premature_reassignment.worker import 
     drain_task,
 )
 from examples.test_utils import wait_for_running_status
-from hatchet_sdk import Hatchet, RunStatus
+from hatchet_sdk import Hatchet
 from tests.worker_fixture import get_free_port, hatchet_worker
 
 WORKER_A_NAME = "shutdown-drain-worker-a"
@@ -67,7 +67,7 @@ async def test_in_flight_task_completes_on_original_worker_without_reassignment(
                     break
                 await asyncio.sleep(1)
             else:
-                assert False, f"Worker {WORKER_A_NAME} never reported PAUSED"
+                pytest.fail(f"Worker {WORKER_A_NAME} never reported PAUSED")
 
             for _ in range(SLEEP_SECONDS + 60):
                 run = await hatchet.runs.aio_get_details(ref.workflow_run_id)
@@ -75,7 +75,7 @@ async def test_in_flight_task_completes_on_original_worker_without_reassignment(
                     break
                 await asyncio.sleep(1)
             else:
-                assert False, f"Task never completed, status was {run.status}"
+                pytest.fail(f"Task never completed, status was {run.status}")
 
     lines = log_path.read_text().splitlines()
     assert lines == [f"{WORKER_A_NAME} START", f"{WORKER_A_NAME} FINISH"], (

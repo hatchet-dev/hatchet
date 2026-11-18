@@ -102,7 +102,9 @@ class Action(BaseModel):
     action_type: ActionType
     retry_count: int
     action_payload: ActionPayload
-    additional_metadata: JSONSerializableMapping = field(default_factory=dict)
+    additional_metadata: JSONSerializableMapping = field(
+        default_factory=JSONSerializableMapping
+    )
 
     # Batch metadata
     batch_id: str | None = None

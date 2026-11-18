@@ -1,4 +1,5 @@
 import asyncio
+import builtins
 from datetime import datetime
 from typing import TYPE_CHECKING, Literal
 
@@ -27,6 +28,7 @@ from hatchet_sdk.clients.v1.api_client import (
 )
 from hatchet_sdk.types.ordering import OrderByDirection
 from hatchet_sdk.types.priority import Priority, priority_from_int, priority_to_int
+from hatchet_sdk.utils.literals import convert_literal_using_mapping
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 CronOrderByField = Literal["name", "created_at"]
@@ -250,7 +252,7 @@ class CronClient(BaseRestClient):
         order_by_direction: OrderByDirection | None = None,
         workflow_name: str | None = None,
         cron_name: str | None = None,
-    ) -> list[CronTrigger]:
+    ) -> builtins.list[CronTrigger]:
         """
         Retrieve a list of all workflow cron triggers matching the criteria.
 
@@ -288,7 +290,7 @@ class CronClient(BaseRestClient):
         order_by_direction: OrderByDirection | None = None,
         workflow_name: str | None = None,
         cron_name: str | None = None,
-    ) -> list[CronTrigger]:
+    ) -> builtins.list[CronTrigger]:
         """
         Retrieve a list of all workflow cron triggers matching the criteria.
 
@@ -317,12 +319,18 @@ class CronClient(BaseRestClient):
                     additional_metadata
                 ),
                 order_by_field=(
-                    _ORDER_BY_FIELD_TO_REST[order_by_field]
+                    convert_literal_using_mapping(
+                        order_by_field, _ORDER_BY_FIELD_TO_REST, "order_by_field"
+                    )
                     if order_by_field is not None
                     else None
                 ),
                 order_by_direction=(
-                    _ORDER_BY_DIRECTION_TO_REST[order_by_direction]
+                    convert_literal_using_mapping(
+                        order_by_direction,
+                        _ORDER_BY_DIRECTION_TO_REST,
+                        "order_by_direction",
+                    )
                     if order_by_direction is not None
                     else None
                 ),

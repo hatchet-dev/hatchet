@@ -2,7 +2,7 @@ import asyncio
 
 from pydantic import BaseModel
 
-from hatchet_sdk import Context, Hatchet
+from hatchet_sdk import Hatchet
 
 
 # > Define models

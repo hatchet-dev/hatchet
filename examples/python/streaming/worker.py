@@ -1,5 +1,5 @@
 import asyncio
-from typing import Generator
+from collections.abc import Generator
 
 from hatchet_sdk import Context, Hatchet
 

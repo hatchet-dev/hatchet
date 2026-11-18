@@ -16,7 +16,7 @@ from hatchet_sdk.clients.rest.exceptions import (
     ServiceException,
 )
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_should_retry
-from hatchet_sdk.config import TenacityConfig, HTTPMethod
+from hatchet_sdk.config import HTTPMethod, TenacityConfig
 
 # --- Default behavior tests (transport errors NOT retried) ---
 

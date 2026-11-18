@@ -4,9 +4,10 @@ import asyncio
 from datetime import timedelta
 from typing import Any
 
+from pydantic import BaseModel
+
 from hatchet_sdk import Context, DurableContext, Hatchet
 from hatchet_sdk.runnables.eviction import EvictionPolicy
-from pydantic import BaseModel
 
 hatchet = Hatchet()
 

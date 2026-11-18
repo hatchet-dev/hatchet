@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from hatchet_sdk.runnables.eviction import EvictionPolicy
 from hatchet_sdk.worker.durable_eviction.cache import DurableEvictionCache
 
 
 def dt(seconds: int) -> datetime:
-    return datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc) + timedelta(
-        seconds=seconds
-    )
+    return datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC) + timedelta(seconds=seconds)
 
 
 def test_ttl_eviction_prefers_oldest_waiting_and_priority() -> None:

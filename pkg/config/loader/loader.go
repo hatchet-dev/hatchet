@@ -365,6 +365,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		RetryQueueLimit:      scf.Runtime.TaskOperationLimits.RetryQueueLimit,
 		DurableSleepLimit:    scf.Runtime.TaskOperationLimits.DurableSleepLimit,
 		ReassignUnackedTasks: scf.Runtime.TaskOperationLimits.ReassignUnackedTasks,
+		ChildRunDirectSpawn:  scf.Runtime.TaskOperationLimits.ChildRunDirectSpawn,
 	}
 
 	inlineStoreTTLDays := scf.PayloadStore.InlineStoreTTLDays

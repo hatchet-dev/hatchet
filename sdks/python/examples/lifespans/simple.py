@@ -21,7 +21,7 @@ async def lifespan() -> AsyncGenerator[Lifespan, None]:
 
 @hatchet.task(name="LifespanWorkflow")
 def lifespan_task(input: None, ctx: Context) -> Lifespan:
-    return cast(Lifespan, ctx.lifespan)
+    return cast("Lifespan", ctx.lifespan)
 
 
 def main() -> None:

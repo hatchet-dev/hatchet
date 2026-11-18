@@ -72,6 +72,7 @@ func createOLAPRepositoryWithPayloadStore(t *testing.T, pool *pgxpool.Pool) *OLA
 		false,
 		time.Minute,
 		false,
+		false,
 	)
 	t.Cleanup(func() { _ = cleanupShared() })
 

@@ -7,8 +7,8 @@ def make_sample_pdf(text: str) -> bytes:
     objects = [
         "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj",
         "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj",
-        f"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792]"
-        f" /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj",
+        "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792]"
+        " /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj",
         f"4 0 obj\n<< /Length {len(stream)} >>\nstream\n{stream}\nendstream\nendobj",
         "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj",
     ]
