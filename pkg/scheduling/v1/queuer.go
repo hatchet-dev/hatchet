@@ -376,8 +376,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		processedQiLength := 0
 		unassignedReturned := 0
 		// progress counts items assigned, buffered, batched, or rate-limited by this poll.
-		// A rate-limited item waits for a refill on the normal poll interval, as it did
-		// before backoff counted unplaced rows. A scheduling timeout is not progress.
+		// Rate-limited results keep the normal poll interval so their refill is checked
+		// promptly. A scheduling timeout is not progress.
 		progress := 0
 		// written counts items whose write succeeded as assigned, buffered, or batched.
 		// Only a batch that is fully written polls again immediately.

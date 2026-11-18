@@ -2115,10 +2115,42 @@ func TestAction_RestoreConstrainedDropsDepartedWorkers(t *testing.T) {
 
 	require.Empty(t, restored, "no candidate has room, so no queue is woken")
 	require.NotContains(t, a.constrained, "pinned")
+	key, _, _ := slotRequestOf(defaultRequest())
 	require.Equal(t,
 		map[uuid.UUID]struct{}{live: {}},
-		a.constrained["labelled"][slotTypeSetKey(repo.SlotTypeDefault)].workerIds,
+		a.constrained["labelled"][key].workerIds,
 	)
+}
+
+// Misses with different slot requests on different workers are not merged: one item
+// needs one slot on a full worker, another needs two on a worker with one free.
+// Neither can run, so the rebuild must not wake the queue.
+func TestAction_RestoreConstrainedKeepsRequestsApart(t *testing.T) {
+	full := uuid.New()
+	partial := uuid.New()
+
+	now := time.Now()
+	poolWith := func(workerId uuid.UUID, free int) *slotPool {
+		w := &worker{ListActiveWorkersResult: testWorker(workerId)}
+		slots := make([]*slot, 0, free)
+		for i := 0; i < free; i++ {
+			slots = append(slots, newSlot(w, repo.SlotTypeDefault))
+		}
+		p := &slotPool{worker: w, slotType: repo.SlotTypeDefault}
+		p.reset(slots, now.Add(defaultSlotExpiry))
+		return p
+	}
+	pools := map[uuid.UUID]map[string]*slotPool{
+		full:    {repo.SlotTypeDefault: poolWith(full, 0)},
+		partial: {repo.SlotTypeDefault: poolWith(partial, 1)},
+	}
+
+	a := &action{}
+	a.MarkConstrained("q", []uuid.UUID{full}, map[string]int32{repo.SlotTypeDefault: 1})
+	a.MarkConstrained("q", []uuid.UUID{partial}, map[string]int32{repo.SlotTypeDefault: 2})
+
+	require.Empty(t, a.RestoreConstrained(pools, []uuid.UUID{full, partial}, now))
+	require.Len(t, a.constrained["q"], 2, "both misses stay recorded")
 }
 
 // A rebuild that still leaves the starved type without free slots reports no

@@ -2,6 +2,7 @@ package v1
 
 import (
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -28,19 +29,49 @@ type action struct {
 	// constrained item, not starvation.
 	starved map[string]map[slotTypeSetKey]struct{}
 
-	// constrained records, per queue and requested type set, misses by items that only
+	// constrained records, per queue and exact slot request, misses by items that only
 	// some of the action's workers can take (sticky HARD, required labels) or that ask
 	// for more units than any worker has free. These are not starvation, so a rebuild
 	// does not restore them from the action's capacity; it restores an entry once one of
-	// its candidate workers has the units the entry needs.
-	constrained map[string]map[slotTypeSetKey]*constrainedMiss
+	// its candidate workers has the units the entry needs. Entries are keyed by the full
+	// request so a worker's room is only checked against units an item on it asked for.
+	constrained map[string]map[slotRequestKey]*constrainedMiss
 }
 
-// constrainedMiss is the candidate workers of a queue's constrained misses for one type
-// set, and the fewest units of each type any of those misses asked for.
+// slotRequestKey is the canonical encoding of a slot request's types and units.
+type slotRequestKey string
+
+// constrainedMiss is the candidate workers of a queue's constrained misses for one slot
+// request, and that request's units per type.
 type constrainedMiss struct {
 	workerIds map[uuid.UUID]struct{}
 	units     map[string]int32
+}
+
+// slotRequestOf returns the key and units of the types in request with units > 0, and
+// reports whether there is at least one.
+func slotRequestOf(request map[string]int32) (slotRequestKey, map[string]int32, bool) {
+	types := make([]string, 0, len(request))
+	for slotType, units := range request {
+		if units > 0 {
+			types = append(types, slotType)
+		}
+	}
+
+	if len(types) == 0 {
+		return "", nil, false
+	}
+
+	sort.Strings(types)
+
+	units := make(map[string]int32, len(types))
+	parts := make([]string, 0, len(types))
+	for _, slotType := range types {
+		units[slotType] = request[slotType]
+		parts = append(parts, slotType+slotTypeSeparator+strconv.Itoa(int(request[slotType])))
+	}
+
+	return slotRequestKey(strings.Join(parts, slotTypeSeparator)), units, true
 }
 
 // slotTypeSetKey is the canonical encoding of the slot types a request asks
@@ -162,18 +193,22 @@ func (a *action) RestoreStarved(poolsByWorker map[uuid.UUID]map[string]*slotPool
 // types with no units are not recorded; a request with none records nothing. Runs on
 // the run loop.
 func (a *action) MarkConstrained(queue string, candidates []uuid.UUID, request map[string]int32) {
-	key, ok := slotTypeSetOf(request)
-	if !ok || len(candidates) == 0 {
+	if len(candidates) == 0 {
+		return
+	}
+
+	key, units, ok := slotRequestOf(request)
+	if !ok {
 		return
 	}
 
 	entries := a.constrained[queue]
 	if entries == nil {
 		if a.constrained == nil {
-			a.constrained = make(map[string]map[slotTypeSetKey]*constrainedMiss, 1)
+			a.constrained = make(map[string]map[slotRequestKey]*constrainedMiss, 1)
 		}
 
-		entries = make(map[slotTypeSetKey]*constrainedMiss, 1)
+		entries = make(map[slotRequestKey]*constrainedMiss, 1)
 		a.constrained[queue] = entries
 	}
 
@@ -181,23 +216,13 @@ func (a *action) MarkConstrained(queue string, candidates []uuid.UUID, request m
 	if miss == nil {
 		miss = &constrainedMiss{
 			workerIds: make(map[uuid.UUID]struct{}, len(candidates)),
-			units:     make(map[string]int32, len(request)),
+			units:     units,
 		}
 		entries[key] = miss
 	}
 
 	for _, workerId := range candidates {
 		miss.workerIds[workerId] = struct{}{}
-	}
-
-	for slotType, units := range request {
-		if units <= 0 {
-			continue
-		}
-
-		if prev, ok := miss.units[slotType]; !ok || units < prev {
-			miss.units[slotType] = units
-		}
 	}
 }
 
