@@ -210,14 +210,16 @@ type DurableEventBufferOpts struct {
 	MaxConcurrentFlushes int
 }
 
-func newDurableEventsRepository(shared *sharedRepository, opts DurableEventBufferOpts) *durableEventsRepository {
+func newDurableEventsRepository(shared *sharedRepository, opts DurableEventBufferOpts) (*durableEventsRepository, func()) {
 	r := &durableEventsRepository{
 		sharedRepository: shared,
 	}
 
-	r.ingestBuffer = newDurableEventIngestBuffer(r.appendDurableEventLogBatch, opts.FlushInterval, opts.MaxBatchSize, opts.MaxConcurrentFlushes)
+	ingestBufferCtx, stopIngestBuffer := context.WithCancel(context.Background())
 
-	return r
+	r.ingestBuffer = newDurableEventIngestBuffer(ingestBufferCtx, r.appendDurableEventLogBatch, opts.FlushInterval, opts.MaxBatchSize, opts.MaxConcurrentFlushes)
+
+	return r, stopIngestBuffer
 }
 
 type durableTaskId int64
@@ -250,6 +252,7 @@ type durableEventIngestBuffer struct {
 }
 
 func newDurableEventIngestBuffer(
+	ctx context.Context,
 	ingest func(ctx context.Context, batch map[durableTaskId]IngestDurableTaskEventOpts) (map[durableTaskId]*appendDurableEventLogResult, map[durableTaskId]error, error),
 	flushInterval time.Duration,
 	maxBatchSize int,
@@ -260,7 +263,7 @@ func newDurableEventIngestBuffer(
 		ingest:         ingest,
 	}
 
-	b.pendingRequests = msgqueue.NewBatchBuffer(context.Background(), flushInterval, maxBatchSize, func(requests []*durableEventIngestRequest) {
+	b.pendingRequests = msgqueue.NewBatchBuffer(ctx, flushInterval, maxBatchSize, func(requests []*durableEventIngestRequest) {
 		// the batch buffer only starts the next batch once this function returns, so the flush runs
 		// in its own goroutine to let up to maxConcurrentFlushes batches be written at the same time
 		go b.flush(requests, "buffer_flush")
@@ -280,7 +283,9 @@ func (b *durableEventIngestBuffer) submit(ctx context.Context, taskId durableTas
 		responseCh: make(chan durableEventIngestResponse, 1),
 	}
 
-	b.pendingRequests.Enqueue(request)
+	if err := b.pendingRequests.Enqueue(request); err != nil {
+		return nil, err
+	}
 
 	select {
 	case response := <-request.responseCh:

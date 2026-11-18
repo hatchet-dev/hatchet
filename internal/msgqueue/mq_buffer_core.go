@@ -235,6 +235,7 @@ func (c *bufferCore) startSemaphoreReleaser(ctx context.Context, bufLen func() i
 type BatchBuffer[T any] struct {
 	*bufferCore
 
+	ctx        context.Context
 	items      chan T
 	flushBatch func(batch []T)
 }
@@ -242,6 +243,7 @@ type BatchBuffer[T any] struct {
 func NewBatchBuffer[T any](ctx context.Context, flushInterval time.Duration, maxBatchSize int, flushBatch func(batch []T)) *BatchBuffer[T] {
 	b := &BatchBuffer[T]{
 		bufferCore: newBufferCore(flushInterval, maxBatchSize, 1, false, false),
+		ctx:        ctx,
 		items:      make(chan T, maxBatchSize),
 		flushBatch: flushBatch,
 	}
@@ -254,8 +256,12 @@ func NewBatchBuffer[T any](ctx context.Context, flushInterval time.Duration, max
 	return b
 }
 
-func (b *BatchBuffer[T]) Enqueue(item T) {
-	b.items <- item
+func (b *BatchBuffer[T]) Enqueue(item T) error {
+	select {
+	case b.items <- item:
+	case <-b.ctx.Done():
+		return b.ctx.Err()
+	}
 
 	if len(b.items) >= b.bufferSize {
 		select {
@@ -264,7 +270,12 @@ func (b *BatchBuffer[T]) Enqueue(item T) {
 		}
 	}
 
-	b.notifier <- struct{}{}
+	select {
+	case b.notifier <- struct{}{}:
+		return nil
+	case <-b.ctx.Done():
+		return b.ctx.Err()
+	}
 }
 
 func (b *BatchBuffer[T]) flush() {
