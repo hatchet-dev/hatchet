@@ -11,12 +11,6 @@ import (
 )
 
 func ToTenant(tenant *sqlcv1.Tenant, serverURL string) *gen.Tenant {
-	var environment *gen.TenantEnvironment
-	if tenant.Environment.Valid {
-		env := gen.TenantEnvironment(tenant.Environment.TenantEnvironment)
-		environment = &env
-	}
-
 	return &gen.Tenant{
 		Metadata:            *toAPIMetadata(tenant.ID, tenant.CreatedAt.Time, tenant.UpdatedAt.Time),
 		Name:                tenant.Name,
@@ -24,7 +18,7 @@ func ToTenant(tenant *sqlcv1.Tenant, serverURL string) *gen.Tenant {
 		AnalyticsOptOut:     &tenant.AnalyticsOptOut,
 		AlertMemberEmails:   &tenant.AlertMemberEmails,
 		Version:             tenant.Version,
-		Environment:         environment,
+		Environment:         tenant.Environment,
 		ServerUrl:           &serverURL,
 		DataRetentionPeriod: &tenant.DataRetentionPeriod,
 	}

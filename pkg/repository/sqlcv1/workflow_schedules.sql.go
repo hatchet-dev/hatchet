@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -249,12 +250,12 @@ INSERT INTO "WorkflowTriggerScheduledRef" (
 `
 
 type CreateWorkflowTriggerScheduledRefForWorkflowParams struct {
-	Scheduledtrigger   pgtype.Timestamp                       `json:"scheduledtrigger"`
-	Input              []byte                                 `json:"input"`
-	Additionalmetadata []byte                                 `json:"additionalmetadata"`
-	Method             NullWorkflowTriggerScheduledRefMethods `json:"method"`
-	Priority           pgtype.Int4                            `json:"priority"`
-	Workflowid         uuid.UUID                              `json:"workflowid"`
+	Scheduledtrigger   pgtype.Timestamp                          `json:"scheduledtrigger"`
+	Input              []byte                                    `json:"input"`
+	Additionalmetadata []byte                                    `json:"additionalmetadata"`
+	Method             *enums.WorkflowTriggerScheduledRefMethods `json:"method"`
+	Priority           pgtype.Int4                               `json:"priority"`
+	Workflowid         uuid.UUID                                 `json:"workflowid"`
 }
 
 func (q *Queries) CreateWorkflowTriggerScheduledRefForWorkflow(ctx context.Context, db DBTX, arg CreateWorkflowTriggerScheduledRefForWorkflowParams) (*WorkflowTriggerScheduledRef, error) {
@@ -332,9 +333,9 @@ type GetScheduledWorkflowMetaByIdsParams struct {
 }
 
 type GetScheduledWorkflowMetaByIdsRow struct {
-	ID              uuid.UUID                          `json:"id"`
-	Method          WorkflowTriggerScheduledRefMethods `json:"method"`
-	HasTriggeredRun bool                               `json:"hasTriggeredRun"`
+	ID              uuid.UUID                                `json:"id"`
+	Method          enums.WorkflowTriggerScheduledRefMethods `json:"method"`
+	HasTriggeredRun bool                                     `json:"hasTriggeredRun"`
 }
 
 func (q *Queries) GetScheduledWorkflowMetaByIds(ctx context.Context, db DBTX, arg GetScheduledWorkflowMetaByIdsParams) ([]*GetScheduledWorkflowMetaByIdsRow, error) {
@@ -426,31 +427,31 @@ type ListCronWorkflowsParams struct {
 }
 
 type ListCronWorkflowsRow struct {
-	WorkflowVersionId   uuid.UUID                     `json:"workflowVersionId"`
-	WorkflowName        string                        `json:"workflowName"`
-	WorkflowId          uuid.UUID                     `json:"workflowId"`
-	TenantId            uuid.UUID                     `json:"tenantId"`
-	TriggerId           uuid.UUID                     `json:"triggerId"`
-	CronId              uuid.UUID                     `json:"cronId"`
-	ID                  uuid.UUID                     `json:"id"`
-	CreatedAt           pgtype.Timestamp              `json:"createdAt"`
-	UpdatedAt           pgtype.Timestamp              `json:"updatedAt"`
-	DeletedAt           pgtype.Timestamp              `json:"deletedAt"`
-	WorkflowVersionId_2 uuid.UUID                     `json:"workflowVersionId_2"`
-	TenantId_2          uuid.UUID                     `json:"tenantId_2"`
-	ParentId            uuid.UUID                     `json:"parentId"`
-	Cron                string                        `json:"cron"`
-	TickerId            *uuid.UUID                    `json:"tickerId"`
-	Input               []byte                        `json:"input"`
-	Enabled             bool                          `json:"enabled"`
-	AdditionalMetadata  []byte                        `json:"additionalMetadata"`
-	CreatedAt_2         pgtype.Timestamp              `json:"createdAt_2"`
-	DeletedAt_2         pgtype.Timestamp              `json:"deletedAt_2"`
-	UpdatedAt_2         pgtype.Timestamp              `json:"updatedAt_2"`
-	Name                pgtype.Text                   `json:"name"`
-	ID_2                uuid.UUID                     `json:"id_2"`
-	Method              WorkflowTriggerCronRefMethods `json:"method"`
-	Priority            int32                         `json:"priority"`
+	WorkflowVersionId   uuid.UUID                           `json:"workflowVersionId"`
+	WorkflowName        string                              `json:"workflowName"`
+	WorkflowId          uuid.UUID                           `json:"workflowId"`
+	TenantId            uuid.UUID                           `json:"tenantId"`
+	TriggerId           uuid.UUID                           `json:"triggerId"`
+	CronId              uuid.UUID                           `json:"cronId"`
+	ID                  uuid.UUID                           `json:"id"`
+	CreatedAt           pgtype.Timestamp                    `json:"createdAt"`
+	UpdatedAt           pgtype.Timestamp                    `json:"updatedAt"`
+	DeletedAt           pgtype.Timestamp                    `json:"deletedAt"`
+	WorkflowVersionId_2 uuid.UUID                           `json:"workflowVersionId_2"`
+	TenantId_2          uuid.UUID                           `json:"tenantId_2"`
+	ParentId            uuid.UUID                           `json:"parentId"`
+	Cron                string                              `json:"cron"`
+	TickerId            *uuid.UUID                          `json:"tickerId"`
+	Input               []byte                              `json:"input"`
+	Enabled             bool                                `json:"enabled"`
+	AdditionalMetadata  []byte                              `json:"additionalMetadata"`
+	CreatedAt_2         pgtype.Timestamp                    `json:"createdAt_2"`
+	DeletedAt_2         pgtype.Timestamp                    `json:"deletedAt_2"`
+	UpdatedAt_2         pgtype.Timestamp                    `json:"updatedAt_2"`
+	Name                pgtype.Text                         `json:"name"`
+	ID_2                uuid.UUID                           `json:"id_2"`
+	Method              enums.WorkflowTriggerCronRefMethods `json:"method"`
+	Priority            int32                               `json:"priority"`
 }
 
 // Get all of the latest workflow versions for the tenant
@@ -569,29 +570,29 @@ type ListScheduledWorkflowsParams struct {
 }
 
 type ListScheduledWorkflowsRow struct {
-	Name                 string                             `json:"name"`
-	WorkflowId           uuid.UUID                          `json:"workflowId"`
-	WorkflowVersionId    uuid.UUID                          `json:"workflowVersionId"`
-	TenantId             uuid.UUID                          `json:"tenantId"`
-	ID                   uuid.UUID                          `json:"id"`
-	ParentId             uuid.UUID                          `json:"parentId"`
-	TriggerAt            pgtype.Timestamp                   `json:"triggerAt"`
-	TickerId             *uuid.UUID                         `json:"tickerId"`
-	Input                []byte                             `json:"input"`
-	ChildIndex           pgtype.Int4                        `json:"childIndex"`
-	ChildKey             pgtype.Text                        `json:"childKey"`
-	ParentStepRunId      *uuid.UUID                         `json:"parentStepRunId"`
-	ParentWorkflowRunId  *uuid.UUID                         `json:"parentWorkflowRunId"`
-	AdditionalMetadata   []byte                             `json:"additionalMetadata"`
-	CreatedAt            pgtype.Timestamp                   `json:"createdAt"`
-	DeletedAt            pgtype.Timestamp                   `json:"deletedAt"`
-	UpdatedAt            pgtype.Timestamp                   `json:"updatedAt"`
-	Method               WorkflowTriggerScheduledRefMethods `json:"method"`
-	Priority             int32                              `json:"priority"`
-	WorkflowRunCreatedAt pgtype.Timestamp                   `json:"workflowRunCreatedAt"`
-	WorkflowRunStatus    NullWorkflowRunStatus              `json:"workflowRunStatus"`
-	WorkflowRunId        *uuid.UUID                         `json:"workflowRunId"`
-	WorkflowRunName      pgtype.Text                        `json:"workflowRunName"`
+	Name                 string                                   `json:"name"`
+	WorkflowId           uuid.UUID                                `json:"workflowId"`
+	WorkflowVersionId    uuid.UUID                                `json:"workflowVersionId"`
+	TenantId             uuid.UUID                                `json:"tenantId"`
+	ID                   uuid.UUID                                `json:"id"`
+	ParentId             uuid.UUID                                `json:"parentId"`
+	TriggerAt            pgtype.Timestamp                         `json:"triggerAt"`
+	TickerId             *uuid.UUID                               `json:"tickerId"`
+	Input                []byte                                   `json:"input"`
+	ChildIndex           pgtype.Int4                              `json:"childIndex"`
+	ChildKey             pgtype.Text                              `json:"childKey"`
+	ParentStepRunId      *uuid.UUID                               `json:"parentStepRunId"`
+	ParentWorkflowRunId  *uuid.UUID                               `json:"parentWorkflowRunId"`
+	AdditionalMetadata   []byte                                   `json:"additionalMetadata"`
+	CreatedAt            pgtype.Timestamp                         `json:"createdAt"`
+	DeletedAt            pgtype.Timestamp                         `json:"deletedAt"`
+	UpdatedAt            pgtype.Timestamp                         `json:"updatedAt"`
+	Method               enums.WorkflowTriggerScheduledRefMethods `json:"method"`
+	Priority             int32                                    `json:"priority"`
+	WorkflowRunCreatedAt pgtype.Timestamp                         `json:"workflowRunCreatedAt"`
+	WorkflowRunStatus    NullWorkflowRunStatus                    `json:"workflowRunStatus"`
+	WorkflowRunId        *uuid.UUID                               `json:"workflowRunId"`
+	WorkflowRunName      pgtype.Text                              `json:"workflowRunName"`
 }
 
 func (q *Queries) ListScheduledWorkflows(ctx context.Context, db DBTX, arg ListScheduledWorkflowsParams) ([]*ListScheduledWorkflowsRow, error) {

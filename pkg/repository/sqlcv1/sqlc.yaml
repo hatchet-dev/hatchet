@@ -117,6 +117,56 @@ sql:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
               type: "LimitResource"
               pointer: true
+          - db_type: "TenantEnvironment"
+            go_type:
+              import: "github.com/hatchet-dev/hatchet/pkg/enums"
+              type: "TenantEnvironment"
+          - db_type: "TenantEnvironment"
+            nullable: true
+            go_type:
+              import: "github.com/hatchet-dev/hatchet/pkg/enums"
+              type: "TenantEnvironment"
+              pointer: true
+          - db_type: "WorkerType"
+            go_type:
+              import: "github.com/hatchet-dev/hatchet/pkg/enums"
+              type: "WorkerType"
+          - db_type: "WorkerType"
+            nullable: true
+            go_type:
+              import: "github.com/hatchet-dev/hatchet/pkg/enums"
+              type: "WorkerType"
+              pointer: true
+          - db_type: "WorkflowPauseQueueBehavior"
+            go_type:
+              import: "github.com/hatchet-dev/hatchet/pkg/enums"
+              type: "WorkflowPauseQueueBehavior"
+          - db_type: "WorkflowPauseQueueBehavior"
+            nullable: true
+            go_type:
+              import: "github.com/hatchet-dev/hatchet/pkg/enums"
+              type: "WorkflowPauseQueueBehavior"
+              pointer: true
+          - db_type: "WorkflowTriggerCronRefMethods"
+            go_type:
+              import: "github.com/hatchet-dev/hatchet/pkg/enums"
+              type: "WorkflowTriggerCronRefMethods"
+          - db_type: "WorkflowTriggerCronRefMethods"
+            nullable: true
+            go_type:
+              import: "github.com/hatchet-dev/hatchet/pkg/enums"
+              type: "WorkflowTriggerCronRefMethods"
+              pointer: true
+          - db_type: "WorkflowTriggerScheduledRefMethods"
+            go_type:
+              import: "github.com/hatchet-dev/hatchet/pkg/enums"
+              type: "WorkflowTriggerScheduledRefMethods"
+          - db_type: "WorkflowTriggerScheduledRefMethods"
+            nullable: true
+            go_type:
+              import: "github.com/hatchet-dev/hatchet/pkg/enums"
+              type: "WorkflowTriggerScheduledRefMethods"
+              pointer: true
           - db_type: "v1_concurrency_strategy"
             go_type:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
@@ -167,6 +217,16 @@ sql:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
               type: "V1IncomingWebhookHmacAlgorithm"
               pointer: true
+          - db_type: "v1_incoming_webhook_hmac_encoding"
+            go_type:
+              import: "github.com/hatchet-dev/hatchet/pkg/enums"
+              type: "V1IncomingWebhookHmacEncoding"
+          - db_type: "v1_incoming_webhook_hmac_encoding"
+            nullable: true
+            go_type:
+              import: "github.com/hatchet-dev/hatchet/pkg/enums"
+              type: "V1IncomingWebhookHmacEncoding"
+              pointer: true
           - db_type: "v1_incoming_webhook_source_name"
             go_type:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
@@ -176,6 +236,36 @@ sql:
             go_type:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
               type: "V1IncomingWebhookSourceName"
+              pointer: true
+          - db_type: "v1_log_line_level"
+            go_type:
+              import: "github.com/hatchet-dev/hatchet/pkg/enums"
+              type: "V1LogLineLevel"
+          - db_type: "v1_log_line_level"
+            nullable: true
+            go_type:
+              import: "github.com/hatchet-dev/hatchet/pkg/enums"
+              type: "V1LogLineLevel"
+              pointer: true
+          - db_type: "v1_otel_span_kind"
+            go_type:
+              import: "github.com/hatchet-dev/hatchet/pkg/enums"
+              type: "V1OtelSpanKind"
+          - db_type: "v1_otel_span_kind"
+            nullable: true
+            go_type:
+              import: "github.com/hatchet-dev/hatchet/pkg/enums"
+              type: "V1OtelSpanKind"
+              pointer: true
+          - db_type: "v1_otel_status_code"
+            go_type:
+              import: "github.com/hatchet-dev/hatchet/pkg/enums"
+              type: "V1OtelStatusCode"
+          - db_type: "v1_otel_status_code"
+            nullable: true
+            go_type:
+              import: "github.com/hatchet-dev/hatchet/pkg/enums"
+              type: "V1OtelStatusCode"
               pointer: true
           - db_type: "v1_readable_status_olap"
             go_type:
@@ -196,6 +286,36 @@ sql:
             go_type:
               import: "github.com/hatchet-dev/hatchet/pkg/enums"
               type: "V1RunKind"
+              pointer: true
+          - db_type: "v1_sandbox_event_kind"
+            go_type:
+              import: "github.com/hatchet-dev/hatchet/pkg/enums"
+              type: "V1SandboxEventKind"
+          - db_type: "v1_sandbox_event_kind"
+            nullable: true
+            go_type:
+              import: "github.com/hatchet-dev/hatchet/pkg/enums"
+              type: "V1SandboxEventKind"
+              pointer: true
+          - db_type: "v1_sandbox_provider_kind"
+            go_type:
+              import: "github.com/hatchet-dev/hatchet/pkg/enums"
+              type: "V1SandboxProviderKind"
+          - db_type: "v1_sandbox_provider_kind"
+            nullable: true
+            go_type:
+              import: "github.com/hatchet-dev/hatchet/pkg/enums"
+              type: "V1SandboxProviderKind"
+              pointer: true
+          - db_type: "v1_sandbox_status"
+            go_type:
+              import: "github.com/hatchet-dev/hatchet/pkg/enums"
+              type: "V1SandboxStatus"
+          - db_type: "v1_sandbox_status"
+            nullable: true
+            go_type:
+              import: "github.com/hatchet-dev/hatchet/pkg/enums"
+              type: "V1SandboxStatus"
               pointer: true
           - db_type: "v1_serverless_endpoint_event_kind"
             go_type:

@@ -3952,9 +3952,9 @@ type OtelSpanRow struct {
 	StartTime          pgtype.Timestamptz
 	SpanName           string
 	TraceID            string
-	SpanKind           sqlcv1.V1OtelSpanKind
+	SpanKind           enums.V1OtelSpanKind
 	ServiceName        string
-	StatusCode         sqlcv1.V1OtelStatusCode
+	StatusCode         enums.V1OtelStatusCode
 	SpanID             string
 	ParentSpanID       pgtype.Text
 	StatusMessage      pgtype.Text
@@ -4242,32 +4242,32 @@ func extractServiceName(resourceAttrsJSON json.RawMessage) string {
 	return "unknown"
 }
 
-func protoSpanKindToDB(kind tracev1.Span_SpanKind) sqlcv1.V1OtelSpanKind {
+func protoSpanKindToDB(kind tracev1.Span_SpanKind) enums.V1OtelSpanKind {
 	//exhaustive:ignore
 	switch kind {
 	case tracev1.Span_SPAN_KIND_INTERNAL:
-		return sqlcv1.V1OtelSpanKindINTERNAL
+		return enums.V1OtelSpanKindINTERNAL
 	case tracev1.Span_SPAN_KIND_SERVER:
-		return sqlcv1.V1OtelSpanKindSERVER
+		return enums.V1OtelSpanKindSERVER
 	case tracev1.Span_SPAN_KIND_CLIENT:
-		return sqlcv1.V1OtelSpanKindCLIENT
+		return enums.V1OtelSpanKindCLIENT
 	case tracev1.Span_SPAN_KIND_PRODUCER:
-		return sqlcv1.V1OtelSpanKindPRODUCER
+		return enums.V1OtelSpanKindPRODUCER
 	case tracev1.Span_SPAN_KIND_CONSUMER:
-		return sqlcv1.V1OtelSpanKindCONSUMER
+		return enums.V1OtelSpanKindCONSUMER
 	default:
-		return sqlcv1.V1OtelSpanKindUNSPECIFIED
+		return enums.V1OtelSpanKindUNSPECIFIED
 	}
 }
 
-func protoStatusCodeToDB(code tracev1.Status_StatusCode) sqlcv1.V1OtelStatusCode {
+func protoStatusCodeToDB(code tracev1.Status_StatusCode) enums.V1OtelStatusCode {
 	//exhaustive:ignore
 	switch code {
 	case tracev1.Status_STATUS_CODE_OK:
-		return sqlcv1.V1OtelStatusCodeOK
+		return enums.V1OtelStatusCodeOK
 	case tracev1.Status_STATUS_CODE_ERROR:
-		return sqlcv1.V1OtelStatusCodeERROR
+		return enums.V1OtelStatusCodeERROR
 	default:
-		return sqlcv1.V1OtelStatusCodeUNSET
+		return enums.V1OtelStatusCodeUNSET
 	}
 }

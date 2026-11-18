@@ -59,7 +59,7 @@ type APIKeyAuthCredentials struct {
 
 type HMACAuthCredentials struct {
 	Algorithm                     enums.V1IncomingWebhookHmacAlgorithm `json:"algorithm" validate:"required"`
-	Encoding                      sqlcv1.V1IncomingWebhookHmacEncoding `json:"encoding" validate:"required"`
+	Encoding                      enums.V1IncomingWebhookHmacEncoding  `json:"encoding" validate:"required"`
 	SignatureHeaderName           string                               `json:"signature_header_name" validate:"required"`
 	EncryptedWebhookSigningSecret []byte                               `json:"webhook_signing_secret" validate:"required"`
 }
@@ -166,10 +166,7 @@ func (r *webhookRepository) CreateWebhook(ctx context.Context, tenantId uuid.UUI
 		params.Authapikeykey = opts.AuthConfig.APIKeyAuth.EncryptedKey
 	case enums.V1IncomingWebhookAuthTypeHMAC:
 		params.AuthHmacAlgorithm = &opts.AuthConfig.HMACAuth.Algorithm
-		params.AuthHmacEncoding = sqlcv1.NullV1IncomingWebhookHmacEncoding{
-			V1IncomingWebhookHmacEncoding: opts.AuthConfig.HMACAuth.Encoding,
-			Valid:                         true,
-		}
+		params.AuthHmacEncoding = &opts.AuthConfig.HMACAuth.Encoding
 		params.AuthHmacSignatureHeaderName = pgtype.Text{
 			String: opts.AuthConfig.HMACAuth.SignatureHeaderName,
 			Valid:  true,

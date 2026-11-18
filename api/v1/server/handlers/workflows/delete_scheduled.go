@@ -7,6 +7,7 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -14,7 +15,7 @@ func (t *WorkflowService) WorkflowScheduledDelete(ctx echo.Context, request gen.
 	scheduled := ctx.Get("scheduled-workflow-run").(*sqlcv1.ListScheduledWorkflowsRow)
 
 	// Only allow deleting scheduled runs created via API.
-	if scheduled.Method != sqlcv1.WorkflowTriggerScheduledRefMethodsAPI {
+	if scheduled.Method != enums.WorkflowTriggerScheduledRefMethodsAPI {
 		return gen.WorkflowScheduledDelete403JSONResponse(gen.APIError{
 			Description: "Cannot delete scheduled run created via code definition.",
 		}), nil

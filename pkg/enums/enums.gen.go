@@ -65,6 +65,44 @@ func AllLimitResourceValues() []LimitResource {
 	}
 }
 
+type TenantEnvironment string
+
+const (
+	TenantEnvironmentLocal       TenantEnvironment = "local"
+	TenantEnvironmentDevelopment TenantEnvironment = "development"
+	TenantEnvironmentProduction  TenantEnvironment = "production"
+)
+
+func (e *TenantEnvironment) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TenantEnvironment(s)
+	case string:
+		*e = TenantEnvironment(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TenantEnvironment: %T", src)
+	}
+	return nil
+}
+
+func (e TenantEnvironment) Valid() bool {
+	switch e {
+	case TenantEnvironmentLocal,
+		TenantEnvironmentDevelopment,
+		TenantEnvironmentProduction:
+		return true
+	}
+	return false
+}
+
+func AllTenantEnvironmentValues() []TenantEnvironment {
+	return []TenantEnvironment{
+		TenantEnvironmentLocal,
+		TenantEnvironmentDevelopment,
+		TenantEnvironmentProduction,
+	}
+}
+
 type TenantMajorEngineVersion string
 
 const (
@@ -412,6 +450,44 @@ func AllV1IncomingWebhookHmacAlgorithmValues() []V1IncomingWebhookHmacAlgorithm 
 	}
 }
 
+type V1IncomingWebhookHmacEncoding string
+
+const (
+	V1IncomingWebhookHmacEncodingHEX       V1IncomingWebhookHmacEncoding = "HEX"
+	V1IncomingWebhookHmacEncodingBASE64    V1IncomingWebhookHmacEncoding = "BASE64"
+	V1IncomingWebhookHmacEncodingBASE64URL V1IncomingWebhookHmacEncoding = "BASE64URL"
+)
+
+func (e *V1IncomingWebhookHmacEncoding) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1IncomingWebhookHmacEncoding(s)
+	case string:
+		*e = V1IncomingWebhookHmacEncoding(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1IncomingWebhookHmacEncoding: %T", src)
+	}
+	return nil
+}
+
+func (e V1IncomingWebhookHmacEncoding) Valid() bool {
+	switch e {
+	case V1IncomingWebhookHmacEncodingHEX,
+		V1IncomingWebhookHmacEncodingBASE64,
+		V1IncomingWebhookHmacEncodingBASE64URL:
+		return true
+	}
+	return false
+}
+
+func AllV1IncomingWebhookHmacEncodingValues() []V1IncomingWebhookHmacEncoding {
+	return []V1IncomingWebhookHmacEncoding{
+		V1IncomingWebhookHmacEncodingHEX,
+		V1IncomingWebhookHmacEncodingBASE64,
+		V1IncomingWebhookHmacEncodingBASE64URL,
+	}
+}
+
 type V1IncomingWebhookSourceName string
 
 const (
@@ -456,6 +532,132 @@ func AllV1IncomingWebhookSourceNameValues() []V1IncomingWebhookSourceName {
 		V1IncomingWebhookSourceNameSLACK,
 		V1IncomingWebhookSourceNameLINEAR,
 		V1IncomingWebhookSourceNameSVIX,
+	}
+}
+
+type V1LogLineLevel string
+
+const (
+	V1LogLineLevelDEBUG V1LogLineLevel = "DEBUG"
+	V1LogLineLevelINFO  V1LogLineLevel = "INFO"
+	V1LogLineLevelWARN  V1LogLineLevel = "WARN"
+	V1LogLineLevelERROR V1LogLineLevel = "ERROR"
+)
+
+func (e *V1LogLineLevel) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1LogLineLevel(s)
+	case string:
+		*e = V1LogLineLevel(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1LogLineLevel: %T", src)
+	}
+	return nil
+}
+
+func (e V1LogLineLevel) Valid() bool {
+	switch e {
+	case V1LogLineLevelDEBUG,
+		V1LogLineLevelINFO,
+		V1LogLineLevelWARN,
+		V1LogLineLevelERROR:
+		return true
+	}
+	return false
+}
+
+func AllV1LogLineLevelValues() []V1LogLineLevel {
+	return []V1LogLineLevel{
+		V1LogLineLevelDEBUG,
+		V1LogLineLevelINFO,
+		V1LogLineLevelWARN,
+		V1LogLineLevelERROR,
+	}
+}
+
+type V1OtelSpanKind string
+
+const (
+	V1OtelSpanKindUNSPECIFIED V1OtelSpanKind = "UNSPECIFIED"
+	V1OtelSpanKindINTERNAL    V1OtelSpanKind = "INTERNAL"
+	V1OtelSpanKindSERVER      V1OtelSpanKind = "SERVER"
+	V1OtelSpanKindCLIENT      V1OtelSpanKind = "CLIENT"
+	V1OtelSpanKindPRODUCER    V1OtelSpanKind = "PRODUCER"
+	V1OtelSpanKindCONSUMER    V1OtelSpanKind = "CONSUMER"
+)
+
+func (e *V1OtelSpanKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1OtelSpanKind(s)
+	case string:
+		*e = V1OtelSpanKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1OtelSpanKind: %T", src)
+	}
+	return nil
+}
+
+func (e V1OtelSpanKind) Valid() bool {
+	switch e {
+	case V1OtelSpanKindUNSPECIFIED,
+		V1OtelSpanKindINTERNAL,
+		V1OtelSpanKindSERVER,
+		V1OtelSpanKindCLIENT,
+		V1OtelSpanKindPRODUCER,
+		V1OtelSpanKindCONSUMER:
+		return true
+	}
+	return false
+}
+
+func AllV1OtelSpanKindValues() []V1OtelSpanKind {
+	return []V1OtelSpanKind{
+		V1OtelSpanKindUNSPECIFIED,
+		V1OtelSpanKindINTERNAL,
+		V1OtelSpanKindSERVER,
+		V1OtelSpanKindCLIENT,
+		V1OtelSpanKindPRODUCER,
+		V1OtelSpanKindCONSUMER,
+	}
+}
+
+type V1OtelStatusCode string
+
+const (
+	V1OtelStatusCodeUNSET V1OtelStatusCode = "UNSET"
+	V1OtelStatusCodeOK    V1OtelStatusCode = "OK"
+	V1OtelStatusCodeERROR V1OtelStatusCode = "ERROR"
+)
+
+func (e *V1OtelStatusCode) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1OtelStatusCode(s)
+	case string:
+		*e = V1OtelStatusCode(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1OtelStatusCode: %T", src)
+	}
+	return nil
+}
+
+func (e V1OtelStatusCode) Valid() bool {
+	switch e {
+	case V1OtelStatusCodeUNSET,
+		V1OtelStatusCodeOK,
+		V1OtelStatusCodeERROR:
+		return true
+	}
+	return false
+}
+
+func AllV1OtelStatusCodeValues() []V1OtelStatusCode {
+	return []V1OtelStatusCode{
+		V1OtelStatusCodeUNSET,
+		V1OtelStatusCodeOK,
+		V1OtelStatusCodeERROR,
 	}
 }
 
@@ -541,6 +743,141 @@ func AllV1RunKindValues() []V1RunKind {
 	}
 }
 
+type V1SandboxEventKind string
+
+const (
+	V1SandboxEventKindHEALTHCHECKFAILED   V1SandboxEventKind = "HEALTHCHECK_FAILED"
+	V1SandboxEventKindUNHEALTHY           V1SandboxEventKind = "UNHEALTHY"
+	V1SandboxEventKindHEALTHY             V1SandboxEventKind = "HEALTHY"
+	V1SandboxEventKindSANDBOXCREATED      V1SandboxEventKind = "SANDBOX_CREATED"
+	V1SandboxEventKindSANDBOXCREATEFAILED V1SandboxEventKind = "SANDBOX_CREATE_FAILED"
+	V1SandboxEventKindTURNFAILED          V1SandboxEventKind = "TURN_FAILED"
+	V1SandboxEventKindSNAPSHOTFAILED      V1SandboxEventKind = "SNAPSHOT_FAILED"
+	V1SandboxEventKindSANDBOXDESTROYED    V1SandboxEventKind = "SANDBOX_DESTROYED"
+)
+
+func (e *V1SandboxEventKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1SandboxEventKind(s)
+	case string:
+		*e = V1SandboxEventKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1SandboxEventKind: %T", src)
+	}
+	return nil
+}
+
+func (e V1SandboxEventKind) Valid() bool {
+	switch e {
+	case V1SandboxEventKindHEALTHCHECKFAILED,
+		V1SandboxEventKindUNHEALTHY,
+		V1SandboxEventKindHEALTHY,
+		V1SandboxEventKindSANDBOXCREATED,
+		V1SandboxEventKindSANDBOXCREATEFAILED,
+		V1SandboxEventKindTURNFAILED,
+		V1SandboxEventKindSNAPSHOTFAILED,
+		V1SandboxEventKindSANDBOXDESTROYED:
+		return true
+	}
+	return false
+}
+
+func AllV1SandboxEventKindValues() []V1SandboxEventKind {
+	return []V1SandboxEventKind{
+		V1SandboxEventKindHEALTHCHECKFAILED,
+		V1SandboxEventKindUNHEALTHY,
+		V1SandboxEventKindHEALTHY,
+		V1SandboxEventKindSANDBOXCREATED,
+		V1SandboxEventKindSANDBOXCREATEFAILED,
+		V1SandboxEventKindTURNFAILED,
+		V1SandboxEventKindSNAPSHOTFAILED,
+		V1SandboxEventKindSANDBOXDESTROYED,
+	}
+}
+
+type V1SandboxProviderKind string
+
+const (
+	V1SandboxProviderKindDAYTONA   V1SandboxProviderKind = "DAYTONA"
+	V1SandboxProviderKindE2B       V1SandboxProviderKind = "E2B"
+	V1SandboxProviderKindARCHIL    V1SandboxProviderKind = "ARCHIL"
+	V1SandboxProviderKindFREESTYLE V1SandboxProviderKind = "FREESTYLE"
+)
+
+func (e *V1SandboxProviderKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1SandboxProviderKind(s)
+	case string:
+		*e = V1SandboxProviderKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1SandboxProviderKind: %T", src)
+	}
+	return nil
+}
+
+func (e V1SandboxProviderKind) Valid() bool {
+	switch e {
+	case V1SandboxProviderKindDAYTONA,
+		V1SandboxProviderKindE2B,
+		V1SandboxProviderKindARCHIL,
+		V1SandboxProviderKindFREESTYLE:
+		return true
+	}
+	return false
+}
+
+func AllV1SandboxProviderKindValues() []V1SandboxProviderKind {
+	return []V1SandboxProviderKind{
+		V1SandboxProviderKindDAYTONA,
+		V1SandboxProviderKindE2B,
+		V1SandboxProviderKindARCHIL,
+		V1SandboxProviderKindFREESTYLE,
+	}
+}
+
+type V1SandboxStatus string
+
+const (
+	V1SandboxStatusCREATING  V1SandboxStatus = "CREATING"
+	V1SandboxStatusRUNNING   V1SandboxStatus = "RUNNING"
+	V1SandboxStatusDESTROYED V1SandboxStatus = "DESTROYED"
+	V1SandboxStatusFAILED    V1SandboxStatus = "FAILED"
+)
+
+func (e *V1SandboxStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V1SandboxStatus(s)
+	case string:
+		*e = V1SandboxStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V1SandboxStatus: %T", src)
+	}
+	return nil
+}
+
+func (e V1SandboxStatus) Valid() bool {
+	switch e {
+	case V1SandboxStatusCREATING,
+		V1SandboxStatusRUNNING,
+		V1SandboxStatusDESTROYED,
+		V1SandboxStatusFAILED:
+		return true
+	}
+	return false
+}
+
+func AllV1SandboxStatusValues() []V1SandboxStatus {
+	return []V1SandboxStatus{
+		V1SandboxStatusCREATING,
+		V1SandboxStatusRUNNING,
+		V1SandboxStatusDESTROYED,
+		V1SandboxStatusFAILED,
+	}
+}
+
 type V1ServerlessEndpointEventKind string
 
 const (
@@ -623,5 +960,148 @@ func AllV1ServerlessEndpointKindValues() []V1ServerlessEndpointKind {
 		V1ServerlessEndpointKindGENERICHTTP,
 		V1ServerlessEndpointKindCLOUDFLAREWORKERS,
 		V1ServerlessEndpointKindVERCEL,
+	}
+}
+
+type WorkerType string
+
+const (
+	WorkerTypeWEBHOOK    WorkerType = "WEBHOOK"
+	WorkerTypeMANAGED    WorkerType = "MANAGED"
+	WorkerTypeSELFHOSTED WorkerType = "SELFHOSTED"
+)
+
+func (e *WorkerType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkerType(s)
+	case string:
+		*e = WorkerType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkerType: %T", src)
+	}
+	return nil
+}
+
+func (e WorkerType) Valid() bool {
+	switch e {
+	case WorkerTypeWEBHOOK,
+		WorkerTypeMANAGED,
+		WorkerTypeSELFHOSTED:
+		return true
+	}
+	return false
+}
+
+func AllWorkerTypeValues() []WorkerType {
+	return []WorkerType{
+		WorkerTypeWEBHOOK,
+		WorkerTypeMANAGED,
+		WorkerTypeSELFHOSTED,
+	}
+}
+
+type WorkflowPauseQueueBehavior string
+
+const (
+	WorkflowPauseQueueBehaviorQUEUE WorkflowPauseQueueBehavior = "QUEUE"
+	WorkflowPauseQueueBehaviorDROP  WorkflowPauseQueueBehavior = "DROP"
+)
+
+func (e *WorkflowPauseQueueBehavior) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkflowPauseQueueBehavior(s)
+	case string:
+		*e = WorkflowPauseQueueBehavior(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkflowPauseQueueBehavior: %T", src)
+	}
+	return nil
+}
+
+func (e WorkflowPauseQueueBehavior) Valid() bool {
+	switch e {
+	case WorkflowPauseQueueBehaviorQUEUE,
+		WorkflowPauseQueueBehaviorDROP:
+		return true
+	}
+	return false
+}
+
+func AllWorkflowPauseQueueBehaviorValues() []WorkflowPauseQueueBehavior {
+	return []WorkflowPauseQueueBehavior{
+		WorkflowPauseQueueBehaviorQUEUE,
+		WorkflowPauseQueueBehaviorDROP,
+	}
+}
+
+type WorkflowTriggerCronRefMethods string
+
+const (
+	WorkflowTriggerCronRefMethodsDEFAULT WorkflowTriggerCronRefMethods = "DEFAULT"
+	WorkflowTriggerCronRefMethodsAPI     WorkflowTriggerCronRefMethods = "API"
+)
+
+func (e *WorkflowTriggerCronRefMethods) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkflowTriggerCronRefMethods(s)
+	case string:
+		*e = WorkflowTriggerCronRefMethods(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkflowTriggerCronRefMethods: %T", src)
+	}
+	return nil
+}
+
+func (e WorkflowTriggerCronRefMethods) Valid() bool {
+	switch e {
+	case WorkflowTriggerCronRefMethodsDEFAULT,
+		WorkflowTriggerCronRefMethodsAPI:
+		return true
+	}
+	return false
+}
+
+func AllWorkflowTriggerCronRefMethodsValues() []WorkflowTriggerCronRefMethods {
+	return []WorkflowTriggerCronRefMethods{
+		WorkflowTriggerCronRefMethodsDEFAULT,
+		WorkflowTriggerCronRefMethodsAPI,
+	}
+}
+
+type WorkflowTriggerScheduledRefMethods string
+
+const (
+	WorkflowTriggerScheduledRefMethodsDEFAULT WorkflowTriggerScheduledRefMethods = "DEFAULT"
+	WorkflowTriggerScheduledRefMethodsAPI     WorkflowTriggerScheduledRefMethods = "API"
+)
+
+func (e *WorkflowTriggerScheduledRefMethods) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkflowTriggerScheduledRefMethods(s)
+	case string:
+		*e = WorkflowTriggerScheduledRefMethods(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkflowTriggerScheduledRefMethods: %T", src)
+	}
+	return nil
+}
+
+func (e WorkflowTriggerScheduledRefMethods) Valid() bool {
+	switch e {
+	case WorkflowTriggerScheduledRefMethodsDEFAULT,
+		WorkflowTriggerScheduledRefMethodsAPI:
+		return true
+	}
+	return false
+}
+
+func AllWorkflowTriggerScheduledRefMethodsValues() []WorkflowTriggerScheduledRefMethods {
+	return []WorkflowTriggerScheduledRefMethods{
+		WorkflowTriggerScheduledRefMethodsDEFAULT,
+		WorkflowTriggerScheduledRefMethodsAPI,
 	}
 }

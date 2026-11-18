@@ -368,7 +368,7 @@ func checkHMACAlgorithm(algorithm enums.V1IncomingWebhookHmacAlgorithm) error {
 	return nil
 }
 
-func computeHMACSignature(payload []byte, secret []byte, algorithm enums.V1IncomingWebhookHmacAlgorithm, encoding sqlcv1.V1IncomingWebhookHmacEncoding) (string, error) {
+func computeHMACSignature(payload []byte, secret []byte, algorithm enums.V1IncomingWebhookHmacAlgorithm, encoding enums.V1IncomingWebhookHmacEncoding) (string, error) {
 	if err := checkHMACAlgorithm(algorithm); err != nil {
 		return "", err
 	}
@@ -397,11 +397,11 @@ func computeHMACSignature(payload []byte, secret []byte, algorithm enums.V1Incom
 	signature := h.Sum(nil)
 
 	switch encoding {
-	case sqlcv1.V1IncomingWebhookHmacEncodingHEX:
+	case enums.V1IncomingWebhookHmacEncodingHEX:
 		return hex.EncodeToString(signature), nil
-	case sqlcv1.V1IncomingWebhookHmacEncodingBASE64:
+	case enums.V1IncomingWebhookHmacEncodingBASE64:
 		return base64.StdEncoding.EncodeToString(signature), nil
-	case sqlcv1.V1IncomingWebhookHmacEncodingBASE64URL:
+	case enums.V1IncomingWebhookHmacEncodingBASE64URL:
 		return base64.URLEncoding.EncodeToString(signature), nil
 	default:
 		return "", fmt.Errorf("unsupported HMAC encoding: %s", encoding)
@@ -447,6 +447,14 @@ func hmacAlgorithm(webhook sqlcv1.V1IncomingWebhook) enums.V1IncomingWebhookHmac
 		return ""
 	}
 	return *webhook.AuthHmacAlgorithm
+}
+
+// a NULL encoding falls through to computeHMACSignature's unsupported-encoding error
+func hmacEncoding(webhook sqlcv1.V1IncomingWebhook) enums.V1IncomingWebhookHmacEncoding {
+	if webhook.AuthHmacEncoding == nil {
+		return ""
+	}
+	return *webhook.AuthHmacEncoding
 }
 
 func (w *V1WebhooksService) performChallenge(webhookPayload []byte, webhook sqlcv1.V1IncomingWebhook, request http.Request) (IsChallenge, *string, error) {
@@ -572,7 +580,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 			}
 
 			algorithm := hmacAlgorithm(webhook)
-			encoding := webhook.AuthHmacEncoding.V1IncomingWebhookHmacEncoding
+			encoding := hmacEncoding(webhook)
 
 			expectedSignature, err := computeHMACSignature(webhookPayload, decryptedSigningSecret, algorithm, encoding)
 
@@ -633,7 +641,7 @@ func (w *V1WebhooksService) validateSlackWebhook(webhookPayload []byte, webhook 
 	}
 
 	algorithm := hmacAlgorithm(webhook)
-	encoding := webhook.AuthHmacEncoding.V1IncomingWebhookHmacEncoding
+	encoding := hmacEncoding(webhook)
 	decryptedSigningSecret, err := w.config.Encryption.Decrypt(webhook.AuthHmacWebhookSigningSecret, "v1_webhook_hmac_signing_secret")
 
 	if err != nil {
@@ -738,7 +746,7 @@ func (w *V1WebhooksService) validateStripeWebhook(webhookPayload []byte, webhook
 	}
 
 	algorithm := hmacAlgorithm(webhook)
-	encoding := webhook.AuthHmacEncoding.V1IncomingWebhookHmacEncoding
+	encoding := hmacEncoding(webhook)
 
 	signedPayload := fmt.Sprintf("%s.%s", timestamp, webhookPayload)
 

@@ -27,12 +27,6 @@ func ToUser(user *sqlcv1.User, hasPassword bool, hashedEmail *string) *gen.User 
 }
 
 func ToTenantMember(tenantMember *sqlcv1.PopulateTenantMembersRow) *gen.TenantMember {
-	var environment *gen.TenantEnvironment
-	if tenantMember.TenantEnvironment.Valid {
-		env := gen.TenantEnvironment(tenantMember.TenantEnvironment.TenantEnvironment)
-		environment = &env
-	}
-
 	res := &gen.TenantMember{
 		Metadata: *toAPIMetadata(tenantMember.ID, tenantMember.CreatedAt.Time, tenantMember.UpdatedAt.Time),
 		User: gen.UserTenantPublic{
@@ -46,7 +40,7 @@ func ToTenantMember(tenantMember *sqlcv1.PopulateTenantMembersRow) *gen.TenantMe
 			AnalyticsOptOut:     &tenantMember.AnalyticsOptOut,
 			AlertMemberEmails:   &tenantMember.AlertMemberEmails,
 			Version:             tenantMember.TenantVersion,
-			Environment:         environment,
+			Environment:         tenantMember.TenantEnvironment,
 			DataRetentionPeriod: &tenantMember.TenantDataRetentionPeriod,
 		},
 		Role: tenantMember.Role,

@@ -42,12 +42,6 @@ const (
 	WORKFLOW ConcurrencyScope = "WORKFLOW"
 )
 
-// Defines values for CronWorkflowsMethod.
-const (
-	CronWorkflowsMethodAPI     CronWorkflowsMethod = "API"
-	CronWorkflowsMethodDEFAULT CronWorkflowsMethod = "DEFAULT"
-)
-
 // Defines values for CronWorkflowsOrderByField.
 const (
 	CronWorkflowsOrderByFieldCreatedAt CronWorkflowsOrderByField = "createdAt"
@@ -85,23 +79,6 @@ const (
 	JobRunStatusSUCCEEDED JobRunStatus = "SUCCEEDED"
 )
 
-// Defines values for OtelSpanKind.
-const (
-	CLIENT      OtelSpanKind = "CLIENT"
-	CONSUMER    OtelSpanKind = "CONSUMER"
-	INTERNAL    OtelSpanKind = "INTERNAL"
-	PRODUCER    OtelSpanKind = "PRODUCER"
-	SERVER      OtelSpanKind = "SERVER"
-	UNSPECIFIED OtelSpanKind = "UNSPECIFIED"
-)
-
-// Defines values for OtelStatusCode.
-const (
-	OtelStatusCodeERROR OtelStatusCode = "ERROR"
-	OtelStatusCodeOK    OtelStatusCode = "OK"
-	OtelStatusCodeUNSET OtelStatusCode = "UNSET"
-)
-
 // Defines values for PauseWorkflowRequestPauseAction.
 const (
 	Pause PauseWorkflowRequestPauseAction = "pause"
@@ -136,12 +113,6 @@ const (
 	ScheduledRunStatusSUCCEEDED ScheduledRunStatus = "SUCCEEDED"
 )
 
-// Defines values for ScheduledWorkflowsMethod.
-const (
-	ScheduledWorkflowsMethodAPI     ScheduledWorkflowsMethod = "API"
-	ScheduledWorkflowsMethodDEFAULT ScheduledWorkflowsMethod = "DEFAULT"
-)
-
 // Defines values for ScheduledWorkflowsOrderByField.
 const (
 	ScheduledWorkflowsOrderByFieldCreatedAt ScheduledWorkflowsOrderByField = "createdAt"
@@ -171,9 +142,9 @@ const (
 
 // Defines values for StepRunEventSeverity.
 const (
-	StepRunEventSeverityCRITICAL StepRunEventSeverity = "CRITICAL"
-	StepRunEventSeverityINFO     StepRunEventSeverity = "INFO"
-	StepRunEventSeverityWARNING  StepRunEventSeverity = "WARNING"
+	CRITICAL StepRunEventSeverity = "CRITICAL"
+	INFO     StepRunEventSeverity = "INFO"
+	WARNING  StepRunEventSeverity = "WARNING"
 )
 
 // Defines values for StepRunStatus.
@@ -189,13 +160,6 @@ const (
 	StepRunStatusSUCCEEDED         StepRunStatus = "SUCCEEDED"
 )
 
-// Defines values for TenantEnvironment.
-const (
-	Development TenantEnvironment = "development"
-	Local       TenantEnvironment = "local"
-	Production  TenantEnvironment = "production"
-)
-
 // Defines values for V1AdditionalMetadataOperator.
 const (
 	AND V1AdditionalMetadataOperator = "AND"
@@ -204,8 +168,8 @@ const (
 
 // Defines values for V1CELDebugResponseStatus.
 const (
-	V1CELDebugResponseStatusERROR   V1CELDebugResponseStatus = "ERROR"
-	V1CELDebugResponseStatusSUCCESS V1CELDebugResponseStatus = "SUCCESS"
+	ERROR   V1CELDebugResponseStatus = "ERROR"
+	SUCCESS V1CELDebugResponseStatus = "SUCCESS"
 )
 
 // Defines values for V1ConcurrencyScope.
@@ -237,14 +201,6 @@ const (
 	USEREVENT     V1DurableWaitConditionKind = "USER_EVENT"
 )
 
-// Defines values for V1LogLineLevel.
-const (
-	V1LogLineLevelDEBUG V1LogLineLevel = "DEBUG"
-	V1LogLineLevelERROR V1LogLineLevel = "ERROR"
-	V1LogLineLevelINFO  V1LogLineLevel = "INFO"
-	V1LogLineLevelWARN  V1LogLineLevel = "WARN"
-)
-
 // Defines values for V1LogLineOrderByDirection.
 const (
 	V1LogLineOrderByDirectionASC  V1LogLineOrderByDirection = "ASC"
@@ -266,13 +222,6 @@ const (
 	STATUS  V1ServerlessEndpointCheckStage = "STATUS"
 )
 
-// Defines values for V1WebhookHMACEncoding.
-const (
-	BASE64    V1WebhookHMACEncoding = "BASE64"
-	BASE64URL V1WebhookHMACEncoding = "BASE64URL"
-	HEX       V1WebhookHMACEncoding = "HEX"
-)
-
 // Defines values for WorkerRuntimeSDKs.
 const (
 	GOLANG     WorkerRuntimeSDKs = "GOLANG"
@@ -288,24 +237,11 @@ const (
 	PAUSED   WorkerStatus = "PAUSED"
 )
 
-// Defines values for WorkerType.
-const (
-	MANAGED    WorkerType = "MANAGED"
-	SELFHOSTED WorkerType = "SELFHOSTED"
-	WEBHOOK    WorkerType = "WEBHOOK"
-)
-
 // Defines values for WorkflowKind.
 const (
 	DAG      WorkflowKind = "DAG"
 	DURABLE  WorkflowKind = "DURABLE"
 	FUNCTION WorkflowKind = "FUNCTION"
-)
-
-// Defines values for WorkflowPauseScheduledCronRunQueueBehavior.
-const (
-	DROP  WorkflowPauseScheduledCronRunQueueBehavior = "DROP"
-	QUEUE WorkflowPauseScheduledCronRunQueueBehavior = "QUEUE"
 )
 
 // Defines values for WorkflowRunOrderByDirection.
@@ -584,7 +520,7 @@ type CronWorkflowsList struct {
 }
 
 // CronWorkflowsMethod defines model for CronWorkflowsMethod.
-type CronWorkflowsMethod string
+type CronWorkflowsMethod = enums.WorkflowTriggerCronRefMethods
 
 // CronWorkflowsOrderByField defines model for CronWorkflowsOrderByField.
 type CronWorkflowsOrderByField string
@@ -749,7 +685,7 @@ type OtelSpan struct {
 }
 
 // OtelSpanKind defines model for OtelSpanKind.
-type OtelSpanKind string
+type OtelSpanKind = enums.V1OtelSpanKind
 
 // OtelSpanList defines model for OtelSpanList.
 type OtelSpanList struct {
@@ -759,7 +695,7 @@ type OtelSpanList struct {
 }
 
 // OtelStatusCode defines model for OtelStatusCode.
-type OtelStatusCode string
+type OtelStatusCode = enums.V1OtelStatusCode
 
 // PaginationResponse defines model for PaginationResponse.
 type PaginationResponse struct {
@@ -988,7 +924,7 @@ type ScheduledWorkflowsList struct {
 }
 
 // ScheduledWorkflowsMethod defines model for ScheduledWorkflowsMethod.
-type ScheduledWorkflowsMethod string
+type ScheduledWorkflowsMethod = enums.WorkflowTriggerScheduledRefMethods
 
 // ScheduledWorkflowsOrderByField defines model for ScheduledWorkflowsOrderByField.
 type ScheduledWorkflowsOrderByField string
@@ -1231,7 +1167,7 @@ type TenantEntitlements struct {
 }
 
 // TenantEnvironment defines model for TenantEnvironment.
-type TenantEnvironment string
+type TenantEnvironment = enums.TenantEnvironment
 
 // TenantInvite defines model for TenantInvite.
 type TenantInvite struct {
@@ -1972,7 +1908,7 @@ type V1LogLine struct {
 }
 
 // V1LogLineLevel defines model for V1LogLineLevel.
-type V1LogLineLevel string
+type V1LogLineLevel = enums.V1LogLineLevel
 
 // V1LogLineList defines model for V1LogLineList.
 type V1LogLineList struct {
@@ -2528,7 +2464,7 @@ type V1WebhookHMACAuth struct {
 }
 
 // V1WebhookHMACEncoding defines model for V1WebhookHMACEncoding.
-type V1WebhookHMACEncoding string
+type V1WebhookHMACEncoding = enums.V1IncomingWebhookHmacEncoding
 
 // V1WebhookList defines model for V1WebhookList.
 type V1WebhookList struct {
@@ -2780,7 +2716,7 @@ type WorkerSlotConfig struct {
 type WorkerStatus string
 
 // WorkerType defines model for WorkerType.
-type WorkerType string
+type WorkerType = enums.WorkerType
 
 // Workflow defines model for Workflow.
 type Workflow struct {
@@ -2844,7 +2780,7 @@ type WorkflowMetrics struct {
 }
 
 // WorkflowPauseScheduledCronRunQueueBehavior defines model for WorkflowPauseScheduledCronRunQueueBehavior.
-type WorkflowPauseScheduledCronRunQueueBehavior string
+type WorkflowPauseScheduledCronRunQueueBehavior = enums.WorkflowPauseQueueBehavior
 
 // WorkflowRun defines model for WorkflowRun.
 type WorkflowRun struct {

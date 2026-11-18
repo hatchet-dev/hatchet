@@ -11,6 +11,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -100,7 +101,7 @@ func (t *WorkflowService) WorkflowScheduledBulkDelete(ctx echo.Context, request 
 				continue
 			}
 
-			if row.Method != sqlcv1.WorkflowTriggerScheduledRefMethodsAPI {
+			if row.Method != enums.WorkflowTriggerScheduledRefMethodsAPI {
 				idCp := idUUID
 				errors = append(errors, gen.ScheduledWorkflowsBulkError{Id: &idCp, Error: "Cannot delete scheduled run created via code definition."})
 				continue

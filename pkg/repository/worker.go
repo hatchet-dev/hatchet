@@ -720,10 +720,8 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 	}
 
 	// Default to self hosted
-	createParams.Type = sqlcv1.NullWorkerType{
-		WorkerType: sqlcv1.WorkerTypeSELFHOSTED,
-		Valid:      true,
-	}
+	selfHosted := enums.WorkerTypeSELFHOSTED
+	createParams.Type = &selfHosted
 
 	if opts.RuntimeInfo != nil {
 		if opts.RuntimeInfo.SdkVersion != nil {

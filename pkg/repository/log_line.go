@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -158,9 +159,9 @@ func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId uuid.
 	}
 
 	if opts.Levels != nil {
-		levels := make([]sqlcv1.V1LogLineLevel, len(opts.Levels))
+		levels := make([]enums.V1LogLineLevel, len(opts.Levels))
 		for i, level := range opts.Levels {
-			levels[i] = sqlcv1.V1LogLineLevel(level)
+			levels[i] = enums.V1LogLineLevel(level)
 		}
 
 		queryParams.Levels = levels
@@ -235,12 +236,12 @@ func (r *logLineRepositoryImpl) PutLog(ctx context.Context, tenantId uuid.UUID, 
 		return err
 	}
 
-	var level sqlcv1.V1LogLineLevel
+	var level enums.V1LogLineLevel
 
 	if opts.Level == nil {
-		level = sqlcv1.V1LogLineLevel("INFO")
+		level = enums.V1LogLineLevel("INFO")
 	} else {
-		level = sqlcv1.V1LogLineLevel(*opts.Level)
+		level = enums.V1LogLineLevel(*opts.Level)
 	}
 
 	_, err := r.queries.InsertLogLine(
@@ -285,9 +286,9 @@ func (r *logLineRepositoryImpl) GetLogLinePointMetrics(ctx context.Context, tena
 	}
 
 	if len(opts.Levels) > 0 {
-		lvls := make([]sqlcv1.V1LogLineLevel, len(opts.Levels))
+		lvls := make([]enums.V1LogLineLevel, len(opts.Levels))
 		for i, l := range opts.Levels {
-			lvls[i] = sqlcv1.V1LogLineLevel(l)
+			lvls[i] = enums.V1LogLineLevel(l)
 		}
 		params.Levels = lvls
 	}

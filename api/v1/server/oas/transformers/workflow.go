@@ -242,17 +242,9 @@ func ToWorkflowFromSQLC(row *sqlcv1.Workflow) *gen.Workflow {
 		Name:        row.Name,
 		Description: &row.Description.String,
 		IsPaused:    &row.IsPaused.Bool,
-	}
 
-	if row.PausedWorkflowCronRunQueueBehavior.Valid {
-		behavior := gen.WorkflowPauseScheduledCronRunQueueBehavior(string(row.PausedWorkflowCronRunQueueBehavior.WorkflowPauseQueueBehavior))
-		res.PausedWorkflowCronRunQueueBehavior = &behavior
-	}
-
-	if row.PausedWorkflowScheduledRunQueueBehavior.Valid {
-		behavior := gen.WorkflowPauseScheduledCronRunQueueBehavior(string(row.PausedWorkflowScheduledRunQueueBehavior.WorkflowPauseQueueBehavior))
-		res.PausedWorkflowScheduledRunQueueBehavior = &behavior
-
+		PausedWorkflowCronRunQueueBehavior:      row.PausedWorkflowCronRunQueueBehavior,
+		PausedWorkflowScheduledRunQueueBehavior: row.PausedWorkflowScheduledRunQueueBehavior,
 	}
 
 	return res

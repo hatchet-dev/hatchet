@@ -58,6 +58,9 @@ OtelSpanKind:
     - CLIENT
     - PRODUCER
     - CONSUMER
+  x-go-type: enums.V1OtelSpanKind
+  x-go-type-import:
+    path: github.com/hatchet-dev/hatchet/pkg/enums
 
 OtelStatusCode:
   type: string
@@ -65,6 +68,9 @@ OtelStatusCode:
     - UNSET
     - OK
     - ERROR
+  x-go-type: enums.V1OtelStatusCode
+  x-go-type-import:
+    path: github.com/hatchet-dev/hatchet/pkg/enums
 
 OtelSpanList:
   type: object

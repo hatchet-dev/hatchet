@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -37,15 +38,15 @@ ORDER BY minute_bucket
 `
 
 type GetLogLinePointMetricsParams struct {
-	Interval      pgtype.Interval    `json:"interval"`
-	Tenantid      uuid.UUID          `json:"tenantid"`
-	Createdafter  pgtype.Timestamptz `json:"createdafter"`
-	Createdbefore pgtype.Timestamptz `json:"createdbefore"`
-	Search        pgtype.Text        `json:"search"`
-	Levels        []V1LogLineLevel   `json:"levels"`
-	TaskIds       []int64            `json:"taskIds"`
-	WorkflowIds   []uuid.UUID        `json:"workflowIds"`
-	StepIds       []uuid.UUID        `json:"stepIds"`
+	Interval      pgtype.Interval        `json:"interval"`
+	Tenantid      uuid.UUID              `json:"tenantid"`
+	Createdafter  pgtype.Timestamptz     `json:"createdafter"`
+	Createdbefore pgtype.Timestamptz     `json:"createdbefore"`
+	Search        pgtype.Text            `json:"search"`
+	Levels        []enums.V1LogLineLevel `json:"levels"`
+	TaskIds       []int64                `json:"taskIds"`
+	WorkflowIds   []uuid.UUID            `json:"workflowIds"`
+	StepIds       []uuid.UUID            `json:"stepIds"`
 }
 
 type GetLogLinePointMetricsRow struct {
@@ -93,15 +94,15 @@ func (q *Queries) GetLogLinePointMetrics(ctx context.Context, db DBTX, arg GetLo
 }
 
 type InsertLogLineParams struct {
-	TenantID       uuid.UUID          `json:"tenant_id"`
-	TaskID         int64              `json:"task_id"`
-	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
-	Message        string             `json:"message"`
-	Metadata       []byte             `json:"metadata"`
-	RetryCount     int32              `json:"retry_count"`
-	Level          V1LogLineLevel     `json:"level"`
-	WorkflowID     *uuid.UUID         `json:"workflow_id"`
-	StepID         *uuid.UUID         `json:"step_id"`
+	TenantID       uuid.UUID            `json:"tenant_id"`
+	TaskID         int64                `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz   `json:"task_inserted_at"`
+	Message        string               `json:"message"`
+	Metadata       []byte               `json:"metadata"`
+	RetryCount     int32                `json:"retry_count"`
+	Level          enums.V1LogLineLevel `json:"level"`
+	WorkflowID     *uuid.UUID           `json:"workflow_id"`
+	StepID         *uuid.UUID           `json:"step_id"`
 }
 
 const listLogLines = `-- name: ListLogLines :many
@@ -127,18 +128,18 @@ OFFSET COALESCE($11::BIGINT, 0)
 `
 
 type ListLogLinesParams struct {
-	Tenantid         uuid.UUID          `json:"tenantid"`
-	TaskIds          []int64            `json:"taskIds"`
-	Search           pgtype.Text        `json:"search"`
-	Since            pgtype.Timestamptz `json:"since"`
-	Until            pgtype.Timestamptz `json:"until"`
-	Levels           []V1LogLineLevel   `json:"levels"`
-	Attempt          pgtype.Int4        `json:"attempt"`
-	WorkflowIds      []uuid.UUID        `json:"workflowIds"`
-	StepIds          []uuid.UUID        `json:"stepIds"`
-	Orderbydirection string             `json:"orderbydirection"`
-	Offset           pgtype.Int8        `json:"offset"`
-	Limit            pgtype.Int8        `json:"limit"`
+	Tenantid         uuid.UUID              `json:"tenantid"`
+	TaskIds          []int64                `json:"taskIds"`
+	Search           pgtype.Text            `json:"search"`
+	Since            pgtype.Timestamptz     `json:"since"`
+	Until            pgtype.Timestamptz     `json:"until"`
+	Levels           []enums.V1LogLineLevel `json:"levels"`
+	Attempt          pgtype.Int4            `json:"attempt"`
+	WorkflowIds      []uuid.UUID            `json:"workflowIds"`
+	StepIds          []uuid.UUID            `json:"stepIds"`
+	Orderbydirection string                 `json:"orderbydirection"`
+	Offset           pgtype.Int8            `json:"offset"`
+	Limit            pgtype.Int8            `json:"limit"`
 }
 
 func (q *Queries) ListLogLines(ctx context.Context, db DBTX, arg ListLogLinesParams) ([]*V1LogLine, error) {

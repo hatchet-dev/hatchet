@@ -87,6 +87,9 @@ V1WebhookHMACEncoding:
     - HEX
     - BASE64
     - BASE64URL
+  x-go-type: enums.V1IncomingWebhookHmacEncoding
+  x-go-type-import:
+    path: github.com/hatchet-dev/hatchet/pkg/enums
 
 V1WebhookBasicAuth:
   type: object

@@ -1013,67 +1013,6 @@ func AllStickyStrategyValues() []StickyStrategy {
 	}
 }
 
-type TenantEnvironment string
-
-const (
-	TenantEnvironmentLocal       TenantEnvironment = "local"
-	TenantEnvironmentDevelopment TenantEnvironment = "development"
-	TenantEnvironmentProduction  TenantEnvironment = "production"
-)
-
-func (e *TenantEnvironment) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = TenantEnvironment(s)
-	case string:
-		*e = TenantEnvironment(s)
-	default:
-		return fmt.Errorf("unsupported scan type for TenantEnvironment: %T", src)
-	}
-	return nil
-}
-
-type NullTenantEnvironment struct {
-	TenantEnvironment TenantEnvironment `json:"TenantEnvironment"`
-	Valid             bool              `json:"valid"` // Valid is true if TenantEnvironment is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullTenantEnvironment) Scan(value interface{}) error {
-	if value == nil {
-		ns.TenantEnvironment, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.TenantEnvironment.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullTenantEnvironment) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.TenantEnvironment), nil
-}
-
-func (e TenantEnvironment) Valid() bool {
-	switch e {
-	case TenantEnvironmentLocal,
-		TenantEnvironmentDevelopment,
-		TenantEnvironmentProduction:
-		return true
-	}
-	return false
-}
-
-func AllTenantEnvironmentValues() []TenantEnvironment {
-	return []TenantEnvironment{
-		TenantEnvironmentLocal,
-		TenantEnvironmentDevelopment,
-		TenantEnvironmentProduction,
-	}
-}
-
 type TenantMajorUIVersion string
 
 const (
@@ -1367,131 +1306,6 @@ func AllV1EventTypeValues() []V1EventType {
 	}
 }
 
-type V1IncomingWebhookHmacEncoding string
-
-const (
-	V1IncomingWebhookHmacEncodingHEX       V1IncomingWebhookHmacEncoding = "HEX"
-	V1IncomingWebhookHmacEncodingBASE64    V1IncomingWebhookHmacEncoding = "BASE64"
-	V1IncomingWebhookHmacEncodingBASE64URL V1IncomingWebhookHmacEncoding = "BASE64URL"
-)
-
-func (e *V1IncomingWebhookHmacEncoding) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = V1IncomingWebhookHmacEncoding(s)
-	case string:
-		*e = V1IncomingWebhookHmacEncoding(s)
-	default:
-		return fmt.Errorf("unsupported scan type for V1IncomingWebhookHmacEncoding: %T", src)
-	}
-	return nil
-}
-
-type NullV1IncomingWebhookHmacEncoding struct {
-	V1IncomingWebhookHmacEncoding V1IncomingWebhookHmacEncoding `json:"v1_incoming_webhook_hmac_encoding"`
-	Valid                         bool                          `json:"valid"` // Valid is true if V1IncomingWebhookHmacEncoding is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1IncomingWebhookHmacEncoding) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1IncomingWebhookHmacEncoding, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1IncomingWebhookHmacEncoding.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1IncomingWebhookHmacEncoding) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1IncomingWebhookHmacEncoding), nil
-}
-
-func (e V1IncomingWebhookHmacEncoding) Valid() bool {
-	switch e {
-	case V1IncomingWebhookHmacEncodingHEX,
-		V1IncomingWebhookHmacEncodingBASE64,
-		V1IncomingWebhookHmacEncodingBASE64URL:
-		return true
-	}
-	return false
-}
-
-func AllV1IncomingWebhookHmacEncodingValues() []V1IncomingWebhookHmacEncoding {
-	return []V1IncomingWebhookHmacEncoding{
-		V1IncomingWebhookHmacEncodingHEX,
-		V1IncomingWebhookHmacEncodingBASE64,
-		V1IncomingWebhookHmacEncodingBASE64URL,
-	}
-}
-
-type V1LogLineLevel string
-
-const (
-	V1LogLineLevelDEBUG V1LogLineLevel = "DEBUG"
-	V1LogLineLevelINFO  V1LogLineLevel = "INFO"
-	V1LogLineLevelWARN  V1LogLineLevel = "WARN"
-	V1LogLineLevelERROR V1LogLineLevel = "ERROR"
-)
-
-func (e *V1LogLineLevel) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = V1LogLineLevel(s)
-	case string:
-		*e = V1LogLineLevel(s)
-	default:
-		return fmt.Errorf("unsupported scan type for V1LogLineLevel: %T", src)
-	}
-	return nil
-}
-
-type NullV1LogLineLevel struct {
-	V1LogLineLevel V1LogLineLevel `json:"v1_log_line_level"`
-	Valid          bool           `json:"valid"` // Valid is true if V1LogLineLevel is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1LogLineLevel) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1LogLineLevel, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1LogLineLevel.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1LogLineLevel) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1LogLineLevel), nil
-}
-
-func (e V1LogLineLevel) Valid() bool {
-	switch e {
-	case V1LogLineLevelDEBUG,
-		V1LogLineLevelINFO,
-		V1LogLineLevelWARN,
-		V1LogLineLevelERROR:
-		return true
-	}
-	return false
-}
-
-func AllV1LogLineLevelValues() []V1LogLineLevel {
-	return []V1LogLineLevel{
-		V1LogLineLevelDEBUG,
-		V1LogLineLevelINFO,
-		V1LogLineLevelWARN,
-		V1LogLineLevelERROR,
-	}
-}
-
 type V1MatchConditionAction string
 
 const (
@@ -1736,137 +1550,6 @@ func AllV1OperatorLeasingManagerValues() []V1OperatorLeasingManager {
 	}
 }
 
-type V1OtelSpanKind string
-
-const (
-	V1OtelSpanKindUNSPECIFIED V1OtelSpanKind = "UNSPECIFIED"
-	V1OtelSpanKindINTERNAL    V1OtelSpanKind = "INTERNAL"
-	V1OtelSpanKindSERVER      V1OtelSpanKind = "SERVER"
-	V1OtelSpanKindCLIENT      V1OtelSpanKind = "CLIENT"
-	V1OtelSpanKindPRODUCER    V1OtelSpanKind = "PRODUCER"
-	V1OtelSpanKindCONSUMER    V1OtelSpanKind = "CONSUMER"
-)
-
-func (e *V1OtelSpanKind) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = V1OtelSpanKind(s)
-	case string:
-		*e = V1OtelSpanKind(s)
-	default:
-		return fmt.Errorf("unsupported scan type for V1OtelSpanKind: %T", src)
-	}
-	return nil
-}
-
-type NullV1OtelSpanKind struct {
-	V1OtelSpanKind V1OtelSpanKind `json:"v1_otel_span_kind"`
-	Valid          bool           `json:"valid"` // Valid is true if V1OtelSpanKind is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1OtelSpanKind) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1OtelSpanKind, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1OtelSpanKind.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1OtelSpanKind) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1OtelSpanKind), nil
-}
-
-func (e V1OtelSpanKind) Valid() bool {
-	switch e {
-	case V1OtelSpanKindUNSPECIFIED,
-		V1OtelSpanKindINTERNAL,
-		V1OtelSpanKindSERVER,
-		V1OtelSpanKindCLIENT,
-		V1OtelSpanKindPRODUCER,
-		V1OtelSpanKindCONSUMER:
-		return true
-	}
-	return false
-}
-
-func AllV1OtelSpanKindValues() []V1OtelSpanKind {
-	return []V1OtelSpanKind{
-		V1OtelSpanKindUNSPECIFIED,
-		V1OtelSpanKindINTERNAL,
-		V1OtelSpanKindSERVER,
-		V1OtelSpanKindCLIENT,
-		V1OtelSpanKindPRODUCER,
-		V1OtelSpanKindCONSUMER,
-	}
-}
-
-type V1OtelStatusCode string
-
-const (
-	V1OtelStatusCodeUNSET V1OtelStatusCode = "UNSET"
-	V1OtelStatusCodeOK    V1OtelStatusCode = "OK"
-	V1OtelStatusCodeERROR V1OtelStatusCode = "ERROR"
-)
-
-func (e *V1OtelStatusCode) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = V1OtelStatusCode(s)
-	case string:
-		*e = V1OtelStatusCode(s)
-	default:
-		return fmt.Errorf("unsupported scan type for V1OtelStatusCode: %T", src)
-	}
-	return nil
-}
-
-type NullV1OtelStatusCode struct {
-	V1OtelStatusCode V1OtelStatusCode `json:"v1_otel_status_code"`
-	Valid            bool             `json:"valid"` // Valid is true if V1OtelStatusCode is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1OtelStatusCode) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1OtelStatusCode, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1OtelStatusCode.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1OtelStatusCode) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1OtelStatusCode), nil
-}
-
-func (e V1OtelStatusCode) Valid() bool {
-	switch e {
-	case V1OtelStatusCodeUNSET,
-		V1OtelStatusCodeOK,
-		V1OtelStatusCodeERROR:
-		return true
-	}
-	return false
-}
-
-func AllV1OtelStatusCodeValues() []V1OtelStatusCode {
-	return []V1OtelStatusCode{
-		V1OtelStatusCodeUNSET,
-		V1OtelStatusCodeOK,
-		V1OtelStatusCodeERROR,
-	}
-}
-
 type V1PayloadLocation string
 
 const (
@@ -2053,210 +1736,6 @@ func AllV1PayloadTypeValues() []V1PayloadType {
 		V1PayloadTypeUSEREVENTINPUT,
 		V1PayloadTypeDURABLEEVENTLOGENTRYDATA,
 		V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
-	}
-}
-
-type V1SandboxEventKind string
-
-const (
-	V1SandboxEventKindHEALTHCHECKFAILED   V1SandboxEventKind = "HEALTHCHECK_FAILED"
-	V1SandboxEventKindUNHEALTHY           V1SandboxEventKind = "UNHEALTHY"
-	V1SandboxEventKindHEALTHY             V1SandboxEventKind = "HEALTHY"
-	V1SandboxEventKindSANDBOXCREATED      V1SandboxEventKind = "SANDBOX_CREATED"
-	V1SandboxEventKindSANDBOXCREATEFAILED V1SandboxEventKind = "SANDBOX_CREATE_FAILED"
-	V1SandboxEventKindTURNFAILED          V1SandboxEventKind = "TURN_FAILED"
-	V1SandboxEventKindSNAPSHOTFAILED      V1SandboxEventKind = "SNAPSHOT_FAILED"
-	V1SandboxEventKindSANDBOXDESTROYED    V1SandboxEventKind = "SANDBOX_DESTROYED"
-)
-
-func (e *V1SandboxEventKind) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = V1SandboxEventKind(s)
-	case string:
-		*e = V1SandboxEventKind(s)
-	default:
-		return fmt.Errorf("unsupported scan type for V1SandboxEventKind: %T", src)
-	}
-	return nil
-}
-
-type NullV1SandboxEventKind struct {
-	V1SandboxEventKind V1SandboxEventKind `json:"v1_sandbox_event_kind"`
-	Valid              bool               `json:"valid"` // Valid is true if V1SandboxEventKind is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1SandboxEventKind) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1SandboxEventKind, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1SandboxEventKind.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1SandboxEventKind) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1SandboxEventKind), nil
-}
-
-func (e V1SandboxEventKind) Valid() bool {
-	switch e {
-	case V1SandboxEventKindHEALTHCHECKFAILED,
-		V1SandboxEventKindUNHEALTHY,
-		V1SandboxEventKindHEALTHY,
-		V1SandboxEventKindSANDBOXCREATED,
-		V1SandboxEventKindSANDBOXCREATEFAILED,
-		V1SandboxEventKindTURNFAILED,
-		V1SandboxEventKindSNAPSHOTFAILED,
-		V1SandboxEventKindSANDBOXDESTROYED:
-		return true
-	}
-	return false
-}
-
-func AllV1SandboxEventKindValues() []V1SandboxEventKind {
-	return []V1SandboxEventKind{
-		V1SandboxEventKindHEALTHCHECKFAILED,
-		V1SandboxEventKindUNHEALTHY,
-		V1SandboxEventKindHEALTHY,
-		V1SandboxEventKindSANDBOXCREATED,
-		V1SandboxEventKindSANDBOXCREATEFAILED,
-		V1SandboxEventKindTURNFAILED,
-		V1SandboxEventKindSNAPSHOTFAILED,
-		V1SandboxEventKindSANDBOXDESTROYED,
-	}
-}
-
-type V1SandboxProviderKind string
-
-const (
-	V1SandboxProviderKindDAYTONA   V1SandboxProviderKind = "DAYTONA"
-	V1SandboxProviderKindE2B       V1SandboxProviderKind = "E2B"
-	V1SandboxProviderKindARCHIL    V1SandboxProviderKind = "ARCHIL"
-	V1SandboxProviderKindFREESTYLE V1SandboxProviderKind = "FREESTYLE"
-)
-
-func (e *V1SandboxProviderKind) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = V1SandboxProviderKind(s)
-	case string:
-		*e = V1SandboxProviderKind(s)
-	default:
-		return fmt.Errorf("unsupported scan type for V1SandboxProviderKind: %T", src)
-	}
-	return nil
-}
-
-type NullV1SandboxProviderKind struct {
-	V1SandboxProviderKind V1SandboxProviderKind `json:"v1_sandbox_provider_kind"`
-	Valid                 bool                  `json:"valid"` // Valid is true if V1SandboxProviderKind is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1SandboxProviderKind) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1SandboxProviderKind, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1SandboxProviderKind.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1SandboxProviderKind) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1SandboxProviderKind), nil
-}
-
-func (e V1SandboxProviderKind) Valid() bool {
-	switch e {
-	case V1SandboxProviderKindDAYTONA,
-		V1SandboxProviderKindE2B,
-		V1SandboxProviderKindARCHIL,
-		V1SandboxProviderKindFREESTYLE:
-		return true
-	}
-	return false
-}
-
-func AllV1SandboxProviderKindValues() []V1SandboxProviderKind {
-	return []V1SandboxProviderKind{
-		V1SandboxProviderKindDAYTONA,
-		V1SandboxProviderKindE2B,
-		V1SandboxProviderKindARCHIL,
-		V1SandboxProviderKindFREESTYLE,
-	}
-}
-
-type V1SandboxStatus string
-
-const (
-	V1SandboxStatusCREATING  V1SandboxStatus = "CREATING"
-	V1SandboxStatusRUNNING   V1SandboxStatus = "RUNNING"
-	V1SandboxStatusDESTROYED V1SandboxStatus = "DESTROYED"
-	V1SandboxStatusFAILED    V1SandboxStatus = "FAILED"
-)
-
-func (e *V1SandboxStatus) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = V1SandboxStatus(s)
-	case string:
-		*e = V1SandboxStatus(s)
-	default:
-		return fmt.Errorf("unsupported scan type for V1SandboxStatus: %T", src)
-	}
-	return nil
-}
-
-type NullV1SandboxStatus struct {
-	V1SandboxStatus V1SandboxStatus `json:"v1_sandbox_status"`
-	Valid           bool            `json:"valid"` // Valid is true if V1SandboxStatus is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullV1SandboxStatus) Scan(value interface{}) error {
-	if value == nil {
-		ns.V1SandboxStatus, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.V1SandboxStatus.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullV1SandboxStatus) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.V1SandboxStatus), nil
-}
-
-func (e V1SandboxStatus) Valid() bool {
-	switch e {
-	case V1SandboxStatusCREATING,
-		V1SandboxStatusRUNNING,
-		V1SandboxStatusDESTROYED,
-		V1SandboxStatusFAILED:
-		return true
-	}
-	return false
-}
-
-func AllV1SandboxStatusValues() []V1SandboxStatus {
-	return []V1SandboxStatus{
-		V1SandboxStatusCREATING,
-		V1SandboxStatusRUNNING,
-		V1SandboxStatusDESTROYED,
-		V1SandboxStatusFAILED,
 	}
 }
 
@@ -2885,67 +2364,6 @@ func AllWorkerSDKSValues() []WorkerSDKS {
 	}
 }
 
-type WorkerType string
-
-const (
-	WorkerTypeWEBHOOK    WorkerType = "WEBHOOK"
-	WorkerTypeMANAGED    WorkerType = "MANAGED"
-	WorkerTypeSELFHOSTED WorkerType = "SELFHOSTED"
-)
-
-func (e *WorkerType) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = WorkerType(s)
-	case string:
-		*e = WorkerType(s)
-	default:
-		return fmt.Errorf("unsupported scan type for WorkerType: %T", src)
-	}
-	return nil
-}
-
-type NullWorkerType struct {
-	WorkerType WorkerType `json:"WorkerType"`
-	Valid      bool       `json:"valid"` // Valid is true if WorkerType is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullWorkerType) Scan(value interface{}) error {
-	if value == nil {
-		ns.WorkerType, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.WorkerType.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullWorkerType) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.WorkerType), nil
-}
-
-func (e WorkerType) Valid() bool {
-	switch e {
-	case WorkerTypeWEBHOOK,
-		WorkerTypeMANAGED,
-		WorkerTypeSELFHOSTED:
-		return true
-	}
-	return false
-}
-
-func AllWorkerTypeValues() []WorkerType {
-	return []WorkerType{
-		WorkerTypeWEBHOOK,
-		WorkerTypeMANAGED,
-		WorkerTypeSELFHOSTED,
-	}
-}
-
 type WorkflowKind string
 
 const (
@@ -3004,64 +2422,6 @@ func AllWorkflowKindValues() []WorkflowKind {
 		WorkflowKindFUNCTION,
 		WorkflowKindDURABLE,
 		WorkflowKindDAG,
-	}
-}
-
-type WorkflowPauseQueueBehavior string
-
-const (
-	WorkflowPauseQueueBehaviorQUEUE WorkflowPauseQueueBehavior = "QUEUE"
-	WorkflowPauseQueueBehaviorDROP  WorkflowPauseQueueBehavior = "DROP"
-)
-
-func (e *WorkflowPauseQueueBehavior) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = WorkflowPauseQueueBehavior(s)
-	case string:
-		*e = WorkflowPauseQueueBehavior(s)
-	default:
-		return fmt.Errorf("unsupported scan type for WorkflowPauseQueueBehavior: %T", src)
-	}
-	return nil
-}
-
-type NullWorkflowPauseQueueBehavior struct {
-	WorkflowPauseQueueBehavior WorkflowPauseQueueBehavior `json:"WorkflowPauseQueueBehavior"`
-	Valid                      bool                       `json:"valid"` // Valid is true if WorkflowPauseQueueBehavior is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullWorkflowPauseQueueBehavior) Scan(value interface{}) error {
-	if value == nil {
-		ns.WorkflowPauseQueueBehavior, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.WorkflowPauseQueueBehavior.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullWorkflowPauseQueueBehavior) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.WorkflowPauseQueueBehavior), nil
-}
-
-func (e WorkflowPauseQueueBehavior) Valid() bool {
-	switch e {
-	case WorkflowPauseQueueBehaviorQUEUE,
-		WorkflowPauseQueueBehaviorDROP:
-		return true
-	}
-	return false
-}
-
-func AllWorkflowPauseQueueBehaviorValues() []WorkflowPauseQueueBehavior {
-	return []WorkflowPauseQueueBehavior{
-		WorkflowPauseQueueBehaviorQUEUE,
-		WorkflowPauseQueueBehaviorDROP,
 	}
 }
 
@@ -3138,122 +2498,6 @@ func AllWorkflowRunStatusValues() []WorkflowRunStatus {
 		WorkflowRunStatusCANCELLING,
 		WorkflowRunStatusCANCELLED,
 		WorkflowRunStatusBACKOFF,
-	}
-}
-
-type WorkflowTriggerCronRefMethods string
-
-const (
-	WorkflowTriggerCronRefMethodsDEFAULT WorkflowTriggerCronRefMethods = "DEFAULT"
-	WorkflowTriggerCronRefMethodsAPI     WorkflowTriggerCronRefMethods = "API"
-)
-
-func (e *WorkflowTriggerCronRefMethods) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = WorkflowTriggerCronRefMethods(s)
-	case string:
-		*e = WorkflowTriggerCronRefMethods(s)
-	default:
-		return fmt.Errorf("unsupported scan type for WorkflowTriggerCronRefMethods: %T", src)
-	}
-	return nil
-}
-
-type NullWorkflowTriggerCronRefMethods struct {
-	WorkflowTriggerCronRefMethods WorkflowTriggerCronRefMethods `json:"WorkflowTriggerCronRefMethods"`
-	Valid                         bool                          `json:"valid"` // Valid is true if WorkflowTriggerCronRefMethods is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullWorkflowTriggerCronRefMethods) Scan(value interface{}) error {
-	if value == nil {
-		ns.WorkflowTriggerCronRefMethods, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.WorkflowTriggerCronRefMethods.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullWorkflowTriggerCronRefMethods) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.WorkflowTriggerCronRefMethods), nil
-}
-
-func (e WorkflowTriggerCronRefMethods) Valid() bool {
-	switch e {
-	case WorkflowTriggerCronRefMethodsDEFAULT,
-		WorkflowTriggerCronRefMethodsAPI:
-		return true
-	}
-	return false
-}
-
-func AllWorkflowTriggerCronRefMethodsValues() []WorkflowTriggerCronRefMethods {
-	return []WorkflowTriggerCronRefMethods{
-		WorkflowTriggerCronRefMethodsDEFAULT,
-		WorkflowTriggerCronRefMethodsAPI,
-	}
-}
-
-type WorkflowTriggerScheduledRefMethods string
-
-const (
-	WorkflowTriggerScheduledRefMethodsDEFAULT WorkflowTriggerScheduledRefMethods = "DEFAULT"
-	WorkflowTriggerScheduledRefMethodsAPI     WorkflowTriggerScheduledRefMethods = "API"
-)
-
-func (e *WorkflowTriggerScheduledRefMethods) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = WorkflowTriggerScheduledRefMethods(s)
-	case string:
-		*e = WorkflowTriggerScheduledRefMethods(s)
-	default:
-		return fmt.Errorf("unsupported scan type for WorkflowTriggerScheduledRefMethods: %T", src)
-	}
-	return nil
-}
-
-type NullWorkflowTriggerScheduledRefMethods struct {
-	WorkflowTriggerScheduledRefMethods WorkflowTriggerScheduledRefMethods `json:"WorkflowTriggerScheduledRefMethods"`
-	Valid                              bool                               `json:"valid"` // Valid is true if WorkflowTriggerScheduledRefMethods is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullWorkflowTriggerScheduledRefMethods) Scan(value interface{}) error {
-	if value == nil {
-		ns.WorkflowTriggerScheduledRefMethods, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.WorkflowTriggerScheduledRefMethods.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullWorkflowTriggerScheduledRefMethods) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.WorkflowTriggerScheduledRefMethods), nil
-}
-
-func (e WorkflowTriggerScheduledRefMethods) Valid() bool {
-	switch e {
-	case WorkflowTriggerScheduledRefMethodsDEFAULT,
-		WorkflowTriggerScheduledRefMethodsAPI:
-		return true
-	}
-	return false
-}
-
-func AllWorkflowTriggerScheduledRefMethodsValues() []WorkflowTriggerScheduledRefMethods {
-	return []WorkflowTriggerScheduledRefMethods{
-		WorkflowTriggerScheduledRefMethodsDEFAULT,
-		WorkflowTriggerScheduledRefMethodsAPI,
 	}
 }
 
@@ -3781,7 +3025,7 @@ type Tenant struct {
 	SchedulerPartitionId  pgtype.Text                    `json:"schedulerPartitionId"`
 	CanUpgradeV1          bool                           `json:"canUpgradeV1"`
 	OnboardingData        []byte                         `json:"onboardingData"`
-	Environment           NullTenantEnvironment          `json:"environment"`
+	Environment           *enums.TenantEnvironment       `json:"environment"`
 }
 
 type TenantAlertEmailGroup struct {
@@ -4310,7 +3554,7 @@ type V1IncomingWebhook struct {
 	AuthApiKeyHeaderName         pgtype.Text                           `json:"auth__api_key__header_name"`
 	AuthApiKeyKey                []byte                                `json:"auth__api_key__key"`
 	AuthHmacAlgorithm            *enums.V1IncomingWebhookHmacAlgorithm `json:"auth__hmac__algorithm"`
-	AuthHmacEncoding             NullV1IncomingWebhookHmacEncoding     `json:"auth__hmac__encoding"`
+	AuthHmacEncoding             *enums.V1IncomingWebhookHmacEncoding  `json:"auth__hmac__encoding"`
 	AuthHmacSignatureHeaderName  pgtype.Text                           `json:"auth__hmac__signature_header_name"`
 	AuthHmacWebhookSigningSecret []byte                                `json:"auth__hmac__webhook_signing_secret"`
 	InsertedAt                   pgtype.Timestamptz                    `json:"inserted_at"`
@@ -4327,17 +3571,17 @@ type V1IncomingWebhookValidationFailuresOlap struct {
 }
 
 type V1LogLine struct {
-	ID             int64              `json:"id"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	TenantID       uuid.UUID          `json:"tenant_id"`
-	TaskID         int64              `json:"task_id"`
-	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
-	Message        string             `json:"message"`
-	Level          V1LogLineLevel     `json:"level"`
-	Metadata       []byte             `json:"metadata"`
-	RetryCount     int32              `json:"retry_count"`
-	WorkflowID     *uuid.UUID         `json:"workflow_id"`
-	StepID         *uuid.UUID         `json:"step_id"`
+	ID             int64                `json:"id"`
+	CreatedAt      pgtype.Timestamptz   `json:"created_at"`
+	TenantID       uuid.UUID            `json:"tenant_id"`
+	TaskID         int64                `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz   `json:"task_inserted_at"`
+	Message        string               `json:"message"`
+	Level          enums.V1LogLineLevel `json:"level"`
+	Metadata       []byte               `json:"metadata"`
+	RetryCount     int32                `json:"retry_count"`
+	WorkflowID     *uuid.UUID           `json:"workflow_id"`
+	StepID         *uuid.UUID           `json:"step_id"`
 }
 
 type V1LookupTable struct {
@@ -4431,24 +3675,24 @@ type V1OtelTraceLookupOlap struct {
 }
 
 type V1OtelTraceOlap struct {
-	TenantID              uuid.UUID          `json:"tenant_id"`
-	TraceID               []byte             `json:"trace_id"`
-	SpanID                []byte             `json:"span_id"`
-	ParentSpanID          pgtype.Text        `json:"parent_span_id"`
-	SpanName              string             `json:"span_name"`
-	SpanKind              V1OtelSpanKind     `json:"span_kind"`
-	ServiceName           string             `json:"service_name"`
-	StatusCode            V1OtelStatusCode   `json:"status_code"`
-	StatusMessage         pgtype.Text        `json:"status_message"`
-	DurationNs            int64              `json:"duration_ns"`
-	ResourceAttributes    []byte             `json:"resource_attributes"`
-	SpanAttributes        []byte             `json:"span_attributes"`
-	ScopeName             pgtype.Text        `json:"scope_name"`
-	ScopeVersion          pgtype.Text        `json:"scope_version"`
-	TaskRunExternalID     *uuid.UUID         `json:"task_run_external_id"`
-	WorkflowRunExternalID *uuid.UUID         `json:"workflow_run_external_id"`
-	RetryCount            int32              `json:"retry_count"`
-	StartTime             pgtype.Timestamptz `json:"start_time"`
+	TenantID              uuid.UUID              `json:"tenant_id"`
+	TraceID               []byte                 `json:"trace_id"`
+	SpanID                []byte                 `json:"span_id"`
+	ParentSpanID          pgtype.Text            `json:"parent_span_id"`
+	SpanName              string                 `json:"span_name"`
+	SpanKind              enums.V1OtelSpanKind   `json:"span_kind"`
+	ServiceName           string                 `json:"service_name"`
+	StatusCode            enums.V1OtelStatusCode `json:"status_code"`
+	StatusMessage         pgtype.Text            `json:"status_message"`
+	DurationNs            int64                  `json:"duration_ns"`
+	ResourceAttributes    []byte                 `json:"resource_attributes"`
+	SpanAttributes        []byte                 `json:"span_attributes"`
+	ScopeName             pgtype.Text            `json:"scope_name"`
+	ScopeVersion          pgtype.Text            `json:"scope_version"`
+	TaskRunExternalID     *uuid.UUID             `json:"task_run_external_id"`
+	WorkflowRunExternalID *uuid.UUID             `json:"workflow_run_external_id"`
+	RetryCount            int32                  `json:"retry_count"`
+	StartTime             pgtype.Timestamptz     `json:"start_time"`
 }
 
 type V1PausedWorkflowQueueItem struct {
@@ -4601,30 +3845,30 @@ type V1RunsOlap struct {
 }
 
 type V1Sandbox struct {
-	ID               string             `json:"id"`
-	TenantID         uuid.UUID          `json:"tenant_id"`
-	ProviderID       uuid.UUID          `json:"provider_id"`
-	ExternalID       pgtype.Text        `json:"external_id"`
-	Template         pgtype.Text        `json:"template"`
-	Status           V1SandboxStatus    `json:"status"`
-	StatusError      pgtype.Text        `json:"status_error"`
-	Metadata         []byte             `json:"metadata"`
-	IdleTtlMs        int64              `json:"idle_ttl_ms"`
-	LatestSnapshotID pgtype.Text        `json:"latest_snapshot_id"`
-	CreatedAt        pgtype.Timestamptz `json:"created_at"`
-	LastUsedAt       pgtype.Timestamptz `json:"last_used_at"`
-	DeletedAt        pgtype.Timestamptz `json:"deleted_at"`
+	ID               string                `json:"id"`
+	TenantID         uuid.UUID             `json:"tenant_id"`
+	ProviderID       uuid.UUID             `json:"provider_id"`
+	ExternalID       pgtype.Text           `json:"external_id"`
+	Template         pgtype.Text           `json:"template"`
+	Status           enums.V1SandboxStatus `json:"status"`
+	StatusError      pgtype.Text           `json:"status_error"`
+	Metadata         []byte                `json:"metadata"`
+	IdleTtlMs        int64                 `json:"idle_ttl_ms"`
+	LatestSnapshotID pgtype.Text           `json:"latest_snapshot_id"`
+	CreatedAt        pgtype.Timestamptz    `json:"created_at"`
+	LastUsedAt       pgtype.Timestamptz    `json:"last_used_at"`
+	DeletedAt        pgtype.Timestamptz    `json:"deleted_at"`
 }
 
 type V1SandboxEvent struct {
-	ID         int64              `json:"id"`
-	TenantID   uuid.UUID          `json:"tenant_id"`
-	ProviderID uuid.UUID          `json:"provider_id"`
-	SandboxID  pgtype.Text        `json:"sandbox_id"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
-	Kind       V1SandboxEventKind `json:"kind"`
-	Message    string             `json:"message"`
-	Details    []byte             `json:"details"`
+	ID         int64                    `json:"id"`
+	TenantID   uuid.UUID                `json:"tenant_id"`
+	ProviderID uuid.UUID                `json:"provider_id"`
+	SandboxID  pgtype.Text              `json:"sandbox_id"`
+	CreatedAt  pgtype.Timestamptz       `json:"created_at"`
+	Kind       enums.V1SandboxEventKind `json:"kind"`
+	Message    string                   `json:"message"`
+	Details    []byte                   `json:"details"`
 }
 
 type V1SandboxLease struct {
@@ -4646,23 +3890,23 @@ type V1SandboxProcess struct {
 }
 
 type V1SandboxProvider struct {
-	ID                uuid.UUID             `json:"id"`
-	TenantID          uuid.UUID             `json:"tenant_id"`
-	Name              string                `json:"name"`
-	Kind              V1SandboxProviderKind `json:"kind"`
-	ApiKeyEnc         string                `json:"api_key_enc"`
-	Config            []byte                `json:"config"`
-	DefaultTemplate   pgtype.Text           `json:"default_template"`
-	MaxIdleTtlSeconds int32                 `json:"max_idle_ttl_seconds"`
-	Labels            []byte                `json:"labels"`
-	Enabled           bool                  `json:"enabled"`
-	ProviderPartition int32                 `json:"provider_partition"`
-	Healthy           pgtype.Bool           `json:"healthy"`
-	StatusError       pgtype.Text           `json:"status_error"`
-	StatusChangedAt   pgtype.Timestamptz    `json:"status_changed_at"`
-	CreatedAt         pgtype.Timestamptz    `json:"created_at"`
-	UpdatedAt         pgtype.Timestamptz    `json:"updated_at"`
-	DeletedAt         pgtype.Timestamptz    `json:"deleted_at"`
+	ID                uuid.UUID                   `json:"id"`
+	TenantID          uuid.UUID                   `json:"tenant_id"`
+	Name              string                      `json:"name"`
+	Kind              enums.V1SandboxProviderKind `json:"kind"`
+	ApiKeyEnc         string                      `json:"api_key_enc"`
+	Config            []byte                      `json:"config"`
+	DefaultTemplate   pgtype.Text                 `json:"default_template"`
+	MaxIdleTtlSeconds int32                       `json:"max_idle_ttl_seconds"`
+	Labels            []byte                      `json:"labels"`
+	Enabled           bool                        `json:"enabled"`
+	ProviderPartition int32                       `json:"provider_partition"`
+	Healthy           pgtype.Bool                 `json:"healthy"`
+	StatusError       pgtype.Text                 `json:"status_error"`
+	StatusChangedAt   pgtype.Timestamptz          `json:"status_changed_at"`
+	CreatedAt         pgtype.Timestamptz          `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz          `json:"updated_at"`
+	DeletedAt         pgtype.Timestamptz          `json:"deleted_at"`
 }
 
 type V1SandboxSnapshot struct {
@@ -5110,7 +4354,7 @@ type Worker struct {
 	LastListenerEstablished pgtype.Timestamp `json:"lastListenerEstablished"`
 	LastListenerSessionId   *uuid.UUID       `json:"lastListenerSessionId"`
 	IsPaused                bool             `json:"isPaused"`
-	Type                    WorkerType       `json:"type"`
+	Type                    enums.WorkerType `json:"type"`
 	WebhookId               *uuid.UUID       `json:"webhookId"`
 	OperatorId              *uuid.UUID       `json:"operatorId"`
 	Language                NullWorkerSDKS   `json:"language"`
@@ -5141,17 +4385,17 @@ type WorkerLabel struct {
 }
 
 type Workflow struct {
-	ID                                      uuid.UUID                      `json:"id"`
-	CreatedAt                               pgtype.Timestamp               `json:"createdAt"`
-	UpdatedAt                               pgtype.Timestamp               `json:"updatedAt"`
-	DeletedAt                               pgtype.Timestamp               `json:"deletedAt"`
-	TenantId                                uuid.UUID                      `json:"tenantId"`
-	Name                                    string                         `json:"name"`
-	Description                             pgtype.Text                    `json:"description"`
-	IsPaused                                pgtype.Bool                    `json:"isPaused"`
-	PausedWorkflowCronRunQueueBehavior      NullWorkflowPauseQueueBehavior `json:"pausedWorkflowCronRunQueueBehavior"`
-	PausedWorkflowScheduledRunQueueBehavior NullWorkflowPauseQueueBehavior `json:"pausedWorkflowScheduledRunQueueBehavior"`
-	PausedWorkflowQueueTTL                  pgtype.Interval                `json:"pausedWorkflowQueueTTL"`
+	ID                                      uuid.UUID                         `json:"id"`
+	CreatedAt                               pgtype.Timestamp                  `json:"createdAt"`
+	UpdatedAt                               pgtype.Timestamp                  `json:"updatedAt"`
+	DeletedAt                               pgtype.Timestamp                  `json:"deletedAt"`
+	TenantId                                uuid.UUID                         `json:"tenantId"`
+	Name                                    string                            `json:"name"`
+	Description                             pgtype.Text                       `json:"description"`
+	IsPaused                                pgtype.Bool                       `json:"isPaused"`
+	PausedWorkflowCronRunQueueBehavior      *enums.WorkflowPauseQueueBehavior `json:"pausedWorkflowCronRunQueueBehavior"`
+	PausedWorkflowScheduledRunQueueBehavior *enums.WorkflowPauseQueueBehavior `json:"pausedWorkflowScheduledRunQueueBehavior"`
+	PausedWorkflowQueueTTL                  pgtype.Interval                   `json:"pausedWorkflowQueueTTL"`
 }
 
 type WorkflowConcurrency struct {
@@ -5238,19 +4482,19 @@ type WorkflowToWorkflowTag struct {
 }
 
 type WorkflowTriggerCronRef struct {
-	ParentId           uuid.UUID                     `json:"parentId"`
-	Cron               string                        `json:"cron"`
-	TickerId           *uuid.UUID                    `json:"tickerId"`
-	Input              []byte                        `json:"input"`
-	Enabled            bool                          `json:"enabled"`
-	AdditionalMetadata []byte                        `json:"additionalMetadata"`
-	CreatedAt          pgtype.Timestamp              `json:"createdAt"`
-	DeletedAt          pgtype.Timestamp              `json:"deletedAt"`
-	UpdatedAt          pgtype.Timestamp              `json:"updatedAt"`
-	Name               pgtype.Text                   `json:"name"`
-	ID                 uuid.UUID                     `json:"id"`
-	Method             WorkflowTriggerCronRefMethods `json:"method"`
-	Priority           int32                         `json:"priority"`
+	ParentId           uuid.UUID                           `json:"parentId"`
+	Cron               string                              `json:"cron"`
+	TickerId           *uuid.UUID                          `json:"tickerId"`
+	Input              []byte                              `json:"input"`
+	Enabled            bool                                `json:"enabled"`
+	AdditionalMetadata []byte                              `json:"additionalMetadata"`
+	CreatedAt          pgtype.Timestamp                    `json:"createdAt"`
+	DeletedAt          pgtype.Timestamp                    `json:"deletedAt"`
+	UpdatedAt          pgtype.Timestamp                    `json:"updatedAt"`
+	Name               pgtype.Text                         `json:"name"`
+	ID                 uuid.UUID                           `json:"id"`
+	Method             enums.WorkflowTriggerCronRefMethods `json:"method"`
+	Priority           int32                               `json:"priority"`
 }
 
 type WorkflowTriggerEventRef struct {
@@ -5259,21 +4503,21 @@ type WorkflowTriggerEventRef struct {
 }
 
 type WorkflowTriggerScheduledRef struct {
-	ID                  uuid.UUID                          `json:"id"`
-	ParentId            uuid.UUID                          `json:"parentId"`
-	TriggerAt           pgtype.Timestamp                   `json:"triggerAt"`
-	TickerId            *uuid.UUID                         `json:"tickerId"`
-	Input               []byte                             `json:"input"`
-	ChildIndex          pgtype.Int4                        `json:"childIndex"`
-	ChildKey            pgtype.Text                        `json:"childKey"`
-	ParentStepRunId     *uuid.UUID                         `json:"parentStepRunId"`
-	ParentWorkflowRunId *uuid.UUID                         `json:"parentWorkflowRunId"`
-	AdditionalMetadata  []byte                             `json:"additionalMetadata"`
-	CreatedAt           pgtype.Timestamp                   `json:"createdAt"`
-	DeletedAt           pgtype.Timestamp                   `json:"deletedAt"`
-	UpdatedAt           pgtype.Timestamp                   `json:"updatedAt"`
-	Method              WorkflowTriggerScheduledRefMethods `json:"method"`
-	Priority            int32                              `json:"priority"`
+	ID                  uuid.UUID                                `json:"id"`
+	ParentId            uuid.UUID                                `json:"parentId"`
+	TriggerAt           pgtype.Timestamp                         `json:"triggerAt"`
+	TickerId            *uuid.UUID                               `json:"tickerId"`
+	Input               []byte                                   `json:"input"`
+	ChildIndex          pgtype.Int4                              `json:"childIndex"`
+	ChildKey            pgtype.Text                              `json:"childKey"`
+	ParentStepRunId     *uuid.UUID                               `json:"parentStepRunId"`
+	ParentWorkflowRunId *uuid.UUID                               `json:"parentWorkflowRunId"`
+	AdditionalMetadata  []byte                                   `json:"additionalMetadata"`
+	CreatedAt           pgtype.Timestamp                         `json:"createdAt"`
+	DeletedAt           pgtype.Timestamp                         `json:"deletedAt"`
+	UpdatedAt           pgtype.Timestamp                         `json:"updatedAt"`
+	Method              enums.WorkflowTriggerScheduledRefMethods `json:"method"`
+	Priority            int32                                    `json:"priority"`
 }
 
 type WorkflowTriggers struct {
