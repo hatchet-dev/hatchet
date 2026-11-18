@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import builtins
 from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel
@@ -40,8 +41,6 @@ from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.clients.v1.api_client import BaseRestClient
 
 if TYPE_CHECKING:
-    import builtins
-
     from hatchet_sdk.clients.rest.api.webhook_api import WebhookApi
     from hatchet_sdk.clients.rest.api_client import ApiClient
     from hatchet_sdk.clients.rest.models.v1_webhook import V1Webhook

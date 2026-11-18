@@ -230,6 +230,7 @@ exclude = [
 
 [tool.ruff.lint.flake8-type-checking]
 runtime-evaluated-base-classes = ["pydantic.BaseModel"]
+exempt-modules = ["typing", "builtins"]
 
 [tool.pydoclint]
 style = "sphinx"

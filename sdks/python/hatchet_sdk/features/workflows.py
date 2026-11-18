@@ -1,10 +1,9 @@
 import asyncio
+import builtins
 from datetime import timedelta
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
-    import builtins
-
     from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
     from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
 

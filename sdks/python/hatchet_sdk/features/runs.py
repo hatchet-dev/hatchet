@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import builtins
 import time
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Literal, overload
@@ -37,7 +38,6 @@ from hatchet_sdk.utils.iterables import create_chunks
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 if TYPE_CHECKING:
-    import builtins
     from collections.abc import AsyncIterator
 
     from hatchet_sdk.clients.admin import AdminClient, WorkflowRunDetail
