@@ -2139,6 +2139,8 @@ const (
 	V1SandboxProviderKindE2B       V1SandboxProviderKind = "E2B"
 	V1SandboxProviderKindARCHIL    V1SandboxProviderKind = "ARCHIL"
 	V1SandboxProviderKindFREESTYLE V1SandboxProviderKind = "FREESTYLE"
+	V1SandboxProviderKindMODAL     V1SandboxProviderKind = "MODAL"
+	V1SandboxProviderKindVERCEL    V1SandboxProviderKind = "VERCEL"
 )
 
 func (e *V1SandboxProviderKind) Scan(src interface{}) error {
@@ -2181,7 +2183,9 @@ func (e V1SandboxProviderKind) Valid() bool {
 	case V1SandboxProviderKindDAYTONA,
 		V1SandboxProviderKindE2B,
 		V1SandboxProviderKindARCHIL,
-		V1SandboxProviderKindFREESTYLE:
+		V1SandboxProviderKindFREESTYLE,
+		V1SandboxProviderKindMODAL,
+		V1SandboxProviderKindVERCEL:
 		return true
 	}
 	return false

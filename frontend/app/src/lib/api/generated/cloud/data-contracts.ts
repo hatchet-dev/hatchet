@@ -27,6 +27,8 @@ export enum SandboxProviderKind {
   E2B = "E2B",
   ARCHIL = "ARCHIL",
   FREESTYLE = "FREESTYLE",
+  MODAL = "MODAL",
+  VERCEL = "VERCEL",
 }
 
 export enum OrganizationInviteStatus {
