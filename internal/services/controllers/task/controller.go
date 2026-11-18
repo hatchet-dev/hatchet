@@ -272,13 +272,17 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	jitter := t.opsPoolJitter
 	timeout := time.Second * 30
 
+	// every pool below polls the same per-tenant activity gauge, so they share one result per tick
+	// instead of each querying for it
+	activityGauge := operation.NewSharedGauge(opts.repov1.Tasks().DefaultTaskActivityGauge)
+
 	t.timeoutTaskOperations = operation.NewTenantOperationPool(opts.p, opts.l, "timeout-step-runs", timeout, "timeout step runs", t.processTaskTimeouts, operation.WithPoolInterval(
 		opts.repov1.IntervalSettings(),
 		jitter,
 		1*time.Second,
 		30*time.Second,
 		3,
-		opts.repov1.Tasks().DefaultTaskActivityGauge,
+		activityGauge,
 	))
 
 	t.emitSleepOperations = operation.NewTenantOperationPool(opts.p, opts.l, "emit-sleep-step-runs", timeout, "emit sleep step runs", t.processSleeps, operation.WithPoolInterval(
@@ -287,7 +291,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		1*time.Second,
 		30*time.Second,
 		3,
-		opts.repov1.Tasks().DefaultTaskActivityGauge,
+		activityGauge,
 	))
 
 	t.reassignTaskOperations = operation.NewTenantOperationPool(opts.p, opts.l, "reassign-step-runs", timeout, "reassign step runs", t.processTaskReassignments, operation.WithPoolInterval(
@@ -296,7 +300,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		1*time.Second,
 		30*time.Second,
 		3,
-		opts.repov1.Tasks().DefaultTaskActivityGauge,
+		activityGauge,
 	))
 
 	t.retryTaskOperations = operation.NewTenantOperationPool(opts.p, opts.l, "retry-step-runs", timeout, "retry step runs", t.processTaskRetryQueueItems, operation.WithPoolInterval(
@@ -305,7 +309,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		1*time.Second,
 		30*time.Second,
 		3,
-		opts.repov1.Tasks().DefaultTaskActivityGauge,
+		activityGauge,
 	))
 
 	t.evictExpiredIdempotencyKeysOperations = operation.NewTenantOperationPool(opts.p, opts.l, "evict-expired-idempotency-keys", timeout, "evict expired idempotency keys", t.evictExpiredIdempotencyKeys, operation.WithPoolInterval(
@@ -314,7 +318,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		1*time.Second,
 		30*time.Second,
 		3,
-		opts.repov1.Tasks().DefaultTaskActivityGauge,
+		activityGauge,
 	))
 
 	t.deactivateStaleStepConcurrencyOperations = operation.NewTenantOperationPool(opts.p, opts.l, "deactivate-stale-step-concurrency", timeout, "deactivate stale step concurrency", t.deactivateStaleStepConcurrency, operation.WithPoolInterval(
@@ -323,7 +327,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		15*time.Minute,
 		30*time.Minute,
 		3,
-		opts.repov1.Tasks().DefaultTaskActivityGauge,
+		activityGauge,
 	))
 
 	t.expirePausedWorkflowQueueItemsOperations = operation.NewTenantOperationPool(opts.p, opts.l, "expire-paused-workflow-queue-items", timeout, "expire paused workflow queue items", t.processPausedWorkflowQueueItemTTL, operation.WithPoolInterval(
@@ -332,7 +336,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		1*time.Second,
 		30*time.Second,
 		3,
-		opts.repov1.Tasks().DefaultTaskActivityGauge,
+		activityGauge,
 	))
 
 	t.restoreEvictedOrchestratorsOperations = operation.NewTenantOperationPool(opts.p, opts.l, "restore-evicted-orchestrators", timeout, "restore stuck evicted durable orchestrators", t.processStuckEvictedDurableOrchestrators, operation.WithPoolInterval(
@@ -341,7 +345,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		30*time.Second,
 		2*time.Minute,
 		3,
-		opts.repov1.Tasks().DefaultTaskActivityGauge,
+		activityGauge,
 	))
 
 	return t, nil

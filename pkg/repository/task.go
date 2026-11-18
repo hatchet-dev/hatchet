@@ -1744,8 +1744,9 @@ func (r *TaskRepositoryImpl) ListTaskMetas(ctx context.Context, tenantId uuid.UU
 	})
 }
 
-// DefaultTaskActivityGauge is a heavily cached method that returns the number of queues that have had activity since
-// the task retention period.
+// DefaultTaskActivityGauge returns 1 if any of the tenant's queues has been active within the task retention
+// period, and 0 otherwise. It queries the database on every call; callers that poll it from several places
+// should share the result (see operation.NewSharedGauge).
 func (r *TaskRepositoryImpl) DefaultTaskActivityGauge(ctx context.Context, tenantId string) (int, error) {
 	today := time.Now().UTC()
 	notBefore := today.Add(-1 * r.taskRetentionPeriod)
@@ -1754,15 +1755,20 @@ func (r *TaskRepositoryImpl) DefaultTaskActivityGauge(ctx context.Context, tenan
 		return 0, err
 	}
 
-	res, err := r.queries.DefaultTaskActivityGauge(ctx, r.pool.ForTenant(tenantIdUuid), sqlcv1.DefaultTaskActivityGaugeParams{
-		Tenantid: tenantIdUuid,
-		Activesince: pgtype.Timestamptz{
-			Time:  notBefore,
-			Valid: true,
-		},
+	hasActivity, err := r.queries.DefaultTaskActivityGauge(ctx, r.pool.ForTenant(tenantIdUuid), sqlcv1.DefaultTaskActivityGaugeParams{
+		Tenantid:    tenantIdUuid,
+		Activesince: sqlchelpers.TimestamptzFromTime(notBefore),
 	})
 
-	return int(res), err
+	if err != nil {
+		return 0, err
+	}
+
+	if hasActivity {
+		return 1, nil
+	}
+
+	return 0, nil
 }
 
 func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId uuid.UUID) (*TimeoutTasksResponse, bool, error) {
