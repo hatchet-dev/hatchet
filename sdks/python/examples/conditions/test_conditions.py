@@ -17,7 +17,7 @@ from examples.conditions.worker import (
     wait_for_event_only_workflow,
 )
 from examples.test_utils import wait_for_running_status
-from hatchet_sdk import Hatchet
+from hatchet_sdk import CancelledRunError, Hatchet
 
 
 async def _wait_for_task_to_complete(
@@ -94,7 +94,8 @@ async def test_waits(hatchet: Hatchet) -> None:
 async def test_cancel_if(hatchet: Hatchet) -> None:
     ref = cancel_if_workflow.run(wait_for_result=False)
 
-    await ref.aio_result()
+    with pytest.raises(CancelledRunError):
+        await ref.aio_result()
 
     details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
 
@@ -152,7 +153,8 @@ async def test_cancel_if_user_event(hatchet: Hatchet) -> None:
         await hatchet.events.aio_push("cancel_if_event:abort", {})
         await asyncio.sleep(3)
 
-    await ref.aio_result()
+    with pytest.raises(CancelledRunError):
+        await ref.aio_result()
 
     details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
     assert details.status == "CANCELLED"
@@ -162,7 +164,8 @@ async def test_cancel_if_user_event(hatchet: Hatchet) -> None:
 async def test_cancel_if_sleep(hatchet: Hatchet) -> None:
     ref = cancel_if_sleep_workflow.run(wait_for_result=False)
 
-    await ref.aio_result()
+    with pytest.raises(CancelledRunError):
+        await ref.aio_result()
 
     details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
     assert details.status == "CANCELLED"
@@ -172,7 +175,8 @@ async def test_cancel_if_sleep(hatchet: Hatchet) -> None:
 async def test_cancel_if_or_group(hatchet: Hatchet) -> None:
     ref = cancel_if_or_workflow.run(wait_for_result=False)
 
-    await ref.aio_result()
+    with pytest.raises(CancelledRunError):
+        await ref.aio_result()
 
     details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
     assert details.status == "CANCELLED"

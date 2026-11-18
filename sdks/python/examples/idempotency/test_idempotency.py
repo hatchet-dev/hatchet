@@ -15,6 +15,7 @@ from examples.idempotency.worker import (
 )
 from hatchet_sdk import (
     BulkTriggerIdempotencyCollisionError,
+    CancelledRunError,
     FailedTaskRunExceptionGroup,
     Hatchet,
     IdempotencyCollisionError,
@@ -222,7 +223,8 @@ async def test_idempotency_status_based_cancel(
 
     assert exc_info.value.existing_run_external_id == ref1.workflow_run_id
 
-    await ref1.aio_result()
+    with pytest.raises(CancelledRunError):
+        await ref1.aio_result()
 
     details = await hatchet.runs.aio_get_details(ref1.workflow_run_id)
 
@@ -240,7 +242,8 @@ async def test_idempotency_status_based_cancel(
         additional_metadata={"test_run_id": test_run_id},
     )
 
-    await ref2.aio_result()
+    with pytest.raises(CancelledRunError):
+        await ref2.aio_result()
 
     details = await hatchet.runs.aio_get_details(ref1.workflow_run_id)
 
@@ -559,7 +562,8 @@ async def test_idempotency_status_based_key_released_immediately_on_cancel_after
 
     assert exc_info_mid_retry.value.existing_run_external_id == ref1.workflow_run_id
 
-    await ref1.aio_result()
+    with pytest.raises(CancelledRunError):
+        await ref1.aio_result()
 
     details = await hatchet.runs.aio_get_details(ref1.workflow_run_id)
     assert details.status == "CANCELLED"
@@ -571,7 +575,8 @@ async def test_idempotency_status_based_key_released_immediately_on_cancel_after
     )
     assert ref2.workflow_run_id != ref1.workflow_run_id
 
-    await ref2.aio_result()
+    with pytest.raises(CancelledRunError):
+        await ref2.aio_result()
 
     details2 = await hatchet.runs.aio_get_details(ref2.workflow_run_id)
     assert details2.status == "CANCELLED"
