@@ -234,7 +234,7 @@ The Python SDK exposes client retry configuration through `TenacityConfig`, eith
 import os
 
 from hatchet_sdk import Hatchet
-from hatchet_sdk.config import ClientConfig, HTTPMethod, TenacityConfig
+from hatchet_sdk.config import ClientConfig, TenacityConfig
 
 hatchet = Hatchet(
     config=ClientConfig(
@@ -243,7 +243,7 @@ hatchet = Hatchet(
             max_attempts=5,
             retry_429=False,
             retry_transport_errors=False,
-            retry_transport_methods=[HTTPMethod.GET, HTTPMethod.DELETE],
+            retry_transport_methods=["GET", "DELETE"],
         ),
     )
 )

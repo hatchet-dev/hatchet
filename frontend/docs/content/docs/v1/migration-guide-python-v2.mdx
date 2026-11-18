@@ -185,6 +185,7 @@ A type checker will not flag these, so check them by hand:
 - **`from hatchet_sdk import Workflow` is a different class.** It is now the workflow class returned by `hatchet.workflow()`, not the REST model.
 - **An explicit `retries=0`, `execution_timeout=timedelta(seconds=60)`, or `schedule_timeout=timedelta(minutes=5)` on `Workflow.task` and `Workflow.durable_task` is no longer replaced by the workflow's `task_defaults`.** V1 could not tell these values apart from the parameter defaults. Remove the argument if you were relying on `task_defaults` taking over.
 - **Priorities are strings, so comparing them compares strings.** In V1 `Priority` was an `int` enum, so `ctx.priority >= Priority.MEDIUM` worked. `"HIGH" >= "MEDIUM"` is still valid Python, but compares alphabetically. Convert with `priority_to_int` from `hatchet_sdk.types.priority` before comparing.
+- **A misspelled string in a comparison is not caught by default.** `status == "RUNING"` is always `False`, and neither mypy nor Pyright flags it unless you turn on mypy's `strict_equality` or Pyright's `reportUnnecessaryComparison`. See [catching typos in comparisons](#catching-typos-in-comparisons).
 - **Former enum values are plain strings when serialized or logged.** `Priority` and `WorkerLabelComparator` were `int` enums, so a priority written into `additional_metadata` or JSON was `1`, `2`, or `3`. It is now `"LOW"`, `"MEDIUM"`, or `"HIGH"`. A status formats as `"FAILED"`, not `"RunStatus.FAILED"`.
 - **`Worker.register_workflow` raises on failure** instead of calling `sys.exit(1)`.
 - **`WorkflowRunRef.result` and `TaskRunRef.result` take `timeout` as their first positional parameter.** In V1.41 the only parameter was `poll_interval`, so a positional call such as `ref.result(2.0)` must become `ref.result(poll_interval=timedelta(seconds=2))`.
@@ -622,6 +623,29 @@ The ordering parameters on `crons.list`, `scheduled.list`, and `rate_limits.list
 | `order_by_direction=RateLimitOrderByDirection.ASC`, `DESC`             | `order_by_direction="asc"`, `"desc"`               |
 
 The ordering and webhook enums (`CronWorkflowsOrderByField`, `ScheduledWorkflowsOrderByField`, `RateLimitOrderByField`, `RateLimitOrderByDirection`, `WorkflowRunOrderByDirection`, `V1WebhookSourceName`, `V1WebhookHMACAlgorithm`, and `V1WebhookHMACEncoding`) are no longer exported from `hatchet_sdk`. The generated REST models still use their own enums, so a field other than `status` read off a raw REST model may still be a REST enum member. Those enums subclass `str`, so comparing them against a string works.
+
+#### Catching typos in comparisons
+
+Type checkers flag an invalid string passed to an SDK parameter, such as `priority="high"`, in their default modes. If one slips through, the SDK raises a `ValueError` listing the accepted values. A misspelled string in a comparison is different: the SDK never sees it, and default type checking accepts it.
+
+```python
+from hatchet_sdk import RunStatus
+
+
+def is_running(status: RunStatus) -> bool:
+    return status == "RUNING"  # always False
+```
+
+To catch these, enable `strict_equality` in mypy (included in `strict`) or `reportUnnecessaryComparison` in Pyright (included in `strict` mode):
+
+```toml
+# pyproject.toml
+[tool.mypy]
+strict_equality = true
+
+[tool.pyright]
+reportUnnecessaryComparison = "error"
+```
 
 #### Worker labels must use typed objects
 
