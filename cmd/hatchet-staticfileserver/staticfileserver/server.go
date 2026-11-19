@@ -68,16 +68,16 @@ func NewStaticFileServer(staticFilePath, basePath, contentSecurityPolicy string)
 	return r
 }
 
-// securityHeaders sets the browser security headers on the dashboard's responses. They match the
-// API's, with two adjustments for HTML documents: Cross-Origin-Embedder-Policy is credentialless
-// rather than require-corp (so cross-origin scripts and styles without CORP still load), and
-// Permissions-Policy omits legacy Feature-Policy tokens (notifications, push, speaker, vibrate)
-// that trigger console warnings in Chromium.
+// securityHeaders sets the browser security headers on the dashboard's responses.
+// Cross-Origin-Embedder-Policy is credentialless rather than require-corp (so cross-origin scripts
+// and styles without CORP still load), Permissions-Policy omits legacy Feature-Policy tokens
+// (notifications, push, speaker, vibrate) that trigger console warnings in Chromium, and HSTS uses
+// a 2-year max-age to satisfy the preload directive.
 func securityHeaders(contentSecurityPolicy string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			h := w.Header()
-			h.Set("Strict-Transport-Security", "max-age=776000; includeSubDomains; preload")
+			h.Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload")
 			if contentSecurityPolicy != "" {
 				h.Set("Content-Security-Policy", contentSecurityPolicy)
 			}

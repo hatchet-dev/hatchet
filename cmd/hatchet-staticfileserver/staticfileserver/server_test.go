@@ -33,7 +33,7 @@ func newTestStaticDir(t *testing.T) string {
 // wantSecurityHeaders pins the exact values: each one is a security decision, so a change should
 // show up as a diff here.
 var wantSecurityHeaders = map[string]string{
-	"Strict-Transport-Security":    "max-age=776000; includeSubDomains; preload",
+	"Strict-Transport-Security":    "max-age=63072000; includeSubDomains; preload",
 	"Content-Security-Policy":      DefaultContentSecurityPolicy,
 	"Referrer-Policy":              "strict-origin-when-cross-origin",
 	"X-Frame-Options":              "DENY",
