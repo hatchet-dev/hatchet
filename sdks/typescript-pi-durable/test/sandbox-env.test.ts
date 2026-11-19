@@ -28,19 +28,13 @@ describe('SandboxEnv.exec', () => {
     expect(result).toEqual({ ok: true, value: { exitCode: 3 } });
     expect(output).toEqual([' out\n']);
     expect(sent?.cmd).toContain("cd '/workspace' && { echo out");
-    expect(sent?.opts).toEqual({ timeoutMs: 5000, signal: abort.signal });
+    expect(sent?.opts).toEqual({ timeoutMs: 5000 });
   });
 
   it('reports an abort while the command runs as aborted', async () => {
     const abort = new AbortController();
-    const env = envWith(
-      (_cmd, opts) =>
-        new Promise((_resolve, reject) => {
-          const { signal } = opts;
-          if (signal?.aborted) reject(signal.reason);
-          signal?.addEventListener('abort', () => reject(signal.reason));
-        })
-    );
+    // A command that never ends: exec must return on the abort without it.
+    const env = envWith(() => new Promise(() => {}));
     const pending = env.exec('sleep 60', {}, withAbortSignal(abort.signal, BACKGROUND_CONTEXT));
     await new Promise((resolve) => setTimeout(resolve, 0));
     abort.abort();

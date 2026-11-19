@@ -94,7 +94,8 @@ it rejected. A reader that connects starts at the newest view.
 `PI_SANDBOX_TESTS=1` (see [Develop](#develop)). Where a sandbox works differently from a local process:
 
 - A command's output arrives in one chunk per stream when the command ends, not as it runs.
-- Aborting a command cancels its sandbox run, and the provider kills the command. Cancelling uses Hatchet's REST API.
+- Aborting a command stops waiting for it, but the command runs on in the sandbox until it ends or times out, and the
+  sandbox's next call waits for it.
 - `watch` polls: one sandbox command per `watchIntervalMs` (default 500 ms) compares every watched path. Each poll also
   makes a snapshot, so watch only what you need. Two writes of the same size within one second can look alike.
 - A sandbox runs one call at a time.
@@ -141,7 +142,7 @@ pnpm example:server    # in another, then open http://localhost:3334
 ```
 
 For a local engine whose API certificate your system trusts but Node does not (a local mkcert certificate, say), set
-`NODE_OPTIONS=--use-system-ca` in `.env`. Without it, cancelling an aborted command and scheduling a wakeup fail.
+`NODE_OPTIONS=--use-system-ca` in `.env`. Without it, scheduling a wakeup fails.
 
 ## Develop
 

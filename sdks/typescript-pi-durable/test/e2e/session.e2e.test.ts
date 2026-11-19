@@ -1,5 +1,6 @@
 // The core flow against a real Hatchet engine: an input runs a tool in a sandbox, a fork branches the conversation
-// and its workspace, an abort kills the running command, and a killed worker hands the session to another one.
+// and its workspace, an abort stops the wait for a running command, and a killed worker hands the session to another
+// one.
 // Run with PI_E2E=1 and a client configured for the engine (HATCHET_CLIENT_TOKEN and friends).
 import '@hatchet-dev/sandbox';
 import { type ChildProcess, spawn } from 'node:child_process';
@@ -149,7 +150,7 @@ describe.skipIf(!enabled)('pi-durable on Hatchet', () => {
     expect(workspaceFile(root, 'out.txt')).toBe('hello\n');
   });
 
-  it('aborts a running command and kills it in the sandbox', async () => {
+  it('stops waiting for a running command when the conversation is aborted', async () => {
     const started = provider.log.commands.length;
     const sleeping = () =>
       provider.log.commands.slice(started).find((c) => c.cmd.includes('sleep 30'));
@@ -165,7 +166,6 @@ describe.skipIf(!enabled)('pi-durable on Hatchet', () => {
     const view = await waitFor(sessionId, (v) => conversation(v, 1)?.busy === false, 20_000);
     expect(Date.now() - abortedAt).toBeLessThan(20_000);
     expect(answered(conversation(view, 1), 'result: late')).toBe(false);
-    await until(() => sleeping()?.killed === true, 10_000);
   });
 
   it('moves the session to another worker when its worker dies', async () => {

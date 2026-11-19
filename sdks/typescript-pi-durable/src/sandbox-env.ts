@@ -507,7 +507,8 @@ export class SandboxEnv implements ExecutionEnv {
 
   /**
    * Runs through the sandbox's `sh -c`. The provider returns the output once the command ends, so `onOutput` gets it
-   * in one chunk per stream rather than as it arrives. An abort cancels the command's sandbox run, which kills it.
+   * in one chunk per stream rather than as it arrives. An abort stops the wait but not the command: the sandbox SDK has
+   * no way to cancel one, so it runs on in the sandbox until it ends or times out.
    */
   async exec(
     command: string | readonly string[],
@@ -531,17 +532,26 @@ export class SandboxEnv implements ExecutionEnv {
     ].join(' && ');
     const timeoutMs = options?.timeout === undefined ? this.execTimeoutMs : options.timeout * 1000;
 
+    const run = this.call((sandbox) =>
+      sandbox.exec(this.wrap(`${setup} && { ${script}\n}`), { timeoutMs })
+    );
+    // After an abort nothing awaits the run any more, so its eventual failure must not surface as unhandled.
+    run.catch(() => {});
+    const signal = context.abortSignal;
+    let onAbort = () => {};
+    const abortedWait = new Promise<never>((_resolve, reject) => {
+      onAbort = () => reject(signal?.reason);
+      signal?.addEventListener('abort', onAbort, { once: true });
+    });
+
     let result: CommandResult;
     try {
-      result = await this.call((sandbox) =>
-        sandbox.exec(this.wrap(`${setup} && { ${script}\n}`), {
-          timeoutMs,
-          signal: context.abortSignal,
-        })
-      );
+      result = await Promise.race([run, abortedWait]);
     } catch (error) {
       if (aborted(context)) return failed('aborted', 'The command was aborted');
       return failed('unknown', error instanceof Error ? error.message : String(error));
+    } finally {
+      signal?.removeEventListener('abort', onAbort);
     }
 
     const stdout = unwrap(result.stdout ?? '');

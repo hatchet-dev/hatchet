@@ -232,7 +232,8 @@ A conversation's items are a window of its newest 50 to 100 entries. `before` is
 ## How tools behave in a sandbox
 
 - A command's output arrives when the command ends, not while it runs.
-- Aborting a conversation cancels its sandbox run, and the provider kills the command.
+- Aborting a conversation stops waiting for its command, but the command runs on in the sandbox until it ends or times
+  out, and the sandbox's next call waits for it.
 - A sandbox runs one call at a time.
 
 ## Next steps

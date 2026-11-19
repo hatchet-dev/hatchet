@@ -165,19 +165,9 @@ const sandboxOpts = z
 export interface ExecOpts {
   /** Kill the command after this long. The result then has `exitCode` 124. */
   timeoutMs?: number;
-  /**
-   * Stops waiting for the command once the signal aborts, and cancels its task run, which makes the provider kill the
-   * command. `exec` then rejects with the signal's reason. With a signal, the command runs as a child run of the calling
-   * task rather than a durable step, so a durable task that replays runs it again: a durable child run has no handle to
-   * cancel yet.
-   */
-  signal?: AbortSignal;
 }
 
-const execOpts = z.strictObject({
-  timeoutMs: positiveInt.optional(),
-  signal: z.instanceof(AbortSignal).optional(),
-});
+const execOpts = z.strictObject({ timeoutMs: positiveInt.optional() });
 
 export interface ConnectOpts {
   /** Image to use if the sandbox has to be started again. Defaults to the provider's image. */
@@ -213,49 +203,7 @@ export interface SandboxInfo {
   lastUsed?: Date;
 }
 
-type TurnOpts = {
-  /** A plain task run, even inside a durable task, so it does not shift the durable child sequence. */
-  fresh?: boolean;
-  /** Stops waiting and cancels the task run when it aborts, as `fetch(url, { signal })` does for a request. */
-  signal?: AbortSignal;
-};
-
-type RunTurn = (input: TurnInput, opts?: TurnOpts) => Promise<TurnResult>;
-
-async function runCancellable(
-  client: HatchetClient,
-  name: string,
-  payload: JsonObject,
-  additionalMetadata: Record<string, string>,
-  signal: AbortSignal
-): Promise<Record<string, JsonObject>> {
-  signal.throwIfAborted();
-  // runNoWait rather than admin.runWorkflow: it links the run to the calling task as a child and keeps the child index
-  // in step, as run() does.
-  const ref = await client
-    .workflow<JsonObject, Record<string, JsonObject>>({ name })
-    .runNoWait(payload, { additionalMetadata });
-  return new Promise((resolve, reject) => {
-    const onAbort = () => {
-      reject(signal.reason);
-      ref
-        .getWorkflowRunId()
-        .then((id) => client.runs.cancel({ ids: [id] }))
-        .catch((err) =>
-          client.admin.logger.warn(`could not cancel an aborted sandbox run: ${String(err)}`)
-        );
-    };
-    if (signal.aborted) {
-      onAbort();
-      return;
-    }
-    signal.addEventListener('abort', onAbort, { once: true });
-    ref
-      .result()
-      .then(resolve, reject)
-      .finally(() => signal.removeEventListener('abort', onAbort));
-  });
-}
+type RunTurn = (input: TurnInput, opts?: { fresh?: boolean }) => Promise<TurnResult>;
 
 function turnRunner(client: HatchetClient): RunTurn {
   const resolved = resolveTaskName(client);
@@ -269,17 +217,15 @@ function turnRunner(client: HatchetClient): RunTurn {
       ...(input.image ? { 'hatchet.sandbox.image': input.image } : {}),
       ...(input.snapshotId ? { 'hatchet.sandbox.from': input.snapshotId } : {}),
     };
-    const result = opts?.signal
-      ? await runCancellable(client, name, payload, additionalMetadata, opts.signal)
-      : opts?.fresh
-        ? await (
-            await client.admin.runWorkflow<JsonObject, Record<string, JsonObject>>(name, payload, {
-              additionalMetadata,
-            })
-          ).result()
-        : await client
-            .workflow<JsonObject, Record<string, JsonObject>>({ name })
-            .run(payload, { additionalMetadata });
+    const result = opts?.fresh
+      ? await (
+          await client.admin.runWorkflow<JsonObject, Record<string, JsonObject>>(name, payload, {
+            additionalMetadata,
+          })
+        ).result()
+      : await client
+          .workflow<JsonObject, Record<string, JsonObject>>({ name })
+          .run(payload, { additionalMetadata });
     return turnResult.parse(result[name] ?? result);
   };
 }
@@ -294,7 +240,7 @@ export class Sandbox {
     readonly sandboxId: string,
     private readonly template?: string
   ) {
-    this.files = new Files((fn, input, fresh) => this.turn(fn, input, { fresh }));
+    this.files = new Files((fn, input, fresh) => this.turn(fn, input, fresh));
   }
 
   /** Starts a new sandbox. Prefer `hatchet.sandbox.create`. */
@@ -349,14 +295,10 @@ export class Sandbox {
     return ids;
   }
 
-  /**
-   * Runs a shell command with `sh -c` in the workspace and makes a snapshot. A timeout gives `exitCode` 124, not an error.
-   * With `signal`, the command is not a durable step: a durable task that replays runs it again.
-   */
+  /** Runs a shell command with `sh -c` in the workspace and makes a snapshot. A timeout gives `exitCode` 124, not an error. */
   async exec(cmd: string, opts: ExecOpts = {}): Promise<CommandResult> {
-    const { signal, ...rest } = execOpts.parse(opts);
-    const input = { cmd: nonEmpty.parse(cmd), ...rest };
-    return commandResult.parse(await this.turn('$command', input, { signal }));
+    const input = { cmd: nonEmpty.parse(cmd), ...execOpts.parse(opts) };
+    return commandResult.parse(await this.turn('$command', input));
   }
 
   /** Removes the sandbox. Its snapshots stay; `connect` can bring it back. */
@@ -369,10 +311,10 @@ export class Sandbox {
     await this.turn('$delete', {});
   }
 
-  private async turn(fn: string, input: JsonObject, opts: TurnOpts = {}): Promise<JsonObject> {
+  private async turn(fn: string, input: JsonObject, fresh = false): Promise<JsonObject> {
     const result = await this.run(
       { sandboxId: this.sandboxId, image: this.template, fn, input },
-      opts
+      { fresh }
     );
     return {
       ...result.output,
