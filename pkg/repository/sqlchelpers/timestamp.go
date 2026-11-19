@@ -81,7 +81,7 @@ type TimeBounds struct {
 	Max pgtype.Timestamptz
 }
 
-func PartitionPruneTimeBounds(timestamps []pgtype.Timestamptz) TimeBounds {
+func PartitionPruningTimeBounds(timestamps []pgtype.Timestamptz) TimeBounds {
 	return enumerables.Reduce(timestamps, TimeBounds{}, func(acc TimeBounds, x pgtype.Timestamptz) TimeBounds {
 		if !x.Valid {
 			return acc
