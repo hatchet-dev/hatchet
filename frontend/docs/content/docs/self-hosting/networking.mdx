@@ -143,16 +143,18 @@ spec:
 
 ## Dashboard security headers
 
-The static file server sends the same browser security headers as the API with the dashboard's HTML and assets (`Strict-Transport-Security`, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` and the `Cross-Origin-*` policies), so a reverse proxy in front of it does not need to add them.
+The static file server sends browser security headers with the dashboard's HTML and assets (`Strict-Transport-Security`, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`, `Cross-Origin-Resource-Policy`, and `Cross-Origin-Embedder-Policy: credentialless`).
 
-Which sources a `Content-Security-Policy` must allow depends on what your dashboard loads, such as an analytics or support widget, so by default it only restricts framing, plugins and `<base>`: `frame-ancestors 'none'; object-src 'none'; base-uri 'self'`. To send your own policy, set it via the variable for your deployment mode. A policy with `script-src` must allow the inline script in the dashboard's `index.html`, which sets the base path.
+If a reverse proxy in front of the dashboard already adds these headers using an appending directive (such as nginx `add_header`), remove them from the proxy or configure it to replace upstream headers. Duplicate `Cross-Origin-*` headers fail to parse and browsers fall back to no policy.
 
-| Deployment                        | Variable                        | Notes                                                       |
-| --------------------------------- | ------------------------------- | ----------------------------------------------------------- |
-| Helm `frontend` chart             | `CONTENT_SECURITY_POLICY`       | Set under `frontend.env`. Passed to the static file server. |
-| Combined `dashboard` image        | `CONTENT_SECURITY_POLICY`       | Read by the bundled static file server.                     |
-| `hatchet-lite`                    |                                 | Always sends the default policy.                            |
-| `hatchet-staticfileserver` binary | `-content-security-policy` flag | An empty value sends no policy.                             |
+Which sources a `Content-Security-Policy` must allow depends on what your dashboard loads, such as an analytics or support widget, so by default it only restricts framing, plugins and `<base>`: `frame-ancestors 'none'; object-src 'none'; base-uri 'self'`. To send your own policy, set it via the variable for your deployment mode (an empty value sends no header). A custom policy with `script-src`, `style-src`, or `connect-src` must allow the inline scripts (the base-path script in `index.html`, plus optional widgets like Pylon), stylesheets (such as Google Fonts), and any configured editor or analytics origins.
+
+| Deployment                        | Variable                        | Notes                                                                         |
+| --------------------------------- | ------------------------------- | ----------------------------------------------------------------------------- |
+| Helm `frontend` chart             | `CONTENT_SECURITY_POLICY`       | Set under `frontend.env`. Passed to the static file server. Empty sends none. |
+| Combined `dashboard` image        | `CONTENT_SECURITY_POLICY`       | Read by the bundled static file server. Empty sends none.                     |
+| `hatchet-lite`                    |                                 | Always sends the default policy.                                              |
+| `hatchet-staticfileserver` binary | `-content-security-policy` flag | An empty value sends no policy.                                               |
 
 ## Example: `nginx-ingress`
 

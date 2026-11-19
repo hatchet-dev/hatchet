@@ -26,6 +26,8 @@ func NewStaticFileServer(staticFilePath, basePath, contentSecurityPolicy string)
 
 	fs := http.FileServer(http.Dir(staticFilePath))
 	index := indexHandler(staticFilePath, basePath)
+	// NOTE: wrap only the dashboard handlers rather than r.Use so /api proxy routes mounted on the
+	// returned router keep the upstream API's own security headers untouched.
 	withHeaders := securityHeaders(contentSecurityPolicy)
 
 	content := withHeaders(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -67,9 +69,10 @@ func NewStaticFileServer(staticFilePath, basePath, contentSecurityPolicy string)
 }
 
 // securityHeaders sets the browser security headers on the dashboard's responses. They match the
-// API's, except Cross-Origin-Embedder-Policy is credentialless rather than require-corp: the
-// dashboard document loads cross-origin scripts and styles, some only when a deployment enables
-// them, and require-corp blocks any of those that do not send Cross-Origin-Resource-Policy.
+// API's, with two adjustments for HTML documents: Cross-Origin-Embedder-Policy is credentialless
+// rather than require-corp (so cross-origin scripts and styles without CORP still load), and
+// Permissions-Policy omits legacy Feature-Policy tokens (notifications, push, speaker, vibrate)
+// that trigger console warnings in Chromium.
 func securityHeaders(contentSecurityPolicy string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -81,7 +84,7 @@ func securityHeaders(contentSecurityPolicy string) func(http.Handler) http.Handl
 			h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
 			h.Set("X-Frame-Options", "DENY")
 			h.Set("X-Content-Type-Options", "nosniff")
-			h.Set("Permissions-Policy", "geolocation=(), midi=(), notifications=(), push=(), sync-xhr=(), microphone=(), camera=(), magnetometer=(), gyroscope=(), speaker=(), vibrate=(), fullscreen=(self), payment=()")
+			h.Set("Permissions-Policy", "geolocation=(), midi=(), sync-xhr=(), microphone=(), camera=(), magnetometer=(), gyroscope=(), fullscreen=(self), payment=()")
 			h.Set("Cross-Origin-Embedder-Policy", "credentialless")
 			h.Set("Cross-Origin-Opener-Policy", "same-origin")
 			h.Set("Cross-Origin-Resource-Policy", "same-origin")

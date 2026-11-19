@@ -5,6 +5,8 @@ package staticfileserver
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -33,7 +35,7 @@ func TestSecurityHeaders(t *testing.T) {
 		"Referrer-Policy":              "strict-origin-when-cross-origin",
 		"X-Frame-Options":              "DENY",
 		"X-Content-Type-Options":       "nosniff",
-		"Permissions-Policy":           "geolocation=(), midi=(), notifications=(), push=(), sync-xhr=(), microphone=(), camera=(), magnetometer=(), gyroscope=(), speaker=(), vibrate=(), fullscreen=(self), payment=()",
+		"Permissions-Policy":           "geolocation=(), midi=(), sync-xhr=(), microphone=(), camera=(), magnetometer=(), gyroscope=(), fullscreen=(self), payment=()",
 		"Cross-Origin-Embedder-Policy": "credentialless",
 		"Cross-Origin-Opener-Policy":   "same-origin",
 		"Cross-Origin-Resource-Policy": "same-origin",
@@ -84,4 +86,43 @@ func TestContentSecurityPolicyOverride(t *testing.T) {
 	srv.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 
 	assert.Empty(t, rec.Header().Values("Content-Security-Policy"))
+}
+
+func TestAPIProxyPreservesUpstreamHeaders(t *testing.T) {
+	dir := newTestStaticDir(t)
+
+	const upstreamCSP = "script-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'"
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Security-Policy", upstreamCSP)
+		w.Header().Set("Cross-Origin-Embedder-Policy", "require-corp")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	target, err := url.Parse(upstream.URL)
+	require.NoError(t, err)
+
+	proxy := &httputil.ReverseProxy{
+		Rewrite: func(r *httputil.ProxyRequest) {
+			r.SetURL(target)
+		},
+	}
+
+	srv := NewStaticFileServer(dir, "/", DefaultContentSecurityPolicy)
+	srv.Handle("/api", proxy)
+	srv.Handle("/api/*", proxy)
+
+	for _, reqPath := range []string{"/api", "/api/v1/meta"} {
+		t.Run(reqPath, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			srv.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, reqPath, nil))
+
+			require.Equal(t, http.StatusOK, rec.Code)
+			assert.Equal(t, []string{upstreamCSP}, rec.Header().Values("Content-Security-Policy"))
+			assert.Equal(t, []string{"require-corp"}, rec.Header().Values("Cross-Origin-Embedder-Policy"))
+			assert.Equal(t, []string{"DENY"}, rec.Header().Values("X-Frame-Options"))
+			assert.Empty(t, rec.Header().Values("Cross-Origin-Opener-Policy"))
+		})
+	}
 }
