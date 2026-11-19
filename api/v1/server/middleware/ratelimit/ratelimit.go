@@ -2,6 +2,7 @@ package ratelimit
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/routers/gorillamux"
@@ -26,11 +27,27 @@ func NewRateLimitMiddleware(config *server.ServerConfig, swagger *openapi3.T) *R
 	}
 }
 
+// storeConfig gives each identifier a bucket of `limit` requests that refills over `window`.
+// Echo's Rate is per second, so the per-window limit has to be converted. A bucket idle for a
+// full window is full again, so expiring it after `window` drops no state.
+func storeConfig(limit int, window time.Duration) echoMiddleware.RateLimiterMemoryStoreConfig {
+	limit = max(limit, 1)
+	window = max(window, time.Second)
+
+	return echoMiddleware.RateLimiterMemoryStoreConfig{
+		Rate:      rate.Limit(float64(limit) / window.Seconds()),
+		Burst:     limit,
+		ExpiresIn: window,
+	}
+}
+
 func (m *RateLimitMiddleware) Middleware() echo.MiddlewareFunc {
 	router, err := gorillamux.NewRouter(m.swagger)
 	if err != nil {
 		return nil
 	}
+
+	storeCfg := storeConfig(m.config.Runtime.APIRateLimit, m.config.Runtime.APIRateLimitWindow)
 
 	rateLimiterConfig := echoMiddleware.RateLimiterConfig{
 		Skipper: func(c echo.Context) bool {
@@ -49,9 +66,7 @@ func (m *RateLimitMiddleware) Middleware() echo.MiddlewareFunc {
 
 			return !enableRateLimiting
 		},
-		Store: echoMiddleware.NewRateLimiterMemoryStoreWithConfig(
-			echoMiddleware.RateLimiterMemoryStoreConfig{Rate: rate.Limit(m.config.Runtime.APIRateLimit), ExpiresIn: m.config.Runtime.APIRateLimitWindow},
-		),
+		Store: echoMiddleware.NewRateLimiterMemoryStoreWithConfig(storeCfg),
 		IdentifierExtractor: func(ctx echo.Context) (string, error) {
 			route, _, err := router.FindRoute(ctx.Request())
 			if err != nil {
@@ -66,7 +81,7 @@ func (m *RateLimitMiddleware) Middleware() echo.MiddlewareFunc {
 			return context.JSON(http.StatusForbidden, nil)
 		},
 		DenyHandler: func(context echo.Context, identifier string, err error) error {
-			return tooManyRequests(context, middleware.RetryAfter(rate.Limit(m.config.Runtime.APIRateLimit)))
+			return tooManyRequests(context, middleware.RetryAfter(storeCfg.Rate))
 		},
 	}
 
