@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-for delay in 15 30 0; do
+for delay in 5 15 0; do
   "$@" && exit 0
   [ "$delay" -gt 0 ] || exit 1
   echo "::warning::retrying in ${delay}s: $*"
