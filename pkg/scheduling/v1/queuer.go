@@ -84,9 +84,10 @@ type Queuer struct {
 	// request during that wait does not start another one.
 	delayedWakePending atomic.Bool
 
-	// consecutiveEmptyPolls counts loop iterations whose refill returned no items. It is only
-	// accessed from the loopQueue goroutine.
-	consecutiveEmptyPolls int
+	// only accessed from the loopQueue goroutine
+	consecutiveEmptyPolls               int
+	earliestRateLimitRefillAt           time.Time
+	earliestUnassignedScheduleTimeoutAt time.Time
 }
 
 // nextPollInterval returns the duration until the next poll of the queue. The interval doubles
@@ -112,7 +113,15 @@ func (q *Queuer) nextPollInterval() time.Duration {
 		}
 	}
 
-	return interval + rand.N(interval/2) //nolint:gosec
+	jitteredInterval := interval + rand.N(interval/2) //nolint:gosec
+
+	for _, deadline := range []time.Time{q.earliestRateLimitRefillAt, q.earliestUnassignedScheduleTimeoutAt} {
+		if !deadline.IsZero() {
+			jitteredInterval = min(jitteredInterval, max(time.Until(deadline), queuePollInterval))
+		}
+	}
+
+	return jitteredInterval
 }
 
 func newQueuer(conf *sharedConfig, tenantId uuid.UUID, queueName string, s *Scheduler, resultsCh chan<- *QueueResults, onBatched func([]*sqlcv1.V1QueueItem)) *Queuer {
@@ -240,8 +249,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		// tick's misses are unacked, so we track this and requeue if the epoch changes
 		prevEpoch := q.s.capacityEpochNow()
 
-		// re-arm immediately so early `continue` paths below can't stall the loop; re-armed
-		// again after the refill once the empty-poll streak is known
+		// reset the timer immediately so early `continue` paths below can't stall the loop; it is
+		// reset again after assignment once the empty-poll streak is known
 		resetTimer()
 
 		q.l.Debug().Ctx(ctx).Msg("queue loop tick")
@@ -276,15 +285,6 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 		q.l.Debug().Ctx(ctx).Int("refilled_items", len(qis)).Msg("refilled queue")
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "queue.item_count", Value: len(qis)})
-
-		if len(qis) == 0 {
-			q.consecutiveEmptyPolls++
-		} else {
-			q.consecutiveEmptyPolls = 0
-		}
-
-		// re-arm with the interval reflecting the latest empty-poll streak
-		resetTimer()
 
 		// NOTE: we don't terminate early out of this loop because calling `tryAssign` is necessary
 		// for calling the scheduling extensions.
@@ -383,7 +383,20 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		processedQiLength := 0
 		unassignedReturned := 0
 
+		isEmptyPoll := true
+		q.earliestUnassignedScheduleTimeoutAt = time.Time{}
+
 		for r := range assignCh {
+			isEmptyPoll = isEmptyPoll && r.canWaitForRestoredCapacity()
+
+			for _, qi := range r.unassigned {
+				scheduleTimeoutAt := qi.ScheduleTimeoutAt.Time
+
+				if !scheduleTimeoutAt.IsZero() && (q.earliestUnassignedScheduleTimeoutAt.IsZero() || scheduleTimeoutAt.Before(q.earliestUnassignedScheduleTimeoutAt)) {
+					q.earliestUnassignedScheduleTimeoutAt = scheduleTimeoutAt
+				}
+			}
+
 			wg.Add(1)
 
 			// asynchronously flush to database
@@ -516,6 +529,14 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			).Dur("elapsed", elapsed).Int("item_count", len(qis)).Msg("queue processing took longer than 100ms")
 		}
 
+		if isEmptyPoll {
+			q.consecutiveEmptyPolls++
+		} else {
+			q.consecutiveEmptyPolls = 0
+		}
+
+		resetTimer()
+
 		// if we processed all queue items, queue again
 		prevQis := qis
 
@@ -563,8 +584,14 @@ func (q *Queuer) requeueRateLimitedItems(ctx context.Context) {
 
 	if err != nil {
 		logger.ShutdownAware(ctx, q.l, err, zerolog.ErrorLevel).Ctx(ctx).Err(err).Msg("error requeuing rate limited items")
-	} else if nextRequeueAfter != nil && nextRequeueAfter.Before(next) {
-		next = *nextRequeueAfter
+	} else if nextRequeueAfter == nil {
+		q.earliestRateLimitRefillAt = time.Time{}
+	} else {
+		q.earliestRateLimitRefillAt = *nextRequeueAfter
+
+		if nextRequeueAfter.Before(next) {
+			next = *nextRequeueAfter
+		}
 	}
 
 	q.nextRateLimitRequeueAt.Store(next.UnixNano())

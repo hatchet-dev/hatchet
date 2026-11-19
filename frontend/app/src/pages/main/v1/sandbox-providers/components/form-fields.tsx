@@ -1,5 +1,6 @@
 import { LabelRow } from '../../endpoints/lib/labels';
-import { KINDS } from '../lib/kinds';
+import { ConfigValues } from '../hooks/use-sandbox-providers';
+import { ConfigField, KINDS } from '../lib/kinds';
 import { Button } from '@/components/v1/ui/button';
 import {
   Collapsible,
@@ -9,8 +10,14 @@ import {
 import EnvGroupArray, { KeyValueType } from '@/components/v1/ui/envvar';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/v1/ui/select';
 import { Switch } from '@/components/v1/ui/switch';
-import { Textarea } from '@/components/v1/ui/textarea';
 import { SandboxProviderKind } from '@/lib/api/generated/cloud/data-contracts';
 import { ChevronRight, Eye, EyeOff } from 'lucide-react';
 import { useState } from 'react';
@@ -52,7 +59,7 @@ export const ApiKeyField = ({
   return (
     <div className="space-y-2">
       <Label htmlFor="apiKey" className="text-sm font-medium">
-        {optional ? 'Rotate API key' : 'API key'}{' '}
+        {optional ? 'New API key' : 'API key'}{' '}
         {optional ? <OptionalMark /> : <RequiredMark />}
       </Label>
       <div className="flex flex-row items-center gap-2">
@@ -61,7 +68,7 @@ export const ApiKeyField = ({
           type={visible ? 'text' : 'password'}
           data-1p-ignore
           autoComplete="off"
-          placeholder={optional ? 'Leave blank to keep the current key' : ''}
+          placeholder={optional ? 'Leave empty to keep the current key' : ''}
           className="h-10 font-mono text-xs"
           {...inputProps}
         />
@@ -78,7 +85,7 @@ export const ApiKeyField = ({
       </div>
       <FieldErrorText error={error} />
       <p className="text-xs text-muted-foreground">
-        {KINDS[kind].keyHint} It is stored encrypted and never shown again.
+        {KINDS[kind].keyHint} Stored encrypted and never shown again.
       </p>
     </div>
   );
@@ -87,7 +94,7 @@ export const ApiKeyField = ({
 export type SharedFormFields = {
   defaultTemplate: string;
   maxIdleTtlSeconds: number;
-  configJson: string;
+  config: ConfigValues;
   labels: LabelRow[];
   enabled: boolean;
 };
@@ -102,12 +109,83 @@ const toKeyValues = (rows: LabelRow[]): KeyValueType[] =>
     isEditing: true,
   }));
 
+const ConfigInput = ({
+  field,
+  value,
+  error,
+  register,
+  onChange,
+}: {
+  field: ConfigField;
+  value: string | boolean | undefined;
+  error?: { message?: string };
+  register: UseFormRegister<SharedFormFields>;
+  onChange: (value: string | boolean) => void;
+}) => {
+  const id = `config-${field.key}`;
+
+  if (field.type === 'boolean') {
+    return (
+      <div className="flex flex-row items-center justify-between rounded-lg border border-border p-4">
+        <div className="space-y-0.5">
+          <Label htmlFor={id} className="text-sm font-medium">
+            {field.label}
+          </Label>
+          <p className="text-xs text-muted-foreground">{field.help}</p>
+        </div>
+        <Switch
+          id={id}
+          checked={value === true}
+          onCheckedChange={(checked) => onChange(checked)}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>
+        {field.label} <OptionalMark />
+      </Label>
+      {field.type === 'select' ? (
+        <Select
+          value={typeof value === 'string' ? value : ''}
+          onValueChange={onChange}
+        >
+          <SelectTrigger id={id} className="h-10">
+            <SelectValue placeholder={field.options[0]} />
+          </SelectTrigger>
+          <SelectContent>
+            {field.options.map((o) => (
+              <SelectItem key={o} value={o}>
+                {o}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ) : (
+        <Input
+          id={id}
+          type={field.type === 'number' ? 'number' : 'text'}
+          placeholder={field.placeholder}
+          className={`h-10 ${field.type === 'text' && field.mono ? 'font-mono text-sm' : ''}`}
+          {...register(`config.${field.key}`)}
+        />
+      )}
+      <FieldErrorText error={error} />
+      <p className="text-xs text-muted-foreground">{field.help}</p>
+    </div>
+  );
+};
+
 export const ProviderFields = ({
   kind,
   register,
   errors,
   enabled,
   onEnabledChange,
+  config,
+  onConfigChange,
   labels,
   onLabelsChange,
 }: {
@@ -116,10 +194,14 @@ export const ProviderFields = ({
   errors: FieldErrors<SharedFormFields>;
   enabled: boolean;
   onEnabledChange: (enabled: boolean) => void;
+  config: ConfigValues;
+  onConfigChange: (key: string, value: string | boolean) => void;
   labels: LabelRow[];
   onLabelsChange: (labels: LabelRow[]) => void;
 }) => {
   const [open, setOpen] = useState(false);
+  const configErrors = errors.config as
+    Record<string, { message?: string } | undefined> | undefined;
 
   return (
     <>
@@ -136,11 +218,11 @@ export const ProviderFields = ({
           />
           <FieldErrorText error={errors.defaultTemplate} />
           <p className="text-xs text-muted-foreground">
-            Used when the SDK creates a sandbox without a template.
+            Used when the SDK does not name one.
           </p>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="maxIdleTtlSeconds">Max idle time (seconds)</Label>
+          <Label htmlFor="maxIdleTtlSeconds">Max idle seconds</Label>
           <Input
             id="maxIdleTtlSeconds"
             type="number"
@@ -149,7 +231,7 @@ export const ProviderFields = ({
           />
           <FieldErrorText error={errors.maxIdleTtlSeconds} />
           <p className="text-xs text-muted-foreground">
-            The longest a sandbox may sit idle before the vendor removes it.
+            Idle sandboxes are removed after this long.
           </p>
         </div>
       </div>
@@ -167,27 +249,25 @@ export const ProviderFields = ({
           </button>
         </CollapsibleTrigger>
         <CollapsibleContent className="mt-4 space-y-4 border-l-2 border-border pl-4">
-          <div className="space-y-2">
-            <Label htmlFor="configJson">
-              Provider config <OptionalMark />
-            </Label>
-            <Textarea
-              id="configJson"
-              rows={5}
-              placeholder={'{\n  "snapshotEveryTurn": false\n}'}
-              className="font-mono text-xs"
-              {...register('configJson')}
+          {KINDS[kind].fields.map((field) => (
+            <ConfigInput
+              key={field.key}
+              field={field}
+              value={config[field.key]}
+              error={configErrors?.[field.key]}
+              register={register}
+              onChange={(value) => onConfigChange(field.key, value)}
             />
-            <FieldErrorText error={errors.configJson} />
-            <p className="text-xs text-muted-foreground">
-              JSON with any of {KINDS[kind].configKeys.join(', ')}. Other keys
-              are rejected.
-            </p>
-          </div>
+          ))}
           <div className="space-y-2">
             <Label>
-              Labels <OptionalMark />
+              Metadata <OptionalMark />
             </Label>
+            <p className="text-xs text-muted-foreground">
+              Default metadata for every sandbox this provider creates. The SDK
+              can override it key by key. It shows on the sandbox, its task runs
+              and at the vendor.
+            </p>
             <EnvGroupArray
               values={toKeyValues(labels)}
               setValues={(values) =>
@@ -202,7 +282,7 @@ export const ProviderFields = ({
                 Enabled
               </Label>
               <p className="text-xs text-muted-foreground">
-                A disabled provider keeps its sandboxes but serves no turns.
+                Disabled providers keep their sandboxes but serve no turns.
               </p>
             </div>
             <Switch

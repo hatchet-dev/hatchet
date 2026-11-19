@@ -2032,6 +2032,10 @@ CREATE OR REPLACE FUNCTION v1_retry_queue_item_delete_function()
 RETURNS TRIGGER AS
 $$
 BEGIN
+    IF NOT EXISTS (SELECT 1 FROM deleted_rows) THEN
+        RETURN NULL;
+    END IF;
+
     WITH new_slot_rows AS (
         SELECT
             t.id,

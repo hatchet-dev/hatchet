@@ -517,6 +517,8 @@ FROM
     input
 JOIN
     v1_task t ON t.id = input.task_id AND t.inserted_at = input.task_inserted_at
+        AND t.inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+        AND t.inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
 ON CONFLICT (task_id, task_inserted_at, retry_count) DO UPDATE
 SET
     timeout_at = EXCLUDED.timeout_at,
@@ -1463,6 +1465,9 @@ WITH input AS (
     FROM waiting_tasks wt
     JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (wt.task_id, wt.task_inserted_at, wt.task_retry_count)
     JOIN "Workflow" w ON w."id" = t.workflow_id
+    WHERE
+        t.inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+        AND t.inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
 ), deleted_slots AS (
     DELETE FROM v1_concurrency_slot cs
     USING held_tasks h
@@ -1511,7 +1516,10 @@ SELECT
     h.rate_limit_paused_until
 FROM held_tasks h
 JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (h.id, h.inserted_at, h.retry_count)
-WHERE h.workflow_paused OR h.rate_limit_paused_until IS NOT NULL
+WHERE
+    (h.workflow_paused OR h.rate_limit_paused_until IS NOT NULL)
+    AND t.inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+    AND t.inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
 ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING;
 
 -- name: ReleaseHeldQueueItemsForWorkflows :many
@@ -1586,6 +1594,8 @@ WITH input AS (
     WHERE
         pqi.tenant_id = @tenantId::UUID
         AND t.concurrency_strategy_ids[1] IS NULL
+        AND t.inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+        AND t.inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
     ORDER BY pqi.task_inserted_at, pqi.task_id, pqi.retry_count
     FOR UPDATE OF pqi SKIP LOCKED
 ), deleted_items AS (
@@ -1637,6 +1647,8 @@ SELECT
     ri.batch_key
 FROM ready_items ri
 JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (ri.task_id, ri.task_inserted_at, ri.retry_count)
+    AND t.inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+    AND t.inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
 RETURNING queue
 ;
 
@@ -1654,6 +1666,8 @@ WITH input AS (
     WHERE
         pqi.tenant_id = @tenantId::UUID
         AND t.concurrency_strategy_ids[1] IS NOT NULL
+        AND t.inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+        AND t.inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
     ORDER BY pqi.task_inserted_at, pqi.task_id, pqi.retry_count
     FOR UPDATE OF pqi SKIP LOCKED
 ), deleted_items AS (
@@ -1721,6 +1735,8 @@ SELECT
     CURRENT_TIMESTAMP + convert_duration_to_interval(t.schedule_timeout)
 FROM ready_items ri
 JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (ri.task_id, ri.task_inserted_at, ri.retry_count)
+    AND t.inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+    AND t.inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
 ON CONFLICT (task_id, task_inserted_at, task_retry_count, strategy_id) DO NOTHING
 RETURNING strategy_id
 ;

@@ -118,6 +118,10 @@ export const EditProviderDialog = ({
             errors={errors}
             enabled={values.enabled}
             onEnabledChange={(checked) => setValue('enabled', checked)}
+            config={values.config}
+            onConfigChange={(key, value) =>
+              setValue(`config.${key}`, value, { shouldValidate: true })
+            }
             labels={values.labels}
             onLabelsChange={(labels) =>
               setValue('labels', labels, { shouldValidate: !!errors.labels })
@@ -142,7 +146,7 @@ export const EditProviderDialog = ({
             </DialogClose>
             <Button type="submit" disabled={update.isPending}>
               {update.isPending && <Spinner />}
-              Save changes
+              Save
             </Button>
           </div>
         </form>

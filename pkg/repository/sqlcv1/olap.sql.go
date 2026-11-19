@@ -817,7 +817,7 @@ type CreateTaskEventsOLAPParams struct {
 	PayloadReferenceID     *uuid.UUID                 `json:"payload_reference_id"`
 }
 
-const findMinInsertedAtForDAGStatusUpdates = `-- name: FindMinInsertedAtForDAGStatusUpdates :one
+const findInsertedAtBoundsForDAGStatusUpdates = `-- name: FindInsertedAtBoundsForDAGStatusUpdates :one
 WITH tenants AS (
     SELECT UNNEST(
         find_matching_tenants_in_task_status_updates_tmp_partition(
@@ -828,7 +828,8 @@ WITH tenants AS (
 )
 
 SELECT
-    MIN(u.dag_inserted_at)::TIMESTAMPTZ AS min_inserted_at
+    MIN(u.dag_inserted_at)::TIMESTAMPTZ AS min_inserted_at,
+    MAX(u.dag_inserted_at)::TIMESTAMPTZ AS max_inserted_at
 FROM tenants t,
     LATERAL list_task_status_updates_tmp(
         $1::int,
@@ -837,20 +838,25 @@ FROM tenants t,
     ) u
 `
 
-type FindMinInsertedAtForDAGStatusUpdatesParams struct {
+type FindInsertedAtBoundsForDAGStatusUpdatesParams struct {
 	Partitionnumber int32       `json:"partitionnumber"`
 	Eventlimit      int32       `json:"eventlimit"`
 	Tenantids       []uuid.UUID `json:"tenantids"`
 }
 
-func (q *Queries) FindMinInsertedAtForDAGStatusUpdates(ctx context.Context, db DBTX, arg FindMinInsertedAtForDAGStatusUpdatesParams) (pgtype.Timestamptz, error) {
-	row := db.QueryRow(ctx, findMinInsertedAtForDAGStatusUpdates, arg.Partitionnumber, arg.Eventlimit, arg.Tenantids)
-	var min_inserted_at pgtype.Timestamptz
-	err := row.Scan(&min_inserted_at)
-	return min_inserted_at, err
+type FindInsertedAtBoundsForDAGStatusUpdatesRow struct {
+	MinInsertedAt pgtype.Timestamptz `json:"min_inserted_at"`
+	MaxInsertedAt pgtype.Timestamptz `json:"max_inserted_at"`
 }
 
-const findMinInsertedAtForTaskStatusUpdates = `-- name: FindMinInsertedAtForTaskStatusUpdates :one
+func (q *Queries) FindInsertedAtBoundsForDAGStatusUpdates(ctx context.Context, db DBTX, arg FindInsertedAtBoundsForDAGStatusUpdatesParams) (*FindInsertedAtBoundsForDAGStatusUpdatesRow, error) {
+	row := db.QueryRow(ctx, findInsertedAtBoundsForDAGStatusUpdates, arg.Partitionnumber, arg.Eventlimit, arg.Tenantids)
+	var i FindInsertedAtBoundsForDAGStatusUpdatesRow
+	err := row.Scan(&i.MinInsertedAt, &i.MaxInsertedAt)
+	return &i, err
+}
+
+const findInsertedAtBoundsForTaskStatusUpdates = `-- name: FindInsertedAtBoundsForTaskStatusUpdates :one
 WITH tenants AS (
     SELECT UNNEST(
         find_matching_tenants_in_task_events_tmp_partition(
@@ -861,7 +867,8 @@ WITH tenants AS (
 )
 
 SELECT
-    MIN(e.task_inserted_at)::TIMESTAMPTZ AS min_inserted_at
+    MIN(e.task_inserted_at)::TIMESTAMPTZ AS min_inserted_at,
+    MAX(e.task_inserted_at)::TIMESTAMPTZ AS max_inserted_at
 FROM tenants t,
     LATERAL list_task_events_tmp(
         $1::int,
@@ -870,17 +877,22 @@ FROM tenants t,
     ) e
 `
 
-type FindMinInsertedAtForTaskStatusUpdatesParams struct {
+type FindInsertedAtBoundsForTaskStatusUpdatesParams struct {
 	Partitionnumber int32       `json:"partitionnumber"`
 	Eventlimit      int32       `json:"eventlimit"`
 	Tenantids       []uuid.UUID `json:"tenantids"`
 }
 
-func (q *Queries) FindMinInsertedAtForTaskStatusUpdates(ctx context.Context, db DBTX, arg FindMinInsertedAtForTaskStatusUpdatesParams) (pgtype.Timestamptz, error) {
-	row := db.QueryRow(ctx, findMinInsertedAtForTaskStatusUpdates, arg.Partitionnumber, arg.Eventlimit, arg.Tenantids)
-	var min_inserted_at pgtype.Timestamptz
-	err := row.Scan(&min_inserted_at)
-	return min_inserted_at, err
+type FindInsertedAtBoundsForTaskStatusUpdatesRow struct {
+	MinInsertedAt pgtype.Timestamptz `json:"min_inserted_at"`
+	MaxInsertedAt pgtype.Timestamptz `json:"max_inserted_at"`
+}
+
+func (q *Queries) FindInsertedAtBoundsForTaskStatusUpdates(ctx context.Context, db DBTX, arg FindInsertedAtBoundsForTaskStatusUpdatesParams) (*FindInsertedAtBoundsForTaskStatusUpdatesRow, error) {
+	row := db.QueryRow(ctx, findInsertedAtBoundsForTaskStatusUpdates, arg.Partitionnumber, arg.Eventlimit, arg.Tenantids)
+	var i FindInsertedAtBoundsForTaskStatusUpdatesRow
+	err := row.Scan(&i.MinInsertedAt, &i.MaxInsertedAt)
+	return &i, err
 }
 
 const flattenTasksByExternalIds = `-- name: FlattenTasksByExternalIds :many
@@ -1289,6 +1301,9 @@ WITH input AS (
         input i
     JOIN
         v1_tasks_olap t ON (t.inserted_at, t.id, t.readable_status, t.tenant_id) = (i.inserted_at, i.task_id, i.readable_status, $4::uuid)
+    WHERE
+        t.inserted_at >= $5::TIMESTAMPTZ
+        AND t.inserted_at <= $6::TIMESTAMPTZ
 ), task_events AS (
     SELECT
         td.task_id,
@@ -1301,7 +1316,8 @@ WITH input AS (
     JOIN
         v1_task_events_olap e ON (e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count) = (td.tenant_id, td.task_id, td.inserted_at, td.latest_retry_count)
     WHERE
-        e.task_inserted_at >= (SELECT MIN(inserted_at) FROM input)
+        e.task_inserted_at >= $5::TIMESTAMPTZ
+        AND e.task_inserted_at <= $6::TIMESTAMPTZ
 ), task_times AS (
     SELECT
         task_id,
@@ -1324,10 +1340,12 @@ ORDER BY td.task_id, td.inserted_at
 `
 
 type GetTaskDurationsByTaskIdsParams struct {
-	Taskids          []int64                      `json:"taskids"`
-	Taskinsertedats  []pgtype.Timestamptz         `json:"taskinsertedats"`
-	Readablestatuses []enums.V1ReadableStatusOlap `json:"readablestatuses"`
-	Tenantid         uuid.UUID                    `json:"tenantid"`
+	Taskids           []int64                      `json:"taskids"`
+	Taskinsertedats   []pgtype.Timestamptz         `json:"taskinsertedats"`
+	Readablestatuses  []enums.V1ReadableStatusOlap `json:"readablestatuses"`
+	Tenantid          uuid.UUID                    `json:"tenantid"`
+	Mintaskinsertedat pgtype.Timestamptz           `json:"mintaskinsertedat"`
+	Maxtaskinsertedat pgtype.Timestamptz           `json:"maxtaskinsertedat"`
 }
 
 type GetTaskDurationsByTaskIdsRow struct {
@@ -1342,6 +1360,8 @@ func (q *Queries) GetTaskDurationsByTaskIds(ctx context.Context, db DBTX, arg Ge
 		arg.Taskinsertedats,
 		arg.Readablestatuses,
 		arg.Tenantid,
+		arg.Mintaskinsertedat,
+		arg.Maxtaskinsertedat,
 	)
 	if err != nil {
 		return nil, err
@@ -2564,7 +2584,13 @@ WITH input AS (
     FROM input i
     JOIN v1_runs_olap r ON (i.id, i.inserted_at) = (r.id, r.inserted_at)
     JOIN v1_dags_olap d ON (r.id, r.inserted_at) = (d.id, d.inserted_at)
-    WHERE r.tenant_id = $4::uuid AND r.kind = 'DAG'
+    WHERE
+        r.tenant_id = $4::uuid
+        AND r.kind = 'DAG'
+        AND r.inserted_at >= $5::TIMESTAMPTZ
+        AND r.inserted_at <= $6::TIMESTAMPTZ
+        AND d.inserted_at >= $5::TIMESTAMPTZ
+        AND d.inserted_at <= $6::TIMESTAMPTZ
 ), relevant_events AS (
     SELECT r.run_id, e.tenant_id, e.id, e.inserted_at, e.external_id, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message, e.durable_invocation_count, e.is_dag_orchestrator, e.payload_reference_id
     FROM runs r
@@ -2572,8 +2598,9 @@ WITH input AS (
     JOIN v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
     WHERE
         e.tenant_id = $4::uuid
-        AND dt.dag_inserted_at >= (SELECT MIN(inserted_at) FROM input)
-        AND e.task_inserted_at >= (SELECT MIN(inserted_at) FROM input)
+        AND dt.dag_inserted_at >= $5::TIMESTAMPTZ
+        AND dt.dag_inserted_at <= $6::TIMESTAMPTZ
+        AND e.task_inserted_at >= $5::TIMESTAMPTZ
 ), max_retry_count AS (
     SELECT run_id, MAX(retry_count) AS max_retry_count
     FROM relevant_events
@@ -2641,6 +2668,8 @@ type PopulateDAGMetadataParams struct {
 	Ids             []int64              `json:"ids"`
 	Insertedats     []pgtype.Timestamptz `json:"insertedats"`
 	Tenantid        uuid.UUID            `json:"tenantid"`
+	Mininsertedat   pgtype.Timestamptz   `json:"mininsertedat"`
+	Maxinsertedat   pgtype.Timestamptz   `json:"maxinsertedat"`
 }
 
 type PopulateDAGMetadataRow struct {
@@ -2676,6 +2705,8 @@ func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg Populate
 		arg.Ids,
 		arg.Insertedats,
 		arg.Tenantid,
+		arg.Mininsertedat,
+		arg.Maxinsertedat,
 	)
 	if err != nil {
 		return nil, err
@@ -3056,6 +3087,8 @@ WITH input AS (
         v1_runs_olap r ON (r.id, r.inserted_at) = (COALESCE(t.dag_id, t.id), COALESCE(t.dag_inserted_at, t.inserted_at))
     WHERE
         t.tenant_id = $4::uuid
+        AND t.inserted_at >= $5::TIMESTAMPTZ
+        AND t.inserted_at <= $6::TIMESTAMPTZ
 ), relevant_events AS (
     SELECT
         e.tenant_id, e.id, e.inserted_at, e.external_id, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message, e.durable_invocation_count, e.is_dag_orchestrator, e.payload_reference_id
@@ -3064,7 +3097,8 @@ WITH input AS (
     JOIN
         tasks t ON t.id = e.task_id AND t.tenant_id = e.tenant_id AND t.inserted_at = e.task_inserted_at
     WHERE
-        e.task_inserted_at >= (SELECT MIN(inserted_at) FROM input)
+        e.task_inserted_at >= $5::TIMESTAMPTZ
+        AND e.task_inserted_at <= $6::TIMESTAMPTZ
 ), max_retry_counts AS (
     SELECT
         e.tenant_id,
@@ -3207,10 +3241,12 @@ ORDER BY t.inserted_at DESC, t.id DESC
 `
 
 type PopulateTaskRunDataParams struct {
-	Includepayloads bool                 `json:"includepayloads"`
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Tenantid        uuid.UUID            `json:"tenantid"`
+	Includepayloads   bool                 `json:"includepayloads"`
+	Taskids           []int64              `json:"taskids"`
+	Taskinsertedats   []pgtype.Timestamptz `json:"taskinsertedats"`
+	Tenantid          uuid.UUID            `json:"tenantid"`
+	Mintaskinsertedat pgtype.Timestamptz   `json:"mintaskinsertedat"`
+	Maxtaskinsertedat pgtype.Timestamptz   `json:"maxtaskinsertedat"`
 }
 
 type PopulateTaskRunDataRow struct {
@@ -3254,6 +3290,8 @@ func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg Populate
 		arg.Taskids,
 		arg.Taskinsertedats,
 		arg.Tenantid,
+		arg.Mintaskinsertedat,
+		arg.Maxtaskinsertedat,
 	)
 	if err != nil {
 		return nil, err
@@ -3722,8 +3760,8 @@ func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, work
 const reconcileOperatorDAGStatusesOnCreate = `-- name: ReconcileOperatorDAGStatusesOnCreate :exec
 WITH inputs AS (
     SELECT
-        UNNEST($1::BIGINT[]) AS dag_id,
-        UNNEST($2::TIMESTAMPTZ[]) AS dag_inserted_at
+        UNNEST($3::BIGINT[]) AS dag_id,
+        UNNEST($4::TIMESTAMPTZ[]) AS dag_inserted_at
 ), latest_event AS (
     SELECT DISTINCT ON (e.task_id, e.task_inserted_at)
         e.task_id,
@@ -3733,7 +3771,9 @@ WITH inputs AS (
     FROM v1_task_events_olap e
     -- dag operator task ids are the same as the dag ids
     JOIN inputs i ON (e.task_id, e.task_inserted_at) = (i.dag_id, i.dag_inserted_at)
-    WHERE e.task_inserted_at >= (SELECT MIN(dag_inserted_at) FROM inputs)
+    WHERE
+        e.task_inserted_at >= $1::TIMESTAMPTZ
+        AND e.task_inserted_at <= $2::TIMESTAMPTZ
     ORDER BY
         e.task_id,
         e.task_inserted_at,
@@ -3747,6 +3787,8 @@ SET
     latest_retry_count = le.retry_count
 FROM latest_event le
 WHERE (d.id, d.inserted_at) = (le.task_id, le.task_inserted_at)
+    AND d.inserted_at >= $1::TIMESTAMPTZ
+    AND d.inserted_at <= $2::TIMESTAMPTZ
     AND (
         le.retry_count > d.latest_retry_count
         OR (
@@ -3762,28 +3804,36 @@ WHERE (d.id, d.inserted_at) = (le.task_id, le.task_inserted_at)
 `
 
 type ReconcileOperatorDAGStatusesOnCreateParams struct {
-	Dagids         []int64              `json:"dagids"`
-	Daginsertedats []pgtype.Timestamptz `json:"daginsertedats"`
+	Mindaginsertedat pgtype.Timestamptz   `json:"mindaginsertedat"`
+	Maxdaginsertedat pgtype.Timestamptz   `json:"maxdaginsertedat"`
+	Dagids           []int64              `json:"dagids"`
+	Daginsertedats   []pgtype.Timestamptz `json:"daginsertedats"`
 }
 
 // An operator DAG's OLAP row is written by a 'created-dag' message that can be raced by status events.
 // This query reconciles DAG OLAP rows that are created *after* status events have already arrived.
 func (q *Queries) ReconcileOperatorDAGStatusesOnCreate(ctx context.Context, db DBTX, arg ReconcileOperatorDAGStatusesOnCreateParams) error {
-	_, err := db.Exec(ctx, reconcileOperatorDAGStatusesOnCreate, arg.Dagids, arg.Daginsertedats)
+	_, err := db.Exec(ctx, reconcileOperatorDAGStatusesOnCreate,
+		arg.Mindaginsertedat,
+		arg.Maxdaginsertedat,
+		arg.Dagids,
+		arg.Daginsertedats,
+	)
 	return err
 }
 
 const reconcileTaskStatusesFromEvents = `-- name: ReconcileTaskStatusesFromEvents :many
 WITH inputs AS (
     SELECT
-        UNNEST($1::BIGINT[]) AS task_id,
-        UNNEST($2::TIMESTAMPTZ[]) AS task_inserted_at
+        UNNEST($3::BIGINT[]) AS task_id,
+        UNNEST($4::TIMESTAMPTZ[]) AS task_inserted_at
 ), locked_tasks AS (
     SELECT tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, additional_metadata, readable_status, latest_retry_count, latest_worker_id, dag_id, dag_inserted_at, parent_task_external_id, is_durable, idempotency_key, payload_reference_id
     FROM v1_tasks_olap
     WHERE
         (id, inserted_at) IN (SELECT task_id, task_inserted_at FROM inputs)
-        AND inserted_at >= $3::TIMESTAMPTZ
+        AND inserted_at >= $1::TIMESTAMPTZ
+        AND inserted_at <= $2::TIMESTAMPTZ
     ORDER BY inserted_at, id
     FOR UPDATE
 ), relevant_events AS MATERIALIZED (
@@ -3791,7 +3841,8 @@ WITH inputs AS (
     FROM v1_task_events_olap
     WHERE
         (task_id, task_inserted_at) IN (SELECT task_id, task_inserted_at FROM inputs)
-        AND task_inserted_at >= $3::TIMESTAMPTZ
+        AND task_inserted_at >= $1::TIMESTAMPTZ
+        AND task_inserted_at <= $2::TIMESTAMPTZ
 ), max_retry_counts AS (
     SELECT
         task_id,
@@ -3819,6 +3870,8 @@ SET
 FROM statuses_from_events s
 WHERE
     (t.id, t.inserted_at) = (s.task_id, s.task_inserted_at)
+    AND t.inserted_at >= $1::TIMESTAMPTZ
+    AND t.inserted_at <= $2::TIMESTAMPTZ
     AND (
         -- A newer retry count always applies, even when the readable status is
         -- unchanged — same rationale as the guards in UpdateTaskStatuses and
@@ -3833,9 +3886,10 @@ RETURNING t.tenant_id, t.id, t.inserted_at, t.external_id, t.readable_status, t.
 `
 
 type ReconcileTaskStatusesFromEventsParams struct {
+	Mininsertedat   pgtype.Timestamptz   `json:"mininsertedat"`
+	Maxinsertedat   pgtype.Timestamptz   `json:"maxinsertedat"`
 	Taskids         []int64              `json:"taskids"`
 	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Mininsertedat   pgtype.Timestamptz   `json:"mininsertedat"`
 }
 
 type ReconcileTaskStatusesFromEventsRow struct {
@@ -3851,7 +3905,12 @@ type ReconcileTaskStatusesFromEventsRow struct {
 }
 
 func (q *Queries) ReconcileTaskStatusesFromEvents(ctx context.Context, db DBTX, arg ReconcileTaskStatusesFromEventsParams) ([]*ReconcileTaskStatusesFromEventsRow, error) {
-	rows, err := db.Query(ctx, reconcileTaskStatusesFromEvents, arg.Taskids, arg.Taskinsertedats, arg.Mininsertedat)
+	rows, err := db.Query(ctx, reconcileTaskStatusesFromEvents,
+		arg.Mininsertedat,
+		arg.Maxinsertedat,
+		arg.Taskids,
+		arg.Taskinsertedats,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -3942,6 +4001,7 @@ WITH tenants AS (
         v1_dags_olap d
     WHERE
         d.inserted_at >= $4::TIMESTAMPTZ
+        AND d.inserted_at <= $5::TIMESTAMPTZ
         AND (d.inserted_at, d.id, d.tenant_id) IN (
             SELECT
                 dd.dag_inserted_at, dd.dag_id, dd.tenant_id
@@ -3970,6 +4030,7 @@ WITH tenants AS (
             (dt.task_id, dt.task_inserted_at) = (t.id, t.inserted_at)
     WHERE
         dt.dag_inserted_at >= $4::TIMESTAMPTZ
+        AND dt.dag_inserted_at <= $5::TIMESTAMPTZ
         AND t.inserted_at >= $4::TIMESTAMPTZ
     -- Note that the ORDER BY seems to help the query planner by pruning partitions earlier. We
     -- have previously seen Postgres use an index-only scan on partitions older than the minInsertedAt,
@@ -4039,6 +4100,8 @@ WITH tenants AS (
     WHERE
         -- Only consider rows where we would actually change the status
         dns.old_readable_status != dns.new_readable_status
+        AND d.inserted_at >= $4::TIMESTAMPTZ
+        AND d.inserted_at <= $5::TIMESTAMPTZ
 ), updated_target_partition_dags AS (
     -- Update the existing rows in the target partition
     UPDATE
@@ -4050,6 +4113,8 @@ WITH tenants AS (
         already_in_target_partition ap
     WHERE
         (d.inserted_at, d.id, d.readable_status) = (ap.inserted_at, ap.id, ap.new_readable_status)
+        AND d.inserted_at >= $4::TIMESTAMPTZ
+        AND d.inserted_at <= $5::TIMESTAMPTZ
     RETURNING
         d.tenant_id, d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
 ), deleted_duplicate_dags AS (
@@ -4060,6 +4125,8 @@ WITH tenants AS (
         already_in_target_partition ap
     WHERE
         (d.inserted_at, d.id, d.readable_status) = (ap.inserted_at, ap.id, ap.old_readable_status)
+        AND d.inserted_at >= $4::TIMESTAMPTZ
+        AND d.inserted_at <= $5::TIMESTAMPTZ
 ), dags_to_update AS (
     -- DAGs that need updating and don't already exist in target partition
     SELECT DISTINCT ON (dns.tenant_id, dns.id, dns.inserted_at)
@@ -4088,6 +4155,8 @@ WITH tenants AS (
     WHERE
         (d.inserted_at, d.id, d.readable_status) = (dtu.inserted_at, dtu.id, dtu.old_readable_status)
         AND dtu.old_readable_status != dtu.new_readable_status
+        AND d.inserted_at >= $4::TIMESTAMPTZ
+        AND d.inserted_at <= $5::TIMESTAMPTZ
     RETURNING
         d.tenant_id, d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
 ), all_result_dags AS (
@@ -4159,6 +4228,7 @@ type UpdateDAGStatusesParams struct {
 	Tenantids       []uuid.UUID        `json:"tenantids"`
 	Eventlimit      int32              `json:"eventlimit"`
 	Mininsertedat   pgtype.Timestamptz `json:"mininsertedat"`
+	Maxinsertedat   pgtype.Timestamptz `json:"maxinsertedat"`
 }
 
 type UpdateDAGStatusesRow struct {
@@ -4177,6 +4247,7 @@ func (q *Queries) UpdateDAGStatuses(ctx context.Context, db DBTX, arg UpdateDAGS
 		arg.Tenantids,
 		arg.Eventlimit,
 		arg.Mininsertedat,
+		arg.Maxinsertedat,
 	)
 	if err != nil {
 		return nil, err
@@ -4586,6 +4657,7 @@ WITH tenants AS (
             (t.tenant_id, t.id, t.inserted_at) = (e.tenant_id, e.task_id, e.task_inserted_at)
     WHERE
         t.inserted_at >= $4::TIMESTAMPTZ
+        AND t.inserted_at <= $5::TIMESTAMPTZ
     ORDER BY
         t.tenant_id, t.id, t.inserted_at, t.readable_status
 ), locked_tasks AS (
@@ -4596,6 +4668,9 @@ WITH tenants AS (
     JOIN
         distinct_tasks_to_lock dt ON
             (dt.inserted_at, dt.id) = (t.inserted_at, t.id)
+    WHERE
+        t.inserted_at >= $4::TIMESTAMPTZ
+        AND t.inserted_at <= $5::TIMESTAMPTZ
     FOR UPDATE
 ), already_in_target_partition AS (
     -- Check if rows already exist in the target partition (with the new readable_status)
@@ -4623,6 +4698,8 @@ WITH tenants AS (
     WHERE
         -- Only consider rows where we would actually change the status
         lt.readable_status != lt.max_readable_status
+        AND t.inserted_at >= $4::TIMESTAMPTZ
+        AND t.inserted_at <= $5::TIMESTAMPTZ
 ), deleted_duplicate_tasks AS (
     -- Delete the old rows that already have a copy in the target partition
     DELETE FROM
@@ -4631,6 +4708,8 @@ WITH tenants AS (
         already_in_target_partition ap
     WHERE
         (t.inserted_at, t.id, t.readable_status) = (ap.inserted_at, ap.id, ap.old_readable_status)
+        AND t.inserted_at >= $4::TIMESTAMPTZ
+        AND t.inserted_at <= $5::TIMESTAMPTZ
 ), tasks_to_update AS (
     -- Tasks that need updating and don't already exist in target partition
     SELECT
@@ -4662,6 +4741,8 @@ WITH tenants AS (
             (tu.tenant_id, tu.id, tu.inserted_at, tu.retry_count) = (lw.tenant_id, lw.task_id, lw.task_inserted_at, lw.retry_count)
     WHERE
         (t.inserted_at, t.id, t.readable_status) = (tu.inserted_at, tu.id, tu.readable_status)
+        AND t.inserted_at >= $4::TIMESTAMPTZ
+        AND t.inserted_at <= $5::TIMESTAMPTZ
         AND
             (
                 -- A newer retry count must always apply, even when the readable
@@ -4770,6 +4851,7 @@ type UpdateTaskStatusesParams struct {
 	Tenantids       []uuid.UUID        `json:"tenantids"`
 	Eventlimit      int32              `json:"eventlimit"`
 	Mininsertedat   pgtype.Timestamptz `json:"mininsertedat"`
+	Maxinsertedat   pgtype.Timestamptz `json:"maxinsertedat"`
 }
 
 type UpdateTaskStatusesRow struct {
@@ -4790,6 +4872,7 @@ func (q *Queries) UpdateTaskStatuses(ctx context.Context, db DBTX, arg UpdateTas
 		arg.Tenantids,
 		arg.Eventlimit,
 		arg.Mininsertedat,
+		arg.Maxinsertedat,
 	)
 	if err != nil {
 		return nil, err

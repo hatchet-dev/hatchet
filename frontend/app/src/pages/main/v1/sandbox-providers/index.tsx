@@ -114,7 +114,7 @@ function SandboxProvidersPageContent() {
         emptyState={
           <EmptyState
             title="No sandbox providers"
-            description="Connect a sandbox vendor with your own API key. Hatchet then serves the sandbox SDK for this tenant on top of it."
+            description="Connect a vendor with your own API key to run sandboxes from the SDK."
             buttons={
               canWrite
                 ? [
