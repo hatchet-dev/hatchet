@@ -127,10 +127,12 @@ func NewRepository(
 
 	concurrencyOverview, cleanupConcurrencyOverview := newConcurrencyOverviewRepository(shared)
 
+	durableEvents, cleanupDurableEvents := newDurableEventsRepository(shared, durableEventBufferOpts)
+
 	impl := &repositoryImpl{
 		apiToken:            newAPITokenRepository(shared, cacheDuration),
 		dispatcher:          newDispatcherRepository(shared),
-		durableEvents:       newDurableEventsRepository(shared, durableEventBufferOpts),
+		durableEvents:       durableEvents,
 		health:              newHealthRepository(shared),
 		messageQueue:        mq,
 		rateLimit:           newRateLimitRepository(shared),
@@ -171,6 +173,8 @@ func NewRepository(
 		var multiErr error
 
 		cleanupConcurrencyOverview()
+
+		cleanupDurableEvents()
 
 		if err := cleanupMq(); err != nil {
 			multiErr = fmt.Errorf("failed to cleanup message queue repository: %w", err)

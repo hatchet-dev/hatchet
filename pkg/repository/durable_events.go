@@ -12,7 +12,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -199,23 +199,27 @@ type durableEventsRepository struct {
 	ingestBuffer *durableEventIngestBuffer
 }
 
-// DurableEventBufferOpts configures how IngestDurableTaskEvent requests are buffered into
-// batched database transactions: each request waits up to FlushInterval to accumulate a batch
-// of at most MaxBatchSize requests, and at most MaxConcurrentFlushes batches run at once.
+// DurableEventBufferOpts configures the buffer we use to batch IngestDurableTaskEvent writes.
+// If we haven't flushed in the last FlushInterval, we flush right away so requests don't sit
+// around waiting when there isn't much traffic. Otherwise, we wait until the interval is up
+// so we can write a batch of up to MaxBatchSize requests in one transaction.
+// MaxConcurrentFlushes limits how many flushes can run at the same time.
 type DurableEventBufferOpts struct {
 	FlushInterval        time.Duration
 	MaxBatchSize         int
 	MaxConcurrentFlushes int
 }
 
-func newDurableEventsRepository(shared *sharedRepository, opts DurableEventBufferOpts) *durableEventsRepository {
+func newDurableEventsRepository(shared *sharedRepository, opts DurableEventBufferOpts) (*durableEventsRepository, func()) {
 	r := &durableEventsRepository{
 		sharedRepository: shared,
 	}
 
-	r.ingestBuffer = newDurableEventIngestBuffer(r.appendDurableEventLogBatch, opts.FlushInterval, opts.MaxBatchSize, opts.MaxConcurrentFlushes)
+	ingestBufferCtx, stopIngestBuffer := context.WithCancel(context.Background())
 
-	return r
+	r.ingestBuffer = newDurableEventIngestBuffer(ingestBufferCtx, r.appendDurableEventLogBatch, opts.FlushInterval, opts.MaxBatchSize, opts.MaxConcurrentFlushes)
+
+	return r, stopIngestBuffer
 }
 
 type durableTaskId int64
@@ -242,27 +246,30 @@ type durableEventIngestRequest struct {
 }
 
 type durableEventIngestBuffer struct {
-	mu             sync.Mutex
-	pending        []*durableEventIngestRequest
-	flushScheduled bool
-	flushInterval  time.Duration
-	maxBatchSize   int
-	flushSemaphore chan struct{}
-	ingest         func(ctx context.Context, batch map[durableTaskId]IngestDurableTaskEventOpts) (map[durableTaskId]*appendDurableEventLogResult, map[durableTaskId]error, error)
+	pendingRequests *msgqueue.BatchBuffer[*durableEventIngestRequest]
+	flushSemaphore  chan struct{}
+	ingest          func(ctx context.Context, batch map[durableTaskId]IngestDurableTaskEventOpts) (map[durableTaskId]*appendDurableEventLogResult, map[durableTaskId]error, error)
 }
 
 func newDurableEventIngestBuffer(
+	ctx context.Context,
 	ingest func(ctx context.Context, batch map[durableTaskId]IngestDurableTaskEventOpts) (map[durableTaskId]*appendDurableEventLogResult, map[durableTaskId]error, error),
 	flushInterval time.Duration,
 	maxBatchSize int,
 	maxConcurrentFlushes int,
 ) *durableEventIngestBuffer {
-	return &durableEventIngestBuffer{
-		flushInterval:  flushInterval,
-		maxBatchSize:   maxBatchSize,
+	b := &durableEventIngestBuffer{
 		flushSemaphore: make(chan struct{}, maxConcurrentFlushes),
 		ingest:         ingest,
 	}
+
+	b.pendingRequests = msgqueue.NewBatchBuffer(ctx, flushInterval, maxBatchSize, func(requests []*durableEventIngestRequest) {
+		// the batch buffer only starts the next batch once this function returns, so the flush runs
+		// in its own goroutine to let up to maxConcurrentFlushes batches be written at the same time
+		go b.flush(requests, "buffer_flush")
+	})
+
+	return b
 }
 
 func (b *durableEventIngestBuffer) submit(ctx context.Context, taskId durableTaskId, opts IngestDurableTaskEventOpts) (*appendDurableEventLogResult, error) {
@@ -276,25 +283,8 @@ func (b *durableEventIngestBuffer) submit(ctx context.Context, taskId durableTas
 		responseCh: make(chan durableEventIngestResponse, 1),
 	}
 
-	b.mu.Lock()
-	b.pending = append(b.pending, request)
-
-	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "pending_requests", Value: len(b.pending)})
-
-	var requestsToFlush []*durableEventIngestRequest
-
-	if len(b.pending) >= b.maxBatchSize {
-		requestsToFlush = b.pending
-		b.pending = nil
-		b.flushScheduled = false
-	} else if !b.flushScheduled {
-		b.flushScheduled = true
-		go b.flushAfterInterval()
-	}
-	b.mu.Unlock()
-
-	if requestsToFlush != nil {
-		go b.flush(requestsToFlush, "max_batch_size") // #nosec G118 -- one flush serves many request contexts, so it intentionally runs detached from any single one
+	if err := b.pendingRequests.Enqueue(request); err != nil {
+		return nil, err
 	}
 
 	select {
@@ -309,20 +299,6 @@ func (b *durableEventIngestBuffer) submit(ctx context.Context, taskId durableTas
 		return response.result, response.err
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	}
-}
-
-func (b *durableEventIngestBuffer) flushAfterInterval() {
-	time.Sleep(b.flushInterval)
-
-	b.mu.Lock()
-	requestsToFlush := b.pending
-	b.pending = nil
-	b.flushScheduled = false
-	b.mu.Unlock()
-
-	if len(requestsToFlush) > 0 {
-		b.flush(requestsToFlush, "interval")
 	}
 }
 
