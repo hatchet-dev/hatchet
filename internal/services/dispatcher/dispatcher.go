@@ -19,6 +19,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
+	"github.com/hatchet-dev/hatchet/internal/gocronutils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
@@ -367,8 +368,9 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 		return nil, err
 	}
 
-	_, err = d.s.NewJob(
-		gocron.DurationJob(time.Second*5),
+	_, err = gocronutils.NewJitteredDurationJob(
+		d.s,
+		time.Second*5,
 		gocron.NewTask(
 			d.runUpdateHeartbeat(ctx),
 		),

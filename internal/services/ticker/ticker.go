@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/gocronutils"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/syncx"
@@ -182,8 +183,9 @@ func (t *TickerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not subscribe to cron refresh topic: %w", err)
 	}
 
-	_, err = t.s.NewJob(
-		gocron.DurationJob(time.Second*5),
+	_, err = gocronutils.NewJitteredDurationJob(
+		t.s,
+		time.Second*5,
 		gocron.NewTask(
 			t.runUpdateHeartbeat(ctx),
 		),
@@ -194,9 +196,10 @@ func (t *TickerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not create update heartbeat job: %w", err)
 	}
 
-	_, err = t.s.NewJob(
+	_, err = gocronutils.NewJitteredDurationJob(
+		t.s,
 		// crons only have a resolution of 1 minute, so only poll every 15 seconds
-		gocron.DurationJob(time.Second*15),
+		time.Second*15,
 		gocron.NewTask(
 			t.refreshCronSchedules(ctx),
 		),
@@ -208,11 +211,12 @@ func (t *TickerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not create poll cron schedules job: %w", err)
 	}
 
-	_, err = t.s.NewJob(
+	_, err = gocronutils.NewJitteredDurationJob(
+		t.s,
 		// we look ahead every 5 seconds
 		// FIXME: add another queue similar to cron jobs so that tasks scheduled less than 5 seconds
 		// into the future do not take 5 seconds to be triggered
-		gocron.DurationJob(time.Second*5),
+		time.Second*5,
 		gocron.NewTask(
 			t.runPollSchedules(ctx),
 		),
@@ -224,10 +228,11 @@ func (t *TickerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not create poll cron schedules job: %w", err)
 	}
 
-	_, err = t.s.NewJob(
+	_, err = gocronutils.NewJitteredDurationJob(
+		t.s,
 		// counts are read as count rows plus deltas, so this interval only bounds how many
 		// deltas a read has to sum
-		gocron.DurationJob(time.Second*5),
+		time.Second*5,
 		gocron.NewTask(
 			t.runCompactAllocatedResourceCounts(ctx),
 		),
@@ -240,8 +245,9 @@ func (t *TickerImpl) Start() (func() error, error) {
 	}
 
 	// poll for expiring tokens every 15 minutes
-	_, err = t.s.NewJob(
-		gocron.DurationJob(time.Minute*15),
+	_, err = gocronutils.NewJitteredDurationJob(
+		t.s,
+		time.Minute*15,
 		gocron.NewTask(
 			t.runExpiringTokenAlerts(ctx),
 		),
@@ -253,8 +259,9 @@ func (t *TickerImpl) Start() (func() error, error) {
 	}
 
 	// poll for tenant resource limit alerts every 15 minutes
-	_, err = t.s.NewJob(
-		gocron.DurationJob(time.Minute*15),
+	_, err = gocronutils.NewJitteredDurationJob(
+		t.s,
+		time.Minute*15,
 		gocron.NewTask(
 			t.runTenantResourceLimitAlerts(ctx),
 		),
