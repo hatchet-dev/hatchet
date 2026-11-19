@@ -5,8 +5,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func TriggerTaskMessage(tenantId uuid.UUID, payloads ...*v1.WorkflowNameTriggerOpts) (*msgqueue.Message, error) {
@@ -192,7 +192,7 @@ type CancelledTaskPayload struct {
 	EventMessage string
 
 	// (required) the reason for cancellation
-	EventType sqlcv1.V1EventTypeOlap
+	EventType enums.V1EventTypeOlap
 
 	// (optional) whether the task should notify the worker
 	ShouldNotify bool
@@ -205,7 +205,7 @@ func CancelledTaskMessage(
 	taskExternalId uuid.UUID,
 	workflowRunId uuid.UUID,
 	retryCount int32,
-	eventType sqlcv1.V1EventTypeOlap,
+	eventType enums.V1EventTypeOlap,
 	eventMessage string,
 	shouldNotify bool,
 ) (*msgqueue.Message, error) {
@@ -260,7 +260,7 @@ type NotifyFinalizedPayload struct {
 	ExternalId uuid.UUID `validate:"required"`
 
 	// (required) the status of the task
-	Status sqlcv1.V1ReadableStatusOlap
+	Status enums.V1ReadableStatusOlap
 }
 
 type CandidateFinalizedPayload struct {

@@ -56,6 +56,10 @@ type Queuer struct {
 
 	resultsCh chan<- *QueueResults
 
+	// onBatched receives queue items once they are committed to the batched queue, so the
+	// tenant manager can start a batch scheduler for their step. May be nil.
+	onBatched func([]*sqlcv1.V1QueueItem)
+
 	// notifyQueueCh carries wake-ups to loopQueue. Its buffer of one is the coalescing
 	// state: queue drops a wake-up only while one is already buffered, and the tick that
 	// consumes the buffered one refills after the drop, so it sees everything the dropped
@@ -71,6 +75,14 @@ type Queuer struct {
 
 	unassigned   map[int64]*sqlcv1.V1QueueItem
 	unassignedMu mutex
+
+	// unassignedCount mirrors len(unassigned) so it can be read without unassignedMu,
+	// which a refill holds across its database read.
+	unassignedCount atomic.Int64
+
+	// delayedWakePending is set for the whole wait of a queueAfter wake, so a second
+	// request during that wait does not start another one.
+	delayedWakePending atomic.Bool
 
 	// consecutiveEmptyPolls counts loop iterations whose refill returned no items. It is only
 	// accessed from the loopQueue goroutine.
@@ -103,7 +115,7 @@ func (q *Queuer) nextPollInterval() time.Duration {
 	return interval + rand.N(interval/2) //nolint:gosec
 }
 
-func newQueuer(conf *sharedConfig, tenantId uuid.UUID, queueName string, s *Scheduler, resultsCh chan<- *QueueResults) *Queuer {
+func newQueuer(conf *sharedConfig, tenantId uuid.UUID, queueName string, s *Scheduler, resultsCh chan<- *QueueResults, onBatched func([]*sqlcv1.V1QueueItem)) *Queuer {
 	defaultLimit := 100
 
 	if conf.singleQueueLimit > 0 {
@@ -129,6 +141,7 @@ func newQueuer(conf *sharedConfig, tenantId uuid.UUID, queueName string, s *Sche
 		s:             s,
 		limit:         defaultLimit,
 		resultsCh:     resultsCh,
+		onBatched:     onBatched,
 		notifyQueueCh: notifyQueueCh,
 		unackedMu:     newRWMu(&queueLogger),
 		unacked:       make(map[int64]struct{}),
@@ -177,6 +190,23 @@ func (q *Queuer) queue(ctx context.Context) {
 	case q.notifyQueueCh <- telemetry.GetCarrier(telemetryCtx):
 	default:
 	}
+}
+
+// queueAfter wakes loopQueue after delay. A queuer with a delayed wake already pending
+// keeps that one, so overlapping callers cost a single poll.
+func (q *Queuer) queueAfter(ctx context.Context, delay time.Duration) {
+	if !q.delayedWakePending.CompareAndSwap(false, true) {
+		return
+	}
+
+	time.AfterFunc(delay, func() {
+		q.delayedWakePending.Store(false)
+		q.queue(ctx)
+	})
+}
+
+func (q *Queuer) hasUnassigned() bool {
+	return q.unassignedCount.Load() > 0
 }
 
 func (q *Queuer) loopQueue(ctx context.Context) {
@@ -647,6 +677,8 @@ func (q *Queuer) ack(r *assignResults) {
 		delete(q.unacked, rateLimitedItem.qi.ID)
 		q.unassigned[rateLimitedItem.qi.ID] = rateLimitedItem.qi
 	}
+
+	q.unassignedCount.Store(int64(len(q.unassigned)))
 }
 
 func (q *Queuer) unackedToUnassigned(items []*sqlcv1.V1QueueItem) {
@@ -660,6 +692,8 @@ func (q *Queuer) unackedToUnassigned(items []*sqlcv1.V1QueueItem) {
 		delete(q.unacked, item.ID)
 		q.unassigned[item.ID] = item
 	}
+
+	q.unassignedCount.Store(int64(len(q.unassigned)))
 }
 
 func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
@@ -800,6 +834,10 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 		}
 	}
 
+	if q.onBatched != nil && len(opts.Batched) > 0 {
+		q.onBatched(opts.Batched)
+	}
+
 	writeDuration := time.Since(begin)
 	checkpoint := time.Now()
 
@@ -884,11 +922,11 @@ func (q *Queuer) runOptimisticQueue(
 	tx *v1.OptimisticTx,
 	qis []*sqlcv1.V1QueueItem,
 	localWorkerIds map[uuid.UUID]struct{},
-) ([]*v1.AssignedItem, []*QueueResults, error) {
+) ([]*v1.AssignedItem, []*QueueResults, []*sqlcv1.V1QueueItem, error) {
 	rls, rlDefinitions, err := q.repo.GetTaskRateLimits(ctx, tx, qis)
 
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// not deferred to post-commit: a new key's row must exist before use() below, and a rolled-back trigger only leaves an unused row
@@ -915,38 +953,46 @@ func (q *Queuer) runOptimisticQueue(
 	}
 	batchConfigs, err := q.repo.GetStepBatchConfigs(ctx, tx, stepIds)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	labels, err := q.repo.GetDesiredLabels(ctx, tx, stepIds)
 
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	stepRequests, err := q.repo.GetStepSlotRequests(ctx, tx, stepIds)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	assignCh := q.s.tryAssign(ctx, qis, labels, stepRequests, rls, taskIdToDesiredLabelsFromTrigger, batchConfigs)
 
 	var allLocalAssigned []*v1.AssignedItem
 	var allQueueResults []*QueueResults
+	var allBatched []*sqlcv1.V1QueueItem
 
 	for r := range assignCh {
 		// no parallelization since we're in a transaction
 		assigned, queueResults, err := q.flushToDatabaseOptimistic(ctx, r, tx, localWorkerIds)
 
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 
 		allLocalAssigned = append(allLocalAssigned, assigned...)
 		allQueueResults = append(allQueueResults, queueResults)
+
+		for _, batchedItem := range r.batched {
+			if batchedItem != nil && batchedItem.qi != nil {
+				allBatched = append(allBatched, batchedItem.qi)
+			}
+		}
 	}
 
-	return allLocalAssigned, allQueueResults, nil
+	// batched items aren't committed until the caller commits tx, so the caller notifies for them
+	return allLocalAssigned, allQueueResults, allBatched, nil
 }
 
 func (q *Queuer) flushToDatabaseOptimistic(

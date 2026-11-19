@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -82,7 +83,7 @@ WITH active_controller_partitions AS (
     FROM
         "ControllerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() - INTERVAL '20 seconds'
 )
 INSERT INTO "Tenant" ("id", "name", "slug", "controllerPartitionId", "dataRetentionPeriod", "version", "onboardingData", "environment")
 VALUES (
@@ -107,13 +108,13 @@ RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name,
 `
 
 type CreateTenantParams struct {
-	ID                  uuid.UUID                    `json:"id"`
-	Name                string                       `json:"name"`
-	Slug                string                       `json:"slug"`
-	DataRetentionPeriod pgtype.Text                  `json:"dataRetentionPeriod"`
-	Version             NullTenantMajorEngineVersion `json:"version"`
-	OnboardingData      []byte                       `json:"onboardingData"`
-	Environment         NullTenantEnvironment        `json:"environment"`
+	ID                  uuid.UUID                       `json:"id"`
+	Name                string                          `json:"name"`
+	Slug                string                          `json:"slug"`
+	DataRetentionPeriod pgtype.Text                     `json:"dataRetentionPeriod"`
+	Version             *enums.TenantMajorEngineVersion `json:"version"`
+	OnboardingData      []byte                          `json:"onboardingData"`
+	Environment         NullTenantEnvironment           `json:"environment"`
 }
 
 func (q *Queries) CreateTenant(ctx context.Context, db DBTX, arg CreateTenantParams) (*Tenant, error) {
@@ -225,10 +226,10 @@ RETURNING id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayl
 `
 
 type CreateTenantMemberParams struct {
-	Tenantid        uuid.UUID        `json:"tenantid"`
-	Userid          uuid.UUID        `json:"userid"`
-	Role            TenantMemberRole `json:"role"`
-	CanViewPayloads pgtype.Bool      `json:"canViewPayloads"`
+	Tenantid        uuid.UUID              `json:"tenantid"`
+	Userid          uuid.UUID              `json:"userid"`
+	Role            enums.TenantMemberRole `json:"role"`
+	CanViewPayloads pgtype.Bool            `json:"canViewPayloads"`
 }
 
 func (q *Queries) CreateTenantMember(ctx context.Context, db DBTX, arg CreateTenantMemberParams) (*TenantMember, error) {
@@ -1155,6 +1156,17 @@ func (q *Queries) ListTenantsByTenantWorkerPartitionId(ctx context.Context, db D
 	return items, nil
 }
 
+const lockPartitionRebalance = `-- name: LockPartitionRebalance :exec
+SELECT pg_advisory_xact_lock(hashtext($1::text)::bigint)
+`
+
+// Serializes the rebalance statements of one partition kind for the rest of the transaction, so two
+// instances rebalancing at once do not move the same tenant twice.
+func (q *Queries) LockPartitionRebalance(ctx context.Context, db DBTX, partitionkind string) error {
+	_, err := db.Exec(ctx, lockPartitionRebalance, partitionkind)
+	return err
+}
+
 const populateTenantMembers = `-- name: PopulateTenantMembers :many
 SELECT
     tm.id, tm."createdAt", tm."updatedAt", tm."tenantId", tm."userId", tm.role, tm."canViewPayloads",
@@ -1181,25 +1193,25 @@ WHERE
 `
 
 type PopulateTenantMembersRow struct {
-	ID                        uuid.UUID                `json:"id"`
-	CreatedAt                 pgtype.Timestamp         `json:"createdAt"`
-	UpdatedAt                 pgtype.Timestamp         `json:"updatedAt"`
-	TenantId                  uuid.UUID                `json:"tenantId"`
-	UserId                    uuid.UUID                `json:"userId"`
-	Role                      TenantMemberRole         `json:"role"`
-	CanViewPayloads           bool                     `json:"canViewPayloads"`
-	Email                     string                   `json:"email"`
-	Name                      pgtype.Text              `json:"name"`
-	TenantId_2                uuid.UUID                `json:"tenantId_2"`
-	TenantCreatedAt           pgtype.Timestamp         `json:"tenantCreatedAt"`
-	TenantUpdatedAt           pgtype.Timestamp         `json:"tenantUpdatedAt"`
-	TenantName                string                   `json:"tenantName"`
-	TenantSlug                string                   `json:"tenantSlug"`
-	AlertMemberEmails         bool                     `json:"alertMemberEmails"`
-	AnalyticsOptOut           bool                     `json:"analyticsOptOut"`
-	TenantVersion             TenantMajorEngineVersion `json:"tenantVersion"`
-	TenantEnvironment         NullTenantEnvironment    `json:"tenantEnvironment"`
-	TenantDataRetentionPeriod string                   `json:"tenantDataRetentionPeriod"`
+	ID                        uuid.UUID                      `json:"id"`
+	CreatedAt                 pgtype.Timestamp               `json:"createdAt"`
+	UpdatedAt                 pgtype.Timestamp               `json:"updatedAt"`
+	TenantId                  uuid.UUID                      `json:"tenantId"`
+	UserId                    uuid.UUID                      `json:"userId"`
+	Role                      enums.TenantMemberRole         `json:"role"`
+	CanViewPayloads           bool                           `json:"canViewPayloads"`
+	Email                     string                         `json:"email"`
+	Name                      pgtype.Text                    `json:"name"`
+	TenantId_2                uuid.UUID                      `json:"tenantId_2"`
+	TenantCreatedAt           pgtype.Timestamp               `json:"tenantCreatedAt"`
+	TenantUpdatedAt           pgtype.Timestamp               `json:"tenantUpdatedAt"`
+	TenantName                string                         `json:"tenantName"`
+	TenantSlug                string                         `json:"tenantSlug"`
+	AlertMemberEmails         bool                           `json:"alertMemberEmails"`
+	AnalyticsOptOut           bool                           `json:"analyticsOptOut"`
+	TenantVersion             enums.TenantMajorEngineVersion `json:"tenantVersion"`
+	TenantEnvironment         NullTenantEnvironment          `json:"tenantEnvironment"`
+	TenantDataRetentionPeriod string                         `json:"tenantDataRetentionPeriod"`
 }
 
 func (q *Queries) PopulateTenantMembers(ctx context.Context, db DBTX, ids []uuid.UUID) ([]*PopulateTenantMembersRow, error) {
@@ -1250,7 +1262,7 @@ WITH active_partitions AS (
     FROM
         "ControllerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() - INTERVAL '20 seconds'
 ),
 tenants_to_update AS (
     SELECT
@@ -1269,7 +1281,7 @@ FROM
     active_partitions AS partitions
 WHERE
     tenants."id" = tenants_to_update."id" AND
-    partitions.row_number = (tenants_to_update.row_number - 1) % (SELECT COUNT(*) FROM active_partitions) + 1
+    partitions.row_number = (tenants_to_update.row_number - 1) % NULLIF((SELECT COUNT(*) FROM active_partitions), 0) + 1
 `
 
 func (q *Queries) RebalanceAllControllerPartitions(ctx context.Context, db DBTX) error {
@@ -1285,7 +1297,7 @@ WITH active_partitions AS (
     FROM
         "SchedulerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() - INTERVAL '20 seconds'
 ),
 tenants_to_update AS (
     SELECT
@@ -1305,7 +1317,7 @@ FROM
     active_partitions AS partitions
 WHERE
     tenants."id" = tenants_to_update."id" AND
-    partitions.row_number = (tenants_to_update.row_number - 1) % (SELECT COUNT(*) FROM active_partitions) + 1
+    partitions.row_number = (tenants_to_update.row_number - 1) % NULLIF((SELECT COUNT(*) FROM active_partitions), 0) + 1
 `
 
 func (q *Queries) RebalanceAllSchedulerPartitions(ctx context.Context, db DBTX) error {
@@ -1321,7 +1333,7 @@ WITH active_partitions AS (
     FROM
         "TenantWorkerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() - INTERVAL '20 seconds'
 ),
 tenants_to_update AS (
     SELECT
@@ -1341,7 +1353,7 @@ FROM
     active_partitions AS partitions
 WHERE
     tenants."id" = tenants_to_update."id" AND
-    partitions.row_number = (tenants_to_update.row_number - 1) % (SELECT COUNT(*) FROM active_partitions) + 1
+    partitions.row_number = (tenants_to_update.row_number - 1) % NULLIF((SELECT COUNT(*) FROM active_partitions), 0) + 1
 `
 
 func (q *Queries) RebalanceAllTenantWorkerPartitions(ctx context.Context, db DBTX) error {
@@ -1357,14 +1369,14 @@ WITH active_partitions AS (
     FROM
         "ControllerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() - INTERVAL '20 seconds'
 ), inactive_partitions AS (
     SELECT
         "id"
     FROM
         "ControllerPartition"
     WHERE
-        "lastHeartbeat" <= NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" <= NOW() - INTERVAL '20 seconds'
 ), tenants_to_update AS (
     SELECT
         tenants."id" AS "id",
@@ -1382,7 +1394,7 @@ WITH active_partitions AS (
         active_partitions AS partitions
     WHERE
     tenants."id" = tenants_to_update."id" AND
-    partitions.row_number = (tenants_to_update.row_number - 1) % (SELECT COUNT(*) FROM active_partitions) + 1
+    partitions.row_number = (tenants_to_update.row_number - 1) % NULLIF((SELECT COUNT(*) FROM active_partitions), 0) + 1
 )
 DELETE FROM "ControllerPartition"
 WHERE "id" IN (SELECT "id" FROM inactive_partitions)
@@ -1401,14 +1413,14 @@ WITH active_partitions AS (
     FROM
         "SchedulerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() - INTERVAL '20 seconds'
 ), inactive_partitions AS (
     SELECT
         "id"
     FROM
         "SchedulerPartition"
     WHERE
-        "lastHeartbeat" <= NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" <= NOW() - INTERVAL '20 seconds'
 ), tenants_to_update AS (
     SELECT
         tenants."id" AS "id",
@@ -1429,7 +1441,7 @@ WITH active_partitions AS (
         active_partitions AS partitions
     WHERE
     tenants."id" = tenants_to_update."id" AND
-    partitions.row_number = (tenants_to_update.row_number - 1) % (SELECT COUNT(*) FROM active_partitions) + 1
+    partitions.row_number = (tenants_to_update.row_number - 1) % NULLIF((SELECT COUNT(*) FROM active_partitions), 0) + 1
 )
 DELETE FROM "SchedulerPartition"
 WHERE "id" IN (SELECT "id" FROM inactive_partitions)
@@ -1448,14 +1460,14 @@ WITH active_partitions AS (
     FROM
         "TenantWorkerPartition"
     WHERE
-        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" > NOW() - INTERVAL '20 seconds'
 ), inactive_partitions AS (
     SELECT
         "id"
     FROM
         "TenantWorkerPartition"
     WHERE
-        "lastHeartbeat" <= NOW() - INTERVAL '1 minute'
+        "lastHeartbeat" <= NOW() - INTERVAL '20 seconds'
 ), tenants_to_update AS (
     SELECT
         tenants."id" AS "id",
@@ -1476,7 +1488,7 @@ WITH active_partitions AS (
         active_partitions AS partitions
     WHERE
     tenants."id" = tenants_to_update."id" AND
-    partitions.row_number = (tenants_to_update.row_number - 1) % (SELECT COUNT(*) FROM active_partitions) + 1
+    partitions.row_number = (tenants_to_update.row_number - 1) % NULLIF((SELECT COUNT(*) FROM active_partitions), 0) + 1
 )
 DELETE FROM "TenantWorkerPartition"
 WHERE "id" IN (SELECT "id" FROM inactive_partitions)
@@ -1525,12 +1537,12 @@ RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name,
 `
 
 type UpdateTenantParams struct {
-	Name                pgtype.Text                  `json:"name"`
-	AnalyticsOptOut     pgtype.Bool                  `json:"analyticsOptOut"`
-	AlertMemberEmails   pgtype.Bool                  `json:"alertMemberEmails"`
-	Version             NullTenantMajorEngineVersion `json:"version"`
-	DataRetentionPeriod pgtype.Text                  `json:"dataRetentionPeriod"`
-	ID                  uuid.UUID                    `json:"id"`
+	Name                pgtype.Text                     `json:"name"`
+	AnalyticsOptOut     pgtype.Bool                     `json:"analyticsOptOut"`
+	AlertMemberEmails   pgtype.Bool                     `json:"alertMemberEmails"`
+	Version             *enums.TenantMajorEngineVersion `json:"version"`
+	DataRetentionPeriod pgtype.Text                     `json:"dataRetentionPeriod"`
+	ID                  uuid.UUID                       `json:"id"`
 }
 
 func (q *Queries) UpdateTenant(ctx context.Context, db DBTX, arg UpdateTenantParams) (*Tenant, error) {
@@ -1635,9 +1647,9 @@ RETURNING id, "createdAt", "updatedAt", "tenantId", "userId", role, "canViewPayl
 `
 
 type UpdateTenantMemberParams struct {
-	Role            NullTenantMemberRole `json:"role"`
-	CanViewPayloads pgtype.Bool          `json:"canViewPayloads"`
-	ID              uuid.UUID            `json:"id"`
+	Role            *enums.TenantMemberRole `json:"role"`
+	CanViewPayloads pgtype.Bool             `json:"canViewPayloads"`
+	ID              uuid.UUID               `json:"id"`
 }
 
 func (q *Queries) UpdateTenantMember(ctx context.Context, db DBTX, arg UpdateTenantMemberParams) (*TenantMember, error) {

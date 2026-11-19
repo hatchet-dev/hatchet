@@ -116,7 +116,8 @@ type BatchQueueFactoryRepository interface {
 }
 
 type BatchQueueRepository interface {
-	ListBatchResources(ctx context.Context) ([]*sqlcv1.ListDistinctBatchResourcesRow, error)
+	// ListBatchResources returns steps with pending batched queue items; nil stepIds means all steps.
+	ListBatchResources(ctx context.Context, stepIds []uuid.UUID) ([]*sqlcv1.ListDistinctBatchResourcesRow, error)
 
 	ListBatchedQueueItems(ctx context.Context, stepId uuid.UUID, excludeIds []int64, limit int32) ([]*sqlcv1.V1BatchedQueueItem, error)
 	ListExistingBatchedQueueItemIds(ctx context.Context, ids []int64) (map[int64]struct{}, error)

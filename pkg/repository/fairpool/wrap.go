@@ -231,6 +231,7 @@ const abandonedTxRollbackTimeout = 15 * time.Second
 
 type txHold struct {
 	tx   pgx.Tx
+	conn *pgxpool.Conn
 	slot *slotHold
 	once sync.Once
 }
@@ -239,7 +240,7 @@ func (h *txHold) finish(ctx context.Context, commit bool) error {
 	err := pgx.ErrTxClosed
 
 	h.once.Do(func() {
-		defer h.slot.release()
+		defer releaseCheckedOut(h.slot, h.conn.Release)
 
 		if commit {
 			err = h.tx.Commit(ctx)
@@ -258,11 +259,11 @@ type gatingTx struct {
 	stop runtime.Cleanup
 }
 
-func newGatingTx(tx pgx.Tx, slot *slotHold) pgx.Tx {
-	hold := &txHold{tx: tx, slot: slot}
+func newGatingTx(tx pgx.Tx, conn *pgxpool.Conn, slot *slotHold) pgx.Tx {
+	hold := &txHold{tx: tx, conn: conn, slot: slot}
 	g := &gatingTx{Tx: tx, hold: hold}
 	// An abandoned transaction still occupies a pool connection. Roll it back
-	// once nothing references it so the slot does not stick for the process lifetime.
+	// once nothing references it so the connection and slot do not stick for the process lifetime.
 	g.stop = runtime.AddCleanup(g, func(h *txHold) {
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), abandonedTxRollbackTimeout)

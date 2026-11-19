@@ -91,6 +91,7 @@ func createOLAPRepositoryManagingAllPartitions(t *testing.T, pool *pgxpool.Pool)
 		false,
 		time.Minute,
 		false,
+		false,
 	)
 	t.Cleanup(func() { _ = cleanupShared() })
 

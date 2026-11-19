@@ -64,6 +64,15 @@ class IdempotencyCollisionError(Exception):
         self.existing_run_external_id = existing_run_external_id
 
 
+class CancelledRunError(ValueError):
+    def __init__(self, workflow_run_id: str) -> None:
+        super().__init__(workflow_run_id)
+        self.workflow_run_id = workflow_run_id
+
+    def __str__(self) -> str:
+        return f"Workflow run {self.workflow_run_id} was cancelled."
+
+
 class BulkTriggerIdempotencyCollisionError(Exception):
     def __init__(
         self,
@@ -219,8 +228,6 @@ def _describe_failed_task_runs(summary: str, exceptions: Sequence[TaskRunError])
 
 
 class FailedTaskRunExceptionGroup(ExceptionGroup[TaskRunError]):
-    _summary: str
-
     def __new__(cls, message: str, exceptions: Sequence[TaskRunError]) -> Self:
         ## `ExceptionGroup` rejects an empty sequence, but a run can fail without
         ## reporting any task errors, so fall back to an error carrying the message.
@@ -235,18 +242,16 @@ class FailedTaskRunExceptionGroup(ExceptionGroup[TaskRunError]):
 
         ## pytest's `match=` and the default traceback only read the group's message,
         ## so the task errors go into it rather than only into `__str__`.
-        group = super().__new__(
+        return super().__new__(
             cls,
             _describe_failed_task_runs(message, exceptions_or_fallback),
             exceptions_or_fallback,
         )
-        group._summary = message
-
-        return group
 
     def __init__(
         self, message: str, exceptions: Sequence[TaskRunError]  # noqa: ARG002
     ) -> None:
+        self._summary = message
         super().__init__(self.message, cast("Sequence[TaskRunError]", self.exceptions))
 
     @property

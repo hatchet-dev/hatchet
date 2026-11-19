@@ -41,6 +41,9 @@ TenantVersion:
     - "V0"
     - "V1"
   type: string
+  x-go-type: enums.TenantMajorEngineVersion
+  x-go-type-import:
+    path: github.com/hatchet-dev/hatchet/pkg/enums
 
 TenantUIVersion:
   enum:
@@ -150,7 +153,13 @@ TenantResource:
     - "CRON"
     - "SCHEDULE"
     - "INCOMING_WEBHOOK"
+    - "STREAM_TOPIC"
+    - "STREAM_MESSAGE"
+    - "STREAM_RETENTION"
   type: string
+  x-go-type: enums.LimitResource
+  x-go-type-import:
+    path: github.com/hatchet-dev/hatchet/pkg/enums
 
 TenantResourceLimit:
   properties:
@@ -275,6 +284,9 @@ TenantMemberRole:
     - "MEMBER"
     - "VIEWER"
   type: string
+  x-go-type: enums.TenantMemberRole
+  x-go-type-import:
+    path: github.com/hatchet-dev/hatchet/pkg/enums
 
 TenantList:
   properties:

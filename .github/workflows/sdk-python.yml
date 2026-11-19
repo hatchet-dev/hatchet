@@ -49,6 +49,12 @@ jobs:
       - name: Run MyPy
         run: poetry run mypy --config-file=pyproject.toml
 
+      - name: Run Pyright
+        run: poetry run pyright --pythonversion ${{ matrix.python-version }}
+
+      - name: Run Ty
+        run: poetry run ty check --python-version ${{ matrix.python-version }}
+
       - name: Run Ruff
         run: poetry run ruff check .
 
@@ -127,6 +133,7 @@ jobs:
           export SERVER_SECURITY_CHECK_ENABLED=false
           export SERVER_PAYLOAD_STORE_WRAP_TASK_INPUT_IN_STEP_RUN_DATA=false
           export SERVER_PAYLOAD_STORE_ENABLE_PAYLOAD_CONSOLIDATION=true
+          export SERVER_CHILD_RUN_DIRECT_SPAWN=true
 
           go run ./cmd/hatchet-admin quickstart
 
@@ -137,7 +144,7 @@ jobs:
           ON CONFLICT (tenant_id) DO NOTHING;
 
           UPDATE tenant_entitlement
-          SET durable_streams = TRUE, operator_step_direct_completion = TRUE;
+          SET durable_streams = TRUE;
           SQL
 
           go run ./cmd/hatchet-engine --config ./generated/ > engine.log 2>&1 &
@@ -191,14 +198,14 @@ jobs:
 
       - name: Upload engine logs
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-cimi-${{ matrix.concurrency-in-memory-index }}-engine-logs
           path: engine.log
 
       - name: Upload API logs
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-cimi-${{ matrix.concurrency-in-memory-index }}-api-logs
           path: api.log

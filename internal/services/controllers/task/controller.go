@@ -30,6 +30,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
@@ -271,13 +272,17 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	jitter := t.opsPoolJitter
 	timeout := time.Second * 30
 
+	// every pool below polls the same per-tenant activity gauge, so they share one result per tick
+	// instead of each querying for it
+	activityGauge := operation.NewSharedGauge(opts.repov1.Tasks().DefaultTaskActivityGauge)
+
 	t.timeoutTaskOperations = operation.NewTenantOperationPool(opts.p, opts.l, "timeout-step-runs", timeout, "timeout step runs", t.processTaskTimeouts, operation.WithPoolInterval(
 		opts.repov1.IntervalSettings(),
 		jitter,
 		1*time.Second,
 		30*time.Second,
 		3,
-		opts.repov1.Tasks().DefaultTaskActivityGauge,
+		activityGauge,
 	))
 
 	t.emitSleepOperations = operation.NewTenantOperationPool(opts.p, opts.l, "emit-sleep-step-runs", timeout, "emit sleep step runs", t.processSleeps, operation.WithPoolInterval(
@@ -286,7 +291,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		1*time.Second,
 		30*time.Second,
 		3,
-		opts.repov1.Tasks().DefaultTaskActivityGauge,
+		activityGauge,
 	))
 
 	t.reassignTaskOperations = operation.NewTenantOperationPool(opts.p, opts.l, "reassign-step-runs", timeout, "reassign step runs", t.processTaskReassignments, operation.WithPoolInterval(
@@ -295,7 +300,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		1*time.Second,
 		30*time.Second,
 		3,
-		opts.repov1.Tasks().DefaultTaskActivityGauge,
+		activityGauge,
 	))
 
 	t.retryTaskOperations = operation.NewTenantOperationPool(opts.p, opts.l, "retry-step-runs", timeout, "retry step runs", t.processTaskRetryQueueItems, operation.WithPoolInterval(
@@ -304,7 +309,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		1*time.Second,
 		30*time.Second,
 		3,
-		opts.repov1.Tasks().DefaultTaskActivityGauge,
+		activityGauge,
 	))
 
 	t.evictExpiredIdempotencyKeysOperations = operation.NewTenantOperationPool(opts.p, opts.l, "evict-expired-idempotency-keys", timeout, "evict expired idempotency keys", t.evictExpiredIdempotencyKeys, operation.WithPoolInterval(
@@ -313,7 +318,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		1*time.Second,
 		30*time.Second,
 		3,
-		opts.repov1.Tasks().DefaultTaskActivityGauge,
+		activityGauge,
 	))
 
 	t.deactivateStaleStepConcurrencyOperations = operation.NewTenantOperationPool(opts.p, opts.l, "deactivate-stale-step-concurrency", timeout, "deactivate stale step concurrency", t.deactivateStaleStepConcurrency, operation.WithPoolInterval(
@@ -322,7 +327,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		15*time.Minute,
 		30*time.Minute,
 		3,
-		opts.repov1.Tasks().DefaultTaskActivityGauge,
+		activityGauge,
 	))
 
 	t.expirePausedWorkflowQueueItemsOperations = operation.NewTenantOperationPool(opts.p, opts.l, "expire-paused-workflow-queue-items", timeout, "expire paused workflow queue items", t.processPausedWorkflowQueueItemTTL, operation.WithPoolInterval(
@@ -331,7 +336,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		1*time.Second,
 		30*time.Second,
 		3,
-		opts.repov1.Tasks().DefaultTaskActivityGauge,
+		activityGauge,
 	))
 
 	t.restoreEvictedOrchestratorsOperations = operation.NewTenantOperationPool(opts.p, opts.l, "restore-evicted-orchestrators", timeout, "restore stuck evicted durable orchestrators", t.processStuckEvictedDurableOrchestrators, operation.WithPoolInterval(
@@ -340,7 +345,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		30*time.Second,
 		2*time.Minute,
 		3,
-		opts.repov1.Tasks().DefaultTaskActivityGauge,
+		activityGauge,
 	))
 
 	return t, nil
@@ -531,7 +536,7 @@ func (tc *TasksControllerImpl) emitOrchestratorTerminalEvent(
 	tenantId uuid.UUID,
 	taskId int64,
 	retryCount int32,
-	eventType sqlcv1.V1EventTypeOlap,
+	eventType enums.V1EventTypeOlap,
 	detail string,
 ) error {
 	payload := tasktypes.CreateMonitoringEventPayload{
@@ -544,7 +549,7 @@ func (tc *TasksControllerImpl) emitOrchestratorTerminalEvent(
 
 	// CANCELLED carries its human-readable reason in EventMessage; FINISHED/FAILED carry the
 	// output / error string in EventPayload (matches the dispatcher's mapping).
-	if eventType == sqlcv1.V1EventTypeOlapCANCELLED {
+	if eventType == enums.V1EventTypeOlapCANCELLED {
 		payload.EventMessage = detail
 	} else {
 		payload.EventPayload = detail
@@ -597,7 +602,7 @@ func (tc *TasksControllerImpl) emitOrchestratorTerminalEvents(
 	released []*sqlcv1.ReleaseTasksRow,
 	detailByTaskId map[int64]string,
 	skipRetried map[int64]struct{},
-	eventType sqlcv1.V1EventTypeOlap,
+	eventType enums.V1EventTypeOlap,
 ) error {
 	var errs error
 
@@ -750,7 +755,7 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
 
 	if err := tc.emitOrchestratorTerminalEvents(
-		ctx, tenantId, res.ReleasedTasks, nil, nil, sqlcv1.V1EventTypeOlapFINISHED,
+		ctx, tenantId, res.ReleasedTasks, nil, nil, enums.V1EventTypeOlapFINISHED,
 	); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "could not publish orchestrator terminal event")
@@ -843,7 +848,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 			tasktypes.CreateMonitoringEventPayload{
 				TaskId:         msg.TaskId,
 				RetryCount:     msg.RetryCount,
-				EventType:      sqlcv1.V1EventTypeOlapFAILED,
+				EventType:      enums.V1EventTypeOlapFAILED,
 				EventTimestamp: time.Now().UTC(),
 				EventPayload:   msg.ErrorMsg,
 				WillRetry:      willRetry,
@@ -881,7 +886,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 	// a retried task is still running, so only orchestrators that reached terminal FAILED get the
 	// reliable OLAP publish
 	if err := tc.emitOrchestratorTerminalEvents(
-		ctx, tenantId, res.ReleasedTasks, idsToErrorMsg, retried, sqlcv1.V1EventTypeOlapFAILED,
+		ctx, tenantId, res.ReleasedTasks, idsToErrorMsg, retried, enums.V1EventTypeOlapFAILED,
 	); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "could not publish orchestrator terminal event")
@@ -1086,7 +1091,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 	}
 
 	if emitErr := tc.emitOrchestratorTerminalEvents(
-		ctx, tenantId, res.ReleasedTasks, cancelMsgByTaskId, nil, sqlcv1.V1EventTypeOlapCANCELLED,
+		ctx, tenantId, res.ReleasedTasks, cancelMsgByTaskId, nil, enums.V1EventTypeOlapCANCELLED,
 	); emitErr != nil {
 		span.RecordError(emitErr)
 		span.SetStatus(codes.Error, "could not publish orchestrator terminal event")
@@ -1127,7 +1132,7 @@ func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId u
 				TaskId:       task.Id,
 				InsertedAt:   task.InsertedAt,
 				RetryCount:   task.RetryCount,
-				EventType:    sqlcv1.V1EventTypeOlapCANCELLED,
+				EventType:    enums.V1EventTypeOlapCANCELLED,
 				ShouldNotify: true,
 			})
 		}
@@ -1716,7 +1721,7 @@ func (tc *TasksControllerImpl) pubRetryEvent(ctx context.Context, tenantId uuid.
 		tasktypes.CreateMonitoringEventPayload{
 			TaskId:         taskId,
 			RetryCount:     task.RetryCount,
-			EventType:      sqlcv1.V1EventTypeOlapRETRYING,
+			EventType:      enums.V1EventTypeOlapRETRYING,
 			EventTimestamp: time.Now(),
 			EventMessage:   retryMsg,
 		},
@@ -1744,7 +1749,7 @@ func (tc *TasksControllerImpl) pubRetryEvent(ctx context.Context, tenantId uuid.
 			tasktypes.CreateMonitoringEventPayload{
 				TaskId:         taskId,
 				RetryCount:     task.RetryCount,
-				EventType:      sqlcv1.V1EventTypeOlapQUEUED,
+				EventType:      enums.V1EventTypeOlapQUEUED,
 				EventTimestamp: time.Now(),
 			},
 		)

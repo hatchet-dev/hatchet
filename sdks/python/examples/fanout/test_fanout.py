@@ -1,5 +1,3 @@
-from uuid import uuid4
-
 import pytest
 
 from examples.fanout.worker import ParentInput, parent_wf

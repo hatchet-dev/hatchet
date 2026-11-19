@@ -1,4 +1,4 @@
-from typing import Literal, cast, overload
+from typing import Literal, overload
 
 import grpc
 
@@ -64,6 +64,7 @@ def new_conn(config: ClientConfig, aio: bool) -> grpc.Channel | grpc.aio.Channel
         ("grpc.default_compression_algorithm", grpc.Compression.Gzip),
     ]
 
+    conn: grpc.Channel | grpc.aio.Channel
     if not credentials:
         conn = start.insecure_channel(
             target=config.host_port,
@@ -80,7 +81,4 @@ def new_conn(config: ClientConfig, aio: bool) -> grpc.Channel | grpc.aio.Channel
             options=channel_options,
         )
 
-    return cast(
-        "grpc.Channel | grpc.aio.Channel",
-        conn,
-    )
+    return conn

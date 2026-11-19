@@ -1,11 +1,8 @@
-from datetime import timedelta
+import argparse
 import ctypes
+from datetime import timedelta
 
 from hatchet_sdk import Context, Hatchet
-
-import argparse
-
-from hatchet_sdk import Hatchet
 
 hatchet = Hatchet()
 

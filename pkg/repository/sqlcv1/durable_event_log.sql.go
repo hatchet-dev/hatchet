@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -117,27 +118,27 @@ type BulkCreateDurableEventLogEntriesParams struct {
 }
 
 type BulkCreateDurableEventLogEntriesRow struct {
-	TenantID                uuid.UUID             `json:"tenant_id"`
-	ExternalID              uuid.UUID             `json:"external_id"`
-	ResultPayloadExternalID uuid.UUID             `json:"result_payload_external_id"`
-	ChildTaskExternalID     *uuid.UUID            `json:"child_task_external_id"`
-	ChildTaskIsFailure      bool                  `json:"child_task_is_failure"`
-	ChildTaskErrorMessage   pgtype.Text           `json:"child_task_error_message"`
-	InsertedAt              pgtype.Timestamptz    `json:"inserted_at"`
-	ID                      int64                 `json:"id"`
-	DurableTaskID           int64                 `json:"durable_task_id"`
-	DurableTaskInsertedAt   pgtype.Timestamptz    `json:"durable_task_inserted_at"`
-	Kind                    V1DurableEventLogKind `json:"kind"`
-	NodeID                  int64                 `json:"node_id"`
-	BranchID                int64                 `json:"branch_id"`
-	IdempotencyKey          []byte                `json:"idempotency_key"`
-	IsSatisfied             bool                  `json:"is_satisfied"`
-	SatisfiedAt             pgtype.Timestamptz    `json:"satisfied_at"`
-	SatisfiedOrder          pgtype.Int8           `json:"satisfied_order"`
-	UserMessage             pgtype.Text           `json:"user_message"`
-	WaitData                []byte                `json:"wait_data"`
-	TriggeredAt             pgtype.Timestamptz    `json:"triggered_at"`
-	InvocationCount         int32                 `json:"invocation_count"`
+	TenantID                uuid.UUID                   `json:"tenant_id"`
+	ExternalID              uuid.UUID                   `json:"external_id"`
+	ResultPayloadExternalID uuid.UUID                   `json:"result_payload_external_id"`
+	ChildTaskExternalID     *uuid.UUID                  `json:"child_task_external_id"`
+	ChildTaskIsFailure      bool                        `json:"child_task_is_failure"`
+	ChildTaskErrorMessage   pgtype.Text                 `json:"child_task_error_message"`
+	InsertedAt              pgtype.Timestamptz          `json:"inserted_at"`
+	ID                      int64                       `json:"id"`
+	DurableTaskID           int64                       `json:"durable_task_id"`
+	DurableTaskInsertedAt   pgtype.Timestamptz          `json:"durable_task_inserted_at"`
+	Kind                    enums.V1DurableEventLogKind `json:"kind"`
+	NodeID                  int64                       `json:"node_id"`
+	BranchID                int64                       `json:"branch_id"`
+	IdempotencyKey          []byte                      `json:"idempotency_key"`
+	IsSatisfied             bool                        `json:"is_satisfied"`
+	SatisfiedAt             pgtype.Timestamptz          `json:"satisfied_at"`
+	SatisfiedOrder          pgtype.Int8                 `json:"satisfied_order"`
+	UserMessage             pgtype.Text                 `json:"user_message"`
+	WaitData                []byte                      `json:"wait_data"`
+	TriggeredAt             pgtype.Timestamptz          `json:"triggered_at"`
+	InvocationCount         int32                       `json:"invocation_count"`
 }
 
 func (q *Queries) BulkCreateDurableEventLogEntries(ctx context.Context, db DBTX, arg BulkCreateDurableEventLogEntriesParams) ([]*BulkCreateDurableEventLogEntriesRow, error) {
@@ -219,27 +220,27 @@ type BulkGetDurableEventLogEntriesParams struct {
 }
 
 type BulkGetDurableEventLogEntriesRow struct {
-	TenantID                uuid.UUID             `json:"tenant_id"`
-	ExternalID              uuid.UUID             `json:"external_id"`
-	ResultPayloadExternalID uuid.UUID             `json:"result_payload_external_id"`
-	ChildTaskExternalID     *uuid.UUID            `json:"child_task_external_id"`
-	ChildTaskIsFailure      bool                  `json:"child_task_is_failure"`
-	ChildTaskErrorMessage   pgtype.Text           `json:"child_task_error_message"`
-	InsertedAt              pgtype.Timestamptz    `json:"inserted_at"`
-	ID                      int64                 `json:"id"`
-	DurableTaskID           int64                 `json:"durable_task_id"`
-	DurableTaskInsertedAt   pgtype.Timestamptz    `json:"durable_task_inserted_at"`
-	Kind                    V1DurableEventLogKind `json:"kind"`
-	NodeID                  int64                 `json:"node_id"`
-	BranchID                int64                 `json:"branch_id"`
-	IdempotencyKey          []byte                `json:"idempotency_key"`
-	IsSatisfied             bool                  `json:"is_satisfied"`
-	SatisfiedAt             pgtype.Timestamptz    `json:"satisfied_at"`
-	SatisfiedOrder          pgtype.Int8           `json:"satisfied_order"`
-	UserMessage             pgtype.Text           `json:"user_message"`
-	WaitData                []byte                `json:"wait_data"`
-	TriggeredAt             pgtype.Timestamptz    `json:"triggered_at"`
-	InvocationCount         int32                 `json:"invocation_count"`
+	TenantID                uuid.UUID                   `json:"tenant_id"`
+	ExternalID              uuid.UUID                   `json:"external_id"`
+	ResultPayloadExternalID uuid.UUID                   `json:"result_payload_external_id"`
+	ChildTaskExternalID     *uuid.UUID                  `json:"child_task_external_id"`
+	ChildTaskIsFailure      bool                        `json:"child_task_is_failure"`
+	ChildTaskErrorMessage   pgtype.Text                 `json:"child_task_error_message"`
+	InsertedAt              pgtype.Timestamptz          `json:"inserted_at"`
+	ID                      int64                       `json:"id"`
+	DurableTaskID           int64                       `json:"durable_task_id"`
+	DurableTaskInsertedAt   pgtype.Timestamptz          `json:"durable_task_inserted_at"`
+	Kind                    enums.V1DurableEventLogKind `json:"kind"`
+	NodeID                  int64                       `json:"node_id"`
+	BranchID                int64                       `json:"branch_id"`
+	IdempotencyKey          []byte                      `json:"idempotency_key"`
+	IsSatisfied             bool                        `json:"is_satisfied"`
+	SatisfiedAt             pgtype.Timestamptz          `json:"satisfied_at"`
+	SatisfiedOrder          pgtype.Int8                 `json:"satisfied_order"`
+	UserMessage             pgtype.Text                 `json:"user_message"`
+	WaitData                []byte                      `json:"wait_data"`
+	TriggeredAt             pgtype.Timestamptz          `json:"triggered_at"`
+	InvocationCount         int32                       `json:"invocation_count"`
 }
 
 func (q *Queries) BulkGetDurableEventLogEntries(ctx context.Context, db DBTX, arg BulkGetDurableEventLogEntriesParams) ([]*BulkGetDurableEventLogEntriesRow, error) {
@@ -600,27 +601,27 @@ type GetDurableEventLogEntriesByChildTaskExternalIdsParams struct {
 }
 
 type GetDurableEventLogEntriesByChildTaskExternalIdsRow struct {
-	TenantID                uuid.UUID             `json:"tenant_id"`
-	ExternalID              uuid.UUID             `json:"external_id"`
-	ResultPayloadExternalID uuid.UUID             `json:"result_payload_external_id"`
-	ChildTaskExternalID     *uuid.UUID            `json:"child_task_external_id"`
-	ChildTaskIsFailure      bool                  `json:"child_task_is_failure"`
-	ChildTaskErrorMessage   pgtype.Text           `json:"child_task_error_message"`
-	InsertedAt              pgtype.Timestamptz    `json:"inserted_at"`
-	ID                      int64                 `json:"id"`
-	DurableTaskID           int64                 `json:"durable_task_id"`
-	DurableTaskInsertedAt   pgtype.Timestamptz    `json:"durable_task_inserted_at"`
-	Kind                    V1DurableEventLogKind `json:"kind"`
-	NodeID                  int64                 `json:"node_id"`
-	BranchID                int64                 `json:"branch_id"`
-	IdempotencyKey          []byte                `json:"idempotency_key"`
-	IsSatisfied             bool                  `json:"is_satisfied"`
-	SatisfiedAt             pgtype.Timestamptz    `json:"satisfied_at"`
-	SatisfiedOrder          pgtype.Int8           `json:"satisfied_order"`
-	UserMessage             pgtype.Text           `json:"user_message"`
-	WaitData                []byte                `json:"wait_data"`
-	TriggeredAt             pgtype.Timestamptz    `json:"triggered_at"`
-	InvocationCount         int32                 `json:"invocation_count"`
+	TenantID                uuid.UUID                   `json:"tenant_id"`
+	ExternalID              uuid.UUID                   `json:"external_id"`
+	ResultPayloadExternalID uuid.UUID                   `json:"result_payload_external_id"`
+	ChildTaskExternalID     *uuid.UUID                  `json:"child_task_external_id"`
+	ChildTaskIsFailure      bool                        `json:"child_task_is_failure"`
+	ChildTaskErrorMessage   pgtype.Text                 `json:"child_task_error_message"`
+	InsertedAt              pgtype.Timestamptz          `json:"inserted_at"`
+	ID                      int64                       `json:"id"`
+	DurableTaskID           int64                       `json:"durable_task_id"`
+	DurableTaskInsertedAt   pgtype.Timestamptz          `json:"durable_task_inserted_at"`
+	Kind                    enums.V1DurableEventLogKind `json:"kind"`
+	NodeID                  int64                       `json:"node_id"`
+	BranchID                int64                       `json:"branch_id"`
+	IdempotencyKey          []byte                      `json:"idempotency_key"`
+	IsSatisfied             bool                        `json:"is_satisfied"`
+	SatisfiedAt             pgtype.Timestamptz          `json:"satisfied_at"`
+	SatisfiedOrder          pgtype.Int8                 `json:"satisfied_order"`
+	UserMessage             pgtype.Text                 `json:"user_message"`
+	WaitData                []byte                      `json:"wait_data"`
+	TriggeredAt             pgtype.Timestamptz          `json:"triggered_at"`
+	InvocationCount         int32                       `json:"invocation_count"`
 }
 
 func (q *Queries) GetDurableEventLogEntriesByChildTaskExternalIds(ctx context.Context, db DBTX, arg GetDurableEventLogEntriesByChildTaskExternalIdsParams) ([]*GetDurableEventLogEntriesByChildTaskExternalIdsRow, error) {
@@ -919,28 +920,28 @@ type ListDurableEventLogForTaskParams struct {
 }
 
 type ListDurableEventLogForTaskRow struct {
-	TenantID                uuid.UUID             `json:"tenant_id"`
-	ExternalID              uuid.UUID             `json:"external_id"`
-	ResultPayloadExternalID uuid.UUID             `json:"result_payload_external_id"`
-	ChildTaskExternalID     *uuid.UUID            `json:"child_task_external_id"`
-	ChildTaskIsFailure      bool                  `json:"child_task_is_failure"`
-	ChildTaskErrorMessage   pgtype.Text           `json:"child_task_error_message"`
-	InsertedAt              pgtype.Timestamptz    `json:"inserted_at"`
-	ID                      int64                 `json:"id"`
-	DurableTaskID           int64                 `json:"durable_task_id"`
-	DurableTaskInsertedAt   pgtype.Timestamptz    `json:"durable_task_inserted_at"`
-	Kind                    V1DurableEventLogKind `json:"kind"`
-	NodeID                  int64                 `json:"node_id"`
-	BranchID                int64                 `json:"branch_id"`
-	IdempotencyKey          []byte                `json:"idempotency_key"`
-	IsSatisfied             bool                  `json:"is_satisfied"`
-	SatisfiedAt             pgtype.Timestamptz    `json:"satisfied_at"`
-	SatisfiedOrder          pgtype.Int8           `json:"satisfied_order"`
-	UserMessage             pgtype.Text           `json:"user_message"`
-	WaitData                []byte                `json:"wait_data"`
-	TriggeredAt             pgtype.Timestamptz    `json:"triggered_at"`
-	DurableTaskExternalID   uuid.UUID             `json:"durable_task_external_id"`
-	DurableTaskDisplayName  string                `json:"durable_task_display_name"`
+	TenantID                uuid.UUID                   `json:"tenant_id"`
+	ExternalID              uuid.UUID                   `json:"external_id"`
+	ResultPayloadExternalID uuid.UUID                   `json:"result_payload_external_id"`
+	ChildTaskExternalID     *uuid.UUID                  `json:"child_task_external_id"`
+	ChildTaskIsFailure      bool                        `json:"child_task_is_failure"`
+	ChildTaskErrorMessage   pgtype.Text                 `json:"child_task_error_message"`
+	InsertedAt              pgtype.Timestamptz          `json:"inserted_at"`
+	ID                      int64                       `json:"id"`
+	DurableTaskID           int64                       `json:"durable_task_id"`
+	DurableTaskInsertedAt   pgtype.Timestamptz          `json:"durable_task_inserted_at"`
+	Kind                    enums.V1DurableEventLogKind `json:"kind"`
+	NodeID                  int64                       `json:"node_id"`
+	BranchID                int64                       `json:"branch_id"`
+	IdempotencyKey          []byte                      `json:"idempotency_key"`
+	IsSatisfied             bool                        `json:"is_satisfied"`
+	SatisfiedAt             pgtype.Timestamptz          `json:"satisfied_at"`
+	SatisfiedOrder          pgtype.Int8                 `json:"satisfied_order"`
+	UserMessage             pgtype.Text                 `json:"user_message"`
+	WaitData                []byte                      `json:"wait_data"`
+	TriggeredAt             pgtype.Timestamptz          `json:"triggered_at"`
+	DurableTaskExternalID   uuid.UUID                   `json:"durable_task_external_id"`
+	DurableTaskDisplayName  string                      `json:"durable_task_display_name"`
 }
 
 func (q *Queries) ListDurableEventLogForTask(ctx context.Context, db DBTX, arg ListDurableEventLogForTaskParams) ([]*ListDurableEventLogForTaskRow, error) {
@@ -1047,28 +1048,28 @@ type ListSatisfiedEntriesParams struct {
 }
 
 type ListSatisfiedEntriesRow struct {
-	TenantID                uuid.UUID             `json:"tenant_id"`
-	ExternalID              uuid.UUID             `json:"external_id"`
-	ResultPayloadExternalID uuid.UUID             `json:"result_payload_external_id"`
-	ChildTaskExternalID     *uuid.UUID            `json:"child_task_external_id"`
-	ChildTaskIsFailure      bool                  `json:"child_task_is_failure"`
-	ChildTaskErrorMessage   pgtype.Text           `json:"child_task_error_message"`
-	InsertedAt              pgtype.Timestamptz    `json:"inserted_at"`
-	ID                      int64                 `json:"id"`
-	DurableTaskID           int64                 `json:"durable_task_id"`
-	DurableTaskInsertedAt   pgtype.Timestamptz    `json:"durable_task_inserted_at"`
-	Kind                    V1DurableEventLogKind `json:"kind"`
-	NodeID                  int64                 `json:"node_id"`
-	BranchID                int64                 `json:"branch_id"`
-	IdempotencyKey          []byte                `json:"idempotency_key"`
-	IsSatisfied             bool                  `json:"is_satisfied"`
-	SatisfiedAt             pgtype.Timestamptz    `json:"satisfied_at"`
-	SatisfiedOrder          pgtype.Int8           `json:"satisfied_order"`
-	UserMessage             pgtype.Text           `json:"user_message"`
-	WaitData                []byte                `json:"wait_data"`
-	TriggeredAt             pgtype.Timestamptz    `json:"triggered_at"`
-	TaskExternalID          uuid.UUID             `json:"task_external_id"`
-	InvocationCount         int32                 `json:"invocation_count"`
+	TenantID                uuid.UUID                   `json:"tenant_id"`
+	ExternalID              uuid.UUID                   `json:"external_id"`
+	ResultPayloadExternalID uuid.UUID                   `json:"result_payload_external_id"`
+	ChildTaskExternalID     *uuid.UUID                  `json:"child_task_external_id"`
+	ChildTaskIsFailure      bool                        `json:"child_task_is_failure"`
+	ChildTaskErrorMessage   pgtype.Text                 `json:"child_task_error_message"`
+	InsertedAt              pgtype.Timestamptz          `json:"inserted_at"`
+	ID                      int64                       `json:"id"`
+	DurableTaskID           int64                       `json:"durable_task_id"`
+	DurableTaskInsertedAt   pgtype.Timestamptz          `json:"durable_task_inserted_at"`
+	Kind                    enums.V1DurableEventLogKind `json:"kind"`
+	NodeID                  int64                       `json:"node_id"`
+	BranchID                int64                       `json:"branch_id"`
+	IdempotencyKey          []byte                      `json:"idempotency_key"`
+	IsSatisfied             bool                        `json:"is_satisfied"`
+	SatisfiedAt             pgtype.Timestamptz          `json:"satisfied_at"`
+	SatisfiedOrder          pgtype.Int8                 `json:"satisfied_order"`
+	UserMessage             pgtype.Text                 `json:"user_message"`
+	WaitData                []byte                      `json:"wait_data"`
+	TriggeredAt             pgtype.Timestamptz          `json:"triggered_at"`
+	TaskExternalID          uuid.UUID                   `json:"task_external_id"`
+	InvocationCount         int32                       `json:"invocation_count"`
 }
 
 func (q *Queries) ListSatisfiedEntries(ctx context.Context, db DBTX, arg ListSatisfiedEntriesParams) ([]*ListSatisfiedEntriesRow, error) {
@@ -1382,27 +1383,27 @@ type UpdateDurableEventLogEntriesSatisfiedParams struct {
 }
 
 type UpdateDurableEventLogEntriesSatisfiedRow struct {
-	TenantID                uuid.UUID             `json:"tenant_id"`
-	ExternalID              uuid.UUID             `json:"external_id"`
-	ResultPayloadExternalID uuid.UUID             `json:"result_payload_external_id"`
-	ChildTaskExternalID     *uuid.UUID            `json:"child_task_external_id"`
-	ChildTaskIsFailure      bool                  `json:"child_task_is_failure"`
-	ChildTaskErrorMessage   pgtype.Text           `json:"child_task_error_message"`
-	InsertedAt              pgtype.Timestamptz    `json:"inserted_at"`
-	ID                      int64                 `json:"id"`
-	DurableTaskID           int64                 `json:"durable_task_id"`
-	DurableTaskInsertedAt   pgtype.Timestamptz    `json:"durable_task_inserted_at"`
-	Kind                    V1DurableEventLogKind `json:"kind"`
-	NodeID                  int64                 `json:"node_id"`
-	BranchID                int64                 `json:"branch_id"`
-	IdempotencyKey          []byte                `json:"idempotency_key"`
-	IsSatisfied             bool                  `json:"is_satisfied"`
-	SatisfiedAt             pgtype.Timestamptz    `json:"satisfied_at"`
-	SatisfiedOrder          pgtype.Int8           `json:"satisfied_order"`
-	UserMessage             pgtype.Text           `json:"user_message"`
-	WaitData                []byte                `json:"wait_data"`
-	TriggeredAt             pgtype.Timestamptz    `json:"triggered_at"`
-	InvocationCount         int32                 `json:"invocation_count"`
+	TenantID                uuid.UUID                   `json:"tenant_id"`
+	ExternalID              uuid.UUID                   `json:"external_id"`
+	ResultPayloadExternalID uuid.UUID                   `json:"result_payload_external_id"`
+	ChildTaskExternalID     *uuid.UUID                  `json:"child_task_external_id"`
+	ChildTaskIsFailure      bool                        `json:"child_task_is_failure"`
+	ChildTaskErrorMessage   pgtype.Text                 `json:"child_task_error_message"`
+	InsertedAt              pgtype.Timestamptz          `json:"inserted_at"`
+	ID                      int64                       `json:"id"`
+	DurableTaskID           int64                       `json:"durable_task_id"`
+	DurableTaskInsertedAt   pgtype.Timestamptz          `json:"durable_task_inserted_at"`
+	Kind                    enums.V1DurableEventLogKind `json:"kind"`
+	NodeID                  int64                       `json:"node_id"`
+	BranchID                int64                       `json:"branch_id"`
+	IdempotencyKey          []byte                      `json:"idempotency_key"`
+	IsSatisfied             bool                        `json:"is_satisfied"`
+	SatisfiedAt             pgtype.Timestamptz          `json:"satisfied_at"`
+	SatisfiedOrder          pgtype.Int8                 `json:"satisfied_order"`
+	UserMessage             pgtype.Text                 `json:"user_message"`
+	WaitData                []byte                      `json:"wait_data"`
+	TriggeredAt             pgtype.Timestamptz          `json:"triggered_at"`
+	InvocationCount         int32                       `json:"invocation_count"`
 }
 
 func (q *Queries) UpdateDurableEventLogEntriesSatisfied(ctx context.Context, db DBTX, arg UpdateDurableEventLogEntriesSatisfiedParams) ([]*UpdateDurableEventLogEntriesSatisfiedRow, error) {

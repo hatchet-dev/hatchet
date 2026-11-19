@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
+from typing_extensions import override
 
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import Action as ProtoAction
@@ -75,7 +76,8 @@ class SleepCondition(Condition):
 
         self.duration = duration
 
-    def _to_proto(self, _config: ClientConfig) -> SleepMatchCondition:
+    @override
+    def _to_proto(self, config: ClientConfig) -> SleepMatchCondition:
         return SleepMatchCondition(
             base=self._base._to_proto(),
             sleep_for=timedelta_to_expr(self.duration),
@@ -104,6 +106,7 @@ class UserEventCondition(Condition):
         self.scope = scope
         self.consider_events_since = consider_events_since
 
+    @override
     def _to_proto(self, config: ClientConfig) -> UserEventMatchCondition:
         return UserEventMatchCondition(
             base=self._base._to_proto(),
@@ -131,7 +134,8 @@ class ParentCondition(Condition):
 
         self.parent = parent
 
-    def _to_proto(self, _config: ClientConfig) -> ParentOverrideMatchCondition:
+    @override
+    def _to_proto(self, config: ClientConfig) -> ParentOverrideMatchCondition:
         return ParentOverrideMatchCondition(
             base=self._base._to_proto(),
             parent_readable_id=self.parent.name,

@@ -5,7 +5,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/auth/rbac"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -99,12 +99,12 @@ func TestAuthorizeTenantOperations(t *testing.T) {
 	assert.Nil(t, err)
 	allOperations := operationIdsFromSpec()
 	for _, operationId := range allOperations {
-		assert.Equal(t, r.IsAuthorized(string(sqlcv1.TenantMemberRoleADMIN), operationId), true)
-		assert.Equal(t, r.IsAuthorized(string(sqlcv1.TenantMemberRoleOWNER), operationId), true)
+		assert.Equal(t, r.IsAuthorized(string(enums.TenantMemberRoleADMIN), operationId), true)
+		assert.Equal(t, r.IsAuthorized(string(enums.TenantMemberRoleOWNER), operationId), true)
 		if rbac.OperationIn(operationId, adminAndOwnerOnly) {
-			assert.Equal(t, r.IsAuthorized(string(sqlcv1.TenantMemberRoleMEMBER), operationId), false)
+			assert.Equal(t, r.IsAuthorized(string(enums.TenantMemberRoleMEMBER), operationId), false)
 		} else {
-			assert.Equal(t, r.IsAuthorized(string(sqlcv1.TenantMemberRoleMEMBER), operationId), true)
+			assert.Equal(t, r.IsAuthorized(string(enums.TenantMemberRoleMEMBER), operationId), true)
 		}
 	}
 }
@@ -118,7 +118,7 @@ func TestAuthorizeTenantOperationsViewer(t *testing.T) {
 		assert.Equal(
 			t,
 			expectAuthorized,
-			r.IsAuthorized(string(sqlcv1.TenantMemberRoleVIEWER), operationId),
+			r.IsAuthorized(string(enums.TenantMemberRoleVIEWER), operationId),
 			"operationId: %s", operationId,
 		)
 	}
@@ -141,7 +141,7 @@ func TestAuthorizeTenantOperationsViewerRepresentativeSample(t *testing.T) {
 		"TenantCreate",
 	}
 	for _, operationId := range deniedForViewer {
-		assert.False(t, r.IsAuthorized(string(sqlcv1.TenantMemberRoleVIEWER), operationId), "operationId: %s", operationId)
+		assert.False(t, r.IsAuthorized(string(enums.TenantMemberRoleVIEWER), operationId), "operationId: %s", operationId)
 	}
 
 	allowedForViewer := []string{
@@ -156,7 +156,7 @@ func TestAuthorizeTenantOperationsViewerRepresentativeSample(t *testing.T) {
 		"UserUpdateLogout",
 	}
 	for _, operationId := range allowedForViewer {
-		assert.True(t, r.IsAuthorized(string(sqlcv1.TenantMemberRoleVIEWER), operationId), "operationId: %s", operationId)
+		assert.True(t, r.IsAuthorized(string(enums.TenantMemberRoleVIEWER), operationId), "operationId: %s", operationId)
 	}
 }
 
@@ -170,15 +170,15 @@ func TestAuthorizeApiTokenOperationsByRole(t *testing.T) {
 	assert.Nil(t, err)
 
 	cases := []struct {
-		role   sqlcv1.TenantMemberRole
+		role   enums.TenantMemberRole
 		list   bool
 		create bool
 		revoke bool
 	}{
-		{sqlcv1.TenantMemberRoleOWNER, true, true, true},
-		{sqlcv1.TenantMemberRoleADMIN, true, true, true},
-		{sqlcv1.TenantMemberRoleMEMBER, true, false, false},
-		{sqlcv1.TenantMemberRoleVIEWER, false, false, false},
+		{enums.TenantMemberRoleOWNER, true, true, true},
+		{enums.TenantMemberRoleADMIN, true, true, true},
+		{enums.TenantMemberRoleMEMBER, true, false, false},
+		{enums.TenantMemberRoleVIEWER, false, false, false},
 	}
 
 	for _, c := range cases {

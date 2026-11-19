@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -288,9 +289,6 @@ func (r *tenantAlertingRepository) GetTenantResourceLimitState(ctx context.Conte
 
 	return r.queries.GetTenantResourceLimit(ctx, db, sqlcv1.GetTenantResourceLimitParams{
 		Tenantid: tenantId,
-		Resource: sqlcv1.NullLimitResource{
-			LimitResource: sqlcv1.LimitResource(resource),
-			Valid:         true,
-		},
+		Resource: new(enums.LimitResource(resource)),
 	})
 }

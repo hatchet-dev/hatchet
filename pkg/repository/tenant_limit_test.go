@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/limits"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -90,7 +91,7 @@ func createLimitTestTenant(t *testing.T, pool *pgxpool.Pool) uuid.UUID {
 	return tenantID
 }
 
-func loadUpsertAffectedFields(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUID, resource sqlcv1.LimitResource) (upsertAffectedFields, error) {
+func loadUpsertAffectedFields(ctx context.Context, pool *pgxpool.Pool, tenantID uuid.UUID, resource enums.LimitResource) (upsertAffectedFields, error) {
 	var fields upsertAffectedFields
 	var updatedAt pgtype.Timestamp
 
@@ -111,7 +112,7 @@ func loadUpsertAffectedFields(ctx context.Context, pool *pgxpool.Pool, tenantID 
 	return fields, nil
 }
 
-func requireUpsertAffectedFields(t *testing.T, pool *pgxpool.Pool, tenantID uuid.UUID, resource sqlcv1.LimitResource) upsertAffectedFields {
+func requireUpsertAffectedFields(t *testing.T, pool *pgxpool.Pool, tenantID uuid.UUID, resource enums.LimitResource) upsertAffectedFields {
 	t.Helper()
 
 	fields, err := loadUpsertAffectedFields(context.Background(), pool, tenantID, resource)
@@ -151,17 +152,17 @@ func TestCanCreate_MissingIncomingWebhook_PreservesPaidLimits(t *testing.T) {
 	require.Less(t, cfg.DefaultEventLimit, paidEventLimit)
 	require.Less(t, cfg.DefaultEventAlarmLimit, paidEventAlarm)
 
-	beforeTaskRun := requireUpsertAffectedFields(t, pool, tenantID, sqlcv1.LimitResourceTASKRUN)
-	beforeEvent := requireUpsertAffectedFields(t, pool, tenantID, sqlcv1.LimitResourceEVENT)
+	beforeTaskRun := requireUpsertAffectedFields(t, pool, tenantID, enums.LimitResourceTASKRUN)
+	beforeEvent := requireUpsertAffectedFields(t, pool, tenantID, enums.LimitResourceEVENT)
 
 	repo := createTenantLimitRepositoryForTest(t, pool, cfg)
 
-	ok, _, err := repo.canCreate(ctx, nil, sqlcv1.LimitResourceINCOMINGWEBHOOK, tenantID, 1)
+	ok, _, err := repo.canCreate(ctx, nil, enums.LimitResourceINCOMINGWEBHOOK, tenantID, 1)
 	require.NoError(t, err)
 	assert.True(t, ok)
 
-	afterTaskRun := requireUpsertAffectedFields(t, pool, tenantID, sqlcv1.LimitResourceTASKRUN)
-	afterEvent := requireUpsertAffectedFields(t, pool, tenantID, sqlcv1.LimitResourceEVENT)
+	afterTaskRun := requireUpsertAffectedFields(t, pool, tenantID, enums.LimitResourceTASKRUN)
+	afterEvent := requireUpsertAffectedFields(t, pool, tenantID, enums.LimitResourceEVENT)
 
 	assert.Equal(t, beforeTaskRun, afterTaskRun, "insert-only self-heal must not change upsert-affected TASK_RUN fields")
 	assert.Equal(t, beforeEvent, afterEvent, "insert-only self-heal must not change upsert-affected EVENT fields")
@@ -172,7 +173,7 @@ func TestCanCreate_MissingIncomingWebhook_PreservesPaidLimits(t *testing.T) {
 	assert.Equal(t, paidEventAlarm, afterEvent.AlarmValue.Int32)
 	assert.True(t, afterEvent.AlarmValue.Valid)
 
-	webhook, err := loadUpsertAffectedFields(ctx, pool, tenantID, sqlcv1.LimitResourceINCOMINGWEBHOOK)
+	webhook, err := loadUpsertAffectedFields(ctx, pool, tenantID, enums.LimitResourceINCOMINGWEBHOOK)
 	require.NoError(t, err)
 	assert.Equal(t, cfg.DefaultIncomingWebhookLimit, webhook.LimitValue)
 }
@@ -186,17 +187,17 @@ func TestCanCreate_MissingIncomingWebhook_ReReadsAndEnforcesDefault(t *testing.T
 	cfg := defaultLimitTestConfig()
 	repo := createTenantLimitRepositoryForTest(t, pool, cfg)
 
-	_, err := loadUpsertAffectedFields(ctx, pool, tenantID, sqlcv1.LimitResourceINCOMINGWEBHOOK)
+	_, err := loadUpsertAffectedFields(ctx, pool, tenantID, enums.LimitResourceINCOMINGWEBHOOK)
 	require.ErrorIs(t, err, pgx.ErrNoRows, "webhook limit must be absent before self-heal")
 
 	// Old bug returned true immediately after inserting defaults. With value=0 and
 	// limit=5, requesting 6 must deny: value+n-1 = 5 >= 5.
-	ok, percent, err := repo.canCreate(ctx, nil, sqlcv1.LimitResourceINCOMINGWEBHOOK, tenantID, 6)
+	ok, percent, err := repo.canCreate(ctx, nil, enums.LimitResourceINCOMINGWEBHOOK, tenantID, 6)
 	require.NoError(t, err)
 	assert.False(t, ok, "inserted default must be re-read and enforced, not auto-allowed")
 	assert.Equal(t, 100, percent)
 
-	webhook := requireUpsertAffectedFields(t, pool, tenantID, sqlcv1.LimitResourceINCOMINGWEBHOOK)
+	webhook := requireUpsertAffectedFields(t, pool, tenantID, enums.LimitResourceINCOMINGWEBHOOK)
 	assert.Equal(t, cfg.DefaultIncomingWebhookLimit, webhook.LimitValue)
 	assert.True(t, webhook.AlarmValue.Valid)
 	assert.Equal(t, cfg.DefaultIncomingWebhookAlarmLimit, webhook.AlarmValue.Int32)
@@ -206,7 +207,7 @@ func setStreamRetentionHours(t *testing.T, pool *pgxpool.Pool, tenantID uuid.UUI
 	t.Helper()
 
 	err := newTestTenantLimitRepository(pool, defaultLimitTestConfig()).UpdateLimits(context.Background(), tenantID, []Limit{
-		{Resource: sqlcv1.LimitResourceSTREAMRETENTION, Limit: hours},
+		{Resource: enums.LimitResourceSTREAMRETENTION, Limit: hours},
 	})
 	require.NoError(t, err)
 }
@@ -263,7 +264,7 @@ func TestStreamRetention_DefaultsToTenantRetentionAndIsStored(t *testing.T) {
 
 	var retentionLimit *sqlcv1.TenantResourceLimit
 	for _, l := range stored {
-		if l.Resource == sqlcv1.LimitResourceSTREAMRETENTION {
+		if l.Resource == enums.LimitResourceSTREAMRETENTION {
 			retentionLimit = l
 		}
 	}
@@ -275,11 +276,11 @@ func TestStreamRetention_DefaultsToTenantRetentionAndIsStored(t *testing.T) {
 func TestMeter_ZeroChargePassesAtCap(t *testing.T) {
 	repo := createTenantLimitRepositoryForTest(t, nil, defaultLimitTestConfig())
 	tenantID := uuid.New()
-	repo.c.Set(meterKey{tenantId: tenantID, resource: sqlcv1.LimitResourceTASKRUN}.cacheKey(), false)
+	repo.c.Set(meterKey{tenantId: tenantID, resource: enums.LimitResourceTASKRUN}.cacheKey(), false)
 
-	zero, _ := repo.Meter(context.Background(), nil, sqlcv1.LimitResourceTASKRUN, tenantID, 0)
+	zero, _ := repo.Meter(context.Background(), nil, enums.LimitResourceTASKRUN, tenantID, 0)
 	require.NoError(t, zero())
 
-	one, _ := repo.Meter(context.Background(), nil, sqlcv1.LimitResourceTASKRUN, tenantID, 1)
+	one, _ := repo.Meter(context.Background(), nil, enums.LimitResourceTASKRUN, tenantID, 1)
 	require.ErrorIs(t, one(), ErrResourceExhausted)
 }

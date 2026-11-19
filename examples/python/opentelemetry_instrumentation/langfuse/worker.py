@@ -1,3 +1,4 @@
+# pyright: basic
 from opentelemetry.trace import get_tracer_provider
 
 from examples.opentelemetry_instrumentation.langfuse.client import openai

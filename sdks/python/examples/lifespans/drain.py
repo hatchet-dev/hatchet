@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
+from typing import cast
 
 from hatchet_sdk import Context, Hatchet
 
@@ -44,7 +45,7 @@ class DrainInput:
 
 @hatchet.task(name="LifespanDrainTask", input_validator=DrainInput)
 async def lifespan_drain_task(input: DrainInput, ctx: Context) -> DrainResult:
-    pool: FakePool = ctx.lifespan
+    pool = cast("FakePool", ctx.lifespan)
     iters = 0
     for _ in range(input.n):
         pool.acquire()

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 import tenacity
@@ -9,16 +9,14 @@ from examples.bulk_operations.worker import (
     bulk_replay_test_2,
     bulk_replay_test_3,
 )
-from hatchet_sdk import BulkCancelReplayOptions, Hatchet, RunFilter
-from hatchet_sdk.types.run_status import RunStatus
-from hatchet_sdk import TaskRunSummary
+from hatchet_sdk import BulkCancelReplayOptions, Hatchet, RunFilter, TaskRunSummary
 
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_bulk_replay(hatchet: Hatchet, test_run_id: str) -> None:
     n = 100
     expected_total = n + 1 + (n // 2 - 1) + (n // 2 - 2)
-    test_start = datetime.now(tz=timezone.utc)
+    test_start = datetime.now(tz=UTC)
 
     bulk_replay_test_1_id = await bulk_replay_test_1.aio_get_id()
     bulk_replay_test_2_id = await bulk_replay_test_2.aio_get_id()
@@ -181,8 +179,10 @@ async def test_bulk_replay(hatchet: Hatchet, test_run_id: str) -> None:
 
     for run in runs:
         assert run.status == "COMPLETED"
-        assert run.retry_count and run.retry_count >= 1
-        assert run.attempt and run.attempt >= 2
+        assert run.retry_count is not None
+        assert run.retry_count >= 1
+        assert run.attempt is not None
+        assert run.attempt >= 2
 
     assert len([r for r in runs if r.workflow_id == bulk_replay_test_1_id]) == n + 1
     assert (

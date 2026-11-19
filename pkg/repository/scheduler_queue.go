@@ -1060,11 +1060,14 @@ type batchQueueRepository struct {
 	tenantId uuid.UUID
 }
 
-func (b *batchQueueRepository) ListBatchResources(ctx context.Context) ([]*sqlcv1.ListDistinctBatchResourcesRow, error) {
+func (b *batchQueueRepository) ListBatchResources(ctx context.Context, stepIds []uuid.UUID) ([]*sqlcv1.ListDistinctBatchResourcesRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "list-batch-resources")
 	defer span.End()
 
-	rows, err := b.queries.ListDistinctBatchResources(ctx, b.pool.ForTenant(b.tenantId), b.tenantId)
+	rows, err := b.queries.ListDistinctBatchResources(ctx, b.pool.ForTenant(b.tenantId), sqlcv1.ListDistinctBatchResourcesParams{
+		StepIds:  stepIds,
+		Tenantid: b.tenantId,
+	})
 	if err != nil {
 		return nil, err
 	}

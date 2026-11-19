@@ -1,26 +1,26 @@
+import asyncio
+from datetime import UTC, datetime, timedelta
+from time import time
+from uuid import uuid4
+
 import pytest
 
 from examples.idempotency.worker import (
-    idempotent_task,
-    idempotent_task_short_window,
+    EVENT_KEY,
+    IdempotencyInput,
     idempotent_status_based_task,
     idempotent_status_based_task_with_retries,
-    IdempotencyInput,
-    EVENT_KEY,
+    idempotent_task,
+    idempotent_task_short_window,
 )
-
 from hatchet_sdk import (
+    BulkTriggerIdempotencyCollisionError,
+    CancelledRunError,
+    FailedTaskRunExceptionGroup,
     Hatchet,
     IdempotencyCollisionError,
-    RunStatus,
-    BulkTriggerIdempotencyCollisionError,
+    TaskRunSummary,
 )
-from hatchet_sdk import TaskRunSummary
-from uuid import uuid4
-from datetime import timedelta, datetime, timezone
-import asyncio
-from typing import cast
-from time import time
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -45,7 +45,7 @@ async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger(
 
     for _ in range(15):
         runs = await hatchet.runs.aio_list(
-            since=datetime.now(timezone.utc) - timedelta(minutes=5),
+            since=datetime.now(UTC) - timedelta(minutes=5),
             additional_metadata={"test_run_id": test_run_id},
         )
 
@@ -110,7 +110,7 @@ async def test_idempotency_status_based(
 
     for _ in range(15):
         runs = await hatchet.runs.aio_list(
-            since=datetime.now(timezone.utc) - timedelta(minutes=5),
+            since=datetime.now(UTC) - timedelta(minutes=5),
             additional_metadata={"test_run_id": test_run_id},
         )
 
@@ -152,7 +152,7 @@ async def test_idempotency_status_based_failure(
 
     assert exc_info.value.existing_run_external_id == ref1.workflow_run_id
 
-    with pytest.raises(Exception) as exc_info_2:
+    with pytest.raises(FailedTaskRunExceptionGroup) as exc_info_2:
         await ref1.aio_result()
 
     assert "failed as requested" in str(exc_info_2.value).lower()
@@ -169,7 +169,7 @@ async def test_idempotency_status_based_failure(
         additional_metadata={"test_run_id": test_run_id},
     )
 
-    with pytest.raises(Exception) as exc_info_2:
+    with pytest.raises(FailedTaskRunExceptionGroup) as exc_info_2:
         await ref2.aio_result()
 
     assert "failed as requested" in str(exc_info_2.value).lower()
@@ -186,7 +186,7 @@ async def test_idempotency_status_based_failure(
 
     for _ in range(15):
         runs = await hatchet.runs.aio_list(
-            since=datetime.now(timezone.utc) - timedelta(minutes=5),
+            since=datetime.now(UTC) - timedelta(minutes=5),
             additional_metadata={"test_run_id": test_run_id},
         )
 
@@ -223,7 +223,8 @@ async def test_idempotency_status_based_cancel(
 
     assert exc_info.value.existing_run_external_id == ref1.workflow_run_id
 
-    await ref1.aio_result()
+    with pytest.raises(CancelledRunError):
+        await ref1.aio_result()
 
     details = await hatchet.runs.aio_get_details(ref1.workflow_run_id)
 
@@ -241,7 +242,8 @@ async def test_idempotency_status_based_cancel(
         additional_metadata={"test_run_id": test_run_id},
     )
 
-    await ref2.aio_result()
+    with pytest.raises(CancelledRunError):
+        await ref2.aio_result()
 
     details = await hatchet.runs.aio_get_details(ref1.workflow_run_id)
 
@@ -259,7 +261,7 @@ async def test_idempotency_status_based_cancel(
 
     for _ in range(15):
         runs = await hatchet.runs.aio_list(
-            since=datetime.now(timezone.utc) - timedelta(minutes=5),
+            since=datetime.now(UTC) - timedelta(minutes=5),
             additional_metadata={"test_run_id": test_run_id},
         )
 
@@ -332,7 +334,7 @@ async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger_short_wind
 
     for _ in range(15):
         runs = await hatchet.runs.aio_list(
-            since=datetime.now(timezone.utc) - timedelta(minutes=5),
+            since=datetime.now(UTC) - timedelta(minutes=5),
             additional_metadata={"test_run_id": test_run_id},
         )
 
@@ -374,7 +376,7 @@ async def test_idempotency_keys_prevent_duplicate_runs_event_trigger(
 
     for _ in range(15):
         runs = await hatchet.runs.aio_list(
-            since=datetime.now(timezone.utc) - timedelta(minutes=5),
+            since=datetime.now(UTC) - timedelta(minutes=5),
             additional_metadata={"test_run_id": test_run_id},
         )
 
@@ -420,7 +422,7 @@ async def _wait_for_retry_count(
 ) -> None:
     for _ in range(30):
         runs = await hatchet.runs.aio_list(
-            since=datetime.now(timezone.utc) - timedelta(minutes=5),
+            since=datetime.now(UTC) - timedelta(minutes=5),
             additional_metadata={"test_run_id": test_run_id},
         )
 
@@ -468,7 +470,7 @@ async def test_idempotency_status_based_key_held_across_all_retries_until_exhaus
 
     assert exc_info_late_retry.value.existing_run_external_id == ref1.workflow_run_id
 
-    with pytest.raises(Exception) as exc_info_final:
+    with pytest.raises(FailedTaskRunExceptionGroup) as exc_info_final:
         await ref1.aio_result()
 
     assert "failed as requested" in str(exc_info_final.value).lower()
@@ -483,7 +485,7 @@ async def test_idempotency_status_based_key_held_across_all_retries_until_exhaus
     )
     assert ref2.workflow_run_id != ref1.workflow_run_id
 
-    with pytest.raises(Exception) as exc_info_ref2:
+    with pytest.raises(FailedTaskRunExceptionGroup) as exc_info_ref2:
         await ref2.aio_result()
 
     assert "failed as requested" in str(exc_info_ref2.value).lower()
@@ -560,7 +562,8 @@ async def test_idempotency_status_based_key_released_immediately_on_cancel_after
 
     assert exc_info_mid_retry.value.existing_run_external_id == ref1.workflow_run_id
 
-    await ref1.aio_result()
+    with pytest.raises(CancelledRunError):
+        await ref1.aio_result()
 
     details = await hatchet.runs.aio_get_details(ref1.workflow_run_id)
     assert details.status == "CANCELLED"
@@ -572,7 +575,8 @@ async def test_idempotency_status_based_key_released_immediately_on_cancel_after
     )
     assert ref2.workflow_run_id != ref1.workflow_run_id
 
-    await ref2.aio_result()
+    with pytest.raises(CancelledRunError):
+        await ref2.aio_result()
 
     details2 = await hatchet.runs.aio_get_details(ref2.workflow_run_id)
     assert details2.status == "CANCELLED"

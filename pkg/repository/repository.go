@@ -19,6 +19,7 @@ type TaskOperationLimits struct {
 	RetryQueueLimit      int
 	DurableSleepLimit    int
 	ReassignUnackedTasks bool
+	ChildRunDirectSpawn  bool
 }
 
 type Repository interface {
@@ -120,7 +121,7 @@ func NewRepository(
 ) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, ddlPool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration, taskLimits.ReassignUnackedTasks)
+	shared, cleanupShared := newSharedRepository(pool, ddlPool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration, taskLimits.ReassignUnackedTasks, taskLimits.ChildRunDirectSpawn)
 
 	mq, cleanupMq := newMessageQueueRepository(shared)
 

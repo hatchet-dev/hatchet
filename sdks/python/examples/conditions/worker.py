@@ -2,10 +2,9 @@
 
 import random
 from datetime import timedelta
+from typing import Any
 
 from pydantic import BaseModel
-
-from typing import Any
 
 from hatchet_sdk import (
     Context,

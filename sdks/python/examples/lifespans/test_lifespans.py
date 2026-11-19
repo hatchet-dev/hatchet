@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import signal
 from subprocess import Popen
 from typing import Any
@@ -6,10 +7,9 @@ from typing import Any
 import psutil
 import pytest
 
-from examples.lifespans.drain import lifespan_drain_task, DrainInput
+from examples.lifespans.drain import DrainInput, lifespan_drain_task
 from examples.lifespans.simple import Lifespan, lifespan_task
 from hatchet_sdk import Hatchet
-from hatchet_sdk import RunStatus
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -50,11 +50,9 @@ async def test_lifespan_drain_on_sigterm(
     parent = psutil.Process(on_demand_worker.pid)
     children = parent.children(recursive=True)
 
-    for proc in [parent] + children:
-        try:
+    for proc in [parent, *children]:
+        with contextlib.suppress(psutil.NoSuchProcess):
             proc.send_signal(signal.SIGTERM)
-        except psutil.NoSuchProcess:
-            pass
 
     result = await ref.aio_result()
 

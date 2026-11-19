@@ -3,12 +3,11 @@ from __future__ import annotations
 import asyncio
 import logging
 from types import SimpleNamespace
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
-from hatchet_sdk.features.events import EventClient
 from hatchet_sdk.runnables.contextvars import (
-    ctx_task_run_external_id,
     ctx_task_retry_count,
+    ctx_task_run_external_id,
 )
 from hatchet_sdk.utils.typing import LogLevel
 from hatchet_sdk.worker.runner.utils.capture_logs import (
@@ -16,6 +15,9 @@ from hatchet_sdk.worker.runner.utils.capture_logs import (
     LogForwardingHandler,
     LogRecord,
 )
+
+if TYPE_CHECKING:
+    from hatchet_sdk.features.events import EventClient
 
 
 class FakeEventClient:
@@ -25,7 +27,7 @@ class FakeEventClient:
 
 async def test_log_forwarding_handler_enqueues_correct_record() -> None:
     event_client = FakeEventClient()
-    log_sender = AsyncLogSender(cast(EventClient, event_client))
+    log_sender = AsyncLogSender(cast("EventClient", event_client))
 
     target_logger = logging.getLogger("capture-log-test")
     previous_level = target_logger.level
@@ -59,7 +61,7 @@ async def test_log_forwarding_handler_enqueues_correct_record() -> None:
 
 def test_publish_drops_records_once_queue_is_full() -> None:
     event_client = FakeEventClient()
-    log_sender = AsyncLogSender(cast(EventClient, event_client))
+    log_sender = AsyncLogSender(cast("EventClient", event_client))
     log_queue_size = event_client.client_config.log_queue_size
 
     for index in range(log_queue_size + 5):
@@ -73,7 +75,7 @@ def test_publish_drops_records_once_queue_is_full() -> None:
         )
 
     queued_messages = [
-        cast(LogRecord, log_sender.q.get_nowait()).message
+        cast("LogRecord", log_sender.q.get_nowait()).message
         for _ in range(log_sender.q.qsize())
     ]
 
@@ -83,7 +85,7 @@ def test_publish_drops_records_once_queue_is_full() -> None:
 def test_dropped_log_warning_does_not_recurse_when_sdk_logger_is_captured() -> None:
     event_client = FakeEventClient()
     event_client.client_config.log_queue_size = 1
-    log_sender = AsyncLogSender(cast(EventClient, event_client))
+    log_sender = AsyncLogSender(cast("EventClient", event_client))
 
     sdk_logger = logging.getLogger("hatchet")
     handler = LogForwardingHandler(log_sender)

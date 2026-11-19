@@ -10,9 +10,9 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -51,7 +51,7 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 			tasktypes.CreateMonitoringEventPayload{
 				TaskId:         task.ID,
 				RetryCount:     task.RetryCount,
-				EventType:      sqlcv1.V1EventTypeOlapREASSIGNED,
+				EventType:      enums.V1EventTypeOlapREASSIGNED,
 				EventTimestamp: time.Now(),
 				EventMessage:   res.ReassignmentReasonByTaskId[task.ID],
 				WorkerId:       workerId,
@@ -78,7 +78,7 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 				tasktypes.CreateMonitoringEventPayload{
 					TaskId:         task.ID,
 					RetryCount:     task.RetryCount,
-					EventType:      sqlcv1.V1EventTypeOlapFAILED,
+					EventType:      enums.V1EventTypeOlapFAILED,
 					EventTimestamp: time.Now(),
 					EventMessage:   "Task reached its maximum reassignment count",
 					EventPayload:   "Task reached its maximum reassignment count",

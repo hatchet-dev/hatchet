@@ -10,8 +10,8 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 )
@@ -120,15 +120,15 @@ var workflowEventConverters = map[string]func(payloads [][]byte) ([]*contracts.W
 	}),
 }
 
-func workflowRunEventTypeForOlapStatus(status sqlcv1.V1ReadableStatusOlap) (contracts.ResourceEventType, bool) {
+func workflowRunEventTypeForOlapStatus(status enums.V1ReadableStatusOlap) (contracts.ResourceEventType, bool) {
 	switch status {
-	case sqlcv1.V1ReadableStatusOlapCANCELLED:
+	case enums.V1ReadableStatusOlapCANCELLED:
 		return contracts.ResourceEventType_RESOURCE_EVENT_TYPE_CANCELLED, true
-	case sqlcv1.V1ReadableStatusOlapFAILED:
+	case enums.V1ReadableStatusOlapFAILED:
 		return contracts.ResourceEventType_RESOURCE_EVENT_TYPE_FAILED, true
-	case sqlcv1.V1ReadableStatusOlapCOMPLETED:
+	case enums.V1ReadableStatusOlapCOMPLETED:
 		return contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED, true
-	case sqlcv1.V1ReadableStatusOlapQUEUED, sqlcv1.V1ReadableStatusOlapRUNNING, sqlcv1.V1ReadableStatusOlapEVICTED:
+	case enums.V1ReadableStatusOlapQUEUED, enums.V1ReadableStatusOlapRUNNING, enums.V1ReadableStatusOlapEVICTED:
 		return 0, false
 	default:
 		return 0, false

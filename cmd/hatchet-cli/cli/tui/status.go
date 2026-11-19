@@ -7,6 +7,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 )
 
 // StatusStyle defines the styling for a status badge
@@ -20,31 +21,31 @@ type StatusStyle struct {
 // Matches frontend createV1RunStatusVariant from run-statuses.tsx
 func GetV1TaskStatusStyle(status rest.V1TaskStatus) StatusStyle {
 	switch status {
-	case rest.V1TaskStatusCOMPLETED:
+	case enums.V1TaskStatusCOMPLETED:
 		return StatusStyle{
 			Text:       "Succeeded",
 			Foreground: styles.StatusSuccessColor,
 			Background: styles.StatusSuccessBg,
 		}
-	case rest.V1TaskStatusFAILED:
+	case enums.V1TaskStatusFAILED:
 		return StatusStyle{
 			Text:       "Failed",
 			Foreground: styles.StatusFailedColor,
 			Background: styles.StatusFailedBg,
 		}
-	case rest.V1TaskStatusCANCELLED:
+	case enums.V1TaskStatusCANCELLED:
 		return StatusStyle{
 			Text:       "Cancelled",
 			Foreground: styles.StatusCancelledColor,
 			Background: styles.StatusCancelledBg,
 		}
-	case rest.V1TaskStatusRUNNING:
+	case enums.V1TaskStatusRUNNING:
 		return StatusStyle{
 			Text:       "Running",
 			Foreground: styles.StatusInProgressColor,
 			Background: styles.StatusInProgressBg,
 		}
-	case rest.V1TaskStatusQUEUED:
+	case enums.V1TaskStatusQUEUED:
 		return StatusStyle{
 			Text:       "Queued",
 			Foreground: styles.StatusQueuedColor,
@@ -63,15 +64,15 @@ func GetV1TaskStatusStyle(status rest.V1TaskStatus) StatusStyle {
 // Use this for table cells since bubbles table doesn't support per-cell colors
 func FormatV1TaskStatusForTable(status rest.V1TaskStatus) string {
 	switch status {
-	case rest.V1TaskStatusCOMPLETED:
+	case enums.V1TaskStatusCOMPLETED:
 		return "✓ Succeeded"
-	case rest.V1TaskStatusFAILED:
+	case enums.V1TaskStatusFAILED:
 		return "✗ Failed"
-	case rest.V1TaskStatusCANCELLED:
+	case enums.V1TaskStatusCANCELLED:
 		return "○ Cancelled"
-	case rest.V1TaskStatusRUNNING:
+	case enums.V1TaskStatusRUNNING:
 		return "● Running"
-	case rest.V1TaskStatusQUEUED:
+	case enums.V1TaskStatusQUEUED:
 		return "◦ Queued"
 	default:
 		return "? Unknown"

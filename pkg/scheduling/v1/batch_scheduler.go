@@ -107,10 +107,14 @@ func (g *batchGroup) popN(n int) []bufferedItem {
 	return popped
 }
 
+// An empty buffer has no deadline, so the interval starts when the next item is buffered.
 func (g *batchGroup) resetFlushDeadline() {
-	if g.flushInterval != nil {
-		g.flushDeadline = new(time.Now().Add(*g.flushInterval))
+	if g.flushInterval == nil || len(g.buffer) == 0 {
+		g.flushDeadline = nil
+		return
 	}
+
+	g.flushDeadline = new(time.Now().Add(*g.flushInterval))
 }
 
 type BatchScheduler struct {
@@ -475,7 +479,6 @@ func (b *BatchScheduler) fetchNewItems(ctx context.Context) ([]*sqlcv1.V1Batched
 					Str("batch_key", batchKey).
 					Logger()),
 			}
-			group.resetFlushDeadline()
 			b.groups[batchKey] = group
 		}
 
@@ -495,8 +498,13 @@ func (b *BatchScheduler) fetchNewItems(ctx context.Context) ([]*sqlcv1.V1Batched
 			}
 			newItems = append(newItems, item)
 		}
+		wasEmpty := len(group.buffer) == 0
 		for _, item := range newItems {
 			group.buffer = append(group.buffer, toBufferedItem(item))
+		}
+		// Set before emitWaitingEvents, which reports flushDeadline as NextFlushAt.
+		if wasEmpty && len(newItems) > 0 {
+			group.resetFlushDeadline()
 		}
 		b.emitWaitingEvents(group, newItems)
 		if len(newItems) > 0 {
@@ -520,7 +528,8 @@ func (b *BatchScheduler) fetchNewItems(ctx context.Context) ([]*sqlcv1.V1Batched
 // rows would have been repopulated (and its lastActiveAt touched) this same tick. No separate
 // confirming DB read is needed here, unlike the whole-scheduler check in maybeStopIfIdle.
 func (b *BatchScheduler) groupIsIdle(group *batchGroup) bool {
-	if len(group.buffer) > 0 || group.flushDeadline != nil {
+	// A deadline left over after reconcile or timeouts empty the buffer is stale, so only the buffer counts.
+	if len(group.buffer) > 0 {
 		return false
 	}
 

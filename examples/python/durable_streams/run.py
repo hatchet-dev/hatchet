@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import json
 import uuid
 
@@ -49,10 +50,8 @@ async def stop_reading(topic: str) -> None:
         async for event in hatchet.streams.aio_subscribe(topic):
             print(event.payload.decode())
 
-    try:
+    with contextlib.suppress(TimeoutError):
         await asyncio.wait_for(read(), timeout=10)
-    except asyncio.TimeoutError:
-        pass
 
 
 async def namespaces() -> None:

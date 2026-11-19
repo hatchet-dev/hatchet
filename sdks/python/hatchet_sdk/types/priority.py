@@ -1,5 +1,7 @@
 from typing import Literal
 
+from hatchet_sdk.utils.literals import convert_literal_using_mapping
+
 Priority = Literal["LOW", "MEDIUM", "HIGH"]
 
 _PRIORITY_TO_INT: dict[Priority, int] = {"LOW": 1, "MEDIUM": 2, "HIGH": 3}
@@ -9,7 +11,7 @@ _INT_TO_PRIORITY: dict[int, Priority] = {
 
 
 def priority_to_int(priority: Priority) -> int:
-    return _PRIORITY_TO_INT[priority]
+    return convert_literal_using_mapping(priority, _PRIORITY_TO_INT, "priority")
 
 
 def priority_from_int(value: int) -> Priority:

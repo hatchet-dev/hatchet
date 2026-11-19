@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 from uuid import uuid4
 
 import pytest
@@ -7,7 +8,7 @@ from examples.concurrency_cancel_queued_except_oldest.worker import (
     WorkflowInput,
     concurrency_cancel_queued_except_oldest_workflow,
 )
-from hatchet_sdk import Hatchet, RunStatus, WorkflowRunRef
+from hatchet_sdk import Hatchet, WorkflowRunRef
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -36,16 +37,12 @@ async def test_cancel_queued_except_oldest_keeps_only_the_oldest_queued_run(
         queued_refs.append(ref)
         await asyncio.sleep(0.2)
 
-    try:
+    with contextlib.suppress(Exception):
         await occupying_run.aio_result()
-    except Exception:
-        pass
 
     for ref in queued_refs:
-        try:
+        with contextlib.suppress(Exception):
             await ref.aio_result()
-        except Exception:
-            pass
 
     ## wait for the olap repo to catch up
     await asyncio.sleep(5)

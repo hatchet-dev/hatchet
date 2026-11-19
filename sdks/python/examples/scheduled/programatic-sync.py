@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from hatchet_sdk import Hatchet
 
@@ -7,7 +7,7 @@ hatchet = Hatchet()
 # > Create
 scheduled_run = hatchet.scheduled.create(
     workflow_name="simple-workflow",
-    trigger_at=datetime.now(tz=timezone.utc) + timedelta(seconds=10),
+    trigger_at=datetime.now(tz=UTC) + timedelta(seconds=10),
     input={
         "data": "simple-workflow-data",
     },
@@ -22,7 +22,7 @@ id = scheduled_run.id  # the id of the scheduled run trigger
 # > Reschedule
 hatchet.scheduled.update(
     scheduled_id=scheduled_run.id,
-    trigger_at=datetime.now(tz=timezone.utc) + timedelta(hours=1),
+    trigger_at=datetime.now(tz=UTC) + timedelta(hours=1),
 )
 # !!
 
@@ -50,7 +50,7 @@ hatchet.scheduled.bulk_delete(
 # > Bulk Reschedule
 hatchet.scheduled.bulk_update(
     [
-        (id, datetime.now(tz=timezone.utc) + timedelta(hours=2)),
+        (id, datetime.now(tz=UTC) + timedelta(hours=2)),
     ]
 )
 # !!

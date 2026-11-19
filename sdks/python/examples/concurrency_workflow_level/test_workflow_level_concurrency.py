@@ -4,7 +4,6 @@ from collections.abc import Callable
 from datetime import datetime
 from random import choice
 from typing import Literal
-from uuid import uuid4
 
 import pytest
 from pydantic import BaseModel
@@ -15,8 +14,7 @@ from examples.concurrency_workflow_level.worker import (
     WorkflowInput,
     concurrency_workflow_level_workflow,
 )
-from hatchet_sdk import Hatchet
-from hatchet_sdk import TaskRunSummary
+from hatchet_sdk import Hatchet, TaskRunSummary
 
 Character = Literal["Anna", "Vronsky", "Stiva", "Dolly", "Levin", "Karenin"]
 characters: list[Character] = [

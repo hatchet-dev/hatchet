@@ -1,11 +1,13 @@
-import pytest
-from hatchet_sdk import Hatchet
-from hatchet_sdk import DesiredWorkerLabel
-from subprocess import Popen
-from typing import Any, Generator
-from examples.runtime_affinity.worker import runtime_affinity_workflow, AffinityResult
+from collections.abc import Generator
 from random import choice
+from subprocess import Popen
+from typing import Any
+
+import pytest
+
 from conftest import _on_demand_worker_fixture
+from examples.runtime_affinity.worker import AffinityResult, runtime_affinity_workflow
+from hatchet_sdk import DesiredWorkerLabel, Hatchet
 
 labels = ["foo", "bar", "baz", "qux"]
 
@@ -121,9 +123,9 @@ async def test_runtime_affinity(
     assert set(worker_label_to_id.keys()) == set(labels)
 
     expected_tasks = [t.name for t in runtime_affinity_workflow.tasks]
-    N = 50
+    run_count = 50
 
-    target_workers = [choice(labels) for _ in range(N)]
+    target_workers = [choice(labels) for _ in range(run_count)]
     res = await runtime_affinity_workflow.aio_run_many(
         [
             runtime_affinity_workflow.create_bulk_run_item(
@@ -139,7 +141,7 @@ async def test_runtime_affinity(
         ]
     )
 
-    for run, target_worker in zip(res, target_workers):
+    for run, target_worker in zip(res, target_workers, strict=True):
         expected_worker_id = worker_label_to_id[target_worker]
 
         for task_name in expected_tasks:

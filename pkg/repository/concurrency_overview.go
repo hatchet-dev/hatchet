@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -66,7 +67,7 @@ type ConcurrencyStrategySummary struct {
 	IsDraining bool
 
 	Expression        string
-	Strategy          sqlcv1.V1ConcurrencyStrategy
+	Strategy          enums.V1ConcurrencyStrategy
 	MaxRuns           int32
 	MaxRunsExpression *string
 
@@ -503,7 +504,7 @@ func (r *concurrencyOverviewRepository) listKeys(ctx context.Context, tenantId u
 	return res, total, nil
 }
 
-func workflowStrategySummary(id int64, workflowId, workflowVersionId uuid.UUID, workflowName string, workflowVersion pgtype.Text, strategy sqlcv1.V1ConcurrencyStrategy, expression string, maxRuns int32) *ConcurrencyStrategySummary {
+func workflowStrategySummary(id int64, workflowId, workflowVersionId uuid.UUID, workflowName string, workflowVersion pgtype.Text, strategy enums.V1ConcurrencyStrategy, expression string, maxRuns int32) *ConcurrencyStrategySummary {
 	return &ConcurrencyStrategySummary{
 		ID:                id,
 		Scope:             ConcurrencyScopeWorkflow,
@@ -518,7 +519,7 @@ func workflowStrategySummary(id int64, workflowId, workflowVersionId uuid.UUID, 
 	}
 }
 
-func taskStrategySummary(id int64, workflowId, workflowVersionId uuid.UUID, workflowName string, workflowVersion pgtype.Text, taskName string, strategy sqlcv1.V1ConcurrencyStrategy, expression string, maxRuns int32, maxRunsExpression pgtype.Text) *ConcurrencyStrategySummary {
+func taskStrategySummary(id int64, workflowId, workflowVersionId uuid.UUID, workflowName string, workflowVersion pgtype.Text, taskName string, strategy enums.V1ConcurrencyStrategy, expression string, maxRuns int32, maxRunsExpression pgtype.Text) *ConcurrencyStrategySummary {
 	return &ConcurrencyStrategySummary{
 		ID:                id,
 		Scope:             ConcurrencyScopeTask,

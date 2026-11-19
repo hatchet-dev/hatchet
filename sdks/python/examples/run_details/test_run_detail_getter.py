@@ -1,11 +1,10 @@
 from uuid import uuid4
 
 import pytest
-import asyncio
 
 from examples.run_details.worker import MockInput, run_detail_test_workflow
 from examples.test_utils import wait_for_running_status
-from hatchet_sdk import Hatchet, RunStatus
+from hatchet_sdk import FailedTaskRunExceptionGroup, Hatchet
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -30,7 +29,7 @@ async def test_run(hatchet: Hatchet, test_run_id: str) -> None:
 
     assert details.done is False
 
-    with pytest.raises(Exception):
+    with pytest.raises(FailedTaskRunExceptionGroup):
         await ref.aio_result()
 
     details = hatchet.runs.get_details(ref.workflow_run_id)
@@ -48,10 +47,15 @@ async def test_run(hatchet: Hatchet, test_run_id: str) -> None:
     assert details.task_runs["fail_step"].status == "FAILED"
     assert details.task_runs["cancel_step"].status == "CANCELLED"
 
+    step1_output = details.task_runs["step1"].output
+    step2_output = details.task_runs["step2"].output
+    step3_output = details.task_runs["step3"].output
+    assert step1_output is not None
+    assert step2_output is not None
+    assert step3_output is not None
     assert (
-        details.task_runs["step1"].output["random_number"]  # type: ignore[index]
-        + details.task_runs["step2"].output["random_number"]  # type: ignore[index]
-        == details.task_runs["step3"].output["sum"]  # type: ignore[index]
+        step1_output["random_number"] + step2_output["random_number"]
+        == step3_output["sum"]
     )
 
     assert details.task_runs["step4"].output == {"step4": "step4"}

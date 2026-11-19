@@ -5,12 +5,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func newGroupRoundRobinStrategy(repo repository.ConcurrencyRepository, maxConcurrency int32) *ConcurrencyStrategy {
-	return newTestStrategyKind(repo, maxConcurrency, sqlcv1.V1ConcurrencyStrategyGROUPROUNDROBIN)
+	return newTestStrategyKind(repo, maxConcurrency, enums.V1ConcurrencyStrategyGROUPROUNDROBIN)
 }
 
 // Free capacity is filled from the queued backlog in comparator order (highest priority first); the

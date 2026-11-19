@@ -1,4 +1,5 @@
 import asyncio
+import builtins
 from datetime import timedelta
 from typing import TYPE_CHECKING, Literal
 
@@ -74,7 +75,7 @@ class WorkflowsClient(BaseRestClient):
         workflow_name: str | None = None,
         limit: int | None = None,
         offset: int | None = None,
-    ) -> "list[Workflow]":
+    ) -> "builtins.list[Workflow]":
         """
         List all workflows in the tenant determined by the client config that match optional filters.
 
@@ -94,7 +95,7 @@ class WorkflowsClient(BaseRestClient):
         workflow_name: str | None = None,
         limit: int | None = None,
         offset: int | None = None,
-    ) -> "list[Workflow]":
+    ) -> "builtins.list[Workflow]":
         """
         List all workflows in the tenant determined by the client config that match optional filters.
 

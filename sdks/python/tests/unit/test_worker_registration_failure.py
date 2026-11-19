@@ -10,7 +10,7 @@ from hatchet_sdk.worker.action_listener_process import (
     WorkerActionListenerProcess,
     worker_action_listener_process,
 )
-from hatchet_sdk.worker.worker import Worker, WorkerStatus
+from hatchet_sdk.worker.worker import Worker
 
 LISTENER_MODULE = "hatchet_sdk.worker.action_listener_process"
 WORKER_MODULE = "hatchet_sdk.worker.worker"
@@ -56,9 +56,11 @@ async def test_registration_failure_propagates_without_starting_tasks(
     error = _registration_error(status)
     dispatcher = MagicMock()
     dispatcher.get_action_listener = AsyncMock(side_effect=error)
-    with patch(f"{LISTENER_MODULE}.DispatcherClient", return_value=dispatcher):
-        with pytest.raises(grpc.aio.AioRpcError) as caught:
-            await process.start()
+    with (
+        patch(f"{LISTENER_MODULE}.DispatcherClient", return_value=dispatcher),
+        pytest.raises(grpc.aio.AioRpcError) as caught,
+    ):
+        await process.start()
 
     assert caught.value is error
     assert process.listener is None
@@ -66,7 +68,7 @@ async def test_registration_failure_propagates_without_starting_tasks(
     assert process.event_send_loop_task is None
     assert process.blocked_main_loop is None
     assert process._stop_event_task is None
-    cast(MagicMock, process.worker_id_queue).put.assert_not_called()
+    cast("MagicMock", process.worker_id_queue).put.assert_not_called()
     process.finalize_listener_cleanup()
 
 
@@ -77,19 +79,21 @@ def test_registration_failure_closes_health_server() -> None:
     process.start = AsyncMock(side_effect=error)
     process.stop_health_server = AsyncMock()
 
-    with patch(f"{LISTENER_MODULE}.WorkerActionListenerProcess", return_value=process):
-        with pytest.raises(grpc.aio.AioRpcError) as caught:
-            worker_action_listener_process(
-                name="test-worker",
-                actions=["test-action"],
-                slot_config={"default": 1},
-                config=MagicMock(),
-                action_queue=MagicMock(),
-                event_queue=MagicMock(),
-                labels=[],
-                worker_id_queue=MagicMock(),
-                stop_event=MagicMock(),
-            )
+    with (
+        patch(f"{LISTENER_MODULE}.WorkerActionListenerProcess", return_value=process),
+        pytest.raises(grpc.aio.AioRpcError) as caught,
+    ):
+        worker_action_listener_process(
+            name="test-worker",
+            actions=["test-action"],
+            slot_config={"default": 1},
+            config=MagicMock(),
+            action_queue=MagicMock(),
+            event_queue=MagicMock(),
+            labels=[],
+            worker_id_queue=MagicMock(),
+            stop_event=MagicMock(),
+        )
 
     assert caught.value is error
     process.start_health_server.assert_awaited_once()
@@ -149,15 +153,17 @@ def test_worker_start_propagates_listener_death_after_cleanup(
     worker._action_listener_process = listener
 
     try:
-        with patch.object(worker, "_aio_start", new=lambda: _monitor(worker)):
-            with pytest.raises(
+        with (
+            patch.object(worker, "_aio_start", new=lambda: _monitor(worker)),
+            pytest.raises(
                 RuntimeError, match="action listener process exited unexpectedly"
-            ):
-                worker.start()
+            ),
+        ):
+            worker.start()
         assert worker.status == "UNHEALTHY"
-        cast(MagicMock, worker._action_runner).exit_gracefully.assert_awaited_once()
-        cast(MagicMock, worker._action_runner).cleanup.assert_called_once()
-        cast(AsyncMock, worker._cleanup_lifespan).assert_awaited_once()
+        cast("MagicMock", worker._action_runner).exit_gracefully.assert_awaited_once()
+        cast("MagicMock", worker._action_runner).cleanup.assert_called_once()
+        cast("AsyncMock", worker._cleanup_lifespan).assert_awaited_once()
     finally:
         _cleanup_worker(worker)
 
@@ -175,7 +181,7 @@ def test_task_limit_shutdown_returns_from_start() -> None:
         ):
             worker.start()
         assert worker._aio_start_exception is None
-        cast(MagicMock, worker._action_runner).exit_gracefully.assert_awaited_once()
+        cast("MagicMock", worker._action_runner).exit_gracefully.assert_awaited_once()
     finally:
         _cleanup_worker(worker)
 

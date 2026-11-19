@@ -1,5 +1,6 @@
-from hatchet_sdk import Context, Hatchet
 from pydantic import BaseModel
+
+from hatchet_sdk import Context, Hatchet
 
 hatchet = Hatchet()
 
@@ -21,10 +22,10 @@ exception_parsing_workflow = hatchet.workflow(name="ExceptionParsingWorkflow")
 
 @exception_parsing_workflow.task()
 async def exception_class_no_name_task(input: None, ctx: Context) -> None:
-    class CustomNoNamedException(Exception): ...
+    class CustomNoNamedError(Exception): ...
 
-    CustomNoNamedException.__name__ = ""
-    raise CustomNoNamedException
+    CustomNoNamedError.__name__ = ""
+    raise CustomNoNamedError
 
 
 @exception_parsing_workflow.task()

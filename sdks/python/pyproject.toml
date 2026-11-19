@@ -1,6 +1,6 @@
 [project]
 name = "hatchet-sdk"
-version = "2.0.0a1"
+version = "2.0.0a5"
 description = "This is the official Python SDK for Hatchet, a distributed, fault-tolerant task queue. The SDK allows you to easily integrate Hatchet's task scheduling and workflow orchestration capabilities into your Python applications."
 readme = "README.md"
 license = { text = "MIT" }
@@ -16,7 +16,7 @@ authors = [
 dependencies = [
     "grpcio>=1.76.0,<2",
     "grpcio-status>=1.76.0,<2",
-    "protobuf>=6.30.2,<7",
+    "protobuf>=6.30.2,<8",
     "pydantic>=2.6.3,<3",
     "python-dateutil>=2.9.0.post0,<3",
     "aiohttp>=3.10.5,<4",
@@ -39,6 +39,8 @@ otel = [
 
 lint = [
     "mypy==2.1.0",
+    "pyright[nodejs]==1.1.414",
+    "ty==0.0.106",
     "types-protobuf>=5.28.3.20241030",
     "black==26.3.1",
     "click>=8.4.2",
@@ -122,7 +124,64 @@ enable_error_code = [
     "truthy-bool",
     "redundant-expr",
     "truthy-iterable",
+    "unused-awaitable",
+    "ignore-without-code",
 ]
+
+[tool.pyright]
+exclude = [
+    "**/.*",
+    "**/__pycache__",
+    "hatchet_sdk/clients/rest/__init__.py",
+    "hatchet_sdk/clients/rest/api",
+    "hatchet_sdk/clients/rest/models",
+    "hatchet_sdk/contracts",
+    "hatchet_sdk/clients/rest/api_client.py",
+    "hatchet_sdk/clients/rest/configuration.py",
+    "hatchet_sdk/clients/rest/exceptions.py",
+    "hatchet_sdk/clients/rest/rest.py",
+    "hatchet_sdk/v0",
+    "site",
+    "examples/dependency_injection/dependency_annotations312.py",
+]
+typeCheckingMode = "strict"
+# the SDK deliberately reaches into its own `_` attributes across modules
+reportPrivateUsage = false
+reportUninitializedInstanceVariable = "error"
+reportMatchNotExhaustive = "error"
+executionEnvironments = [
+    # tests and examples intentionally exercise deprecated APIs
+    { root = "tests", extraPaths = ["."], reportDeprecated = false },
+    { root = "examples", extraPaths = ["."], reportDeprecated = false },
+    { root = "." },
+]
+
+[tool.ty.src]
+exclude = [
+    "hatchet_sdk/clients/rest/api",
+    "hatchet_sdk/clients/rest/models",
+    "hatchet_sdk/contracts",
+    "hatchet_sdk/clients/rest/api_client.py",
+    "hatchet_sdk/clients/rest/configuration.py",
+    "hatchet_sdk/clients/rest/exceptions.py",
+    "hatchet_sdk/clients/rest/rest.py",
+    "hatchet_sdk/v0",
+    "site",
+    "examples/dependency_injection/dependency_annotations312.py",
+]
+
+[tool.ty.rules]
+# mypy owns `type: ignore` hygiene via `warn_unused_ignores`; some ignores are only needed by mypy
+unused-type-ignore-comment = "ignore"
+unsound-assignment = "error"
+unsound-return = "error"
+
+[[tool.ty.overrides]]
+include = ["examples/**", "tests/**"]
+
+[tool.ty.overrides.rules]
+# tests and examples intentionally exercise deprecated APIs
+deprecated = "ignore"
 
 [tool.ruff]
 target-version = "py311"
@@ -167,8 +226,6 @@ select = [
 ]
 ignore = ["E501", "RET503", "FIX", "B008", "PGH004"]
 exclude = [
-    "examples/*",
-    "docs/*",
     "hatchet_sdk/clients/rest/api/*",
     "hatchet_sdk/clients/rest/models/*",
     "hatchet_sdk/contracts",
@@ -180,11 +237,21 @@ exclude = [
     "hatchet_sdk/v0/*",
     "apply_patches.py",
     "site/*",
-    "tests/*",
+    "examples/dependency_injection/dependency_annotations312.py",
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# pytest fixtures are requested as arguments without being used, and examples print their results
+"tests/**" = ["ARG001", "ARG002", "ANN401", "T201", "ASYNC109"]
+"examples/**" = ["ARG001", "ARG002", "ANN401", "T201", "ASYNC109"]
+"docs/**" = ["T201"]
+# these examples block the event loop on purpose, to demonstrate the problem
+"examples/blocked_async/**" = ["ASYNC251"]
+"examples/blocked_loop_blog/**" = ["ASYNC251"]
 
 [tool.ruff.lint.flake8-type-checking]
 runtime-evaluated-base-classes = ["pydantic.BaseModel"]
+exempt-modules = ["typing", "builtins"]
 
 [tool.pydoclint]
 style = "sphinx"
