@@ -909,12 +909,17 @@ JOIN
     input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at
 LEFT JOIN
     runtimes_to_delete r ON r.task_id = t.id AND r.retry_count = i.retry_count
+WHERE
+    t.inserted_at >= $4::timestamptz
+    AND t.inserted_at <= $5::timestamptz
 `
 
 type ReleaseTasksParams struct {
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Retrycounts     []int32              `json:"retrycounts"`
+	Taskids           []int64              `json:"taskids"`
+	Taskinsertedats   []pgtype.Timestamptz `json:"taskinsertedats"`
+	Retrycounts       []int32              `json:"retrycounts"`
+	Mintaskinsertedat pgtype.Timestamptz   `json:"mintaskinsertedat"`
+	Maxtaskinsertedat pgtype.Timestamptz   `json:"maxtaskinsertedat"`
 }
 
 type ReleaseTasksRow struct {
@@ -948,7 +953,7 @@ func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksPar
 	rowsCh := make(chan *ReleaseTasksRow, len(arg.Taskids))
 	errCh := make(chan error, 1)
 
-	res := batch.Queue(releaseTasks, vals...)
+	res := batch.Queue(releaseTasks, arg.Taskids, arg.Taskinsertedats, arg.Retrycounts, arg.Mintaskinsertedat, arg.Maxtaskinsertedat)
 
 	res.Query(func(rows pgx.Rows) error {
 		for rows.Next() {

@@ -743,6 +743,8 @@ WITH input AS (
     WHERE
         e.tenant_id = @tenantId::uuid
         AND e.event_type = 'SIGNAL_CREATED'
+        AND e.task_inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+        AND e.task_inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
         -- filtering by key here keeps it in the index probe; a durable parent can have tens of
         -- thousands of signal events, and matching keys afterwards rescanned the input per event
         AND e.event_key = ANY(@eventKeys::TEXT[])

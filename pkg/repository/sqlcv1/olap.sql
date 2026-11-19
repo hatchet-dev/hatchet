@@ -883,7 +883,7 @@ LEFT JOIN
     task_output o ON o.task_id = t.id
 ORDER BY t.inserted_at DESC, t.id DESC;
 
--- name: FindMinInsertedAtForTaskStatusUpdates :one
+-- name: FindInsertedAtBoundsForTaskStatusUpdates :one
 WITH tenants AS (
     SELECT UNNEST(
         find_matching_tenants_in_task_events_tmp_partition(
@@ -894,7 +894,8 @@ WITH tenants AS (
 )
 
 SELECT
-    MIN(e.task_inserted_at)::TIMESTAMPTZ AS min_inserted_at
+    MIN(e.task_inserted_at)::TIMESTAMPTZ AS min_inserted_at,
+    MAX(e.task_inserted_at)::TIMESTAMPTZ AS max_inserted_at
 FROM tenants t,
     LATERAL list_task_events_tmp(
         @partitionNumber::int,
@@ -975,6 +976,7 @@ WITH tenants AS (
             (t.tenant_id, t.id, t.inserted_at) = (e.tenant_id, e.task_id, e.task_inserted_at)
     WHERE
         t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+        AND t.inserted_at <= @maxInsertedAt::TIMESTAMPTZ
     ORDER BY
         t.tenant_id, t.id, t.inserted_at, t.readable_status
 ), locked_tasks AS (
@@ -985,6 +987,9 @@ WITH tenants AS (
     JOIN
         distinct_tasks_to_lock dt ON
             (dt.inserted_at, dt.id) = (t.inserted_at, t.id)
+    WHERE
+        t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+        AND t.inserted_at <= @maxInsertedAt::TIMESTAMPTZ
     FOR UPDATE
 ), already_in_target_partition AS (
     -- Check if rows already exist in the target partition (with the new readable_status)
@@ -1012,6 +1017,8 @@ WITH tenants AS (
     WHERE
         -- Only consider rows where we would actually change the status
         lt.readable_status != lt.max_readable_status
+        AND t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+        AND t.inserted_at <= @maxInsertedAt::TIMESTAMPTZ
 ), deleted_duplicate_tasks AS (
     -- Delete the old rows that already have a copy in the target partition
     DELETE FROM
@@ -1020,6 +1027,8 @@ WITH tenants AS (
         already_in_target_partition ap
     WHERE
         (t.inserted_at, t.id, t.readable_status) = (ap.inserted_at, ap.id, ap.old_readable_status)
+        AND t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+        AND t.inserted_at <= @maxInsertedAt::TIMESTAMPTZ
 ), tasks_to_update AS (
     -- Tasks that need updating and don't already exist in target partition
     SELECT
@@ -1051,6 +1060,8 @@ WITH tenants AS (
             (tu.tenant_id, tu.id, tu.inserted_at, tu.retry_count) = (lw.tenant_id, lw.task_id, lw.task_inserted_at, lw.retry_count)
     WHERE
         (t.inserted_at, t.id, t.readable_status) = (tu.inserted_at, tu.id, tu.readable_status)
+        AND t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+        AND t.inserted_at <= @maxInsertedAt::TIMESTAMPTZ
         AND
             (
                 -- A newer retry count must always apply, even when the readable
@@ -1322,7 +1333,7 @@ SELECT
 FROM updated_dags ud
 ;
 
--- name: FindMinInsertedAtForDAGStatusUpdates :one
+-- name: FindInsertedAtBoundsForDAGStatusUpdates :one
 WITH tenants AS (
     SELECT UNNEST(
         find_matching_tenants_in_task_status_updates_tmp_partition(
@@ -1333,7 +1344,8 @@ WITH tenants AS (
 )
 
 SELECT
-    MIN(u.dag_inserted_at)::TIMESTAMPTZ AS min_inserted_at
+    MIN(u.dag_inserted_at)::TIMESTAMPTZ AS min_inserted_at,
+    MAX(u.dag_inserted_at)::TIMESTAMPTZ AS max_inserted_at
 FROM tenants t,
     LATERAL list_task_status_updates_tmp(
         @partitionNumber::int,
@@ -1378,6 +1390,7 @@ WITH tenants AS (
         v1_dags_olap d
     WHERE
         d.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+        AND d.inserted_at <= @maxInsertedAt::TIMESTAMPTZ
         AND (d.inserted_at, d.id, d.tenant_id) IN (
             SELECT
                 dd.dag_inserted_at, dd.dag_id, dd.tenant_id
@@ -1406,6 +1419,7 @@ WITH tenants AS (
             (dt.task_id, dt.task_inserted_at) = (t.id, t.inserted_at)
     WHERE
         dt.dag_inserted_at >= @minInsertedAt::TIMESTAMPTZ
+        AND dt.dag_inserted_at <= @maxInsertedAt::TIMESTAMPTZ
         AND t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
     -- Note that the ORDER BY seems to help the query planner by pruning partitions earlier. We
     -- have previously seen Postgres use an index-only scan on partitions older than the minInsertedAt,
@@ -1475,6 +1489,8 @@ WITH tenants AS (
     WHERE
         -- Only consider rows where we would actually change the status
         dns.old_readable_status != dns.new_readable_status
+        AND d.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+        AND d.inserted_at <= @maxInsertedAt::TIMESTAMPTZ
 ), updated_target_partition_dags AS (
     -- Update the existing rows in the target partition
     UPDATE
@@ -1486,6 +1502,8 @@ WITH tenants AS (
         already_in_target_partition ap
     WHERE
         (d.inserted_at, d.id, d.readable_status) = (ap.inserted_at, ap.id, ap.new_readable_status)
+        AND d.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+        AND d.inserted_at <= @maxInsertedAt::TIMESTAMPTZ
     RETURNING
         d.tenant_id, d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
 ), deleted_duplicate_dags AS (
@@ -1496,6 +1514,8 @@ WITH tenants AS (
         already_in_target_partition ap
     WHERE
         (d.inserted_at, d.id, d.readable_status) = (ap.inserted_at, ap.id, ap.old_readable_status)
+        AND d.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+        AND d.inserted_at <= @maxInsertedAt::TIMESTAMPTZ
 ), dags_to_update AS (
     -- DAGs that need updating and don't already exist in target partition
     SELECT DISTINCT ON (dns.tenant_id, dns.id, dns.inserted_at)
@@ -1524,6 +1544,8 @@ WITH tenants AS (
     WHERE
         (d.inserted_at, d.id, d.readable_status) = (dtu.inserted_at, dtu.id, dtu.old_readable_status)
         AND dtu.old_readable_status != dtu.new_readable_status
+        AND d.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+        AND d.inserted_at <= @maxInsertedAt::TIMESTAMPTZ
     RETURNING
         d.tenant_id, d.id, d.inserted_at, d.readable_status, d.external_id, d.workflow_id
 ), all_result_dags AS (
@@ -2495,6 +2517,7 @@ WITH inputs AS (
     WHERE
         (id, inserted_at) IN (SELECT task_id, task_inserted_at FROM inputs)
         AND inserted_at >= @minInsertedAt::TIMESTAMPTZ
+        AND inserted_at <= @maxInsertedAt::TIMESTAMPTZ
     ORDER BY inserted_at, id
     FOR UPDATE
 ), relevant_events AS MATERIALIZED (
@@ -2503,6 +2526,7 @@ WITH inputs AS (
     WHERE
         (task_id, task_inserted_at) IN (SELECT task_id, task_inserted_at FROM inputs)
         AND task_inserted_at >= @minInsertedAt::TIMESTAMPTZ
+        AND task_inserted_at <= @maxInsertedAt::TIMESTAMPTZ
 ), max_retry_counts AS (
     SELECT
         task_id,
@@ -2530,6 +2554,8 @@ SET
 FROM statuses_from_events s
 WHERE
     (t.id, t.inserted_at) = (s.task_id, s.task_inserted_at)
+    AND t.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+    AND t.inserted_at <= @maxInsertedAt::TIMESTAMPTZ
     AND (
         -- A newer retry count always applies, even when the readable status is
         -- unchanged — same rationale as the guards in UpdateTaskStatuses and
