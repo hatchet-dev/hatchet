@@ -64,7 +64,7 @@ export const EventsLog = ({
         logs={logs}
         isLoading={isLoading}
         showAttempt={false}
-        emptyMessage="No events yet. The operator records credential checks, sandbox creations and failures here."
+        emptyMessage="No events yet."
       />
     </div>
   );

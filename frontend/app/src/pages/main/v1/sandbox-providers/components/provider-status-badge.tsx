@@ -27,22 +27,22 @@ const STATES: Record<
 > = {
   healthy: {
     label: 'Healthy',
-    description: 'The vendor accepted the provider credentials.',
+    description: 'The vendor accepted the API key.',
     variant: 'successful',
   },
   unhealthy: {
     label: 'Unhealthy',
-    description: 'The vendor rejected the last check with these credentials.',
+    description: 'The vendor rejected the API key.',
     variant: 'failed',
   },
   pending: {
     label: 'Pending',
-    description: 'The sandbox operator has not checked this provider yet.',
+    description: 'Not checked yet.',
     variant: 'queued',
   },
   disabled: {
     label: 'Disabled',
-    description: 'The operator does not serve sandboxes on this provider.',
+    description: 'Serves no sandboxes until enabled.',
     variant: 'outline',
   },
 };

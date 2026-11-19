@@ -285,6 +285,11 @@ export function generateBreadcrumbs(
       currentSegment === params['managed-worker']
     ) {
       dynamicLabel = params['managed-worker'];
+    } else if (
+      params?.sandboxProvider &&
+      currentSegment === params.sandboxProvider
+    ) {
+      dynamicLabel = params.sandboxProvider;
     }
 
     if (dynamicLabel) {
