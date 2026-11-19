@@ -63,6 +63,23 @@ func (h *Health) Start(port int) (func() error, error) {
 		w.WriteHeader(http.StatusOK)
 	})
 
+	// ingestion falls back to publishing to the message queue when the database is unavailable,
+	// so its readiness intentionally does not depend on database health
+	mux.HandleFunc("/ready/ingestion", func(w http.ResponseWriter, r *http.Request) {
+		queueReady := h.queue.IsReady()
+
+		if h.shuttingDown || !queueReady {
+			if !h.shuttingDown {
+				h.l.Error().Ctx(r.Context()).Msgf("ingestion readiness check failed - queue ready: %t", queueReady)
+			}
+
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+	})
+
 	mux.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		e := json.NewEncoder(w).Encode(map[string]string{"version": h.version})
