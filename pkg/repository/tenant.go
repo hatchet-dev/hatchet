@@ -289,18 +289,9 @@ func (r *tenantRepository) CreateTenant(ctx context.Context, opts *CreateTenantO
 
 	defer sqlchelpers.DeferRollback(context.Background(), r.l, tx.Rollback)
 
-	var environment sqlcv1.NullTenantEnvironment
+	environment := enums.TenantEnvironmentDevelopment
 	if opts.Environment != nil {
-		environment = sqlcv1.NullTenantEnvironment{
-			TenantEnvironment: sqlcv1.TenantEnvironment(*opts.Environment),
-			Valid:             true,
-		}
-	} else {
-		// Default to development environment if none is specified
-		environment = sqlcv1.NullTenantEnvironment{
-			TenantEnvironment: sqlcv1.TenantEnvironmentDevelopment,
-			Valid:             true,
-		}
+		environment = enums.TenantEnvironment(*opts.Environment)
 	}
 
 	var onboardingData []byte
@@ -318,7 +309,7 @@ func (r *tenantRepository) CreateTenant(ctx context.Context, opts *CreateTenantO
 		DataRetentionPeriod: dataRetentionPeriod,
 		Version:             &engineVersion,
 		OnboardingData:      onboardingData,
-		Environment:         environment,
+		Environment:         &environment,
 	})
 
 	if err != nil {

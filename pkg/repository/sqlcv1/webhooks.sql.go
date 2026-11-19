@@ -86,7 +86,7 @@ type CreateWebhookParams struct {
 	AuthApiKeyHeaderName         pgtype.Text                           `json:"authApiKeyHeaderName"`
 	Authapikeykey                []byte                                `json:"authapikeykey"`
 	AuthHmacAlgorithm            *enums.V1IncomingWebhookHmacAlgorithm `json:"authHmacAlgorithm"`
-	AuthHmacEncoding             NullV1IncomingWebhookHmacEncoding     `json:"authHmacEncoding"`
+	AuthHmacEncoding             *enums.V1IncomingWebhookHmacEncoding  `json:"authHmacEncoding"`
 	AuthHmacSignatureHeaderName  pgtype.Text                           `json:"authHmacSignatureHeaderName"`
 	Authhmacwebhooksigningsecret []byte                                `json:"authhmacwebhooksigningsecret"`
 }

@@ -813,14 +813,14 @@ RETURNING "parentId", cron, "tickerId", input, enabled, "additionalMetadata", "c
 `
 
 type CreateWorkflowTriggerCronRefParams struct {
-	Workflowtriggersid   uuid.UUID                         `json:"workflowtriggersid"`
-	Crontrigger          string                            `json:"crontrigger"`
-	Name                 pgtype.Text                       `json:"name"`
-	Input                []byte                            `json:"input"`
-	AdditionalMetadata   []byte                            `json:"additionalMetadata"`
-	Method               NullWorkflowTriggerCronRefMethods `json:"method"`
-	Priority             pgtype.Int4                       `json:"priority"`
-	OldWorkflowVersionId *uuid.UUID                        `json:"oldWorkflowVersionId"`
+	Workflowtriggersid   uuid.UUID                            `json:"workflowtriggersid"`
+	Crontrigger          string                               `json:"crontrigger"`
+	Name                 pgtype.Text                          `json:"name"`
+	Input                []byte                               `json:"input"`
+	AdditionalMetadata   []byte                               `json:"additionalMetadata"`
+	Method               *enums.WorkflowTriggerCronRefMethods `json:"method"`
+	Priority             pgtype.Int4                          `json:"priority"`
+	OldWorkflowVersionId *uuid.UUID                           `json:"oldWorkflowVersionId"`
 }
 
 func (q *Queries) CreateWorkflowTriggerCronRef(ctx context.Context, db DBTX, arg CreateWorkflowTriggerCronRefParams) (*WorkflowTriggerCronRef, error) {
@@ -889,13 +889,13 @@ INSERT INTO "WorkflowTriggerCronRef" (
 `
 
 type CreateWorkflowTriggerCronRefForWorkflowParams struct {
-	Crontrigger        string                            `json:"crontrigger"`
-	Name               pgtype.Text                       `json:"name"`
-	Input              []byte                            `json:"input"`
-	AdditionalMetadata []byte                            `json:"additionalMetadata"`
-	Method             NullWorkflowTriggerCronRefMethods `json:"method"`
-	Priority           pgtype.Int4                       `json:"priority"`
-	Workflowid         uuid.UUID                         `json:"workflowid"`
+	Crontrigger        string                               `json:"crontrigger"`
+	Name               pgtype.Text                          `json:"name"`
+	Input              []byte                               `json:"input"`
+	AdditionalMetadata []byte                               `json:"additionalMetadata"`
+	Method             *enums.WorkflowTriggerCronRefMethods `json:"method"`
+	Priority           pgtype.Int4                          `json:"priority"`
+	Workflowid         uuid.UUID                            `json:"workflowid"`
 }
 
 func (q *Queries) CreateWorkflowTriggerCronRefForWorkflow(ctx context.Context, db DBTX, arg CreateWorkflowTriggerCronRefForWorkflowParams) (*WorkflowTriggerCronRef, error) {
@@ -2319,10 +2319,10 @@ RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, descripti
 `
 
 type PauseWorkflowParams struct {
-	Cronrunqueuebehavior      WorkflowPauseQueueBehavior `json:"cronrunqueuebehavior"`
-	Scheduledrunqueuebehavior WorkflowPauseQueueBehavior `json:"scheduledrunqueuebehavior"`
-	Queuettl                  string                     `json:"queuettl"`
-	ID                        uuid.UUID                  `json:"id"`
+	Cronrunqueuebehavior      enums.WorkflowPauseQueueBehavior `json:"cronrunqueuebehavior"`
+	Scheduledrunqueuebehavior enums.WorkflowPauseQueueBehavior `json:"scheduledrunqueuebehavior"`
+	Queuettl                  string                           `json:"queuettl"`
+	ID                        uuid.UUID                        `json:"id"`
 }
 
 func (q *Queries) PauseWorkflow(ctx context.Context, db DBTX, arg PauseWorkflowParams) (*Workflow, error) {

@@ -75,6 +75,9 @@ WorkerType:
     - SELFHOSTED
     - MANAGED
     - WEBHOOK
+  x-go-type: enums.WorkerType
+  x-go-type-import:
+    path: github.com/hatchet-dev/hatchet/pkg/enums
 
 WorkerSlotConfig:
   type: object

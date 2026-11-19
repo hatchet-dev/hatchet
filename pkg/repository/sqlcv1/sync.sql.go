@@ -254,7 +254,7 @@ type SyncUpsertTenantParams struct {
 	Version             enums.TenantMajorEngineVersion `json:"version"`
 	Uiversion           TenantMajorUIVersion           `json:"uiversion"`
 	OnboardingData      []byte                         `json:"onboardingData"`
-	Environment         NullTenantEnvironment          `json:"environment"`
+	Environment         *enums.TenantEnvironment       `json:"environment"`
 	Analyticsoptout     bool                           `json:"analyticsoptout"`
 	Alertmemberemails   bool                           `json:"alertmemberemails"`
 	Canupgradev1        bool                           `json:"canupgradev1"`

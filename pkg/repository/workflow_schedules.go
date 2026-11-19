@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -57,7 +58,7 @@ type CreateScheduledWorkflowRunForWorkflowOpts struct {
 
 type ScheduledWorkflowMeta struct {
 	Id              uuid.UUID
-	Method          sqlcv1.WorkflowTriggerScheduledRefMethods
+	Method          enums.WorkflowTriggerScheduledRefMethods
 	HasTriggeredRun bool
 }
 
@@ -344,16 +345,15 @@ func (w *workflowScheduleRepository) CreateScheduledWorkflow(ctx context.Context
 		priority = *opts.Priority
 	}
 
+	scheduledMethod := enums.WorkflowTriggerScheduledRefMethodsAPI
+
 	createParams := sqlcv1.CreateWorkflowTriggerScheduledRefForWorkflowParams{
 		Workflowid:         opts.WorkflowId,
 		Scheduledtrigger:   sqlchelpers.TimestampFromTime(opts.ScheduledTrigger),
 		Input:              opts.Input,
 		Additionalmetadata: opts.AdditionalMetadata,
-		Method: sqlcv1.NullWorkflowTriggerScheduledRefMethods{
-			Valid:                              true,
-			WorkflowTriggerScheduledRefMethods: sqlcv1.WorkflowTriggerScheduledRefMethodsAPI,
-		},
-		Priority: sqlchelpers.ToInt(&priority),
+		Method:             &scheduledMethod,
+		Priority:           sqlchelpers.ToInt(&priority),
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, w.l)
@@ -859,17 +859,16 @@ func (w *workflowScheduleRepository) CreateCronWorkflow(ctx context.Context, ten
 		priority = *opts.Priority
 	}
 
+	cronMethod := enums.WorkflowTriggerCronRefMethodsAPI
+
 	createParams := sqlcv1.CreateWorkflowTriggerCronRefForWorkflowParams{
 		Workflowid:         opts.WorkflowId,
 		Crontrigger:        opts.Cron,
 		Name:               sqlchelpers.TextFromStr(opts.Name),
 		Input:              input,
 		AdditionalMetadata: additionalMetadata,
-		Method: sqlcv1.NullWorkflowTriggerCronRefMethods{
-			Valid:                         true,
-			WorkflowTriggerCronRefMethods: sqlcv1.WorkflowTriggerCronRefMethodsAPI,
-		},
-		Priority: sqlchelpers.ToInt(&priority),
+		Method:             &cronMethod,
+		Priority:           sqlchelpers.ToInt(&priority),
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, w.l)

@@ -11,6 +11,7 @@ import (
 	"github.com/go-co-op/gocron/v2"
 	"github.com/google/uuid"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -199,9 +200,9 @@ func getCronKey(cron *sqlcv1.PollCronSchedulesRow) string {
 	workflowVersionId := cron.WorkflowVersionId.String()
 
 	switch cron.Method {
-	case sqlcv1.WorkflowTriggerCronRefMethodsAPI:
+	case enums.WorkflowTriggerCronRefMethodsAPI:
 		return fmt.Sprintf("API-%s-%s-%s", workflowVersionId, cron.Cron, cron.Name.String)
-	case sqlcv1.WorkflowTriggerCronRefMethodsDEFAULT:
+	case enums.WorkflowTriggerCronRefMethodsDEFAULT:
 		return fmt.Sprintf("DEFAULT-%s-%s", workflowVersionId, cron.Cron)
 	default:
 		return fmt.Sprintf("DEFAULT-%s-%s", workflowVersionId, cron.Cron)

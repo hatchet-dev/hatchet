@@ -2015,8 +2015,8 @@ type PauseWorkflowOpts struct {
 func (r *workflowRepository) PauseWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID, opts PauseWorkflowOpts) (*sqlcv1.Workflow, error) {
 	return r.queries.PauseWorkflow(ctx, r.pool.ForTenant(tenantId), sqlcv1.PauseWorkflowParams{
 		ID:                        workflowId,
-		Cronrunqueuebehavior:      sqlcv1.WorkflowPauseQueueBehavior(opts.CronRunQueueBehavior),
-		Scheduledrunqueuebehavior: sqlcv1.WorkflowPauseQueueBehavior(opts.ScheduledRunQueueBehavior),
+		Cronrunqueuebehavior:      enums.WorkflowPauseQueueBehavior(opts.CronRunQueueBehavior),
+		Scheduledrunqueuebehavior: enums.WorkflowPauseQueueBehavior(opts.ScheduledRunQueueBehavior),
 		Queuettl:                  opts.QueueTTL,
 	})
 }

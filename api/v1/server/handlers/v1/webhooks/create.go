@@ -209,7 +209,7 @@ func (w *V1WebhooksService) constructCreateOpts(tenantId uuid.UUID, request gen.
 
 		authConfig.HMACAuth = &v1.HMACAuthCredentials{
 			Algorithm:                     hmacAuth.Auth.Algorithm,
-			Encoding:                      sqlcv1.V1IncomingWebhookHmacEncoding(hmacAuth.Auth.Encoding),
+			Encoding:                      hmacAuth.Auth.Encoding,
 			SignatureHeaderName:           hmacAuth.Auth.SignatureHeaderName,
 			EncryptedWebhookSigningSecret: signingSecretEncrypted,
 		}

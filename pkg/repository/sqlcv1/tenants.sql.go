@@ -114,7 +114,7 @@ type CreateTenantParams struct {
 	DataRetentionPeriod pgtype.Text                     `json:"dataRetentionPeriod"`
 	Version             *enums.TenantMajorEngineVersion `json:"version"`
 	OnboardingData      []byte                          `json:"onboardingData"`
-	Environment         NullTenantEnvironment           `json:"environment"`
+	Environment         *enums.TenantEnvironment        `json:"environment"`
 }
 
 func (q *Queries) CreateTenant(ctx context.Context, db DBTX, arg CreateTenantParams) (*Tenant, error) {
@@ -1210,7 +1210,7 @@ type PopulateTenantMembersRow struct {
 	AlertMemberEmails         bool                           `json:"alertMemberEmails"`
 	AnalyticsOptOut           bool                           `json:"analyticsOptOut"`
 	TenantVersion             enums.TenantMajorEngineVersion `json:"tenantVersion"`
-	TenantEnvironment         NullTenantEnvironment          `json:"tenantEnvironment"`
+	TenantEnvironment         *enums.TenantEnvironment       `json:"tenantEnvironment"`
 	TenantDataRetentionPeriod string                         `json:"tenantDataRetentionPeriod"`
 }
 
