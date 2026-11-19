@@ -111,8 +111,8 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Pull and push hatchet-api
         run: |
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-arm64
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-amd64
+          .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-arm64
+          .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-amd64
 
           docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-api:latest \
             ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-amd64 \
@@ -125,8 +125,8 @@ jobs:
           sbom: false
       - name: Pull and push hatchet-engine
         run: |
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-arm64
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-amd64
+          .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-arm64
+          .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-amd64
 
           docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-engine:latest \
             ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-amd64 \
@@ -139,8 +139,8 @@ jobs:
           sbom: false
       - name: Pull and push hatchet-admin
         run: |
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-arm64
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-amd64
+          .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-arm64
+          .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-amd64
 
           docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-admin:latest \
             ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-amd64 \
@@ -153,8 +153,8 @@ jobs:
           sbom: false
       - name: Pull and push hatchet-frontend
         run: |
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-arm64
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-amd64
+          .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-arm64
+          .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-amd64
 
           docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-frontend:latest \
             ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-amd64 \
@@ -167,8 +167,8 @@ jobs:
           sbom: false
       - name: Pull and push hatchet-migrate
         run: |
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-arm64
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-amd64
+          .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-arm64
+          .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-amd64
 
           docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-migrate:latest \
             ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-amd64 \
@@ -181,8 +181,8 @@ jobs:
           sbom: false
       - name: Pull and push hatchet-lite
         run: |
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-arm64
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-amd64
+          .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-arm64
+          .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-amd64
 
           docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-lite:latest \
             ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-amd64 \
@@ -196,8 +196,8 @@ jobs:
       - name: Pull and push dev images
         run: |
           for img in hatchet-api hatchet-engine hatchet-admin hatchet-lite hatchet-dashboard; do
-            docker pull ghcr.io/hatchet-dev/hatchet/$img-dev:${{steps.tag_name.outputs.tag}}-arm64
-            docker pull ghcr.io/hatchet-dev/hatchet/$img-dev:${{steps.tag_name.outputs.tag}}-amd64
+            .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/$img-dev:${{steps.tag_name.outputs.tag}}-arm64
+            .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/$img-dev:${{steps.tag_name.outputs.tag}}-amd64
 
             docker manifest create ghcr.io/hatchet-dev/hatchet/$img-dev:latest \
               ghcr.io/hatchet-dev/hatchet/$img-dev:${{steps.tag_name.outputs.tag}}-amd64 \
@@ -216,8 +216,8 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-dashboard-dev:latest
       - name: Pull and push hatchet-dashboard
         run: |
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-arm64
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-amd64
+          .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-arm64
+          .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-amd64
 
           docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:latest \
             ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-amd64 \
@@ -230,8 +230,8 @@ jobs:
           sbom: false
       - name: Pull and push hatchet-loadtest
         run: |
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-arm64
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-amd64
+          .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-arm64
+          .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-amd64
 
           docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:latest \
             ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-amd64 \
@@ -259,8 +259,8 @@ jobs:
       - name: Pull and push fips images
         run: |
           for img in hatchet-api hatchet-engine hatchet-admin hatchet-migrate hatchet-frontend hatchet-lite hatchet-dashboard; do
-            docker pull ghcr.io/hatchet-dev/hatchet/$img-fips:${{steps.tag_name.outputs.tag}}-arm64
-            docker pull ghcr.io/hatchet-dev/hatchet/$img-fips:${{steps.tag_name.outputs.tag}}-amd64
+            .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/$img-fips:${{steps.tag_name.outputs.tag}}-arm64
+            .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/$img-fips:${{steps.tag_name.outputs.tag}}-amd64
 
             docker manifest create ghcr.io/hatchet-dev/hatchet/$img-fips:latest \
               ghcr.io/hatchet-dev/hatchet/$img-fips:${{steps.tag_name.outputs.tag}}-amd64 \

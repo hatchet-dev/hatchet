@@ -45,7 +45,7 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             -t $REGISTRY/hatchet-${{ matrix.target }}-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }} \
             --build-arg SERVER_TARGET=${{ matrix.target }} \
             --build-arg VERSION=${{ steps.tag_name.outputs.tag }} \
@@ -53,7 +53,7 @@ jobs:
             --platform linux/${{ matrix.arch }} \
             .
       - name: Push to GHCR
-        run: docker push $REGISTRY/hatchet-${{ matrix.target }}-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }}
+        run: .github/scripts/retry docker push $REGISTRY/hatchet-${{ matrix.target }}-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }}
       - uses: ./.github/actions/sign-image
         with:
           images: ${{ env.REGISTRY }}/hatchet-${{ matrix.target }}-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }}
@@ -88,13 +88,13 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/frontend.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/frontend.dockerfile \
             -t $REGISTRY/hatchet-frontend-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }} \
             --build-arg FIPS=true \
             --platform linux/${{ matrix.arch }} \
             .
       - name: Push to GHCR
-        run: docker push $REGISTRY/hatchet-frontend-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }}
+        run: .github/scripts/retry docker push $REGISTRY/hatchet-frontend-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }}
       - uses: ./.github/actions/sign-image
         with:
           images: ${{ env.REGISTRY }}/hatchet-frontend-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }}
@@ -130,7 +130,7 @@ jobs:
       - name: Build
         run: |
           for target in lite admin migrate; do
-            DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+            DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
               --build-arg SERVER_TARGET=$target \
               --build-arg VERSION=${{ steps.tag_name.outputs.tag }} \
               --build-arg FIPS=true \
@@ -140,7 +140,7 @@ jobs:
           done
           wait
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/lite.dockerfile \
             -t $REGISTRY/hatchet-lite-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }} \
             --platform linux/${{ matrix.arch }} \
             --build-arg HATCHET_LITE_IMAGE=hatchet-lite-fips-tmp:${{ matrix.arch }} \
@@ -149,7 +149,7 @@ jobs:
             --build-arg FIPS=true \
             .
       - name: Push to GHCR
-        run: docker push $REGISTRY/hatchet-lite-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }}
+        run: .github/scripts/retry docker push $REGISTRY/hatchet-lite-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }}
       - uses: ./.github/actions/sign-image
         with:
           images: ${{ env.REGISTRY }}/hatchet-lite-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }}
@@ -184,7 +184,7 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=api \
             --build-arg VERSION=${{ steps.tag_name.outputs.tag }} \
             --build-arg FIPS=true \
@@ -192,14 +192,14 @@ jobs:
             -t hatchet-api-fips-tmp:${{ matrix.arch }} \
             .
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/dashboard.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/dashboard.dockerfile \
             -t $REGISTRY/hatchet-dashboard-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }} \
             --platform linux/${{ matrix.arch }} \
             --build-arg HATCHET_API_IMAGE=hatchet-api-fips-tmp:${{ matrix.arch }} \
             --build-arg FIPS=true \
             .
       - name: Push to GHCR
-        run: docker push $REGISTRY/hatchet-dashboard-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }}
+        run: .github/scripts/retry docker push $REGISTRY/hatchet-dashboard-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }}
       - uses: ./.github/actions/sign-image
         with:
           images: ${{ env.REGISTRY }}/hatchet-dashboard-fips:${{ steps.tag_name.outputs.tag }}-${{ matrix.arch }}
@@ -259,8 +259,8 @@ jobs:
         run: |
           img=$REGISTRY/hatchet-${{ matrix.image }}-fips
           tag=${{ steps.tag_name.outputs.tag }}
-          docker pull $img:$tag-amd64
-          docker pull $img:$tag-arm64
+          .github/scripts/retry docker pull $img:$tag-amd64
+          .github/scripts/retry docker pull $img:$tag-arm64
           docker manifest create $img:$tag $img:$tag-amd64 $img:$tag-arm64
           docker manifest push $img:$tag
       - uses: ./.github/actions/sign-image
