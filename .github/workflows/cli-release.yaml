@@ -99,6 +99,11 @@ jobs:
           MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
           MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
 
+      - name: Attach Homebrew cask to the draft release
+        run: gh release upload "$GITHUB_TAG" cmd/hatchet-cli/dist/homebrew/Casks/hatchet.rb --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Upload release artifacts
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
