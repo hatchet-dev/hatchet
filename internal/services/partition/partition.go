@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/internal/gocronutils"
 	"github.com/hatchet-dev/hatchet/pkg/cleanup"
 
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
@@ -130,8 +131,9 @@ func (p *Partition) StartControllerPartition(ctx context.Context) (func() error,
 	p.controllerPartitionId = partitionId
 
 	// start the schedules
-	_, err = p.controllerCron.NewJob(
-		gocron.DurationJob(heartbeatInterval),
+	_, err = gocronutils.NewJitteredDurationJob(
+		p.controllerCron,
+		heartbeatInterval,
 		gocron.NewTask(
 			p.runControllerPartitionHeartbeat(ctx), // nolint: errcheck
 		),
@@ -157,8 +159,9 @@ func (p *Partition) StartControllerPartition(ctx context.Context) (func() error,
 		return nil, fmt.Errorf("could not create rebalance all controller partitions job: %w", err)
 	}
 
-	_, err = p.controllerCron.NewJob(
-		gocron.DurationJob(rebalanceInactiveInterval),
+	_, err = gocronutils.NewJitteredDurationJob(
+		p.controllerCron,
+		rebalanceInactiveInterval,
 		gocron.NewTask(
 			func() {
 				rebalanceInactiveControllerPartitions(ctx, p.l, p.repo) // nolint: errcheck
@@ -251,8 +254,9 @@ func (p *Partition) StartSchedulerPartition(ctx context.Context) (func() error, 
 	p.schedulerPartitionId = partitionId
 
 	// start the schedules
-	_, err = p.schedulerCron.NewJob(
-		gocron.DurationJob(heartbeatInterval),
+	_, err = gocronutils.NewJitteredDurationJob(
+		p.schedulerCron,
+		heartbeatInterval,
 		gocron.NewTask(
 			p.runSchedulerPartitionHeartbeat(ctx), // nolint: errcheck
 		),
@@ -278,8 +282,9 @@ func (p *Partition) StartSchedulerPartition(ctx context.Context) (func() error, 
 		return nil, fmt.Errorf("could not create rebalance all scheduler partitions job: %w", err)
 	}
 
-	_, err = p.schedulerCron.NewJob(
-		gocron.DurationJob(rebalanceInactiveInterval),
+	_, err = gocronutils.NewJitteredDurationJob(
+		p.schedulerCron,
+		rebalanceInactiveInterval,
 		gocron.NewTask(
 			func() {
 				rebalanceInactiveSchedulerPartitions(ctx, p.l, p.repo) // nolint: errcheck
@@ -352,8 +357,9 @@ func (p *Partition) StartTenantWorkerPartition(ctx context.Context) (func() erro
 	}
 
 	// start the schedules
-	_, err = p.workerCron.NewJob(
-		gocron.DurationJob(heartbeatInterval),
+	_, err = gocronutils.NewJitteredDurationJob(
+		p.workerCron,
+		heartbeatInterval,
 		gocron.NewTask(
 			p.runTenantWorkerPartitionHeartbeat(ctx), // nolint: errcheck
 		),
@@ -379,8 +385,9 @@ func (p *Partition) StartTenantWorkerPartition(ctx context.Context) (func() erro
 		return nil, fmt.Errorf("could not create rebalance all tenant worker partitions job: %w", err)
 	}
 
-	_, err = p.workerCron.NewJob(
-		gocron.DurationJob(rebalanceInactiveInterval),
+	_, err = gocronutils.NewJitteredDurationJob(
+		p.workerCron,
+		rebalanceInactiveInterval,
 		gocron.NewTask(
 			func() {
 				rebalanceInactiveTenantWorkerPartitions(ctx, p.l, p.repo) // nolint: errcheck

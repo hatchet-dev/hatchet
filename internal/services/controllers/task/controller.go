@@ -15,6 +15,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
+	"github.com/hatchet-dev/hatchet/internal/gocronutils"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
@@ -374,8 +375,9 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 
 	spanContext, span := telemetry.NewSpan(ctx, "TasksControllerImpl.Start")
 
-	_, err = tc.s.NewJob(
-		gocron.DurationJob(time.Minute*15),
+	_, err = gocronutils.NewJitteredDurationJob(
+		tc.s,
+		time.Minute*15,
 		gocron.NewTask(
 			tc.runTaskTablePartition(spanContext),
 		),
@@ -393,8 +395,9 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 		return nil, wrappedErr
 	}
 
-	_, err = tc.s.NewJob(
-		gocron.DurationJob(tc.repov1.Payloads().ExternalCutoverProcessInterval()),
+	_, err = gocronutils.NewJitteredDurationJob(
+		tc.s,
+		tc.repov1.Payloads().ExternalCutoverProcessInterval(),
 		gocron.NewTask(
 			tc.processPayloadExternalCutovers(spanContext),
 		),
@@ -412,8 +415,9 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 		return nil, wrappedErr
 	}
 
-	_, err = tc.s.NewJob(
-		gocron.DurationJob(tc.analyzeCronInterval),
+	_, err = gocronutils.NewJitteredDurationJob(
+		tc.s,
+		tc.analyzeCronInterval,
 		gocron.NewTask(
 			tc.runAnalyze(spanContext),
 		),
@@ -431,8 +435,9 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 		return nil, wrappedErr
 	}
 
-	_, err = tc.s.NewJob(
-		gocron.DurationJob(1*time.Minute),
+	_, err = gocronutils.NewJitteredDurationJob(
+		tc.s,
+		1*time.Minute,
 		gocron.NewTask(
 			tc.runCleanup(spanContext),
 		),

@@ -16,6 +16,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
+	"github.com/hatchet-dev/hatchet/internal/gocronutils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/olap/signal"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
@@ -236,8 +237,9 @@ func (s *Scheduler) Start() (func() error, error) {
 
 	wg := sync.WaitGroup{}
 
-	_, err = s.s.NewJob(
-		gocron.DurationJob(time.Second*1),
+	_, err = gocronutils.NewJitteredDurationJob(
+		s.s,
+		time.Second*1,
 		gocron.NewTask(
 			s.runSetTenants(ctx),
 		),
@@ -249,8 +251,9 @@ func (s *Scheduler) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not schedule tenant set queues: %w", err)
 	}
 
-	_, err = s.s.NewJob(
-		gocron.DurationJob(queueMetricsPollInterval),
+	_, err = gocronutils.NewJitteredDurationJob(
+		s.s,
+		queueMetricsPollInterval,
 		gocron.NewTask(
 			s.runPollQueueMetrics(ctx),
 		),

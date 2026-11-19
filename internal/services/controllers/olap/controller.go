@@ -18,6 +18,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
+	"github.com/hatchet-dev/hatchet/internal/gocronutils"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
@@ -374,8 +375,9 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		}()
 	}
 
-	_, err = o.s.NewJob(
-		gocron.DurationJob(time.Minute*15),
+	_, err = gocronutils.NewJitteredDurationJob(
+		o.s,
+		time.Minute*15,
 		gocron.NewTask(
 			o.runOLAPTablePartition(ctx),
 		),
@@ -387,8 +389,9 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not schedule task table partition: %w", err)
 	}
 
-	_, err = o.s.NewJob(
-		gocron.DurationJob(time.Hour),
+	_, err = gocronutils.NewJitteredDurationJob(
+		o.s,
+		time.Hour,
 		gocron.NewTask(
 			o.runArchiveAuditLogs(ctx),
 		),
@@ -408,8 +411,9 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		pollIntervalSec = o.olapConfig.PollInterval
 	}
 
-	_, err = o.s.NewJob(
-		gocron.DurationJob(time.Second*time.Duration(pollIntervalSec)),
+	_, err = gocronutils.NewJitteredDurationJob(
+		o.s,
+		time.Second*time.Duration(pollIntervalSec),
 		gocron.NewTask(
 			o.runTaskStatusUpdates(ctx),
 		),
@@ -421,8 +425,9 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not schedule task status updates: %w", err)
 	}
 
-	_, err = o.s.NewJob(
-		gocron.DurationJob(time.Second*time.Duration(pollIntervalSec)),
+	_, err = gocronutils.NewJitteredDurationJob(
+		o.s,
+		time.Second*time.Duration(pollIntervalSec),
 		gocron.NewTask(
 			o.runDAGStatusUpdates(ctx),
 		),
@@ -434,8 +439,9 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not schedule dag status updates: %w", err)
 	}
 
-	_, err = o.s.NewJob(
-		gocron.DurationJob(time.Second*60),
+	_, err = gocronutils.NewJitteredDurationJob(
+		o.s,
+		time.Second*60,
 		gocron.NewTask(
 			o.runTenantProcessAlerts(ctx),
 		),
@@ -447,8 +453,9 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not schedule process tenant alerts: %w", err)
 	}
 
-	_, err = o.s.NewJob(
-		gocron.DurationJob(o.analyzeCronInterval),
+	_, err = gocronutils.NewJitteredDurationJob(
+		o.s,
+		o.analyzeCronInterval,
 		gocron.NewTask(
 			o.runAnalyze(ctx),
 		),
