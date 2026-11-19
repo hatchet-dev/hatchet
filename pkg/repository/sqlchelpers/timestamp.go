@@ -59,23 +59,6 @@ func MinTimestamptz(timestamps []pgtype.Timestamptz) pgtype.Timestamptz {
 	})
 }
 
-// MaxTimestamptz returns the latest valid timestamp, or an invalid one when there is none.
-// With MinTimestamptz it gives the scalar bounds a statement needs next to an array of
-// partition keys: the planner prunes partitions on scalar parameters, not on array elements.
-func MaxTimestamptz(timestamps []pgtype.Timestamptz) pgtype.Timestamptz {
-	return enumerables.Reduce(timestamps, pgtype.Timestamptz{}, func(acc pgtype.Timestamptz, x pgtype.Timestamptz) pgtype.Timestamptz {
-		if !x.Valid {
-			return acc
-		}
-
-		if !acc.Valid || x.Time.After(acc.Time) {
-			return x
-		}
-
-		return acc
-	})
-}
-
 type TimeBounds struct {
 	Min pgtype.Timestamptz
 	Max pgtype.Timestamptz
