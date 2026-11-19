@@ -2325,6 +2325,7 @@ func (r *TaskRepositoryImpl) EvictTask(ctx context.Context, tenantId uuid.UUID, 
 		Durabletaskinsertedats:   []pgtype.Timestamptz{task.InsertedAt},
 		Tenantids:                []uuid.UUID{tenantId},
 		Mindurabletaskinsertedat: task.InsertedAt,
+		Maxdurabletaskinsertedat: task.InsertedAt,
 	})
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -2434,10 +2435,14 @@ func (r *sharedRepository) releaseTasks(ctx context.Context, tx sqlcv1.DBTX, ten
 		orderedMap[fmt.Sprintf("%d:%d", task.Id, task.RetryCount)] = i
 	}
 
+	taskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(taskInsertedAts)
+
 	releasedTasks, err := r.queries.ReleaseTasks(ctx, tx, sqlcv1.ReleaseTasksParams{
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
-		Retrycounts:     retryCounts,
+		Taskids:           taskIds,
+		Taskinsertedats:   taskInsertedAts,
+		Retrycounts:       retryCounts,
+		Mintaskinsertedat: taskInsertedAtBounds.Min,
+		Maxtaskinsertedat: taskInsertedAtBounds.Max,
 	})
 
 	if err != nil {

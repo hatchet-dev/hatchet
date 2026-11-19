@@ -155,9 +155,11 @@ func TestDagStepCreatedSkippedTakesNextSatisfiedOrder(t *testing.T) {
 	require.EqualValues(t, 1, *skipped.SatisfiedOrder)
 
 	logFile, err := repos.shared.queries.GetDurableTaskLogFiles(ctx, repos.shared.pool.ForShared(), sqlcv1.GetDurableTaskLogFilesParams{
-		Durabletaskids:         []int64{task.ID},
-		Durabletaskinsertedats: []pgtype.Timestamptz{task.InsertedAt},
-		Tenantids:              []uuid.UUID{tenantID},
+		Durabletaskids:           []int64{task.ID},
+		Durabletaskinsertedats:   []pgtype.Timestamptz{task.InsertedAt},
+		Tenantids:                []uuid.UUID{tenantID},
+		Mindurabletaskinsertedat: task.InsertedAt,
+		Maxdurabletaskinsertedat: task.InsertedAt,
 	})
 	require.NoError(t, err)
 	require.Len(t, logFile, 1)

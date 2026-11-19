@@ -2127,14 +2127,18 @@ func (r *sharedRepository) registerChildWorkflows(
 		return nil, nil
 	}
 
+	potentialMatchTaskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(potentialMatchTaskInsertedAts)
+
 	matchingEvents, err := r.queries.LockSignalCreatedEvents(
 		ctx,
 		tx,
 		sqlcv1.LockSignalCreatedEventsParams{
-			Tenantid:        tenantId,
-			Taskids:         potentialMatchTaskIds,
-			Taskinsertedats: potentialMatchTaskInsertedAts,
-			Eventkeys:       potentialMatchKeys,
+			Tenantid:          tenantId,
+			Taskids:           potentialMatchTaskIds,
+			Taskinsertedats:   potentialMatchTaskInsertedAts,
+			Eventkeys:         potentialMatchKeys,
+			Mintaskinsertedat: potentialMatchTaskInsertedAtBounds.Min,
+			Maxtaskinsertedat: potentialMatchTaskInsertedAtBounds.Max,
 		},
 	)
 

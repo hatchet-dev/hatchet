@@ -920,6 +920,7 @@ func (r *durableEventsRepository) getAndLockLogFile(ctx context.Context, tx sqlc
 		Durabletaskinsertedats:   []pgtype.Timestamptz{durableTaskInsertedAt},
 		Tenantids:                []uuid.UUID{tenantId},
 		Mindurabletaskinsertedat: durableTaskInsertedAt,
+		Maxdurabletaskinsertedat: durableTaskInsertedAt,
 	})
 
 	if err != nil {
@@ -1069,6 +1070,10 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 	existingByKey := make(map[taskNodeBranchKey]*sqlcv1.BulkGetDurableEventLogEntriesRow)
 
 	if len(getParams.Nodeids) > 0 {
+		durableTaskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(getParams.Durabletaskinsertedats)
+		getParams.Mindurabletaskinsertedat = durableTaskInsertedAtBounds.Min
+		getParams.Maxdurabletaskinsertedat = durableTaskInsertedAtBounds.Max
+
 		existing, err := r.queries.BulkGetDurableEventLogEntries(ctx, tx, getParams)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("failed to bulk-get existing entries: %w", err)
@@ -1162,6 +1167,10 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 	var pendingStorePayloadOpts []StorePayloadOpts
 
 	if len(createParams.Nodeids) > 0 {
+		durableTaskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(createParams.Durabletaskinsertedats)
+		createParams.Mindurabletaskinsertedat = durableTaskInsertedAtBounds.Min
+		createParams.Maxdurabletaskinsertedat = durableTaskInsertedAtBounds.Max
+
 		createdRows, createErr := r.queries.BulkCreateDurableEventLogEntries(ctx, tx, createParams)
 		if createErr != nil {
 			return nil, nil, nil, fmt.Errorf("failed to bulk-create event log entries: %w", createErr)
@@ -1764,10 +1773,9 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 	defer rollback()
 
 	lockParams := sqlcv1.GetAndLockLogFilesWithBranchPointsParams{
-		Durabletaskids:           make([]int64, 0, len(batch)),
-		Durabletaskinsertedats:   make([]pgtype.Timestamptz, 0, len(batch)),
-		Tenantids:                make([]uuid.UUID, 0, len(batch)),
-		Mindurabletaskinsertedat: sqlchelpers.TimestamptzFromTime(time.Now().UTC()),
+		Durabletaskids:         make([]int64, 0, len(batch)),
+		Durabletaskinsertedats: make([]pgtype.Timestamptz, 0, len(batch)),
+		Tenantids:              make([]uuid.UUID, 0, len(batch)),
 	}
 
 	for _, taskId := range taskIds {
@@ -1775,11 +1783,11 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 		lockParams.Durabletaskids = append(lockParams.Durabletaskids, opts.Task.ID)
 		lockParams.Durabletaskinsertedats = append(lockParams.Durabletaskinsertedats, opts.Task.InsertedAt)
 		lockParams.Tenantids = append(lockParams.Tenantids, opts.TenantId)
-
-		if opts.Task.InsertedAt.Time.Before(lockParams.Mindurabletaskinsertedat.Time) {
-			lockParams.Mindurabletaskinsertedat = sqlchelpers.TimestamptzFromTime(opts.Task.InsertedAt.Time)
-		}
 	}
+
+	durableTaskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(lockParams.Durabletaskinsertedats)
+	lockParams.Mindurabletaskinsertedat = durableTaskInsertedAtBounds.Min
+	lockParams.Maxdurabletaskinsertedat = durableTaskInsertedAtBounds.Max
 
 	lockCtx, lockSpan := telemetry.NewSpan(ctx, "lock-durable-event-log-files")
 	telemetry.WithAttributes(lockSpan, telemetry.AttributeKV{Key: "n_tasks", Value: len(batch)})
@@ -2010,6 +2018,10 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 	}
 
 	if len(nodeIdUpdateParams.Durabletaskids) > 0 {
+		durableTaskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(nodeIdUpdateParams.Durabletaskinsertedats)
+		nodeIdUpdateParams.Mindurabletaskinsertedat = durableTaskInsertedAtBounds.Min
+		nodeIdUpdateParams.Maxdurabletaskinsertedat = durableTaskInsertedAtBounds.Max
+
 		if updateErr := r.queries.UpdateLogFileLatestNodeIds(ctx, tx, nodeIdUpdateParams); updateErr != nil {
 			return nil, nil, fmt.Errorf("failed to update latest node ids: %w", updateErr)
 		}
@@ -2546,11 +2558,15 @@ func (r *durableEventsRepository) claimDurableEventLogEntriesForTrigger(ctx cont
 		durableTaskInsertedAts[i] = k.DurableTaskInsertedAt
 	}
 
+	durableTaskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(durableTaskInsertedAts)
+
 	claimed, err := r.queries.ClaimDurableEventLogEntriesForTrigger(ctx, tx, sqlcv1.ClaimDurableEventLogEntriesForTriggerParams{
-		Durabletaskids:         durableTaskIds,
-		Durabletaskinsertedats: durableTaskInsertedAts,
-		Nodeids:                nodeIds,
-		Branchids:              branchIds,
+		Durabletaskids:           durableTaskIds,
+		Durabletaskinsertedats:   durableTaskInsertedAts,
+		Nodeids:                  nodeIds,
+		Branchids:                branchIds,
+		Mindurabletaskinsertedat: durableTaskInsertedAtBounds.Min,
+		Maxdurabletaskinsertedat: durableTaskInsertedAtBounds.Max,
 	})
 
 	if err != nil {
@@ -2889,9 +2905,11 @@ func (r *durableEventsRepository) HandleBranchForDAGReplay(ctx context.Context, 
 	db := r.pool.ForTenant(tenantId)
 
 	logFiles, err := r.queries.GetDurableTaskLogFiles(ctx, db, sqlcv1.GetDurableTaskLogFilesParams{
-		Durabletaskids:         []int64{task.ID},
-		Durabletaskinsertedats: []pgtype.Timestamptz{task.InsertedAt},
-		Tenantids:              []uuid.UUID{tenantId},
+		Durabletaskids:           []int64{task.ID},
+		Durabletaskinsertedats:   []pgtype.Timestamptz{task.InsertedAt},
+		Tenantids:                []uuid.UUID{tenantId},
+		Mindurabletaskinsertedat: task.InsertedAt,
+		Maxdurabletaskinsertedat: task.InsertedAt,
 	})
 
 	if err != nil {
@@ -2921,10 +2939,14 @@ func (r *durableEventsRepository) GetDurableTaskInvocationCounts(ctx context.Con
 		tenantIds[i] = tenantId
 	}
 
+	taskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(taskInsertedAts)
+
 	logFiles, err := r.queries.GetDurableTaskLogFiles(ctx, db, sqlcv1.GetDurableTaskLogFilesParams{
-		Durabletaskids:         taskIds,
-		Durabletaskinsertedats: taskInsertedAts,
-		Tenantids:              tenantIds,
+		Durabletaskids:           taskIds,
+		Durabletaskinsertedats:   taskInsertedAts,
+		Tenantids:                tenantIds,
+		Mindurabletaskinsertedat: taskInsertedAtBounds.Min,
+		Maxdurabletaskinsertedat: taskInsertedAtBounds.Max,
 	})
 
 	if err != nil {
@@ -3073,10 +3095,9 @@ func (r *sharedRepository) satisfyOperatorStepChildEntries(ctx context.Context, 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "n_children", Value: len(completions)})
 
 	lookupParams := sqlcv1.ListUnsatisfiedRunEntriesForChildTaskExternalIdsParams{
-		Durabletaskids:           make([]int64, 0, len(completions)),
-		Durabletaskinsertedats:   make([]pgtype.Timestamptz, 0, len(completions)),
-		Childtaskexternalids:     make([]uuid.UUID, 0, len(completions)),
-		Mindurabletaskinsertedat: sqlchelpers.TimestamptzFromTime(time.Now().UTC()),
+		Durabletaskids:         make([]int64, 0, len(completions)),
+		Durabletaskinsertedats: make([]pgtype.Timestamptz, 0, len(completions)),
+		Childtaskexternalids:   make([]uuid.UUID, 0, len(completions)),
 	}
 
 	completionByChildExternalId := make(map[uuid.UUID]OperatorStepChildCompletion, len(completions))
@@ -3088,10 +3109,6 @@ func (r *sharedRepository) satisfyOperatorStepChildEntries(ctx context.Context, 
 		lookupParams.Durabletaskids = append(lookupParams.Durabletaskids, task.ParentTaskID.Int64)
 		lookupParams.Durabletaskinsertedats = append(lookupParams.Durabletaskinsertedats, task.ParentTaskInsertedAt)
 		lookupParams.Childtaskexternalids = append(lookupParams.Childtaskexternalids, task.ExternalID)
-
-		if task.ParentTaskInsertedAt.Time.Before(lookupParams.Mindurabletaskinsertedat.Time) {
-			lookupParams.Mindurabletaskinsertedat = sqlchelpers.TimestamptzFromTime(task.ParentTaskInsertedAt.Time)
-		}
 	}
 
 	tenantIds := make([]uuid.UUID, len(lookupParams.Durabletaskids))
@@ -3099,12 +3116,17 @@ func (r *sharedRepository) satisfyOperatorStepChildEntries(ctx context.Context, 
 		tenantIds[i] = tenantId
 	}
 
+	parentTaskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(lookupParams.Durabletaskinsertedats)
+	lookupParams.Mindurabletaskinsertedat = parentTaskInsertedAtBounds.Min
+	lookupParams.Maxdurabletaskinsertedat = parentTaskInsertedAtBounds.Max
+
 	// NOTE: need an explicit lock here to prevent segfault caused by Postgres bug, see this issue: https://github.com/hatchet-dev/hatchet/issues/5101
 	_, err := r.queries.GetAndLockLogFilesWithBranchPoints(ctx, tx, sqlcv1.GetAndLockLogFilesWithBranchPointsParams{
 		Durabletaskids:           lookupParams.Durabletaskids,
 		Durabletaskinsertedats:   lookupParams.Durabletaskinsertedats,
 		Tenantids:                tenantIds,
 		Mindurabletaskinsertedat: lookupParams.Mindurabletaskinsertedat,
+		Maxdurabletaskinsertedat: lookupParams.Maxdurabletaskinsertedat,
 	})
 
 	if err != nil {
@@ -3129,6 +3151,7 @@ func (r *sharedRepository) satisfyOperatorStepChildEntries(ctx context.Context, 
 		Childtaskisfailures:      make([]bool, 0, len(unsatisfiedEntries)),
 		Childtaskerrormessages:   make([]string, 0, len(unsatisfiedEntries)),
 		Mindurabletaskinsertedat: lookupParams.Mindurabletaskinsertedat,
+		Maxdurabletaskinsertedat: lookupParams.Maxdurabletaskinsertedat,
 	}
 
 	for _, entry := range unsatisfiedEntries {
