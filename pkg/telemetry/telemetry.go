@@ -255,9 +255,8 @@ func prefixSpanKey(name string) string {
 	return fmt.Sprintf("hatchet.run/%s", name)
 }
 
-// newResource describes the process for traces and metrics. OTEL_RESOURCE_ATTRIBUTES
-// adds attributes, such as deployment.environment; the attributes set here win
-// over the environment when both name the same key.
+// newResource builds the OpenTelemetry resource shared by traces and metrics.
+// Its attributes are attached to every span and metric this process emits.
 func newResource(serviceName string) (*resource.Resource, error) {
 	attrs := []attribute.KeyValue{
 		attribute.String("service.name", serviceName),
@@ -267,7 +266,11 @@ func newResource(serviceName string) (*resource.Resource, error) {
 
 	return resource.New(
 		context.Background(),
+		// Read OTEL_SERVICE_NAME and comma-separated key=value pairs from
+		// OTEL_RESOURCE_ATTRIBUTES, such as deployment.environment=staging.
 		resource.WithFromEnv(),
+		// Options merge in order, and later ones win on conflicts. Keep this
+		// after WithFromEnv so attrs override the same environment keys.
 		resource.WithAttributes(attrs...),
 	)
 }
