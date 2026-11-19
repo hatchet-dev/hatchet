@@ -167,8 +167,9 @@ export interface ExecOpts {
   timeoutMs?: number;
   /**
    * Stops waiting for the command once the signal aborts, and cancels its task run, which makes the provider kill the
-   * command. `exec` then rejects with the signal's reason. With a signal, the command runs as a plain task run rather
-   * than a durable step, so a durable task that replays runs it again.
+   * command. `exec` then rejects with the signal's reason. With a signal, the command runs as a child run of the calling
+   * task rather than a durable step, so a durable task that replays runs it again: a durable child run has no handle to
+   * cancel yet.
    */
   signal?: AbortSignal;
 }
@@ -215,6 +216,7 @@ export interface SandboxInfo {
 type TurnOpts = {
   /** A plain task run, even inside a durable task, so it does not shift the durable child sequence. */
   fresh?: boolean;
+  /** Stops waiting and cancels the task run when it aborts, as `fetch(url, { signal })` does for a request. */
   signal?: AbortSignal;
 };
 
@@ -228,11 +230,11 @@ async function runCancellable(
   signal: AbortSignal
 ): Promise<Record<string, JsonObject>> {
   signal.throwIfAborted();
-  const ref = await client.admin.runWorkflow<JsonObject, Record<string, JsonObject>>(
-    name,
-    payload,
-    { additionalMetadata }
-  );
+  // runNoWait rather than admin.runWorkflow: it links the run to the calling task as a child and keeps the child index
+  // in step, as run() does.
+  const ref = await client
+    .workflow<JsonObject, Record<string, JsonObject>>({ name })
+    .runNoWait(payload, { additionalMetadata });
   return new Promise((resolve, reject) => {
     const onAbort = () => {
       reject(signal.reason);
@@ -347,7 +349,10 @@ export class Sandbox {
     return ids;
   }
 
-  /** Runs a shell command with `sh -c` in the workspace and makes a snapshot. A timeout gives `exitCode` 124, not an error. */
+  /**
+   * Runs a shell command with `sh -c` in the workspace and makes a snapshot. A timeout gives `exitCode` 124, not an error.
+   * With `signal`, the command is not a durable step: a durable task that replays runs it again.
+   */
   async exec(cmd: string, opts: ExecOpts = {}): Promise<CommandResult> {
     const { signal, ...rest } = execOpts.parse(opts);
     const input = { cmd: nonEmpty.parse(cmd), ...rest };
