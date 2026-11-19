@@ -40,6 +40,31 @@ func TestK8sResourceAttributesCloudRegionFallsBackToAWSRegion(t *testing.T) {
 	}
 }
 
+func TestNewResourceReadsOTelResourceAttributes(t *testing.T) {
+	t.Setenv("K8S_POD_NAME", "api-abc")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "deployment.environment=staging,service.name=from-env,k8s.pod.name=from-env")
+	t.Setenv("OTEL_SERVICE_NAME", "from-env")
+
+	res, err := newResource("api")
+	if err != nil {
+		t.Fatalf("newResource: %v", err)
+	}
+
+	got := attrMap(res.Attributes())
+
+	if got["deployment.environment"] != "staging" {
+		t.Fatalf("deployment.environment = %q, want it from OTEL_RESOURCE_ATTRIBUTES", got["deployment.environment"])
+	}
+
+	if got["service.name"] != "api" {
+		t.Fatalf("service.name = %q, want the configured name over the environment", got["service.name"])
+	}
+
+	if got["k8s.pod.name"] != "api-abc" {
+		t.Fatalf("k8s.pod.name = %q, want K8S_POD_NAME over OTEL_RESOURCE_ATTRIBUTES", got["k8s.pod.name"])
+	}
+}
+
 func attrMap(attrs []attribute.KeyValue) map[string]string {
 	out := make(map[string]string, len(attrs))
 	for _, attr := range attrs {

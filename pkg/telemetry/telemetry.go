@@ -63,16 +63,7 @@ func InitTracer(opts *TracerOpts) (func() error, error) {
 		return nil, fmt.Errorf("failed to create exporter: %w", err)
 	}
 
-	resourceAttrs := []attribute.KeyValue{
-		attribute.String("service.name", opts.ServiceName),
-		attribute.String("library.language", "go"),
-	}
-	resourceAttrs = append(resourceAttrs, k8sResourceAttributes()...)
-
-	resources, err := resource.New(
-		context.Background(),
-		resource.WithAttributes(resourceAttrs...),
-	)
+	resources, err := newResource(opts.ServiceName)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to set resources: %w", err)
@@ -139,16 +130,7 @@ func InitMeter(opts *TracerOpts) (func(context.Context) error, error) {
 		return nil, fmt.Errorf("failed to create exporter: %w", err)
 	}
 
-	resourceAttrs := []attribute.KeyValue{
-		attribute.String("service.name", opts.ServiceName),
-		attribute.String("library.language", "go"),
-	}
-	resourceAttrs = append(resourceAttrs, k8sResourceAttributes()...)
-
-	resources, err := resource.New(
-		context.Background(),
-		resource.WithAttributes(resourceAttrs...),
-	)
+	resources, err := newResource(opts.ServiceName)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to set resources: %w", err)
@@ -271,6 +253,23 @@ func WithAttributes(span trace.Span, attrs ...AttributeKV) {
 
 func prefixSpanKey(name string) string {
 	return fmt.Sprintf("hatchet.run/%s", name)
+}
+
+// newResource describes the process for traces and metrics. OTEL_RESOURCE_ATTRIBUTES
+// adds attributes, such as deployment.environment; the attributes set here win
+// over the environment when both name the same key.
+func newResource(serviceName string) (*resource.Resource, error) {
+	attrs := []attribute.KeyValue{
+		attribute.String("service.name", serviceName),
+		attribute.String("library.language", "go"),
+	}
+	attrs = append(attrs, k8sResourceAttributes()...)
+
+	return resource.New(
+		context.Background(),
+		resource.WithFromEnv(),
+		resource.WithAttributes(attrs...),
+	)
 }
 
 func k8sResourceAttributes() []attribute.KeyValue {
