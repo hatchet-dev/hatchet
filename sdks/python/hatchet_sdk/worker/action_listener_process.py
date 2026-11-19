@@ -4,6 +4,7 @@ import logging
 import multiprocessing.synchronize
 import signal
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import timedelta
 from enum import StrEnum
@@ -124,6 +125,12 @@ class WorkerActionListenerProcess:
         self._stop_event_task: asyncio.Task[None] | None = None
         self.running_task_runs: dict[str, float] = {}
         self.task_action_events: set[asyncio.Task[ActionEventResponse | None]] = set()
+        self._get_event_threadpool_executor = ThreadPoolExecutor(
+            max_workers=None, thread_name_prefix="event_queue_get_"
+        )
+        self._stop_event_threadpool_executor = ThreadPoolExecutor(
+            max_workers=None, thread_name_prefix="stop_event_wait_"
+        )
 
         if self.config.debug:
             logger.setLevel(logging.DEBUG)
@@ -376,7 +383,10 @@ class WorkerActionListenerProcess:
     ) -> ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE:
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
-            None, self.event_queue.get, True, timeout_seconds
+            self._get_event_threadpool_executor,
+            self.event_queue.get,
+            True,
+            timeout_seconds,
         )
 
     def _drain_ready_events(
@@ -592,7 +602,9 @@ class WorkerActionListenerProcess:
         _stop_listener_event.set() instead of sending SIGTERM.
         """
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, self._stop_event.wait)
+        await loop.run_in_executor(
+            self._stop_event_threadpool_executor, self._stop_event.wait
+        )
         await self._stop_action_loop()
 
     async def _stop_action_loop(self) -> None:

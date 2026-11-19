@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from hatchet_sdk.config import ClientConfig
@@ -63,6 +64,9 @@ class WorkerActionRunLoopManager:
         self._event_client = EventClient(config)
         self.start_loop_manager_task: asyncio.Task[None] | None = None
         self.log_sender = AsyncLogSender(self._event_client)
+        self._get_action_threadpool_executor = ThreadPoolExecutor(
+            max_workers=None, thread_name_prefix="action_queue_get_"
+        )
 
         self.log_sender.start()
         self.start()
@@ -129,7 +133,9 @@ class WorkerActionRunLoopManager:
         logger.debug("action runner loop stopped")
 
     async def _get_action(self) -> Action | STOP_LOOP_TYPE:
-        return await self.loop.run_in_executor(None, self.action_queue.get)
+        return await self.loop.run_in_executor(
+            self._get_action_threadpool_executor, self.action_queue.get
+        )
 
     async def exit_gracefully(self) -> None:
         if self.killing:

@@ -158,6 +158,7 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - The tasks that shut a worker down after a signal, an unexpected exit of its action listener process, or reaching `terminate_worker_after_num_tasks` are now kept referenced until they finish, so they can no longer be garbage collected partway through.
 - Workflow and task names inferred from a callable with no `__name__`, such as a `functools.partial`, raise a `TypeError` asking for an explicit `name` instead of an `AttributeError`.
 - Retried unary gRPC calls that fail with a `google.rpc.RetryInfo` detail, such as `RESOURCE_EXHAUSTED` when the engine throttles a call, now wait the delay the server asks for instead of the SDK's own backoff. If the call keeps being throttled, the wait doubles with each retry, up to 5 seconds. Each wait is extended by a random amount of up to 20%, so that clients throttled together do not all retry at the same moment. A call the server asks to wait longer than 5 seconds fails at once with the server's error. The attempt limit and which errors are retried are otherwise unchanged.
+- Fixes an issue where a worker would be blocked because the default ThreadPoolExecutor used by calls to `loop.run_in_executor(None, ...)` and `asyncio.to_thread` was exhausted.
 
 ## [1.46.0] - 2026-11-12
 
