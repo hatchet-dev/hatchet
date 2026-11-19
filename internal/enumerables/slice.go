@@ -209,3 +209,14 @@ func FlatMap[T any, R any](xs []T, fn func(x T) []R) []R {
 
 	return result
 }
+
+// inspiration: reduce/3 https://elixir.hexdocs.pm/Enum.html#reduce/3
+func Reduce[T any, R any](xs []T, initial R, fn func(acc R, x T) R) R {
+	acc := initial
+
+	for _, x := range xs {
+		acc = fn(acc, x)
+	}
+
+	return acc
+}
