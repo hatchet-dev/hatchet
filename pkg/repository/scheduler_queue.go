@@ -533,11 +533,15 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 	}
 
 	if len(validBufferedTaskIds) > 0 {
+		validBufferedInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(validBufferedInsertedAts)
+
 		err = d.queries.InsertBufferedTaskRuntimes(ctx, tx, sqlcv1.InsertBufferedTaskRuntimesParams{
-			Tenantid:        tenantId,
-			Taskids:         validBufferedTaskIds,
-			Taskinsertedats: validBufferedInsertedAts,
-			Taskretrycounts: validBufferedRetryCounts,
+			Tenantid:          tenantId,
+			Taskids:           validBufferedTaskIds,
+			Taskinsertedats:   validBufferedInsertedAts,
+			Mintaskinsertedat: validBufferedInsertedAtBounds.Min,
+			Maxtaskinsertedat: validBufferedInsertedAtBounds.Max,
+			Taskretrycounts:   validBufferedRetryCounts,
 		})
 
 		if err != nil {

@@ -131,6 +131,8 @@ func TestPopulateDAGMetadata_OneRowPerDAGWithLatestChildOutput(t *testing.T) {
 	rows, err := repo.queries.PopulateDAGMetadata(ctx, pool, sqlcv1.PopulateDAGMetadataParams{
 		Ids:             []int64{f.dagId},
 		Insertedats:     []pgtype.Timestamptz{f.insertedAt},
+		Mininsertedat:   f.insertedAt,
+		Maxinsertedat:   f.insertedAt,
 		Tenantid:        f.tenantId,
 		Includepayloads: true,
 	})

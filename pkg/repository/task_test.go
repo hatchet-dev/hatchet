@@ -348,6 +348,10 @@ func TestFailTasksRetryDecisionIsPerTask(t *testing.T) {
 		}
 	}
 
+	runtimeInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(runtimes.Taskinsertedats)
+	runtimes.Mintaskinsertedat = runtimeInsertedAtBounds.Min
+	runtimes.Maxtaskinsertedat = runtimeInsertedAtBounds.Max
+
 	require.NoError(t, repo.queries.InsertBufferedTaskRuntimes(ctx, repo.pool.ForShared(), runtimes))
 
 	res, err := repo.FailTasks(ctx, internalTenantId, opts)

@@ -115,10 +115,12 @@ func TestOperatorStepChildCompletionSatisfiesItsEntryWithoutAMatch(t *testing.T)
 	require.NotEqual(t, *completed.SatisfiedOrder, *failed.SatisfiedOrder)
 
 	storedEntries, err := repos.shared.queries.BulkGetDurableEventLogEntries(ctx, repos.shared.pool.ForShared(), sqlcv1.BulkGetDurableEventLogEntriesParams{
-		Durabletaskids:         []int64{orchestrator.ID, orchestrator.ID},
-		Durabletaskinsertedats: []pgtype.Timestamptz{orchestrator.InsertedAt, orchestrator.InsertedAt},
-		Branchids:              []int64{stepA.BranchId, stepB.BranchId},
-		Nodeids:                []int64{stepA.NodeId, stepB.NodeId},
+		Durabletaskids:           []int64{orchestrator.ID, orchestrator.ID},
+		Durabletaskinsertedats:   []pgtype.Timestamptz{orchestrator.InsertedAt, orchestrator.InsertedAt},
+		Branchids:                []int64{stepA.BranchId, stepB.BranchId},
+		Nodeids:                  []int64{stepA.NodeId, stepB.NodeId},
+		Mindurabletaskinsertedat: orchestrator.InsertedAt,
+		Maxdurabletaskinsertedat: orchestrator.InsertedAt,
 	})
 	require.NoError(t, err)
 	require.Len(t, storedEntries, 2)
