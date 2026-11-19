@@ -17,6 +17,7 @@ Hatchet uses the following environment variable prefixes:
 
 - **`SERVER_`** - main server configuration: runtime, authentication, encryption, monitoring, and integrations
 - **`DATABASE_`** - PostgreSQL connection and connection pooling
+- **`OLAP_DATABASE_`** - separate OLAP database (optional)
 - **`READ_REPLICA_`** - read replica database configuration
 - **`ADMIN_`** - administrator user for initial seeding
 - **`DEFAULT_`** - default tenant configuration
@@ -248,6 +249,25 @@ Variables marked with ⚠️ are conditionally required when specific features a
 | `DATABASE_LOGGER_LEVEL`                | Database logger level                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | `warn`                                 |
 | `DATABASE_LOGGER_FORMAT`               | Database logger format                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `console`                              |
 | `K8S_POD_NAMESPACE`                    | Prefix added to the Postgres `application_name` (e.g. `<namespace>:<service>`) so connections can be attributed in `pg_stat_activity`; also sets the `k8s.namespace.name` OpenTelemetry resource attribute. Typically populated from the pod namespace via the downward API                                                                                                                                                                                                                                                        |                                        |
+
+### Separate OLAP Database
+
+By default the OLAP tables (run and event history, metrics, audit logs) live in the main database. Set `OLAP_DATABASE_URL` to keep them in a separate database instead: every read and write of the OLAP tables then goes there, and the main database carries only the core tables. `hatchet-migrate` applies the same migrations, up and `--down`, to `OLAP_DATABASE_URL` after `DATABASE_URL`, so both databases stay at the same version. With a separate OLAP database, `READ_REPLICA_DATABASE_URL` should point at a replica of the OLAP database, since the read replica only serves OLAP reads.
+
+The remaining variables override the matching `DATABASE_` setting for the OLAP pool and fall back to it when unset.
+
+| Variable                                    | Description                                                                                          | Default                                |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `OLAP_DATABASE_URL`                         | PostgreSQL connection string for the OLAP database. Unset keeps the OLAP tables in the main database |                                        |
+| `OLAP_DATABASE_MAX_CONNS`                   | Max OLAP database connections                                                                        | `DATABASE_MAX_CONNS`                   |
+| `OLAP_DATABASE_MIN_CONNS`                   | Min OLAP database connections                                                                        | `DATABASE_MIN_CONNS`                   |
+| `OLAP_DATABASE_MAX_CONN_LIFETIME`           | Max lifetime of an OLAP connection                                                                   | `DATABASE_MAX_CONN_LIFETIME`           |
+| `OLAP_DATABASE_MAX_CONN_IDLE_TIME`          | Max time an OLAP connection can be idle before being closed                                          | `DATABASE_MAX_CONN_IDLE_TIME`          |
+| `OLAP_DATABASE_DIAL_TIMEOUT`                | Max time for the TCP connect of a new OLAP connection                                                | `DATABASE_DIAL_TIMEOUT`                |
+| `OLAP_DATABASE_CONNECT_TIMEOUT`             | Max time to establish a new OLAP connection and, separately, to run its setup queries                | `DATABASE_CONNECT_TIMEOUT`             |
+| `OLAP_DATABASE_FAIRPOOL_TENANT_MAX_PERCENT` | Percent of `OLAP_DATABASE_MAX_CONNS` one tenant may hold, per server process                         | `DATABASE_FAIRPOOL_TENANT_MAX_PERCENT` |
+| `OLAP_DATABASE_FAIRPOOL_SHARED_MAX_PERCENT` | Percent of `OLAP_DATABASE_MAX_CONNS` the shared bucket may hold, per server process                  | `DATABASE_FAIRPOOL_SHARED_MAX_PERCENT` |
+| `OLAP_DATABASE_FAIRPOOL_TENANT_MAX_WAIT`    | How long an OLAP acquire waits for a free slot before failing                                        | `DATABASE_FAIRPOOL_TENANT_MAX_WAIT`    |
 
 ## Security Check Configuration
 

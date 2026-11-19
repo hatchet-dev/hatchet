@@ -76,6 +76,30 @@ type ConfigFile struct {
 	// If enabled and the database timezone is not UTC, the server will panic on startup.
 	// To disable this check, set DATABASE_ENFORCE_UTC_TIMEZONE=false
 	EnforceUTCTimezone bool `mapstructure:"enforceUtcTimezone" json:"enforceUtcTimezone,omitempty" default:"true"`
+
+	// OLAP points the OLAP repository (run and event history, metrics, audit logs) at a separate
+	// database. When DatabaseURL is unset the OLAP tables live in the main database.
+	OLAP OLAPConfigFile `mapstructure:"olap" json:"olap,omitempty"`
+}
+
+// OLAPConfigFile configures the pool for a separate OLAP database. Every field other than
+// DatabaseURL is an override of the matching main database setting and falls back to it when
+// zero, so a deployment that only sets OLAP_DATABASE_URL gets the main pool's configuration.
+type OLAPConfigFile struct {
+	DatabaseURL string `mapstructure:"databaseUrl" json:"databaseUrl,omitempty" default:""`
+
+	MaxConns int `mapstructure:"maxConns" json:"maxConns,omitempty" default:"0"`
+	MinConns int `mapstructure:"minConns" json:"minConns,omitempty" default:"0"`
+
+	MaxConnLifetime time.Duration `mapstructure:"maxConnLifetime" json:"maxConnLifetime,omitempty" default:"0"`
+	MaxConnIdleTime time.Duration `mapstructure:"maxConnIdleTime" json:"maxConnIdleTime,omitempty" default:"0"`
+
+	DialTimeout    time.Duration `mapstructure:"dialTimeout" json:"dialTimeout,omitempty" default:"0"`
+	ConnectTimeout time.Duration `mapstructure:"connectTimeout" json:"connectTimeout,omitempty" default:"0"`
+
+	FairpoolTenantMaxPercent int           `mapstructure:"fairpoolTenantMaxPercent" json:"fairpoolTenantMaxPercent,omitempty" default:"0"`
+	FairpoolSharedMaxPercent int           `mapstructure:"fairpoolSharedMaxPercent" json:"fairpoolSharedMaxPercent,omitempty" default:"0"`
+	FairpoolTenantMaxWait    time.Duration `mapstructure:"fairpoolTenantMaxWait" json:"fairpoolTenantMaxWait,omitempty" default:"0"`
 }
 
 type SeedConfigFile struct {
@@ -157,6 +181,17 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("pgbouncerUrl", "DATABASE_PGBOUNCER_URL")
 	_ = v.BindEnv("ddlPoolMaxConns", "DATABASE_DDL_POOL_MAX_CONNS")
 	_ = v.BindEnv("ddlPoolMinConns", "DATABASE_DDL_POOL_MIN_CONNS")
+
+	_ = v.BindEnv("olap.databaseUrl", "OLAP_DATABASE_URL")
+	_ = v.BindEnv("olap.maxConns", "OLAP_DATABASE_MAX_CONNS")
+	_ = v.BindEnv("olap.minConns", "OLAP_DATABASE_MIN_CONNS")
+	_ = v.BindEnv("olap.maxConnLifetime", "OLAP_DATABASE_MAX_CONN_LIFETIME")
+	_ = v.BindEnv("olap.maxConnIdleTime", "OLAP_DATABASE_MAX_CONN_IDLE_TIME")
+	_ = v.BindEnv("olap.dialTimeout", "OLAP_DATABASE_DIAL_TIMEOUT")
+	_ = v.BindEnv("olap.connectTimeout", "OLAP_DATABASE_CONNECT_TIMEOUT")
+	_ = v.BindEnv("olap.fairpoolTenantMaxPercent", "OLAP_DATABASE_FAIRPOOL_TENANT_MAX_PERCENT")
+	_ = v.BindEnv("olap.fairpoolSharedMaxPercent", "OLAP_DATABASE_FAIRPOOL_SHARED_MAX_PERCENT")
+	_ = v.BindEnv("olap.fairpoolTenantMaxWait", "OLAP_DATABASE_FAIRPOOL_TENANT_MAX_WAIT")
 
 	_ = v.BindEnv("readReplicaEnabled", "READ_REPLICA_ENABLED")
 	_ = v.BindEnv("readReplicaDatabaseUrl", "READ_REPLICA_DATABASE_URL")
