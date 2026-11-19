@@ -441,22 +441,6 @@ func (vr ValidationError) ToResponse() (gen.V1WebhookReceiveResponseObject, erro
 type IsValid bool
 type IsChallenge bool
 
-// a NULL algorithm falls through to computeHMACSignature's unsupported-algorithm error
-func hmacAlgorithm(webhook sqlcv1.V1IncomingWebhook) enums.V1IncomingWebhookHmacAlgorithm {
-	if webhook.AuthHmacAlgorithm == nil {
-		return ""
-	}
-	return *webhook.AuthHmacAlgorithm
-}
-
-// a NULL encoding falls through to computeHMACSignature's unsupported-encoding error
-func hmacEncoding(webhook sqlcv1.V1IncomingWebhook) enums.V1IncomingWebhookHmacEncoding {
-	if webhook.AuthHmacEncoding == nil {
-		return ""
-	}
-	return *webhook.AuthHmacEncoding
-}
-
 func (w *V1WebhooksService) performChallenge(webhookPayload []byte, webhook sqlcv1.V1IncomingWebhook, request http.Request) (IsChallenge, *string, error) {
 	switch webhook.SourceName {
 	case enums.V1IncomingWebhookSourceNameSLACK:
@@ -504,9 +488,18 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 	*ValidationError,
 ) {
 	switch webhook.SourceName {
-	case enums.V1IncomingWebhookSourceNameSLACK:
-		return w.validateSlackWebhook(webhookPayload, webhook, request)
-	case enums.V1IncomingWebhookSourceNameSTRIPE:
+	case enums.V1IncomingWebhookSourceNameSLACK, enums.V1IncomingWebhookSourceNameSTRIPE:
+		// these sources are selected by source name, not auth method, and create does not force HMAC on them
+		if webhook.AuthMethod != enums.V1IncomingWebhookAuthTypeHMAC || webhook.AuthHmacAlgorithm == nil || webhook.AuthHmacEncoding == nil {
+			return false, w.internalValidationError(
+				fmt.Errorf("webhook %s has source %s but is not configured for HMAC auth", webhook.Name, webhook.SourceName),
+				fmt.Sprintf("%s webhooks require HMAC auth", webhook.SourceName),
+			)
+		}
+
+		if webhook.SourceName == enums.V1IncomingWebhookSourceNameSLACK {
+			return w.validateSlackWebhook(webhookPayload, webhook, request)
+		}
 		return w.validateStripeWebhook(webhookPayload, webhook, request)
 	case enums.V1IncomingWebhookSourceNameSVIX:
 		return w.validateSvixWebhook(webhookPayload, webhook, request)
@@ -579,10 +572,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 				return false, w.internalValidationError(err, "failed to decrypt webhook credentials")
 			}
 
-			algorithm := hmacAlgorithm(webhook)
-			encoding := hmacEncoding(webhook)
-
-			expectedSignature, err := computeHMACSignature(webhookPayload, decryptedSigningSecret, algorithm, encoding)
+			expectedSignature, err := computeHMACSignature(webhookPayload, decryptedSigningSecret, *webhook.AuthHmacAlgorithm, *webhook.AuthHmacEncoding)
 
 			if err != nil {
 				return false, w.internalValidationError(err, "failed to compute HMAC signature")
@@ -640,8 +630,8 @@ func (w *V1WebhooksService) validateSlackWebhook(webhookPayload []byte, webhook 
 		}
 	}
 
-	algorithm := hmacAlgorithm(webhook)
-	encoding := hmacEncoding(webhook)
+	algorithm := *webhook.AuthHmacAlgorithm
+	encoding := *webhook.AuthHmacEncoding
 	decryptedSigningSecret, err := w.config.Encryption.Decrypt(webhook.AuthHmacWebhookSigningSecret, "v1_webhook_hmac_signing_secret")
 
 	if err != nil {
@@ -745,8 +735,8 @@ func (w *V1WebhooksService) validateStripeWebhook(webhookPayload []byte, webhook
 		return false, w.internalValidationError(err, "failed to decrypt webhook credentials")
 	}
 
-	algorithm := hmacAlgorithm(webhook)
-	encoding := hmacEncoding(webhook)
+	algorithm := *webhook.AuthHmacAlgorithm
+	encoding := *webhook.AuthHmacEncoding
 
 	signedPayload := fmt.Sprintf("%s.%s", timestamp, webhookPayload)
 
