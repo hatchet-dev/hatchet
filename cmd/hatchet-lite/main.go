@@ -50,27 +50,6 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-// newReverseProxy routes /api to the API and everything else to the frontend.
-//
-// The API rate-limits by client IP, which it reads from X-Forwarded-For. The proxy sets that header
-// to the address of whoever connected to hatchet-lite and drops any X-Forwarded-For or X-Real-IP
-// the client sent, so a client cannot choose its own IP. Behind a load balancer, every connection
-// comes from the balancer, so all clients share one IP.
-func newReverseProxy(apiURL, feURL *url.URL) *httputil.ReverseProxy {
-	return &httputil.ReverseProxy{
-		Rewrite: func(r *httputil.ProxyRequest) {
-			if strings.HasPrefix(r.In.URL.Path, "/api") {
-				r.SetURL(apiURL)
-			} else {
-				r.SetURL(feURL)
-			}
-
-			r.Out.Header.Del("X-Real-Ip")
-			r.SetXForwarded()
-		},
-	}
-}
-
 // Version will be linked by an ldflag during build
 var Version = "v0.1.0-alpha.0"
 
@@ -189,7 +168,22 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 	s := &http.Server{
 		Addr:              fmt.Sprintf(":%s", runtimePort),
 		ReadHeaderTimeout: 5 * time.Second,
-		Handler:           newReverseProxy(apiURL, feURL),
+		Handler: &httputil.ReverseProxy{
+			// The API rate-limits by client IP, which it reads from X-Forwarded-For. Set that header to
+			// the address of whoever connected to hatchet-lite and drop any X-Forwarded-For or X-Real-IP
+			// the client sent, so a client cannot choose its own IP. Behind a load balancer, every
+			// connection comes from the balancer, so all clients share one IP.
+			Rewrite: func(r *httputil.ProxyRequest) {
+				if strings.HasPrefix(r.In.URL.Path, "/api") {
+					r.SetURL(apiURL)
+				} else {
+					r.SetURL(feURL)
+				}
+
+				r.Out.Header.Del("X-Real-Ip")
+				r.SetXForwarded()
+			},
+		},
 	}
 
 	go func() {
