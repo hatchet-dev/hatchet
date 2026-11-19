@@ -1,6 +1,7 @@
 import { useSandboxProviderMutations } from '../hooks/use-sandbox-providers';
+import { DeleteProviderDialog } from './delete-provider-dialog';
+import { DisableProviderDialog } from './disable-provider-dialog';
 import { EditProviderDialog } from './edit-provider-dialog';
-import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
@@ -24,23 +25,26 @@ export const ProviderActionsMenu = ({
   onDeleted?: () => void;
 }) => {
   const canWrite = useCanWrite();
-  const { update, remove } = useSandboxProviderMutations();
+  const { update } = useSandboxProviderMutations();
   const { handleApiError } = useApiError({});
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isDisableOpen, setIsDisableOpen] = useState(false);
 
   if (!canWrite) {
     return null;
   }
 
-  const toggleEnabled = () =>
+  const toggleEnabled = () => {
+    if (provider.enabled) {
+      setIsDisableOpen(true);
+      return;
+    }
     update.mutate(
-      {
-        providerId: provider.metadata.id,
-        data: { enabled: !provider.enabled },
-      },
+      { providerId: provider.metadata.id, data: { enabled: true } },
       { onError: (error) => handleApiError(error as AxiosError) },
     );
+  };
 
   return (
     <>
@@ -84,22 +88,16 @@ export const ProviderActionsMenu = ({
         open={isEditOpen}
         onOpenChange={setIsEditOpen}
       />
-      <ConfirmDialog
-        isOpen={isDeleteOpen}
-        title={`Delete ${provider.name}?`}
-        description="Sandboxes created on this provider can no longer be reached from the SDK. The vendor account and its machines are not touched."
-        submitLabel="Delete provider"
-        isLoading={remove.isPending}
-        onCancel={() => setIsDeleteOpen(false)}
-        onSubmit={() =>
-          remove.mutate(provider.metadata.id, {
-            onSuccess: () => {
-              setIsDeleteOpen(false);
-              onDeleted?.();
-            },
-            onError: (error) => handleApiError(error as AxiosError),
-          })
-        }
+      <DisableProviderDialog
+        provider={provider}
+        open={isDisableOpen}
+        onOpenChange={setIsDisableOpen}
+      />
+      <DeleteProviderDialog
+        provider={provider}
+        open={isDeleteOpen}
+        onOpenChange={setIsDeleteOpen}
+        onDeleted={onDeleted}
       />
     </>
   );

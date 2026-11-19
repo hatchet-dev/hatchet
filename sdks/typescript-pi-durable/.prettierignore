@@ -1,0 +1,4 @@
+dist/
+node_modules/
+pnpm-lock.yaml
+examples/coding-agent/repo/

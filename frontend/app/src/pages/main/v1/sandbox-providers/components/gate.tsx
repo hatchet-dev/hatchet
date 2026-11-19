@@ -23,8 +23,8 @@ export const SandboxGate = ({ children }: { children: ReactNode }) => {
         <h3 className="text-lg font-semibold">Sandboxes are not enabled</h3>
         <p className="text-sm text-muted-foreground">
           {isSelfHosted
-            ? 'Hatchet sandboxes are only available in Hatchet Cloud.'
-            : 'Hatchet sandboxes are not enabled for this tenant yet. Contact support to turn them on.'}
+            ? 'Sandboxes are a Hatchet Cloud feature.'
+            : 'Sandboxes are not enabled for this tenant. Contact support to turn them on.'}
         </p>
         {!isSelfHosted && (
           <Button asChild size="sm" variant="outline">

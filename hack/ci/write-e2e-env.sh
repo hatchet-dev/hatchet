@@ -51,6 +51,9 @@ SERVER_GRPC_INSECURE=true
 SERVER_INTERNAL_CLIENT_BASE_STRATEGY=none
 SERVER_INTERNAL_CLIENT_BASE_INHERIT_BASE=false
 SERVER_SECURITY_CHECK_ENABLED=false
+
+# Cypress logs in repeatedly from one IP; the default login limit would 429 it.
+SERVER_API_RATE_LIMIT=1000
 EOF
 
 echo "Wrote $ROOT_DIR/.env"

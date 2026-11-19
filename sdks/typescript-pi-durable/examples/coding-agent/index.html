@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pi on Hatchet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f5f7fa;
+    --panel: #ffffff;
+    --ink: #172033;
+    --muted: #677189;
+    --line: #dfe4ec;
+    --cobalt: #2f54eb;
+    --cobalt-soft: #e8edff;
+    --pass: #138a52;
+    --pass-soft: #e3f5ec;
+    --fail: #cc3d3d;
+    --fail-soft: #fcebea;
+    --amber: #a15c07;
+    --amber-soft: #fdf1de;
+    --term: #141a26;
+    --term-ink: #d8dee9;
+    --term-dim: #7d879c;
+    --sans: 'Schibsted Grotesk', system-ui, sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--paper); color: var(--ink);
+    font: 15px/1.5 var(--sans);
+    display: grid; grid-template-rows: auto 1fr; height: 100vh;
+  }
+  button, textarea { font: inherit; }
+  :focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
+  code, .mono { font-family: var(--mono); font-size: 0.86em; }
+
+  header {
+    display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+    padding: 16px 28px; border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+  .title { flex: 1; min-width: 220px; }
+  .title h1 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
+  .title p { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+  .spend { font-size: 14px; color: var(--muted); white-space: nowrap; }
+  .spend strong { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .primary {
+    border: 0; border-radius: 8px; padding: 9px 18px; cursor: pointer;
+    background: var(--ink); color: #fff; font-weight: 600;
+  }
+  .primary:hover { background: #2a3550; }
+  .primary:disabled { opacity: 0.4; cursor: default; }
+  .ghost {
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; cursor: pointer;
+    background: var(--panel); color: var(--ink); font-weight: 500;
+  }
+  .ghost:hover { background: var(--paper); }
+  .ghost.danger { color: var(--fail); }
+
+  .layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); min-height: 0; }
+  aside {
+    border-right: 1px solid var(--line); background: var(--panel);
+    padding: 18px 16px; overflow: auto; display: flex; flex-direction: column; gap: 22px;
+  }
+  aside h2 { margin: 0 0 8px; font-size: 13.5px; font-weight: 600; color: var(--muted); }
+
+  /* the session owner: the Hatchet run that holds the session right now */
+  .owner { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .owner .state { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+  .owner .state::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  .owner.running .state { color: var(--cobalt); }
+  .owner.running .state::before { background: var(--cobalt); animation: pulse 1.2s ease-in-out infinite; }
+  .owner.retried { border-color: var(--amber); background: var(--amber-soft); }
+  .owner.retried .state { color: var(--amber); }
+  .owner.retried .state::before { background: var(--amber); }
+  .owner p { margin: 6px 0 0; font-size: 13.5px; color: var(--muted); }
+  .owner p strong { color: var(--ink); font-weight: 500; }
+  @keyframes pulse { 50% { opacity: 0.3; } }
+
+  /* conversation tree */
+  .tree { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  .tree li { padding-left: calc(var(--depth, 0) * 18px); position: relative; }
+  .tree li[style*="--depth"]::before {
+    content: ''; position: absolute; left: calc(var(--depth) * 18px - 11px); top: -4px; height: 22px; width: 8px;
+    border-left: 1.5px solid var(--line); border-bottom: 1.5px solid var(--line); border-bottom-left-radius: 6px;
+  }
+  .conv {
+    width: 100%; text-align: left; border: 1px solid transparent; border-radius: 8px; padding: 8px 10px;
+    background: none; color: inherit; cursor: pointer; display: grid; gap: 1px;
+  }
+  .conv:hover { background: var(--paper); }
+  .conv[aria-current="true"] { background: var(--cobalt-soft); border-color: transparent; }
+  .conv .name { font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .conv .busy { width: 8px; height: 8px; border-radius: 50%; background: var(--cobalt); animation: pulse 1.2s infinite; }
+  .conv .meta { font-size: 12.5px; color: var(--muted); }
+  .conv .meta code { font-size: 11.5px; }
+  .hint { font-size: 13px; color: var(--muted); margin: 0; }
+
+  /* transcript */
+  main { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-height: 0; }
+  .conv-head { padding: 14px 28px 10px; display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  .conv-head h2 { margin: 0; font-size: 17px; font-weight: 600; }
+  .conv-head p { margin: 0; color: var(--muted); font-size: 14px; }
+  .transcript { overflow: auto; padding: 4px 28px 24px; }
+  .empty { color: var(--muted); padding: 40px 0; max-width: 60ch; }
+  .item { position: relative; max-width: 860px; margin: 0 0 14px; }
+  .item.inherited { opacity: 0.55; }
+  .fork-line {
+    max-width: 860px; margin: 4px 0 18px; display: flex; align-items: center; gap: 12px;
+    color: var(--cobalt); font-size: 13.5px; font-weight: 500;
+  }
+  .fork-line::before, .fork-line::after { content: ''; flex: 1; height: 1.5px; background: var(--cobalt-soft); }
+  .user {
+    background: var(--ink); color: #fff; border-radius: 12px; padding: 10px 14px;
+    width: fit-content; max-width: 720px; white-space: pre-wrap;
+  }
+  .assistant .text { white-space: pre-wrap; line-height: 1.6; }
+  .assistant .text:empty { display: none; }
+  .thinking { color: var(--muted); font-size: 14px; margin-bottom: 6px; }
+  .thinking summary { cursor: pointer; font-weight: 500; width: fit-content; }
+  .thinking p { margin: 6px 0 0; white-space: pre-wrap; font-style: italic; }
+  .call { margin-top: 8px; background: var(--term); color: var(--term-ink); border-radius: 10px; overflow: hidden; }
+  .call .cmd { padding: 9px 14px; font: 13px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word; }
+  .call .cmd .tool { color: var(--term-dim); margin-right: 8px; }
+  .call .out {
+    padding: 9px 14px; border-top: 1px solid #232b3b; font: 12.5px/1.5 var(--mono); color: var(--term-ink);
+    white-space: pre-wrap; word-break: break-word; max-height: 260px; overflow: auto;
+  }
+  .call .out:empty { display: none; }
+  .call .out.error { color: #ff9a9a; }
+  .call .out.running { color: var(--term-dim); }
+  .note { color: var(--muted); font-size: 13.5px; }
+  .live-text { white-space: pre-wrap; line-height: 1.6; }
+  .live-status { color: var(--muted); font-size: 13.5px; }
+
+  .fork-btn {
+    position: absolute; top: 0; right: -4px; transform: translateX(100%);
+    border: 1px solid var(--line); background: var(--panel); color: var(--cobalt);
+    border-radius: 6px; padding: 2px 8px; font-size: 12.5px; font-weight: 500; cursor: pointer;
+    opacity: 0; transition: opacity 0.12s;
+  }
+  .item:hover .fork-btn, .fork-btn:focus-visible { opacity: 1; }
+  @media (max-width: 1180px) {
+    .fork-btn { position: static; transform: none; opacity: 1; margin-top: 6px; }
+  }
+
+  /* composer */
+  form.composer {
+    border-top: 1px solid var(--line); background: var(--panel); padding: 12px 28px 16px;
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end;
+  }
+  .composer textarea {
+    width: 100%; min-height: 46px; max-height: 200px; resize: vertical; padding: 10px 12px;
+    font: 15px/1.45 var(--sans); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
+  }
+  .composer .actions { display: flex; gap: 8px; }
+  .composer .status { grid-column: 1 / -1; font-size: 13px; color: var(--muted); margin: 0; min-height: 1.2em; }
+
+  .start { padding: 60px 28px; max-width: 640px; }
+  .start h2 { margin: 0 0 8px; font-size: 22px; }
+  .start p { color: var(--muted); margin: 0 0 18px; }
+
+  @media (max-width: 760px) {
+    header { padding: 14px 16px; }
+    .layout { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+    aside { border-right: 0; border-bottom: 1px solid var(--line); max-height: 38vh; }
+    .transcript, .conv-head, form.composer { padding-left: 16px; padding-right: 16px; }
+    form.composer { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="title">
+    <h1>pi on Hatchet</h1>
+    <p id="subtitle">A pi-durable coding agent. Hatchet owns the session and runs the tools in brickie sandboxes.</p>
+  </div>
+  <span class="spend" id="spend" hidden></span>
+  <button class="ghost" id="new-session" type="button">New session</button>
+</header>
+
+<div class="layout" id="layout" hidden>
+  <aside>
+    <section>
+      <h2>Session owner</h2>
+      <div class="owner" id="owner"><div class="state">Waiting for the first view</div></div>
+    </section>
+    <section>
+      <h2>Conversations</h2>
+      <ul class="tree" id="tree"></ul>
+      <p class="hint">Hover a message and choose Fork to branch the conversation and its sandbox from that point.</p>
+    </section>
+  </aside>
+  <main>
+    <div class="conv-head"><h2 id="conv-title"></h2><p id="conv-meta"></p></div>
+    <div class="transcript" id="transcript" aria-live="polite"></div>
+    <form class="composer" id="composer">
+      <textarea id="input" placeholder="Ask the agent to change the repository" aria-label="Message"></textarea>
+      <div class="actions" id="actions"></div>
+      <p class="status" id="composer-status"></p>
+    </form>
+  </main>
+</div>
+
+<div class="start" id="start" hidden>
+  <h2>Start a session</h2>
+  <p>A session holds a coding agent and the conversations forked from it. Each conversation gets its own sandbox with a small TypeScript repository that has one failing test.</p>
+  <button class="primary" id="start-session" type="button">Start a session</button>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const el = (tag, cls, text) => {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text !== undefined) node.textContent = text;
+  return node;
+};
+const short = (id) => (id ? String(id).slice(0, 8) : '');
+const money = (n) => `$${n.toFixed(n < 0.1 ? 3 : 2)}`;
+
+let sessionId = null;
+let view = null;
+let selected = 1;
+let source = null;
+let rendered = { conversation: null, ids: new Set() };
+let pendingFork = null;
+
+function startSession(id) {
+  sessionId = id;
+  view = null;
+  selected = 1;
+  rendered = { conversation: null, ids: new Set() };
+  $('start').hidden = true;
+  $('layout').hidden = false;
+  $('transcript').replaceChildren(el('p', 'empty', 'Starting the session. A Hatchet run opens it and prepares the first sandbox.'));
+  source?.close();
+  source = new EventSource(`/api/sessions/${id}/view`);
+  source.onmessage = (event) => {
+    view = JSON.parse(event.data);
+    render();
+  };
+}
+
+async function newSession() {
+  const res = await fetch('/api/sessions', { method: 'POST' });
+  const { sessionId: id } = await res.json();
+  location.hash = id;
+}
+
+async function send(message) {
+  const res = await fetch(`/api/sessions/${sessionId}/inbox`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(message),
+  });
+  if (!res.ok) throw new Error((await res.json()).error ?? res.statusText);
+}
+
+function conversation() {
+  return view?.conversations.find((c) => c.id === selected) ?? view?.conversations[0];
+}
+
+function depthOf(c) {
+  let depth = 0;
+  let cur = c;
+  while (cur?.parent) {
+    depth++;
+    cur = view.conversations.find((x) => x.id === cur.parent.conversationId);
+  }
+  return depth;
+}
+
+function renderOwner() {
+  const box = $('owner');
+  const host = view.host;
+  const retried = host.attempt > 0 && host.state !== 'stopped';
+  box.className = `owner ${host.state === 'stopped' ? '' : 'running'} ${retried ? 'retried' : ''}`;
+  const lines = [];
+  const state = el('div', 'state',
+    host.state === 'stopped' ? 'No run owns the session' : retried ? `Retried run, attempt ${host.attempt + 1}` : 'A run owns the session');
+  lines.push(state);
+  if (host.state === 'stopped') {
+    lines.push(el('p', '', 'The last run handed it back after it went idle. The next message starts a new one.'));
+  } else {
+    const p = el('p');
+    p.append('Hatchet run ', el('strong', 'mono', short(host.runId)), ` since ${new Date(host.startedAt).toLocaleTimeString()}.`);
+    lines.push(p);
+  }
+  if (view.recoveredTasks > 0 && host.state !== 'stopped') {
+    lines.push(el('p', '', `It reopened the session and resumed ${view.recoveredTasks} unfinished ${view.recoveredTasks === 1 ? 'task' : 'tasks'} from storage.`));
+  }
+  box.replaceChildren(...lines);
+}
+
+function renderTree() {
+  const tree = $('tree');
+  tree.replaceChildren(...view.conversations.map((c) => {
+    const li = el('li');
+    const depth = depthOf(c);
+    if (depth) li.style.setProperty('--depth', depth);
+    const button = el('button', 'conv');
+    button.type = 'button';
+    button.setAttribute('aria-current', String(c.id === selected));
+    const name = el('span', 'name', c.parent ? `Fork ${c.id}` : 'Main conversation');
+    if (c.busy) name.append(el('span', 'busy'));
+    const meta = el('span', 'meta');
+    meta.append(c.parent ? `from ${c.parent.conversationId === 1 ? 'main' : `fork ${c.parent.conversationId}`} at entry ${c.parent.entryId}` : 'root');
+    if (c.sandboxId) meta.append(' · sandbox ', el('code', '', short(c.sandboxId)));
+    button.append(name, meta);
+    button.onclick = () => { selected = c.id; render(); };
+    li.append(button);
+    return li;
+  }));
+}
+
+function forkButton(entryId) {
+  const button = el('button', 'fork-btn', 'Fork');
+  button.type = 'button';
+  button.title = 'Branch the conversation and its sandbox from here';
+  button.onclick = async () => {
+    pendingFork = view.conversations.length;
+    status('Forking: restoring a sandbox from the snapshot taken at this point.');
+    try { await send({ type: 'fork', conversationId: conversation().id, entryId }); }
+    catch (err) { pendingFork = null; status(`Fork failed: ${err.message}`); }
+  };
+  return button;
+}
+
+function argsText(call) {
+  const args = call.arguments ?? {};
+  if (call.name === 'bash') return args.command ?? '';
+  if (call.name === 'read' || call.name === 'write') return args.path ?? '';
+  if (call.name === 'edit') return `${args.path ?? ''}  (${(args.edits ?? []).length} ${(args.edits ?? []).length === 1 ? 'change' : 'changes'})`;
+  return JSON.stringify(args);
+}
+
+function renderItem(item, c) {
+  const inherited = c.parent && item.id <= c.parent.entryId;
+  const node = el('div', `item ${item.kind}${inherited ? ' inherited' : ''}`);
+  node.dataset.id = item.id;
+  if (item.kind === 'user') {
+    node.append(el('div', 'user', item.text));
+  } else if (item.kind === 'assistant') {
+    if (item.thinking) {
+      const details = el('details', 'thinking');
+      details.append(el('summary', '', 'Thinking'), el('p', '', item.thinking));
+      node.append(details);
+    }
+    node.append(el('div', 'text', item.text));
+    for (const call of item.toolCalls) {
+      const block = el('div', 'call');
+      block.dataset.call = call.id;
+      const cmd = el('div', 'cmd');
+      cmd.append(el('span', 'tool', call.name), argsText(call));
+      block.append(cmd, el('div', 'out'));
+      node.append(block);
+    }
+  } else if (item.kind === 'tool') {
+    const out = document.querySelector(`[data-call="${CSS.escape(item.callId)}"] .out`);
+    if (out) {
+      out.className = `out${item.isError ? ' error' : ''}`;
+      delete out.dataset.live;
+      out.textContent = item.output || '(no output)';
+      const owner = out.closest('.item');
+      owner.querySelector('.fork-btn')?.remove();
+      if (!inherited) owner.append(forkButton(item.id));
+      return null;
+    }
+    node.append(el('div', 'note', `${item.name}: ${item.output}`));
+  } else {
+    node.append(el('div', 'note', item.text));
+  }
+  if (!inherited && item.kind !== 'note') node.append(forkButton(item.id));
+  return node;
+}
+
+function renderTranscript(c) {
+  const box = $('transcript');
+  const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+  if (rendered.conversation !== c.id) {
+    rendered = { conversation: c.id, ids: new Set() };
+    box.replaceChildren();
+  }
+  box.querySelector('.live')?.remove();
+  box.querySelector('.empty')?.remove();
+  for (const item of c.items) {
+    if (rendered.ids.has(item.id)) continue;
+    rendered.ids.add(item.id);
+    if (c.parent && item.id > c.parent.entryId && !box.querySelector('.fork-line')) {
+      box.append(el('div', 'fork-line', `Forked from ${c.parent.conversationId === 1 ? 'the main conversation' : `fork ${c.parent.conversationId}`} here`));
+    }
+    const node = renderItem(item, c);
+    if (node) box.append(node);
+  }
+  if (c.parent && !box.querySelector('.fork-line')) {
+    box.append(el('div', 'fork-line', 'Forked here. Send a message to continue in this branch.'));
+  }
+
+  for (const tool of c.live?.tools ?? []) {
+    const out = box.querySelector(`[data-call="${CSS.escape(tool.callId)}"] .out`);
+    if (out && !out.textContent) {
+      out.className = 'out running';
+      out.dataset.live = '1';
+      out.textContent = tool.output || (tool.status === 'running' ? 'Running in the sandbox…' : 'Waiting to run…');
+    } else if (out?.dataset.live) {
+      out.textContent = tool.output || 'Running in the sandbox…';
+    }
+  }
+  if (c.live) {
+    const live = el('div', 'item live');
+    if (c.live.thinking) {
+      const details = el('details', 'thinking');
+      details.append(el('summary', '', 'Thinking'), el('p', '', c.live.thinking));
+      live.append(details);
+    }
+    if (c.live.text) live.append(el('div', 'live-text', c.live.text));
+    const running = (c.live.tools ?? []).some((t) => t.status !== 'done');
+    if (c.live.retry) live.append(el('div', 'live-status', `Retrying the model request: ${c.live.retry}`));
+    else if (!c.live.text && !running) live.append(el('div', 'live-status', 'Waiting for the model…'));
+    box.append(live);
+  }
+  if (!c.items.length && !c.live && !c.parent) {
+    box.append(el('p', 'empty', c.sandboxId
+      ? 'The sandbox is ready with the repository. Try: “The test suite has a failing test. Find the bug and fix it.”'
+      : 'Preparing the sandbox.'));
+  }
+  if (nearBottom) box.scrollTop = box.scrollHeight;
+}
+
+function status(text) { $('composer-status').textContent = text; }
+
+function renderComposer(c) {
+  const actions = $('actions');
+  const buttons = [];
+  if (c.busy) {
+    const steer = el('button', 'primary', 'Steer');
+    steer.type = 'submit';
+    steer.dataset.mode = 'steer';
+    steer.title = 'Joins the running work after the current tool round';
+    const follow = el('button', 'ghost', 'Queue follow-up');
+    follow.type = 'submit';
+    follow.dataset.mode = 'followUp';
+    const stop = el('button', 'ghost danger', 'Stop');
+    stop.type = 'button';
+    stop.onclick = () => send({ type: 'abort', conversationId: c.id }).catch((err) => status(err.message));
+    buttons.push(steer, follow, stop);
+  } else {
+    const sendButton = el('button', 'primary', 'Send');
+    sendButton.type = 'submit';
+    sendButton.dataset.mode = 'followUp';
+    buttons.push(sendButton);
+  }
+  const signature = [c.id, ...buttons.map((b) => b.textContent)].join('|');
+  if (actions.dataset.signature !== signature) {
+    actions.dataset.signature = signature;
+    actions.replaceChildren(...buttons);
+  }
+  if (!$('composer-status').dataset.sticky) {
+    status(c.inbox ? `${c.inbox} queued ${c.inbox === 1 ? 'message' : 'messages'}` : '');
+  }
+}
+
+function render() {
+  if (!view) return;
+  if (pendingFork !== null && view.conversations.length > pendingFork) {
+    selected = view.conversations[view.conversations.length - 1].id;
+    pendingFork = null;
+    status('');
+  }
+  const c = conversation();
+  if (!c) return;
+  selected = c.id;
+  const spend = view.conversations.reduce((sum, x) => sum + x.usage.cost, 0);
+  const output = view.conversations.reduce((sum, x) => sum + x.usage.output, 0);
+  $('spend').hidden = false;
+  $('spend').replaceChildren('Spent ', el('strong', '', money(spend)), ` · ${output.toLocaleString()} output tokens`);
+  $('subtitle').replaceChildren('Session ', el('code', '', view.sessionId), '. Hatchet owns it and runs the tools in Hatchet sandboxes.');
+  renderOwner();
+  renderTree();
+  $('conv-title').textContent = c.parent ? `Fork ${c.id}` : 'Main conversation';
+  $('conv-meta').replaceChildren(...(c.snapshotId ? ['Workspace snapshot ', el('code', '', short(c.snapshotId))] : []));
+  renderTranscript(c);
+  renderComposer(c);
+}
+
+$('composer').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const text = $('input').value.trim();
+  const c = conversation();
+  if (!text || !c) return;
+  const mode = event.submitter?.dataset.mode ?? 'followUp';
+  $('input').value = '';
+  try {
+    await send({ type: 'input', conversationId: c.id, text, whenBusy: mode });
+    if (view.host.state === 'stopped') status('Sent. Hatchet is starting a run to own the session.');
+  } catch (err) {
+    $('input').value = text;
+    status(`Not sent: ${err.message}`);
+  }
+});
+$('input').addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) $('composer').requestSubmit($('actions').querySelector('[type=submit]'));
+});
+$('new-session').onclick = newSession;
+$('start-session').onclick = newSession;
+
+function route() {
+  const id = location.hash.slice(1);
+  // The package's SessionId: short and URL-safe.
+  if (/^[A-Za-z0-9_-]{1,64}$/.test(id)) startSession(id);
+  else { $('layout').hidden = true; $('start').hidden = false; source?.close(); }
+}
+window.addEventListener('hashchange', route);
+route();
+</script>
+</body>
+</html>

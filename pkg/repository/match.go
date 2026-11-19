@@ -808,7 +808,6 @@ func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx 
 	errorMessages := make([]string, 0)
 	payloadsToStore := make([]StorePayloadOpts, 0)
 	idInsertedAtNodeIdToSatisfiedEntry := make(map[DurableTaskNodeIdKey]SatisfiedEntry)
-	minDurableTaskInsertedAt := time.Time{}
 
 	for _, match := range satisfiedMatches {
 		durableTaskExternalId := match.SignalTaskExternalID
@@ -857,12 +856,10 @@ func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx 
 			}
 
 			errorMessages = append(errorMessages, errorMsgToInsert)
-
-			if minDurableTaskInsertedAt.IsZero() || durableTaskInsertedAt.Time.Before(minDurableTaskInsertedAt) {
-				minDurableTaskInsertedAt = durableTaskInsertedAt.Time
-			}
 		}
 	}
+
+	durableTaskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(durableTaskInsertedAts)
 
 	// NOTE: need an explicit lock here to prevent segfault caused by Postgres bug, see this issue: https://github.com/hatchet-dev/hatchet/issues/5101
 	if len(durableTaskIds) > 0 {
@@ -875,7 +872,8 @@ func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx 
 			Durabletaskids:           durableTaskIds,
 			Durabletaskinsertedats:   durableTaskInsertedAts,
 			Tenantids:                tenantIds,
-			Mindurabletaskinsertedat: sqlchelpers.TimestamptzFromTime(minDurableTaskInsertedAt),
+			Mindurabletaskinsertedat: durableTaskInsertedAtBounds.Min,
+			Maxdurabletaskinsertedat: durableTaskInsertedAtBounds.Max,
 		})
 
 		if err != nil {
@@ -890,7 +888,8 @@ func (m *sharedRepository) processEventMatchesForTarget(ctx context.Context, tx 
 		Durabletaskinsertedats:   durableTaskInsertedAts,
 		Childtaskisfailures:      isFailures,
 		Childtaskerrormessages:   errorMessages,
-		Mindurabletaskinsertedat: sqlchelpers.TimestamptzFromTime(minDurableTaskInsertedAt),
+		Mindurabletaskinsertedat: durableTaskInsertedAtBounds.Min,
+		Maxdurabletaskinsertedat: durableTaskInsertedAtBounds.Max,
 	})
 
 	if err != nil {

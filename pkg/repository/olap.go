@@ -1395,9 +1395,13 @@ func (r *OLAPRepositoryImpl) populateWorkflowRuns(ctx context.Context, readDB sq
 		}
 	}
 
+	runInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(runInsertedAtsWithDAGs)
+
 	populatedDAGs, err := r.queries.PopulateDAGMetadata(ctx, readDB, sqlcv1.PopulateDAGMetadataParams{
 		Ids:             runIdsWithDAGs,
 		Insertedats:     runInsertedAtsWithDAGs,
+		Mininsertedat:   runInsertedAtBounds.Min,
+		Maxinsertedat:   runInsertedAtBounds.Max,
 		Tenantid:        tenantId,
 		Includepayloads: includePayloads,
 	})
@@ -2171,21 +2175,24 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 
 			defer rollback()
 
-			minInsertedAt, err := r.queries.FindMinInsertedAtForTaskStatusUpdates(ctx, tx, sqlcv1.FindMinInsertedAtForTaskStatusUpdatesParams{
+			insertedAtBounds, err := r.queries.FindInsertedAtBoundsForTaskStatusUpdates(ctx, tx, sqlcv1.FindInsertedAtBoundsForTaskStatusUpdatesParams{
 				Partitionnumber: int32(partitionNumber), // nolint: gosec
 				Tenantids:       tenantIds,
 				Eventlimit:      batchSizeLimit,
 			})
 
 			if err != nil {
-				return fmt.Errorf("failed to find min inserted at for task status updates: %w", err)
+				return fmt.Errorf("failed to find inserted at bounds for task status updates: %w", err)
 			}
+
+			prunableInsertedAtBounds := prunableTimeBounds(insertedAtBounds.MinInsertedAt, insertedAtBounds.MaxInsertedAt)
 
 			statusUpdateRes, err := r.queries.UpdateTaskStatuses(ctx, tx, sqlcv1.UpdateTaskStatusesParams{
 				Partitionnumber: int32(partitionNumber), // nolint: gosec
 				Tenantids:       tenantIds,
 				Eventlimit:      batchSizeLimit,
-				Mininsertedat:   minInsertedAt,
+				Mininsertedat:   prunableInsertedAtBounds.Min,
+				Maxinsertedat:   prunableInsertedAtBounds.Max,
 			})
 
 			if err != nil {
@@ -2301,21 +2308,24 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 
 			defer rollback()
 
-			minInsertedAt, err := r.queries.FindMinInsertedAtForDAGStatusUpdates(ctx, tx, sqlcv1.FindMinInsertedAtForDAGStatusUpdatesParams{
+			insertedAtBounds, err := r.queries.FindInsertedAtBoundsForDAGStatusUpdates(ctx, tx, sqlcv1.FindInsertedAtBoundsForDAGStatusUpdatesParams{
 				Partitionnumber: int32(partitionNumber), // nolint: gosec
 				Tenantids:       tenantIds,
 				Eventlimit:      batchSizeLimit,
 			})
 
 			if err != nil {
-				return fmt.Errorf("failed to find min inserted at for DAG status updates: %w", err)
+				return fmt.Errorf("failed to find inserted at bounds for DAG status updates: %w", err)
 			}
+
+			prunableInsertedAtBounds := prunableTimeBounds(insertedAtBounds.MinInsertedAt, insertedAtBounds.MaxInsertedAt)
 
 			statusUpdateRes, err := r.queries.UpdateDAGStatuses(ctx, tx, sqlcv1.UpdateDAGStatusesParams{
 				Partitionnumber: int32(partitionNumber), // nolint: gosec
 				Tenantids:       tenantIds,
 				Eventlimit:      batchSizeLimit,
-				Mininsertedat:   minInsertedAt,
+				Mininsertedat:   prunableInsertedAtBounds.Min,
+				Maxinsertedat:   prunableInsertedAtBounds.Max,
 			})
 
 			if err != nil {
@@ -2397,7 +2407,6 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 
 	params := sqlcv1.CreateTasksOLAPParams{}
 	inputCopiesToStore := make([]StoreOLAPPayloadOpts, 0)
-	minInsertedAt := pgtype.Timestamptz{}
 
 	var initiallyWrittenAsTerminalRows []UpdateTaskStatusRow
 
@@ -2458,10 +2467,6 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 				DagInsertedAt:  task.DagInsertedAt,
 			})
 		}
-
-		if !minInsertedAt.Valid || task.InsertedAt.Time.Before(minInsertedAt.Time) {
-			minInsertedAt = task.InsertedAt
-		}
 	}
 
 	if len(params.Ids) == 0 {
@@ -2477,10 +2482,13 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 		return nil, nil, err
 	}
 
+	taskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(params.Insertedats)
+
 	reconciledTasks, err := r.queries.ReconcileTaskStatusesFromEvents(ctx, tx, sqlcv1.ReconcileTaskStatusesFromEventsParams{
 		Taskids:         params.Ids,
 		Taskinsertedats: params.Insertedats,
-		Mininsertedat:   minInsertedAt,
+		Mininsertedat:   taskInsertedAtBounds.Min,
+		Maxinsertedat:   taskInsertedAtBounds.Max,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to reconcile task statuses from events: %w", err)
@@ -2620,7 +2628,14 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 			return nil, err
 		}
 
-		err = r.queries.ReconcileOperatorDAGStatusesOnCreate(ctx, tx, sqlcv1.ReconcileOperatorDAGStatusesOnCreateParams(selfMappingParams))
+		dagInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(selfMappingParams.Daginsertedats)
+
+		err = r.queries.ReconcileOperatorDAGStatusesOnCreate(ctx, tx, sqlcv1.ReconcileOperatorDAGStatusesOnCreateParams{
+			Dagids:           selfMappingParams.Dagids,
+			Daginsertedats:   selfMappingParams.Daginsertedats,
+			Mindaginsertedat: dagInsertedAtBounds.Min,
+			Maxdaginsertedat: dagInsertedAtBounds.Max,
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -3269,11 +3284,15 @@ func (r *OLAPRepositoryImpl) GetDAGDurations(ctx context.Context, tenantId uuid.
 func (r *OLAPRepositoryImpl) GetTaskDurationsByTaskIds(ctx context.Context, tenantId uuid.UUID, taskIds []int64, taskInsertedAts []pgtype.Timestamptz, readableStatuses []enums.V1ReadableStatusOlap) (map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow, error) {
 	readDB := r.readPool.ForTenant(tenantId)
 
+	taskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(taskInsertedAts)
+
 	rows, err := r.queries.GetTaskDurationsByTaskIds(ctx, readDB, sqlcv1.GetTaskDurationsByTaskIdsParams{
-		Taskids:          taskIds,
-		Taskinsertedats:  taskInsertedAts,
-		Tenantid:         tenantId,
-		Readablestatuses: readableStatuses,
+		Taskids:           taskIds,
+		Taskinsertedats:   taskInsertedAts,
+		Mintaskinsertedat: taskInsertedAtBounds.Min,
+		Maxtaskinsertedat: taskInsertedAtBounds.Max,
+		Tenantid:          tenantId,
+		Readablestatuses:  readableStatuses,
 	})
 	if err != nil {
 		return nil, err
@@ -3855,11 +3874,15 @@ func (r *OLAPRepositoryImpl) populateTaskRunData(ctx context.Context, tx sqlcv1.
 		taskInsertedAts = append(taskInsertedAts, sqlchelpers.TimestamptzFromUnixMicros(idInsertedAt.InsertedAtUnixMicros))
 	}
 
+	taskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(taskInsertedAts)
+
 	taskData, err := r.queries.PopulateTaskRunData(ctx, tx, sqlcv1.PopulateTaskRunDataParams{
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
-		Tenantid:        tenantId,
-		Includepayloads: includePayloads,
+		Taskids:           taskIds,
+		Taskinsertedats:   taskInsertedAts,
+		Mintaskinsertedat: taskInsertedAtBounds.Min,
+		Maxtaskinsertedat: taskInsertedAtBounds.Max,
+		Tenantid:          tenantId,
+		Includepayloads:   includePayloads,
 	})
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -4270,4 +4293,15 @@ func protoStatusCodeToDB(code tracev1.Status_StatusCode) sqlcv1.V1OtelStatusCode
 	default:
 		return sqlcv1.V1OtelStatusCodeUNSET
 	}
+}
+
+func prunableTimeBounds(minInsertedAt, maxInsertedAt pgtype.Timestamptz) sqlchelpers.TimeBounds {
+	if !minInsertedAt.Valid || !maxInsertedAt.Valid {
+		return sqlchelpers.TimeBounds{
+			Min: pgtype.Timestamptz{InfinityModifier: pgtype.Infinity, Valid: true},
+			Max: pgtype.Timestamptz{InfinityModifier: pgtype.NegativeInfinity, Valid: true},
+		}
+	}
+
+	return sqlchelpers.TimeBounds{Min: minInsertedAt, Max: maxInsertedAt}
 }
