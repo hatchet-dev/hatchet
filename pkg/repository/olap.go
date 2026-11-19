@@ -1395,9 +1395,13 @@ func (r *OLAPRepositoryImpl) populateWorkflowRuns(ctx context.Context, readDB sq
 		}
 	}
 
+	runInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(runInsertedAtsWithDAGs)
+
 	populatedDAGs, err := r.queries.PopulateDAGMetadata(ctx, readDB, sqlcv1.PopulateDAGMetadataParams{
 		Ids:             runIdsWithDAGs,
 		Insertedats:     runInsertedAtsWithDAGs,
+		Mininsertedat:   runInsertedAtBounds.Min,
+		Maxinsertedat:   runInsertedAtBounds.Max,
 		Tenantid:        tenantId,
 		Includepayloads: includePayloads,
 	})
@@ -2624,7 +2628,14 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 			return nil, err
 		}
 
-		err = r.queries.ReconcileOperatorDAGStatusesOnCreate(ctx, tx, sqlcv1.ReconcileOperatorDAGStatusesOnCreateParams(selfMappingParams))
+		dagInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(selfMappingParams.Daginsertedats)
+
+		err = r.queries.ReconcileOperatorDAGStatusesOnCreate(ctx, tx, sqlcv1.ReconcileOperatorDAGStatusesOnCreateParams{
+			Dagids:           selfMappingParams.Dagids,
+			Daginsertedats:   selfMappingParams.Daginsertedats,
+			Mindaginsertedat: dagInsertedAtBounds.Min,
+			Maxdaginsertedat: dagInsertedAtBounds.Max,
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -3273,11 +3284,15 @@ func (r *OLAPRepositoryImpl) GetDAGDurations(ctx context.Context, tenantId uuid.
 func (r *OLAPRepositoryImpl) GetTaskDurationsByTaskIds(ctx context.Context, tenantId uuid.UUID, taskIds []int64, taskInsertedAts []pgtype.Timestamptz, readableStatuses []enums.V1ReadableStatusOlap) (map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow, error) {
 	readDB := r.readPool.ForTenant(tenantId)
 
+	taskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(taskInsertedAts)
+
 	rows, err := r.queries.GetTaskDurationsByTaskIds(ctx, readDB, sqlcv1.GetTaskDurationsByTaskIdsParams{
-		Taskids:          taskIds,
-		Taskinsertedats:  taskInsertedAts,
-		Tenantid:         tenantId,
-		Readablestatuses: readableStatuses,
+		Taskids:           taskIds,
+		Taskinsertedats:   taskInsertedAts,
+		Mintaskinsertedat: taskInsertedAtBounds.Min,
+		Maxtaskinsertedat: taskInsertedAtBounds.Max,
+		Tenantid:          tenantId,
+		Readablestatuses:  readableStatuses,
 	})
 	if err != nil {
 		return nil, err
@@ -3859,11 +3874,15 @@ func (r *OLAPRepositoryImpl) populateTaskRunData(ctx context.Context, tx sqlcv1.
 		taskInsertedAts = append(taskInsertedAts, sqlchelpers.TimestamptzFromUnixMicros(idInsertedAt.InsertedAtUnixMicros))
 	}
 
+	taskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(taskInsertedAts)
+
 	taskData, err := r.queries.PopulateTaskRunData(ctx, tx, sqlcv1.PopulateTaskRunDataParams{
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
-		Tenantid:        tenantId,
-		Includepayloads: includePayloads,
+		Taskids:           taskIds,
+		Taskinsertedats:   taskInsertedAts,
+		Mintaskinsertedat: taskInsertedAtBounds.Min,
+		Maxtaskinsertedat: taskInsertedAtBounds.Max,
+		Tenantid:          tenantId,
+		Includepayloads:   includePayloads,
 	})
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {

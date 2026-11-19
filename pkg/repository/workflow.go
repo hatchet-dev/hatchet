@@ -2196,11 +2196,15 @@ func (r *workflowRepository) requeueHeldTasks(ctx context.Context, tx sqlcv1.DBT
 
 	taskIds, taskInsertedAts, retryCounts := taskTupleArrays(tasks)
 
+	taskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(taskInsertedAts)
+
 	queueNames, err := r.queries.RequeueHeldQueueItems(ctx, tx, sqlcv1.RequeueHeldQueueItemsParams{
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
-		Retrycounts:     retryCounts,
-		Tenantid:        tenantId,
+		Taskids:           taskIds,
+		Taskinsertedats:   taskInsertedAts,
+		Mintaskinsertedat: taskInsertedAtBounds.Min,
+		Maxtaskinsertedat: taskInsertedAtBounds.Max,
+		Retrycounts:       retryCounts,
+		Tenantid:          tenantId,
 	})
 
 	if err != nil {
@@ -2208,10 +2212,12 @@ func (r *workflowRepository) requeueHeldTasks(ctx context.Context, tx sqlcv1.DBT
 	}
 
 	concurrencyStrategyIds, err := r.queries.RequeueHeldConcurrencySlots(ctx, tx, sqlcv1.RequeueHeldConcurrencySlotsParams{
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
-		Retrycounts:     retryCounts,
-		Tenantid:        tenantId,
+		Taskids:           taskIds,
+		Taskinsertedats:   taskInsertedAts,
+		Mintaskinsertedat: taskInsertedAtBounds.Min,
+		Maxtaskinsertedat: taskInsertedAtBounds.Max,
+		Retrycounts:       retryCounts,
+		Tenantid:          tenantId,
 	})
 
 	if err != nil {

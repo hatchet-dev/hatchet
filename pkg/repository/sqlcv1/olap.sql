@@ -734,6 +734,8 @@ WITH input AS (
         v1_runs_olap r ON (r.id, r.inserted_at) = (COALESCE(t.dag_id, t.id), COALESCE(t.dag_inserted_at, t.inserted_at))
     WHERE
         t.tenant_id = @tenantId::uuid
+        AND t.inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+        AND t.inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
 ), relevant_events AS (
     SELECT
         e.*
@@ -742,7 +744,8 @@ WITH input AS (
     JOIN
         tasks t ON t.id = e.task_id AND t.tenant_id = e.tenant_id AND t.inserted_at = e.task_inserted_at
     WHERE
-        e.task_inserted_at >= (SELECT MIN(inserted_at) FROM input)
+        e.task_inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+        AND e.task_inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
 ), max_retry_counts AS (
     SELECT
         e.tenant_id,
@@ -1639,7 +1642,13 @@ WITH input AS (
     FROM input i
     JOIN v1_runs_olap r ON (i.id, i.inserted_at) = (r.id, r.inserted_at)
     JOIN v1_dags_olap d ON (r.id, r.inserted_at) = (d.id, d.inserted_at)
-    WHERE r.tenant_id = @tenantId::uuid AND r.kind = 'DAG'
+    WHERE
+        r.tenant_id = @tenantId::uuid
+        AND r.kind = 'DAG'
+        AND r.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+        AND r.inserted_at <= @maxInsertedAt::TIMESTAMPTZ
+        AND d.inserted_at >= @minInsertedAt::TIMESTAMPTZ
+        AND d.inserted_at <= @maxInsertedAt::TIMESTAMPTZ
 ), relevant_events AS (
     SELECT r.run_id, e.*
     FROM runs r
@@ -1647,8 +1656,9 @@ WITH input AS (
     JOIN v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
     WHERE
         e.tenant_id = @tenantId::uuid
-        AND dt.dag_inserted_at >= (SELECT MIN(inserted_at) FROM input)
-        AND e.task_inserted_at >= (SELECT MIN(inserted_at) FROM input)
+        AND dt.dag_inserted_at >= @minInsertedAt::TIMESTAMPTZ
+        AND dt.dag_inserted_at <= @maxInsertedAt::TIMESTAMPTZ
+        AND e.task_inserted_at >= @minInsertedAt::TIMESTAMPTZ
 ), max_retry_count AS (
     SELECT run_id, MAX(retry_count) AS max_retry_count
     FROM relevant_events
@@ -2314,6 +2324,9 @@ WITH input AS (
         input i
     JOIN
         v1_tasks_olap t ON (t.inserted_at, t.id, t.readable_status, t.tenant_id) = (i.inserted_at, i.task_id, i.readable_status, @tenantId::uuid)
+    WHERE
+        t.inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+        AND t.inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
 ), task_events AS (
     SELECT
         td.task_id,
@@ -2326,7 +2339,8 @@ WITH input AS (
     JOIN
         v1_task_events_olap e ON (e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count) = (td.tenant_id, td.task_id, td.inserted_at, td.latest_retry_count)
     WHERE
-        e.task_inserted_at >= (SELECT MIN(inserted_at) FROM input)
+        e.task_inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+        AND e.task_inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
 ), task_times AS (
     SELECT
         task_id,
@@ -2712,7 +2726,9 @@ WITH inputs AS (
     FROM v1_task_events_olap e
     -- dag operator task ids are the same as the dag ids
     JOIN inputs i ON (e.task_id, e.task_inserted_at) = (i.dag_id, i.dag_inserted_at)
-    WHERE e.task_inserted_at >= (SELECT MIN(dag_inserted_at) FROM inputs)
+    WHERE
+        e.task_inserted_at >= @minDagInsertedAt::TIMESTAMPTZ
+        AND e.task_inserted_at <= @maxDagInsertedAt::TIMESTAMPTZ
     ORDER BY
         e.task_id,
         e.task_inserted_at,
@@ -2726,6 +2742,8 @@ SET
     latest_retry_count = le.retry_count
 FROM latest_event le
 WHERE (d.id, d.inserted_at) = (le.task_id, le.task_inserted_at)
+    AND d.inserted_at >= @minDagInsertedAt::TIMESTAMPTZ
+    AND d.inserted_at <= @maxDagInsertedAt::TIMESTAMPTZ
     AND (
         le.retry_count > d.latest_retry_count
         OR (

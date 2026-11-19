@@ -1301,6 +1301,9 @@ WITH input AS (
         input i
     JOIN
         v1_tasks_olap t ON (t.inserted_at, t.id, t.readable_status, t.tenant_id) = (i.inserted_at, i.task_id, i.readable_status, $4::uuid)
+    WHERE
+        t.inserted_at >= $5::TIMESTAMPTZ
+        AND t.inserted_at <= $6::TIMESTAMPTZ
 ), task_events AS (
     SELECT
         td.task_id,
@@ -1313,7 +1316,8 @@ WITH input AS (
     JOIN
         v1_task_events_olap e ON (e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count) = (td.tenant_id, td.task_id, td.inserted_at, td.latest_retry_count)
     WHERE
-        e.task_inserted_at >= (SELECT MIN(inserted_at) FROM input)
+        e.task_inserted_at >= $5::TIMESTAMPTZ
+        AND e.task_inserted_at <= $6::TIMESTAMPTZ
 ), task_times AS (
     SELECT
         task_id,
@@ -1336,10 +1340,12 @@ ORDER BY td.task_id, td.inserted_at
 `
 
 type GetTaskDurationsByTaskIdsParams struct {
-	Taskids          []int64                      `json:"taskids"`
-	Taskinsertedats  []pgtype.Timestamptz         `json:"taskinsertedats"`
-	Readablestatuses []enums.V1ReadableStatusOlap `json:"readablestatuses"`
-	Tenantid         uuid.UUID                    `json:"tenantid"`
+	Taskids           []int64                      `json:"taskids"`
+	Taskinsertedats   []pgtype.Timestamptz         `json:"taskinsertedats"`
+	Readablestatuses  []enums.V1ReadableStatusOlap `json:"readablestatuses"`
+	Tenantid          uuid.UUID                    `json:"tenantid"`
+	Mintaskinsertedat pgtype.Timestamptz           `json:"mintaskinsertedat"`
+	Maxtaskinsertedat pgtype.Timestamptz           `json:"maxtaskinsertedat"`
 }
 
 type GetTaskDurationsByTaskIdsRow struct {
@@ -1354,6 +1360,8 @@ func (q *Queries) GetTaskDurationsByTaskIds(ctx context.Context, db DBTX, arg Ge
 		arg.Taskinsertedats,
 		arg.Readablestatuses,
 		arg.Tenantid,
+		arg.Mintaskinsertedat,
+		arg.Maxtaskinsertedat,
 	)
 	if err != nil {
 		return nil, err
@@ -2576,7 +2584,13 @@ WITH input AS (
     FROM input i
     JOIN v1_runs_olap r ON (i.id, i.inserted_at) = (r.id, r.inserted_at)
     JOIN v1_dags_olap d ON (r.id, r.inserted_at) = (d.id, d.inserted_at)
-    WHERE r.tenant_id = $4::uuid AND r.kind = 'DAG'
+    WHERE
+        r.tenant_id = $4::uuid
+        AND r.kind = 'DAG'
+        AND r.inserted_at >= $5::TIMESTAMPTZ
+        AND r.inserted_at <= $6::TIMESTAMPTZ
+        AND d.inserted_at >= $5::TIMESTAMPTZ
+        AND d.inserted_at <= $6::TIMESTAMPTZ
 ), relevant_events AS (
     SELECT r.run_id, e.tenant_id, e.id, e.inserted_at, e.external_id, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message, e.durable_invocation_count, e.is_dag_orchestrator, e.payload_reference_id
     FROM runs r
@@ -2584,8 +2598,9 @@ WITH input AS (
     JOIN v1_task_events_olap e ON (e.task_id, e.task_inserted_at) = (dt.task_id, dt.task_inserted_at)
     WHERE
         e.tenant_id = $4::uuid
-        AND dt.dag_inserted_at >= (SELECT MIN(inserted_at) FROM input)
-        AND e.task_inserted_at >= (SELECT MIN(inserted_at) FROM input)
+        AND dt.dag_inserted_at >= $5::TIMESTAMPTZ
+        AND dt.dag_inserted_at <= $6::TIMESTAMPTZ
+        AND e.task_inserted_at >= $5::TIMESTAMPTZ
 ), max_retry_count AS (
     SELECT run_id, MAX(retry_count) AS max_retry_count
     FROM relevant_events
@@ -2653,6 +2668,8 @@ type PopulateDAGMetadataParams struct {
 	Ids             []int64              `json:"ids"`
 	Insertedats     []pgtype.Timestamptz `json:"insertedats"`
 	Tenantid        uuid.UUID            `json:"tenantid"`
+	Mininsertedat   pgtype.Timestamptz   `json:"mininsertedat"`
+	Maxinsertedat   pgtype.Timestamptz   `json:"maxinsertedat"`
 }
 
 type PopulateDAGMetadataRow struct {
@@ -2688,6 +2705,8 @@ func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg Populate
 		arg.Ids,
 		arg.Insertedats,
 		arg.Tenantid,
+		arg.Mininsertedat,
+		arg.Maxinsertedat,
 	)
 	if err != nil {
 		return nil, err
@@ -3068,6 +3087,8 @@ WITH input AS (
         v1_runs_olap r ON (r.id, r.inserted_at) = (COALESCE(t.dag_id, t.id), COALESCE(t.dag_inserted_at, t.inserted_at))
     WHERE
         t.tenant_id = $4::uuid
+        AND t.inserted_at >= $5::TIMESTAMPTZ
+        AND t.inserted_at <= $6::TIMESTAMPTZ
 ), relevant_events AS (
     SELECT
         e.tenant_id, e.id, e.inserted_at, e.external_id, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message, e.durable_invocation_count, e.is_dag_orchestrator, e.payload_reference_id
@@ -3076,7 +3097,8 @@ WITH input AS (
     JOIN
         tasks t ON t.id = e.task_id AND t.tenant_id = e.tenant_id AND t.inserted_at = e.task_inserted_at
     WHERE
-        e.task_inserted_at >= (SELECT MIN(inserted_at) FROM input)
+        e.task_inserted_at >= $5::TIMESTAMPTZ
+        AND e.task_inserted_at <= $6::TIMESTAMPTZ
 ), max_retry_counts AS (
     SELECT
         e.tenant_id,
@@ -3219,10 +3241,12 @@ ORDER BY t.inserted_at DESC, t.id DESC
 `
 
 type PopulateTaskRunDataParams struct {
-	Includepayloads bool                 `json:"includepayloads"`
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Tenantid        uuid.UUID            `json:"tenantid"`
+	Includepayloads   bool                 `json:"includepayloads"`
+	Taskids           []int64              `json:"taskids"`
+	Taskinsertedats   []pgtype.Timestamptz `json:"taskinsertedats"`
+	Tenantid          uuid.UUID            `json:"tenantid"`
+	Mintaskinsertedat pgtype.Timestamptz   `json:"mintaskinsertedat"`
+	Maxtaskinsertedat pgtype.Timestamptz   `json:"maxtaskinsertedat"`
 }
 
 type PopulateTaskRunDataRow struct {
@@ -3266,6 +3290,8 @@ func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg Populate
 		arg.Taskids,
 		arg.Taskinsertedats,
 		arg.Tenantid,
+		arg.Mintaskinsertedat,
+		arg.Maxtaskinsertedat,
 	)
 	if err != nil {
 		return nil, err
@@ -3734,8 +3760,8 @@ func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, work
 const reconcileOperatorDAGStatusesOnCreate = `-- name: ReconcileOperatorDAGStatusesOnCreate :exec
 WITH inputs AS (
     SELECT
-        UNNEST($1::BIGINT[]) AS dag_id,
-        UNNEST($2::TIMESTAMPTZ[]) AS dag_inserted_at
+        UNNEST($3::BIGINT[]) AS dag_id,
+        UNNEST($4::TIMESTAMPTZ[]) AS dag_inserted_at
 ), latest_event AS (
     SELECT DISTINCT ON (e.task_id, e.task_inserted_at)
         e.task_id,
@@ -3745,7 +3771,9 @@ WITH inputs AS (
     FROM v1_task_events_olap e
     -- dag operator task ids are the same as the dag ids
     JOIN inputs i ON (e.task_id, e.task_inserted_at) = (i.dag_id, i.dag_inserted_at)
-    WHERE e.task_inserted_at >= (SELECT MIN(dag_inserted_at) FROM inputs)
+    WHERE
+        e.task_inserted_at >= $1::TIMESTAMPTZ
+        AND e.task_inserted_at <= $2::TIMESTAMPTZ
     ORDER BY
         e.task_id,
         e.task_inserted_at,
@@ -3759,6 +3787,8 @@ SET
     latest_retry_count = le.retry_count
 FROM latest_event le
 WHERE (d.id, d.inserted_at) = (le.task_id, le.task_inserted_at)
+    AND d.inserted_at >= $1::TIMESTAMPTZ
+    AND d.inserted_at <= $2::TIMESTAMPTZ
     AND (
         le.retry_count > d.latest_retry_count
         OR (
@@ -3774,14 +3804,21 @@ WHERE (d.id, d.inserted_at) = (le.task_id, le.task_inserted_at)
 `
 
 type ReconcileOperatorDAGStatusesOnCreateParams struct {
-	Dagids         []int64              `json:"dagids"`
-	Daginsertedats []pgtype.Timestamptz `json:"daginsertedats"`
+	Mindaginsertedat pgtype.Timestamptz   `json:"mindaginsertedat"`
+	Maxdaginsertedat pgtype.Timestamptz   `json:"maxdaginsertedat"`
+	Dagids           []int64              `json:"dagids"`
+	Daginsertedats   []pgtype.Timestamptz `json:"daginsertedats"`
 }
 
 // An operator DAG's OLAP row is written by a 'created-dag' message that can be raced by status events.
 // This query reconciles DAG OLAP rows that are created *after* status events have already arrived.
 func (q *Queries) ReconcileOperatorDAGStatusesOnCreate(ctx context.Context, db DBTX, arg ReconcileOperatorDAGStatusesOnCreateParams) error {
-	_, err := db.Exec(ctx, reconcileOperatorDAGStatusesOnCreate, arg.Dagids, arg.Daginsertedats)
+	_, err := db.Exec(ctx, reconcileOperatorDAGStatusesOnCreate,
+		arg.Mindaginsertedat,
+		arg.Maxdaginsertedat,
+		arg.Dagids,
+		arg.Daginsertedats,
+	)
 	return err
 }
 
