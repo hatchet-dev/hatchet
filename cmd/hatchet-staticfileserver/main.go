@@ -18,9 +18,10 @@ func main() {
 	staticAssetDir := flag.String("static-asset-dir", ".", "directory to serve static assets from")
 	basePath := flag.String("base-path", envOrDefault("BASE_PATH", "/"), "base path the app is served under (e.g. /hatchet); defaults to $BASE_PATH, or / if unset")
 	apiProxy := flag.String("api-proxy", "", "if set, reverse-proxy /api requests to this URL (e.g. http://localhost:8080)")
+	contentSecurityPolicy := flag.String("content-security-policy", envOrDefault("CONTENT_SECURITY_POLICY", staticfileserver.DefaultContentSecurityPolicy), "Content-Security-Policy header for the dashboard; defaults to $CONTENT_SECURITY_POLICY, or a policy that restricts only framing, plugins and <base> if unset")
 	flag.Parse()
 
-	c := staticfileserver.NewStaticFileServer(*staticAssetDir, *basePath)
+	c := staticfileserver.NewStaticFileServer(*staticAssetDir, *basePath, *contentSecurityPolicy)
 
 	if *apiProxy != "" {
 		target, err := url.Parse(*apiProxy)

@@ -150,7 +150,7 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 
 	// static file server
 	go func() {
-		c := staticfileserver.NewStaticFileServer(staticAssetDir, frontendBasePath)
+		c := staticfileserver.NewStaticFileServer(staticAssetDir, frontendBasePath, staticfileserver.DefaultContentSecurityPolicy)
 
 		s := &http.Server{
 			Addr:              fmt.Sprintf(":%s", frontendPort),

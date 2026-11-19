@@ -141,6 +141,19 @@ spec:
                   number: 8080
 ```
 
+## Dashboard security headers
+
+The static file server sends the same browser security headers as the API with the dashboard's HTML and assets (`Strict-Transport-Security`, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` and the `Cross-Origin-*` policies), so a reverse proxy in front of it does not need to add them.
+
+Which sources a `Content-Security-Policy` must allow depends on what your dashboard loads, such as an analytics or support widget, so by default it only restricts framing, plugins and `<base>`: `frame-ancestors 'none'; object-src 'none'; base-uri 'self'`. To send your own policy, set it via the variable for your deployment mode. A policy with `script-src` must allow the inline script in the dashboard's `index.html`, which sets the base path.
+
+| Deployment                        | Variable                        | Notes                                                       |
+| --------------------------------- | ------------------------------- | ----------------------------------------------------------- |
+| Helm `frontend` chart             | `CONTENT_SECURITY_POLICY`       | Set under `frontend.env`. Passed to the static file server. |
+| Combined `dashboard` image        | `CONTENT_SECURITY_POLICY`       | Read by the bundled static file server.                     |
+| `hatchet-lite`                    |                                 | Always sends the default policy.                            |
+| `hatchet-staticfileserver` binary | `-content-security-policy` flag | An empty value sends no policy.                             |
+
 ## Example: `nginx-ingress`
 
 Let's walk through an example of exposing Hatchet over `hatchet.example.com` (for the API and frontend) and `engine.hatchet.example.com` (for the engine).
