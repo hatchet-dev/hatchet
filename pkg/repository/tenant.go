@@ -166,7 +166,9 @@ type TenantRepository interface {
 
 	CreateSchedulerPartition(ctx context.Context) (string, error)
 
-	UpdateSchedulerPartitionHeartbeat(ctx context.Context, partitionId string) (string, error)
+	// UpdateSchedulerPartitionHeartbeat updates the heartbeat for the given partition, recreating it under the
+	// same id if it no longer exists. The scheduler's wake-up subscription is keyed by this id.
+	UpdateSchedulerPartitionHeartbeat(ctx context.Context, partitionId string) error
 
 	DeleteSchedulerPartition(ctx context.Context, id string) error
 
@@ -891,48 +893,11 @@ func (r *tenantRepository) RebalanceInactiveTenantWorkerPartitions(ctx context.C
 	})
 }
 
-func (r *tenantRepository) UpdateSchedulerPartitionHeartbeat(ctx context.Context, partitionId string) (string, error) {
-	tx, err := r.pool.ForShared().Begin(ctx)
-
-	if err != nil {
-		return "", err
-	}
-
-	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
-
-	// set tx timeouts to 5 seconds to avoid deadlocks
-	_, err = tx.Exec(ctx, "SET statement_timeout=5000")
-
-	if err != nil {
-		return "", err
-	}
-
-	_, err = tx.Exec(ctx, "SET idle_in_transaction_session_timeout=5000")
-
-	if err != nil {
-		return "", err
-	}
-
-	partition, err := r.queries.SchedulerPartitionHeartbeat(ctx, tx, partitionId)
-
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			// create a new partition
-			partition, err = r.queries.CreateSchedulerPartition(ctx, tx, getPartitionName())
-
-			if err != nil {
-				return "", err
-			}
-		} else {
-			return "", err
-		}
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return "", err
-	}
-
-	return partition.ID, nil
+func (r *tenantRepository) UpdateSchedulerPartitionHeartbeat(ctx context.Context, partitionId string) error {
+	return r.queries.SchedulerPartitionHeartbeat(ctx, r.pool.ForShared(), sqlcv1.SchedulerPartitionHeartbeatParams{
+		SchedulerPartitionId: partitionId,
+		Name:                 getPartitionName(),
+	})
 }
 
 func (r *tenantRepository) ListTenantsBySchedulerPartition(ctx context.Context, schedulerPartitionId string) ([]*sqlcv1.Tenant, error) {
