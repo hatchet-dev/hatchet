@@ -17,7 +17,7 @@ import re  # noqa: F401
 import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
-from typing import Any, ClassVar, Dict, List
+from typing import Any, ClassVar, Dict, List, Optional
 from hatchet_sdk.clients.rest.models.workflow_pause_scheduled_cron_run_queue_behavior import (
     WorkflowPauseScheduledCronRunQueueBehavior,
 )
@@ -32,6 +32,13 @@ class PauseWorkflowRequestPause(BaseModel):
 
     action: StrictStr = Field(
         description="Discriminator indicating this request pauses the workflow."
+    )
+    paused_workflow_queue_behavior: Optional[
+        WorkflowPauseScheduledCronRunQueueBehavior
+    ] = Field(
+        default=None,
+        description="The behavior of runs queued while the workflow is paused. QUEUE holds them until the workflow is unpaused or their TTL expires, and DROP cancels them. Defaults to QUEUE.",
+        alias="pausedWorkflowQueueBehavior",
     )
     paused_workflow_cron_run_queue_behavior: (
         WorkflowPauseScheduledCronRunQueueBehavior
@@ -51,6 +58,7 @@ class PauseWorkflowRequestPause(BaseModel):
     )
     __properties: ClassVar[List[str]] = [
         "action",
+        "pausedWorkflowQueueBehavior",
         "pausedWorkflowCronRunQueueBehavior",
         "pausedWorkflowScheduledRunQueueBehavior",
         "pausedWorkflowQueueTTL",
@@ -114,6 +122,7 @@ class PauseWorkflowRequestPause(BaseModel):
         _obj = cls.model_validate(
             {
                 "action": obj.get("action"),
+                "pausedWorkflowQueueBehavior": obj.get("pausedWorkflowQueueBehavior"),
                 "pausedWorkflowCronRunQueueBehavior": obj.get(
                     "pausedWorkflowCronRunQueueBehavior"
                 ),

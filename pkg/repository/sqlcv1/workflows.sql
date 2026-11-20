@@ -910,6 +910,7 @@ UPDATE "Workflow"
 SET
     "updatedAt" = NOW(),
     "isPaused" = TRUE,
+    "pausedWorkflowQueueBehavior" = @queueBehavior::"WorkflowPauseQueueBehavior",
     "pausedWorkflowCronRunQueueBehavior" = @cronRunQueueBehavior::"WorkflowPauseQueueBehavior",
     "pausedWorkflowScheduledRunQueueBehavior" = @scheduledRunQueueBehavior::"WorkflowPauseQueueBehavior",
     "pausedWorkflowQueueTTL" = convert_duration_to_interval(@queueTtl::TEXT)
@@ -922,6 +923,7 @@ UPDATE "Workflow"
 SET
     "updatedAt" = NOW(),
     "isPaused" = FALSE,
+    "pausedWorkflowQueueBehavior" = NULL,
     "pausedWorkflowCronRunQueueBehavior" = NULL,
     "pausedWorkflowScheduledRunQueueBehavior" = NULL,
     "pausedWorkflowQueueTTL" = NULL

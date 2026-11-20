@@ -748,6 +748,7 @@ type triggerTuple struct {
 	workflowName              string
 	workflowId                uuid.UUID
 	isPaused                  bool
+	pausedQueueBehavior       *enums.WorkflowPauseQueueBehavior
 	additionalMetadata        []byte
 	filterPayload             []byte
 	input                     []byte
@@ -765,6 +766,10 @@ type triggerTuple struct {
 	payloadReferenceId        *uuid.UUID
 
 	orchestratorPayloadReferenceId *uuid.UUID
+}
+
+func (t triggerTuple) isDroppedByPausedWorkflow() bool {
+	return t.isPaused && t.pausedQueueBehavior != nil && *t.pausedQueueBehavior == enums.WorkflowPauseQueueBehaviorDROP
 }
 
 // runInputPayloadReferenceId is the row holding the input every task in this run shares: the orchestrator's row
@@ -861,7 +866,17 @@ func (r *sharedRepository) triggerWorkflowsPreflight(
 
 	var celEvaluationFailures []CELEvaluationFailure
 
+	pausedWorkflowIds := make(map[uuid.UUID]struct{})
+
 	for _, tuple := range triggerCandidateTuples {
+		if tuple.isPaused {
+			pausedWorkflowIds[tuple.workflowId] = struct{}{}
+		}
+
+		if tuple.isDroppedByPausedWorkflow() {
+			continue
+		}
+
 		if tuple.idempotency == nil {
 			tuples = append(tuples, tuple)
 		} else {
@@ -931,15 +946,10 @@ func (r *sharedRepository) triggerWorkflowsPreflight(
 
 	// get unique workflow version ids
 	uniqueWorkflowVersionIds := make(map[uuid.UUID]struct{})
-	pausedWorkflowIds := make(map[uuid.UUID]struct{})
 
 	for i, tuple := range tuples {
 		tuples[i].additionalMetadata = ensureTraceparent(tuples[i].additionalMetadata, tuples[i].externalId)
 		uniqueWorkflowVersionIds[tuple.workflowVersionId] = struct{}{}
-
-		if tuple.isPaused {
-			pausedWorkflowIds[tuple.workflowId] = struct{}{}
-		}
 	}
 
 	// get all data for triggering tasks in this workflow
@@ -2983,6 +2993,7 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 					workflowId:                workflow.WorkflowId,
 					workflowName:              workflow.WorkflowName,
 					isPaused:                  workflow.WorkflowIsPaused.Bool,
+					pausedQueueBehavior:       workflow.WorkflowPausedQueueBehavior,
 					externalId:                externalId,
 					input:                     opt.Data,
 					additionalMetadata:        additionalMetadata,
@@ -3129,6 +3140,7 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 				workflowId:                workflowVersion.WorkflowId,
 				workflowName:              workflowVersion.WorkflowName,
 				isPaused:                  workflowVersion.WorkflowIsPaused.Bool,
+				pausedQueueBehavior:       workflowVersion.WorkflowPausedQueueBehavior,
 				externalId:                opt.ExternalId,
 				input:                     opt.Data,
 				additionalMetadata:        opt.AdditionalMetadata,

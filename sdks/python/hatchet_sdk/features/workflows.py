@@ -175,6 +175,7 @@ class WorkflowsClient(BaseRestClient):
         workflow_id: str,
         queue_ttl: timedelta,
         *,
+        paused_workflow_queue_behavior: Literal["DROP", "QUEUE"] = "QUEUE",
         paused_workflow_cron_run_queue_behavior: Literal["DROP", "QUEUE"] = "QUEUE",
         paused_workflow_scheduled_run_queue_behavior: Literal[
             "DROP", "QUEUE"
@@ -185,6 +186,7 @@ class WorkflowsClient(BaseRestClient):
 
         :param workflow_id: The ID of the workflow to pause.
         :param queue_ttl: The TTL for queued runs while the workflow is paused before they get dropped.
+        :param paused_workflow_queue_behavior: The behavior of runs triggered while the workflow is paused. `QUEUE` holds them until the workflow is unpaused or their TTL expires, and `DROP` never creates them and cancels runs that were already queued.
         :param paused_workflow_cron_run_queue_behavior: The behavior of cron runs triggered while the workflow is paused.
         :param paused_workflow_scheduled_run_queue_behavior: The behavior of scheduled runs triggered while the workflow is paused.
         :return: The updated workflow.
@@ -200,6 +202,9 @@ class WorkflowsClient(BaseRestClient):
                     pause=PauseWorkflowRequest(
                         PauseWorkflowRequestPause(
                             action="pause",
+                            pausedWorkflowQueueBehavior=WorkflowPauseScheduledCronRunQueueBehavior(
+                                paused_workflow_queue_behavior
+                            ),
                             pausedWorkflowCronRunQueueBehavior=WorkflowPauseScheduledCronRunQueueBehavior(
                                 paused_workflow_cron_run_queue_behavior
                             ),
@@ -217,6 +222,7 @@ class WorkflowsClient(BaseRestClient):
         workflow_id: str,
         queue_ttl: timedelta,
         *,
+        paused_workflow_queue_behavior: Literal["DROP", "QUEUE"] = "QUEUE",
         paused_workflow_cron_run_queue_behavior: Literal["DROP", "QUEUE"] = "QUEUE",
         paused_workflow_scheduled_run_queue_behavior: Literal[
             "DROP", "QUEUE"
@@ -227,6 +233,7 @@ class WorkflowsClient(BaseRestClient):
 
         :param workflow_id: The ID of the workflow to pause.
         :param queue_ttl: The TTL for queued runs while the workflow is paused before they get dropped.
+        :param paused_workflow_queue_behavior: The behavior of runs triggered while the workflow is paused. `QUEUE` holds them until the workflow is unpaused or their TTL expires, and `DROP` never creates them and cancels runs that were already queued.
         :param paused_workflow_cron_run_queue_behavior: The behavior of cron runs triggered while the workflow is paused.
         :param paused_workflow_scheduled_run_queue_behavior: The behavior of scheduled runs triggered while the workflow is paused.
         :return: The updated workflow.
@@ -236,6 +243,7 @@ class WorkflowsClient(BaseRestClient):
             self.pause,
             workflow_id,
             queue_ttl,
+            paused_workflow_queue_behavior=paused_workflow_queue_behavior,
             paused_workflow_cron_run_queue_behavior=paused_workflow_cron_run_queue_behavior,
             paused_workflow_scheduled_run_queue_behavior=paused_workflow_scheduled_run_queue_behavior,
         )

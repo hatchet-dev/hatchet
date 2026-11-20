@@ -238,3 +238,71 @@ async def test_workflow_pause_drop_crons_and_schedules(hatchet: Hatchet) -> None
         # cached paused flag and the next test's pause is not honored.
         await asyncio.sleep(CRON_RELOAD_SECONDS + 2)
         await pausable_workflow.aio_unpause()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_workflow_pause_drop_never_creates_runs(hatchet: Hatchet) -> None:
+    test_run_id = str(uuid4())
+
+    await pausable_workflow.aio_pause(
+        queue_ttl=timedelta(minutes=10),
+        paused_workflow_queue_behavior="DROP",
+    )
+
+    for _ in range(5):
+        await pausable_workflow.aio_run(
+            wait_for_result=False,
+            additional_metadata={"test_run_id": test_run_id},
+        )
+
+    for _ in range(5):
+        runs = await pausable_workflow.aio_list_runs(
+            additional_metadata={"test_run_id": test_run_id}
+        )
+
+        assert len(runs) == 0, f"Expected no runs, got {len(runs)}"
+
+        await asyncio.sleep(1)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_workflow_pause_switch_to_drop_cancels_queued_runs(
+    hatchet: Hatchet,
+) -> None:
+    await pausable_workflow.aio_pause(
+        queue_ttl=timedelta(minutes=10),
+    )
+
+    ref = await pausable_workflow.aio_run(wait_for_result=False)
+    run_id = ref.workflow_run_id
+
+    details = await hatchet.runs.aio_get_details(run_id)
+
+    assert (
+        details.status == "QUEUED"
+    ), f"Run {run_id} is not queued (status {details.status})."
+
+    await pausable_workflow.aio_pause(
+        queue_ttl=timedelta(minutes=10),
+        paused_workflow_queue_behavior="DROP",
+    )
+
+    # The engine cancels held runs of a workflow paused with DROP from a periodic
+    # job that runs at most every 30 seconds.
+    timeout = 45
+    start = time.time()
+
+    while True:
+        details = await hatchet.runs.aio_get_details(run_id)
+
+        if details.status == "CANCELLED":
+            return
+
+        assert (
+            details.status == "QUEUED"
+        ), f"Run {run_id} is not queued (status {details.status})."
+
+        if time.time() - start > timeout:
+            pytest.fail(f"Run {run_id} was not cancelled within {timeout} seconds.")
+
+        await asyncio.sleep(1)

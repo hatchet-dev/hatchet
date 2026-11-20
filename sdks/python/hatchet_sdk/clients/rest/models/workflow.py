@@ -42,6 +42,13 @@ class Workflow(BaseModel):
     is_paused: Optional[StrictBool] = Field(
         default=None, description="Whether the workflow is paused.", alias="isPaused"
     )
+    paused_workflow_queue_behavior: Optional[
+        WorkflowPauseScheduledCronRunQueueBehavior
+    ] = Field(
+        default=None,
+        description="The behavior of runs queued while the workflow is paused.",
+        alias="pausedWorkflowQueueBehavior",
+    )
     paused_workflow_cron_run_queue_behavior: Optional[
         WorkflowPauseScheduledCronRunQueueBehavior
     ] = Field(
@@ -75,6 +82,7 @@ class Workflow(BaseModel):
         "name",
         "description",
         "isPaused",
+        "pausedWorkflowQueueBehavior",
         "pausedWorkflowCronRunQueueBehavior",
         "pausedWorkflowScheduledRunQueueBehavior",
         "versions",
@@ -169,6 +177,7 @@ class Workflow(BaseModel):
                 "name": obj.get("name"),
                 "description": obj.get("description"),
                 "isPaused": obj.get("isPaused"),
+                "pausedWorkflowQueueBehavior": obj.get("pausedWorkflowQueueBehavior"),
                 "pausedWorkflowCronRunQueueBehavior": obj.get(
                     "pausedWorkflowCronRunQueueBehavior"
                 ),

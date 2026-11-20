@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -19,7 +20,8 @@ SELECT DISTINCT ON("workflowId")
     workflow."name" AS "workflowName",
     workflowVersions."idempotencyKeyExpression",
     workflowVersions."idempotencyKeyTtlMs",
-    workflow."isPaused" AS "workflowIsPaused"
+    workflow."isPaused" AS "workflowIsPaused",
+    workflow."pausedWorkflowQueueBehavior" AS "workflowPausedQueueBehavior"
 FROM
     "WorkflowVersion" as workflowVersions
 JOIN
@@ -37,12 +39,13 @@ type ListWorkflowsByNamesParams struct {
 }
 
 type ListWorkflowsByNamesRow struct {
-	WorkflowId               uuid.UUID   `json:"workflowId"`
-	WorkflowVersionId        uuid.UUID   `json:"workflowVersionId"`
-	WorkflowName             string      `json:"workflowName"`
-	IdempotencyKeyExpression pgtype.Text `json:"idempotencyKeyExpression"`
-	IdempotencyKeyTtlMs      pgtype.Int8 `json:"idempotencyKeyTtlMs"`
-	WorkflowIsPaused         pgtype.Bool `json:"workflowIsPaused"`
+	WorkflowId                  uuid.UUID                         `json:"workflowId"`
+	WorkflowVersionId           uuid.UUID                         `json:"workflowVersionId"`
+	WorkflowName                string                            `json:"workflowName"`
+	IdempotencyKeyExpression    pgtype.Text                       `json:"idempotencyKeyExpression"`
+	IdempotencyKeyTtlMs         pgtype.Int8                       `json:"idempotencyKeyTtlMs"`
+	WorkflowIsPaused            pgtype.Bool                       `json:"workflowIsPaused"`
+	WorkflowPausedQueueBehavior *enums.WorkflowPauseQueueBehavior `json:"workflowPausedQueueBehavior"`
 }
 
 func (q *Queries) ListWorkflowsByNames(ctx context.Context, db DBTX, arg ListWorkflowsByNamesParams) ([]*ListWorkflowsByNamesRow, error) {
@@ -61,6 +64,7 @@ func (q *Queries) ListWorkflowsByNames(ctx context.Context, db DBTX, arg ListWor
 			&i.IdempotencyKeyExpression,
 			&i.IdempotencyKeyTtlMs,
 			&i.WorkflowIsPaused,
+			&i.WorkflowPausedQueueBehavior,
 		); err != nil {
 			return nil, err
 		}
@@ -80,7 +84,8 @@ WITH latest_versions AS (
         workflow."name" AS "workflowName",
         workflowVersions."idempotencyKeyExpression",
         workflowVersions."idempotencyKeyTtlMs",
-        workflow."isPaused" AS "workflowIsPaused"
+        workflow."isPaused" AS "workflowIsPaused",
+        workflow."pausedWorkflowQueueBehavior" AS "workflowPausedQueueBehavior"
     FROM
         "WorkflowVersion" as workflowVersions
     JOIN
@@ -102,7 +107,8 @@ SELECT
     k.event_key::TEXT as "incomingEventKey",
     latest_versions."idempotencyKeyExpression",
     latest_versions."idempotencyKeyTtlMs",
-    latest_versions."workflowIsPaused"
+    latest_versions."workflowIsPaused",
+    latest_versions."workflowPausedQueueBehavior"
 FROM
     latest_versions
 JOIN
@@ -118,14 +124,15 @@ type ListWorkflowsForEventsParams struct {
 }
 
 type ListWorkflowsForEventsRow struct {
-	WorkflowVersionId                 uuid.UUID   `json:"workflowVersionId"`
-	WorkflowId                        uuid.UUID   `json:"workflowId"`
-	WorkflowName                      string      `json:"workflowName"`
-	WorkflowTriggeringEventKeyPattern string      `json:"workflowTriggeringEventKeyPattern"`
-	IncomingEventKey                  string      `json:"incomingEventKey"`
-	IdempotencyKeyExpression          pgtype.Text `json:"idempotencyKeyExpression"`
-	IdempotencyKeyTtlMs               pgtype.Int8 `json:"idempotencyKeyTtlMs"`
-	WorkflowIsPaused                  pgtype.Bool `json:"workflowIsPaused"`
+	WorkflowVersionId                 uuid.UUID                         `json:"workflowVersionId"`
+	WorkflowId                        uuid.UUID                         `json:"workflowId"`
+	WorkflowName                      string                            `json:"workflowName"`
+	WorkflowTriggeringEventKeyPattern string                            `json:"workflowTriggeringEventKeyPattern"`
+	IncomingEventKey                  string                            `json:"incomingEventKey"`
+	IdempotencyKeyExpression          pgtype.Text                       `json:"idempotencyKeyExpression"`
+	IdempotencyKeyTtlMs               pgtype.Int8                       `json:"idempotencyKeyTtlMs"`
+	WorkflowIsPaused                  pgtype.Bool                       `json:"workflowIsPaused"`
+	WorkflowPausedQueueBehavior       *enums.WorkflowPauseQueueBehavior `json:"workflowPausedQueueBehavior"`
 }
 
 // Get all of the latest workflow versions
@@ -148,6 +155,7 @@ func (q *Queries) ListWorkflowsForEvents(ctx context.Context, db DBTX, arg ListW
 			&i.IdempotencyKeyExpression,
 			&i.IdempotencyKeyTtlMs,
 			&i.WorkflowIsPaused,
+			&i.WorkflowPausedQueueBehavior,
 		); err != nil {
 			return nil, err
 		}

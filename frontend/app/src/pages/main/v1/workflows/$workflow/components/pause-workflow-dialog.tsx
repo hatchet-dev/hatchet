@@ -38,6 +38,7 @@ interface PauseWorkflowDialogProps {
   isLoading: boolean;
   onCancel: () => void;
   onSubmit: (behavior: {
+    queueBehavior: WorkflowPauseScheduledCronRunQueueBehavior;
     cronRunQueueBehavior: WorkflowPauseScheduledCronRunQueueBehavior;
     scheduledRunQueueBehavior: WorkflowPauseScheduledCronRunQueueBehavior;
     queueTtl: string;
@@ -80,6 +81,10 @@ export function PauseWorkflowDialog({
   onCancel,
   onSubmit,
 }: PauseWorkflowDialogProps) {
+  const [queueBehavior, setQueueBehavior] =
+    useState<WorkflowPauseScheduledCronRunQueueBehavior>(
+      WorkflowPauseScheduledCronRunQueueBehavior.QUEUE,
+    );
   const [cronRunQueueBehavior, setCronRunQueueBehavior] =
     useState<WorkflowPauseScheduledCronRunQueueBehavior>(
       WorkflowPauseScheduledCronRunQueueBehavior.QUEUE,
@@ -90,7 +95,9 @@ export function PauseWorkflowDialog({
     );
   const [queueTtl, setQueueTtl] = useState(DEFAULT_QUEUE_TTL);
 
-  const isTtlValid = QUEUE_TTL_REGEX.test(queueTtl);
+  const isDroppingQueuedRuns =
+    queueBehavior === WorkflowPauseScheduledCronRunQueueBehavior.DROP;
+  const isTtlValid = isDroppingQueuedRuns || QUEUE_TTL_REGEX.test(queueTtl);
 
   return (
     <Dialog open={isOpen}>
@@ -101,42 +108,60 @@ export function PauseWorkflowDialog({
         <div>
           <div className="mb-4 text-sm text-foreground">
             Are you sure you want to pause this workflow? New runs will not
-            start until it is unpaused. Choose how cron and scheduled runs
-            triggered while paused should be handled.
+            start until it is unpaused. Choose how queued, cron, and scheduled
+            runs triggered while paused should be handled.
           </div>
           <div className="mb-4 grid gap-2">
-            <Label htmlFor="cronRunQueueBehavior">Cron run behavior</Label>
+            <Label htmlFor="queueBehavior">Queued run behavior</Label>
             <QueueBehaviorSelect
-              id="cronRunQueueBehavior"
-              value={cronRunQueueBehavior}
-              onValueChange={setCronRunQueueBehavior}
+              id="queueBehavior"
+              value={queueBehavior}
+              onValueChange={setQueueBehavior}
             />
+            {isDroppingQueuedRuns && (
+              <p className="text-xs text-muted-foreground">
+                All new runs, including cron and scheduled runs, will be
+                dropped, and runs that are already queued will be cancelled.
+              </p>
+            )}
           </div>
-          <div className="mb-4 grid gap-2">
-            <Label htmlFor="scheduledRunQueueBehavior">
-              Scheduled run behavior
-            </Label>
-            <QueueBehaviorSelect
-              id="scheduledRunQueueBehavior"
-              value={scheduledRunQueueBehavior}
-              onValueChange={setScheduledRunQueueBehavior}
-            />
-          </div>
-          <div className="mb-4 grid gap-2">
-            <Label htmlFor="queueTtl">Queued run TTL</Label>
-            <Input
-              id="queueTtl"
-              type="text"
-              placeholder="e.g. 1d7h30m"
-              value={queueTtl}
-              onChange={(e) => setQueueTtl(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">
-              Queued runs older than this will be dropped instead of running
-              once the workflow is unpaused. Duration string composed of
-              ms/s/m/h/d units, e.g. "1d7h30m".
-            </p>
-          </div>
+          {!isDroppingQueuedRuns && (
+            <>
+              <div className="mb-4 grid gap-2">
+                <Label htmlFor="cronRunQueueBehavior">Cron run behavior</Label>
+                <QueueBehaviorSelect
+                  id="cronRunQueueBehavior"
+                  value={cronRunQueueBehavior}
+                  onValueChange={setCronRunQueueBehavior}
+                />
+              </div>
+              <div className="mb-4 grid gap-2">
+                <Label htmlFor="scheduledRunQueueBehavior">
+                  Scheduled run behavior
+                </Label>
+                <QueueBehaviorSelect
+                  id="scheduledRunQueueBehavior"
+                  value={scheduledRunQueueBehavior}
+                  onValueChange={setScheduledRunQueueBehavior}
+                />
+              </div>
+              <div className="mb-4 grid gap-2">
+                <Label htmlFor="queueTtl">Queued run TTL</Label>
+                <Input
+                  id="queueTtl"
+                  type="text"
+                  placeholder="e.g. 1d7h30m"
+                  value={queueTtl}
+                  onChange={(e) => setQueueTtl(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Queued runs older than this will be dropped instead of running
+                  once the workflow is unpaused. Duration string composed of
+                  ms/s/m/h/d units, e.g. "1d7h30m".
+                </p>
+              </div>
+            </>
+          )}
           <div className="flex flex-row justify-end gap-4">
             <Button variant="ghost" disabled={isLoading} onClick={onCancel}>
               Cancel
@@ -146,8 +171,13 @@ export function PauseWorkflowDialog({
               disabled={isLoading || !isTtlValid}
               onClick={() =>
                 onSubmit({
-                  cronRunQueueBehavior,
-                  scheduledRunQueueBehavior,
+                  queueBehavior,
+                  cronRunQueueBehavior: isDroppingQueuedRuns
+                    ? WorkflowPauseScheduledCronRunQueueBehavior.DROP
+                    : cronRunQueueBehavior,
+                  scheduledRunQueueBehavior: isDroppingQueuedRuns
+                    ? WorkflowPauseScheduledCronRunQueueBehavior.DROP
+                    : scheduledRunQueueBehavior,
                   queueTtl,
                 })
               }

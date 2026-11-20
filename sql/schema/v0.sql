@@ -925,6 +925,7 @@ CREATE TABLE "Workflow" (
     "name" TEXT NOT NULL,
     "description" TEXT,
     "isPaused" BOOLEAN DEFAULT false,
+    "pausedWorkflowQueueBehavior" "WorkflowPauseQueueBehavior",
     "pausedWorkflowCronRunQueueBehavior" "WorkflowPauseQueueBehavior",
     "pausedWorkflowScheduledRunQueueBehavior" "WorkflowPauseQueueBehavior",
     "pausedWorkflowQueueTTL" INTERVAL,
