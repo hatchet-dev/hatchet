@@ -105,6 +105,10 @@ func newPoolWithOptions(t *testing.T, opts fairpool.Options, tracer pgx.QueryTra
 
 	name := "fairpool-test-" + uuid.NewString()
 	opts.PoolName = name
+	// Zero would leave checkouts unbounded, so a deadlocked test would hang until the go test timeout.
+	if opts.AcquireTimeout == 0 {
+		opts.AcquireTimeout = fairpool.DefaultAcquireTimeout
+	}
 	pool, err := fairpool.NewWithConfig(context.Background(), cfg, opts)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
@@ -642,25 +646,61 @@ func TestAcquireSpanStaysOnInnerPool(t *testing.T) {
 	require.True(t, found, "pool.acquire span was not recorded")
 }
 
-// TestCheckoutWithoutAcquireTimeoutWaitsForCaller covers AcquireTimeout of zero: with every
-// connection held, a checkout waits until the caller's own deadline ends it.
-func TestCheckoutWithoutAcquireTimeoutWaitsForCaller(t *testing.T) {
-	pool, _ := newPoolWithOptions(t, fairpool.Options{}, nil)
-	ctx := context.Background()
+// deadlineTracer records whether the context passed to the underlying pool's Acquire has a deadline.
+type deadlineTracer struct {
+	mu          sync.Mutex
+	hasDeadline *bool
+}
 
-	for range pool.Config().MaxConns {
-		tx, err := pool.ForShared().Begin(ctx)
-		require.NoError(t, err)
-		// pool.Close waits for held connections, so a failed assertion must still free them.
-		t.Cleanup(func() { _ = tx.Rollback(context.Background()) })
+func (d *deadlineTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, _ pgx.TraceQueryStartData) context.Context {
+	return ctx
+}
+
+func (d *deadlineTracer) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
+
+func (d *deadlineTracer) TraceAcquireStart(ctx context.Context, _ *pgxpool.Pool, _ pgxpool.TraceAcquireStartData) context.Context {
+	_, ok := ctx.Deadline()
+	d.mu.Lock()
+	d.hasDeadline = &ok
+	d.mu.Unlock()
+	return ctx
+}
+
+func (d *deadlineTracer) TraceAcquireEnd(context.Context, *pgxpool.Pool, pgxpool.TraceAcquireEndData) {
+}
+
+// TestAcquireTimeoutBoundsTheCheckout covers how AcquireTimeout reaches the underlying pool: a
+// positive value puts a deadline on the wait, and zero leaves the caller's context as it is.
+func TestAcquireTimeoutBoundsTheCheckout(t *testing.T) {
+	cases := map[string]struct {
+		acquireTimeout time.Duration
+		wantDeadline   bool
+	}{
+		"bounded":   {acquireTimeout: fairpool.DefaultAcquireTimeout, wantDeadline: true},
+		"unbounded": {acquireTimeout: 0, wantDeadline: false},
 	}
 
-	callerCtx, cancel := context.WithTimeout(ctx, 300*time.Millisecond)
-	defer cancel()
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			tracer := &deadlineTracer{}
 
-	_, err := pool.ForTenant(uuid.New()).Exec(callerCtx, "SELECT 1")
-	require.ErrorIs(t, err, context.DeadlineExceeded)
-	require.NotContains(t, err.Error(), "timed out waiting for a free connection")
+			cfg, err := pgxpool.ParseConfig(databaseURL(t))
+			require.NoError(t, err)
+			cfg.ConnConfig.Tracer = tracer
+
+			pool, err := fairpool.NewWithConfig(context.Background(), cfg, fairpool.Options{AcquireTimeout: tc.acquireTimeout})
+			require.NoError(t, err)
+			t.Cleanup(pool.Close)
+
+			_, err = pool.ForTenant(uuid.New()).Exec(context.Background(), "SELECT 1")
+			require.NoError(t, err)
+
+			tracer.mu.Lock()
+			defer tracer.mu.Unlock()
+			require.NotNil(t, tracer.hasDeadline, "acquire was not traced")
+			require.Equal(t, tc.wantDeadline, *tracer.hasDeadline)
+		})
+	}
 }
 
 // TestCheckoutFailsWhenPoolIsHeld covers callers that each hold a connection and ask for a second

@@ -20,9 +20,8 @@ func TestLoadDatabaseConfigFile_AcquireTimeout(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.env != "" {
-				t.Setenv("DATABASE_ACQUIRE_TIMEOUT", tc.env)
-			}
+			// An empty value is unset, so the default case doesn't depend on the caller's environment.
+			t.Setenv("DATABASE_ACQUIRE_TIMEOUT", tc.env)
 
 			cf, err := LoadDatabaseConfigFile()
 			require.NoError(t, err)
