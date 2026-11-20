@@ -26,6 +26,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/otelcol"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	schedulerv1 "github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/directwrite"
 	streamssvc "github.com/hatchet-dev/hatchet/internal/services/streams"
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
@@ -962,6 +963,12 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	if sc.HasService("all") || sc.HasService("grpc-api") {
 		cacheInstance := cache.New(10 * time.Second)
 
+		directTaskWriter, err := newDirectTaskWriter(sc)
+
+		if err != nil {
+			return err
+		}
+
 		// create the dispatcher
 		d, err := dispatcher.New(
 			dispatcher.WithAlerter(sc.Alerter),
@@ -977,6 +984,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			dispatcher.WithVersion(sc.Version),
 			dispatcher.WithAnalytics(sc.Analytics),
 			dispatcher.WithPrometheusGate(sc.PrometheusGate),
+			dispatcher.WithDirectTaskWriter(directTaskWriter),
 		)
 
 		if err != nil {
@@ -1252,6 +1260,49 @@ func isControllerActive(pausedControllers map[string]bool, controllerName Contro
 	}
 
 	return false
+}
+
+// newDirectTaskWriter returns nil unless direct task writes are enabled. The handler it wraps is the
+// task controller's, built with the controller's settings, so worker events applied in the gRPC process
+// behave the same as when the controller consumes them from the task queue.
+func newDirectTaskWriter(sc *server.ServerConfig) (*directwrite.Writer, error) {
+	if !sc.Runtime.DirectTaskWritesEnabled {
+		return nil, nil
+	}
+
+	retention, err := corePartitionRetention(sc)
+
+	if err != nil {
+		return nil, err
+	}
+
+	handler, err := task.NewMessageHandler(
+		task.WithAlerter(sc.Alerter),
+		task.WithMessageQueue(sc.MessageQueueV1),
+		task.WithPubSub(sc.PubSubV1),
+		task.WithV1Repository(sc.V1),
+		task.WithLogger(sc.Logger),
+		task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
+		task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
+		task.WithReplayEnabled(sc.Runtime.ReplayEnabled),
+		task.WithMaxRetryAfter(retention),
+		task.WithPrometheusGate(sc.PrometheusGate),
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create task message handler: %w", err)
+	}
+
+	w, err := directwrite.New(handler, sc.MessageQueueV1, sc.Logger, directwrite.Opts{
+		Slots:    sc.Runtime.DirectTaskWriteSlots,
+		Fallback: sc.Runtime.DirectTaskWritesFallbackEnabled,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create direct task writer: %w", err)
+	}
+
+	return w, nil
 }
 
 // corePartitionRetention caps task-requested retry delays, since a task's rows are dropped once its partition ages out.

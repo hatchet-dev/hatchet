@@ -1517,6 +1517,48 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 	return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid task external run id %s", request.TaskRunExternalId))
 }
 
+// sendTaskMessage hands a worker task event to the task controller's handlers: in-process when
+// direct task writes are enabled, otherwise over the durable task queue.
+func (s *DispatcherImpl) sendTaskMessage(ctx context.Context, msg *msgqueue.Message) error {
+	if s.directTaskWriter == nil {
+		return s.mqv1.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+	}
+
+	return s.directTaskWriter.Write(ctx, msg)
+}
+
+// sendTenantTaskMessage is sendTaskMessage for events that the tenant's workflow-run streams also
+// consume.
+func (s *DispatcherImpl) sendTenantTaskMessage(ctx context.Context, msg *msgqueue.Message) error {
+	if s.directTaskWriter == nil {
+		return msgqueue.PubTenantMessage(ctx, s.l, s.mqv1, s.pubsub, msgqueue.TASK_PROCESSING_QUEUE, msg)
+	}
+
+	if err := s.directTaskWriter.Write(ctx, msg); err != nil {
+		return err
+	}
+
+	// The event is already applied, so a failed stream publish is logged rather than returned, the same
+	// way it is when the event goes over the task queue.
+	if err := msgqueue.PubTenantMessage(ctx, s.l, s.mqv1, s.pubsub, nil, msg); err != nil {
+		s.l.Warn().Ctx(ctx).Err(err).Str("message_id", msg.ID).Msg("could not publish message to tenant stream")
+	}
+
+	return nil
+}
+
+// sendAckedTaskMessage sends a task-acked event without waiting for it to be applied, since the worker's
+// STARTED event doesn't wait on it either way.
+func (s *DispatcherImpl) sendAckedTaskMessage(ctx context.Context, msg *msgqueue.Message) error {
+	if s.directTaskWriter == nil {
+		return s.pubBuffer.Pub(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg, false)
+	}
+
+	s.directTaskWriter.WriteAsync(ctx, msg)
+
+	return nil
+}
+
 // handleTaskCancelledEvent processes a worker/operator-reported cancellation for a single
 // task by publishing the same MsgIDCancelTasks message the batch path
 // (handleBatchTaskCancelled) publishes, so the task cancellation state machine (owned by the
@@ -1545,7 +1587,7 @@ func (s *DispatcherImpl) handleTaskCancelledEvent(inputCtx context.Context, task
 		return nil, err
 	}
 
-	if err := s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+	if err := s.sendTaskMessage(inputCtx, msg); err != nil {
 		return nil, err
 	}
 
@@ -1565,9 +1607,7 @@ func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv
 		return nil, err
 	}
 
-	err = s.pubBuffer.Pub(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, ackedMsg, false)
-
-	if err != nil {
+	if err := s.sendAckedTaskMessage(inputCtx, ackedMsg); err != nil {
 		return nil, fmt.Errorf("could not publish acked message for task %d: %w", task.ID, err)
 	}
 
@@ -1635,7 +1675,7 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 		return nil, err
 	}
 
-	err = msgqueue.PubTenantMessage(inputCtx, s.l, s.mqv1, s.pubsub, msgqueue.TASK_PROCESSING_QUEUE, msg)
+	err = s.sendTenantTaskMessage(inputCtx, msg)
 
 	if err != nil {
 		return nil, err
@@ -1697,7 +1737,7 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1
 		return nil, err
 	}
 
-	err = msgqueue.PubTenantMessage(inputCtx, s.l, s.mqv1, s.pubsub, msgqueue.TASK_PROCESSING_QUEUE, msg)
+	err = s.sendTenantTaskMessage(inputCtx, msg)
 
 	if err != nil {
 		return nil, err
@@ -1896,7 +1936,7 @@ func (s *DispatcherImpl) handleBatchTaskStarted(
 		return nil, err
 	}
 
-	if err := s.pubBuffer.Pub(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, ackedMsg, false); err != nil {
+	if err := s.sendAckedTaskMessage(inputCtx, ackedMsg); err != nil {
 		return nil, fmt.Errorf("could not publish acked message for batch tasks: %w", err)
 	}
 
@@ -2044,7 +2084,7 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 			return nil, err
 		}
 
-		if err := s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+		if err := s.sendTaskMessage(inputCtx, msg); err != nil {
 			return nil, err
 		}
 	}
@@ -2062,7 +2102,7 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 			return nil, err
 		}
 
-		if err := s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+		if err := s.sendTaskMessage(inputCtx, msg); err != nil {
 			return nil, err
 		}
 	}
@@ -2150,7 +2190,7 @@ func (s *DispatcherImpl) handleBatchTaskFailed(
 		return nil, err
 	}
 
-	if err := s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+	if err := s.sendTaskMessage(inputCtx, msg); err != nil {
 		return nil, err
 	}
 
@@ -2196,7 +2236,7 @@ func (s *DispatcherImpl) handleBatchTaskCancelled(
 		return nil, err
 	}
 
-	if err := s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+	if err := s.sendTaskMessage(inputCtx, msg); err != nil {
 		return nil, err
 	}
 
