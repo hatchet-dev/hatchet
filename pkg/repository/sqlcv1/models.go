@@ -4393,6 +4393,7 @@ type Workflow struct {
 	Name                                    string                            `json:"name"`
 	Description                             pgtype.Text                       `json:"description"`
 	IsPaused                                pgtype.Bool                       `json:"isPaused"`
+	PausedWorkflowQueueBehavior             *enums.WorkflowPauseQueueBehavior `json:"pausedWorkflowQueueBehavior"`
 	PausedWorkflowCronRunQueueBehavior      *enums.WorkflowPauseQueueBehavior `json:"pausedWorkflowCronRunQueueBehavior"`
 	PausedWorkflowScheduledRunQueueBehavior *enums.WorkflowPauseQueueBehavior `json:"pausedWorkflowScheduledRunQueueBehavior"`
 	PausedWorkflowQueueTTL                  pgtype.Interval                   `json:"pausedWorkflowQueueTTL"`
