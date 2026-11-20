@@ -120,44 +120,47 @@ export function PauseWorkflowDialog({
             />
             {isDroppingQueuedRuns && (
               <p className="text-xs text-muted-foreground">
-                Runs that are already queued will be cancelled too.
+                All new runs, including cron and scheduled runs, will be
+                dropped, and runs that are already queued will be cancelled.
               </p>
             )}
           </div>
-          <div className="mb-4 grid gap-2">
-            <Label htmlFor="cronRunQueueBehavior">Cron run behavior</Label>
-            <QueueBehaviorSelect
-              id="cronRunQueueBehavior"
-              value={cronRunQueueBehavior}
-              onValueChange={setCronRunQueueBehavior}
-            />
-          </div>
-          <div className="mb-4 grid gap-2">
-            <Label htmlFor="scheduledRunQueueBehavior">
-              Scheduled run behavior
-            </Label>
-            <QueueBehaviorSelect
-              id="scheduledRunQueueBehavior"
-              value={scheduledRunQueueBehavior}
-              onValueChange={setScheduledRunQueueBehavior}
-            />
-          </div>
           {!isDroppingQueuedRuns && (
-            <div className="mb-4 grid gap-2">
-              <Label htmlFor="queueTtl">Queued run TTL</Label>
-              <Input
-                id="queueTtl"
-                type="text"
-                placeholder="e.g. 1d7h30m"
-                value={queueTtl}
-                onChange={(e) => setQueueTtl(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Queued runs older than this will be dropped instead of running
-                once the workflow is unpaused. Duration string composed of
-                ms/s/m/h/d units, e.g. "1d7h30m".
-              </p>
-            </div>
+            <>
+              <div className="mb-4 grid gap-2">
+                <Label htmlFor="cronRunQueueBehavior">Cron run behavior</Label>
+                <QueueBehaviorSelect
+                  id="cronRunQueueBehavior"
+                  value={cronRunQueueBehavior}
+                  onValueChange={setCronRunQueueBehavior}
+                />
+              </div>
+              <div className="mb-4 grid gap-2">
+                <Label htmlFor="scheduledRunQueueBehavior">
+                  Scheduled run behavior
+                </Label>
+                <QueueBehaviorSelect
+                  id="scheduledRunQueueBehavior"
+                  value={scheduledRunQueueBehavior}
+                  onValueChange={setScheduledRunQueueBehavior}
+                />
+              </div>
+              <div className="mb-4 grid gap-2">
+                <Label htmlFor="queueTtl">Queued run TTL</Label>
+                <Input
+                  id="queueTtl"
+                  type="text"
+                  placeholder="e.g. 1d7h30m"
+                  value={queueTtl}
+                  onChange={(e) => setQueueTtl(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Queued runs older than this will be dropped instead of running
+                  once the workflow is unpaused. Duration string composed of
+                  ms/s/m/h/d units, e.g. "1d7h30m".
+                </p>
+              </div>
+            </>
           )}
           <div className="flex flex-row justify-end gap-4">
             <Button variant="ghost" disabled={isLoading} onClick={onCancel}>
@@ -169,8 +172,12 @@ export function PauseWorkflowDialog({
               onClick={() =>
                 onSubmit({
                   queueBehavior,
-                  cronRunQueueBehavior,
-                  scheduledRunQueueBehavior,
+                  cronRunQueueBehavior: isDroppingQueuedRuns
+                    ? WorkflowPauseScheduledCronRunQueueBehavior.DROP
+                    : cronRunQueueBehavior,
+                  scheduledRunQueueBehavior: isDroppingQueuedRuns
+                    ? WorkflowPauseScheduledCronRunQueueBehavior.DROP
+                    : scheduledRunQueueBehavior,
                   queueTtl,
                 })
               }

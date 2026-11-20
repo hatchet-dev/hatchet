@@ -27,6 +27,9 @@ module HatchetSdkRest
     # The TTL for queued runs while the workflow is paused before they get dropped, expressed as a Go-style duration string (e.g. \"1d7h30m\").
     attr_accessor :paused_workflow_queue_ttl
 
+    # The behavior of runs queued while the workflow is paused. QUEUE holds them until the workflow is unpaused or their TTL expires, and DROP cancels them. Defaults to QUEUE.
+    attr_accessor :paused_workflow_queue_behavior
+
     class EnumAttributeValidator
       attr_reader :datatype
       attr_reader :allowable_values
@@ -55,7 +58,8 @@ module HatchetSdkRest
         :'action' => :'action',
         :'paused_workflow_cron_run_queue_behavior' => :'pausedWorkflowCronRunQueueBehavior',
         :'paused_workflow_scheduled_run_queue_behavior' => :'pausedWorkflowScheduledRunQueueBehavior',
-        :'paused_workflow_queue_ttl' => :'pausedWorkflowQueueTTL'
+        :'paused_workflow_queue_ttl' => :'pausedWorkflowQueueTTL',
+        :'paused_workflow_queue_behavior' => :'pausedWorkflowQueueBehavior'
       }
     end
 
@@ -75,7 +79,8 @@ module HatchetSdkRest
         :'action' => :'String',
         :'paused_workflow_cron_run_queue_behavior' => :'WorkflowPauseScheduledCronRunQueueBehavior',
         :'paused_workflow_scheduled_run_queue_behavior' => :'WorkflowPauseScheduledCronRunQueueBehavior',
-        :'paused_workflow_queue_ttl' => :'String'
+        :'paused_workflow_queue_ttl' => :'String',
+        :'paused_workflow_queue_behavior' => :'WorkflowPauseScheduledCronRunQueueBehavior'
       }
     end
 
@@ -123,6 +128,10 @@ module HatchetSdkRest
         self.paused_workflow_queue_ttl = attributes[:'paused_workflow_queue_ttl']
       else
         self.paused_workflow_queue_ttl = nil
+      end
+
+      if attributes.key?(:'paused_workflow_queue_behavior')
+        self.paused_workflow_queue_behavior = attributes[:'paused_workflow_queue_behavior']
       end
     end
 
@@ -211,7 +220,8 @@ module HatchetSdkRest
           action == o.action &&
           paused_workflow_cron_run_queue_behavior == o.paused_workflow_cron_run_queue_behavior &&
           paused_workflow_scheduled_run_queue_behavior == o.paused_workflow_scheduled_run_queue_behavior &&
-          paused_workflow_queue_ttl == o.paused_workflow_queue_ttl
+          paused_workflow_queue_ttl == o.paused_workflow_queue_ttl &&
+          paused_workflow_queue_behavior == o.paused_workflow_queue_behavior
     end
 
     # @see the `==` method
@@ -223,7 +233,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [action, paused_workflow_cron_run_queue_behavior, paused_workflow_scheduled_run_queue_behavior, paused_workflow_queue_ttl].hash
+      [action, paused_workflow_cron_run_queue_behavior, paused_workflow_scheduled_run_queue_behavior, paused_workflow_queue_ttl, paused_workflow_queue_behavior].hash
     end
 
     # Builds the object from hash

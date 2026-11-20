@@ -29,6 +29,9 @@ module HatchetSdkRest
     # Whether the workflow is paused.
     attr_accessor :is_paused
 
+    # The behavior of runs queued while the workflow is paused.
+    attr_accessor :paused_workflow_queue_behavior
+
     # The behavior of cron runs triggered while the workflow is paused.
     attr_accessor :paused_workflow_cron_run_queue_behavior
 
@@ -76,6 +79,7 @@ module HatchetSdkRest
         :'tenant_id' => :'tenantId',
         :'description' => :'description',
         :'is_paused' => :'isPaused',
+        :'paused_workflow_queue_behavior' => :'pausedWorkflowQueueBehavior',
         :'paused_workflow_cron_run_queue_behavior' => :'pausedWorkflowCronRunQueueBehavior',
         :'paused_workflow_scheduled_run_queue_behavior' => :'pausedWorkflowScheduledRunQueueBehavior',
         :'versions' => :'versions',
@@ -103,6 +107,7 @@ module HatchetSdkRest
         :'tenant_id' => :'String',
         :'description' => :'String',
         :'is_paused' => :'Boolean',
+        :'paused_workflow_queue_behavior' => :'WorkflowPauseScheduledCronRunQueueBehavior',
         :'paused_workflow_cron_run_queue_behavior' => :'WorkflowPauseScheduledCronRunQueueBehavior',
         :'paused_workflow_scheduled_run_queue_behavior' => :'WorkflowPauseScheduledCronRunQueueBehavior',
         :'versions' => :'Array<WorkflowVersionMeta>',
@@ -158,6 +163,10 @@ module HatchetSdkRest
 
       if attributes.key?(:'is_paused')
         self.is_paused = attributes[:'is_paused']
+      end
+
+      if attributes.key?(:'paused_workflow_queue_behavior')
+        self.paused_workflow_queue_behavior = attributes[:'paused_workflow_queue_behavior']
       end
 
       if attributes.key?(:'paused_workflow_cron_run_queue_behavior')
@@ -261,6 +270,7 @@ module HatchetSdkRest
           tenant_id == o.tenant_id &&
           description == o.description &&
           is_paused == o.is_paused &&
+          paused_workflow_queue_behavior == o.paused_workflow_queue_behavior &&
           paused_workflow_cron_run_queue_behavior == o.paused_workflow_cron_run_queue_behavior &&
           paused_workflow_scheduled_run_queue_behavior == o.paused_workflow_scheduled_run_queue_behavior &&
           versions == o.versions &&
@@ -278,7 +288,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [metadata, name, tenant_id, description, is_paused, paused_workflow_cron_run_queue_behavior, paused_workflow_scheduled_run_queue_behavior, versions, tags, jobs, triggers].hash
+      [metadata, name, tenant_id, description, is_paused, paused_workflow_queue_behavior, paused_workflow_cron_run_queue_behavior, paused_workflow_scheduled_run_queue_behavior, versions, tags, jobs, triggers].hash
     end
 
     # Builds the object from hash

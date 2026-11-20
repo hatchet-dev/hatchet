@@ -15,6 +15,12 @@ export { WorkflowPauseScheduledCronRunQueueBehavior };
 export type PauseWorkflowOpts = {
   /** How long runs stay queued while the workflow is paused before they are dropped. */
   queueTTL: Duration;
+  /**
+   * The behavior of runs triggered while the workflow is paused. QUEUE holds them until the workflow is
+   * unpaused or their TTL expires, and DROP never creates them and cancels runs that were already queued.
+   * Defaults to QUEUE.
+   */
+  pausedWorkflowQueueBehavior?: WorkflowPauseScheduledCronRunQueueBehavior;
   /** The behavior of cron runs triggered while the workflow is paused. Defaults to QUEUE. */
   pausedWorkflowCronRunQueueBehavior?: WorkflowPauseScheduledCronRunQueueBehavior;
   /** The behavior of scheduled runs triggered while the workflow is paused. Defaults to QUEUE. */
@@ -197,6 +203,8 @@ export class WorkflowsClient {
       pause: {
         action: 'pause',
         pausedWorkflowQueueTTL: durationToString(opts.queueTTL),
+        pausedWorkflowQueueBehavior:
+          opts.pausedWorkflowQueueBehavior ?? WorkflowPauseScheduledCronRunQueueBehavior.QUEUE,
         pausedWorkflowCronRunQueueBehavior:
           opts.pausedWorkflowCronRunQueueBehavior ??
           WorkflowPauseScheduledCronRunQueueBehavior.QUEUE,
