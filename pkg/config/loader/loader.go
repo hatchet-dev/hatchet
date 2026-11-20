@@ -165,6 +165,10 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		return nil, fmt.Errorf("DATABASE_FAIRPOOL_SHARED_MAX_PERCENT must be from 1 to 100, got %d", cf.FairpoolSharedMaxPercent)
 	}
 
+	if cf.AcquireTimeout < 0 {
+		return nil, fmt.Errorf("DATABASE_ACQUIRE_TIMEOUT must be 0 or positive, got %s", cf.AcquireTimeout)
+	}
+
 	serverSharedFilePath := filepath.Join(c.directory, "server.yaml")
 	serverConfigFileBytes, err := loaderutils.GetConfigBytes(serverSharedFilePath)
 
@@ -256,6 +260,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		MaxPercent:       cf.FairpoolTenantMaxPercent,
 		SharedMaxPercent: cf.FairpoolSharedMaxPercent,
 		MaxWait:          cf.FairpoolTenantMaxWait,
+		AcquireTimeout:   cf.AcquireTimeout,
 		PoolName:         "main",
 		L:                &l,
 	})
@@ -309,6 +314,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 			MaxPercent:       cf.FairpoolTenantMaxPercent,
 			SharedMaxPercent: cf.FairpoolSharedMaxPercent,
 			MaxWait:          cf.FairpoolTenantMaxWait,
+			AcquireTimeout:   cf.AcquireTimeout,
 			PoolName:         "read-replica",
 			L:                &l,
 		})
