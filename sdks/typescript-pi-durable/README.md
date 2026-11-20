@@ -105,8 +105,31 @@ it rejected. A reader that connects starts at the newest view.
 ### Storage
 
 The host does not store anything itself: failover reaches as far as the storage you open in `openHarness`. SQLite or
-JSONL on the worker's disk only fails over to a worker on the same machine (or one with the same volume). pi-durable
-has no cross-process locking, so there must be one owner at a time. The task's concurrency gives you that.
+JSONL on the worker's disk only fails over to a worker on the same machine (or one with the same volume).
+
+`openHatchetStorage` (experimental) keeps the session in a Hatchet durable stream topic instead, so any worker can
+reopen it:
+
+```ts
+openHarness: async (sessionId, onReport, context) =>
+  Harness.open(
+    await openHatchetStorage(hatchet, `pi-storage-${sessionId}`),
+    { models, registry, env: sandboxEnvs(hatchet, { template: 'node:24-alpine' }), onReport },
+    context
+  ),
+```
+
+Each commit is one message on the topic, and opening the storage reads the topic from its first message, so opening
+takes longer as a session grows. Limits:
+
+- **Retention.** Stream messages expire after the tenant's stream retention (30 days by default). A storage whose
+  oldest messages expired refuses to open with a `HatchetStorageError`, and a topic that sat idle past retention is
+  removed, so its session starts over empty.
+- **One owner at a time.** pi-durable has no cross-process locking. The task's concurrency runs one session at a time,
+  but a worker that loses contact with the engine for 30 seconds while still running can overlap with the run that
+  replaces it. If both write the storage, it refuses to open afterwards.
+- **What is stored.** Prompts, model answers and tool output go to the topic, and stream topics are visible in the
+  dashboard.
 
 ### Options
 

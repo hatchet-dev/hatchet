@@ -10,6 +10,12 @@ export {
   sandboxEnvs,
 } from './extension.js';
 export {
+  HatchetStorage,
+  HatchetStorageError,
+  type HatchetStorageOptions,
+  openHatchetStorage,
+} from './hatchet-storage.js';
+export {
   ClientMessage,
   type ConversationSummary,
   InboxMessage,
