@@ -23,7 +23,7 @@ import (
 // 0 to 100.
 //
 // AcquireTimeout bounds how long a checkout waits for a free connection in the underlying pool,
-// after it has its slot. It defaults to 30 seconds.
+// after it has its slot. Zero leaves the wait bounded only by the caller's context.
 type Options struct {
 	MaxPercent       int
 	SharedMaxPercent int
@@ -33,9 +33,9 @@ type Options struct {
 	L                *zerolog.Logger
 }
 
-// defaultAcquireTimeout matches the default statement and idle-in-transaction timeout, so a
+// DefaultAcquireTimeout matches the default statement and idle-in-transaction timeout, so a
 // checkout gives up no sooner than the server would end the work it is waiting behind.
-const defaultAcquireTimeout = 30 * time.Second
+const DefaultAcquireTimeout = 30 * time.Second
 
 // Pool is a pgx pool plus optional connection caps. ForTenant counts a checkout
 // against a tenant and ForShared counts it against shared engine work. Each
@@ -90,16 +90,12 @@ func Ungated(inner *pgxpool.Pool) *Pool {
 		return nil
 	}
 
-	return newPool(inner, Options{})
+	return newPool(inner, Options{AcquireTimeout: DefaultAcquireTimeout})
 }
 
 func newPool(inner *pgxpool.Pool, opts Options) *Pool {
 	if opts.MaxWait <= 0 {
 		opts.MaxWait = 5 * time.Second
-	}
-
-	if opts.AcquireTimeout <= 0 {
-		opts.AcquireTimeout = defaultAcquireTimeout
 	}
 
 	if opts.PoolName == "" {
@@ -244,8 +240,13 @@ func releaseCheckedOut(hold *slotHold, releaseConn func()) {
 // acquire takes a connection from the underlying pool, waiting at most acquireTimeout. Without
 // the bound, callers that each hold a connection and ask for a second one wait forever once
 // every connection is held that way, and the process stops serving database work. With it,
-// they fail, release what they hold, and the pool recovers.
+// they fail, release what they hold, and the pool recovers. A zero acquireTimeout waits on the
+// caller's context alone.
 func (p *Pool) acquire(ctx context.Context) (*pgxpool.Conn, error) {
+	if p.acquireTimeout == 0 {
+		return p.inner.Acquire(ctx)
+	}
+
 	acquireCtx, cancel := context.WithTimeout(ctx, p.acquireTimeout)
 	defer cancel()
 

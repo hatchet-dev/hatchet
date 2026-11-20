@@ -642,6 +642,27 @@ func TestAcquireSpanStaysOnInnerPool(t *testing.T) {
 	require.True(t, found, "pool.acquire span was not recorded")
 }
 
+// TestCheckoutWithoutAcquireTimeoutWaitsForCaller covers AcquireTimeout of zero: with every
+// connection held, a checkout waits until the caller's own deadline ends it.
+func TestCheckoutWithoutAcquireTimeoutWaitsForCaller(t *testing.T) {
+	pool, _ := newPoolWithOptions(t, fairpool.Options{}, nil)
+	ctx := context.Background()
+
+	for range pool.Config().MaxConns {
+		tx, err := pool.ForShared().Begin(ctx)
+		require.NoError(t, err)
+		// pool.Close waits for held connections, so a failed assertion must still free them.
+		t.Cleanup(func() { _ = tx.Rollback(context.Background()) })
+	}
+
+	callerCtx, cancel := context.WithTimeout(ctx, 300*time.Millisecond)
+	defer cancel()
+
+	_, err := pool.ForTenant(uuid.New()).Exec(callerCtx, "SELECT 1")
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.NotContains(t, err.Error(), "timed out waiting for a free connection")
+}
+
 // TestCheckoutFailsWhenPoolIsHeld covers callers that each hold a connection and ask for a second
 // one. With every connection held, each handle method must give up after AcquireTimeout instead
 // of waiting forever, and once the held connections are released the pool serves again and every

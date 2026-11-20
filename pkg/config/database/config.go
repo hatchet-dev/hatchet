@@ -46,6 +46,10 @@ type ConfigFile struct {
 	// stalls a live but overloaded server can show during startup, or those turn into errors.
 	ConnectTimeout time.Duration `mapstructure:"connectTimeout" json:"connectTimeout,omitempty" default:"15s"`
 
+	// AcquireTimeout bounds how long a checkout from the main or read replica pool waits for a free
+	// connection, then fails. 0 waits until the caller's context ends.
+	AcquireTimeout time.Duration `mapstructure:"acquireTimeout" json:"acquireTimeout,omitempty" default:"30s"`
+
 	// FairpoolTenantMaxPercent is the share of the pool one tenant may hold.
 	// 100 (the default) installs no cap. Values from 1 to 99 cap each tenant at that percent of MaxConns.
 	FairpoolTenantMaxPercent int `mapstructure:"fairpoolTenantMaxPercent" json:"fairpoolTenantMaxPercent,omitempty" default:"100"`
@@ -149,6 +153,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("maxConnIdleTime", "DATABASE_MAX_CONN_IDLE_TIME")
 	_ = v.BindEnv("dialTimeout", "DATABASE_DIAL_TIMEOUT")
 	_ = v.BindEnv("connectTimeout", "DATABASE_CONNECT_TIMEOUT")
+	_ = v.BindEnv("acquireTimeout", "DATABASE_ACQUIRE_TIMEOUT")
 	_ = v.BindEnv("fairpoolTenantMaxPercent", "DATABASE_FAIRPOOL_TENANT_MAX_PERCENT")
 	_ = v.BindEnv("fairpoolSharedMaxPercent", "DATABASE_FAIRPOOL_SHARED_MAX_PERCENT")
 	_ = v.BindEnv("fairpoolTenantMaxWait", "DATABASE_FAIRPOOL_TENANT_MAX_WAIT")
