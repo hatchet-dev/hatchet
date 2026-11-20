@@ -717,8 +717,9 @@ type PauseWorkflowRequest struct {
 // PauseWorkflowRequestPause defines model for PauseWorkflowRequestPause.
 type PauseWorkflowRequestPause struct {
 	// Action Discriminator indicating this request pauses the workflow.
-	Action                             PauseWorkflowRequestPauseAction            `json:"action"`
-	PausedWorkflowCronRunQueueBehavior WorkflowPauseScheduledCronRunQueueBehavior `json:"pausedWorkflowCronRunQueueBehavior"`
+	Action                             PauseWorkflowRequestPauseAction             `json:"action"`
+	PausedWorkflowCronRunQueueBehavior WorkflowPauseScheduledCronRunQueueBehavior  `json:"pausedWorkflowCronRunQueueBehavior"`
+	PausedWorkflowQueueBehavior        *WorkflowPauseScheduledCronRunQueueBehavior `json:"pausedWorkflowQueueBehavior,omitempty"`
 
 	// PausedWorkflowQueueTTL The TTL for queued runs while the workflow is paused before they get dropped, expressed as a Go-style duration string (e.g. "1d7h30m").
 	PausedWorkflowQueueTTL                  string                                     `json:"pausedWorkflowQueueTTL"`

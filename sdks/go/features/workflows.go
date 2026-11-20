@@ -130,13 +130,13 @@ type PauseWorkflowOpts struct {
 	QueueTTL time.Duration
 
 	// (optional) CronRunQueueBehavior is the behavior of cron runs triggered while the workflow is paused. Defaults to QUEUE.
-	CronRunQueueBehavior rest.WorkflowPauseScheduledCronRunQueueBehavior
+	CronRunQueueBehavior rest.WorkflowPauseQueueBehavior
 
 	// (optional) ScheduledRunQueueBehavior is the behavior of scheduled runs triggered while the workflow is paused. Defaults to QUEUE.
-	ScheduledRunQueueBehavior rest.WorkflowPauseScheduledCronRunQueueBehavior
+	ScheduledRunQueueBehavior rest.WorkflowPauseQueueBehavior
 }
 
-func queueBehaviorOrDefault(behavior rest.WorkflowPauseScheduledCronRunQueueBehavior) rest.WorkflowPauseScheduledCronRunQueueBehavior {
+func queueBehaviorOrDefault(behavior rest.WorkflowPauseQueueBehavior) rest.WorkflowPauseQueueBehavior {
 	if behavior == "" {
 		return rest.QUEUE
 	}

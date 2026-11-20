@@ -2508,6 +2508,8 @@ export interface WorkflowRunsCancelRequest {
 export interface PauseWorkflowRequestPause {
   /** Discriminator indicating this request pauses the workflow. */
   action: "pause";
+  /** The behavior of the queue while the workflow is paused. */
+  pausedWorkflowQueueBehavior?: WorkflowPauseScheduledCronRunQueueBehavior;
   /** The behavior of cron runs triggered while the workflow is paused. */
   pausedWorkflowCronRunQueueBehavior: WorkflowPauseScheduledCronRunQueueBehavior;
   /** The behavior of scheduled runs triggered while the workflow is paused. */

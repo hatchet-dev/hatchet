@@ -10,6 +10,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -65,9 +66,16 @@ func (t *WorkflowService) applyPauseWorkflowRequest(ctx context.Context, tenantI
 			return nil, fmt.Errorf("failed to parse pause request: %w", err)
 		}
 
+		queueBehavior := enums.WorkflowPauseQueueBehaviorQUEUE
+
+		if pauseRequest.PausedWorkflowQueueBehavior != nil {
+			queueBehavior = *pauseRequest.PausedWorkflowQueueBehavior
+		}
+
 		result, err = t.config.V1.Workflows().PauseWorkflow(ctx, tenantId, workflowId, repository.PauseWorkflowOpts{
-			CronRunQueueBehavior:      repository.WorkflowPauseScheduledCronRunQueueBehavior(pauseRequest.PausedWorkflowCronRunQueueBehavior),
-			ScheduledRunQueueBehavior: repository.WorkflowPauseScheduledCronRunQueueBehavior(pauseRequest.PausedWorkflowScheduledRunQueueBehavior),
+			QueueBehavior:             queueBehavior,
+			CronRunQueueBehavior:      pauseRequest.PausedWorkflowCronRunQueueBehavior,
+			ScheduledRunQueueBehavior: pauseRequest.PausedWorkflowScheduledRunQueueBehavior,
 			QueueTTL:                  pauseRequest.PausedWorkflowQueueTTL,
 		})
 

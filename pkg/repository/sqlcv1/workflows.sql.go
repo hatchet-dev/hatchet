@@ -2316,14 +2316,16 @@ UPDATE "Workflow"
 SET
     "updatedAt" = NOW(),
     "isPaused" = TRUE,
-    "pausedWorkflowCronRunQueueBehavior" = $1::"WorkflowPauseQueueBehavior",
-    "pausedWorkflowScheduledRunQueueBehavior" = $2::"WorkflowPauseQueueBehavior",
-    "pausedWorkflowQueueTTL" = convert_duration_to_interval($3::TEXT)
-WHERE "id" = $4::UUID
+    "pausedWorkflowQueueBehavior" = $1::"WorkflowPauseQueueBehavior",
+    "pausedWorkflowCronRunQueueBehavior" = $2::"WorkflowPauseQueueBehavior",
+    "pausedWorkflowScheduledRunQueueBehavior" = $3::"WorkflowPauseQueueBehavior",
+    "pausedWorkflowQueueTTL" = convert_duration_to_interval($4::TEXT)
+WHERE "id" = $5::UUID
 RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description, "isPaused", "pausedWorkflowQueueBehavior", "pausedWorkflowCronRunQueueBehavior", "pausedWorkflowScheduledRunQueueBehavior", "pausedWorkflowQueueTTL"
 `
 
 type PauseWorkflowParams struct {
+	Queuebehavior             enums.WorkflowPauseQueueBehavior `json:"queuebehavior"`
 	Cronrunqueuebehavior      enums.WorkflowPauseQueueBehavior `json:"cronrunqueuebehavior"`
 	Scheduledrunqueuebehavior enums.WorkflowPauseQueueBehavior `json:"scheduledrunqueuebehavior"`
 	Queuettl                  string                           `json:"queuettl"`
@@ -2332,6 +2334,7 @@ type PauseWorkflowParams struct {
 
 func (q *Queries) PauseWorkflow(ctx context.Context, db DBTX, arg PauseWorkflowParams) (*Workflow, error) {
 	row := db.QueryRow(ctx, pauseWorkflow,
+		arg.Queuebehavior,
 		arg.Cronrunqueuebehavior,
 		arg.Scheduledrunqueuebehavior,
 		arg.Queuettl,
@@ -2395,6 +2398,7 @@ UPDATE "Workflow"
 SET
     "updatedAt" = NOW(),
     "isPaused" = FALSE,
+    "pausedWorkflowQueueBehavior" = NULL,
     "pausedWorkflowCronRunQueueBehavior" = NULL,
     "pausedWorkflowScheduledRunQueueBehavior" = NULL,
     "pausedWorkflowQueueTTL" = NULL

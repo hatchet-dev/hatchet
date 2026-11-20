@@ -59,6 +59,9 @@ PauseWorkflowRequestPause:
       type: string
       enum: [pause]
       description: Discriminator indicating this request pauses the workflow.
+    pausedWorkflowQueueBehavior:
+      $ref: "#/WorkflowPauseScheduledCronRunQueueBehavior"
+      description: The behavior of the queue while the workflow is paused.
     pausedWorkflowCronRunQueueBehavior:
       $ref: "#/WorkflowPauseScheduledCronRunQueueBehavior"
       description: The behavior of cron runs triggered while the workflow is paused.

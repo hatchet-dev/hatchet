@@ -1999,24 +1999,19 @@ func (r *workflowRepository) GetLatestWorkflowVersion(ctx context.Context, tenan
 	return versions[0], nil
 }
 
-type WorkflowPauseScheduledCronRunQueueBehavior string
-
-const (
-	WorkflowPauseScheduledCronRunQueueBehaviorDROP  = "DROP"
-	WorkflowPauseScheduledCronRunQueueBehaviorQUEUE = "QUEUE"
-)
-
 type PauseWorkflowOpts struct {
-	CronRunQueueBehavior      WorkflowPauseScheduledCronRunQueueBehavior
-	ScheduledRunQueueBehavior WorkflowPauseScheduledCronRunQueueBehavior
+	QueueBehavior             enums.WorkflowPauseQueueBehavior
+	CronRunQueueBehavior      enums.WorkflowPauseQueueBehavior
+	ScheduledRunQueueBehavior enums.WorkflowPauseQueueBehavior
 	QueueTTL                  string
 }
 
 func (r *workflowRepository) PauseWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID, opts PauseWorkflowOpts) (*sqlcv1.Workflow, error) {
 	return r.queries.PauseWorkflow(ctx, r.pool.ForTenant(tenantId), sqlcv1.PauseWorkflowParams{
 		ID:                        workflowId,
-		Cronrunqueuebehavior:      enums.WorkflowPauseQueueBehavior(opts.CronRunQueueBehavior),
-		Scheduledrunqueuebehavior: enums.WorkflowPauseQueueBehavior(opts.ScheduledRunQueueBehavior),
+		Queuebehavior:             opts.QueueBehavior,
+		Cronrunqueuebehavior:      opts.CronRunQueueBehavior,
+		Scheduledrunqueuebehavior: opts.ScheduledRunQueueBehavior,
 		Queuettl:                  opts.QueueTTL,
 	})
 }
