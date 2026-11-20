@@ -35,35 +35,17 @@ from examples.durable.worker import (
     wait_for_sleep_twice,
     wait_for_two_events_second_pushed_first,
 )
-from examples.test_utils import poll_for_runs, wait_for_replay, wait_for_running_status
+from examples.test_utils import (
+    poll_for_runs,
+    wait_for_replay,
+    wait_for_running_status,
+    wait_for_task_completed_in_read_model,
+)
 from hatchet_sdk import CancelledRunError, Hatchet
 
 TIMING_TOLERANCE = 2.0
 
 requires_durable_eviction = pytest.mark.usefixtures("_skip_unless_durable_eviction")
-
-
-async def _wait_for_task_to_complete(
-    hatchet: Hatchet, workflow_run_id: str, task_name: str, timeout: float = 90.0
-) -> None:
-    interval = 0.5
-    deadline = time.monotonic() + timeout
-
-    while time.monotonic() < deadline:
-        details = await hatchet.runs.aio_get(workflow_run_id)
-
-        # a task's display name is "<step readable id>-<unix timestamp>"
-        if any(
-            t.status == "COMPLETED" and t.display_name.startswith(f"{task_name}-")
-            for t in details.tasks
-        ):
-            return
-
-        await asyncio.sleep(interval)
-
-    raise TimeoutError(
-        f"{task_name} did not complete within {timeout}s for run {workflow_run_id}"
-    )
 
 
 async def _push_event_until_task_completes(
@@ -81,7 +63,7 @@ async def _push_event_until_task_completes(
         await hatchet.events.aio_push(event_key, payload)
 
         try:
-            await _wait_for_task_to_complete(
+            await wait_for_task_completed_in_read_model(
                 hatchet, workflow_run_id, task_name, timeout=interval
             )
             return
@@ -104,8 +86,8 @@ async def test_durable_workflow(hatchet: Hatchet) -> None:
     # going RUNNING can land the event before that sleep is even registered.
     # Anchor on the sleep having fired instead: once wait_for_or_group_1 is
     # COMPLETED the event can no longer beat it.
-    await _wait_for_task_to_complete(
-        hatchet, ref.workflow_run_id, wait_for_or_group_1.name
+    await wait_for_task_completed_in_read_model(
+        hatchet, ref.workflow_run_id, wait_for_or_group_1.name, timeout=90
     )
 
     # durable_task registers its event wait only after its own SLEEP_TIME

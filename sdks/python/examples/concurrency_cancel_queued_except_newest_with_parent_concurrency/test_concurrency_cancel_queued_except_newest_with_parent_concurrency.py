@@ -14,13 +14,13 @@ from hatchet_sdk import Hatchet, WorkflowRunRef
 @pytest.mark.asyncio(loop_scope="session")
 async def test_cancel_queued_except_newest_keeps_newest_with_parent_concurrency(
     hatchet: Hatchet,
+    test_run_id: str,
 ) -> None:
     """Task-level CANCEL_QUEUED_EXCEPT_NEWEST must still keep only the newest queued run even when
     the workflow also declares its own ("parent") workflow-level concurrency scope on the
     same key. The parent's max_runs is generous enough that it never binds, isolating the
     assertions to the task-level strategy.
     """
-    test_run_id = str(uuid4())
     group = str(uuid4())
 
     workflow = concurrency_cancel_queued_except_newest_with_parent_concurrency_workflow
