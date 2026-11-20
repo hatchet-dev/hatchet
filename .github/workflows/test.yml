@@ -117,7 +117,7 @@ jobs:
         run: go generate ./...
 
       - name: Test
-        run: go test $(go list ./... | grep -v -E "quickstart|pkg/testing/harness|pkg/operator/dagoperator/e2e|pkg/client/operatore2e|cmd/hatchet-loadtest") -failfast
+        run: go test $(go list ./... | grep -v -E "quickstart|pkg/testing/harness|pkg/operator/dagoperator/e2e|pkg/client/operatore2e|internal/services/scheduler/v1/e2e|cmd/hatchet-loadtest") -failfast
 
   integration:
     runs-on: ubicloud-standard-8
