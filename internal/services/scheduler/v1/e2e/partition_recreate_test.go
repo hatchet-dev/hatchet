@@ -113,9 +113,29 @@ func TestSchedulerWakeupsSurvivePartitionRecreate(t *testing.T) {
 
 	t.Logf("tenant reassigned from scheduler partition %s to %s", partitionID.String, tenantSchedulerPartitionID(ctx, t, pool, tenantID).String)
 
+	recreatedAt := schedulerPartitionCreatedAt(ctx, t, pool)
+
 	time.Sleep(idleTimeout)
 
 	probe(ctx, t, tasks, started)
+
+	// The idle wait spans several staleness windows. Heartbeats on the existing row must have kept
+	// it alive: a row that went stale would have been deleted and recreated with a newer createdAt.
+	require.Equal(t, recreatedAt, schedulerPartitionCreatedAt(ctx, t, pool), "heartbeats did not keep the scheduler partition alive")
+}
+
+// schedulerPartitionCreatedAt returns when the only scheduler partition was created.
+func schedulerPartitionCreatedAt(ctx context.Context, t *testing.T, pool *pgxpool.Pool) time.Time {
+	t.Helper()
+
+	var (
+		partitions int
+		createdAt  pgtype.Timestamp
+	)
+	require.NoError(t, pool.QueryRow(ctx, `SELECT COUNT(*), MIN("createdAt") FROM "SchedulerPartition"`).Scan(&partitions, &createdAt))
+	require.Equal(t, 1, partitions, "the engine should have exactly one scheduler partition")
+
+	return createdAt.Time
 }
 
 // probe runs every task and requires each to start within wakeupTimeout.
