@@ -4,7 +4,7 @@ All notable changes to `@hatchet-dev/pi-durable`.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Each release reads its notes from the matching section here.
 
-## [Unreleased]
+## [0.2.0] - 2026-11-20
 
 ### Added
 

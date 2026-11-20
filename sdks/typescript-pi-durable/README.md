@@ -190,9 +190,11 @@ script the model with pi-ai's faux provider.
 
 ## Release
 
-Bump `version` in `package.json` and move the `[Unreleased]` notes in `CHANGELOG.md` under the new version. On a push
-to `main`, CI publishes the version to npm if it is not there yet and creates a `pi-durable/<version>` GitHub release.
-A version containing `alpha` is published under the `alpha` tag.
+Bump `version` in `package.json` and rename the `[Unreleased]` heading in `CHANGELOG.md` to the new version and date,
+without leaving an empty `[Unreleased]` above it: the GitHub release takes its notes from the first section of the
+changelog, and an `[Unreleased]` one is marked as a release candidate. On a push to `main`, CI publishes the version to
+npm if it is not there yet and creates a `pi-durable/<version>` GitHub release. A version containing `alpha` is
+published under the `alpha` tag.
 
 ## License
 
