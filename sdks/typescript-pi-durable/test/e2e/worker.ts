@@ -13,10 +13,16 @@ import { createRegistry, Harness } from '@earendil-works/pi-durable';
 import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node';
 import { HatchetClient } from '@hatchet-dev/typescript-sdk/v1';
 import * as path from 'node:path';
-import { defineSessionTask, sandboxCoding, sandboxEnvs } from '../../src/index.js';
+import {
+  defineSessionTask,
+  openHatchetStorage,
+  sandboxCoding,
+  sandboxEnvs,
+} from '../../src/index.js';
 
 const TASK = process.env.PI_E2E_TASK!;
 const DATA_DIR = process.env.PI_E2E_DATA!;
+const STORAGE = process.env.PI_E2E_STORAGE ?? 'sqlite';
 const TEMPLATE = 'fake';
 
 const textOf = (message: Message | undefined) => {
@@ -66,7 +72,9 @@ const session = defineSessionTask(hatchet, {
   debug: !!process.env.PI_DEBUG,
   openHarness: async (sessionId, onReport, context) =>
     Harness.open(
-      await openNodeSqliteStorage(path.join(DATA_DIR, `${sessionId}.sqlite`)),
+      STORAGE === 'hatchet'
+        ? await openHatchetStorage(hatchet, `${TASK}-storage-${sessionId}`)
+        : await openNodeSqliteStorage(path.join(DATA_DIR, `${sessionId}.sqlite`)),
       { models, registry, env: sandboxEnvs(hatchet, { template: TEMPLATE }), onReport },
       context
     ),
