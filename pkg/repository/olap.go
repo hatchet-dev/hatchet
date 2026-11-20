@@ -367,6 +367,8 @@ type OLAPRepositoryImpl struct {
 	auditLogArchiveRowsPerFile int32
 }
 
+// NewOLAPRepositoryFromPool builds an OLAP repository on a dedicated, ungated pool. See
+// NewOLAPRepositoryFromFairPool for one that honours fairpool caps.
 func NewOLAPRepositoryFromPool(
 	pool *pgxpool.Pool,
 	l *zerolog.Logger,
@@ -377,9 +379,25 @@ func NewOLAPRepositoryFromPool(
 	cacheDuration time.Duration,
 	includeRawDataInAggregates bool,
 ) (OLAPRepository, func() error) {
+	return NewOLAPRepositoryFromFairPool(fairpool.Ungated(pool), l, olapRetentionPeriod, tenantLimitConfig, enforceLimits, payloadStoreOpts, statusUpdateBatchSizeLimits, cacheDuration, includeRawDataInAggregates)
+}
+
+// NewOLAPRepositoryFromFairPool builds an OLAP repository on a dedicated pool for a separate OLAP
+// database. Partition DDL runs on the pool's underlying connections, since there is no pgbouncer
+// in front of it.
+func NewOLAPRepositoryFromFairPool(
+	pool *fairpool.Pool,
+	l *zerolog.Logger,
+	olapRetentionPeriod time.Duration,
+	tenantLimitConfig limits.LimitConfigFile, enforceLimits bool,
+	payloadStoreOpts PayloadStoreRepositoryOpts,
+	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits,
+	cacheDuration time.Duration,
+	includeRawDataInAggregates bool,
+) (OLAPRepository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(fairpool.Ungated(pool), pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration, false, false)
+	shared, cleanupShared := newSharedRepository(pool, pool.Unwrap(), v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration, false, false)
 
 	return newOLAPRepository(shared, olapRetentionPeriod, statusUpdateBatchSizeLimits, includeRawDataInAggregates), cleanupShared
 }
