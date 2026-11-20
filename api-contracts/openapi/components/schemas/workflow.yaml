@@ -20,6 +20,9 @@ Workflow:
     isPaused:
       type: boolean
       description: Whether the workflow is paused.
+    pausedWorkflowQueueBehavior:
+      $ref: "#/WorkflowPauseScheduledCronRunQueueBehavior"
+      description: The behavior of runs queued while the workflow is paused.
     pausedWorkflowCronRunQueueBehavior:
       $ref: "#/WorkflowPauseScheduledCronRunQueueBehavior"
       description: The behavior of cron runs triggered while the workflow is paused.
@@ -61,7 +64,9 @@ PauseWorkflowRequestPause:
       description: Discriminator indicating this request pauses the workflow.
     pausedWorkflowQueueBehavior:
       $ref: "#/WorkflowPauseScheduledCronRunQueueBehavior"
-      description: The behavior of the queue while the workflow is paused.
+      description: >-
+        The behavior of runs queued while the workflow is paused. QUEUE holds them until
+        the workflow is unpaused or their TTL expires, and DROP cancels them. Defaults to QUEUE.
     pausedWorkflowCronRunQueueBehavior:
       $ref: "#/WorkflowPauseScheduledCronRunQueueBehavior"
       description: The behavior of cron runs triggered while the workflow is paused.

@@ -1767,8 +1767,13 @@ JOIN
     "Workflow" w ON w.id = qi.workflow_id
 WHERE
     qi.tenant_id = @tenantId::UUID
-    AND w."pausedWorkflowQueueTTL" IS NOT NULL
-    AND qi.task_inserted_at <= NOW() - w."pausedWorkflowQueueTTL"
+    AND (
+        w."pausedWorkflowQueueBehavior" = 'DROP'
+        OR (
+            w."pausedWorkflowQueueTTL" IS NOT NULL
+            AND qi.task_inserted_at <= NOW() - w."pausedWorkflowQueueTTL"
+        )
+    )
 ORDER BY
     qi.task_inserted_at, qi.task_id, qi.retry_count
 LIMIT

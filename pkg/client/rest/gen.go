@@ -2734,6 +2734,7 @@ type Workflow struct {
 	// Name The name of the workflow.
 	Name                                    string                                      `json:"name"`
 	PausedWorkflowCronRunQueueBehavior      *WorkflowPauseScheduledCronRunQueueBehavior `json:"pausedWorkflowCronRunQueueBehavior,omitempty"`
+	PausedWorkflowQueueBehavior             *WorkflowPauseScheduledCronRunQueueBehavior `json:"pausedWorkflowQueueBehavior,omitempty"`
 	PausedWorkflowScheduledRunQueueBehavior *WorkflowPauseScheduledCronRunQueueBehavior `json:"pausedWorkflowScheduledRunQueueBehavior,omitempty"`
 
 	// Tags The tags of the workflow.

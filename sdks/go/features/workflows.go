@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 )
 
@@ -129,16 +130,19 @@ type PauseWorkflowOpts struct {
 	// (required) QueueTTL is how long runs stay queued while the workflow is paused before they are dropped.
 	QueueTTL time.Duration
 
+	// (optional) QueueBehavior is the behavior of runs queued while the workflow is paused. DROP cancels them. Defaults to QUEUE.
+	QueueBehavior enums.WorkflowPauseQueueBehavior
+
 	// (optional) CronRunQueueBehavior is the behavior of cron runs triggered while the workflow is paused. Defaults to QUEUE.
-	CronRunQueueBehavior rest.WorkflowPauseQueueBehavior
+	CronRunQueueBehavior enums.WorkflowPauseQueueBehavior
 
 	// (optional) ScheduledRunQueueBehavior is the behavior of scheduled runs triggered while the workflow is paused. Defaults to QUEUE.
-	ScheduledRunQueueBehavior rest.WorkflowPauseQueueBehavior
+	ScheduledRunQueueBehavior enums.WorkflowPauseQueueBehavior
 }
 
-func queueBehaviorOrDefault(behavior rest.WorkflowPauseQueueBehavior) rest.WorkflowPauseQueueBehavior {
+func queueBehaviorOrDefault(behavior enums.WorkflowPauseQueueBehavior) enums.WorkflowPauseQueueBehavior {
 	if behavior == "" {
-		return rest.QUEUE
+		return enums.WorkflowPauseQueueBehaviorQUEUE
 	}
 
 	return behavior
@@ -150,6 +154,7 @@ func (w *WorkflowsClient) Pause(ctx context.Context, workflowName string, opts P
 
 	err := pauseRequest.FromPauseWorkflowRequestPause(rest.PauseWorkflowRequestPause{
 		Action:                                  rest.Pause,
+		PausedWorkflowQueueBehavior:             new(queueBehaviorOrDefault(opts.QueueBehavior)),
 		PausedWorkflowQueueTTL:                  strconv.FormatFloat(opts.QueueTTL.Seconds(), 'f', -1, 64) + "s",
 		PausedWorkflowCronRunQueueBehavior:      queueBehaviorOrDefault(opts.CronRunQueueBehavior),
 		PausedWorkflowScheduledRunQueueBehavior: queueBehaviorOrDefault(opts.ScheduledRunQueueBehavior),

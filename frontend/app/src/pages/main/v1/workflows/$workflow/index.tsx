@@ -187,6 +187,7 @@ export default function ExpandedWorkflow() {
             isLoading={togglePauseMutation.isPending}
             onCancel={() => setPauseWorkflow(false)}
             onSubmit={({
+              queueBehavior,
               cronRunQueueBehavior,
               scheduledRunQueueBehavior,
               queueTtl,
@@ -194,6 +195,7 @@ export default function ExpandedWorkflow() {
               togglePauseMutation.mutate(
                 {
                   action: 'pause',
+                  pausedWorkflowQueueBehavior: queueBehavior,
                   pausedWorkflowCronRunQueueBehavior: cronRunQueueBehavior,
                   pausedWorkflowScheduledRunQueueBehavior:
                     scheduledRunQueueBehavior,
