@@ -1,6 +1,5 @@
 import asyncio
 import contextlib
-from uuid import uuid4
 
 import pytest
 
@@ -12,7 +11,7 @@ from hatchet_sdk import Hatchet
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_run(hatchet: Hatchet) -> None:
+async def test_run(hatchet: Hatchet, test_run_id: str) -> None:
     """Task-level (step-level) CANCEL_NEWEST must keep the OLDEST run and cancel the newer ones,
     never preempting the running run. This exercises the in-memory concurrency index (the only path
     that serves step-level concurrency).
@@ -20,7 +19,6 @@ async def test_run(hatchet: Hatchet) -> None:
     Together with the CANCEL_IN_PROGRESS task-level test this pins the two strategies as opposites:
     CANCEL_IN_PROGRESS keeps the newest, CANCEL_NEWEST keeps the oldest.
     """
-    test_run_id = str(uuid4())
 
     # this run starts first and, as the oldest, must be the one that completes.
     to_run = await concurrency_cancel_newest_task_level_workflow.aio_run(

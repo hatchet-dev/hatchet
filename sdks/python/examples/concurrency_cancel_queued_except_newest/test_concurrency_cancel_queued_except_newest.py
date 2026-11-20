@@ -15,8 +15,8 @@ from hatchet_sdk import Hatchet, WorkflowRunRef
 @pytest.mark.asyncio(loop_scope="session")
 async def test_cancel_queued_except_newest_keeps_only_the_newest_queued_run(
     hatchet: Hatchet,
+    test_run_id: str,
 ) -> None:
-    test_run_id = str(uuid4())
     group = str(uuid4())
 
     ## occupies the concurrency slot for the group while the rest of the runs pile up in the queue

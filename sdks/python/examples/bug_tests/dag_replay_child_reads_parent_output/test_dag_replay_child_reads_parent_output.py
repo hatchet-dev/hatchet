@@ -1,5 +1,3 @@
-import asyncio
-
 import pytest
 
 from examples.bug_tests.dag_replay_child_reads_parent_output.worker import (
@@ -7,23 +5,8 @@ from examples.bug_tests.dag_replay_child_reads_parent_output.worker import (
     dag_replay_child_reads_parent_output,
     parent_failing_on_first_attempt,
 )
-from hatchet_sdk import FailedTaskRunExceptionGroup, Hatchet, RunStatus
-
-
-async def wait_for_run_status(
-    hatchet: Hatchet, run_id: str, status: RunStatus, timeout: float = 60.0
-) -> None:
-    interval = 0.5
-
-    for _ in range(int(timeout / interval)):
-        details = await hatchet.runs.aio_get_details(run_id)
-
-        if details.status == status:
-            return
-
-        await asyncio.sleep(interval)
-
-    raise TimeoutError(f"run {run_id} did not reach {status}")
+from examples.test_utils import wait_for_run_status
+from hatchet_sdk import FailedTaskRunExceptionGroup, Hatchet
 
 
 async def run_until_parent_fails(hatchet: Hatchet) -> str:

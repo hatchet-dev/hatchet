@@ -1,5 +1,4 @@
 import asyncio
-from uuid import uuid4
 
 import pytest
 
@@ -11,11 +10,10 @@ from hatchet_sdk import Hatchet, WorkflowRunRef
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_run(hatchet: Hatchet) -> None:
+async def test_run(hatchet: Hatchet, test_run_id: str) -> None:
     """Task-level (step-level) CANCEL_IN_PROGRESS must keep the NEWEST run and cancel the older
     ones, including the currently-running one.
     """
-    test_run_id = str(uuid4())
     refs: list[WorkflowRunRef] = []
 
     for i in range(10):
