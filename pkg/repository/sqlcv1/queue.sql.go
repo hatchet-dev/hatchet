@@ -781,6 +781,98 @@ func (q *Queries) GetStepSlotRequests(ctx context.Context, db DBTX, arg GetStepS
 	return items, nil
 }
 
+const getTenantBacklogs = `-- name: GetTenantBacklogs :many
+SELECT
+    t.tenant_id::uuid AS tenant_id,
+    qi.c::bigint AS queued,
+    cs.c::bigint AS concurrency,
+    rl.c::bigint AS rate_limited,
+    bq.c::bigint AS batched,
+    pq.c::bigint AS paused,
+    rq.c::bigint AS retry
+FROM
+    unnest($1::uuid[]) AS t(tenant_id)
+CROSS JOIN LATERAL (
+    SELECT count(*) AS c FROM (
+        SELECT 1 FROM v1_queue_item WHERE tenant_id = t.tenant_id LIMIT $2::bigint
+    ) s
+) qi
+CROSS JOIN LATERAL (
+    SELECT count(*) AS c FROM (
+        SELECT 1 FROM v1_concurrency_slot WHERE tenant_id = t.tenant_id AND is_filled = FALSE LIMIT $2::bigint
+    ) s
+) cs
+CROSS JOIN LATERAL (
+    SELECT count(*) AS c FROM (
+        SELECT 1 FROM v1_rate_limited_queue_items WHERE tenant_id = t.tenant_id LIMIT $2::bigint
+    ) s
+) rl
+CROSS JOIN LATERAL (
+    SELECT count(*) AS c FROM (
+        SELECT 1 FROM v1_batched_queue_item WHERE tenant_id = t.tenant_id LIMIT $2::bigint
+    ) s
+) bq
+CROSS JOIN LATERAL (
+    SELECT count(*) AS c FROM (
+        SELECT 1 FROM v1_paused_workflow_queue_item WHERE tenant_id = t.tenant_id LIMIT $2::bigint
+    ) s
+) pq
+CROSS JOIN LATERAL (
+    SELECT count(*) AS c FROM (
+        SELECT 1 FROM v1_retry_queue_item WHERE tenant_id = t.tenant_id LIMIT $2::bigint
+    ) s
+) rq
+`
+
+type GetTenantBacklogsParams struct {
+	Tenantids []uuid.UUID `json:"tenantids"`
+	Ceiling   int64       `json:"ceiling"`
+}
+
+type GetTenantBacklogsRow struct {
+	TenantID    uuid.UUID `json:"tenant_id"`
+	Queued      int64     `json:"queued"`
+	Concurrency int64     `json:"concurrency"`
+	RateLimited int64     `json:"rate_limited"`
+	Batched     int64     `json:"batched"`
+	Paused      int64     `json:"paused"`
+	Retry       int64     `json:"retry"`
+}
+
+// A tenant's backlog is its accepted tasks that are not running. A waiting task attempt
+// sits in exactly one of these tables; a task blocked on concurrency has one unfilled
+// slot (filled slots belong to earlier strategies or to running tasks), and tasks of a
+// run waiting on a workflow-level slot are already counted by their unfilled child slots.
+// Each count stops at @ceiling, so a tenant costs at most @ceiling index entries per
+// table however large its pile is.
+func (q *Queries) GetTenantBacklogs(ctx context.Context, db DBTX, arg GetTenantBacklogsParams) ([]*GetTenantBacklogsRow, error) {
+	rows, err := db.Query(ctx, getTenantBacklogs, arg.Tenantids, arg.Ceiling)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetTenantBacklogsRow
+	for rows.Next() {
+		var i GetTenantBacklogsRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.Queued,
+			&i.Concurrency,
+			&i.RateLimited,
+			&i.Batched,
+			&i.Paused,
+			&i.Retry,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const holdConcurrencySlots = `-- name: HoldConcurrencySlots :exec
 WITH input AS (
     SELECT

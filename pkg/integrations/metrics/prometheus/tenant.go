@@ -32,6 +32,7 @@ const (
 	TenantWorkerLabelSlotsTotal                 TenantHatchetMetric = "hatchet_tenant_worker_label_slots"
 	TenantQueueSizeTotal                        TenantHatchetMetric = "hatchet_tenant_queue_size"
 	TenantAdditionalMetadataQueueSize           TenantHatchetMetric = "hatchet_tenant_additional_metadata_queue_size"
+	TenantBacklogTotal                          TenantHatchetMetric = "hatchet_tenant_backlog"
 )
 
 var (
@@ -210,5 +211,16 @@ var (
 			Help: "Number of queued items per queue carrying the given additional metadata key-value pair. An item counts towards every metadata key it carries, so series for different keys overlap and should not be summed across keys",
 		},
 		[]string{"tenant_id", "queue", "key", "value"},
+	)
+
+	// TenantBacklog is sparse: a tenant has series only while its backlog is at or above the
+	// scheduler's reporting floor, and then only for states with tasks in them, so its
+	// cardinality follows the number of backed-up tenants rather than the number of tenants.
+	TenantBacklog = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: string(TenantBacklogTotal),
+			Help: "Accepted tasks of the tenant that are not running, by state: queued, concurrency, rate_limited, batched, paused or retry. Reported only while the tenant's total is at or above a floor; each state is capped at a ceiling, and a value equal to the ceiling means at least that many",
+		},
+		[]string{"tenant_id", "state"},
 	)
 )

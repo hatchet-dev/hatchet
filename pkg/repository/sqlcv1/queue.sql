@@ -573,6 +573,54 @@ WHERE
 GROUP BY
     qi.queue;
 
+-- name: GetTenantBacklogs :many
+-- A tenant's backlog is its accepted tasks that are not running. A waiting task attempt
+-- sits in exactly one of these tables; a task blocked on concurrency has one unfilled
+-- slot (filled slots belong to earlier strategies or to running tasks), and tasks of a
+-- run waiting on a workflow-level slot are already counted by their unfilled child slots.
+-- Each count stops at @ceiling, so a tenant costs at most @ceiling index entries per
+-- table however large its pile is.
+SELECT
+    t.tenant_id::uuid AS tenant_id,
+    qi.c::bigint AS queued,
+    cs.c::bigint AS concurrency,
+    rl.c::bigint AS rate_limited,
+    bq.c::bigint AS batched,
+    pq.c::bigint AS paused,
+    rq.c::bigint AS retry
+FROM
+    unnest(@tenantIds::uuid[]) AS t(tenant_id)
+CROSS JOIN LATERAL (
+    SELECT count(*) AS c FROM (
+        SELECT 1 FROM v1_queue_item WHERE tenant_id = t.tenant_id LIMIT @ceiling::bigint
+    ) s
+) qi
+CROSS JOIN LATERAL (
+    SELECT count(*) AS c FROM (
+        SELECT 1 FROM v1_concurrency_slot WHERE tenant_id = t.tenant_id AND is_filled = FALSE LIMIT @ceiling::bigint
+    ) s
+) cs
+CROSS JOIN LATERAL (
+    SELECT count(*) AS c FROM (
+        SELECT 1 FROM v1_rate_limited_queue_items WHERE tenant_id = t.tenant_id LIMIT @ceiling::bigint
+    ) s
+) rl
+CROSS JOIN LATERAL (
+    SELECT count(*) AS c FROM (
+        SELECT 1 FROM v1_batched_queue_item WHERE tenant_id = t.tenant_id LIMIT @ceiling::bigint
+    ) s
+) bq
+CROSS JOIN LATERAL (
+    SELECT count(*) AS c FROM (
+        SELECT 1 FROM v1_paused_workflow_queue_item WHERE tenant_id = t.tenant_id LIMIT @ceiling::bigint
+    ) s
+) pq
+CROSS JOIN LATERAL (
+    SELECT count(*) AS c FROM (
+        SELECT 1 FROM v1_retry_queue_item WHERE tenant_id = t.tenant_id LIMIT @ceiling::bigint
+    ) s
+) rq;
+
 -- name: GetQueueSizes :many
 WITH sizes AS (
     SELECT
