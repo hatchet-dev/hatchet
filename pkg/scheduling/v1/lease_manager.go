@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -21,6 +22,9 @@ import (
 const concurrencyLeasesChBuffer = 1024
 
 const batchesChBuffer = 1024
+
+// leaseRefreshInterval is how often a tenant refreshes its worker, queue, concurrency, and batch leases.
+const leaseRefreshInterval = 5 * time.Second
 
 // LeaseManager is responsible for leases on multiple queues and multiplexing
 // queue results to callers. It is still tenant-scoped.
@@ -705,13 +709,19 @@ func (l *LeaseManager) acquireAllLeases(ctx context.Context) {
 	wg.Wait()
 }
 
-// loopForLeases acquires new leases every 5 seconds for workers, queues, and concurrency strategies
+// loopForLeases acquires new leases every leaseRefreshInterval for workers, queues, and concurrency
+// strategies. The first acquisition runs immediately so a tenant is discovered without waiting for
+// a tick. The ticker then waits out a random phase: every tenant on a scheduler is registered in
+// one call, and a shared phase makes all of them refresh at the same instant.
 func (l *LeaseManager) loopForLeases(ctx context.Context) {
-	// Perform an initial lease acquisition immediately so that callers don't have to wait
-	// for the first ticker interval before workers, queues, and concurrency strategies are discovered.
 	l.acquireAllLeases(ctx)
 
-	ticker := time.NewTicker(5 * time.Second)
+	if !waitLeaseRefreshPhase(ctx, leaseRefreshPhase(leaseRefreshInterval)) {
+		return
+	}
+
+	ticker := time.NewTicker(leaseRefreshInterval)
+	defer ticker.Stop()
 
 	for {
 		select {
@@ -720,6 +730,32 @@ func (l *LeaseManager) loopForLeases(ctx context.Context) {
 		case <-ticker.C:
 			l.acquireAllLeases(ctx)
 		}
+	}
+}
+
+// leaseRefreshPhase returns a duration in [0, interval). A non-positive interval has no phase.
+func leaseRefreshPhase(interval time.Duration) time.Duration {
+	if interval <= 0 {
+		return 0
+	}
+
+	return time.Duration(rand.Int63n(int64(interval))) // nolint:gosec
+}
+
+// waitLeaseRefreshPhase reports whether the phase elapsed before ctx was cancelled.
+func waitLeaseRefreshPhase(ctx context.Context, phase time.Duration) bool {
+	if phase <= 0 {
+		return ctx.Err() == nil
+	}
+
+	timer := time.NewTimer(phase)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
 	}
 }
 
