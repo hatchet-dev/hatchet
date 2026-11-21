@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -320,15 +321,15 @@ VALUES (
 `
 
 type CreateStepConcurrencyParams struct {
-	Workflowid        uuid.UUID             `json:"workflowid"`
-	Workflowversionid uuid.UUID             `json:"workflowversionid"`
-	Stepid            uuid.UUID             `json:"stepid"`
-	Strategy          V1ConcurrencyStrategy `json:"strategy"`
-	Expression        string                `json:"expression"`
-	Tenantid          uuid.UUID             `json:"tenantid"`
-	Maxconcurrency    int32                 `json:"maxconcurrency"`
-	TenantStrategyId  pgtype.Int8           `json:"tenantStrategyId"`
-	MaxRunsExpression pgtype.Text           `json:"maxRunsExpression"`
+	Workflowid        uuid.UUID                   `json:"workflowid"`
+	Workflowversionid uuid.UUID                   `json:"workflowversionid"`
+	Stepid            uuid.UUID                   `json:"stepid"`
+	Strategy          enums.V1ConcurrencyStrategy `json:"strategy"`
+	Expression        string                      `json:"expression"`
+	Tenantid          uuid.UUID                   `json:"tenantid"`
+	Maxconcurrency    int32                       `json:"maxconcurrency"`
+	TenantStrategyId  pgtype.Int8                 `json:"tenantStrategyId"`
+	MaxRunsExpression pgtype.Text                 `json:"maxRunsExpression"`
 }
 
 // When tenant_strategy_id is set, the definition columns are copies of the referenced
@@ -748,12 +749,12 @@ GROUP BY
 `
 
 type CreateWorkflowConcurrencyV1Params struct {
-	Workflowid        uuid.UUID             `json:"workflowid"`
-	Workflowversionid uuid.UUID             `json:"workflowversionid"`
-	Limitstrategy     V1ConcurrencyStrategy `json:"limitstrategy"`
-	Expression        string                `json:"expression"`
-	Tenantid          uuid.UUID             `json:"tenantid"`
-	MaxRuns           pgtype.Int4           `json:"maxRuns"`
+	Workflowid        uuid.UUID                   `json:"workflowid"`
+	Workflowversionid uuid.UUID                   `json:"workflowversionid"`
+	Limitstrategy     enums.V1ConcurrencyStrategy `json:"limitstrategy"`
+	Expression        string                      `json:"expression"`
+	Tenantid          uuid.UUID                   `json:"tenantid"`
+	MaxRuns           pgtype.Int4                 `json:"maxRuns"`
 }
 
 type CreateWorkflowConcurrencyV1Row struct {
@@ -812,14 +813,14 @@ RETURNING "parentId", cron, "tickerId", input, enabled, "additionalMetadata", "c
 `
 
 type CreateWorkflowTriggerCronRefParams struct {
-	Workflowtriggersid   uuid.UUID                         `json:"workflowtriggersid"`
-	Crontrigger          string                            `json:"crontrigger"`
-	Name                 pgtype.Text                       `json:"name"`
-	Input                []byte                            `json:"input"`
-	AdditionalMetadata   []byte                            `json:"additionalMetadata"`
-	Method               NullWorkflowTriggerCronRefMethods `json:"method"`
-	Priority             pgtype.Int4                       `json:"priority"`
-	OldWorkflowVersionId *uuid.UUID                        `json:"oldWorkflowVersionId"`
+	Workflowtriggersid   uuid.UUID                            `json:"workflowtriggersid"`
+	Crontrigger          string                               `json:"crontrigger"`
+	Name                 pgtype.Text                          `json:"name"`
+	Input                []byte                               `json:"input"`
+	AdditionalMetadata   []byte                               `json:"additionalMetadata"`
+	Method               *enums.WorkflowTriggerCronRefMethods `json:"method"`
+	Priority             pgtype.Int4                          `json:"priority"`
+	OldWorkflowVersionId *uuid.UUID                           `json:"oldWorkflowVersionId"`
 }
 
 func (q *Queries) CreateWorkflowTriggerCronRef(ctx context.Context, db DBTX, arg CreateWorkflowTriggerCronRefParams) (*WorkflowTriggerCronRef, error) {
@@ -888,13 +889,13 @@ INSERT INTO "WorkflowTriggerCronRef" (
 `
 
 type CreateWorkflowTriggerCronRefForWorkflowParams struct {
-	Crontrigger        string                            `json:"crontrigger"`
-	Name               pgtype.Text                       `json:"name"`
-	Input              []byte                            `json:"input"`
-	AdditionalMetadata []byte                            `json:"additionalMetadata"`
-	Method             NullWorkflowTriggerCronRefMethods `json:"method"`
-	Priority           pgtype.Int4                       `json:"priority"`
-	Workflowid         uuid.UUID                         `json:"workflowid"`
+	Crontrigger        string                               `json:"crontrigger"`
+	Name               pgtype.Text                          `json:"name"`
+	Input              []byte                               `json:"input"`
+	AdditionalMetadata []byte                               `json:"additionalMetadata"`
+	Method             *enums.WorkflowTriggerCronRefMethods `json:"method"`
+	Priority           pgtype.Int4                          `json:"priority"`
+	Workflowid         uuid.UUID                            `json:"workflowid"`
 }
 
 func (q *Queries) CreateWorkflowTriggerCronRefForWorkflow(ctx context.Context, db DBTX, arg CreateWorkflowTriggerCronRefForWorkflowParams) (*WorkflowTriggerCronRef, error) {
@@ -1987,10 +1988,10 @@ type ListWorkflowConcurrencyByVersionIdParams struct {
 }
 
 type ListWorkflowConcurrencyByVersionIdRow struct {
-	ID            int64                 `json:"id"`
-	MaxRuns       int32                 `json:"maxRuns"`
-	LimitStrategy V1ConcurrencyStrategy `json:"limitStrategy"`
-	Expression    string                `json:"expression"`
+	ID            int64                       `json:"id"`
+	MaxRuns       int32                       `json:"maxRuns"`
+	LimitStrategy enums.V1ConcurrencyStrategy `json:"limitStrategy"`
+	Expression    string                      `json:"expression"`
 }
 
 func (q *Queries) ListWorkflowConcurrencyByVersionId(ctx context.Context, db DBTX, arg ListWorkflowConcurrencyByVersionIdParams) ([]*ListWorkflowConcurrencyByVersionIdRow, error) {
@@ -2318,10 +2319,10 @@ RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, descripti
 `
 
 type PauseWorkflowParams struct {
-	Cronrunqueuebehavior      WorkflowPauseQueueBehavior `json:"cronrunqueuebehavior"`
-	Scheduledrunqueuebehavior WorkflowPauseQueueBehavior `json:"scheduledrunqueuebehavior"`
-	Queuettl                  string                     `json:"queuettl"`
-	ID                        uuid.UUID                  `json:"id"`
+	Cronrunqueuebehavior      enums.WorkflowPauseQueueBehavior `json:"cronrunqueuebehavior"`
+	Scheduledrunqueuebehavior enums.WorkflowPauseQueueBehavior `json:"scheduledrunqueuebehavior"`
+	Queuettl                  string                           `json:"queuettl"`
+	ID                        uuid.UUID                        `json:"id"`
 }
 
 func (q *Queries) PauseWorkflow(ctx context.Context, db DBTX, arg PauseWorkflowParams) (*Workflow, error) {

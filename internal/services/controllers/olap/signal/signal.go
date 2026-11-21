@@ -12,6 +12,7 @@ import (
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -326,7 +327,7 @@ func (s *OLAPSignaler) signalTasksCreatedAndQueued(ctx context.Context, tenantId
 			tasktypes.CreateMonitoringEventPayload{
 				TaskId:         task.ID,
 				RetryCount:     task.RetryCount,
-				EventType:      sqlcv1.V1EventTypeOlapQUEUED,
+				EventType:      enums.V1EventTypeOlapQUEUED,
 				EventTimestamp: time.Now(),
 				EventMessage:   msg,
 			},
@@ -395,7 +396,7 @@ func (s *OLAPSignaler) signalTasksCreatedAndCancelled(ctx context.Context, tenan
 		msg, err := tasktypes.MonitoringEventMessageFromInternal(tenantId, tasktypes.CreateMonitoringEventPayload{
 			TaskId:         task.ID,
 			RetryCount:     task.RetryCount,
-			EventType:      sqlcv1.V1EventTypeOlapCANCELLED,
+			EventType:      enums.V1EventTypeOlapCANCELLED,
 			EventTimestamp: time.Now(),
 		})
 
@@ -464,7 +465,7 @@ func (s *OLAPSignaler) signalTasksCreatedAndFailed(ctx context.Context, tenantId
 		msg, err := tasktypes.MonitoringEventMessageFromInternal(tenantId, tasktypes.CreateMonitoringEventPayload{
 			TaskId:         task.ID,
 			RetryCount:     task.RetryCount,
-			EventType:      sqlcv1.V1EventTypeOlapFAILED,
+			EventType:      enums.V1EventTypeOlapFAILED,
 			EventPayload:   task.InitialStateReason.String,
 			EventTimestamp: time.Now(),
 		})
@@ -534,7 +535,7 @@ func (s *OLAPSignaler) signalTasksCreatedAndSkipped(ctx context.Context, tenantI
 		msg, err := tasktypes.MonitoringEventMessageFromInternal(tenantId, tasktypes.CreateMonitoringEventPayload{
 			TaskId:         task.ID,
 			RetryCount:     task.RetryCount,
-			EventType:      sqlcv1.V1EventTypeOlapSKIPPED,
+			EventType:      enums.V1EventTypeOlapSKIPPED,
 			EventTimestamp: time.Now(),
 		})
 
@@ -584,7 +585,7 @@ func (s *OLAPSignaler) SignalTasksReplayed(ctx context.Context, tenantId uuid.UU
 			tasktypes.CreateMonitoringEventPayload{
 				TaskId:         task.Id,
 				RetryCount:     task.RetryCount,
-				EventType:      sqlcv1.V1EventTypeOlapRETRIEDBYUSER,
+				EventType:      enums.V1EventTypeOlapRETRIEDBYUSER,
 				EventTimestamp: time.Now(),
 				EventMessage:   msg,
 			},

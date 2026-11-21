@@ -141,6 +141,66 @@ spec:
                   number: 8080
 ```
 
+## Dashboard security headers
+
+Out of the box, the dashboard's static file server sends browser security headers on every response it serves (HTML, static assets, SPA fallback routes, and base-path redirects). You do not need to configure a reverse proxy to add them.
+
+When the combined `dashboard` image proxies `/api/*` requests to `hatchet-api`, those responses keep the API's own security headers untouched.
+
+### Default headers
+
+| Header                         | Default value                                                                                                                  |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `Strict-Transport-Security`    | `max-age=63072000; includeSubDomains; preload`                                                                                 |
+| `Content-Security-Policy`      | `frame-ancestors 'none'; object-src 'none'; base-uri 'self'`                                                                   |
+| `X-Frame-Options`              | `DENY`                                                                                                                         |
+| `X-Content-Type-Options`       | `nosniff`                                                                                                                      |
+| `Referrer-Policy`              | `strict-origin-when-cross-origin`                                                                                              |
+| `Permissions-Policy`           | `geolocation=(), midi=(), sync-xhr=(), microphone=(), camera=(), magnetometer=(), gyroscope=(), fullscreen=(self), payment=()` |
+| `Cross-Origin-Embedder-Policy` | `credentialless`                                                                                                               |
+| `Cross-Origin-Opener-Policy`   | `same-origin`                                                                                                                  |
+| `Cross-Origin-Resource-Policy` | `same-origin`                                                                                                                  |
+
+`Cross-Origin-Embedder-Policy` uses `credentialless` instead of the API's `require-corp` so cross-origin stylesheets, scripts, and optional widgets continue to load in the browser. Browsers ignore `Strict-Transport-Security` over plain HTTP, so local deployments on `http://localhost` work without changes.
+
+### Customizing `Content-Security-Policy`
+
+The default `Content-Security-Policy` only restricts framing, plugins, and `<base>` tags because third-party scripts and endpoints vary by deployment. If you want a stricter policy (or want to allow embedding the dashboard in an internal portal via `frame-ancestors`), override it for your deployment mode:
+
+| Deployment                        | Setting                         | Notes                                                                     |
+| --------------------------------- | ------------------------------- | ------------------------------------------------------------------------- |
+| Helm `frontend` chart             | `CONTENT_SECURITY_POLICY`       | Set under `frontend.env`. Set to an empty string to omit the header.      |
+| Combined `dashboard` image        | `CONTENT_SECURITY_POLICY`       | Environment variable on the container. Set to an empty string to omit it. |
+| `hatchet-staticfileserver` binary | `-content-security-policy` flag | Defaults to `CONTENT_SECURITY_POLICY`. An empty value omits the header.   |
+| `hatchet-lite`                    | Not configurable                | Always sends the default policy.                                          |
+
+For example, in Helm `values.yaml`:
+
+```yaml
+frontend:
+  env:
+    CONTENT_SECURITY_POLICY: "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; worker-src blob:; frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
+```
+
+When writing a stricter policy, keep these dashboard requirements in mind:
+
+- **Inline scripts (`script-src`):** The dashboard's `index.html` includes an inline script that sets `window.__CONFIG__.BASE_PATH`. Optional widgets such as Pylon also inject an inline loader script.
+- **Code editor (`script-src`, `worker-src`):** The JSON/code editor loads Monaco assets from `https://cdn.jsdelivr.net` and runs web workers from `blob:`.
+- **Fonts (`style-src`, `font-src`):** The dashboard loads the Ubuntu font stylesheet from `https://fonts.googleapis.com` (and font files from `https://fonts.gstatic.com`).
+- **Optional analytics or support widgets:** If you enable PostHog, Sentry, or Pylon, allow their domains in `script-src` and `connect-src`.
+- **Embedding in an iframe (`frame-ancestors`):** Modern browsers give `frame-ancestors` precedence over `X-Frame-Options: DENY`, so you can allow a specific parent origin through `CONTENT_SECURITY_POLICY` without changing other headers.
+
+### Reverse proxies that already set security headers
+
+<Callout type="warning">
+  If your reverse proxy or ingress already adds these headers using an appending
+  directive (such as nginx `add_header`), remove them from the proxy or switch
+  to a directive that replaces upstream headers (such as `more_set_headers`).
+  Duplicate `Cross-Origin-Opener-Policy`, `Cross-Origin-Embedder-Policy`, or
+  `Cross-Origin-Resource-Policy` headers fail to parse and browsers fall back to
+  no policy.
+</Callout>
+
 ## Example: `nginx-ingress`
 
 Let's walk through an example of exposing Hatchet over `hatchet.example.com` (for the API and frontend) and `engine.hatchet.example.com` (for the engine).

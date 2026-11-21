@@ -8,8 +8,8 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type CELEvaluationFailures struct {
@@ -97,7 +97,7 @@ type CreateMonitoringEventPayload struct {
 
 	WorkerId *uuid.UUID `json:"worker_id,omitempty"`
 
-	EventType sqlcv1.V1EventTypeOlap `json:"event_type"`
+	EventType enums.V1EventTypeOlap `json:"event_type"`
 
 	EventTimestamp time.Time `json:"event_timestamp" validate:"required"`
 	EventPayload   string    `json:"event_payload" validate:"required"`
@@ -136,15 +136,15 @@ func MonitoringEventMessageFromActionEvent(tenantId uuid.UUID, taskId int64, ret
 
 	switch request.EventType {
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED:
-		payload.EventType = sqlcv1.V1EventTypeOlapFINISHED
+		payload.EventType = enums.V1EventTypeOlapFINISHED
 
 		if payloadReferenceId != nil {
 			payload.EventPayload = ""
 		}
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED:
-		payload.EventType = sqlcv1.V1EventTypeOlapFAILED
+		payload.EventType = enums.V1EventTypeOlapFAILED
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED:
-		payload.EventType = sqlcv1.V1EventTypeOlapSTARTED
+		payload.EventType = enums.V1EventTypeOlapSTARTED
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_UNKNOWN,
 		contracts.StepActionEventType_STEP_EVENT_TYPE_ACKNOWLEDGED,
 		contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLED:

@@ -6,6 +6,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -21,28 +22,12 @@ const (
 )
 
 func V1RunStatusFromProto(status contracts.RunStatus) (*V1RunStatus, error) {
-	switch status {
-	case contracts.RunStatus_QUEUED:
-		q := V1RunStatusQueued
-		return &q, nil
-	case contracts.RunStatus_RUNNING:
-		r := V1RunStatusRunning
-		return &r, nil
-	case contracts.RunStatus_EVICTED:
-		e := V1RunStatusEvicted
-		return &e, nil
-	case contracts.RunStatus_CANCELLED:
-		c := V1RunStatusCancelled
-		return &c, nil
-	case contracts.RunStatus_FAILED:
-		f := V1RunStatusFailed
-		return &f, nil
-	case contracts.RunStatus_COMPLETED:
-		c := V1RunStatusCompleted
-		return &c, nil
-	default:
-		return nil, fmt.Errorf("unknown run status: %v", status)
+	s, err := enums.FromProto[V1RunStatus](status)
+	if err != nil {
+		return nil, err
 	}
+
+	return &s, nil
 }
 
 func (s *V1RunStatus) ToProto() (*contracts.RunStatus, error) {
@@ -50,28 +35,18 @@ func (s *V1RunStatus) ToProto() (*contracts.RunStatus, error) {
 		return nil, fmt.Errorf("nil run status")
 	}
 
-	switch *s {
-	case V1RunStatusQueued:
-		r := contracts.RunStatus_QUEUED
-		return &r, nil
-	case V1RunStatusRunning:
+	// clients treat an evicted run as still running
+	if *s == V1RunStatusEvicted {
 		r := contracts.RunStatus_RUNNING
 		return &r, nil
-	case V1RunStatusEvicted:
-		r := contracts.RunStatus_RUNNING
-		return &r, nil
-	case V1RunStatusCancelled:
-		r := contracts.RunStatus_CANCELLED
-		return &r, nil
-	case V1RunStatusFailed:
-		r := contracts.RunStatus_FAILED
-		return &r, nil
-	case V1RunStatusCompleted:
-		r := contracts.RunStatus_COMPLETED
-		return &r, nil
-	default:
-		return nil, fmt.Errorf("unknown run status: %v", *s)
 	}
+
+	r, err := enums.ToProto[contracts.RunStatus](*s)
+	if err != nil {
+		return nil, err
+	}
+
+	return &r, nil
 }
 
 func (s *V1RunStatus) IsEvicted() bool {

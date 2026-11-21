@@ -784,15 +784,15 @@ func (q *Queries) GetStepSlotRequests(ctx context.Context, db DBTX, arg GetStepS
 const holdConcurrencySlots = `-- name: HoldConcurrencySlots :exec
 WITH input AS (
     SELECT
-        UNNEST($1::BIGINT[]) AS task_id,
-        UNNEST($2::TIMESTAMPTZ[]) AS task_inserted_at,
-        UNNEST($3::INTEGER[]) AS retry_count
+        UNNEST($3::BIGINT[]) AS task_id,
+        UNNEST($4::TIMESTAMPTZ[]) AS task_inserted_at,
+        UNNEST($5::INTEGER[]) AS retry_count
 ), waiting_tasks AS (
     SELECT DISTINCT cs.task_id, cs.task_inserted_at, cs.task_retry_count
     FROM v1_concurrency_slot cs
     JOIN input i ON (cs.task_id, cs.task_inserted_at, cs.task_retry_count) = (i.task_id, i.task_inserted_at, i.retry_count)
     WHERE
-        cs.tenant_id = $4::UUID
+        cs.tenant_id = $6::UUID
         AND cs.is_filled = FALSE
 ), held_tasks AS (
     SELECT
@@ -804,6 +804,9 @@ WITH input AS (
     FROM waiting_tasks wt
     JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (wt.task_id, wt.task_inserted_at, wt.task_retry_count)
     JOIN "Workflow" w ON w."id" = t.workflow_id
+    WHERE
+        t.inserted_at >= $1::TIMESTAMPTZ
+        AND t.inserted_at <= $2::TIMESTAMPTZ
 ), deleted_slots AS (
     DELETE FROM v1_concurrency_slot cs
     USING held_tasks h
@@ -852,19 +855,26 @@ SELECT
     h.rate_limit_paused_until
 FROM held_tasks h
 JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (h.id, h.inserted_at, h.retry_count)
-WHERE h.workflow_paused OR h.rate_limit_paused_until IS NOT NULL
+WHERE
+    (h.workflow_paused OR h.rate_limit_paused_until IS NOT NULL)
+    AND t.inserted_at >= $1::TIMESTAMPTZ
+    AND t.inserted_at <= $2::TIMESTAMPTZ
 ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
 `
 
 type HoldConcurrencySlotsParams struct {
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Retrycounts     []int32              `json:"retrycounts"`
-	Tenantid        uuid.UUID            `json:"tenantid"`
+	Mintaskinsertedat pgtype.Timestamptz   `json:"mintaskinsertedat"`
+	Maxtaskinsertedat pgtype.Timestamptz   `json:"maxtaskinsertedat"`
+	Taskids           []int64              `json:"taskids"`
+	Taskinsertedats   []pgtype.Timestamptz `json:"taskinsertedats"`
+	Retrycounts       []int32              `json:"retrycounts"`
+	Tenantid          uuid.UUID            `json:"tenantid"`
 }
 
 func (q *Queries) HoldConcurrencySlots(ctx context.Context, db DBTX, arg HoldConcurrencySlotsParams) error {
 	_, err := db.Exec(ctx, holdConcurrencySlots,
+		arg.Mintaskinsertedat,
+		arg.Maxtaskinsertedat,
 		arg.Taskids,
 		arg.Taskinsertedats,
 		arg.Retrycounts,
@@ -1056,9 +1066,9 @@ func (q *Queries) HoldRateLimitedQueueItems(ctx context.Context, db DBTX, arg Ho
 const insertBufferedTaskRuntimes = `-- name: InsertBufferedTaskRuntimes :exec
 WITH input AS (
     SELECT
-        UNNEST($2::bigint[]) AS task_id,
-        UNNEST($3::timestamptz[]) AS task_inserted_at,
-        UNNEST($4::integer[]) AS task_retry_count
+        UNNEST($4::bigint[]) AS task_id,
+        UNNEST($5::timestamptz[]) AS task_inserted_at,
+        UNNEST($6::integer[]) AS task_retry_count
 )
 INSERT INTO v1_task_runtime (
     task_id,
@@ -1081,6 +1091,8 @@ FROM
     input
 JOIN
     v1_task t ON t.id = input.task_id AND t.inserted_at = input.task_inserted_at
+        AND t.inserted_at >= $2::TIMESTAMPTZ
+        AND t.inserted_at <= $3::TIMESTAMPTZ
 ON CONFLICT (task_id, task_inserted_at, retry_count) DO UPDATE
 SET
     timeout_at = EXCLUDED.timeout_at,
@@ -1090,15 +1102,19 @@ WHERE
 `
 
 type InsertBufferedTaskRuntimesParams struct {
-	Tenantid        uuid.UUID            `json:"tenantid"`
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Taskretrycounts []int32              `json:"taskretrycounts"`
+	Tenantid          uuid.UUID            `json:"tenantid"`
+	Mintaskinsertedat pgtype.Timestamptz   `json:"mintaskinsertedat"`
+	Maxtaskinsertedat pgtype.Timestamptz   `json:"maxtaskinsertedat"`
+	Taskids           []int64              `json:"taskids"`
+	Taskinsertedats   []pgtype.Timestamptz `json:"taskinsertedats"`
+	Taskretrycounts   []int32              `json:"taskretrycounts"`
 }
 
 func (q *Queries) InsertBufferedTaskRuntimes(ctx context.Context, db DBTX, arg InsertBufferedTaskRuntimesParams) error {
 	_, err := db.Exec(ctx, insertBufferedTaskRuntimes,
 		arg.Tenantid,
+		arg.Mintaskinsertedat,
+		arg.Maxtaskinsertedat,
 		arg.Taskids,
 		arg.Taskinsertedats,
 		arg.Taskretrycounts,
@@ -1374,32 +1390,39 @@ func (q *Queries) ListBatchedQueueItemsToTimeout(ctx context.Context, db DBTX, a
 const listDistinctBatchResources = `-- name: ListDistinctBatchResources :many
 SELECT
     sbc.step_id,
-    b.batch_key,
-    sbc.batch_max_size AS batch_max_size,
-    sbc.batch_max_interval AS batch_max_interval,
-    sbc.batch_group_max_runs AS batch_group_max_runs
+    sbc.batch_max_size,
+    sbc.batch_max_interval,
+    sbc.batch_group_max_runs
 FROM
     v1_step_batch_config sbc
-JOIN LATERAL (
-    SELECT batch_key
-    FROM v1_batched_queue_item
-    WHERE tenant_id = $1::uuid AND step_id = sbc.step_id
-    LIMIT 1
-) b ON true
+WHERE
+    ($1::uuid[] IS NULL OR sbc.step_id = ANY($1::uuid[]))
+    AND EXISTS (
+        SELECT 1
+        FROM v1_batched_queue_item bqi
+        WHERE
+            bqi.tenant_id = $2::uuid
+            AND bqi.step_id = sbc.step_id
+            AND bqi.batch_key <> ''
+    )
 `
+
+type ListDistinctBatchResourcesParams struct {
+	StepIds  []uuid.UUID `json:"stepIds"`
+	Tenantid uuid.UUID   `json:"tenantid"`
+}
 
 type ListDistinctBatchResourcesRow struct {
 	StepID            uuid.UUID   `json:"step_id"`
-	BatchKey          string      `json:"batch_key"`
 	BatchMaxSize      int32       `json:"batch_max_size"`
 	BatchMaxInterval  pgtype.Int4 `json:"batch_max_interval"`
 	BatchGroupMaxRuns pgtype.Int4 `json:"batch_group_max_runs"`
 }
 
-// short circuits using lateral join with LIMIT because we only care about the existence of 1 or more
-// batched queue item rows
-func (q *Queries) ListDistinctBatchResources(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*ListDistinctBatchResourcesRow, error) {
-	rows, err := db.Query(ctx, listDistinctBatchResources, tenantid)
+// Steps with pending batched queue items, optionally limited to stepIds. Items with an empty
+// batch key (a failed group key evaluation) don't count.
+func (q *Queries) ListDistinctBatchResources(ctx context.Context, db DBTX, arg ListDistinctBatchResourcesParams) ([]*ListDistinctBatchResourcesRow, error) {
+	rows, err := db.Query(ctx, listDistinctBatchResources, arg.StepIds, arg.Tenantid)
 	if err != nil {
 		return nil, err
 	}
@@ -1409,7 +1432,6 @@ func (q *Queries) ListDistinctBatchResources(ctx context.Context, db DBTX, tenan
 		var i ListDistinctBatchResourcesRow
 		if err := rows.Scan(
 			&i.StepID,
-			&i.BatchKey,
 			&i.BatchMaxSize,
 			&i.BatchMaxInterval,
 			&i.BatchGroupMaxRuns,
@@ -2460,17 +2482,19 @@ func (q *Queries) ReleaseHeldQueueItemsForWorkflows(ctx context.Context, db DBTX
 const requeueHeldConcurrencySlots = `-- name: RequeueHeldConcurrencySlots :many
 WITH input AS (
     SELECT
-        UNNEST($1::BIGINT[]) AS task_id,
-        UNNEST($2::TIMESTAMPTZ[]) AS task_inserted_at,
-        UNNEST($3::INTEGER[]) AS retry_count
+        UNNEST($3::BIGINT[]) AS task_id,
+        UNNEST($4::TIMESTAMPTZ[]) AS task_inserted_at,
+        UNNEST($5::INTEGER[]) AS retry_count
 ), ready_items AS (
     SELECT pqi.tenant_id, pqi.queue, pqi.task_id, pqi.task_inserted_at, pqi.external_id, pqi.action_id, pqi.step_id, pqi.workflow_id, pqi.workflow_run_id, pqi.schedule_timeout_at, pqi.step_timeout, pqi.priority, pqi.sticky, pqi.desired_worker_id, pqi.retry_count, pqi.desired_worker_label, pqi.batch_key, pqi.rate_limit_paused_until
     FROM v1_paused_workflow_queue_item pqi
     JOIN input i ON (pqi.task_inserted_at, pqi.task_id, pqi.retry_count) = (i.task_inserted_at, i.task_id, i.retry_count)
     JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (pqi.task_id, pqi.task_inserted_at, pqi.retry_count)
     WHERE
-        pqi.tenant_id = $4::UUID
+        pqi.tenant_id = $6::UUID
         AND t.concurrency_strategy_ids[1] IS NOT NULL
+        AND t.inserted_at >= $1::TIMESTAMPTZ
+        AND t.inserted_at <= $2::TIMESTAMPTZ
     ORDER BY pqi.task_inserted_at, pqi.task_id, pqi.retry_count
     FOR UPDATE OF pqi SKIP LOCKED
 ), deleted_items AS (
@@ -2538,19 +2562,25 @@ SELECT
     CURRENT_TIMESTAMP + convert_duration_to_interval(t.schedule_timeout)
 FROM ready_items ri
 JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (ri.task_id, ri.task_inserted_at, ri.retry_count)
+    AND t.inserted_at >= $1::TIMESTAMPTZ
+    AND t.inserted_at <= $2::TIMESTAMPTZ
 ON CONFLICT (task_id, task_inserted_at, task_retry_count, strategy_id) DO NOTHING
 RETURNING strategy_id
 `
 
 type RequeueHeldConcurrencySlotsParams struct {
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Retrycounts     []int32              `json:"retrycounts"`
-	Tenantid        uuid.UUID            `json:"tenantid"`
+	Mintaskinsertedat pgtype.Timestamptz   `json:"mintaskinsertedat"`
+	Maxtaskinsertedat pgtype.Timestamptz   `json:"maxtaskinsertedat"`
+	Taskids           []int64              `json:"taskids"`
+	Taskinsertedats   []pgtype.Timestamptz `json:"taskinsertedats"`
+	Retrycounts       []int32              `json:"retrycounts"`
+	Tenantid          uuid.UUID            `json:"tenantid"`
 }
 
 func (q *Queries) RequeueHeldConcurrencySlots(ctx context.Context, db DBTX, arg RequeueHeldConcurrencySlotsParams) ([]int64, error) {
 	rows, err := db.Query(ctx, requeueHeldConcurrencySlots,
+		arg.Mintaskinsertedat,
+		arg.Maxtaskinsertedat,
 		arg.Taskids,
 		arg.Taskinsertedats,
 		arg.Retrycounts,
@@ -2577,17 +2607,19 @@ func (q *Queries) RequeueHeldConcurrencySlots(ctx context.Context, db DBTX, arg 
 const requeueHeldQueueItems = `-- name: RequeueHeldQueueItems :many
 WITH input AS (
     SELECT
-        UNNEST($1::BIGINT[]) AS task_id,
-        UNNEST($2::TIMESTAMPTZ[]) AS task_inserted_at,
-        UNNEST($3::INTEGER[]) AS retry_count
+        UNNEST($3::BIGINT[]) AS task_id,
+        UNNEST($4::TIMESTAMPTZ[]) AS task_inserted_at,
+        UNNEST($5::INTEGER[]) AS retry_count
 ), ready_items AS (
     SELECT pqi.tenant_id, pqi.queue, pqi.task_id, pqi.task_inserted_at, pqi.external_id, pqi.action_id, pqi.step_id, pqi.workflow_id, pqi.workflow_run_id, pqi.schedule_timeout_at, pqi.step_timeout, pqi.priority, pqi.sticky, pqi.desired_worker_id, pqi.retry_count, pqi.desired_worker_label, pqi.batch_key, pqi.rate_limit_paused_until
     FROM v1_paused_workflow_queue_item pqi
     JOIN input i ON (pqi.task_inserted_at, pqi.task_id, pqi.retry_count) = (i.task_inserted_at, i.task_id, i.retry_count)
     JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (pqi.task_id, pqi.task_inserted_at, pqi.retry_count)
     WHERE
-        pqi.tenant_id = $4::UUID
+        pqi.tenant_id = $6::UUID
         AND t.concurrency_strategy_ids[1] IS NULL
+        AND t.inserted_at >= $1::TIMESTAMPTZ
+        AND t.inserted_at <= $2::TIMESTAMPTZ
     ORDER BY pqi.task_inserted_at, pqi.task_id, pqi.retry_count
     FOR UPDATE OF pqi SKIP LOCKED
 ), deleted_items AS (
@@ -2639,18 +2671,24 @@ SELECT
     ri.batch_key
 FROM ready_items ri
 JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (ri.task_id, ri.task_inserted_at, ri.retry_count)
+    AND t.inserted_at >= $1::TIMESTAMPTZ
+    AND t.inserted_at <= $2::TIMESTAMPTZ
 RETURNING queue
 `
 
 type RequeueHeldQueueItemsParams struct {
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Retrycounts     []int32              `json:"retrycounts"`
-	Tenantid        uuid.UUID            `json:"tenantid"`
+	Mintaskinsertedat pgtype.Timestamptz   `json:"mintaskinsertedat"`
+	Maxtaskinsertedat pgtype.Timestamptz   `json:"maxtaskinsertedat"`
+	Taskids           []int64              `json:"taskids"`
+	Taskinsertedats   []pgtype.Timestamptz `json:"taskinsertedats"`
+	Retrycounts       []int32              `json:"retrycounts"`
+	Tenantid          uuid.UUID            `json:"tenantid"`
 }
 
 func (q *Queries) RequeueHeldQueueItems(ctx context.Context, db DBTX, arg RequeueHeldQueueItemsParams) ([]string, error) {
 	rows, err := db.Query(ctx, requeueHeldQueueItems,
+		arg.Mintaskinsertedat,
+		arg.Maxtaskinsertedat,
 		arg.Taskids,
 		arg.Taskinsertedats,
 		arg.Retrycounts,

@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -261,7 +262,7 @@ func (r *streamsRepositoryImpl) EnsureTopic(ctx context.Context, tenantId uuid.U
 
 	if row.Inserted {
 		// 0, not 1: the topic was just inserted, so the live count already includes it
-		canCreate, _, err := r.m.CanCreate(ctx, sqlcv1.LimitResourceSTREAMTOPIC, tenantId, 0)
+		canCreate, _, err := r.m.CanCreate(ctx, enums.LimitResourceSTREAMTOPIC, tenantId, 0)
 
 		if err != nil {
 			return err

@@ -1,11 +1,11 @@
 import pytest
 
 from examples.bug_tests.durable_child_key_duplicate_child.worker import (
-    durable_parent_child_key_bug,
     Input,
+    durable_parent_child_key_bug,
 )
 from examples.test_utils import wait_for_child_runs
-from hatchet_sdk import Hatchet, RunStatus
+from hatchet_sdk import Hatchet
 
 
 @pytest.mark.asyncio(loop_scope="session")

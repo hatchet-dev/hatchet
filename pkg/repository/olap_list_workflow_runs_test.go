@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -106,10 +107,10 @@ func seedDAGWithFinishedChildren(t *testing.T, ctx context.Context, repo *OLAPRe
 			TenantID:       f.tenantId,
 			TaskID:         child.ID,
 			TaskInsertedAt: f.insertedAt,
-			EventType:      sqlcv1.V1EventTypeOlapFINISHED,
+			EventType:      enums.V1EventTypeOlapFINISHED,
 			WorkflowID:     workflowId,
 			EventTimestamp: pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
-			ReadableStatus: sqlcv1.V1ReadableStatusOlapCOMPLETED,
+			ReadableStatus: enums.V1ReadableStatusOlapCOMPLETED,
 			Output:         []byte(`{}`),
 			ExternalID:     uuid.New(),
 		}
@@ -130,6 +131,8 @@ func TestPopulateDAGMetadata_OneRowPerDAGWithLatestChildOutput(t *testing.T) {
 	rows, err := repo.queries.PopulateDAGMetadata(ctx, pool, sqlcv1.PopulateDAGMetadataParams{
 		Ids:             []int64{f.dagId},
 		Insertedats:     []pgtype.Timestamptz{f.insertedAt},
+		Mininsertedat:   f.insertedAt,
+		Maxinsertedat:   f.insertedAt,
 		Tenantid:        f.tenantId,
 		Includepayloads: true,
 	})

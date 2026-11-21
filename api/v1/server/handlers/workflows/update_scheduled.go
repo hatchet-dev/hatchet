@@ -10,6 +10,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -21,7 +22,7 @@ func (t *WorkflowService) WorkflowScheduledUpdate(ctx echo.Context, request gen.
 	}
 
 	// Only allow updating scheduled runs created via API.
-	if scheduled.Method != sqlcv1.WorkflowTriggerScheduledRefMethodsAPI {
+	if scheduled.Method != enums.WorkflowTriggerScheduledRefMethodsAPI {
 		return gen.WorkflowScheduledUpdate403JSONResponse(apierrors.NewAPIErrors("Cannot update scheduled run created via code definition.")), nil
 	}
 

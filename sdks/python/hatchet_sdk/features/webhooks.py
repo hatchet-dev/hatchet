@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import builtins
 from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel
@@ -129,9 +130,9 @@ class WebhooksClient(BaseRestClient):
         *,
         limit: int | None = None,
         offset: int | None = None,
-        webhook_names: list[str] | None = None,
-        source_names: list[WebhookSourceName] | None = None,
-    ) -> list[V1Webhook]:
+        webhook_names: builtins.list[str] | None = None,
+        source_names: builtins.list[WebhookSourceName] | None = None,
+    ) -> builtins.list[V1Webhook]:
         """
         List webhooks for a given tenant.
 
@@ -155,9 +156,9 @@ class WebhooksClient(BaseRestClient):
         *,
         limit: int | None = None,
         offset: int | None = None,
-        webhook_names: list[str] | None = None,
-        source_names: list[WebhookSourceName] | None = None,
-    ) -> list[V1Webhook]:
+        webhook_names: builtins.list[str] | None = None,
+        source_names: builtins.list[WebhookSourceName] | None = None,
+    ) -> builtins.list[V1Webhook]:
         """
         List webhooks for a given tenant.
 

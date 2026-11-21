@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -304,21 +305,21 @@ WHERE
 `
 
 type PollCronSchedulesRow struct {
-	ParentId           uuid.UUID                     `json:"parentId"`
-	Cron               string                        `json:"cron"`
-	TickerId           *uuid.UUID                    `json:"tickerId"`
-	Input              []byte                        `json:"input"`
-	Enabled            bool                          `json:"enabled"`
-	AdditionalMetadata []byte                        `json:"additionalMetadata"`
-	CreatedAt          pgtype.Timestamp              `json:"createdAt"`
-	DeletedAt          pgtype.Timestamp              `json:"deletedAt"`
-	UpdatedAt          pgtype.Timestamp              `json:"updatedAt"`
-	Name               pgtype.Text                   `json:"name"`
-	ID                 uuid.UUID                     `json:"id"`
-	Method             WorkflowTriggerCronRefMethods `json:"method"`
-	Priority           int32                         `json:"priority"`
-	WorkflowVersionId  uuid.UUID                     `json:"workflowVersionId"`
-	TenantId           uuid.UUID                     `json:"tenantId"`
+	ParentId           uuid.UUID                           `json:"parentId"`
+	Cron               string                              `json:"cron"`
+	TickerId           *uuid.UUID                          `json:"tickerId"`
+	Input              []byte                              `json:"input"`
+	Enabled            bool                                `json:"enabled"`
+	AdditionalMetadata []byte                              `json:"additionalMetadata"`
+	CreatedAt          pgtype.Timestamp                    `json:"createdAt"`
+	DeletedAt          pgtype.Timestamp                    `json:"deletedAt"`
+	UpdatedAt          pgtype.Timestamp                    `json:"updatedAt"`
+	Name               pgtype.Text                         `json:"name"`
+	ID                 uuid.UUID                           `json:"id"`
+	Method             enums.WorkflowTriggerCronRefMethods `json:"method"`
+	Priority           int32                               `json:"priority"`
+	WorkflowVersionId  uuid.UUID                           `json:"workflowVersionId"`
+	TenantId           uuid.UUID                           `json:"tenantId"`
 }
 
 // Returns every cron schedule this ticker should have scheduled: crons it already owns plus crons it claims
@@ -505,23 +506,23 @@ WHERE
 `
 
 type PollScheduledWorkflowsRow struct {
-	ID                  uuid.UUID                          `json:"id"`
-	ParentId            uuid.UUID                          `json:"parentId"`
-	TriggerAt           pgtype.Timestamp                   `json:"triggerAt"`
-	TickerId            *uuid.UUID                         `json:"tickerId"`
-	Input               []byte                             `json:"input"`
-	ChildIndex          pgtype.Int4                        `json:"childIndex"`
-	ChildKey            pgtype.Text                        `json:"childKey"`
-	ParentStepRunId     *uuid.UUID                         `json:"parentStepRunId"`
-	ParentWorkflowRunId *uuid.UUID                         `json:"parentWorkflowRunId"`
-	AdditionalMetadata  []byte                             `json:"additionalMetadata"`
-	CreatedAt           pgtype.Timestamp                   `json:"createdAt"`
-	DeletedAt           pgtype.Timestamp                   `json:"deletedAt"`
-	UpdatedAt           pgtype.Timestamp                   `json:"updatedAt"`
-	Method              WorkflowTriggerScheduledRefMethods `json:"method"`
-	Priority            int32                              `json:"priority"`
-	WorkflowVersionId   uuid.UUID                          `json:"workflowVersionId"`
-	TenantId            uuid.UUID                          `json:"tenantId"`
+	ID                  uuid.UUID                                `json:"id"`
+	ParentId            uuid.UUID                                `json:"parentId"`
+	TriggerAt           pgtype.Timestamp                         `json:"triggerAt"`
+	TickerId            *uuid.UUID                               `json:"tickerId"`
+	Input               []byte                                   `json:"input"`
+	ChildIndex          pgtype.Int4                              `json:"childIndex"`
+	ChildKey            pgtype.Text                              `json:"childKey"`
+	ParentStepRunId     *uuid.UUID                               `json:"parentStepRunId"`
+	ParentWorkflowRunId *uuid.UUID                               `json:"parentWorkflowRunId"`
+	AdditionalMetadata  []byte                                   `json:"additionalMetadata"`
+	CreatedAt           pgtype.Timestamp                         `json:"createdAt"`
+	DeletedAt           pgtype.Timestamp                         `json:"deletedAt"`
+	UpdatedAt           pgtype.Timestamp                         `json:"updatedAt"`
+	Method              enums.WorkflowTriggerScheduledRefMethods `json:"method"`
+	Priority            int32                                    `json:"priority"`
+	WorkflowVersionId   uuid.UUID                                `json:"workflowVersionId"`
+	TenantId            uuid.UUID                                `json:"tenantId"`
 }
 
 // Returns every scheduled workflow this ticker should have scheduled: ones due within the next 5 seconds that

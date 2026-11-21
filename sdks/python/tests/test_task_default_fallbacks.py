@@ -50,19 +50,10 @@ def task(
         task_defaults=task_defaults,
     )
 
-    task_fn = workflow.durable_task if is_durable else workflow.task
+    if is_durable:
+        return workflow.durable_task(**kwargs)(dummy_durable_task)
 
-    return task_fn(**kwargs)(dummy_durable_task if is_durable else dummy_task)  # type: ignore
-
-
-def standalone_task(
-    hatchet: Hatchet,
-    is_durable: bool,
-    **kwargs: Any,
-) -> Task[None, dict[str, str]]:
-    task_fn = hatchet.durable_task if is_durable else hatchet.task
-
-    return task_fn(**kwargs)(dummy_durable_task if is_durable else task)._task  # type: ignore
+    return workflow.task(**kwargs)(dummy_task)
 
 
 @pytest.mark.parametrize("is_durable", [False, True])
@@ -93,7 +84,7 @@ def test_task_defaults_applied_correctly(hatchet: Hatchet, is_durable: bool) -> 
 
 
 @pytest.mark.parametrize(
-    "is_durable,is_standalone",
+    ("is_durable", "is_standalone"),
     [
         (False, False),
         (True, False),
@@ -119,7 +110,7 @@ def test_fallbacking_ensure_default_unchanged(
 
 
 @pytest.mark.parametrize(
-    "is_durable,is_standalone",
+    ("is_durable", "is_standalone"),
     [
         (False, False),
         (True, False),
@@ -155,7 +146,7 @@ def test_defaults_correctly_overridden_by_params_passed_in(
 
 
 @pytest.mark.parametrize(
-    "is_durable,is_standalone",
+    ("is_durable", "is_standalone"),
     [
         (False, False),
         (True, False),

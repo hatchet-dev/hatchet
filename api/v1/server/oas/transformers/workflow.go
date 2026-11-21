@@ -161,7 +161,7 @@ func ToV1Concurrency(workflowConcurrencies []*sqlcv1.ListWorkflowConcurrencyByVe
 			Expression:     c.Expression,
 			LimitStrategy:  gen.ConcurrencyLimitStrategy(c.Strategy),
 			MaxRuns:        c.MaxConcurrency,
-			Scope:          gen.ConcurrencyScopeTASK,
+			Scope:          gen.TASK,
 		})
 	}
 
@@ -170,7 +170,7 @@ func ToV1Concurrency(workflowConcurrencies []*sqlcv1.ListWorkflowConcurrencyByVe
 			Expression:    wc.Expression,
 			LimitStrategy: gen.ConcurrencyLimitStrategy(wc.LimitStrategy),
 			MaxRuns:       wc.MaxRuns,
-			Scope:         gen.ConcurrencyScopeWORKFLOW,
+			Scope:         gen.WORKFLOW,
 		})
 	}
 
@@ -242,17 +242,9 @@ func ToWorkflowFromSQLC(row *sqlcv1.Workflow) *gen.Workflow {
 		Name:        row.Name,
 		Description: &row.Description.String,
 		IsPaused:    &row.IsPaused.Bool,
-	}
 
-	if row.PausedWorkflowCronRunQueueBehavior.Valid {
-		behavior := gen.WorkflowPauseScheduledCronRunQueueBehavior(string(row.PausedWorkflowCronRunQueueBehavior.WorkflowPauseQueueBehavior))
-		res.PausedWorkflowCronRunQueueBehavior = &behavior
-	}
-
-	if row.PausedWorkflowScheduledRunQueueBehavior.Valid {
-		behavior := gen.WorkflowPauseScheduledCronRunQueueBehavior(string(row.PausedWorkflowScheduledRunQueueBehavior.WorkflowPauseQueueBehavior))
-		res.PausedWorkflowScheduledRunQueueBehavior = &behavior
-
+		PausedWorkflowCronRunQueueBehavior:      row.PausedWorkflowCronRunQueueBehavior,
+		PausedWorkflowScheduledRunQueueBehavior: row.PausedWorkflowScheduledRunQueueBehavior,
 	}
 
 	return res

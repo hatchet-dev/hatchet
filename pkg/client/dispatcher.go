@@ -78,6 +78,14 @@ const (
 	ActionTypeStartBatch       ActionType = "START_BATCH"
 )
 
+func (a ActionType) Valid() bool {
+	switch a {
+	case ActionTypeStartStepRun, ActionTypeCancelStepRun, ActionTypeStartGetGroupKey, ActionTypeStartBatch:
+		return true
+	}
+	return false
+}
+
 // BatchStart carries the flush signal metadata for a batch task.
 type BatchStart struct {
 	TriggerTime   time.Time

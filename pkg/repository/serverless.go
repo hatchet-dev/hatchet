@@ -166,7 +166,7 @@ func newServerlessRepository(shared *sharedRepository) ServerlessRepository {
 func NewServerlessRepositoryFromPool(pool *pgxpool.Pool, l *zerolog.Logger) (ServerlessRepository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(fairpool.Ungated(pool), pool, v, l, PayloadStoreRepositoryOpts{}, limits.LimitConfigFile{}, false, time.Minute, false)
+	shared, cleanupShared := newSharedRepository(fairpool.Ungated(pool), pool, v, l, PayloadStoreRepositoryOpts{}, limits.LimitConfigFile{}, false, time.Minute, false, false)
 
 	return newServerlessRepository(shared), cleanupShared
 }

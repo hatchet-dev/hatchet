@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import UTC, timedelta
 
 from pydantic import BaseModel
 
@@ -110,9 +110,9 @@ async def call_api(input: OrderInput, ctx: Context) -> dict[str, str]:
 
 # > Hatchet scheduled run
 async def schedule_for_later() -> None:
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    run_at = datetime.now(tz=timezone.utc) + timedelta(hours=1)
+    run_at = datetime.now(tz=UTC) + timedelta(hours=1)
     await process_image.aio_schedule(
         run_at,
         ImageInput(image_url="https://example.com/photo.png", filters=["blur"]),

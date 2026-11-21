@@ -1,4 +1,5 @@
 import asyncio
+
 import pytest
 
 from examples.bug_tests.test_durable_event_wait_scopes.worker import (

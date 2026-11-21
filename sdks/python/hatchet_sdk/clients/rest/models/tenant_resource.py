@@ -32,6 +32,9 @@ class TenantResource(str, Enum):
     CRON = "CRON"
     SCHEDULE = "SCHEDULE"
     INCOMING_WEBHOOK = "INCOMING_WEBHOOK"
+    STREAM_TOPIC = "STREAM_TOPIC"
+    STREAM_MESSAGE = "STREAM_MESSAGE"
+    STREAM_RETENTION = "STREAM_RETENTION"
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

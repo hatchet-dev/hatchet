@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -270,19 +271,19 @@ INSERT INTO "Worker" (
 `
 
 type CreateWorkerParams struct {
-	Tenantid            uuid.UUID      `json:"tenantid"`
-	Name                string         `json:"name"`
-	Dispatcherid        uuid.UUID      `json:"dispatcherid"`
-	Type                NullWorkerType `json:"type"`
-	SdkVersion          pgtype.Text    `json:"sdkVersion"`
-	Language            NullWorkerSDKS `json:"language"`
-	LanguageVersion     pgtype.Text    `json:"languageVersion"`
-	Os                  pgtype.Text    `json:"os"`
-	RuntimeExtra        pgtype.Text    `json:"runtimeExtra"`
-	Actionhash          []byte         `json:"actionhash"`
-	Operatoractioncount int32          `json:"operatoractioncount"`
-	OperatorId          *uuid.UUID     `json:"operatorId"`
-	Isexemptfromlimits  bool           `json:"isexemptfromlimits"`
+	Tenantid            uuid.UUID         `json:"tenantid"`
+	Name                string            `json:"name"`
+	Dispatcherid        uuid.UUID         `json:"dispatcherid"`
+	Type                *enums.WorkerType `json:"type"`
+	SdkVersion          pgtype.Text       `json:"sdkVersion"`
+	Language            NullWorkerSDKS    `json:"language"`
+	LanguageVersion     pgtype.Text       `json:"languageVersion"`
+	Os                  pgtype.Text       `json:"os"`
+	RuntimeExtra        pgtype.Text       `json:"runtimeExtra"`
+	Actionhash          []byte            `json:"actionhash"`
+	Operatoractioncount int32             `json:"operatoractioncount"`
+	OperatorId          *uuid.UUID        `json:"operatorId"`
+	Isexemptfromlimits  bool              `json:"isexemptfromlimits"`
 }
 
 func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerParams) (*Worker, error) {

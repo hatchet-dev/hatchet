@@ -1,9 +1,8 @@
 import asyncio
 from collections import Counter
-from datetime import datetime
+from datetime import UTC, datetime
 from random import choice
 from typing import Literal
-from uuid import uuid4
 
 import pytest
 from pydantic import BaseModel
@@ -15,8 +14,7 @@ from examples.concurrency_multiple_keys.worker import (
     concurrency_multiple_keys_workflow,
 )
 from examples.test_utils import poll_for_runs
-from hatchet_sdk import Hatchet
-from hatchet_sdk import TaskRunSummary
+from hatchet_sdk import Hatchet, TaskRunSummary
 
 Character = Literal["Anna", "Vronsky", "Stiva", "Dolly", "Levin", "Karenin"]
 characters: list[Character] = [
@@ -44,8 +42,8 @@ class RunMetadata(BaseModel):
             key=task.additional_metadata["key"],
             name=task.additional_metadata["name"],
             digit=task.additional_metadata["digit"],
-            started_at=task.started_at or datetime.max,
-            finished_at=task.finished_at or datetime.min,
+            started_at=task.started_at or datetime.max.replace(tzinfo=UTC),
+            finished_at=task.finished_at or datetime.min.replace(tzinfo=UTC),
         )
 
     def __str__(self) -> str:
@@ -113,9 +111,6 @@ async def test_multi_concurrency_key(hatchet: Hatchet, test_run_id: str) -> None
             overlapping_groups[1] = [run]
             continue
 
-        if has_group_membership:
-            continue
-
         for id, group in overlapping_groups.items():
             if all(are_overlapping(run, task) for task in group):
                 overlapping_groups[id].append(run)
@@ -150,7 +145,4 @@ def is_valid_group(group: list[RunMetadata]) -> bool:
     if any(v > DIGIT_MAX_RUNS for v in digits.values()):
         return False
 
-    if any(v > NAME_MAX_RUNS for v in names.values()):
-        return False
-
-    return True
+    return not any(v > NAME_MAX_RUNS for v in names.values())

@@ -3,6 +3,9 @@ WorkflowPauseScheduledCronRunQueueBehavior:
   enum:
     - DROP
     - QUEUE
+  x-go-type: enums.WorkflowPauseQueueBehavior
+  x-go-type-import:
+    path: github.com/hatchet-dev/hatchet/pkg/enums
 
 Workflow:
   properties:

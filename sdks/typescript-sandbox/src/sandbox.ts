@@ -79,7 +79,7 @@ export interface SandboxOpts {
   template?: string;
   /** Snapshot to start from. Two sandboxes with the same `from` are a fork. */
   from?: string;
-  /** Key-value tags, used to find the sandbox again with {@link SandboxNamespace.list}. */
+  /** Key-value pairs, used to find the sandbox again with {@link SandboxNamespace.list}. */
   metadata?: Record<string, string>;
   /** Milliseconds without a turn before the provider removes the sandbox. Capped by the provider. */
   idleTimeoutMs?: number;
@@ -203,7 +203,18 @@ export interface SandboxInfo {
   lastUsed?: Date;
 }
 
-type RunTurn = (input: TurnInput, opts?: { fresh?: boolean }) => Promise<TurnResult>;
+type RunTurn = (
+  input: TurnInput,
+  opts?: { fresh?: boolean; metadata?: Record<string, string> }
+) => Promise<TurnResult>;
+
+const metadataOf = (output: Record<string, unknown>): Record<string, string> => {
+  const own = metadata.safeParse(output.metadata);
+  return {
+    ...(own.success ? own.data : {}),
+    ...(typeof output.provider === 'string' ? { 'hatchet.sandbox.provider': output.provider } : {}),
+  };
+};
 
 function turnRunner(client: HatchetClient): RunTurn {
   const resolved = resolveTaskName(client);
@@ -212,6 +223,7 @@ function turnRunner(client: HatchetClient): RunTurn {
     const payload = input as JsonObject;
     const name = await resolved;
     const additionalMetadata = {
+      ...opts?.metadata,
       'hatchet.sandbox.fn': input.fn,
       ...(input.sandboxId ? { 'hatchet.sandbox.id': input.sandboxId } : {}),
       ...(input.image ? { 'hatchet.sandbox.image': input.image } : {}),
@@ -235,11 +247,16 @@ export class Sandbox {
   /** File operations on the workspace. */
   readonly files: Files;
 
+  /** The sandbox's metadata, seeded by the provider's metadata and topped with `hatchet.sandbox.provider`. Every task run of this sandbox carries it as run metadata. */
+  readonly metadata: Record<string, string>;
+
   private constructor(
     private readonly run: RunTurn,
     readonly sandboxId: string,
-    private readonly template?: string
+    private readonly template?: string,
+    metadata: Record<string, string> = {}
   ) {
+    this.metadata = metadata;
     this.files = new Files((fn, input, fresh) => this.turn(fn, input, fresh));
   }
 
@@ -259,7 +276,7 @@ export class Sandbox {
       inheritMetadata: o.inheritParentMetadata,
       resources: o.resources,
     });
-    return new Sandbox(run, created.sandboxId, o.template);
+    return new Sandbox(run, created.sandboxId, o.template, metadataOf(created.output));
   }
 
   /** Attaches to a sandbox by ID. Prefer `hatchet.sandbox.connect`. */
@@ -272,8 +289,8 @@ export class Sandbox {
     const o = connectOpts.parse(opts);
     await setupTelemetry();
     const run = turnRunner(client);
-    await run({ fn: '$connect', input: {}, sandboxId: id, image: o.template });
-    return new Sandbox(run, id, o.template);
+    const connected = await run({ fn: '$connect', input: {}, sandboxId: id, image: o.template });
+    return new Sandbox(run, id, o.template, metadataOf(connected.output));
   }
 
   /** Lists sandboxes on the provider. Prefer `hatchet.sandbox.list`. */
@@ -288,8 +305,8 @@ export class Sandbox {
     deleteOpts.parse(opts);
     const run = turnRunner(client);
     const ids: string[] = [];
-    for (const { sandboxId } of await Sandbox.list(client, opts)) {
-      await run({ fn: '$delete', input: {}, sandboxId });
+    for (const { sandboxId, metadata } of await Sandbox.list(client, opts)) {
+      await run({ fn: '$delete', input: {}, sandboxId }, { metadata });
       ids.push(sandboxId);
     }
     return ids;
@@ -314,7 +331,7 @@ export class Sandbox {
   private async turn(fn: string, input: JsonObject, fresh = false): Promise<JsonObject> {
     const result = await this.run(
       { sandboxId: this.sandboxId, image: this.template, fn, input },
-      { fresh }
+      { fresh, metadata: this.metadata }
     );
     return {
       ...result.output,

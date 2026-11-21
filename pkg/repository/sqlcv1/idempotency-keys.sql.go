@@ -140,6 +140,8 @@ WITH input AS (
         (t.id, t.inserted_at, t.retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
 		AND t.idempotency_key IS NOT NULL
 		AND wv."idempotencyMethod" = 'STATUS'
+		AND t.inserted_at >= $4::TIMESTAMPTZ
+		AND t.inserted_at <= $5::TIMESTAMPTZ
 ), keys_to_release AS (
     SELECT tenant_id, key, expires_at, claimed_by_external_id, inserted_at, updated_at
 	FROM v1_idempotency_key
@@ -159,14 +161,22 @@ WHERE (tenant_id, key) IN (
 `
 
 type ReleaseIdempotencyKeysParams struct {
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Taskretrycounts []int32              `json:"taskretrycounts"`
+	Taskids           []int64              `json:"taskids"`
+	Taskinsertedats   []pgtype.Timestamptz `json:"taskinsertedats"`
+	Taskretrycounts   []int32              `json:"taskretrycounts"`
+	Mintaskinsertedat pgtype.Timestamptz   `json:"mintaskinsertedat"`
+	Maxtaskinsertedat pgtype.Timestamptz   `json:"maxtaskinsertedat"`
 }
 
 // !! IMPORTANT: this only gets called when a task reaches a terminal state (exhausted all retries, completed, etc.)
 // which means we want to evict any idempotency keys that still are live and tied to the task at this point
 func (q *Queries) ReleaseIdempotencyKeys(ctx context.Context, db DBTX, arg ReleaseIdempotencyKeysParams) error {
-	_, err := db.Exec(ctx, releaseIdempotencyKeys, arg.Taskids, arg.Taskinsertedats, arg.Taskretrycounts)
+	_, err := db.Exec(ctx, releaseIdempotencyKeys,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Taskretrycounts,
+		arg.Mintaskinsertedat,
+		arg.Maxtaskinsertedat,
+	)
 	return err
 }

@@ -1,5 +1,4 @@
-from hatchet_sdk import Context, Hatchet, WorkerLabel, WorkerLabelComparator
-from hatchet_sdk import DesiredWorkerLabel
+from hatchet_sdk import Context, DesiredWorkerLabel, Hatchet, WorkerLabel
 
 hatchet = Hatchet()
 

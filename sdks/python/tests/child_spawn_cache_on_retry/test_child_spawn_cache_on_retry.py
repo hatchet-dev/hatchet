@@ -1,11 +1,9 @@
 from subprocess import Popen
 from typing import Any
-from uuid import uuid4
 
 import pytest
 
 from hatchet_sdk import Hatchet
-from hatchet_sdk.types.run_status import RunStatus
 from tests.child_spawn_cache_on_retry.worker import (
     spawn_cache_on_retry_child,
     spawn_cache_on_retry_parent,
@@ -21,12 +19,10 @@ from tests.child_spawn_cache_on_retry.worker import (
 async def test_spawn_caching_on_retry(
     hatchet: Hatchet, on_demand_worker: Popen[Any], test_run_id: str
 ) -> None:
-    try:
+    with pytest.raises(Exception, match="Task exceeded timeout of"):
         await spawn_cache_on_retry_parent.aio_run(
             additional_metadata={"test_run_id": test_run_id}
         )
-    except Exception as e:
-        assert "Task exceeded timeout of" in str(e)
 
     runs = await spawn_cache_on_retry_child.aio_list_runs(
         additional_metadata={"test_run_id": test_run_id}

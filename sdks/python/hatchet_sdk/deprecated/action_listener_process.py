@@ -45,6 +45,7 @@ if TYPE_CHECKING:
     from multiprocessing import Queue
 
     from hatchet_sdk.clients.dispatcher.action_listener import ActionListener
+    from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 
 ACTION_EVENT_RETRY_COUNT = 5
 
@@ -83,9 +84,11 @@ class LegacyWorkerActionListenerProcess:
         self._waiting_tasks_blocked_since: float | None = None
         self._starting_since: float = time.time()
 
+        self.dispatcher_client: DispatcherClient | None = None
         self.listener: ActionListener | None = None
         self.killing = False
         self.action_loop_task: asyncio.Task[None] | None = None
+        self.blocked_main_loop: asyncio.Task[None] | None = None
         self.event_send_loop_task: asyncio.Task[None] | None = None
         self._stop_event_task: asyncio.Task[None] | None = None
         self.running_task_runs: dict[str, float] = {}
@@ -345,6 +348,11 @@ class LegacyWorkerActionListenerProcess:
             await asyncio.sleep(1)
 
     async def send_event(self, event: ActionEvent, retry_attempt: int = 1) -> None:
+        if self.dispatcher_client is None:
+            raise RuntimeError(
+                "cannot send action events before the action listener has started"
+            )
+
         try:
             match event.action.action_type:
                 case ActionType.START_STEP_RUN:

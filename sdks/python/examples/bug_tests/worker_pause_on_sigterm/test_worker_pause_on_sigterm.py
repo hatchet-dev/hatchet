@@ -6,8 +6,8 @@ from typing import Any
 import psutil
 import pytest
 
-from examples.bug_tests.worker_pause_on_sigterm.worker import long_sleep, WORKER_NAME
-from hatchet_sdk import Hatchet, RunStatus
+from examples.bug_tests.worker_pause_on_sigterm.worker import WORKER_NAME, long_sleep
+from hatchet_sdk import Hatchet
 
 
 @pytest.mark.parametrize(
@@ -36,9 +36,9 @@ async def test_worker_pauses_when_only_parent_receives_sigterm(
             break
         await asyncio.sleep(1)
     else:
-        assert (
-            False
-        ), f"Task never started running, status was {run.status}\n\nrun details: {run.model_dump_json(indent=2)}"
+        pytest.fail(
+            f"Task never started running, status was {run.status}\n\nrun details: {run.model_dump_json(indent=2)}"
+        )
 
     parent = psutil.Process(on_demand_worker.pid)
     parent.send_signal(signal.SIGTERM)
@@ -58,7 +58,7 @@ async def test_worker_pauses_when_only_parent_receives_sigterm(
             break
         await asyncio.sleep(1)
     else:
-        assert False, f"Worker {WORKER_NAME} never reported PAUSED"
+        pytest.fail(f"Worker {WORKER_NAME} never reported PAUSED")
 
     for _ in range(30):
         run = await hatchet.runs.aio_get_details(ref.workflow_run_id)
@@ -66,4 +66,4 @@ async def test_worker_pauses_when_only_parent_receives_sigterm(
             break
         await asyncio.sleep(1)
     else:
-        assert False, "Task never completed"
+        pytest.fail("Task never completed")

@@ -7,8 +7,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -21,7 +20,11 @@ from opentelemetry.trace import StatusCode, get_tracer
 
 from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 from hatchet_sdk.types.trigger import TriggerWorkflowOptions, WorkflowRunTriggerConfig
-from hatchet_sdk.workflow_run import WorkflowRunRef
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    from hatchet_sdk.workflow_run import WorkflowRunRef
 
 BATCH_SPAN_NAME = "hatchet.run_workflows"
 ITEM_SPAN_NAME = "hatchet.run_workflow"
@@ -37,6 +40,11 @@ def _make_config(name: str) -> WorkflowRunTriggerConfig:
 
 def _spans_by_name(exporter: InMemorySpanExporter, name: str) -> list[ReadableSpan]:
     return [s for s in exporter.get_finished_spans() if s.name == name]
+
+
+def _span_id(span: ReadableSpan) -> int:
+    assert span.context is not None
+    return int(span.context.span_id)
 
 
 @pytest.fixture
@@ -75,7 +83,7 @@ def test_run_workflows_creates_no_item_spans_when_flag_disabled(
 
     def wrapped(configs: list[WorkflowRunTriggerConfig]) -> list[WorkflowRunRef]:
         captured.extend(configs)
-        return [cast(WorkflowRunRef, MagicMock()) for _ in configs]
+        return [cast("WorkflowRunRef", MagicMock()) for _ in configs]
 
     configs = [_make_config(f"wf-{i}") for i in range(3)]
     instrumentor._wrap_run_workflows(wrapped, MagicMock(), (configs,), {})
@@ -85,7 +93,7 @@ def test_run_workflows_creates_no_item_spans_when_flag_disabled(
     assert _spans_by_name(exporter, ITEM_SPAN_NAME) == []
 
     # Every item shares the batch span's traceparent (the legacy behaviour).
-    batch_span_id_hex = format(batch_spans[0].context.span_id, "016x")
+    batch_span_id_hex = format(_span_id(batch_spans[0]), "016x")
     traceparents = [c.options.additional_metadata["traceparent"] for c in captured]
     assert len(set(traceparents)) == 1
     for tp in traceparents:
@@ -99,7 +107,7 @@ def test_run_workflows_creates_one_item_span_per_config_with_unique_traceparent(
 
     def wrapped(configs: list[WorkflowRunTriggerConfig]) -> list[WorkflowRunRef]:
         captured.extend(configs)
-        return [cast(WorkflowRunRef, MagicMock()) for _ in configs]
+        return [cast("WorkflowRunRef", MagicMock()) for _ in configs]
 
     configs = [_make_config(f"wf-{i}") for i in range(3)]
     instrumentor._wrap_run_workflows(wrapped, MagicMock(), (configs,), {})
@@ -109,7 +117,7 @@ def test_run_workflows_creates_one_item_span_per_config_with_unique_traceparent(
     assert len(batch_spans) == 1
     assert len(item_spans) == 3
 
-    batch_span_id = batch_spans[0].context.span_id
+    batch_span_id = _span_id(batch_spans[0])
     for s in item_spans:
         assert s.parent is not None
         assert s.parent.span_id == batch_span_id
@@ -119,7 +127,7 @@ def test_run_workflows_creates_one_item_span_per_config_with_unique_traceparent(
     # not the batch span — this is the regression the PR fixes.
     traceparents = [c.options.additional_metadata["traceparent"] for c in captured]
     assert len(set(traceparents)) == 3
-    item_span_ids = {format(s.context.span_id, "016x") for s in item_spans}
+    item_span_ids = {format(_span_id(s), "016x") for s in item_spans}
     for tp in traceparents:
         # traceparent format: 00-<trace_id>-<span_id>-<flags>
         span_id_hex = tp.split("-")[2]
@@ -133,7 +141,7 @@ async def test_async_run_workflows_creates_one_item_span_per_config(
     async def wrapped(
         configs: list[WorkflowRunTriggerConfig],
     ) -> list[WorkflowRunRef]:
-        return [cast(WorkflowRunRef, MagicMock()) for _ in configs]
+        return [cast("WorkflowRunRef", MagicMock()) for _ in configs]
 
     configs = [_make_config(f"wf-{i}") for i in range(2)]
     await instrumentor._wrap_async_run_workflows(wrapped, MagicMock(), (configs,), {})
@@ -163,7 +171,7 @@ def test_run_workflows_ends_spans_with_error_when_attribute_build_raises(
 
     def wrapped(configs: list[WorkflowRunTriggerConfig]) -> list[WorkflowRunRef]:
         wrapped_calls.append(configs)
-        return [cast(WorkflowRunRef, MagicMock()) for _ in configs]
+        return [cast("WorkflowRunRef", MagicMock()) for _ in configs]
 
     configs = [_make_config(f"wf-{i}") for i in range(3)]
 

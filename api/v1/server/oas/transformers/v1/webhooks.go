@@ -16,7 +16,7 @@ func ToV1Webhook(webhook *sqlcv1.V1IncomingWebhook) gen.V1Webhook {
 	var id uuid.UUID
 
 	result := gen.V1Webhook{
-		AuthType: gen.V1WebhookAuthType(webhook.AuthMethod),
+		AuthType: webhook.AuthMethod,
 		Metadata: gen.APIResourceMeta{
 			CreatedAt: webhook.InsertedAt.Time,
 			UpdatedAt: webhook.UpdatedAt.Time,
@@ -25,7 +25,7 @@ func ToV1Webhook(webhook *sqlcv1.V1IncomingWebhook) gen.V1Webhook {
 		TenantId:                     webhook.TenantID.String(),
 		EventKeyExpression:           webhook.EventKeyExpression,
 		Name:                         webhook.Name,
-		SourceName:                   gen.V1WebhookSourceName(webhook.SourceName),
+		SourceName:                   webhook.SourceName,
 		ReturnEventAsResponsePayload: &webhook.ReturnEventAsResponsePayload,
 	}
 

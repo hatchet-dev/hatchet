@@ -13,6 +13,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -121,7 +122,7 @@ func TestEmitOrchestratorTerminalEvents_Filtering(t *testing.T) {
 			err := c.emitOrchestratorTerminalEvents(
 				context.Background(), tenantId, tc.released,
 				map[int64]string{1: "d1", 2: "d2", 3: "d3"},
-				tc.skipRetried, sqlcv1.V1EventTypeOlapFINISHED,
+				tc.skipRetried, enums.V1EventTypeOlapFINISHED,
 			)
 
 			require.NoError(t, err)
@@ -138,7 +139,7 @@ func TestEmitOrchestratorTerminalEvents_PayloadRouting(t *testing.T) {
 		c := newTestController(mq)
 
 		err := c.emitOrchestratorTerminalEvent(
-			context.Background(), tenantId, 42, 3, sqlcv1.V1EventTypeOlapFINISHED, `{"ok":true}`,
+			context.Background(), tenantId, 42, 3, enums.V1EventTypeOlapFINISHED, `{"ok":true}`,
 		)
 		require.NoError(t, err)
 		require.Equal(t, int64(1), mq.sends.Load())
@@ -154,7 +155,7 @@ func TestEmitOrchestratorTerminalEvents_PayloadRouting(t *testing.T) {
 		c := newTestController(mq)
 
 		err := c.emitOrchestratorTerminalEvent(
-			context.Background(), tenantId, 42, 0, sqlcv1.V1EventTypeOlapCANCELLED, "cancelled by user",
+			context.Background(), tenantId, 42, 0, enums.V1EventTypeOlapCANCELLED, "cancelled by user",
 		)
 		require.NoError(t, err)
 		require.Equal(t, int64(1), mq.sends.Load())
@@ -170,7 +171,7 @@ func TestEmitOrchestratorTerminalEvent_RetriesThenSucceeds(t *testing.T) {
 	c := newTestController(mq)
 
 	err := c.emitOrchestratorTerminalEvent(
-		context.Background(), uuid.New(), 1, 0, sqlcv1.V1EventTypeOlapFINISHED, "",
+		context.Background(), uuid.New(), 1, 0, enums.V1EventTypeOlapFINISHED, "",
 	)
 
 	require.NoError(t, err)
@@ -186,7 +187,7 @@ func TestEmitOrchestratorTerminalEvent_ExhaustsRetries(t *testing.T) {
 	c := newTestController(mq)
 
 	err := c.emitOrchestratorTerminalEvent(
-		context.Background(), uuid.New(), 1, 0, sqlcv1.V1EventTypeOlapFAILED, "boom",
+		context.Background(), uuid.New(), 1, 0, enums.V1EventTypeOlapFAILED, "boom",
 	)
 
 	require.Error(t, err)
@@ -201,7 +202,7 @@ func TestEmitOrchestratorTerminalEvent_ContextCancelledStopsRetry(t *testing.T) 
 	cancel() // already cancelled: attempt 0 runs, then the retry wait bails immediately
 
 	err := c.emitOrchestratorTerminalEvent(
-		ctx, uuid.New(), 1, 0, sqlcv1.V1EventTypeOlapFINISHED, "",
+		ctx, uuid.New(), 1, 0, enums.V1EventTypeOlapFINISHED, "",
 	)
 
 	require.ErrorIs(t, err, context.Canceled)

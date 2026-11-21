@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 from uuid import uuid4
 
 import pytest
@@ -7,7 +8,7 @@ from examples.concurrency_cancel_newest_task_level.worker import (
     WorkflowInput,
     concurrency_cancel_newest_task_level_workflow,
 )
-from hatchet_sdk import Hatchet, RunStatus
+from hatchet_sdk import Hatchet
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -44,10 +45,8 @@ async def test_run(hatchet: Hatchet) -> None:
     await to_run.aio_result()
 
     for ref in to_cancel:
-        try:
+        with contextlib.suppress(Exception):
             await ref.aio_result()
-        except Exception:
-            pass
 
     # read the authoritative run details (rather than the eventually-consistent runs list) so we
     # don't need to sleep waiting for the OLAP repo to catch up.

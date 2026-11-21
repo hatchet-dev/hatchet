@@ -1,11 +1,11 @@
 import asyncio
+import contextlib
 from subprocess import Popen
 from typing import Any
 
 import pytest
 
 from hatchet_sdk import Hatchet
-from hatchet_sdk.types.run_status import RunStatus
 from tests.correct_failure_on_timeout_with_multi_concurrency.workflow import (
     TIMEOUT_SECONDS,
     InputModel,
@@ -37,10 +37,8 @@ async def test_failure_on_timeout(
         wait_for_result=False,
     )
 
-    try:
+    with contextlib.suppress(Exception):
         await asyncio.gather(*[run.aio_result() for run in runs])
-    except Exception:
-        pass
 
     results = {}
     for _ in range(int((TIMEOUT_SECONDS * 6) / 0.5)):

@@ -1,5 +1,6 @@
-from examples.durable_sleep.worker import durable_sleep_task, hatchet
 import time
+
+from examples.durable_sleep.worker import durable_sleep_task, hatchet
 
 durable_sleep_task.run(wait_for_result=False)
 

@@ -41,7 +41,7 @@ type fakeBatchRepo struct {
 	reserveFunc func(call *fakeReserveCall) (bool, error)
 }
 
-func (f *fakeBatchRepo) ListBatchResources(ctx context.Context) ([]*sqlcv1.ListDistinctBatchResourcesRow, error) {
+func (f *fakeBatchRepo) ListBatchResources(context.Context, []uuid.UUID) ([]*sqlcv1.ListDistinctBatchResourcesRow, error) {
 	return nil, nil
 }
 
@@ -329,7 +329,6 @@ func TestBatchSchedulerFlushOnBatchSize(t *testing.T) {
 
 	resource := &sqlcv1.ListDistinctBatchResourcesRow{
 		StepID:       stepId,
-		BatchKey:     "batch",
 		BatchMaxSize: 2,
 	}
 
@@ -369,7 +368,6 @@ func TestBatchSchedulerFlushOnInterval(t *testing.T) {
 
 	resource := &sqlcv1.ListDistinctBatchResourcesRow{
 		StepID:           stepId,
-		BatchKey:         "interval",
 		BatchMaxSize:     10,
 		BatchMaxInterval: pgtype.Int4{Int32: 50, Valid: true},
 	}
@@ -402,7 +400,6 @@ func TestBatchSchedulerAssignAndDispatchCommitsAssignments(t *testing.T) {
 		tenantId,
 		&sqlcv1.ListDistinctBatchResourcesRow{
 			StepID:            stepId,
-			BatchKey:          "group",
 			BatchMaxSize:      2,
 			BatchGroupMaxRuns: pgtype.Int4{Int32: 1, Valid: true},
 		},
@@ -523,7 +520,6 @@ func TestBatchSchedulerUsesSingleSlotForBatch(t *testing.T) {
 		tenantId,
 		&sqlcv1.ListDistinctBatchResourcesRow{
 			StepID:       stepId,
-			BatchKey:     "single-slot",
 			BatchMaxSize: 3,
 		},
 		queueFactory,
@@ -635,7 +631,6 @@ func TestBatchSchedulerScheduleTimeout(t *testing.T) {
 
 	resource := &sqlcv1.ListDistinctBatchResourcesRow{
 		StepID:       stepId,
-		BatchKey:     "timeout-batch",
 		BatchMaxSize: 5,
 	}
 
@@ -704,7 +699,6 @@ func TestBatchSchedulerHandlesMultipleBatchKeysForStep(t *testing.T) {
 
 	resource := &sqlcv1.ListDistinctBatchResourcesRow{
 		StepID:       stepId,
-		BatchKey:     "a", // representative row only; the scheduler covers every batch key for the step
 		BatchMaxSize: 2,
 	}
 
@@ -776,7 +770,6 @@ func TestBatchSchedulerReconcilesBuffersInSingleCall(t *testing.T) {
 
 	resource := &sqlcv1.ListDistinctBatchResourcesRow{
 		StepID:       stepId,
-		BatchKey:     "a",
 		BatchMaxSize: 100, // large enough that nothing flushes during this test
 	}
 
@@ -841,7 +834,6 @@ func TestBatchSchedulerRespectsBatchSizeWithMultiplePendingItems(t *testing.T) {
 
 	resource := &sqlcv1.ListDistinctBatchResourcesRow{
 		StepID:           stepId,
-		BatchKey:         "",
 		BatchMaxSize:     1,
 		BatchMaxInterval: pgtype.Int4{Int32: 100, Valid: true},
 	}
@@ -905,7 +897,6 @@ func TestBatchSchedulerExcludesBufferedIdsFromRefetch(t *testing.T) {
 
 	resource := &sqlcv1.ListDistinctBatchResourcesRow{
 		StepID:       stepId,
-		BatchKey:     "a",
 		BatchMaxSize: 100, // large enough that nothing flushes during this test
 	}
 
@@ -931,4 +922,122 @@ func TestBatchSchedulerExcludesBufferedIdsFromRefetch(t *testing.T) {
 
 	// Only the genuinely new row (5) should have been added; ids 1 and 2 shouldn't be duplicated.
 	require.ElementsMatch(t, []int64{1, 2, 5}, scheduler.groups["a"].getBufferedIds())
+}
+
+func TestBatchSchedulerFlushDeadlineStartsAtFirstBufferedItem(t *testing.T) {
+	tenantId := uuid.MustParse("00000000-0000-0000-0000-0000000000a1")
+	stepId := uuid.MustParse("00000000-0000-0000-0000-0000000000a2")
+
+	item := func(id int64) *sqlcv1.V1BatchedQueueItem {
+		return &sqlcv1.V1BatchedQueueItem{
+			ID:             id,
+			TenantID:       tenantId,
+			Queue:          "default",
+			TaskID:         id,
+			TaskInsertedAt: pgtype.Timestamptz{Valid: true},
+			BatchKey:       "reused",
+		}
+	}
+
+	repo := &fakeBatchRepo{
+		listResponses: [][]*sqlcv1.V1BatchedQueueItem{
+			{item(1)},
+			{item(2)},
+		},
+	}
+
+	resource := &sqlcv1.ListDistinctBatchResourcesRow{
+		StepID:           stepId,
+		BatchMaxSize:     100,
+		BatchMaxInterval: pgtype.Int4{Int32: 10_000, Valid: true},
+	}
+
+	scheduler := newBatchScheduler(
+		newTestSharedConfig(repo),
+		tenantId,
+		resource,
+		nil,
+		nil,
+		func(*QueueResults) {},
+	)
+	require.NotNil(t, scheduler)
+
+	// A long-idle group whose deadline expired at its last flush.
+	stale := time.Now().Add(-time.Minute)
+	scheduler.groups["reused"] = &batchGroup{
+		batchKey:      "reused",
+		flushInterval: scheduler.flushInterval,
+		flushDeadline: &stale,
+		l:             new(zerolog.New(io.Discard)),
+	}
+
+	before := time.Now()
+	_, err := scheduler.fetchNewItems(context.Background())
+	require.NoError(t, err)
+
+	group := scheduler.groups["reused"]
+	require.Len(t, group.buffer, 1)
+	require.NotNil(t, group.flushDeadline)
+	require.False(t, group.flushDeadline.Before(before.Add(10*time.Second)), "deadline should start when the first item is buffered")
+
+	firstDeadline := *group.flushDeadline
+
+	_, err = scheduler.fetchNewItems(context.Background())
+	require.NoError(t, err)
+
+	require.Len(t, group.buffer, 2)
+	require.Equal(t, firstDeadline, *group.flushDeadline, "later items must not push the deadline out")
+}
+
+func TestBatchGroupResetFlushDeadlineClearsWhenEmpty(t *testing.T) {
+	interval := 10 * time.Second
+	stale := time.Now().Add(-time.Minute)
+
+	group := &batchGroup{
+		batchKey:      "empty",
+		flushInterval: &interval,
+		flushDeadline: &stale,
+		l:             new(zerolog.New(io.Discard)),
+	}
+
+	group.resetFlushDeadline()
+	require.Nil(t, group.flushDeadline)
+
+	group.buffer = []bufferedItem{{ID: 1}}
+	group.resetFlushDeadline()
+	require.NotNil(t, group.flushDeadline)
+}
+
+func TestBatchSchedulerEvictsEmptiedGroupWithStaleDeadline(t *testing.T) {
+	tenantId := uuid.MustParse("00000000-0000-0000-0000-0000000000b1")
+	stepId := uuid.MustParse("00000000-0000-0000-0000-0000000000b2")
+
+	scheduler := newBatchScheduler(
+		newTestSharedConfig(&fakeBatchRepo{}),
+		tenantId,
+		&sqlcv1.ListDistinctBatchResourcesRow{
+			StepID:           stepId,
+			BatchMaxSize:     100,
+			BatchMaxInterval: pgtype.Int4{Int32: 10_000, Valid: true},
+		},
+		nil,
+		nil,
+		func(*QueueResults) {},
+	)
+	require.NotNil(t, scheduler)
+
+	// Reconcile or timeouts emptied the buffer without a flush, leaving the deadline set.
+	stale := time.Now().Add(-time.Hour)
+	group := &batchGroup{
+		batchKey:      "emptied",
+		flushInterval: scheduler.flushInterval,
+		flushDeadline: &stale,
+		lastActiveAt:  new(time.Now().Add(-2 * scheduler.idleTTL)),
+		l:             new(zerolog.New(io.Discard)),
+	}
+
+	require.True(t, scheduler.groupIsIdle(group))
+
+	group.buffer = []bufferedItem{{ID: 1}}
+	require.False(t, scheduler.groupIsIdle(group))
 }

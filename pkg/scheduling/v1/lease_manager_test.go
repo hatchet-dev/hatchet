@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -65,8 +66,23 @@ type fakeBatchQueueRepo struct {
 	resources []*sqlcv1.ListDistinctBatchResourcesRow
 }
 
-func (f *fakeBatchQueueRepo) ListBatchResources(context.Context) ([]*sqlcv1.ListDistinctBatchResourcesRow, error) {
-	return f.resources, nil
+func (f *fakeBatchQueueRepo) ListBatchResources(_ context.Context, stepIds []uuid.UUID) ([]*sqlcv1.ListDistinctBatchResourcesRow, error) {
+	if stepIds == nil {
+		return f.resources, nil
+	}
+
+	wanted := make(map[uuid.UUID]struct{}, len(stepIds))
+	for _, id := range stepIds {
+		wanted[id] = struct{}{}
+	}
+
+	rows := make([]*sqlcv1.ListDistinctBatchResourcesRow, 0, len(f.resources))
+	for _, row := range f.resources {
+		if _, ok := wanted[row.StepID]; ok {
+			rows = append(rows, row)
+		}
+	}
+	return rows, nil
 }
 
 func (f *fakeBatchQueueRepo) ListBatchedQueueItems(context.Context, uuid.UUID, []int64, int32) ([]*sqlcv1.V1BatchedQueueItem, error) {
@@ -105,6 +121,9 @@ func (f *fakeBatchQueueRepo) ReserveAndCommitBatchRun(
 
 type fakeLeaseRepo struct {
 	resourceSets [][]string
+
+	// ownedElsewhere lists resource ids another scheduler holds; they come back unacquired
+	ownedElsewhere map[string]struct{}
 }
 
 func (f *fakeLeaseRepo) ListQueues(context.Context, uuid.UUID) ([]*sqlcv1.V1Queue, error) {
@@ -131,6 +150,10 @@ func (f *fakeLeaseRepo) AcquireOrExtendLeases(_ context.Context, _ uuid.UUID, _ 
 	f.resourceSets = append(f.resourceSets, resourceIds)
 	leases := make([]*sqlcv1.Lease, len(resourceIds))
 	for i, id := range resourceIds {
+		if _, ok := f.ownedElsewhere[id]; ok {
+			leases[i] = &sqlcv1.Lease{}
+			continue
+		}
 		leases[i] = &sqlcv1.Lease{ResourceId: id}
 	}
 	return leases, nil
@@ -315,9 +338,8 @@ func TestAcquireBatchLeasesUsesStepLevelResourceIds(t *testing.T) {
 	otherStepID := uuid.MustParse("cccccccc-cccc-cccc-cccc-cccccccccccc")
 
 	resources := []*sqlcv1.ListDistinctBatchResourcesRow{
-		{StepID: stepID, BatchKey: "key-1"},
-		{StepID: stepID, BatchKey: "key-2"},
-		{StepID: otherStepID, BatchKey: "key-3"},
+		{StepID: stepID},
+		{StepID: otherStepID},
 	}
 
 	leaseRepo := &fakeLeaseRepo{}
@@ -329,22 +351,12 @@ func TestAcquireBatchLeasesUsesStepLevelResourceIds(t *testing.T) {
 	logger := zerolog.New(io.Discard)
 	lm, _, _, _, batchesCh := newLeaseManager(&sharedConfig{repo: repo, l: &logger}, tenantID)
 
-	received := make(chan []*sqlcv1.ListDistinctBatchResourcesRow, 1)
-	ready := make(chan struct{})
-	go func() {
-		close(ready)
-		if rows, ok := <-batchesCh; ok {
-			received <- rows
-		}
-	}()
-
-	<-ready
-
 	require.NoError(t, lm.acquireBatchLeases(context.Background()))
 
 	select {
-	case rows := <-received:
-		require.Len(t, rows, 3, "all batch keys for leased steps should propagate")
+	case msg := <-batchesCh:
+		require.False(t, msg.isIncremental)
+		require.Len(t, msg.items, 2, "every leased step should propagate")
 	case <-time.After(1 * time.Second):
 		t.Fatal("expected batch resources to be sent")
 	}
@@ -355,4 +367,150 @@ func TestAcquireBatchLeasesUsesStepLevelResourceIds(t *testing.T) {
 		stepID.String(),
 		otherStepID.String(),
 	}, acquired, "leases should be requested per step_id only")
+}
+
+func TestNotifyNewBatchStepsSendsIncrementalRowsForLeasedSteps(t *testing.T) {
+	tenantID := uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+	stepID := uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+	ownedStepID := uuid.MustParse("cccccccc-cccc-cccc-cccc-cccccccccccc")
+	unpendingStepID := uuid.MustParse("dddddddd-dddd-dddd-dddd-dddddddddddd")
+
+	leaseRepo := &fakeLeaseRepo{ownedElsewhere: map[string]struct{}{ownedStepID.String(): {}}}
+	repo := &fakeSchedulerRepo{
+		leaseRepo: leaseRepo,
+		batchRepo: &fakeBatchQueueFactory{resources: []*sqlcv1.ListDistinctBatchResourcesRow{
+			{StepID: stepID, BatchMaxSize: 5, BatchMaxInterval: pgtype.Int4{Int32: 1000, Valid: true}},
+			{StepID: ownedStepID, BatchMaxSize: 5},
+		}},
+	}
+
+	logger := zerolog.New(io.Discard)
+	lm, _, _, _, batchesCh := newLeaseManager(&sharedConfig{repo: repo, l: &logger}, tenantID)
+
+	require.NoError(t, lm.notifyNewBatchSteps(context.Background(), []uuid.UUID{stepID, ownedStepID, unpendingStepID}))
+
+	select {
+	case msg := <-batchesCh:
+		require.True(t, msg.isIncremental)
+		require.Len(t, msg.items, 1, "only the step this scheduler leased should start")
+		require.Equal(t, stepID, msg.items[0].StepID)
+		require.Equal(t, int32(5), msg.items[0].BatchMaxSize)
+		require.Equal(t, int32(1000), msg.items[0].BatchMaxInterval.Int32)
+	case <-time.After(1 * time.Second):
+		t.Fatal("expected an incremental batch message")
+	}
+
+	require.Len(t, lm.batchLeases, 1)
+	require.Equal(t, stepID.String(), lm.batchLeases[0].ResourceId)
+
+	// a step whose lease is already held is sent again without another acquire
+	require.NoError(t, lm.notifyNewBatchSteps(context.Background(), []uuid.UUID{stepID}))
+	require.Len(t, leaseRepo.resourceSets, 1)
+
+	select {
+	case msg := <-batchesCh:
+		require.True(t, msg.isIncremental)
+		require.Len(t, msg.items, 1)
+	case <-time.After(1 * time.Second):
+		t.Fatal("expected an incremental batch message for the held lease")
+	}
+}
+
+func TestAddBatchSchedulersKeepsExistingSchedulers(t *testing.T) {
+	tenantID := uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+	runningStepID := uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+	newStepID := uuid.MustParse("cccccccc-cccc-cccc-cccc-cccccccccccc")
+
+	logger := zerolog.New(io.Discard)
+	cf := &sharedConfig{
+		repo: &fakeSchedulerRepo{leaseRepo: &fakeLeaseRepo{}, batchRepo: &fakeBatchQueueFactory{}},
+		l:    &logger,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tm := &tenantManager{
+		cf:              cf,
+		l:               logger,
+		tenantId:        tenantID,
+		batchSchedulers: make(map[uuid.UUID]*BatchScheduler),
+		resultsCh:       make(chan *QueueResults, 1),
+	}
+
+	tm.addBatchSchedulers(ctx, []*sqlcv1.ListDistinctBatchResourcesRow{{StepID: runningStepID, BatchMaxSize: 5}})
+	running := tm.batchSchedulers[runningStepID]
+	require.NotNil(t, running)
+
+	tm.addBatchSchedulers(ctx, []*sqlcv1.ListDistinctBatchResourcesRow{
+		{StepID: runningStepID, BatchMaxSize: 5},
+		{StepID: newStepID, BatchMaxSize: 5},
+	})
+
+	require.Len(t, tm.batchSchedulers, 2)
+	require.Same(t, running, tm.batchSchedulers[runningStepID], "a running scheduler is not replaced")
+
+	// a scheduler that stopped itself for idleness is replaced
+	running.cancel()
+	tm.addBatchSchedulers(ctx, []*sqlcv1.ListDistinctBatchResourcesRow{{StepID: runningStepID, BatchMaxSize: 5}})
+	require.NotSame(t, running, tm.batchSchedulers[runningStepID])
+}
+
+func TestNotifyBatchedQueueItemsSkipsStepsWithRunningSchedulers(t *testing.T) {
+	tenantID := uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+	runningStepID := uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+	idleStepID := uuid.MustParse("cccccccc-cccc-cccc-cccc-cccccccccccc")
+
+	leaseRepo := &fakeLeaseRepo{}
+	repo := &fakeSchedulerRepo{
+		leaseRepo: leaseRepo,
+		batchRepo: &fakeBatchQueueFactory{resources: []*sqlcv1.ListDistinctBatchResourcesRow{
+			{StepID: runningStepID, BatchMaxSize: 5},
+			{StepID: idleStepID, BatchMaxSize: 5},
+		}},
+	}
+
+	logger := zerolog.New(io.Discard)
+	cf := &sharedConfig{repo: repo, l: &logger}
+	lm, _, _, _, batchesCh := newLeaseManager(cf, tenantID)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tm := &tenantManager{
+		cf:                   cf,
+		l:                    logger,
+		tenantId:             tenantID,
+		leaseManager:         lm,
+		batchSchedulers:      make(map[uuid.UUID]*BatchScheduler),
+		pendingBatchNotifies: make(map[uuid.UUID]struct{}),
+		resultsCh:            make(chan *QueueResults, 1),
+		ctx:                  ctx,
+	}
+
+	tm.addBatchSchedulers(ctx, []*sqlcv1.ListDistinctBatchResourcesRow{{StepID: runningStepID, BatchMaxSize: 5}})
+
+	tm.notifyBatchedQueueItems([]*sqlcv1.V1QueueItem{
+		{StepID: runningStepID},
+		{StepID: idleStepID},
+		{StepID: idleStepID},
+	})
+
+	select {
+	case msg := <-batchesCh:
+		require.True(t, msg.isIncremental)
+		require.Len(t, msg.items, 1)
+		require.Equal(t, idleStepID, msg.items[0].StepID)
+	case <-time.After(1 * time.Second):
+		t.Fatal("expected an incremental batch message for the idle step")
+	}
+
+	require.Eventually(t, func() bool {
+		tm.batchSchedulersMu.Lock()
+		defer tm.batchSchedulersMu.Unlock()
+		return len(tm.pendingBatchNotifies) == 0
+	}, time.Second, 10*time.Millisecond)
+
+	require.Len(t, leaseRepo.resourceSets, 1)
+	require.Equal(t, []string{idleStepID.String()}, leaseRepo.resourceSets[0])
 }

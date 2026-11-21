@@ -1,6 +1,7 @@
 package migrate
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"embed"
@@ -35,6 +36,7 @@ type runMigrationsOpt struct {
 	upToPenultimate bool
 	upToVersion     int64
 	databaseURL     string
+	databaseEnvVar  string
 	l               *zerolog.Logger
 }
 
@@ -79,6 +81,14 @@ func WithDatabaseURL(url string) RunMigrationsOpt {
 	}
 }
 
+// WithDatabaseEnvVar reads the database URL from the given environment variable instead of
+// DATABASE_URL, and names it in diagnostics.
+func WithDatabaseEnvVar(envVar string) RunMigrationsOpt {
+	return func(o *runMigrationsOpt) {
+		o.databaseEnvVar = envVar
+	}
+}
+
 // WithLogger routes migration output through the given logger. Callers that
 // embed the engine in their own process should pass their configured logger so
 // that migrations do not write to stdout/stderr on their own terms.
@@ -98,10 +108,9 @@ func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 
 	l := options.resolveLogger()
 
-	const (
-		databaseEnvVar = "DATABASE_URL"
-		phaseName      = "oss"
-	)
+	const phaseName = "oss"
+
+	databaseEnvVar := cmp.Or(options.databaseEnvVar, "DATABASE_URL")
 
 	rawURL := options.databaseURL
 	if rawURL == "" {
@@ -500,18 +509,20 @@ func RunDownMigration(ctx context.Context, targetVersion string, opts ...RunMigr
 
 	l := options.resolveLogger()
 
-	if err := runDownMigrationImpl(ctx, targetVersion, l); err != nil {
+	if err := runDownMigrationImpl(ctx, targetVersion, options, l); err != nil {
 		l.Fatal().Err(err).Msg("down migration failed")
 	}
 }
 
-func runDownMigrationImpl(ctx context.Context, targetVersion string, l *zerolog.Logger) error {
-	const (
-		databaseEnvVar = "DATABASE_URL"
-		phaseName      = "oss-down"
-	)
+func runDownMigrationImpl(ctx context.Context, targetVersion string, options *runMigrationsOpt, l *zerolog.Logger) error {
+	const phaseName = "oss-down"
 
-	rawURL := os.Getenv(databaseEnvVar)
+	databaseEnvVar := cmp.Or(options.databaseEnvVar, "DATABASE_URL")
+
+	rawURL := options.databaseURL
+	if rawURL == "" {
+		rawURL = os.Getenv(databaseEnvVar)
+	}
 	if rawURL == "" {
 		return migratediag.MissingEnvError(databaseEnvVar, phaseName)
 	}

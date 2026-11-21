@@ -2,11 +2,12 @@ import asyncio
 import json
 from collections.abc import Generator
 from datetime import datetime
-from typing import Any, TypeVar, cast
+from typing import TypeVar, cast
 
 import grpc
 from google.protobuf import timestamp_pb2
-from grpc_status import rpc_status
+from google.protobuf.message import Message
+from google.rpc import status_pb2  # type: ignore[import-untyped]
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
@@ -53,8 +54,25 @@ from hatchet_sdk.utils.typing import JSONSerializableMapping
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 T = TypeVar("T")
+TMessage = TypeVar("TMessage", bound=Message)
 
 MAX_BULK_WORKFLOW_RUN_BATCH_SIZE = 1000
+
+
+def unpack_rpc_error_detail(
+    error: grpc.RpcError, detail_type: type[TMessage]
+) -> TMessage | None:
+    ## the sync client raises errors that are also `grpc.Call`s, which carry the status details
+    rpc_call = cast("grpc.Call", error)
+
+    for key, value in rpc_call.trailing_metadata() or ():
+        if key == "grpc-status-details-bin" and isinstance(value, bytes):
+            for detail in status_pb2.Status.FromString(value).details:
+                unpacked = detail_type()
+                if detail.Unpack(unpacked):  # pyright: ignore[reportUnknownMemberType]
+                    return unpacked
+
+    return None
 
 
 class TaskRunDetail(BaseModel):
@@ -173,7 +191,9 @@ class AdminClient:
         )
 
     def _parse_schedule(self, schedule: datetime) -> timestamp_pb2.Timestamp:
-        if isinstance(schedule, datetime):
+        if isinstance(
+            schedule, datetime
+        ):  # pyright: ignore[reportUnnecessaryIsInstance]
             if not schedule.tzinfo:
                 logger.warning(
                     "Timezone-naive datetime provided for schedule. Interpreting it in this machine's local timezone."
@@ -239,12 +259,9 @@ class AdminClient:
     ) -> workflow_protos.CreateWorkflowVersionResponse:
         client = self._get_or_create_v1_client()
         put_workflow = tenacity_retry(client.PutWorkflow, self.config.tenacity)
-        return cast(
-            "workflow_protos.CreateWorkflowVersionResponse",
-            put_workflow(
-                workflow,
-                metadata=create_authorization_header(self.token),
-            ),
+        return put_workflow(
+            workflow,
+            metadata=create_authorization_header(self.token),
         )
 
     def schedule_workflow(
@@ -268,12 +285,9 @@ class AdminClient:
                 client.ScheduleWorkflow, self.config.tenacity
             )
 
-            return cast(
-                "v0_workflow_protos.WorkflowVersion",
-                schedule_workflow(
-                    request,
-                    metadata=create_authorization_header(self.token),
-                ),
+            return schedule_workflow(
+                request,
+                metadata=create_authorization_header(self.token),
             )
         except (grpc.RpcError, grpc.aio.AioRpcError) as e:
             if e.code() == grpc.StatusCode.ALREADY_EXISTS:
@@ -324,28 +338,23 @@ class AdminClient:
         trigger_workflow = tenacity_retry(client.TriggerWorkflow, self.config.tenacity)
 
         try:
-            resp = cast(
-                "v0_workflow_protos.TriggerWorkflowResponse",
-                trigger_workflow(
-                    request,
-                    metadata=create_authorization_header(self.token),
-                ),
+            resp = trigger_workflow(
+                request,
+                metadata=create_authorization_header(self.token),
             )
         except (grpc.RpcError, grpc.aio.AioRpcError) as e:
             if (
                 e.code() == grpc.StatusCode.ALREADY_EXISTS
                 and e.details() == "idempotency key collision"
             ):
-                status: list[Any] = rpc_status.from_call(e)  # type: ignore[arg-type]
+                collision = unpack_rpc_error_detail(
+                    e, workflow_protos.IdempotencyCollisionError
+                )
 
-                for detail in status.details:  # type: ignore[attr-defined]
-                    if detail.Is(workflow_protos.IdempotencyCollisionError.DESCRIPTOR):
-                        info = workflow_protos.IdempotencyCollisionError()
-                        detail.Unpack(info)
-
-                        raise IdempotencyCollisionError(
-                            existing_run_external_id=info.existing_run_external_id
-                        ) from e
+                if collision is not None:
+                    raise IdempotencyCollisionError(
+                        existing_run_external_id=collision.existing_run_external_id
+                    ) from e
             elif e.code() == grpc.StatusCode.ALREADY_EXISTS:
                 raise DedupeViolationError(e.details()) from e
 
@@ -371,29 +380,24 @@ class AdminClient:
         trigger_workflow = tenacity_retry(client.TriggerWorkflow, self.config.tenacity)
 
         try:
-            resp = cast(
-                "v0_workflow_protos.TriggerWorkflowResponse",
-                await asyncio.to_thread(
-                    trigger_workflow,
-                    request,
-                    metadata=create_authorization_header(self.token),
-                ),
+            resp = await asyncio.to_thread(
+                trigger_workflow,
+                request,
+                metadata=create_authorization_header(self.token),
             )
         except (grpc.RpcError, grpc.aio.AioRpcError) as e:
             if (
                 e.code() == grpc.StatusCode.ALREADY_EXISTS
                 and e.details() == "idempotency key collision"
             ):
-                status: list[Any] = rpc_status.from_call(e)  # type: ignore[arg-type]
+                collision = unpack_rpc_error_detail(
+                    e, workflow_protos.IdempotencyCollisionError
+                )
 
-                for detail in status.details:  # type: ignore[attr-defined]
-                    if detail.Is(workflow_protos.IdempotencyCollisionError.DESCRIPTOR):
-                        info = workflow_protos.IdempotencyCollisionError()
-                        detail.Unpack(info)
-
-                        raise IdempotencyCollisionError(
-                            existing_run_external_id=info.existing_run_external_id
-                        ) from e
+                if collision is not None:
+                    raise IdempotencyCollisionError(
+                        existing_run_external_id=collision.existing_run_external_id
+                    ) from e
             elif e.code() == grpc.StatusCode.ALREADY_EXISTS:
                 raise DedupeViolationError(e.details()) from e
 
@@ -455,40 +459,31 @@ class AdminClient:
             )
 
             try:
-                resp = cast(
-                    "v0_workflow_protos.BulkTriggerWorkflowResponse",
-                    bulk_trigger_workflow(
-                        bulk_request,
-                        metadata=create_authorization_header(self.token),
-                    ),
+                resp = bulk_trigger_workflow(
+                    bulk_request,
+                    metadata=create_authorization_header(self.token),
                 )
             except (grpc.RpcError, grpc.aio.AioRpcError) as e:
                 if (
                     e.code() == grpc.StatusCode.ALREADY_EXISTS
                     and e.details() == "idempotency key collision"
                 ):
-                    status: list[Any] = rpc_status.from_call(e)  # type: ignore[arg-type]
+                    bulk_collision = unpack_rpc_error_detail(
+                        e, workflow_protos.BulkTriggerIdempotencyCollisionError
+                    )
 
-                    for detail in status.details:  # type: ignore[attr-defined]
-                        if detail.Is(
-                            workflow_protos.BulkTriggerIdempotencyCollisionError.DESCRIPTOR
-                        ):
-                            info = (
-                                workflow_protos.BulkTriggerIdempotencyCollisionError()
-                            )
-                            detail.Unpack(info)
-
-                            raise BulkTriggerIdempotencyCollisionError(
-                                successful_workflow_run_external_ids=list(
-                                    info.successful_workflow_run_external_ids
-                                ),
-                                collisions=[
-                                    IdempotencyCollisionError(
-                                        existing_run_external_id=collision.existing_run_external_id
-                                    )
-                                    for collision in info.collisions
-                                ],
-                            ) from e
+                    if bulk_collision is not None:
+                        raise BulkTriggerIdempotencyCollisionError(
+                            successful_workflow_run_external_ids=list(
+                                bulk_collision.successful_workflow_run_external_ids
+                            ),
+                            collisions=[
+                                IdempotencyCollisionError(
+                                    existing_run_external_id=collision.existing_run_external_id
+                                )
+                                for collision in bulk_collision.collisions
+                            ],
+                        ) from e
 
                 raise e
 
@@ -530,41 +525,32 @@ class AdminClient:
             )
 
             try:
-                resp = cast(
-                    "v0_workflow_protos.BulkTriggerWorkflowResponse",
-                    await asyncio.to_thread(
-                        bulk_trigger_workflow,
-                        bulk_request,
-                        metadata=create_authorization_header(self.token),
-                    ),
+                resp = await asyncio.to_thread(
+                    bulk_trigger_workflow,
+                    bulk_request,
+                    metadata=create_authorization_header(self.token),
                 )
             except (grpc.RpcError, grpc.aio.AioRpcError) as e:
                 if (
                     e.code() == grpc.StatusCode.ALREADY_EXISTS
                     and e.details() == "idempotency key collision"
                 ):
-                    status: list[Any] = rpc_status.from_call(e)  # type: ignore[arg-type]
+                    bulk_collision = unpack_rpc_error_detail(
+                        e, workflow_protos.BulkTriggerIdempotencyCollisionError
+                    )
 
-                    for detail in status.details:  # type: ignore[attr-defined]
-                        if detail.Is(
-                            workflow_protos.BulkTriggerIdempotencyCollisionError.DESCRIPTOR
-                        ):
-                            info = (
-                                workflow_protos.BulkTriggerIdempotencyCollisionError()
-                            )
-                            detail.Unpack(info)
-
-                            raise BulkTriggerIdempotencyCollisionError(
-                                successful_workflow_run_external_ids=list(
-                                    info.successful_workflow_run_external_ids
-                                ),
-                                collisions=[
-                                    IdempotencyCollisionError(
-                                        existing_run_external_id=collision.existing_run_external_id
-                                    )
-                                    for collision in info.collisions
-                                ],
-                            ) from e
+                    if bulk_collision is not None:
+                        raise BulkTriggerIdempotencyCollisionError(
+                            successful_workflow_run_external_ids=list(
+                                bulk_collision.successful_workflow_run_external_ids
+                            ),
+                            collisions=[
+                                IdempotencyCollisionError(
+                                    existing_run_external_id=collision.existing_run_external_id
+                                )
+                                for collision in bulk_collision.collisions
+                            ],
+                        ) from e
 
                 raise e
 
@@ -597,12 +583,9 @@ class AdminClient:
             self.config.tenacity.model_copy(update={"retry_not_found": True}),
         )
 
-        response = cast(
-            "workflow_protos.GetRunDetailsResponse",
-            get_run_payloads(
-                workflow_protos.GetRunDetailsRequest(external_id=workflow_run_id),
-                metadata=create_authorization_header(self.token),
-            ),
+        response = get_run_payloads(
+            workflow_protos.GetRunDetailsRequest(external_id=workflow_run_id),
+            metadata=create_authorization_header(self.token),
         )
 
         return WorkflowRunDetail(

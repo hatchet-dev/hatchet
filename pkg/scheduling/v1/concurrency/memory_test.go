@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -138,7 +139,7 @@ func (r *generatedRowsRepo) ReadConcurrencySlotsForIndexing(ctx context.Context,
 }
 
 type keyShape struct {
-	kind    sqlcv1.V1ConcurrencyStrategy
+	kind    enums.V1ConcurrencyStrategy
 	maxRuns int32
 	filled  int
 	queued  int
@@ -183,11 +184,11 @@ func BenchmarkKeyMemory(b *testing.B) {
 		name  string
 		shape keyShape
 	}{
-		{"filled=1", keyShape{kind: sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST, maxRuns: 1, filled: 1}},
-		{"filled=4", keyShape{kind: sqlcv1.V1ConcurrencyStrategyGROUPROUNDROBIN, maxRuns: 4, filled: 4}},
-		{"filled=1,queued=1", keyShape{kind: sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST, maxRuns: 1, filled: 1, queued: 1}},
+		{"filled=1", keyShape{kind: enums.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST, maxRuns: 1, filled: 1}},
+		{"filled=4", keyShape{kind: enums.V1ConcurrencyStrategyGROUPROUNDROBIN, maxRuns: 4, filled: 4}},
+		{"filled=1,queued=1", keyShape{kind: enums.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST, maxRuns: 1, filled: 1, queued: 1}},
 		// the pass fills one slot, cancels the oldest 6 and keeps the newest queued
-		{"queued=8", keyShape{kind: sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST, maxRuns: 1, queued: 8}},
+		{"queued=8", keyShape{kind: enums.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST, maxRuns: 1, queued: 8}},
 	} {
 		b.Run(tc.name, func(b *testing.B) {
 			var perKey float64
@@ -292,7 +293,7 @@ func TestIndexMemoryAtScale(t *testing.T) {
 			}
 		}
 	}}
-	many := newTestStrategyKind(manyRepo, 1, sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST)
+	many := newTestStrategyKind(manyRepo, 1, enums.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST)
 
 	if err := many.buildIndex(ctx); err != nil {
 		t.Fatalf("buildIndex: %v", err)
@@ -355,7 +356,7 @@ func TestIndexMemoryAtScale(t *testing.T) {
 			}
 		}
 	}}
-	few := newTestStrategyKind(fewRepo, groupMaxRuns, sqlcv1.V1ConcurrencyStrategyGROUPROUNDROBIN)
+	few := newTestStrategyKind(fewRepo, groupMaxRuns, enums.V1ConcurrencyStrategyGROUPROUNDROBIN)
 
 	if err := few.buildIndex(ctx); err != nil {
 		t.Fatalf("buildIndex: %v", err)

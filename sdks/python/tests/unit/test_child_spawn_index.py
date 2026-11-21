@@ -5,9 +5,13 @@ from hatchet_sdk.runnables.contextvars import ctx_action_key, workflow_spawn_ind
 from hatchet_sdk.types.trigger import TriggerWorkflowOptions
 
 
+def return_name_without_namespace(name: str, _namespace: str | None) -> str:
+    return name
+
+
 def test_children_spawned_from_a_task_are_indexed_from_zero() -> None:
     config = MagicMock()
-    config.apply_namespace.side_effect = lambda name, _namespace: name
+    config.apply_namespace.side_effect = return_name_without_namespace
     admin_client = AdminClient(config, MagicMock(), MagicMock())
 
     action_key = "test-action-key"

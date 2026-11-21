@@ -659,23 +659,21 @@ process_image.apply_async(
 )
 ```
 
-When migrating priority-sensitive task calls to Hatchet, replace broker-specific numeric priorities with Hatchet's priority enum. Hatchet supports [three priority levels](/v1/priority): `Priority.LOW`, `Priority.MEDIUM`, and `Priority.HIGH`. You can set priority when triggering a run, or define a default priority on the workflow.
+When migrating priority-sensitive task calls to Hatchet, replace broker-specific numeric priorities with Hatchet's priority levels. Hatchet supports [three priority levels](/v1/priority): `"LOW"`, `"MEDIUM"`, and `"HIGH"`. You can set priority when triggering a run, or define a default priority on the workflow.
 
 **Hatchet:**
 
 ```python
-from hatchet_sdk import Priority
-
 ref = await process_image.aio_run(
     ImageInput(image_url="https://example.com/photo.png", filters=["blur"]),
     wait_for_result=False,
-    priority=Priority.HIGH,
+    priority="HIGH",
 )
 ```
 
 What changed:
 
-- **Broker-specific numbers become Hatchet priority levels.** Replace Celery numeric priorities with `Priority.LOW`, `Priority.MEDIUM`, or `Priority.HIGH`.
+- **Broker-specific numbers become Hatchet priority levels.** Replace Celery numeric priorities with `"LOW"`, `"MEDIUM"`, or `"HIGH"`.
 - **Priority can be set per run or as a workflow default.** Use per-run priority when priority changes by call site; use a workflow default when all runs of that workflow should share the same priority.
 - **Priority is scoped to a workflow type.** Higher-priority runs of the same workflow are scheduled before lower-priority runs. Priority does not affect scheduling across different workflow types.
 - **Priority-sensitive behavior needs validation.** Celery broker priority and Hatchet scheduling priority are different models, so validate workflows that depend on precise ordering.
