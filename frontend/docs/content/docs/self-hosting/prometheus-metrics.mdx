@@ -325,7 +325,8 @@ sum by (pool) (rate(hatchet_fairpool_rejections_total{bucket="shared"}[5m]))
 | `hatchet_tenant_worker_label_slots`                          | Gauge     | The total number of worker slots (free + used), by worker label pair and slot type                                                                                                                                                                                                         |
 | `hatchet_tenant_queue_size`                                  | Gauge     | The current number of queued items, by queue and workflow name. Polled from the database every 15 seconds; items queued behind a concurrency strategy are not counted. Safe to sum                                                                                                         |
 | `hatchet_tenant_additional_metadata_queue_size`              | Gauge     | The current number of queued items, by queue and additional metadata key-value pair. Only keys prefixed with `prom_` are exported (scalar values only). Polled from the database every 15 seconds; an item counts towards every exported key it carries, so do not sum across `key` values |
-| `hatchet_tenant_backlog`                                     | Gauge     | Accepted tasks of the tenant that are not running, by `state`. Polled from the database every 15 seconds for every tenant, and sparse: series exist only while the tenant's total is at least 1,000. Capped at 250,000 per state; see below                                                |
+| `hatchet_tenant_backlog`                                     | Gauge     | Accepted tasks of the tenant that are not running, by `state`. Polled from the database every 15 seconds for every tenant, and sparse: series exist only while the tenant's total is at least 1,000, or the backlog limit if that is lower. Capped at 250,000 per state; see below         |
+| `hatchet_tenant_backlog_refused_total`                       | Counter   | New runs refused because the tenant's backlog was at or over the limit; a refused bulk trigger counts each of its runs                                                                                                                                                                     |
 
 `hatchet_tenant_backlog` counts a tenant's accepted tasks that are not running,
 by where they wait, in the `state` label: `queued`, `concurrency` (waiting for a
@@ -339,12 +340,43 @@ The scheduler measures every tenant on its partition, whether or not
 `hatchet_tenant_*` metrics are enabled for that tenant, but reports only tenants
 with a total of at least 1,000, and for those only the states that hold tasks,
 so the number of series follows the number of backed-up tenants, not the number
-of tenants. A tenant's series are removed when its total drops below 1,000 or
-the tenant moves to another scheduler partition, and a state's series when the
-state empties, so a missing series means less than 1,000 in total, or nothing in
-that state, rather than 0. Each state's count stops at 250,000, which bounds the
+of tenants. With a backlog limit below 1,000, the limit takes the place of 1,000
+here, so every held tenant has series. A tenant's series are removed when its
+total drops below that floor or the tenant moves to another scheduler partition,
+and a state's series when the state empties, so a missing series means less than
+the floor in total, or nothing in that state, rather than 0. Each state's count stops at 250,000, which bounds the
 database cost of measuring a large backlog: a value of 250,000 means at least
-that many.
+that many. With a backlog limit above 250,000, each state's count stops at the
+limit instead.
+
+**While a tenant's backlog is at or over the limit, the trigger API refuses its
+new runs; everything else keeps flowing.** The limit is
+`SERVER_TENANT_BACKLOG_LIMIT`, one value for every tenant on the server, and it
+is off (`0`) by default. The scheduler reads it: in a deployment that splits the
+engine into several processes, set it on the processes that run the scheduler
+(setting it on all of them is fine).
+
+The backlog is the total that `hatchet_tenant_backlog` reports, across all six
+states. That includes tasks held by a paused workflow and tasks waiting on a
+concurrency or rate limit, so a tenant that deliberately parks more tasks than
+the limit has every trigger refused until it drains. A run that has been
+accepted but is still in the message queue is not counted yet.
+
+The scheduler measures the backlog every 15 seconds, so a hold starts or ends
+within one measurement pass of the backlog crossing the limit, normally about 15
+to 20 seconds. A hold that is not renewed, because the limit was turned off or
+the scheduler stopped, ends by itself after two minutes.
+
+Refused are the gRPC trigger calls `TriggerWorkflow`, `BulkTriggerWorkflow` and
+`TriggerWorkflowRun`, which the SDKs and the REST trigger endpoint use for new
+runs, single or bulk. That includes child runs spawned by ordinary tasks, which
+the parent sees as an error from its spawn call once the SDK's retries are
+spent, and a re-spawn of a child that already exists. A refused call fails with
+`RESOURCE_EXHAUSTED` (HTTP 429) and a 5 second retry delay, which the SDKs wait
+before retrying, and its message names the state that holds most of the backlog.
+Not refused are child spawns from durable tasks, events, webhooks, creating
+crons and scheduled runs, cron fires, schedules coming due, retries, replays and
+the later steps of running workflows.
 
 The `hatchet_tenant_*_worker_label_slots` metrics expose gauges for each unique worker label `(key, value)` pair and slot type, using the `label_key`, `label_value`, and `slot_type` Prometheus labels. A worker's slots count towards every label pair the worker carries, so a worker labeled `pool=gpu, region=us-east` contributes its slots to both the `{label_key="pool", label_value="gpu"}` and `{label_key="region", label_value="us-east"}` series.
 

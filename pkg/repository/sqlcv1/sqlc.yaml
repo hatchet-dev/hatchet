@@ -29,6 +29,7 @@ sql:
       - tenant_invites.sql
       - tenant_limits.sql
       - tenant_entitlements.sql
+      - tenant_backlog_holds.sql
       - ticker.sql
       - filters.sql
       - payload-store.sql
