@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The `BatchTaskConfig` docs no longer say a batch flushes once `groupMaxRuns` is exceeded. While a group has `groupMaxRuns` batches running, its ready batches stay buffered. The docs also give the engine defaults: `maxInterval` is 1s, measured from when a batch's first item is buffered, and `groupMaxRuns` is 100.
 
+## [1.48.0] - 2026-11-21
+
+### Changed
+
+- The worker `/metrics` endpoint now uses `@prometheus-io/client` instead of `prom-client`. If you use worker metrics, replace your `prom-client` dependency with `@prometheus-io/client` when upgrading.
+
 ## [1.47.4] - 2026-11-17
 
 ### Fixed
