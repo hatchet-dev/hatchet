@@ -37,6 +37,8 @@ type AdminServiceImpl struct {
 
 	tw        *trigger.TriggerWriter
 	pubBuffer *msgqueue.MQPubBuffer
+
+	maxInternalRetryCount int32
 }
 
 type AdminServiceOpt func(*AdminServiceOpts)
@@ -57,6 +59,8 @@ type AdminServiceOpts struct {
 	grpcTriggerSlots    int
 
 	promGate *prometheus.Gate
+
+	maxInternalRetryCount int32
 }
 
 func defaultAdminServiceOpts() *AdminServiceOpts {
@@ -64,9 +68,10 @@ func defaultAdminServiceOpts() *AdminServiceOpts {
 	logger := logger.NewDefaultLogger("v1_admin_service")
 
 	return &AdminServiceOpts{
-		v:         v,
-		analytics: analytics.NoOpAnalytics{},
-		l:         &logger,
+		v:                     v,
+		analytics:             analytics.NoOpAnalytics{},
+		l:                     &logger,
+		maxInternalRetryCount: 10,
 	}
 }
 
@@ -142,6 +147,12 @@ func WithPrometheusGate(gate *prometheus.Gate) AdminServiceOpt {
 	}
 }
 
+func WithMaxInternalRetryCount(count int32) AdminServiceOpt {
+	return func(opts *AdminServiceOpts) {
+		opts.maxInternalRetryCount = count
+	}
+}
+
 func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 	opts := defaultAdminServiceOpts()
 
@@ -171,16 +182,17 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 	}
 
 	return &AdminServiceImpl{
-		repo:            opts.repo,
-		mq:              opts.mq,
-		pubsub:          opts.pubsub,
-		v:               opts.v,
-		analytics:       opts.analytics,
-		localScheduler:  localScheduler,
-		localDispatcher: opts.localDispatcher,
-		l:               opts.l,
-		tw:              tw,
-		pubBuffer:       pubBuffer,
+		repo:                  opts.repo,
+		mq:                    opts.mq,
+		pubsub:                opts.pubsub,
+		v:                     opts.v,
+		analytics:             opts.analytics,
+		localScheduler:        localScheduler,
+		localDispatcher:       opts.localDispatcher,
+		l:                     opts.l,
+		tw:                    tw,
+		pubBuffer:             pubBuffer,
+		maxInternalRetryCount: opts.maxInternalRetryCount,
 	}, nil
 }
 

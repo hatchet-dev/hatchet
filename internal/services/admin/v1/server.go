@@ -850,6 +850,10 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New(apiErrors.String()))
 	}
 
+	if err := validateMaxReassignmentsAllowed(createOpts, a.maxInternalRetryCount); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+
 	currWorkflow, err := a.repo.Workflows().PutWorkflowVersion(
 		ctx,
 		tenantId,
@@ -944,6 +948,31 @@ func getActionsForTasks(tasks []*contracts.CreateTaskOpts) ([]string, error) {
 	}
 
 	return actions, nil
+}
+
+func validateMaxReassignmentsAllowed(createOpts *v1.CreateWorkflowVersionOpts, maxInternalRetryCount int32) error {
+	for _, task := range createOpts.Tasks {
+		if err := validateTaskMaxReassignmentsAllowed(task, maxInternalRetryCount); err != nil {
+			return err
+		}
+	}
+
+	if createOpts.OnFailure != nil {
+		return validateTaskMaxReassignmentsAllowed(*createOpts.OnFailure, maxInternalRetryCount)
+	}
+
+	return nil
+}
+
+func validateTaskMaxReassignmentsAllowed(task v1.CreateStepOpts, maxInternalRetryCount int32) error {
+	if task.MaxReassignmentsAllowed != nil && *task.MaxReassignmentsAllowed > maxInternalRetryCount {
+		return fmt.Errorf(
+			"task %s sets max_reassignments_allowed to %d, which is above the maximum allowed of %d",
+			task.ReadableId, *task.MaxReassignmentsAllowed, maxInternalRetryCount,
+		)
+	}
+
+	return nil
 }
 
 func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.CreateWorkflowVersionOpts, error) {
