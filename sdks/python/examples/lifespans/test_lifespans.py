@@ -9,6 +9,7 @@ import pytest
 
 from examples.lifespans.drain import DrainInput, lifespan_drain_task
 from examples.lifespans.simple import Lifespan, lifespan_task
+from examples.test_utils import wait_for_run_status
 from hatchet_sdk import Hatchet
 
 
@@ -36,14 +37,7 @@ async def test_lifespan_drain_on_sigterm(
     n = 6
     ref = await lifespan_drain_task.aio_run(DrainInput(n=n), wait_for_result=False)
 
-    for _ in range(30):
-        run = await hatchet.runs.aio_get_details(ref.workflow_run_id)
-        if run.status == "RUNNING":
-            break
-
-        await asyncio.sleep(1)
-    else:
-        pytest.fail("Task never entered RUNNING state")
+    await wait_for_run_status(hatchet, ref.workflow_run_id, "RUNNING", timeout=30)
 
     await asyncio.sleep(1)
 

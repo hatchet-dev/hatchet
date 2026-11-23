@@ -6,7 +6,6 @@ import time
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from uuid import uuid4
 
 import pytest
 import pytest_asyncio
@@ -158,8 +157,7 @@ async def wait_for_all_completed(
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_unpause_no_stranded_runs(hatchet: Hatchet) -> None:
-    test_run_id = str(uuid4())
+async def test_unpause_no_stranded_runs(hatchet: Hatchet, test_run_id: str) -> None:
     run_ids = set[str]()
 
     t = asyncio.create_task(trigger_workflows(test_run_id, run_ids))
@@ -193,8 +191,9 @@ async def test_unpause_no_stranded_runs(hatchet: Hatchet) -> None:
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_workflow_pause_drop_crons_and_schedules(hatchet: Hatchet) -> None:
-    test_run_id = str(uuid4())
+async def test_workflow_pause_drop_crons_and_schedules(
+    hatchet: Hatchet, test_run_id: str
+) -> None:
 
     await pausable_workflow.aio_pause(
         queue_ttl=timedelta(minutes=1),

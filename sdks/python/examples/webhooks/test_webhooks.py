@@ -218,8 +218,8 @@ async def assert_event_not_created(
     test_start: datetime,
     incoming_webhook: V1Webhook,
 ) -> None:
-    triggered_event = await wait_for_event(hatchet, incoming_webhook.name, test_start)
-    assert triggered_event is None
+    with pytest.raises(TimeoutError):
+        await wait_for_event(hatchet, incoming_webhook.name, test_start)
 
 
 @pytest.mark.asyncio(loop_scope="session")

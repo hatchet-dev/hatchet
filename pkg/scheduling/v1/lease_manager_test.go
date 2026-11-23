@@ -514,3 +514,22 @@ func TestNotifyBatchedQueueItemsSkipsStepsWithRunningSchedulers(t *testing.T) {
 	require.Len(t, leaseRepo.resourceSets, 1)
 	require.Equal(t, []string{idleStepID.String()}, leaseRepo.resourceSets[0])
 }
+
+func TestLeaseRefreshPhaseStaysInsideTheInterval(t *testing.T) {
+	for i := 0; i < 1000; i++ {
+		phase := leaseRefreshPhase(leaseRefreshInterval)
+		require.GreaterOrEqual(t, phase, time.Duration(0))
+		require.Less(t, phase, leaseRefreshInterval)
+	}
+
+	require.Zero(t, leaseRefreshPhase(0))
+	require.Zero(t, leaseRefreshPhase(-time.Second))
+}
+
+func TestWaitLeaseRefreshPhase(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	require.False(t, waitLeaseRefreshPhase(ctx, time.Hour))
+	require.True(t, waitLeaseRefreshPhase(context.Background(), 0))
+}

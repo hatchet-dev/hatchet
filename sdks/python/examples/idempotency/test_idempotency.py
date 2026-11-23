@@ -1,7 +1,6 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
 from time import time
-from uuid import uuid4
 
 import pytest
 
@@ -13,6 +12,7 @@ from examples.idempotency.worker import (
     idempotent_task,
     idempotent_task_short_window,
 )
+from examples.test_utils import poll_until, wait_for_run_done
 from hatchet_sdk import (
     BulkTriggerIdempotencyCollisionError,
     CancelledRunError,
@@ -26,8 +26,8 @@ from hatchet_sdk import (
 @pytest.mark.asyncio(loop_scope="session")
 async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger(
     hatchet: Hatchet,
+    test_run_id: str,
 ) -> None:
-    test_run_id = str(uuid4())
     ref1 = await idempotent_task.aio_run(
         input=IdempotencyInput(id=test_run_id),
         wait_for_result=False,
@@ -41,21 +41,8 @@ async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger(
 
     assert exc_info.value.existing_run_external_id == ref1.workflow_run_id
 
-    runs: list[TaskRunSummary] = []
+    runs = await _wait_for_runs_with_test_run_id(hatchet, test_run_id, expected_count=1)
 
-    for _ in range(15):
-        runs = await hatchet.runs.aio_list(
-            since=datetime.now(UTC) - timedelta(minutes=5),
-            additional_metadata={"test_run_id": test_run_id},
-        )
-
-        if len(runs) == 0:
-            await asyncio.sleep(1)
-            continue
-
-        break
-
-    assert runs is not None
     assert len(runs) == 1
     assert runs[0].id == ref1.workflow_run_id
 
@@ -66,9 +53,9 @@ async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger(
 @pytest.mark.asyncio(loop_scope="session")
 async def test_idempotency_status_based(
     hatchet: Hatchet,
+    test_run_id: str,
 ) -> None:
     start = time()
-    test_run_id = str(uuid4())
     ref1 = await idempotent_status_based_task.aio_run(
         input=IdempotencyInput(id=test_run_id),
         wait_for_result=False,
@@ -106,21 +93,8 @@ async def test_idempotency_status_based(
         time() - start < 10
     ), "The second run should have completed within the TTL window so we can test that the status-based idempotency is working."
 
-    runs: list[TaskRunSummary] | None = None
+    runs = await _wait_for_runs_with_test_run_id(hatchet, test_run_id, expected_count=2)
 
-    for _ in range(15):
-        runs = await hatchet.runs.aio_list(
-            since=datetime.now(UTC) - timedelta(minutes=5),
-            additional_metadata={"test_run_id": test_run_id},
-        )
-
-        if len(runs) == 0:
-            await asyncio.sleep(1)
-            continue
-
-        break
-
-    assert runs is not None
     assert len(runs) == 2
     assert {r.id for r in runs} == {
         ref1.workflow_run_id,
@@ -136,9 +110,9 @@ async def test_idempotency_status_based(
 @pytest.mark.asyncio(loop_scope="session")
 async def test_idempotency_status_based_failure(
     hatchet: Hatchet,
+    test_run_id: str,
 ) -> None:
     start = time()
-    test_run_id = str(uuid4())
     ref1 = await idempotent_status_based_task.aio_run(
         input=IdempotencyInput(id=test_run_id, desired_status="fail"),
         wait_for_result=False,
@@ -182,21 +156,8 @@ async def test_idempotency_status_based_failure(
         time() - start < 10
     ), "The second run should have completed within the TTL window so we can test that the status-based idempotency is working."
 
-    runs: list[TaskRunSummary] | None = None
+    runs = await _wait_for_runs_with_test_run_id(hatchet, test_run_id, expected_count=2)
 
-    for _ in range(15):
-        runs = await hatchet.runs.aio_list(
-            since=datetime.now(UTC) - timedelta(minutes=5),
-            additional_metadata={"test_run_id": test_run_id},
-        )
-
-        if len(runs) == 0:
-            await asyncio.sleep(1)
-            continue
-
-        break
-
-    assert runs is not None
     assert len(runs) == 2
     assert {r.id for r in runs} == {
         ref1.workflow_run_id,
@@ -207,9 +168,9 @@ async def test_idempotency_status_based_failure(
 @pytest.mark.asyncio(loop_scope="session")
 async def test_idempotency_status_based_cancel(
     hatchet: Hatchet,
+    test_run_id: str,
 ) -> None:
     start = time()
-    test_run_id = str(uuid4())
     ref1 = await idempotent_status_based_task.aio_run(
         input=IdempotencyInput(id=test_run_id, desired_status="cancel"),
         wait_for_result=False,
@@ -257,21 +218,8 @@ async def test_idempotency_status_based_cancel(
         time() - start < 10
     ), "The second run should have completed within the TTL window so we can test that the status-based idempotency is working."
 
-    runs: list[TaskRunSummary] | None = None
+    runs = await _wait_for_runs_with_test_run_id(hatchet, test_run_id, expected_count=2)
 
-    for _ in range(15):
-        runs = await hatchet.runs.aio_list(
-            since=datetime.now(UTC) - timedelta(minutes=5),
-            additional_metadata={"test_run_id": test_run_id},
-        )
-
-        if len(runs) == 0:
-            await asyncio.sleep(1)
-            continue
-
-        break
-
-    assert runs is not None
     assert len(runs) == 2
     assert {r.id for r in runs} == {
         ref1.workflow_run_id,
@@ -282,8 +230,8 @@ async def test_idempotency_status_based_cancel(
 @pytest.mark.asyncio(loop_scope="session")
 async def test_idempotency_keys_prevent_duplicate_runs_bulk_trigger(
     hatchet: Hatchet,
+    test_run_id: str,
 ) -> None:
-    test_run_id = str(uuid4())
 
     with pytest.raises(BulkTriggerIdempotencyCollisionError) as exc_info:
         await idempotent_task.aio_run_many(
@@ -307,8 +255,8 @@ async def test_idempotency_keys_prevent_duplicate_runs_bulk_trigger(
 @pytest.mark.asyncio(loop_scope="session")
 async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger_short_window(
     hatchet: Hatchet,
+    test_run_id: str,
 ) -> None:
-    test_run_id = str(uuid4())
     for i in range(4):
         if i == 1:
             with pytest.raises(IdempotencyCollisionError) as exc_info:
@@ -330,23 +278,8 @@ async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger_short_wind
         if i != 3:
             await asyncio.sleep(i + 1.5)
 
-    runs: list[TaskRunSummary] = []
+    runs = await _wait_for_runs_with_test_run_id(hatchet, test_run_id, expected_count=3)
 
-    for _ in range(15):
-        runs = await hatchet.runs.aio_list(
-            since=datetime.now(UTC) - timedelta(minutes=5),
-            additional_metadata={"test_run_id": test_run_id},
-        )
-
-        if len(runs) < 3:
-            await asyncio.sleep(1)
-            continue
-
-        break
-    else:
-        pytest.fail("Expected to find at least one run, but found none.")
-
-    assert runs
     assert len(runs) == 3
 
     for id in [r.id for r in runs]:
@@ -359,8 +292,8 @@ async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger_short_wind
 @pytest.mark.asyncio(loop_scope="session")
 async def test_idempotency_keys_prevent_duplicate_runs_event_trigger(
     hatchet: Hatchet,
+    test_run_id: str,
 ) -> None:
-    test_run_id = str(uuid4())
     e1 = await hatchet.events.aio_push(
         event_key=EVENT_KEY,
         payload={"id": test_run_id},
@@ -372,21 +305,8 @@ async def test_idempotency_keys_prevent_duplicate_runs_event_trigger(
         additional_metadata={"test_run_id": test_run_id},
     )
 
-    runs: list[TaskRunSummary] = []
+    runs = await _wait_for_runs_with_test_run_id(hatchet, test_run_id, expected_count=1)
 
-    for _ in range(15):
-        runs = await hatchet.runs.aio_list(
-            since=datetime.now(UTC) - timedelta(minutes=5),
-            additional_metadata={"test_run_id": test_run_id},
-        )
-
-        if len(runs) == 0:
-            await asyncio.sleep(1)
-            continue
-
-        break
-
-    assert runs is not None
     assert len(runs) == 1
 
     await asyncio.sleep(1)
@@ -405,40 +325,48 @@ async def test_idempotency_keys_prevent_duplicate_runs_event_trigger(
 
     assert len(all_triggered_runs) == 1
 
-    for _ in range(15):
-        run_details = await hatchet.runs.aio_get_details(
-            all_triggered_runs[0].workflow_run_id
-        )
+    run_details = await wait_for_run_done(
+        hatchet, all_triggered_runs[0].workflow_run_id, timeout=15
+    )
 
-        if run_details.status in ["QUEUED", "RUNNING"]:
-            await asyncio.sleep(1)
-            continue
+    assert run_details.status == "COMPLETED"
 
-        assert run_details.status == "COMPLETED"
+
+async def _wait_for_runs_with_test_run_id(
+    hatchet: Hatchet, test_run_id: str, expected_count: int
+) -> list[TaskRunSummary]:
+    return await poll_until(
+        lambda: hatchet.runs.aio_list(
+            since=datetime.now(UTC) - timedelta(minutes=5),
+            additional_metadata={"test_run_id": test_run_id},
+        ),
+        lambda runs: len(runs) >= expected_count,
+        description=f"{expected_count} runs with test_run_id {test_run_id}",
+        timeout=15.0,
+        interval=1.0,
+    )
 
 
 async def _wait_for_retry_count(
     hatchet: Hatchet, test_run_id: str, min_retry_count: int
 ) -> None:
-    for _ in range(30):
-        runs = await hatchet.runs.aio_list(
+    await poll_until(
+        lambda: hatchet.runs.aio_list(
             since=datetime.now(UTC) - timedelta(minutes=5),
             additional_metadata={"test_run_id": test_run_id},
-        )
-
-        if runs and (runs[0].retry_count or 0) >= min_retry_count:
-            return
-
-        await asyncio.sleep(1)
-
-    pytest.fail(f"Timed out waiting for run to reach retry_count >= {min_retry_count}.")
+        ),
+        lambda runs: bool(runs) and (runs[0].retry_count or 0) >= min_retry_count,
+        description=f"the run to reach retry_count >= {min_retry_count}",
+        timeout=30.0,
+        interval=1.0,
+    )
 
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_idempotency_status_based_key_held_across_all_retries_until_exhausted(
     hatchet: Hatchet,
+    test_run_id: str,
 ) -> None:
-    test_run_id = str(uuid4())
     ref1 = await idempotent_status_based_task_with_retries.aio_run(
         input=IdempotencyInput(id=test_run_id, desired_status="fail"),
         wait_for_result=False,
@@ -494,8 +422,8 @@ async def test_idempotency_status_based_key_held_across_all_retries_until_exhaus
 @pytest.mark.asyncio(loop_scope="session")
 async def test_idempotency_status_based_key_released_immediately_on_success_after_retry(
     hatchet: Hatchet,
+    test_run_id: str,
 ) -> None:
-    test_run_id = str(uuid4())
     ref1 = await idempotent_status_based_task_with_retries.aio_run(
         input=IdempotencyInput(id=test_run_id, desired_status="success"),
         wait_for_result=False,
@@ -538,8 +466,8 @@ async def test_idempotency_status_based_key_released_immediately_on_success_afte
 @pytest.mark.asyncio(loop_scope="session")
 async def test_idempotency_status_based_key_released_immediately_on_cancel_after_retry(
     hatchet: Hatchet,
+    test_run_id: str,
 ) -> None:
-    test_run_id = str(uuid4())
     ref1 = await idempotent_status_based_task_with_retries.aio_run(
         input=IdempotencyInput(id=test_run_id, desired_status="cancel"),
         wait_for_result=False,

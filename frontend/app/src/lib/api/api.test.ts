@@ -99,6 +99,54 @@ test('resolveExchangeTokenTenantId prefers explicit tenant over location and sto
   });
 });
 
+test('resolveExchangeTokenTenantId prefers request path tenant over location and storage', () => {
+  withLocation(`/tenants/${tenantB}/runs`, () => {
+    withStoredTenant(tenantC, () => {
+      assert.equal(
+        resolveExchangeTokenTenantId({
+          url: `/api/v1/stable/tenants/${tenantA}/workflow-runs`,
+        }),
+        tenantA,
+      );
+      assert.equal(
+        resolveExchangeTokenTenantId({
+          url: `/api/v1/tenants/${tenantA}?limit=1`,
+        }),
+        tenantA,
+      );
+    });
+  });
+});
+
+test('resolveExchangeTokenTenantId prefers explicit tenant over request path', () => {
+  assert.equal(
+    resolveExchangeTokenTenantId({
+      xTenantId: tenantA,
+      url: `/api/v1/tenants/${tenantB}/workflows`,
+    }),
+    tenantA,
+  );
+});
+
+test('resolveExchangeTokenTenantId falls back to location when the request path has no tenant', () => {
+  withLocation(`/tenants/${tenantA}/runs`, () => {
+    withStoredTenant(tenantB, () => {
+      assert.equal(
+        resolveExchangeTokenTenantId({
+          url: '/api/v1/stable/tasks/44444444-4444-4444-8444-444444444444',
+        }),
+        tenantA,
+      );
+      assert.equal(
+        resolveExchangeTokenTenantId({
+          url: `/api/v1/management/organization-tenants/${tenantC}`,
+        }),
+        tenantA,
+      );
+    });
+  });
+});
+
 test('resolveExchangeTokenTenantId prefers location tenant over storage', () => {
   withLocation(`/tenants/${tenantA}/runs`, () => {
     withStoredTenant(tenantB, () => {
