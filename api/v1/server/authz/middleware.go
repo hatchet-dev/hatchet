@@ -1,17 +1,15 @@
 package authz
 
 import (
+	"context"
 	"errors"
-	"fmt"
 	"net/http"
 
-	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
-	"github.com/hatchet-dev/hatchet/pkg/analytics"
-	"github.com/hatchet-dev/hatchet/pkg/auth/rbac"
+	pkgauthz "github.com/hatchet-dev/hatchet/pkg/auth/authz"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
@@ -19,32 +17,46 @@ import (
 )
 
 type AuthZ struct {
-	config *server.ServerConfig
-	rbac   *rbac.Authorizer
-	l      *zerolog.Logger
+	authorizer pkgauthz.Authorizer
+	roles      *tenantRoleResolver
+	l          *zerolog.Logger
 }
 
 func NewAuthZ(config *server.ServerConfig) (*AuthZ, error) {
-	rbacAuthorizer, err := newHatchetAuthorizer()
+	perms, err := newHatchetPermissions()
+	if err != nil {
+		return nil, err
+	}
+
+	// Extension operations are not in the OSS spec, so they are granted after validation.
+	if err := perms.Grant(string(enums.TenantMemberRoleVIEWER), config.Auth.AllowedOperations...); err != nil {
+		return nil, err
+	}
+
+	if err := perms.Grant(string(enums.TenantMemberRoleMEMBER), config.Auth.AllowedWriteOperations...); err != nil {
+		return nil, err
+	}
+
+	roles := &tenantRoleResolver{repo: config.V1}
+
+	authorizer, err := pkgauthz.New(
+		pkgauthz.WithPermissions(pkgauthz.RoleBased(perms, roles)),
+		pkgauthz.WithPolicies(buildPolicies(config, perms)...),
+	)
 	if err != nil {
 		return nil, err
 	}
 
 	return &AuthZ{
-		config: config,
-		l:      config.Logger,
-		rbac:   rbacAuthorizer,
+		authorizer: authorizer,
+		roles:      roles,
+		l:          config.Logger,
 	}, nil
 }
 
 func (a *AuthZ) Middleware(r *middleware.RouteInfo) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		err := a.authorize(c, r)
-		if err != nil {
-			return err
-		}
-
-		return nil
+		return a.authorize(c, r)
 	}
 }
 
@@ -53,191 +65,102 @@ func (a *AuthZ) authorize(c echo.Context, r *middleware.RouteInfo) error {
 		return nil
 	}
 
-	// authPreflight only returns handled=true in authdisabled builds, where it authorizes the
-	// request against the NOAUTH role and short-circuits the strategy switch below. In normal
-	// builds it is a no-op (returns false), so authorization always proceeds. Do not invert this.
-	if handled, err := a.authPreflight(c, r); handled {
-		return err
-	}
-
-	var err error
-
-	switch c.Get("auth_strategy").(string) {
-	case "cookie":
-		err = a.handleCookieAuth(c, r)
-	case "bearer":
-		err = a.handleBearerAuth(c, r)
-	case "custom":
-		err = a.handleCustomAuth(c, r)
-	default:
-		return echo.NewHTTPError(http.StatusInternalServerError, "No authorization strategy was checked")
-	}
-
-	return err
+	return a.authorizeSecured(c, r)
 }
 
-func (a *AuthZ) handleCookieAuth(c echo.Context, r *middleware.RouteInfo) error {
-	if err := a.ensureVerifiedEmail(c, r); err != nil {
-		a.l.Debug().Ctx(c.Request().Context()).Err(err).Msgf("error ensuring verified email")
-		return echo.NewHTTPError(http.StatusUnauthorized, "Please verify your email before continuing")
+func (a *AuthZ) authorizeSecured(c echo.Context, r *middleware.RouteInfo) error {
+	ctx := pkgauthz.WithRequestCache(c.Request().Context())
+	c.SetRequest(c.Request().WithContext(ctx))
+
+	req := pkgauthz.Request{
+		Principal: pkgauthz.PrincipalFrom(ctx),
+		Action:    pkgauthz.REST(r.OperationID),
+		Scope:     scopeFromEcho(c),
 	}
 
-	if err := a.validateUserTenantPermissions(c, r); err != nil {
+	d, err := a.authorizer.Authorize(context.WithValue(ctx, echoRequestCtxKey{}, echoRequest{c: c, route: r}), req)
+	if err != nil {
+		var hookErr hookError
+		if errors.As(err, &hookErr) {
+			return hookErr.err
+		}
+
+		var limitErr *fairpool.LimitError
+		if errors.As(err, &limitErr) {
+			return err
+		}
+
+		a.l.Debug().Ctx(ctx).Err(err).Msg("error authorizing request")
+
+		return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to view this resource")
+	}
+
+	if !d.Allowed {
+		a.l.Debug().Ctx(ctx).Msgf("denied %s: %s", r.OperationID, d.Reason)
+
+		return httpErrorFor(req.Principal, d.Reason)
+	}
+
+	return a.setTenantMember(c, req)
+}
+
+// setTenantMember keeps the tenant-member context value that handlers and CanViewPayloads still read.
+func (a *AuthZ) setTenantMember(c echo.Context, req pkgauthz.Request) error {
+	user, ok := req.Principal.(pkgauthz.UserPrincipal)
+	if !ok || req.Scope.TenantID == nil {
+		return nil
+	}
+
+	member, err := a.roles.member(c.Request().Context(), *req.Scope.TenantID, user.UserID)
+	if err != nil {
 		return err
 	}
 
-	if a.config.Auth.CustomAuthenticator != nil {
-		return a.config.Auth.CustomAuthenticator.CookieAuthorizerHook(c, r)
+	if member != nil {
+		c.Set("tenant-member", member)
 	}
 
 	return nil
 }
 
-var restrictedWithBearerToken = []string{
-	// bearer tokens cannot read, list, or write other bearer tokens
-	"ApiTokenList",
-	"ApiTokenCreate",
-	"ApiTokenUpdateRevoke",
-	// tokens are not tied to a member role, so they cannot change Labs entitlements
-	"TenantEntitlementsUpdate",
+type echoRequestCtxKey struct{}
+
+// echoRequest lets the extension hook policies reach the echo request they were written against.
+type echoRequest struct {
+	c     echo.Context
+	route *middleware.RouteInfo
 }
 
-// Bearer tokens have tenant access checked by authentication and optional viewer restrictions here.
-func (a *AuthZ) handleBearerAuth(c echo.Context, r *middleware.RouteInfo) error {
-	// check for is_exchange_token set in the context, in which case we need to validate the user set in the context
-	// exchange tokens are subject to the same RBAC restrictions as cookie auth, since they represent a user. only
-	// regular bearer tokens should be subject to the additional restrictions in restrictedWithBearerToken
-	if isExchangeToken, ok := c.Get(middleware.IsExchangeTokenContextKey).(bool); ok && isExchangeToken {
-		if a.config.Auth.ExchangeTokenClient == nil {
-			a.l.Error().Msgf("exchange token client is not configured, but is_exchange_token is set in context")
-			return echo.NewHTTPError(http.StatusInternalServerError, "Exchange token client is not configured")
-		}
+// hookError carries an extension hook's own HTTP error through Authorize unchanged.
+type hookError struct {
+	err error
+}
 
-		if err := a.ensureVerifiedEmail(c, r); err != nil {
-			a.l.Debug().Ctx(c.Request().Context()).Err(err).Msgf("error ensuring verified email for exchange token user")
-			return echo.NewHTTPError(http.StatusUnauthorized, "Please verify your email before continuing")
-		}
+func (e hookError) Error() string { return e.err.Error() }
 
-		if err := a.validateUserTenantPermissions(c, r); err != nil {
-			a.l.Debug().Ctx(c.Request().Context()).Err(err).Msgf("error validating user tenant permissions for exchange token user")
-			return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to view this resource")
-		}
-	} else if !isExchangeToken {
-		if rbac.OperationIn(r.OperationID, restrictedWithBearerToken) {
+func (e hookError) Unwrap() error { return e.err }
+
+func scopeFromEcho(c echo.Context) pkgauthz.Scope {
+	if tenant, ok := c.Get("tenant").(*sqlcv1.Tenant); ok && tenant != nil {
+		return pkgauthz.TenantScope(tenant.ID)
+	}
+
+	return pkgauthz.NoScope
+}
+
+// httpErrorFor keeps the status codes and messages the old cookie and bearer paths returned.
+func httpErrorFor(p pkgauthz.Principal, reason pkgauthz.DenyReason) error {
+	switch reason {
+	case pkgauthz.EmailUnverified:
+		return echo.NewHTTPError(http.StatusUnauthorized, "Please verify your email before continuing")
+	case pkgauthz.TokenRestricted:
+		return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
+	case pkgauthz.RoleInsufficient:
+		if _, isToken := p.(pkgauthz.TokenPrincipal); isToken {
 			return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
 		}
-		tokenID, ok := c.Get(string(analytics.APITokenIDKey)).(uuid.UUID)
-		if !ok {
-			return echo.NewHTTPError(http.StatusUnauthorized, "Missing API token")
-		}
-		token, err := a.config.V1.APIToken().GetAPITokenById(c.Request().Context(), tokenID)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusUnauthorized, "Invalid API token")
-		}
-		if token.ReadOnly {
-			return a.authorizeTenantOperations(string(enums.TenantMemberRoleVIEWER), r)
-		}
+	case pkgauthz.NotMember, pkgauthz.OutOfTagScope, pkgauthz.NotEntitled, pkgauthz.TenantArchived, pkgauthz.NotOwned, pkgauthz.RoleEscalation, pkgauthz.NotAPIToken, pkgauthz.MissingCapability:
 	}
 
-	return nil
-}
-
-func (a *AuthZ) handleCustomAuth(c echo.Context, r *middleware.RouteInfo) error {
-	if a.config.Auth.CustomAuthenticator == nil {
-		return fmt.Errorf("custom auth handler is not set")
-	}
-
-	return a.config.Auth.CustomAuthenticator.Authorize(c, r)
-}
-
-var permittedWithUnverifiedEmail = []string{
-	"UserGetCurrent",
-	"UserUpdateLogout",
-}
-
-func (a *AuthZ) ensureVerifiedEmail(c echo.Context, r *middleware.RouteInfo) error {
-	user, ok := c.Get("user").(*sqlcv1.User)
-
-	if !ok {
-		return nil
-	}
-
-	if rbac.OperationIn(r.OperationID, permittedWithUnverifiedEmail) {
-		return nil
-	}
-
-	if !user.EmailVerified {
-		return echo.NewHTTPError(http.StatusForbidden, "Please verify your email before continuing")
-	}
-
-	return nil
-}
-
-func (a *AuthZ) validateUserTenantPermissions(c echo.Context, r *middleware.RouteInfo) error {
-	unauthorized := echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to view this resource")
-	ctx := c.Request().Context()
-
-	// if tenant is set in the context, verify that the user is a member of the tenant
-	if tenant, ok := c.Get("tenant").(*sqlcv1.Tenant); ok {
-		user, ok := c.Get("user").(*sqlcv1.User)
-
-		if !ok {
-			a.l.Debug().Ctx(ctx).Msgf("user not found in context")
-
-			return unauthorized
-		}
-
-		// check if the user is a member of the tenant
-		tenantMember, err := a.config.V1.Tenant().GetTenantMemberByUserID(c.Request().Context(), tenant.ID, user.ID)
-
-		if err != nil {
-			var limitErr *fairpool.LimitError
-			if errors.As(err, &limitErr) {
-				return err
-			}
-
-			a.l.Debug().Ctx(ctx).Err(err).Msgf("error getting tenant member")
-
-			return unauthorized
-		}
-
-		if tenantMember == nil {
-			a.l.Debug().Ctx(ctx).Msgf("user is not a member of the tenant")
-
-			return unauthorized
-		}
-
-		// set the tenant member in the context
-		c.Set("tenant-member", tenantMember)
-
-		// authorize tenant operations
-		if err := a.authorizeTenantOperations(string(tenantMember.Role), r); err != nil {
-			a.l.Debug().Ctx(ctx).Err(err).Msgf("error authorizing tenant operations")
-
-			return unauthorized
-		}
-	}
-
-	return nil
-}
-
-func (a *AuthZ) authorizeTenantOperations(roleName string, r *middleware.RouteInfo) error {
-	// if the operation is in the allowed operations, skip the RBAC check this is needed for extensions
-	if rbac.OperationIn(r.OperationID, a.config.Auth.AllowedOperations) {
-		return nil
-	}
-
-	if rbac.OperationIn(r.OperationID, a.config.Auth.AllowedWriteOperations) &&
-		roleName != string(enums.TenantMemberRoleVIEWER) {
-		return nil
-	}
-
-	// at the moment, tenant members are only restricted from creating other tenant users.
-	if !a.rbac.IsAuthorized(roleName, r.OperationID) {
-		return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
-	}
-
-	// NOTE(abelanger5): this should be default-deny, but there's not a strong use-case for restricting member
-	// operations at the moment. If there is, we should modify this logic.
-	return nil
+	return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to view this resource")
 }

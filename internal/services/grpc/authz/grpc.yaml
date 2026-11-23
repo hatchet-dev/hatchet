@@ -1,0 +1,86 @@
+# Capabilities held by tenant API tokens; a token may call a procedure if any capability it holds grants it.
+# Tokens stored without capabilities (every token that exists today) resolve to "all".
+capabilities:
+  all:
+    procedures: ["*"]
+
+  # running tasks, including what a worker does on behalf of the tasks it runs
+  worker:
+    inherits: [workflows:register, runs:trigger, runs:read, streams:publish]
+    procedures:
+      - /Dispatcher/GetVersion
+      - /Dispatcher/Register
+      - /Dispatcher/Listen
+      - /Dispatcher/ListenV2
+      - /Dispatcher/Heartbeat
+      - /Dispatcher/Unsubscribe
+      - /Dispatcher/SendStepActionEvent
+      - /Dispatcher/SendBatchActionEvent
+      - /Dispatcher/SendGroupKeyActionEvent
+      - /Dispatcher/PutOverridesData
+      - /Dispatcher/RefreshTimeout
+      - /Dispatcher/ReleaseSlot
+      - /Dispatcher/RestoreEvictedTask
+      - /Dispatcher/UpsertWorkerLabels
+      - /v1.V1Dispatcher/DurableTask
+      - /v1.V1Dispatcher/RegisterDurableEvent
+      - /v1.V1Dispatcher/ListenForDurableEvent
+      - /v1.AdminService/BranchDurableTask
+      - /EventsService/PutLog
+      - /EventsService/PutStreamEvent
+
+  operator:
+    procedures:
+      - /v1.OperatorService/Register
+      - /v1.OperatorService/Listen
+      - /v1.OperatorService/SendStepActionEvent
+      - /v1.OperatorService/DurableTask
+
+  workflows:register:
+    procedures:
+      - /WorkflowService/PutWorkflow
+      - /v1.AdminService/PutWorkflow
+
+  runs:trigger:
+    procedures:
+      - /WorkflowService/TriggerWorkflow
+      - /WorkflowService/BulkTriggerWorkflow
+      - /WorkflowService/ScheduleWorkflow
+      - /v1.AdminService/TriggerWorkflowRun
+
+  runs:read:
+    procedures:
+      - /Dispatcher/SubscribeToWorkflowEvents
+      - /Dispatcher/SubscribeToWorkflowRuns
+      - /v1.AdminService/GetRunDetails
+
+  runs:manage:
+    procedures:
+      - /v1.AdminService/CancelTasks
+      - /v1.AdminService/ReplayTasks
+
+  events:push:
+    procedures:
+      - /EventsService/Push
+      - /EventsService/BulkPush
+      - /EventsService/ReplaySingleEvent
+
+  rate-limits:manage:
+    procedures:
+      - /WorkflowService/PutRateLimit
+      - /WorkflowService/PauseRateLimit
+
+  streams:publish:
+    procedures:
+      - /v1.V1Streams/Publish
+      - /v1.V1Streams/PublishBatch
+
+  streams:read:
+    procedures:
+      - /v1.V1Streams/Subscribe
+      - /v1.V1Streams/GetTopicMetadata
+
+  streams:manage:
+    inherits: [streams:publish, streams:read]
+    procedures:
+      - /v1.V1Streams/Reset

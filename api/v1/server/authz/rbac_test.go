@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/auth/rbac"
+	pkgauthz "github.com/hatchet-dev/hatchet/pkg/auth/authz"
 	"github.com/hatchet-dev/hatchet/pkg/enums"
 
 	"github.com/stretchr/testify/assert"
@@ -95,37 +95,37 @@ func operationIdsFromSpec() []string {
 }
 
 func TestAuthorizeTenantOperations(t *testing.T) {
-	r, err := newHatchetAuthorizer()
+	r, err := newHatchetPermissions()
 	assert.Nil(t, err)
 	allOperations := operationIdsFromSpec()
 	for _, operationId := range allOperations {
-		assert.Equal(t, r.IsAuthorized(string(enums.TenantMemberRoleADMIN), operationId), true)
-		assert.Equal(t, r.IsAuthorized(string(enums.TenantMemberRoleOWNER), operationId), true)
-		if rbac.OperationIn(operationId, adminAndOwnerOnly) {
-			assert.Equal(t, r.IsAuthorized(string(enums.TenantMemberRoleMEMBER), operationId), false)
+		assert.Equal(t, r.HasPermission(string(enums.TenantMemberRoleADMIN), pkgauthz.REST(operationId)), true)
+		assert.Equal(t, r.HasPermission(string(enums.TenantMemberRoleOWNER), pkgauthz.REST(operationId)), true)
+		if pkgauthz.OperationIn(operationId, adminAndOwnerOnly) {
+			assert.Equal(t, r.HasPermission(string(enums.TenantMemberRoleMEMBER), pkgauthz.REST(operationId)), false)
 		} else {
-			assert.Equal(t, r.IsAuthorized(string(enums.TenantMemberRoleMEMBER), operationId), true)
+			assert.Equal(t, r.HasPermission(string(enums.TenantMemberRoleMEMBER), pkgauthz.REST(operationId)), true)
 		}
 	}
 }
 
 func TestAuthorizeTenantOperationsViewer(t *testing.T) {
-	r, err := newHatchetAuthorizer()
+	r, err := newHatchetPermissions()
 	assert.Nil(t, err)
 	allOperations := operationIdsFromSpec()
 	for _, operationId := range allOperations {
-		expectAuthorized := !rbac.OperationIn(operationId, adminAndOwnerOnly) && !rbac.OperationIn(operationId, memberOnlyOps)
+		expectAuthorized := !pkgauthz.OperationIn(operationId, adminAndOwnerOnly) && !pkgauthz.OperationIn(operationId, memberOnlyOps)
 		assert.Equal(
 			t,
 			expectAuthorized,
-			r.IsAuthorized(string(enums.TenantMemberRoleVIEWER), operationId),
+			r.HasPermission(string(enums.TenantMemberRoleVIEWER), pkgauthz.REST(operationId)),
 			"operationId: %s", operationId,
 		)
 	}
 }
 
 func TestAuthorizeTenantOperationsViewerRepresentativeSample(t *testing.T) {
-	r, err := newHatchetAuthorizer()
+	r, err := newHatchetPermissions()
 	assert.Nil(t, err)
 
 	deniedForViewer := []string{
@@ -141,7 +141,7 @@ func TestAuthorizeTenantOperationsViewerRepresentativeSample(t *testing.T) {
 		"TenantCreate",
 	}
 	for _, operationId := range deniedForViewer {
-		assert.False(t, r.IsAuthorized(string(enums.TenantMemberRoleVIEWER), operationId), "operationId: %s", operationId)
+		assert.False(t, r.HasPermission(string(enums.TenantMemberRoleVIEWER), pkgauthz.REST(operationId)), "operationId: %s", operationId)
 	}
 
 	allowedForViewer := []string{
@@ -156,17 +156,17 @@ func TestAuthorizeTenantOperationsViewerRepresentativeSample(t *testing.T) {
 		"UserUpdateLogout",
 	}
 	for _, operationId := range allowedForViewer {
-		assert.True(t, r.IsAuthorized(string(enums.TenantMemberRoleVIEWER), operationId), "operationId: %s", operationId)
+		assert.True(t, r.HasPermission(string(enums.TenantMemberRoleVIEWER), pkgauthz.REST(operationId)), "operationId: %s", operationId)
 	}
 }
 
 func TestValidateSpec(t *testing.T) {
-	_, err := newHatchetAuthorizer()
+	_, err := newHatchetPermissions()
 	assert.Nil(t, err)
 }
 
 func TestAuthorizeApiTokenOperationsByRole(t *testing.T) {
-	r, err := newHatchetAuthorizer()
+	r, err := newHatchetPermissions()
 	assert.Nil(t, err)
 
 	cases := []struct {
@@ -183,8 +183,8 @@ func TestAuthorizeApiTokenOperationsByRole(t *testing.T) {
 
 	for _, c := range cases {
 		role := string(c.role)
-		assert.Equal(t, c.list, r.IsAuthorized(role, "ApiTokenList"), "role %s: ApiTokenList", role)
-		assert.Equal(t, c.create, r.IsAuthorized(role, "ApiTokenCreate"), "role %s: ApiTokenCreate", role)
-		assert.Equal(t, c.revoke, r.IsAuthorized(role, "ApiTokenUpdateRevoke"), "role %s: ApiTokenUpdateRevoke", role)
+		assert.Equal(t, c.list, r.HasPermission(role, pkgauthz.REST("ApiTokenList")), "role %s: ApiTokenList", role)
+		assert.Equal(t, c.create, r.HasPermission(role, pkgauthz.REST("ApiTokenCreate")), "role %s: ApiTokenCreate", role)
+		assert.Equal(t, c.revoke, r.HasPermission(role, pkgauthz.REST("ApiTokenUpdateRevoke")), "role %s: ApiTokenUpdateRevoke", role)
 	}
 }

@@ -1,4 +1,7 @@
 roles:
+  # full API tokens may call any operation, including extension ones; the restricted list is a policy
+  API_TOKEN:
+    permissions: ["*"]
   OWNER:
     inherits: [ADMIN]
   NOAUTH:
