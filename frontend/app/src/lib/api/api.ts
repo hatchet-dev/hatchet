@@ -1,6 +1,7 @@
 import { inferControlPlaneEnabled } from './control-plane-status';
 import {
   ExchangeTokenFetchError,
+  exchangeTokenIsUsable,
   exchangeTokenQueryOptions,
 } from './exchange-token';
 import { Api } from './generated/Api';
@@ -276,11 +277,17 @@ export async function exchangeTokenInterceptor(
   }
 
   try {
-    const exchangeToken = await queryClient.fetchQuery(
-      exchangeTokenQueryOptions(tenantId, () =>
-        controlPlaneApi.exchangeTokenCreate(tenantId).then((r) => r.data),
-      ),
+    const options = exchangeTokenQueryOptions(tenantId, () =>
+      controlPlaneApi.exchangeTokenCreate(tenantId).then((r) => r.data),
     );
+    let exchangeToken = await queryClient.fetchQuery(options);
+
+    // A token fetch that was in flight while the tab was frozen resolves to
+    // every waiter with no expiry check. The cache marks that token stale on
+    // arrival, so asking once more mints a new one.
+    if (!exchangeTokenIsUsable(exchangeToken.expiresAt)) {
+      exchangeToken = await queryClient.fetchQuery(options);
+    }
 
     config.baseURL = exchangeToken.apiUrl;
     config.withCredentials = false;
