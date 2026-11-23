@@ -33,7 +33,7 @@ async def test_durable_child_key_duplicate_bug_second_unique(hatchet: Hatchet) -
 
     await res.aio_result()
 
-    runs = await wait_for_child_runs(hatchet, res.workflow_run_id)
+    runs = await wait_for_child_runs(hatchet, res.workflow_run_id, min_count=2)
 
     assert (
         len(runs) == 2
@@ -57,7 +57,7 @@ async def test_durable_child_key_duplicate_bug_third_unique(hatchet: Hatchet) ->
 
     await res.aio_result()
 
-    runs = await wait_for_child_runs(hatchet, res.workflow_run_id)
+    runs = await wait_for_child_runs(hatchet, res.workflow_run_id, min_count=2)
 
     assert (
         len(runs) == 2

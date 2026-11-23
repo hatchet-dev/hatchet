@@ -14,8 +14,8 @@ from hatchet_sdk import Hatchet, WorkflowRunRef
 @pytest.mark.asyncio(loop_scope="session")
 async def test_cancel_queued_except_oldest_keeps_oldest_with_parent_concurrency(
     hatchet: Hatchet,
+    test_run_id: str,
 ) -> None:
-    test_run_id = str(uuid4())
     group = str(uuid4())
 
     workflow = concurrency_cancel_queued_except_oldest_with_parent_concurrency_workflow

@@ -1,4 +1,3 @@
-import asyncio
 from typing import Any
 
 import pytest
@@ -9,51 +8,18 @@ from examples.bug_tests.dag_replay_twice.worker import (
     first,
     second,
 )
-from examples.test_utils import wait_for_running_status
-from hatchet_sdk import FailedTaskRunExceptionGroup, Hatchet, RunStatus
+from examples.test_utils import (
+    wait_for_run_status,
+    wait_for_running_status,
+    wait_for_task_status,
+)
+from hatchet_sdk import FailedTaskRunExceptionGroup, Hatchet
 
 # The DAG operator reports that it is blocked every 10 seconds, and the engine evicts the idle
 # invocation on that report. A step that runs longer than that forces the operator to be
 # evicted and then restored (re-invoked) once the step finishes, which replays the DAG from
 # the top on a fresh invocation.
 SECOND_DURATION_FORCING_OPERATOR_EVICTION_SECONDS = 15
-
-
-async def wait_for_task_status(
-    hatchet: Hatchet,
-    run_id: str,
-    task_name: str,
-    status: RunStatus,
-    timeout: float = 60.0,
-) -> None:
-    interval = 0.5
-
-    for _ in range(int(timeout / interval)):
-        details = await hatchet.runs.aio_get_details(run_id)
-        task_run = details.task_runs.get(task_name)
-
-        if task_run is not None and task_run.status == status:
-            return
-
-        await asyncio.sleep(interval)
-
-    raise TimeoutError(f"task {task_name} of run {run_id} did not reach {status}")
-
-
-async def wait_for_run_status(
-    hatchet: Hatchet, run_id: str, status: RunStatus, timeout: float = 60.0
-) -> None:
-    interval = 0.5
-
-    for _ in range(int(timeout / interval)):
-        details = await hatchet.runs.aio_get_details(run_id)
-
-        if details.status == status:
-            return
-
-        await asyncio.sleep(interval)
-
-    raise TimeoutError(f"run {run_id} did not reach {status}")
 
 
 async def run_until_first_step_fails(
