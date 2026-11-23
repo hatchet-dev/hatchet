@@ -268,6 +268,34 @@ type ConfigFileRuntime struct {
 	// DATABASE_MAX_CONNS. 0 sends every event over the queue; a negative value removes the cap.
 	DirectTaskWriteSlots int `mapstructure:"directTaskWriteSlots" json:"directTaskWriteSlots,omitempty" default:"10"`
 
+	// Whether completing a task writes its internal events (the triggers for the next DAG step) to a
+	// transactional outbox in the same database transaction, instead of sending them over the durable
+	// task queue after the commit
+	InternalEventOutboxEnabled bool `mapstructure:"internalEventOutboxEnabled" json:"internalEventOutboxEnabled,omitempty" default:"false"`
+
+	// The number of outbox topics internal events are spread over. pgoutbox processes one batch per topic
+	// at a time, so this bounds how many batches the engine fleet processes concurrently.
+	InternalEventOutboxShards int `mapstructure:"internalEventOutboxShards" json:"internalEventOutboxShards,omitempty" default:"8"`
+
+	// How often every engine drains each internal event topic, which bounds how long a batch written by an
+	// engine that crashed before processing it waits
+	InternalEventOutboxPollInterval time.Duration `mapstructure:"internalEventOutboxPollInterval" json:"internalEventOutboxPollInterval,omitempty" default:"1s"`
+
+	// Whether messages for a dispatcher (task assignments, cancellations, durable callbacks, batch starts)
+	// go over best-effort pub/sub instead of the dispatcher's durable queue. The dispatcher then pulls the
+	// assignments it never received from the database, so this requires ReassignUnackedTasks.
+	DispatcherDoorbellEnabled bool `mapstructure:"dispatcherDoorbellEnabled" json:"dispatcherDoorbellEnabled,omitempty" default:"false"`
+
+	// How often a dispatcher looks in the database for assignments to its workers that it never received
+	DispatcherPullInterval time.Duration `mapstructure:"dispatcherPullInterval" json:"dispatcherPullInterval,omitempty" default:"2s"`
+
+	// How old an unacknowledged assignment must be before the pull sends it, so it doesn't race the
+	// pub/sub message that is still on its way
+	DispatcherPullGrace time.Duration `mapstructure:"dispatcherPullGrace" json:"dispatcherPullGrace,omitempty" default:"2s"`
+
+	// Test only: the percentage of dispatcher pub/sub messages to drop, to exercise the database pull
+	DispatcherDoorbellDropPercent int `mapstructure:"dispatcherDoorbellDropPercent" json:"dispatcherDoorbellDropPercent,omitempty" default:"0"`
+
 	// Allow new tenants to be created
 	AllowSignup bool `mapstructure:"allowSignup" json:"allowSignup,omitempty" default:"true"`
 
@@ -1232,6 +1260,13 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.grpcTriggerWritesEnabled", "SERVER_GRPC_TRIGGER_WRITES_ENABLED")
 	_ = v.BindEnv("runtime.grpcTriggerWriteSlots", "SERVER_GRPC_TRIGGER_WRITE_SLOTS")
 	_ = v.BindEnv("runtime.directTaskWriteSlots", "SERVER_DIRECT_TASK_WRITE_SLOTS")
+	_ = v.BindEnv("runtime.internalEventOutboxEnabled", "SERVER_INTERNAL_EVENT_OUTBOX_ENABLED")
+	_ = v.BindEnv("runtime.internalEventOutboxShards", "SERVER_INTERNAL_EVENT_OUTBOX_SHARDS")
+	_ = v.BindEnv("runtime.internalEventOutboxPollInterval", "SERVER_INTERNAL_EVENT_OUTBOX_POLL_INTERVAL")
+	_ = v.BindEnv("runtime.dispatcherDoorbellEnabled", "SERVER_DISPATCHER_DOORBELL_ENABLED")
+	_ = v.BindEnv("runtime.dispatcherPullInterval", "SERVER_DISPATCHER_PULL_INTERVAL")
+	_ = v.BindEnv("runtime.dispatcherPullGrace", "SERVER_DISPATCHER_PULL_GRACE")
+	_ = v.BindEnv("runtime.dispatcherDoorbellDropPercent", "SERVER_DISPATCHER_DOORBELL_DROP_PERCENT")
 
 	// internal client options
 	_ = v.BindEnv("internalClient.base.tlsStrategy", "SERVER_INTERNAL_CLIENT_BASE_STRATEGY")

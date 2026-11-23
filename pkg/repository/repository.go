@@ -63,6 +63,8 @@ type Repository interface {
 	UserSession() UserSessionRepository
 	WorkflowSchedules() WorkflowScheduleRepository
 	Sync() SyncRepository
+	InternalEventOutbox() *InternalEventOutbox
+	SetInternalEventOutbox(o *InternalEventOutbox)
 }
 
 type repositoryImpl struct {
@@ -103,6 +105,8 @@ type repositoryImpl struct {
 	userSession         UserSessionRepository
 	workflowSchedules   WorkflowScheduleRepository
 	sync                SyncRepository
+
+	shared *sharedRepository
 }
 
 func NewRepository(
@@ -130,6 +134,7 @@ func NewRepository(
 	durableEvents, cleanupDurableEvents := newDurableEventsRepository(shared, durableEventBufferOpts)
 
 	impl := &repositoryImpl{
+		shared:              shared,
 		apiToken:            newAPITokenRepository(shared, cacheDuration),
 		dispatcher:          newDispatcherRepository(shared),
 		durableEvents:       durableEvents,
@@ -346,4 +351,14 @@ func (r *repositoryImpl) WorkflowSchedules() WorkflowScheduleRepository {
 
 func (r *repositoryImpl) Sync() SyncRepository {
 	return r.sync
+}
+
+// InternalEventOutbox is nil unless the internal event outbox is enabled.
+func (r *repositoryImpl) InternalEventOutbox() *InternalEventOutbox {
+	return r.shared.internalEventOutbox
+}
+
+// SetInternalEventOutbox must be called before the repository is used, since the field isn't guarded.
+func (r *repositoryImpl) SetInternalEventOutbox(o *InternalEventOutbox) {
+	r.shared.internalEventOutbox = o
 }

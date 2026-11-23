@@ -13,6 +13,11 @@ type CreateDispatcherOpts struct {
 }
 
 type DispatcherRepository interface {
+	// ListUnackedAssignments returns assignments to the given workers, made in [assignedAfter,
+	// assignedBefore), that no worker has acknowledged. It relies on assigned_at, which is only
+	// written when ReassignUnackedTasks is enabled.
+	ListUnackedAssignments(ctx context.Context, workerIds []uuid.UUID, assignedAfter, assignedBefore time.Time, limitPerWorker int) ([]UnackedAssignment, error)
+
 	// CreateNewDispatcher creates a new dispatcher for a given tenant.
 	CreateNewDispatcher(ctx context.Context, opts *CreateDispatcherOpts) (*sqlcv1.Dispatcher, error)
 
@@ -58,4 +63,59 @@ func (d *dispatcherRepository) Delete(ctx context.Context, dispatcherId uuid.UUI
 func (d *dispatcherRepository) MarkInactive(ctx context.Context, dispatcherId uuid.UUID) error {
 	_, err := d.queries.SetDispatchersInactive(ctx, d.pool.ForShared(), []uuid.UUID{dispatcherId})
 	return err
+}
+
+type UnackedAssignment struct {
+	TenantID   uuid.UUID
+	WorkerID   uuid.UUID
+	TaskID     int64
+	RetryCount int32
+}
+
+// The lateral join resolves each worker's tenant first so the runtime lookup can use the
+// (tenant_id, worker_id) index; there is no index on worker_id alone.
+const listUnackedAssignmentsSQL = `
+SELECT w."tenantId", w.id, rt.task_id, rt.retry_count
+FROM "Worker" w
+JOIN LATERAL (
+    SELECT rt.task_id, rt.retry_count
+    FROM v1_task_runtime rt
+    WHERE rt.tenant_id = w."tenantId"
+        AND rt.worker_id = w.id
+        AND rt.evicted_at IS NULL
+        AND rt.acked_at IS NULL
+        AND rt.assigned_at >= $2
+        AND rt.assigned_at < $3
+    ORDER BY rt.assigned_at
+    LIMIT $4
+) rt ON true
+WHERE w.id = ANY($1::uuid[])
+`
+
+func (d *dispatcherRepository) ListUnackedAssignments(ctx context.Context, workerIds []uuid.UUID, assignedAfter, assignedBefore time.Time, limitPerWorker int) ([]UnackedAssignment, error) {
+	if len(workerIds) == 0 {
+		return nil, nil
+	}
+
+	rows, err := d.pool.ForShared().Query(ctx, listUnackedAssignmentsSQL, workerIds, assignedAfter, assignedBefore, limitPerWorker)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	res := make([]UnackedAssignment, 0)
+
+	for rows.Next() {
+		var a UnackedAssignment
+
+		if err := rows.Scan(&a.TenantID, &a.WorkerID, &a.TaskID, &a.RetryCount); err != nil {
+			return nil, err
+		}
+
+		res = append(res, a)
+	}
+
+	return res, rows.Err()
 }

@@ -48,6 +48,9 @@ type sharedRepository struct {
 
 	limitConfig limits.LimitConfigFile
 
+	// set after construction because the outbox is built from the repository's own pool
+	internalEventOutbox *InternalEventOutbox
+
 	queueCache               *cache.Cache
 	concurrencyStrategyCache *cache.Cache
 

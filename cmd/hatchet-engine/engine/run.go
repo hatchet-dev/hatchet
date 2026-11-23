@@ -435,6 +435,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			dispatcher.WithVersion(sc.Version),
 			dispatcher.WithAnalytics(sc.Analytics),
 			dispatcher.WithPrometheusGate(sc.PrometheusGate),
+			dispatcher.WithDoorbell(newDispatcherDoorbell(sc)),
 		)
 
 		if err != nil {
@@ -966,6 +967,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			dispatcher.WithVersion(sc.Version),
 			dispatcher.WithAnalytics(sc.Analytics),
 			dispatcher.WithPrometheusGate(sc.PrometheusGate),
+			dispatcher.WithDoorbell(newDispatcherDoorbell(sc)),
 			dispatcher.WithDirectTaskWriter(directTaskWriter),
 		)
 
@@ -1258,6 +1260,17 @@ func isControllerActive(pausedControllers map[string]bool, controllerName Contro
 	}
 
 	return false
+}
+
+func newDispatcherDoorbell(sc *server.ServerConfig) *dispatcher.DoorbellOpts {
+	if !sc.Runtime.DispatcherDoorbellEnabled {
+		return nil
+	}
+
+	return &dispatcher.DoorbellOpts{
+		PullInterval: sc.Runtime.DispatcherPullInterval,
+		PullGrace:    sc.Runtime.DispatcherPullGrace,
+	}
 }
 
 // taskControllerOpts are the settings that decide how the task controller's handlers apply a message.

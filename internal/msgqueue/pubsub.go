@@ -30,6 +30,10 @@ const (
 
 	// TopicKindWorkflowVersionCreated fans new workflow versions out to every engine.
 	TopicKindWorkflowVersionCreated TopicKind = "workflow-version-created"
+
+	// TopicKindDispatcher carries the messages for one dispatcher. Losing one costs latency, not
+	// correctness: the dispatcher pulls the assignments it missed from the database.
+	TopicKindDispatcher TopicKind = "dispatcher"
 )
 
 // Fanout reports whether every subscriber of a topic of this kind gets its own
@@ -39,6 +43,10 @@ const (
 func (k TopicKind) Fanout() bool {
 	switch k {
 	case TopicKindTenantStream, TopicKindStreamWake, TopicKindCronRefresh, TopicKindWorkflowVersionCreated:
+		return true
+	case TopicKindDispatcher:
+		// one subscriber, so fanout changes nothing for delivery, but on the rabbitmq backend it gives
+		// the subscription an auto-deleted queue instead of a shared one left behind by a dead dispatcher
 		return true
 	case TopicKindSchedulerPartition:
 		return false
@@ -87,6 +95,15 @@ func StreamWakeTopic() Topic {
 	return Topic{
 		name: "stream_wake_v1",
 		kind: TopicKindStreamWake,
+	}
+}
+
+// DispatcherTopic is named apart from the dispatcher's durable queue ("<id>_dispatcher_v1") so the
+// rabbitmq pub/sub backend never declares a queue with the same name.
+func DispatcherTopic(dispatcherId uuid.UUID) Topic {
+	return Topic{
+		name: "dispatcher_" + dispatcherId.String() + "_doorbell_v1",
+		kind: TopicKindDispatcher,
 	}
 }
 

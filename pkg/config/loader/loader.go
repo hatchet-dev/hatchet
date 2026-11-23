@@ -661,6 +661,10 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			return nil, nil, err
 		}
 
+		if cf.Runtime.DispatcherDoorbellEnabled {
+			mqv1 = msgqueue.NewDispatcherDoorbellQueue(mqv1, pubsubv1, cf.Runtime.DispatcherDoorbellDropPercent)
+		}
+
 		ing, err = ingestor.NewIngestor(
 			ingestor.WithMessageQueueV1(mqv1),
 			ingestor.WithPubSub(pubsubv1),
@@ -950,6 +954,15 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not create outbox: %w", err)
+	}
+
+	if cf.Runtime.InternalEventOutboxEnabled {
+		dc.V1.SetInternalEventOutbox(repov1.NewInternalEventOutbox(
+			outbox,
+			cf.Runtime.InternalEventOutboxShards,
+			cf.Runtime.InternalEventOutboxPollInterval,
+			&l,
+		))
 	}
 
 	schedulingPoolV1, cleanupSchedulingPoolV1, err := v1.NewSchedulingPool(
