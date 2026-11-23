@@ -29,7 +29,7 @@ from examples.durable_eviction.worker import (
     multiple_eviction,
     non_evictable_sleep,
 )
-from examples.test_utils import poll_until, wait_for_run_details
+from examples.test_utils import poll_until, wait_for_replay, wait_for_run_details
 from hatchet_sdk.clients.rest.api.task_api import TaskApi
 from hatchet_sdk.clients.rest.exceptions import NotFoundError
 
@@ -485,7 +485,7 @@ async def test_concurrent_branches_replay_preserves_order(hatchet: Hatchet) -> N
 
     await hatchet.runs.aio_replay(ref.workflow_run_id)
 
-    await _poll_until_status(hatchet, ref.workflow_run_id, "RUNNING")
+    await wait_for_replay(hatchet, ref.workflow_run_id)
     result = await ref.aio_result()
 
     assert result["status"] == "completed"
