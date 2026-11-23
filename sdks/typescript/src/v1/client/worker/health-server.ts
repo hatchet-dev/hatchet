@@ -106,7 +106,7 @@ export class HealthServer {
     try {
       // THIS IS AN OPTIONAL DEPENDENCY
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { Registry, Gauge, collectDefaultMetrics } = require('prom-client');
+      const { Registry, Gauge, collectDefaultMetrics } = require('@prometheus-io/client');
 
       this.register = new Registry() as PromRegistry;
       collectDefaultMetrics({ register: this.register as never });
@@ -140,13 +140,17 @@ export class HealthServer {
       this.metricsInitialized = true;
     } catch {
       this.metricsInitialized = false;
-      this.logger.error('Metrics initialization failed - prom-client dependency not installed');
+      this.logger.error(
+        'Metrics initialization failed - @prometheus-io/client dependency not installed'
+      );
     }
   }
 
   private async handleMetrics(res: ServerResponse): Promise<void> {
     if (!this.metricsInitialized || !this.register) {
-      this.logger.error('Metrics initialization failed - prom-client dependency not installed');
+      this.logger.error(
+        'Metrics initialization failed - @prometheus-io/client dependency not installed'
+      );
       res.writeHead(503, { 'Content-Type': 'text/plain' });
       res.end('Metrics initialization failed');
       return;

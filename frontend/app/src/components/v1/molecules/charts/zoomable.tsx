@@ -66,6 +66,7 @@ type ZoomableChartProps<T extends string> = {
   kind: 'bar' | 'line' | 'area';
   className?: string;
   stacked?: boolean;
+  yScale?: 'linear' | 'sqrt';
 };
 
 export function ZoomableChart<T extends string>({
@@ -76,6 +77,7 @@ export function ZoomableChart<T extends string>({
   kind = 'bar',
   className,
   stacked = false,
+  yScale = 'linear',
 }: ZoomableChartProps<T>) {
   const [refAreaLeft, setRefAreaLeft] = useState<string | null>(null);
   const [refAreaRight, setRefAreaRight] = useState<string | null>(null);
@@ -182,6 +184,7 @@ export function ZoomableChart<T extends string>({
           chartConfig,
           dataKeys,
           stacked,
+          yScale,
         })}
       </div>
     </ChartContainer>
@@ -214,6 +217,7 @@ type ChildChartProps<T extends string> = {
   chartConfig: ChartConfig;
   dataKeys: string[];
   stacked?: boolean;
+  yScale?: 'linear' | 'sqrt';
 };
 
 function ChildBarChart<T extends string>({
@@ -228,6 +232,7 @@ function ChildBarChart<T extends string>({
   chartConfig,
   dataKeys,
   stacked = false,
+  yScale = 'linear',
 }: ChildChartProps<T>) {
   return (
     <ResponsiveContainer width="100%" height="100%">
@@ -236,7 +241,10 @@ function ChildBarChart<T extends string>({
         margin={{
           left: 0,
           right: 0,
-          top: 0,
+          // minPointSize can push the top segment of the tallest bar 1px past
+          // the domain max; reserve it in pixels since a domain multiplier
+          // gives too little room once the scale is sqrt.
+          top: 1,
           bottom: 0,
         }}
         onMouseDown={handleMouseDown}
@@ -253,14 +261,18 @@ function ChildBarChart<T extends string>({
           minTickGap={16}
           style={{ fontSize: '10px', userSelect: 'none' }}
         />
-        {showYAxis && (
-          <YAxis
-            tickLine={false}
-            axisLine={false}
-            tickMargin={4}
-            style={{ fontSize: '10px', userSelect: 'none' }}
-          />
-        )}
+        {/* Rendered even when hidden so the scale applies without visible ticks.
+            sqrt keeps ordinary buckets readable when one bucket is orders of
+            magnitude larger, at the cost of heights no longer being linear. */}
+        <YAxis
+          hide={!showYAxis}
+          scale={yScale}
+          domain={[0, 'auto']}
+          tickLine={false}
+          axisLine={false}
+          tickMargin={4}
+          style={{ fontSize: '10px', userSelect: 'none' }}
+        />
         <ChartTooltip
           content={
             <ChartTooltipContent
@@ -274,11 +286,14 @@ function ChildBarChart<T extends string>({
             key={key}
             type="monotone"
             dataKey={key}
-            stroke={chartConfig[key].color}
             fillOpacity={1}
             fill={chartConfig[key].color}
             isAnimationActive={false}
             stackId={stacked ? 'stack' : undefined}
+            // A small count next to a large one (e.g. a few failures among
+            // thousands of successes) scales to a fraction of a pixel; keep
+            // any non-zero segment at least 1px so it stays visible.
+            minPointSize={(value) => (value != null && value > 0 ? 1 : 0)}
           />
         ))}
 
@@ -307,6 +322,7 @@ function ChildLineChart<T extends string>({
   refAreaRight,
   chartConfig,
   dataKeys,
+  yScale = 'linear',
 }: ChildChartProps<T>) {
   return (
     <ResponsiveContainer width="100%" height="100%">
@@ -332,14 +348,15 @@ function ChildLineChart<T extends string>({
           minTickGap={16}
           style={{ fontSize: '10px', userSelect: 'none' }}
         />
-        {showYAxis && (
-          <YAxis
-            tickLine={false}
-            axisLine={false}
-            tickMargin={4}
-            style={{ fontSize: '10px', userSelect: 'none' }}
-          />
-        )}
+        <YAxis
+          hide={!showYAxis}
+          scale={yScale}
+          domain={[0, 'auto']}
+          tickLine={false}
+          axisLine={false}
+          tickMargin={4}
+          style={{ fontSize: '10px', userSelect: 'none' }}
+        />
         <ChartTooltip
           content={
             <ChartTooltipContent
@@ -388,6 +405,7 @@ function ChildAreaChart<T extends string>({
   refAreaRight,
   chartConfig,
   dataKeys,
+  yScale = 'linear',
 }: ChildChartProps<T>) {
   return (
     <ResponsiveContainer width="100%" height="100%">
@@ -412,14 +430,15 @@ function ChildAreaChart<T extends string>({
           minTickGap={48}
           style={{ fontSize: '10px', userSelect: 'none' }}
         />
-        {showYAxis && (
-          <YAxis
-            tickLine={false}
-            axisLine={false}
-            tickMargin={4}
-            style={{ fontSize: '10px', userSelect: 'none' }}
-          />
-        )}
+        <YAxis
+          hide={!showYAxis}
+          scale={yScale}
+          domain={[0, 'auto']}
+          tickLine={false}
+          axisLine={false}
+          tickMargin={4}
+          style={{ fontSize: '10px', userSelect: 'none' }}
+        />
         <ChartTooltip
           content={
             <ChartTooltipContent
