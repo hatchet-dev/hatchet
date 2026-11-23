@@ -98,7 +98,8 @@ class V1ConcurrencyStrategy(BaseModel):
         description="Keys with at least one queued run.", alias="queuedKeyCount"
     )
     running_count: StrictInt = Field(
-        description="Running runs, each holding a slot.", alias="runningCount"
+        description="Slots in use. A run keeps its slot until it finishes, so this includes runs waiting at a later strategy of their chain.",
+        alias="runningCount",
     )
     queued_count: StrictInt = Field(description="Queued runs.", alias="queuedCount")
     oldest_queued_at: Optional[datetime] = Field(

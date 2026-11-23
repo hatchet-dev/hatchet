@@ -169,6 +169,7 @@ HatchetSdkRest.autoload :V1ConcurrencyScope, 'hatchet-sdk-rest/models/v1_concurr
 HatchetSdkRest.autoload :V1ConcurrencyStrategy, 'hatchet-sdk-rest/models/v1_concurrency_strategy'
 HatchetSdkRest.autoload :V1ConcurrencyStrategyList, 'hatchet-sdk-rest/models/v1_concurrency_strategy_list'
 HatchetSdkRest.autoload :V1ConcurrencyStrategyUsage, 'hatchet-sdk-rest/models/v1_concurrency_strategy_usage'
+HatchetSdkRest.autoload :V1ConcurrencyTotals, 'hatchet-sdk-rest/models/v1_concurrency_totals'
 HatchetSdkRest.autoload :V1CreateFilterRequest, 'hatchet-sdk-rest/models/v1_create_filter_request'
 HatchetSdkRest.autoload :V1CreateServerlessEndpointRequest, 'hatchet-sdk-rest/models/v1_create_serverless_endpoint_request'
 HatchetSdkRest.autoload :V1CreateWebhookRequest, 'hatchet-sdk-rest/models/v1_create_webhook_request'

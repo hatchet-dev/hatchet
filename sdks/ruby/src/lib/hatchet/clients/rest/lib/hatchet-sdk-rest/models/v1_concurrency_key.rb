@@ -20,6 +20,7 @@ module HatchetSdkRest
     # The effective max runs for this key. With a max runs expression, this is the value evaluated for the key's most recent run.
     attr_accessor :max_runs
 
+    # Slots in use on this key, including runs waiting at a later strategy of their chain.
     attr_accessor :running_count
 
     attr_accessor :queued_count
