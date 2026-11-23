@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
@@ -135,6 +136,10 @@ type concurrencyOverviewRepository struct {
 
 	summaryCache *cache.Cache
 	keysCache    *cache.Cache
+
+	// The page requests the strategies and the totals together, so on a cache miss both
+	// would scan the tenant's slots; concurrent loads for a tenant share one scan instead.
+	summaryLoads singleflight.Group
 }
 
 func newConcurrencyOverviewRepository(shared *sharedRepository) (ConcurrencyOverviewRepository, func()) {
@@ -188,9 +193,22 @@ func (r *concurrencyOverviewRepository) GetTotals(ctx context.Context, tenantId 
 }
 
 func (r *concurrencyOverviewRepository) getOverview(ctx context.Context, tenantId uuid.UUID) (*concurrencyOverview, error) {
-	return cache.MakeCacheable(r.summaryCache, tenantId.String(), func() (*concurrencyOverview, error) {
-		return r.listStrategySummaries(ctx, tenantId)
+	id := tenantId.String()
+
+	// the load is shared, so one caller going away must not cancel it for the others
+	loadCtx := context.WithoutCancel(ctx)
+
+	v, err, _ := r.summaryLoads.Do(id, func() (any, error) {
+		return cache.MakeCacheable(r.summaryCache, id, func() (*concurrencyOverview, error) {
+			return r.listStrategySummaries(loadCtx, tenantId)
+		})
 	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return v.(*concurrencyOverview), nil
 }
 
 func (r *concurrencyOverviewRepository) listStrategySummaries(ctx context.Context, tenantId uuid.UUID) (*concurrencyOverview, error) {
