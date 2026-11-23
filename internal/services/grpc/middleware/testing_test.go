@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/propagation"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -39,7 +40,7 @@ type fakeJWTManager struct {
 	calls atomic.Int64
 }
 
-func (*fakeJWTManager) GenerateTenantToken(context.Context, uuid.UUID, string, bool, bool, *time.Time) (*token.Token, error) {
+func (*fakeJWTManager) GenerateTenantToken(context.Context, uuid.UUID, string, bool, bool, *time.Time, ...token.GenerateOption) (*token.Token, error) {
 	return nil, errors.New("not implemented")
 }
 
@@ -67,6 +68,7 @@ func (fakeTenantRepo) GetTenantByID(_ context.Context, id uuid.UUID) (*sqlcv1.Te
 
 type fakeRepository struct {
 	v1.Repository
+	capabilities []string // stored on the token the fake returns; nil is a token from before capabilities
 }
 
 func (fakeRepository) Tenant() v1.TenantRepository {
@@ -115,6 +117,12 @@ type testServer struct {
 func startTestServer(t *testing.T, l *zerolog.Logger, limit rate.Limit, burst int) *testServer {
 	t.Helper()
 
+	return startTestServerWithRepo(t, l, limit, burst, fakeRepository{})
+}
+
+func startTestServerWithRepo(t *testing.T, l *zerolog.Logger, limit rate.Limit, burst int, repo fakeRepository) *testServer {
+	t.Helper()
+
 	if l == nil {
 		nop := zerolog.Nop()
 		l = &nop
@@ -133,16 +141,19 @@ func startTestServer(t *testing.T, l *zerolog.Logger, limit rate.Limit, burst in
 		propagation.TraceContext{},
 	)
 
-	sc := &server.ServerConfig{Layer: &database.Layer{V1: fakeRepository{}}}
+	sc := &server.ServerConfig{Layer: &database.Layer{V1: repo}}
 	sc.Logger = l
 	sc.Auth.JWTManager = ts.jwt
 
 	nop := zerolog.Nop()
 
+	authz, err := NewAuthZ(&nop)
+	require.NoError(t, err)
+
 	mux := http.NewServeMux()
 	mux.Handle(contractsconnect.NewDispatcherHandler(
 		ts.dispatcher,
-		connect.WithRequestGate(newRequestGate(NewAuthN(sc), NewHatchetRateLimiter(limit, burst, &nop), l, recorder)),
+		connect.WithRequestGate(newRequestGate(NewAuthN(sc), authz, NewHatchetRateLimiter(limit, burst, &nop), l, recorder)),
 		connect.WithInterceptors(newTelemetryInterceptor(recorder)),
 	))
 
@@ -172,9 +183,14 @@ func authContext(tok string, headers ...string) context.Context {
 	return ctx
 }
 
-type fakeAPITokenRepo struct{ v1.APITokenRepository }
-
-func (fakeAPITokenRepo) GetAPITokenById(_ context.Context, id uuid.UUID) (*sqlcv1.APIToken, error) {
-	return &sqlcv1.APIToken{ID: id}, nil
+type fakeAPITokenRepo struct {
+	v1.APITokenRepository
+	capabilities []string
 }
-func (fakeRepository) APIToken() v1.APITokenRepository { return fakeAPITokenRepo{} }
+
+func (r fakeAPITokenRepo) GetAPITokenById(_ context.Context, id uuid.UUID) (*sqlcv1.APIToken, error) {
+	return &sqlcv1.APIToken{ID: id, Capabilities: r.capabilities}, nil
+}
+func (r fakeRepository) APIToken() v1.APITokenRepository {
+	return fakeAPITokenRepo{capabilities: r.capabilities}
+}

@@ -156,6 +156,7 @@ CREATE TABLE "APIToken" (
     "nextAlertAt" TIMESTAMP(3),
     "internal" BOOLEAN NOT NULL DEFAULT false,
     "readOnly" BOOLEAN NOT NULL DEFAULT false,
+    "capabilities" TEXT[],
 
     CONSTRAINT "APIToken_pkey" PRIMARY KEY ("id")
 );

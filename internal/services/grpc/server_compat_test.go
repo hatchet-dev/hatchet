@@ -314,7 +314,7 @@ func transports() []transport {
 
 type testJWTManager struct{}
 
-func (testJWTManager) GenerateTenantToken(context.Context, uuid.UUID, string, bool, bool, *time.Time) (*token.Token, error) {
+func (testJWTManager) GenerateTenantToken(context.Context, uuid.UUID, string, bool, bool, *time.Time, ...token.GenerateOption) (*token.Token, error) {
 	return nil, errors.New("not implemented")
 }
 

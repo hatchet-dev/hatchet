@@ -2502,16 +2502,17 @@ func AllWorkflowRunStatusValues() []WorkflowRunStatus {
 }
 
 type APIToken struct {
-	ID          uuid.UUID        `json:"id"`
-	CreatedAt   pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt   pgtype.Timestamp `json:"updatedAt"`
-	ExpiresAt   pgtype.Timestamp `json:"expiresAt"`
-	Revoked     bool             `json:"revoked"`
-	Name        pgtype.Text      `json:"name"`
-	TenantId    *uuid.UUID       `json:"tenantId"`
-	NextAlertAt pgtype.Timestamp `json:"nextAlertAt"`
-	Internal    bool             `json:"internal"`
-	ReadOnly    bool             `json:"readOnly"`
+	ID           uuid.UUID        `json:"id"`
+	CreatedAt    pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt    pgtype.Timestamp `json:"updatedAt"`
+	ExpiresAt    pgtype.Timestamp `json:"expiresAt"`
+	Revoked      bool             `json:"revoked"`
+	Name         pgtype.Text      `json:"name"`
+	TenantId     *uuid.UUID       `json:"tenantId"`
+	NextAlertAt  pgtype.Timestamp `json:"nextAlertAt"`
+	Internal     bool             `json:"internal"`
+	ReadOnly     bool             `json:"readOnly"`
+	Capabilities []string         `json:"capabilities"`
 }
 
 type Action struct {

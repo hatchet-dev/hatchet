@@ -17,7 +17,7 @@ import (
 var ErrCouldNotReadTokenFromDatabase = errors.New("could not read token from database")
 
 type JWTManager interface {
-	GenerateTenantToken(ctx context.Context, tenantId uuid.UUID, name string, internal bool, readOnly bool, expires *time.Time) (*Token, error)
+	GenerateTenantToken(ctx context.Context, tenantId uuid.UUID, name string, internal bool, readOnly bool, expires *time.Time, opts ...GenerateOption) (*Token, error)
 	ValidateTenantToken(ctx context.Context, token string) (uuid.UUID, uuid.UUID, error)
 }
 
@@ -48,6 +48,18 @@ func NewJWTManager(encryptionSvc encryption.EncryptionService, tokenRepo v1.APIT
 		tokenRepo:  tokenRepo,
 		verifier:   verifier,
 	}, nil
+}
+
+type generateOpts struct {
+	capabilities []string
+}
+
+// GenerateOption is variadic so callers in other repos keep compiling when options are added.
+type GenerateOption func(*generateOpts)
+
+// WithCapabilities limits the token's gRPC access; without it the token keeps every capability.
+func WithCapabilities(capabilities []string) GenerateOption {
+	return func(o *generateOpts) { o.capabilities = capabilities }
 }
 
 type Token struct {
@@ -85,7 +97,12 @@ func (j *jwtManagerImpl) createToken(ctx context.Context, tenantId uuid.UUID, na
 	}, nil
 }
 
-func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId uuid.UUID, name string, internal bool, readOnly bool, expires *time.Time) (*Token, error) {
+func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId uuid.UUID, name string, internal bool, readOnly bool, expires *time.Time, opts ...GenerateOption) (*Token, error) {
+	var o generateOpts
+	for _, opt := range opts {
+		opt(&o)
+	}
+
 	token, err := j.createToken(ctx, tenantId, name, nil, expires)
 	if err != nil {
 		return nil, err
@@ -93,12 +110,13 @@ func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId uuid.
 
 	// write the token to the database
 	_, err = j.tokenRepo.CreateAPIToken(ctx, &v1.CreateAPITokenOpts{
-		ID:        token.TokenId,
-		ExpiresAt: token.ExpiresAt,
-		TenantId:  &tenantId,
-		Name:      &name,
-		Internal:  internal,
-		ReadOnly:  readOnly,
+		ID:           token.TokenId,
+		ExpiresAt:    token.ExpiresAt,
+		TenantId:     &tenantId,
+		Name:         &name,
+		Internal:     internal,
+		ReadOnly:     readOnly,
+		Capabilities: o.capabilities,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to write token to database: %v", err)

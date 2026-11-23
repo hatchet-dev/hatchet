@@ -1,12 +1,12 @@
 # Capabilities held by tenant API tokens; a token may call a procedure if any capability it holds grants it.
-# Tokens stored without capabilities (every token that exists today) resolve to "all".
+# Tokens stored without capabilities (every token that existed before capabilities) resolve to "all".
 capabilities:
   all:
     procedures: ["*"]
 
-  # running tasks, including what a worker does on behalf of the tasks it runs
+  # everything a worker process does, including spawning children and registering its workflows
   worker:
-    inherits: [workflows:register, runs:trigger, runs:read, streams:publish]
+    inherits: [workflows:write, runs:trigger, runs:read, streams:publish, traces:export]
     procedures:
       - /Dispatcher/GetVersion
       - /Dispatcher/Register
@@ -25,7 +25,6 @@ capabilities:
       - /v1.V1Dispatcher/DurableTask
       - /v1.V1Dispatcher/RegisterDurableEvent
       - /v1.V1Dispatcher/ListenForDurableEvent
-      - /v1.AdminService/BranchDurableTask
       - /EventsService/PutLog
       - /EventsService/PutStreamEvent
 
@@ -36,17 +35,10 @@ capabilities:
       - /v1.OperatorService/SendStepActionEvent
       - /v1.OperatorService/DurableTask
 
-  workflows:register:
+  workflows:write:
     procedures:
       - /WorkflowService/PutWorkflow
       - /v1.AdminService/PutWorkflow
-
-  runs:trigger:
-    procedures:
-      - /WorkflowService/TriggerWorkflow
-      - /WorkflowService/BulkTriggerWorkflow
-      - /WorkflowService/ScheduleWorkflow
-      - /v1.AdminService/TriggerWorkflowRun
 
   runs:read:
     procedures:
@@ -54,33 +46,50 @@ capabilities:
       - /Dispatcher/SubscribeToWorkflowRuns
       - /v1.AdminService/GetRunDetails
 
+  runs:trigger:
+    procedures:
+      - /WorkflowService/TriggerWorkflow
+      - /WorkflowService/BulkTriggerWorkflow
+      - /v1.AdminService/TriggerWorkflowRun
+
   runs:manage:
     procedures:
       - /v1.AdminService/CancelTasks
       - /v1.AdminService/ReplayTasks
+      - /v1.AdminService/BranchDurableTask
+
+  schedules:write:
+    procedures:
+      - /WorkflowService/ScheduleWorkflow
 
   events:push:
     procedures:
       - /EventsService/Push
       - /EventsService/BulkPush
+
+  events:manage:
+    procedures:
       - /EventsService/ReplaySingleEvent
 
-  rate-limits:manage:
+  rate-limits:write:
     procedures:
       - /WorkflowService/PutRateLimit
       - /WorkflowService/PauseRateLimit
-
-  streams:publish:
-    procedures:
-      - /v1.V1Streams/Publish
-      - /v1.V1Streams/PublishBatch
 
   streams:read:
     procedures:
       - /v1.V1Streams/Subscribe
       - /v1.V1Streams/GetTopicMetadata
 
+  streams:publish:
+    procedures:
+      - /v1.V1Streams/Publish
+      - /v1.V1Streams/PublishBatch
+
   streams:manage:
-    inherits: [streams:publish, streams:read]
     procedures:
       - /v1.V1Streams/Reset
+
+  traces:export:
+    procedures:
+      - /opentelemetry.proto.collector.trace.v1.TraceService/Export

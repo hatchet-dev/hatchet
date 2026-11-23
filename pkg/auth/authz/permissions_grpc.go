@@ -11,6 +11,15 @@ import (
 // AllCapabilities is the capability existing tokens resolve to, so adding capabilities never narrows them retroactively.
 const AllCapabilities = "all"
 
+// TokenCapabilities resolves what a stored token holds; nil means it predates capabilities and keeps full access.
+func TokenCapabilities(stored []string) []string {
+	if stored == nil {
+		return []string{AllCapabilities}
+	}
+
+	return stored
+}
+
 // grpcFile is the gRPC format: token capabilities grant connect procedure names.
 //
 //	capabilities:

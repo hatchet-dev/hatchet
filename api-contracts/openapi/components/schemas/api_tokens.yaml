@@ -10,6 +10,11 @@ APIToken:
     readOnly:
       type: boolean
       description: Whether the token is limited to viewer access over REST and cannot use gRPC.
+    capabilities:
+      type: array
+      items:
+        type: string
+      description: The gRPC capabilities the token holds. Tokens created without capabilities hold "all".
     expiresAt:
       type: string
       format: date-time
@@ -19,6 +24,7 @@ APIToken:
     - name
     - expiresAt
     - readOnly
+    - capabilities
 
 CreateAPITokenRequest:
   type: object
@@ -30,6 +36,12 @@ CreateAPITokenRequest:
     readOnly:
       type: boolean
       description: Limit the token to viewer access over REST and deny all gRPC calls. Defaults to false.
+    capabilities:
+      type: array
+      items:
+        type: string
+      minItems: 1
+      description: Limit the gRPC procedures the token can call, e.g. ["worker"] or ["events:push"]. Defaults to ["all"]. Cannot be combined with readOnly.
     expiresIn:
       type: string
       description: The duration for which the token is valid.
