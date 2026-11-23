@@ -156,7 +156,6 @@ func newConcurrencyOverviewRepository(shared *sharedRepository) (ConcurrencyOver
 type slotStats struct {
 	workflowID, workflowVersionID                       uuid.UUID
 	keyCount, queuedKeyCount, runningCount, queuedCount int64
-	lastGateRunningCount                                int64
 	oldestQueuedAt                                      pgtype.Timestamptz
 	oldestQueuedKey                                     string
 }
@@ -223,15 +222,25 @@ func (r *concurrencyOverviewRepository) listStrategySummaries(ctx context.Contex
 	// task and shared strategy ids share a sequence; workflow strategy ids have their own
 	stats := make(map[int64]slotStats, len(slotStatRows))
 
+	// A running task holds a filled slot on every strategy of its chain but only one on its
+	// last, so summing last-gate counts counts each task once. Child slots of workflow
+	// strategies are in the chain too, so they are summed here even though they have no row.
+	var runningCount int64
+
 	for _, row := range slotStatRows {
-		stats[row.StrategyID] = slotStats{row.WorkflowID, row.WorkflowVersionID, row.KeyCount, row.QueuedKeyCount, row.RunningCount, row.QueuedCount, row.LastGateRunningCount, row.OldestQueuedAt, row.OldestQueuedKey}
+		runningCount += row.LastGateRunningCount
+
+		if !row.IsTopLevel {
+			continue
+		}
+
+		stats[row.StrategyID] = slotStats{row.WorkflowID, row.WorkflowVersionID, row.KeyCount, row.QueuedKeyCount, row.RunningCount, row.QueuedCount, row.OldestQueuedAt, row.OldestQueuedKey}
 	}
 
 	workflowStats := make(map[int64]slotStats, len(workflowSlotStatRows))
 
 	for _, row := range workflowSlotStatRows {
-		// workflow slots are not chained, so every filled one is running
-		workflowStats[row.StrategyID] = slotStats{row.WorkflowID, row.WorkflowVersionID, row.KeyCount, row.QueuedKeyCount, row.RunningCount, row.QueuedCount, row.RunningCount, row.OldestQueuedAt, row.OldestQueuedKey}
+		workflowStats[row.StrategyID] = slotStats{row.WorkflowID, row.WorkflowVersionID, row.KeyCount, row.QueuedKeyCount, row.RunningCount, row.QueuedCount, row.OldestQueuedAt, row.OldestQueuedKey}
 	}
 
 	usedBy := make(map[int64][]ConcurrencyStrategyUsage)
@@ -372,22 +381,14 @@ func (r *concurrencyOverviewRepository) listStrategySummaries(ctx context.Contex
 		res = append(res, sum)
 	}
 
-	// A running task holds a filled slot on every strategy of its chain but only one on its
-	// last, so summing last-gate counts counts each task once. Queued slots need no such care:
-	// a task waits on one strategy at a time. Keys are per strategy, so they add up as is.
-	var totals ConcurrencyTotals
+	// Queued slots add up: a task has at most one unfilled slot, and a run queued on a workflow
+	// strategy waits on a child slot, which has no row here. Keys are per strategy.
+	totals := ConcurrencyTotals{RunningCount: runningCount}
 
 	for _, sum := range res {
-		st := stats[sum.ID]
-
-		if sum.Scope == ConcurrencyScopeWorkflow {
-			st = workflowStats[sum.ID]
-		}
-
 		totals.KeyCount += sum.KeyCount
 		totals.QueuedKeyCount += sum.QueuedKeyCount
 		totals.QueuedCount += sum.QueuedCount
-		totals.RunningCount += st.lastGateRunningCount
 	}
 
 	sort.SliceStable(res, func(i, j int) bool {

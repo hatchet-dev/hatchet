@@ -1732,11 +1732,14 @@ ORDER BY
 --
 -- last_gate_running_count only counts filled slots on the last strategy of a chain. Such a task
 -- has passed every strategy, and it has exactly one such slot, so summing this across
--- strategies counts each running task once.
+-- strategies counts each running task once. Workflow strategies are part of the same chain as
+-- child slots, so those are included and flagged with is_top_level = FALSE: they count towards
+-- the total but have no row of their own.
 WITH per_key AS (
     SELECT
         strategy_id,
         key,
+        BOOL_AND(parent_strategy_id IS NULL) AS is_top_level,
         (ARRAY_AGG(workflow_id))[1] AS workflow_id,
         (ARRAY_AGG(workflow_version_id))[1] AS workflow_version_id,
         COUNT(*) FILTER (WHERE is_filled) AS running_count,
@@ -1747,12 +1750,12 @@ WITH per_key AS (
         v1_concurrency_slot
     WHERE
         tenant_id = @tenantId::uuid
-        AND parent_strategy_id IS NULL
     GROUP BY
         strategy_id, key
 )
 SELECT
     strategy_id,
+    BOOL_AND(is_top_level)::BOOLEAN AS is_top_level,
     (ARRAY_AGG(workflow_id))[1]::UUID AS workflow_id,
     (ARRAY_AGG(workflow_version_id))[1]::UUID AS workflow_version_id,
     COUNT(*)::BIGINT AS key_count,

@@ -715,6 +715,7 @@ WITH per_key AS (
     SELECT
         strategy_id,
         key,
+        BOOL_AND(parent_strategy_id IS NULL) AS is_top_level,
         (ARRAY_AGG(workflow_id))[1] AS workflow_id,
         (ARRAY_AGG(workflow_version_id))[1] AS workflow_version_id,
         COUNT(*) FILTER (WHERE is_filled) AS running_count,
@@ -725,12 +726,12 @@ WITH per_key AS (
         v1_concurrency_slot
     WHERE
         tenant_id = $1::uuid
-        AND parent_strategy_id IS NULL
     GROUP BY
         strategy_id, key
 )
 SELECT
     strategy_id,
+    BOOL_AND(is_top_level)::BOOLEAN AS is_top_level,
     (ARRAY_AGG(workflow_id))[1]::UUID AS workflow_id,
     (ARRAY_AGG(workflow_version_id))[1]::UUID AS workflow_version_id,
     COUNT(*)::BIGINT AS key_count,
@@ -748,6 +749,7 @@ GROUP BY
 
 type ListConcurrencySlotStatsForTenantRow struct {
 	StrategyID           int64              `json:"strategy_id"`
+	IsTopLevel           bool               `json:"is_top_level"`
 	WorkflowID           uuid.UUID          `json:"workflow_id"`
 	WorkflowVersionID    uuid.UUID          `json:"workflow_version_id"`
 	KeyCount             int64              `json:"key_count"`
@@ -765,7 +767,9 @@ type ListConcurrencySlotStatsForTenantRow struct {
 //
 // last_gate_running_count only counts filled slots on the last strategy of a chain. Such a task
 // has passed every strategy, and it has exactly one such slot, so summing this across
-// strategies counts each running task once.
+// strategies counts each running task once. Workflow strategies are part of the same chain as
+// child slots, so those are included and flagged with is_top_level = FALSE: they count towards
+// the total but have no row of their own.
 func (q *Queries) ListConcurrencySlotStatsForTenant(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*ListConcurrencySlotStatsForTenantRow, error) {
 	rows, err := db.Query(ctx, listConcurrencySlotStatsForTenant, tenantid)
 	if err != nil {
@@ -777,6 +781,7 @@ func (q *Queries) ListConcurrencySlotStatsForTenant(ctx context.Context, db DBTX
 		var i ListConcurrencySlotStatsForTenantRow
 		if err := rows.Scan(
 			&i.StrategyID,
+			&i.IsTopLevel,
 			&i.WorkflowID,
 			&i.WorkflowVersionID,
 			&i.KeyCount,
