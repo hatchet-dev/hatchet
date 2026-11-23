@@ -322,6 +322,7 @@ function ChildLineChart<T extends string>({
   refAreaRight,
   chartConfig,
   dataKeys,
+  yScale = 'linear',
 }: ChildChartProps<T>) {
   return (
     <ResponsiveContainer width="100%" height="100%">
@@ -347,14 +348,15 @@ function ChildLineChart<T extends string>({
           minTickGap={16}
           style={{ fontSize: '10px', userSelect: 'none' }}
         />
-        {showYAxis && (
-          <YAxis
-            tickLine={false}
-            axisLine={false}
-            tickMargin={4}
-            style={{ fontSize: '10px', userSelect: 'none' }}
-          />
-        )}
+        <YAxis
+          hide={!showYAxis}
+          scale={yScale}
+          domain={[0, 'auto']}
+          tickLine={false}
+          axisLine={false}
+          tickMargin={4}
+          style={{ fontSize: '10px', userSelect: 'none' }}
+        />
         <ChartTooltip
           content={
             <ChartTooltipContent
@@ -403,6 +405,7 @@ function ChildAreaChart<T extends string>({
   refAreaRight,
   chartConfig,
   dataKeys,
+  yScale = 'linear',
 }: ChildChartProps<T>) {
   return (
     <ResponsiveContainer width="100%" height="100%">
@@ -427,14 +430,15 @@ function ChildAreaChart<T extends string>({
           minTickGap={48}
           style={{ fontSize: '10px', userSelect: 'none' }}
         />
-        {showYAxis && (
-          <YAxis
-            tickLine={false}
-            axisLine={false}
-            tickMargin={4}
-            style={{ fontSize: '10px', userSelect: 'none' }}
-          />
-        )}
+        <YAxis
+          hide={!showYAxis}
+          scale={yScale}
+          domain={[0, 'auto']}
+          tickLine={false}
+          axisLine={false}
+          tickMargin={4}
+          style={{ fontSize: '10px', userSelect: 'none' }}
+        />
         <ChartTooltip
           content={
             <ChartTooltipContent

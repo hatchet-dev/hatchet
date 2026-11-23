@@ -87,8 +87,8 @@ export const StackedHighVolume: StoryObj<typeof ZoomableStatusChart> = {
   },
 };
 
-// One backfill-sized bucket squeezes every other bar to ~2px. The 1px bar
-// stroke then draws the 31-run failed segment as tall as 51k succeeded.
+// One backfill-sized bucket squeezes every other bar to ~1px under a linear
+// scale; compare with StackedHighVolumeWithSpikeSqrt.
 export const StackedHighVolumeWithSpike: StoryObj<typeof ZoomableStatusChart> =
   {
     ...StackedHighVolume,
