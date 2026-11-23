@@ -856,17 +856,13 @@ type AuthConfig struct {
 
 	CustomAuthenticator CustomAuthenticator
 
-	// Operations listed here bypass the tenant RBAC check for every role. Use this for read-only
-	// extension operations (e.g. cloud) that aren't known to the base OpenAPI spec / rbac.yaml and
-	// so would otherwise be denied to every role, including OWNER. OSS operations in rbac.yaml are
-	// still fully checked.
+	// Read-only extension operations (e.g. cloud) that aren't in the base OpenAPI spec. They are
+	// granted to VIEWER (and so every user role) in users.yaml and to the read-only token
+	// capability in tokens.yaml; tokens holding "all" reach them through its wildcard.
 	AllowedOperations []string
 
-	// AllowedWriteOperations behaves like AllowedOperations (bypasses the tenant RBAC check for
-	// operations unknown to rbac.yaml) except for the VIEWER role, which is denied - VIEWER must
-	// stay read-only even for extension operations the base RBAC system has no knowledge of. Use
-	// this for mutating extension operations (create/update/delete); use AllowedOperations for
-	// read-only ones.
+	// Mutating extension operations that aren't in the base OpenAPI spec. They are granted to
+	// MEMBER (and so ADMIN and OWNER) in users.yaml, never to VIEWER or read-only tokens.
 	AllowedWriteOperations []string
 }
 

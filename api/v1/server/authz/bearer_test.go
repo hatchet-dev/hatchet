@@ -81,7 +81,7 @@ func newTestContext(tenantID uuid.UUID, strategy string, p pkgauthz.Principal) e
 	return c
 }
 
-// tokenExcluded pins the excludes on the token roles in rbac.yaml.
+// tokenExcluded pins part of the unavailable list in tokens.yaml.
 var tokenExcluded = []string{"ApiTokenList", "ApiTokenCreate", "ApiTokenUpdateRevoke", "TenantEntitlementsUpdate"}
 
 func TestBearerTokenPermissions(t *testing.T) {

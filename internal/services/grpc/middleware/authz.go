@@ -8,7 +8,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/rs/zerolog"
 
-	"github.com/hatchet-dev/hatchet/internal/tokenauthz"
+	"github.com/hatchet-dev/hatchet/internal/permissions"
 	pkgauthz "github.com/hatchet-dev/hatchet/pkg/auth/authz"
 )
 
@@ -18,7 +18,7 @@ type GRPCAuthZ struct {
 }
 
 func NewAuthZ(l *zerolog.Logger) (*GRPCAuthZ, error) {
-	perms, err := tokenauthz.Load()
+	perms, err := permissions.Tokens()
 	if err != nil {
 		return nil, err
 	}

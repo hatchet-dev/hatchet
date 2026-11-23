@@ -13,14 +13,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-const (
-	roleUnverifiedEmail = "UNVERIFIED_EMAIL"
-	roleNoAuth          = "NOAUTH"
-)
-
-// requiredRoles are referenced from code, so startup fails if rbac.yaml drops one.
-var requiredRoles = []string{roleUnverifiedEmail, roleNoAuth}
-
 type tenantRoleResolver struct {
 	repo repository.Repository
 }

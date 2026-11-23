@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 
-	"github.com/hatchet-dev/hatchet/internal/tokenauthz"
+	"github.com/hatchet-dev/hatchet/internal/permissions"
 	authtoken "github.com/hatchet-dev/hatchet/pkg/auth/token"
 	"github.com/hatchet-dev/hatchet/pkg/authmode"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
@@ -114,7 +114,7 @@ func runCreateAPIToken(expiresIn time.Duration) error {
 
 	if len(tokenCaps) > 0 {
 		for _, c := range tokenCaps {
-			ok, err := tokenauthz.Defines(c)
+			ok, err := permissions.TokenCapabilityExists(c)
 			if err != nil {
 				return err
 			}

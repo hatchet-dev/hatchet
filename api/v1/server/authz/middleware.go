@@ -3,7 +3,6 @@ package authz
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -11,7 +10,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
-	"github.com/hatchet-dev/hatchet/internal/tokenauthz"
+	"github.com/hatchet-dev/hatchet/internal/permissions"
 	pkgauthz "github.com/hatchet-dev/hatchet/pkg/auth/authz"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/enums"
@@ -26,15 +25,9 @@ type AuthZ struct {
 }
 
 func NewAuthZ(config *server.ServerConfig) (*AuthZ, error) {
-	perms, err := newHatchetPermissions()
+	perms, err := permissions.Users()
 	if err != nil {
 		return nil, err
-	}
-
-	for _, role := range requiredRoles {
-		if !perms.Defines(role) {
-			return nil, fmt.Errorf("rbac.yaml must define role %s", role)
-		}
 	}
 
 	// Extension operations are not in the OSS spec, so they are granted after validation.
@@ -46,7 +39,7 @@ func NewAuthZ(config *server.ServerConfig) (*AuthZ, error) {
 		return nil, err
 	}
 
-	tokens, err := tokenauthz.Load()
+	tokens, err := permissions.Tokens()
 	if err != nil {
 		return nil, err
 	}

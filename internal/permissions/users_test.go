@@ -1,4 +1,4 @@
-package authz
+package permissions
 
 import (
 	"testing"
@@ -26,7 +26,7 @@ var adminAndOwnerOnly = []string{
 
 // memberOnlyOps are operations available to MEMBER (and above) that VIEWER should not have -
 // anything that triggers, creates, updates, deletes, cancels, replays, or reruns tenant state.
-// Keep this in sync with the exclusions applied when building the VIEWER permission list in rbac.yaml.
+// Keep this in sync with the exclusions applied when building the VIEWER permission list in users.yaml.
 var memberOnlyOps = []string{
 	"ApiTokenList",
 	"StepRunUpdateCancel",
@@ -95,7 +95,7 @@ func operationIdsFromSpec() []string {
 }
 
 func TestAuthorizeTenantOperations(t *testing.T) {
-	r, err := newHatchetPermissions()
+	r, err := Users()
 	assert.Nil(t, err)
 	allOperations := operationIdsFromSpec()
 	for _, operationId := range allOperations {
@@ -110,7 +110,7 @@ func TestAuthorizeTenantOperations(t *testing.T) {
 }
 
 func TestAuthorizeTenantOperationsViewer(t *testing.T) {
-	r, err := newHatchetPermissions()
+	r, err := Users()
 	assert.Nil(t, err)
 	allOperations := operationIdsFromSpec()
 	for _, operationId := range allOperations {
@@ -125,7 +125,7 @@ func TestAuthorizeTenantOperationsViewer(t *testing.T) {
 }
 
 func TestAuthorizeTenantOperationsViewerRepresentativeSample(t *testing.T) {
-	r, err := newHatchetPermissions()
+	r, err := Users()
 	assert.Nil(t, err)
 
 	deniedForViewer := []string{
@@ -161,12 +161,12 @@ func TestAuthorizeTenantOperationsViewerRepresentativeSample(t *testing.T) {
 }
 
 func TestValidateSpec(t *testing.T) {
-	_, err := newHatchetPermissions()
+	_, err := Users()
 	assert.Nil(t, err)
 }
 
 func TestAuthorizeApiTokenOperationsByRole(t *testing.T) {
-	r, err := newHatchetPermissions()
+	r, err := Users()
 	assert.Nil(t, err)
 
 	cases := []struct {

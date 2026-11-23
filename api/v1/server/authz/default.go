@@ -3,6 +3,7 @@
 package authz
 
 import (
+	"github.com/hatchet-dev/hatchet/internal/permissions"
 	pkgauthz "github.com/hatchet-dev/hatchet/pkg/auth/authz"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 )
@@ -15,6 +16,6 @@ func buildPolicies(config *server.ServerConfig, perms pkgauthz.RolePermissions) 
 	}
 
 	return append([]pkgauthz.Policy{
-		pkgauthz.CapToRole(perms, roleUnverifiedEmail, pkgauthz.EmailUnverified, unverifiedUser),
+		pkgauthz.CapToRole(perms, permissions.RoleUnverifiedEmail, pkgauthz.EmailUnverified, unverifiedUser),
 	}, extensionPolicies(config)...)
 }

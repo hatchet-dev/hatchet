@@ -8,7 +8,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/internal/tokenauthz"
+	"github.com/hatchet-dev/hatchet/internal/permissions"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	authtoken "github.com/hatchet-dev/hatchet/pkg/auth/token"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
@@ -94,7 +94,7 @@ func validateCapabilities(capabilities []string, readOnly bool) (*gen.APIErrors,
 	}
 
 	for _, c := range capabilities {
-		ok, err := tokenauthz.Defines(c)
+		ok, err := permissions.TokenCapabilityExists(c)
 		if err != nil {
 			return nil, err
 		}
