@@ -4,7 +4,7 @@ from datetime import timedelta
 
 from pydantic import BaseModel
 
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import Context, Hatchet
 
 hatchet = Hatchet()
 
@@ -25,13 +25,13 @@ async def wait_forever_on_first_worker() -> WorkerNameOutput:
 
 
 @hatchet.task(execution_timeout=timedelta(minutes=3))
-async def reassignable_task(input: EmptyModel, ctx: Context) -> WorkerNameOutput:
+async def reassignable_task(input: None, ctx: Context) -> WorkerNameOutput:
     return await wait_forever_on_first_worker()
 
 
 # > Disallowing reassignment
 @hatchet.task(execution_timeout=timedelta(minutes=3), max_reassignments_allowed=0)
-async def non_reassignable_task(input: EmptyModel, ctx: Context) -> WorkerNameOutput:
+async def non_reassignable_task(input: None, ctx: Context) -> WorkerNameOutput:
     return await wait_forever_on_first_worker()
 
 
