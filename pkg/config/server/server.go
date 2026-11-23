@@ -281,9 +281,10 @@ type ConfigFileRuntime struct {
 	// engine that crashed before processing it waits
 	InternalEventOutboxPollInterval time.Duration `mapstructure:"internalEventOutboxPollInterval" json:"internalEventOutboxPollInterval,omitempty" default:"1s"`
 
-	// Whether messages for a dispatcher (task assignments, cancellations, durable callbacks, batch starts)
-	// go over best-effort pub/sub instead of the dispatcher's durable queue. The dispatcher then pulls the
-	// assignments it never received from the database, so this requires ReassignUnackedTasks.
+	// Whether task assignments and durable callbacks for a dispatcher go over best-effort pub/sub instead of
+	// the dispatcher's durable queue. Cancellations and batch starts stay on the queue, since nothing
+	// recovers them yet. The dispatcher pulls the assignments it never received from the database, so this
+	// requires ReassignUnackedTasks.
 	DispatcherPubSubDeliveryEnabled bool `mapstructure:"dispatcherPubSubDeliveryEnabled" json:"dispatcherPubSubDeliveryEnabled,omitempty" default:"false"`
 
 	// How often a dispatcher looks in the database for assignments to its workers that it never received

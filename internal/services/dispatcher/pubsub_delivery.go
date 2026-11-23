@@ -98,6 +98,20 @@ func (b *pubSubDelivery) claim(payload *tasktypesv1.TaskAssignedBulkTaskPayload)
 	}
 }
 
+// claimOne marks key as handled and reports whether it wasn't already.
+func (b *pubSubDelivery) claimOne(key assignmentKey) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.received.Contains(key) {
+		return false
+	}
+
+	b.received.Add(key, struct{}{})
+
+	return true
+}
+
 func (b *pubSubDelivery) seen(key assignmentKey) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()

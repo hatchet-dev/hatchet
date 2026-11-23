@@ -14,7 +14,7 @@ type CreateDispatcherOpts struct {
 
 type DispatcherRepository interface {
 	// ListUnackedAssignments returns assignments to the given workers, made in [assignedAfter,
-	// assignedBefore), that no worker has acknowledged. It relies on assigned_at, which is only
+	// assignedBefore), that no worker has acknowledged. Batch members are left out. It relies on assigned_at, which is only
 	// written when ReassignUnackedTasks is enabled.
 	ListUnackedAssignments(ctx context.Context, workerIds []uuid.UUID, assignedAfter, assignedBefore time.Time, limitPerWorker int) ([]UnackedAssignment, error)
 
@@ -84,6 +84,8 @@ JOIN LATERAL (
         AND rt.worker_id = w.id
         AND rt.evicted_at IS NULL
         AND rt.acked_at IS NULL
+        -- the pull can only rebuild single-task starts, not a batch start with all its members
+        AND rt.batch_id IS NULL
         AND rt.assigned_at >= $2
         AND rt.assigned_at < $3
     ORDER BY rt.assigned_at

@@ -698,6 +698,18 @@ func (d *DispatcherImpl) HandleLocalAssignments(ctx context.Context, tenantId, w
 		toRetryMu.Unlock()
 	}
 
+	// optimistic scheduling skips the pub/sub message, so the pull would otherwise see these assignments
+	// as never received and send them again once the worker's ack is past the grace period
+	if d.pubSubDelivery != nil {
+		tasks = enumerables.Filter(tasks, func(assigned *schedulingv1.AssignedItemWithTask) bool {
+			return d.pubSubDelivery.claimOne(assignmentKey{taskId: assigned.Task.ID, retryCount: assigned.Task.RetryCount})
+		})
+	}
+
+	if len(tasks) == 0 {
+		return nil
+	}
+
 	// we already have payloads; no lookups necessary. we can just send them to the worker
 	taskIdToData := make(map[int64]*V1TaskWithPayloadAndInvocationCount)
 	taskIds := make([]int64, 0, len(tasks))

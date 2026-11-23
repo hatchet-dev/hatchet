@@ -46,3 +46,18 @@ func TestPubSubDeliveryClaimKeepsAssignmentsWithoutRetryCounts(t *testing.T) {
 		assert.Equal(t, []int64{7}, legacy.WorkerIdToTaskIds[workerId])
 	}
 }
+
+func TestPubSubDeliveryClaimOneBlocksLaterPulls(t *testing.T) {
+	b := newPubSubDelivery(PubSubDeliveryOpts{})
+	key := assignmentKey{taskId: 3, retryCount: 0}
+
+	assert.True(t, b.claimOne(key), "a local assignment is claimed the first time")
+	assert.True(t, b.seen(key), "the pull skips an assignment delivered locally")
+	assert.False(t, b.claimOne(key))
+
+	workerId := uuid.New()
+	fromPubSub := &tasktypesv1.TaskAssignedBulkTaskPayload{}
+	fromPubSub.Add(workerId, 3, 0)
+	b.claim(fromPubSub)
+	assert.Empty(t, fromPubSub.WorkerIdToTaskIds, "a late pub/sub message doesn't resend a local assignment")
+}
