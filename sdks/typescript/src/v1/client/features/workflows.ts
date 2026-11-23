@@ -17,7 +17,7 @@ export type PauseWorkflowOpts = {
   queueTTL: Duration;
   /**
    * The behavior of runs triggered while the workflow is paused. QUEUE holds them until the workflow is
-   * unpaused or their TTL expires, and DROP never creates them and cancels runs that were already queued.
+   * unpaused or their TTL expires, and DROP never creates them. Runs queued before the pause are held as with QUEUE.
    * Defaults to QUEUE.
    */
   pausedWorkflowQueueBehavior?: WorkflowPauseScheduledCronRunQueueBehavior;

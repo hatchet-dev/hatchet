@@ -2510,7 +2510,7 @@ export interface WorkflowRunsCancelRequest {
 export interface PauseWorkflowRequestPause {
   /** Discriminator indicating this request pauses the workflow. */
   action: "pause";
-  /** The behavior of runs queued while the workflow is paused. QUEUE holds them until the workflow is unpaused or their TTL expires, and DROP cancels them. Defaults to QUEUE. */
+  /** The behavior of runs triggered while the workflow is paused. QUEUE holds them until the workflow is unpaused or their TTL expires, and DROP never creates them. Runs queued before the pause are held either way. Defaults to QUEUE. */
   pausedWorkflowQueueBehavior?: WorkflowPauseScheduledCronRunQueueBehavior;
   /** The behavior of cron runs triggered while the workflow is paused. */
   pausedWorkflowCronRunQueueBehavior: WorkflowPauseScheduledCronRunQueueBehavior;

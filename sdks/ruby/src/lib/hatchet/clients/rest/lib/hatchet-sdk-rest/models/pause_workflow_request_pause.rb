@@ -27,7 +27,7 @@ module HatchetSdkRest
     # The TTL for queued runs while the workflow is paused before they get dropped, expressed as a Go-style duration string (e.g. \"1d7h30m\").
     attr_accessor :paused_workflow_queue_ttl
 
-    # The behavior of runs queued while the workflow is paused. QUEUE holds them until the workflow is unpaused or their TTL expires, and DROP cancels them. Defaults to QUEUE.
+    # The behavior of runs triggered while the workflow is paused. QUEUE holds them until the workflow is unpaused or their TTL expires, and DROP never creates them. Runs queued before the pause are held either way. Defaults to QUEUE.
     attr_accessor :paused_workflow_queue_behavior
 
     class EnumAttributeValidator

@@ -126,6 +126,7 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 
 ### Added
 
+- `pause` and `aio_pause` on workflows and on `hatchet.workflows` accept `paused_workflow_queue_behavior`. With `"DROP"`, runs triggered while the workflow is paused are never created. Runs queued before the pause are held as with `"QUEUE"`. The default, `"QUEUE"`, holds them until the workflow is unpaused or their TTL expires, as before.
 - `CancelledRunError`, exported from `hatchet_sdk`, which `result` and `aio_result` raise for a cancelled run. It has a `workflow_run_id` attribute and is a subclass of `ValueError`, which `result` raised for a cancelled run before.
 - `result` and `aio_result` on `WorkflowRunRef` and `TaskRunRef` accept an optional `timeout` (a `timedelta`) and raise `TimeoutError` when it elapses.
 - `CronTrigger`, `ScheduledRun`, and `TaskRunSummary`, the SDK's own models for cron triggers, scheduled runs, and task run summaries.

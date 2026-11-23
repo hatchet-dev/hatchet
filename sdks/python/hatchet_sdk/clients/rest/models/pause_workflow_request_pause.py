@@ -37,7 +37,7 @@ class PauseWorkflowRequestPause(BaseModel):
         WorkflowPauseScheduledCronRunQueueBehavior
     ] = Field(
         default=None,
-        description="The behavior of runs queued while the workflow is paused. QUEUE holds them until the workflow is unpaused or their TTL expires, and DROP cancels them. Defaults to QUEUE.",
+        description="The behavior of runs triggered while the workflow is paused. QUEUE holds them until the workflow is unpaused or their TTL expires, and DROP never creates them. Runs queued before the pause are held either way. Defaults to QUEUE.",
         alias="pausedWorkflowQueueBehavior",
     )
     paused_workflow_cron_run_queue_behavior: (

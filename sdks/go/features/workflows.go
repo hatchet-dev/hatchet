@@ -131,7 +131,7 @@ type PauseWorkflowOpts struct {
 	QueueTTL time.Duration
 
 	// (optional) QueueBehavior is the behavior of runs triggered while the workflow is paused. QUEUE holds them until the workflow is unpaused or
-	// their TTL expires, and DROP never creates them and cancels runs that were already queued. Defaults to QUEUE.
+	// their TTL expires, and DROP never creates them. Runs queued before the pause are held as with QUEUE. Defaults to QUEUE.
 	QueueBehavior enums.WorkflowPauseQueueBehavior
 
 	// (optional) CronRunQueueBehavior is the behavior of cron runs triggered while the workflow is paused. Defaults to QUEUE.

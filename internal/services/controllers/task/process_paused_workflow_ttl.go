@@ -62,7 +62,7 @@ func (tc *TasksControllerImpl) processPausedWorkflowQueueItemTTL(ctx context.Con
 				RetryCount:     releasedTask.RetryCount,
 				EventType:      enums.V1EventTypeOlapCANCELLED,
 				EventTimestamp: time.Now(),
-				EventMessage:   "dropped while the workflow was paused, because the queue TTL expired or the workflow was paused with the DROP queue behavior.",
+				EventMessage:   "paused workflow queue item TTL expired.",
 			},
 		)
 

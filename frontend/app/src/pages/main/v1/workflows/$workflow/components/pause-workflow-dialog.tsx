@@ -97,7 +97,7 @@ export function PauseWorkflowDialog({
 
   const isDroppingQueuedRuns =
     queueBehavior === WorkflowPauseScheduledCronRunQueueBehavior.DROP;
-  const isTtlValid = isDroppingQueuedRuns || QUEUE_TTL_REGEX.test(queueTtl);
+  const isTtlValid = QUEUE_TTL_REGEX.test(queueTtl);
 
   return (
     <Dialog open={isOpen}>
@@ -121,7 +121,8 @@ export function PauseWorkflowDialog({
             {isDroppingQueuedRuns && (
               <p className="text-xs text-muted-foreground">
                 All new runs, including cron and scheduled runs, will be
-                dropped, and runs that are already queued will be cancelled.
+                dropped. Runs that were already queued are held until the
+                workflow is unpaused or their TTL expires.
               </p>
             )}
           </div>
@@ -145,23 +146,23 @@ export function PauseWorkflowDialog({
                   onValueChange={setScheduledRunQueueBehavior}
                 />
               </div>
-              <div className="mb-4 grid gap-2">
-                <Label htmlFor="queueTtl">Queued run TTL</Label>
-                <Input
-                  id="queueTtl"
-                  type="text"
-                  placeholder="e.g. 1d7h30m"
-                  value={queueTtl}
-                  onChange={(e) => setQueueTtl(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Queued runs older than this will be dropped instead of running
-                  once the workflow is unpaused. Duration string composed of
-                  ms/s/m/h/d units, e.g. "1d7h30m".
-                </p>
-              </div>
             </>
           )}
+          <div className="mb-4 grid gap-2">
+            <Label htmlFor="queueTtl">Queued run TTL</Label>
+            <Input
+              id="queueTtl"
+              type="text"
+              placeholder="e.g. 1d7h30m"
+              value={queueTtl}
+              onChange={(e) => setQueueTtl(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Queued runs older than this will be dropped instead of running
+              once the workflow is unpaused. Duration string composed of
+              ms/s/m/h/d units, e.g. "1d7h30m".
+            </p>
+          </div>
           <div className="flex flex-row justify-end gap-4">
             <Button variant="ghost" disabled={isLoading} onClick={onCancel}>
               Cancel
