@@ -130,6 +130,8 @@ V1ConcurrencyStrategyUsage:
   $ref: "./v1/concurrency.yaml#/V1ConcurrencyStrategyUsage"
 V1ConcurrencyStrategy:
   $ref: "./v1/concurrency.yaml#/V1ConcurrencyStrategy"
+V1ConcurrencyTotals:
+  $ref: "./v1/concurrency.yaml#/V1ConcurrencyTotals"
 V1ConcurrencyStrategyList:
   $ref: "./v1/concurrency.yaml#/V1ConcurrencyStrategyList"
 V1ConcurrencyKey:

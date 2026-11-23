@@ -1251,7 +1251,7 @@ export interface V1ConcurrencyStrategy {
    */
   queuedKeyCount: number;
   /**
-   * Running runs, each holding a slot.
+   * Slots in use. A run keeps its slot until it finishes, so this includes runs waiting at a later strategy of their chain.
    * @format int64
    */
   runningCount: number;
@@ -1261,7 +1261,7 @@ export interface V1ConcurrencyStrategy {
    */
   queuedCount: number;
   /**
-   * When the longest-queued run was created. Unset when nothing is queued.
+   * When the longest-queued run reached this strategy. Unset when nothing is queued.
    * @format date-time
    */
   oldestQueuedAt?: string;
@@ -1269,8 +1269,34 @@ export interface V1ConcurrencyStrategy {
   oldestQueuedKey?: string;
 }
 
+/** Tenant-wide counts. A run in a chain of strategies holds a slot in each of them, so these are not the sums of the per-strategy counts. */
+export interface V1ConcurrencyTotals {
+  /**
+   * Keys with a slot in use or a queued run, across all strategies.
+   * @format int64
+   */
+  keyCount: number;
+  /**
+   * Keys with at least one queued run, across all strategies.
+   * @format int64
+   */
+  queuedKeyCount: number;
+  /**
+   * Runs that passed every strategy of their chain, each counted once.
+   * @format int64
+   */
+  runningCount: number;
+  /**
+   * Runs waiting at a strategy. A run waits at one strategy at a time.
+   * @format int64
+   */
+  queuedCount: number;
+}
+
 export interface V1ConcurrencyStrategyList {
   rows: V1ConcurrencyStrategy[];
+  /** Tenant-wide counts. A run in a chain of strategies holds a slot in each of them, so these are not the sums of the per-strategy counts. */
+  totals: V1ConcurrencyTotals;
 }
 
 export interface V1ConcurrencyKey {
@@ -1280,12 +1306,15 @@ export interface V1ConcurrencyKey {
    * @format int32
    */
   maxRuns: number;
-  /** @format int64 */
+  /**
+   * Slots in use on this key, including runs waiting at a later strategy of their chain.
+   * @format int64
+   */
   runningCount: number;
   /** @format int64 */
   queuedCount: number;
   /**
-   * When the longest-queued run on this key was created. Unset when nothing is queued.
+   * When the longest-queued run on this key reached this strategy. Unset when nothing is queued.
    * @format date-time
    */
   oldestQueuedAt?: string;

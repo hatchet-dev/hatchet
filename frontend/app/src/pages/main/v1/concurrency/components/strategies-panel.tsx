@@ -19,7 +19,7 @@ import { V1ConcurrencyStrategy } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 const grid =
-  'grid grid-cols-[minmax(200px,1.3fr)_minmax(150px,1fr)_190px_64px_64px_80px_80px_92px] items-center gap-x-3 px-4';
+  'grid grid-cols-[minmax(200px,1.3fr)_minmax(150px,1fr)_190px_64px_64px_96px_80px_92px] items-center gap-x-3 px-4';
 
 export type StrategiesPanelProps = {
   // the current page only
@@ -79,7 +79,7 @@ export function StrategiesPanel({
             <span>Limit strategy</span>
             <span className="text-right">Max runs</span>
             <span className="text-right">Keys</span>
-            <span className="text-right">Running</span>
+            <span className="text-right">Slots in use</span>
             <span className="text-right">Queued ↓</span>
             <span className="text-right">Oldest queued</span>
           </div>

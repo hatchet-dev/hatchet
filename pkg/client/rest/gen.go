@@ -1487,10 +1487,12 @@ type V1ConcurrencyKey struct {
 	// MaxRuns The effective max runs for this key. With a max runs expression, this is the value evaluated for the key's most recent run.
 	MaxRuns int32 `json:"maxRuns"`
 
-	// OldestQueuedAt When the longest-queued run on this key was created. Unset when nothing is queued.
+	// OldestQueuedAt When the longest-queued run on this key reached this strategy. Unset when nothing is queued.
 	OldestQueuedAt *time.Time `json:"oldestQueuedAt,omitempty"`
 	QueuedCount    int64      `json:"queuedCount"`
-	RunningCount   int64      `json:"runningCount"`
+
+	// RunningCount Slots in use on this key, including runs waiting at a later strategy of their chain.
+	RunningCount int64 `json:"runningCount"`
 }
 
 // V1ConcurrencyKeyList defines model for V1ConcurrencyKeyList.
@@ -1534,7 +1536,7 @@ type V1ConcurrencyStrategy struct {
 	// Name The shared strategy's name, the workflow name for WORKFLOW strategies, or the task name for TASK strategies.
 	Name string `json:"name"`
 
-	// OldestQueuedAt When the longest-queued run was created. Unset when nothing is queued.
+	// OldestQueuedAt When the longest-queued run reached this strategy. Unset when nothing is queued.
 	OldestQueuedAt *time.Time `json:"oldestQueuedAt,omitempty"`
 
 	// OldestQueuedKey The key of the longest-queued run. Unset when nothing is queued.
@@ -1546,7 +1548,7 @@ type V1ConcurrencyStrategy struct {
 	// QueuedKeyCount Keys with at least one queued run.
 	QueuedKeyCount int64 `json:"queuedKeyCount"`
 
-	// RunningCount Running runs, each holding a slot.
+	// RunningCount Slots in use. A run keeps its slot until it finishes, so this includes runs waiting at a later strategy of their chain.
 	RunningCount int64 `json:"runningCount"`
 
 	// Scope Where a concurrency strategy is defined. SHARED strategies are named, tenant-wide and can be used by tasks in several workflows.
@@ -1574,6 +1576,9 @@ type V1ConcurrencyStrategy struct {
 // V1ConcurrencyStrategyList defines model for V1ConcurrencyStrategyList.
 type V1ConcurrencyStrategyList struct {
 	Rows []V1ConcurrencyStrategy `json:"rows"`
+
+	// Totals Tenant-wide counts. A run in a chain of strategies holds a slot in each of them, so these are not the sums of the per-strategy counts.
+	Totals V1ConcurrencyTotals `json:"totals"`
 }
 
 // V1ConcurrencyStrategyUsage defines model for V1ConcurrencyStrategyUsage.
@@ -1581,6 +1586,21 @@ type V1ConcurrencyStrategyUsage struct {
 	TaskName     string             `json:"taskName"`
 	WorkflowId   openapi_types.UUID `json:"workflowId"`
 	WorkflowName string             `json:"workflowName"`
+}
+
+// V1ConcurrencyTotals Tenant-wide counts. A run in a chain of strategies holds a slot in each of them, so these are not the sums of the per-strategy counts.
+type V1ConcurrencyTotals struct {
+	// KeyCount Keys with a slot in use or a queued run, across all strategies.
+	KeyCount int64 `json:"keyCount"`
+
+	// QueuedCount Runs waiting at a strategy. A run waits at one strategy at a time.
+	QueuedCount int64 `json:"queuedCount"`
+
+	// QueuedKeyCount Keys with at least one queued run, across all strategies.
+	QueuedKeyCount int64 `json:"queuedKeyCount"`
+
+	// RunningCount Runs that passed every strategy of their chain, each counted once.
+	RunningCount int64 `json:"runningCount"`
 }
 
 // V1CreateFilterRequest defines model for V1CreateFilterRequest.

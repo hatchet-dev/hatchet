@@ -1,9 +1,16 @@
 import { formatElapsed } from './concurrency-format';
 import { StatCell } from '@/components/v1/molecules/stat-cell';
-import { V1ConcurrencyScope, V1ConcurrencyStrategy } from '@/lib/api';
+import {
+  V1ConcurrencyScope,
+  V1ConcurrencyStrategy,
+  V1ConcurrencyTotals,
+} from '@/lib/api';
 
 export type TotalsStripProps = {
   strategies: V1ConcurrencyStrategy[];
+  // computed by the server: a run in a chain of strategies holds a slot in each of them, so
+  // summing the rows would count it once per strategy
+  totals: V1ConcurrencyTotals | undefined;
   loading: boolean;
   now: number;
   onOpenKey: (strategy: V1ConcurrencyStrategy, key: string) => void;
@@ -11,6 +18,7 @@ export type TotalsStripProps = {
 
 export function TotalsStrip({
   strategies,
+  totals,
   loading,
   now,
   onOpenKey,
@@ -18,10 +26,10 @@ export function TotalsStrip({
   const countScope = (scope: V1ConcurrencyScope) =>
     strategies.filter((s) => s.scope === scope).length;
 
-  const keys = sum(strategies, (s) => s.keyCount);
-  const running = sum(strategies, (s) => s.runningCount);
-  const queued = sum(strategies, (s) => s.queuedCount);
-  const queuedKeys = sum(strategies, (s) => s.queuedKeyCount);
+  const keys = totals?.keyCount ?? 0;
+  const running = totals?.runningCount ?? 0;
+  const queued = totals?.queuedCount ?? 0;
+  const queuedKeys = totals?.queuedKeyCount ?? 0;
 
   const longest = strategies
     .filter((s) => s.oldestQueuedAt)
@@ -46,14 +54,14 @@ export function TotalsStrip({
       <StatCell
         label="Keys in use"
         loading={loading}
-        hint="with running or queued runs"
+        hint="with a slot in use or a queued run"
       >
         {keys}
       </StatCell>
       <StatCell
-        label="Runs holding a slot"
+        label="Running runs"
         loading={loading}
-        hint="across all keys"
+        hint="past every strategy of their chain"
       >
         {running}
       </StatCell>
@@ -88,8 +96,4 @@ export function TotalsStrip({
       </StatCell>
     </section>
   );
-}
-
-function sum<T>(rows: T[], f: (row: T) => number) {
-  return rows.reduce((acc, row) => acc + f(row), 0);
 }

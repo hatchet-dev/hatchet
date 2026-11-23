@@ -3371,6 +3371,7 @@ type V1ConcurrencySlot struct {
 	ScheduleTimeoutAt     pgtype.Timestamp   `json:"schedule_timeout_at"`
 	MaxRuns               pgtype.Int4        `json:"max_runs"`
 	NextMaxRuns           []int32            `json:"next_max_runs"`
+	QueuedAt              pgtype.Timestamptz `json:"queued_at"`
 }
 
 type V1Dag struct {

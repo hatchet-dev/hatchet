@@ -71,12 +71,30 @@ type ConcurrencyStrategySummary struct {
 	MaxRuns           int32
 	MaxRunsExpression *string
 
-	KeyCount        int64
-	QueuedKeyCount  int64
+	KeyCount       int64
+	QueuedKeyCount int64
+	// Slots in use, which includes tasks this strategy admitted that wait at a later strategy
+	// of their chain: they keep their slot here until they finish.
 	RunningCount    int64
 	QueuedCount     int64
 	OldestQueuedAt  *time.Time
 	OldestQueuedKey string
+}
+
+// ConcurrencyTotals are the tenant-wide counts across all strategies. A run in a chain of
+// strategies holds a slot in each of them, so these are not the sums of the per-strategy
+// counts.
+type ConcurrencyTotals struct {
+	KeyCount       int64
+	QueuedKeyCount int64
+	RunningCount   int64
+	QueuedCount    int64
+}
+
+// ConcurrencyOverview is the tenant's strategies, most queued first, and their totals.
+type ConcurrencyOverview struct {
+	Strategies []*ConcurrencyStrategySummary
+	Totals     ConcurrencyTotals
 }
 
 // ListConcurrencyKeysOpts filters and pages the keys returned by ListKeys.
@@ -101,7 +119,7 @@ type ConcurrencyOverviewRepository interface {
 	// ListStrategySummaries returns the strategies on the tenant's latest workflow versions,
 	// the shared strategies their tasks use, and draining strategies that still have slots,
 	// with live slot counts, most queued first.
-	ListStrategySummaries(ctx context.Context, tenantId uuid.UUID) ([]*ConcurrencyStrategySummary, error)
+	ListStrategySummaries(ctx context.Context, tenantId uuid.UUID) (*ConcurrencyOverview, error)
 
 	// ListKeys returns a page of a strategy's keys and the total number of matching keys.
 	// Returns ErrConcurrencyStrategyNotFound if the strategy does not exist in the given scope.
@@ -134,6 +152,7 @@ func newConcurrencyOverviewRepository(shared *sharedRepository) (ConcurrencyOver
 type slotStats struct {
 	workflowID, workflowVersionID                       uuid.UUID
 	keyCount, queuedKeyCount, runningCount, queuedCount int64
+	lastGateRunningCount                                int64
 	oldestQueuedAt                                      pgtype.Timestamptz
 	oldestQueuedKey                                     string
 }
@@ -147,24 +166,13 @@ func (s slotStats) apply(sum *ConcurrencyStrategySummary) {
 	sum.OldestQueuedKey = s.oldestQueuedKey
 }
 
-func (r *concurrencyOverviewRepository) ListStrategySummaries(ctx context.Context, tenantId uuid.UUID) ([]*ConcurrencyStrategySummary, error) {
-	res, err := cache.MakeCacheable(r.summaryCache, tenantId.String(), func() (*[]*ConcurrencyStrategySummary, error) {
-		summaries, err := r.listStrategySummaries(ctx, tenantId)
-		if err != nil {
-			return nil, err
-		}
-
-		return &summaries, nil
+func (r *concurrencyOverviewRepository) ListStrategySummaries(ctx context.Context, tenantId uuid.UUID) (*ConcurrencyOverview, error) {
+	return cache.MakeCacheable(r.summaryCache, tenantId.String(), func() (*ConcurrencyOverview, error) {
+		return r.listStrategySummaries(ctx, tenantId)
 	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return *res, nil
 }
 
-func (r *concurrencyOverviewRepository) listStrategySummaries(ctx context.Context, tenantId uuid.UUID) ([]*ConcurrencyStrategySummary, error) {
+func (r *concurrencyOverviewRepository) listStrategySummaries(ctx context.Context, tenantId uuid.UUID) (*ConcurrencyOverview, error) {
 	taskStrategies, err := r.queries.ListTaskConcurrencyStrategiesForTenant(ctx, r.pool.ForTenant(tenantId), tenantId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list task concurrency strategies: %w", err)
@@ -194,13 +202,14 @@ func (r *concurrencyOverviewRepository) listStrategySummaries(ctx context.Contex
 	stats := make(map[int64]slotStats, len(slotStatRows))
 
 	for _, row := range slotStatRows {
-		stats[row.StrategyID] = slotStats{row.WorkflowID, row.WorkflowVersionID, row.KeyCount, row.QueuedKeyCount, row.RunningCount, row.QueuedCount, row.OldestQueuedAt, row.OldestQueuedKey}
+		stats[row.StrategyID] = slotStats{row.WorkflowID, row.WorkflowVersionID, row.KeyCount, row.QueuedKeyCount, row.RunningCount, row.QueuedCount, row.LastGateRunningCount, row.OldestQueuedAt, row.OldestQueuedKey}
 	}
 
 	workflowStats := make(map[int64]slotStats, len(workflowSlotStatRows))
 
 	for _, row := range workflowSlotStatRows {
-		workflowStats[row.StrategyID] = slotStats{row.WorkflowID, row.WorkflowVersionID, row.KeyCount, row.QueuedKeyCount, row.RunningCount, row.QueuedCount, row.OldestQueuedAt, row.OldestQueuedKey}
+		// workflow slots are not chained, so every filled one is running
+		workflowStats[row.StrategyID] = slotStats{row.WorkflowID, row.WorkflowVersionID, row.KeyCount, row.QueuedKeyCount, row.RunningCount, row.QueuedCount, row.RunningCount, row.OldestQueuedAt, row.OldestQueuedKey}
 	}
 
 	usedBy := make(map[int64][]ConcurrencyStrategyUsage)
@@ -341,6 +350,24 @@ func (r *concurrencyOverviewRepository) listStrategySummaries(ctx context.Contex
 		res = append(res, sum)
 	}
 
+	// A running task holds a filled slot on every strategy of its chain but only one on its
+	// last, so summing last-gate counts counts each task once. Queued slots need no such care:
+	// a task waits on one strategy at a time. Keys are per strategy, so they add up as is.
+	var totals ConcurrencyTotals
+
+	for _, sum := range res {
+		st := stats[sum.ID]
+
+		if sum.Scope == ConcurrencyScopeWorkflow {
+			st = workflowStats[sum.ID]
+		}
+
+		totals.KeyCount += sum.KeyCount
+		totals.QueuedKeyCount += sum.QueuedKeyCount
+		totals.QueuedCount += sum.QueuedCount
+		totals.RunningCount += st.lastGateRunningCount
+	}
+
 	sort.SliceStable(res, func(i, j int) bool {
 		a, b := res[i], res[j]
 
@@ -359,7 +386,7 @@ func (r *concurrencyOverviewRepository) listStrategySummaries(ctx context.Contex
 		return a.Name < b.Name
 	})
 
-	return res, nil
+	return &ConcurrencyOverview{Strategies: res, Totals: totals}, nil
 }
 
 type concurrencyKeysPage struct {
@@ -400,14 +427,14 @@ func (r *concurrencyOverviewRepository) ListKeys(ctx context.Context, tenantId u
 func (r *concurrencyOverviewRepository) listKeys(ctx context.Context, tenantId uuid.UUID, scope ConcurrencyScope, strategyId int64, opts ListConcurrencyKeysOpts) ([]*ConcurrencyKey, int64, error) {
 	// The strategy tables have no index for a (tenant, id) lookup, so the strategy is
 	// resolved from the cached summaries.
-	summaries, err := r.ListStrategySummaries(ctx, tenantId)
+	overview, err := r.ListStrategySummaries(ctx, tenantId)
 	if err != nil {
 		return nil, 0, err
 	}
 
 	var strategy *ConcurrencyStrategySummary
 
-	for _, s := range summaries {
+	for _, s := range overview.Strategies {
 		if s.Scope == scope && s.ID == strategyId {
 			strategy = s
 			break

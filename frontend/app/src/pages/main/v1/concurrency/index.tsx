@@ -155,6 +155,7 @@ function Concurrency({ tenantId }: ConcurrencyProps) {
         <>
           <TotalsStrip
             strategies={all}
+            totals={data?.totals}
             loading={isLoading}
             now={now}
             onOpenKey={openKey}

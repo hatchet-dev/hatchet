@@ -112,7 +112,7 @@ V1ConcurrencyStrategy:
     runningCount:
       type: integer
       format: int64
-      description: Running runs, each holding a slot.
+      description: Slots in use. A run keeps its slot until it finishes, so this includes runs waiting at a later strategy of their chain.
     queuedCount:
       type: integer
       format: int64
@@ -120,7 +120,7 @@ V1ConcurrencyStrategy:
     oldestQueuedAt:
       type: string
       format: date-time
-      description: When the longest-queued run was created. Unset when nothing is queued.
+      description: When the longest-queued run reached this strategy. Unset when nothing is queued.
     oldestQueuedKey:
       type: string
       description: The key of the longest-queued run. Unset when nothing is queued.
@@ -137,6 +137,32 @@ V1ConcurrencyStrategy:
     - runningCount
     - queuedCount
 
+V1ConcurrencyTotals:
+  type: object
+  description: Tenant-wide counts. A run in a chain of strategies holds a slot in each of them, so these are not the sums of the per-strategy counts.
+  properties:
+    keyCount:
+      type: integer
+      format: int64
+      description: Keys with a slot in use or a queued run, across all strategies.
+    queuedKeyCount:
+      type: integer
+      format: int64
+      description: Keys with at least one queued run, across all strategies.
+    runningCount:
+      type: integer
+      format: int64
+      description: Runs that passed every strategy of their chain, each counted once.
+    queuedCount:
+      type: integer
+      format: int64
+      description: Runs waiting at a strategy. A run waits at one strategy at a time.
+  required:
+    - keyCount
+    - queuedKeyCount
+    - runningCount
+    - queuedCount
+
 V1ConcurrencyStrategyList:
   type: object
   properties:
@@ -144,8 +170,11 @@ V1ConcurrencyStrategyList:
       type: array
       items:
         $ref: "#/V1ConcurrencyStrategy"
+    totals:
+      $ref: "#/V1ConcurrencyTotals"
   required:
     - rows
+    - totals
 
 V1ConcurrencyKey:
   type: object
@@ -159,13 +188,14 @@ V1ConcurrencyKey:
     runningCount:
       type: integer
       format: int64
+      description: Slots in use on this key, including runs waiting at a later strategy of their chain.
     queuedCount:
       type: integer
       format: int64
     oldestQueuedAt:
       type: string
       format: date-time
-      description: When the longest-queued run on this key was created. Unset when nothing is queued.
+      description: When the longest-queued run on this key reached this strategy. Unset when nothing is queued.
   required:
     - key
     - maxRuns
