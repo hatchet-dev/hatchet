@@ -4,7 +4,7 @@ import multiprocessing.context
 import os
 import signal
 import sys
-from collections.abc import AsyncGenerator, Callable
+from collections.abc import AsyncGenerator, Callable, Coroutine
 from concurrent.futures import Future
 from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from datetime import UTC, datetime
@@ -124,6 +124,8 @@ class Worker:
         self._stop_listener_event = self._ctx.Event()
 
         self._loop: asyncio.AbstractEventLoop | None = None
+        ## held here because asyncio keeps only weak references to tasks
+        self._exit_tasks: set[asyncio.Task[None]] = set()
         self._aio_start_exception: BaseException | None = None
 
         self._setup_signal_handlers()
@@ -437,8 +439,7 @@ class Worker:
                     )
                     logger.error(str(self._aio_start_exception))
                     self._status = "UNHEALTHY"
-                    if self._loop:
-                        self._loop.create_task(self._exit_gracefully())
+                    self._start_exit_task(self._exit_gracefully)
                     break
 
                 if (
@@ -446,14 +447,23 @@ class Worker:
                     and task_count.value
                     >= self._config.terminate_worker_after_num_tasks
                 ):
-                    if self._loop:
-                        self._loop.create_task(self._exit_gracefully())
+                    self._start_exit_task(self._exit_gracefully)
                     break
 
                 self._status = "HEALTHY"
                 await asyncio.sleep(1)
         except Exception:
             logger.exception("error checking listener health")
+
+    def _start_exit_task(
+        self, exit_method: Callable[[], Coroutine[Any, Any, None]]
+    ) -> None:
+        if self._loop is None:
+            return
+
+        exit_task = self._loop.create_task(exit_method())
+        self._exit_tasks.add(exit_task)
+        exit_task.add_done_callback(self._exit_tasks.discard)
 
     def _setup_signal_handlers(self) -> None:
         signal.signal(
@@ -477,14 +487,12 @@ class Worker:
     def _handle_exit_signal(self, signum: int, _frame: FrameType | None) -> None:
         sig_name = "SIGTERM" if signum == signal.SIGTERM else "SIGINT"
         logger.info(f"received signal {sig_name}...")
-        if self._loop:
-            self._loop.create_task(self._exit_gracefully())
+        self._start_exit_task(self._exit_gracefully)
 
     def _handle_force_quit_signal(self, signum: int, _frame: FrameType | None) -> None:
         signal_received = signal.Signals(signum).name
         logger.info(f"received {signal_received}...")
-        if self._loop:
-            self._loop.create_task(self._exit_forcefully())
+        self._start_exit_task(self._exit_forcefully)
 
     def _close_queues(self) -> None:
         queues: list[Queue[Any] | None] = [
@@ -600,10 +608,10 @@ class Worker:
         if self._durable_event_queue is not None:
             self._durable_event_queue.put(STOP_LOOP)
 
-        if self._durable_action_listener_process is not None:
+        durable_action_listener_process = self._durable_action_listener_process
+        if durable_action_listener_process is not None:
             await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: self._durable_action_listener_process.join(),  # type: ignore[union-attr]
+                None, durable_action_listener_process.join
             )
 
         try:

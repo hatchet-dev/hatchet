@@ -5,12 +5,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func newCancelQueuedExceptNewestStrategy(repo repository.ConcurrencyRepository, maxConcurrency int32) *ConcurrencyStrategy {
-	return newTestStrategyKind(repo, maxConcurrency, sqlcv1.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST)
+	return newTestStrategyKind(repo, maxConcurrency, enums.V1ConcurrencyStrategyCANCELQUEUEDEXCEPTNEWEST)
 }
 
 // Within a single batch: free capacity is filled from the queued backlog oldest-first, then

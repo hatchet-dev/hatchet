@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	repo "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/scheduling/v1/concurrency"
@@ -347,7 +348,7 @@ func TestConcurrency_SharedStrategy_UpsertInPlace(t *testing.T) {
 		require.Equal(t, s.strategy.ID, updated.ID, "upsert must update the same strategy row")
 		require.Equal(t, int32(5), updated.MaxConcurrency)
 		require.Equal(t, "input.other_id", updated.Expression)
-		require.Equal(t, sqlcv1.V1ConcurrencyStrategyCANCELINPROGRESS, updated.Strategy)
+		require.Equal(t, enums.V1ConcurrencyStrategyCANCELINPROGRESS, updated.Strategy)
 		require.True(t, updated.IsActive)
 
 		// the update trigger propagates the new definition to referencing rows, so

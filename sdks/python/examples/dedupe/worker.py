@@ -1,9 +1,12 @@
 import asyncio
 from datetime import timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from hatchet_sdk import Context, Hatchet
 from hatchet_sdk.exceptions import DedupeViolationError
+
+if TYPE_CHECKING:
+    from collections.abc import Coroutine
 
 hatchet = Hatchet()
 
@@ -15,9 +18,9 @@ dedupe_child_wf = hatchet.workflow(name="DedupeChild")
 async def spawn(input: None, ctx: Context) -> dict[str, list[Any]]:
     print("spawning child")
 
-    results = []
+    results: list[Coroutine[Any, Any, dict[str, Any]]] = []
 
-    for i in range(2):
+    for _ in range(2):
         try:
             results.append(
                 dedupe_child_wf.aio_run(

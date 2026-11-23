@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -138,10 +139,11 @@ func TestOnlyDefaultCronsAreDeleted(t *testing.T) {
 	).Scan(&triggersId)
 	require.NoError(t, err)
 
+	cronMethod := enums.WorkflowTriggerCronRefMethodsAPI
 	_, err = queries.CreateWorkflowTriggerCronRef(ctx, pool, sqlcv1.CreateWorkflowTriggerCronRefParams{
 		Workflowtriggersid: triggersId,
 		Crontrigger:        "15 * * * *",
-		Method:             sqlcv1.NullWorkflowTriggerCronRefMethods{WorkflowTriggerCronRefMethods: sqlcv1.WorkflowTriggerCronRefMethodsAPI, Valid: true},
+		Method:             &cronMethod,
 	})
 	require.NoError(t, err)
 

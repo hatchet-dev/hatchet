@@ -4,7 +4,7 @@ import pytest
 
 from examples.bug_tests.durable_dag_replay_satisfied_order_gap.worker import replay_gap
 from examples.test_utils import wait_for_running_status
-from hatchet_sdk import FailedTaskRunExceptionGroup, Hatchet, RunStatus
+from hatchet_sdk import FailedTaskRunExceptionGroup, Hatchet
 from hatchet_sdk.clients.admin import WorkflowRunDetail
 
 

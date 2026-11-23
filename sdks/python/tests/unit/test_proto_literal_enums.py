@@ -2,9 +2,6 @@ from typing import Any, get_args
 
 import pytest
 
-from hatchet_sdk.contracts.workflows_pb2 import (
-    RateLimitDuration as V0RateLimitDurationProto,
-)
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
     ConcurrencyLimitStrategy as ConcurrencyLimitStrategyProto,
 )
@@ -13,6 +10,9 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import (
 )
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
     StickyStrategy as StickyStrategyProto,
+)
+from hatchet_sdk.contracts.workflows_pb2 import (
+    RateLimitDuration as V0RateLimitDurationProto,
 )
 from hatchet_sdk.runnables.types import StickyStrategy
 from hatchet_sdk.types.concurrency import ConcurrencyStrategy
@@ -63,7 +63,7 @@ def literal_string_values(name: str, literal_type: Any) -> set[str]:
 
 
 @pytest.mark.parametrize(
-    "name,literal_type,proto_enum", LITERAL_TO_PROTO_ENUM, ids=PARAM_IDS
+    ("name", "literal_type", "proto_enum"), LITERAL_TO_PROTO_ENUM, ids=PARAM_IDS
 )
 def test_literal_covers_every_proto_enum_value(
     name: str, literal_type: Any, proto_enum: Any
@@ -87,7 +87,7 @@ def test_literal_covers_every_proto_enum_value(
 
 
 @pytest.mark.parametrize(
-    "name,literal_type,proto_enum", LITERAL_TO_PROTO_ENUM, ids=PARAM_IDS
+    ("name", "literal_type", "proto_enum"), LITERAL_TO_PROTO_ENUM, ids=PARAM_IDS
 )
 def test_every_literal_value_converts_to_the_matching_proto_value(
     name: str, literal_type: Any, proto_enum: Any
@@ -99,14 +99,14 @@ def test_every_literal_value_converts_to_the_matching_proto_value(
 
 
 @pytest.mark.parametrize(
-    "name,literal_type,proto_enum", LITERAL_TO_PROTO_ENUM, ids=PARAM_IDS
+    ("name", "literal_type", "proto_enum"), LITERAL_TO_PROTO_ENUM, ids=PARAM_IDS
 )
 def test_none_and_invalid_values_are_handled(
     name: str, literal_type: Any, proto_enum: Any
 ) -> None:
     assert convert_python_literal_to_proto(None, proto_enum) is None
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Value must be one of"):
         convert_python_literal_to_proto("NOT_A_REAL_VALUE", proto_enum)
 
 

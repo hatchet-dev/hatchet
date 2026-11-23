@@ -21,23 +21,33 @@ import (
 // tenant id). For both, a value from 1 to 99 installs a cap, and 100 (or 0, the zero value)
 // installs none, so that bucket may hold the whole pool. NewWithConfig rejects values outside
 // 0 to 100.
+//
+// AcquireTimeout bounds how long a checkout waits for a free connection in the underlying pool,
+// after it has its slot. Zero leaves the wait bounded only by the caller's context.
 type Options struct {
 	MaxPercent       int
 	SharedMaxPercent int
 	MaxWait          time.Duration
+	AcquireTimeout   time.Duration
 	PoolName         string
 	L                *zerolog.Logger
 }
+
+// DefaultAcquireTimeout matches the default statement and idle-in-transaction timeout, so a
+// checkout gives up no sooner than the server would end the work it is waiting behind.
+const DefaultAcquireTimeout = 30 * time.Second
 
 // Pool is a pgx pool plus optional connection caps. ForTenant counts a checkout
 // against a tenant and ForShared counts it against shared engine work. Each
 // tenant has its own limit, and the shared bucket has a separate one. Ungated
 // and Unwrap do not count.
 type Pool struct {
-	inner      *pgxpool.Pool
-	gate       *gate
-	sharedGate *gate
-	shared     *handle
+	inner          *pgxpool.Pool
+	name           string
+	acquireTimeout time.Duration
+	gate           *gate
+	sharedGate     *gate
+	shared         *handle
 }
 
 // Handle is one tenant's checkout, or the shared checkout. sqlc accepts it
@@ -80,12 +90,10 @@ func Ungated(inner *pgxpool.Pool) *Pool {
 		return nil
 	}
 
-	return newPool(inner, Options{})
+	return newPool(inner, Options{AcquireTimeout: DefaultAcquireTimeout})
 }
 
 func newPool(inner *pgxpool.Pool, opts Options) *Pool {
-	p := &Pool{inner: inner}
-
 	if opts.MaxWait <= 0 {
 		opts.MaxWait = 5 * time.Second
 	}
@@ -93,6 +101,8 @@ func newPool(inner *pgxpool.Pool, opts Options) *Pool {
 	if opts.PoolName == "" {
 		opts.PoolName = "main"
 	}
+
+	p := &Pool{inner: inner, name: opts.PoolName, acquireTimeout: opts.AcquireTimeout}
 
 	maxConns := inner.Config().MaxConns
 
@@ -156,7 +166,8 @@ func (p *Pool) SharedConnectionLimit() int64 {
 }
 
 // Unwrap returns the underlying pgx pool. Callers that hijack a connection,
-// such as LISTEN, use this so they never take a gate slot.
+// such as LISTEN, use this so they never take a gate slot. Their checkouts are
+// bounded only by their own context, not by AcquireTimeout.
 func (p *Pool) Unwrap() *pgxpool.Pool {
 	if p == nil {
 		return nil
@@ -226,12 +237,42 @@ func releaseCheckedOut(hold *slotHold, releaseConn func()) {
 	hold.release()
 }
 
+// acquire takes a connection from the underlying pool, waiting at most acquireTimeout. Without
+// the bound, callers that each hold a connection and ask for a second one wait forever once
+// every connection is held that way, and the process stops serving database work. With it,
+// they fail, release what they hold, and the pool recovers. A zero acquireTimeout waits on the
+// caller's context alone.
+func (p *Pool) acquire(ctx context.Context) (*pgxpool.Conn, error) {
+	if p.acquireTimeout == 0 {
+		return p.inner.Acquire(ctx)
+	}
+
+	acquireCtx, cancel := context.WithTimeout(ctx, p.acquireTimeout)
+	defer cancel()
+
+	conn, err := p.inner.Acquire(acquireCtx)
+	if err != nil && ctx.Err() == nil && acquireCtx.Err() != nil {
+		// Not wrapped: callers treat context.DeadlineExceeded as the client's own deadline and
+		// return it without logging, but an exhausted pool is an engine failure.
+		return nil, fmt.Errorf("fairpool: timed out waiting for a free connection from the %s pool after %s", p.name, p.acquireTimeout)
+	}
+
+	return conn, err
+}
+
+// pinConn reserves a slot when the bucket is gated, then checks out a connection. Every handle
+// method checks out through here, so each one is bounded by acquireTimeout.
 func (h *handle) pinConn(ctx context.Context) (*pgxpool.Conn, *slotHold, error) {
+	if h.gate == nil {
+		conn, err := h.pool.acquire(ctx)
+		return conn, nil, err
+	}
+
 	var conn *pgxpool.Conn
 
 	hold, err := h.gate.pin(ctx, h.key, h.tenantID, func() error {
 		var acquireErr error
-		conn, acquireErr = h.pool.inner.Acquire(ctx)
+		conn, acquireErr = h.pool.acquire(ctx)
 		return acquireErr
 	})
 	if err != nil {
@@ -242,10 +283,6 @@ func (h *handle) pinConn(ctx context.Context) (*pgxpool.Conn, *slotHold, error) 
 }
 
 func (h *handle) Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error) {
-	if h.gate == nil {
-		return h.pool.inner.Exec(ctx, sql, arguments...)
-	}
-
 	conn, hold, err := h.pinConn(ctx)
 	if err != nil {
 		return pgconn.CommandTag{}, err
@@ -256,10 +293,6 @@ func (h *handle) Exec(ctx context.Context, sql string, arguments ...any) (pgconn
 }
 
 func (h *handle) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
-	if h.gate == nil {
-		return h.pool.inner.Query(ctx, sql, args...)
-	}
-
 	conn, hold, err := h.pinConn(ctx)
 	if err != nil {
 		return nil, err
@@ -275,10 +308,6 @@ func (h *handle) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, 
 }
 
 func (h *handle) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
-	if h.gate == nil {
-		return h.pool.inner.QueryRow(ctx, sql, args...)
-	}
-
 	rows, err := h.Query(ctx, sql, args...)
 	if err != nil {
 		return errRow{err: err}
@@ -288,10 +317,6 @@ func (h *handle) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row 
 }
 
 func (h *handle) CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error) {
-	if h.gate == nil {
-		return h.pool.inner.CopyFrom(ctx, tableName, columnNames, rowSrc)
-	}
-
 	conn, hold, err := h.pinConn(ctx)
 	if err != nil {
 		return 0, err
@@ -302,10 +327,6 @@ func (h *handle) CopyFrom(ctx context.Context, tableName pgx.Identifier, columnN
 }
 
 func (h *handle) SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults {
-	if h.gate == nil {
-		return h.pool.inner.SendBatch(ctx, b)
-	}
-
 	conn, hold, err := h.pinConn(ctx)
 	if err != nil {
 		return errBatchResults{err: err}
@@ -319,33 +340,21 @@ func (h *handle) Begin(ctx context.Context) (pgx.Tx, error) {
 }
 
 func (h *handle) BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error) {
-	if h.gate == nil {
-		return h.pool.inner.BeginTx(ctx, txOptions)
-	}
-
-	var tx pgx.Tx
-	hold, err := h.gate.pin(ctx, h.key, h.tenantID, func() error {
-		var beginErr error
-		tx, beginErr = h.pool.inner.BeginTx(ctx, txOptions)
-		return beginErr
-	})
+	conn, hold, err := h.pinConn(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	return newGatingTx(tx, hold), nil
+	tx, err := conn.BeginTx(ctx, txOptions)
+	if err != nil {
+		releaseCheckedOut(hold, conn.Release)
+		return nil, err
+	}
+
+	return newGatingTx(tx, conn, hold), nil
 }
 
 func (h *handle) Acquire(ctx context.Context) (*Conn, error) {
-	if h.gate == nil {
-		conn, err := h.pool.inner.Acquire(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		return newConn(conn, nil), nil
-	}
-
 	conn, hold, err := h.pinConn(ctx)
 	if err != nil {
 		return nil, err

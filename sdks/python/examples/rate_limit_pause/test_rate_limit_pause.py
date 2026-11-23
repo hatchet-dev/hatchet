@@ -1,12 +1,12 @@
 import asyncio
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
 
 from examples.rate_limit_pause.worker import RateLimitPauseInput, rate_limit_pause_task
-from hatchet_sdk import Hatchet, RunStatus
+from hatchet_sdk import Hatchet
 from hatchet_sdk.clients.rest.api.rate_limits_api import RateLimitsApi
 
 
@@ -21,7 +21,7 @@ async def test_rate_limit_pause(hatchet: Hatchet) -> None:
         await hatchet.rate_limits.aio_put(paused_key, 10, duration="HOUR")
 
         paused_until = await hatchet.rate_limits.aio_pause(
-            paused_key, datetime.now(timezone.utc) + timedelta(seconds=15)
+            paused_key, datetime.now(UTC) + timedelta(seconds=15)
         )
 
         # both runs share a concurrency group with max_runs=1, so the paused run must not take the group's only slot
@@ -48,7 +48,7 @@ async def test_rate_limit_pause(hatchet: Hatchet) -> None:
             rate_limits[0].value == 10
         ), f"A queued run consumed units of a paused key (value {rate_limits[0].value})."
 
-        while datetime.now(timezone.utc) < paused_until - timedelta(seconds=1):
+        while datetime.now(UTC) < paused_until - timedelta(seconds=1):
             paused_details = await hatchet.runs.aio_get_details(
                 paused_ref.workflow_run_id
             )
@@ -64,9 +64,9 @@ async def test_rate_limit_pause(hatchet: Hatchet) -> None:
 
         while True:
             if time.time() - start > timeout:
-                assert (
-                    False
-                ), f"Run with a paused key did not complete within {timeout} seconds of the pause ending."
+                pytest.fail(
+                    f"Run with a paused key did not complete within {timeout} seconds of the pause ending."
+                )
 
             paused_details = await hatchet.runs.aio_get_details(
                 paused_ref.workflow_run_id

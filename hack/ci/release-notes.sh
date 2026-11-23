@@ -80,6 +80,11 @@ generate_release_notes() {
       pattern='"version"'
       sdk_dir="sdks/typescript-sandbox/"
       ;;
+    pi-durable)
+      file="sdks/typescript-pi-durable/package.json"
+      pattern='"version"'
+      sdk_dir="sdks/typescript-pi-durable/"
+      ;;
     *)
       echo "Unknown SDK: $sdk" >&2
       return 1

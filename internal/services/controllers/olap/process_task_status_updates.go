@@ -8,8 +8,8 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (o *OLAPControllerImpl) runTaskStatusUpdates(ctx context.Context) func() {
@@ -52,7 +52,7 @@ func (o *OLAPControllerImpl) notifyTasksUpdated(ctx context.Context, rows []v1.U
 	tenantIdToPayloads := make(map[uuid.UUID][]tasktypes.NotifyFinalizedPayload)
 
 	for _, row := range rows {
-		if row.ReadableStatus != sqlcv1.V1ReadableStatusOlapCOMPLETED && row.ReadableStatus != sqlcv1.V1ReadableStatusOlapCANCELLED && row.ReadableStatus != sqlcv1.V1ReadableStatusOlapFAILED {
+		if row.ReadableStatus != enums.V1ReadableStatusOlapCOMPLETED && row.ReadableStatus != enums.V1ReadableStatusOlapCANCELLED && row.ReadableStatus != enums.V1ReadableStatusOlapFAILED {
 			continue
 		}
 
@@ -65,7 +65,7 @@ func (o *OLAPControllerImpl) notifyTasksUpdated(ctx context.Context, rows []v1.U
 	// Send prometheus updates asynchronously
 	if o.prometheusMetricsEnabled && o.taskPrometheusUpdateCh != nil {
 		for _, row := range rows {
-			if row.ReadableStatus != sqlcv1.V1ReadableStatusOlapCOMPLETED && row.ReadableStatus != sqlcv1.V1ReadableStatusOlapCANCELLED && row.ReadableStatus != sqlcv1.V1ReadableStatusOlapFAILED {
+			if row.ReadableStatus != enums.V1ReadableStatusOlapCOMPLETED && row.ReadableStatus != enums.V1ReadableStatusOlapCANCELLED && row.ReadableStatus != enums.V1ReadableStatusOlapFAILED {
 				continue
 			}
 

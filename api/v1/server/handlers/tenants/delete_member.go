@@ -6,6 +6,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -15,7 +16,7 @@ func (t *TenantService) TenantMemberDelete(ctx echo.Context, request gen.TenantM
 	tenantMember := ctx.Get("tenant-member").(*sqlcv1.PopulateTenantMembersRow)
 	memberToDelete := ctx.Get("member").(*sqlcv1.PopulateTenantMembersRow)
 
-	if tenantMember.Role != sqlcv1.TenantMemberRoleOWNER {
+	if tenantMember.Role != enums.TenantMemberRoleOWNER {
 		return gen.TenantMemberDelete403JSONResponse(
 			apierrors.NewAPIErrors("Only owners can delete members"),
 		), nil

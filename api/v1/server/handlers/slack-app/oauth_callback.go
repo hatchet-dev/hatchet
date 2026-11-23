@@ -9,6 +9,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/redirect"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -52,7 +53,7 @@ func (g *SlackAppService) UserUpdateSlackOauthCallback(ctx echo.Context, _ gen.U
 
 	tenantMember, err := g.config.V1.Tenant().GetTenantMemberByUserID(ctx.Request().Context(), *tenantId, user.ID)
 
-	if err != nil || tenantMember == nil || tenantMember.Role == sqlcv1.TenantMemberRoleVIEWER {
+	if err != nil || tenantMember == nil || tenantMember.Role == enums.TenantMemberRoleVIEWER {
 		return nil, redirect.GetRedirectWithError(ctx, g.config.Logger, err, "Forbidden")
 	}
 

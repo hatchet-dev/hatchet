@@ -62,6 +62,7 @@ module Hatchet
   require_relative "hatchet/contracts/v1/streams_pb"
   require_relative "hatchet/contracts/v1/streams_services_pb"
 
+  require_relative "hatchet/clients/grpc/server_retry_delay"
   require_relative "hatchet/clients/grpc/dispatcher"
   require_relative "hatchet/clients/grpc/admin"
   require_relative "hatchet/clients/grpc/event_client"

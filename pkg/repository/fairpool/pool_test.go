@@ -105,6 +105,10 @@ func newPoolWithOptions(t *testing.T, opts fairpool.Options, tracer pgx.QueryTra
 
 	name := "fairpool-test-" + uuid.NewString()
 	opts.PoolName = name
+	// Zero would leave checkouts unbounded, so a deadlocked test would hang until the go test timeout.
+	if opts.AcquireTimeout == 0 {
+		opts.AcquireTimeout = fairpool.DefaultAcquireTimeout
+	}
 	pool, err := fairpool.NewWithConfig(context.Background(), cfg, opts)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
@@ -640,4 +644,179 @@ func TestAcquireSpanStaysOnInnerPool(t *testing.T) {
 		}
 	}
 	require.True(t, found, "pool.acquire span was not recorded")
+}
+
+// deadlineTracer records whether the context passed to the underlying pool's Acquire has a deadline.
+type deadlineTracer struct {
+	mu          sync.Mutex
+	hasDeadline *bool
+}
+
+func (d *deadlineTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, _ pgx.TraceQueryStartData) context.Context {
+	return ctx
+}
+
+func (d *deadlineTracer) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
+
+func (d *deadlineTracer) TraceAcquireStart(ctx context.Context, _ *pgxpool.Pool, _ pgxpool.TraceAcquireStartData) context.Context {
+	_, ok := ctx.Deadline()
+	d.mu.Lock()
+	d.hasDeadline = &ok
+	d.mu.Unlock()
+	return ctx
+}
+
+func (d *deadlineTracer) TraceAcquireEnd(context.Context, *pgxpool.Pool, pgxpool.TraceAcquireEndData) {
+}
+
+// TestAcquireTimeoutBoundsTheCheckout covers how AcquireTimeout reaches the underlying pool: a
+// positive value puts a deadline on the wait, and zero leaves the caller's context as it is.
+func TestAcquireTimeoutBoundsTheCheckout(t *testing.T) {
+	cases := map[string]struct {
+		acquireTimeout time.Duration
+		wantDeadline   bool
+	}{
+		"bounded":   {acquireTimeout: fairpool.DefaultAcquireTimeout, wantDeadline: true},
+		"unbounded": {acquireTimeout: 0, wantDeadline: false},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			tracer := &deadlineTracer{}
+
+			cfg, err := pgxpool.ParseConfig(databaseURL(t))
+			require.NoError(t, err)
+			cfg.ConnConfig.Tracer = tracer
+
+			pool, err := fairpool.NewWithConfig(context.Background(), cfg, fairpool.Options{AcquireTimeout: tc.acquireTimeout})
+			require.NoError(t, err)
+			t.Cleanup(pool.Close)
+
+			_, err = pool.ForTenant(uuid.New()).Exec(context.Background(), "SELECT 1")
+			require.NoError(t, err)
+
+			tracer.mu.Lock()
+			defer tracer.mu.Unlock()
+			require.NotNil(t, tracer.hasDeadline, "acquire was not traced")
+			require.Equal(t, tc.wantDeadline, *tracer.hasDeadline)
+		})
+	}
+}
+
+// TestCheckoutFailsWhenPoolIsHeld covers callers that each hold a connection and ask for a second
+// one. With every connection held, each handle method must give up after AcquireTimeout instead
+// of waiting forever, and once the held connections are released the pool serves again and every
+// method returns its connection.
+func TestCheckoutFailsWhenPoolIsHeld(t *testing.T) {
+	const acquireTimeout = 200 * time.Millisecond
+
+	ops := map[string]func(ctx context.Context, db fairpool.Handle, table string) error{
+		"exec": func(ctx context.Context, db fairpool.Handle, _ string) error {
+			_, err := db.Exec(ctx, "SELECT 1")
+			return err
+		},
+		"query": func(ctx context.Context, db fairpool.Handle, _ string) error {
+			rows, err := db.Query(ctx, "SELECT 1")
+			if err != nil {
+				return err
+			}
+			rows.Close()
+			return rows.Err()
+		},
+		"query row": func(ctx context.Context, db fairpool.Handle, _ string) error {
+			var n int
+			return db.QueryRow(ctx, "SELECT 1").Scan(&n)
+		},
+		"send batch": func(ctx context.Context, db fairpool.Handle, _ string) error {
+			batch := &pgx.Batch{}
+			batch.Queue("SELECT 1")
+			return db.SendBatch(ctx, batch).Close()
+		},
+		"copy from": func(ctx context.Context, db fairpool.Handle, table string) error {
+			_, err := db.CopyFrom(ctx, pgx.Identifier{table}, []string{"n"}, pgx.CopyFromRows([][]any{{1}}))
+			return err
+		},
+		"begin": func(ctx context.Context, db fairpool.Handle, _ string) error {
+			tx, err := db.Begin(ctx)
+			if err != nil {
+				return err
+			}
+			return tx.Rollback(ctx)
+		},
+		"acquire": func(ctx context.Context, db fairpool.Handle, _ string) error {
+			conn, err := db.Acquire(ctx)
+			if err != nil {
+				return err
+			}
+			conn.Release()
+			return nil
+		},
+	}
+
+	tenantA, tenantB := uuid.New(), uuid.New()
+
+	cases := map[string]struct {
+		opts    fairpool.Options
+		holders func(pool *fairpool.Pool) []fairpool.Handle
+	}{
+		"ungated": {
+			opts: fairpool.Options{AcquireTimeout: acquireTimeout},
+			holders: func(pool *fairpool.Pool) []fairpool.Handle {
+				return []fairpool.Handle{pool.ForShared(), pool.ForShared(), pool.ForShared(), pool.ForShared()}
+			},
+		},
+		// Two tenants at their cap of two hold the whole pool, so a third tenant gets its slot
+		// and then waits on the underlying pool.
+		"tenant capped": {
+			opts: fairpool.Options{MaxPercent: 50, MaxWait: time.Second, AcquireTimeout: acquireTimeout},
+			holders: func(pool *fairpool.Pool) []fairpool.Handle {
+				a, b := pool.ForTenant(tenantA), pool.ForTenant(tenantB)
+				return []fairpool.Handle{a, a, b, b}
+			},
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			pool, _ := newPoolWithOptions(t, tc.opts, nil)
+			ctx := context.Background()
+			caller := pool.ForTenant(uuid.New())
+
+			table := "tp_copy_" + uuid.NewString()[:8]
+			_, err := pool.Unwrap().Exec(ctx, fmt.Sprintf("CREATE TABLE %s (n int)", table))
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_, _ = pool.Unwrap().Exec(context.Background(), "DROP TABLE IF EXISTS "+table)
+			})
+
+			var held []pgx.Tx
+			for _, db := range tc.holders(pool) {
+				tx, err := db.Begin(ctx)
+				require.NoError(t, err)
+				// pool.Close waits for held connections, so a failed assertion must still free them.
+				t.Cleanup(func() { _ = tx.Rollback(context.Background()) })
+				held = append(held, tx)
+			}
+			require.Equal(t, pool.Config().MaxConns, pool.Stat().AcquiredConns())
+
+			for opName, op := range ops {
+				// The caller's own deadline keeps a regression from hanging the run; it must not be
+				// what ends the wait.
+				opCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+				err := op(opCtx, caller, table)
+				cancel()
+				require.ErrorContains(t, err, "timed out waiting for a free connection", opName)
+				require.NotErrorIs(t, err, context.DeadlineExceeded, opName)
+			}
+
+			for _, tx := range held {
+				require.NoError(t, tx.Rollback(ctx))
+			}
+
+			for opName, op := range ops {
+				require.NoError(t, op(ctx, caller, table), opName)
+			}
+			require.Zero(t, pool.Stat().AcquiredConns())
+		})
+	}
 }

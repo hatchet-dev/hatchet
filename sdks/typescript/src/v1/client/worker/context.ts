@@ -867,7 +867,7 @@ export class Context<T, K = {}> {
 
       return resp;
     } catch (e: any) {
-      throw new HatchetError(e.message);
+      throw new HatchetError(e.message, { cause: e });
     }
   }
 
@@ -919,7 +919,7 @@ export class Context<T, K = {}> {
 
       return resp;
     } catch (e: any) {
-      throw new HatchetError(e.message);
+      throw new HatchetError(e.message, { cause: e });
     }
   }
 

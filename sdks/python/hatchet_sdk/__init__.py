@@ -39,6 +39,7 @@ from hatchet_sdk.context.context import (
 )
 from hatchet_sdk.exceptions import (
     BulkTriggerIdempotencyCollisionError,
+    CancelledRunError,
     DedupeViolationError,
     EvictionNotSupportedError,
     FailedTaskRunExceptionGroup,
@@ -104,6 +105,7 @@ __all__ = [
     "CELEvaluationResult",
     "CELFailure",
     "CELSuccess",
+    "CancelledRunError",
     "ClientConfig",
     "ClientTLSConfig",
     "ConcurrencyStrategy",

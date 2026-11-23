@@ -1,7 +1,7 @@
 from examples.agent.workflows import (
-    hatchet,
-    get_temperature_workflow,
     get_temperature_standalone,
+    get_temperature_workflow,
+    hatchet,
 )
 
 

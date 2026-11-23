@@ -1,14 +1,15 @@
 import asyncio
 
 from claude_agent_sdk import (
-    create_sdk_mcp_server,
     ClaudeAgentOptions,
-    query,
     ResultMessage,
+    create_sdk_mcp_server,
+    query,
 )
+
 from examples.support_agent_tools.tools import (
-    create_lookup_customer_tool_claude,
     create_check_order_status_tool_claude,
+    create_lookup_customer_tool_claude,
     create_ticket_tool_claude,
 )
 

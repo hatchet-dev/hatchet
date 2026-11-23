@@ -1,4 +1,3 @@
-import json
 from datetime import timedelta
 
 from hatchet_sdk import Context, Hatchet

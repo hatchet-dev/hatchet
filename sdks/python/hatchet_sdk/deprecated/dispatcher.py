@@ -3,7 +3,6 @@
 import platform
 from importlib.metadata import version
 from sys import version_info
-from typing import cast
 
 from hatchet_sdk.clients.dispatcher.action_listener import ActionListener
 from hatchet_sdk.config import ClientConfig
@@ -13,7 +12,6 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     RuntimeInfo,
     WorkerLabels,
     WorkerRegisterRequest,
-    WorkerRegisterResponse,
 )
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
 from hatchet_sdk.types.labels import WorkerLabel
@@ -40,25 +38,22 @@ async def legacy_get_action_listener(
     for key, value in config.worker_preset_labels.items():
         proto_labels[key] = WorkerLabels(str_value=str(value))
 
-    response = cast(
-        "WorkerRegisterResponse",
-        await aio_client.Register(
-            WorkerRegisterRequest(
-                worker_name=worker_name,
-                actions=actions,
-                services=services,
-                slots=slots,
-                labels=proto_labels,
-                runtime_info=RuntimeInfo(
-                    sdk_version=version("hatchet_sdk"),
-                    language=SDKS.PYTHON,
-                    language_version=f"{version_info.major}.{version_info.minor}.{version_info.micro}",
-                    os=platform.system().lower(),
-                ),
+    response = await aio_client.Register(
+        WorkerRegisterRequest(
+            worker_name=worker_name,
+            actions=actions,
+            services=services,
+            slots=slots,
+            labels=proto_labels,
+            runtime_info=RuntimeInfo(
+                sdk_version=version("hatchet_sdk"),
+                language=SDKS.PYTHON,
+                language_version=f"{version_info.major}.{version_info.minor}.{version_info.micro}",
+                os=platform.system().lower(),
             ),
-            timeout=DEFAULT_REGISTER_TIMEOUT,
-            metadata=create_authorization_header(config.token),
         ),
+        timeout=DEFAULT_REGISTER_TIMEOUT,
+        metadata=create_authorization_header(config.token),
     )
 
     return ActionListener(config, response.worker_id)

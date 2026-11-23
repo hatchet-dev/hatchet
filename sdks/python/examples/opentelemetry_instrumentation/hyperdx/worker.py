@@ -14,12 +14,11 @@ Open http://localhost:8088 to view traces in HyperDX.
 import time
 from typing import Any
 
-from pydantic import BaseModel
-
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.trace import get_tracer, set_tracer_provider
+from pydantic import BaseModel
 
 from hatchet_sdk import Context, Hatchet
 from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor

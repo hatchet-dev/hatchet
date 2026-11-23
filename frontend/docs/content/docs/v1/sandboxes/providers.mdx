@@ -1,6 +1,6 @@
 ---
 title: "Providers"
-description: What a template means for each sandbox provider, and the keys each one accepts in Provider config.
+description: What a template means for each sandbox provider, and the settings each one has.
 ---
 
 import { Callout } from "@/components/nextra-compat";
@@ -26,68 +26,38 @@ What differs is what sits underneath.
 - [Archil](#archil) starts them from any OCI image and takes a snapshot by forking the whole machine.
 - [Freestyle](#freestyle) includes memory in its snapshots, so a resumed sandbox continues where it stopped.
 
-## Templates and config
+## Templates and settings
 
-Each provider has its own meaning of a template which corresponds its own keys in the **Provider config** section.
+Each provider has its own meaning of a template and its own settings in the dashboard form.
 
-Every provider also accepts `snapshotEveryTurn`, described under [Snapshots](/v1/sandboxes/setup#snapshots). Any other key that a provider does not list below is rejected when you save it.
+Every provider has a **Working directory**, where commands run and file paths resolve, and a **Snapshot every turn** switch, described under [Snapshots](/v1/sandboxes/setup#snapshots).
 
-A template is chosen in the following order. The `template` passed to `create` wins, then the provider's **Default template** field, then the `template` key in the stored config, and lastly the provider's own default.
+**Metadata** on a provider is the default metadata of every sandbox it creates. The `metadata` passed to `create` overrides it key by key. The result is stored on the sandbox, sent to the vendor as labels or metadata where the vendor supports it, and attached to every task run of the sandbox, so runs can be filtered by it. The API field is still named `labels`.
+
+A template is chosen in the following order. The `template` passed to `create` wins, then the provider's **Default template** field, and lastly the provider's own default.
 
 ## Daytona
 
 A template is a [Daytona snapshot](https://www.daytona.io/docs/snapshots) name. Snapshots Hatchet takes are Daytona snapshots, so they show up in the Daytona dashboard.
 
-The default **Provider config** is
-
-```json
-{
-  "workdir": "/home/daytona"
-}
-```
-
-Set `template` to the snapshot new sandboxes should start from. Without it, Daytona's default snapshot is used.
+The working directory defaults to `/home/daytona`. Set **Default template** to the snapshot new sandboxes should start from. Without it, Daytona's default snapshot is used.
 
 ## E2B
 
 A template is an [E2B template](https://e2b.dev/docs/sandbox-template) name or a snapshot ID. Snapshots Hatchet takes are filesystem-only templates.
 
-The default **Provider config** is
+The working directory defaults to `/home/user`. **API URL** is only for self hosted E2B and defaults to `https://api.e2b.app`.
 
-```json
-{
-  "apiUrl": "https://api.e2b.app",
-  "template": "base",
-  "workdir": "/home/user",
-  "maxTimeoutSeconds": 3600
-}
-```
+E2B pauses a sandbox after the idle time the SDK asks for. The Hobby plan allows at most one hour, so keep **Max idle time** at or below 3600 seconds there.
 
 ## Archil
 
 A template is an OCI image, for example `node:24-bookworm`. A snapshot is a stopped fork of the machine, so forks start fast, and a sandbox's snapshots keep that stopped machine at Archil until you delete them.
 
-The default **Provider config** is
-
-```json
-{
-  "region": "aws-us-east-1",
-  "workdir": "/workspace"
-}
-```
-
-`region` is one of `aws-us-east-1`, `aws-us-west-2`, `aws-eu-west-1` or `gcp-us-central1`, and must match the region the API key was created in. Set `template` to the image new sandboxes should start from. Without it, Archil's default image is used.
+**Region** is one of `aws-us-east-1`, `aws-us-west-2`, `aws-eu-west-1` or `gcp-us-central1`, and must match the region the API key was created in. The working directory defaults to `/workspace`. Set **Default template** to the image new sandboxes should start from. Without it, Archil's default image is used.
 
 ## Freestyle
 
 A template is a [Freestyle snapshot](https://docs.freestyle.sh) ID or slug. Snapshots include memory, so a sandbox resumed from one continues where it stopped.
 
-The default **Provider config** is
-
-```json
-{
-  "workdir": "/workspace"
-}
-```
-
-Set `template` to the snapshot new sandboxes should start from. Without it, Freestyle's default image is used.
+The working directory defaults to `/workspace`. Set **Default template** to the snapshot new sandboxes should start from. Without it, Freestyle's default image is used.

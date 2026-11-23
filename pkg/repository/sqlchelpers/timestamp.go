@@ -3,6 +3,7 @@ package sqlchelpers
 import (
 	"time"
 
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -45,17 +46,38 @@ func TimestamptzFromTime(t time.Time) pgtype.Timestamptz {
 }
 
 func MinTimestamptz(timestamps []pgtype.Timestamptz) pgtype.Timestamptz {
-	minTimestamp := pgtype.Timestamptz{}
-
-	for _, timestamp := range timestamps {
-		if !timestamp.Valid {
-			continue
+	return enumerables.Reduce(timestamps, pgtype.Timestamptz{}, func(acc pgtype.Timestamptz, x pgtype.Timestamptz) pgtype.Timestamptz {
+		if !x.Valid {
+			return acc
 		}
 
-		if !minTimestamp.Valid || timestamp.Time.Before(minTimestamp.Time) {
-			minTimestamp = timestamp
+		if !acc.Valid || x.Time.Before(acc.Time) {
+			return x
 		}
-	}
 
-	return minTimestamp
+		return acc
+	})
+}
+
+type TimeBounds struct {
+	Min pgtype.Timestamptz
+	Max pgtype.Timestamptz
+}
+
+func PartitionPruningTimeBounds(timestamps []pgtype.Timestamptz) TimeBounds {
+	return enumerables.Reduce(timestamps, TimeBounds{}, func(acc TimeBounds, x pgtype.Timestamptz) TimeBounds {
+		if !x.Valid {
+			return acc
+		}
+
+		if !acc.Min.Valid || x.Time.Before(acc.Min.Time) {
+			acc.Min = x
+		}
+
+		if !acc.Max.Valid || x.Time.After(acc.Max.Time) {
+			acc.Max = x
+		}
+
+		return acc
+	})
 }

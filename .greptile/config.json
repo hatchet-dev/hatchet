@@ -1,0 +1,10 @@
+{
+  "rules": [
+    {
+      "id": "no-nested-pool-acquire",
+      "severity": "high",
+      "scope": ["pkg/**/*.go", "internal/**/*.go"],
+      "rule": "A function that already holds a database connection or an open transaction must not acquire another connection from that same pool, directly or through a helper that checks one out internally (pool.ForTenant, pool.ForShared, Pool.Acquire, Begin, BeginTx, or a repository or outbox method that opens its own connection). Pass the caller's connection into the nested query. A cache, fast path, or branch that usually skips the second acquire is still a violation: once every connection is held by a caller waiting for one more, the pool deadlocks and the process does not recover. Ignore generated files under sqlcv1/."
+    }
+  ]
+}

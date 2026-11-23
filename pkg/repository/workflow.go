@@ -18,6 +18,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/digest"
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -386,10 +387,10 @@ func (r *workflowRepository) upsertTenantConcurrencyStrategies(ctx context.Conte
 			maxRuns = *opts.MaxRuns
 		}
 
-		strategy := sqlcv1.V1ConcurrencyStrategyCANCELINPROGRESS
+		strategy := enums.V1ConcurrencyStrategyCANCELINPROGRESS
 
 		if opts.LimitStrategy != nil {
-			strategy = sqlcv1.V1ConcurrencyStrategy(*opts.LimitStrategy)
+			strategy = enums.V1ConcurrencyStrategy(*opts.LimitStrategy)
 		}
 
 		params.Names[i] = opts.Name
@@ -1090,12 +1091,12 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 			}
 		}
 
-		var ls sqlcv1.V1ConcurrencyStrategy
+		var ls enums.V1ConcurrencyStrategy
 
 		if wfConcurrency.LimitStrategy != nil && *wfConcurrency.LimitStrategy != "" {
-			ls = sqlcv1.V1ConcurrencyStrategy(*wfConcurrency.LimitStrategy)
+			ls = enums.V1ConcurrencyStrategy(*wfConcurrency.LimitStrategy)
 		} else {
-			ls = sqlcv1.V1ConcurrencyStrategyCANCELINPROGRESS
+			ls = enums.V1ConcurrencyStrategyCANCELINPROGRESS
 		}
 
 		params.Limitstrategy = ls
@@ -1155,6 +1156,16 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 
 		if err != nil {
 			return nil, err
+		}
+	}
+
+	var previousEnabledCrons int64
+
+	if oldWorkflowVersion != nil {
+		previousEnabledCrons, err = r.queries.CountEnabledCronsOnVersion(ctx, tx, oldWorkflowVersion.WorkflowVersion.ID)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not count enabled crons on previous version: %w", err)
 		}
 	}
 
@@ -1221,6 +1232,18 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		if err != nil {
 			return nil, fmt.Errorf("could not move existing scheduled triggers to new workflow triggers: %w", err)
 		}
+	}
+
+	nextEnabledCrons, err := r.queries.CountEnabledCronsOnVersion(ctx, tx, sqlcWorkflowVersion.ID)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not count enabled crons on new version: %w", err)
+	}
+
+	if err := adjustAllocatedResourceCounts(ctx, r.queries, tx, tenantId, allocatedResourceCountDelta{
+		Cron: nextEnabledCrons - previousEnabledCrons,
+	}); err != nil {
+		return nil, fmt.Errorf("could not adjust allocated cron count: %w", err)
 	}
 
 	if len(opts.DefaultFilters) > 0 {
@@ -1645,7 +1668,7 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 					Tenantid:          tenantId,
 					Expression:        concurrency.Expression,
 					Maxconcurrency:    maxRuns,
-					Strategy:          sqlcv1.V1ConcurrencyStrategy(strategy),
+					Strategy:          enums.V1ConcurrencyStrategy(strategy),
 				}
 
 				if concurrency.MaxRunsExpression != nil {
@@ -1893,7 +1916,53 @@ func (r *workflowRepository) GetWorkflowVersionById(ctx context.Context, tenantI
 func (r *workflowRepository) DeleteWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.Workflow, error) {
 	db := r.pool.ForTenant(tenantId)
 
-	return r.queries.SoftDeleteWorkflow(ctx, db, workflowId)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, r.l)
+	if err != nil {
+		return nil, err
+	}
+	defer rollback()
+
+	// Cron writes take this version lock and schedule creates take its share
+	// lock, so both wait for the delete. Schedule deletes wait on the schedule
+	// locks taken next.
+	versionId, err := lockLatestWorkflowVersion(ctx, r.queries, tx, workflowId)
+	if err != nil && !errors.Is(err, errNoLiveWorkflowVersion) {
+		return nil, err
+	}
+
+	var cronCount int64
+	if err == nil {
+		cronCount, err = r.queries.CountEnabledCronsOnVersion(ctx, tx, versionId)
+		if err != nil {
+			return nil, fmt.Errorf("counting enabled crons for workflow delete: %w", err)
+		}
+	}
+
+	schedules, err := r.queries.LockWorkflowSchedulesTowardAllocation(ctx, tx, sqlcv1.LockWorkflowSchedulesTowardAllocationParams{
+		Workflowid: workflowId,
+		Tenantid:   tenantId,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("locking schedules for workflow delete: %w", err)
+	}
+
+	deleted, err := r.queries.SoftDeleteWorkflow(ctx, tx, workflowId)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := adjustAllocatedResourceCounts(ctx, r.queries, tx, tenantId, allocatedResourceCountDelta{
+		Cron:         -cronCount,
+		ScheduledRun: -int64(len(schedules)),
+	}); err != nil {
+		return nil, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return deleted, nil
 }
 
 func (r *workflowRepository) GetWorkflowByName(ctx context.Context, tenantId uuid.UUID, workflowName string) (*sqlcv1.Workflow, error) {
@@ -1946,8 +2015,8 @@ type PauseWorkflowOpts struct {
 func (r *workflowRepository) PauseWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID, opts PauseWorkflowOpts) (*sqlcv1.Workflow, error) {
 	return r.queries.PauseWorkflow(ctx, r.pool.ForTenant(tenantId), sqlcv1.PauseWorkflowParams{
 		ID:                        workflowId,
-		Cronrunqueuebehavior:      sqlcv1.WorkflowPauseQueueBehavior(opts.CronRunQueueBehavior),
-		Scheduledrunqueuebehavior: sqlcv1.WorkflowPauseQueueBehavior(opts.ScheduledRunQueueBehavior),
+		Cronrunqueuebehavior:      enums.WorkflowPauseQueueBehavior(opts.CronRunQueueBehavior),
+		Scheduledrunqueuebehavior: enums.WorkflowPauseQueueBehavior(opts.ScheduledRunQueueBehavior),
 		Queuettl:                  opts.QueueTTL,
 	})
 }
@@ -2127,11 +2196,15 @@ func (r *workflowRepository) requeueHeldTasks(ctx context.Context, tx sqlcv1.DBT
 
 	taskIds, taskInsertedAts, retryCounts := taskTupleArrays(tasks)
 
+	taskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(taskInsertedAts)
+
 	queueNames, err := r.queries.RequeueHeldQueueItems(ctx, tx, sqlcv1.RequeueHeldQueueItemsParams{
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
-		Retrycounts:     retryCounts,
-		Tenantid:        tenantId,
+		Taskids:           taskIds,
+		Taskinsertedats:   taskInsertedAts,
+		Mintaskinsertedat: taskInsertedAtBounds.Min,
+		Maxtaskinsertedat: taskInsertedAtBounds.Max,
+		Retrycounts:       retryCounts,
+		Tenantid:          tenantId,
 	})
 
 	if err != nil {
@@ -2139,10 +2212,12 @@ func (r *workflowRepository) requeueHeldTasks(ctx context.Context, tx sqlcv1.DBT
 	}
 
 	concurrencyStrategyIds, err := r.queries.RequeueHeldConcurrencySlots(ctx, tx, sqlcv1.RequeueHeldConcurrencySlotsParams{
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
-		Retrycounts:     retryCounts,
-		Tenantid:        tenantId,
+		Taskids:           taskIds,
+		Taskinsertedats:   taskInsertedAts,
+		Mintaskinsertedat: taskInsertedAtBounds.Min,
+		Maxtaskinsertedat: taskInsertedAtBounds.Max,
+		Retrycounts:       retryCounts,
+		Tenantid:          tenantId,
 	})
 
 	if err != nil {

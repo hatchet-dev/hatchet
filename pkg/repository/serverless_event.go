@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -25,7 +26,7 @@ const (
 type ServerlessEndpointEventOpts struct {
 	CreatedAt  time.Time
 	Details    any
-	Kind       sqlcv1.V1ServerlessEndpointEventKind
+	Kind       enums.V1ServerlessEndpointEventKind
 	Message    string
 	TenantId   uuid.UUID
 	EndpointId uuid.UUID

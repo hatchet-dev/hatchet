@@ -1,6 +1,6 @@
 import json
 from collections.abc import AsyncIterator
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import grpc
 import grpc.aio
@@ -21,6 +21,9 @@ from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
 from hatchet_sdk.contracts.v1.dispatcher_pb2_grpc import V1DispatcherStub
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import DurableEventListenerConditions
 from hatchet_sdk.utils.api_auth import create_authorization_header
+
+if TYPE_CHECKING:
+    from hatchet_sdk.contracts.v1.dispatcher_pb2_grpc import V1DispatcherAsyncStub
 
 
 class RegisterDurableEventRequest(BaseModel):
@@ -56,8 +59,12 @@ class ParsedKey(BaseModel):
 
 
 class PreEvictionDurableEventListener(
-    PooledListener[ListenForDurableEventRequest, DurableEvent, V1DispatcherStub]
+    PooledListener[ListenForDurableEventRequest, DurableEvent]
 ):
+    ## IMPORTANT: This needs to be created lazily so we don't require
+    ## an event loop to instantiate the client.
+    client: "V1DispatcherAsyncStub | None" = None
+
     def _generate_key(self, task_id: str, signal_key: str) -> str:
         return task_id + ":" + signal_key
 
@@ -79,17 +86,14 @@ class PreEvictionDurableEventListener(
         self,
         request: AsyncIterator[ListenForDurableEventRequest],
         metadata: tuple[tuple[str, str]],
-    ) -> grpc.aio.UnaryStreamCall[ListenForDurableEventRequest, DurableEvent]:
+    ) -> grpc.aio.StreamStreamCall[ListenForDurableEventRequest, DurableEvent]:
         if self.client is None:
             conn = new_conn(self.config, True)
             self.client = V1DispatcherStub(conn)
 
-        return cast(
-            "grpc.aio.UnaryStreamCall[ListenForDurableEventRequest, DurableEvent]",
-            self.client.ListenForDurableEvent(
-                request,  # type: ignore[arg-type]
-                metadata=metadata,
-            ),
+        return self.client.ListenForDurableEvent(
+            request,
+            metadata=metadata,
         )
 
     def create_request_body(self, item: str) -> ListenForDurableEventRequest:
@@ -102,7 +106,7 @@ class PreEvictionDurableEventListener(
     def register_durable_event(
         self, request: RegisterDurableEventRequest
     ) -> Literal[True]:
-        conn = new_conn(self.config, True)
+        conn = new_conn(self.config, False)
         client = V1DispatcherStub(conn)
 
         register_durable_event = tenacity_retry(

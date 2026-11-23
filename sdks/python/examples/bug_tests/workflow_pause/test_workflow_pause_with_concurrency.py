@@ -1,11 +1,11 @@
-import pytest
-
-from hatchet_sdk import Hatchet, RunStatus
-from datetime import timedelta
-
-from examples.bug_tests.workflow_pause.worker import workflow_pause_concurrency_bug_task
 import asyncio
 import time
+from datetime import timedelta
+
+import pytest
+
+from examples.bug_tests.workflow_pause.worker import workflow_pause_concurrency_bug_task
+from hatchet_sdk import Hatchet
 
 
 @pytest.mark.asyncio(loop_scope="session")

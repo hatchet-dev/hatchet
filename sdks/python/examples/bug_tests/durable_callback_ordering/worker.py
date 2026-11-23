@@ -3,9 +3,10 @@ from __future__ import annotations
 import asyncio
 from datetime import timedelta
 
+from pydantic import BaseModel, Field
+
 from hatchet_sdk import Context, DurableContext, Hatchet
 from hatchet_sdk.runnables.eviction import EvictionPolicy
-from pydantic import BaseModel, Field
 
 WORKFLOW_PREFIX = "durable-callback-ordering"
 

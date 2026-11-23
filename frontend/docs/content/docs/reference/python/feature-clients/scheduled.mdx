@@ -186,9 +186,9 @@ Bulk reschedule scheduled workflow runs.
 
 Parameters:
 
-| Name      | Type                                                                   | Description                                                                                                        | Default    |
-| --------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------- |
-| `updates` | `list[ScheduledWorkflowsBulkUpdateItem] \| list[tuple[str, datetime]]` | Either: - a list of `(scheduled_id, trigger_at)` tuples, or - a list of `ScheduledWorkflowsBulkUpdateItem` objects | _required_ |
+| Name      | Type                                                                            | Description                                                                                                        | Default    |
+| --------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------- |
+| `updates` | `list[ScheduledWorkflowsBulkUpdateItem] \| list[tuple[str, datetime.datetime]]` | Either: - a list of `(scheduled_id, trigger_at)` tuples, or - a list of `ScheduledWorkflowsBulkUpdateItem` objects | _required_ |
 
 Returns:
 

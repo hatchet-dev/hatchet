@@ -1,9 +1,9 @@
-import pytest
 from typing import cast
 
-from hatchet_sdk import Hatchet
+import pytest
 
 from examples.cron.cron_input import cron_input_example_send_greeting
+from hatchet_sdk import Hatchet
 
 
 async def test_cron_workflow_has_input_on_proto() -> None:
@@ -29,7 +29,7 @@ async def test_cron_input_workflow_running_options(hatchet: Hatchet) -> None:
 
         ref = hatchet.runs.get_run_ref(trigger_res.external_id)
         res = cast(
-            dict[str, str],
+            "dict[str, str]",
             (await ref.aio_result()).get("cron_input_example_send_greeting"),
         )
 

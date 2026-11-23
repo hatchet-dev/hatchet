@@ -4,6 +4,7 @@ import logging
 import multiprocessing.synchronize
 import signal
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import timedelta
 from enum import StrEnum
@@ -115,6 +116,7 @@ class WorkerActionListenerProcess:
         self._waiting_tasks_blocked_since: float | None = None
         self._starting_since: float = time.time()
 
+        self.dispatcher_client: DispatcherClient | None = None
         self.listener: ActionListener | None = None
         self.killing = False
         self.action_loop_task: asyncio.Task[None] | None = None
@@ -123,6 +125,12 @@ class WorkerActionListenerProcess:
         self._stop_event_task: asyncio.Task[None] | None = None
         self.running_task_runs: dict[str, float] = {}
         self.task_action_events: set[asyncio.Task[ActionEventResponse | None]] = set()
+        self._get_event_threadpool_executor = ThreadPoolExecutor(
+            max_workers=None, thread_name_prefix="event_queue_get_"
+        )
+        self._stop_event_threadpool_executor = ThreadPoolExecutor(
+            max_workers=None, thread_name_prefix="stop_event_wait_"
+        )
 
         if self.config.debug:
             logger.setLevel(logging.DEBUG)
@@ -375,13 +383,18 @@ class WorkerActionListenerProcess:
     ) -> ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE:
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
-            None, self.event_queue.get, True, timeout_seconds
+            self._get_event_threadpool_executor,
+            self.event_queue.get,
+            True,
+            timeout_seconds,
         )
 
     def _drain_ready_events(
         self, first_event: ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE
     ) -> list[ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE]:
-        events = [first_event]
+        events: list[ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE] = [
+            first_event
+        ]
         with contextlib.suppress(Empty):
             while len(events) < MAX_EVENTS_PER_SEND_LOOP_ITERATION:
                 events.append(self.event_queue.get_nowait())
@@ -439,6 +452,11 @@ class WorkerActionListenerProcess:
         event: ActionEvent | QueuedBatchActionEvent,
         retry_attempt: int = 1,
     ) -> None:
+        if self.dispatcher_client is None:
+            raise RuntimeError(
+                "cannot send action events before the action listener has started"
+            )
+
         try:
             if isinstance(event, QueuedBatchActionEvent):
                 send_batch_event_task = asyncio.create_task(
@@ -584,7 +602,9 @@ class WorkerActionListenerProcess:
         _stop_listener_event.set() instead of sending SIGTERM.
         """
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, self._stop_event.wait)
+        await loop.run_in_executor(
+            self._stop_event_threadpool_executor, self._stop_event.wait
+        )
         await self._stop_action_loop()
 
     async def _stop_action_loop(self) -> None:

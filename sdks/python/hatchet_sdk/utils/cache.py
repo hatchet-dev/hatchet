@@ -3,10 +3,11 @@ from collections import OrderedDict
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Generic, TypeVar
+from typing import Generic, TypeVar, cast, overload
 
 K = TypeVar("K")
 V = TypeVar("V")
+T = TypeVar("T")
 
 
 class BoundedDict(OrderedDict[K, V]):
@@ -105,13 +106,23 @@ class DurableInvocationCallbackCache(dict[DurableInvocationCallbackKey, V]):
         super().__delitem__(key)
         self._forget_key(key)
 
-    def pop(self, key: DurableInvocationCallbackKey, *default: V) -> V:  # type: ignore[override]
+    @overload
+    def pop(self, key: DurableInvocationCallbackKey, /) -> V: ...
+
+    @overload
+    def pop(self, key: DurableInvocationCallbackKey, default: V, /) -> V: ...
+
+    @overload
+    def pop(self, key: object, default: T, /) -> V | T: ...
+
+    def pop(self, key: object, /, *default: object) -> object:
         if key not in self:
             if default:
                 return default[0]
             raise KeyError(key)
-        value = super().pop(key)
-        self._forget_key(key)
+        callback_key = cast("DurableInvocationCallbackKey", key)
+        value = super().pop(callback_key)
+        self._forget_key(callback_key)
         return value
 
     def clear(self) -> None:
