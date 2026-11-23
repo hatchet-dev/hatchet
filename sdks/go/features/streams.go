@@ -2,6 +2,7 @@ package features
 
 import (
 	"bytes"
+	"container/list"
 	"context"
 	"errors"
 	"fmt"
@@ -73,6 +74,9 @@ type StreamTopicMetadata struct {
 	Topic        string
 	TenantId     string
 	MessageCount int64
+	// PendingCount is the retained messages after the topic's reset position, which Subscribe
+	// without a cursor reads; 0 means it has nothing to read yet. nil from an engine that predates it.
+	PendingCount *int64
 	// LatestCursor resumes Subscribe after the newest retained message; nil when none is retained.
 	LatestCursor *string
 	// LastPublishedAt is when the newest retained message was stored; nil when none is retained.
@@ -181,7 +185,13 @@ func shouldResubscribe(err error, attempt int) bool {
 	}
 }
 
+// maxTrackedStreamTopics is how many (namespace, topic) producers a client remembers. A topic
+// past the cap starts over with a new producer id, so the cap only bounds memory for clients
+// that publish to many short-lived topics.
+const maxTrackedStreamTopics = 1024
+
 type streamProducer struct {
+	key string
 	id  string
 	seq int64
 }
@@ -223,8 +233,10 @@ type StreamsClient struct {
 	config   streamsConfig
 
 	mu sync.Mutex
-	// per (namespace, topic); seq only advances after a publish succeeds
-	producers map[string]*streamProducer
+	// per (namespace, topic), capped at maxTrackedStreamTopics; seq only advances after a publish succeeds
+	producers map[string]*list.Element
+	// producers' elements, most recently used first
+	producerOrder *list.List
 	// per (namespace, topic); one request per topic is in flight at a time so two never share a seq
 	queues map[string]*publishQueue
 
@@ -239,8 +251,9 @@ func NewStreamsClient(grpcClient v1.V1StreamsClient, api *rest.ClientWithRespons
 		api:       api,
 		tenantId:  uuid.MustParse(tenantId),
 		config:    defaultStreamsConfig(),
-		producers: make(map[string]*streamProducer),
-		queues:    make(map[string]*publishQueue),
+		producers:     make(map[string]*list.Element),
+		producerOrder: list.New(),
+		queues:        make(map[string]*publishQueue),
 	}
 }
 
@@ -439,13 +452,32 @@ func (s *StreamsClient) producer(key string) *streamProducer {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	producer, ok := s.producers[key]
-	if !ok {
-		producer = &streamProducer{id: uuid.NewString()}
-		s.producers[key] = producer
+	if elem, ok := s.producers[key]; ok {
+		s.producerOrder.MoveToFront(elem)
+		return elem.Value.(*streamProducer)
+	}
+
+	producer := &streamProducer{key: key, id: uuid.NewString()}
+	s.producers[key] = s.producerOrder.PushFront(producer)
+
+	for s.producerOrder.Len() > maxTrackedStreamTopics {
+		oldest := s.producerOrder.Back()
+		s.producerOrder.Remove(oldest)
+		delete(s.producers, oldest.Value.(*streamProducer).key)
 	}
 
 	return producer
+}
+
+// forgetProducer makes key's next publish start a new producer.
+func (s *StreamsClient) forgetProducer(key string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if elem, ok := s.producers[key]; ok {
+		s.producerOrder.Remove(elem)
+		delete(s.producers, key)
+	}
 }
 
 func (s *StreamsClient) publishOrdered(key, namespace, topic string, entries []*v1.StreamPublishEntry, retryGap bool) error {
@@ -478,9 +510,7 @@ func (s *StreamsClient) publishOrdered(key, namespace, topic string, entries []*
 	if err != nil {
 		// it may still land, and a different payload under its seq would be dropped as a duplicate
 		if !publishRejectedBeforeStoring(err) {
-			s.mu.Lock()
-			s.producers[key] = &streamProducer{id: uuid.NewString()}
-			s.mu.Unlock()
+			s.forgetProducer(key)
 		}
 
 		// a gap stored nothing (e.g. the watermark passed cursor retention), so resend as the new producer
@@ -563,6 +593,7 @@ func (s *StreamsClient) TopicMetadata(ctx context.Context, topic string, opts ..
 		Topic:        res.Topic,
 		TenantId:     res.TenantId,
 		MessageCount: res.MessageCount,
+		PendingCount: res.PendingCount,
 		LatestCursor: res.LatestCursor,
 	}
 

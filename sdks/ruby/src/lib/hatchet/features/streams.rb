@@ -18,12 +18,15 @@ module Hatchet
 
     # What a durable stream topic retains; counts and the latest message cover the tenant's retention.
     #
+    # @!attribute pending_count
+    #   @return [Integer, nil] Retained messages after the topic's reset position, which {Streams#subscribe}
+    #     without a cursor reads; 0 means it has nothing to read yet. nil from an engine that predates it
     # @!attribute latest_cursor
     #   @return [String, nil] Resumes {Streams#subscribe} after the newest retained message; nil when none is retained
     # @!attribute last_published_at
     #   @return [Time, nil] When the newest retained message was stored; nil when none is retained
     StreamTopicMetadata = Struct.new(
-      :namespace, :topic, :tenant_id, :message_count, :latest_cursor, :last_published_at,
+      :namespace, :topic, :tenant_id, :message_count, :pending_count, :latest_cursor, :last_published_at,
       keyword_init: true,
     )
 
@@ -81,6 +84,9 @@ module Hatchet
         GRPC::Core::StatusCodes::NOT_FOUND,
       ].freeze
 
+      # topics whose producer a client remembers; a forgotten topic starts over with a new producer
+      MAX_TRACKED_TOPICS = 1024
+
       Producer = Struct.new(:producer_id, :seq)
 
       # a publish waiting to be sent; +uploaded+ is set instead of an inline payload for one too large for a gRPC message
@@ -104,7 +110,7 @@ module Hatchet
         @stub = ::V1::V1Streams::Stub.new(config.host_port, nil, channel_override: channel)
 
         @mutex = Mutex.new
-        # per [namespace, topic]; seq only advances after a publish succeeds
+        # per [namespace, topic] in last-use order, capped at MAX_TRACKED_TOPICS; seq only advances after a publish succeeds
         @producers = {}
         # per [namespace, topic]; one request per topic is in flight at a time so two never share a seq
         @queues = {}
@@ -185,6 +191,7 @@ module Hatchet
           topic: res.topic,
           tenant_id: res.tenant_id,
           message_count: res.message_count,
+          pending_count: res.has_pending_count? ? res.pending_count : nil,
           latest_cursor: res.has_latest_cursor? ? res.latest_cursor : nil,
           last_published_at: to_time(res.last_published_at),
         )
@@ -452,7 +459,7 @@ module Hatchet
 
       def publish_ordered(key, entries, retry_gap: true)
         namespace, topic = key
-        producer = @mutex.synchronize { @producers[key] ||= Producer.new(SecureRandom.uuid, 0) }
+        producer = @mutex.synchronize { track_producer(key) }
 
         begin
           if @publish_batch_unsupported && entries.length == 1
@@ -483,7 +490,7 @@ module Hatchet
           code = grpc_code(e)
 
           # it may still land, and a different payload under its seq would be dropped as a duplicate
-          @mutex.synchronize { @producers[key] = Producer.new(SecureRandom.uuid, 0) } unless REJECTED_BEFORE_STORING.include?(code)
+          @mutex.synchronize { @producers.delete(key) } unless REJECTED_BEFORE_STORING.include?(code)
 
           # a gap stored nothing (e.g. the watermark passed cursor retention), so resend as the new producer
           return publish_ordered(key, entries, retry_gap: false) if retry_gap && code == GRPC::Core::StatusCodes::FAILED_PRECONDITION
@@ -492,6 +499,14 @@ module Hatchet
         end
 
         producer.seq += entries.length
+      end
+
+      # re-inserting keeps the hash in last-use order, so the oldest entry is the least recently used
+      def track_producer(key)
+        producer = @producers.delete(key) || Producer.new(SecureRandom.uuid, 0)
+        @producers[key] = producer
+        @producers.shift while @producers.size > MAX_TRACKED_TOPICS
+        producer
       end
     end
   end

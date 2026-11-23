@@ -1,5 +1,6 @@
 import { Status } from 'nice-grpc';
 import { createGrpcClient } from '@hatchet/util/grpc-helpers';
+import { MAX_TRACKED_TOPICS } from '@hatchet/util/stream-publish-batch';
 import { StreamsClient } from './streams';
 
 jest.mock('@hatchet/util/grpc-helpers', () => ({
@@ -99,6 +100,23 @@ describe('StreamsClient.subscribe cancellation', () => {
     expect(result.done).toBe(true);
   });
 
+  it('ends at once for a signal aborted before iterating, without calling the server', async () => {
+    const subscribe = jest.fn();
+    mockedCreateGrpcClient.mockReturnValue({ client: { subscribe } } as any);
+
+    const controller = new AbortController();
+    controller.abort();
+
+    const streams = new StreamsClient(fakeHatchetClient());
+    const received: unknown[] = [];
+    for await (const event of streams.events('topic', { signal: controller.signal })) {
+      received.push(event);
+    }
+
+    expect(received).toEqual([]);
+    expect(subscribe).not.toHaveBeenCalled();
+  });
+
   it('throws an error that is not a gRPC status instead of resubscribing', async () => {
     async function* subscribeStub() {
       yield { entries: [entry(1, 'c1')], hangup: false };
@@ -171,6 +189,25 @@ describe('StreamsClient.publish producer sequencing', () => {
     expect(reqs[1].firstProducerSeq).toBe(1);
     expect(reqs[2].producerId).not.toBe(reqs[1].producerId);
     expect(reqs[2].firstProducerSeq).toBe(0);
+  });
+
+  it('forgets the least recently used topic producer past the cap', async () => {
+    const { streams, publish } = setup([]);
+    const producers = () => (streams as any).producers as Map<string, unknown>;
+
+    for (let i = 0; i < MAX_TRACKED_TOPICS; i += 1) {
+      await streams.publish(`topic-${i}`, 'a');
+    }
+    await streams.publish('topic-0', 'b');
+    await streams.publish('extra', 'a');
+
+    expect(producers().size).toBe(MAX_TRACKED_TOPICS);
+    expect(producers().has('\u0000topic-0')).toBe(true);
+    expect(producers().has('\u0000topic-1')).toBe(false);
+
+    await streams.publish('topic-1', 'b');
+    const [last] = publish.mock.calls[publish.mock.calls.length - 1];
+    expect(last.firstProducerSeq).toBe(0);
   });
 
   it('retries a sequence gap once as a new producer instead of failing', async () => {
@@ -522,6 +559,7 @@ describe('StreamsClient.topicMetadata', () => {
       topic: req.topic,
       tenantId: 'tenant',
       messageCount: 0,
+      pendingCount: 0,
       latestCursor: undefined,
       lastPublishedAt: undefined,
     }));
@@ -535,6 +573,7 @@ describe('StreamsClient.topicMetadata', () => {
       topic: 'topic',
       tenantId: 'tenant',
       messageCount: 0,
+      pendingCount: 0,
       latestCursor: undefined,
       lastPublishedAt: undefined,
     });

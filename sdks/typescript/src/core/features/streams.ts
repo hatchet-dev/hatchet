@@ -3,7 +3,12 @@ import HatchetError from '@util/errors/hatchet-error';
 import { AbortError } from '@hatchet/util/abort-error';
 import type { EventsServiceClient, PutStreamEventResponse } from '@hatchet/protoc/events/events';
 import type { V1StreamsClient } from '@hatchet/protoc/v1/streams';
-import { StreamPublishQueue, validateBatchTimeout } from '@util/stream-publish-batch';
+import {
+  StreamProducer,
+  StreamPublishQueue,
+  useStreamProducer,
+  validateBatchTimeout,
+} from '@util/stream-publish-batch';
 import sleep from '@hatchet/util/sleep';
 import type { StreamCallOptions, StreamEvent, StreamTopicMetadata } from '../types';
 
@@ -24,13 +29,7 @@ export interface StreamsClientDeps {
   fetchPayload?: (payloadRef: string, signal?: AbortSignal) => Promise<Uint8Array>;
 }
 
-/**
- * How many (namespace, topic) producers the client remembers. A topic past the cap starts
- * over with a new producer id, which the engine orders after the old one, so correctness
- * does not depend on the cap; it only bounds memory for clients that publish to many
- * short-lived topics.
- */
-export const MAX_TRACKED_TOPICS = 1024;
+export { MAX_TRACKED_TOPICS } from '@util/stream-publish-batch';
 
 function isEventsService(
   deps: StreamsClientDeps | EventsServiceClient
@@ -109,7 +108,7 @@ interface QueuedPublish {
  */
 export class StreamsClient {
   /** Per (namespace, topic); the sequence number only advances after a publish succeeds. */
-  private readonly producers = new Map<string, { producerId: string; seq: number }>();
+  private readonly producers = new Map<string, StreamProducer>();
 
   /**
    * Publishes waiting per (namespace, topic). One request per topic is in flight at a time, so
@@ -251,6 +250,7 @@ export class StreamsClient {
       topic: res.topic,
       tenantId: res.tenantId,
       messageCount: res.messageCount,
+      pendingCount: res.pendingCount,
       latestCursor: res.latestCursor,
       lastPublishedAt: res.lastPublishedAt,
     };
@@ -271,6 +271,11 @@ export class StreamsClient {
     const signal = options?.signal;
     let { cursor } = options ?? {};
     let failures = 0;
+
+    // skips a call the transport would only reject
+    if (signal?.aborted) {
+      return;
+    }
 
     for (let attempt = 0; ; attempt += 1) {
       try {
@@ -431,21 +436,7 @@ export class StreamsClient {
     retryGap = true
   ): Promise<void> {
     const streams = this.durable();
-    let producer = this.producers.get(key);
-    if (producer) {
-      // re-inserting keeps the map in last-use order for the eviction below
-      this.producers.delete(key);
-    } else {
-      producer = { producerId: crypto.randomUUID(), seq: 0 };
-    }
-    this.producers.set(key, producer);
-    while (this.producers.size > MAX_TRACKED_TOPICS) {
-      const oldest = this.producers.keys().next().value;
-      if (oldest === undefined) {
-        break;
-      }
-      this.producers.delete(oldest);
-    }
+    const producer = useStreamProducer(this.producers, key, () => crypto.randomUUID());
 
     try {
       // not one caller's signal: the request carries other callers' publishes too
@@ -470,7 +461,7 @@ export class StreamsClient {
       // The message may still land, and a different payload under its sequence number
       // would be dropped as a duplicate, so the next publish comes from a new producer.
       if (!publishRejectedBeforeStoring(err)) {
-        this.producers.set(key, { producerId: crypto.randomUUID(), seq: 0 });
+        this.producers.delete(key);
       }
       // A gap stored nothing (the watermark passed cursor retention, say): resend as the
       // new producer.

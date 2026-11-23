@@ -524,6 +524,46 @@ func TestStreamsRepository(t *testing.T) {
 		assert.Equal(t, msgs[2].ID, start.ID, "a cursor past the last reserved offset is capped to it")
 	})
 
+	t.Run("pending counts the retained messages after the reset position", func(t *testing.T) {
+		repo := createStreamsRepository(t, pool)
+		tenantId := uuid.New()
+
+		for seq, payload := range []string{"one", "two", "three"} {
+			_, err := repo.InsertOrderedStreamMessage(ctx, tenantId, streamOpts(int64(seq), payload))
+			require.NoError(t, err)
+		}
+
+		msgs, err := repo.ListMessagesAfterCursor(ctx, tenantId, ListStreamMessagesOpts{Topic: "t"})
+		require.NoError(t, err)
+		require.Len(t, msgs, 3)
+
+		md, err := repo.GetTopicMetadata(ctx, tenantId, "", "t")
+		require.NoError(t, err)
+		assert.Equal(t, int64(3), md.PendingCount)
+
+		second := StreamCursor{Topic: "t", CreatedAt: msgs[1].InsertedAt.Time, ID: msgs[1].ID}
+		require.NoError(t, repo.ResetTopic(ctx, tenantId, "", "t", &second))
+
+		md, err = repo.GetTopicMetadata(ctx, tenantId, "", "t")
+		require.NoError(t, err)
+		assert.Equal(t, int64(3), md.MessageCount)
+		assert.Equal(t, int64(1), md.PendingCount)
+
+		require.NoError(t, repo.ResetTopic(ctx, tenantId, "", "t", nil))
+
+		md, err = repo.GetTopicMetadata(ctx, tenantId, "", "t")
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), md.PendingCount, "a reset to the latest message drains the topic")
+		assert.NotNil(t, md.LatestCursor)
+
+		first := StreamCursor{Topic: "t", CreatedAt: msgs[0].InsertedAt.Time, ID: msgs[0].ID}
+		require.NoError(t, repo.ResetTopic(ctx, tenantId, "", "t", &first), "a reset can move back")
+
+		md, err = repo.GetTopicMetadata(ctx, tenantId, "", "t")
+		require.NoError(t, err)
+		assert.Equal(t, int64(2), md.PendingCount)
+	})
+
 	t.Run("last offset counts every reservation, stored or not", func(t *testing.T) {
 		repo := createStreamsRepository(t, pool)
 		tenantId := uuid.New()

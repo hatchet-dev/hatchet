@@ -244,7 +244,7 @@ WHERE tenant_id = @tenantId::uuid
 -- No row when the topic doesn't exist. latest_id is 0 when no message is
 -- retained, since offsets start at 1.
 WITH topic AS (
-    SELECT 1
+    SELECT starting_offset
     FROM v1_stream_topic
     WHERE tenant_id = @tenantId::uuid
         AND namespace = @namespace::text
@@ -259,7 +259,9 @@ WITH topic AS (
     ORDER BY id DESC
     LIMIT 1
 ), retained AS (
-    SELECT COUNT(*) AS message_count
+    SELECT
+        COUNT(*) AS message_count,
+        COUNT(*) FILTER (WHERE id > (SELECT starting_offset FROM topic)) AS pending_count
     FROM v1_stream_message
     WHERE tenant_id = @tenantId::uuid
         AND namespace = @namespace::text
@@ -269,7 +271,8 @@ WITH topic AS (
 SELECT
     COALESCE(latest.id, 0)::bigint AS latest_id,
     latest.inserted_at AS latest_inserted_at,
-    retained.message_count::bigint AS message_count
+    retained.message_count::bigint AS message_count,
+    retained.pending_count::bigint AS pending_count
 FROM retained
 LEFT JOIN latest ON true
 WHERE EXISTS (SELECT 1 FROM topic);

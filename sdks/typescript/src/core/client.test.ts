@@ -230,6 +230,7 @@ function fakeEngine() {
         topic: req.topic,
         tenantId: TENANT_ID,
         messageCount: BigInt(2),
+        pendingCount: BigInt(1),
         latestCursor: 'cursor-2',
         lastPublishedAt: timestampFromDate(new Date('2026-10-21T00:00:00Z')),
       }),
@@ -1389,6 +1390,7 @@ describe('HatchetCore.streams', () => {
       topic: 'progress',
       tenantId: TENANT_ID,
       messageCount: 2,
+      pendingCount: 1,
       latestCursor: 'cursor-2',
       lastPublishedAt: new Date('2026-10-21T00:00:00Z'),
     });
@@ -1509,6 +1511,18 @@ describe('HatchetCore.streams', () => {
       }
 
       expect(seen).toEqual(['one']);
+    });
+
+    it('ends at once for a signal aborted before iterating, without subscribing', async () => {
+      const engine = fakeEngine();
+      const client = makeClient(engine);
+      const controller = new AbortController();
+      controller.abort();
+
+      expect(
+        await read(client.streams.subscribe('progress', { signal: controller.signal }))
+      ).toEqual([]);
+      expect(engine.subscribes).toEqual([]);
     });
 
     it('does not fetch a payload by ref once its signal aborts', async () => {

@@ -52,6 +52,9 @@ var ErrStreamTopicNotFound = errors.New("stream topic not found")
 type StreamTopicMetadata struct {
 	MessageCount int64
 
+	// retained messages after the reset position, which a subscriber without a cursor reads
+	PendingCount int64
+
 	// the newest retained message's position; nil when none is retained
 	LatestCursor *StreamCursor
 }
@@ -631,7 +634,7 @@ func (r *streamsRepositoryImpl) GetTopicMetadata(ctx context.Context, tenantId u
 		return nil, err
 	}
 
-	md := &StreamTopicMetadata{MessageCount: row.MessageCount}
+	md := &StreamTopicMetadata{MessageCount: row.MessageCount, PendingCount: row.PendingCount}
 
 	if row.LatestID > 0 {
 		md.LatestCursor = &StreamCursor{Namespace: namespace, Topic: topic, CreatedAt: row.LatestInsertedAt.Time, ID: row.LatestID}

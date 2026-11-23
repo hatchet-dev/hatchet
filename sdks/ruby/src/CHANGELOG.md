@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The `Hatchet::BatchTaskConfig` docs no longer say a batch flushes once `group_max_runs` is exceeded. While a group has `group_max_runs` batches running, its ready batches stay buffered. The docs also give the engine defaults: `max_interval_ms` is 1000, measured from when a batch's first item is buffered, and `group_max_runs` is 100.
 
+## [0.13.0] - 2026-11-23
+
+### Added
+
+- `Hatchet::Features::StreamTopicMetadata` has `pending_count`, the retained messages after the topic's reset position, which `subscribe` without a cursor reads. A consumer can check it is 0 to tell that a topic is drained, including after a `reset` past the latest message. It is `nil` from an engine that predates it.
+
+### Fixed
+
+- The streams client remembers at most 1,024 topics' publish producers and forgets the least recently used. Before, it kept one for every topic it ever published to.
+
 ## [0.12.4] - 2026-11-17
 
 ### Fixed

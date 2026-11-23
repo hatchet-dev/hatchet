@@ -80,6 +80,9 @@ message StreamTopicMetadata {
     int64 message_count = 5;
     // when the newest retained message was stored; unset when none is retained
     google.protobuf.Timestamp last_published_at = 6;
+    // retained messages after the topic's reset position, which a subscribe without a cursor
+    // reads; unset from an engine that predates it
+    optional int64 pending_count = 7;
 }
 
 message ResetStreamTopicRequest {

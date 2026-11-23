@@ -50,6 +50,9 @@ PUBLISH_ENTRY_OVERHEAD_BYTES = 16
 ## an upload's ref, which a batch carries in place of its payload, rounded up
 PAYLOAD_REF_BYTES = 256
 
+## topics whose queue, and so producer, a loop's publisher remembers; a forgotten topic starts over with a new producer
+MAX_TRACKED_TOPICS = 1024
+
 
 @dataclass(frozen=True)
 class StreamsConfig:
@@ -97,6 +100,9 @@ class StreamTopicMetadata(BaseModel):
     topic: str
     tenant_id: str
     message_count: int
+
+    pending_count: int | None = None
+    """Retained messages after the topic's reset position, which `aio_subscribe` without a cursor reads; 0 means it has nothing to read yet. None from an engine that predates it."""
 
     latest_cursor: str | None = None
     """Resumes `aio_subscribe` after the newest retained message; None when none is retained."""
@@ -209,6 +215,8 @@ class _PublishQueue:
     stub: "V1StreamsAsyncStub"
     namespace: str
     topic: str
+    ## the loop publisher's queues, trimmed once this one goes idle
+    queues: "dict[tuple[str, str], _PublishQueue]"
 
     items: list[_QueuedPublish] = field(default_factory=list[_QueuedPublish])
     wake: asyncio.Event = field(default_factory=asyncio.Event)
@@ -286,6 +294,8 @@ class _PublishQueue:
         finally:
             ## cleared with no await since the last check, so a later publish starts a new drain
             self.drain = None
+            ## queues kept past the cap while busy are only dropped once idle
+            _forget_idle_queues(self.queues, MAX_TRACKED_TOPICS)
 
     async def _send_batch(self, batch: list[_QueuedPublish]) -> None:
         sent: list[_QueuedPublish] = []
@@ -401,6 +411,24 @@ class _LoopPublisher:
 
     ## held here because a loop keeps only weak references to its async generators
     shutdown_hook: AsyncGenerator[None, None] | None = None
+
+
+def _forget_idle_queues(
+    queues: dict[tuple[str, str], _PublishQueue], limit: int
+) -> None:
+    """Drops the least recently used idle queues until at most `limit` remain; a busy one is kept, as a second queue for its topic would reuse its seqs."""
+    excess = len(queues) - limit
+    if excess <= 0:
+        return
+
+    for key in list(queues):
+        if excess <= 0:
+            return
+
+        queue = queues[key]
+        if queue.drain is None and not queue.items:
+            del queues[key]
+            excess -= 1
 
 
 def _finish_shutdown_hook(publisher: _LoopPublisher) -> None:
@@ -593,10 +621,14 @@ class StreamsClient(BaseRestClient):
             else None
         )
 
-        queue = publisher.queues_by_namespace_and_topic.get((namespace, topic))
+        queues = publisher.queues_by_namespace_and_topic
+        ## re-inserted, so the dict stays in last-use order for _forget_idle_queues
+        queue = queues.pop((namespace, topic), None)
         if queue is None:
-            queue = _PublishQueue(self, publisher.stub, namespace, topic)
-            publisher.queues_by_namespace_and_topic[(namespace, topic)] = queue
+            queue = _PublishQueue(self, publisher.stub, namespace, topic, queues)
+        ## before inserting this topic's queue, which is idle until it is published to below
+        _forget_idle_queues(queues, MAX_TRACKED_TOPICS - 1)
+        queues[(namespace, topic)] = queue
 
         await queue.publish(
             _QueuedPublish(
@@ -627,6 +659,9 @@ class StreamsClient(BaseRestClient):
             topic=res.topic,
             tenant_id=res.tenant_id,
             message_count=res.message_count,
+            pending_count=(
+                res.pending_count if res.HasField("pending_count") else None
+            ),
             latest_cursor=(
                 res.latest_cursor if res.HasField("latest_cursor") else None
             ),

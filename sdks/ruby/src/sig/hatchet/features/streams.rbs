@@ -13,10 +13,11 @@ module Hatchet
       attr_accessor topic: String
       attr_accessor tenant_id: String
       attr_accessor message_count: Integer
+      attr_accessor pending_count: Integer?
       attr_accessor latest_cursor: String?
       attr_accessor last_published_at: Time?
 
-      def initialize: (namespace: String, topic: String, tenant_id: String, message_count: Integer, ?latest_cursor: String?, ?last_published_at: Time?) -> void
+      def initialize: (namespace: String, topic: String, tenant_id: String, message_count: Integer, ?pending_count: Integer?, ?latest_cursor: String?, ?last_published_at: Time?) -> void
     end
 
     class Streams
