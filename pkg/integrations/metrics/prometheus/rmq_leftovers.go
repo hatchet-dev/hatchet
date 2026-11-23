@@ -19,8 +19,8 @@ var (
 	})
 
 	// The result label is one of: sent, dropped (test-only fault injection), error.
-	DispatcherDoorbellMessages = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "hatchet_dispatcher_doorbell_messages_total",
+	DispatcherPubSubDeliveryMessages = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "hatchet_dispatcher_pubsub_delivery_messages_total",
 		Help: "Messages for a dispatcher sent over pub/sub instead of its durable queue, by message id and result",
 	}, []string{"msg_id", "result"})
 

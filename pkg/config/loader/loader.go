@@ -661,8 +661,8 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			return nil, nil, err
 		}
 
-		if cf.Runtime.DispatcherDoorbellEnabled {
-			mqv1 = msgqueue.NewDispatcherDoorbellQueue(mqv1, pubsubv1, cf.Runtime.DispatcherDoorbellDropPercent)
+		if cf.Runtime.DispatcherPubSubDeliveryEnabled {
+			mqv1 = msgqueue.NewDispatcherPubSubDeliveryQueue(mqv1, pubsubv1, cf.Runtime.DispatcherPubSubDeliveryDropPercent)
 		}
 
 		ing, err = ingestor.NewIngestor(

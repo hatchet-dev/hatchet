@@ -82,8 +82,8 @@ type DispatcherImpl struct {
 	// is paused; every worker task event then goes over the durable task queue.
 	directTaskWriter *directwrite.Writer
 
-	// doorbell is nil unless dispatcher messages go over pub/sub, with a database pull for lost ones
-	doorbell *doorbell
+	// pubSubDelivery is nil unless dispatcher messages go over pub/sub, with a database pull for lost ones
+	pubSubDelivery *pubSubDelivery
 }
 
 // CancelStreamSessions hangs up all registered long-lived subscriber streams. It is
@@ -188,7 +188,7 @@ type DispatcherOpts struct {
 	dispatcherId                        uuid.UUID
 	promGate                            *prometheus.Gate
 	directTaskWriter                    *directwrite.Writer
-	doorbell                            *DoorbellOpts
+	pubSubDelivery                      *PubSubDeliveryOpts
 }
 
 func defaultDispatcherOpts() *DispatcherOpts {
@@ -298,10 +298,10 @@ func WithPrometheusGate(gate *prometheus.Gate) DispatcherOpt {
 	}
 }
 
-// WithDoorbell leaves dispatcher messages on the durable queue when opts is nil.
-func WithDoorbell(opts *DoorbellOpts) DispatcherOpt {
+// WithPubSubDelivery leaves dispatcher messages on the durable queue when opts is nil.
+func WithPubSubDelivery(opts *PubSubDeliveryOpts) DispatcherOpt {
 	return func(o *DispatcherOpts) {
-		o.doorbell = opts
+		o.pubSubDelivery = opts
 	}
 }
 
@@ -375,7 +375,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		version:                             opts.version,
 		refreshTimeoutBuf:                   newRefreshTimeoutBuffer(),
 		directTaskWriter:                    opts.directTaskWriter,
-		doorbell:                            newDoorbellFromOpts(opts.doorbell),
+		pubSubDelivery:                      newPubSubDeliveryFromOpts(opts.pubSubDelivery),
 		serviceV1:                           newDispatcherService(opts.repov1, opts.mqv1, opts.pubsub, v, opts.l, opts.dispatcherId, opts.analytics, a, opts.promGate, opts.payloadSizeThreshold),
 	}, nil
 }
@@ -435,10 +435,10 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 		return nil, err
 	}
 
-	cleanupDoorbell := func() error { return nil }
+	cleanupPubSubDelivery := func() error { return nil }
 
-	if d.doorbell != nil {
-		cleanupDoorbell, err = d.startDoorbell(ctx, dispatcherId, fv1)
+	if d.pubSubDelivery != nil {
+		cleanupPubSubDelivery, err = d.startPubSubDelivery(ctx, dispatcherId, fv1)
 
 		if err != nil {
 			cancel()
@@ -454,7 +454,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 			return fmt.Errorf("could not cleanup queue (v1): %w", cleanupErr)
 		}
 
-		if cleanupErr := cleanupDoorbell(); cleanupErr != nil {
+		if cleanupErr := cleanupPubSubDelivery(); cleanupErr != nil {
 			return fmt.Errorf("could not cleanup dispatcher topic: %w", cleanupErr)
 		}
 
@@ -611,8 +611,8 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 	}
 
 	for _, innerMsg := range msgs {
-		if d.doorbell != nil {
-			d.doorbell.claim(innerMsg)
+		if d.pubSubDelivery != nil {
+			d.pubSubDelivery.claim(innerMsg)
 		}
 
 		taskIds := make([]int64, 0)

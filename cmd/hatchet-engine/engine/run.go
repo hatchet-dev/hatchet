@@ -435,7 +435,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			dispatcher.WithVersion(sc.Version),
 			dispatcher.WithAnalytics(sc.Analytics),
 			dispatcher.WithPrometheusGate(sc.PrometheusGate),
-			dispatcher.WithDoorbell(newDispatcherDoorbell(sc)),
+			dispatcher.WithPubSubDelivery(newDispatcherPubSubDelivery(sc)),
 		)
 
 		if err != nil {
@@ -967,7 +967,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			dispatcher.WithVersion(sc.Version),
 			dispatcher.WithAnalytics(sc.Analytics),
 			dispatcher.WithPrometheusGate(sc.PrometheusGate),
-			dispatcher.WithDoorbell(newDispatcherDoorbell(sc)),
+			dispatcher.WithPubSubDelivery(newDispatcherPubSubDelivery(sc)),
 			dispatcher.WithDirectTaskWriter(directTaskWriter),
 		)
 
@@ -1262,12 +1262,12 @@ func isControllerActive(pausedControllers map[string]bool, controllerName Contro
 	return false
 }
 
-func newDispatcherDoorbell(sc *server.ServerConfig) *dispatcher.DoorbellOpts {
-	if !sc.Runtime.DispatcherDoorbellEnabled {
+func newDispatcherPubSubDelivery(sc *server.ServerConfig) *dispatcher.PubSubDeliveryOpts {
+	if !sc.Runtime.DispatcherPubSubDeliveryEnabled {
 		return nil
 	}
 
-	return &dispatcher.DoorbellOpts{
+	return &dispatcher.PubSubDeliveryOpts{
 		PullInterval: sc.Runtime.DispatcherPullInterval,
 		PullGrace:    sc.Runtime.DispatcherPullGrace,
 	}

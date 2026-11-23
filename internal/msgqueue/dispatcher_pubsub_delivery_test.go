@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDispatcherDoorbellRoutesOnlyDispatcherQueues(t *testing.T) {
+func TestDispatcherPubSubDeliveryRoutesOnlyDispatcherQueues(t *testing.T) {
 	var queued []string
 	mq := &mockMessageQueue{sendMessageFn: func(_ context.Context, q Queue, _ *Message) error {
 		queued = append(queued, q.Name())
@@ -17,7 +17,7 @@ func TestDispatcherDoorbellRoutesOnlyDispatcherQueues(t *testing.T) {
 	}}
 	ps := &recordingPubSub{}
 
-	q := NewDispatcherDoorbellQueue(mq, ps, 0)
+	q := NewDispatcherPubSubDeliveryQueue(mq, ps, 0)
 	dispatcherId := uuid.New()
 	msg := &Message{ID: MsgIDTaskAssignedBulk}
 
@@ -28,17 +28,17 @@ func TestDispatcherDoorbellRoutesOnlyDispatcherQueues(t *testing.T) {
 	assert.Equal(t, []string{TASK_PROCESSING_QUEUE.Name()}, queued)
 }
 
-func TestDispatcherDoorbellDropsEverythingAtFullDropPercent(t *testing.T) {
+func TestDispatcherPubSubDeliveryDropsEverythingAtFullDropPercent(t *testing.T) {
 	ps := &recordingPubSub{}
-	q := NewDispatcherDoorbellQueue(&mockMessageQueue{}, ps, 100)
+	q := NewDispatcherPubSubDeliveryQueue(&mockMessageQueue{}, ps, 100)
 
 	require.NoError(t, q.SendMessage(context.Background(), QueueTypeFromDispatcherID(uuid.New()), &Message{ID: MsgIDTaskAssignedBulk}))
 	assert.Empty(t, ps.pubs)
 }
 
-func TestDispatcherDoorbellClonePreservesRouting(t *testing.T) {
+func TestDispatcherPubSubDeliveryClonePreservesRouting(t *testing.T) {
 	ps := &recordingPubSub{}
-	_, cloned, err := NewDispatcherDoorbellQueue(&mockMessageQueue{}, ps, 0).Clone()
+	_, cloned, err := NewDispatcherPubSubDeliveryQueue(&mockMessageQueue{}, ps, 0).Clone()
 	require.NoError(t, err)
 
 	require.NoError(t, cloned.SendMessage(context.Background(), QueueTypeFromDispatcherID(uuid.New()), &Message{ID: MsgIDTaskCancelled}))

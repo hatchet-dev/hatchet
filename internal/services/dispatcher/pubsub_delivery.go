@@ -15,7 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 )
 
-type DoorbellOpts struct {
+type PubSubDeliveryOpts struct {
 	PullInterval time.Duration
 	PullGrace    time.Duration
 }
@@ -32,11 +32,11 @@ type assignmentKey struct {
 	retryCount int32
 }
 
-// doorbell tracks which assignments this dispatcher already handled, from pub/sub or from a pull, so
+// pubSubDelivery tracks which assignments this dispatcher already handled, from pub/sub or from a pull, so
 // that a pull doesn't resend a task the worker already has and a late pub/sub message doesn't resend a
 // task the pull already sent.
-type doorbell struct {
-	opts DoorbellOpts
+type pubSubDelivery struct {
+	opts PubSubDeliveryOpts
 
 	// startedAt bounds the pull to assignments made while this dispatcher was up. Older ones were
 	// addressed to whichever dispatcher the worker used before, which may have sent them, so they are
@@ -47,16 +47,16 @@ type doorbell struct {
 	received *expirable.LRU[assignmentKey, struct{}]
 }
 
-func newDoorbellFromOpts(opts *DoorbellOpts) *doorbell {
+func newPubSubDeliveryFromOpts(opts *PubSubDeliveryOpts) *pubSubDelivery {
 	if opts == nil {
 		return nil
 	}
 
-	return newDoorbell(*opts)
+	return newPubSubDelivery(*opts)
 }
 
-func newDoorbell(opts DoorbellOpts) *doorbell {
-	return &doorbell{
+func newPubSubDelivery(opts PubSubDeliveryOpts) *pubSubDelivery {
+	return &pubSubDelivery{
 		opts:      opts,
 		startedAt: time.Now(),
 		received:  expirable.NewLRU[assignmentKey, struct{}](1_000_000, nil, receivedTTL),
@@ -65,7 +65,7 @@ func newDoorbell(opts DoorbellOpts) *doorbell {
 
 // claim drops the assignments already handled and marks the rest as handled. Without retry counts
 // (a message from an older scheduler) every assignment is kept, as before.
-func (b *doorbell) claim(payload *tasktypesv1.TaskAssignedBulkTaskPayload) {
+func (b *pubSubDelivery) claim(payload *tasktypesv1.TaskAssignedBulkTaskPayload) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -98,16 +98,16 @@ func (b *doorbell) claim(payload *tasktypesv1.TaskAssignedBulkTaskPayload) {
 	}
 }
 
-func (b *doorbell) seen(key assignmentKey) bool {
+func (b *pubSubDelivery) seen(key assignmentKey) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	return b.received.Contains(key)
 }
 
-// startDoorbell subscribes to the dispatcher's pub/sub topic alongside its durable queue, so engines
+// startPubSubDelivery subscribes to the dispatcher's pub/sub topic alongside its durable queue, so engines
 // that still send over the queue keep working during a rollout.
-func (d *DispatcherImpl) startDoorbell(ctx context.Context, dispatcherId uuid.UUID, handler msgqueue.MsgHandler) (func() error, error) {
+func (d *DispatcherImpl) startPubSubDelivery(ctx context.Context, dispatcherId uuid.UUID, handler msgqueue.MsgHandler) (func() error, error) {
 	cleanup, err := d.pubsub.Sub(msgqueue.DispatcherTopic(dispatcherId), handler)
 
 	if err != nil {
@@ -120,7 +120,7 @@ func (d *DispatcherImpl) startDoorbell(ctx context.Context, dispatcherId uuid.UU
 }
 
 func (d *DispatcherImpl) runPull(ctx context.Context) {
-	ticker := time.NewTicker(d.doorbell.opts.PullInterval)
+	ticker := time.NewTicker(d.pubSubDelivery.opts.PullInterval)
 	defer ticker.Stop()
 
 	for {
@@ -146,8 +146,8 @@ func (d *DispatcherImpl) pullOnce(ctx context.Context) error {
 	rows, err := d.repov1.Dispatcher().ListUnackedAssignments(
 		ctx,
 		workerIds,
-		d.doorbell.startedAt,
-		time.Now().Add(-d.doorbell.opts.PullGrace),
+		d.pubSubDelivery.startedAt,
+		time.Now().Add(-d.pubSubDelivery.opts.PullGrace),
 		pullLimitPerWorker,
 	)
 
@@ -158,7 +158,7 @@ func (d *DispatcherImpl) pullOnce(ctx context.Context) error {
 	byTenant := make(map[uuid.UUID]*tasktypesv1.TaskAssignedBulkTaskPayload)
 
 	for _, row := range rows {
-		if d.doorbell.seen(assignmentKey{taskId: row.TaskID, retryCount: row.RetryCount}) {
+		if d.pubSubDelivery.seen(assignmentKey{taskId: row.TaskID, retryCount: row.RetryCount}) {
 			continue
 		}
 

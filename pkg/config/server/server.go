@@ -284,7 +284,7 @@ type ConfigFileRuntime struct {
 	// Whether messages for a dispatcher (task assignments, cancellations, durable callbacks, batch starts)
 	// go over best-effort pub/sub instead of the dispatcher's durable queue. The dispatcher then pulls the
 	// assignments it never received from the database, so this requires ReassignUnackedTasks.
-	DispatcherDoorbellEnabled bool `mapstructure:"dispatcherDoorbellEnabled" json:"dispatcherDoorbellEnabled,omitempty" default:"false"`
+	DispatcherPubSubDeliveryEnabled bool `mapstructure:"dispatcherPubSubDeliveryEnabled" json:"dispatcherPubSubDeliveryEnabled,omitempty" default:"false"`
 
 	// How often a dispatcher looks in the database for assignments to its workers that it never received
 	DispatcherPullInterval time.Duration `mapstructure:"dispatcherPullInterval" json:"dispatcherPullInterval,omitempty" default:"2s"`
@@ -294,7 +294,7 @@ type ConfigFileRuntime struct {
 	DispatcherPullGrace time.Duration `mapstructure:"dispatcherPullGrace" json:"dispatcherPullGrace,omitempty" default:"2s"`
 
 	// Test only: the percentage of dispatcher pub/sub messages to drop, to exercise the database pull
-	DispatcherDoorbellDropPercent int `mapstructure:"dispatcherDoorbellDropPercent" json:"dispatcherDoorbellDropPercent,omitempty" default:"0"`
+	DispatcherPubSubDeliveryDropPercent int `mapstructure:"dispatcherPubSubDeliveryDropPercent" json:"dispatcherPubSubDeliveryDropPercent,omitempty" default:"0"`
 
 	// Allow new tenants to be created
 	AllowSignup bool `mapstructure:"allowSignup" json:"allowSignup,omitempty" default:"true"`
@@ -1263,10 +1263,10 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.internalEventOutboxEnabled", "SERVER_INTERNAL_EVENT_OUTBOX_ENABLED")
 	_ = v.BindEnv("runtime.internalEventOutboxShards", "SERVER_INTERNAL_EVENT_OUTBOX_SHARDS")
 	_ = v.BindEnv("runtime.internalEventOutboxPollInterval", "SERVER_INTERNAL_EVENT_OUTBOX_POLL_INTERVAL")
-	_ = v.BindEnv("runtime.dispatcherDoorbellEnabled", "SERVER_DISPATCHER_DOORBELL_ENABLED")
+	_ = v.BindEnv("runtime.dispatcherPubSubDeliveryEnabled", "SERVER_DISPATCHER_PUBSUB_DELIVERY_ENABLED")
 	_ = v.BindEnv("runtime.dispatcherPullInterval", "SERVER_DISPATCHER_PULL_INTERVAL")
 	_ = v.BindEnv("runtime.dispatcherPullGrace", "SERVER_DISPATCHER_PULL_GRACE")
-	_ = v.BindEnv("runtime.dispatcherDoorbellDropPercent", "SERVER_DISPATCHER_DOORBELL_DROP_PERCENT")
+	_ = v.BindEnv("runtime.dispatcherPubSubDeliveryDropPercent", "SERVER_DISPATCHER_PUBSUB_DELIVERY_DROP_PERCENT")
 
 	// internal client options
 	_ = v.BindEnv("internalClient.base.tlsStrategy", "SERVER_INTERNAL_CLIENT_BASE_STRATEGY")

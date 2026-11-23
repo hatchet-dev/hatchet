@@ -10,8 +10,8 @@ import (
 	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 )
 
-func TestDoorbellClaimDropsAssignmentsAlreadyHandled(t *testing.T) {
-	b := newDoorbell(DoorbellOpts{PullInterval: time.Second, PullGrace: time.Second})
+func TestPubSubDeliveryClaimDropsAssignmentsAlreadyHandled(t *testing.T) {
+	b := newPubSubDelivery(PubSubDeliveryOpts{PullInterval: time.Second, PullGrace: time.Second})
 	workerId := uuid.New()
 
 	first := &tasktypesv1.TaskAssignedBulkTaskPayload{}
@@ -36,8 +36,8 @@ func TestDoorbellClaimDropsAssignmentsAlreadyHandled(t *testing.T) {
 	assert.Empty(t, duplicate.WorkerIdToTaskIds)
 }
 
-func TestDoorbellClaimKeepsAssignmentsWithoutRetryCounts(t *testing.T) {
-	b := newDoorbell(DoorbellOpts{})
+func TestPubSubDeliveryClaimKeepsAssignmentsWithoutRetryCounts(t *testing.T) {
+	b := newPubSubDelivery(PubSubDeliveryOpts{})
 	workerId := uuid.New()
 
 	for range 2 {

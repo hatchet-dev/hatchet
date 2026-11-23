@@ -102,7 +102,7 @@ func StreamWakeTopic() Topic {
 // rabbitmq pub/sub backend never declares a queue with the same name.
 func DispatcherTopic(dispatcherId uuid.UUID) Topic {
 	return Topic{
-		name: "dispatcher_" + dispatcherId.String() + "_doorbell_v1",
+		name: "dispatcher_" + dispatcherId.String() + "_delivery_v1",
 		kind: TopicKindDispatcher,
 	}
 }
