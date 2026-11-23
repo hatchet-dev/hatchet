@@ -131,14 +131,15 @@ StreamTopicMetadata describes a topic's retained messages; counts and the latest
 
 Fields:
 
-| Name              | Type         | Description                                                                                  |
-| ----------------- | ------------ | -------------------------------------------------------------------------------------------- |
-| `Namespace`       | `string`     |                                                                                              |
-| `Topic`           | `string`     |                                                                                              |
-| `TenantId`        | `string`     |                                                                                              |
-| `MessageCount`    | `int64`      |                                                                                              |
-| `LatestCursor`    | `*string`    | LatestCursor resumes Subscribe after the newest retained message; nil when none is retained. |
-| `LastPublishedAt` | `*time.Time` | LastPublishedAt is when the newest retained message was stored; nil when none is retained.   |
+| Name              | Type         | Description                                                                                                                                                                              |
+| ----------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Namespace`       | `string`     |                                                                                                                                                                                          |
+| `Topic`           | `string`     |                                                                                                                                                                                          |
+| `TenantId`        | `string`     |                                                                                                                                                                                          |
+| `MessageCount`    | `int64`      |                                                                                                                                                                                          |
+| `PendingCount`    | `*int64`     | PendingCount is the retained messages after the topic's reset position, which Subscribe without a cursor reads; 0 means it has nothing to read yet. nil from an engine that predates it. |
+| `LatestCursor`    | `*string`    | LatestCursor resumes Subscribe after the newest retained message; nil when none is retained.                                                                                             |
+| `LastPublishedAt` | `*time.Time` | LastPublishedAt is when the newest retained message was stored; nil when none is retained.                                                                                               |
 
 ### StreamCallOpt
 

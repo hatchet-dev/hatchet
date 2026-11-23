@@ -81,7 +81,14 @@ export interface StreamTopicMetadata {
   latestCursor?: string | undefined;
   messageCount: number;
   /** when the newest retained message was stored; unset when none is retained */
-  lastPublishedAt: Date | undefined;
+  lastPublishedAt:
+    | Date
+    | undefined;
+  /**
+   * retained messages after the topic's reset position, which a subscribe without a cursor
+   * reads; unset from an engine that predates it
+   */
+  pendingCount?: number | undefined;
 }
 
 export interface ResetStreamTopicRequest {
@@ -930,6 +937,7 @@ function createBaseStreamTopicMetadata(): StreamTopicMetadata {
     latestCursor: undefined,
     messageCount: 0,
     lastPublishedAt: undefined,
+    pendingCount: undefined,
   };
 }
 
@@ -952,6 +960,9 @@ export const StreamTopicMetadata: MessageFns<StreamTopicMetadata> = {
     }
     if (message.lastPublishedAt !== undefined) {
       Timestamp.encode(toTimestamp(message.lastPublishedAt), writer.uint32(50).fork()).join();
+    }
+    if (message.pendingCount !== undefined) {
+      writer.uint32(56).int64(message.pendingCount);
     }
     return writer;
   },
@@ -1011,6 +1022,14 @@ export const StreamTopicMetadata: MessageFns<StreamTopicMetadata> = {
           message.lastPublishedAt = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
           continue;
         }
+        case 7: {
+          if (tag !== 56) {
+            break;
+          }
+
+          message.pendingCount = longToNumber(reader.int64());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1044,6 +1063,11 @@ export const StreamTopicMetadata: MessageFns<StreamTopicMetadata> = {
         : isSet(object.last_published_at)
         ? fromJsonTimestamp(object.last_published_at)
         : undefined,
+      pendingCount: isSet(object.pendingCount)
+        ? globalThis.Number(object.pendingCount)
+        : isSet(object.pending_count)
+        ? globalThis.Number(object.pending_count)
+        : undefined,
     };
   },
 
@@ -1067,6 +1091,9 @@ export const StreamTopicMetadata: MessageFns<StreamTopicMetadata> = {
     if (message.lastPublishedAt !== undefined) {
       obj.lastPublishedAt = message.lastPublishedAt.toISOString();
     }
+    if (message.pendingCount !== undefined) {
+      obj.pendingCount = Math.round(message.pendingCount);
+    }
     return obj;
   },
 
@@ -1081,6 +1108,7 @@ export const StreamTopicMetadata: MessageFns<StreamTopicMetadata> = {
     message.latestCursor = object.latestCursor ?? undefined;
     message.messageCount = object.messageCount ?? 0;
     message.lastPublishedAt = object.lastPublishedAt ?? undefined;
+    message.pendingCount = object.pendingCount ?? undefined;
     return message;
   },
 };

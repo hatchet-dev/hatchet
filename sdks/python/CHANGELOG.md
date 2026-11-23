@@ -134,6 +134,7 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - `hatchet.batch_task` accepts `on_events`, `on_crons`, `cron_input`, and `default_additional_metadata`, matching the other standalone task decorators.
 - `hatchet.tenant`, a client for reading details about the current tenant.
 - `Standalone`, the class returned by the `hatchet.task`, `hatchet.durable_task`, and `hatchet.batch_task` decorators, is exported from `hatchet_sdk`.
+- `hatchet.streams.topic_metadata` and `aio_topic_metadata` return `pending_count`, the retained messages after the topic's reset position, which `aio_subscribe` without a cursor reads. A consumer can check it is 0 to tell that a topic is drained, including after a `reset` past the latest message. It is `None` from an engine that predates it.
 
 ### Deprecated
 
@@ -159,6 +160,7 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 - Workflow and task names inferred from a callable with no `__name__`, such as a `functools.partial`, raise a `TypeError` asking for an explicit `name` instead of an `AttributeError`.
 - Retried unary gRPC calls that fail with a `google.rpc.RetryInfo` detail, such as `RESOURCE_EXHAUSTED` when the engine throttles a call, now wait the delay the server asks for instead of the SDK's own backoff. If the call keeps being throttled, the wait doubles with each retry, up to 5 seconds. Each wait is extended by a random amount of up to 20%, so that clients throttled together do not all retry at the same moment. A call the server asks to wait longer than 5 seconds fails at once with the server's error. The attempt limit and which errors are retried are otherwise unchanged.
 - Fixes an issue where a worker would be blocked because the default ThreadPoolExecutor used by calls to `loop.run_in_executor(None, ...)` and `asyncio.to_thread` was exhausted.
+- `hatchet.streams` remembers at most 1,024 topics' publish queues per event loop and forgets the least recently used idle ones. Before, it kept one for every topic it ever published to.
 
 ## [1.46.0] - 2026-11-12
 

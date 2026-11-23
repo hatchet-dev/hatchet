@@ -10,6 +10,43 @@ export const MAX_PUBLISH_BATCH_ENTRIES = 500;
  */
 export const MAX_PUBLISH_BATCH_BYTES = 4 * 1024 * 1024 - 5 * 1024;
 
+/**
+ * How many (namespace, topic) producers a client remembers. A topic past the cap starts
+ * over with a new producer id, which the engine orders after the old one, so correctness
+ * does not depend on the cap; it only bounds memory for clients that publish to many
+ * short-lived topics.
+ */
+export const MAX_TRACKED_TOPICS = 1024;
+
+export type StreamProducer = { producerId: string; seq: number };
+
+/**
+ * Returns key's producer, creating one if needed, and marks it most recently used, evicting
+ * the least recently used past MAX_TRACKED_TOPICS.
+ */
+export function useStreamProducer(
+  producers: Map<string, StreamProducer>,
+  key: string,
+  newProducerId: () => string
+): StreamProducer {
+  let producer = producers.get(key);
+  if (producer) {
+    // re-inserting keeps the map in last-use order for the eviction below
+    producers.delete(key);
+  } else {
+    producer = { producerId: newProducerId(), seq: 0 };
+  }
+  producers.set(key, producer);
+  while (producers.size > MAX_TRACKED_TOPICS) {
+    const oldest = producers.keys().next().value;
+    if (oldest === undefined) {
+      break;
+    }
+    producers.delete(oldest);
+  }
+  return producer;
+}
+
 // an entry's tag and length prefixes, rounded up
 const entryOverheadBytes = 16;
 

@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The `BatchTaskConfig` docs no longer say a batch flushes once `groupMaxRuns` is exceeded. While a group has `groupMaxRuns` batches running, its ready batches stay buffered. The docs also give the engine defaults: `maxInterval` is 1s, measured from when a batch's first item is buffered, and `groupMaxRuns` is 100.
 
+## [1.49.0] - 2026-11-23
+
+### Added
+
+- `streams.topicMetadata()` returns `pendingCount`, the retained messages after the topic's reset position, which `subscribe()` without a cursor reads. A consumer can check it is 0 to tell that a topic is drained, including after a `reset()` past the latest message. It is `undefined` from an engine that predates it.
+
+### Fixed
+
+- `streams.subscribe()` and `streams.events()` end at once when `options.signal` is already aborted. Before, the Node client started the read anyway, and on an empty topic it stayed blocked until the server's idle hangup.
+- The Node client remembers at most 1,024 topics' publish producers and forgets the least recently used, as the core client does. Before, it kept one for every topic it ever published to.
+
 ## [1.48.0] - 2026-11-21
 
 ### Changed

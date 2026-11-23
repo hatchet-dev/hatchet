@@ -246,6 +246,11 @@ export type StreamTopicMetadata = {
   topic: string;
   tenantId: string;
   messageCount: number;
+  /**
+   * Retained messages after the topic's reset position, which `subscribe()` without a cursor
+   * reads; 0 means it has nothing to read yet. Undefined from an engine that predates it.
+   */
+  pendingCount?: number;
   /** Resumes `subscribe()` after the newest retained message; undefined when none is retained. */
   latestCursor?: string;
   /** When the newest retained message was stored; undefined when none is retained. */

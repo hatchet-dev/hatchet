@@ -5,7 +5,12 @@ import { ClientConfig } from '@hatchet/clients/hatchet-client';
 import { createGrpcClient } from '@hatchet/util/grpc-helpers';
 import { getGrpcErrorCode } from '@hatchet/util/grpc-error';
 import sleep from '@hatchet/util/sleep';
-import { StreamPublishQueue, validateBatchTimeout } from '@hatchet/util/stream-publish-batch';
+import {
+  StreamProducer,
+  StreamPublishQueue,
+  useStreamProducer,
+  validateBatchTimeout,
+} from '@hatchet/util/stream-publish-batch';
 import {
   V1StreamsClient as PbV1StreamsClient,
   V1StreamsDefinition,
@@ -100,8 +105,8 @@ export class StreamsClient {
   private _client: HatchetClient;
   private _grpc: PbV1StreamsClient | undefined;
 
-  // per (namespace, topic); seq only advances after a publish succeeds
-  private producers = new Map<string, { producerId: string; seq: number }>();
+  // per (namespace, topic), capped at MAX_TRACKED_TOPICS; seq only advances after a publish succeeds
+  private producers = new Map<string, StreamProducer>();
 
   // per (namespace, topic); one request per topic is in flight at a time so two
   // never share a seq, and each carries everything queued behind the last
@@ -234,11 +239,7 @@ export class StreamsClient {
     entries: PublishEntry[],
     retryGap = true
   ): Promise<void> {
-    let producer = this.producers.get(key);
-    if (!producer) {
-      producer = { producerId: randomUUID(), seq: 0 };
-      this.producers.set(key, producer);
-    }
+    const producer = useStreamProducer(this.producers, key, randomUUID);
 
     try {
       if (this.publishBatchUnsupported && entries.length === 1) {
@@ -261,7 +262,7 @@ export class StreamsClient {
     } catch (err) {
       // it may still land, and a different payload under its seq would be dropped as a duplicate
       if (!publishRejectedBeforeStoring(err)) {
-        this.producers.set(key, { producerId: randomUUID(), seq: 0 });
+        this.producers.delete(key);
       }
       // a gap stored nothing (e.g. the watermark passed cursor retention), so resend as the new producer
       if (retryGap && getGrpcErrorCode(err) === Status.FAILED_PRECONDITION) {
@@ -341,6 +342,7 @@ export class StreamsClient {
       topic: res.topic,
       tenantId: res.tenantId,
       messageCount: res.messageCount,
+      pendingCount: res.pendingCount,
       latestCursor: res.latestCursor,
       lastPublishedAt: res.lastPublishedAt,
     };
@@ -384,6 +386,11 @@ export class StreamsClient {
     const signal = options?.signal;
     let { cursor } = options ?? {};
     let failures = 0;
+
+    // nice-grpc only cancels on a later abort event
+    if (signal?.aborted) {
+      return;
+    }
 
     for (let attempt = 0; ; attempt += 1) {
       try {

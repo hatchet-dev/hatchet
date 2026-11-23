@@ -130,6 +130,14 @@ Calling reset does not change the messages that existing subscriptions, or subsc
 
 You can also supply a cursor to Reset, which will set the high watermark to the cursor supplied rather than the most recently published message.
 
+<Callout type="info">
+  Reset moves the high watermark to whatever cursor you pass, including one
+  earlier than the current high watermark, so new subscriptions read those
+  messages again. If you reset to a cursor after processing each message, make
+  sure a delayed or retried reset can't pass an older cursor than one you've
+  already reset to.
+</Callout>
+
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
 <Tabs.Tab title="Python">
 

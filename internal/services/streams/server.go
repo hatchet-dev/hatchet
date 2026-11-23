@@ -464,6 +464,7 @@ func (s *ServiceImpl) GetTopicMetadata(ctx context.Context, req *contracts.GetSt
 		Topic:        req.Topic,
 		TenantId:     tenantId.String(),
 		MessageCount: md.MessageCount,
+		PendingCount: &md.PendingCount,
 	}
 
 	if md.LatestCursor != nil {

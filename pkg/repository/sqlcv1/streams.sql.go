@@ -291,7 +291,7 @@ func (q *Queries) GetStreamTopicInfo(ctx context.Context, db DBTX, arg GetStream
 
 const getStreamTopicMetadata = `-- name: GetStreamTopicMetadata :one
 WITH topic AS (
-    SELECT 1
+    SELECT starting_offset
     FROM v1_stream_topic
     WHERE tenant_id = $1::uuid
         AND namespace = $2::text
@@ -306,7 +306,9 @@ WITH topic AS (
     ORDER BY id DESC
     LIMIT 1
 ), retained AS (
-    SELECT COUNT(*) AS message_count
+    SELECT
+        COUNT(*) AS message_count,
+        COUNT(*) FILTER (WHERE id > (SELECT starting_offset FROM topic)) AS pending_count
     FROM v1_stream_message
     WHERE tenant_id = $1::uuid
         AND namespace = $2::text
@@ -316,7 +318,8 @@ WITH topic AS (
 SELECT
     COALESCE(latest.id, 0)::bigint AS latest_id,
     latest.inserted_at AS latest_inserted_at,
-    retained.message_count::bigint AS message_count
+    retained.message_count::bigint AS message_count,
+    retained.pending_count::bigint AS pending_count
 FROM retained
 LEFT JOIN latest ON true
 WHERE EXISTS (SELECT 1 FROM topic)
@@ -333,6 +336,7 @@ type GetStreamTopicMetadataRow struct {
 	LatestID         int64              `json:"latest_id"`
 	LatestInsertedAt pgtype.Timestamptz `json:"latest_inserted_at"`
 	MessageCount     int64              `json:"message_count"`
+	PendingCount     int64              `json:"pending_count"`
 }
 
 // No row when the topic doesn't exist. latest_id is 0 when no message is
@@ -345,7 +349,12 @@ func (q *Queries) GetStreamTopicMetadata(ctx context.Context, db DBTX, arg GetSt
 		arg.Retainedsince,
 	)
 	var i GetStreamTopicMetadataRow
-	err := row.Scan(&i.LatestID, &i.LatestInsertedAt, &i.MessageCount)
+	err := row.Scan(
+		&i.LatestID,
+		&i.LatestInsertedAt,
+		&i.MessageCount,
+		&i.PendingCount,
+	)
 	return &i, err
 }
 

@@ -96,20 +96,22 @@ class GetStreamTopicMetadataRequest(_message.Message):
     def __init__(self, namespace: _Optional[str] = ..., topic: _Optional[str] = ...) -> None: ...
 
 class StreamTopicMetadata(_message.Message):
-    __slots__ = ("namespace", "topic", "tenant_id", "latest_cursor", "message_count", "last_published_at")
+    __slots__ = ("namespace", "topic", "tenant_id", "latest_cursor", "message_count", "last_published_at", "pending_count")
     NAMESPACE_FIELD_NUMBER: _ClassVar[int]
     TOPIC_FIELD_NUMBER: _ClassVar[int]
     TENANT_ID_FIELD_NUMBER: _ClassVar[int]
     LATEST_CURSOR_FIELD_NUMBER: _ClassVar[int]
     MESSAGE_COUNT_FIELD_NUMBER: _ClassVar[int]
     LAST_PUBLISHED_AT_FIELD_NUMBER: _ClassVar[int]
+    PENDING_COUNT_FIELD_NUMBER: _ClassVar[int]
     namespace: str
     topic: str
     tenant_id: str
     latest_cursor: str
     message_count: int
     last_published_at: _timestamp_pb2.Timestamp
-    def __init__(self, namespace: _Optional[str] = ..., topic: _Optional[str] = ..., tenant_id: _Optional[str] = ..., latest_cursor: _Optional[str] = ..., message_count: _Optional[int] = ..., last_published_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+    pending_count: int
+    def __init__(self, namespace: _Optional[str] = ..., topic: _Optional[str] = ..., tenant_id: _Optional[str] = ..., latest_cursor: _Optional[str] = ..., message_count: _Optional[int] = ..., last_published_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., pending_count: _Optional[int] = ...) -> None: ...
 
 class ResetStreamTopicRequest(_message.Message):
     __slots__ = ("namespace", "topic", "cursor")
