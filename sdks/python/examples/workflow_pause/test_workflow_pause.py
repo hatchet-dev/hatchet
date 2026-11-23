@@ -240,9 +240,9 @@ async def test_workflow_pause_drop_crons_and_schedules(
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_workflow_pause_drop_never_creates_runs(hatchet: Hatchet) -> None:
-    test_run_id = str(uuid4())
-
+async def test_workflow_pause_drop_never_creates_runs(
+    hatchet: Hatchet, test_run_id: str
+) -> None:
     await pausable_workflow.aio_pause(
         queue_ttl=timedelta(minutes=10),
         paused_workflow_queue_behavior="DROP",
@@ -262,4 +262,3 @@ async def test_workflow_pause_drop_never_creates_runs(hatchet: Hatchet) -> None:
         assert len(runs) == 0, f"Expected no runs, got {len(runs)}"
 
         await asyncio.sleep(1)
-
