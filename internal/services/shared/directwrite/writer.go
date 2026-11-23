@@ -29,16 +29,22 @@ type Writer struct {
 	fallback bool
 }
 
+// Opts bounds the database load a Writer adds to its process and sets what a failed write does.
 type Opts struct {
 	// Slots caps how many messages are applied in-process at once; messages beyond it go over the
 	// durable task queue. Zero means no cap.
 	Slots int
 
 	// Fallback sends a message over the durable task queue when the handler fails, instead of
-	// returning the error to the caller.
+	// returning the error to the caller. WriteAsync always falls back, since it has no caller to
+	// return the error to.
 	Fallback bool
 }
 
+// New returns a Writer that applies messages with dst, normally the task controller's handler from
+// task.NewMessageHandler, and sends them over mq when they can't be applied in-process. The Writer has
+// no cleanup: its batching buffer is never stopped, since stopping it would strand writes still waiting
+// on a flush, and the gRPC server keeps accepting worker events while the engine's services shut down.
 func New(dst msgqueue.DstFunc, mq msgqueue.MessageQueue, l *zerolog.Logger, opts Opts) (*Writer, error) {
 	w := &Writer{
 		mq:       mq,
@@ -58,8 +64,6 @@ func New(dst msgqueue.DstFunc, mq msgqueue.MessageQueue, l *zerolog.Logger, opts
 		return func() error { return nil }, nil
 	}, dst)
 
-	// The buffer is never stopped. Stopping it would strand writes still waiting on a flush, and the
-	// gRPC server keeps accepting worker events while the engine's services shut down.
 	if _, err := buf.Start(); err != nil {
 		return nil, err
 	}
@@ -72,6 +76,27 @@ func New(dst msgqueue.DstFunc, mq msgqueue.MessageQueue, l *zerolog.Logger, opts
 // enabled. Sending a message the handler partly applied is safe: the controller already handles
 // messages the queue redelivers after a failed attempt.
 func (w *Writer) Write(ctx context.Context, msg *msgqueue.Message) error {
+	return w.write(ctx, msg, w.fallback)
+}
+
+// WriteAsync is Write for senders that don't wait for the outcome. It outlives the caller's context,
+// since the caller typically returns before the batch flushes. A failed write always falls back to the
+// durable task queue, even with fallback disabled: nothing is left to retry the message, so returning
+// the error would drop it.
+func (w *Writer) WriteAsync(ctx context.Context, msg *msgqueue.Message) {
+	ctx = context.WithoutCancel(ctx)
+
+	go func() {
+		if err := w.write(ctx, msg, true); err != nil {
+			w.l.Error().Ctx(ctx).Err(err).
+				Str("message_id", msg.ID).
+				Str("tenant_id", msg.TenantID.String()).
+				Msg("could not write task message")
+		}
+	}()
+}
+
+func (w *Writer) write(ctx context.Context, msg *msgqueue.Message, fallback bool) error {
 	if !w.tryAcquire() {
 		w.record(msg.ID, resultFallbackNoSlot, 0)
 		return w.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
@@ -86,7 +111,7 @@ func (w *Writer) Write(ctx context.Context, msg *msgqueue.Message) error {
 		return nil
 	}
 
-	if !w.fallback {
+	if !fallback {
 		w.record(msg.ID, resultError, time.Since(start))
 		return err
 	}
@@ -99,21 +124,6 @@ func (w *Writer) Write(ctx context.Context, msg *msgqueue.Message) error {
 		Msg("direct task write failed, sending the message over the task queue")
 
 	return w.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
-}
-
-// WriteAsync is Write for senders that don't wait for the outcome. It outlives the caller's context,
-// since the caller typically returns before the batch flushes.
-func (w *Writer) WriteAsync(ctx context.Context, msg *msgqueue.Message) {
-	ctx = context.WithoutCancel(ctx)
-
-	go func() {
-		if err := w.Write(ctx, msg); err != nil {
-			w.l.Error().Ctx(ctx).Err(err).
-				Str("message_id", msg.ID).
-				Str("tenant_id", msg.TenantID.String()).
-				Msg("could not write task message")
-		}
-	}()
 }
 
 func (w *Writer) tryAcquire() bool {

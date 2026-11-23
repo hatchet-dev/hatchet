@@ -5,6 +5,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
+// DirectTaskWriteHatchetMetric names the metrics reported by the dispatcher's direct task writer, which
+// applies worker task events in-process instead of sending them over the durable task queue.
 type DirectTaskWriteHatchetMetric string
 
 const (

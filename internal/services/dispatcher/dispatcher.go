@@ -294,6 +294,8 @@ func WithPrometheusGate(gate *prometheus.Gate) DispatcherOpt {
 	}
 }
 
+// WithDirectTaskWriter makes the dispatcher apply worker task events with w instead of sending them
+// over the durable task queue. Without it, or with a nil w, every event goes over the queue.
 func WithDirectTaskWriter(w *directwrite.Writer) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.directTaskWriter = w

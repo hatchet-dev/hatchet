@@ -133,6 +133,18 @@ func TestWriteFallsBackWhenSlotsAreTaken(t *testing.T) {
 	assert.Equal(t, 1, mq.sentCount())
 }
 
+func TestWriteAsyncFallsBackEvenWithFallbackDisabled(t *testing.T) {
+	mq := &fakeMQ{}
+
+	w := newWriter(t, func(uuid.UUID, string, [][]byte) error {
+		return errors.New("deadlock detected")
+	}, mq, Opts{Slots: 10, Fallback: false})
+
+	w.WriteAsync(context.Background(), newMsg(t))
+
+	require.Eventually(t, func() bool { return mq.sentCount() == 1 }, 5*time.Second, 10*time.Millisecond)
+}
+
 func TestWriteReturnsQueueErrorOnFallback(t *testing.T) {
 	mq := &fakeMQ{err: errors.New("broker down")}
 
