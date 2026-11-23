@@ -1,9 +1,12 @@
 import asyncio
 from datetime import timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import Context, Hatchet
 from hatchet_sdk.exceptions import DedupeViolationError
+
+if TYPE_CHECKING:
+    from collections.abc import Coroutine
 
 hatchet = Hatchet()
 
@@ -12,12 +15,12 @@ dedupe_child_wf = hatchet.workflow(name="DedupeChild")
 
 
 @dedupe_parent_wf.task(execution_timeout=timedelta(minutes=1))
-async def spawn(input: EmptyModel, ctx: Context) -> dict[str, list[Any]]:
+async def spawn(input: None, ctx: Context) -> dict[str, list[Any]]:
     print("spawning child")
 
-    results = []
+    results: list[Coroutine[Any, Any, dict[str, Any]]] = []
 
-    for i in range(2):
+    for _ in range(2):
         try:
             results.append(
                 dedupe_child_wf.aio_run(
@@ -35,7 +38,7 @@ async def spawn(input: EmptyModel, ctx: Context) -> dict[str, list[Any]]:
 
 
 @dedupe_child_wf.task()
-async def process(input: EmptyModel, ctx: Context) -> dict[str, str]:
+async def process(input: None, ctx: Context) -> dict[str, str]:
     await asyncio.sleep(3)
 
     print("child process")
@@ -43,7 +46,7 @@ async def process(input: EmptyModel, ctx: Context) -> dict[str, str]:
 
 
 @dedupe_child_wf.task()
-async def process2(input: EmptyModel, ctx: Context) -> dict[str, str]:
+async def process2(input: None, ctx: Context) -> dict[str, str]:
     print("child process2")
     return {"status2": "success"}
 

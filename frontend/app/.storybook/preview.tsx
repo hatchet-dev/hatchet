@@ -2,6 +2,7 @@ import { ThemeProvider, useTheme } from '@/components/hooks/use-theme';
 import '@/index.css';
 import type { Decorator, Preview } from '@storybook/react-vite';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { mswLoader } from 'msw-storybook-addon/csf3';
 import { useEffect } from 'react';
 
 const THEME_STORAGE_KEY = 'storybook-ui-theme';
@@ -55,6 +56,9 @@ const preview: Preview = {
     theme: 'dark',
   },
   decorators: [withAppProviders],
+  // Stories opt in with `parameters.msw`; requests without a handler go to
+  // the network as usual.
+  loaders: [mswLoader()],
   parameters: {
     layout: 'fullscreen',
     controls: {

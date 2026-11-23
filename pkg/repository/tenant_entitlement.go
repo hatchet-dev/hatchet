@@ -48,6 +48,7 @@ const (
 	EntitlementDurableStreams                  Entitlement = "durable_streams"
 	EntitlementServerlessOperator              Entitlement = "serverless_operator"
 	EntitlementSandboxOperator                 Entitlement = "sandbox_operator"
+	EntitlementOperatorStepDirectCompletion    Entitlement = "operator_step_direct_completion"
 )
 
 // LabsEntitlements is a partial update of the Labs preview opt-ins.
@@ -73,6 +74,7 @@ type TenantEntitlements struct {
 	DurableStreams                  bool
 	ServerlessOperator              bool
 	SandboxOperator                 bool
+	OperatorStepDirectCompletion    bool
 }
 
 // Has reports whether this set includes the named entitlement.
@@ -90,6 +92,8 @@ func (e TenantEntitlements) Has(entitlement Entitlement) (bool, error) {
 		return e.ServerlessOperator, nil
 	case EntitlementSandboxOperator:
 		return e.SandboxOperator, nil
+	case EntitlementOperatorStepDirectCompletion:
+		return e.OperatorStepDirectCompletion, nil
 	default:
 		return false, fmt.Errorf("unknown entitlement %q", entitlement)
 	}
@@ -107,7 +111,7 @@ type cachedEntitlements struct {
 	expiresAt    time.Time
 }
 
-func newTenantEntitlementRepository(shared *sharedRepository) TenantEntitlementRepository {
+func newTenantEntitlementRepository(shared *sharedRepository) *tenantEntitlementRepository {
 	c, err := lru.New[uuid.UUID, cachedEntitlements](entitlementCacheSize)
 
 	if err != nil {
@@ -121,11 +125,18 @@ func newTenantEntitlementRepository(shared *sharedRepository) TenantEntitlementR
 }
 
 func (t *tenantEntitlementRepository) HasEntitlement(ctx context.Context, tenantId uuid.UUID, entitlement Entitlement) (bool, error) {
+	return t.hasEntitlementTx(ctx, t.pool.ForTenant(tenantId), tenantId, entitlement)
+}
+
+// hasEntitlementTx reads a cache miss on tx. A caller that already holds a connection has to
+// pass it here: once every connection in the pool is held by such a caller, each one waits forever
+// for a second connection that none of them will release.
+func (t *tenantEntitlementRepository) hasEntitlementTx(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, entitlement Entitlement) (bool, error) {
 	if cached, ok := t.cache.Get(tenantId); ok && time.Now().Before(cached.expiresAt) {
 		return cached.entitlements.Has(entitlement)
 	}
 
-	entitlements, err := t.GetEntitlements(ctx, tenantId)
+	entitlements, err := t.getEntitlementsTx(ctx, tx, tenantId)
 
 	if err != nil {
 		return false, err
@@ -148,7 +159,11 @@ func (t *tenantEntitlementRepository) AnyTenantHasAuditLogs(ctx context.Context,
 }
 
 func (t *tenantEntitlementRepository) GetEntitlements(ctx context.Context, tenantId uuid.UUID) (TenantEntitlements, error) {
-	entitlement, err := t.queries.GetTenantEntitlement(ctx, t.pool.ForTenant(tenantId), tenantId)
+	return t.getEntitlementsTx(ctx, t.pool.ForTenant(tenantId), tenantId)
+}
+
+func (t *tenantEntitlementRepository) getEntitlementsTx(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID) (TenantEntitlements, error) {
+	entitlement, err := t.queries.GetTenantEntitlement(ctx, tx, tenantId)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -169,6 +184,7 @@ func tenantEntitlementsFromRow(entitlement *sqlcv1.TenantEntitlement) TenantEnti
 		DurableStreams:                  entitlement.DurableStreams,
 		ServerlessOperator:              entitlement.ServerlessOperator,
 		SandboxOperator:                 entitlement.SandboxOperator,
+		OperatorStepDirectCompletion:    entitlement.OperatorStepDirectCompletion,
 	}
 }
 
@@ -183,6 +199,7 @@ func (t *tenantEntitlementRepository) SetEntitlements(ctx context.Context, tenan
 		Durablestreams:                  entitlements.DurableStreams,
 		Serverlessoperator:              entitlements.ServerlessOperator,
 		Sandboxoperator:                 entitlements.SandboxOperator,
+		Operatorstepdirectcompletion:    entitlements.OperatorStepDirectCompletion,
 	})
 
 	if err != nil {

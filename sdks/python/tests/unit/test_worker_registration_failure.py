@@ -10,7 +10,7 @@ from hatchet_sdk.worker.action_listener_process import (
     WorkerActionListenerProcess,
     worker_action_listener_process,
 )
-from hatchet_sdk.worker.worker import Worker, WorkerStatus
+from hatchet_sdk.worker.worker import Worker
 
 LISTENER_MODULE = "hatchet_sdk.worker.action_listener_process"
 WORKER_MODULE = "hatchet_sdk.worker.worker"
@@ -40,7 +40,7 @@ async def test_registration_failure_propagates_without_starting_tasks(
 ) -> None:
     config = MagicMock()
     config.healthcheck.enabled = False
-    with patch(f"{LISTENER_MODULE}.Client"):
+    with patch(f"{LISTENER_MODULE}.WorkersClient"):
         process = WorkerActionListenerProcess(
             name="test-worker",
             actions=["test-action"],
@@ -48,8 +48,6 @@ async def test_registration_failure_propagates_without_starting_tasks(
             config=config,
             action_queue=MagicMock(),
             event_queue=MagicMock(),
-            handle_kill=False,
-            debug=False,
             labels=[],
             worker_id_queue=MagicMock(),
             stop_event=MagicMock(),
@@ -58,9 +56,11 @@ async def test_registration_failure_propagates_without_starting_tasks(
     error = _registration_error(status)
     dispatcher = MagicMock()
     dispatcher.get_action_listener = AsyncMock(side_effect=error)
-    with patch(f"{LISTENER_MODULE}.DispatcherClient", return_value=dispatcher):
-        with pytest.raises(grpc.aio.AioRpcError) as caught:
-            await process.start()
+    with (
+        patch(f"{LISTENER_MODULE}.DispatcherClient", return_value=dispatcher),
+        pytest.raises(grpc.aio.AioRpcError) as caught,
+    ):
+        await process.start()
 
     assert caught.value is error
     assert process.listener is None
@@ -68,7 +68,7 @@ async def test_registration_failure_propagates_without_starting_tasks(
     assert process.event_send_loop_task is None
     assert process.blocked_main_loop is None
     assert process._stop_event_task is None
-    cast(MagicMock, process.worker_id_queue).put.assert_not_called()
+    cast("MagicMock", process.worker_id_queue).put.assert_not_called()
     process.finalize_listener_cleanup()
 
 
@@ -79,21 +79,21 @@ def test_registration_failure_closes_health_server() -> None:
     process.start = AsyncMock(side_effect=error)
     process.stop_health_server = AsyncMock()
 
-    with patch(f"{LISTENER_MODULE}.WorkerActionListenerProcess", return_value=process):
-        with pytest.raises(grpc.aio.AioRpcError) as caught:
-            worker_action_listener_process(
-                name="test-worker",
-                actions=["test-action"],
-                slot_config={"default": 1},
-                config=MagicMock(),
-                action_queue=MagicMock(),
-                event_queue=MagicMock(),
-                handle_kill=False,
-                debug=False,
-                labels=[],
-                worker_id_queue=MagicMock(),
-                stop_event=MagicMock(),
-            )
+    with (
+        patch(f"{LISTENER_MODULE}.WorkerActionListenerProcess", return_value=process),
+        pytest.raises(grpc.aio.AioRpcError) as caught,
+    ):
+        worker_action_listener_process(
+            name="test-worker",
+            actions=["test-action"],
+            slot_config={"default": 1},
+            config=MagicMock(),
+            action_queue=MagicMock(),
+            event_queue=MagicMock(),
+            labels=[],
+            worker_id_queue=MagicMock(),
+            stop_event=MagicMock(),
+        )
 
     assert caught.value is error
     process.start_health_server.assert_awaited_once()
@@ -106,7 +106,7 @@ def _failed_registration_subprocess() -> None:
     dispatcher = MagicMock()
     dispatcher.get_action_listener = AsyncMock(side_effect=_registration_error())
     with (
-        patch(f"{LISTENER_MODULE}.Client"),
+        patch(f"{LISTENER_MODULE}.WorkersClient"),
         patch(f"{LISTENER_MODULE}.DispatcherClient", return_value=dispatcher),
     ):
         worker_action_listener_process(
@@ -116,8 +116,6 @@ def _failed_registration_subprocess() -> None:
             config=config,
             action_queue=MagicMock(),
             event_queue=MagicMock(),
-            handle_kill=False,
-            debug=False,
             labels=[],
             worker_id_queue=MagicMock(),
             stop_event=MagicMock(),
@@ -144,33 +142,34 @@ def test_registration_failure_exits_subprocess_with_original_error(
         process.close()
 
 
-@pytest.mark.parametrize("handle_kill", [False, True])
 @pytest.mark.parametrize("listener_exitcode", [0, 1, -9])
 def test_worker_start_propagates_listener_death_after_cleanup(
-    handle_kill: bool, listener_exitcode: int
+    listener_exitcode: int,
 ) -> None:
-    worker = _make_worker(handle_kill)
+    worker = _make_worker()
     listener = MagicMock()
     listener.is_alive.return_value = False
     listener.exitcode = listener_exitcode
     worker._action_listener_process = listener
 
     try:
-        with patch.object(worker, "_aio_start", new=lambda: _monitor(worker)):
-            with pytest.raises(
+        with (
+            patch.object(worker, "_aio_start", new=lambda: _monitor(worker)),
+            pytest.raises(
                 RuntimeError, match="action listener process exited unexpectedly"
-            ):
-                worker.start()
-        assert worker.status == WorkerStatus.UNHEALTHY
-        cast(MagicMock, worker._action_runner).exit_gracefully.assert_awaited_once()
-        cast(MagicMock, worker._action_runner).cleanup.assert_called_once()
-        cast(AsyncMock, worker._cleanup_lifespan).assert_awaited_once()
+            ),
+        ):
+            worker.start()
+        assert worker.status == "UNHEALTHY"
+        cast("MagicMock", worker._action_runner).exit_gracefully.assert_awaited_once()
+        cast("MagicMock", worker._action_runner).cleanup.assert_called_once()
+        cast("AsyncMock", worker._cleanup_lifespan).assert_awaited_once()
     finally:
         _cleanup_worker(worker)
 
 
-def test_task_limit_shutdown_exits_successfully() -> None:
-    worker = _make_worker(handle_kill=True)
+def test_task_limit_shutdown_returns_from_start() -> None:
+    worker = _make_worker()
     worker._config.terminate_worker_after_num_tasks = 1
     listener = MagicMock()
     listener.is_alive.return_value = True
@@ -180,25 +179,27 @@ def test_task_limit_shutdown_exits_successfully() -> None:
             patch.object(worker, "_aio_start", new=lambda: _monitor(worker)),
             patch(f"{WORKER_MODULE}.task_count", value=1),
         ):
-            with pytest.raises(SystemExit) as caught:
-                worker.start()
-        assert caught.value.code == 0
+            worker.start()
         assert worker._aio_start_exception is None
-        cast(MagicMock, worker._action_runner).exit_gracefully.assert_awaited_once()
+        cast("MagicMock", worker._action_runner).exit_gracefully.assert_awaited_once()
     finally:
         _cleanup_worker(worker)
 
 
-def _make_worker(handle_kill: bool) -> Worker:
+def _make_worker() -> Worker:
     config = MagicMock()
     config.apply_namespace.return_value = "test-worker"
     config.healthcheck.enabled = False
     config.terminate_worker_after_num_tasks = None
     with (
-        patch(f"{WORKER_MODULE}.Client"),
+        patch(f"{WORKER_MODULE}.DispatcherClient"),
+        patch(f"{WORKER_MODULE}.RunEventListenerClient"),
+        patch(f"{WORKER_MODULE}.PooledWorkflowRunListener"),
+        patch(f"{WORKER_MODULE}.AdminClient"),
+        patch(f"{WORKER_MODULE}.WorkersClient"),
         patch.object(Worker, "_setup_signal_handlers"),
     ):
-        worker = Worker("test-worker", config, {"default": 1}, handle_kill=handle_kill)
+        worker = Worker("test-worker", config=config, slot_config={"default": 1})
     worker._pause_task_assignment = AsyncMock()  # type: ignore[method-assign]
     worker._cleanup_lifespan = AsyncMock()  # type: ignore[method-assign]
     runner = MagicMock()

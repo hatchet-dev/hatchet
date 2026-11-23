@@ -9,7 +9,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -52,13 +52,15 @@ func (tc *TasksControllerImpl) processPausedWorkflowQueueItemTTL(ctx context.Con
 		tc.l.Error().Ctx(ctx).Err(err).Msg("could not send internal events for cleaned up tasks")
 	}
 
+	tc.dispatchSatisfiedDurableEntries(ctx, tenantId, res.SatisfiedDurableEventLogEntries)
+
 	for _, releasedTask := range res.ReleasedTasks {
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
 			tasktypes.CreateMonitoringEventPayload{
 				TaskId:         releasedTask.ID,
 				RetryCount:     releasedTask.RetryCount,
-				EventType:      sqlcv1.V1EventTypeOlapCANCELLED,
+				EventType:      enums.V1EventTypeOlapCANCELLED,
 				EventTimestamp: time.Now(),
 				EventMessage:   "paused workflow queue item TTL expired.",
 			},

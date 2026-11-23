@@ -17,7 +17,7 @@ import requests
 def get_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("", 0))
-        return cast(int, s.getsockname()[1])
+        return cast("int", s.getsockname()[1])
 
 
 def wait_for_worker_health(healthcheck_port: int) -> bool:
@@ -56,7 +56,7 @@ def hatchet_worker(
     command: list[str],
     healthcheck_port: int = 8001,
 ) -> Generator[subprocess.Popen[bytes], None, None]:
-    logging.info(f"Starting background worker: {' '.join(command)}")
+    logging.info("Starting background worker: %s", " ".join(command))
 
     os.environ["HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT"] = str(healthcheck_port)
     env = os.environ.copy()

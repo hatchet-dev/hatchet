@@ -135,6 +135,9 @@ type TaskOperationLimitsConfigFile struct {
 	// engine version that doesn't, running tasks look unacked and get reassigned while they're still running.
 	ReassignUnackedTasks bool `mapstructure:"reassignUnackedTasks" json:"reassignUnackedTasks,omitempty" default:"false"`
 
+	// ChildRunDirectSpawn determines whether child runs should use the matching logic or be spawned directly without it
+	ChildRunDirectSpawn bool `mapstructure:"childRunDirectSpawn" json:"childRunDirectSpawn,omitempty" default:"false"`
+
 	// RetryQueueLimit is the limit for how many retry queue items to process in a single operation
 	RetryQueueLimit int `mapstructure:"retryQueueLimit" json:"retryQueueLimit,omitempty" default:"1000"`
 
@@ -183,6 +186,7 @@ type DefaultTenantEntitlementsConfigFile struct {
 	DurableStreams                  bool `mapstructure:"durableStreams" json:"durableStreams,omitempty" default:"false"`
 	ServerlessOperator              bool `mapstructure:"serverlessOperator" json:"serverlessOperator,omitempty" default:"false"`
 	SandboxOperator                 bool `mapstructure:"sandboxOperator" json:"sandboxOperator,omitempty" default:"false"`
+	OperatorStepDirectCompletion    bool `mapstructure:"operatorStepDirectCompletion" json:"operatorStepDirectCompletion,omitempty" default:"false"`
 }
 
 // General server runtime options
@@ -291,6 +295,12 @@ type ConfigFileRuntime struct {
 	// WebhookRateLimitBurst is the burst size for webhook rate limiting
 	WebhookRateLimitBurst int `mapstructure:"webhookRateLimitBurst" json:"webhookRateLimitBurst,omitempty" default:"100"`
 
+	// TaskStatsRateLimit is the sustained rate limit for the task-stats endpoint per second, per tenant. 0 disables it
+	TaskStatsRateLimit float64 `mapstructure:"taskStatsRateLimit" json:"taskStatsRateLimit,omitempty" default:"10"`
+
+	// TaskStatsRateLimitBurst is the burst size for task-stats rate limiting, at least 1
+	TaskStatsRateLimitBurst int `mapstructure:"taskStatsRateLimitBurst" json:"taskStatsRateLimitBurst,omitempty" default:"100"`
+
 	// DisableTenantPubs controls whether tenant pubsub is disabled
 	DisableTenantPubs bool `mapstructure:"disableTenantPubs" json:"disableTenantPubs,omitempty"`
 
@@ -391,8 +401,9 @@ type ConfigFileRuntime struct {
 	// WorkflowRunBufferSize is the buffer size for workflow run event batching in the dispatcher
 	WorkflowRunBufferSize int `mapstructure:"workflowRunBufferSize" json:"workflowRunBufferSize,omitempty" default:"1000"`
 
-	// DurableEventBufferFlushInterval is how long a durable task event waits in the
-	// ingestion buffer to accumulate a batch before the batch is flushed to the database.
+	// DurableEventBufferFlushInterval is the minimum amount of time between batches of durable event log entries that we
+	// flush to the database. If an event comes in and we haven't flushed for longer than this interval, we'll flush it right away.
+	// Otherwise, it waits for the next flush, which can take up to twice this interval, or less if the buffer fills up first.
 	DurableEventBufferFlushInterval time.Duration `mapstructure:"durableEventBufferFlushInterval" json:"durableEventBufferFlushInterval,omitempty" default:"5ms"`
 
 	// DurableEventBufferMaxSize caps how many durable task events a single flush
@@ -1017,6 +1028,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.grpcRateLimit", "SERVER_GRPC_RATE_LIMIT")
 	_ = v.BindEnv("runtime.webhookRateLimit", "SERVER_INCOMING_WEBHOOK_RATE_LIMIT")
 	_ = v.BindEnv("runtime.webhookRateLimitBurst", "SERVER_INCOMING_WEBHOOK_RATE_LIMIT_BURST")
+	_ = v.BindEnv("runtime.taskStatsRateLimit", "SERVER_TASK_STATS_RATE_LIMIT")
+	_ = v.BindEnv("runtime.taskStatsRateLimitBurst", "SERVER_TASK_STATS_RATE_LIMIT_BURST")
 	_ = v.BindEnv("runtime.grpcShutdownTimeout", "SERVER_GRPC_SHUTDOWN_TIMEOUT")
 	_ = v.BindEnv("runtime.schedulerConcurrencyRateLimit", "SCHEDULER_CONCURRENCY_RATE_LIMIT")
 	_ = v.BindEnv("runtime.schedulerConcurrencyPollingMinInterval", "SCHEDULER_CONCURRENCY_POLLING_MIN_INTERVAL")
@@ -1093,6 +1106,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.defaultTenantEntitlements.durableStreams", "SERVER_DEFAULT_TENANT_ENTITLEMENT_DURABLE_STREAMS")
 	_ = v.BindEnv("runtime.defaultTenantEntitlements.serverlessOperator", "SERVER_DEFAULT_TENANT_ENTITLEMENT_SERVERLESS_OPERATOR")
 	_ = v.BindEnv("runtime.defaultTenantEntitlements.sandboxOperator", "SERVER_DEFAULT_TENANT_ENTITLEMENT_SANDBOX_OPERATOR")
+	_ = v.BindEnv("runtime.defaultTenantEntitlements.operatorStepDirectCompletion", "SERVER_DEFAULT_TENANT_ENTITLEMENT_OPERATOR_STEP_DIRECT_COMPLETION")
 
 	// limit options
 	_ = v.BindEnv("runtime.limits.defaultTenantRetentionPeriod", "SERVER_LIMITS_DEFAULT_TENANT_RETENTION_PERIOD")
@@ -1312,6 +1326,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.durableEventBufferMaxConcurrentFlushes", "SERVER_DURABLE_EVENT_BUFFER_MAX_CONCURRENT_FLUSHES")
 	_ = v.BindEnv("runtime.streamEventBufferTimeout", "SERVER_STREAM_EVENT_BUFFER_TIMEOUT")
 	_ = v.BindEnv("runtime.taskOperationLimits.reassignUnackedTasks", "SERVER_REASSIGN_UNACKED_TASKS")
+	_ = v.BindEnv("runtime.taskOperationLimits.childRunDirectSpawn", "SERVER_CHILD_RUN_DIRECT_SPAWN")
 
 	// payload store options
 	_ = v.BindEnv("payloadStore.externalCutoverProcessInterval", "SERVER_PAYLOAD_STORE_EXTERNAL_CUTOVER_PROCESS_INTERVAL")

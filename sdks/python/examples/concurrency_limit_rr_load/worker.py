@@ -1,11 +1,11 @@
 import random
 import time
+from datetime import timedelta
 
 from pydantic import BaseModel
 
 from hatchet_sdk import (
-    ConcurrencyExpression,
-    ConcurrencyLimitStrategy,
+    ConcurrencyStrategy,
     Context,
     Hatchet,
 )
@@ -20,10 +20,10 @@ class LoadRRInput(BaseModel):
 load_rr_workflow = hatchet.workflow(
     name="LoadRoundRobin",
     on_events=["concurrency-test"],
-    concurrency=ConcurrencyExpression(
+    concurrency=ConcurrencyStrategy(
         expression="input.group",
         max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+        strategy="GROUP_ROUND_ROBIN",
     ),
     input_validator=LoadRRInput,
 )
@@ -46,7 +46,7 @@ def step1(input: LoadRRInput, context: Context) -> dict[str, str]:
 @load_rr_workflow.task(
     retries=3,
     backoff_factor=5,
-    backoff_max_seconds=60,
+    backoff_max=timedelta(seconds=60),
 )
 def step2(sinput: LoadRRInput, context: Context) -> dict[str, str]:
     print("starting step2")

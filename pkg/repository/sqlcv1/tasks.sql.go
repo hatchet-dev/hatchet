@@ -355,24 +355,27 @@ func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Dat
 
 const defaultTaskActivityGauge = `-- name: DefaultTaskActivityGauge :one
 SELECT
-    COUNT(*)
+    COALESCE(MAX(last_active) > $1::timestamptz, FALSE)::BOOLEAN AS has_activity
 FROM
     v1_queue
 WHERE
-    tenant_id = $1::uuid
-    AND last_active > $2::timestamptz
+    tenant_id = $2::uuid
 `
 
 type DefaultTaskActivityGaugeParams struct {
-	Tenantid    uuid.UUID          `json:"tenantid"`
 	Activesince pgtype.Timestamptz `json:"activesince"`
+	Tenantid    uuid.UUID          `json:"tenantid"`
 }
 
-func (q *Queries) DefaultTaskActivityGauge(ctx context.Context, db DBTX, arg DefaultTaskActivityGaugeParams) (int64, error) {
-	row := db.QueryRow(ctx, defaultTaskActivityGauge, arg.Tenantid, arg.Activesince)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
+// Whether any of the tenant's queues has been active since the cutoff. Written as MAX rather than
+// EXISTS so that the planner reads the newest entry of v1_queue_tenant_id_last_active_idx: with
+// EXISTS it expects an early match and seq scans the table, which never ends early for a tenant
+// whose queues are all stale.
+func (q *Queries) DefaultTaskActivityGauge(ctx context.Context, db DBTX, arg DefaultTaskActivityGaugeParams) (bool, error) {
+	row := db.QueryRow(ctx, defaultTaskActivityGauge, arg.Activesince, arg.Tenantid)
+	var has_activity bool
+	err := row.Scan(&has_activity)
+	return has_activity, err
 }
 
 const deleteMatchingSignalEvents = `-- name: DeleteMatchingSignalEvents :exec
@@ -382,9 +385,9 @@ WITH input AS (
     FROM
         (
             SELECT
-                unnest($1::bigint[]) AS task_id,
-                unnest($2::timestamptz[]) AS task_inserted_at,
-                unnest($3::text[]) AS event_key
+                unnest($3::bigint[]) AS task_id,
+                unnest($4::timestamptz[]) AS task_inserted_at,
+                unnest($5::text[]) AS event_key
         ) AS subquery
 ), matching_events AS (
     SELECT
@@ -394,8 +397,10 @@ WITH input AS (
     JOIN
         input i ON i.task_id = e.task_id AND i.task_inserted_at = e.task_inserted_at AND i.event_key = e.event_key
     WHERE
-        e.tenant_id = $4::uuid
-        AND e.event_type = $5::v1_task_event_type
+        e.tenant_id = $6::uuid
+        AND e.event_type = $7::v1_task_event_type
+        AND e.task_inserted_at >= $1::TIMESTAMPTZ
+        AND e.task_inserted_at <= $2::TIMESTAMPTZ
     ORDER BY
         e.id
     FOR UPDATE
@@ -404,18 +409,24 @@ DELETE FROM
     v1_task_event
 WHERE
     (task_id, task_inserted_at, id) IN (SELECT task_id, task_inserted_at, id FROM matching_events)
+    AND task_inserted_at >= $1::TIMESTAMPTZ
+    AND task_inserted_at <= $2::TIMESTAMPTZ
 `
 
 type DeleteMatchingSignalEventsParams struct {
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Eventkeys       []string             `json:"eventkeys"`
-	Tenantid        uuid.UUID            `json:"tenantid"`
-	Eventtype       V1TaskEventType      `json:"eventtype"`
+	Mintaskinsertedat pgtype.Timestamptz   `json:"mintaskinsertedat"`
+	Maxtaskinsertedat pgtype.Timestamptz   `json:"maxtaskinsertedat"`
+	Taskids           []int64              `json:"taskids"`
+	Taskinsertedats   []pgtype.Timestamptz `json:"taskinsertedats"`
+	Eventkeys         []string             `json:"eventkeys"`
+	Tenantid          uuid.UUID            `json:"tenantid"`
+	Eventtype         V1TaskEventType      `json:"eventtype"`
 }
 
 func (q *Queries) DeleteMatchingSignalEvents(ctx context.Context, db DBTX, arg DeleteMatchingSignalEventsParams) error {
 	_, err := db.Exec(ctx, deleteMatchingSignalEvents,
+		arg.Mintaskinsertedat,
+		arg.Maxtaskinsertedat,
 		arg.Taskids,
 		arg.Taskinsertedats,
 		arg.Eventkeys,
@@ -564,10 +575,10 @@ WITH input AS (
     FROM
         (
             SELECT
-                unnest($1::bigint[]) AS task_id,
-                unnest($2::timestamptz[]) AS task_inserted_at,
-                unnest($3::integer[]) AS task_retry_count,
-                unnest($4::boolean[]) AS is_non_retryable
+                unnest($3::bigint[]) AS task_id,
+                unnest($4::timestamptz[]) AS task_inserted_at,
+                unnest($5::integer[]) AS task_retry_count,
+                unnest($6::boolean[]) AS is_non_retryable
         ) AS subquery
 ), locked_tasks AS (
     SELECT
@@ -580,7 +591,9 @@ WITH input AS (
     JOIN
         input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at AND i.task_retry_count = t.retry_count
     WHERE
-        t.tenant_id = $5::uuid
+        t.tenant_id = $7::uuid
+        AND t.inserted_at >= $1::TIMESTAMPTZ
+        AND t.inserted_at <= $2::TIMESTAMPTZ
         -- only fail tasks which still have a v1_task_runtime for the current retry count.
         -- a cancellation deletes the v1_task_runtime, so a late failure event should not trigger a retry.
         AND EXISTS (
@@ -613,6 +626,8 @@ FROM
 WHERE
     v1_task.id = tasks_to_steps.id
     AND v1_task.inserted_at = tasks_to_steps.inserted_at
+    AND v1_task.inserted_at >= $1::TIMESTAMPTZ
+    AND v1_task.inserted_at <= $2::TIMESTAMPTZ
     AND NOT tasks_to_steps.is_non_retryable
     AND tasks_to_steps."retries" > v1_task.app_retry_count
 RETURNING
@@ -625,11 +640,13 @@ RETURNING
 `
 
 type FailTaskAppFailureParams struct {
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Taskretrycounts []int32              `json:"taskretrycounts"`
-	Isnonretryables []bool               `json:"isnonretryables"`
-	Tenantid        uuid.UUID            `json:"tenantid"`
+	Mintaskinsertedat pgtype.Timestamptz   `json:"mintaskinsertedat"`
+	Maxtaskinsertedat pgtype.Timestamptz   `json:"maxtaskinsertedat"`
+	Taskids           []int64              `json:"taskids"`
+	Taskinsertedats   []pgtype.Timestamptz `json:"taskinsertedats"`
+	Taskretrycounts   []int32              `json:"taskretrycounts"`
+	Isnonretryables   []bool               `json:"isnonretryables"`
+	Tenantid          uuid.UUID            `json:"tenantid"`
 }
 
 type FailTaskAppFailureRow struct {
@@ -644,6 +661,8 @@ type FailTaskAppFailureRow struct {
 // Fails a task due to an application-level error
 func (q *Queries) FailTaskAppFailure(ctx context.Context, db DBTX, arg FailTaskAppFailureParams) ([]*FailTaskAppFailureRow, error) {
 	rows, err := db.Query(ctx, failTaskAppFailure,
+		arg.Mintaskinsertedat,
+		arg.Maxtaskinsertedat,
 		arg.Taskids,
 		arg.Taskinsertedats,
 		arg.Taskretrycounts,
@@ -682,9 +701,9 @@ WITH input AS (
     FROM
         (
             SELECT
-                unnest($2::bigint[]) AS task_id,
-                unnest($3::timestamptz[]) AS task_inserted_at,
-                unnest($4::integer[]) AS task_retry_count
+                unnest($4::bigint[]) AS task_id,
+                unnest($5::timestamptz[]) AS task_inserted_at,
+                unnest($6::integer[]) AS task_retry_count
         ) AS subquery
 ), locked_tasks AS (
     SELECT
@@ -695,7 +714,9 @@ WITH input AS (
     JOIN
         input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at AND i.task_retry_count = t.retry_count
     WHERE
-        t.tenant_id = $5::uuid
+        t.tenant_id = $7::uuid
+        AND t.inserted_at >= $1::TIMESTAMPTZ
+        AND t.inserted_at <= $2::TIMESTAMPTZ
         -- only fail tasks which still have a v1_task_runtime for the current retry count.
         -- a cancellation deletes the v1_task_runtime, so a late failure event should not trigger a retry.
         AND EXISTS (
@@ -717,7 +738,9 @@ FROM
 WHERE
     v1_task.id = locked_tasks.id
     AND v1_task.inserted_at = locked_tasks.inserted_at
-    AND $1::int > v1_task.internal_retry_count
+    AND v1_task.inserted_at >= $1::TIMESTAMPTZ
+    AND v1_task.inserted_at <= $2::TIMESTAMPTZ
+    AND $3::int > v1_task.internal_retry_count
 RETURNING
     v1_task.id,
     v1_task.inserted_at,
@@ -725,6 +748,8 @@ RETURNING
 `
 
 type FailTaskInternalFailureParams struct {
+	Mintaskinsertedat  pgtype.Timestamptz   `json:"mintaskinsertedat"`
+	Maxtaskinsertedat  pgtype.Timestamptz   `json:"maxtaskinsertedat"`
 	Maxinternalretries int32                `json:"maxinternalretries"`
 	Taskids            []int64              `json:"taskids"`
 	Taskinsertedats    []pgtype.Timestamptz `json:"taskinsertedats"`
@@ -741,6 +766,8 @@ type FailTaskInternalFailureRow struct {
 // Fails a task due to an internal error
 func (q *Queries) FailTaskInternalFailure(ctx context.Context, db DBTX, arg FailTaskInternalFailureParams) ([]*FailTaskInternalFailureRow, error) {
 	rows, err := db.Query(ctx, failTaskInternalFailure,
+		arg.Mintaskinsertedat,
+		arg.Maxtaskinsertedat,
 		arg.Maxinternalretries,
 		arg.Taskids,
 		arg.Taskinsertedats,
@@ -791,6 +818,8 @@ WITH input AS (
         input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at AND i.task_retry_count = t.retry_count
     WHERE
         t.tenant_id = $5::uuid
+        AND t.inserted_at >= $6::TIMESTAMPTZ
+        AND t.inserted_at <= $7::TIMESTAMPTZ
         -- only fail tasks which still have a v1_task_runtime for the current retry count.
         -- a cancellation deletes the v1_task_runtime, so a late failure event should not trigger a retry.
         AND EXISTS (
@@ -814,6 +843,8 @@ WITH input AS (
     WHERE
         v1_task.id = lt.id
         AND v1_task.inserted_at = lt.inserted_at
+        AND v1_task.inserted_at >= $6::TIMESTAMPTZ
+        AND v1_task.inserted_at <= $7::TIMESTAMPTZ
         AND s."retries" > v1_task.app_retry_count
     RETURNING
         v1_task.id,
@@ -859,11 +890,13 @@ JOIN
 `
 
 type FailTaskRetryAfterParams struct {
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Taskretrycounts []int32              `json:"taskretrycounts"`
-	Retryafterms    []int64              `json:"retryafterms"`
-	Tenantid        uuid.UUID            `json:"tenantid"`
+	Taskids           []int64              `json:"taskids"`
+	Taskinsertedats   []pgtype.Timestamptz `json:"taskinsertedats"`
+	Taskretrycounts   []int32              `json:"taskretrycounts"`
+	Retryafterms      []int64              `json:"retryafterms"`
+	Tenantid          uuid.UUID            `json:"tenantid"`
+	Mintaskinsertedat pgtype.Timestamptz   `json:"mintaskinsertedat"`
+	Maxtaskinsertedat pgtype.Timestamptz   `json:"maxtaskinsertedat"`
 }
 
 type FailTaskRetryAfterRow struct {
@@ -882,6 +915,8 @@ func (q *Queries) FailTaskRetryAfter(ctx context.Context, db DBTX, arg FailTaskR
 		arg.Taskretrycounts,
 		arg.Retryafterms,
 		arg.Tenantid,
+		arg.Mintaskinsertedat,
+		arg.Maxtaskinsertedat,
 	)
 	if err != nil {
 		return nil, err
@@ -910,9 +945,9 @@ func (q *Queries) FailTaskRetryAfter(ctx context.Context, db DBTX, arg FailTaskR
 const filterValidTasks = `-- name: FilterValidTasks :many
 WITH inputs AS (
     SELECT
-        UNNEST($2::bigint[]) AS task_id,
-        UNNEST($3::timestamptz[]) AS task_inserted_at,
-        UNNEST($4::integer[]) AS task_retry_count
+        UNNEST($4::bigint[]) AS task_id,
+        UNNEST($5::timestamptz[]) AS task_inserted_at,
+        UNNEST($6::integer[]) AS task_retry_count
 )
 SELECT
     t.id
@@ -925,18 +960,24 @@ WHERE
         FROM inputs
     )
     AND t.tenant_id = $1::uuid
+    AND t.inserted_at >= $2::TIMESTAMPTZ
+    AND t.inserted_at <= $3::TIMESTAMPTZ
 `
 
 type FilterValidTasksParams struct {
-	Tenantid        uuid.UUID            `json:"tenantid"`
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Taskretrycounts []int32              `json:"taskretrycounts"`
+	Tenantid          uuid.UUID            `json:"tenantid"`
+	Mintaskinsertedat pgtype.Timestamptz   `json:"mintaskinsertedat"`
+	Maxtaskinsertedat pgtype.Timestamptz   `json:"maxtaskinsertedat"`
+	Taskids           []int64              `json:"taskids"`
+	Taskinsertedats   []pgtype.Timestamptz `json:"taskinsertedats"`
+	Taskretrycounts   []int32              `json:"taskretrycounts"`
 }
 
 func (q *Queries) FilterValidTasks(ctx context.Context, db DBTX, arg FilterValidTasksParams) ([]int64, error) {
 	rows, err := db.Query(ctx, filterValidTasks,
 		arg.Tenantid,
+		arg.Mintaskinsertedat,
+		arg.Maxtaskinsertedat,
 		arg.Taskids,
 		arg.Taskinsertedats,
 		arg.Taskretrycounts,
@@ -1058,166 +1099,6 @@ func (q *Queries) FindOldestTask(ctx context.Context, db DBTX) (*V1Task, error) 
 		&i.TaskInputPayloadVersion,
 	)
 	return &i, err
-}
-
-const flattenExternalIds = `-- name: FlattenExternalIds :many
-WITH lookup_rows AS MATERIALIZED (
-    SELECT
-        tenant_id, external_id, task_id, dag_id, inserted_at
-    FROM
-        v1_lookup_table l
-    WHERE
-        l.external_id = ANY($1::uuid[])
-        AND l.tenant_id = $2::uuid
-), tasks_from_dags AS (
-    SELECT
-        t.id,
-        t.inserted_at,
-        t.retry_count,
-        t.external_id,
-        t.workflow_run_id,
-        t.additional_metadata,
-        t.dag_id,
-        t.dag_inserted_at,
-        t.parent_task_id,
-        t.child_index,
-        t.child_key,
-        t.step_readable_id,
-        l.external_id AS workflow_run_external_id,
-        t.workflow_id,
-        t.step_id,
-        t.is_dag_orchestrator,
-        t.workflow_version_id,
-        t.parent_task_external_id,
-        t.is_durable,
-        t.task_input_payload_version,
-        t.payload_reference_id,
-        d.payload_reference_id AS dag_payload_reference_id
-    FROM
-        lookup_rows l
-    JOIN
-        v1_dag d ON d.id = l.dag_id AND d.inserted_at = l.inserted_at
-    JOIN
-        v1_dag_to_task dt ON dt.dag_id = l.dag_id AND dt.dag_inserted_at = l.inserted_at
-    JOIN
-        v1_task t ON t.id = dt.task_id AND t.inserted_at = dt.task_inserted_at
-    WHERE
-        l.dag_id IS NOT NULL
-        AND d.inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE dag_id IS NOT NULL)
-        AND dt.dag_inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE dag_id IS NOT NULL)
-        AND t.inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE dag_id IS NOT NULL)
-)
-SELECT
-    t.id,
-    t.inserted_at,
-    t.retry_count,
-    t.external_id,
-    t.workflow_run_id,
-    t.additional_metadata,
-    t.dag_id,
-    t.dag_inserted_at,
-    t.parent_task_id,
-    t.child_index,
-    t.child_key,
-    t.step_readable_id,
-    t.external_id AS workflow_run_external_id,
-    t.workflow_id,
-    t.step_id,
-    t.is_dag_orchestrator,
-    t.workflow_version_id,
-    t.parent_task_external_id,
-    t.is_durable,
-    t.task_input_payload_version,
-    t.payload_reference_id,
-    NULL::uuid AS dag_payload_reference_id
-FROM
-    lookup_rows l
-JOIN
-    v1_task t ON t.id = l.task_id AND t.inserted_at = l.inserted_at
-WHERE
-    l.task_id IS NOT NULL
-    AND t.inserted_at >= (SELECT MIN(inserted_at) FROM lookup_rows WHERE task_id IS NOT NULL)
-
-UNION ALL
-
-SELECT
-    id, inserted_at, retry_count, external_id, workflow_run_id, additional_metadata, dag_id, dag_inserted_at, parent_task_id, child_index, child_key, step_readable_id, workflow_run_external_id, workflow_id, step_id, is_dag_orchestrator, workflow_version_id, parent_task_external_id, is_durable, task_input_payload_version, payload_reference_id, dag_payload_reference_id
-FROM
-    tasks_from_dags
-`
-
-type FlattenExternalIdsParams struct {
-	Externalids []uuid.UUID `json:"externalids"`
-	Tenantid    uuid.UUID   `json:"tenantid"`
-}
-
-type FlattenExternalIdsRow struct {
-	ID                      int64              `json:"id"`
-	InsertedAt              pgtype.Timestamptz `json:"inserted_at"`
-	RetryCount              int32              `json:"retry_count"`
-	ExternalID              uuid.UUID          `json:"external_id"`
-	WorkflowRunID           uuid.UUID          `json:"workflow_run_id"`
-	AdditionalMetadata      []byte             `json:"additional_metadata"`
-	DagID                   pgtype.Int8        `json:"dag_id"`
-	DagInsertedAt           pgtype.Timestamptz `json:"dag_inserted_at"`
-	ParentTaskID            pgtype.Int8        `json:"parent_task_id"`
-	ChildIndex              pgtype.Int8        `json:"child_index"`
-	ChildKey                pgtype.Text        `json:"child_key"`
-	StepReadableID          string             `json:"step_readable_id"`
-	WorkflowRunExternalID   uuid.UUID          `json:"workflow_run_external_id"`
-	WorkflowID              uuid.UUID          `json:"workflow_id"`
-	StepID                  uuid.UUID          `json:"step_id"`
-	IsDagOrchestrator       bool               `json:"is_dag_orchestrator"`
-	WorkflowVersionID       uuid.UUID          `json:"workflow_version_id"`
-	ParentTaskExternalID    *uuid.UUID         `json:"parent_task_external_id"`
-	IsDurable               pgtype.Bool        `json:"is_durable"`
-	TaskInputPayloadVersion int16              `json:"task_input_payload_version"`
-	PayloadReferenceID      *uuid.UUID         `json:"payload_reference_id"`
-	DagPayloadReferenceID   *uuid.UUID         `json:"dag_payload_reference_id"`
-}
-
-// Union the tasks from the lookup table with the tasks from the DAGs
-func (q *Queries) FlattenExternalIds(ctx context.Context, db DBTX, arg FlattenExternalIdsParams) ([]*FlattenExternalIdsRow, error) {
-	rows, err := db.Query(ctx, flattenExternalIds, arg.Externalids, arg.Tenantid)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*FlattenExternalIdsRow
-	for rows.Next() {
-		var i FlattenExternalIdsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.InsertedAt,
-			&i.RetryCount,
-			&i.ExternalID,
-			&i.WorkflowRunID,
-			&i.AdditionalMetadata,
-			&i.DagID,
-			&i.DagInsertedAt,
-			&i.ParentTaskID,
-			&i.ChildIndex,
-			&i.ChildKey,
-			&i.StepReadableID,
-			&i.WorkflowRunExternalID,
-			&i.WorkflowID,
-			&i.StepID,
-			&i.IsDagOrchestrator,
-			&i.WorkflowVersionID,
-			&i.ParentTaskExternalID,
-			&i.IsDurable,
-			&i.TaskInputPayloadVersion,
-			&i.PayloadReferenceID,
-			&i.DagPayloadReferenceID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const getTaskByExternalId = `-- name: GetTaskByExternalId :one
@@ -1774,9 +1655,9 @@ WITH input AS (
     FROM
         (
             SELECT
-                unnest($3::bigint[]) AS task_id,
-                unnest($4::timestamptz[]) AS task_inserted_at,
-                unnest($5::text[]) AS event_key
+                unnest($5::bigint[]) AS task_id,
+                unnest($6::timestamptz[]) AS task_inserted_at,
+                unnest($7::text[]) AS event_key
         ) AS subquery
 )
 SELECT
@@ -1788,20 +1669,26 @@ JOIN
 WHERE
     e.tenant_id = $1::uuid
     AND e.event_type = $2::v1_task_event_type
+    AND e.task_inserted_at >= $3::TIMESTAMPTZ
+    AND e.task_inserted_at <= $4::TIMESTAMPTZ
 `
 
 type ListMatchingSignalEventsParams struct {
-	Tenantid        uuid.UUID            `json:"tenantid"`
-	Eventtype       V1TaskEventType      `json:"eventtype"`
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Eventkeys       []string             `json:"eventkeys"`
+	Tenantid          uuid.UUID            `json:"tenantid"`
+	Eventtype         V1TaskEventType      `json:"eventtype"`
+	Mintaskinsertedat pgtype.Timestamptz   `json:"mintaskinsertedat"`
+	Maxtaskinsertedat pgtype.Timestamptz   `json:"maxtaskinsertedat"`
+	Taskids           []int64              `json:"taskids"`
+	Taskinsertedats   []pgtype.Timestamptz `json:"taskinsertedats"`
+	Eventkeys         []string             `json:"eventkeys"`
 }
 
 func (q *Queries) ListMatchingSignalEvents(ctx context.Context, db DBTX, arg ListMatchingSignalEventsParams) ([]*V1TaskEvent, error) {
 	rows, err := db.Query(ctx, listMatchingSignalEvents,
 		arg.Tenantid,
 		arg.Eventtype,
+		arg.Mintaskinsertedat,
+		arg.Maxtaskinsertedat,
 		arg.Taskids,
 		arg.Taskinsertedats,
 		arg.Eventkeys,
@@ -2445,9 +2332,9 @@ func (q *Queries) ListTaskParentOutputs(ctx context.Context, db DBTX, arg ListTa
 const listTaskRunningStatuses = `-- name: ListTaskRunningStatuses :many
 WITH inputs AS (
     SELECT
-        UNNEST($2::bigint[]) AS task_id,
-        UNNEST($3::timestamptz[]) AS task_inserted_at,
-        UNNEST($4::integer[]) AS task_retry_count
+        UNNEST($4::bigint[]) AS task_id,
+        UNNEST($5::timestamptz[]) AS task_inserted_at,
+        UNNEST($6::integer[]) AS task_retry_count
 )
 
 SELECT
@@ -2458,6 +2345,8 @@ FROM v1_task t
 LEFT JOIN v1_task_runtime tr ON (t.id, t.inserted_at, t.retry_count) = (tr.task_id, tr.task_inserted_at, tr.retry_count)
 WHERE
     t.tenant_id = $1::uuid
+    AND t.inserted_at >= $2::TIMESTAMPTZ
+    AND t.inserted_at <= $3::TIMESTAMPTZ
     AND (t.id, t.inserted_at, t.retry_count) IN (
         SELECT task_id, task_inserted_at, task_retry_count
         FROM inputs
@@ -2465,10 +2354,12 @@ WHERE
 `
 
 type ListTaskRunningStatusesParams struct {
-	Tenantid        uuid.UUID            `json:"tenantid"`
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Taskretrycounts []int32              `json:"taskretrycounts"`
+	Tenantid          uuid.UUID            `json:"tenantid"`
+	Mintaskinsertedat pgtype.Timestamptz   `json:"mintaskinsertedat"`
+	Maxtaskinsertedat pgtype.Timestamptz   `json:"maxtaskinsertedat"`
+	Taskids           []int64              `json:"taskids"`
+	Taskinsertedats   []pgtype.Timestamptz `json:"taskinsertedats"`
+	Taskretrycounts   []int32              `json:"taskretrycounts"`
 }
 
 type ListTaskRunningStatusesRow struct {
@@ -2480,6 +2371,8 @@ type ListTaskRunningStatusesRow struct {
 func (q *Queries) ListTaskRunningStatuses(ctx context.Context, db DBTX, arg ListTaskRunningStatusesParams) ([]*ListTaskRunningStatusesRow, error) {
 	rows, err := db.Query(ctx, listTaskRunningStatuses,
 		arg.Tenantid,
+		arg.Mintaskinsertedat,
+		arg.Maxtaskinsertedat,
 		arg.Taskids,
 		arg.Taskinsertedats,
 		arg.Taskretrycounts,
@@ -2654,6 +2547,7 @@ WITH RECURSIVE input_tasks AS MATERIALIZED (
         t.step_id,
         t.workflow_id,
         t.external_id,
+        t.workflow_run_id,
         t.input,
         t.additional_metadata,
         t.parent_task_external_id,
@@ -2705,6 +2599,7 @@ SELECT
     t.step_id,
     t.workflow_id,
     t.external_id,
+    t.workflow_run_id,
     t.input,
     t.additional_metadata,
     t.parent_task_external_id,
@@ -2747,6 +2642,7 @@ type ListTasksForReplayRow struct {
 	StepID                    uuid.UUID          `json:"step_id"`
 	WorkflowID                uuid.UUID          `json:"workflow_id"`
 	ExternalID                uuid.UUID          `json:"external_id"`
+	WorkflowRunID             uuid.UUID          `json:"workflow_run_id"`
 	Input                     []byte             `json:"input"`
 	AdditionalMetadata        []byte             `json:"additional_metadata"`
 	ParentTaskExternalID      *uuid.UUID         `json:"parent_task_external_id"`
@@ -2790,6 +2686,7 @@ func (q *Queries) ListTasksForReplay(ctx context.Context, db DBTX, arg ListTasks
 			&i.StepID,
 			&i.WorkflowID,
 			&i.ExternalID,
+			&i.WorkflowRunID,
 			&i.Input,
 			&i.AdditionalMetadata,
 			&i.ParentTaskExternalID,
@@ -3135,8 +3032,8 @@ func (q *Queries) ListUnfinishedDurableOrchestratorChildren(ctx context.Context,
 const lockDAGsForReplay = `-- name: LockDAGsForReplay :many
 WITH input AS (
     SELECT
-        UNNEST($2::bigint[]) AS dag_id,
-        UNNEST($3::timestamptz[]) AS dag_inserted_at
+        UNNEST($4::bigint[]) AS dag_id,
+        UNNEST($5::timestamptz[]) AS dag_inserted_at
 )
 SELECT
     d.id,
@@ -3147,14 +3044,18 @@ JOIN
     input i ON i.dag_id = d.id AND i.dag_inserted_at = d.inserted_at
 WHERE
     d.tenant_id = $1::uuid
+    AND d.inserted_at >= $2::TIMESTAMPTZ
+    AND d.inserted_at <= $3::TIMESTAMPTZ
 ORDER BY d.id
 FOR UPDATE SKIP LOCKED
 `
 
 type LockDAGsForReplayParams struct {
-	Tenantid       uuid.UUID            `json:"tenantid"`
-	Dagids         []int64              `json:"dagids"`
-	Daginsertedats []pgtype.Timestamptz `json:"daginsertedats"`
+	Tenantid         uuid.UUID            `json:"tenantid"`
+	Mindaginsertedat pgtype.Timestamptz   `json:"mindaginsertedat"`
+	Maxdaginsertedat pgtype.Timestamptz   `json:"maxdaginsertedat"`
+	Dagids           []int64              `json:"dagids"`
+	Daginsertedats   []pgtype.Timestamptz `json:"daginsertedats"`
 }
 
 type LockDAGsForReplayRow struct {
@@ -3165,7 +3066,13 @@ type LockDAGsForReplayRow struct {
 // Locks a list of DAGs for replay. Returns successfully locked DAGs which can be replayed.
 // We skip locked tasks because replays are the only thing that can lock a DAG for updates
 func (q *Queries) LockDAGsForReplay(ctx context.Context, db DBTX, arg LockDAGsForReplayParams) ([]*LockDAGsForReplayRow, error) {
-	rows, err := db.Query(ctx, lockDAGsForReplay, arg.Tenantid, arg.Dagids, arg.Daginsertedats)
+	rows, err := db.Query(ctx, lockDAGsForReplay,
+		arg.Tenantid,
+		arg.Mindaginsertedat,
+		arg.Maxdaginsertedat,
+		arg.Dagids,
+		arg.Daginsertedats,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -3214,6 +3121,8 @@ WITH input AS (
     WHERE
         e.tenant_id = $4::uuid
         AND e.event_type = 'SIGNAL_CREATED'
+        AND e.task_inserted_at >= $5::TIMESTAMPTZ
+        AND e.task_inserted_at <= $6::TIMESTAMPTZ
         -- filtering by key here keeps it in the index probe; a durable parent can have tens of
         -- thousands of signal events, and matching keys afterwards rescanned the input per event
         AND e.event_key = ANY($3::TEXT[])
@@ -3230,10 +3139,12 @@ FROM
 `
 
 type LockSignalCreatedEventsParams struct {
-	Taskids         []int64              `json:"taskids"`
-	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
-	Eventkeys       []string             `json:"eventkeys"`
-	Tenantid        uuid.UUID            `json:"tenantid"`
+	Taskids           []int64              `json:"taskids"`
+	Taskinsertedats   []pgtype.Timestamptz `json:"taskinsertedats"`
+	Eventkeys         []string             `json:"eventkeys"`
+	Tenantid          uuid.UUID            `json:"tenantid"`
+	Mintaskinsertedat pgtype.Timestamptz   `json:"mintaskinsertedat"`
+	Maxtaskinsertedat pgtype.Timestamptz   `json:"maxtaskinsertedat"`
 }
 
 type LockSignalCreatedEventsRow struct {
@@ -3253,6 +3164,8 @@ func (q *Queries) LockSignalCreatedEvents(ctx context.Context, db DBTX, arg Lock
 		arg.Taskinsertedats,
 		arg.Eventkeys,
 		arg.Tenantid,
+		arg.Mintaskinsertedat,
+		arg.Maxtaskinsertedat,
 	)
 	if err != nil {
 		return nil, err

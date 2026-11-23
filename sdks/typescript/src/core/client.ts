@@ -199,7 +199,26 @@ export class HatchetCore {
     });
     this.rateLimits = new RateLimitsClient({ rpc: this.workflowsRpc, ...shared });
     this.logs = new LogsClient(this.eventsRpc);
-    this.streams = new StreamsClient({ events: this.eventsRpc, streams: this.streamsRpc });
+    this.streams = new StreamsClient({
+      events: this.eventsRpc,
+      streams: this.streamsRpc,
+      fetchPayload: async (ref, signal) => {
+        const res = await this.api.v1StreamPayloadGet(
+          tenantId,
+          { ref },
+          { format: 'arrayBuffer', signal }
+        );
+        // a body that fails to read after a 2xx (e.g. the connection drops mid-download) comes
+        // back as `error` with no `data`, not as a throw
+        if (res.error) {
+          throw res.error;
+        }
+        if (!(res.data instanceof ArrayBuffer)) {
+          throw new HatchetError(`stream payload ${ref}: the response had no body`);
+        }
+        return new Uint8Array(res.data);
+      },
+    });
     this.tasks = new TasksClient(this.dispatcherRpc);
     this.crons = new CronClient(this);
     this.schedules = new ScheduleClient(this);
@@ -256,7 +275,7 @@ export class HatchetCore {
       if (isAlreadyExists(e)) {
         throw new IdempotencyCollisionError(extractExistingRunId(e));
       }
-      throw new HatchetError(e instanceof Error ? e.message : String(e));
+      throw new HatchetError(e instanceof Error ? e.message : String(e), { cause: e });
     }
   }
 
@@ -370,7 +389,7 @@ function bulkTriggerError(e: unknown): Error {
     const collision = extractBulkTriggerCollision(e);
     if (collision) return collision;
   }
-  return new HatchetError(e instanceof Error ? e.message : String(e));
+  return new HatchetError(e instanceof Error ? e.message : String(e), { cause: e });
 }
 
 /**

@@ -9,25 +9,26 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const bulkCreateDurableEventLogEntries = `-- name: BulkCreateDurableEventLogEntries :many
 WITH inputs AS (
     SELECT
-        UNNEST($1::UUID[]) AS tenant_id,
-        UNNEST($2::UUID[]) AS external_id,
-        UNNEST($3::UUID[]) AS child_task_external_id,
-        UNNEST($4::BIGINT[]) AS durable_task_id,
-        UNNEST($5::TIMESTAMPTZ[]) AS durable_task_inserted_at,
-        UNNEST($6::text[]) AS kind,
-        UNNEST($7::BIGINT[]) AS node_id,
-        UNNEST($8::BIGINT[]) AS branch_id,
-        UNNEST($9::BYTEA[]) AS idempotency_key,
-        UNNEST($10::BOOLEAN[]) AS is_satisfied,
-        UNNEST($11::BOOLEAN[]) AS is_triggered,
-        UNNEST($12::TEXT[]) AS user_message,
-        UNNEST($13::TEXT[]) AS wait_data
+        UNNEST($3::UUID[]) AS tenant_id,
+        UNNEST($4::UUID[]) AS external_id,
+        UNNEST($5::UUID[]) AS child_task_external_id,
+        UNNEST($6::BIGINT[]) AS durable_task_id,
+        UNNEST($7::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST($8::text[]) AS kind,
+        UNNEST($9::BIGINT[]) AS node_id,
+        UNNEST($10::BIGINT[]) AS branch_id,
+        UNNEST($11::BYTEA[]) AS idempotency_key,
+        UNNEST($12::BOOLEAN[]) AS is_satisfied,
+        UNNEST($13::BOOLEAN[]) AS is_triggered,
+        UNNEST($14::TEXT[]) AS user_message,
+        UNNEST($15::TEXT[]) AS wait_data
 ), ordered_inputs AS (
     -- a RUN entry created already satisfied (a skipped or cancelled DAG step) takes its place in
     -- the satisfaction order here, since nothing will satisfy it later
@@ -41,6 +42,8 @@ WITH inputs AS (
         END AS satisfied_order
     FROM inputs i
     JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (i.durable_task_id, i.durable_task_inserted_at)
+    WHERE lf.durable_task_inserted_at >= $1::TIMESTAMPTZ
+      AND lf.durable_task_inserted_at <= $2::TIMESTAMPTZ
 ), inserts AS (
     INSERT INTO v1_durable_event_log_entry (
         tenant_id,
@@ -93,55 +96,63 @@ WITH inputs AS (
         GROUP BY durable_task_id, durable_task_inserted_at
     ) so
     WHERE (lf.durable_task_id, lf.durable_task_inserted_at) = (so.durable_task_id, so.durable_task_inserted_at)
+      AND lf.durable_task_inserted_at >= $1::TIMESTAMPTZ
+      AND lf.durable_task_inserted_at <= $2::TIMESTAMPTZ
 )
 
 SELECT i.tenant_id, i.external_id, i.result_payload_external_id, i.child_task_external_id, i.child_task_is_failure, i.child_task_error_message, i.inserted_at, i.id, i.durable_task_id, i.durable_task_inserted_at, i.kind, i.node_id, i.branch_id, i.idempotency_key, i.is_satisfied, i.satisfied_at, i.satisfied_order, i.user_message, i.wait_data, i.triggered_at, lf.latest_invocation_count AS invocation_count
 FROM inserts i
 JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (i.durable_task_id, i.durable_task_inserted_at)
+WHERE lf.durable_task_inserted_at >= $1::TIMESTAMPTZ
+    AND lf.durable_task_inserted_at <= $2::TIMESTAMPTZ
 `
 
 type BulkCreateDurableEventLogEntriesParams struct {
-	Tenantids              []uuid.UUID          `json:"tenantids"`
-	Externalids            []uuid.UUID          `json:"externalids"`
-	Childtaskexternalids   []uuid.UUID          `json:"childtaskexternalids"`
-	Durabletaskids         []int64              `json:"durabletaskids"`
-	Durabletaskinsertedats []pgtype.Timestamptz `json:"durabletaskinsertedats"`
-	Kinds                  []string             `json:"kinds"`
-	Nodeids                []int64              `json:"nodeids"`
-	Branchids              []int64              `json:"branchids"`
-	Idempotencykeys        [][]byte             `json:"idempotencykeys"`
-	Issatisfieds           []bool               `json:"issatisfieds"`
-	Istriggereds           []bool               `json:"istriggereds"`
-	Usermessages           []string             `json:"usermessages"`
-	Waitdatas              []string             `json:"waitdatas"`
+	Mindurabletaskinsertedat pgtype.Timestamptz   `json:"mindurabletaskinsertedat"`
+	Maxdurabletaskinsertedat pgtype.Timestamptz   `json:"maxdurabletaskinsertedat"`
+	Tenantids                []uuid.UUID          `json:"tenantids"`
+	Externalids              []uuid.UUID          `json:"externalids"`
+	Childtaskexternalids     []uuid.UUID          `json:"childtaskexternalids"`
+	Durabletaskids           []int64              `json:"durabletaskids"`
+	Durabletaskinsertedats   []pgtype.Timestamptz `json:"durabletaskinsertedats"`
+	Kinds                    []string             `json:"kinds"`
+	Nodeids                  []int64              `json:"nodeids"`
+	Branchids                []int64              `json:"branchids"`
+	Idempotencykeys          [][]byte             `json:"idempotencykeys"`
+	Issatisfieds             []bool               `json:"issatisfieds"`
+	Istriggereds             []bool               `json:"istriggereds"`
+	Usermessages             []string             `json:"usermessages"`
+	Waitdatas                []string             `json:"waitdatas"`
 }
 
 type BulkCreateDurableEventLogEntriesRow struct {
-	TenantID                uuid.UUID             `json:"tenant_id"`
-	ExternalID              uuid.UUID             `json:"external_id"`
-	ResultPayloadExternalID uuid.UUID             `json:"result_payload_external_id"`
-	ChildTaskExternalID     *uuid.UUID            `json:"child_task_external_id"`
-	ChildTaskIsFailure      bool                  `json:"child_task_is_failure"`
-	ChildTaskErrorMessage   pgtype.Text           `json:"child_task_error_message"`
-	InsertedAt              pgtype.Timestamptz    `json:"inserted_at"`
-	ID                      int64                 `json:"id"`
-	DurableTaskID           int64                 `json:"durable_task_id"`
-	DurableTaskInsertedAt   pgtype.Timestamptz    `json:"durable_task_inserted_at"`
-	Kind                    V1DurableEventLogKind `json:"kind"`
-	NodeID                  int64                 `json:"node_id"`
-	BranchID                int64                 `json:"branch_id"`
-	IdempotencyKey          []byte                `json:"idempotency_key"`
-	IsSatisfied             bool                  `json:"is_satisfied"`
-	SatisfiedAt             pgtype.Timestamptz    `json:"satisfied_at"`
-	SatisfiedOrder          pgtype.Int8           `json:"satisfied_order"`
-	UserMessage             pgtype.Text           `json:"user_message"`
-	WaitData                []byte                `json:"wait_data"`
-	TriggeredAt             pgtype.Timestamptz    `json:"triggered_at"`
-	InvocationCount         int32                 `json:"invocation_count"`
+	TenantID                uuid.UUID                   `json:"tenant_id"`
+	ExternalID              uuid.UUID                   `json:"external_id"`
+	ResultPayloadExternalID uuid.UUID                   `json:"result_payload_external_id"`
+	ChildTaskExternalID     *uuid.UUID                  `json:"child_task_external_id"`
+	ChildTaskIsFailure      bool                        `json:"child_task_is_failure"`
+	ChildTaskErrorMessage   pgtype.Text                 `json:"child_task_error_message"`
+	InsertedAt              pgtype.Timestamptz          `json:"inserted_at"`
+	ID                      int64                       `json:"id"`
+	DurableTaskID           int64                       `json:"durable_task_id"`
+	DurableTaskInsertedAt   pgtype.Timestamptz          `json:"durable_task_inserted_at"`
+	Kind                    enums.V1DurableEventLogKind `json:"kind"`
+	NodeID                  int64                       `json:"node_id"`
+	BranchID                int64                       `json:"branch_id"`
+	IdempotencyKey          []byte                      `json:"idempotency_key"`
+	IsSatisfied             bool                        `json:"is_satisfied"`
+	SatisfiedAt             pgtype.Timestamptz          `json:"satisfied_at"`
+	SatisfiedOrder          pgtype.Int8                 `json:"satisfied_order"`
+	UserMessage             pgtype.Text                 `json:"user_message"`
+	WaitData                []byte                      `json:"wait_data"`
+	TriggeredAt             pgtype.Timestamptz          `json:"triggered_at"`
+	InvocationCount         int32                       `json:"invocation_count"`
 }
 
 func (q *Queries) BulkCreateDurableEventLogEntries(ctx context.Context, db DBTX, arg BulkCreateDurableEventLogEntriesParams) ([]*BulkCreateDurableEventLogEntriesRow, error) {
 	rows, err := db.Query(ctx, bulkCreateDurableEventLogEntries,
+		arg.Mindurabletaskinsertedat,
+		arg.Maxdurabletaskinsertedat,
 		arg.Tenantids,
 		arg.Externalids,
 		arg.Childtaskexternalids,
@@ -199,51 +210,59 @@ func (q *Queries) BulkCreateDurableEventLogEntries(ctx context.Context, db DBTX,
 const bulkGetDurableEventLogEntries = `-- name: BulkGetDurableEventLogEntries :many
 WITH inputs AS (
     SELECT
-        UNNEST($1::BIGINT[]) AS durable_task_id,
-        UNNEST($2::TIMESTAMPTZ[]) AS durable_task_inserted_at,
-        UNNEST($3::BIGINT[]) AS branch_id,
-        UNNEST($4::BIGINT[]) AS node_id
+        UNNEST($3::BIGINT[]) AS durable_task_id,
+        UNNEST($4::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST($5::BIGINT[]) AS branch_id,
+        UNNEST($6::BIGINT[]) AS node_id
 )
 SELECT e.tenant_id, e.external_id, e.result_payload_external_id, e.child_task_external_id, e.child_task_is_failure, e.child_task_error_message, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.satisfied_order, e.user_message, e.wait_data, e.triggered_at, lf.latest_invocation_count AS invocation_count
 FROM v1_durable_event_log_entry e
 JOIN inputs i
     ON (e.durable_task_id, e.durable_task_inserted_at, e.branch_id, e.node_id) = (i.durable_task_id, i.durable_task_inserted_at, i.branch_id, i.node_id)
 JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
+WHERE e.durable_task_inserted_at >= $1::TIMESTAMPTZ
+    AND e.durable_task_inserted_at <= $2::TIMESTAMPTZ
+    AND lf.durable_task_inserted_at >= $1::TIMESTAMPTZ
+    AND lf.durable_task_inserted_at <= $2::TIMESTAMPTZ
 `
 
 type BulkGetDurableEventLogEntriesParams struct {
-	Durabletaskids         []int64              `json:"durabletaskids"`
-	Durabletaskinsertedats []pgtype.Timestamptz `json:"durabletaskinsertedats"`
-	Branchids              []int64              `json:"branchids"`
-	Nodeids                []int64              `json:"nodeids"`
+	Mindurabletaskinsertedat pgtype.Timestamptz   `json:"mindurabletaskinsertedat"`
+	Maxdurabletaskinsertedat pgtype.Timestamptz   `json:"maxdurabletaskinsertedat"`
+	Durabletaskids           []int64              `json:"durabletaskids"`
+	Durabletaskinsertedats   []pgtype.Timestamptz `json:"durabletaskinsertedats"`
+	Branchids                []int64              `json:"branchids"`
+	Nodeids                  []int64              `json:"nodeids"`
 }
 
 type BulkGetDurableEventLogEntriesRow struct {
-	TenantID                uuid.UUID             `json:"tenant_id"`
-	ExternalID              uuid.UUID             `json:"external_id"`
-	ResultPayloadExternalID uuid.UUID             `json:"result_payload_external_id"`
-	ChildTaskExternalID     *uuid.UUID            `json:"child_task_external_id"`
-	ChildTaskIsFailure      bool                  `json:"child_task_is_failure"`
-	ChildTaskErrorMessage   pgtype.Text           `json:"child_task_error_message"`
-	InsertedAt              pgtype.Timestamptz    `json:"inserted_at"`
-	ID                      int64                 `json:"id"`
-	DurableTaskID           int64                 `json:"durable_task_id"`
-	DurableTaskInsertedAt   pgtype.Timestamptz    `json:"durable_task_inserted_at"`
-	Kind                    V1DurableEventLogKind `json:"kind"`
-	NodeID                  int64                 `json:"node_id"`
-	BranchID                int64                 `json:"branch_id"`
-	IdempotencyKey          []byte                `json:"idempotency_key"`
-	IsSatisfied             bool                  `json:"is_satisfied"`
-	SatisfiedAt             pgtype.Timestamptz    `json:"satisfied_at"`
-	SatisfiedOrder          pgtype.Int8           `json:"satisfied_order"`
-	UserMessage             pgtype.Text           `json:"user_message"`
-	WaitData                []byte                `json:"wait_data"`
-	TriggeredAt             pgtype.Timestamptz    `json:"triggered_at"`
-	InvocationCount         int32                 `json:"invocation_count"`
+	TenantID                uuid.UUID                   `json:"tenant_id"`
+	ExternalID              uuid.UUID                   `json:"external_id"`
+	ResultPayloadExternalID uuid.UUID                   `json:"result_payload_external_id"`
+	ChildTaskExternalID     *uuid.UUID                  `json:"child_task_external_id"`
+	ChildTaskIsFailure      bool                        `json:"child_task_is_failure"`
+	ChildTaskErrorMessage   pgtype.Text                 `json:"child_task_error_message"`
+	InsertedAt              pgtype.Timestamptz          `json:"inserted_at"`
+	ID                      int64                       `json:"id"`
+	DurableTaskID           int64                       `json:"durable_task_id"`
+	DurableTaskInsertedAt   pgtype.Timestamptz          `json:"durable_task_inserted_at"`
+	Kind                    enums.V1DurableEventLogKind `json:"kind"`
+	NodeID                  int64                       `json:"node_id"`
+	BranchID                int64                       `json:"branch_id"`
+	IdempotencyKey          []byte                      `json:"idempotency_key"`
+	IsSatisfied             bool                        `json:"is_satisfied"`
+	SatisfiedAt             pgtype.Timestamptz          `json:"satisfied_at"`
+	SatisfiedOrder          pgtype.Int8                 `json:"satisfied_order"`
+	UserMessage             pgtype.Text                 `json:"user_message"`
+	WaitData                []byte                      `json:"wait_data"`
+	TriggeredAt             pgtype.Timestamptz          `json:"triggered_at"`
+	InvocationCount         int32                       `json:"invocation_count"`
 }
 
 func (q *Queries) BulkGetDurableEventLogEntries(ctx context.Context, db DBTX, arg BulkGetDurableEventLogEntriesParams) ([]*BulkGetDurableEventLogEntriesRow, error) {
 	rows, err := db.Query(ctx, bulkGetDurableEventLogEntries,
+		arg.Mindurabletaskinsertedat,
+		arg.Maxdurabletaskinsertedat,
 		arg.Durabletaskids,
 		arg.Durabletaskinsertedats,
 		arg.Branchids,
@@ -368,10 +387,10 @@ func (q *Queries) BulkUpsertDurableChildSignalCreatedEvents(ctx context.Context,
 const claimDurableEventLogEntriesForTrigger = `-- name: ClaimDurableEventLogEntriesForTrigger :many
 WITH inputs AS (
     SELECT
-        UNNEST($1::BIGINT[]) AS node_id,
-        UNNEST($2::BIGINT[]) AS branch_id,
-        UNNEST($3::BIGINT[]) AS durable_task_id,
-        UNNEST($4::TIMESTAMPTZ[]) AS durable_task_inserted_at
+        UNNEST($3::BIGINT[]) AS node_id,
+        UNNEST($4::BIGINT[]) AS branch_id,
+        UNNEST($5::BIGINT[]) AS durable_task_id,
+        UNNEST($6::TIMESTAMPTZ[]) AS durable_task_inserted_at
 ), to_claim AS (
     SELECT
         e.durable_task_id,
@@ -387,6 +406,8 @@ WITH inputs AS (
             AND e.branch_id = i.branch_id
     WHERE
         e.triggered_at IS NULL
+        AND e.durable_task_inserted_at >= $1::TIMESTAMPTZ
+        AND e.durable_task_inserted_at <= $2::TIMESTAMPTZ
     ORDER BY e.durable_task_id, e.durable_task_inserted_at, e.branch_id, e.node_id
     FOR UPDATE
 )
@@ -398,18 +419,24 @@ WHERE e.durable_task_id = c.durable_task_id
   AND e.durable_task_inserted_at = c.durable_task_inserted_at
   AND e.branch_id = c.branch_id
   AND e.node_id = c.node_id
+  AND e.durable_task_inserted_at >= $1::TIMESTAMPTZ
+  AND e.durable_task_inserted_at <= $2::TIMESTAMPTZ
 RETURNING e.tenant_id, e.external_id, e.result_payload_external_id, e.child_task_external_id, e.child_task_is_failure, e.child_task_error_message, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.satisfied_order, e.user_message, e.wait_data, e.triggered_at
 `
 
 type ClaimDurableEventLogEntriesForTriggerParams struct {
-	Nodeids                []int64              `json:"nodeids"`
-	Branchids              []int64              `json:"branchids"`
-	Durabletaskids         []int64              `json:"durabletaskids"`
-	Durabletaskinsertedats []pgtype.Timestamptz `json:"durabletaskinsertedats"`
+	Mindurabletaskinsertedat pgtype.Timestamptz   `json:"mindurabletaskinsertedat"`
+	Maxdurabletaskinsertedat pgtype.Timestamptz   `json:"maxdurabletaskinsertedat"`
+	Nodeids                  []int64              `json:"nodeids"`
+	Branchids                []int64              `json:"branchids"`
+	Durabletaskids           []int64              `json:"durabletaskids"`
+	Durabletaskinsertedats   []pgtype.Timestamptz `json:"durabletaskinsertedats"`
 }
 
 func (q *Queries) ClaimDurableEventLogEntriesForTrigger(ctx context.Context, db DBTX, arg ClaimDurableEventLogEntriesForTriggerParams) ([]*V1DurableEventLogEntry, error) {
 	rows, err := db.Query(ctx, claimDurableEventLogEntriesForTrigger,
+		arg.Mindurabletaskinsertedat,
+		arg.Maxdurabletaskinsertedat,
 		arg.Nodeids,
 		arg.Branchids,
 		arg.Durabletaskids,
@@ -502,9 +529,9 @@ func (q *Queries) CreateDurableEventLogBranchPoint(ctx context.Context, db DBTX,
 const getAndLockLogFilesWithBranchPoints = `-- name: GetAndLockLogFilesWithBranchPoints :many
 WITH inputs AS (
     SELECT
-        UNNEST($2::BIGINT[]) AS durable_task_id,
-        UNNEST($3::TIMESTAMPTZ[]) AS durable_task_inserted_at,
-        UNNEST($4::UUID[]) AS tenant_id
+        UNNEST($3::BIGINT[]) AS durable_task_id,
+        UNNEST($4::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST($5::UUID[]) AS tenant_id
 )
 
 SELECT
@@ -514,13 +541,17 @@ FROM v1_durable_event_log_file lf
 JOIN inputs i ON (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id) = (i.durable_task_id, i.durable_task_inserted_at, i.tenant_id)
 LEFT JOIN v1_durable_event_log_branch_point bp
     ON (bp.durable_task_id, bp.durable_task_inserted_at, bp.tenant_id) = (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id)
+    AND bp.durable_task_inserted_at >= $1::TIMESTAMPTZ
+    AND bp.durable_task_inserted_at <= $2::TIMESTAMPTZ
 WHERE lf.durable_task_inserted_at >= $1::TIMESTAMPTZ
+    AND lf.durable_task_inserted_at <= $2::TIMESTAMPTZ
 ORDER BY lf.durable_task_id, lf.durable_task_inserted_at
 FOR UPDATE OF lf
 `
 
 type GetAndLockLogFilesWithBranchPointsParams struct {
 	Mindurabletaskinsertedat pgtype.Timestamptz   `json:"mindurabletaskinsertedat"`
+	Maxdurabletaskinsertedat pgtype.Timestamptz   `json:"maxdurabletaskinsertedat"`
 	Durabletaskids           []int64              `json:"durabletaskids"`
 	Durabletaskinsertedats   []pgtype.Timestamptz `json:"durabletaskinsertedats"`
 	Tenantids                []uuid.UUID          `json:"tenantids"`
@@ -542,6 +573,7 @@ type GetAndLockLogFilesWithBranchPointsRow struct {
 func (q *Queries) GetAndLockLogFilesWithBranchPoints(ctx context.Context, db DBTX, arg GetAndLockLogFilesWithBranchPointsParams) ([]*GetAndLockLogFilesWithBranchPointsRow, error) {
 	rows, err := db.Query(ctx, getAndLockLogFilesWithBranchPoints,
 		arg.Mindurabletaskinsertedat,
+		arg.Maxdurabletaskinsertedat,
 		arg.Durabletaskids,
 		arg.Durabletaskinsertedats,
 		arg.Tenantids,
@@ -600,27 +632,27 @@ type GetDurableEventLogEntriesByChildTaskExternalIdsParams struct {
 }
 
 type GetDurableEventLogEntriesByChildTaskExternalIdsRow struct {
-	TenantID                uuid.UUID             `json:"tenant_id"`
-	ExternalID              uuid.UUID             `json:"external_id"`
-	ResultPayloadExternalID uuid.UUID             `json:"result_payload_external_id"`
-	ChildTaskExternalID     *uuid.UUID            `json:"child_task_external_id"`
-	ChildTaskIsFailure      bool                  `json:"child_task_is_failure"`
-	ChildTaskErrorMessage   pgtype.Text           `json:"child_task_error_message"`
-	InsertedAt              pgtype.Timestamptz    `json:"inserted_at"`
-	ID                      int64                 `json:"id"`
-	DurableTaskID           int64                 `json:"durable_task_id"`
-	DurableTaskInsertedAt   pgtype.Timestamptz    `json:"durable_task_inserted_at"`
-	Kind                    V1DurableEventLogKind `json:"kind"`
-	NodeID                  int64                 `json:"node_id"`
-	BranchID                int64                 `json:"branch_id"`
-	IdempotencyKey          []byte                `json:"idempotency_key"`
-	IsSatisfied             bool                  `json:"is_satisfied"`
-	SatisfiedAt             pgtype.Timestamptz    `json:"satisfied_at"`
-	SatisfiedOrder          pgtype.Int8           `json:"satisfied_order"`
-	UserMessage             pgtype.Text           `json:"user_message"`
-	WaitData                []byte                `json:"wait_data"`
-	TriggeredAt             pgtype.Timestamptz    `json:"triggered_at"`
-	InvocationCount         int32                 `json:"invocation_count"`
+	TenantID                uuid.UUID                   `json:"tenant_id"`
+	ExternalID              uuid.UUID                   `json:"external_id"`
+	ResultPayloadExternalID uuid.UUID                   `json:"result_payload_external_id"`
+	ChildTaskExternalID     *uuid.UUID                  `json:"child_task_external_id"`
+	ChildTaskIsFailure      bool                        `json:"child_task_is_failure"`
+	ChildTaskErrorMessage   pgtype.Text                 `json:"child_task_error_message"`
+	InsertedAt              pgtype.Timestamptz          `json:"inserted_at"`
+	ID                      int64                       `json:"id"`
+	DurableTaskID           int64                       `json:"durable_task_id"`
+	DurableTaskInsertedAt   pgtype.Timestamptz          `json:"durable_task_inserted_at"`
+	Kind                    enums.V1DurableEventLogKind `json:"kind"`
+	NodeID                  int64                       `json:"node_id"`
+	BranchID                int64                       `json:"branch_id"`
+	IdempotencyKey          []byte                      `json:"idempotency_key"`
+	IsSatisfied             bool                        `json:"is_satisfied"`
+	SatisfiedAt             pgtype.Timestamptz          `json:"satisfied_at"`
+	SatisfiedOrder          pgtype.Int8                 `json:"satisfied_order"`
+	UserMessage             pgtype.Text                 `json:"user_message"`
+	WaitData                []byte                      `json:"wait_data"`
+	TriggeredAt             pgtype.Timestamptz          `json:"triggered_at"`
+	InvocationCount         int32                       `json:"invocation_count"`
 }
 
 func (q *Queries) GetDurableEventLogEntriesByChildTaskExternalIds(ctx context.Context, db DBTX, arg GetDurableEventLogEntriesByChildTaskExternalIdsParams) ([]*GetDurableEventLogEntriesByChildTaskExternalIdsRow, error) {
@@ -717,9 +749,9 @@ func (q *Queries) GetDurableEventLogEntry(ctx context.Context, db DBTX, arg GetD
 const getDurableTaskLogFiles = `-- name: GetDurableTaskLogFiles :many
 WITH inputs AS (
     SELECT
-        UNNEST($1::BIGINT[]) AS durable_task_id,
-        UNNEST($2::TIMESTAMPTZ[]) AS durable_task_inserted_at,
-        UNNEST($3::UUID[]) AS tenant_id
+        UNNEST($3::BIGINT[]) AS durable_task_id,
+        UNNEST($4::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST($5::UUID[]) AS tenant_id
 )
 
 SELECT tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, latest_satisfied_order
@@ -728,16 +760,26 @@ WHERE (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id) IN (
     SELECT durable_task_id, durable_task_inserted_at, tenant_id
     FROM inputs
 )
+    AND lf.durable_task_inserted_at >= $1::TIMESTAMPTZ
+    AND lf.durable_task_inserted_at <= $2::TIMESTAMPTZ
 `
 
 type GetDurableTaskLogFilesParams struct {
-	Durabletaskids         []int64              `json:"durabletaskids"`
-	Durabletaskinsertedats []pgtype.Timestamptz `json:"durabletaskinsertedats"`
-	Tenantids              []uuid.UUID          `json:"tenantids"`
+	Mindurabletaskinsertedat pgtype.Timestamptz   `json:"mindurabletaskinsertedat"`
+	Maxdurabletaskinsertedat pgtype.Timestamptz   `json:"maxdurabletaskinsertedat"`
+	Durabletaskids           []int64              `json:"durabletaskids"`
+	Durabletaskinsertedats   []pgtype.Timestamptz `json:"durabletaskinsertedats"`
+	Tenantids                []uuid.UUID          `json:"tenantids"`
 }
 
 func (q *Queries) GetDurableTaskLogFiles(ctx context.Context, db DBTX, arg GetDurableTaskLogFilesParams) ([]*V1DurableEventLogFile, error) {
-	rows, err := db.Query(ctx, getDurableTaskLogFiles, arg.Durabletaskids, arg.Durabletaskinsertedats, arg.Tenantids)
+	rows, err := db.Query(ctx, getDurableTaskLogFiles,
+		arg.Mindurabletaskinsertedat,
+		arg.Maxdurabletaskinsertedat,
+		arg.Durabletaskids,
+		arg.Durabletaskinsertedats,
+		arg.Tenantids,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -919,28 +961,28 @@ type ListDurableEventLogForTaskParams struct {
 }
 
 type ListDurableEventLogForTaskRow struct {
-	TenantID                uuid.UUID             `json:"tenant_id"`
-	ExternalID              uuid.UUID             `json:"external_id"`
-	ResultPayloadExternalID uuid.UUID             `json:"result_payload_external_id"`
-	ChildTaskExternalID     *uuid.UUID            `json:"child_task_external_id"`
-	ChildTaskIsFailure      bool                  `json:"child_task_is_failure"`
-	ChildTaskErrorMessage   pgtype.Text           `json:"child_task_error_message"`
-	InsertedAt              pgtype.Timestamptz    `json:"inserted_at"`
-	ID                      int64                 `json:"id"`
-	DurableTaskID           int64                 `json:"durable_task_id"`
-	DurableTaskInsertedAt   pgtype.Timestamptz    `json:"durable_task_inserted_at"`
-	Kind                    V1DurableEventLogKind `json:"kind"`
-	NodeID                  int64                 `json:"node_id"`
-	BranchID                int64                 `json:"branch_id"`
-	IdempotencyKey          []byte                `json:"idempotency_key"`
-	IsSatisfied             bool                  `json:"is_satisfied"`
-	SatisfiedAt             pgtype.Timestamptz    `json:"satisfied_at"`
-	SatisfiedOrder          pgtype.Int8           `json:"satisfied_order"`
-	UserMessage             pgtype.Text           `json:"user_message"`
-	WaitData                []byte                `json:"wait_data"`
-	TriggeredAt             pgtype.Timestamptz    `json:"triggered_at"`
-	DurableTaskExternalID   uuid.UUID             `json:"durable_task_external_id"`
-	DurableTaskDisplayName  string                `json:"durable_task_display_name"`
+	TenantID                uuid.UUID                   `json:"tenant_id"`
+	ExternalID              uuid.UUID                   `json:"external_id"`
+	ResultPayloadExternalID uuid.UUID                   `json:"result_payload_external_id"`
+	ChildTaskExternalID     *uuid.UUID                  `json:"child_task_external_id"`
+	ChildTaskIsFailure      bool                        `json:"child_task_is_failure"`
+	ChildTaskErrorMessage   pgtype.Text                 `json:"child_task_error_message"`
+	InsertedAt              pgtype.Timestamptz          `json:"inserted_at"`
+	ID                      int64                       `json:"id"`
+	DurableTaskID           int64                       `json:"durable_task_id"`
+	DurableTaskInsertedAt   pgtype.Timestamptz          `json:"durable_task_inserted_at"`
+	Kind                    enums.V1DurableEventLogKind `json:"kind"`
+	NodeID                  int64                       `json:"node_id"`
+	BranchID                int64                       `json:"branch_id"`
+	IdempotencyKey          []byte                      `json:"idempotency_key"`
+	IsSatisfied             bool                        `json:"is_satisfied"`
+	SatisfiedAt             pgtype.Timestamptz          `json:"satisfied_at"`
+	SatisfiedOrder          pgtype.Int8                 `json:"satisfied_order"`
+	UserMessage             pgtype.Text                 `json:"user_message"`
+	WaitData                []byte                      `json:"wait_data"`
+	TriggeredAt             pgtype.Timestamptz          `json:"triggered_at"`
+	DurableTaskExternalID   uuid.UUID                   `json:"durable_task_external_id"`
+	DurableTaskDisplayName  string                      `json:"durable_task_display_name"`
 }
 
 func (q *Queries) ListDurableEventLogForTask(ctx context.Context, db DBTX, arg ListDurableEventLogForTaskParams) ([]*ListDurableEventLogForTaskRow, error) {
@@ -1047,28 +1089,28 @@ type ListSatisfiedEntriesParams struct {
 }
 
 type ListSatisfiedEntriesRow struct {
-	TenantID                uuid.UUID             `json:"tenant_id"`
-	ExternalID              uuid.UUID             `json:"external_id"`
-	ResultPayloadExternalID uuid.UUID             `json:"result_payload_external_id"`
-	ChildTaskExternalID     *uuid.UUID            `json:"child_task_external_id"`
-	ChildTaskIsFailure      bool                  `json:"child_task_is_failure"`
-	ChildTaskErrorMessage   pgtype.Text           `json:"child_task_error_message"`
-	InsertedAt              pgtype.Timestamptz    `json:"inserted_at"`
-	ID                      int64                 `json:"id"`
-	DurableTaskID           int64                 `json:"durable_task_id"`
-	DurableTaskInsertedAt   pgtype.Timestamptz    `json:"durable_task_inserted_at"`
-	Kind                    V1DurableEventLogKind `json:"kind"`
-	NodeID                  int64                 `json:"node_id"`
-	BranchID                int64                 `json:"branch_id"`
-	IdempotencyKey          []byte                `json:"idempotency_key"`
-	IsSatisfied             bool                  `json:"is_satisfied"`
-	SatisfiedAt             pgtype.Timestamptz    `json:"satisfied_at"`
-	SatisfiedOrder          pgtype.Int8           `json:"satisfied_order"`
-	UserMessage             pgtype.Text           `json:"user_message"`
-	WaitData                []byte                `json:"wait_data"`
-	TriggeredAt             pgtype.Timestamptz    `json:"triggered_at"`
-	TaskExternalID          uuid.UUID             `json:"task_external_id"`
-	InvocationCount         int32                 `json:"invocation_count"`
+	TenantID                uuid.UUID                   `json:"tenant_id"`
+	ExternalID              uuid.UUID                   `json:"external_id"`
+	ResultPayloadExternalID uuid.UUID                   `json:"result_payload_external_id"`
+	ChildTaskExternalID     *uuid.UUID                  `json:"child_task_external_id"`
+	ChildTaskIsFailure      bool                        `json:"child_task_is_failure"`
+	ChildTaskErrorMessage   pgtype.Text                 `json:"child_task_error_message"`
+	InsertedAt              pgtype.Timestamptz          `json:"inserted_at"`
+	ID                      int64                       `json:"id"`
+	DurableTaskID           int64                       `json:"durable_task_id"`
+	DurableTaskInsertedAt   pgtype.Timestamptz          `json:"durable_task_inserted_at"`
+	Kind                    enums.V1DurableEventLogKind `json:"kind"`
+	NodeID                  int64                       `json:"node_id"`
+	BranchID                int64                       `json:"branch_id"`
+	IdempotencyKey          []byte                      `json:"idempotency_key"`
+	IsSatisfied             bool                        `json:"is_satisfied"`
+	SatisfiedAt             pgtype.Timestamptz          `json:"satisfied_at"`
+	SatisfiedOrder          pgtype.Int8                 `json:"satisfied_order"`
+	UserMessage             pgtype.Text                 `json:"user_message"`
+	WaitData                []byte                      `json:"wait_data"`
+	TriggeredAt             pgtype.Timestamptz          `json:"triggered_at"`
+	TaskExternalID          uuid.UUID                   `json:"task_external_id"`
+	InvocationCount         int32                       `json:"invocation_count"`
 }
 
 func (q *Queries) ListSatisfiedEntries(ctx context.Context, db DBTX, arg ListSatisfiedEntriesParams) ([]*ListSatisfiedEntriesRow, error) {
@@ -1110,6 +1152,80 @@ func (q *Queries) ListSatisfiedEntries(ctx context.Context, db DBTX, arg ListSat
 			&i.TriggeredAt,
 			&i.TaskExternalID,
 			&i.InvocationCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUnsatisfiedRunEntriesForChildTaskExternalIds = `-- name: ListUnsatisfiedRunEntriesForChildTaskExternalIds :many
+WITH inputs AS (
+    SELECT
+        UNNEST($3::BIGINT[]) AS durable_task_id,
+        UNNEST($4::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST($5::UUID[]) AS child_task_external_id
+)
+
+SELECT
+    durable_task_id,
+    durable_task_inserted_at,
+    branch_id,
+    node_id,
+    child_task_external_id
+FROM v1_durable_event_log_entry
+WHERE
+    kind = 'RUN'
+    AND NOT is_satisfied
+    AND durable_task_inserted_at >= $1::TIMESTAMPTZ
+    AND durable_task_inserted_at <= $2::TIMESTAMPTZ
+    AND (durable_task_id, durable_task_inserted_at, child_task_external_id) IN (
+        SELECT durable_task_id, durable_task_inserted_at, child_task_external_id
+        FROM inputs
+    )
+`
+
+type ListUnsatisfiedRunEntriesForChildTaskExternalIdsParams struct {
+	Mindurabletaskinsertedat pgtype.Timestamptz   `json:"mindurabletaskinsertedat"`
+	Maxdurabletaskinsertedat pgtype.Timestamptz   `json:"maxdurabletaskinsertedat"`
+	Durabletaskids           []int64              `json:"durabletaskids"`
+	Durabletaskinsertedats   []pgtype.Timestamptz `json:"durabletaskinsertedats"`
+	Childtaskexternalids     []uuid.UUID          `json:"childtaskexternalids"`
+}
+
+type ListUnsatisfiedRunEntriesForChildTaskExternalIdsRow struct {
+	DurableTaskID         int64              `json:"durable_task_id"`
+	DurableTaskInsertedAt pgtype.Timestamptz `json:"durable_task_inserted_at"`
+	BranchID              int64              `json:"branch_id"`
+	NodeID                int64              `json:"node_id"`
+	ChildTaskExternalID   *uuid.UUID         `json:"child_task_external_id"`
+}
+
+func (q *Queries) ListUnsatisfiedRunEntriesForChildTaskExternalIds(ctx context.Context, db DBTX, arg ListUnsatisfiedRunEntriesForChildTaskExternalIdsParams) ([]*ListUnsatisfiedRunEntriesForChildTaskExternalIdsRow, error) {
+	rows, err := db.Query(ctx, listUnsatisfiedRunEntriesForChildTaskExternalIds,
+		arg.Mindurabletaskinsertedat,
+		arg.Maxdurabletaskinsertedat,
+		arg.Durabletaskids,
+		arg.Durabletaskinsertedats,
+		arg.Childtaskexternalids,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListUnsatisfiedRunEntriesForChildTaskExternalIdsRow
+	for rows.Next() {
+		var i ListUnsatisfiedRunEntriesForChildTaskExternalIdsRow
+		if err := rows.Scan(
+			&i.DurableTaskID,
+			&i.DurableTaskInsertedAt,
+			&i.BranchID,
+			&i.NodeID,
+			&i.ChildTaskExternalID,
 		); err != nil {
 			return nil, err
 		}
@@ -1232,12 +1348,12 @@ func (q *Queries) ResetSatisfiedOrdersForNewBranch(ctx context.Context, db DBTX,
 const updateDurableEventLogEntriesSatisfied = `-- name: UpdateDurableEventLogEntriesSatisfied :many
 WITH inputs AS (
     SELECT
-        UNNEST($1::BIGINT[]) AS durable_task_id,
-        UNNEST($2::TIMESTAMPTZ[]) AS durable_task_inserted_at,
-        UNNEST($3::BIGINT[]) AS node_id,
-        UNNEST($4::BIGINT[]) AS branch_id,
-        UNNEST($5::BOOLEAN[]) AS child_task_is_failure,
-        UNNEST($6::TEXT[]) AS child_task_error_message
+        UNNEST($3::BIGINT[]) AS durable_task_id,
+        UNNEST($4::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST($5::BIGINT[]) AS node_id,
+        UNNEST($6::BIGINT[]) AS branch_id,
+        UNNEST($7::BOOLEAN[]) AS child_task_is_failure,
+        UNNEST($8::TEXT[]) AS child_task_error_message
 ), satisfied_orders_to_apply AS (
     SELECT
         e.durable_task_id,
@@ -1252,8 +1368,10 @@ WITH inputs AS (
     JOIN v1_durable_event_log_file llf USING (durable_task_id, durable_task_inserted_at)
     WHERE
         e.satisfied_order IS NULL
-        AND e.durable_task_inserted_at >= $7::TIMESTAMPTZ
-        AND llf.durable_task_inserted_at >= $7::TIMESTAMPTZ
+        AND e.durable_task_inserted_at >= $1::TIMESTAMPTZ
+        AND e.durable_task_inserted_at <= $2::TIMESTAMPTZ
+        AND llf.durable_task_inserted_at >= $1::TIMESTAMPTZ
+        AND llf.durable_task_inserted_at <= $2::TIMESTAMPTZ
         AND (durable_task_id, durable_task_inserted_at, branch_id, node_id) IN (
             SELECT durable_task_id, durable_task_inserted_at, branch_id, node_id
             FROM inputs
@@ -1265,7 +1383,8 @@ WITH inputs AS (
             FROM v1_durable_event_log_branch_point bp
             WHERE bp.durable_task_id = e.durable_task_id
               AND bp.durable_task_inserted_at = e.durable_task_inserted_at
-              AND bp.durable_task_inserted_at >= $7::TIMESTAMPTZ
+              AND bp.durable_task_inserted_at >= $1::TIMESTAMPTZ
+              AND bp.durable_task_inserted_at <= $2::TIMESTAMPTZ
               AND bp.parent_branch_id = e.branch_id
               AND bp.first_node_id_in_new_branch <= e.node_id
         )
@@ -1283,6 +1402,8 @@ WITH inputs AS (
       AND e.durable_task_inserted_at = inputs.durable_task_inserted_at
       AND e.node_id = inputs.node_id
       AND e.branch_id = inputs.branch_id
+      AND e.durable_task_inserted_at >= $1::TIMESTAMPTZ
+      AND e.durable_task_inserted_at <= $2::TIMESTAMPTZ
     RETURNING e.tenant_id, e.external_id, e.result_payload_external_id, e.child_task_external_id, e.child_task_is_failure, e.child_task_error_message, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.satisfied_order, e.user_message, e.wait_data, e.triggered_at
 ), max_satisfied_orders_to_apply AS (
     SELECT durable_task_id, durable_task_inserted_at, MAX(satisfied_order) AS satisfied_order
@@ -1293,56 +1414,62 @@ WITH inputs AS (
     SET latest_satisfied_order = GREATEST(lf.latest_satisfied_order, so.satisfied_order)
     FROM max_satisfied_orders_to_apply so
     WHERE (lf.durable_task_id, lf.durable_task_inserted_at) = (so.durable_task_id, so.durable_task_inserted_at)
+      AND lf.durable_task_inserted_at >= $1::TIMESTAMPTZ
+      AND lf.durable_task_inserted_at <= $2::TIMESTAMPTZ
 )
 
 SELECT updated.tenant_id, updated.external_id, updated.result_payload_external_id, updated.child_task_external_id, updated.child_task_is_failure, updated.child_task_error_message, updated.inserted_at, updated.id, updated.durable_task_id, updated.durable_task_inserted_at, updated.kind, updated.node_id, updated.branch_id, updated.idempotency_key, updated.is_satisfied, updated.satisfied_at, updated.satisfied_order, updated.user_message, updated.wait_data, updated.triggered_at, llf.latest_invocation_count AS invocation_count
 FROM updated
 JOIN v1_durable_event_log_file llf ON (llf.durable_task_id, llf.durable_task_inserted_at) = (updated.durable_task_id, updated.durable_task_inserted_at)
+WHERE llf.durable_task_inserted_at >= $1::TIMESTAMPTZ
+    AND llf.durable_task_inserted_at <= $2::TIMESTAMPTZ
 `
 
 type UpdateDurableEventLogEntriesSatisfiedParams struct {
+	Mindurabletaskinsertedat pgtype.Timestamptz   `json:"mindurabletaskinsertedat"`
+	Maxdurabletaskinsertedat pgtype.Timestamptz   `json:"maxdurabletaskinsertedat"`
 	Durabletaskids           []int64              `json:"durabletaskids"`
 	Durabletaskinsertedats   []pgtype.Timestamptz `json:"durabletaskinsertedats"`
 	Nodeids                  []int64              `json:"nodeids"`
 	Branchids                []int64              `json:"branchids"`
 	Childtaskisfailures      []bool               `json:"childtaskisfailures"`
 	Childtaskerrormessages   []string             `json:"childtaskerrormessages"`
-	Mindurabletaskinsertedat pgtype.Timestamptz   `json:"mindurabletaskinsertedat"`
 }
 
 type UpdateDurableEventLogEntriesSatisfiedRow struct {
-	TenantID                uuid.UUID             `json:"tenant_id"`
-	ExternalID              uuid.UUID             `json:"external_id"`
-	ResultPayloadExternalID uuid.UUID             `json:"result_payload_external_id"`
-	ChildTaskExternalID     *uuid.UUID            `json:"child_task_external_id"`
-	ChildTaskIsFailure      bool                  `json:"child_task_is_failure"`
-	ChildTaskErrorMessage   pgtype.Text           `json:"child_task_error_message"`
-	InsertedAt              pgtype.Timestamptz    `json:"inserted_at"`
-	ID                      int64                 `json:"id"`
-	DurableTaskID           int64                 `json:"durable_task_id"`
-	DurableTaskInsertedAt   pgtype.Timestamptz    `json:"durable_task_inserted_at"`
-	Kind                    V1DurableEventLogKind `json:"kind"`
-	NodeID                  int64                 `json:"node_id"`
-	BranchID                int64                 `json:"branch_id"`
-	IdempotencyKey          []byte                `json:"idempotency_key"`
-	IsSatisfied             bool                  `json:"is_satisfied"`
-	SatisfiedAt             pgtype.Timestamptz    `json:"satisfied_at"`
-	SatisfiedOrder          pgtype.Int8           `json:"satisfied_order"`
-	UserMessage             pgtype.Text           `json:"user_message"`
-	WaitData                []byte                `json:"wait_data"`
-	TriggeredAt             pgtype.Timestamptz    `json:"triggered_at"`
-	InvocationCount         int32                 `json:"invocation_count"`
+	TenantID                uuid.UUID                   `json:"tenant_id"`
+	ExternalID              uuid.UUID                   `json:"external_id"`
+	ResultPayloadExternalID uuid.UUID                   `json:"result_payload_external_id"`
+	ChildTaskExternalID     *uuid.UUID                  `json:"child_task_external_id"`
+	ChildTaskIsFailure      bool                        `json:"child_task_is_failure"`
+	ChildTaskErrorMessage   pgtype.Text                 `json:"child_task_error_message"`
+	InsertedAt              pgtype.Timestamptz          `json:"inserted_at"`
+	ID                      int64                       `json:"id"`
+	DurableTaskID           int64                       `json:"durable_task_id"`
+	DurableTaskInsertedAt   pgtype.Timestamptz          `json:"durable_task_inserted_at"`
+	Kind                    enums.V1DurableEventLogKind `json:"kind"`
+	NodeID                  int64                       `json:"node_id"`
+	BranchID                int64                       `json:"branch_id"`
+	IdempotencyKey          []byte                      `json:"idempotency_key"`
+	IsSatisfied             bool                        `json:"is_satisfied"`
+	SatisfiedAt             pgtype.Timestamptz          `json:"satisfied_at"`
+	SatisfiedOrder          pgtype.Int8                 `json:"satisfied_order"`
+	UserMessage             pgtype.Text                 `json:"user_message"`
+	WaitData                []byte                      `json:"wait_data"`
+	TriggeredAt             pgtype.Timestamptz          `json:"triggered_at"`
+	InvocationCount         int32                       `json:"invocation_count"`
 }
 
 func (q *Queries) UpdateDurableEventLogEntriesSatisfied(ctx context.Context, db DBTX, arg UpdateDurableEventLogEntriesSatisfiedParams) ([]*UpdateDurableEventLogEntriesSatisfiedRow, error) {
 	rows, err := db.Query(ctx, updateDurableEventLogEntriesSatisfied,
+		arg.Mindurabletaskinsertedat,
+		arg.Maxdurabletaskinsertedat,
 		arg.Durabletaskids,
 		arg.Durabletaskinsertedats,
 		arg.Nodeids,
 		arg.Branchids,
 		arg.Childtaskisfailures,
 		arg.Childtaskerrormessages,
-		arg.Mindurabletaskinsertedat,
 	)
 	if err != nil {
 		return nil, err
@@ -1433,9 +1560,9 @@ func (q *Queries) UpdateLogFile(ctx context.Context, db DBTX, arg UpdateLogFileP
 const updateLogFileLatestNodeIds = `-- name: UpdateLogFileLatestNodeIds :exec
 WITH inputs AS (
     SELECT
-        UNNEST($1::BIGINT[]) AS durable_task_id,
-        UNNEST($2::TIMESTAMPTZ[]) AS durable_task_inserted_at,
-        UNNEST($3::BIGINT[]) AS node_id
+        UNNEST($3::BIGINT[]) AS durable_task_id,
+        UNNEST($4::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST($5::BIGINT[]) AS node_id
 )
 
 UPDATE v1_durable_event_log_file lf
@@ -1445,15 +1572,25 @@ SET
     latest_node_id = GREATEST(lf.latest_node_id, i.node_id)
 FROM inputs i
 WHERE (lf.durable_task_id, lf.durable_task_inserted_at) = (i.durable_task_id, i.durable_task_inserted_at)
+    AND lf.durable_task_inserted_at >= $1::TIMESTAMPTZ
+    AND lf.durable_task_inserted_at <= $2::TIMESTAMPTZ
 `
 
 type UpdateLogFileLatestNodeIdsParams struct {
-	Durabletaskids         []int64              `json:"durabletaskids"`
-	Durabletaskinsertedats []pgtype.Timestamptz `json:"durabletaskinsertedats"`
-	Nodeids                []int64              `json:"nodeids"`
+	Mindurabletaskinsertedat pgtype.Timestamptz   `json:"mindurabletaskinsertedat"`
+	Maxdurabletaskinsertedat pgtype.Timestamptz   `json:"maxdurabletaskinsertedat"`
+	Durabletaskids           []int64              `json:"durabletaskids"`
+	Durabletaskinsertedats   []pgtype.Timestamptz `json:"durabletaskinsertedats"`
+	Nodeids                  []int64              `json:"nodeids"`
 }
 
 func (q *Queries) UpdateLogFileLatestNodeIds(ctx context.Context, db DBTX, arg UpdateLogFileLatestNodeIdsParams) error {
-	_, err := db.Exec(ctx, updateLogFileLatestNodeIds, arg.Durabletaskids, arg.Durabletaskinsertedats, arg.Nodeids)
+	_, err := db.Exec(ctx, updateLogFileLatestNodeIds,
+		arg.Mindurabletaskinsertedat,
+		arg.Maxdurabletaskinsertedat,
+		arg.Durabletaskids,
+		arg.Durabletaskinsertedats,
+		arg.Nodeids,
+	)
 	return err
 }

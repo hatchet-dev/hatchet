@@ -1,18 +1,17 @@
 import asyncio
 import json
 from collections.abc import Generator
-from datetime import datetime, timezone
-from enum import Enum
-from typing import Any, TypeVar, cast
+from datetime import datetime
+from typing import TypeVar, cast
 
 import grpc
 from google.protobuf import timestamp_pb2
-from grpc_status import rpc_status
+from google.protobuf.message import Message
+from google.rpc import status_pb2  # type: ignore[import-untyped]
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
-from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
@@ -30,7 +29,7 @@ from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
     ctx_additional_metadata,
-    ctx_step_run_id,
+    ctx_task_run_external_id,
     ctx_worker_id,
     ctx_workflow_run_id,
     spawn_index_lock,
@@ -38,10 +37,9 @@ from hatchet_sdk.runnables.contextvars import (
 )
 from hatchet_sdk.types.labels import (
     DesiredWorkerLabel,
-    _warn_if_dict_desired_worker_labels,
 )
-from hatchet_sdk.types.priority import Priority
-from hatchet_sdk.types.rate_limit import RateLimitDuration
+from hatchet_sdk.types.priority import Priority, priority_to_int
+from hatchet_sdk.types.run_status import RunStatus, parse_run_status
 from hatchet_sdk.types.trigger import (
     ScheduleTriggerWorkflowOptions as ScheduleTriggerWorkflowOptions,
 )
@@ -52,66 +50,29 @@ from hatchet_sdk.types.trigger import (
     WorkflowRunTriggerConfig as WorkflowRunTriggerConfig,
 )
 from hatchet_sdk.utils.api_auth import create_authorization_header
-from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 T = TypeVar("T")
+TMessage = TypeVar("TMessage", bound=Message)
 
 MAX_BULK_WORKFLOW_RUN_BATCH_SIZE = 1000
 
 
-class RunStatus(str, Enum):
-    QUEUED = "QUEUED"
-    RUNNING = "RUNNING"
-    COMPLETED = "COMPLETED"
-    CANCELLED = "CANCELLED"
-    FAILED = "FAILED"
+def unpack_rpc_error_detail(
+    error: grpc.RpcError, detail_type: type[TMessage]
+) -> TMessage | None:
+    ## the sync client raises errors that are also `grpc.Call`s, which carry the status details
+    rpc_call = cast("grpc.Call", error)
 
-    @staticmethod
-    def from_proto(proto_status: workflow_protos.RunStatus) -> "RunStatus":
-        if proto_status == workflow_protos.RunStatus.COMPLETED:
-            return RunStatus.COMPLETED
-        if proto_status == workflow_protos.RunStatus.CANCELLED:
-            return RunStatus.CANCELLED
-        if proto_status == workflow_protos.RunStatus.FAILED:
-            return RunStatus.FAILED
-        if proto_status == workflow_protos.RunStatus.RUNNING:
-            return RunStatus.RUNNING
-        if proto_status == workflow_protos.RunStatus.QUEUED:
-            return RunStatus.QUEUED
-        raise ValueError(f"Unknown proto status: {proto_status}")
+    for key, value in rpc_call.trailing_metadata() or ():
+        if key == "grpc-status-details-bin" and isinstance(value, bytes):
+            for detail in status_pb2.Status.FromString(value).details:
+                unpacked = detail_type()
+                if detail.Unpack(unpacked):  # pyright: ignore[reportUnknownMemberType]
+                    return unpacked
 
-    @staticmethod
-    def from_v1_task_status(
-        v1_task_status: V1TaskStatus,
-    ) -> "RunStatus":
-        if v1_task_status == V1TaskStatus.COMPLETED:
-            return RunStatus.COMPLETED
-        if v1_task_status == V1TaskStatus.CANCELLED:
-            return RunStatus.CANCELLED
-        if v1_task_status == V1TaskStatus.FAILED:
-            return RunStatus.FAILED
-        if v1_task_status == V1TaskStatus.RUNNING:
-            return RunStatus.RUNNING
-        if v1_task_status == V1TaskStatus.QUEUED:
-            return RunStatus.QUEUED
-
-        raise ValueError(f"Unknown V1TaskStatus: {v1_task_status}")
-
-    def to_v1_task_status(self) -> V1TaskStatus:
-        if self == RunStatus.COMPLETED:
-            return V1TaskStatus.COMPLETED
-        if self == RunStatus.CANCELLED:
-            return V1TaskStatus.CANCELLED
-        if self == RunStatus.FAILED:
-            return V1TaskStatus.FAILED
-        if self == RunStatus.RUNNING:
-            return V1TaskStatus.RUNNING
-        if self == RunStatus.QUEUED:
-            return V1TaskStatus.QUEUED
-
-        raise ValueError(f"Unknown RunStatus: {self}")
+    return None
 
 
 class TaskRunDetail(BaseModel):
@@ -119,7 +80,7 @@ class TaskRunDetail(BaseModel):
     readable_id: str
     output: JSONSerializableMapping | None = None
     error: str | None = None
-    status: V1TaskStatus
+    status: RunStatus
     is_evicted: bool = False
 
 
@@ -138,7 +99,7 @@ class AdminClient:
         config: ClientConfig,
         workflow_run_listener: PooledWorkflowRunListener,
         workflow_run_event_listener: RunEventListenerClient,
-    ):
+    ) -> None:
         self.config = config
         self.token = config.token
         self.namespace = config.namespace
@@ -167,15 +128,13 @@ class AdminClient:
         model_config = ConfigDict(extra="ignore")
 
         parent_id: str | None = None
-        parent_step_run_id: str | None = None
+        parent_task_run_external_id: str | None = None
         child_index: int | None = None
         child_key: str | None = None
         additional_metadata: str | None = None
         desired_worker_id: str | None = None
-        priority: int | Priority | None = None
-        desired_worker_label: (
-            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
-        ) = None
+        priority: Priority | None = None
+        desired_worker_labels: list[DesiredWorkerLabel] | None = None
 
         @field_validator("additional_metadata", mode="before")
         @classmethod
@@ -195,53 +154,49 @@ class AdminClient:
         workflow_name: str,
         input: str | None,
         options: TriggerWorkflowOptions,
+        child_index: int,
+        desired_worker_id: str | None,
     ) -> trigger_protos.TriggerWorkflowRequest:
+        workflow_run_id = ctx_workflow_run_id.get()
+        task_run_external_id = ctx_task_run_external_id.get()
+
         _options = self.TriggerWorkflowRequest.model_validate(options.model_dump())
+        _options.child_index = child_index
+        _options.parent_id = workflow_run_id
+        _options.parent_task_run_external_id = task_run_external_id
+        _options.desired_worker_id = desired_worker_id
 
         desired_worker_labels = None
-        if _options.desired_worker_label:
-            _warn_if_dict_desired_worker_labels(
-                _options.desired_worker_label, stacklevel=6
-            )
-            if isinstance(_options.desired_worker_label, list):
-                labels_dict = {
-                    d.key: d for d in _options.desired_worker_label if d.key is not None
-                }
-            else:
-                labels_dict = _options.desired_worker_label
+        if _options.desired_worker_labels:
+            labels_dict = {d.key: d for d in _options.desired_worker_labels}
             desired_worker_labels = {
-                key: trigger_protos.DesiredWorkerLabels(
-                    str_value=d.value if not isinstance(d.value, int) else None,
-                    int_value=d.value if isinstance(d.value, int) else None,
-                    required=d.required,
-                    weight=d.weight,
-                    comparator=d.comparator,  # type: ignore[arg-type]
-                )
-                for key, d in labels_dict.items()
+                key: d.to_proto() for key, d in labels_dict.items()
             }
 
         return trigger_protos.TriggerWorkflowRequest(
             name=workflow_name,
             input=input,
             parent_id=_options.parent_id,
-            parent_task_run_external_id=_options.parent_step_run_id,
+            parent_task_run_external_id=_options.parent_task_run_external_id,
             child_index=_options.child_index,
             child_key=_options.child_key,
             additional_metadata=_options.additional_metadata,
             desired_worker_id=_options.desired_worker_id,
-            priority=_options.priority,
+            priority=(
+                priority_to_int(_options.priority)
+                if _options.priority is not None
+                else None
+            ),
             desired_worker_labels=desired_worker_labels,
         )
 
     def _parse_schedule(self, schedule: datetime) -> timestamp_pb2.Timestamp:
-        if isinstance(schedule, datetime):
+        if isinstance(
+            schedule, datetime
+        ):  # pyright: ignore[reportUnnecessaryIsInstance]
             if not schedule.tzinfo:
                 logger.warning(
-                    "Timezone-naive datetime provided for schedule. Assuming UTC timezone."
-                )
-            elif schedule.tzinfo.fromutc(schedule) != schedule:
-                logger.warning(
-                    "Non-UTC datetime provided for schedule. Assuming UTC timezone. Note: This is a bug which will be fixed in v2.0.0 of the SDK to support non-UTC datetimes. For now, convert your datetime to UTC to avoid this warning and ensure correct scheduling."
+                    "Timezone-naive datetime provided for schedule. Interpreting it in this machine's local timezone."
                 )
             t = schedule.timestamp()
             seconds = int(t)
@@ -260,16 +215,25 @@ class AdminClient:
         input: str | None = None,
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> v0_workflow_protos.ScheduleWorkflowRequest:
+        workflow_run_id = ctx_workflow_run_id.get()
+        task_run_external_id = ctx_task_run_external_id.get()
+        action_key = ctx_action_key.get()
+        spawn_index = workflow_spawn_indices[action_key] if action_key else 0
+
         return v0_workflow_protos.ScheduleWorkflowRequest(
             name=name,
             schedules=[self._parse_schedule(schedule) for schedule in schedules],
             input=input,
-            parent_id=options.parent_id,
-            parent_task_run_external_id=options.parent_step_run_id,
-            child_index=options.child_index,
+            parent_id=workflow_run_id,
+            parent_task_run_external_id=task_run_external_id,
+            child_index=spawn_index,
             child_key=options.child_key,
             additional_metadata=json.dumps(options.additional_metadata),
-            priority=options.priority,
+            priority=(
+                priority_to_int(options.priority)
+                if options.priority is not None
+                else None
+            ),
         )
 
     async def aio_put_workflow(
@@ -277,14 +241,6 @@ class AdminClient:
         workflow: workflow_protos.CreateWorkflowVersionRequest,
     ) -> workflow_protos.CreateWorkflowVersionResponse:
         return await asyncio.to_thread(self.put_workflow, workflow)
-
-    async def aio_put_rate_limit(
-        self,
-        key: str,
-        limit: int,
-        duration: RateLimitDuration = RateLimitDuration.SECOND,
-    ) -> None:
-        return await asyncio.to_thread(self.put_rate_limit, key, limit, duration)
 
     async def aio_schedule_workflow(
         self,
@@ -303,55 +259,10 @@ class AdminClient:
     ) -> workflow_protos.CreateWorkflowVersionResponse:
         client = self._get_or_create_v1_client()
         put_workflow = tenacity_retry(client.PutWorkflow, self.config.tenacity)
-        return cast(
-            workflow_protos.CreateWorkflowVersionResponse,
-            put_workflow(
-                workflow,
-                metadata=create_authorization_header(self.token),
-            ),
-        )
-
-    def put_rate_limit(
-        self,
-        key: str,
-        limit: int,
-        duration: RateLimitDuration = RateLimitDuration.SECOND,
-    ) -> None:
-        duration_proto = convert_python_enum_to_proto(
-            duration, workflow_protos.RateLimitDuration
-        )
-
-        client = self._get_or_create_v0_client()
-        put_rate_limit = tenacity_retry(client.PutRateLimit, self.config.tenacity)
-
-        put_rate_limit(
-            v0_workflow_protos.PutRateLimitRequest(
-                key=key,
-                limit=limit,
-                duration=duration_proto,  # type: ignore[arg-type]
-            ),
+        return put_workflow(
+            workflow,
             metadata=create_authorization_header(self.token),
         )
-
-    def pause_rate_limit(self, key: str, until: datetime) -> datetime:
-        paused_until = timestamp_pb2.Timestamp()
-        paused_until.FromDatetime(until)
-
-        client = self._get_or_create_v0_client()
-        pause_rate_limit = tenacity_retry(client.PauseRateLimit, self.config.tenacity)
-
-        response = cast(
-            v0_workflow_protos.PauseRateLimitResponse,
-            pause_rate_limit(
-                v0_workflow_protos.PauseRateLimitRequest(
-                    key=key,
-                    paused_until=paused_until,
-                ),
-                metadata=create_authorization_header(self.token),
-            ),
-        )
-
-        return response.paused_until.ToDatetime(tzinfo=timezone.utc)
 
     def schedule_workflow(
         self,
@@ -362,9 +273,8 @@ class AdminClient:
     ) -> v0_workflow_protos.WorkflowVersion:
         try:
             options = options or ScheduleTriggerWorkflowOptions()
-            namespace = options.namespace or self.namespace
 
-            name = self.config.apply_namespace(name, namespace)
+            name = self.config.apply_namespace(name, self.namespace)
 
             request = self._prepare_schedule_workflow_request(
                 name, schedules, input, options
@@ -375,12 +285,9 @@ class AdminClient:
                 client.ScheduleWorkflow, self.config.tenacity
             )
 
-            return cast(
-                v0_workflow_protos.WorkflowVersion,
-                schedule_workflow(
-                    request,
-                    metadata=create_authorization_header(self.token),
-                ),
+            return schedule_workflow(
+                request,
+                metadata=create_authorization_header(self.token),
             )
         except (grpc.RpcError, grpc.aio.AioRpcError) as e:
             if e.code() == grpc.StatusCode.ALREADY_EXISTS:
@@ -394,42 +301,31 @@ class AdminClient:
         input: str | None,
         options: TriggerWorkflowOptions,
     ) -> trigger_protos.TriggerWorkflowRequest:
-        workflow_run_id = ctx_workflow_run_id.get()
-        step_run_id = ctx_step_run_id.get()
         worker_id = ctx_worker_id.get()
         action_key = ctx_action_key.get()
         additional_metadata = ctx_additional_metadata.get() or {}
-        spawn_index = workflow_spawn_indices[action_key] if action_key else 0
+        child_index = workflow_spawn_indices[action_key] if action_key else 0
 
-        ## Increment the spawn_index for the parent workflow
         if action_key:
             workflow_spawn_indices[action_key] += 1
 
-        desired_worker_id = (
-            (options.desired_worker_id or worker_id) if options.sticky else None
-        )
-        child_index = (
-            options.child_index if options.child_index is not None else spawn_index
-        )
-
         trigger_options = TriggerWorkflowOptions(
-            parent_id=options.parent_id or workflow_run_id,
-            parent_step_run_id=options.parent_step_run_id or step_run_id,
             child_key=options.child_key,
-            child_index=child_index,
             additional_metadata={**additional_metadata, **options.additional_metadata},
-            desired_worker_id=desired_worker_id,
             priority=options.priority,
-            namespace=options.namespace,
             sticky=options.sticky,
-            key=options.key,
-            desired_worker_label=options.desired_worker_label,
+            desired_worker_labels=options.desired_worker_labels,
         )
 
-        namespace = options.namespace or self.namespace
-        workflow_name = self.config.apply_namespace(workflow_name, namespace)
+        workflow_name = self.config.apply_namespace(workflow_name, self.namespace)
 
-        return self._prepare_workflow_request(workflow_name, input, trigger_options)
+        return self._prepare_workflow_request(
+            workflow_name,
+            input,
+            trigger_options,
+            child_index,
+            desired_worker_id=worker_id if options.sticky else None,
+        )
 
     def run_workflow(
         self,
@@ -442,28 +338,23 @@ class AdminClient:
         trigger_workflow = tenacity_retry(client.TriggerWorkflow, self.config.tenacity)
 
         try:
-            resp = cast(
-                v0_workflow_protos.TriggerWorkflowResponse,
-                trigger_workflow(
-                    request,
-                    metadata=create_authorization_header(self.token),
-                ),
+            resp = trigger_workflow(
+                request,
+                metadata=create_authorization_header(self.token),
             )
         except (grpc.RpcError, grpc.aio.AioRpcError) as e:
             if (
                 e.code() == grpc.StatusCode.ALREADY_EXISTS
                 and e.details() == "idempotency key collision"
             ):
-                status: list[Any] = rpc_status.from_call(e)  # type: ignore[arg-type]
+                collision = unpack_rpc_error_detail(
+                    e, workflow_protos.IdempotencyCollisionError
+                )
 
-                for detail in status.details:  # type: ignore[attr-defined]
-                    if detail.Is(workflow_protos.IdempotencyCollisionError.DESCRIPTOR):
-                        info = workflow_protos.IdempotencyCollisionError()
-                        detail.Unpack(info)
-
-                        raise IdempotencyCollisionError(
-                            existing_run_external_id=info.existing_run_external_id
-                        ) from e
+                if collision is not None:
+                    raise IdempotencyCollisionError(
+                        existing_run_external_id=collision.existing_run_external_id
+                    ) from e
             elif e.code() == grpc.StatusCode.ALREADY_EXISTS:
                 raise DedupeViolationError(e.details()) from e
 
@@ -489,29 +380,24 @@ class AdminClient:
         trigger_workflow = tenacity_retry(client.TriggerWorkflow, self.config.tenacity)
 
         try:
-            resp = cast(
-                v0_workflow_protos.TriggerWorkflowResponse,
-                await asyncio.to_thread(
-                    trigger_workflow,
-                    request,
-                    metadata=create_authorization_header(self.token),
-                ),
+            resp = await asyncio.to_thread(
+                trigger_workflow,
+                request,
+                metadata=create_authorization_header(self.token),
             )
         except (grpc.RpcError, grpc.aio.AioRpcError) as e:
             if (
                 e.code() == grpc.StatusCode.ALREADY_EXISTS
                 and e.details() == "idempotency key collision"
             ):
-                status: list[Any] = rpc_status.from_call(e)  # type: ignore[arg-type]
+                collision = unpack_rpc_error_detail(
+                    e, workflow_protos.IdempotencyCollisionError
+                )
 
-                for detail in status.details:  # type: ignore[attr-defined]
-                    if detail.Is(workflow_protos.IdempotencyCollisionError.DESCRIPTOR):
-                        info = workflow_protos.IdempotencyCollisionError()
-                        detail.Unpack(info)
-
-                        raise IdempotencyCollisionError(
-                            existing_run_external_id=info.existing_run_external_id
-                        ) from e
+                if collision is not None:
+                    raise IdempotencyCollisionError(
+                        existing_run_external_id=collision.existing_run_external_id
+                    ) from e
             elif e.code() == grpc.StatusCode.ALREADY_EXISTS:
                 raise DedupeViolationError(e.details()) from e
 
@@ -573,40 +459,31 @@ class AdminClient:
             )
 
             try:
-                resp = cast(
-                    v0_workflow_protos.BulkTriggerWorkflowResponse,
-                    bulk_trigger_workflow(
-                        bulk_request,
-                        metadata=create_authorization_header(self.token),
-                    ),
+                resp = bulk_trigger_workflow(
+                    bulk_request,
+                    metadata=create_authorization_header(self.token),
                 )
             except (grpc.RpcError, grpc.aio.AioRpcError) as e:
                 if (
                     e.code() == grpc.StatusCode.ALREADY_EXISTS
                     and e.details() == "idempotency key collision"
                 ):
-                    status: list[Any] = rpc_status.from_call(e)  # type: ignore[arg-type]
+                    bulk_collision = unpack_rpc_error_detail(
+                        e, workflow_protos.BulkTriggerIdempotencyCollisionError
+                    )
 
-                    for detail in status.details:  # type: ignore[attr-defined]
-                        if detail.Is(
-                            workflow_protos.BulkTriggerIdempotencyCollisionError.DESCRIPTOR
-                        ):
-                            info = (
-                                workflow_protos.BulkTriggerIdempotencyCollisionError()
-                            )
-                            detail.Unpack(info)
-
-                            raise BulkTriggerIdempotencyCollisionError(
-                                successful_workflow_run_external_ids=list(
-                                    info.successful_workflow_run_external_ids
-                                ),
-                                collisions=[
-                                    IdempotencyCollisionError(
-                                        existing_run_external_id=collision.existing_run_external_id
-                                    )
-                                    for collision in info.collisions
-                                ],
-                            ) from e
+                    if bulk_collision is not None:
+                        raise BulkTriggerIdempotencyCollisionError(
+                            successful_workflow_run_external_ids=list(
+                                bulk_collision.successful_workflow_run_external_ids
+                            ),
+                            collisions=[
+                                IdempotencyCollisionError(
+                                    existing_run_external_id=collision.existing_run_external_id
+                                )
+                                for collision in bulk_collision.collisions
+                            ],
+                        ) from e
 
                 raise e
 
@@ -648,41 +525,32 @@ class AdminClient:
             )
 
             try:
-                resp = cast(
-                    v0_workflow_protos.BulkTriggerWorkflowResponse,
-                    await asyncio.to_thread(
-                        bulk_trigger_workflow,
-                        bulk_request,
-                        metadata=create_authorization_header(self.token),
-                    ),
+                resp = await asyncio.to_thread(
+                    bulk_trigger_workflow,
+                    bulk_request,
+                    metadata=create_authorization_header(self.token),
                 )
             except (grpc.RpcError, grpc.aio.AioRpcError) as e:
                 if (
                     e.code() == grpc.StatusCode.ALREADY_EXISTS
                     and e.details() == "idempotency key collision"
                 ):
-                    status: list[Any] = rpc_status.from_call(e)  # type: ignore[arg-type]
+                    bulk_collision = unpack_rpc_error_detail(
+                        e, workflow_protos.BulkTriggerIdempotencyCollisionError
+                    )
 
-                    for detail in status.details:  # type: ignore[attr-defined]
-                        if detail.Is(
-                            workflow_protos.BulkTriggerIdempotencyCollisionError.DESCRIPTOR
-                        ):
-                            info = (
-                                workflow_protos.BulkTriggerIdempotencyCollisionError()
-                            )
-                            detail.Unpack(info)
-
-                            raise BulkTriggerIdempotencyCollisionError(
-                                successful_workflow_run_external_ids=list(
-                                    info.successful_workflow_run_external_ids
-                                ),
-                                collisions=[
-                                    IdempotencyCollisionError(
-                                        existing_run_external_id=collision.existing_run_external_id
-                                    )
-                                    for collision in info.collisions
-                                ],
-                            ) from e
+                    if bulk_collision is not None:
+                        raise BulkTriggerIdempotencyCollisionError(
+                            successful_workflow_run_external_ids=list(
+                                bulk_collision.successful_workflow_run_external_ids
+                            ),
+                            collisions=[
+                                IdempotencyCollisionError(
+                                    existing_run_external_id=collision.existing_run_external_id
+                                )
+                                for collision in bulk_collision.collisions
+                            ],
+                        ) from e
 
                 raise e
 
@@ -708,23 +576,20 @@ class AdminClient:
             workflow_run_listener=self.workflow_run_listener,
         )
 
-    def get_details(self, external_id: str) -> WorkflowRunDetail:
+    def get_details(self, workflow_run_id: str) -> WorkflowRunDetail:
         client = self._get_or_create_v1_client()
         get_run_payloads = tenacity_retry(
             client.GetRunDetails,
             self.config.tenacity.model_copy(update={"retry_not_found": True}),
         )
 
-        response = cast(
-            workflow_protos.GetRunDetailsResponse,
-            get_run_payloads(
-                workflow_protos.GetRunDetailsRequest(external_id=external_id),
-                metadata=create_authorization_header(self.token),
-            ),
+        response = get_run_payloads(
+            workflow_protos.GetRunDetailsRequest(external_id=workflow_run_id),
+            metadata=create_authorization_header(self.token),
         )
 
         return WorkflowRunDetail(
-            external_id=external_id,
+            external_id=workflow_run_id,
             input=(
                 json.loads(response.input.decode("utf-8")) if response.input else None
             ),
@@ -733,7 +598,7 @@ class AdminClient:
                 if response.additional_metadata
                 else None
             ),
-            status=RunStatus.from_proto(response.status),
+            status=parse_run_status(workflow_protos.RunStatus.Name(response.status)),
             task_runs={
                 readable_id: TaskRunDetail(
                     readable_id=readable_id,
@@ -744,7 +609,9 @@ class AdminClient:
                         else None
                     ),
                     error=details.error if details.error else None,
-                    status=RunStatus.from_proto(details.status).to_v1_task_status(),
+                    status=parse_run_status(
+                        workflow_protos.RunStatus.Name(details.status)
+                    ),
                     is_evicted=getattr(details, "is_evicted", False),
                 )
                 for readable_id, details in response.task_runs.items()

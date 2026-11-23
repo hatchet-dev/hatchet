@@ -3,12 +3,12 @@ import random
 import threading
 import time
 import uuid
-from collections.abc import AsyncGenerator, AsyncIterator, Callable
+from collections.abc import AsyncGenerator, Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
-from typing import TypeVar, cast
+from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING, TypeVar
 
 import grpc
 from pydantic import BaseModel
@@ -17,6 +17,7 @@ from hatchet_sdk.clients.rest.api.streams_api import StreamsApi
 from hatchet_sdk.clients.rest.exceptions import (
     ApiException,
     RestTransportError,
+    ServiceException,
     TooManyRequestsException,
 )
 from hatchet_sdk.clients.v1.api_client import BaseRestClient
@@ -25,6 +26,9 @@ from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.v1 import streams_pb2 as streams_protos
 from hatchet_sdk.contracts.v1.streams_pb2_grpc import V1StreamsStub
 from hatchet_sdk.utils.api_auth import create_authorization_header
+
+if TYPE_CHECKING:
+    from hatchet_sdk.contracts.v1.streams_pb2_grpc import V1StreamsAsyncStub
 
 T = TypeVar("T")
 
@@ -80,7 +84,7 @@ class StreamEvent(BaseModel):
     """The message payload."""
 
     cursor: str
-    """Resumes `subscribe` right after this event."""
+    """Resumes `aio_subscribe` right after this event."""
 
     created_at: datetime | None = None
     """When the message was stored."""
@@ -95,7 +99,7 @@ class StreamTopicMetadata(BaseModel):
     message_count: int
 
     latest_cursor: str | None = None
-    """Resumes `subscribe` after the newest retained message; None when none is retained."""
+    """Resumes `aio_subscribe` after the newest retained message; None when none is retained."""
 
     last_published_at: datetime | None = None
     """When the newest retained message was stored; None when none is retained."""
@@ -103,20 +107,15 @@ class StreamTopicMetadata(BaseModel):
 
 def _grpc_code(err: BaseException) -> grpc.StatusCode | None:
     if isinstance(err, grpc.RpcError):
-        code = err.code()
-        if isinstance(code, grpc.StatusCode):
-            return code
+        return err.code()
 
     return None
 
 
 def _is_temporary_http_error(err: BaseException) -> bool:
     """A payload request that got no response, a 5xx or a 429 may succeed later."""
-    if isinstance(err, (RestTransportError, TooManyRequestsException)):
-        return True
-
-    return (
-        isinstance(err, ApiException) and err.status is not None and err.status >= 500
+    return isinstance(
+        err, (RestTransportError, TooManyRequestsException, ServiceException)
     )
 
 
@@ -141,7 +140,7 @@ def _to_event(entry: streams_protos.StreamEntry, payload: bytes) -> StreamEvent:
         payload=payload,
         cursor=entry.cursor,
         created_at=(
-            entry.created_at.ToDatetime(tzinfo=timezone.utc)
+            entry.created_at.ToDatetime(tzinfo=UTC)
             if entry.HasField("created_at")
             else None
         ),
@@ -207,11 +206,11 @@ class _PublishQueue:
     """One topic's publishes on one event loop; one request is in flight at a time so two never share a seq."""
 
     client: "StreamsClient"
-    stub: V1StreamsStub
+    stub: "V1StreamsAsyncStub"
     namespace: str
     topic: str
 
-    items: list[_QueuedPublish] = field(default_factory=list)
+    items: list[_QueuedPublish] = field(default_factory=list[_QueuedPublish])
     wake: asyncio.Event = field(default_factory=asyncio.Event)
 
     ## seq only advances after a publish succeeds
@@ -336,7 +335,7 @@ class _PublishQueue:
         for p, entry in zip(sent, entries, strict=True):
             try:
                 await self._publish_ordered([entry])
-            except Exception as e:  # noqa: PERF203
+            except Exception as e:
                 p.settle(e)
             else:
                 p.settle()
@@ -350,7 +349,7 @@ class _PublishQueue:
 
         try:
             if self.client._publish_batch_unsupported and len(entries) == 1:
-                await self.stub.Publish(  # type: ignore[misc]
+                await self.stub.Publish(
                     streams_protos.PublishStreamMessageRequest(
                         namespace=self.namespace,
                         topic=self.topic,
@@ -362,7 +361,7 @@ class _PublishQueue:
                     metadata=self.client._metadata(),
                 )
             else:
-                await self.stub.PublishBatch(  # type: ignore[misc]
+                await self.stub.PublishBatch(
                     streams_protos.PublishStreamMessagesRequest(
                         namespace=self.namespace,
                         topic=self.topic,
@@ -394,10 +393,11 @@ class _LoopPublisher:
     """Publish state for one event loop, as an aio channel and asyncio primitives only work on the loop that made them."""
 
     channel: grpc.aio.Channel
-    stub: V1StreamsStub
+    stub: "V1StreamsAsyncStub"
 
-    ## per (namespace, topic)
-    queues: dict[tuple[str, str], _PublishQueue] = field(default_factory=dict)
+    queues_by_namespace_and_topic: dict[tuple[str, str], _PublishQueue] = field(
+        default_factory=dict[tuple[str, str], _PublishQueue]
+    )
 
     ## held here because a loop keeps only weak references to its async generators
     shutdown_hook: AsyncGenerator[None, None] | None = None
@@ -492,7 +492,7 @@ class StreamsClient(BaseRestClient):
 
     ## an aio channel is bound to its event loop, so each read opens its own
     @asynccontextmanager
-    async def _open_aio_client(self) -> AsyncIterator[V1StreamsStub]:
+    async def _open_aio_client(self) -> AsyncGenerator["V1StreamsAsyncStub", None]:
         channel = new_conn(self.client_config, True)
         try:
             yield V1StreamsStub(channel)
@@ -517,9 +517,7 @@ class StreamsClient(BaseRestClient):
             try:
                 return request()
             except ApiException as e:
-                temporary = isinstance(e, RestTransportError) or (
-                    e.status is not None and e.status >= 500
-                )
+                temporary = isinstance(e, (RestTransportError, ServiceException))
                 if (
                     not temporary
                     or attempt >= self._streams_config.payload_request_attempts
@@ -548,15 +546,16 @@ class StreamsClient(BaseRestClient):
                 )
             )
 
-    async def publish(
+    async def aio_publish(
         self,
         topic: str,
         message: bytes | str,
+        *,
         namespace: str = "",
         batch_timeout: timedelta | None = None,
     ) -> None:
         """
-        Publish a message to a topic, returning once it is stored. A client's messages to a topic are delivered in the order `publish` was called. Publishes to a topic share requests: everything queued while one is in flight goes out in the next, and `batch_timeout` holds a message up to that long for more to join it. Cancelling a publish before its request goes out drops the message; once the request is sent, it may still be stored.
+        Publish a message to a topic, returning once it is stored. A client's messages to a topic are delivered in the order `aio_publish` was called. Publishes to a topic share requests: everything queued while one is in flight goes out in the next, and `batch_timeout` holds a message up to that long for more to join it. Cancelling a publish before its request goes out drops the message; once the request is sent, it may still be stored.
 
         :param topic: The topic to publish to.
         :param message: The message payload. A string is encoded as UTF-8.
@@ -594,10 +593,10 @@ class StreamsClient(BaseRestClient):
             else None
         )
 
-        queue = publisher.queues.get((namespace, topic))
+        queue = publisher.queues_by_namespace_and_topic.get((namespace, topic))
         if queue is None:
             queue = _PublishQueue(self, publisher.stub, namespace, topic)
-            publisher.queues[(namespace, topic)] = queue
+            publisher.queues_by_namespace_and_topic[(namespace, topic)] = queue
 
         await queue.publish(
             _QueuedPublish(
@@ -607,7 +606,7 @@ class StreamsClient(BaseRestClient):
             )
         )
 
-    def topic_metadata(self, topic: str, namespace: str = "") -> StreamTopicMetadata:
+    def topic_metadata(self, topic: str, *, namespace: str = "") -> StreamTopicMetadata:
         """
         Describe a topic's retained messages. Raises a `NOT_FOUND` gRPC error for a topic nothing was published to.
 
@@ -616,14 +615,11 @@ class StreamsClient(BaseRestClient):
 
         :return: The topic's metadata.
         """
-        res = cast(
-            streams_protos.StreamTopicMetadata,
-            self._get_or_create_client().GetTopicMetadata(
-                streams_protos.GetStreamTopicMetadataRequest(
-                    namespace=namespace, topic=topic
-                ),
-                metadata=self._metadata(),
+        res = self._get_or_create_client().GetTopicMetadata(
+            streams_protos.GetStreamTopicMetadataRequest(
+                namespace=namespace, topic=topic
             ),
+            metadata=self._metadata(),
         )
 
         return StreamTopicMetadata(
@@ -635,14 +631,14 @@ class StreamsClient(BaseRestClient):
                 res.latest_cursor if res.HasField("latest_cursor") else None
             ),
             last_published_at=(
-                res.last_published_at.ToDatetime(tzinfo=timezone.utc)
+                res.last_published_at.ToDatetime(tzinfo=UTC)
                 if res.HasField("last_published_at")
                 else None
             ),
         )
 
     async def aio_topic_metadata(
-        self, topic: str, namespace: str = ""
+        self, topic: str, *, namespace: str = ""
     ) -> StreamTopicMetadata:
         """
         Describe a topic's retained messages. Raises a `NOT_FOUND` gRPC error for a topic nothing was published to.
@@ -652,13 +648,13 @@ class StreamsClient(BaseRestClient):
 
         :return: The topic's metadata.
         """
-        return await asyncio.to_thread(self.topic_metadata, topic, namespace)
+        return await asyncio.to_thread(self.topic_metadata, topic, namespace=namespace)
 
     async def aio_reset(
-        self, topic: str, namespace: str = "", cursor: str | None = None
+        self, topic: str, *, namespace: str = "", cursor: str | None = None
     ) -> None:
         """
-        Make `subscribe` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.
+        Make `aio_subscribe` calls without a cursor start after `cursor`, or the topic's latest message. Readers already iterating, and any call with a cursor, are unaffected.
 
         :param topic: The topic to reset.
         :param namespace: The topic's namespace; the empty namespace by default.
@@ -671,10 +667,10 @@ class StreamsClient(BaseRestClient):
         )
 
         async with self._open_aio_client() as stub:
-            await stub.Reset(request, metadata=self._metadata())  # type: ignore[misc]
+            await stub.Reset(request, metadata=self._metadata())
 
-    async def subscribe(
-        self, topic: str, namespace: str = "", cursor: str | None = None
+    async def aio_subscribe(
+        self, topic: str, *, namespace: str = "", cursor: str | None = None
     ) -> AsyncGenerator[StreamEvent, None]:
         """
         Yield a topic's messages after `cursor`, or from the oldest retained (or, once the topic is reset, after the reset). If the connection drops, it resubscribes from the last message yielded, so nothing is skipped or repeated. Ends when the server hangs up an idle subscription or the caller stops iterating; raises on errors a retry can't fix, such as an expired cursor.
@@ -692,15 +688,9 @@ class StreamsClient(BaseRestClient):
 
         async with self._open_aio_client() as stub:
             while True:
-                call = cast(
-                    grpc.aio.UnaryStreamCall[
-                        streams_protos.SubscribeStreamRequest,
-                        streams_protos.StreamMessage,
-                    ],
-                    stub.Subscribe(
-                        _subscribe_request(namespace, topic, cursor),
-                        metadata=self._metadata(),
-                    ),
+                call = stub.Subscribe(
+                    _subscribe_request(namespace, topic, cursor),
+                    metadata=self._metadata(),
                 )
 
                 try:

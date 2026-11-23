@@ -1,14 +1,13 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from hatchet_sdk import Hatchet
-from hatchet_sdk.clients.rest.models.scheduled_run_status import ScheduledRunStatus
 
 hatchet = Hatchet()
 
 # > Create
 scheduled_run = hatchet.scheduled.create(
     workflow_name="simple-workflow",
-    trigger_at=datetime.now(tz=timezone.utc) + timedelta(seconds=10),
+    trigger_at=datetime.now(tz=UTC) + timedelta(seconds=10),
     input={
         "data": "simple-workflow-data",
     },
@@ -17,18 +16,18 @@ scheduled_run = hatchet.scheduled.create(
     },
 )
 
-id = scheduled_run.metadata.id  # the id of the scheduled run trigger
+id = scheduled_run.id  # the id of the scheduled run trigger
 # !!
 
 # > Reschedule
 hatchet.scheduled.update(
-    scheduled_id=scheduled_run.metadata.id,
-    trigger_at=datetime.now(tz=timezone.utc) + timedelta(hours=1),
+    scheduled_id=scheduled_run.id,
+    trigger_at=datetime.now(tz=UTC) + timedelta(hours=1),
 )
 # !!
 
 # > Delete
-hatchet.scheduled.delete(scheduled_id=scheduled_run.metadata.id)
+hatchet.scheduled.delete(scheduled_id=scheduled_run.id)
 # !!
 
 # > List
@@ -36,7 +35,7 @@ scheduled_runs = hatchet.scheduled.list()
 # !!
 
 # > Get
-scheduled_run = hatchet.scheduled.get(scheduled_id=scheduled_run.metadata.id)
+scheduled_run = hatchet.scheduled.get(scheduled_id=scheduled_run.id)
 # !!
 
 # > Bulk Delete
@@ -44,7 +43,6 @@ hatchet.scheduled.bulk_delete(scheduled_ids=[id])
 
 hatchet.scheduled.bulk_delete(
     workflow_id="workflow_id",
-    statuses=[ScheduledRunStatus.SCHEDULED],
     additional_metadata={"customer_id": "customer-a"},
 )
 # !!
@@ -52,7 +50,7 @@ hatchet.scheduled.bulk_delete(
 # > Bulk Reschedule
 hatchet.scheduled.bulk_update(
     [
-        (id, datetime.now(tz=timezone.utc) + timedelta(hours=2)),
+        (id, datetime.now(tz=UTC) + timedelta(hours=2)),
     ]
 )
 # !!

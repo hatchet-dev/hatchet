@@ -6,6 +6,7 @@ Remove this module when support for those engines is dropped.
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Any
 
 from hatchet_sdk.clients.listeners.legacy.pre_eviction_durable_event_listener import (
@@ -28,21 +29,21 @@ async def aio_wait_for_pre_eviction(
     signal_key: str,
     *conditions: SleepCondition | UserEventCondition | OrGroup,
 ) -> dict[str, Any]:
-    if not isinstance(ctx.durable_event_listener, PreEvictionDurableEventListener):
+    if not isinstance(ctx._durable_event_listener, PreEvictionDurableEventListener):
         raise TypeError(
             "Expected PreEvictionDurableEventListener, got "
-            f"{type(ctx.durable_event_listener).__name__}"
+            f"{type(ctx._durable_event_listener).__name__}"
         )
 
-    task_id = ctx.step_run_id
+    task_id = ctx._task_run_external_id
 
     request = RegisterDurableEventRequest(
         task_id=task_id,
         signal_key=signal_key,
         conditions=flatten_conditions(list(conditions)),
-        config=ctx.runs_client.client_config,
+        config=ctx._runs_client.client_config,
     )
 
-    ctx.durable_event_listener.register_durable_event(request)
+    await asyncio.to_thread(ctx._durable_event_listener.register_durable_event, request)
 
-    return await ctx.durable_event_listener.result(task_id, signal_key)
+    return await ctx._durable_event_listener.result(task_id, signal_key)

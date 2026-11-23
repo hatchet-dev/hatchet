@@ -203,10 +203,6 @@ export const queries = createQueryKeyStore({
       queryFn: async () =>
         (await cloudApi.workflowRunEventsGetMetrics(tenant, query)).data,
     }),
-    offers: () => ({
-      queryKey: ['offers:list'],
-      queryFn: async () => (await cloudApi.userOffersList()).data,
-    }),
   },
   alertingSettings: {
     get: (tenant: string) => ({

@@ -61,7 +61,9 @@ rm -rf $tmp_dir
 
 MIN_GRPCIO_VERSION=$(grep '"grpcio>=' pyproject.toml | cut -d'"' -f2 | cut -d'=' -f2 | cut -d',' -f1)
 
-poetry add "grpcio@$MIN_GRPCIO_VERSION" "grpcio-tools@$MIN_GRPCIO_VERSION"
+# grpcio-tools and mypy-protobuf are codegen-only, so install them into the venv without adding them
+# to the SDK's runtime dependencies
+poetry run pip install "grpcio==$MIN_GRPCIO_VERSION" "grpcio-tools==$MIN_GRPCIO_VERSION" "mypy-protobuf==5.1.0"
 
 
 proto_paths=(
@@ -87,6 +89,7 @@ for entry in "${proto_paths[@]}"; do
     --python_out=./hatchet_sdk/contracts \
     --pyi_out=./hatchet_sdk/contracts \
     --grpc_python_out=./hatchet_sdk/contracts \
+    --mypy_grpc_out=./hatchet_sdk/contracts \
     "$proto_file"
 done
 
@@ -96,8 +99,6 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 else
   find ./hatchet_sdk/contracts -type f -name '*.py.*' -exec sed -i 's/from v1/from hatchet_sdk.contracts.v1/g' {} +
 fi
-
-git restore pyproject.toml poetry.lock
 
 poetry lock
 poetry install --all-extras

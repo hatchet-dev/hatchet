@@ -2,9 +2,8 @@ import pytest
 import tenacity
 from tenacity import stop_after_attempt, wait_exponential
 
-from examples.dag.worker import dag_workflow, DAGWorkflowInput
-from hatchet_sdk import Hatchet
-from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
+from examples.dag.worker import DAGWorkflowInput, dag_workflow
+from hatchet_sdk import FailedTaskRunExceptionGroup, Hatchet
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 
 
@@ -30,7 +29,7 @@ async def get_on_failure_task(hatchet: Hatchet, run_id: str) -> V1TaskSummary:
             f"{[t.display_name for t in details.tasks]}"
         )
 
-    if task.status in (V1TaskStatus.QUEUED, V1TaskStatus.RUNNING):
+    if task.status in ("QUEUED", "RUNNING"):
         raise Exception(f"on-failure task has not finished yet: {task.status}")
 
     return task
@@ -50,7 +49,7 @@ async def test_on_failure_task_is_skipped_not_stuck(hatchet: Hatchet) -> None:
         hatchet=hatchet, run_id=ref.workflow_run_id
     )
 
-    assert on_failure_task.status == V1TaskStatus.COMPLETED
+    assert on_failure_task.status == "COMPLETED"
     assert on_failure_task.output == {}
 
 
@@ -61,12 +60,12 @@ async def test_on_failure_task_is_runs_on_failure(hatchet: Hatchet) -> None:
         wait_for_result=False,
     )
 
-    with pytest.raises(Exception):
+    with pytest.raises(FailedTaskRunExceptionGroup):
         await ref.aio_result()
 
     on_failure_task = await get_on_failure_task(
         hatchet=hatchet, run_id=ref.workflow_run_id
     )
 
-    assert on_failure_task.status == V1TaskStatus.COMPLETED
+    assert on_failure_task.status == "COMPLETED"
     assert on_failure_task.output == {"ran": True}

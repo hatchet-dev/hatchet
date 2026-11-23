@@ -1,5 +1,6 @@
-from hatchet_sdk import Hatchet, EmptyModel, DurableContext, EvictionPolicy
 from datetime import timedelta
+
+from hatchet_sdk import DurableContext, EvictionPolicy, Hatchet
 
 hatchet = Hatchet()
 
@@ -11,5 +12,5 @@ hatchet = Hatchet()
         allow_capacity_eviction=True,
     ),
 )
-async def evictable_durable(_i: EmptyModel, ctx: DurableContext) -> None:
+async def evictable_durable(_i: None, ctx: DurableContext) -> None:
     await ctx.aio_sleep_for(duration=timedelta(minutes=1))

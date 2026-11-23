@@ -64,15 +64,15 @@ func (c *celClientImpl) Debug(ctx context.Context, expression string, input map[
 		return nil, err
 	}
 
-	if resp.JSON200.Status == rest.V1CELDebugResponseStatus(gen.V1CELDebugResponseStatusERROR) {
+	if resp.JSON200.Status == rest.V1CELDebugResponseStatus(gen.ERROR) {
 		return &CELEvaluationResult{
-			status: gen.V1CELDebugResponseStatusERROR,
+			status: gen.ERROR,
 			err:    resp.JSON200.Error,
 		}, nil
 	}
 
 	return &CELEvaluationResult{
-		status: gen.V1CELDebugResponseStatusSUCCESS,
+		status: gen.SUCCESS,
 		output: resp.JSON200.Output,
 	}, nil
 }

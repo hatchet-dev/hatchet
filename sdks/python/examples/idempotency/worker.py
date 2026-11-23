@@ -1,13 +1,15 @@
+import asyncio
+from datetime import timedelta
+from typing import Literal
+
+from pydantic import BaseModel
+
 from hatchet_sdk import (
     Context,
     Hatchet,
-    TTLBasedIdempotencyConfig,
     StatusBasedIdempotencyConfig,
+    TTLBasedIdempotencyConfig,
 )
-from datetime import timedelta
-from pydantic import BaseModel
-import asyncio
-from typing import Literal
 
 hatchet = Hatchet()
 
@@ -67,11 +69,10 @@ async def idempotent_status_based_task(
         await asyncio.sleep(2)
         raise Exception(f"Task {input.id} failed as requested.")
 
-    if input.desired_status == "cancel":
+    await asyncio.sleep(1)
+    await ctx.aio_cancel()
+    for _ in range(10):
         await asyncio.sleep(1)
-        await ctx.aio_cancel()
-        for _ in range(10):
-            await asyncio.sleep(1)
 
     raise Exception(f"Task {input.id} should have been cancelled, but was not.")
 
@@ -103,11 +104,10 @@ async def idempotent_status_based_task_with_retries(
         await asyncio.sleep(2)
         return {"result": f"Hello, world from task {input.id}"}
 
-    if input.desired_status == "cancel":
+    await asyncio.sleep(1)
+    await ctx.aio_cancel()
+    for _ in range(10):
         await asyncio.sleep(1)
-        await ctx.aio_cancel()
-        for _ in range(10):
-            await asyncio.sleep(1)
 
     raise Exception(f"Task {input.id} should have been cancelled, but was not.")
 

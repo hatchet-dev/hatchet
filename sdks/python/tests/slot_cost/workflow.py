@@ -1,6 +1,6 @@
 import asyncio
 
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import Context, Hatchet
 
 hatchet = Hatchet()
 
@@ -13,5 +13,5 @@ SLEEP_TIME = 2
 
 
 @hatchet.task(slot_cost=SLOT_COST)
-async def slot_cost_test_heavy_task(input: EmptyModel, ctx: Context) -> None:
+async def slot_cost_test_heavy_task(input: None, ctx: Context) -> None:
     await asyncio.sleep(SLEEP_TIME)

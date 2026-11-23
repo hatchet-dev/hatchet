@@ -1,9 +1,11 @@
 import asyncio
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, Field
 
-from hatchet_sdk.clients.rest.api.cel_api import CELApi
+if TYPE_CHECKING:
+    from hatchet_sdk.clients.rest.api.cel_api import CELApi
+
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.v1_cel_debug_request import V1CELDebugRequest
 from hatchet_sdk.clients.rest.models.v1_cel_debug_response_status import (
@@ -33,13 +35,16 @@ class CELClient(BaseRestClient):
     The CEL client is a client for debugging CEL expressions within Hatchet
     """
 
-    def _ca(self, client: ApiClient) -> CELApi:
+    def _ca(self, client: ApiClient) -> "CELApi":
+        from hatchet_sdk.clients.rest.api.cel_api import CELApi
+
         return CELApi(client)
 
     def debug(
         self,
         expression: str,
         input: JSONSerializableMapping,
+        *,
         additional_metadata: JSONSerializableMapping | None = None,
         filter_payload: JSONSerializableMapping | None = None,
     ) -> CELEvaluationResult:
@@ -84,6 +89,7 @@ class CELClient(BaseRestClient):
         self,
         expression: str,
         input: JSONSerializableMapping,
+        *,
         additional_metadata: JSONSerializableMapping | None = None,
         filter_payload: JSONSerializableMapping | None = None,
     ) -> CELEvaluationResult:
@@ -98,5 +104,9 @@ class CELClient(BaseRestClient):
         :return: A V1CELDebugErrorResponse or V1CELDebugSuccessResponse containing the result of the debug operation.
         """
         return await asyncio.to_thread(
-            self.debug, expression, input, additional_metadata, filter_payload
+            self.debug,
+            expression,
+            input,
+            additional_metadata=additional_metadata,
+            filter_payload=filter_payload,
         )

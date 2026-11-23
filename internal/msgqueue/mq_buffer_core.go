@@ -229,6 +229,78 @@ func (c *bufferCore) startSemaphoreReleaser(ctx context.Context, bufLen func() i
 	}()
 }
 
+// BatchBuffer never calls flushBatch concurrently, and does not start the next batch until
+// flushBatch has returned. A caller that wants batches to be processed concurrently should
+// return from flushBatch quickly and do the processing in its own goroutine.
+type BatchBuffer[T any] struct {
+	*bufferCore
+
+	ctx        context.Context
+	items      chan T
+	flushBatch func(batch []T)
+}
+
+func NewBatchBuffer[T any](ctx context.Context, flushInterval time.Duration, maxBatchSize int, flushBatch func(batch []T)) *BatchBuffer[T] {
+	b := &BatchBuffer[T]{
+		bufferCore: newBufferCore(flushInterval, maxBatchSize, 1, false, false),
+		ctx:        ctx,
+		items:      make(chan T, maxBatchSize),
+		flushBatch: flushBatch,
+	}
+
+	numBufferedItems := func() int { return len(b.items) }
+
+	b.startFlusher(ctx, numBufferedItems, b.flush)
+	b.startSemaphoreReleaser(ctx, numBufferedItems, b.flush)
+
+	return b
+}
+
+func (b *BatchBuffer[T]) Enqueue(item T) error {
+	select {
+	case b.items <- item:
+	case <-b.ctx.Done():
+		return b.ctx.Err()
+	}
+
+	if len(b.items) >= b.bufferSize {
+		select {
+		case b.capacityRelease <- struct{}{}:
+		default:
+		}
+	}
+
+	select {
+	case b.notifier <- struct{}{}:
+		return nil
+	case <-b.ctx.Done():
+		return b.ctx.Err()
+	}
+}
+
+func (b *BatchBuffer[T]) flush() {
+	select {
+	case b.semaphore <- struct{}{}:
+	default:
+		return
+	}
+
+	startedFlush := time.Now()
+	defer func() {
+		go func() {
+			b.semaphoreRelease <- b.flushInterval - time.Since(startedFlush)
+		}()
+	}()
+
+	batch := drainN(b.items, b.bufferSize)
+
+	if len(batch) == 0 {
+		return
+	}
+
+	b.flushBatch(batch)
+}
+
 // drainN reads up to n items from ch without blocking. It returns as soon as the
 // channel is empty, even if fewer than n items have been read.
 func drainN[T any](ch <-chan T, n int) []T {

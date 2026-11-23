@@ -28,6 +28,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/pkg/config/limits"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/olapagg"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -68,7 +69,7 @@ func checkTasksWithPayloads(includePayloads bool, numTasks int) error {
 type ListTaskRunOpts struct {
 	CreatedAfter time.Time
 
-	Statuses []sqlcv1.V1ReadableStatusOlap
+	Statuses []enums.V1ReadableStatusOlap
 
 	WorkflowIds []uuid.UUID
 
@@ -98,7 +99,7 @@ type ListTaskRunOpts struct {
 type ListWorkflowRunOpts struct {
 	CreatedAfter time.Time
 
-	Statuses []sqlcv1.V1ReadableStatusOlap
+	Statuses []enums.V1ReadableStatusOlap
 
 	WorkflowIds []uuid.UUID
 
@@ -134,29 +135,29 @@ type ReadTaskRunMetricsOpts struct {
 }
 
 type WorkflowRunData struct {
-	AdditionalMetadata   []byte                      `json:"additional_metadata"`
-	CreatedAt            pgtype.Timestamptz          `json:"created_at"`
-	DisplayName          string                      `json:"display_name"`
-	ErrorMessage         string                      `json:"error_message"`
-	ExternalID           uuid.UUID                   `json:"external_id"`
-	FinishedAt           pgtype.Timestamptz          `json:"finished_at"`
-	ID                   int64                       `json:"id"`
-	Input                []byte                      `json:"input"`
-	InsertedAt           pgtype.Timestamptz          `json:"inserted_at"`
-	Kind                 sqlcv1.V1RunKind            `json:"kind"`
-	Output               []byte                      `json:"output,omitempty"`
-	ParentTaskExternalId *uuid.UUID                  `json:"parent_task_external_id,omitempty"`
-	ReadableStatus       sqlcv1.V1ReadableStatusOlap `json:"readable_status"`
-	StepId               *uuid.UUID                  `json:"step_id,omitempty"`
-	StartedAt            pgtype.Timestamptz          `json:"started_at"`
-	TaskExternalId       *uuid.UUID                  `json:"task_external_id,omitempty"`
-	TaskId               *int64                      `json:"task_id,omitempty"`
-	TaskInsertedAt       *pgtype.Timestamptz         `json:"task_inserted_at,omitempty"`
-	TenantID             uuid.UUID                   `json:"tenant_id"`
-	WorkflowID           uuid.UUID                   `json:"workflow_id"`
-	WorkflowVersionId    uuid.UUID                   `json:"workflow_version_id"`
-	RetryCount           *int                        `json:"retry_count,omitempty"`
-	IdempotencyKey       *string                     `json:"idempotency_key"`
+	AdditionalMetadata   []byte                     `json:"additional_metadata"`
+	CreatedAt            pgtype.Timestamptz         `json:"created_at"`
+	DisplayName          string                     `json:"display_name"`
+	ErrorMessage         string                     `json:"error_message"`
+	ExternalID           uuid.UUID                  `json:"external_id"`
+	FinishedAt           pgtype.Timestamptz         `json:"finished_at"`
+	ID                   int64                      `json:"id"`
+	Input                []byte                     `json:"input"`
+	InsertedAt           pgtype.Timestamptz         `json:"inserted_at"`
+	Kind                 enums.V1RunKind            `json:"kind"`
+	Output               []byte                     `json:"output,omitempty"`
+	ParentTaskExternalId *uuid.UUID                 `json:"parent_task_external_id,omitempty"`
+	ReadableStatus       enums.V1ReadableStatusOlap `json:"readable_status"`
+	StepId               *uuid.UUID                 `json:"step_id,omitempty"`
+	StartedAt            pgtype.Timestamptz         `json:"started_at"`
+	TaskExternalId       *uuid.UUID                 `json:"task_external_id,omitempty"`
+	TaskId               *int64                     `json:"task_id,omitempty"`
+	TaskInsertedAt       *pgtype.Timestamptz        `json:"task_inserted_at,omitempty"`
+	TenantID             uuid.UUID                  `json:"tenant_id"`
+	WorkflowID           uuid.UUID                  `json:"workflow_id"`
+	WorkflowVersionId    uuid.UUID                  `json:"workflow_version_id"`
+	RetryCount           *int                       `json:"retry_count,omitempty"`
+	IdempotencyKey       *string                    `json:"idempotency_key"`
 }
 
 type V1WorkflowRunPopulator struct {
@@ -233,7 +234,7 @@ type UpdateTaskStatusRow struct {
 	TenantId       uuid.UUID
 	TaskId         int64
 	TaskInsertedAt pgtype.Timestamptz
-	ReadableStatus sqlcv1.V1ReadableStatusOlap
+	ReadableStatus enums.V1ReadableStatusOlap
 	ExternalId     uuid.UUID
 	LatestWorkerId uuid.UUID
 	WorkflowId     uuid.UUID
@@ -246,7 +247,7 @@ type UpdateDAGStatusRow struct {
 	TenantId       uuid.UUID
 	DagId          int64
 	DagInsertedAt  pgtype.Timestamptz
-	ReadableStatus sqlcv1.V1ReadableStatusOlap
+	ReadableStatus enums.V1ReadableStatusOlap
 	ExternalId     uuid.UUID
 	WorkflowId     uuid.UUID
 }
@@ -317,7 +318,7 @@ type OLAPRepository interface {
 	ListEventKeys(ctx context.Context, tenantId uuid.UUID) ([]string, error)
 
 	GetDAGDurations(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID, minInsertedAt pgtype.Timestamptz) (map[string]*sqlcv1.GetDagDurationsRow, error)
-	GetTaskDurationsByTaskIds(ctx context.Context, tenantId uuid.UUID, taskIds []int64, taskInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) (map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow, error)
+	GetTaskDurationsByTaskIds(ctx context.Context, tenantId uuid.UUID, taskIds []int64, taskInsertedAts []pgtype.Timestamptz, readableStatuses []enums.V1ReadableStatusOlap) (map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow, error)
 	GetTaskStartedTimestamps(ctx context.Context, tenantId uuid.UUID, taskIds []int64, taskInsertedAts []time.Time, retryCounts []int32) ([]*sqlcv1.GetTaskStartedTimestampsRow, error)
 
 	CreateIncomingWebhookValidationFailureLogs(ctx context.Context, tenantId uuid.UUID, opts []CreateIncomingWebhookFailureLogOpts) error
@@ -334,7 +335,7 @@ type OLAPRepository interface {
 
 	CountOLAPTempTableSizeForDAGStatusUpdates(ctx context.Context) (int64, error)
 	CountOLAPTempTableSizeForTaskStatusUpdates(ctx context.Context) (int64, error)
-	ListYesterdayRunCountsByStatus(ctx context.Context) (map[sqlcv1.V1ReadableStatusOlap]int64, error)
+	ListYesterdayRunCountsByStatus(ctx context.Context) (map[enums.V1ReadableStatusOlap]int64, error)
 
 	CreateSpans(ctx context.Context, tenantId uuid.UUID, opts *CreateSpansOpts) error
 	ListSpansByTraceId(ctx context.Context, tenantId uuid.UUID, traceId []byte, offset, limit int64) (*ListSpansResult, error)
@@ -366,6 +367,8 @@ type OLAPRepositoryImpl struct {
 	auditLogArchiveRowsPerFile int32
 }
 
+// NewOLAPRepositoryFromPool builds an OLAP repository on a dedicated, ungated pool. See
+// NewOLAPRepositoryFromFairPool for one that honours fairpool caps.
 func NewOLAPRepositoryFromPool(
 	pool *pgxpool.Pool,
 	l *zerolog.Logger,
@@ -376,9 +379,25 @@ func NewOLAPRepositoryFromPool(
 	cacheDuration time.Duration,
 	includeRawDataInAggregates bool,
 ) (OLAPRepository, func() error) {
+	return NewOLAPRepositoryFromFairPool(fairpool.Ungated(pool), l, olapRetentionPeriod, tenantLimitConfig, enforceLimits, payloadStoreOpts, statusUpdateBatchSizeLimits, cacheDuration, includeRawDataInAggregates)
+}
+
+// NewOLAPRepositoryFromFairPool builds an OLAP repository on a dedicated pool for a separate OLAP
+// database. Partition DDL runs on the pool's underlying connections, since there is no pgbouncer
+// in front of it.
+func NewOLAPRepositoryFromFairPool(
+	pool *fairpool.Pool,
+	l *zerolog.Logger,
+	olapRetentionPeriod time.Duration,
+	tenantLimitConfig limits.LimitConfigFile, enforceLimits bool,
+	payloadStoreOpts PayloadStoreRepositoryOpts,
+	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits,
+	cacheDuration time.Duration,
+	includeRawDataInAggregates bool,
+) (OLAPRepository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(fairpool.Ungated(pool), pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration, false)
+	shared, cleanupShared := newSharedRepository(pool, pool.Unwrap(), v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration, false, false)
 
 	return newOLAPRepository(shared, olapRetentionPeriod, statusUpdateBatchSizeLimits, includeRawDataInAggregates), cleanupShared
 }
@@ -710,7 +729,7 @@ func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExt
 		Kind:               PayloadKindTaskInput,
 	}
 
-	if row.Kind == sqlcv1.V1RunKindDAG {
+	if row.Kind == enums.V1RunKindDAG {
 		inputOpts = ReadOLAPPayloadOpts{
 			ExternalId:         row.ExternalID,
 			InsertedAt:         row.InsertedAt,
@@ -1125,18 +1144,18 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 	return result, nil
 }
 
-func readableStatusesOrDefault(statuses []sqlcv1.V1ReadableStatusOlap) []string {
+func readableStatusesOrDefault(statuses []enums.V1ReadableStatusOlap) []string {
 	if len(statuses) == 0 {
 		return []string{
-			string(sqlcv1.V1ReadableStatusOlapQUEUED),
-			string(sqlcv1.V1ReadableStatusOlapRUNNING),
-			string(sqlcv1.V1ReadableStatusOlapCOMPLETED),
-			string(sqlcv1.V1ReadableStatusOlapCANCELLED),
-			string(sqlcv1.V1ReadableStatusOlapFAILED),
+			string(enums.V1ReadableStatusOlapQUEUED),
+			string(enums.V1ReadableStatusOlapRUNNING),
+			string(enums.V1ReadableStatusOlapCOMPLETED),
+			string(enums.V1ReadableStatusOlapCANCELLED),
+			string(enums.V1ReadableStatusOlapFAILED),
 		}
 	}
 
-	return enumerables.Map(statuses, func(status sqlcv1.V1ReadableStatusOlap) string {
+	return enumerables.Map(statuses, func(status enums.V1ReadableStatusOlap) string {
 		return string(status)
 	})
 }
@@ -1383,7 +1402,7 @@ func (r *OLAPRepositoryImpl) populateWorkflowRuns(ctx context.Context, readDB sq
 	retrievePayloadOpts := make([]ReadOLAPPayloadOpts, 0)
 
 	for _, row := range workflowRunIds {
-		if row.Kind == sqlcv1.V1RunKindDAG {
+		if row.Kind == enums.V1RunKindDAG {
 			runIdsWithDAGs = append(runIdsWithDAGs, row.ID)
 			runInsertedAtsWithDAGs = append(runInsertedAtsWithDAGs, row.InsertedAt)
 		} else {
@@ -1394,9 +1413,13 @@ func (r *OLAPRepositoryImpl) populateWorkflowRuns(ctx context.Context, readDB sq
 		}
 	}
 
+	runInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(runInsertedAtsWithDAGs)
+
 	populatedDAGs, err := r.queries.PopulateDAGMetadata(ctx, readDB, sqlcv1.PopulateDAGMetadataParams{
 		Ids:             runIdsWithDAGs,
 		Insertedats:     runInsertedAtsWithDAGs,
+		Mininsertedat:   runInsertedAtBounds.Min,
+		Maxinsertedat:   runInsertedAtBounds.Max,
 		Tenantid:        tenantId,
 		Includepayloads: includePayloads,
 	})
@@ -1452,7 +1475,7 @@ func (r *OLAPRepositoryImpl) populateWorkflowRuns(ctx context.Context, readDB sq
 	res := make([]*WorkflowRunData, 0)
 
 	for _, row := range workflowRunIds {
-		if row.Kind == sqlcv1.V1RunKindDAG {
+		if row.Kind == enums.V1RunKindDAG {
 			dag, ok := dagsToPopulated[row.ExternalID]
 
 			if !ok {
@@ -1497,7 +1520,7 @@ func (r *OLAPRepositoryImpl) populateWorkflowRuns(ctx context.Context, readDB sq
 				StartedAt:            dag.StartedAt,
 				FinishedAt:           dag.FinishedAt,
 				ErrorMessage:         dag.ErrorMessage.String,
-				Kind:                 sqlcv1.V1RunKindDAG,
+				Kind:                 enums.V1RunKindDAG,
 				WorkflowVersionId:    dag.WorkflowVersionID,
 				Output:               outputPayload,
 				Input:                inputPayload,
@@ -1559,7 +1582,7 @@ func (r *OLAPRepositoryImpl) taskToWorkflowRunData(ctx context.Context, task *sq
 		StartedAt:            task.StartedAt,
 		FinishedAt:           task.FinishedAt,
 		ErrorMessage:         task.ErrorMessage.String,
-		Kind:                 sqlcv1.V1RunKindTASK,
+		Kind:                 enums.V1RunKindTASK,
 		TaskExternalId:       &task.ExternalID,
 		TaskId:               &task.ID,
 		TaskInsertedAt:       &task.InsertedAt,
@@ -1600,11 +1623,11 @@ func (r *OLAPRepositoryImpl) ListWorkflowRunExternalIds(ctx context.Context, ten
 
 	if len(statuses) == 0 {
 		statuses = []string{
-			string(sqlcv1.V1ReadableStatusOlapQUEUED),
-			string(sqlcv1.V1ReadableStatusOlapRUNNING),
-			string(sqlcv1.V1ReadableStatusOlapCOMPLETED),
-			string(sqlcv1.V1ReadableStatusOlapCANCELLED),
-			string(sqlcv1.V1ReadableStatusOlapFAILED),
+			string(enums.V1ReadableStatusOlapQUEUED),
+			string(enums.V1ReadableStatusOlapRUNNING),
+			string(enums.V1ReadableStatusOlapCOMPLETED),
+			string(enums.V1ReadableStatusOlapCANCELLED),
+			string(enums.V1ReadableStatusOlapFAILED),
 		}
 	}
 
@@ -1796,7 +1819,7 @@ func getCacheKey(event sqlcv1.CreateTaskEventsOLAPParams) string {
 
 func (r *OLAPRepositoryImpl) prepareStatusUpdateBatch(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams) sqlcv1.UpdateTaskStatusesFromMQParams {
 	type statusRetryCountWorkerIdTuple struct {
-		Status     sqlcv1.V1ReadableStatusOlap
+		Status     enums.V1ReadableStatusOlap
 		RetryCount int32
 		WorkerId   *uuid.UUID
 	}
@@ -1824,7 +1847,7 @@ func (r *OLAPRepositoryImpl) prepareStatusUpdateBatch(ctx context.Context, tenan
 	tenantIds := make([]uuid.UUID, 0)
 	taskIds := make([]int64, 0)
 	taskInsertedAts := make([]pgtype.Timestamptz, 0)
-	statuses := make([]sqlcv1.V1ReadableStatusOlap, 0)
+	statuses := make([]enums.V1ReadableStatusOlap, 0)
 	workerIds := make([]uuid.UUID, 0)
 	retryCounts := make([]int32, 0)
 
@@ -1915,18 +1938,18 @@ func (r *OLAPRepositoryImpl) prepareDAGStatusUpdateBatchFromStatusRows(taskRows 
 // initially written with. A task created directly in a terminal state (skipped, cancelled, failed)
 // never runs, so writing QUEUED and relying on a separate status event to correct it would leave
 // the row's truth dependent on cross-message ordering; instead the insert carries the real status.
-func initialStateToReadableStatus(initialState sqlcv1.V1TaskInitialState) sqlcv1.V1ReadableStatusOlap {
+func initialStateToReadableStatus(initialState sqlcv1.V1TaskInitialState) enums.V1ReadableStatusOlap {
 	switch initialState {
 	case sqlcv1.V1TaskInitialStateFAILED:
-		return sqlcv1.V1ReadableStatusOlapFAILED
+		return enums.V1ReadableStatusOlapFAILED
 	case sqlcv1.V1TaskInitialStateCANCELLED:
-		return sqlcv1.V1ReadableStatusOlapCANCELLED
+		return enums.V1ReadableStatusOlapCANCELLED
 	case sqlcv1.V1TaskInitialStateSKIPPED:
-		return sqlcv1.V1ReadableStatusOlapCOMPLETED
+		return enums.V1ReadableStatusOlapCOMPLETED
 	case sqlcv1.V1TaskInitialStateQUEUED:
-		return sqlcv1.V1ReadableStatusOlapQUEUED
+		return enums.V1ReadableStatusOlapQUEUED
 	default:
-		return sqlcv1.V1ReadableStatusOlapQUEUED
+		return enums.V1ReadableStatusOlapQUEUED
 	}
 }
 
@@ -2170,21 +2193,24 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 
 			defer rollback()
 
-			minInsertedAt, err := r.queries.FindMinInsertedAtForTaskStatusUpdates(ctx, tx, sqlcv1.FindMinInsertedAtForTaskStatusUpdatesParams{
+			insertedAtBounds, err := r.queries.FindInsertedAtBoundsForTaskStatusUpdates(ctx, tx, sqlcv1.FindInsertedAtBoundsForTaskStatusUpdatesParams{
 				Partitionnumber: int32(partitionNumber), // nolint: gosec
 				Tenantids:       tenantIds,
 				Eventlimit:      batchSizeLimit,
 			})
 
 			if err != nil {
-				return fmt.Errorf("failed to find min inserted at for task status updates: %w", err)
+				return fmt.Errorf("failed to find inserted at bounds for task status updates: %w", err)
 			}
+
+			prunableInsertedAtBounds := prunableTimeBounds(insertedAtBounds.MinInsertedAt, insertedAtBounds.MaxInsertedAt)
 
 			statusUpdateRes, err := r.queries.UpdateTaskStatuses(ctx, tx, sqlcv1.UpdateTaskStatusesParams{
 				Partitionnumber: int32(partitionNumber), // nolint: gosec
 				Tenantids:       tenantIds,
 				Eventlimit:      batchSizeLimit,
-				Mininsertedat:   minInsertedAt,
+				Mininsertedat:   prunableInsertedAtBounds.Min,
+				Maxinsertedat:   prunableInsertedAtBounds.Max,
 			})
 
 			if err != nil {
@@ -2246,14 +2272,14 @@ func (r *OLAPRepositoryImpl) UpdateTaskStatuses(ctx context.Context, tenantIds [
 	return isSaturated, rows, nil
 }
 
-func compareStatuses(status1, status2 sqlcv1.V1ReadableStatusOlap) bool {
-	ordering := map[sqlcv1.V1ReadableStatusOlap]int{
-		sqlcv1.V1ReadableStatusOlapQUEUED:    1,
-		sqlcv1.V1ReadableStatusOlapRUNNING:   2,
-		sqlcv1.V1ReadableStatusOlapEVICTED:   3,
-		sqlcv1.V1ReadableStatusOlapCANCELLED: 4,
-		sqlcv1.V1ReadableStatusOlapFAILED:    5,
-		sqlcv1.V1ReadableStatusOlapCOMPLETED: 6,
+func compareStatuses(status1, status2 enums.V1ReadableStatusOlap) bool {
+	ordering := map[enums.V1ReadableStatusOlap]int{
+		enums.V1ReadableStatusOlapQUEUED:    1,
+		enums.V1ReadableStatusOlapRUNNING:   2,
+		enums.V1ReadableStatusOlapEVICTED:   3,
+		enums.V1ReadableStatusOlapCANCELLED: 4,
+		enums.V1ReadableStatusOlapFAILED:    5,
+		enums.V1ReadableStatusOlapCOMPLETED: 6,
 	}
 
 	left, leftOk := ordering[status1]
@@ -2300,21 +2326,24 @@ func (r *OLAPRepositoryImpl) UpdateDAGStatuses(ctx context.Context, tenantIds []
 
 			defer rollback()
 
-			minInsertedAt, err := r.queries.FindMinInsertedAtForDAGStatusUpdates(ctx, tx, sqlcv1.FindMinInsertedAtForDAGStatusUpdatesParams{
+			insertedAtBounds, err := r.queries.FindInsertedAtBoundsForDAGStatusUpdates(ctx, tx, sqlcv1.FindInsertedAtBoundsForDAGStatusUpdatesParams{
 				Partitionnumber: int32(partitionNumber), // nolint: gosec
 				Tenantids:       tenantIds,
 				Eventlimit:      batchSizeLimit,
 			})
 
 			if err != nil {
-				return fmt.Errorf("failed to find min inserted at for DAG status updates: %w", err)
+				return fmt.Errorf("failed to find inserted at bounds for DAG status updates: %w", err)
 			}
+
+			prunableInsertedAtBounds := prunableTimeBounds(insertedAtBounds.MinInsertedAt, insertedAtBounds.MaxInsertedAt)
 
 			statusUpdateRes, err := r.queries.UpdateDAGStatuses(ctx, tx, sqlcv1.UpdateDAGStatusesParams{
 				Partitionnumber: int32(partitionNumber), // nolint: gosec
 				Tenantids:       tenantIds,
 				Eventlimit:      batchSizeLimit,
-				Mininsertedat:   minInsertedAt,
+				Mininsertedat:   prunableInsertedAtBounds.Min,
+				Maxinsertedat:   prunableInsertedAtBounds.Max,
 			})
 
 			if err != nil {
@@ -2396,7 +2425,6 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 
 	params := sqlcv1.CreateTasksOLAPParams{}
 	inputCopiesToStore := make([]StoreOLAPPayloadOpts, 0)
-	minInsertedAt := pgtype.Timestamptz{}
 
 	var initiallyWrittenAsTerminalRows []UpdateTaskStatusRow
 
@@ -2444,7 +2472,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 		// status event becomes a same-priority no-op against it, so nothing downstream would
 		// otherwise report it. Record it like any reconciled status change; it flows into
 		// notifications and the DAG rollup below.
-		if initialStatus != sqlcv1.V1ReadableStatusOlapQUEUED {
+		if initialStatus != enums.V1ReadableStatusOlapQUEUED {
 			initiallyWrittenAsTerminalRows = append(initiallyWrittenAsTerminalRows, UpdateTaskStatusRow{
 				TenantId:       task.TenantID,
 				TaskId:         task.ID,
@@ -2456,10 +2484,6 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 				DagID:          task.DagID,
 				DagInsertedAt:  task.DagInsertedAt,
 			})
-		}
-
-		if !minInsertedAt.Valid || task.InsertedAt.Time.Before(minInsertedAt.Time) {
-			minInsertedAt = task.InsertedAt
 		}
 	}
 
@@ -2476,10 +2500,13 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 		return nil, nil, err
 	}
 
+	taskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(params.Insertedats)
+
 	reconciledTasks, err := r.queries.ReconcileTaskStatusesFromEvents(ctx, tx, sqlcv1.ReconcileTaskStatusesFromEventsParams{
 		Taskids:         params.Ids,
 		Taskinsertedats: params.Insertedats,
-		Mininsertedat:   minInsertedAt,
+		Mininsertedat:   taskInsertedAtBounds.Min,
+		Maxinsertedat:   taskInsertedAtBounds.Max,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to reconcile task statuses from events: %w", err)
@@ -2619,7 +2646,14 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 			return nil, err
 		}
 
-		err = r.queries.ReconcileOperatorDAGStatusesOnCreate(ctx, tx, sqlcv1.ReconcileOperatorDAGStatusesOnCreateParams(selfMappingParams))
+		dagInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(selfMappingParams.Daginsertedats)
+
+		err = r.queries.ReconcileOperatorDAGStatusesOnCreate(ctx, tx, sqlcv1.ReconcileOperatorDAGStatusesOnCreateParams{
+			Dagids:           selfMappingParams.Dagids,
+			Daginsertedats:   selfMappingParams.Daginsertedats,
+			Mindaginsertedat: dagInsertedAtBounds.Min,
+			Maxdaginsertedat: dagInsertedAtBounds.Max,
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -2646,7 +2680,7 @@ func (r *OLAPRepositoryImpl) CreateDAGs(ctx context.Context, tenantId uuid.UUID,
 
 type OrchestratorDAGStatusUpdateOpt struct {
 	DagInsertedAt      pgtype.Timestamptz
-	ReadableStatus     sqlcv1.V1ReadableStatusOlap
+	ReadableStatus     enums.V1ReadableStatusOlap
 	ExternalId         uuid.UUID
 	DisplayName        string
 	WorkflowId         uuid.UUID
@@ -3265,14 +3299,18 @@ func (r *OLAPRepositoryImpl) GetDAGDurations(ctx context.Context, tenantId uuid.
 	return enumerables.KeyBy(rows, func(row *sqlcv1.GetDagDurationsRow) string { return row.ExternalID.String() }), nil
 }
 
-func (r *OLAPRepositoryImpl) GetTaskDurationsByTaskIds(ctx context.Context, tenantId uuid.UUID, taskIds []int64, taskInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) (map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow, error) {
+func (r *OLAPRepositoryImpl) GetTaskDurationsByTaskIds(ctx context.Context, tenantId uuid.UUID, taskIds []int64, taskInsertedAts []pgtype.Timestamptz, readableStatuses []enums.V1ReadableStatusOlap) (map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow, error) {
 	readDB := r.readPool.ForTenant(tenantId)
 
+	taskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(taskInsertedAts)
+
 	rows, err := r.queries.GetTaskDurationsByTaskIds(ctx, readDB, sqlcv1.GetTaskDurationsByTaskIdsParams{
-		Taskids:          taskIds,
-		Taskinsertedats:  taskInsertedAts,
-		Tenantid:         tenantId,
-		Readablestatuses: readableStatuses,
+		Taskids:           taskIds,
+		Taskinsertedats:   taskInsertedAts,
+		Mintaskinsertedat: taskInsertedAtBounds.Min,
+		Maxtaskinsertedat: taskInsertedAtBounds.Max,
+		Tenantid:          tenantId,
+		Readablestatuses:  readableStatuses,
 	})
 	if err != nil {
 		return nil, err
@@ -3854,11 +3892,15 @@ func (r *OLAPRepositoryImpl) populateTaskRunData(ctx context.Context, tx sqlcv1.
 		taskInsertedAts = append(taskInsertedAts, sqlchelpers.TimestamptzFromUnixMicros(idInsertedAt.InsertedAtUnixMicros))
 	}
 
+	taskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(taskInsertedAts)
+
 	taskData, err := r.queries.PopulateTaskRunData(ctx, tx, sqlcv1.PopulateTaskRunDataParams{
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
-		Tenantid:        tenantId,
-		Includepayloads: includePayloads,
+		Taskids:           taskIds,
+		Taskinsertedats:   taskInsertedAts,
+		Mintaskinsertedat: taskInsertedAtBounds.Min,
+		Maxtaskinsertedat: taskInsertedAtBounds.Max,
+		Tenantid:          tenantId,
+		Includepayloads:   includePayloads,
 	})
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -3889,7 +3931,7 @@ func (r *OLAPRepositoryImpl) CountOLAPTempTableSizeForTaskStatusUpdates(ctx cont
 	return r.queries.CountOLAPTempTableSizeForTaskStatusUpdates(ctx, r.readPool.ForShared())
 }
 
-func (r *OLAPRepositoryImpl) ListYesterdayRunCountsByStatus(ctx context.Context) (map[sqlcv1.V1ReadableStatusOlap]int64, error) {
+func (r *OLAPRepositoryImpl) ListYesterdayRunCountsByStatus(ctx context.Context) (map[enums.V1ReadableStatusOlap]int64, error) {
 	rows, err := r.queries.ListYesterdayRunCountsByStatus(ctx, r.readPool.ForShared())
 
 	if err != nil {
@@ -3898,7 +3940,7 @@ func (r *OLAPRepositoryImpl) ListYesterdayRunCountsByStatus(ctx context.Context)
 
 	return enumerables.ToMap(
 		rows,
-		func(row *sqlcv1.ListYesterdayRunCountsByStatusRow) sqlcv1.V1ReadableStatusOlap {
+		func(row *sqlcv1.ListYesterdayRunCountsByStatusRow) enums.V1ReadableStatusOlap {
 			return row.ReadableStatus
 		},
 		func(row *sqlcv1.ListYesterdayRunCountsByStatusRow) int64 { return row.Count },
@@ -3951,9 +3993,9 @@ type OtelSpanRow struct {
 	StartTime          pgtype.Timestamptz
 	SpanName           string
 	TraceID            string
-	SpanKind           sqlcv1.V1OtelSpanKind
+	SpanKind           enums.V1OtelSpanKind
 	ServiceName        string
-	StatusCode         sqlcv1.V1OtelStatusCode
+	StatusCode         enums.V1OtelStatusCode
 	SpanID             string
 	ParentSpanID       pgtype.Text
 	StatusMessage      pgtype.Text
@@ -4241,32 +4283,43 @@ func extractServiceName(resourceAttrsJSON json.RawMessage) string {
 	return "unknown"
 }
 
-func protoSpanKindToDB(kind tracev1.Span_SpanKind) sqlcv1.V1OtelSpanKind {
+func protoSpanKindToDB(kind tracev1.Span_SpanKind) enums.V1OtelSpanKind {
 	//exhaustive:ignore
 	switch kind {
 	case tracev1.Span_SPAN_KIND_INTERNAL:
-		return sqlcv1.V1OtelSpanKindINTERNAL
+		return enums.V1OtelSpanKindINTERNAL
 	case tracev1.Span_SPAN_KIND_SERVER:
-		return sqlcv1.V1OtelSpanKindSERVER
+		return enums.V1OtelSpanKindSERVER
 	case tracev1.Span_SPAN_KIND_CLIENT:
-		return sqlcv1.V1OtelSpanKindCLIENT
+		return enums.V1OtelSpanKindCLIENT
 	case tracev1.Span_SPAN_KIND_PRODUCER:
-		return sqlcv1.V1OtelSpanKindPRODUCER
+		return enums.V1OtelSpanKindPRODUCER
 	case tracev1.Span_SPAN_KIND_CONSUMER:
-		return sqlcv1.V1OtelSpanKindCONSUMER
+		return enums.V1OtelSpanKindCONSUMER
 	default:
-		return sqlcv1.V1OtelSpanKindUNSPECIFIED
+		return enums.V1OtelSpanKindUNSPECIFIED
 	}
 }
 
-func protoStatusCodeToDB(code tracev1.Status_StatusCode) sqlcv1.V1OtelStatusCode {
+func protoStatusCodeToDB(code tracev1.Status_StatusCode) enums.V1OtelStatusCode {
 	//exhaustive:ignore
 	switch code {
 	case tracev1.Status_STATUS_CODE_OK:
-		return sqlcv1.V1OtelStatusCodeOK
+		return enums.V1OtelStatusCodeOK
 	case tracev1.Status_STATUS_CODE_ERROR:
-		return sqlcv1.V1OtelStatusCodeERROR
+		return enums.V1OtelStatusCodeERROR
 	default:
-		return sqlcv1.V1OtelStatusCodeUNSET
+		return enums.V1OtelStatusCodeUNSET
 	}
+}
+
+func prunableTimeBounds(minInsertedAt, maxInsertedAt pgtype.Timestamptz) sqlchelpers.TimeBounds {
+	if !minInsertedAt.Valid || !maxInsertedAt.Valid {
+		return sqlchelpers.TimeBounds{
+			Min: pgtype.Timestamptz{InfinityModifier: pgtype.Infinity, Valid: true},
+			Max: pgtype.Timestamptz{InfinityModifier: pgtype.NegativeInfinity, Valid: true},
+		}
+	}
+
+	return sqlchelpers.TimeBounds{Min: minInsertedAt, Max: maxInsertedAt}
 }

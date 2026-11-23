@@ -218,9 +218,9 @@ export interface ResultOptions {
 export type StreamCallOptions = {
   /** The topic's namespace; the empty namespace when omitted. */
   namespace?: string;
-  /** Resumes an `events()` iteration right after this message. */
+  /** Resumes a `subscribe()` iteration right after this message. */
   cursor?: string;
-  /** Ends an `events()` iteration cleanly, without throwing; aborts a unary call. */
+  /** Ends a `subscribe()` iteration cleanly, without throwing; aborts a unary call. */
   signal?: AbortSignal;
   /**
    * For `publish`: how long the message may wait for later publishes to the same topic to
@@ -230,13 +230,23 @@ export type StreamCallOptions = {
   batchTimeoutMs?: number;
 };
 
+/** A message read from a durable stream topic. */
+export type StreamEvent = {
+  /** The message payload. */
+  payload: Uint8Array;
+  /** Resumes `subscribe()` right after this message. */
+  cursor: string;
+  /** When the message was stored. */
+  createdAt?: Date;
+};
+
 /** What a durable stream topic retains; counts and the latest message cover the tenant's retention. */
 export type StreamTopicMetadata = {
   namespace: string;
   topic: string;
   tenantId: string;
   messageCount: number;
-  /** Resumes `events()` after the newest retained message; undefined when none is retained. */
+  /** Resumes `subscribe()` after the newest retained message; undefined when none is retained. */
   latestCursor?: string;
   /** When the newest retained message was stored; undefined when none is retained. */
   lastPublishedAt?: Date;

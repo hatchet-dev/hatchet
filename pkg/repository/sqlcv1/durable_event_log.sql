@@ -13,7 +13,10 @@ FROM v1_durable_event_log_file lf
 JOIN inputs i ON (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id) = (i.durable_task_id, i.durable_task_inserted_at, i.tenant_id)
 LEFT JOIN v1_durable_event_log_branch_point bp
     ON (bp.durable_task_id, bp.durable_task_inserted_at, bp.tenant_id) = (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id)
+    AND bp.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+    AND bp.durable_task_inserted_at <= @maxDurableTaskInsertedAt::TIMESTAMPTZ
 WHERE lf.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+    AND lf.durable_task_inserted_at <= @maxDurableTaskInsertedAt::TIMESTAMPTZ
 ORDER BY lf.durable_task_id, lf.durable_task_inserted_at
 FOR UPDATE OF lf
 ;
@@ -81,6 +84,8 @@ SET
     latest_node_id = GREATEST(lf.latest_node_id, i.node_id)
 FROM inputs i
 WHERE (lf.durable_task_id, lf.durable_task_inserted_at) = (i.durable_task_id, i.durable_task_inserted_at)
+    AND lf.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+    AND lf.durable_task_inserted_at <= @maxDurableTaskInsertedAt::TIMESTAMPTZ
 ;
 
 -- name: CreateDurableEventLogBranchPoint :exec
@@ -183,7 +188,9 @@ WITH inputs AS (
     WHERE
         e.satisfied_order IS NULL
         AND e.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+        AND e.durable_task_inserted_at <= @maxDurableTaskInsertedAt::TIMESTAMPTZ
         AND llf.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+        AND llf.durable_task_inserted_at <= @maxDurableTaskInsertedAt::TIMESTAMPTZ
         AND (durable_task_id, durable_task_inserted_at, branch_id, node_id) IN (
             SELECT durable_task_id, durable_task_inserted_at, branch_id, node_id
             FROM inputs
@@ -196,6 +203,7 @@ WITH inputs AS (
             WHERE bp.durable_task_id = e.durable_task_id
               AND bp.durable_task_inserted_at = e.durable_task_inserted_at
               AND bp.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+              AND bp.durable_task_inserted_at <= @maxDurableTaskInsertedAt::TIMESTAMPTZ
               AND bp.parent_branch_id = e.branch_id
               AND bp.first_node_id_in_new_branch <= e.node_id
         )
@@ -213,6 +221,8 @@ WITH inputs AS (
       AND e.durable_task_inserted_at = inputs.durable_task_inserted_at
       AND e.node_id = inputs.node_id
       AND e.branch_id = inputs.branch_id
+      AND e.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+      AND e.durable_task_inserted_at <= @maxDurableTaskInsertedAt::TIMESTAMPTZ
     RETURNING e.*
 ), max_satisfied_orders_to_apply AS (
     SELECT durable_task_id, durable_task_inserted_at, MAX(satisfied_order) AS satisfied_order
@@ -223,11 +233,15 @@ WITH inputs AS (
     SET latest_satisfied_order = GREATEST(lf.latest_satisfied_order, so.satisfied_order)
     FROM max_satisfied_orders_to_apply so
     WHERE (lf.durable_task_id, lf.durable_task_inserted_at) = (so.durable_task_id, so.durable_task_inserted_at)
+      AND lf.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+      AND lf.durable_task_inserted_at <= @maxDurableTaskInsertedAt::TIMESTAMPTZ
 )
 
 SELECT updated.*, llf.latest_invocation_count AS invocation_count
 FROM updated
 JOIN v1_durable_event_log_file llf ON (llf.durable_task_id, llf.durable_task_inserted_at) = (updated.durable_task_id, updated.durable_task_inserted_at)
+WHERE llf.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+    AND llf.durable_task_inserted_at <= @maxDurableTaskInsertedAt::TIMESTAMPTZ
 ;
 
 -- name: ListSatisfiedEntries :many
@@ -300,7 +314,11 @@ SELECT e.*, lf.latest_invocation_count AS invocation_count
 FROM v1_durable_event_log_entry e
 JOIN inputs i
     ON (e.durable_task_id, e.durable_task_inserted_at, e.branch_id, e.node_id) = (i.durable_task_id, i.durable_task_inserted_at, i.branch_id, i.node_id)
-JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (e.durable_task_id, e.durable_task_inserted_at);
+JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
+WHERE e.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+    AND e.durable_task_inserted_at <= @maxDurableTaskInsertedAt::TIMESTAMPTZ
+    AND lf.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+    AND lf.durable_task_inserted_at <= @maxDurableTaskInsertedAt::TIMESTAMPTZ;
 
 -- name: GetDurableEventLogEntriesByChildTaskExternalIds :many
 SELECT e.*, lf.latest_invocation_count AS invocation_count
@@ -341,6 +359,8 @@ WITH inputs AS (
         END AS satisfied_order
     FROM inputs i
     JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (i.durable_task_id, i.durable_task_inserted_at)
+    WHERE lf.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+      AND lf.durable_task_inserted_at <= @maxDurableTaskInsertedAt::TIMESTAMPTZ
 ), inserts AS (
     INSERT INTO v1_durable_event_log_entry (
         tenant_id,
@@ -393,11 +413,15 @@ WITH inputs AS (
         GROUP BY durable_task_id, durable_task_inserted_at
     ) so
     WHERE (lf.durable_task_id, lf.durable_task_inserted_at) = (so.durable_task_id, so.durable_task_inserted_at)
+      AND lf.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+      AND lf.durable_task_inserted_at <= @maxDurableTaskInsertedAt::TIMESTAMPTZ
 )
 
 SELECT i.*, lf.latest_invocation_count AS invocation_count
 FROM inserts i
 JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (i.durable_task_id, i.durable_task_inserted_at)
+WHERE lf.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+    AND lf.durable_task_inserted_at <= @maxDurableTaskInsertedAt::TIMESTAMPTZ
 ;
 
 -- name: GetDurableTaskLogFiles :many
@@ -414,6 +438,8 @@ WHERE (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id) IN (
     SELECT durable_task_id, durable_task_inserted_at, tenant_id
     FROM inputs
 )
+    AND lf.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+    AND lf.durable_task_inserted_at <= @maxDurableTaskInsertedAt::TIMESTAMPTZ
 ;
 
 -- name: ClaimDurableEventLogEntriesForTrigger :many
@@ -438,6 +464,8 @@ WITH inputs AS (
             AND e.branch_id = i.branch_id
     WHERE
         e.triggered_at IS NULL
+        AND e.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+        AND e.durable_task_inserted_at <= @maxDurableTaskInsertedAt::TIMESTAMPTZ
     ORDER BY e.durable_task_id, e.durable_task_inserted_at, e.branch_id, e.node_id
     FOR UPDATE
 )
@@ -449,6 +477,8 @@ WHERE e.durable_task_id = c.durable_task_id
   AND e.durable_task_inserted_at = c.durable_task_inserted_at
   AND e.branch_id = c.branch_id
   AND e.node_id = c.node_id
+  AND e.durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+  AND e.durable_task_inserted_at <= @maxDurableTaskInsertedAt::TIMESTAMPTZ
 RETURNING e.*
 ;
 
@@ -498,4 +528,30 @@ RETURNING
     v1_task_event.task_id,
     v1_task_event.event_key,
     v1_task_event.child_external_id
+;
+
+-- name: ListUnsatisfiedRunEntriesForChildTaskExternalIds :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
+        UNNEST(@childTaskExternalIds::UUID[]) AS child_task_external_id
+)
+
+SELECT
+    durable_task_id,
+    durable_task_inserted_at,
+    branch_id,
+    node_id,
+    child_task_external_id
+FROM v1_durable_event_log_entry
+WHERE
+    kind = 'RUN'
+    AND NOT is_satisfied
+    AND durable_task_inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+    AND durable_task_inserted_at <= @maxDurableTaskInsertedAt::TIMESTAMPTZ
+    AND (durable_task_id, durable_task_inserted_at, child_task_external_id) IN (
+        SELECT durable_task_id, durable_task_inserted_at, child_task_external_id
+        FROM inputs
+    )
 ;

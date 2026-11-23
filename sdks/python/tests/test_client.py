@@ -1,13 +1,14 @@
 import os
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 from unittest import mock
 
 import pytest
 
 from hatchet_sdk.config import ClientConfig
-from hatchet_sdk.runnables.workflow import BaseWorkflow
 from hatchet_sdk.utils.slots import resolve_worker_slot_config
-from hatchet_sdk.worker.slot_types import SlotType
+
+if TYPE_CHECKING:
+    from hatchet_sdk.runnables.workflow import BaseWorkflow
 
 
 def test_client_host_port_overrides() -> None:
@@ -45,79 +46,82 @@ def test_resolve_slot_config_no_durable() -> None:
         workflows=None,
     )
 
-    assert resolved == {SlotType.DEFAULT: 100}
+    assert resolved == {"default": 100}
 
 
 def test_resolve_slot_config_only_durable() -> None:
     class DummyTask:
         _is_durable = True
-        _slot_requests: dict[str, int] = {"durable": 1}
+        _slot_requests: ClassVar[dict[str, int]] = {"durable": 1}
 
     class DummyWorkflow:
-        tasks = [DummyTask()]
+        tasks: ClassVar[list[DummyTask]] = [DummyTask()]
 
     resolved = resolve_worker_slot_config(
         slot_config=None,
         slots=None,
         durable_slots=None,
-        workflows=cast(list[BaseWorkflow[Any]], [DummyWorkflow()]),
+        workflows=cast("list[BaseWorkflow[Any]]", [DummyWorkflow()]),
     )
 
-    assert resolved == {SlotType.DURABLE: 1000}
+    assert resolved == {"durable": 1000}
 
 
 def test_resolve_slot_config_mixed() -> None:
     class DefaultTask:
         _is_durable = False
-        _slot_requests: dict[str, int] = {"default": 1}
+        _slot_requests: ClassVar[dict[str, int]] = {"default": 1}
 
     class DurableTask:
         _is_durable = True
-        _slot_requests: dict[str, int] = {"durable": 1}
+        _slot_requests: ClassVar[dict[str, int]] = {"durable": 1}
 
     class DummyWorkflow:
-        tasks = [DefaultTask(), DurableTask()]
+        tasks: ClassVar[list[DefaultTask | DurableTask]] = [
+            DefaultTask(),
+            DurableTask(),
+        ]
 
     resolved = resolve_worker_slot_config(
         slot_config=None,
         slots=None,
         durable_slots=None,
-        workflows=cast(list[BaseWorkflow[Any]], [DummyWorkflow()]),
+        workflows=cast("list[BaseWorkflow[Any]]", [DummyWorkflow()]),
     )
 
-    assert resolved == {SlotType.DEFAULT: 100, SlotType.DURABLE: 1000}
+    assert resolved == {"default": 100, "durable": 1000}
 
 
 def test_resolve_slot_config_custom_type_raises_when_missing() -> None:
     class GpuTask:
         _is_durable = False
-        _slot_requests: dict[str, int] = {"gpu": 1}
+        _slot_requests: ClassVar[dict[str, int]] = {"gpu": 1}
 
     class DummyWorkflow:
-        tasks = [GpuTask()]
+        tasks: ClassVar[list[GpuTask]] = [GpuTask()]
 
     with pytest.raises(ValueError, match="gpu"):
         resolve_worker_slot_config(
             slot_config=None,
             slots=None,
             durable_slots=None,
-            workflows=cast(list[BaseWorkflow[Any]], [DummyWorkflow()]),
+            workflows=cast("list[BaseWorkflow[Any]]", [DummyWorkflow()]),
         )
 
 
 def test_resolve_slot_config_custom_type_passes_when_configured() -> None:
     class GpuTask:
         _is_durable = False
-        _slot_requests: dict[str, int] = {"gpu": 1}
+        _slot_requests: ClassVar[dict[str, int]] = {"gpu": 1}
 
     class DummyWorkflow:
-        tasks = [GpuTask()]
+        tasks: ClassVar[list[GpuTask]] = [GpuTask()]
 
     resolved = resolve_worker_slot_config(
         slot_config={"gpu": 4},
         slots=None,
         durable_slots=None,
-        workflows=cast(list[BaseWorkflow[Any]], [DummyWorkflow()]),
+        workflows=cast("list[BaseWorkflow[Any]]", [DummyWorkflow()]),
     )
 
     assert resolved == {"gpu": 4}

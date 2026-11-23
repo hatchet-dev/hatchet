@@ -163,7 +163,8 @@ function withoutRedirects(send: typeof globalThis.fetch): typeof globalThis.fetc
  * body over the send limit is refused before anything is sent, and a response body that grows
  * past the receive limit is cancelled as it streams, counted after the runtime's HTTP
  * decompression so a small compressed body cannot expand past it; the limit covers Connect
- * error bodies as well as messages. Both surface as a `ConnectError` with
+ * error bodies as well as messages. A streaming response is limited per message instead, since
+ * a long-lived stream's body has no bound. Both surface as a `ConnectError` with
  * `Code.ResourceExhausted`, as they do on the Node transport.
  */
 export function limitMessageSizes(
@@ -183,7 +184,11 @@ export function limitMessageSizes(
     if (!response.body) {
       return response;
     }
-    return new Response(limitBody(response.body, limits.receive), {
+    const streaming = response.headers.get('Content-Type')?.startsWith('application/connect+');
+    const body = streaming
+      ? limitEnvelopes(response.body, limits.receive)
+      : limitBody(response.body, limits.receive);
+    return new Response(body, {
       status: response.status,
       statusText: response.statusText,
       headers: response.headers,
@@ -226,6 +231,64 @@ function limitBody(body: ReadableStream<Uint8Array>, max: number): ReadableStrea
         controller.error(error);
         return;
       }
+      controller.enqueue(value);
+    },
+    cancel(reason) {
+      return reader.cancel(reason);
+    },
+  });
+}
+
+/** The prefix of each message in a Connect streaming body: a flags byte and a big-endian length. */
+const ENVELOPE_HEADER_BYTES = 5;
+
+/**
+ * Cancels a Connect streaming body once one message, the end-of-stream message included,
+ * declares a length past `max`. The body passes through unchanged; only the envelope headers
+ * are read, which can be split across chunks.
+ */
+function limitEnvelopes(body: ReadableStream<Uint8Array>, max: number): ReadableStream<Uint8Array> {
+  const reader = body.getReader();
+  const header = new Uint8Array(ENVELOPE_HEADER_BYTES);
+  let headerBytes = 0;
+  // what is left of the current message after its header
+  let messageBytes = 0;
+
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      const { done, value } = await reader.read();
+      if (done) {
+        controller.close();
+        return;
+      }
+
+      let i = 0;
+      while (i < value.byteLength) {
+        if (messageBytes > 0) {
+          const n = Math.min(messageBytes, value.byteLength - i);
+          messageBytes -= n;
+          i += n;
+          continue;
+        }
+
+        header[headerBytes] = value[i];
+        headerBytes += 1;
+        i += 1;
+        if (headerBytes === ENVELOPE_HEADER_BYTES) {
+          headerBytes = 0;
+          messageBytes = new DataView(header.buffer).getUint32(1);
+          if (messageBytes > max) {
+            const error = new ConnectError(
+              `message size ${messageBytes} is larger than configured maxReceiveMessageBytes ${max}`,
+              Code.ResourceExhausted
+            );
+            await reader.cancel(error).catch(() => undefined);
+            controller.error(error);
+            return;
+          }
+        }
+      }
+
       controller.enqueue(value);
     },
     cancel(reason) {

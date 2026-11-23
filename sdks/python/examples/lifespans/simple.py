@@ -5,7 +5,7 @@ from typing import cast
 
 from pydantic import BaseModel
 
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import Context, Hatchet
 
 hatchet = Hatchet()
 
@@ -20,8 +20,8 @@ async def lifespan() -> AsyncGenerator[Lifespan, None]:
 
 
 @hatchet.task(name="LifespanWorkflow")
-def lifespan_task(input: EmptyModel, ctx: Context) -> Lifespan:
-    return cast(Lifespan, ctx.lifespan)
+def lifespan_task(input: None, ctx: Context) -> Lifespan:
+    return cast("Lifespan", ctx.lifespan)
 
 
 def main() -> None:

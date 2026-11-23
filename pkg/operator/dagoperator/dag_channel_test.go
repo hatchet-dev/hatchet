@@ -105,7 +105,7 @@ func TestDagOverEngineChannelCompletesDirectlyTriggeredChild(t *testing.T) {
 
 	a := newTestTask("a", "action-a", 0)
 
-	trigger := func(context.Context, string, string, int32, []uuid.UUID, bool, bool, bool) (*operator.DAGStepTriggerResult, error) {
+	trigger := func(context.Context, []stepTriggerRequest) ([]*operator.DAGStepTriggerResult, error) {
 		// the child finishes before the interpreter has its ref
 		inv.Responses <- &v1contracts.DurableTaskResponse{Message: &v1contracts.DurableTaskResponse_EntryCompleted{
 			EntryCompleted: &v1contracts.DurableTaskEventLogEntryCompletedResponse{
@@ -114,7 +114,7 @@ func TestDagOverEngineChannelCompletesDirectlyTriggeredChild(t *testing.T) {
 			},
 		}}
 
-		return &operator.DAGStepTriggerResult{NodeId: 1, BranchId: 1, WorkflowRunExternalId: uuid.New()}, nil
+		return []*operator.DAGStepTriggerResult{{NodeId: 1, BranchId: 1, WorkflowRunExternalId: uuid.New()}}, nil
 	}
 
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
@@ -202,7 +202,7 @@ func TestDagOverEngineChannelRegistersConditionsOneAtATime(t *testing.T) {
 		return result, nil
 	}
 
-	require.NoError(t, dagDurableTask(ctx, []*task{a}, nil, externalId, workerId, 1, `{}`, ch, nil, trigger))
+	require.NoError(t, dagDurableTask(ctx, []*task{a}, nil, externalId, workerId, 1, `{}`, ch, nil, oneStepAtATime(trigger)))
 	assert.EqualValues(t, 2, registrations.Load(), "both conditions are registered")
 	assert.False(t, overlapping.Load(), "the second registration waits for the first ack")
 	assert.True(t, a.isTriggered)

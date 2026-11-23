@@ -1,6 +1,8 @@
-from collections.abc import Mapping
-from datetime import datetime, timedelta, timezone
-from typing import Any
+# the Mergent snippet shows a blocking HTTP call as it appears in typical Mergent code
+# ruff: noqa: ASYNC210
+
+from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING, Any
 
 import requests
 from pydantic import BaseModel
@@ -9,6 +11,9 @@ from requests import Response
 from hatchet_sdk.context.context import Context
 
 from .hatchet_client import hatchet
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 
 async def process_image(image_url: str, filters: list[str]) -> dict[str, Any]:
@@ -45,7 +50,7 @@ class ImageProcessOutput(BaseModel):
 @hatchet.task(
     name="image-processor",
     retries=3,
-    execution_timeout="10m",
+    execution_timeout=timedelta(minutes=10),
     input_validator=ImageProcessInput,
 )
 async def image_processor(input: ImageProcessInput, ctx: Context) -> ImageProcessOutput:
@@ -124,7 +129,7 @@ async def schedule() -> None:
 
     # > Scheduling tasks (Hatchet)
     # Schedule the task to run at a specific time
-    run_at = datetime.now(tz=timezone.utc) + timedelta(days=1)
+    run_at = datetime.now(tz=UTC) + timedelta(days=1)
     await image_processor.aio_schedule(
         run_at,
         ImageProcessInput(image_url="https://example.com/image.png", filters=["blur"]),

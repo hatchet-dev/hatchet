@@ -2,14 +2,14 @@
 
 import pytest
 
-from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet
+from hatchet_sdk import Context, DurableContext, Hatchet
 
 
-def dummy(input: EmptyModel, ctx: Context) -> None:
+def dummy(input: None, ctx: Context) -> None:
     return None
 
 
-async def dummy_durable(input: EmptyModel, ctx: DurableContext) -> None:
+async def dummy_durable(input: None, ctx: DurableContext) -> None:
     return None
 
 
@@ -19,21 +19,21 @@ def test_slot_cost_maps_to_default_pool(hatchet: Hatchet) -> None:
     plain = wf.task(name="plain")(dummy)
     heavy = wf.task(name="heavy", slot_cost=5)(dummy)
 
-    assert plain.to_proto("svc").slot_requests == {"default": 1}
-    assert heavy.to_proto("svc").slot_requests == {"default": 5}
+    assert plain._to_proto("svc").slot_requests == {"default": 1}
+    assert heavy._to_proto("svc").slot_requests == {"default": 5}
 
 
 def test_standalone_task_slot_cost(hatchet: Hatchet) -> None:
     standalone = hatchet.task(name="standalone-heavy", slot_cost=5)(dummy)
 
-    assert standalone._task.to_proto("svc").slot_requests == {"default": 5}
+    assert standalone._task._to_proto("svc").slot_requests == {"default": 5}
 
 
 @pytest.mark.parametrize("bad", [0, -1])
 def test_non_positive_slot_cost_is_rejected(hatchet: Hatchet, bad: int) -> None:
     wf = hatchet.workflow(name="slot-cost-invalid-wf")
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="slot_cost must be a positive integer"):
         wf.task(name="bad", slot_cost=bad)(dummy)
 
 
@@ -41,4 +41,4 @@ def test_durable_task_keeps_durable_slot(hatchet: Hatchet) -> None:
     wf = hatchet.workflow(name="slot-cost-durable-wf")
     t = wf.durable_task()(dummy_durable)
 
-    assert t.to_proto("svc").slot_requests == {"durable": 1}
+    assert t._to_proto("svc").slot_requests == {"durable": 1}

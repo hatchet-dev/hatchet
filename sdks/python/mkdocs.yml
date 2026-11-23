@@ -16,6 +16,7 @@ plugins:
           options:
             extensions:
               - griffe_pydantic
+              - docs/generator/literal_aliases.py:ExpandLiteralAliasAnnotations
             # Load pydantic_settings so griffe can resolve BaseSettings and the
             # griffe_pydantic extension detects settings models. Deliberately NOT
             # pydantic itself: loading it makes the extension label BaseModel's own

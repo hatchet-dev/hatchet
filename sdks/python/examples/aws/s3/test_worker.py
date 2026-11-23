@@ -1,12 +1,14 @@
+# pyright: basic
 import os
 import shutil
 import subprocess
 import time
+from collections.abc import Callable
 from pathlib import Path
 from subprocess import Popen, run
-import boto3  # type: ignore
-from typing import Any, Callable
+from typing import Any
 
+import boto3  # type: ignore[import-untyped]
 import pytest
 
 from examples.aws.s3.worker import fetch_buckets_workflow

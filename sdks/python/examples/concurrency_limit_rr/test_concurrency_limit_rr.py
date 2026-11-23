@@ -1,9 +1,12 @@
 import time
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
 from examples.concurrency_limit_rr.worker import concurrency_limit_rr_workflow
-from hatchet_sdk.workflow_run import WorkflowRunRef
+
+if TYPE_CHECKING:
+    from hatchet_sdk.workflow_run import WorkflowRunRef
 
 
 @pytest.mark.skip(reason="The timing for this test is not reliable")
@@ -13,15 +16,15 @@ async def test_run() -> None:
     runs: list[WorkflowRunRef] = []
 
     # Start all runs
-    for i in range(1, num_groups + 1):
+    for _ in range(1, num_groups + 1):
         run = concurrency_limit_rr_workflow.run(wait_for_result=False)
         runs.append(run)
         run = concurrency_limit_rr_workflow.run(wait_for_result=False)
         runs.append(run)
 
     # Wait for all results
-    successful_runs = []
-    cancelled_runs = []
+    successful_runs: list[tuple[int, dict[str, Any]]] = []
+    cancelled_runs: list[tuple[int, str]] = []
 
     start_time = time.time()
 

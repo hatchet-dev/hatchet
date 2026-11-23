@@ -77,7 +77,7 @@
     --accent: 217.2 32.6% 17.5%;
     --accent-foreground: 210 40% 98%;
 
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
     --border: 217.2 32.6% 17.5%;
@@ -548,4 +548,37 @@ pre.shiki > code > span::before {
 
 .terminal-root ::-webkit-scrollbar-corner {
   background-color: var(--terminal-bg);
+}
+
+/* Runs list: the filter sidebar sits beside the table when there is room and
+   stacks above it otherwise (side panels, narrow windows). It caps its height
+   when stacked so the table keeps most of the space. */
+.runs-layout {
+  container-type: inline-size;
+}
+
+.runs-layout-inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 0.75rem;
+}
+
+.runs-filter-sidebar {
+  flex: 0 0 auto;
+  max-height: 40%;
+  overflow-y: auto;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.5rem;
+}
+
+@container (min-width: 900px) {
+  .runs-layout-inner {
+    flex-direction: row;
+  }
+
+  .runs-filter-sidebar {
+    width: 252px;
+    max-height: none;
+  }
 }

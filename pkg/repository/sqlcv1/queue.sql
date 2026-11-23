@@ -517,6 +517,8 @@ FROM
     input
 JOIN
     v1_task t ON t.id = input.task_id AND t.inserted_at = input.task_inserted_at
+        AND t.inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+        AND t.inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
 ON CONFLICT (task_id, task_inserted_at, retry_count) DO UPDATE
 SET
     timeout_at = EXCLUDED.timeout_at,
@@ -957,22 +959,25 @@ LIMIT
     COALESCE(sqlc.narg('limit')::integer, 1000);
 
 -- name: ListDistinctBatchResources :many
--- short circuits using lateral join with LIMIT because we only care about the existence of 1 or more
--- batched queue item rows
+-- Steps with pending batched queue items, optionally limited to stepIds. Items with an empty
+-- batch key (a failed group key evaluation) don't count.
 SELECT
     sbc.step_id,
-    b.batch_key,
-    sbc.batch_max_size AS batch_max_size,
-    sbc.batch_max_interval AS batch_max_interval,
-    sbc.batch_group_max_runs AS batch_group_max_runs
+    sbc.batch_max_size,
+    sbc.batch_max_interval,
+    sbc.batch_group_max_runs
 FROM
     v1_step_batch_config sbc
-JOIN LATERAL (
-    SELECT batch_key
-    FROM v1_batched_queue_item
-    WHERE tenant_id = @tenantId::uuid AND step_id = sbc.step_id
-    LIMIT 1
-) b ON true;
+WHERE
+    (sqlc.narg('stepIds')::uuid[] IS NULL OR sbc.step_id = ANY(sqlc.narg('stepIds')::uuid[]))
+    AND EXISTS (
+        SELECT 1
+        FROM v1_batched_queue_item bqi
+        WHERE
+            bqi.tenant_id = @tenantId::uuid
+            AND bqi.step_id = sbc.step_id
+            AND bqi.batch_key <> ''
+    );
 
 -- name: MoveQueueItemsToBatchedQueue :many
 WITH locked_qis AS (
@@ -1460,6 +1465,9 @@ WITH input AS (
     FROM waiting_tasks wt
     JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (wt.task_id, wt.task_inserted_at, wt.task_retry_count)
     JOIN "Workflow" w ON w."id" = t.workflow_id
+    WHERE
+        t.inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+        AND t.inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
 ), deleted_slots AS (
     DELETE FROM v1_concurrency_slot cs
     USING held_tasks h
@@ -1508,7 +1516,10 @@ SELECT
     h.rate_limit_paused_until
 FROM held_tasks h
 JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (h.id, h.inserted_at, h.retry_count)
-WHERE h.workflow_paused OR h.rate_limit_paused_until IS NOT NULL
+WHERE
+    (h.workflow_paused OR h.rate_limit_paused_until IS NOT NULL)
+    AND t.inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+    AND t.inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
 ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING;
 
 -- name: ReleaseHeldQueueItemsForWorkflows :many
@@ -1583,6 +1594,8 @@ WITH input AS (
     WHERE
         pqi.tenant_id = @tenantId::UUID
         AND t.concurrency_strategy_ids[1] IS NULL
+        AND t.inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+        AND t.inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
     ORDER BY pqi.task_inserted_at, pqi.task_id, pqi.retry_count
     FOR UPDATE OF pqi SKIP LOCKED
 ), deleted_items AS (
@@ -1634,6 +1647,8 @@ SELECT
     ri.batch_key
 FROM ready_items ri
 JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (ri.task_id, ri.task_inserted_at, ri.retry_count)
+    AND t.inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+    AND t.inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
 RETURNING queue
 ;
 
@@ -1651,6 +1666,8 @@ WITH input AS (
     WHERE
         pqi.tenant_id = @tenantId::UUID
         AND t.concurrency_strategy_ids[1] IS NOT NULL
+        AND t.inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+        AND t.inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
     ORDER BY pqi.task_inserted_at, pqi.task_id, pqi.retry_count
     FOR UPDATE OF pqi SKIP LOCKED
 ), deleted_items AS (
@@ -1718,6 +1735,8 @@ SELECT
     CURRENT_TIMESTAMP + convert_duration_to_interval(t.schedule_timeout)
 FROM ready_items ri
 JOIN v1_task t ON (t.id, t.inserted_at, t.retry_count) = (ri.task_id, ri.task_inserted_at, ri.retry_count)
+    AND t.inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+    AND t.inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
 ON CONFLICT (task_id, task_inserted_at, task_retry_count, strategy_id) DO NOTHING
 RETURNING strategy_id
 ;

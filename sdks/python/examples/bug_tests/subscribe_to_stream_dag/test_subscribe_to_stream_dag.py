@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from subprocess import Popen
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
@@ -14,8 +13,12 @@ from examples.bug_tests.subscribe_to_stream_dag.worker import (
     dag_stream,
     long_stream,
 )
-from hatchet_sdk import EmptyModel, Hatchet
-from hatchet_sdk.runnables.workflow import Workflow
+
+if TYPE_CHECKING:
+    from subprocess import Popen
+
+    from hatchet_sdk import Hatchet
+    from hatchet_sdk.runnables.workflow import Workflow
 
 pytestmark = pytest.mark.parametrize(
     "on_demand_worker",
@@ -32,15 +35,15 @@ pytestmark = pytest.mark.parametrize(
 
 
 async def collect_stream(hatchet: Hatchet, run_id: str) -> tuple[float, list[str]]:
-    chunks: list[str] = []
     t0 = time.monotonic()
-    async for chunk in hatchet.runs.subscribe_to_stream(run_id):
-        chunks.append(chunk)
+    with pytest.warns(DeprecationWarning, match="aio_subscribe_to_stream"):
+        stream = hatchet.runs.aio_subscribe_to_stream(run_id)
+    chunks = [chunk async for chunk in stream]
     return time.monotonic() - t0, chunks
 
 
 async def subscribe_from_start(
-    hatchet: Hatchet, workflow: Workflow[EmptyModel]
+    hatchet: Hatchet, workflow: Workflow[None]
 ) -> tuple[float, list[str]]:
     ref = await workflow.aio_run(wait_for_result=False)
     elapsed, chunks = await collect_stream(hatchet, ref.workflow_run_id)

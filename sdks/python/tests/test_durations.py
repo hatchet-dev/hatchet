@@ -1,8 +1,8 @@
 from datetime import timedelta
 
 from hatchet_sdk.utils.timedelta_to_expression import (
-    timedelta_to_expr,
     expr_to_timedelta,
+    timedelta_to_expr,
 )
 
 

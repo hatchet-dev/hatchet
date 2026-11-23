@@ -4,6 +4,7 @@ import (
 	"github.com/oapi-codegen/runtime/types"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -26,12 +27,6 @@ func ToUser(user *sqlcv1.User, hasPassword bool, hashedEmail *string) *gen.User 
 }
 
 func ToTenantMember(tenantMember *sqlcv1.PopulateTenantMembersRow) *gen.TenantMember {
-	var environment *gen.TenantEnvironment
-	if tenantMember.TenantEnvironment.Valid {
-		env := gen.TenantEnvironment(tenantMember.TenantEnvironment.TenantEnvironment)
-		environment = &env
-	}
-
 	res := &gen.TenantMember{
 		Metadata: *toAPIMetadata(tenantMember.ID, tenantMember.CreatedAt.Time, tenantMember.UpdatedAt.Time),
 		User: gen.UserTenantPublic{
@@ -44,15 +39,15 @@ func ToTenantMember(tenantMember *sqlcv1.PopulateTenantMembersRow) *gen.TenantMe
 			Slug:                tenantMember.TenantSlug,
 			AnalyticsOptOut:     &tenantMember.AnalyticsOptOut,
 			AlertMemberEmails:   &tenantMember.AlertMemberEmails,
-			Version:             gen.TenantVersion(tenantMember.TenantVersion),
-			Environment:         environment,
+			Version:             tenantMember.TenantVersion,
+			Environment:         tenantMember.TenantEnvironment,
 			DataRetentionPeriod: &tenantMember.TenantDataRetentionPeriod,
 		},
-		Role: gen.TenantMemberRole(tenantMember.Role),
+		Role: tenantMember.Role,
 	}
 
 	canView := tenantMember.CanViewPayloads
-	if tenantMember.Role == sqlcv1.TenantMemberRoleOWNER || tenantMember.Role == sqlcv1.TenantMemberRoleADMIN {
+	if tenantMember.Role == enums.TenantMemberRoleOWNER || tenantMember.Role == enums.TenantMemberRoleADMIN {
 		canView = true
 	}
 	res.CanViewPayloads = &canView

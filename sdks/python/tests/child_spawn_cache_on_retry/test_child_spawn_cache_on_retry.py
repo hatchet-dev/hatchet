@@ -1,11 +1,9 @@
 from subprocess import Popen
 from typing import Any
-from uuid import uuid4
 
 import pytest
 
-from hatchet_sdk import Hatchet, TriggerWorkflowOptions
-from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
+from hatchet_sdk import Hatchet
 from tests.child_spawn_cache_on_retry.worker import (
     spawn_cache_on_retry_child,
     spawn_cache_on_retry_parent,
@@ -19,15 +17,12 @@ from tests.child_spawn_cache_on_retry.worker import (
 )
 @pytest.mark.asyncio(loop_scope="session")
 async def test_spawn_caching_on_retry(
-    hatchet: Hatchet, on_demand_worker: Popen[Any]
+    hatchet: Hatchet, on_demand_worker: Popen[Any], test_run_id: str
 ) -> None:
-    test_run_id = str(uuid4())
-    try:
+    with pytest.raises(Exception, match="Task exceeded timeout of"):
         await spawn_cache_on_retry_parent.aio_run(
             additional_metadata={"test_run_id": test_run_id}
         )
-    except Exception as e:
-        assert "Task exceeded timeout of" in str(e)
 
     runs = await spawn_cache_on_retry_child.aio_list_runs(
         additional_metadata={"test_run_id": test_run_id}
@@ -37,4 +32,4 @@ async def test_spawn_caching_on_retry(
 
     run = runs[0]
 
-    assert run.status == V1TaskStatus.COMPLETED
+    assert run.status == "COMPLETED"

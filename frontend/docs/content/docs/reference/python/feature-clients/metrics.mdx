@@ -39,13 +39,13 @@ Retrieve task metrics, grouped by status (queued, running, completed, failed, ca
 
 Parameters:
 
-| Name                           | Type                | Description                                                                                                          | Default |
-| ------------------------------ | ------------------- | -------------------------------------------------------------------------------------------------------------------- | ------- |
-| `since`                        | `datetime \| None`  | Start time for the metrics query (defaults to the past day if unset)                                                 | `None`  |
-| `until`                        | `datetime \| None`  | End time for the metrics query                                                                                       | `None`  |
-| `workflow_ids`                 | `list[str] \| None` | List of workflow IDs to filter the metrics by                                                                        | `None`  |
-| `parent_task_external_id`      | `str \| None`       | ID of the parent task to filter by (note that parent task here refers to the task that spawned this task as a child) | `None`  |
-| `triggering_event_external_id` | `str \| None`       | ID of the triggering event to filter by                                                                              | `None`  |
+| Name                  | Type                | Description                                                                                                              | Default |
+| --------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------- |
+| `since`               | `datetime \| None`  | Start time for the metrics query (defaults to the past day if unset)                                                     | `None`  |
+| `until`               | `datetime \| None`  | End time for the metrics query                                                                                           | `None`  |
+| `workflow_ids`        | `list[str] \| None` | List of workflow IDs to filter the metrics by                                                                            | `None`  |
+| `parent_task_run_id`  | `str \| None`       | ID of the parent task run to filter by (note that parent task here refers to the task that spawned this task as a child) | `None`  |
+| `triggering_event_id` | `str \| None`       | ID of the triggering event to filter by                                                                                  | `None`  |
 
 Returns:
 
@@ -89,13 +89,13 @@ Retrieve task metrics, grouped by status (queued, running, completed, failed, ca
 
 Parameters:
 
-| Name                           | Type                | Description                                                                                                          | Default |
-| ------------------------------ | ------------------- | -------------------------------------------------------------------------------------------------------------------- | ------- |
-| `since`                        | `datetime \| None`  | Start time for the metrics query (defaults to the past day if unset)                                                 | `None`  |
-| `until`                        | `datetime \| None`  | End time for the metrics query                                                                                       | `None`  |
-| `workflow_ids`                 | `list[str] \| None` | List of workflow IDs to filter the metrics by                                                                        | `None`  |
-| `parent_task_external_id`      | `str \| None`       | ID of the parent task to filter by (note that parent task here refers to the task that spawned this task as a child) | `None`  |
-| `triggering_event_external_id` | `str \| None`       | ID of the triggering event to filter by                                                                              | `None`  |
+| Name                  | Type                | Description                                                                                                              | Default |
+| --------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------- |
+| `since`               | `datetime \| None`  | Start time for the metrics query (defaults to the past day if unset)                                                     | `None`  |
+| `until`               | `datetime \| None`  | End time for the metrics query                                                                                           | `None`  |
+| `workflow_ids`        | `list[str] \| None` | List of workflow IDs to filter the metrics by                                                                            | `None`  |
+| `parent_task_run_id`  | `str \| None`       | ID of the parent task run to filter by (note that parent task here refers to the task that spawned this task as a child) | `None`  |
+| `triggering_event_id` | `str \| None`       | ID of the triggering event to filter by                                                                                  | `None`  |
 
 Returns:
 

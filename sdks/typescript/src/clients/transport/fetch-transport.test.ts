@@ -1,6 +1,8 @@
 import { create, toBinary } from '@bufbuild/protobuf';
 import { Code, ConnectError } from '@connectrpc/connect';
 import { GetRunDetailsResponseSchema, RunStatus } from '@hatchet/protoc-es/v1/workflows_pb';
+import { StreamMessageSchema } from '@hatchet/protoc-es/v1/streams_pb';
+import { createV1StreamsRpc } from '@hatchet/clients/streams/rpc';
 import { createV1AdminRpc } from '@hatchet/clients/admin/rpc';
 import { createEventsRpc } from '@hatchet/clients/event/rpc';
 import { createFetchTransport, resolveServerUrl } from './fetch-transport';
@@ -31,6 +33,38 @@ function stubFetch(respond: () => Response) {
   };
   return { fetch, requests };
 }
+
+/** A Connect streaming response body: each message enveloped, then the end-of-stream message. */
+function connectStream(messages: Uint8Array[]): ReadableStream<Uint8Array> {
+  const envelope = (flags: number, data: Uint8Array) => {
+    const out = new Uint8Array(5 + data.byteLength);
+    out[0] = flags;
+    new DataView(out.buffer).setUint32(1, data.byteLength);
+    out.set(data, 5);
+    return out;
+  };
+  const chunks = [
+    ...messages.map((m) => envelope(0, m)),
+    envelope(2, new TextEncoder().encode('{}')),
+  ];
+  return new ReadableStream<Uint8Array>({
+    pull(controller) {
+      const next = chunks.shift();
+      if (next) controller.enqueue(next);
+      else controller.close();
+    },
+  });
+}
+
+/** A `Subscribe` message carrying one entry of about `bytes`. */
+function streamMessage(bytes: number): Uint8Array {
+  return toBinary(
+    StreamMessageSchema,
+    create(StreamMessageSchema, { entries: [{ cursor: 'c', payload: new Uint8Array(bytes) }] })
+  );
+}
+
+const CONNECT_STREAM = { 'content-type': 'application/connect+proto' };
 
 async function rejection(promise: Promise<unknown>): Promise<ConnectError> {
   try {
@@ -94,6 +128,44 @@ describe('createFetchTransport message size limits', () => {
     expect(error.code).toBe(Code.ResourceExhausted);
     expect(cancelled).toBe(true);
     expect(delivered).toBeLessThanOrEqual(DEFAULT_MAX_MESSAGE_BYTES + 2 * chunk.byteLength);
+  });
+
+  it('limits a streaming response per message, so a stream may outgrow the limit in total', async () => {
+    const messages = Array.from({ length: 6 }, () => streamMessage(1024 * 1024));
+    const { fetch } = stubFetch(
+      () => new Response(connectStream(messages), { headers: CONNECT_STREAM })
+    );
+    const rpc = createV1StreamsRpc(
+      createFetchTransport({ token: TOKEN, serverUrl: 'https://e', fetch })
+    );
+
+    let received = 0;
+    for await (const msg of rpc.subscribe({ topic: 't' })) {
+      received += msg.entries[0].payload.byteLength;
+    }
+
+    expect(received).toBe(6 * 1024 * 1024);
+  });
+
+  it('rejects a streamed message over the limit with ResourceExhausted', async () => {
+    const { fetch } = stubFetch(
+      () =>
+        new Response(connectStream([streamMessage(DEFAULT_MAX_MESSAGE_BYTES + 16)]), {
+          headers: CONNECT_STREAM,
+        })
+    );
+    const rpc = createV1StreamsRpc(
+      createFetchTransport({ token: TOKEN, serverUrl: 'https://e', fetch })
+    );
+
+    const read = async () => {
+      // eslint-disable-next-line no-empty
+      for await (const _ of rpc.subscribe({ topic: 't' })) {
+      }
+    };
+    const error = await rejection(read());
+
+    expect(error.code).toBe(Code.ResourceExhausted);
   });
 
   it('holds a Connect error body to the same limit', async () => {

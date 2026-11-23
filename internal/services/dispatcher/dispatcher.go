@@ -19,6 +19,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
+	"github.com/hatchet-dev/hatchet/internal/gocronutils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
@@ -28,6 +29,7 @@ import (
 	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
@@ -90,8 +92,8 @@ func (d *DispatcherImpl) V1() *DispatcherServiceImpl {
 	return d.serviceV1
 }
 
-func (d *DispatcherImpl) TriggerDAGStep(ctx context.Context, tenantId uuid.UUID, req *operator.DAGStepTriggerRequest) (*operator.DAGStepTriggerResult, error) {
-	return d.serviceV1.TriggerDAGStep(ctx, tenantId, req)
+func (d *DispatcherImpl) TriggerDAGSteps(ctx context.Context, tenantId uuid.UUID, reqs []*operator.DAGStepTriggerRequest) ([]*operator.DAGStepTriggerResult, error) {
+	return d.serviceV1.TriggerDAGSteps(ctx, tenantId, reqs)
 }
 
 func (d *DispatcherImpl) CancelDAGChildren(ctx context.Context, tenantId uuid.UUID, taskExternalIds []uuid.UUID) error {
@@ -366,8 +368,9 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 		return nil, err
 	}
 
-	_, err = d.s.NewJob(
-		gocron.DurationJob(time.Second*5),
+	_, err = gocronutils.NewJitteredDurationJob(
+		d.s,
+		time.Second*5,
 		gocron.NewTask(
 			d.runUpdateHeartbeat(ctx),
 		),
@@ -1035,7 +1038,7 @@ func (d *DispatcherImpl) sendTasksToWorker(
 						RetryCount:             task.RetryCount,
 						DurableInvocationCount: durableInvCount,
 						WorkerId:               &workerId,
-						EventType:              sqlcv1.V1EventTypeOlapSENTTOWORKER,
+						EventType:              enums.V1EventTypeOlapSENTTOWORKER,
 						EventTimestamp:         time.Now().UTC(),
 						EventMessage:           "Sent task run to the assigned worker",
 					},

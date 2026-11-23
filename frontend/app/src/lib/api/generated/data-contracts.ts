@@ -45,6 +45,7 @@ export enum FeatureFlagId {
   OrganizationSsoEnabled = "organization-sso-enabled",
   OperatorDetailsEnabled = "operator-details-enabled",
   ConcurrencyPageEnabled = "concurrency-page-enabled",
+  RunsFilterSidebarEnabled = "runs-filter-sidebar-enabled",
 }
 
 export enum WebhookWorkerRequestMethod {
@@ -142,6 +143,9 @@ export enum ConcurrencyLimitStrategy {
   DROP_NEWEST = "DROP_NEWEST",
   QUEUE_NEWEST = "QUEUE_NEWEST",
   GROUP_ROUND_ROBIN = "GROUP_ROUND_ROBIN",
+  CANCEL_NEWEST = "CANCEL_NEWEST",
+  CANCEL_QUEUED_EXCEPT_NEWEST = "CANCEL_QUEUED_EXCEPT_NEWEST",
+  CANCEL_QUEUED_EXCEPT_OLDEST = "CANCEL_QUEUED_EXCEPT_OLDEST",
 }
 
 export enum CronWorkflowsOrderByField {
@@ -229,6 +233,9 @@ export enum TenantResource {
   CRON = "CRON",
   SCHEDULE = "SCHEDULE",
   INCOMING_WEBHOOK = "INCOMING_WEBHOOK",
+  STREAM_TOPIC = "STREAM_TOPIC",
+  STREAM_MESSAGE = "STREAM_MESSAGE",
+  STREAM_RETENTION = "STREAM_RETENTION",
 }
 
 /** The status of the CEL evaluation */
@@ -394,6 +401,7 @@ export enum V1TaskEventType {
   COULD_NOT_SEND_TO_WORKER = "COULD_NOT_SEND_TO_WORKER",
   DURABLE_EVICTED = "DURABLE_EVICTED",
   DURABLE_RESTORING = "DURABLE_RESTORING",
+  BATCH_BUFFERED = "BATCH_BUFFERED",
 }
 
 export enum V1WorkflowType {

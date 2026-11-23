@@ -1,18 +1,18 @@
-import pytest
-import pytest_asyncio
-
-from hatchet_sdk import Hatchet, RunStatus
-from datetime import timedelta, datetime, timezone
-
-from examples.workflow_pause.worker import pausable_workflow
 import asyncio
 import contextlib
 import fcntl
 import tempfile
 import time
 from collections.abc import AsyncGenerator
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
+
+import pytest
+import pytest_asyncio
+
+from examples.workflow_pause.worker import pausable_workflow
+from hatchet_sdk import Hatchet, RunStatus
 
 # Interval at which the engine's ticker reloads user cron schedules.
 CRON_RELOAD_SECONDS = 15
@@ -62,15 +62,15 @@ async def test_workflow_pause_cancel_after_ttl(hatchet: Hatchet) -> None:
     while True:
         details = await hatchet.runs.aio_get_details(run_id)
 
-        if details.status == RunStatus.CANCELLED:
+        if details.status == "CANCELLED":
             return
 
         assert (
-            details.status == RunStatus.QUEUED
+            details.status == "QUEUED"
         ), f"Run {run_id} is not queued (status {details.status})."
 
         if time.time() - start_time > timeout:
-            assert False, f"Run {run_id} was not cancelled within {timeout} seconds."
+            pytest.fail(f"Run {run_id} was not cancelled within {timeout} seconds.")
 
         await asyncio.sleep(1)
 
@@ -88,7 +88,7 @@ async def test_workflow_unpause(hatchet: Hatchet) -> None:
         details = await hatchet.runs.aio_get_details(run_id)
 
         assert (
-            details.status == RunStatus.QUEUED
+            details.status == "QUEUED"
         ), f"Run {run_id} is not queued (status {details.status})."
 
         await asyncio.sleep(1)
@@ -100,19 +100,19 @@ async def test_workflow_unpause(hatchet: Hatchet) -> None:
 
     while True:
         if time.time() - start > timeout:
-            assert False, f"Run {run_id} was not completed within {timeout} seconds."
+            pytest.fail(f"Run {run_id} was not completed within {timeout} seconds.")
 
         details = await hatchet.runs.aio_get_details(run_id)
 
-        if details.status == RunStatus.CANCELLED:
-            assert False, f"Run {run_id} was cancelled after unpausing."
+        if details.status == "CANCELLED":
+            pytest.fail(f"Run {run_id} was cancelled after unpausing.")
 
-        if details.status == RunStatus.COMPLETED:
+        if details.status == "COMPLETED":
             return
 
         assert details.status in [
-            RunStatus.QUEUED,
-            RunStatus.RUNNING,
+            "QUEUED",
+            "RUNNING",
         ], f"Run {run_id} is not queued or running (status {details.status})."
 
         await asyncio.sleep(1)
@@ -135,16 +135,16 @@ async def wait_for_all_completed(
     # with the last status observed for each. Stops early if a run reaches a
     # terminal status other than COMPLETED, since it can never complete after that.
     deadline = time.time() + timeout
-    remaining: dict[str, RunStatus] = dict.fromkeys(run_ids, RunStatus.QUEUED)
-    terminal = {RunStatus.CANCELLED, RunStatus.FAILED}
+    remaining: dict[str, RunStatus] = dict.fromkeys(run_ids, "QUEUED")
+    terminal = {"CANCELLED", "FAILED"}
 
     while remaining and time.time() < deadline:
         details = await asyncio.gather(
             *[hatchet.runs.aio_get_details(run_id) for run_id in remaining]
         )
 
-        for run_id, detail in zip(list(remaining), details):
-            if detail.status == RunStatus.COMPLETED:
+        for run_id, detail in zip(list(remaining), details, strict=True):
+            if detail.status == "COMPLETED":
                 del remaining[run_id]
             else:
                 remaining[run_id] = detail.status
@@ -216,7 +216,7 @@ async def test_workflow_pause_drop_crons_and_schedules(hatchet: Hatchet) -> None
     # invisible for a few seconds. Always delete it, even when an assertion fails.
     try:
         await pausable_workflow.aio_schedule(
-            run_at=datetime.now(timezone.utc) + timedelta(seconds=1),
+            trigger_at=datetime.now(UTC) + timedelta(seconds=1),
             additional_metadata={
                 "test_run_id": test_run_id,
             },
@@ -231,7 +231,7 @@ async def test_workflow_pause_drop_crons_and_schedules(hatchet: Hatchet) -> None
 
             await asyncio.sleep(1)
     finally:
-        await hatchet.cron.aio_delete(cron.metadata.id)
+        await hatchet.crons.aio_delete(cron.id)
         # The engine reloads user crons every 15 seconds, so the deleted cron can
         # keep firing until the next reload. Stay paused (its runs are dropped)
         # until it has stopped, otherwise the late fires keep refreshing the

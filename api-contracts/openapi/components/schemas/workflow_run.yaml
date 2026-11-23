@@ -230,6 +230,9 @@ ScheduledWorkflowsMethod:
   enum:
     - DEFAULT
     - API
+  x-go-type: enums.WorkflowTriggerScheduledRefMethods
+  x-go-type-import:
+    path: github.com/hatchet-dev/hatchet/pkg/enums
 
 ScheduledWorkflowsList:
   type: object
@@ -371,6 +374,9 @@ CronWorkflowsMethod:
   enum:
     - DEFAULT
     - API
+  x-go-type: enums.WorkflowTriggerCronRefMethods
+  x-go-type-import:
+    path: github.com/hatchet-dev/hatchet/pkg/enums
 
 CronWorkflows:
   type: object

@@ -6,11 +6,10 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import timedelta
-from typing import Annotated, Literal, cast
+from typing import TYPE_CHECKING, Annotated, Literal, Self, assert_never
 
 import grpc.aio
 from pydantic import BaseModel, Field
-from typing_extensions import Never, Self
 
 from hatchet_sdk.clients.admin import (
     AdminClient,
@@ -41,6 +40,9 @@ from hatchet_sdk.types.trigger import TriggerWorkflowOptions
 from hatchet_sdk.utils.api_auth import create_authorization_header
 from hatchet_sdk.utils.cache import DurableInvocationCallbackCache, TTLCache
 from hatchet_sdk.utils.typing import JSONSerializableMapping
+
+if TYPE_CHECKING:
+    from hatchet_sdk.contracts.v1.dispatcher_pb2_grpc import V1DispatcherAsyncStub
 
 DEFAULT_RECONNECT_INTERVAL = 3  # seconds
 
@@ -91,7 +93,9 @@ class DurableTaskEventRunAck(BaseModel):
     ack_type: Literal["run"] = "run"
     invocation_count: int
     durable_task_external_id: str
-    run_entries: list[DurableTaskRunAckEntry] = Field(default_factory=list)
+    run_entries: list[DurableTaskRunAckEntry] = Field(
+        default_factory=list[DurableTaskRunAckEntry]
+    )
 
 
 class DurableTaskEventMemoAck(BaseModel):
@@ -167,10 +171,10 @@ def _swallow_future_result(
 @dataclass
 class OrderedCompletionQueue:
     pending: deque[tuple[PendingCallback, "DurableTaskEventLogEntryResult"]] = field(
-        default_factory=deque
+        default_factory=deque[tuple[PendingCallback, DurableTaskEventLogEntryResult]]
     )
-    delivered: set[PendingCallback] = field(default_factory=set)
-    pending_keys: set[PendingCallback] = field(default_factory=set)
+    delivered: set[PendingCallback] = field(default_factory=set[PendingCallback])
+    pending_keys: set[PendingCallback] = field(default_factory=set[PendingCallback])
 
     def enqueue(
         self, key: PendingCallback, result: "DurableTaskEventLogEntryResult"
@@ -191,7 +195,7 @@ class DurableEventListener:
         config: ClientConfig,
         admin_client: AdminClient,
         on_server_evict: Callable[[str, int], None] | None = None,
-    ):
+    ) -> None:
         self.config = config
         self.token = config.token
         self.admin_client = admin_client
@@ -199,7 +203,7 @@ class DurableEventListener:
         self._worker_id: str | None = None
 
         self._conn: grpc.aio.Channel | None = None
-        self._stub: V1DispatcherStub | None = None
+        self._stub: V1DispatcherAsyncStub | None = None
         self._stream: (
             grpc.aio.StreamStreamCall[DurableTaskRequest, DurableTaskResponse] | None
         ) = None
@@ -265,12 +269,9 @@ class DurableEventListener:
         self._stub = V1DispatcherStub(self._conn)
         self._request_queue = asyncio.Queue()
 
-        self._stream = cast(
-            grpc.aio.StreamStreamCall[DurableTaskRequest, DurableTaskResponse],
-            self._stub.DurableTask(
-                self._request_iterator(),  # type: ignore[arg-type]
-                metadata=create_authorization_header(self.token),
-            ),
+        self._stream = self._stub.DurableTask(
+            self._request_iterator(),
+            metadata=create_authorization_header(self.token),
         )
 
         await self._register_worker()
@@ -282,7 +283,7 @@ class DurableEventListener:
                 try:
                     self._request_queue.put_nowait(old_queue.get_nowait())
                     carried_over += 1
-                except asyncio.QueueEmpty:  # noqa: PERF203
+                except asyncio.QueueEmpty:
                     break
             if carried_over:
                 logger.info(
@@ -671,7 +672,7 @@ class DurableEventListener:
     ) -> DurableTaskEventAck:
         try:
             return await asyncio.wait_for(future, timeout=self._EVENT_ACK_TIMEOUT_S)
-        except (TimeoutError, asyncio.TimeoutError) as err:
+        except TimeoutError as err:
             if self._pending_event_acks.get(key) is future:
                 self._pending_event_acks.pop(key, None)
             raise TimeoutError(
@@ -746,30 +747,29 @@ class DurableEventListener:
 
         request: DurableTaskRequest
 
-        if isinstance(event, WaitForEvent):
-            wait_req = DurableTaskWaitForRequest(
-                durable_task_external_id=durable_task_external_id,
-                invocation_count=invocation_count,
-                wait_for_conditions=event.wait_for_conditions,
-                label=event.label,
-            )
+        match event:
+            case WaitForEvent():
+                wait_req = DurableTaskWaitForRequest(
+                    durable_task_external_id=durable_task_external_id,
+                    invocation_count=invocation_count,
+                    wait_for_conditions=event.wait_for_conditions,
+                    label=event.label,
+                )
 
-            request = DurableTaskRequest(wait_for=wait_req)
-        elif isinstance(event, MemoEvent):
-            memo_req = DurableTaskMemoRequest(
-                durable_task_external_id=durable_task_external_id,
-                invocation_count=invocation_count,
-                key=event.memo_key,
-            )
+                request = DurableTaskRequest(wait_for=wait_req)
+            case MemoEvent():
+                memo_req = DurableTaskMemoRequest(
+                    durable_task_external_id=durable_task_external_id,
+                    invocation_count=invocation_count,
+                    key=event.memo_key,
+                )
 
-            if event.result is not None:
-                memo_req.payload = event.result.encode("utf-8")
+                if event.result is not None:
+                    memo_req.payload = event.result.encode("utf-8")
 
-            request = DurableTaskRequest(memo=memo_req)
-
-        else:
-            e: Never = event
-            raise ValueError(f"Unknown durable task send event: {e}")
+                request = DurableTaskRequest(memo=memo_req)
+            case _ as unreachable:
+                assert_never(unreachable)
 
         await self._request_queue.put(request)
 
@@ -907,7 +907,7 @@ class DurableEventListener:
 
         try:
             await asyncio.wait_for(ack_future, timeout=self._EVICTION_ACK_TIMEOUT_S)
-        except asyncio.TimeoutError as err:
+        except TimeoutError as err:
             self._pending_eviction_acks.pop(eviction_key, None)
             raise TimeoutError(
                 f"Eviction ack timed out after {self._EVICTION_ACK_TIMEOUT_S:.0f}s "

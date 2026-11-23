@@ -11,7 +11,52 @@ import (
 	"github.com/google/uuid"
 )
 
-const countAllocatedResourcesByTenant = `-- name: CountAllocatedResourcesByTenant :many
+const compactAllocatedResourceCountDeltas = `-- name: CompactAllocatedResourceCountDeltas :one
+WITH claimed AS (
+    DELETE FROM tenant_allocated_resource_count_delta
+    WHERE id IN (
+        SELECT id
+        FROM tenant_allocated_resource_count_delta
+        ORDER BY id
+        LIMIT $1::integer
+        FOR UPDATE SKIP LOCKED
+    )
+    RETURNING tenant_id, cron_count, scheduled_run_count, webhook_count
+), folded AS (
+    INSERT INTO tenant_allocated_resource_count AS c (
+        tenant_id,
+        cron_count,
+        scheduled_run_count,
+        webhook_count
+    )
+    SELECT
+        tenant_id,
+        SUM(cron_count),
+        SUM(scheduled_run_count),
+        SUM(webhook_count)
+    FROM claimed
+    GROUP BY tenant_id
+    -- one lock order for every compaction touching the same tenants
+    ORDER BY tenant_id
+    ON CONFLICT (tenant_id) DO UPDATE SET
+        cron_count = c.cron_count + EXCLUDED.cron_count,
+        scheduled_run_count = c.scheduled_run_count + EXCLUDED.scheduled_run_count,
+        webhook_count = c.webhook_count + EXCLUDED.webhook_count
+)
+SELECT COUNT(*)
+FROM claimed
+`
+
+// Folds the oldest batchSize deltas into the count rows and returns how many
+// it folded. Deltas another compaction is folding are skipped.
+func (q *Queries) CompactAllocatedResourceCountDeltas(ctx context.Context, db DBTX, batchsize int32) (int64, error) {
+	row := db.QueryRow(ctx, compactAllocatedResourceCountDeltas, batchsize)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const correctAllocatedResourceCounts = `-- name: CorrectAllocatedResourceCounts :exec
 WITH latest_versions AS (
     SELECT DISTINCT ON (v."workflowId")
         v.id,
@@ -21,10 +66,6 @@ WITH latest_versions AS (
     WHERE
         v."deletedAt" IS NULL
         AND w."deletedAt" IS NULL
-        AND (
-            $1::uuid[] IS NULL
-            OR w."tenantId" = ANY($1::uuid[])
-        )
     ORDER BY v."workflowId", v."order" DESC
 ),
 cron_counts AS (
@@ -40,10 +81,6 @@ cron_counts AS (
         AND c."enabled" = true
         AND t."deletedAt" IS NULL
         AND w."deletedAt" IS NULL
-        AND (
-            $1::uuid[] IS NULL
-            OR w."tenantId" = ANY($1::uuid[])
-        )
     GROUP BY w."tenantId"
 ),
 schedule_counts AS (
@@ -57,10 +94,6 @@ schedule_counts AS (
         v."deletedAt" IS NULL
         AND w."deletedAt" IS NULL
         AND s."deletedAt" IS NULL
-        AND (
-            $1::uuid[] IS NULL
-            OR w."tenantId" = ANY($1::uuid[])
-        )
         AND NOT EXISTS (
             SELECT 1
             FROM "WorkflowRunTriggeredBy" tb
@@ -73,20 +106,95 @@ webhook_counts AS (
         tenant_id,
         count(*)::bigint AS webhook_count
     FROM v1_incoming_webhook
+    GROUP BY tenant_id
+),
+fresh AS (
+    SELECT
+        COALESCE(c.tenant_id, s.tenant_id, wh.tenant_id) AS tenant_id,
+        COALESCE(c.cron_count, 0)::bigint AS cron_count,
+        COALESCE(s.scheduled_run_count, 0)::bigint AS scheduled_run_count,
+        COALESCE(wh.webhook_count, 0)::bigint AS webhook_count
+    FROM cron_counts c
+    FULL OUTER JOIN schedule_counts s ON s.tenant_id = c.tenant_id
+    FULL OUTER JOIN webhook_counts wh ON wh.tenant_id = COALESCE(c.tenant_id, s.tenant_id)
+),
+stored AS (
+    SELECT
+        tenant_id,
+        SUM(cron_count)::bigint AS cron_count,
+        SUM(scheduled_run_count)::bigint AS scheduled_run_count,
+        SUM(webhook_count)::bigint AS webhook_count
+    FROM (
+        SELECT tenant_id, cron_count, scheduled_run_count, webhook_count
+        FROM tenant_allocated_resource_count
+
+        UNION ALL
+
+        SELECT tenant_id, cron_count, scheduled_run_count, webhook_count
+        FROM tenant_allocated_resource_count_delta
+    ) counts
+    GROUP BY tenant_id
+)
+INSERT INTO tenant_allocated_resource_count_delta (
+    tenant_id,
+    cron_count,
+    scheduled_run_count,
+    webhook_count
+)
+SELECT
+    COALESCE(f.tenant_id, s.tenant_id),
+    COALESCE(f.cron_count, 0) - COALESCE(s.cron_count, 0),
+    COALESCE(f.scheduled_run_count, 0) - COALESCE(s.scheduled_run_count, 0),
+    COALESCE(f.webhook_count, 0) - COALESCE(s.webhook_count, 0)
+FROM fresh f
+FULL OUTER JOIN stored s ON s.tenant_id = f.tenant_id
+WHERE
+    COALESCE(f.cron_count, 0) <> COALESCE(s.cron_count, 0)
+    OR COALESCE(f.scheduled_run_count, 0) <> COALESCE(s.scheduled_run_count, 0)
+    OR COALESCE(f.webhook_count, 0) <> COALESCE(s.webhook_count, 0)
+`
+
+// Appends, for each tenant whose stored count differs from its live rows, the
+// delta that makes them equal. An enabled cron is counted on the latest live
+// version of a live workflow. A pending schedule is not deleted, is on a live
+// version and workflow, and has not fired. A webhook is every incoming
+// webhook row.
+// A write commits its row and its delta together, so the live rows and the
+// stored count in this statement's snapshot cover the same writes, and a write
+// that commits later adds its own delta on top of the correction.
+func (q *Queries) CorrectAllocatedResourceCounts(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, correctAllocatedResourceCounts)
+	return err
+}
+
+const countAllocatedResourcesByTenant = `-- name: CountAllocatedResourcesByTenant :many
+WITH counts AS (
+    SELECT tenant_id, cron_count, scheduled_run_count, webhook_count
+    FROM tenant_allocated_resource_count
     WHERE
         $1::uuid[] IS NULL
         OR tenant_id = ANY($1::uuid[])
-    GROUP BY tenant_id
+
+    UNION ALL
+
+    SELECT tenant_id, cron_count, scheduled_run_count, webhook_count
+    FROM tenant_allocated_resource_count_delta
+    WHERE
+        $1::uuid[] IS NULL
+        OR tenant_id = ANY($1::uuid[])
 )
 SELECT
-    COALESCE(c.tenant_id, s.tenant_id, wh.tenant_id) AS tenant_id,
-    COALESCE(c.cron_count, 0)::bigint AS cron_count,
-    COALESCE(s.scheduled_run_count, 0)::bigint AS scheduled_run_count,
-    COALESCE(wh.webhook_count, 0)::bigint AS webhook_count
-FROM cron_counts c
-FULL OUTER JOIN schedule_counts s ON s.tenant_id = c.tenant_id
-FULL OUTER JOIN webhook_counts wh ON wh.tenant_id = COALESCE(c.tenant_id, s.tenant_id)
-ORDER BY 1
+    tenant_id,
+    GREATEST(SUM(cron_count), 0)::bigint AS cron_count,
+    GREATEST(SUM(scheduled_run_count), 0)::bigint AS scheduled_run_count,
+    GREATEST(SUM(webhook_count), 0)::bigint AS webhook_count
+FROM counts
+GROUP BY tenant_id
+HAVING
+    SUM(cron_count) > 0
+    OR SUM(scheduled_run_count) > 0
+    OR SUM(webhook_count) > 0
+ORDER BY tenant_id
 `
 
 type CountAllocatedResourcesByTenantRow struct {
@@ -96,16 +204,12 @@ type CountAllocatedResourcesByTenantRow struct {
 	WebhookCount      int64     `json:"webhook_count"`
 }
 
-// One row per tenant with live allocated-resource counts on this shard.
-// cron_count: enabled, non-deleted cron refs on the latest non-deleted
-// workflow version (API and DEFAULT).
-// scheduled_run_count: pending scheduled refs only (not deleted, and no
-// WorkflowRunTriggeredBy.scheduledId — fired runs are excluded).
-// webhook_count: row count on v1_incoming_webhook.
-// NULL tenantIds drops the tenant filter (hourly shard-wide collect).
-// The result is still one row per tenant, not a summed shard total.
-// latest_versions uses DISTINCT ON (workflowId) ORDER BY order DESC so
-// Postgres can use idx_workflow_version_workflow_id_order.
+// One row per tenant with a cron, a pending schedule, or a webhook.
+// A tenant whose three counts are all zero is absent.
+// NULL tenantIds returns every such tenant.
+// A count is the tenant's count row plus its deltas. Compaction moves deltas
+// onto the count row in one statement, so this statement's snapshot holds each
+// change exactly once.
 func (q *Queries) CountAllocatedResourcesByTenant(ctx context.Context, db DBTX, tenantids []uuid.UUID) ([]*CountAllocatedResourcesByTenantRow, error) {
 	rows, err := db.Query(ctx, countAllocatedResourcesByTenant, tenantids)
 	if err != nil {
@@ -129,4 +233,306 @@ func (q *Queries) CountAllocatedResourcesByTenant(ctx context.Context, db DBTX, 
 		return nil, err
 	}
 	return items, nil
+}
+
+const countEnabledCronsOnVersion = `-- name: CountEnabledCronsOnVersion :one
+SELECT count(*)::bigint
+FROM "WorkflowTriggerCronRef" c
+JOIN "WorkflowTriggers" t ON t."id" = c."parentId"
+JOIN "WorkflowVersion" v ON v."id" = t."workflowVersionId"
+JOIN "Workflow" w ON w."id" = v."workflowId"
+WHERE
+    t."workflowVersionId" = $1::uuid
+    AND c."deletedAt" IS NULL
+    AND c."enabled" = true
+    AND t."deletedAt" IS NULL
+    AND v."deletedAt" IS NULL
+    AND w."deletedAt" IS NULL
+`
+
+func (q *Queries) CountEnabledCronsOnVersion(ctx context.Context, db DBTX, versionid uuid.UUID) (int64, error) {
+	row := db.QueryRow(ctx, countEnabledCronsOnVersion, versionid)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const getCronAllocationState = `-- name: GetCronAllocationState :one
+SELECT
+    c."enabled" AS enabled,
+    CASE
+        WHEN
+            c."deletedAt" IS NULL
+            AND t."deletedAt" IS NULL
+            AND v."deletedAt" IS NULL
+            AND w."deletedAt" IS NULL
+            AND v."id" = (
+                SELECT v2."id"
+                FROM "WorkflowVersion" v2
+                WHERE
+                    v2."workflowId" = v."workflowId"
+                    AND v2."deletedAt" IS NULL
+                ORDER BY v2."order" DESC
+                LIMIT 1
+            )
+        THEN true
+        ELSE false
+    END AS on_latest
+FROM "WorkflowTriggerCronRef" c
+JOIN "WorkflowTriggers" t ON t."id" = c."parentId"
+JOIN "WorkflowVersion" v ON v."id" = t."workflowVersionId"
+JOIN "Workflow" w ON w."id" = v."workflowId"
+WHERE
+    c."id" = $1::uuid
+    AND w."tenantId" = $2::uuid
+`
+
+type GetCronAllocationStateParams struct {
+	ID       uuid.UUID `json:"id"`
+	Tenantid uuid.UUID `json:"tenantid"`
+}
+
+type GetCronAllocationStateRow struct {
+	Enabled  bool `json:"enabled"`
+	OnLatest bool `json:"on_latest"`
+}
+
+// on_latest is true when this cron is enabled-countable: live cron, trigger,
+// version, and workflow, and the version is the latest non-deleted one.
+func (q *Queries) GetCronAllocationState(ctx context.Context, db DBTX, arg GetCronAllocationStateParams) (*GetCronAllocationStateRow, error) {
+	row := db.QueryRow(ctx, getCronAllocationState, arg.ID, arg.Tenantid)
+	var i GetCronAllocationStateRow
+	err := row.Scan(&i.Enabled, &i.OnLatest)
+	return &i, err
+}
+
+const getCronAllocationTarget = `-- name: GetCronAllocationTarget :one
+SELECT
+    w."id" AS workflow_id,
+    w."tenantId" AS tenant_id
+FROM "WorkflowTriggerCronRef" c
+JOIN "WorkflowTriggers" t ON t."id" = c."parentId"
+JOIN "WorkflowVersion" v ON v."id" = t."workflowVersionId"
+JOIN "Workflow" w ON w."id" = v."workflowId"
+WHERE c."id" = $1::uuid
+`
+
+type GetCronAllocationTargetRow struct {
+	WorkflowID uuid.UUID `json:"workflow_id"`
+	TenantID   uuid.UUID `json:"tenant_id"`
+}
+
+// Tenant and workflow for a cron delete that does not already know them.
+func (q *Queries) GetCronAllocationTarget(ctx context.Context, db DBTX, id uuid.UUID) (*GetCronAllocationTargetRow, error) {
+	row := db.QueryRow(ctx, getCronAllocationTarget, id)
+	var i GetCronAllocationTargetRow
+	err := row.Scan(&i.WorkflowID, &i.TenantID)
+	return &i, err
+}
+
+const getCronWorkflowID = `-- name: GetCronWorkflowID :one
+SELECT w."id" AS workflow_id
+FROM "WorkflowTriggerCronRef" c
+JOIN "WorkflowTriggers" t ON t."id" = c."parentId"
+JOIN "WorkflowVersion" v ON v."id" = t."workflowVersionId"
+JOIN "Workflow" w ON w."id" = v."workflowId"
+WHERE
+    c."id" = $1::uuid
+    AND w."tenantId" = $2::uuid
+`
+
+type GetCronWorkflowIDParams struct {
+	ID       uuid.UUID `json:"id"`
+	Tenantid uuid.UUID `json:"tenantid"`
+}
+
+func (q *Queries) GetCronWorkflowID(ctx context.Context, db DBTX, arg GetCronWorkflowIDParams) (uuid.UUID, error) {
+	row := db.QueryRow(ctx, getCronWorkflowID, arg.ID, arg.Tenantid)
+	var workflow_id uuid.UUID
+	err := row.Scan(&workflow_id)
+	return workflow_id, err
+}
+
+const insertAllocatedResourceCountDelta = `-- name: InsertAllocatedResourceCountDelta :exec
+INSERT INTO tenant_allocated_resource_count_delta (
+    tenant_id,
+    cron_count,
+    scheduled_run_count,
+    webhook_count
+) VALUES (
+    $1::uuid,
+    $2::bigint,
+    $3::bigint,
+    $4::bigint
+)
+`
+
+type InsertAllocatedResourceCountDeltaParams struct {
+	Tenantid      uuid.UUID `json:"tenantid"`
+	Crondelta     int64     `json:"crondelta"`
+	Scheduledelta int64     `json:"scheduledelta"`
+	Webhookdelta  int64     `json:"webhookdelta"`
+}
+
+func (q *Queries) InsertAllocatedResourceCountDelta(ctx context.Context, db DBTX, arg InsertAllocatedResourceCountDeltaParams) error {
+	_, err := db.Exec(ctx, insertAllocatedResourceCountDelta,
+		arg.Tenantid,
+		arg.Crondelta,
+		arg.Scheduledelta,
+		arg.Webhookdelta,
+	)
+	return err
+}
+
+const lockSchedules = `-- name: LockSchedules :exec
+SELECT s."id"
+FROM "WorkflowTriggerScheduledRef" s
+JOIN "WorkflowVersion" v ON s."parentId" = v."id"
+JOIN "Workflow" w ON v."workflowId" = w."id"
+WHERE
+    s."id" = ANY($1::uuid[])
+    AND w."tenantId" = $2::uuid
+ORDER BY s."id"
+FOR UPDATE OF s
+`
+
+type LockSchedulesParams struct {
+	Ids      []uuid.UUID `json:"ids"`
+	Tenantid uuid.UUID   `json:"tenantid"`
+}
+
+// Waits for a workflow delete or another schedule delete that holds one of
+// these schedules, in id order. The caller reads which of them still count in
+// a later statement, whose snapshot then includes what that transaction
+// committed.
+// Only the tenant's own schedules are locked, since the ids can come straight
+// from an API request. Deleted versions and workflows are not filtered out:
+// a schedule on one may be held by the workflow delete this waits for.
+func (q *Queries) LockSchedules(ctx context.Context, db DBTX, arg LockSchedulesParams) error {
+	_, err := db.Exec(ctx, lockSchedules, arg.Ids, arg.Tenantid)
+	return err
+}
+
+const lockSchedulesCountedTowardAllocation = `-- name: LockSchedulesCountedTowardAllocation :many
+SELECT s."id"
+FROM "WorkflowTriggerScheduledRef" s
+JOIN "WorkflowVersion" v ON s."parentId" = v."id"
+JOIN "Workflow" w ON v."workflowId" = w."id"
+WHERE
+    s."id" = ANY($1::uuid[])
+    AND w."tenantId" = $2::uuid
+    AND s."deletedAt" IS NULL
+    AND v."deletedAt" IS NULL
+    AND w."deletedAt" IS NULL
+    AND (
+        NOT $3::boolean
+        OR s."method" = 'API'
+    )
+    AND NOT EXISTS (
+        SELECT 1
+        FROM "WorkflowRunTriggeredBy" tb
+        WHERE tb."scheduledId" = s."id"
+    )
+ORDER BY s."id"
+FOR UPDATE OF s
+`
+
+type LockSchedulesCountedTowardAllocationParams struct {
+	Ids      []uuid.UUID `json:"ids"`
+	Tenantid uuid.UUID   `json:"tenantid"`
+	Apionly  bool        `json:"apionly"`
+}
+
+// Returns the schedules that still contribute to the count, in id order.
+// apiOnly limits the set to API schedules, the set bulk delete removes. The
+// caller has locked the schedules with LockSchedules in an earlier statement.
+// Run on its own, a row this statement waits for is returned with the version
+// and workflow as they were before the wait, so a schedule a workflow delete
+// has just removed from the count would be counted again.
+func (q *Queries) LockSchedulesCountedTowardAllocation(ctx context.Context, db DBTX, arg LockSchedulesCountedTowardAllocationParams) ([]uuid.UUID, error) {
+	rows, err := db.Query(ctx, lockSchedulesCountedTowardAllocation, arg.Ids, arg.Tenantid, arg.Apionly)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockWorkflowSchedulesTowardAllocation = `-- name: LockWorkflowSchedulesTowardAllocation :many
+SELECT s."id"
+FROM "WorkflowTriggerScheduledRef" s
+JOIN "WorkflowVersion" v ON s."parentId" = v."id"
+JOIN "Workflow" w ON v."workflowId" = w."id"
+WHERE
+    w."id" = $1::uuid
+    AND w."tenantId" = $2::uuid
+    AND s."deletedAt" IS NULL
+    AND v."deletedAt" IS NULL
+    AND w."deletedAt" IS NULL
+    AND NOT EXISTS (
+        SELECT 1
+        FROM "WorkflowRunTriggeredBy" tb
+        WHERE tb."scheduledId" = s."id"
+    )
+ORDER BY s."id"
+FOR UPDATE OF s
+`
+
+type LockWorkflowSchedulesTowardAllocationParams struct {
+	Workflowid uuid.UUID `json:"workflowid"`
+	Tenantid   uuid.UUID `json:"tenantid"`
+}
+
+// Locks the pending schedules a workflow delete removes from the count.
+// The caller holds the workflow's latest version lock first.
+func (q *Queries) LockWorkflowSchedulesTowardAllocation(ctx context.Context, db DBTX, arg LockWorkflowSchedulesTowardAllocationParams) ([]uuid.UUID, error) {
+	rows, err := db.Query(ctx, lockWorkflowSchedulesTowardAllocation, arg.Workflowid, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const shareLockWorkflowVersion = `-- name: ShareLockWorkflowVersion :one
+SELECT "id"
+FROM "WorkflowVersion"
+WHERE
+    "workflowId" = $1::uuid
+    AND "deletedAt" IS NULL
+ORDER BY "order" DESC
+LIMIT 1
+FOR KEY SHARE
+`
+
+// Waits for a LockWorkflowVersion holder and makes the next one wait, without
+// waiting on other holders of this lock. A schedule insert's foreign key check
+// takes the same lock on the version row.
+func (q *Queries) ShareLockWorkflowVersion(ctx context.Context, db DBTX, workflowid uuid.UUID) (uuid.UUID, error) {
+	row := db.QueryRow(ctx, shareLockWorkflowVersion, workflowid)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }

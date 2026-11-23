@@ -2,15 +2,16 @@ import asyncio
 from collections import OrderedDict
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from typing import Generic, TypeVar
+from datetime import UTC, datetime, timedelta
+from typing import Generic, TypeVar, cast, overload
 
 K = TypeVar("K")
 V = TypeVar("V")
+T = TypeVar("T")
 
 
 class BoundedDict(OrderedDict[K, V]):
-    def __init__(self, maxsize: int):
+    def __init__(self, maxsize: int) -> None:
         super().__init__()
         self.maxsize = maxsize
 
@@ -39,7 +40,7 @@ class TTLCache(Generic[K, V]):
 
     def __setitem__(self, key: K, value: V) -> None:
         self.cache[key] = TTLCacheEntry(
-            value=value, expires_at=datetime.now(tz=timezone.utc) + self.ttl
+            value=value, expires_at=datetime.now(tz=UTC) + self.ttl
         )
 
     def __getitem__(self, key: K) -> V:
@@ -67,7 +68,7 @@ class TTLCache(Generic[K, V]):
         while True:
             await asyncio.sleep(self.ttl.total_seconds())
 
-            now = datetime.now(tz=timezone.utc)
+            now = datetime.now(tz=UTC)
             expired = [k for k, entry in self.cache.items() if entry.expires_at <= now]
 
             for key in expired:
@@ -105,13 +106,23 @@ class DurableInvocationCallbackCache(dict[DurableInvocationCallbackKey, V]):
         super().__delitem__(key)
         self._forget_key(key)
 
-    def pop(self, key: DurableInvocationCallbackKey, *default: V) -> V:  # type: ignore[override]
+    @overload
+    def pop(self, key: DurableInvocationCallbackKey, /) -> V: ...
+
+    @overload
+    def pop(self, key: DurableInvocationCallbackKey, default: V, /) -> V: ...
+
+    @overload
+    def pop(self, key: object, default: T, /) -> V | T: ...
+
+    def pop(self, key: object, /, *default: object) -> object:
         if key not in self:
             if default:
                 return default[0]
             raise KeyError(key)
-        value = super().pop(key)
-        self._forget_key(key)
+        callback_key = cast("DurableInvocationCallbackKey", key)
+        value = super().pop(callback_key)
+        self._forget_key(callback_key)
         return value
 
     def clear(self) -> None:

@@ -6,6 +6,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 )
 
 // The queries below that filter on additional_metadata come in three variants:
@@ -611,7 +613,7 @@ type FetchWorkflowRunIdsParams struct {
 type FetchWorkflowRunIdsRow struct {
 	ID         int64              `json:"id"`
 	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
-	Kind       V1RunKind          `json:"kind"`
+	Kind       enums.V1RunKind    `json:"kind"`
 	ExternalID uuid.UUID          `json:"external_id"`
 }
 

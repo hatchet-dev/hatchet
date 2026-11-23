@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -23,6 +24,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/statusutils"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -234,6 +236,10 @@ type FinalizedTaskResponse struct {
 	ReleasedTasks []*sqlcv1.ReleaseTasksRow
 
 	InternalEvents []InternalTaskEvent
+
+	// Durable RUN entries of DAG orchestrators whose step children were finalized here. Operator
+	// step children satisfy their entries directly instead of through internal event matches.
+	SatisfiedDurableEventLogEntries []SatisfiedEntry
 }
 
 type RetriedTask struct {
@@ -297,6 +303,12 @@ type TaskRepository interface {
 	// FlattenExternalIds is a non-cached method to look up all tasks in a workflow run by their external ids.
 	// This is non-cacheable because tasks can be added to a workflow run as it executes.
 	FlattenExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.FlattenExternalIdsRow, error)
+
+	// ResolveTaskExternalIds is a heavily cached method to map task external ids to the tasks' primary keys.
+	// External ids which do not belong to a task (including those of DAGs) are left out of the result.
+	// A key in the result does not prove the task row still exists, because v1_lookup_table rows and
+	// cache entries outlive the v1_task partition the task was stored in.
+	ResolveTaskExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) (map[uuid.UUID]IdInsertedAt, error)
 
 	ListDurableOrchestratorChildExternalIds(ctx context.Context, tenantId, orchestratorExternalId uuid.UUID) ([]uuid.UUID, error)
 
@@ -722,26 +734,30 @@ func (r *sharedRepository) GetTaskByExternalId(ctx context.Context, tenantId, ta
 	}
 
 	row := sqlcv1.FlattenExternalIdsRow{
-		ID:                    res.ID,
-		InsertedAt:            res.InsertedAt,
-		RetryCount:            res.RetryCount,
-		ExternalID:            res.ExternalID,
-		WorkflowRunID:         res.WorkflowRunID,
-		AdditionalMetadata:    res.AdditionalMetadata,
-		DagID:                 res.DagID,
-		DagInsertedAt:         res.DagInsertedAt,
-		ParentTaskID:          res.ParentTaskID,
-		ChildIndex:            res.ChildIndex,
-		ChildKey:              res.ChildKey,
-		StepReadableID:        res.StepReadableID,
-		WorkflowRunExternalID: res.WorkflowRunID,
-		WorkflowID:            res.WorkflowID,
-		StepID:                res.StepID,
-		IsDurable:             res.IsDurable,
-		IsDagOrchestrator:     res.IsDagOrchestrator,
-		ParentTaskExternalID:  res.ParentTaskExternalID,
-		WorkflowVersionID:     res.WorkflowVersionID,
-		PayloadReferenceID:    res.PayloadReferenceID,
+		ID:                        res.ID,
+		InsertedAt:                res.InsertedAt,
+		RetryCount:                res.RetryCount,
+		ExternalID:                res.ExternalID,
+		WorkflowRunID:             res.WorkflowRunID,
+		AdditionalMetadata:        res.AdditionalMetadata,
+		DagID:                     res.DagID,
+		DagInsertedAt:             res.DagInsertedAt,
+		ParentTaskID:              res.ParentTaskID,
+		ChildIndex:                res.ChildIndex,
+		ChildKey:                  res.ChildKey,
+		StepReadableID:            res.StepReadableID,
+		WorkflowRunExternalID:     res.WorkflowRunID,
+		WorkflowID:                res.WorkflowID,
+		StepID:                    res.StepID,
+		IsDurable:                 res.IsDurable,
+		IsDagOrchestrator:         res.IsDagOrchestrator,
+		ParentTaskExternalID:      res.ParentTaskExternalID,
+		WorkflowVersionID:         res.WorkflowVersionID,
+		PayloadReferenceID:        res.PayloadReferenceID,
+		Priority:                  res.Priority,
+		DesiredWorkerID:           res.DesiredWorkerID,
+		TriggeringEventExternalID: res.TriggeringEventExternalID,
+		TriggeringEventKey:        res.TriggeringEventKey,
 	}
 
 	r.taskLookupCache.Add(key, &row)
@@ -753,6 +769,67 @@ func (r *TaskRepositoryImpl) FlattenExternalIds(ctx context.Context, tenantId uu
 	db := r.pool.ForTenant(tenantId)
 
 	return r.lookupExternalIds(ctx, db, tenantId, externalIds)
+}
+
+// ResolveTaskExternalIds maps task external ids to the tasks' primary keys, reading only the cache and
+// v1_lookup_table. A returned key does not prove the task row still exists.
+func (r *sharedRepository) ResolveTaskExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) (map[uuid.UUID]IdInsertedAt, error) {
+	res := make(map[uuid.UUID]IdInsertedAt, len(externalIds))
+	uncached := make(map[uuid.UUID]struct{})
+
+	for _, externalId := range externalIds {
+		key := taskExternalIdTenantIdTuple{
+			externalId: externalId,
+			tenantId:   tenantId,
+		}
+
+		if val, ok := r.taskKeyCache.Get(key); ok {
+			res[externalId] = val
+			continue
+		}
+
+		uncached[externalId] = struct{}{}
+	}
+
+	if len(uncached) == 0 {
+		return res, nil
+	}
+
+	externalIdsToLookup := make([]uuid.UUID, 0, len(uncached))
+
+	for externalId := range uncached {
+		externalIdsToLookup = append(externalIdsToLookup, externalId)
+	}
+
+	// NOTE: the lookup table row carries the task's primary key, so this never has to read v1_task
+	lookups, err := r.queries.LookupExternalIds(ctx, r.pool.ForTenant(tenantId), sqlcv1.LookupExternalIdsParams{
+		Tenantid:    tenantId,
+		Externalids: externalIdsToLookup,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, lookup := range lookups {
+		if !lookup.TaskID.Valid {
+			continue
+		}
+
+		val := IdInsertedAt{
+			ID:                   lookup.TaskID.Int64,
+			InsertedAtUnixMicros: lookup.InsertedAt.Time.UnixMicro(),
+		}
+
+		r.taskKeyCache.Add(taskExternalIdTenantIdTuple{
+			externalId: lookup.ExternalID,
+			tenantId:   tenantId,
+		}, val)
+
+		res[lookup.ExternalID] = val
+	}
+
+	return res, nil
 }
 
 func (r *sharedRepository) lookupExternalIds(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.FlattenExternalIdsRow, error) {
@@ -972,7 +1049,7 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 		payloadReferenceIds[i] = report.PayloadReferenceId
 	}
 
-	internalEvents, err := r.createTaskEventsAfterRelease(
+	internalEvents, satisfiedEntries, err := r.createTaskEventsAfterRelease(
 		ctx,
 		tx,
 		tenantId,
@@ -999,8 +1076,9 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 	}
 
 	return &FinalizedTaskResponse{
-		ReleasedTasks:  releasedTasks,
-		InternalEvents: internalEvents,
+		ReleasedTasks:                   releasedTasks,
+		InternalEvents:                  internalEvents,
+		SatisfiedDurableEventLogEntries: satisfiedEntries,
 	}, nil
 }
 
@@ -1102,12 +1180,16 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 				Value: attribute.IntValue(len(appFailureTaskIds)),
 			},
 		)
+		appFailureTaskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(appFailureTaskInsertedAts)
+
 		appFailureRetries, err := r.queries.FailTaskAppFailure(ctx, tx, sqlcv1.FailTaskAppFailureParams{
-			Tenantid:        tenantId,
-			Taskids:         appFailureTaskIds,
-			Taskinsertedats: appFailureTaskInsertedAts,
-			Taskretrycounts: appFailureTaskRetryCounts,
-			Isnonretryables: appFailureIsNonRetryableStatuses,
+			Tenantid:          tenantId,
+			Taskids:           appFailureTaskIds,
+			Taskinsertedats:   appFailureTaskInsertedAts,
+			Mintaskinsertedat: appFailureTaskInsertedAtBounds.Min,
+			Maxtaskinsertedat: appFailureTaskInsertedAtBounds.Max,
+			Taskretrycounts:   appFailureTaskRetryCounts,
+			Isnonretryables:   appFailureIsNonRetryableStatuses,
 		})
 
 		if err != nil {
@@ -1138,12 +1220,16 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 				Value: attribute.IntValue(len(retryAfterTaskIds)),
 			},
 		)
+		retryAfterTaskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(retryAfterTaskInsertedAts)
+
 		retryAfterRetries, err := r.queries.FailTaskRetryAfter(ctx, tx, sqlcv1.FailTaskRetryAfterParams{
-			Tenantid:        tenantId,
-			Taskids:         retryAfterTaskIds,
-			Taskinsertedats: retryAfterTaskInsertedAts,
-			Taskretrycounts: retryAfterTaskRetryCounts,
-			Retryafterms:    retryAfterMs,
+			Tenantid:          tenantId,
+			Taskids:           retryAfterTaskIds,
+			Taskinsertedats:   retryAfterTaskInsertedAts,
+			Mintaskinsertedat: retryAfterTaskInsertedAtBounds.Min,
+			Maxtaskinsertedat: retryAfterTaskInsertedAtBounds.Max,
+			Taskretrycounts:   retryAfterTaskRetryCounts,
+			Retryafterms:      retryAfterMs,
 		})
 
 		if err != nil {
@@ -1174,10 +1260,14 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 				Value: attribute.IntValue(len(internalFailureTaskIds)),
 			},
 		)
+		internalFailureTaskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(internalFailureInsertedAts)
+
 		internalFailureRetries, err := r.queries.FailTaskInternalFailure(ctx, tx, sqlcv1.FailTaskInternalFailureParams{
 			Tenantid:           tenantId,
 			Taskids:            internalFailureTaskIds,
 			Taskinsertedats:    internalFailureInsertedAts,
+			Mintaskinsertedat:  internalFailureTaskInsertedAtBounds.Min,
+			Maxtaskinsertedat:  internalFailureTaskInsertedAtBounds.Max,
 			Taskretrycounts:    internalFailureTaskRetryCounts,
 			Maxinternalretries: r.maxInternalRetryCount,
 		})
@@ -1215,7 +1305,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 		outputs[i] = out
 	}
 
-	internalEvents, err := r.createTaskEventsAfterRelease(
+	internalEvents, satisfiedEntries, err := r.createTaskEventsAfterRelease(
 		ctx,
 		tx,
 		tenantId,
@@ -1232,8 +1322,9 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 
 	return &FailTasksResponse{
 		FinalizedTaskResponse: &FinalizedTaskResponse{
-			ReleasedTasks:  releasedTasks,
-			InternalEvents: internalEvents,
+			ReleasedTasks:                   releasedTasks,
+			InternalEvents:                  internalEvents,
+			SatisfiedDurableEventLogEntries: satisfiedEntries,
 		},
 		RetriedTasks: retriedTasks,
 	}, nil
@@ -1448,7 +1539,7 @@ func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, te
 		outputs[i] = out
 	}
 
-	internalEvents, err := r.createTaskEventsAfterRelease(
+	internalEvents, satisfiedEntries, err := r.createTaskEventsAfterRelease(
 		ctx,
 		dbtx,
 		tenantId,
@@ -1464,8 +1555,9 @@ func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, te
 	}
 
 	return &FinalizedTaskResponse{
-		ReleasedTasks:  releasedTasks,
-		InternalEvents: internalEvents,
+		ReleasedTasks:                   releasedTasks,
+		InternalEvents:                  internalEvents,
+		SatisfiedDurableEventLogEntries: satisfiedEntries,
 	}, nil
 }
 
@@ -1668,8 +1760,9 @@ func (r *TaskRepositoryImpl) ListTaskMetas(ctx context.Context, tenantId uuid.UU
 	})
 }
 
-// DefaultTaskActivityGauge is a heavily cached method that returns the number of queues that have had activity since
-// the task retention period.
+// DefaultTaskActivityGauge returns 1 if any of the tenant's queues has been active within the task retention
+// period, and 0 otherwise. It queries the database on every call; callers that poll it from several places
+// should share the result (see operation.NewSharedGauge).
 func (r *TaskRepositoryImpl) DefaultTaskActivityGauge(ctx context.Context, tenantId string) (int, error) {
 	today := time.Now().UTC()
 	notBefore := today.Add(-1 * r.taskRetentionPeriod)
@@ -1678,15 +1771,20 @@ func (r *TaskRepositoryImpl) DefaultTaskActivityGauge(ctx context.Context, tenan
 		return 0, err
 	}
 
-	res, err := r.queries.DefaultTaskActivityGauge(ctx, r.pool.ForTenant(tenantIdUuid), sqlcv1.DefaultTaskActivityGaugeParams{
-		Tenantid: tenantIdUuid,
-		Activesince: pgtype.Timestamptz{
-			Time:  notBefore,
-			Valid: true,
-		},
+	hasActivity, err := r.queries.DefaultTaskActivityGauge(ctx, r.pool.ForTenant(tenantIdUuid), sqlcv1.DefaultTaskActivityGaugeParams{
+		Tenantid:    tenantIdUuid,
+		Activesince: sqlchelpers.TimestamptzFromTime(notBefore),
 	})
 
-	return int(res), err
+	if err != nil {
+		return 0, err
+	}
+
+	if hasActivity {
+		return 1, nil
+	}
+
+	return 0, nil
 }
 
 func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId uuid.UUID) (*TimeoutTasksResponse, bool, error) {
@@ -2239,6 +2337,7 @@ func (r *TaskRepositoryImpl) EvictTask(ctx context.Context, tenantId uuid.UUID, 
 		Durabletaskinsertedats:   []pgtype.Timestamptz{task.InsertedAt},
 		Tenantids:                []uuid.UUID{tenantId},
 		Mindurabletaskinsertedat: task.InsertedAt,
+		Maxdurabletaskinsertedat: task.InsertedAt,
 	})
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -2348,10 +2447,14 @@ func (r *sharedRepository) releaseTasks(ctx context.Context, tx sqlcv1.DBTX, ten
 		orderedMap[fmt.Sprintf("%d:%d", task.Id, task.RetryCount)] = i
 	}
 
+	taskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(taskInsertedAts)
+
 	releasedTasks, err := r.queries.ReleaseTasks(ctx, tx, sqlcv1.ReleaseTasksParams{
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
-		Retrycounts:     retryCounts,
+		Taskids:           taskIds,
+		Taskinsertedats:   taskInsertedAts,
+		Retrycounts:       retryCounts,
+		Mintaskinsertedat: taskInsertedAtBounds.Min,
+		Maxtaskinsertedat: taskInsertedAtBounds.Max,
 	})
 
 	if err != nil {
@@ -2702,7 +2805,8 @@ func (r *sharedRepository) insertTasks(
 
 		stickies[i] = string(sqlcv1.V1StickyStrategyNONE)
 
-		if stepConfig.WorkflowVersionSticky.Valid {
+		// the orchestrator runs on an operator, never on the desired worker; its steps get the desired worker instead
+		if stepConfig.WorkflowVersionSticky.Valid && !stepConfig.IsDagOrchestrator {
 			stickies[i] = string(stepConfig.WorkflowVersionSticky.StickyStrategy)
 		}
 
@@ -3766,13 +3870,13 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 	payloadReferenceIds []*uuid.UUID,
 	releasedTasks []*sqlcv1.ReleaseTasksRow,
 	eventType sqlcv1.V1TaskEventType,
-) ([]InternalTaskEvent, error) {
+) ([]InternalTaskEvent, []SatisfiedEntry, error) {
 	if len(taskIdRetryCounts) != len(releasedTasks) || len(taskIdRetryCounts) != len(outputs) {
-		return nil, fmt.Errorf("failed to release all tasks")
+		return nil, nil, fmt.Errorf("failed to release all tasks")
 	}
 
 	if payloadReferenceIds != nil && len(payloadReferenceIds) != len(releasedTasks) {
-		return nil, fmt.Errorf("mismatched task and payload reference id lengths")
+		return nil, nil, fmt.Errorf("mismatched task and payload reference id lengths")
 	}
 
 	datas := make([][]byte, len(releasedTasks))
@@ -3796,6 +3900,8 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 
 	var filteredPayloadReferenceIds []*uuid.UUID
 
+	operatorStepChildCompletions := make([]OperatorStepChildCompletion, 0)
+
 	for i := range len(datas) {
 		if !isCurrentRetry[i] {
 			continue
@@ -3808,9 +3914,22 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 		if payloadReferenceIds != nil {
 			filteredPayloadReferenceIds = append(filteredPayloadReferenceIds, payloadReferenceIds[i])
 		}
+
+		if IsOperatorStepChild(releasedTasks[i]) {
+			outputEvent := &TaskOutputEvent{}
+
+			if err := json.Unmarshal(datas[i], outputEvent); err != nil {
+				return nil, nil, fmt.Errorf("failed to decode output event for operator step child %s: %w", releasedTasks[i].ExternalID, err)
+			}
+
+			operatorStepChildCompletions = append(operatorStepChildCompletions, OperatorStepChildCompletion{
+				ReleasedTask: releasedTasks[i],
+				OutputEvent:  outputEvent,
+			})
+		}
 	}
 
-	return r.createTaskEvents(
+	internalEvents, err := r.createTaskEvents(
 		ctx,
 		tx,
 		tenantId,
@@ -3823,6 +3942,34 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 		nil,
 		filteredPayloadReferenceIds,
 	)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	directCompletions, err := r.operatorStepChildrenCompletingDirectly(ctx, tx, tenantId, operatorStepChildCompletions)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	satisfiedEntries, err := r.satisfyOperatorStepChildEntries(ctx, tx, tenantId, directCompletions)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	directlyCompletedTaskIds := enumerables.ToSet(directCompletions, func(completion OperatorStepChildCompletion) int64 {
+		return completion.ReleasedTask.ID
+	})
+
+	// nothing waits on an internal event for an operator step child: its orchestrator was notified above
+	internalEvents = slices.DeleteFunc(internalEvents, func(event InternalTaskEvent) bool {
+		_, isDirectlyCompleted := directlyCompletedTaskIds[event.TaskID]
+		return isDirectlyCompleted
+	})
+
+	return internalEvents, satisfiedEntries, nil
 }
 
 type ReleaseIdempotencyKeysOpt struct {
@@ -3847,10 +3994,14 @@ func (r *sharedRepository) releaseIdempotencyKeysForStatusPolicies(
 		taskRetryCounts[i] = opt.RetryCount
 	}
 
+	taskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(taskInsertedAts)
+
 	return r.queries.ReleaseIdempotencyKeys(ctx, dbtx, sqlcv1.ReleaseIdempotencyKeysParams{
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
-		Taskretrycounts: taskRetryCounts,
+		Taskids:           taskIds,
+		Taskinsertedats:   taskInsertedAts,
+		Mintaskinsertedat: taskInsertedAtBounds.Min,
+		Maxtaskinsertedat: taskInsertedAtBounds.Max,
+		Taskretrycounts:   taskRetryCounts,
 	})
 }
 
@@ -4106,10 +4257,14 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	successfullyLockedDAGInsertedAts := make([]pgtype.Timestamptz, 0, len(dagIdsToLock))
 
 	if len(dagIdsToLock) > 0 {
+		dagInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(dagInsertedAtsToLock)
+
 		successfullyLockedDAGs, err := r.queries.LockDAGsForReplay(ctx, tx, sqlcv1.LockDAGsForReplayParams{
-			Dagids:         dagIdsToLock,
-			Daginsertedats: dagInsertedAtsToLock,
-			Tenantid:       tenantId,
+			Dagids:           dagIdsToLock,
+			Daginsertedats:   dagInsertedAtsToLock,
+			Mindaginsertedat: dagInsertedAtBounds.Min,
+			Maxdaginsertedat: dagInsertedAtBounds.Max,
+			Tenantid:         tenantId,
 		})
 
 		if err != nil {
@@ -4335,12 +4490,18 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		}
 	}
 
+	if err := r.deleteCompletionMatchesForRequeuedOperatorStepChildren(ctx, tx, tenantId, lockedTasks, upsertedTasks); err != nil {
+		return nil, err
+	}
+
 	// for any tasks which are child tasks, we need to reset the match signals for the parent tasks
-	spawnedChildTasks := enumerables.Filter(lockedTasks, func(task *sqlcv1.ListTasksForReplayRow) bool { return task.ParentTaskID.Valid })
+	spawnedChildTasks := enumerables.Filter(lockedTasks, func(task *sqlcv1.ListTasksForReplayRow) bool {
+		return task.ParentTaskID.Valid && !isOperatorStepChild(task.ParentTaskID, task.ParentTaskInsertedAt, task.ParentTaskExternalID, task.WorkflowRunID)
+	})
 
 	eventMatches := make([]CreateMatchOpts, 0)
 
-	if len(spawnedChildTasks) > 0 {
+	if len(spawnedChildTasks) > 0 && !r.childRunDirectSpawn {
 		// construct a list of signals to reset
 		signalEventKeys := make([]string, 0)
 		parentTaskIds := make([]int64, 0)
@@ -4381,12 +4542,16 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 			})
 		}
 
+		parentTaskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(parentTaskInsertedAts)
+
 		err = r.queries.DeleteMatchingSignalEvents(ctx, tx, sqlcv1.DeleteMatchingSignalEventsParams{
-			Tenantid:        tenantId,
-			Eventkeys:       signalEventKeys,
-			Taskids:         parentTaskIds,
-			Taskinsertedats: parentTaskInsertedAts,
-			Eventtype:       sqlcv1.V1TaskEventTypeSIGNALCOMPLETED,
+			Tenantid:          tenantId,
+			Eventkeys:         signalEventKeys,
+			Taskids:           parentTaskIds,
+			Taskinsertedats:   parentTaskInsertedAts,
+			Mintaskinsertedat: parentTaskInsertedAtBounds.Min,
+			Maxtaskinsertedat: parentTaskInsertedAtBounds.Max,
+			Eventtype:         sqlcv1.V1TaskEventTypeSIGNALCOMPLETED,
 		})
 
 		if err != nil {
@@ -4556,6 +4721,33 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		UpsertedTasks:        upsertedTasks,
 		InternalEventResults: internalMatchResults,
 	}, nil
+}
+
+// A child replayed straight into a terminal state is never finalized, so it keeps its match.
+func (r *TaskRepositoryImpl) deleteCompletionMatchesForRequeuedOperatorStepChildren(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, lockedTasks []*sqlcv1.ListTasksForReplayRow, upsertedTasks []*V1TaskWithPayload) error {
+	initialStateByTaskId := enumerables.ToMap(
+		upsertedTasks,
+		func(task *V1TaskWithPayload) int64 { return task.ID },
+		func(task *V1TaskWithPayload) sqlcv1.V1TaskInitialState { return task.InitialState },
+	)
+
+	params := sqlcv1.DeleteCompletionMatchesHeldOnChildTasksParams{Tenantid: tenantId}
+
+	for _, task := range lockedTasks {
+		if initialStateByTaskId[task.ID] != sqlcv1.V1TaskInitialStateQUEUED || !isOperatorStepChild(task.ParentTaskID, task.ParentTaskInsertedAt, task.ParentTaskExternalID, task.WorkflowRunID) {
+			continue
+		}
+
+		params.Durabletaskids = append(params.Durabletaskids, task.ParentTaskID.Int64)
+		params.Durabletaskinsertedats = append(params.Durabletaskinsertedats, task.ParentTaskInsertedAt)
+		params.Childtaskexternalids = append(params.Childtaskexternalids, task.ExternalID)
+	}
+
+	if len(params.Childtaskexternalids) == 0 || !r.operatorStepChildrenSkipCompletionMatch(ctx, tx, tenantId) {
+		return nil
+	}
+
+	return r.queries.DeleteCompletionMatchesHeldOnChildTasks(ctx, tx, params)
 }
 
 func (r *TaskRepositoryImpl) reconstructGroupConditions(
@@ -4853,12 +5045,16 @@ func (r *TaskRepositoryImpl) ListSignalCompletedEvents(ctx context.Context, tena
 		eventKeys = append(eventKeys, task.SignalKey)
 	}
 
+	taskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(taskInsertedAts)
+
 	signalEvents, err := r.queries.ListMatchingSignalEvents(ctx, db, sqlcv1.ListMatchingSignalEventsParams{
-		Tenantid:        tenantId,
-		Eventtype:       sqlcv1.V1TaskEventTypeSIGNALCOMPLETED,
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
-		Eventkeys:       eventKeys,
+		Tenantid:          tenantId,
+		Eventtype:         sqlcv1.V1TaskEventTypeSIGNALCOMPLETED,
+		Taskids:           taskIds,
+		Taskinsertedats:   taskInsertedAts,
+		Mintaskinsertedat: taskInsertedAtBounds.Min,
+		Maxtaskinsertedat: taskInsertedAtBounds.Max,
+		Eventkeys:         eventKeys,
 	})
 
 	if err != nil {
@@ -5300,7 +5496,7 @@ func isTaskStatsConcurrencyDetail(expression, strategy, key pgtype.Text) bool {
 	return expression.Valid &&
 		expression.String != "" &&
 		strategy.Valid &&
-		strategy.String != string(sqlcv1.V1ConcurrencyStrategyNONE) &&
+		strategy.String != string(enums.V1ConcurrencyStrategyNONE) &&
 		key.Valid &&
 		key.String != ""
 }
@@ -5529,11 +5725,15 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		taskRetryCounts = append(taskRetryCounts, task.RetryCount)
 	}
 
+	taskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(taskInsertedAts)
+
 	taskStats, err := r.queries.ListTaskRunningStatuses(ctx, db, sqlcv1.ListTaskRunningStatusesParams{
-		Tenantid:        tenantId,
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
-		Taskretrycounts: taskRetryCounts,
+		Tenantid:          tenantId,
+		Taskids:           taskIds,
+		Taskinsertedats:   taskInsertedAts,
+		Mintaskinsertedat: taskInsertedAtBounds.Min,
+		Maxtaskinsertedat: taskInsertedAtBounds.Max,
+		Taskretrycounts:   taskRetryCounts,
 	})
 
 	if err != nil {
@@ -5637,11 +5837,15 @@ func (r *TaskRepositoryImpl) FilterValidTasks(ctx context.Context, tenantId uuid
 		taskRetryCounts[i] = opt.RetryCount
 	}
 
+	taskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(taskInsertedAts)
+
 	taskIds, err := r.queries.FilterValidTasks(ctx, db, sqlcv1.FilterValidTasksParams{
-		Tenantid:        tenantId,
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
-		Taskretrycounts: taskRetryCounts,
+		Tenantid:          tenantId,
+		Taskids:           taskIds,
+		Taskinsertedats:   taskInsertedAts,
+		Mintaskinsertedat: taskInsertedAtBounds.Min,
+		Maxtaskinsertedat: taskInsertedAtBounds.Max,
+		Taskretrycounts:   taskRetryCounts,
 	})
 	if err != nil {
 		return nil, err

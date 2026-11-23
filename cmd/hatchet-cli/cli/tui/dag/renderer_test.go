@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 )
 
 // TestRenderEmpty tests rendering an empty graph
@@ -49,19 +50,19 @@ func TestRenderLinearGraph(t *testing.T) {
 
 	tasks := []rest.V1TaskSummary{
 		{
-			Status: rest.V1TaskStatusCOMPLETED,
+			Status: enums.V1TaskStatusCOMPLETED,
 			Metadata: rest.APIResourceMeta{
 				Id: mustUUID("").String(),
 			},
 		},
 		{
-			Status: rest.V1TaskStatusRUNNING,
+			Status: enums.V1TaskStatusRUNNING,
 			Metadata: rest.APIResourceMeta{
 				Id: mustUUID("").String(),
 			},
 		},
 		{
-			Status: rest.V1TaskStatusQUEUED,
+			Status: enums.V1TaskStatusQUEUED,
 			Metadata: rest.APIResourceMeta{
 				Id: mustUUID("").String(),
 			},

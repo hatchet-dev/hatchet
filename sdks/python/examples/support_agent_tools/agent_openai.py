@@ -1,9 +1,10 @@
 import asyncio
 
 from agents import Agent, Runner
+
 from examples.support_agent_tools.tools import (
-    create_lookup_customer_tool_openai,
     create_check_order_status_tool_openai,
+    create_lookup_customer_tool_openai,
     create_ticket_tool_openai,
 )
 

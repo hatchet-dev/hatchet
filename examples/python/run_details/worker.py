@@ -4,8 +4,7 @@ import time
 
 from pydantic import BaseModel
 
-from datetime import timedelta
-from hatchet_sdk import Context, Hatchet, SleepCondition
+from hatchet_sdk import Context, Hatchet
 
 
 class MockInput(BaseModel):

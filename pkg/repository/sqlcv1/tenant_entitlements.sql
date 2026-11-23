@@ -4,8 +4,8 @@ FROM tenant_entitlement
 WHERE tenant_id = @tenantId::uuid;
 
 -- name: UpsertTenantEntitlement :one
-INSERT INTO tenant_entitlement (tenant_id, audit_logs, prometheus_metrics, strict_additional_metadata_filters, dag_operator, durable_streams, serverless_operator, sandbox_operator)
-VALUES (@tenantId::uuid, @auditLogs::boolean, @prometheusMetrics::boolean, @strictAdditionalMetadataFilters::boolean, @dagOperator::boolean, @durableStreams::boolean, @serverlessOperator::boolean, @sandboxOperator::boolean)
+INSERT INTO tenant_entitlement (tenant_id, audit_logs, prometheus_metrics, strict_additional_metadata_filters, dag_operator, durable_streams, serverless_operator, sandbox_operator, operator_step_direct_completion)
+VALUES (@tenantId::uuid, @auditLogs::boolean, @prometheusMetrics::boolean, @strictAdditionalMetadataFilters::boolean, @dagOperator::boolean, @durableStreams::boolean, @serverlessOperator::boolean, @sandboxOperator::boolean, @operatorStepDirectCompletion::boolean)
 ON CONFLICT (tenant_id) DO UPDATE
 SET
     audit_logs = EXCLUDED.audit_logs,
@@ -15,6 +15,7 @@ SET
     durable_streams = EXCLUDED.durable_streams,
     serverless_operator = EXCLUDED.serverless_operator,
     sandbox_operator = EXCLUDED.sandbox_operator,
+    operator_step_direct_completion = EXCLUDED.operator_step_direct_completion,
     updated_at = NOW()
 RETURNING *;
 
