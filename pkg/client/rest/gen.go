@@ -1576,9 +1576,6 @@ type V1ConcurrencyStrategy struct {
 // V1ConcurrencyStrategyList defines model for V1ConcurrencyStrategyList.
 type V1ConcurrencyStrategyList struct {
 	Rows []V1ConcurrencyStrategy `json:"rows"`
-
-	// Totals Tenant-wide counts. A run in a chain of strategies holds a slot in each of them, so these are not the sums of the per-strategy counts.
-	Totals V1ConcurrencyTotals `json:"totals"`
 }
 
 // V1ConcurrencyStrategyUsage defines model for V1ConcurrencyStrategyUsage.
@@ -4120,6 +4117,9 @@ type ClientInterface interface {
 	// V1ConcurrencyKeyList request
 	V1ConcurrencyKeyList(ctx context.Context, tenant openapi_types.UUID, scope V1ConcurrencyScope, strategy int64, params *V1ConcurrencyKeyListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// V1ConcurrencyTotalsGet request
+	V1ConcurrencyTotalsGet(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// V1DurableTaskBranchWithBody request with any body
 	V1DurableTaskBranchWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -4932,6 +4932,18 @@ func (c *Client) V1ConcurrencyStrategyList(ctx context.Context, tenant openapi_t
 
 func (c *Client) V1ConcurrencyKeyList(ctx context.Context, tenant openapi_types.UUID, scope V1ConcurrencyScope, strategy int64, params *V1ConcurrencyKeyListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1ConcurrencyKeyListRequest(c.Server, tenant, scope, strategy, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1ConcurrencyTotalsGet(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1ConcurrencyTotalsGetRequest(c.Server, tenant)
 	if err != nil {
 		return nil, err
 	}
@@ -8202,6 +8214,40 @@ func NewV1ConcurrencyKeyListRequest(server string, tenant openapi_types.UUID, sc
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1ConcurrencyTotalsGetRequest generates requests for V1ConcurrencyTotalsGet
+func NewV1ConcurrencyTotalsGetRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/concurrency/totals", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -16330,6 +16376,9 @@ type ClientWithResponsesInterface interface {
 	// V1ConcurrencyKeyListWithResponse request
 	V1ConcurrencyKeyListWithResponse(ctx context.Context, tenant openapi_types.UUID, scope V1ConcurrencyScope, strategy int64, params *V1ConcurrencyKeyListParams, reqEditors ...RequestEditorFn) (*V1ConcurrencyKeyListResponse, error)
 
+	// V1ConcurrencyTotalsGetWithResponse request
+	V1ConcurrencyTotalsGetWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1ConcurrencyTotalsGetResponse, error)
+
 	// V1DurableTaskBranchWithBodyWithResponse request with any body
 	V1DurableTaskBranchWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1DurableTaskBranchResponse, error)
 
@@ -17441,6 +17490,30 @@ func (r V1ConcurrencyKeyListResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r V1ConcurrencyKeyListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1ConcurrencyTotalsGetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1ConcurrencyTotals
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1ConcurrencyTotalsGetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1ConcurrencyTotalsGetResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -21015,6 +21088,15 @@ func (c *ClientWithResponses) V1ConcurrencyKeyListWithResponse(ctx context.Conte
 	return ParseV1ConcurrencyKeyListResponse(rsp)
 }
 
+// V1ConcurrencyTotalsGetWithResponse request returning *V1ConcurrencyTotalsGetResponse
+func (c *ClientWithResponses) V1ConcurrencyTotalsGetWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1ConcurrencyTotalsGetResponse, error) {
+	rsp, err := c.V1ConcurrencyTotalsGet(ctx, tenant, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1ConcurrencyTotalsGetResponse(rsp)
+}
+
 // V1DurableTaskBranchWithBodyWithResponse request with arbitrary body returning *V1DurableTaskBranchResponse
 func (c *ClientWithResponses) V1DurableTaskBranchWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1DurableTaskBranchResponse, error) {
 	rsp, err := c.V1DurableTaskBranchWithBody(ctx, tenant, contentType, body, reqEditors...)
@@ -23681,6 +23763,46 @@ func ParseV1ConcurrencyKeyListResponse(rsp *http.Response) (*V1ConcurrencyKeyLis
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1ConcurrencyTotalsGetResponse parses an HTTP response from a V1ConcurrencyTotalsGetWithResponse call
+func ParseV1ConcurrencyTotalsGetResponse(rsp *http.Response) (*V1ConcurrencyTotalsGetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1ConcurrencyTotalsGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1ConcurrencyTotals
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	}
 

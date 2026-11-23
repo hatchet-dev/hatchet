@@ -103,6 +103,7 @@ import {
   V1ConcurrencyKeyList,
   V1ConcurrencyScope,
   V1ConcurrencyStrategyList,
+  V1ConcurrencyTotals,
   V1CreateFilterRequest,
   V1CreateServerlessEndpointRequest,
   V1CreateWebhookRequest,
@@ -1251,6 +1252,24 @@ export class Api<
       path: `/api/v1/stable/tenants/${tenant}/concurrency/strategies/${scope}/${strategy}/keys`,
       method: "GET",
       query: query,
+      secure: true,
+      format: "json",
+      ...params,
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
+  /**
+   * @description Gets the tenant-wide concurrency totals. A run in a chain of strategies holds a slot in each of them, so these are not the sums of the per-strategy counts.
+   *
+   * @tags Concurrency
+   * @name V1ConcurrencyTotalsGet
+   * @summary Get concurrency totals
+   * @request GET:/api/v1/stable/tenants/{tenant}/concurrency/totals
+   * @secure
+   */
+  v1ConcurrencyTotalsGet = Object.assign((tenant: string, params: RequestParams = {}) =>
+    this.request<V1ConcurrencyTotals, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/concurrency/totals`,
+      method: "GET",
       secure: true,
       format: "json",
       ...params,

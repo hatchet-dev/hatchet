@@ -8,8 +8,8 @@ import {
 
 export type TotalsStripProps = {
   strategies: V1ConcurrencyStrategy[];
-  // computed by the server: a run in a chain of strategies holds a slot in each of them, so
-  // summing the rows would count it once per strategy
+  // fetched separately: a run in a chain of strategies holds a slot in each of them, so summing
+  // the rows would count it once per strategy
   totals: V1ConcurrencyTotals | undefined;
   loading: boolean;
   now: number;

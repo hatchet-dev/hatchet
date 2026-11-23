@@ -141,6 +141,7 @@ roles:
       - V1FilterList
       - V1ConcurrencyStrategyList
       - V1ConcurrencyKeyList
+      - V1ConcurrencyTotalsGet
       - TenantGetStepRunQueueMetrics
       - UserUpdateLogin
       - V1FilterGet

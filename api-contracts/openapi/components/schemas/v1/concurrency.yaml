@@ -170,11 +170,8 @@ V1ConcurrencyStrategyList:
       type: array
       items:
         $ref: "#/V1ConcurrencyStrategy"
-    totals:
-      $ref: "#/V1ConcurrencyTotals"
   required:
     - rows
-    - totals
 
 V1ConcurrencyKey:
   type: object

@@ -120,3 +120,42 @@ V1ConcurrencyKeyList:
     summary: List concurrency keys
     tags:
       - Concurrency
+
+V1ConcurrencyTotalsGet:
+  get:
+    x-resources: ["tenant"]
+    description: Gets the tenant-wide concurrency totals. A run in a chain of strategies holds a slot in each of them, so these are not the sums of the per-strategy counts.
+    operationId: v1-concurrency-totals:get
+    x-payloads: false
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1ConcurrencyTotals"
+        description: Successfully got the concurrency totals
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Get concurrency totals
+    tags:
+      - Concurrency

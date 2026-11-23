@@ -91,10 +91,11 @@ type ConcurrencyTotals struct {
 	QueuedCount    int64
 }
 
-// ConcurrencyOverview is the tenant's strategies, most queued first, and their totals.
-type ConcurrencyOverview struct {
-	Strategies []*ConcurrencyStrategySummary
-	Totals     ConcurrencyTotals
+// The strategies and totals are cached together so both endpoints read the same snapshot and
+// the slots are scanned once per cache period.
+type concurrencyOverview struct {
+	strategies []*ConcurrencyStrategySummary
+	totals     ConcurrencyTotals
 }
 
 // ListConcurrencyKeysOpts filters and pages the keys returned by ListKeys.
@@ -119,7 +120,10 @@ type ConcurrencyOverviewRepository interface {
 	// ListStrategySummaries returns the strategies on the tenant's latest workflow versions,
 	// the shared strategies their tasks use, and draining strategies that still have slots,
 	// with live slot counts, most queued first.
-	ListStrategySummaries(ctx context.Context, tenantId uuid.UUID) (*ConcurrencyOverview, error)
+	ListStrategySummaries(ctx context.Context, tenantId uuid.UUID) ([]*ConcurrencyStrategySummary, error)
+
+	// GetTotals returns the tenant-wide counts across all strategies.
+	GetTotals(ctx context.Context, tenantId uuid.UUID) (*ConcurrencyTotals, error)
 
 	// ListKeys returns a page of a strategy's keys and the total number of matching keys.
 	// Returns ErrConcurrencyStrategyNotFound if the strategy does not exist in the given scope.
@@ -166,13 +170,31 @@ func (s slotStats) apply(sum *ConcurrencyStrategySummary) {
 	sum.OldestQueuedKey = s.oldestQueuedKey
 }
 
-func (r *concurrencyOverviewRepository) ListStrategySummaries(ctx context.Context, tenantId uuid.UUID) (*ConcurrencyOverview, error) {
-	return cache.MakeCacheable(r.summaryCache, tenantId.String(), func() (*ConcurrencyOverview, error) {
+func (r *concurrencyOverviewRepository) ListStrategySummaries(ctx context.Context, tenantId uuid.UUID) ([]*ConcurrencyStrategySummary, error) {
+	overview, err := r.getOverview(ctx, tenantId)
+	if err != nil {
+		return nil, err
+	}
+
+	return overview.strategies, nil
+}
+
+func (r *concurrencyOverviewRepository) GetTotals(ctx context.Context, tenantId uuid.UUID) (*ConcurrencyTotals, error) {
+	overview, err := r.getOverview(ctx, tenantId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &overview.totals, nil
+}
+
+func (r *concurrencyOverviewRepository) getOverview(ctx context.Context, tenantId uuid.UUID) (*concurrencyOverview, error) {
+	return cache.MakeCacheable(r.summaryCache, tenantId.String(), func() (*concurrencyOverview, error) {
 		return r.listStrategySummaries(ctx, tenantId)
 	})
 }
 
-func (r *concurrencyOverviewRepository) listStrategySummaries(ctx context.Context, tenantId uuid.UUID) (*ConcurrencyOverview, error) {
+func (r *concurrencyOverviewRepository) listStrategySummaries(ctx context.Context, tenantId uuid.UUID) (*concurrencyOverview, error) {
 	taskStrategies, err := r.queries.ListTaskConcurrencyStrategiesForTenant(ctx, r.pool.ForTenant(tenantId), tenantId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list task concurrency strategies: %w", err)
@@ -386,7 +408,7 @@ func (r *concurrencyOverviewRepository) listStrategySummaries(ctx context.Contex
 		return a.Name < b.Name
 	})
 
-	return &ConcurrencyOverview{Strategies: res, Totals: totals}, nil
+	return &concurrencyOverview{strategies: res, totals: totals}, nil
 }
 
 type concurrencyKeysPage struct {
@@ -427,14 +449,14 @@ func (r *concurrencyOverviewRepository) ListKeys(ctx context.Context, tenantId u
 func (r *concurrencyOverviewRepository) listKeys(ctx context.Context, tenantId uuid.UUID, scope ConcurrencyScope, strategyId int64, opts ListConcurrencyKeysOpts) ([]*ConcurrencyKey, int64, error) {
 	// The strategy tables have no index for a (tenant, id) lookup, so the strategy is
 	// resolved from the cached summaries.
-	overview, err := r.ListStrategySummaries(ctx, tenantId)
+	summaries, err := r.ListStrategySummaries(ctx, tenantId)
 	if err != nil {
 		return nil, 0, err
 	}
 
 	var strategy *ConcurrencyStrategySummary
 
-	for _, s := range overview.Strategies {
+	for _, s := range summaries {
 		if s.Scope == scope && s.ID == strategyId {
 			strategy = s
 			break

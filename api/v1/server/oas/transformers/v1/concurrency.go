@@ -60,22 +60,26 @@ func ToV1ConcurrencyStrategy(s *repository.ConcurrencyStrategySummary) gen.V1Con
 	return res
 }
 
-// ToV1ConcurrencyStrategyList converts the concurrency overview to the API list response.
-func ToV1ConcurrencyStrategyList(overview *repository.ConcurrencyOverview) gen.V1ConcurrencyStrategyList {
-	rows := make([]gen.V1ConcurrencyStrategy, len(overview.Strategies))
+// ToV1ConcurrencyStrategyList converts strategy summaries to the API list response.
+func ToV1ConcurrencyStrategyList(strategies []*repository.ConcurrencyStrategySummary) gen.V1ConcurrencyStrategyList {
+	rows := make([]gen.V1ConcurrencyStrategy, len(strategies))
 
-	for i, s := range overview.Strategies {
+	for i, s := range strategies {
 		rows[i] = ToV1ConcurrencyStrategy(s)
 	}
 
 	return gen.V1ConcurrencyStrategyList{
 		Rows: rows,
-		Totals: gen.V1ConcurrencyTotals{
-			KeyCount:       overview.Totals.KeyCount,
-			QueuedKeyCount: overview.Totals.QueuedKeyCount,
-			RunningCount:   overview.Totals.RunningCount,
-			QueuedCount:    overview.Totals.QueuedCount,
-		},
+	}
+}
+
+// ToV1ConcurrencyTotals converts the tenant-wide concurrency totals to the API response.
+func ToV1ConcurrencyTotals(t *repository.ConcurrencyTotals) gen.V1ConcurrencyTotals {
+	return gen.V1ConcurrencyTotals{
+		KeyCount:       t.KeyCount,
+		QueuedKeyCount: t.QueuedKeyCount,
+		RunningCount:   t.RunningCount,
+		QueuedCount:    t.QueuedCount,
 	}
 }
 
