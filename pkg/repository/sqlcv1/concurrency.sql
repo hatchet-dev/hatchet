@@ -1742,7 +1742,7 @@ WITH per_key AS (
         COUNT(*) FILTER (WHERE is_filled) AS running_count,
         COUNT(*) FILTER (WHERE NOT is_filled) AS queued_count,
         COUNT(*) FILTER (WHERE is_filled AND COALESCE(cardinality(next_strategy_ids), 0) = 0) AS last_gate_running_count,
-        MIN(COALESCE(queued_at, task_inserted_at)) FILTER (WHERE NOT is_filled) AS oldest_queued_at
+        MIN(task_inserted_at) FILTER (WHERE NOT is_filled) AS oldest_queued_at
     FROM
         v1_concurrency_slot
     WHERE
@@ -1777,7 +1777,7 @@ WITH per_key AS (
         (ARRAY_AGG(wcs.workflow_version_id))[1] AS workflow_version_id,
         COUNT(*) FILTER (WHERE wcs.is_filled) AS running_count,
         COUNT(*) FILTER (WHERE NOT wcs.is_filled) AS queued_count,
-        MIN(COALESCE(cs.queued_at, cs.task_inserted_at)) AS oldest_queued_at
+        MIN(cs.task_inserted_at) AS oldest_queued_at
     FROM
         v1_workflow_concurrency_slot wcs
     LEFT JOIN
@@ -1815,7 +1815,7 @@ WITH keys AS (
         key,
         (COUNT(*) FILTER (WHERE is_filled))::BIGINT AS running_count,
         (COUNT(*) FILTER (WHERE NOT is_filled))::BIGINT AS queued_count,
-        (MIN(COALESCE(queued_at, task_inserted_at)) FILTER (WHERE NOT is_filled))::TIMESTAMPTZ AS oldest_queued_at,
+        (MIN(task_inserted_at) FILTER (WHERE NOT is_filled))::TIMESTAMPTZ AS oldest_queued_at,
         (ARRAY_AGG(max_runs ORDER BY sort_id DESC))[1] AS latest_max_runs
     FROM
         v1_concurrency_slot
@@ -1852,7 +1852,7 @@ WITH keys AS (
         wcs.key,
         (COUNT(*) FILTER (WHERE wcs.is_filled))::BIGINT AS running_count,
         (COUNT(*) FILTER (WHERE NOT wcs.is_filled))::BIGINT AS queued_count,
-        MIN(COALESCE(cs.queued_at, cs.task_inserted_at))::TIMESTAMPTZ AS oldest_queued_at
+        MIN(cs.task_inserted_at)::TIMESTAMPTZ AS oldest_queued_at
     FROM
         v1_workflow_concurrency_slot wcs
     LEFT JOIN

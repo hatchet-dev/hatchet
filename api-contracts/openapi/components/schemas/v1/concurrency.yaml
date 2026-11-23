@@ -120,7 +120,7 @@ V1ConcurrencyStrategy:
     oldestQueuedAt:
       type: string
       format: date-time
-      description: When the longest-queued run reached this strategy. Unset when nothing is queued.
+      description: When the longest-queued run was created. Unset when nothing is queued.
     oldestQueuedKey:
       type: string
       description: The key of the longest-queued run. Unset when nothing is queued.
@@ -195,7 +195,7 @@ V1ConcurrencyKey:
     oldestQueuedAt:
       type: string
       format: date-time
-      description: When the longest-queued run on this key reached this strategy. Unset when nothing is queued.
+      description: When the longest-queued run on this key was created. Unset when nothing is queued.
   required:
     - key
     - maxRuns

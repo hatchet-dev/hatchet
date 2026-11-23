@@ -1487,7 +1487,7 @@ type V1ConcurrencyKey struct {
 	// MaxRuns The effective max runs for this key. With a max runs expression, this is the value evaluated for the key's most recent run.
 	MaxRuns int32 `json:"maxRuns"`
 
-	// OldestQueuedAt When the longest-queued run on this key reached this strategy. Unset when nothing is queued.
+	// OldestQueuedAt When the longest-queued run on this key was created. Unset when nothing is queued.
 	OldestQueuedAt *time.Time `json:"oldestQueuedAt,omitempty"`
 	QueuedCount    int64      `json:"queuedCount"`
 
@@ -1536,7 +1536,7 @@ type V1ConcurrencyStrategy struct {
 	// Name The shared strategy's name, the workflow name for WORKFLOW strategies, or the task name for TASK strategies.
 	Name string `json:"name"`
 
-	// OldestQueuedAt When the longest-queued run reached this strategy. Unset when nothing is queued.
+	// OldestQueuedAt When the longest-queued run was created. Unset when nothing is queued.
 	OldestQueuedAt *time.Time `json:"oldestQueuedAt,omitempty"`
 
 	// OldestQueuedKey The key of the longest-queued run. Unset when nothing is queued.

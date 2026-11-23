@@ -1315,10 +1315,6 @@ CREATE TABLE v1_concurrency_slot (
     -- rest of the chain, peeled forward like next_keys.
     max_runs INTEGER,
     next_max_runs INTEGER[],
-    -- When the task reached this strategy. Each strategy of a chain gets its slot only once the
-    -- previous one admits the task, so this differs from task_inserted_at. NULL on slots created
-    -- before the column existed.
-    queued_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT v1_concurrency_slot_pkey PRIMARY KEY (task_id, task_inserted_at, task_retry_count, strategy_id)
 );
 

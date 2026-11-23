@@ -1261,7 +1261,7 @@ export interface V1ConcurrencyStrategy {
    */
   queuedCount: number;
   /**
-   * When the longest-queued run reached this strategy. Unset when nothing is queued.
+   * When the longest-queued run was created. Unset when nothing is queued.
    * @format date-time
    */
   oldestQueuedAt?: string;
@@ -1314,7 +1314,7 @@ export interface V1ConcurrencyKey {
   /** @format int64 */
   queuedCount: number;
   /**
-   * When the longest-queued run on this key reached this strategy. Unset when nothing is queued.
+   * When the longest-queued run on this key was created. Unset when nothing is queued.
    * @format date-time
    */
   oldestQueuedAt?: string;
