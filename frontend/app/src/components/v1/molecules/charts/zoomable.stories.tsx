@@ -56,3 +56,60 @@ export const Area: Story = {
     kind: 'area',
   },
 };
+
+type RunStatus = 'SUCCEEDED' | 'FAILED';
+
+// Mirrors a production tenant where each 30m bucket has ~50k successes and a
+// few dozen failures: succeeded must fill the bar, failed stays a sliver.
+const highVolumeRuns: DataPoint<RunStatus>[] = Array.from(
+  { length: 48 },
+  (_, i) => ({
+    date: new Date(Date.UTC(2026, 10, 20, 0, i * 30)).toISOString(),
+    SUCCEEDED: Math.round(48_000 + 4_000 * Math.sin(i / 4)),
+    FAILED: i % 5 === 0 ? 0 : 20 + ((i * 7) % 20),
+  }),
+);
+
+const ZoomableStatusChart = ZoomableChart<RunStatus>;
+
+export const StackedHighVolume: StoryObj<typeof ZoomableStatusChart> = {
+  render: (args) => <ZoomableStatusChart {...args} />,
+  args: {
+    data: highVolumeRuns,
+    kind: 'bar',
+    stacked: true,
+    showYAxis: false,
+    colors: {
+      SUCCEEDED: 'rgb(34 197 94 / 0.5)',
+      FAILED: 'hsl(var(--destructive))',
+    },
+    className: 'h-24 min-h-24',
+  },
+};
+
+// One backfill-sized bucket squeezes every other bar to ~2px. The 1px bar
+// stroke then draws the 31-run failed segment as tall as 51k succeeded.
+export const StackedHighVolumeWithSpike: StoryObj<typeof ZoomableStatusChart> =
+  {
+    ...StackedHighVolume,
+    args: {
+      ...StackedHighVolume.args,
+      data: highVolumeRuns.map((point, i) =>
+        i === 40
+          ? { ...point, SUCCEEDED: 2_500_000, FAILED: 120 }
+          : i === 8
+            ? { ...point, SUCCEEDED: 51_615, FAILED: 31 }
+            : point,
+      ),
+    },
+  };
+
+export const StackedHighVolumeWithSpikeSqrt: StoryObj<
+  typeof ZoomableStatusChart
+> = {
+  ...StackedHighVolumeWithSpike,
+  args: {
+    ...StackedHighVolumeWithSpike.args,
+    yScale: 'sqrt',
+  },
+};
