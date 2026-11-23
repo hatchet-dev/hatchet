@@ -12,5 +12,4 @@ type Authorizer interface {
 type Request struct {
 	Principal Principal
 	Action    Action
-	Scope     Scope
 }

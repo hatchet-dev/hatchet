@@ -57,7 +57,7 @@ type generateOpts struct {
 // GenerateOption is variadic so callers in other repos keep compiling when options are added.
 type GenerateOption func(*generateOpts)
 
-// WithCapabilities limits the token's gRPC access; without it the token keeps every capability.
+// WithCapabilities limits what the token can call over REST and gRPC; without it the token keeps every capability.
 func WithCapabilities(capabilities []string) GenerateOption {
 	return func(o *generateOpts) { o.capabilities = capabilities }
 }

@@ -1,0 +1,306 @@
+# Capabilities held by tenant API tokens. A token may call a REST operation or gRPC procedure if any capability it holds grants it.
+# Tokens stored without capabilities (every token created before capabilities existed) resolve to "all", or "read-only" if they are read-only.
+
+# operations no token may call, whatever its capabilities
+unavailable:
+  rest:
+    # bearer tokens cannot read, list, or write other bearer tokens
+    - ApiTokenList
+    - ApiTokenCreate
+    - ApiTokenUpdateRevoke
+    # tokens are not tied to a member role, so they cannot change Labs entitlements
+    - TenantEntitlementsUpdate
+    # these act on the calling user rather than a tenant
+    - TenantCreate
+    - TenantInviteAccept
+    - TenantInviteReject
+    - MetadataListIntegrations
+
+capabilities:
+  all:
+    rest: ["*"]
+    grpc: ["*"]
+
+  # what read-only tokens hold: the reads a VIEWER has; read-only tokens are kept off gRPC regardless
+  read-only:
+    inherits: [runs:read, schedules:read, workflows:read, events:read, filters:read, webhooks:read, serverless:read, workers:read, rate-limits:read, streams:read, metrics:read, tenant:read]
+
+  # everything a worker process does, including spawning children and registering its workflows
+  worker:
+    inherits: [workflows:write, runs:trigger, runs:read, streams:publish, traces:export]
+    grpc:
+      - /Dispatcher/GetVersion
+      - /Dispatcher/Register
+      - /Dispatcher/Listen
+      - /Dispatcher/ListenV2
+      - /Dispatcher/Heartbeat
+      - /Dispatcher/Unsubscribe
+      - /Dispatcher/SendStepActionEvent
+      - /Dispatcher/SendBatchActionEvent
+      - /Dispatcher/SendGroupKeyActionEvent
+      - /Dispatcher/PutOverridesData
+      - /Dispatcher/RefreshTimeout
+      - /Dispatcher/ReleaseSlot
+      - /Dispatcher/RestoreEvictedTask
+      - /Dispatcher/UpsertWorkerLabels
+      - /v1.V1Dispatcher/DurableTask
+      - /v1.V1Dispatcher/RegisterDurableEvent
+      - /v1.V1Dispatcher/ListenForDurableEvent
+      - /EventsService/PutLog
+      - /EventsService/PutStreamEvent
+
+  operator:
+    grpc:
+      - /v1.OperatorService/Register
+      - /v1.OperatorService/Listen
+      - /v1.OperatorService/SendStepActionEvent
+      - /v1.OperatorService/DurableTask
+
+  runs:read:
+    rest:
+      - WorkflowRunGet
+      - WorkflowRunGetShape
+      - WorkflowRunList
+      - WorkflowRunGetInput
+      - WorkflowRunListStepRunEvents
+      - StepRunGet
+      - StepRunGetSchema
+      - StepRunListArchives
+      - StepRunListEvents
+      - V1WorkflowRunGet
+      - V1WorkflowRunGetStatus
+      - V1WorkflowRunGetTimings
+      - V1WorkflowRunList
+      - V1WorkflowRunTaskEventsList
+      - V1WorkflowRunCountGet
+      - V1WorkflowRunDisplayNamesList
+      - V1WorkflowRunExternalIdsList
+      - V1TaskGet
+      - V1TaskEventList
+      - V1DagListTasks
+      - V1DurableTaskEventLogList
+      - V1LogLineList
+      - V1TenantLogLineList
+      - V1ObservabilityGetTrace
+    grpc:
+      - /Dispatcher/SubscribeToWorkflowEvents
+      - /Dispatcher/SubscribeToWorkflowRuns
+      - /v1.AdminService/GetRunDetails
+
+  runs:trigger:
+    rest:
+      - WorkflowRunCreate
+      - V1WorkflowRunCreate
+    grpc:
+      - /WorkflowService/TriggerWorkflow
+      - /WorkflowService/BulkTriggerWorkflow
+      - /v1.AdminService/TriggerWorkflowRun
+
+  runs:manage:
+    rest:
+      - WorkflowRunCancel
+      - WorkflowRunUpdateReplay
+      - StepRunUpdateCancel
+      - StepRunUpdateRerun
+      - V1TaskCancel
+      - V1TaskReplay
+      - V1TaskRestore
+      - V1DurableTaskBranch
+    grpc:
+      - /v1.AdminService/CancelTasks
+      - /v1.AdminService/ReplayTasks
+      - /v1.AdminService/BranchDurableTask
+
+  schedules:read:
+    rest:
+      - CronWorkflowList
+      - WorkflowCronGet
+      - WorkflowScheduledList
+      - WorkflowScheduledGet
+
+  schedules:write:
+    rest:
+      - CronWorkflowTriggerCreate
+      - ScheduledWorkflowRunCreate
+      - WorkflowCronUpdate
+      - WorkflowCronDelete
+      - WorkflowCronTrigger
+      - WorkflowScheduledUpdate
+      - WorkflowScheduledDelete
+      - WorkflowScheduledTrigger
+      - WorkflowScheduledBulkUpdate
+      - WorkflowScheduledBulkDelete
+    grpc:
+      - /WorkflowService/ScheduleWorkflow
+
+  workflows:read:
+    rest:
+      - WorkflowList
+      - WorkflowGet
+      - WorkflowVersionGet
+      - WorkflowGetWorkersCount
+      - V1ConcurrencyStrategyList
+      - V1ConcurrencyKeyList
+
+  workflows:write:
+    rest:
+      - WorkflowUpdate
+      - WorkflowDelete
+    grpc:
+      - /WorkflowService/PutWorkflow
+      - /v1.AdminService/PutWorkflow
+
+  events:read:
+    rest:
+      - EventList
+      - EventGet
+      - EventDataGet
+      - EventDataGetWithTenant
+      - EventKeyList
+      - V1EventList
+      - V1EventGet
+      - V1EventKeyList
+
+  events:push:
+    rest:
+      - EventCreate
+      - EventCreateBulk
+    grpc:
+      - /EventsService/Push
+      - /EventsService/BulkPush
+
+  events:manage:
+    rest:
+      - EventUpdateCancel
+      - EventUpdateReplay
+    grpc:
+      - /EventsService/ReplaySingleEvent
+
+  filters:read:
+    rest:
+      - V1FilterGet
+      - V1FilterList
+      - V1CelDebug
+
+  filters:write:
+    rest:
+      - V1FilterCreate
+      - V1FilterUpdate
+      - V1FilterDelete
+
+  webhooks:read:
+    rest:
+      - V1WebhookGet
+      - V1WebhookList
+      - WebhookList
+      - WebhookRequestsList
+
+  webhooks:write:
+    rest:
+      - V1WebhookCreate
+      - V1WebhookUpdate
+      - V1WebhookDelete
+      - WebhookCreate
+      - WebhookDelete
+
+  serverless:read:
+    rest:
+      - V1ServerlessEndpointGet
+      - V1ServerlessEndpointList
+      - V1ServerlessEndpointEventList
+
+  serverless:write:
+    rest:
+      - V1ServerlessEndpointCreate
+      - V1ServerlessEndpointUpdate
+      - V1ServerlessEndpointDelete
+
+  workers:read:
+    rest:
+      - WorkerList
+      - WorkerGet
+
+  workers:write:
+    rest:
+      - WorkerUpdate
+
+  rate-limits:read:
+    rest:
+      - RateLimitList
+
+  rate-limits:write:
+    rest:
+      - RateLimitDelete
+    grpc:
+      - /WorkflowService/PutRateLimit
+      - /WorkflowService/PauseRateLimit
+
+  streams:read:
+    rest:
+      - V1StreamPayloadGet
+      - V1StreamTopicList
+    grpc:
+      - /v1.V1Streams/Subscribe
+      - /v1.V1Streams/GetTopicMetadata
+
+  streams:publish:
+    rest:
+      - V1StreamPayloadUpload
+    grpc:
+      - /v1.V1Streams/Publish
+      - /v1.V1Streams/PublishBatch
+
+  streams:manage:
+    grpc:
+      - /v1.V1Streams/Reset
+
+  traces:export:
+    grpc:
+      - /opentelemetry.proto.collector.trace.v1.TraceService/Export
+
+  metrics:read:
+    rest:
+      - MonitoringPostRunProbe
+      - TenantGetPrometheusMetrics
+      - TenantGetQueueMetrics
+      - TenantGetStepRunQueueMetrics
+      - TenantGetTaskStats
+      - WorkflowGetMetrics
+      - WorkflowRunGetMetrics
+      - V1TaskGetPointMetrics
+      - V1TaskListStatusMetrics
+      - V1TenantLogLineGetPointMetrics
+
+  tenant:read:
+    rest:
+      - TenantGet
+      - TenantEntitlementsGet
+      - TenantResourcePolicyGet
+      - TenantFeatureFlagEvaluate
+      - TenantAlertingSettingsGet
+      - AlertEmailGroupList
+      - SnsList
+      - SlackWebhookList
+
+  tenant:write:
+    rest:
+      - TenantUpdate
+      - AlertEmailGroupCreate
+      - AlertEmailGroupUpdate
+      - AlertEmailGroupDelete
+      - SnsCreate
+      - SnsDelete
+      - SlackWebhookDelete
+
+  members:read:
+    rest:
+      - TenantMemberList
+      - TenantInviteList
+
+  members:write:
+    rest:
+      - TenantMemberUpdate
+      - TenantMemberDelete
+      - TenantInviteCreate
+      - TenantInviteUpdate
+      - TenantInviteDelete

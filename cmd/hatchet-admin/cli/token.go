@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 
-	grpcauthz "github.com/hatchet-dev/hatchet/internal/services/grpc/authz"
+	"github.com/hatchet-dev/hatchet/internal/tokenauthz"
 	authtoken "github.com/hatchet-dev/hatchet/pkg/auth/token"
 	"github.com/hatchet-dev/hatchet/pkg/authmode"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
@@ -73,7 +73,7 @@ func init() {
 		&tokenCaps,
 		"capabilities",
 		nil,
-		"gRPC capabilities for the token, e.g. worker,events:push; omit to grant all",
+		"capabilities for the token, e.g. worker,events:push; omit to grant all",
 	)
 }
 
@@ -113,13 +113,13 @@ func runCreateAPIToken(expiresIn time.Duration) error {
 	var opts []authtoken.GenerateOption
 
 	if len(tokenCaps) > 0 {
-		perms, err := grpcauthz.Permissions()
-		if err != nil {
-			return err
-		}
-
 		for _, c := range tokenCaps {
-			if !perms.Defines(c) {
+			ok, err := tokenauthz.Defines(c)
+			if err != nil {
+				return err
+			}
+
+			if !ok {
 				return fmt.Errorf("unknown capability %q", c)
 			}
 		}

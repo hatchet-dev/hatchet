@@ -362,7 +362,7 @@ type APIResourceMeta struct {
 
 // APIToken defines model for APIToken.
 type APIToken struct {
-	// Capabilities The gRPC capabilities the token holds. Tokens created without capabilities hold "all".
+	// Capabilities The capabilities the token holds, which grant REST operations and gRPC procedures. Tokens created without capabilities hold "all", or "read-only" if they are read-only.
 	Capabilities []string `json:"capabilities"`
 
 	// ExpiresAt When the API token expires.
@@ -420,7 +420,7 @@ type ConcurrencyStat struct {
 
 // CreateAPITokenRequest defines model for CreateAPITokenRequest.
 type CreateAPITokenRequest struct {
-	// Capabilities Limit the gRPC procedures the token can call, e.g. ["worker"] or ["events:push"]. Defaults to ["all"]. Cannot be combined with readOnly.
+	// Capabilities Limit the REST operations and gRPC procedures the token can call, e.g. ["worker"] or ["events:push"]. Defaults to ["all"]. Cannot be combined with readOnly.
 	Capabilities *[]string `json:"capabilities,omitempty"`
 
 	// ExpiresIn The duration for which the token is valid.

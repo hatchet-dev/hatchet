@@ -14,7 +14,7 @@ APIToken:
       type: array
       items:
         type: string
-      description: The gRPC capabilities the token holds. Tokens created without capabilities hold "all".
+      description: The capabilities the token holds, which grant REST operations and gRPC procedures. Tokens created without capabilities hold "all", or "read-only" if they are read-only.
     expiresAt:
       type: string
       format: date-time
@@ -41,7 +41,7 @@ CreateAPITokenRequest:
       items:
         type: string
       minItems: 1
-      description: Limit the gRPC procedures the token can call, e.g. ["worker"] or ["events:push"]. Defaults to ["all"]. Cannot be combined with readOnly.
+      description: Limit the REST operations and gRPC procedures the token can call, e.g. ["worker"] or ["events:push"]. Defaults to ["all"]. Cannot be combined with readOnly.
     expiresIn:
       type: string
       description: The duration for which the token is valid.

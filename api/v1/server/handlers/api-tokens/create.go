@@ -8,7 +8,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	grpcauthz "github.com/hatchet-dev/hatchet/internal/services/grpc/authz"
+	"github.com/hatchet-dev/hatchet/internal/tokenauthz"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	authtoken "github.com/hatchet-dev/hatchet/pkg/auth/token"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
@@ -81,10 +81,10 @@ func (a *APITokenService) ApiTokenCreate(ctx echo.Context, request gen.ApiTokenC
 	}, nil
 }
 
-// validateCapabilities rejects names grpc.yaml does not define, since an unknown capability would silently grant nothing.
+// validateCapabilities rejects names tokens.yaml does not define, since an unknown capability would silently grant nothing.
 func validateCapabilities(capabilities []string, readOnly bool) (*gen.APIErrors, error) {
 	if readOnly {
-		e := apierrors.NewAPIErrors("read-only tokens cannot use gRPC, so they cannot hold capabilities")
+		e := apierrors.NewAPIErrors("read-only tokens already hold the read-only capability; omit readOnly to choose capabilities")
 		return &e, nil
 	}
 
@@ -93,13 +93,13 @@ func validateCapabilities(capabilities []string, readOnly bool) (*gen.APIErrors,
 		return &e, nil
 	}
 
-	perms, err := grpcauthz.Permissions()
-	if err != nil {
-		return nil, err
-	}
-
 	for _, c := range capabilities {
-		if !perms.Defines(c) {
+		ok, err := tokenauthz.Defines(c)
+		if err != nil {
+			return nil, err
+		}
+
+		if !ok {
 			e := apierrors.NewAPIErrors(fmt.Sprintf("unknown capability %q", c))
 			return &e, nil
 		}

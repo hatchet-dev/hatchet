@@ -1,14 +1,14 @@
-// Package authz holds the gRPC permission file and builds the authorizer the gRPC request gate uses.
-package authz
+// Package tokenauthz holds the token capability file, which grants tenant API tokens REST operations and gRPC procedures.
+package tokenauthz
 
 import (
-	"context"
 	_ "embed"
 	"sync"
 
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	admincontracts "github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	ingestorcontracts "github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
@@ -16,7 +16,7 @@ import (
 	pkgauthz "github.com/hatchet-dev/hatchet/pkg/auth/authz"
 )
 
-//go:embed grpc.yaml
+//go:embed tokens.yaml
 var permissionsFile []byte
 
 // services lists every service the gRPC server mounts, so a new procedure fails startup until it has a capability.
@@ -33,30 +33,24 @@ func services() []protoreflect.ServiceDescriptor {
 	}
 }
 
-// Permissions is loaded once because both the gRPC gate and REST token creation (to validate names) need it.
-var Permissions = sync.OnceValues(func() (*pkgauthz.GRPCPermissions, error) {
-	return pkgauthz.LoadGRPCPermissions(permissionsFile, services()...)
-})
-
-func New() (pkgauthz.Authorizer, error) {
-	perms, err := Permissions()
+// Load returns a fresh copy, since the REST server grants extension operations onto it.
+func Load() (*pkgauthz.TokenPermissions, error) {
+	spec, err := gen.GetSwagger()
 	if err != nil {
 		return nil, err
 	}
 
-	return pkgauthz.New(
-		pkgauthz.WithPermissions(perms),
-		pkgauthz.WithPolicies(readOnlyPolicy{}),
-	)
+	return pkgauthz.LoadTokenPermissions(permissionsFile, spec, services()...)
 }
 
-// readOnlyPolicy keeps read-only tokens off gRPC entirely, whatever capabilities they hold.
-type readOnlyPolicy struct{}
+var shared = sync.OnceValues(Load)
 
-func (readOnlyPolicy) Evaluate(_ context.Context, req pkgauthz.Request) (pkgauthz.Decision, error) {
-	if t, ok := req.Principal.(pkgauthz.TokenPrincipal); ok && t.ReadOnly {
-		return pkgauthz.Deny(pkgauthz.TokenRestricted), nil
+// Defines reports whether capability exists, for validating names when a token is created.
+func Defines(capability string) (bool, error) {
+	perms, err := shared()
+	if err != nil {
+		return false, err
 	}
 
-	return pkgauthz.Allow(), nil
+	return perms.Defines(capability), nil
 }

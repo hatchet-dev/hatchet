@@ -6,8 +6,7 @@ const (
 	NotMember         DenyReason = "not-member"
 	RoleInsufficient  DenyReason = "role-insufficient"
 	EmailUnverified   DenyReason = "email-unverified"
-	TokenRestricted   DenyReason = "token-restricted" // API token deny list, read-only on gRPC
-	NotAPIToken       DenyReason = "not-api-token"    // gRPC only accepts tenant API tokens
+	TokenRestricted   DenyReason = "token-restricted" // unavailable to API tokens whatever their capabilities, and gRPC for read-only tokens
 	MissingCapability DenyReason = "missing-capability"
 )
 

@@ -3,28 +3,17 @@ package authz
 import (
 	"context"
 	"sync"
-
-	"github.com/google/uuid"
 )
 
-type Kind string
-
-const KindTenantMember Kind = "tenant-member"
-
-// Key identifies a loaded row within a Scope.
+// Key must be unique within a request, so callers fold in anything that distinguishes rows (such as a tenant).
 type Key struct {
-	Kind Kind
+	Kind string
 	ID   string
-}
-
-type memoKey struct {
-	tenantID uuid.UUID
-	key      Key
 }
 
 type requestMemo struct {
 	mu   sync.Mutex
-	rows map[memoKey]any
+	rows map[Key]any
 }
 
 type requestMemoCtxKey struct{}
@@ -35,11 +24,11 @@ func WithRequestCache(ctx context.Context) context.Context {
 		return ctx
 	}
 
-	return context.WithValue(ctx, requestMemoCtxKey{}, &requestMemo{rows: map[memoKey]any{}})
+	return context.WithValue(ctx, requestMemoCtxKey{}, &requestMemo{rows: map[Key]any{}})
 }
 
 // Fetch returns rows for keys, calling load once for the misses; errors and missing rows are never cached.
-func Fetch[T any](ctx context.Context, scope Scope, keys []Key, load func(ctx context.Context, missing []Key) (map[Key]T, error)) (map[Key]T, error) {
+func Fetch[T any](ctx context.Context, keys []Key, load func(ctx context.Context, missing []Key) (map[Key]T, error)) (map[Key]T, error) {
 	memo, _ := ctx.Value(requestMemoCtxKey{}).(*requestMemo)
 
 	out := make(map[Key]T, len(keys))
@@ -48,7 +37,7 @@ func Fetch[T any](ctx context.Context, scope Scope, keys []Key, load func(ctx co
 	if memo != nil {
 		memo.mu.Lock()
 		for _, k := range keys {
-			if row, ok := memo.rows[newMemoKey(scope, k)].(T); ok {
+			if row, ok := memo.rows[k].(T); ok {
 				out[k] = row
 			} else {
 				missing = append(missing, k)
@@ -71,7 +60,7 @@ func Fetch[T any](ctx context.Context, scope Scope, keys []Key, load func(ctx co
 	if memo != nil {
 		memo.mu.Lock()
 		for k, row := range loaded {
-			memo.rows[newMemoKey(scope, k)] = row
+			memo.rows[k] = row
 		}
 		memo.mu.Unlock()
 	}
@@ -81,13 +70,4 @@ func Fetch[T any](ctx context.Context, scope Scope, keys []Key, load func(ctx co
 	}
 
 	return out, nil
-}
-
-func newMemoKey(scope Scope, k Key) memoKey {
-	mk := memoKey{key: k}
-	if scope.TenantID != nil {
-		mk.tenantID = *scope.TenantID
-	}
-
-	return mk
 }

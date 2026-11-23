@@ -55,7 +55,7 @@ func TestAuthNRecordsTheTokenPrincipal(t *testing.T) {
 	}{
 		{"token from before capabilities", sqlcv1.APIToken{}, []string{pkgauthz.AllCapabilities}},
 		{"token with capabilities", sqlcv1.APIToken{Capabilities: []string{"events:push"}}, []string{"events:push"}},
-		{"read-only token", sqlcv1.APIToken{ReadOnly: true}, []string{pkgauthz.AllCapabilities}},
+		{"read-only token", sqlcv1.APIToken{ReadOnly: true}, []string{pkgauthz.ReadOnlyCapability}},
 	}
 
 	for _, c := range cases {

@@ -82,7 +82,7 @@ func (a *GRPCAuthN) Middleware(ctx context.Context, header http.Header) (context
 		Kind:         pkgauthz.TenantAPIToken,
 		TenantID:     &tenantId,
 		ReadOnly:     dbToken.ReadOnly,
-		Capabilities: pkgauthz.TokenCapabilities(dbToken.Capabilities),
+		Capabilities: pkgauthz.TokenCapabilities(dbToken.Capabilities, dbToken.ReadOnly),
 	})
 
 	return context.WithValue(ctx, "tenant", queriedTenant), nil

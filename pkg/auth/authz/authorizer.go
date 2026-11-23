@@ -8,13 +8,9 @@ import (
 
 type Option func(*authorizer)
 
-// WithPermissions registers one permission set per ActionType; a later set for the same type replaces the earlier one.
-func WithPermissions(ps ...ActionPermissions) Option {
-	return func(a *authorizer) {
-		for _, p := range ps {
-			a.perms[p.Type()] = p
-		}
-	}
+// WithPermissions registers permission sets in order; the first that handles a request decides it.
+func WithPermissions(ps ...Permissions) Option {
+	return func(a *authorizer) { a.perms = append(a.perms, ps...) }
 }
 
 func WithPolicies(ps ...Policy) Option {
@@ -22,14 +18,12 @@ func WithPolicies(ps ...Policy) Option {
 }
 
 type authorizer struct {
-	perms    map[ActionType]ActionPermissions
+	perms    []Permissions
 	policies []Policy
 }
 
 func New(opts ...Option) (Authorizer, error) {
-	a := &authorizer{
-		perms: map[ActionType]ActionPermissions{},
-	}
+	a := &authorizer{}
 
 	for _, opt := range opts {
 		opt(a)
@@ -51,9 +45,9 @@ func (a *authorizer) Authorize(ctx context.Context, req Request) (Decision, erro
 		return Decision{}, errors.New("authz: no action on request")
 	}
 
-	perms, ok := a.perms[req.Action.Type()]
-	if !ok {
-		return Decision{}, fmt.Errorf("authz: no permissions loaded for %s actions", req.Action.Type())
+	perms := a.handler(req)
+	if perms == nil {
+		return Decision{}, fmt.Errorf("authz: no permissions handle %T calling %s %s", req.Principal, req.Action.Type(), req.Action.Name())
 	}
 
 	for _, p := range a.policies {
@@ -64,4 +58,14 @@ func (a *authorizer) Authorize(ctx context.Context, req Request) (Decision, erro
 	}
 
 	return perms.Decide(ctx, req)
+}
+
+func (a *authorizer) handler(req Request) Permissions {
+	for _, p := range a.perms {
+		if p.Handles(req) {
+			return p
+		}
+	}
+
+	return nil
 }

@@ -1,7 +1,10 @@
+# Roles for users; API tokens are authorized by their capabilities in internal/tokenauthz/tokens.yaml.
 roles:
-  # full API tokens may call any operation, including extension ones; the restricted list is a policy
-  API_TOKEN:
-    permissions: ["*"]
+  # users who have not verified their email are capped to these operations on top of their own role
+  UNVERIFIED_EMAIL:
+    permissions:
+      - UserGetCurrent
+      - UserUpdateLogout
   OWNER:
     inherits: [ADMIN]
   NOAUTH:

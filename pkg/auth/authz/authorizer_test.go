@@ -28,7 +28,7 @@ type staticRoles struct {
 	ok   bool
 }
 
-func (s staticRoles) ResolveRole(context.Context, Principal, Scope) (string, bool, error) {
+func (s staticRoles) ResolveRole(context.Context, Principal, Action) (string, bool, error) {
 	return s.role, s.ok, nil
 }
 
@@ -55,24 +55,24 @@ func newTestAuthorizer(t *testing.T, role string, opts ...Option) Authorizer {
 
 	pm := loadTestREST(t)
 
-	a, err := New(append([]Option{WithPermissions(RoleBased(pm, staticRoles{role: role, ok: true}))}, opts...)...)
+	a, err := New(append([]Option{WithPermissions(RoleBased(pm, staticRoles{role: role, ok: true}, func(Request) bool { return true }))}, opts...)...)
 	require.NoError(t, err)
 
 	return a
 }
 
 func testRequest(action string) Request {
-	return Request{Principal: UserPrincipal{UserID: uuid.New()}, Action: REST(action)}
+	return Request{Principal: UserPrincipal{UserID: uuid.New()}, Action: REST(action, nil)}
 }
 
 func TestRESTPermissions(t *testing.T) {
 	pm := loadTestREST(t)
 
-	require.True(t, pm.HasPermission("ADMIN", REST("Read")))
-	require.True(t, pm.HasPermission("ADMIN", REST("write")))
-	require.False(t, pm.HasPermission("VIEWER", REST("Write")))
-	require.True(t, pm.HasPermission("ALL", REST("AnythingAtAll")))
-	require.False(t, pm.HasPermission("UNKNOWN", REST("Read")))
+	require.True(t, pm.HasPermission("ADMIN", REST("Read", nil)))
+	require.True(t, pm.HasPermission("ADMIN", REST("write", nil)))
+	require.False(t, pm.HasPermission("VIEWER", REST("Write", nil)))
+	require.True(t, pm.HasPermission("ALL", REST("AnythingAtAll", nil)))
+	require.False(t, pm.HasPermission("UNKNOWN", REST("Read", nil)))
 	require.False(t, pm.HasPermission("ALL", GRPC("Read")), "a REST file never answers for another action type")
 }
 
@@ -98,15 +98,46 @@ roles:
 	require.Error(t, err)
 }
 
+func TestCapToRole(t *testing.T) {
+	pm := loadTestREST(t)
+	a := newTestAuthorizer(t, "ALL", WithPolicies(CapToRole(pm, "VIEWER", EmailUnverified, func(p Principal) bool {
+		u, ok := p.(UserPrincipal)
+		return ok && !u.EmailVerified
+	})))
+
+	d, err := a.Authorize(context.Background(), Request{Principal: UserPrincipal{}, Action: REST("Write", nil)})
+	require.NoError(t, err)
+	require.Equal(t, Deny(EmailUnverified), d)
+
+	d, err = a.Authorize(context.Background(), Request{Principal: UserPrincipal{}, Action: REST("Read", nil)})
+	require.NoError(t, err)
+	require.True(t, d.Allowed)
+
+	d, err = a.Authorize(context.Background(), Request{Principal: UserPrincipal{EmailVerified: true}, Action: REST("Write", nil)})
+	require.NoError(t, err)
+	require.True(t, d.Allowed, "the cap only applies to matching principals")
+}
+
 func TestGrantRequiresExistingRole(t *testing.T) {
 	pm := loadTestREST(t)
 
 	require.NoError(t, pm.Grant("VIEWER", "Extra"))
-	require.True(t, pm.HasPermission("ADMIN", REST("Extra")))
+	require.True(t, pm.HasPermission("ADMIN", REST("Extra", nil)))
 	require.Error(t, pm.Grant("MISSING", "Extra"))
 }
 
-func loadTestGRPC(t *testing.T) (*GRPCPermissions, string) {
+// bearerSpec serves Read and Write to bearer tokens and Login to cookies only.
+func bearerSpec() *openapi3.T {
+	spec := testSpec("Read", "Write", "Mint")
+	spec.Security = openapi3.SecurityRequirements{{"bearerAuth": []string{}}, {"cookieAuth": []string{}}}
+
+	cookieOnly := openapi3.SecurityRequirements{{"cookieAuth": []string{}}}
+	spec.Paths.Set("/Login", &openapi3.PathItem{Post: &openapi3.Operation{OperationID: "Login", Security: &cookieOnly}})
+
+	return spec
+}
+
+func loadTestTokens(t *testing.T) (*TokenPermissions, string) {
 	t.Helper()
 
 	svc := contracts.File_events_proto.Services().Get(0)
@@ -116,49 +147,69 @@ func loadTestGRPC(t *testing.T) (*GRPCPermissions, string) {
 		procedures = append(procedures, `"/`+string(svc.FullName())+"/"+string(svc.Methods().Get(i).Name())+`"`)
 	}
 
-	pm, err := LoadGRPCPermissions([]byte("capabilities:\n  events:\n    procedures: ["+strings.Join(procedures, ", ")+"]\n  all:\n    procedures: [\"*\"]\n"), svc)
+	file := func(caps string) []byte {
+		return []byte("unavailable:\n  rest: [Mint]\ncapabilities:\n" + caps)
+	}
+
+	valid := `  all:
+    rest: ["*"]
+    grpc: ["*"]
+  read-only:
+    rest: [Read]
+  events:
+    inherits: [read-only]
+    rest: [Write]
+    grpc: [` + strings.Join(procedures, ", ") + `]
+`
+
+	pm, err := LoadTokenPermissions(file(valid), bearerSpec(), svc)
 	require.NoError(t, err)
 
-	_, err = LoadGRPCPermissions([]byte("capabilities:\n  all:\n    procedures: [\"*\"]\n"), svc)
-	require.Error(t, err, "every procedure must be listed explicitly somewhere")
+	_, err = LoadTokenPermissions(file("  all:\n    rest: [\"*\"]\n    grpc: [\"*\"]\n  read-only: {}\n"), bearerSpec(), svc)
+	require.Error(t, err, "every bearer operation and procedure must be listed explicitly somewhere")
 
-	_, err = LoadGRPCPermissions([]byte("capabilities:\n  events:\n    procedures: ["+strings.Join(procedures, ", ")+"]\n"), svc)
+	_, err = LoadTokenPermissions(file(strings.Replace(valid, "all:", "everything:", 1)), bearerSpec(), svc)
 	require.Error(t, err, "the all carveout must exist")
+
+	_, err = LoadTokenPermissions(file(strings.Replace(valid, "rest: [Read]", "rest: [Read, Mint]", 1)), bearerSpec(), svc)
+	require.Error(t, err, "an operation cannot be both granted and unavailable")
 
 	return pm, strings.Trim(procedures[0], `"`)
 }
 
-func TestGRPCPermissions(t *testing.T) {
-	pm, first := loadTestGRPC(t)
-
-	require.True(t, pm.allows([]string{"events"}, GRPC(first)))
-	require.False(t, pm.allows([]string{"events"}, GRPC("/v1.Other/Method")))
-	require.True(t, pm.allows([]string{"unknown", "all"}, GRPC("/v1.Other/Method")), "any held capability is enough")
-	require.False(t, pm.allows(nil, GRPC(first)))
-	require.False(t, pm.allows([]string{"all"}, REST(first)), "a gRPC file never answers for another action type")
-	require.True(t, pm.Defines("events"))
-	require.False(t, pm.Defines("unknown"))
+func TestTokenCapabilitiesResolveLegacyTokens(t *testing.T) {
+	require.Equal(t, []string{AllCapabilities}, TokenCapabilities(nil, false))
+	require.Equal(t, []string{ReadOnlyCapability}, TokenCapabilities(nil, true))
+	require.Equal(t, []string{"events"}, TokenCapabilities([]string{"events"}, false))
 }
 
-func TestGRPCOnlyAdmitsTenantAPITokens(t *testing.T) {
-	pm, first := loadTestGRPC(t)
+func TestTokenPermissions(t *testing.T) {
+	pm, procedure := loadTestTokens(t)
 
 	a, err := New(WithPermissions(pm))
 	require.NoError(t, err)
 
 	tenant, other := uuid.New(), uuid.New()
-	token := TokenPrincipal{Kind: TenantAPIToken, TenantID: &tenant, Capabilities: []string{"events"}}
+	token := func(readOnly bool, caps ...string) TokenPrincipal {
+		return TokenPrincipal{Kind: TenantAPIToken, TenantID: &tenant, ReadOnly: readOnly, Capabilities: caps}
+	}
 
 	cases := []struct {
 		name string
 		req  Request
 		want Decision
 	}{
-		{"token with capability", Request{Principal: token, Action: GRPC(first), Scope: TenantScope(tenant)}, Allow()},
-		{"token without capability", Request{Principal: token, Action: GRPC("/v1.Other/Method"), Scope: TenantScope(tenant)}, Deny(MissingCapability)},
-		{"token for another tenant", Request{Principal: token, Action: GRPC(first), Scope: TenantScope(other)}, Deny(NotMember)},
-		{"user", Request{Principal: UserPrincipal{UserID: uuid.New()}, Action: GRPC(first)}, Deny(NotAPIToken)},
-		{"management token", Request{Principal: TokenPrincipal{Kind: ManagementToken, Capabilities: []string{"all"}}, Action: GRPC(first)}, Deny(NotAPIToken)},
+		{"rest grant", Request{Principal: token(false, "events"), Action: REST("write", &tenant)}, Allow()},
+		{"inherited rest grant", Request{Principal: token(false, "events"), Action: REST("Read", &tenant)}, Allow()},
+		{"rest without capability", Request{Principal: token(false, "read-only"), Action: REST("Write", &tenant)}, Deny(MissingCapability)},
+		{"all reaches unknown operations", Request{Principal: token(false, "all"), Action: REST("Extension", &tenant)}, Allow()},
+		{"unavailable beats all", Request{Principal: token(false, "all"), Action: REST("Mint", &tenant)}, Deny(TokenRestricted)},
+		{"another tenant", Request{Principal: token(false, "all"), Action: REST("Read", &other)}, Deny(NotMember)},
+		{"no tenant", Request{Principal: token(false, "all"), Action: REST("Read", nil)}, Deny(NotMember)},
+		{"grpc grant", Request{Principal: token(false, "events"), Action: GRPC(procedure)}, Allow()},
+		{"grpc without capability", Request{Principal: token(false, "events"), Action: GRPC("/v1.Other/Method")}, Deny(MissingCapability)},
+		{"any held capability is enough", Request{Principal: token(false, "unknown", "all"), Action: GRPC("/v1.Other/Method")}, Allow()},
+		{"read-only stays off grpc", Request{Principal: token(true, "all"), Action: GRPC(procedure)}, Deny(TokenRestricted)},
 	}
 
 	for _, c := range cases {
@@ -166,13 +217,36 @@ func TestGRPCOnlyAdmitsTenantAPITokens(t *testing.T) {
 		require.NoError(t, err, c.name)
 		require.Equal(t, c.want, d, c.name)
 	}
+
+	require.True(t, pm.Defines("events"))
+	require.False(t, pm.Defines("unknown"))
+
+	require.NoError(t, pm.GrantREST("read-only", "Extension"))
+	d, err := a.Authorize(context.Background(), Request{Principal: token(false, "events"), Action: REST("Extension", &tenant)})
+	require.NoError(t, err)
+	require.True(t, d.Allowed, "grants reach capabilities that inherit them")
 }
 
-func TestAuthorizeWithoutPermissionsForActionTypeErrors(t *testing.T) {
-	a := newTestAuthorizer(t, "ALL")
+func TestPermissionsAreChosenPerRequest(t *testing.T) {
+	tokens, _ := loadTestTokens(t)
+	tenant := uuid.New()
 
-	_, err := a.Authorize(context.Background(), Request{Principal: UserPrincipal{}, Action: GRPC("/v1.Dispatcher/Listen")})
-	require.Error(t, err)
+	a, err := New(WithPermissions(tokens, RoleBased(loadTestREST(t), staticRoles{role: "VIEWER", ok: true}, func(r Request) bool {
+		_, isUser := r.Principal.(UserPrincipal)
+		return isUser
+	})))
+	require.NoError(t, err)
+
+	d, err := a.Authorize(context.Background(), Request{Principal: UserPrincipal{}, Action: REST("Write", &tenant)})
+	require.NoError(t, err)
+	require.Equal(t, Deny(RoleInsufficient), d, "users are decided by roles")
+
+	d, err = a.Authorize(context.Background(), Request{Principal: TokenPrincipal{Kind: TenantAPIToken, TenantID: &tenant, Capabilities: []string{"events"}}, Action: REST("Write", &tenant)})
+	require.NoError(t, err)
+	require.True(t, d.Allowed, "tenant API tokens are decided by capabilities")
+
+	_, err = a.Authorize(context.Background(), Request{Principal: TokenPrincipal{Kind: ManagementToken}, Action: REST("Read", &tenant)})
+	require.Error(t, err, "a request nothing handles is an error, not a denial")
 }
 
 func TestAuthorizeChecksRole(t *testing.T) {
@@ -190,7 +264,7 @@ func TestAuthorizeChecksRole(t *testing.T) {
 func TestAuthorizeWithoutPrincipalErrors(t *testing.T) {
 	a := newTestAuthorizer(t, "VIEWER")
 
-	_, err := a.Authorize(context.Background(), Request{Action: REST("Read")})
+	_, err := a.Authorize(context.Background(), Request{Action: REST("Read", nil)})
 	require.Error(t, err)
 }
 
@@ -210,8 +284,7 @@ func TestPolicyDenialWinsOverRole(t *testing.T) {
 
 func TestFetchMemoizesWithinRequest(t *testing.T) {
 	ctx := WithRequestCache(context.Background())
-	scope := TenantScope(uuid.New())
-	key := Key{Kind: KindTenantMember, ID: "a"}
+	key := Key{Kind: "row", ID: "a"}
 	loads := 0
 
 	load := func(_ context.Context, missing []Key) (map[Key]string, error) {
@@ -220,21 +293,21 @@ func TestFetchMemoizesWithinRequest(t *testing.T) {
 	}
 
 	for range 2 {
-		rows, err := Fetch(ctx, scope, []Key{key}, load)
+		rows, err := Fetch(ctx, []Key{key}, load)
 		require.NoError(t, err)
 		require.Equal(t, "row", rows[key])
 	}
 
 	require.Equal(t, 1, loads)
 
-	_, err := Fetch(context.Background(), scope, []Key{key}, load)
+	_, err := Fetch(context.Background(), []Key{key}, load)
 	require.NoError(t, err)
 	require.Equal(t, 2, loads, "no cache without WithRequestCache")
 }
 
 func TestFetchDoesNotCacheMisses(t *testing.T) {
 	ctx := WithRequestCache(context.Background())
-	key := Key{Kind: KindTenantMember, ID: "a"}
+	key := Key{Kind: "row", ID: "a"}
 	loads := 0
 
 	load := func(_ context.Context, missing []Key) (map[Key]string, error) {
@@ -243,7 +316,7 @@ func TestFetchDoesNotCacheMisses(t *testing.T) {
 	}
 
 	for range 2 {
-		_, err := Fetch(ctx, NoScope, []Key{key}, load)
+		_, err := Fetch(ctx, []Key{key}, load)
 		require.NoError(t, err)
 	}
 

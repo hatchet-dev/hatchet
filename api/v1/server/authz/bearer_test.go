@@ -81,25 +81,29 @@ func newTestContext(tenantID uuid.UUID, strategy string, p pkgauthz.Principal) e
 	return c
 }
 
+// tokenExcluded pins the excludes on the token roles in rbac.yaml.
+var tokenExcluded = []string{"ApiTokenList", "ApiTokenCreate", "ApiTokenUpdateRevoke", "TenantEntitlementsUpdate"}
+
 func TestBearerTokenPermissions(t *testing.T) {
 	auth, _ := newTestAuthZ(t, nil)
 	tenantID := uuid.New()
 
 	for _, readOnly := range []bool{false, true} {
-		ops := append([]string{"WorkflowRunList", "V1CelDebug", "WorkflowRunCreate", "V1TaskCancel", "EventCreate", "LogCreate"}, restrictedWithBearerToken...)
+		ops := append([]string{"WorkflowRunList", "V1CelDebug", "WorkflowRunCreate", "V1TaskCancel", "EventCreate", "LogCreate"}, tokenExcluded...)
 
 		for _, op := range ops {
 			t.Run(op+map[bool]string{true: "/read-only", false: "/unrestricted"}[readOnly], func(t *testing.T) {
 				c := newTestContext(tenantID, "bearer", pkgauthz.TokenPrincipal{
-					TokenID:  uuid.New(),
-					Kind:     pkgauthz.TenantAPIToken,
-					TenantID: &tenantID,
-					ReadOnly: readOnly,
+					TokenID:      uuid.New(),
+					Kind:         pkgauthz.TenantAPIToken,
+					TenantID:     &tenantID,
+					ReadOnly:     readOnly,
+					Capabilities: pkgauthz.TokenCapabilities(nil, readOnly),
 				})
 
 				err := auth.authorizeSecured(c, &middleware.RouteInfo{OperationID: op})
 
-				banned := pkgauthz.OperationIn(op, restrictedWithBearerToken)
+				banned := pkgauthz.OperationIn(op, tokenExcluded)
 				if banned || (readOnly && op != "WorkflowRunList" && op != "V1CelDebug") {
 					require.Error(t, err)
 				} else {
@@ -112,11 +116,29 @@ func TestBearerTokenPermissions(t *testing.T) {
 	}
 }
 
+func TestBearerTokenCapabilitiesLimitREST(t *testing.T) {
+	auth, _ := newTestAuthZ(t, nil)
+	tenantID := uuid.New()
+
+	for op, allowed := range map[string]bool{"EventCreate": true, "EventList": false, "V1TaskCancel": false, "ApiTokenList": false} {
+		c := newTestContext(tenantID, "bearer", pkgauthz.TokenPrincipal{
+			TokenID: uuid.New(), Kind: pkgauthz.TenantAPIToken, TenantID: &tenantID, Capabilities: []string{"events:push"},
+		})
+
+		err := auth.authorizeSecured(c, &middleware.RouteInfo{OperationID: op})
+		if allowed {
+			require.NoError(t, err, op)
+		} else {
+			require.Error(t, err, op)
+		}
+	}
+}
+
 func TestBearerTokenForOtherTenantIsDenied(t *testing.T) {
 	auth, _ := newTestAuthZ(t, nil)
 	tokenTenant := uuid.New()
 
-	c := newTestContext(uuid.New(), "bearer", pkgauthz.TokenPrincipal{TokenID: uuid.New(), Kind: pkgauthz.TenantAPIToken, TenantID: &tokenTenant})
+	c := newTestContext(uuid.New(), "bearer", pkgauthz.TokenPrincipal{TokenID: uuid.New(), Kind: pkgauthz.TenantAPIToken, TenantID: &tokenTenant, Capabilities: []string{pkgauthz.AllCapabilities}})
 
 	require.Error(t, auth.authorizeSecured(c, &middleware.RouteInfo{OperationID: "WorkflowRunList"}))
 }
@@ -173,6 +195,25 @@ func TestCookieUserWithoutTenantOnlyNeedsLogin(t *testing.T) {
 	c.Set("auth_strategy", "cookie")
 
 	require.NoError(t, auth.authorizeSecured(c, &middleware.RouteInfo{OperationID: "TenantCreate"}))
+}
+
+func TestUnverifiedEmailIsCappedToUnverifiedRole(t *testing.T) {
+	auth, _ := newTestAuthZ(t, nil)
+
+	for op, allowed := range map[string]bool{"UserGetCurrent": true, "UserUpdateLogout": true, "TenantCreate": false} {
+		c := echo.New().NewContext(httptest.NewRequest("GET", "/", nil), httptest.NewRecorder())
+		c.SetRequest(c.Request().WithContext(pkgauthz.WithPrincipal(c.Request().Context(), pkgauthz.UserPrincipal{UserID: uuid.New()})))
+
+		err := auth.authorizeSecured(c, &middleware.RouteInfo{OperationID: op})
+		if allowed {
+			require.NoError(t, err, op)
+			continue
+		}
+
+		var httpErr *echo.HTTPError
+		require.ErrorAs(t, err, &httpErr, op)
+		require.Equal(t, "Please verify your email before continuing", httpErr.Message, op)
+	}
 }
 
 func TestMissingPrincipalIsDenied(t *testing.T) {
@@ -240,6 +281,6 @@ func TestAPITokenSkipsHooks(t *testing.T) {
 	auth, _ := newTestAuthZWithHooks(t, nil, hooks)
 	tenantID := uuid.New()
 
-	c := newTestContext(tenantID, "bearer", pkgauthz.TokenPrincipal{TokenID: uuid.New(), Kind: pkgauthz.TenantAPIToken, TenantID: &tenantID})
+	c := newTestContext(tenantID, "bearer", pkgauthz.TokenPrincipal{TokenID: uuid.New(), Kind: pkgauthz.TenantAPIToken, TenantID: &tenantID, Capabilities: []string{pkgauthz.AllCapabilities}})
 	require.NoError(t, auth.authorizeSecured(c, &middleware.RouteInfo{OperationID: "WorkflowRunList"}))
 }

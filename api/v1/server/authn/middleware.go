@@ -372,7 +372,13 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 	ctx = context.WithValue(ctx, analytics.APITokenIDKey, tokenUUID)
 	ctx = context.WithValue(ctx, analytics.TenantIDKey, tenantId)
 	ctx = context.WithValue(ctx, analytics.SourceKey, analytics.SourceAPI)
-	ctx = authz.WithPrincipal(ctx, authz.TokenPrincipal{TokenID: tokenUUID, Kind: authz.TenantAPIToken, TenantID: &tenantId, ReadOnly: dbToken.ReadOnly})
+	ctx = authz.WithPrincipal(ctx, authz.TokenPrincipal{
+		TokenID:      tokenUUID,
+		Kind:         authz.TenantAPIToken,
+		TenantID:     &tenantId,
+		ReadOnly:     dbToken.ReadOnly,
+		Capabilities: authz.TokenCapabilities(dbToken.Capabilities, dbToken.ReadOnly),
+	})
 
 	span := trace.SpanFromContext(ctx)
 	telemetry.WithAttributes(span,

@@ -9,28 +9,38 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	pkgauthz "github.com/hatchet-dev/hatchet/pkg/auth/authz"
-	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 const (
-	roleAPIToken = "API_TOKEN"
-	roleNoAuth   = "NOAUTH"
+	roleUnverifiedEmail = "UNVERIFIED_EMAIL"
+	roleNoAuth          = "NOAUTH"
 )
+
+// requiredRoles are referenced from code, so startup fails if rbac.yaml drops one.
+var requiredRoles = []string{roleUnverifiedEmail, roleNoAuth}
 
 type tenantRoleResolver struct {
 	repo repository.Repository
 }
 
-func (r *tenantRoleResolver) ResolveRole(ctx context.Context, p pkgauthz.Principal, scope pkgauthz.Scope) (string, bool, error) {
+// ResolveRole resolves the role a user holds in the tenant the REST route acts on; tenant API tokens never reach it.
+func (r *tenantRoleResolver) ResolveRole(ctx context.Context, p pkgauthz.Principal, a pkgauthz.Action) (string, bool, error) {
+	action, ok := a.(pkgauthz.RESTAction)
+	if !ok {
+		return "", false, fmt.Errorf("authz: tenant roles only apply to REST actions, got %s", a.Type())
+	}
+
+	tenantID := action.TenantID
+
 	switch p := p.(type) {
 	case pkgauthz.UserPrincipal:
-		if scope.TenantID == nil {
+		if tenantID == nil {
 			return pkgauthz.NoRole, true, nil
 		}
 
-		member, err := r.member(ctx, *scope.TenantID, p.UserID)
+		member, err := r.member(ctx, *tenantID, p.UserID)
 		if err != nil {
 			return "", false, err
 		}
@@ -46,16 +56,6 @@ func (r *tenantRoleResolver) ResolveRole(ctx context.Context, p pkgauthz.Princip
 		if p.Kind == pkgauthz.ManagementToken {
 			return pkgauthz.NoRole, true, nil
 		}
-
-		if p.Kind != pkgauthz.TenantAPIToken || scope.TenantID == nil || p.TenantID == nil || *p.TenantID != *scope.TenantID {
-			return "", false, nil
-		}
-
-		if p.ReadOnly {
-			return string(enums.TenantMemberRoleVIEWER), true, nil
-		}
-
-		return roleAPIToken, true, nil
 	}
 
 	return "", false, fmt.Errorf("authz: unhandled principal %T", p)
@@ -63,9 +63,9 @@ func (r *tenantRoleResolver) ResolveRole(ctx context.Context, p pkgauthz.Princip
 
 // member returns nil, nil when the user is not in the tenant; the middleware reuses it for handlers.
 func (r *tenantRoleResolver) member(ctx context.Context, tenantID, userID uuid.UUID) (*sqlcv1.PopulateTenantMembersRow, error) {
-	key := pkgauthz.Key{Kind: pkgauthz.KindTenantMember, ID: "user:" + userID.String()}
+	key := pkgauthz.Key{Kind: "tenant-member", ID: tenantID.String() + "/" + userID.String()}
 
-	rows, err := pkgauthz.Fetch(ctx, pkgauthz.TenantScope(tenantID), []pkgauthz.Key{key}, func(ctx context.Context, _ []pkgauthz.Key) (map[pkgauthz.Key]*sqlcv1.PopulateTenantMembersRow, error) {
+	rows, err := pkgauthz.Fetch(ctx, []pkgauthz.Key{key}, func(ctx context.Context, _ []pkgauthz.Key) (map[pkgauthz.Key]*sqlcv1.PopulateTenantMembersRow, error) {
 		m, err := r.repo.Tenant().GetTenantMemberByUserID(ctx, tenantID, userID)
 		if errors.Is(err, pgx.ErrNoRows) || (err == nil && m == nil) {
 			return map[pkgauthz.Key]*sqlcv1.PopulateTenantMembersRow{}, nil

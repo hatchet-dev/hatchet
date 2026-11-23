@@ -27,7 +27,7 @@ type CreateAPITokenOpts struct {
 	Internal bool
 	ReadOnly bool
 
-	// (optional) gRPC capabilities; nil stores NULL, which grants every procedure
+	// (optional) capabilities limiting REST and gRPC access; nil stores NULL, which resolves to all (or read-only)
 	Capabilities []string
 }
 

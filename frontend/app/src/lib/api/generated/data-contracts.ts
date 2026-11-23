@@ -2040,7 +2040,7 @@ export interface APIToken {
   name: string;
   /** Whether the token is limited to viewer access over REST and cannot use gRPC. */
   readOnly: boolean;
-  /** The gRPC capabilities the token holds. Tokens created without capabilities hold "all". */
+  /** The capabilities the token holds, which grant REST operations and gRPC procedures. Tokens created without capabilities hold "all", or "read-only" if they are read-only. */
   capabilities: string[];
   /**
    * When the API token expires.
@@ -2063,7 +2063,7 @@ export interface CreateAPITokenRequest {
   /** Limit the token to viewer access over REST and deny all gRPC calls. Defaults to false. */
   readOnly?: boolean;
   /**
-   * Limit the gRPC procedures the token can call, e.g. ["worker"] or ["events:push"]. Defaults to ["all"]. Cannot be combined with readOnly.
+   * Limit the REST operations and gRPC procedures the token can call, e.g. ["worker"] or ["events:push"]. Defaults to ["all"]. Cannot be combined with readOnly.
    * @minItems 1
    */
   capabilities?: string[];

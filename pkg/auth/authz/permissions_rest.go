@@ -8,7 +8,7 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// restFile is the REST format: roles grant OpenAPI operation ids.
+// restFile is the REST role format: roles grant OpenAPI operation ids.
 //
 //	roles:
 //	  ADMIN:
@@ -45,21 +45,12 @@ func LoadRESTPermissions(yamlBytes []byte, spec *openapi3.T) (*RESTPermissions, 
 		return nil, err
 	}
 
-	operations := map[string]struct{}{}
-	for _, item := range spec.Paths.Map() {
-		for _, op := range item.Operations() {
-			operations[op.OperationID] = struct{}{}
-		}
-	}
-
-	if err := checkCoverage("operation", operations, roles.grantedNames()); err != nil {
+	if err := checkCoverage("operation", specOperations(spec, nil), roles.grantedNames()); err != nil {
 		return nil, err
 	}
 
 	return &RESTPermissions{roles: roles}, nil
 }
-
-func (p *RESTPermissions) Type() ActionType { return RESTEndpoint }
 
 func (p *RESTPermissions) HasPermission(role string, a Action) bool {
 	if a.Type() != RESTEndpoint {
@@ -69,7 +60,44 @@ func (p *RESTPermissions) HasPermission(role string, a Action) bool {
 	return p.roles.has(role, func(grant string) bool { return strings.EqualFold(grant, a.Name()) })
 }
 
+// Defines lets callers fail at startup when a role their code relies on is missing from the file.
+func (p *RESTPermissions) Defines(role string) bool {
+	return p.roles.defines(role)
+}
+
 // Grant adds extension operations that are served outside the spec this file was validated against.
 func (p *RESTPermissions) Grant(role string, operationIDs ...string) error {
 	return p.roles.grant(role, operationIDs...)
+}
+
+// specOperations lists operation ids in spec, keeping only those accepting scheme when one is given.
+func specOperations(spec *openapi3.T, scheme *string) map[string]struct{} {
+	out := map[string]struct{}{}
+
+	for _, item := range spec.Paths.Map() {
+		for _, op := range item.Operations() {
+			if scheme != nil && !acceptsScheme(spec, op, *scheme) {
+				continue
+			}
+
+			out[op.OperationID] = struct{}{}
+		}
+	}
+
+	return out
+}
+
+func acceptsScheme(spec *openapi3.T, op *openapi3.Operation, scheme string) bool {
+	reqs := spec.Security
+	if op.Security != nil {
+		reqs = *op.Security
+	}
+
+	for _, req := range reqs {
+		if _, ok := req[scheme]; ok {
+			return true
+		}
+	}
+
+	return false
 }

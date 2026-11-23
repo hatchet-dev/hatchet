@@ -38,6 +38,7 @@ func TestGRPCAuthZ(t *testing.T) {
 		{"worker cannot cancel", token(false, "worker"), "/v1.AdminService/CancelTasks", connect.CodePermissionDenied, "token does not have a capability that allows /v1.AdminService/CancelTasks"},
 		{"any held capability is enough", token(false, "events:push", "runs:manage"), "/v1.AdminService/CancelTasks", 0, ""},
 		{"read-only is denied even with all", token(true, pkgauthz.AllCapabilities), "/Dispatcher/ListenV2", connect.CodePermissionDenied, "read-only tokens cannot use gRPC"},
+		{"read-only is denied for reads it holds over REST", token(true, pkgauthz.ReadOnlyCapability), "/v1.AdminService/GetRunDetails", connect.CodePermissionDenied, "read-only tokens cannot use gRPC"},
 		{"no principal is an internal error", context.Background(), "/Dispatcher/ListenV2", connect.CodeInternal, "An internal error occurred."},
 	}
 

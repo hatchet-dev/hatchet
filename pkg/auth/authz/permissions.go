@@ -9,32 +9,32 @@ import (
 // AllActions grants every action of a type, including ones no spec knows about.
 const AllActions = "*"
 
-// ActionPermissions makes the final decision for one ActionType, so each type chooses what it checks (roles, token capabilities).
-type ActionPermissions interface {
-	Type() ActionType
+// Permissions makes the final decision for the requests it handles, so each implementation chooses what it checks.
+type Permissions interface {
+	Handles(req Request) bool
 	Decide(ctx context.Context, req Request) (Decision, error)
 }
 
-// RolePermissions is implemented by role-based formats (REST); gRPC has no roles.
+// RolePermissions answers whether a named role may perform an action.
 type RolePermissions interface {
-	Type() ActionType
 	HasPermission(role string, a Action) bool
 }
 
-// RoleBased decides by resolving the principal's role in the request scope and looking it up in perms.
-func RoleBased(perms RolePermissions, resolver RoleResolver) ActionPermissions {
-	return roleBased{perms: perms, resolver: resolver}
+// RoleBased decides the requests handles accepts by resolving the principal's role and looking it up in perms.
+func RoleBased(perms RolePermissions, resolver RoleResolver, handles func(Request) bool) Permissions {
+	return roleBased{perms: perms, resolver: resolver, handles: handles}
 }
 
 type roleBased struct {
 	perms    RolePermissions
 	resolver RoleResolver
+	handles  func(Request) bool
 }
 
-func (r roleBased) Type() ActionType { return r.perms.Type() }
+func (r roleBased) Handles(req Request) bool { return r.handles(req) }
 
 func (r roleBased) Decide(ctx context.Context, req Request) (Decision, error) {
-	role, ok, err := r.resolver.ResolveRole(ctx, req.Principal, req.Scope)
+	role, ok, err := r.resolver.ResolveRole(ctx, req.Principal, req.Action)
 	if err != nil {
 		return Decision{}, err
 	}
@@ -54,6 +54,26 @@ func (r roleBased) Decide(ctx context.Context, req Request) (Decision, error) {
 	return Allow(), nil
 }
 
+// CapToRole denies principals that applies matches unless role also permits the action, on top of their own role.
+func CapToRole(perms RolePermissions, role string, reason DenyReason, applies func(Principal) bool) Policy {
+	return capPolicy{perms: perms, role: role, reason: reason, applies: applies}
+}
+
+type capPolicy struct {
+	perms   RolePermissions
+	role    string
+	reason  DenyReason
+	applies func(Principal) bool
+}
+
+func (c capPolicy) Evaluate(_ context.Context, req Request) (Decision, error) {
+	if !c.applies(req.Principal) || c.perms.HasPermission(c.role, req.Action) {
+		return Allow(), nil
+	}
+
+	return Deny(c.reason), nil
+}
+
 func OperationIn(operationId string, operationIds []string) bool {
 	for _, id := range operationIds {
 		if strings.EqualFold(operationId, id) {
@@ -69,7 +89,7 @@ type grantDef struct {
 	grants   []string
 }
 
-// grantGraph is the inheritance model every permission format shares: REST roles and gRPC capabilities alike.
+// grantGraph is the inheritance model every permission format shares: user roles and token capabilities alike.
 type grantGraph map[string]*grantDef
 
 func (g grantGraph) validate() error {
@@ -138,6 +158,11 @@ func (g grantGraph) grant(role string, names ...string) error {
 	def.grants = append(def.grants, names...)
 
 	return nil
+}
+
+func (g grantGraph) defines(name string) bool {
+	_, ok := g[name]
+	return ok
 }
 
 func (g grantGraph) grantedNames() map[string]struct{} {

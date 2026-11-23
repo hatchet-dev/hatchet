@@ -9,7 +9,7 @@ import (
 func ToAPIToken(token *sqlcv1.APIToken) *gen.APIToken {
 	res := &gen.APIToken{
 		ReadOnly:     token.ReadOnly,
-		Capabilities: pkgauthz.TokenCapabilities(token.Capabilities),
+		Capabilities: pkgauthz.TokenCapabilities(token.Capabilities, token.ReadOnly),
 		Metadata:     *toAPIMetadata(token.ID, token.CreatedAt.Time, token.UpdatedAt.Time),
 	}
 
