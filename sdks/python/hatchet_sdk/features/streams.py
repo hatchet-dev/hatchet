@@ -215,6 +215,8 @@ class _PublishQueue:
     stub: "V1StreamsAsyncStub"
     namespace: str
     topic: str
+    ## the loop publisher's queues, trimmed once this one goes idle
+    queues: "dict[tuple[str, str], _PublishQueue]"
 
     items: list[_QueuedPublish] = field(default_factory=list[_QueuedPublish])
     wake: asyncio.Event = field(default_factory=asyncio.Event)
@@ -292,6 +294,8 @@ class _PublishQueue:
         finally:
             ## cleared with no await since the last check, so a later publish starts a new drain
             self.drain = None
+            ## queues kept past the cap while busy are only dropped once idle
+            _forget_idle_queues(self.queues, MAX_TRACKED_TOPICS)
 
     async def _send_batch(self, batch: list[_QueuedPublish]) -> None:
         sent: list[_QueuedPublish] = []
@@ -414,6 +418,8 @@ def _forget_idle_queues(
 ) -> None:
     """Drops the least recently used idle queues until at most `limit` remain; a busy one is kept, as a second queue for its topic would reuse its seqs."""
     excess = len(queues) - limit
+    if excess <= 0:
+        return
 
     for key in list(queues):
         if excess <= 0:
@@ -619,7 +625,7 @@ class StreamsClient(BaseRestClient):
         ## re-inserted, so the dict stays in last-use order for _forget_idle_queues
         queue = queues.pop((namespace, topic), None)
         if queue is None:
-            queue = _PublishQueue(self, publisher.stub, namespace, topic)
+            queue = _PublishQueue(self, publisher.stub, namespace, topic, queues)
         ## before inserting this topic's queue, which is idle until it is published to below
         _forget_idle_queues(queues, MAX_TRACKED_TOPICS - 1)
         queues[(namespace, topic)] = queue
