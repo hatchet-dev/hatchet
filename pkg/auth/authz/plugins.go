@@ -16,9 +16,3 @@ type RoleResolver interface {
 type Policy interface {
 	Evaluate(ctx context.Context, req Request) (Decision, error)
 }
-
-// ResourceResolver decides every resource of its Kind in one call so it can load them in one query.
-type ResourceResolver interface {
-	Kind() Kind
-	Check(ctx context.Context, req Request, rs []Resource) (Decisions, error)
-}

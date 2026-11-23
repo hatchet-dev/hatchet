@@ -32,28 +32,6 @@ func (s staticRoles) ResolveRole(context.Context, Principal, Scope) (string, boo
 	return s.role, s.ok, nil
 }
 
-type ownedWorkers struct {
-	owner uuid.UUID
-	calls int
-}
-
-func (ownedWorkers) Kind() Kind { return KindWorker }
-
-func (w *ownedWorkers) Check(_ context.Context, _ Request, rs []Resource) (Decisions, error) {
-	w.calls++
-
-	out := make(Decisions, len(rs))
-	for _, r := range rs {
-		if r.(WorkerResource).OperatorID == w.owner {
-			out[r.Key()] = Allow()
-		} else {
-			out[r.Key()] = Deny(NotOwned)
-		}
-	}
-
-	return out, nil
-}
-
 func testSpec(operationIDs ...string) *openapi3.T {
 	paths := openapi3.NewPaths()
 	for _, id := range operationIDs {
@@ -95,7 +73,7 @@ func TestRESTPermissions(t *testing.T) {
 	require.False(t, pm.HasPermission("VIEWER", REST("Write")))
 	require.True(t, pm.HasPermission("ALL", REST("AnythingAtAll")))
 	require.False(t, pm.HasPermission("UNKNOWN", REST("Read")))
-	require.False(t, pm.HasPermission("ALL", Capability("Read")), "a REST file never answers for another action type")
+	require.False(t, pm.HasPermission("ALL", GRPC("Read")), "a REST file never answers for another action type")
 }
 
 func TestRESTPermissionsMustMatchSpec(t *testing.T) {
@@ -110,13 +88,13 @@ func TestRESTPermissionsMustMatchSpec(t *testing.T) {
 }
 
 func TestRoleCyclesAreRejected(t *testing.T) {
-	_, err := LoadCapabilityPermissions([]byte(`
+	_, err := LoadRESTPermissions([]byte(`
 roles:
   A:
     inherits: [B]
   B:
     inherits: [A]
-`))
+`), testSpec())
 	require.Error(t, err)
 }
 
@@ -126,27 +104,6 @@ func TestGrantRequiresExistingRole(t *testing.T) {
 	require.NoError(t, pm.Grant("VIEWER", "Extra"))
 	require.True(t, pm.HasPermission("ADMIN", REST("Extra")))
 	require.Error(t, pm.Grant("MISSING", "Extra"))
-}
-
-func TestCapabilityPermissions(t *testing.T) {
-	pm, err := LoadCapabilityPermissions([]byte(`
-capabilities: [tenant.payloads.read]
-roles:
-  ADMIN:
-    capabilities: [tenant.payloads.read]
-  VIEWER: {}
-`))
-	require.NoError(t, err)
-	require.True(t, pm.HasPermission("ADMIN", Capability("tenant.payloads.read")))
-	require.False(t, pm.HasPermission("VIEWER", Capability("tenant.payloads.read")))
-
-	_, err = LoadCapabilityPermissions([]byte(`
-capabilities: [tenant.payloads.read]
-roles:
-  ADMIN:
-    capabilities: [tenant.payload.read]
-`))
-	require.Error(t, err, "undeclared capability")
 }
 
 func loadTestGRPC(t *testing.T) (*GRPCPermissions, string) {
@@ -174,11 +131,11 @@ func loadTestGRPC(t *testing.T) (*GRPCPermissions, string) {
 func TestGRPCPermissions(t *testing.T) {
 	pm, first := loadTestGRPC(t)
 
-	require.True(t, pm.Allows([]string{"events"}, GRPC(first)))
-	require.False(t, pm.Allows([]string{"events"}, GRPC("/v1.Other/Method")))
-	require.True(t, pm.Allows([]string{"unknown", "all"}, GRPC("/v1.Other/Method")), "any held capability is enough")
-	require.False(t, pm.Allows(nil, GRPC(first)))
-	require.False(t, pm.Allows([]string{"all"}, REST(first)), "a gRPC file never answers for another action type")
+	require.True(t, pm.allows([]string{"events"}, GRPC(first)))
+	require.False(t, pm.allows([]string{"events"}, GRPC("/v1.Other/Method")))
+	require.True(t, pm.allows([]string{"unknown", "all"}, GRPC("/v1.Other/Method")), "any held capability is enough")
+	require.False(t, pm.allows(nil, GRPC(first)))
+	require.False(t, pm.allows([]string{"all"}, REST(first)), "a gRPC file never answers for another action type")
 	require.True(t, pm.Defines("events"))
 	require.False(t, pm.Defines("unknown"))
 }
@@ -251,51 +208,10 @@ func TestPolicyDenialWinsOverRole(t *testing.T) {
 	require.Equal(t, Deny(EmailUnverified), d)
 }
 
-func TestAuthorizeResources(t *testing.T) {
-	owner := uuid.New()
-	workers := &ownedWorkers{owner: owner}
-	a := newTestAuthorizer(t, "VIEWER", WithResolver(workers))
-
-	mine := WorkerResource{OperatorID: owner, WorkerID: uuid.New()}
-	theirs := WorkerResource{OperatorID: uuid.New(), WorkerID: uuid.New()}
-
-	ds, err := a.AuthorizeResources(context.Background(), testRequest("Read"), []Resource{mine, theirs})
-	require.NoError(t, err)
-	require.True(t, ds[mine.Key()].Allowed)
-	require.Equal(t, Deny(NotOwned), ds[theirs.Key()])
-	require.Equal(t, 1, workers.calls, "one batched call per kind")
-
-	key, d := ds.All()
-	require.Equal(t, theirs.Key(), key)
-	require.False(t, d.Allowed)
-}
-
-func TestAuthorizeResourcesDeniedActionSkipsResolvers(t *testing.T) {
-	workers := &ownedWorkers{}
-	a := newTestAuthorizer(t, "VIEWER", WithResolver(workers))
-	r := WorkerResource{WorkerID: uuid.New()}
-
-	ds, err := a.AuthorizeResources(context.Background(), testRequest("Write"), []Resource{r})
-	require.NoError(t, err)
-	require.Equal(t, Deny(RoleInsufficient), ds[r.Key()])
-	require.Zero(t, workers.calls)
-}
-
-func TestAuthorizeResourcesRejectsDuplicatesAndUnknownKinds(t *testing.T) {
-	a := newTestAuthorizer(t, "VIEWER", WithResolver(&ownedWorkers{}))
-	w := WorkerResource{WorkerID: uuid.New()}
-
-	_, err := a.AuthorizeResources(context.Background(), testRequest("Read"), []Resource{w, w})
-	require.Error(t, err)
-
-	_, err = a.AuthorizeResource(context.Background(), testRequest("Read"), OperatorResource{OperatorID: uuid.New()})
-	require.Error(t, err)
-}
-
 func TestFetchMemoizesWithinRequest(t *testing.T) {
 	ctx := WithRequestCache(context.Background())
 	scope := TenantScope(uuid.New())
-	key := Key{Kind: KindTenant, ID: "a"}
+	key := Key{Kind: KindTenantMember, ID: "a"}
 	loads := 0
 
 	load := func(_ context.Context, missing []Key) (map[Key]string, error) {
@@ -318,7 +234,7 @@ func TestFetchMemoizesWithinRequest(t *testing.T) {
 
 func TestFetchDoesNotCacheMisses(t *testing.T) {
 	ctx := WithRequestCache(context.Background())
-	key := Key{Kind: KindTenant, ID: "a"}
+	key := Key{Kind: KindTenantMember, ID: "a"}
 	loads := 0
 
 	load := func(_ context.Context, missing []Key) (map[Key]string, error) {

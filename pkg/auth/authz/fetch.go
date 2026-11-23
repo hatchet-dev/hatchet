@@ -3,11 +3,22 @@ package authz
 import (
 	"context"
 	"sync"
+
+	"github.com/google/uuid"
 )
 
+type Kind string
+
+const KindTenantMember Kind = "tenant-member"
+
+// Key identifies a loaded row within a Scope.
+type Key struct {
+	Kind Kind
+	ID   string
+}
+
 type memoKey struct {
-	tenantID string
-	orgID    string
+	tenantID uuid.UUID
 	key      Key
 }
 
@@ -73,5 +84,10 @@ func Fetch[T any](ctx context.Context, scope Scope, keys []Key, load func(ctx co
 }
 
 func newMemoKey(scope Scope, k Key) memoKey {
-	return memoKey{tenantID: optionalID(scope.TenantID), orgID: optionalID(scope.OrgID), key: k}
+	mk := memoKey{key: k}
+	if scope.TenantID != nil {
+		mk.tenantID = *scope.TenantID
+	}
+
+	return mk
 }

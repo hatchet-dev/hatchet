@@ -87,15 +87,15 @@ func (p *GRPCPermissions) Decide(_ context.Context, req Request) (Decision, erro
 		return Deny(NotMember), nil
 	}
 
-	if !p.Allows(t.Capabilities, req.Action) {
+	if !p.allows(t.Capabilities, req.Action) {
 		return Deny(MissingCapability), nil
 	}
 
 	return Allow(), nil
 }
 
-// Allows reports whether any of the capabilities grants a.
-func (p *GRPCPermissions) Allows(capabilities []string, a Action) bool {
+// allows reports whether any of the capabilities grants a.
+func (p *GRPCPermissions) allows(capabilities []string, a Action) bool {
 	if a.Type() != GRPCEndpoint {
 		return false
 	}

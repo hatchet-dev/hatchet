@@ -15,7 +15,7 @@ type ActionPermissions interface {
 	Decide(ctx context.Context, req Request) (Decision, error)
 }
 
-// RolePermissions is implemented by the role-based formats (REST, capability checks); gRPC has no roles.
+// RolePermissions is implemented by role-based formats (REST); gRPC has no roles.
 type RolePermissions interface {
 	Type() ActionType
 	HasPermission(role string, a Action) bool

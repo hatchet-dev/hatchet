@@ -159,7 +159,7 @@ func httpErrorFor(p pkgauthz.Principal, reason pkgauthz.DenyReason) error {
 		if _, isToken := p.(pkgauthz.TokenPrincipal); isToken {
 			return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
 		}
-	case pkgauthz.NotMember, pkgauthz.OutOfTagScope, pkgauthz.NotEntitled, pkgauthz.TenantArchived, pkgauthz.NotOwned, pkgauthz.RoleEscalation, pkgauthz.NotAPIToken, pkgauthz.MissingCapability:
+	case pkgauthz.NotMember, pkgauthz.NotAPIToken, pkgauthz.MissingCapability:
 	}
 
 	return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to view this resource")

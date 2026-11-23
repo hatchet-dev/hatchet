@@ -21,20 +21,14 @@ func WithPolicies(ps ...Policy) Option {
 	return func(a *authorizer) { a.policies = append(a.policies, ps...) }
 }
 
-func WithResolver(r ResourceResolver) Option {
-	return func(a *authorizer) { a.resolvers[r.Kind()] = r }
-}
-
 type authorizer struct {
-	perms     map[ActionType]ActionPermissions
-	policies  []Policy
-	resolvers map[Kind]ResourceResolver
+	perms    map[ActionType]ActionPermissions
+	policies []Policy
 }
 
 func New(opts ...Option) (Authorizer, error) {
 	a := &authorizer{
-		perms:     map[ActionType]ActionPermissions{},
-		resolvers: map[Kind]ResourceResolver{},
+		perms: map[ActionType]ActionPermissions{},
 	}
 
 	for _, opt := range opts {
@@ -70,67 +64,4 @@ func (a *authorizer) Authorize(ctx context.Context, req Request) (Decision, erro
 	}
 
 	return perms.Decide(ctx, req)
-}
-
-func (a *authorizer) AuthorizeResource(ctx context.Context, req Request, r Resource) (Decision, error) {
-	ds, err := a.AuthorizeResources(ctx, req, []Resource{r})
-	if err != nil {
-		return Decision{}, err
-	}
-
-	return ds[r.Key()], nil
-}
-
-func (a *authorizer) AuthorizeResources(ctx context.Context, req Request, rs []Resource) (Decisions, error) {
-	byKind := map[Kind][]Resource{}
-	seen := make(map[Key]struct{}, len(rs))
-
-	for _, r := range rs {
-		k := r.Key()
-
-		if _, dup := seen[k]; dup {
-			return nil, fmt.Errorf("authz: duplicate resource %s", k)
-		}
-
-		seen[k] = struct{}{}
-		byKind[k.Kind] = append(byKind[k.Kind], r)
-	}
-
-	actionDecision, err := a.Authorize(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	out := make(Decisions, len(rs))
-
-	if !actionDecision.Allowed {
-		for k := range seen {
-			out[k] = actionDecision
-		}
-
-		return out, nil
-	}
-
-	for kind, group := range byKind {
-		resolver, ok := a.resolvers[kind]
-		if !ok {
-			return nil, fmt.Errorf("authz: no resolver registered for kind %s", kind)
-		}
-
-		ds, err := resolver.Check(ctx, req, group)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, r := range group {
-			d, ok := ds[r.Key()]
-			if !ok {
-				return nil, fmt.Errorf("authz: resolver for %s returned no decision for %s", kind, r.Key())
-			}
-
-			out[r.Key()] = d
-		}
-	}
-
-	return out, nil
 }

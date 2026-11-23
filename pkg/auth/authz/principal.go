@@ -35,9 +35,7 @@ type TokenPrincipal struct {
 	TokenID  uuid.UUID
 	Kind     TokenKind
 	TenantID *uuid.UUID // tenant API tokens
-	OrgID    *uuid.UUID // management tokens
 	ReadOnly bool
-	Tags     []string // management-token tag scope; empty means unscoped
 	// Capabilities gate gRPC procedures; authn resolves tokens stored without any to AllCapabilities.
 	Capabilities []string
 }
