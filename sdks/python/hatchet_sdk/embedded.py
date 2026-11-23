@@ -1,7 +1,6 @@
 import atexit
 import contextlib
 import hashlib
-import logging
 import os
 import platform
 import subprocess
@@ -11,15 +10,16 @@ import threading
 import time
 import urllib.error
 import urllib.request
-from collections.abc import Iterator
+from collections.abc import Generator
 from dataclasses import dataclass, field
+from datetime import timedelta
 from pathlib import Path
 
 from pydantic import BaseModel, ValidationError
 from pydantic_settings.sources import DotEnvSettingsSource
 
-import hatchet_sdk.logger  # noqa: F401  (configures the parent "hatchet" logger)
 from hatchet_sdk.config import ClientConfig, ClientTLSConfig, EmbeddedHatchetConfig
+from hatchet_sdk.logger import logger
 
 REPO_URL = "https://github.com/hatchet-dev/hatchet-embedded"
 
@@ -27,14 +27,13 @@ _SLOW_NOTICE_DELAY_SECONDS = 2.0
 _HEARTBEAT_INTERVAL_SECONDS = 30.0
 
 # first-contact progress goes through a child of the SDK's shared "hatchet"
-# logger (importing hatchet_sdk.logger configures the parent), so consumers
-# manage it with standard logging configuration; warm starts print at most one
-# line
-_progress_logger = logging.getLogger("hatchet.embedded")
+# logger, so consumers manage it with standard logging configuration; warm
+# starts print at most one line
+_progress_logger = logger.getChild("embedded")
 
 
 @contextlib.contextmanager
-def _slow_notice(start_msg: str, done_msg: str) -> Iterator[None]:
+def _slow_notice(start_msg: str, done_msg: str) -> Generator[None, None, None]:
     """
     Print `start_msg` only if the wrapped block is still running after
     `_SLOW_NOTICE_DELAY_SECONDS` (and `done_msg` once it finishes), so fast
@@ -160,7 +159,7 @@ def _sidecar_asset_name() -> str:
 
 
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, *args: object, **kwargs: object) -> None:
+    def redirect_request(self, *_a: object, **_kw: object) -> None:
         return None
 
 
@@ -193,7 +192,7 @@ def _resolve_version(version: str | None) -> str:
 def _expected_checksum(tag: str, asset: str) -> str:
     url = f"{REPO_URL}/releases/download/{tag}/checksums.txt"
     with urllib.request.urlopen(url, timeout=10) as res:
-        checksums: str = res.read().decode()
+        checksums = str(res.read(), encoding="utf-8")
 
     for line in checksums.splitlines():
         parts = line.split()
@@ -386,9 +385,7 @@ def start_embedded_sidecar(options: EmbeddedHatchetConfig) -> EmbeddedSidecar:
     )
 
     try:
-        handshake = _wait_for_handshake(
-            process, handshake_path, options.ready_timeout_seconds
-        )
+        handshake = _wait_for_handshake(process, handshake_path, options.ready_timeout)
     finally:
         handshake_path.unlink(missing_ok=True)
         handshake_path.parent.rmdir()
@@ -399,10 +396,10 @@ def start_embedded_sidecar(options: EmbeddedHatchetConfig) -> EmbeddedSidecar:
 
 
 def _wait_for_handshake(
-    process: subprocess.Popen[bytes], handshake_path: Path, timeout_seconds: float
+    process: subprocess.Popen[bytes], handshake_path: Path, timeout: timedelta
 ) -> Handshake:
     start = time.monotonic()
-    deadline = start + timeout_seconds
+    deadline = start + timeout.total_seconds()
     next_heartbeat = start + _HEARTBEAT_INTERVAL_SECONDS
 
     while time.monotonic() < deadline:
@@ -427,7 +424,7 @@ def _wait_for_handshake(
 
     process.kill()
     raise TimeoutError(
-        f"hatchet embedded sidecar did not become ready within {timeout_seconds}s"
+        f"hatchet embedded sidecar did not become ready within {timeout}"
     )
 
 

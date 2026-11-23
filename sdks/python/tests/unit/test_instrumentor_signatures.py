@@ -1,5 +1,6 @@
 import importlib
 import inspect
+import sys
 import types
 import typing
 from collections.abc import Callable
@@ -12,12 +13,12 @@ from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 
 WRAPPED_PAIRS = [
     (
-        "worker.runner.runner.Runner.handle_start_step_run",
-        "_wrap_handle_start_step_run",
+        "worker.runner.runner.Runner.handle_start_task_run",
+        "_wrap_handle_start_task_run",
     ),
     ("worker.runner.runner.Runner.handle_cancel_action", "_wrap_handle_cancel_action"),
-    ("clients.events.EventClient.push", "_wrap_push_event"),
-    ("clients.events.EventClient.bulk_push", "_wrap_bulk_push_event"),
+    ("features.events.EventClient.push", "_wrap_push_event"),
+    ("features.events.EventClient.bulk_push", "_wrap_bulk_push_event"),
     ("clients.admin.AdminClient.run_workflow", "_wrap_run_workflow"),
     ("clients.admin.AdminClient.aio_run_workflow", "_wrap_async_run_workflow"),
     ("clients.admin.AdminClient.schedule_workflow", "_wrap_schedule_workflow"),
@@ -43,7 +44,7 @@ def _resolve_method(dotted_path: str) -> Callable[..., Any]:
             break
 
     assert mod is not None
-    result = cast(Callable[..., Any], mod)
+    result = cast("Callable[..., Any]", mod)
 
     for attr in parts[split:]:
         result = getattr(result, attr)
@@ -52,12 +53,12 @@ def _resolve_method(dotted_path: str) -> Callable[..., Any]:
 
 
 def _get_sig(func: Callable[..., Any]) -> inspect.Signature:
-    try:
-        import annotationlib  # type: ignore[import-not-found, unused-ignore]
+    if sys.version_info >= (3, 14):
+        import annotationlib
 
-        return inspect.signature(func, annotation_format=annotationlib.Format.STRING)  # type: ignore[call-arg, unused-ignore]
-    except Exception:
-        return inspect.signature(func)
+        return inspect.signature(func, annotation_format=annotationlib.Format.STRING)
+
+    return inspect.signature(func)
 
 
 def _get_param_types(func: Callable[..., Any]) -> list[Any] | None:
@@ -111,7 +112,7 @@ def _get_kwargs_value_types(wrapper: Callable[..., Any]) -> set[Any] | None:
 
 
 @pytest.mark.parametrize(
-    "dotted_path,wrapper_name",
+    ("dotted_path", "wrapper_name"),
     WRAPPED_PAIRS,
     ids=[p[1] for p in WRAPPED_PAIRS],
 )
@@ -138,7 +139,7 @@ def test_wrapper_args_match_wrapped_signature(
         return
 
     for i, (wrapper_type, wrapped_type) in enumerate(
-        zip(wrapper_arg_types, wrapped_types)
+        zip(wrapper_arg_types, wrapped_types, strict=True)
     ):
         assert wrapper_type == wrapped_type, (
             f"{wrapper_name}: arg {i} type mismatch: "
@@ -150,7 +151,7 @@ def test_wrapper_args_match_wrapped_signature(
     if kwargs_types is None:
         return
 
-    all_wrapped_types = set()
+    all_wrapped_types: set[Any] = set()
     for t in wrapped_types:
         all_wrapped_types |= _flatten_union(t)
 

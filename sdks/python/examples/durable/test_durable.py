@@ -1,73 +1,51 @@
 import asyncio
 import time
+from random import shuffle
+from typing import Any, cast
+from uuid import uuid4
 
 import pytest
-from uuid import uuid4
-import json
-from typing import Any, cast
-from random import shuffle
-from datetime import datetime, timedelta, timezone
 
 from examples.durable.worker import (
     EVENT_KEY,
-    SLEEP_TIME,
     REPLAY_RESET_SLEEP_TIME,
+    SLEEP_TIME,
+    AwaitedEvent,
+    DurableBulkSpawnInput,
+    ErrorRaisingTaskInput,
+    EventLookbackInput,
+    MemoInput,
+    durable_child_key_dedup_replay,
+    durable_non_determinism,
+    durable_replay_reset,
     durable_sleep_event_spawn,
+    durable_spawn_dag,
+    durable_spawn_many_dags,
+    durable_task,
     durable_with_bulk_spawn,
     durable_with_spawn,
     durable_workflow,
-    durable_task,
-    wait_for_sleep_twice,
-    durable_spawn_dag,
-    durable_non_determinism,
-    durable_replay_reset,
-    durable_child_key_dedup_replay,
-    memo_task,
-    MemoInput,
-    DurableBulkSpawnInput,
-    memo_now_caching,
-    AwaitedEvent,
-    EventLookbackInput,
-    wait_for_event_lookback,
-    wait_for_or_event_lookback,
-    wait_for_two_events_second_pushed_first,
-    wait_for_or_group_1,
-    durable_spawn_many_dags,
     error_raising_durable_parent,
     error_raising_task,
-    ErrorRaisingTaskInput,
+    memo_now_caching,
+    memo_task,
+    wait_for_event_lookback,
+    wait_for_or_event_lookback,
+    wait_for_or_group_1,
+    wait_for_sleep_twice,
+    wait_for_two_events_second_pushed_first,
 )
-from hatchet_sdk import Hatchet, V1TaskStatus
-from hatchet_sdk.clients.rest.models.v1_task_summary_list import V1TaskSummaryList
-from examples.test_utils import wait_for_running_status
+from examples.test_utils import (
+    poll_for_runs,
+    wait_for_replay,
+    wait_for_running_status,
+    wait_for_task_completed_in_read_model,
+)
+from hatchet_sdk import CancelledRunError, Hatchet
 
 TIMING_TOLERANCE = 2.0
 
 requires_durable_eviction = pytest.mark.usefixtures("_skip_unless_durable_eviction")
-
-
-async def _wait_for_task_to_complete(
-    hatchet: Hatchet, workflow_run_id: str, task_name: str, timeout: float = 90.0
-) -> None:
-    interval = 0.5
-    deadline = time.monotonic() + timeout
-
-    while time.monotonic() < deadline:
-        details = await hatchet.runs.aio_get(workflow_run_id)
-
-        # a task's display name is "<step readable id>-<unix timestamp>"
-        if any(
-            t.status == V1TaskStatus.COMPLETED
-            and t.display_name.startswith(f"{task_name}-")
-            for t in details.tasks
-        ):
-            return
-
-        await asyncio.sleep(interval)
-
-    raise TimeoutError(
-        f"{task_name} did not complete within {timeout}s for run {workflow_run_id}"
-    )
 
 
 async def _push_event_until_task_completes(
@@ -82,10 +60,10 @@ async def _push_event_until_task_completes(
     deadline = time.monotonic() + timeout
 
     while time.monotonic() < deadline:
-        await hatchet.event.aio_push(event_key, payload)
+        await hatchet.events.aio_push(event_key, payload)
 
         try:
-            await _wait_for_task_to_complete(
+            await wait_for_task_completed_in_read_model(
                 hatchet, workflow_run_id, task_name, timeout=interval
             )
             return
@@ -108,8 +86,8 @@ async def test_durable_workflow(hatchet: Hatchet) -> None:
     # going RUNNING can land the event before that sleep is even registered.
     # Anchor on the sleep having fired instead: once wait_for_or_group_1 is
     # COMPLETED the event can no longer beat it.
-    await _wait_for_task_to_complete(
-        hatchet, ref.workflow_run_id, wait_for_or_group_1.name
+    await wait_for_task_completed_in_read_model(
+        hatchet, ref.workflow_run_id, wait_for_or_group_1.name, timeout=90
     )
 
     # durable_task registers its event wait only after its own SLEEP_TIME
@@ -129,9 +107,9 @@ async def test_durable_workflow(hatchet: Hatchet) -> None:
 
     workers = await hatchet.workers.aio_list()
 
-    assert workers.rows
+    assert workers
 
-    active_workers = [w for w in workers.rows if w.status == "ACTIVE"]
+    active_workers = [w for w in workers if w.status == "ACTIVE"]
 
     assert any(
         w.name == hatchet.config.apply_namespace("e2e-test-worker")
@@ -150,10 +128,8 @@ async def test_durable_workflow(hatchet: Hatchet) -> None:
     wait_group_1 = result["wait_for_or_group_1"]
     wait_group_2 = result["wait_for_or_group_2"]
 
-    assert wait_group_1["key"] == wait_group_2["key"]
-    assert wait_group_1["key"] == "CREATE"
-    assert "sleep" in wait_group_1["event_id"]
-    assert "event" in wait_group_2["event_id"]
+    assert wait_group_1["resolved"] == "sleep"
+    assert "event" in wait_group_2["resolved"]
 
 
 @requires_durable_eviction
@@ -164,8 +140,7 @@ async def test_durable_sleep_cancel_replay(hatchet: Hatchet) -> None:
     await wait_for_running_status(hatchet, first_sleep.workflow_run_id)
     await hatchet.runs.aio_cancel(first_sleep.workflow_run_id)
 
-    with pytest.raises(Exception) as exc_info:
-        assert "HatchetError: task was cancelled" in str(exc_info.value)
+    with pytest.raises(CancelledRunError):
         await first_sleep.aio_result()
 
     replay_start = time.time()
@@ -207,7 +182,7 @@ async def test_durable_sleep_event_spawn_replay(hatchet: Hatchet) -> None:
 
     await wait_for_running_status(hatchet, ref.workflow_run_id)
     await asyncio.sleep(SLEEP_TIME + 3)
-    hatchet.event.push(EVENT_KEY, {"test": "test"})
+    hatchet.events.push(EVENT_KEY, {"test": "test"})
 
     result = await ref.aio_result()
     first_elapsed = time.time() - start
@@ -236,7 +211,7 @@ async def test_durable_child_key_dedup_replay(hatchet: Hatchet) -> None:
     assert result.child_3_output == result.child_1_output
 
     await hatchet.runs.aio_replay(ref.workflow_run_id)
-    await asyncio.sleep(5)
+    await wait_for_replay(hatchet, ref.workflow_run_id)
 
     replayed_result = await ref.aio_result()
 
@@ -364,9 +339,8 @@ async def test_durable_branching_off_branch(hatchet: Hatchet) -> None:
     await hatchet.runs.aio_reset_durable_task(
         ref.workflow_run_id, node_id=reset_from_node_id, branch_id=1
     )
-
     start = time.time()
-    await asyncio.sleep(1)
+    await wait_for_replay(hatchet, ref.workflow_run_id)
     reset_result = await ref.aio_result()
     reset_elapsed = time.time() - start
 
@@ -384,9 +358,8 @@ async def test_durable_branching_off_branch(hatchet: Hatchet) -> None:
         node_id=reset_from_node_id,
         branch_id=2,
     )
-
     start = time.time()
-    await asyncio.sleep(1)
+    await wait_for_replay(hatchet, ref.workflow_run_id)
     reset_result = await ref.aio_result()
     reset_elapsed = time.time() - start
 
@@ -436,7 +409,7 @@ async def test_durable_memo_now_caching(hatchet: Hatchet) -> None:
 async def test_event_lookback_before_wait(hatchet: Hatchet) -> None:
     user_id = 1234
 
-    hatchet.event.push(
+    hatchet.events.push(
         "user:create",
         {"order": "first", "user_id": user_id},
         scope=f"user_id:{user_id}",
@@ -456,7 +429,7 @@ async def test_event_lookback_before_wait(hatchet: Hatchet) -> None:
 async def test_or_group_event_lookback_before_wait(hatchet: Hatchet) -> None:
     scope = str(uuid4())
 
-    hatchet.event.push(EVENT_KEY, {"order": "first"}, scope=scope)
+    hatchet.events.push(EVENT_KEY, {"order": "first"}, scope=scope)
     await asyncio.sleep(1)
 
     result = await wait_for_or_event_lookback.aio_run(EventLookbackInput(scope=scope))
@@ -468,7 +441,7 @@ async def test_or_group_event_lookback_before_wait(hatchet: Hatchet) -> None:
 async def test_two_event_waits_second_pushed_first(hatchet: Hatchet) -> None:
     scope = str(uuid4())
 
-    hatchet.event.push(
+    hatchet.events.push(
         "key2",
         {"order": "second"},
         scope=scope,
@@ -481,7 +454,7 @@ async def test_two_event_waits_second_pushed_first(hatchet: Hatchet) -> None:
 
     await asyncio.sleep(3)
 
-    hatchet.event.push("key1", {"order": "first"}, scope=scope)
+    hatchet.events.push("key1", {"order": "first"}, scope=scope)
 
     result = await ref.aio_result()
 
@@ -500,7 +473,7 @@ async def test_engine_picks_most_recent_event(hatchet: Hatchet) -> None:
     shuffle(iters)
 
     for i in iters:
-        event = hatchet.event.push(
+        event = hatchet.events.push(
             "user:create",
             {"order": str(i), "user_id": user_id},
             scope=f"user_id:{user_id}",
@@ -511,7 +484,7 @@ async def test_engine_picks_most_recent_event(hatchet: Hatchet) -> None:
 
     res = await wait_for_event_lookback.aio_run(EventLookbackInput(user_id=user_id))
 
-    payload = cast(dict[str, str], json.loads(event.payload))
+    payload = cast("dict[str, str]", event.payload)
 
     assert res.event.order == payload["order"]
 
@@ -525,8 +498,7 @@ async def test_dag_spawn_returns_full_output(hatchet: Hatchet) -> None:
     assert all(singleton.has_both_child_outputs for singleton in result.results)
 
     await hatchet.runs.aio_replay(ref.workflow_run_id)
-
-    await asyncio.sleep(5)
+    await wait_for_replay(hatchet, ref.workflow_run_id)
 
     replayed_result = await ref.aio_result()
 
@@ -539,8 +511,9 @@ async def test_dag_spawn_returns_full_output(hatchet: Hatchet) -> None:
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_durable_error_on_error_in_child(hatchet: Hatchet) -> None:
-    test_run_id = str(uuid4())
+async def test_durable_error_on_error_in_child(
+    hatchet: Hatchet, test_run_id: str
+) -> None:
     error_msg = f"error in child task {test_run_id}"
     res = await error_raising_durable_parent.aio_run(
         input=ErrorRaisingTaskInput(error_message=error_msg),
@@ -551,37 +524,23 @@ async def test_durable_error_on_error_in_child(hatchet: Hatchet) -> None:
     assert res.child_error_str is not None
     assert error_msg in res.child_error_str
 
-    runs: V1TaskSummaryList | None = None
-
-    for _ in range(15):
-        runs = await hatchet.runs.aio_list(
-            since=datetime.now(timezone.utc) - timedelta(minutes=10),
-            additional_metadata={"test_run_id": test_run_id},
-        )
-
-        if len(runs.rows) < 2:
-            await asyncio.sleep(1)
-            continue
-
-        if any(
-            r.status in [V1TaskStatus.QUEUED, V1TaskStatus.RUNNING] for r in runs.rows
-        ):
-            await asyncio.sleep(1)
-            continue
-
-        break
+    runs = await poll_for_runs(
+        hatchet,
+        expected_count=2,
+        additional_metadata={"test_run_id": test_run_id},
+    )
 
     assert runs
-    assert len(runs.rows) == 2
+    assert len(runs) == 2
 
     child = next(
-        (r for r in runs.rows if error_raising_task.name in (r.workflow_name or "")),
+        (r for r in runs if error_raising_task.name in (r.workflow_name or "")),
         None,
     )
     parent = next(
         (
             r
-            for r in runs.rows
+            for r in runs
             if error_raising_durable_parent.name in (r.workflow_name or "")
         ),
         None,
@@ -589,5 +548,5 @@ async def test_durable_error_on_error_in_child(hatchet: Hatchet) -> None:
 
     assert parent
     assert child
-    assert parent.status == V1TaskStatus.COMPLETED
-    assert child.status == V1TaskStatus.FAILED
+    assert parent.status == "COMPLETED"
+    assert child.status == "FAILED"

@@ -3,6 +3,7 @@
 package durable
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -1058,6 +1060,39 @@ func TestTransportMessageRedactsAddresses(t *testing.T) {
 	assert.Contains(t, msg, "endpoint.example.test")
 	assert.NotContains(t, msg, "203.0.113.9")
 	assert.NotContains(t, msg, "marker")
+}
+
+func TestReadFailureLogsCauseWithoutExposingIt(t *testing.T) {
+	for _, timeout := range []bool{false, true} {
+		name := "connection_reset"
+		var inner error = errors.New("connection reset by peer")
+		if timeout {
+			name = "timeout"
+			inner = context.DeadlineExceeded
+		}
+		t.Run(name, func(t *testing.T) {
+			cause := &net.OpError{
+				Op: "read", Net: "tcp",
+				Addr: &net.TCPAddr{IP: net.ParseIP("203.0.113.9"), Port: 443},
+				Err:  inner,
+			}
+			var logs bytes.Buffer
+			l := zerolog.New(&logs)
+			r := &relay{
+				p: &Params{TriggerURL: "https://endpoint.example.test/trigger?token=marker", TaskId: testTaskId},
+				l: &l, stop: make(chan struct{}),
+			}
+
+			r.onReadError(cause)
+
+			assert.Equal(t, KindFailed, r.result.Kind)
+			assert.True(t, r.result.Retry)
+			assert.NotContains(t, r.result.Error, "203.0.113.9")
+			assert.NotContains(t, r.result.Error, "marker")
+			assert.Contains(t, logs.String(), cause.Error())
+			assert.Contains(t, logs.String(), testTaskId)
+		})
+	}
 }
 
 // skipWithoutWebsocketHandshake skips a test that upgrades a websocket: the RFC 6455

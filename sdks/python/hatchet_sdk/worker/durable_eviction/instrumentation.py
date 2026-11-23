@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING
 
-from hatchet_sdk.runnables.action import ActionKey
-from hatchet_sdk.worker.durable_eviction.manager import DurableEvictionManager
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
+    from hatchet_sdk.runnables.action import ActionKey
+    from hatchet_sdk.worker.durable_eviction.manager import DurableEvictionManager
 
 
 @asynccontextmanager
@@ -13,7 +16,7 @@ async def aio_durable_eviction_wait(
     resource_id: str,
     action_key: ActionKey | None = None,
     eviction_manager: DurableEvictionManager | None = None,
-) -> AsyncIterator[None]:
+) -> AsyncGenerator[None, None]:
     """
     Mark an SDK-managed wait for the current durable run (if applicable).
 

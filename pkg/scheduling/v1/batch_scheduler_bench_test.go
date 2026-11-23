@@ -44,7 +44,6 @@ func BenchmarkBatchSchedulerWorstCaseMemory(b *testing.B) {
 
 	resource := &sqlcv1.ListDistinctBatchResourcesRow{
 		StepID:       stepId,
-		BatchKey:     "key-0",
 		BatchMaxSize: 50,
 	}
 

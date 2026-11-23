@@ -42,6 +42,9 @@ V1LogLineLevel:
     - INFO
     - WARN
     - ERROR
+  x-go-type: enums.V1LogLineLevel
+  x-go-type-import:
+    path: github.com/hatchet-dev/hatchet/pkg/enums
 
 V1LogLineOrderByDirection:
   type: string

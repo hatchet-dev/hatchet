@@ -19,6 +19,12 @@ function formatLimitStrategy(strategy: ConcurrencyLimitStrategy): string {
       return 'Queue Newest';
     case ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN:
       return 'Group Round Robin';
+    case ConcurrencyLimitStrategy.CANCEL_NEWEST:
+      return 'Cancel Newest';
+    case ConcurrencyLimitStrategy.CANCEL_QUEUED_EXCEPT_NEWEST:
+      return 'Cancel Queued Except Newest';
+    case ConcurrencyLimitStrategy.CANCEL_QUEUED_EXCEPT_OLDEST:
+      return 'Cancel Queued Except Oldest';
     default: {
       const exhaustiveCheck: never = strategy;
       return exhaustiveCheck;

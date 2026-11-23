@@ -151,8 +151,8 @@ export type DurableTaskFn<
 
 /**
  * Configures a task as a batch task: concurrent runs are buffered and dispatched together
- * as a single execution once maxSize is reached, maxInterval elapses, or (if groupKey is
- * set) once groupMaxRuns concurrent batches per group are exceeded.
+ * as a single execution once maxSize is reached or maxInterval elapses. While a group has
+ * groupMaxRuns batches running, its ready batches stay buffered.
  *
  * Preview: batch tasks are in beta and may change in future releases.
  */
@@ -163,7 +163,8 @@ export type BatchTaskConfig = {
   maxSize: number;
 
   /**
-   * (optional) maximum time to wait before flushing a partially-filled batch.
+   * (optional) maximum time to wait before flushing a partially-filled batch, measured from
+   * when its first item was buffered. Defaults to 1s.
    * go duration format (e.g., "1s", "5m", "1h").
    */
   maxInterval?: Duration;
@@ -176,7 +177,8 @@ export type BatchTaskConfig = {
   groupKey?: string;
 
   /**
-   * (optional) maximum number of concurrent batches per group.
+   * (optional) maximum number of batches per group that can run at once. Defaults to 100.
+   * Without groupKey, all runs share one group.
    */
   groupMaxRuns?: number;
 

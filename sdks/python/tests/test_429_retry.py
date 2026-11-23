@@ -1,10 +1,12 @@
+# pyright: reportUnknownMemberType=false, reportUnknownVariableType=false
+# ApiException is generated code whose status and reason attributes are untyped.
 """Unit tests for HTTP 429 Too Many Requests retry behavior."""
 
 import pytest
 
 from hatchet_sdk.clients.rest.exceptions import (
     ApiException,
-    NotFoundException,
+    NotFoundError,
     ServiceException,
     TooManyRequestsException,
 )
@@ -56,8 +58,8 @@ def test_regression__service_exception_still_retried() -> None:
 
 
 def test_regression__not_found_exception_still_retried() -> None:
-    """NotFoundException (404) should still be retried."""
-    exc = NotFoundException(status=404, reason="Not Found")
+    """NotFoundError (404) should still be retried."""
+    exc = NotFoundError(status=404, reason="Not Found")
     assert tenacity_should_retry(exc) is True
 
 

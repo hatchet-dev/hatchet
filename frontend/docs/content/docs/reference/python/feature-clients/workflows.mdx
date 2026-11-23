@@ -16,13 +16,13 @@ Methods:
 | ----------------- | --------------------------------------------------------------------------------------------- |
 | `aio_delete`      | Permanently delete a workflow.                                                                |
 | `aio_get`         | Get a workflow by its ID.                                                                     |
-| `aio_get_version` | Get a workflow version by the workflow ID and an optional version.                            |
+| `aio_get_version` | Get a version of a workflow.                                                                  |
 | `aio_list`        | List all workflows in the tenant determined by the client config that match optional filters. |
 | `aio_pause`       | Pause a workflow.                                                                             |
 | `aio_unpause`     | Unpause a workflow.                                                                           |
 | `delete`          | Permanently delete a workflow.                                                                |
 | `get`             | Get a workflow by its ID.                                                                     |
-| `get_version`     | Get a workflow version by the workflow ID and an optional version.                            |
+| `get_version`     | Get a version of a workflow.                                                                  |
 | `list`            | List all workflows in the tenant determined by the client config that match optional filters. |
 | `pause`           | Pause a workflow.                                                                             |
 | `unpause`         | Unpause a workflow.                                                                           |
@@ -65,7 +65,7 @@ Returns:
 
 #### `aio_get_version`
 
-Get a workflow version by the workflow ID and an optional version.
+Get a version of a workflow.
 
 Parameters:
 
@@ -94,9 +94,9 @@ Parameters:
 
 Returns:
 
-| Type           | Description          |
-| -------------- | -------------------- |
-| `WorkflowList` | A list of workflows. |
+| Type             | Description          |
+| ---------------- | -------------------- |
+| `list[Workflow]` | A list of workflows. |
 
 #### `aio_pause`
 
@@ -169,7 +169,7 @@ Returns:
 
 #### `get_version`
 
-Get a workflow version by the workflow ID and an optional version.
+Get a version of a workflow.
 
 Parameters:
 
@@ -198,9 +198,9 @@ Parameters:
 
 Returns:
 
-| Type           | Description          |
-| -------------- | -------------------- |
-| `WorkflowList` | A list of workflows. |
+| Type             | Description          |
+| ---------------- | -------------------- |
+| `list[Workflow]` | A list of workflows. |
 
 #### `pause`
 

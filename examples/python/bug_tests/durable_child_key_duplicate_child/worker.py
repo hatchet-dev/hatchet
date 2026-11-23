@@ -1,7 +1,9 @@
-from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet
-from pydantic import BaseModel
 from typing import Literal
 from uuid import uuid4
+
+from pydantic import BaseModel
+
+from hatchet_sdk import Context, DurableContext, Hatchet
 
 hatchet = Hatchet()
 
@@ -11,7 +13,7 @@ class Input(BaseModel):
 
 
 @hatchet.task()
-async def child_child_key_bug(_i: EmptyModel, ctx: Context) -> dict[str, str]:
+async def child_child_key_bug(_i: None, ctx: Context) -> dict[str, str]:
     return {"id": ctx.workflow_run_id}
 
 
@@ -20,7 +22,7 @@ async def durable_parent_child_key_bug(
     input: Input, ctx: DurableContext
 ) -> dict[str, str]:
     for i in range(1, 4):
-        child_key = ctx.workflow_run_id + f"-child"
+        child_key = ctx.workflow_run_id + "-child"
 
         if input.scenario == "third_unique" and i == 3:
             child_key += str(uuid4())

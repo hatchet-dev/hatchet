@@ -53,7 +53,7 @@ func ToV1ServerlessEndpoint(endpoint *sqlcv1.V1ServerlessEndpoint) gen.V1Serverl
 		},
 		TenantId:              endpoint.TenantID,
 		Name:                  endpoint.Name,
-		Kind:                  gen.V1ServerlessEndpointKind(endpoint.Kind),
+		Kind:                  endpoint.Kind,
 		HealthcheckUrl:        endpoint.HealthcheckUrl,
 		TriggerUrl:            endpoint.TriggerUrl,
 		RequestTimeoutSeconds: endpoint.RequestTimeoutSeconds,
@@ -115,7 +115,7 @@ func ToV1ServerlessEndpointEventList(events []*sqlcv1.V1ServerlessEndpointEvent,
 		rows = append(rows, gen.V1ServerlessEndpointEvent{
 			Id:        event.ID,
 			CreatedAt: event.CreatedAt.Time,
-			Kind:      gen.V1ServerlessEndpointEventKind(event.Kind),
+			Kind:      event.Kind,
 			Message:   event.Message,
 			Details:   details,
 		})

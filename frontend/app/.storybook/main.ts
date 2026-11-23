@@ -8,6 +8,9 @@ const isExcluded = (name: string) =>
 const config: StorybookConfig = {
   stories: ['../src/**/*.mdx', '../src/**/*.stories.@(ts|tsx)'],
   addons: ['@storybook/addon-docs', '@storybook/addon-a11y'],
+  // Serves MSW's mockServiceWorker.js. Kept out of the app's public/ so the
+  // worker never ships in the production build.
+  staticDirs: ['./public'],
   framework: {
     name: '@storybook/react-vite',
     options: {},

@@ -19,6 +19,7 @@ type TaskOperationLimits struct {
 	RetryQueueLimit      int
 	DurableSleepLimit    int
 	ReassignUnackedTasks bool
+	ChildRunDirectSpawn  bool
 }
 
 type Repository interface {
@@ -120,18 +121,18 @@ func NewRepository(
 ) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, ddlPool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration, taskLimits.ReassignUnackedTasks)
+	shared, cleanupShared := newSharedRepository(pool, ddlPool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration, taskLimits.ReassignUnackedTasks, taskLimits.ChildRunDirectSpawn)
 
 	mq, cleanupMq := newMessageQueueRepository(shared)
 
 	concurrencyOverview, cleanupConcurrencyOverview := newConcurrencyOverviewRepository(shared)
 
-	tenantEntitlement := newTenantEntitlementRepository(shared)
+	durableEvents, cleanupDurableEvents := newDurableEventsRepository(shared, durableEventBufferOpts)
 
 	impl := &repositoryImpl{
 		apiToken:            newAPITokenRepository(shared, cacheDuration),
 		dispatcher:          newDispatcherRepository(shared),
-		durableEvents:       newDurableEventsRepository(shared, tenantEntitlement, durableEventBufferOpts),
+		durableEvents:       durableEvents,
 		health:              newHealthRepository(shared),
 		messageQueue:        mq,
 		rateLimit:           newRateLimitRepository(shared),
@@ -159,7 +160,7 @@ func NewRepository(
 		sns:                 newSNSRepository(shared),
 		tenantInvite:        newTenantInviteRepository(shared),
 		tenantLimit:         shared.m,
-		tenantEntitlement:   tenantEntitlement,
+		tenantEntitlement:   shared.entitlements,
 		tenantAlerting:      newTenantAlertingRepository(shared, cacheDuration),
 		tenant:              newTenantRepository(shared, cacheDuration),
 		user:                newUserRepository(shared),
@@ -172,6 +173,8 @@ func NewRepository(
 		var multiErr error
 
 		cleanupConcurrencyOverview()
+
+		cleanupDurableEvents()
 
 		if err := cleanupMq(); err != nil {
 			multiErr = fmt.Errorf("failed to cleanup message queue repository: %w", err)

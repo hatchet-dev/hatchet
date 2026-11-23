@@ -1,17 +1,14 @@
-from datetime import timedelta
-import ctypes
-
-from hatchet_sdk import Context, EmptyModel, Hatchet
-
 import argparse
+import ctypes
+from datetime import timedelta
 
-from hatchet_sdk import Hatchet
+from hatchet_sdk import Context, Hatchet
 
 hatchet = Hatchet()
 
 
 @hatchet.task(execution_timeout=timedelta(seconds=5))
-def die(input: EmptyModel, ctx: Context) -> None:
+def die(input: None, ctx: Context) -> None:
     ctx.log(f"Worker ID: {ctx.worker_id} about to die")
     ctypes.string_at(0)
     ctx.log(f"Worker ID: {ctx.worker_id} did not die")

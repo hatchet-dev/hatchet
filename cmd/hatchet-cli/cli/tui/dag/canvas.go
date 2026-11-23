@@ -7,6 +7,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 )
 
 // Canvas represents an ASCII drawing surface for rendering the graph
@@ -202,15 +203,15 @@ func (c *Canvas) drawCenteredText(x, y, width, height int, text string, status r
 // getStatusColor returns the color for a task status
 func getStatusColor(status rest.V1TaskStatus) lipgloss.AdaptiveColor {
 	switch status {
-	case rest.V1TaskStatusCOMPLETED:
+	case enums.V1TaskStatusCOMPLETED:
 		return styles.StatusSuccessColor
-	case rest.V1TaskStatusFAILED:
+	case enums.V1TaskStatusFAILED:
 		return styles.StatusFailedColor
-	case rest.V1TaskStatusCANCELLED:
+	case enums.V1TaskStatusCANCELLED:
 		return styles.StatusCancelledColor
-	case rest.V1TaskStatusRUNNING:
+	case enums.V1TaskStatusRUNNING:
 		return styles.StatusInProgressColor
-	case rest.V1TaskStatusQUEUED:
+	case enums.V1TaskStatusQUEUED:
 		return styles.StatusQueuedColor
 	default:
 		return styles.MutedColor

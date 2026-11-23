@@ -16,6 +16,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
+	"github.com/hatchet-dev/hatchet/internal/gocronutils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/olap/signal"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
@@ -23,19 +24,20 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	repov1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/scheduling"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 var (
-	eventTypeWaitingForBatch = sqlcv1.V1EventTypeOlapWAITINGFORBATCH
-	eventTypeBatchFlushed    = sqlcv1.V1EventTypeOlapBATCHFLUSHED
+	eventTypeWaitingForBatch = enums.V1EventTypeOlapWAITINGFORBATCH
+	eventTypeBatchFlushed    = enums.V1EventTypeOlapBATCHFLUSHED
 )
 
 type SchedulerOpt func(*SchedulerOpts)
@@ -235,8 +237,9 @@ func (s *Scheduler) Start() (func() error, error) {
 
 	wg := sync.WaitGroup{}
 
-	_, err = s.s.NewJob(
-		gocron.DurationJob(time.Second*1),
+	_, err = gocronutils.NewJitteredDurationJob(
+		s.s,
+		time.Second*1,
 		gocron.NewTask(
 			s.runSetTenants(ctx),
 		),
@@ -248,8 +251,9 @@ func (s *Scheduler) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not schedule tenant set queues: %w", err)
 	}
 
-	_, err = s.s.NewJob(
-		gocron.DurationJob(queueMetricsPollInterval),
+	_, err = gocronutils.NewJitteredDurationJob(
+		s.s,
+		queueMetricsPollInterval,
 		gocron.NewTask(
 			s.runPollQueueMetrics(ctx),
 		),
@@ -615,7 +619,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 					RetryCount:             bulkAssigned.QueueItem.RetryCount,
 					DurableInvocationCount: durableInvCount,
 					WorkerId:               &workerId,
-					EventType:              sqlcv1.V1EventTypeOlapASSIGNED,
+					EventType:              enums.V1EventTypeOlapASSIGNED,
 					EventTimestamp:         time.Now(),
 				},
 			)
@@ -696,7 +700,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 				tasktypes.CreateMonitoringEventPayload{
 					TaskId:         rateLimited.TaskId,
 					RetryCount:     rateLimited.RetryCount,
-					EventType:      sqlcv1.V1EventTypeOlapREQUEUEDRATELIMIT,
+					EventType:      enums.V1EventTypeOlapREQUEUEDRATELIMIT,
 					EventTimestamp: time.Now(),
 					EventMessage:   message,
 				},
@@ -731,7 +735,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 				schedulingTimedOut.ExternalID,
 				schedulingTimedOut.WorkflowRunID,
 				schedulingTimedOut.RetryCount,
-				sqlcv1.V1EventTypeOlapSCHEDULINGTIMEDOUT,
+				enums.V1EventTypeOlapSCHEDULINGTIMEDOUT,
 				"",
 				false,
 			)
@@ -766,7 +770,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 				tasktypes.CreateMonitoringEventPayload{
 					TaskId:         taskId,
 					RetryCount:     unassigned.RetryCount,
-					EventType:      sqlcv1.V1EventTypeOlapREQUEUEDNOWORKER,
+					EventType:      enums.V1EventTypeOlapREQUEUEDNOWORKER,
 					EventTimestamp: time.Now(),
 				},
 			)
@@ -960,12 +964,12 @@ func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId uuid.UU
 
 	// handle cancellations
 	for _, cancelled := range res.Cancelled {
-		eventType := sqlcv1.V1EventTypeOlapCANCELLED
+		eventType := enums.V1EventTypeOlapCANCELLED
 		eventMessage := ""
 		shouldNotify := true
 
 		if cancelled.CancelledReason == "SCHEDULING_TIMED_OUT" {
-			eventType = sqlcv1.V1EventTypeOlapSCHEDULINGTIMEDOUT
+			eventType = enums.V1EventTypeOlapSCHEDULINGTIMEDOUT
 			shouldNotify = false
 		} else {
 			eventMessage = "Cancelled due to concurrency strategy"
@@ -1556,17 +1560,15 @@ func (s *Scheduler) handleDeadLetteredDurableCallbackCompleted(ctx context.Conte
 		externalIds = append(externalIds, p.TaskExternalId)
 	}
 
-	flatTasks, err := s.repov1.Tasks().FlattenExternalIds(ctx, msg.TenantID, externalIds)
+	tasks, err := s.repov1.Tasks().ResolveTaskExternalIds(ctx, msg.TenantID, externalIds)
 	if err != nil {
 		return fmt.Errorf("could not resolve tasks for undelivered durable callbacks: %w", err)
 	}
 
-	flatByExternalId := enumerables.KeyBy(flatTasks, func(t *sqlcv1.FlattenExternalIdsRow) uuid.UUID { return t.ExternalID })
-
 	callbacks := make([]repov1.SatisfiedEntry, 0, len(payloads))
 
 	for _, p := range payloads {
-		t, ok := flatByExternalId[p.TaskExternalId]
+		t, ok := tasks[p.TaskExternalId]
 		if !ok {
 			s.l.Warn().Ctx(ctx).Msgf("no task found for undelivered durable callback %s, skipping", p.TaskExternalId)
 			continue
@@ -1579,7 +1581,7 @@ func (s *Scheduler) handleDeadLetteredDurableCallbackCompleted(ctx context.Conte
 
 		callbacks = append(callbacks, repov1.SatisfiedEntry{
 			DurableTaskId:         t.ID,
-			DurableTaskInsertedAt: t.InsertedAt,
+			DurableTaskInsertedAt: sqlchelpers.TimestamptzFromUnixMicros(t.InsertedAtUnixMicros),
 			DurableTaskExternalId: p.TaskExternalId,
 			InvocationCount:       p.InvocationCount,
 			BranchId:              p.BranchId,

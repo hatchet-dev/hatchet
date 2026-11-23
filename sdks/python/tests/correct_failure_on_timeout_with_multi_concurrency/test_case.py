@@ -1,12 +1,12 @@
 import asyncio
+import contextlib
 from subprocess import Popen
 from typing import Any
-from uuid import uuid4
 
 import pytest
 
-from hatchet_sdk import Hatchet, TriggerWorkflowOptions
-from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
+from examples.test_utils import poll_until
+from hatchet_sdk import Hatchet
 from tests.correct_failure_on_timeout_with_multi_concurrency.workflow import (
     TIMEOUT_SECONDS,
     InputModel,
@@ -21,9 +21,8 @@ from tests.correct_failure_on_timeout_with_multi_concurrency.workflow import (
 )
 @pytest.mark.asyncio(loop_scope="session")
 async def test_failure_on_timeout(
-    hatchet: Hatchet, on_demand_worker: Popen[Any]
+    hatchet: Hatchet, on_demand_worker: Popen[Any], test_run_id: str
 ) -> None:
-    test_run_id = str(uuid4())
     runs = await multiple_concurrent_cancellations_test_workflow.aio_run_many(
         [
             multiple_concurrent_cancellations_test_workflow.create_bulk_run_item(
@@ -39,17 +38,16 @@ async def test_failure_on_timeout(
         wait_for_result=False,
     )
 
-    try:
+    with contextlib.suppress(Exception):
         await asyncio.gather(*[run.aio_result() for run in runs])
-    except Exception:
-        pass
 
-    await asyncio.sleep(4 * TIMEOUT_SECONDS)
+    async def wait_for_timeout_failure(run_id: str) -> None:
+        await poll_until(
+            lambda: hatchet.runs.aio_get(run_id),
+            lambda details: details.run.status == "FAILED"
+            and len(details.task_events) > 1,
+            description=f"run {run_id} to fail with its timeout events",
+            timeout=TIMEOUT_SECONDS * 6,
+        )
 
-    results = {
-        r.workflow_run_id: await hatchet.runs.aio_get(r.workflow_run_id) for r in runs
-    }
-
-    for id, run in results.items():
-        assert run.run.status == V1TaskStatus.FAILED
-        assert len(run.task_events) > 1
+    await asyncio.gather(*[wait_for_timeout_failure(r.workflow_run_id) for r in runs])

@@ -275,7 +275,7 @@ export class HatchetCore {
       if (isAlreadyExists(e)) {
         throw new IdempotencyCollisionError(extractExistingRunId(e));
       }
-      throw new HatchetError(e instanceof Error ? e.message : String(e));
+      throw new HatchetError(e instanceof Error ? e.message : String(e), { cause: e });
     }
   }
 
@@ -389,7 +389,7 @@ function bulkTriggerError(e: unknown): Error {
     const collision = extractBulkTriggerCollision(e);
     if (collision) return collision;
   }
-  return new HatchetError(e instanceof Error ? e.message : String(e));
+  return new HatchetError(e instanceof Error ? e.message : String(e), { cause: e });
 }
 
 /**

@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/limits"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -40,15 +41,19 @@ func newUserEventScopeTestRepositories(t *testing.T, pool *pgxpool.Pool) userEve
 		false,
 		time.Minute,
 		false,
+		false,
 	)
 	t.Cleanup(func() { _ = cleanup() })
 
+	durable, cleanupDurable := newDurableEventsRepository(shared, DurableEventBufferOpts{
+		FlushInterval:        10 * time.Millisecond,
+		MaxBatchSize:         20,
+		MaxConcurrentFlushes: 16,
+	})
+	t.Cleanup(cleanupDurable)
+
 	return userEventScopeTestRepositories{
-		durable: newDurableEventsRepository(shared, newTenantEntitlementRepository(shared), DurableEventBufferOpts{
-			FlushInterval:        10 * time.Millisecond,
-			MaxBatchSize:         20,
-			MaxConcurrentFlushes: 16,
-		}),
+		durable: durable,
 		matches: &MatchRepositoryImpl{sharedRepository: shared},
 		shared:  shared,
 	}
@@ -90,7 +95,7 @@ func ingestUserEventScopeTestWaiter(
 	result, err := repo.IngestDurableTaskEvent(ctx, IngestDurableTaskEventOpts{
 		BaseIngestEventOpts: &BaseIngestEventOpts{
 			Task:            task,
-			Kind:            sqlcv1.V1DurableEventLogKindWAITFOR,
+			Kind:            enums.V1DurableEventLogKindWAITFOR,
 			InvocationCount: 1,
 			TenantId:        tenantID,
 		},

@@ -9,6 +9,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/gocronutils"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
@@ -172,8 +173,9 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 	if rc.queueRetention {
 		queueInterval := time.Second * 60
 
-		_, err = rc.s.NewJob(
-			gocron.DurationJob(queueInterval),
+		_, err = gocronutils.NewJitteredDurationJob(
+			rc.s,
+			queueInterval,
 			gocron.NewTask(
 				rc.runDeleteMessageQueueItems(ctx),
 			),
@@ -187,8 +189,9 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 	if rc.workerRetention {
 		workerInterval := 24 * time.Hour
 
-		_, err = rc.s.NewJob(
-			gocron.DurationJob(workerInterval),
+		_, err = gocronutils.NewJitteredDurationJob(
+			rc.s,
+			workerInterval,
 			gocron.NewTask(
 				rc.runCleanupOldWorkers(ctx),
 			),
@@ -203,8 +206,9 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 	if rc.userSessionRetention {
 		userSessionInterval := 1 * time.Hour
 
-		_, err = rc.s.NewJob(
-			gocron.DurationJob(userSessionInterval),
+		_, err = gocronutils.NewJitteredDurationJob(
+			rc.s,
+			userSessionInterval,
 			gocron.NewTask(
 				rc.runCleanupUserSessions(ctx),
 			),

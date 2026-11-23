@@ -1,14 +1,13 @@
 import pytest
 
 from examples.simple.worker import simple, simple_durable
-from hatchet_sdk import EmptyModel
 from hatchet_sdk.runnables.workflow import Standalone
 
 
 @pytest.mark.parametrize("task", [simple, simple_durable])
 @pytest.mark.asyncio(loop_scope="session")
 async def test_simple_workflow_running_options(
-    task: Standalone[EmptyModel, dict[str, str]],
+    task: Standalone[None, dict[str, str]],
 ) -> None:
     x1 = task.run()
     x2 = await task.aio_run()
@@ -18,29 +17,29 @@ async def test_simple_workflow_running_options(
 
     x5 = task.run(wait_for_result=False).result()
     x6 = (await task.aio_run(wait_for_result=False)).result()
-    x7 = [
+    x7 = next(
         x.result()
         for x in task.run_many([task.create_bulk_run_item()], wait_for_result=False)
-    ][0]
-    x8 = [
+    )
+    x8 = next(
         x.result()
         for x in await task.aio_run_many(
             [task.create_bulk_run_item()], wait_for_result=False
         )
-    ][0]
+    )
 
     x9 = await task.run(wait_for_result=False).aio_result()
     x10 = await (await task.aio_run(wait_for_result=False)).aio_result()
-    x11 = [
+    x11 = await anext(
         await x.aio_result()
         for x in task.run_many([task.create_bulk_run_item()], wait_for_result=False)
-    ][0]
-    x12 = [
+    )
+    x12 = await anext(
         await x.aio_result()
         for x in await task.aio_run_many(
             [task.create_bulk_run_item()], wait_for_result=False
         )
-    ][0]
+    )
 
     assert all(
         x == {"result": "Hello, world!"}

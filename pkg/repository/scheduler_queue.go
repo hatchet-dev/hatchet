@@ -533,11 +533,15 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 	}
 
 	if len(validBufferedTaskIds) > 0 {
+		validBufferedInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(validBufferedInsertedAts)
+
 		err = d.queries.InsertBufferedTaskRuntimes(ctx, tx, sqlcv1.InsertBufferedTaskRuntimesParams{
-			Tenantid:        tenantId,
-			Taskids:         validBufferedTaskIds,
-			Taskinsertedats: validBufferedInsertedAts,
-			Taskretrycounts: validBufferedRetryCounts,
+			Tenantid:          tenantId,
+			Taskids:           validBufferedTaskIds,
+			Taskinsertedats:   validBufferedInsertedAts,
+			Mintaskinsertedat: validBufferedInsertedAtBounds.Min,
+			Maxtaskinsertedat: validBufferedInsertedAtBounds.Max,
+			Taskretrycounts:   validBufferedRetryCounts,
 		})
 
 		if err != nil {
@@ -1060,11 +1064,14 @@ type batchQueueRepository struct {
 	tenantId uuid.UUID
 }
 
-func (b *batchQueueRepository) ListBatchResources(ctx context.Context) ([]*sqlcv1.ListDistinctBatchResourcesRow, error) {
+func (b *batchQueueRepository) ListBatchResources(ctx context.Context, stepIds []uuid.UUID) ([]*sqlcv1.ListDistinctBatchResourcesRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "list-batch-resources")
 	defer span.End()
 
-	rows, err := b.queries.ListDistinctBatchResources(ctx, b.pool.ForTenant(b.tenantId), b.tenantId)
+	rows, err := b.queries.ListDistinctBatchResources(ctx, b.pool.ForTenant(b.tenantId), sqlcv1.ListDistinctBatchResourcesParams{
+		StepIds:  stepIds,
+		Tenantid: b.tenantId,
+	})
 	if err != nil {
 		return nil, err
 	}

@@ -1,5 +1,5 @@
 import asyncio
-from uuid import uuid4
+import contextlib
 
 import pytest
 
@@ -7,11 +7,11 @@ from examples.concurrency_cancel_newest_task_level.worker import (
     WorkflowInput,
     concurrency_cancel_newest_task_level_workflow,
 )
-from hatchet_sdk import Hatchet, RunStatus
+from hatchet_sdk import Hatchet
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_run(hatchet: Hatchet) -> None:
+async def test_run(hatchet: Hatchet, test_run_id: str) -> None:
     """Task-level (step-level) CANCEL_NEWEST must keep the OLDEST run and cancel the newer ones,
     never preempting the running run. This exercises the in-memory concurrency index (the only path
     that serves step-level concurrency).
@@ -19,7 +19,6 @@ async def test_run(hatchet: Hatchet) -> None:
     Together with the CANCEL_IN_PROGRESS task-level test this pins the two strategies as opposites:
     CANCEL_IN_PROGRESS keeps the newest, CANCEL_NEWEST keeps the oldest.
     """
-    test_run_id = str(uuid4())
 
     # this run starts first and, as the oldest, must be the one that completes.
     to_run = await concurrency_cancel_newest_task_level_workflow.aio_run(
@@ -44,17 +43,15 @@ async def test_run(hatchet: Hatchet) -> None:
     await to_run.aio_result()
 
     for ref in to_cancel:
-        try:
+        with contextlib.suppress(Exception):
             await ref.aio_result()
-        except Exception:
-            pass
 
     # read the authoritative run details (rather than the eventually-consistent runs list) so we
     # don't need to sleep waiting for the OLAP repo to catch up.
     successful_run = await hatchet.runs.aio_get_details(to_run.workflow_run_id)
-    assert successful_run.status == RunStatus.COMPLETED
+    assert successful_run.status == "COMPLETED"
 
     cancelled_runs = [
         await hatchet.runs.aio_get_details(ref.workflow_run_id) for ref in to_cancel
     ]
-    assert all(r.status == RunStatus.CANCELLED for r in cancelled_runs)
+    assert all(r.status == "CANCELLED" for r in cancelled_runs)

@@ -462,11 +462,15 @@ func (s *sharedRepository) holdPausedTasks(ctx context.Context, tx sqlcv1.DBTX, 
 		return fmt.Errorf("could not hold paused rate limited queue items: %w", err)
 	}
 
+	taskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(taskInsertedAts)
+
 	if err := s.queries.HoldConcurrencySlots(ctx, tx, sqlcv1.HoldConcurrencySlotsParams{
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
-		Retrycounts:     retryCounts,
-		Tenantid:        tenantId,
+		Taskids:           taskIds,
+		Taskinsertedats:   taskInsertedAts,
+		Mintaskinsertedat: taskInsertedAtBounds.Min,
+		Maxtaskinsertedat: taskInsertedAtBounds.Max,
+		Retrycounts:       retryCounts,
+		Tenantid:          tenantId,
 	}); err != nil {
 		return fmt.Errorf("could not hold paused concurrency slots: %w", err)
 	}

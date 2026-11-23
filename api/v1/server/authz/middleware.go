@@ -13,6 +13,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/auth/rbac"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -134,7 +135,7 @@ func (a *AuthZ) handleBearerAuth(c echo.Context, r *middleware.RouteInfo) error 
 			return echo.NewHTTPError(http.StatusUnauthorized, "Invalid API token")
 		}
 		if token.ReadOnly {
-			return a.authorizeTenantOperations(string(sqlcv1.TenantMemberRoleVIEWER), r)
+			return a.authorizeTenantOperations(string(enums.TenantMemberRoleVIEWER), r)
 		}
 	}
 
@@ -227,7 +228,7 @@ func (a *AuthZ) authorizeTenantOperations(roleName string, r *middleware.RouteIn
 	}
 
 	if rbac.OperationIn(r.OperationID, a.config.Auth.AllowedWriteOperations) &&
-		roleName != string(sqlcv1.TenantMemberRoleVIEWER) {
+		roleName != string(enums.TenantMemberRoleVIEWER) {
 		return nil
 	}
 

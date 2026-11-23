@@ -42,14 +42,13 @@ func (u *MetadataService) ReadinessGet(ctx echo.Context, request gen.ReadinessGe
 	allErrors := u.collectHealthErrors(gCtx)
 
 	if len(allErrors) > 0 {
-		u.logHealthErrors(allErrors)
-
-		allErrors = append(allErrors, fmt.Errorf(
+		stat := u.config.V1.Health().PgStat()
+		u.logHealthErrors(append(allErrors, fmt.Errorf(
 			"pg connections - acquired: %d, idle: %d, total: %d",
-			u.config.V1.Health().PgStat().AcquiredConns(),
-			u.config.V1.Health().PgStat().IdleConns(),
-			u.config.V1.Health().PgStat().TotalConns(),
-		))
+			stat.AcquiredConns(),
+			stat.IdleConns(),
+			stat.TotalConns(),
+		)))
 
 		return gen.ReadinessGet500JSONResponse(gen.APIErrors{Errors: errorsToAPIErrors(allErrors)}), nil
 	}

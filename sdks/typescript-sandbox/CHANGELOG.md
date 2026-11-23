@@ -6,6 +6,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Eac
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-11-16
+
+### Added
+
+- `Sandbox.metadata` holds the sandbox's metadata as the operator stored it, which the provider's metadata seeds and the `metadata` given to `create` overrides, plus `hatchet.sandbox.provider`. Every task run of the sandbox carries it as run metadata, so runs can be filtered by any key in the dashboard. It comes from the `$create` and `$connect` results, so an operator that predates them leaves it empty. `hatchet.sandbox.delete` tags each deletion run with the deleted sandbox's metadata the same way.
+
+## [0.1.5] - 2026-11-11
+
+### Added
+
+- `@hatchet-dev/sandbox/wire` exports the Zod schemas and types of the sandbox task protocol, `turnInput`, `turnResult`, `commandOutput`, `sandboxInfo`, `resources` and `metadata`. It imports nothing but `zod`, so code that spawns the sandbox task itself, such as a serverless durable task on an edge runtime where the main entry cannot load, can share the wire types instead of writing its own.
+
+### Changed
+
+- Every option the SDK accepts is now checked with Zod before a task is sent. Unknown option keys, an empty sandbox ID, path, or command, a non-positive `idleTimeoutMs`, `timeoutMs`, or `depth`, a sandbox `id` outside lowercase letters, digits, and hyphens, `inheritParentMetadata` without `from`, and a `download` or `upload` URL that is not https are rejected with a `ZodError`. The `resources` and `delete` checks that already existed throw a `ZodError` instead of a plain `Error`. Provider responses are checked the same way, so a malformed result fails the call instead of surfacing later as a missing field. `zod` 4 is a dependency of the package.
+
 ## [0.1.4] - 2026-11-09
 
 ### Fixed

@@ -2,7 +2,6 @@ import asyncio
 
 import pytest
 
-# pytestmark = [pytest.mark.usefixtures("_skip_unless_batching")]
 from examples.batch_assign.worker import (
     KeyedFailableInput,
     KeyedInput,
@@ -21,8 +20,7 @@ from examples.batch_assign.worker import (
     batch_simple,
     batch_single,
 )
-from hatchet_sdk.exceptions import FailedTaskRunExceptionGroup
-from hatchet_sdk.runnables.types import EmptyModel
+from hatchet_sdk.exceptions import CancelledRunError, FailedTaskRunExceptionGroup
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -60,7 +58,7 @@ async def test_partitions_batches_by_key_when_batch_size_reached() -> None:
     results = await asyncio.gather(*[batch_keyed.aio_run(inp) for inp in inputs])
 
     assert len(results) == len(inputs)
-    for result, inp in zip(results, inputs):
+    for result, inp in zip(results, inputs, strict=True):
         assert result.batch_key == inp.group
         assert result.batch_size == 2
         assert result.unique_keys == 1
@@ -122,7 +120,7 @@ async def test_completes_all_tasks_with_large_payloads() -> None:
     )
     assert len(results) == task_count
     # test that the batch got flushed each time the batch payload size got over 4mb
-    assert len(set(r.batch_id for r in results)) == 3
+    assert len({r.batch_id for r in results}) == 3
     assert all(r.received for r in results)
     assert all(r.data_length == payload_size for r in results)
 
@@ -157,7 +155,7 @@ async def test_broadcasted_return() -> None:
     count = 10
 
     results = await asyncio.gather(
-        *[batch_broadcast.aio_run(SimpleInput(message="hello")) for i in range(count)]
+        *[batch_broadcast.aio_run(SimpleInput(message="hello")) for _ in range(count)]
     )
     assert len(results) == 10
     assert all(r.sum == 50 for r in results)
@@ -168,9 +166,10 @@ async def test_cancel_semantics() -> None:
     count = 10
 
     results = await asyncio.gather(
-        *[batch_cancel.aio_run(SimpleInput(message="hello")) for i in range(count)]
+        *[batch_cancel.aio_run(SimpleInput(message="hello")) for _ in range(count)],
+        return_exceptions=True,
     )
-    assert all(isinstance(i, EmptyModel) for i in results)
+    assert all(isinstance(result, CancelledRunError) for result in results)
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -178,7 +177,7 @@ async def test_child_spawning() -> None:
     count = 10
 
     results = await asyncio.gather(
-        *[batch_child_spawn.aio_run(SimpleInput(message="hello")) for i in range(count)]
+        *[batch_child_spawn.aio_run(SimpleInput(message="hello")) for _ in range(count)]
     )
 
     assert all(results)
@@ -191,7 +190,7 @@ async def test_child_batch_spawning() -> None:
     results = await asyncio.gather(
         *[
             batch_child_batch_spawn.aio_run(SimpleInput(message="hello"))
-            for i in range(count)
+            for _ in range(count)
         ]
     )
 

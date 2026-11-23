@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -31,7 +32,7 @@ type CreateTenantOpts struct {
 	DataRetentionPeriod *string `validate:"omitempty,duration"`
 
 	// (optional) the tenant engine version
-	EngineVersion *sqlcv1.TenantMajorEngineVersion `validate:"omitempty"`
+	EngineVersion *enums.TenantMajorEngineVersion `validate:"omitempty"`
 
 	// (optional) the tenant environment type
 	Environment *string `validate:"omitempty,oneof=local development production"`
@@ -50,7 +51,7 @@ type UpdateTenantOpts struct {
 
 	AlertMemberEmails *bool `validate:"omitempty"`
 
-	Version *sqlcv1.NullTenantMajorEngineVersion `validate:"omitempty"`
+	Version *enums.TenantMajorEngineVersion `validate:"omitempty"`
 
 	DataRetentionPeriod *string `validate:"omitempty,duration"`
 }
@@ -165,7 +166,9 @@ type TenantRepository interface {
 
 	CreateSchedulerPartition(ctx context.Context) (string, error)
 
-	UpdateSchedulerPartitionHeartbeat(ctx context.Context, partitionId string) (string, error)
+	// UpdateSchedulerPartitionHeartbeat updates the heartbeat for the given partition, recreating it under the
+	// same id if it no longer exists. The scheduler's wake-up subscription is keyed by this id.
+	UpdateSchedulerPartitionHeartbeat(ctx context.Context, partitionId string) error
 
 	DeleteSchedulerPartition(ctx context.Context, id string) error
 
@@ -192,7 +195,7 @@ type tenantRepository struct {
 	*sharedRepository
 
 	cache                cache.Cacheable
-	defaultTenantVersion sqlcv1.TenantMajorEngineVersion
+	defaultTenantVersion enums.TenantMajorEngineVersion
 	createCallbacks      []UnscopedCallback[*sqlcv1.Tenant]
 	updateCallbacks      []UnscopedCallback[*sqlcv1.Tenant]
 	deleteCallbacks      []UnscopedCallback[*sqlcv1.Tenant]
@@ -206,7 +209,7 @@ func newTenantRepository(shared *sharedRepository, cacheDuration time.Duration) 
 	return &tenantRepository{
 		sharedRepository:     shared,
 		cache:                cache.New(cacheDuration),
-		defaultTenantVersion: sqlcv1.TenantMajorEngineVersionV1,
+		defaultTenantVersion: enums.TenantMajorEngineVersionV1,
 	}
 }
 
@@ -288,18 +291,9 @@ func (r *tenantRepository) CreateTenant(ctx context.Context, opts *CreateTenantO
 
 	defer sqlchelpers.DeferRollback(context.Background(), r.l, tx.Rollback)
 
-	var environment sqlcv1.NullTenantEnvironment
+	environment := enums.TenantEnvironmentDevelopment
 	if opts.Environment != nil {
-		environment = sqlcv1.NullTenantEnvironment{
-			TenantEnvironment: sqlcv1.TenantEnvironment(*opts.Environment),
-			Valid:             true,
-		}
-	} else {
-		// Default to development environment if none is specified
-		environment = sqlcv1.NullTenantEnvironment{
-			TenantEnvironment: sqlcv1.TenantEnvironmentDevelopment,
-			Valid:             true,
-		}
+		environment = enums.TenantEnvironment(*opts.Environment)
 	}
 
 	var onboardingData []byte
@@ -315,12 +309,9 @@ func (r *tenantRepository) CreateTenant(ctx context.Context, opts *CreateTenantO
 		Slug:                opts.Slug,
 		Name:                opts.Name,
 		DataRetentionPeriod: dataRetentionPeriod,
-		Version: sqlcv1.NullTenantMajorEngineVersion{
-			TenantMajorEngineVersion: engineVersion,
-			Valid:                    true,
-		},
-		OnboardingData: onboardingData,
-		Environment:    environment,
+		Version:             &engineVersion,
+		OnboardingData:      onboardingData,
+		Environment:         &environment,
 	})
 
 	if err != nil {
@@ -386,8 +377,8 @@ func (r *tenantRepository) UpdateTenant(ctx context.Context, id uuid.UUID, opts 
 		params.AlertMemberEmails = sqlchelpers.BoolFromBoolean(*opts.AlertMemberEmails)
 	}
 
-	if opts.Version != nil && opts.Version.Valid {
-		params.Version = *opts.Version
+	if opts.Version != nil {
+		params.Version = opts.Version
 	}
 
 	if opts.DataRetentionPeriod != nil {
@@ -438,7 +429,7 @@ func (r *tenantRepository) CreateTenantMember(ctx context.Context, tenantId uuid
 		sqlcv1.CreateTenantMemberParams{
 			Tenantid:        tenantId,
 			Userid:          opts.UserId,
-			Role:            sqlcv1.TenantMemberRole(opts.Role),
+			Role:            enums.TenantMemberRole(opts.Role),
 			CanViewPayloads: canViewPayloadsParam(opts.CanViewPayloads),
 		},
 	)
@@ -546,10 +537,7 @@ func (r *tenantRepository) UpdateTenantMember(ctx context.Context, tenantId uuid
 	}
 
 	if opts.Role != nil {
-		params.Role = sqlcv1.NullTenantMemberRole{
-			TenantMemberRole: sqlcv1.TenantMemberRole(*opts.Role),
-			Valid:            true,
-		}
+		params.Role = new(enums.TenantMemberRole(*opts.Role))
 	}
 
 	if opts.CanViewPayloads != nil {
@@ -716,13 +704,13 @@ func (r *tenantRepository) UpdateControllerPartitionHeartbeat(ctx context.Contex
 	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
 
 	// set tx timeouts to 5 seconds to avoid deadlocks
-	_, err = tx.Exec(ctx, "SET statement_timeout=5000")
+	_, err = tx.Exec(ctx, "SET LOCAL statement_timeout=5000")
 
 	if err != nil {
 		return "", err
 	}
 
-	_, err = tx.Exec(ctx, "SET idle_in_transaction_session_timeout=5000")
+	_, err = tx.Exec(ctx, "SET LOCAL idle_in_transaction_session_timeout=5000")
 
 	if err != nil {
 		return "", err
@@ -760,13 +748,13 @@ func (r *tenantRepository) UpdateWorkerPartitionHeartbeat(ctx context.Context, p
 	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
 
 	// set tx timeouts to 5 seconds to avoid deadlocks
-	_, err = tx.Exec(ctx, "SET statement_timeout=5000")
+	_, err = tx.Exec(ctx, "SET LOCAL statement_timeout=5000")
 
 	if err != nil {
 		return "", err
 	}
 
-	_, err = tx.Exec(ctx, "SET idle_in_transaction_session_timeout=5000")
+	_, err = tx.Exec(ctx, "SET LOCAL idle_in_transaction_session_timeout=5000")
 
 	if err != nil {
 		return "", err
@@ -822,6 +810,34 @@ func (r *tenantRepository) ListTenantsByWorkerPartition(ctx context.Context, wor
 	return r.queries.ListTenantsByTenantWorkerPartitionId(ctx, r.pool.ForShared(), workerPartitionId)
 }
 
+// withRebalanceLock runs fn in a transaction that holds the advisory lock for one partition kind, so
+// rebalances started at the same time by several instances run one after another. The later one then
+// sees the tenants the earlier one assigned and leaves them alone, instead of re-evaluating its own
+// stale selection against the updated rows and moving them a second time.
+func (r *tenantRepository) withRebalanceLock(ctx context.Context, partitionKind string, fn func(tx sqlcv1.DBTX) error) error {
+	tx, err := r.pool.ForShared().Begin(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
+
+	if _, err := tx.Exec(ctx, "SET LOCAL statement_timeout=5000"); err != nil {
+		return err
+	}
+
+	if err := r.queries.LockPartitionRebalance(ctx, tx, partitionKind); err != nil {
+		return err
+	}
+
+	if err := fn(tx); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
 func (r *tenantRepository) CreateControllerPartition(ctx context.Context) (string, error) {
 
 	partition, err := r.queries.CreateControllerPartition(ctx, r.pool.ForShared(), getPartitionName())
@@ -839,11 +855,15 @@ func (r *tenantRepository) DeleteControllerPartition(ctx context.Context, id str
 }
 
 func (r *tenantRepository) RebalanceAllControllerPartitions(ctx context.Context) error {
-	return r.queries.RebalanceAllControllerPartitions(ctx, r.pool.ForShared())
+	return r.withRebalanceLock(ctx, "controller", func(tx sqlcv1.DBTX) error {
+		return r.queries.RebalanceAllControllerPartitions(ctx, tx)
+	})
 }
 
 func (r *tenantRepository) RebalanceInactiveControllerPartitions(ctx context.Context) error {
-	return r.queries.RebalanceInactiveControllerPartitions(ctx, r.pool.ForShared())
+	return r.withRebalanceLock(ctx, "controller", func(tx sqlcv1.DBTX) error {
+		return r.queries.RebalanceInactiveControllerPartitions(ctx, tx)
+	})
 }
 
 func (r *tenantRepository) CreateTenantWorkerPartition(ctx context.Context) (string, error) {
@@ -862,55 +882,22 @@ func (r *tenantRepository) DeleteTenantWorkerPartition(ctx context.Context, id s
 }
 
 func (r *tenantRepository) RebalanceAllTenantWorkerPartitions(ctx context.Context) error {
-	return r.queries.RebalanceAllTenantWorkerPartitions(ctx, r.pool.ForShared())
+	return r.withRebalanceLock(ctx, "worker", func(tx sqlcv1.DBTX) error {
+		return r.queries.RebalanceAllTenantWorkerPartitions(ctx, tx)
+	})
 }
 
 func (r *tenantRepository) RebalanceInactiveTenantWorkerPartitions(ctx context.Context) error {
-	return r.queries.RebalanceInactiveTenantWorkerPartitions(ctx, r.pool.ForShared())
+	return r.withRebalanceLock(ctx, "worker", func(tx sqlcv1.DBTX) error {
+		return r.queries.RebalanceInactiveTenantWorkerPartitions(ctx, tx)
+	})
 }
 
-func (r *tenantRepository) UpdateSchedulerPartitionHeartbeat(ctx context.Context, partitionId string) (string, error) {
-	tx, err := r.pool.ForShared().Begin(ctx)
-
-	if err != nil {
-		return "", err
-	}
-
-	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
-
-	// set tx timeouts to 5 seconds to avoid deadlocks
-	_, err = tx.Exec(ctx, "SET statement_timeout=5000")
-
-	if err != nil {
-		return "", err
-	}
-
-	_, err = tx.Exec(ctx, "SET idle_in_transaction_session_timeout=5000")
-
-	if err != nil {
-		return "", err
-	}
-
-	partition, err := r.queries.SchedulerPartitionHeartbeat(ctx, tx, partitionId)
-
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			// create a new partition
-			partition, err = r.queries.CreateSchedulerPartition(ctx, tx, getPartitionName())
-
-			if err != nil {
-				return "", err
-			}
-		} else {
-			return "", err
-		}
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return "", err
-	}
-
-	return partition.ID, nil
+func (r *tenantRepository) UpdateSchedulerPartitionHeartbeat(ctx context.Context, partitionId string) error {
+	return r.queries.SchedulerPartitionHeartbeat(ctx, r.pool.ForShared(), sqlcv1.SchedulerPartitionHeartbeatParams{
+		SchedulerPartitionId: partitionId,
+		Name:                 getPartitionName(),
+	})
 }
 
 func (r *tenantRepository) ListTenantsBySchedulerPartition(ctx context.Context, schedulerPartitionId string) ([]*sqlcv1.Tenant, error) {
@@ -938,11 +925,15 @@ func (r *tenantRepository) DeleteSchedulerPartition(ctx context.Context, id stri
 }
 
 func (r *tenantRepository) RebalanceAllSchedulerPartitions(ctx context.Context) error {
-	return r.queries.RebalanceAllSchedulerPartitions(ctx, r.pool.ForShared())
+	return r.withRebalanceLock(ctx, "scheduler", func(tx sqlcv1.DBTX) error {
+		return r.queries.RebalanceAllSchedulerPartitions(ctx, tx)
+	})
 }
 
 func (r *tenantRepository) RebalanceInactiveSchedulerPartitions(ctx context.Context) error {
-	return r.queries.RebalanceInactiveSchedulerPartitions(ctx, r.pool.ForShared())
+	return r.withRebalanceLock(ctx, "scheduler", func(tx sqlcv1.DBTX) error {
+		return r.queries.RebalanceInactiveSchedulerPartitions(ctx, tx)
+	})
 }
 
 func (r *tenantRepository) DeleteTenant(ctx context.Context, id uuid.UUID) error {

@@ -1,18 +1,18 @@
+from uuid import uuid4
+
 import pytest
 
-from hatchet_sdk import Hatchet
 from examples.bug_tests.durable_dag_idempotency_hang.worker import (
+    IdempotencyHangPayload,
     durable_dag_idempotency_hang_bug_repro_wf,
     durable_dag_status_based_idempotency_wf,
-    IdempotencyHangPayload,
 )
-from uuid import uuid4
+from hatchet_sdk import Hatchet
 
 
 @pytest.mark.timeout(5, func_only=True)
 @pytest.mark.asyncio(loop_scope="session")
-async def test_durable_idempotency_hang(hatchet: Hatchet) -> None:
-    test_run_id = str(uuid4())
+async def test_durable_idempotency_hang(hatchet: Hatchet, test_run_id: str) -> None:
 
     result = await durable_dag_idempotency_hang_bug_repro_wf.aio_run(
         wait_for_result=True,

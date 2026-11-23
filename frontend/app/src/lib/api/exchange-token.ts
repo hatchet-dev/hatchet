@@ -49,6 +49,15 @@ export function exchangeTokenQueryKey(tenantId: string) {
   return [EXCHANGE_TOKEN_QUERY_KEY_PREFIX, tenantId] as const;
 }
 
+// Matches the cache's staleness rule: a token inside the expiry buffer must
+// not be attached to a request.
+export function exchangeTokenIsUsable(
+  expiresAt: string,
+  now = Date.now(),
+): boolean {
+  return new Date(expiresAt).getTime() - now > EXPIRY_BUFFER_MS;
+}
+
 /**
  * Returns React Query options for fetching/caching an exchange token.
  *

@@ -1,27 +1,43 @@
 import asyncio
-from datetime import datetime, timezone
-from typing import cast
+import builtins
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Literal
 
 from google.protobuf import timestamp_pb2
 
-from hatchet_sdk.clients.rest.api.rate_limits_api import RateLimitsApi
+if TYPE_CHECKING:
+    from hatchet_sdk.clients.rest.api.rate_limits_api import RateLimitsApi
+
 from hatchet_sdk.clients.rest.api_client import ApiClient
-from hatchet_sdk.clients.rest.models.rate_limit_list import RateLimitList
+from hatchet_sdk.clients.rest.models.rate_limit import RateLimit
 from hatchet_sdk.clients.rest.models.rate_limit_order_by_direction import (
     RateLimitOrderByDirection,
 )
 from hatchet_sdk.clients.rest.models.rate_limit_order_by_field import (
-    RateLimitOrderByField,
+    RateLimitOrderByField as RestRateLimitOrderByField,
 )
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.clients.v1.api_client import BaseRestClient
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts import workflows_pb2 as v0_workflow_protos
-from hatchet_sdk.contracts.v1 import workflows_pb2 as workflow_protos
 from hatchet_sdk.contracts.workflows_pb2_grpc import WorkflowServiceStub
+from hatchet_sdk.types.ordering import OrderByDirection
 from hatchet_sdk.types.rate_limit import RateLimitDuration
 from hatchet_sdk.utils.api_auth import create_authorization_header
-from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
+from hatchet_sdk.utils.literals import convert_literal_using_mapping
+from hatchet_sdk.utils.proto_enums import convert_python_literal_to_proto
+
+RateLimitOrderByField = Literal["key", "value", "limit_value"]
+
+_ORDER_BY_FIELD_TO_REST: dict[RateLimitOrderByField, RestRateLimitOrderByField] = {
+    "key": RestRateLimitOrderByField.KEY,
+    "value": RestRateLimitOrderByField.VALUE,
+    "limit_value": RestRateLimitOrderByField.LIMITVALUE,
+}
+_ORDER_BY_DIRECTION_TO_REST: dict[OrderByDirection, RateLimitOrderByDirection] = {
+    "asc": RateLimitOrderByDirection.ASC,
+    "desc": RateLimitOrderByDirection.DESC,
+}
 
 
 class RateLimitsClient(BaseRestClient):
@@ -29,14 +45,17 @@ class RateLimitsClient(BaseRestClient):
     The rate limits client is a wrapper for Hatchet's gRPC API that makes it easier to work with rate limits in Hatchet.
     """
 
-    def _rla(self, client: ApiClient) -> RateLimitsApi:
+    def _rla(self, client: ApiClient) -> "RateLimitsApi":
+        from hatchet_sdk.clients.rest.api.rate_limits_api import RateLimitsApi
+
         return RateLimitsApi(client)
 
     def put(
         self,
         key: str,
         limit: int,
-        duration: RateLimitDuration = RateLimitDuration.SECOND,
+        *,
+        duration: RateLimitDuration = "SECOND",
     ) -> None:
         """
         Put a rate limit for a given key.
@@ -48,8 +67,8 @@ class RateLimitsClient(BaseRestClient):
         :return: None
         """
 
-        duration_proto = convert_python_enum_to_proto(
-            duration, workflow_protos.RateLimitDuration
+        duration_proto = convert_python_literal_to_proto(
+            duration, v0_workflow_protos.RateLimitDuration
         )
 
         conn = new_conn(self.client_config, False)
@@ -62,7 +81,7 @@ class RateLimitsClient(BaseRestClient):
             v0_workflow_protos.PutRateLimitRequest(
                 key=key,
                 limit=limit,
-                duration=duration_proto,  # type: ignore[arg-type]
+                duration=duration_proto,
             ),
             metadata=create_authorization_header(self.client_config.token),
         )
@@ -71,7 +90,8 @@ class RateLimitsClient(BaseRestClient):
         self,
         key: str,
         limit: int,
-        duration: RateLimitDuration = RateLimitDuration.SECOND,
+        *,
+        duration: RateLimitDuration = "SECOND",
     ) -> None:
         """
         Put a rate limit for a given key.
@@ -83,7 +103,7 @@ class RateLimitsClient(BaseRestClient):
         :return: None
         """
 
-        await asyncio.to_thread(self.put, key, limit, duration)
+        await asyncio.to_thread(self.put, key, limit, duration=duration)
 
     def pause(self, key: str, until: datetime) -> datetime:
         """
@@ -106,18 +126,15 @@ class RateLimitsClient(BaseRestClient):
             client.PauseRateLimit, self.client_config.tenacity
         )
 
-        response = cast(
-            v0_workflow_protos.PauseRateLimitResponse,
-            pause_rate_limit(
-                v0_workflow_protos.PauseRateLimitRequest(
-                    key=key,
-                    paused_until=paused_until,
-                ),
-                metadata=create_authorization_header(self.client_config.token),
+        response = pause_rate_limit(
+            v0_workflow_protos.PauseRateLimitRequest(
+                key=key,
+                paused_until=paused_until,
             ),
+            metadata=create_authorization_header(self.client_config.token),
         )
 
-        return response.paused_until.ToDatetime(tzinfo=timezone.utc)
+        return response.paused_until.ToDatetime(tzinfo=UTC)
 
     async def aio_pause(self, key: str, until: datetime) -> datetime:
         """
@@ -133,47 +150,15 @@ class RateLimitsClient(BaseRestClient):
 
         return await asyncio.to_thread(self.pause, key, until)
 
-    def list(
-        self,
-        offset: int | None = None,
-        limit: int | None = None,
-        search: str | None = None,
-        order_by_field: RateLimitOrderByField | None = None,
-        order_by_direction: RateLimitOrderByDirection | None = None,
-    ) -> RateLimitList:
-        """
-        List all rate limits for the tenant.
-
-        :param offset: The number of results to skip.
-        :param limit: The maximum number of results to return.
-        :param search: A search query to filter rate limits by key.
-        :param order_by_field: The field to order results by.
-        :param order_by_direction: The direction to order results.
-        :return: A list of rate limits.
-        """
-
-        with self.client() as client:
-            rate_limit_list = tenacity_retry(
-                self._rla(client).rate_limit_list,
-                self.client_config.tenacity,
-            )
-            return rate_limit_list(
-                tenant=self.client_config.tenant_id,
-                offset=offset,
-                limit=limit,
-                search=search,
-                order_by_field=order_by_field,
-                order_by_direction=order_by_direction,
-            )
-
     async def aio_list(
         self,
+        *,
         offset: int | None = None,
         limit: int | None = None,
         search: str | None = None,
         order_by_field: RateLimitOrderByField | None = None,
-        order_by_direction: RateLimitOrderByDirection | None = None,
-    ) -> RateLimitList:
+        order_by_direction: OrderByDirection | None = None,
+    ) -> builtins.list[RateLimit]:
         """
         List all rate limits for the tenant.
 
@@ -193,3 +178,53 @@ class RateLimitsClient(BaseRestClient):
             order_by_field=order_by_field,
             order_by_direction=order_by_direction,
         )
+
+    def list(
+        self,
+        *,
+        offset: int | None = None,
+        limit: int | None = None,
+        search: str | None = None,
+        order_by_field: RateLimitOrderByField | None = None,
+        order_by_direction: OrderByDirection | None = None,
+    ) -> builtins.list[RateLimit]:
+        """
+        List all rate limits for the tenant.
+
+        :param offset: The number of results to skip.
+        :param limit: The maximum number of results to return.
+        :param search: A search query to filter rate limits by key.
+        :param order_by_field: The field to order results by.
+        :param order_by_direction: The direction to order results.
+        :return: A list of rate limits.
+        """
+
+        with self.client() as client:
+            rate_limit_list = tenacity_retry(
+                self._rla(client).rate_limit_list,
+                self.client_config.tenacity,
+            )
+            rll = rate_limit_list(
+                tenant=self.client_config.tenant_id,
+                offset=offset,
+                limit=limit,
+                search=search,
+                order_by_field=(
+                    convert_literal_using_mapping(
+                        order_by_field, _ORDER_BY_FIELD_TO_REST, "order_by_field"
+                    )
+                    if order_by_field is not None
+                    else None
+                ),
+                order_by_direction=(
+                    convert_literal_using_mapping(
+                        order_by_direction,
+                        _ORDER_BY_DIRECTION_TO_REST,
+                        "order_by_direction",
+                    )
+                    if order_by_direction is not None
+                    else None
+                ),
+            )
+
+            return rll.rows or []

@@ -1,7 +1,7 @@
 import sys
-from collections.abc import Awaitable, Coroutine, Generator
+from collections.abc import Awaitable, Callable, Coroutine, Generator
 from dataclasses import Field as DataclassField
-from enum import Enum
+from enum import StrEnum
 from typing import Any, ClassVar, Literal, Protocol, TypeAlias, TypeVar
 
 
@@ -21,11 +21,21 @@ else:
     AwaitableLike: TypeAlias = Generator[Any, None, _T_co] | Awaitable[_T_co]
     CoroutineLike: TypeAlias = Generator[Any, None, _T_co] | Coroutine[Any, Any, _T_co]
 
+
+def get_function_name(fn: Callable[..., Any]) -> str:
+    if not hasattr(fn, "__name__"):
+        raise TypeError(
+            f"cannot infer a name for {fn!r} because it has no `__name__`, so a name must be provided explicitly"
+        )
+
+    return str(fn.__name__)
+
+
 STOP_LOOP_TYPE = Literal["STOP_LOOP"]
 STOP_LOOP: STOP_LOOP_TYPE = "STOP_LOOP"  # Sentinel object to stop the loop
 
 
-class LogLevel(str, Enum):
+class LogLevel(StrEnum):
     DEBUG = "DEBUG"
     INFO = "INFO"
     WARN = "WARN"

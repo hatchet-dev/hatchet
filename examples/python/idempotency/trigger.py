@@ -1,8 +1,5 @@
-import asyncio
-
+from examples.idempotency.worker import IdempotencyInput, idempotent_task
 from hatchet_sdk import IdempotencyCollisionError
-
-from examples.idempotency.worker import idempotent_task, IdempotencyInput
 
 
 async def main() -> None:

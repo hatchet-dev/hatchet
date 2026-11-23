@@ -25,6 +25,8 @@ import {
   isBeforeRetention,
   isTimeWindowOutsideRetention,
   largestAllowedTimeWindow,
+  TIME_WINDOW_HOURS,
+  TIME_WINDOW_PRESETS,
   type TimeWindowPreset,
 } from '@/lib/utils/retention';
 import { appRoutes } from '@/router';
@@ -50,7 +52,7 @@ type TimeWindow = TimeWindowPreset;
 const TIME_KEY = 'events-time';
 
 const timeSchema = z.object({
-  tw: z.enum(['1h', '6h', '1d', '7d']).default('1d'),
+  tw: z.enum(TIME_WINDOW_PRESETS).default('1d'),
   since: z.string().optional(),
   until: z.string().optional(),
 });
@@ -58,13 +60,9 @@ const timeSchema = z.object({
 type TimeState = z.infer<typeof timeSchema>;
 
 function getSinceFromTimeWindow(tw: TimeWindow): string {
-  const hours: Record<TimeWindow, number> = {
-    '1h': 1,
-    '6h': 6,
-    '1d': 24,
-    '7d': 168,
-  };
-  return new Date(Date.now() - hours[tw] * 60 * 60 * 1000).toISOString();
+  return new Date(
+    Date.now() - TIME_WINDOW_HOURS[tw] * 60 * 60 * 1000,
+  ).toISOString();
 }
 
 const eventFilterSchema = z

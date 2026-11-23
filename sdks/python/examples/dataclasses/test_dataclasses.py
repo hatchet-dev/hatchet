@@ -14,33 +14,33 @@ async def test_dataclass_usage() -> None:
 
     x5 = say_hello.run(input, wait_for_result=False).result()
     x6 = (await say_hello.aio_run(input, wait_for_result=False)).result()
-    x7 = [
+    x7 = next(
         x.result()
         for x in say_hello.run_many(
             [say_hello.create_bulk_run_item(input)], wait_for_result=False
         )
-    ][0]
-    x8 = [
+    )
+    x8 = next(
         x.result()
         for x in await say_hello.aio_run_many(
             [say_hello.create_bulk_run_item(input)], wait_for_result=False
         )
-    ][0]
+    )
 
     x9 = await say_hello.run(input, wait_for_result=False).aio_result()
     x10 = await (await say_hello.aio_run(input, wait_for_result=False)).aio_result()
-    x11 = [
+    x11 = await anext(
         await x.aio_result()
         for x in say_hello.run_many(
             [say_hello.create_bulk_run_item(input)], wait_for_result=False
         )
-    ][0]
-    x12 = [
+    )
+    x12 = await anext(
         await x.aio_result()
         for x in await say_hello.aio_run_many(
             [say_hello.create_bulk_run_item(input)], wait_for_result=False
         )
-    ][0]
+    )
 
     assert all(
         x == Output(message="Hello, Hatchet!")

@@ -2,7 +2,7 @@ from typing import cast
 
 from pydantic import BaseModel
 
-from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet
+from hatchet_sdk import Context, DurableContext, Hatchet
 
 
 class UnitTestInput(BaseModel):
@@ -29,7 +29,7 @@ def sync_standalone(input: UnitTestInput, ctx: Context) -> UnitTestOutput:
         number=input.number,
         additional_metadata=ctx.additional_metadata,
         retry_count=ctx.retry_count,
-        mock_db_url=cast(Lifespan, ctx.lifespan).mock_db_url,
+        mock_db_url=cast("Lifespan", ctx.lifespan).mock_db_url,
     )
 
 
@@ -40,7 +40,7 @@ async def async_standalone(input: UnitTestInput, ctx: Context) -> UnitTestOutput
         number=input.number,
         additional_metadata=ctx.additional_metadata,
         retry_count=ctx.retry_count,
-        mock_db_url=cast(Lifespan, ctx.lifespan).mock_db_url,
+        mock_db_url=cast("Lifespan", ctx.lifespan).mock_db_url,
     )
 
 
@@ -53,7 +53,7 @@ async def durable_async_standalone(
         number=input.number,
         additional_metadata=ctx.additional_metadata,
         retry_count=ctx.retry_count,
-        mock_db_url=cast(Lifespan, ctx.lifespan).mock_db_url,
+        mock_db_url=cast("Lifespan", ctx.lifespan).mock_db_url,
     )
 
 
@@ -69,7 +69,7 @@ def sync_simple_workflow(input: UnitTestInput, ctx: Context) -> UnitTestOutput:
         number=input.number,
         additional_metadata=ctx.additional_metadata,
         retry_count=ctx.retry_count,
-        mock_db_url=cast(Lifespan, ctx.lifespan).mock_db_url,
+        mock_db_url=cast("Lifespan", ctx.lifespan).mock_db_url,
     )
 
 
@@ -80,7 +80,7 @@ async def async_simple_workflow(input: UnitTestInput, ctx: Context) -> UnitTestO
         number=input.number,
         additional_metadata=ctx.additional_metadata,
         retry_count=ctx.retry_count,
-        mock_db_url=cast(Lifespan, ctx.lifespan).mock_db_url,
+        mock_db_url=cast("Lifespan", ctx.lifespan).mock_db_url,
     )
 
 
@@ -93,7 +93,7 @@ async def durable_async_simple_workflow(
         number=input.number,
         additional_metadata=ctx.additional_metadata,
         retry_count=ctx.retry_count,
-        mock_db_url=cast(Lifespan, ctx.lifespan).mock_db_url,
+        mock_db_url=cast("Lifespan", ctx.lifespan).mock_db_url,
     )
 
 
@@ -109,7 +109,7 @@ async def start(input: UnitTestInput, ctx: Context) -> UnitTestOutput:
         number=input.number,
         additional_metadata=ctx.additional_metadata,
         retry_count=ctx.retry_count,
-        mock_db_url=cast(Lifespan, ctx.lifespan).mock_db_url,
+        mock_db_url=cast("Lifespan", ctx.lifespan).mock_db_url,
     )
 
 

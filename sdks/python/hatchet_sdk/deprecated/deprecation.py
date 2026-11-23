@@ -9,7 +9,7 @@ Defaults: warn_days=90, error_days=None (error phase disabled unless explicitly 
 """
 
 import random
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from hatchet_sdk.logger import logger
 
@@ -61,7 +61,7 @@ def emit_deprecation_notice(
 
     :raises: DeprecationError: After the error_days window, raised ~20% of the time.
     """
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     days_since = (now - start).days
 
     if days_since < warn_days:

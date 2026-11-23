@@ -2,11 +2,12 @@ import os
 import threading
 import time
 
+from pydantic import BaseModel
+
 from hatchet_sdk import (
     ClientConfig,
     Context,
     EmbeddedHatchetConfig,
-    EmptyModel,
     Hatchet,
 )
 
@@ -15,7 +16,7 @@ hatchet = Hatchet.from_embedded()
 # !!
 
 
-class GreetInput(EmptyModel):
+class GreetInput(BaseModel):
     name: str = "embed"
 
 
@@ -26,7 +27,7 @@ def greet(input: GreetInput, ctx: Context) -> dict[str, str]:
 
 def configured_client() -> Hatchet:
     # > Configure the embedded engine
-    hatchet = Hatchet.from_embedded(
+    return Hatchet.from_embedded(
         ClientConfig(
             embedded=EmbeddedHatchetConfig(
                 # use your own Postgres instead of the bundled one
@@ -55,12 +56,11 @@ def configured_client() -> Hatchet:
         )
     )
     # !!
-    return hatchet
 
 
 def fleet_client() -> Hatchet:
     # > Fleet with a shared database
-    hatchet = Hatchet.from_embedded(
+    return Hatchet.from_embedded(
         ClientConfig(
             embedded=EmbeddedHatchetConfig(
                 database_url="postgres://user:pass@db.internal:5432/hatchet"
@@ -68,7 +68,6 @@ def fleet_client() -> Hatchet:
         )
     )
     # !!
-    return hatchet
 
 
 def main() -> None:

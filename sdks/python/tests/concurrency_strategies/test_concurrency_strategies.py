@@ -1,4 +1,3 @@
-import asyncio
 import time
 from subprocess import Popen
 from typing import Any
@@ -6,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 
-from hatchet_sdk import Hatchet, TriggerWorkflowOptions
+from hatchet_sdk import Hatchet
 from tests.concurrency_strategies.workflow import (
     InputModel,
     concurrency_strategy_workflow,

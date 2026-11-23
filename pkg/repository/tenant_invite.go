@@ -3,18 +3,19 @@ package repository
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 var ErrInviteAlreadyExists = errors.New("invite already exists for this email")
+var ErrMaxPendingInvites = errors.New("max pending invites reached")
 
 type CreateTenantInviteOpts struct {
 	// (required) the invitee email
@@ -146,7 +147,7 @@ func (r *tenantInviteRepository) CreateTenantInvite(ctx context.Context, tenantI
 
 		if invites >= int64(opts.MaxPending) {
 			r.l.Error().Ctx(ctx).Msg("max pending invites reached")
-			return nil, fmt.Errorf("max pending invites reached")
+			return nil, ErrMaxPendingInvites
 		}
 	}
 
@@ -173,7 +174,7 @@ func (r *tenantInviteRepository) CreateTenantInvite(ctx context.Context, tenantI
 			Inviteremail:    opts.InviterEmail,
 			Inviteeemail:    opts.InviteeEmail,
 			Expires:         sqlchelpers.TimestampFromTime(opts.ExpiresAt),
-			Role:            sqlcv1.TenantMemberRole(opts.Role),
+			Role:            enums.TenantMemberRole(opts.Role),
 			CanViewPayloads: canViewPayloadsParam(opts.CanViewPayloads),
 		},
 	)
@@ -251,10 +252,7 @@ func (r *tenantInviteRepository) UpdateTenantInvite(ctx context.Context, tenantI
 	}
 
 	if opts.Role != nil {
-		params.Role = sqlcv1.NullTenantMemberRole{
-			TenantMemberRole: sqlcv1.TenantMemberRole(*opts.Role),
-			Valid:            true,
-		}
+		params.Role = new(enums.TenantMemberRole(*opts.Role))
 	}
 
 	if opts.Status != nil {

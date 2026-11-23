@@ -1,7 +1,7 @@
 import platform
 from importlib.metadata import version
 from sys import version_info
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import grpc.aio
 import tenacity
@@ -19,7 +19,6 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     BatchActionEvent,
     BatchActionEventItem,
     GetVersionRequest,
-    GetVersionResponse,
     OverridesData,
     RefreshTimeoutRequest,
     ReleaseSlotRequest,
@@ -29,7 +28,6 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     UpsertWorkerLabelsRequest,
     WorkerLabels,
     WorkerRegisterRequest,
-    WorkerRegisterResponse,
 )
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
 from hatchet_sdk.logger import logger
@@ -37,17 +35,20 @@ from hatchet_sdk.runnables.action import Action, BatchEventItem
 from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.api_auth import create_authorization_header
 
+if TYPE_CHECKING:
+    from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherAsyncStub
+
 DEFAULT_REGISTER_TIMEOUT = 30
 
 
 class DispatcherClient:
-    def __init__(self, config: ClientConfig):
+    def __init__(self, config: ClientConfig) -> None:
         self.token = config.token
         self.config = config
 
         ## IMPORTANT: This needs to be created lazily so we don't require
         ## an event loop to instantiate the client.
-        self.aio_client: DispatcherStub | None = None
+        self.aio_client: DispatcherAsyncStub | None = None
         self.aio_channel: grpc.aio.Channel | None = None
         self.client: DispatcherStub | None = None
 
@@ -58,7 +59,7 @@ class DispatcherClient:
 
         return self.client
 
-    def _get_or_create_aio_client(self) -> DispatcherStub:
+    def _get_or_create_aio_client(self) -> "DispatcherAsyncStub":
         if self.aio_client is None:
             self.aio_channel = new_conn(self.config, True)
             self.aio_client = DispatcherStub(self.aio_channel)
@@ -76,31 +77,27 @@ class DispatcherClient:
         aio_client = self._get_or_create_aio_client()
 
         proto_labels: dict[str, WorkerLabels] = {
-            label.key: label.to_proto() for label in labels if label.key is not None
+            label.key: label.to_proto() for label in labels
         }
         for key, value in self.config.worker_preset_labels.items():
             proto_labels[key] = WorkerLabels(str_value=str(value))
 
-        response = cast(
-            WorkerRegisterResponse,
-            # fixme: figure out how to get typing right here
-            await aio_client.Register(
-                WorkerRegisterRequest(
-                    worker_name=worker_name,
-                    actions=actions,
-                    services=services,
-                    labels=proto_labels,
-                    slot_config=slot_config,
-                    runtime_info=RuntimeInfo(
-                        sdk_version=version("hatchet_sdk"),
-                        language=SDKS.PYTHON,
-                        language_version=f"{version_info.major}.{version_info.minor}.{version_info.micro}",
-                        os=platform.system().lower(),
-                    ),
+        response = await aio_client.Register(
+            WorkerRegisterRequest(
+                worker_name=worker_name,
+                actions=actions,
+                services=services,
+                labels=proto_labels,
+                slot_config=slot_config,
+                runtime_info=RuntimeInfo(
+                    sdk_version=version("hatchet_sdk"),
+                    language=SDKS.PYTHON,
+                    language_version=f"{version_info.major}.{version_info.minor}.{version_info.micro}",
+                    os=platform.system().lower(),
                 ),
-                timeout=DEFAULT_REGISTER_TIMEOUT,
-                metadata=create_authorization_header(self.token),
             ),
+            timeout=DEFAULT_REGISTER_TIMEOUT,
+            metadata=create_authorization_header(self.token),
         )
 
         return ActionListener(self.config, response.worker_id)
@@ -121,13 +118,10 @@ class DispatcherClient:
         aio_client = self._get_or_create_aio_client()
 
         try:
-            response = cast(
-                GetVersionResponse,
-                await aio_client.GetVersion(  # type: ignore
-                    GetVersionRequest(),
-                    timeout=DEFAULT_REGISTER_TIMEOUT,
-                    metadata=create_authorization_header(self.token),
-                ),
+            response = await aio_client.GetVersion(
+                GetVersionRequest(),
+                timeout=DEFAULT_REGISTER_TIMEOUT,
+                metadata=create_authorization_header(self.token),
             )
         except grpc.RpcError as e:
             if e.code() == grpc.StatusCode.UNIMPLEMENTED:
@@ -136,7 +130,7 @@ class DispatcherClient:
 
         return response.version
 
-    async def send_step_action_event(
+    async def send_task_action_event(
         self,
         action: Action,
         event_type: StepActionEventType,
@@ -145,14 +139,14 @@ class DispatcherClient:
         retry_after_ms: int | None = None,
     ) -> ActionEventResponse | None:
         try:
-            return await self._try_send_step_action_event(
+            return await self._try_send_task_action_event(
                 action, event_type, payload, should_not_retry, retry_after_ms
             )
         except Exception:
             was_completed = event_type == STEP_EVENT_TYPE_COMPLETED
             was_failed = event_type == STEP_EVENT_TYPE_FAILED
 
-            message = f"failed to send step action event {event_type} for action {action.action_id}."
+            message = f"failed to send task action event {event_type} for action {action.action_id}."
 
             if was_completed:
                 message += "**IMPORTANT**: the task completed successfully on the worker, but the engine failed to receive the completed event."
@@ -173,7 +167,7 @@ class DispatcherClient:
         before_sleep=tenacity_before_sleep,
         retry=tenacity.retry_if_exception(tenacity_should_retry),
     )
-    async def _try_send_step_action_event(
+    async def _try_send_task_action_event(
         self,
         action: Action,
         event_type: StepActionEventType,
@@ -190,8 +184,8 @@ class DispatcherClient:
             worker_id=action.worker_id,
             job_id=action.job_id,
             job_run_id=action.job_run_id,
-            task_id=action.step_id,
-            task_run_external_id=action.step_run_id,
+            task_id=action.task_id,
+            task_run_external_id=action.task_run_external_id,
             action_id=action.action_id,
             event_timestamp=event_timestamp,
             event_type=event_type,
@@ -202,12 +196,9 @@ class DispatcherClient:
         )
 
         try:
-            return cast(
-                ActionEventResponse,
-                await aio_client.SendStepActionEvent(
-                    event,
-                    metadata=create_authorization_header(self.token),
-                ),
+            return await aio_client.SendStepActionEvent(
+                event,
+                metadata=create_authorization_header(self.token),
             )
         except grpc.aio.AioRpcError as e:
             if e.code() == grpc.StatusCode.UNAVAILABLE:
@@ -263,12 +254,9 @@ class DispatcherClient:
         client = self._get_or_create_client()
         event = self._build_batch_action_event(action, event_type, items)
 
-        return cast(
-            ActionEventResponse,
-            client.SendBatchActionEvent(  # type: ignore[attr-defined]
-                event,
-                metadata=create_authorization_header(self.token),
-            ),
+        return client.SendBatchActionEvent(
+            event,
+            metadata=create_authorization_header(self.token),
         )
 
     async def aio_send_batch_action_event(
@@ -307,12 +295,9 @@ class DispatcherClient:
         event = self._build_batch_action_event(action, event_type, items)
 
         try:
-            return cast(
-                ActionEventResponse,
-                await aio_client.SendBatchActionEvent(  # type: ignore[attr-defined]
-                    event,
-                    metadata=create_authorization_header(self.token),
-                ),
+            return await aio_client.SendBatchActionEvent(
+                event,
+                metadata=create_authorization_header(self.token),
             )
         except grpc.aio.AioRpcError as e:
             if e.code() == grpc.StatusCode.UNAVAILABLE:
@@ -326,37 +311,37 @@ class DispatcherClient:
         client = self._get_or_create_client()
 
         return cast(
-            ActionEventResponse,
+            "ActionEventResponse",
             client.PutOverridesData(
                 data,
                 metadata=create_authorization_header(self.token),
             ),
         )
 
-    def release_slot(self, step_run_id: str) -> None:
+    def release_slot(self, task_run_external_id: str) -> None:
         client = self._get_or_create_client()
 
         client.ReleaseSlot(
-            ReleaseSlotRequest(task_run_external_id=step_run_id),
+            ReleaseSlotRequest(task_run_external_id=task_run_external_id),
             timeout=DEFAULT_REGISTER_TIMEOUT,
             metadata=create_authorization_header(self.token),
         )
 
-    async def aio_release_slot(self, step_run_id: str) -> None:
+    async def aio_release_slot(self, task_run_external_id: str) -> None:
         aio_client = self._get_or_create_aio_client()
 
         await aio_client.ReleaseSlot(
-            ReleaseSlotRequest(task_run_external_id=step_run_id),
+            ReleaseSlotRequest(task_run_external_id=task_run_external_id),
             timeout=DEFAULT_REGISTER_TIMEOUT,
             metadata=create_authorization_header(self.token),
         )
 
-    def refresh_timeout(self, step_run_id: str, increment_by: str) -> None:
+    def refresh_timeout(self, task_run_external_id: str, increment_by: str) -> None:
         client = self._get_or_create_client()
 
         client.RefreshTimeout(
             RefreshTimeoutRequest(
-                task_run_external_id=step_run_id,
+                task_run_external_id=task_run_external_id,
                 increment_timeout_by=increment_by,
             ),
             timeout=DEFAULT_REGISTER_TIMEOUT,
@@ -371,11 +356,7 @@ class DispatcherClient:
         client.UpsertWorkerLabels(
             UpsertWorkerLabelsRequest(
                 worker_id=worker_id,
-                labels={
-                    label.key: label.to_proto()
-                    for label in labels
-                    if label.key is not None
-                },
+                labels={label.key: label.to_proto() for label in labels},
             ),
             timeout=DEFAULT_REGISTER_TIMEOUT,
             metadata=create_authorization_header(self.token),
@@ -384,21 +365,15 @@ class DispatcherClient:
     async def async_upsert_worker_labels(
         self,
         worker_id: str | None,
-        labels: dict[str, str | int],
+        labels: list[WorkerLabel],
     ) -> None:
         aio_client = self._get_or_create_aio_client()
 
-        worker_labels = {}
-
-        for key, value in labels.items():
-            if isinstance(value, int):
-                worker_labels[key] = WorkerLabels(int_value=value)
-            else:
-                worker_labels[key] = WorkerLabels(str_value=str(value))
-
-        # fixme: figure out how to get typing right here
         await aio_client.UpsertWorkerLabels(
-            UpsertWorkerLabelsRequest(worker_id=worker_id, labels=worker_labels),
+            UpsertWorkerLabelsRequest(
+                worker_id=worker_id,
+                labels={label.key: label.to_proto() for label in labels},
+            ),
             timeout=DEFAULT_REGISTER_TIMEOUT,
             metadata=create_authorization_header(self.token),
         )
