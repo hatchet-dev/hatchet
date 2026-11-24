@@ -378,8 +378,7 @@ WITH locked_tasks AS (
 		UNNEST($8::UUID[]) as external_id,
 		UNNEST($9::UUID[]) as child_external_id,
 		UNNEST($10::UUID[]) as payload_reference_id,
-		UNNEST($11::JSONB[]) AS payload_inline_content,
-		UNNEST(CAST($12::TEXT[] AS v1_payload_type[])) AS payload_type
+		UNNEST($11::JSONB[]) AS payload_inline_content
 ), inserted_events AS (
     INSERT INTO v1_task_event (
         tenant_id,
@@ -421,34 +420,23 @@ WITH locked_tasks AS (
 		v1_task_event.external_id,
 		v1_task_event.child_external_id,
 		v1_task_event.payload_reference_id
-), payload_inputs AS (
-    SELECT
-        e.tenant_id,
-        e.id,
-        e.inserted_at,
-        e.external_id,
-        i.payload_type,
-        i.payload_inline_content,
-        i.payload_reference_id
-    FROM
-        inserted_events e
-    JOIN
-        input i ON i.external_id = e.external_id
-    WHERE
-        i.payload_inline_content IS NOT NULL
 )
 SELECT write_payloads(
-    ARRAY_AGG(p.tenant_id),
-    ARRAY_AGG(p.id),
-    ARRAY_AGG(p.inserted_at),
-    ARRAY_AGG(p.external_id),
-    ARRAY_AGG(p.payload_type),
-    ARRAY_AGG(p.payload_inline_content),
-    ARRAY_AGG(p.payload_reference_id),
+    ARRAY_AGG(e.tenant_id),
+    ARRAY_AGG(e.id),
+    ARRAY_AGG(e.inserted_at),
+    ARRAY_AGG(e.external_id),
+    ARRAY_AGG('TASK_EVENT_DATA'::v1_payload_type),
+    ARRAY_AGG(i.payload_inline_content),
+    ARRAY_AGG(i.payload_reference_id),
     FALSE
 )
 FROM
-    payload_inputs p
+    inserted_events e
+JOIN
+    input i ON i.external_id = e.external_id
+WHERE
+    i.payload_inline_content IS NOT NULL
 `
 
 type CreateTaskEventsParams struct {
@@ -463,7 +451,6 @@ type CreateTaskEventsParams struct {
 	Childexternalids      []uuid.UUID          `json:"childexternalids"`
 	Payloadreferenceids   []uuid.UUID          `json:"payloadreferenceids"`
 	Payloadinlinecontents [][]byte             `json:"payloadinlinecontents"`
-	Payloadtypes          []string             `json:"payloadtypes"`
 }
 
 func (q *Queries) CreateTaskEvents(ctx context.Context, db DBTX, arg CreateTaskEventsParams) error {
@@ -481,7 +468,6 @@ func (q *Queries) CreateTaskEvents(ctx context.Context, db DBTX, arg CreateTaskE
 		arg.Childexternalids,
 		arg.Payloadreferenceids,
 		arg.Payloadinlinecontents,
-		arg.Payloadtypes,
 	)
 
 	return err

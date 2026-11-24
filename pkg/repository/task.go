@@ -4079,35 +4079,6 @@ func (r *sharedRepository) releaseIdempotencyKeysForStatusPolicies(
 	})
 }
 
-func taskEventDataStoreOpts(tenantId uuid.UUID, taskEvent *sqlcv1.V1TaskEvent, data []byte) StorePayloadOpts {
-	switch taskEvent.EventType {
-	case sqlcv1.V1TaskEventTypeSIGNALCREATED:
-		return PayloadRef[ChildWorkflowSignalCreatedShape]{
-			Id:         taskEvent.ID,
-			InsertedAt: taskEvent.InsertedAt,
-			ExternalId: taskEvent.ExternalID,
-			TenantId:   tenantId,
-		}.StoreOpts(NewPayload[ChildWorkflowSignalCreatedShape](data))
-	case sqlcv1.V1TaskEventTypeSIGNALCOMPLETED:
-		return PayloadRef[SignalCompletedMatchDataShape]{
-			Id:         taskEvent.ID,
-			InsertedAt: taskEvent.InsertedAt,
-			ExternalId: taskEvent.ExternalID,
-			TenantId:   tenantId,
-		}.StoreOpts(NewPayload[SignalCompletedMatchDataShape](data))
-	case sqlcv1.V1TaskEventTypeCOMPLETED, sqlcv1.V1TaskEventTypeFAILED, sqlcv1.V1TaskEventTypeCANCELLED:
-		fallthrough
-	default:
-		return PayloadRef[TaskCompletionEventShape]{
-			Id:                 taskEvent.ID,
-			InsertedAt:         taskEvent.InsertedAt,
-			ExternalId:         taskEvent.ExternalID,
-			TenantId:           tenantId,
-			PayloadReferenceId: taskEvent.PayloadReferenceID,
-		}.StoreOpts(NewPayload[TaskCompletionEventShape](data))
-	}
-}
-
 func (r *sharedRepository) createTaskEvents(
 	ctx context.Context,
 	dbtx sqlcv1.DBTX,
@@ -4205,18 +4176,13 @@ func (r *sharedRepository) createTaskEvents(
 		}
 	}
 
-	payloadInlineContents := make([][]byte, len(tasks))
-	payloadTypes := make([]string, len(tasks))
-
-	for i := range tasks {
-		storeOpts := taskEventDataStoreOpts(tenantId, &sqlcv1.V1TaskEvent{EventType: eventTypes[i]}, eventDatas[i])
-
-		payloadTypes[i] = string(storeOpts.key.Type)
-
-		if !storeOpts.payload.IsEmpty() {
-			payloadInlineContents[i] = storeOpts.payload.Bytes()
+	payloadInlineContents := enumerables.Map(eventDatas, func(eventData []byte) []byte {
+		if NewPayload[TaskCompletionEventShape](eventData).IsEmpty() {
+			return nil
 		}
-	}
+
+		return eventData
+	})
 
 	err := r.queries.CreateTaskEvents(ctx, dbtx, sqlcv1.CreateTaskEventsParams{
 		Tenantid:              tenantId,
@@ -4230,7 +4196,6 @@ func (r *sharedRepository) createTaskEvents(
 		Childexternalids:      childExternalIds,
 		Payloadreferenceids:   payloadReferenceIds,
 		Payloadinlinecontents: payloadInlineContents,
-		Payloadtypes:          payloadTypes,
 	})
 
 	if err != nil {
