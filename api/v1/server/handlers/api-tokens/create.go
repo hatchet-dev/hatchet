@@ -46,6 +46,8 @@ func (a *APITokenService) ApiTokenCreate(ctx echo.Context, request gen.ApiTokenC
 	var opts []authtoken.GenerateOption
 
 	if request.Body.Capabilities != nil {
+		// Reject names tokens.yaml does not define: an unknown capability would be stored and then
+		// silently grant nothing, leaving a token that fails every call.
 		if apiErr, err := validateCapabilities(*request.Body.Capabilities, readOnly); err != nil {
 			return nil, err
 		} else if apiErr != nil {
@@ -81,7 +83,6 @@ func (a *APITokenService) ApiTokenCreate(ctx echo.Context, request gen.ApiTokenC
 	}, nil
 }
 
-// validateCapabilities rejects names tokens.yaml does not define, since an unknown capability would silently grant nothing.
 func validateCapabilities(capabilities []string, readOnly bool) (*gen.APIErrors, error) {
 	if readOnly {
 		e := apierrors.NewAPIErrors("read-only tokens already hold the read-only capability; omit readOnly to choose capabilities")

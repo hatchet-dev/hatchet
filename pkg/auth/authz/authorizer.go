@@ -8,7 +8,6 @@ import (
 
 type Option func(*authorizer)
 
-// WithPermissions registers permission sets in order; the first that handles a request decides it.
 func WithPermissions(ps ...Permissions) Option {
 	return func(a *authorizer) { a.perms = append(a.perms, ps...) }
 }

@@ -34,9 +34,9 @@ const (
 type TokenPrincipal struct {
 	TokenID  uuid.UUID
 	Kind     TokenKind
-	TenantID *uuid.UUID // tenant API tokens
+	TenantID *uuid.UUID // some token types aren't bound to tenants
 	ReadOnly bool
-	// Capabilities gate gRPC procedures; authn resolves tokens stored without any to AllCapabilities.
+	// capabilities gate token access to gRPC and REST endpoints. Defaults to AllCapabilities for backwards compat.
 	Capabilities []string
 }
 

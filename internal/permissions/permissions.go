@@ -34,13 +34,13 @@ const (
 // requiredRoles are referenced from code, so loading fails if users.yaml drops one.
 var requiredRoles = []string{RoleUnverifiedEmail, RoleNoAuth}
 
-// Users loads a fresh copy of the user roles, since the REST server grants extension operations onto it.
 func Users() (*pkgauthz.RESTPermissions, error) {
 	spec, err := gen.GetSwagger()
 	if err != nil {
 		return nil, err
 	}
 
+	// users.yaml must cover exactly the operations in the spec, so a new endpoint fails startup until a role grants it.
 	perms, err := pkgauthz.LoadRESTPermissions(usersFile, spec)
 	if err != nil {
 		return nil, err
@@ -55,7 +55,6 @@ func Users() (*pkgauthz.RESTPermissions, error) {
 	return perms, nil
 }
 
-// grpcServices lists every service the gRPC server mounts, so a new procedure fails startup until it has a capability.
 func grpcServices() []protoreflect.ServiceDescriptor {
 	return []protoreflect.ServiceDescriptor{
 		ingestorcontracts.File_events_proto.Services().ByName("EventsService"),
@@ -69,19 +68,19 @@ func grpcServices() []protoreflect.ServiceDescriptor {
 	}
 }
 
-// Tokens loads a fresh copy of the token capabilities, since the REST server grants extension operations onto it.
 func Tokens() (*pkgauthz.TokenPermissions, error) {
 	spec, err := gen.GetSwagger()
 	if err != nil {
 		return nil, err
 	}
 
+	// Every bearer-accepting operation and every procedure of the services the gRPC server mounts must be
+	// granted by a capability or listed as unavailable, so a new endpoint fails startup until tokens.yaml covers it.
 	return pkgauthz.LoadTokenPermissions(tokensFile, spec, grpcServices()...)
 }
 
 var sharedTokens = sync.OnceValues(Tokens)
 
-// TokenCapabilityExists validates capability names when a token is created.
 func TokenCapabilityExists(capability string) (bool, error) {
 	perms, err := sharedTokens()
 	if err != nil {

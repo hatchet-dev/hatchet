@@ -17,7 +17,6 @@ type tenantRoleResolver struct {
 	repo repository.Repository
 }
 
-// ResolveRole resolves the role a user holds in the tenant the REST route acts on; tenant API tokens never reach it.
 func (r *tenantRoleResolver) ResolveRole(ctx context.Context, p pkgauthz.Principal, a pkgauthz.Action) (string, bool, error) {
 	action, ok := a.(pkgauthz.RESTAction)
 	if !ok {
@@ -57,6 +56,7 @@ func (r *tenantRoleResolver) ResolveRole(ctx context.Context, p pkgauthz.Princip
 func (r *tenantRoleResolver) member(ctx context.Context, tenantID, userID uuid.UUID) (*sqlcv1.PopulateTenantMembersRow, error) {
 	key := pkgauthz.Key{Kind: "tenant-member", ID: tenantID.String() + "/" + userID.String()}
 
+	// load runs only on a cache miss; errors and missing members are never cached, so a retry reloads them
 	rows, err := pkgauthz.Fetch(ctx, []pkgauthz.Key{key}, func(ctx context.Context, _ []pkgauthz.Key) (map[pkgauthz.Key]*sqlcv1.PopulateTenantMembersRow, error) {
 		m, err := r.repo.Tenant().GetTenantMemberByUserID(ctx, tenantID, userID)
 		if errors.Is(err, pgx.ErrNoRows) || (err == nil && m == nil) {

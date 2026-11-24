@@ -25,7 +25,6 @@ type RESTPermissions struct {
 	roles grantGraph
 }
 
-// LoadRESTPermissions requires the file to cover exactly the operations in spec.
 func LoadRESTPermissions(yamlBytes []byte, spec *openapi3.T) (*RESTPermissions, error) {
 	if spec == nil {
 		return nil, errors.New("authz: an OpenAPI spec is required to load REST permissions")
@@ -60,12 +59,10 @@ func (p *RESTPermissions) HasPermission(role string, a Action) bool {
 	return p.roles.has(role, func(grant string) bool { return strings.EqualFold(grant, a.Name()) })
 }
 
-// Defines lets callers fail at startup when a role their code relies on is missing from the file.
 func (p *RESTPermissions) Defines(role string) bool {
 	return p.roles.defines(role)
 }
 
-// Grant adds extension operations that are served outside the spec this file was validated against.
 func (p *RESTPermissions) Grant(role string, operationIDs ...string) error {
 	return p.roles.grant(role, operationIDs...)
 }

@@ -61,7 +61,6 @@ type TokenPermissions struct {
 	unavailable map[string]struct{} // lower-cased REST operation ids
 }
 
-// LoadTokenPermissions requires every bearer-accepting operation in spec and every method of services to be granted by a capability or listed as unavailable.
 func LoadTokenPermissions(yamlBytes []byte, spec *openapi3.T, services ...protoreflect.ServiceDescriptor) (*TokenPermissions, error) {
 	if spec == nil {
 		return nil, fmt.Errorf("authz: an OpenAPI spec is required to load token permissions")
@@ -130,7 +129,6 @@ func LoadTokenPermissions(yamlBytes []byte, spec *openapi3.T, services ...protor
 	return p, nil
 }
 
-// Handles only tenant API tokens; users and management tokens are decided elsewhere.
 func (p *TokenPermissions) Handles(req Request) bool {
 	t, ok := req.Principal.(TokenPrincipal)
 	return ok && t.Kind == TenantAPIToken
@@ -148,7 +146,6 @@ func (p *TokenPermissions) Decide(_ context.Context, req Request) (Decision, err
 			return Deny(TokenRestricted), nil
 		}
 
-		// A token only ever acts within its own tenant.
 		if a.TenantID == nil || t.TenantID == nil || *a.TenantID != *t.TenantID {
 			return Deny(NotMember), nil
 		}
@@ -168,7 +165,6 @@ func (p *TokenPermissions) Decide(_ context.Context, req Request) (Decision, err
 	return Allow(), nil
 }
 
-// allows reports whether any of the capabilities grants a.
 func (p *TokenPermissions) allows(capabilities []string, a Action) bool {
 	graph, matches := p.grpc, func(grant string) bool { return grant == a.Name() }
 	if a.Type() == RESTEndpoint {
@@ -184,12 +180,10 @@ func (p *TokenPermissions) allows(capabilities []string, a Action) bool {
 	return false
 }
 
-// Defines lets token creation reject capability names the file does not know.
 func (p *TokenPermissions) Defines(capability string) bool {
 	return p.rest.defines(capability)
 }
 
-// GrantREST adds extension operations that are served outside the spec this file was validated against.
 func (p *TokenPermissions) GrantREST(capability string, operationIDs ...string) error {
 	return p.rest.grant(capability, operationIDs...)
 }

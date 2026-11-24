@@ -31,7 +31,6 @@ func NewAuthZ(l *zerolog.Logger) (*GRPCAuthZ, error) {
 	return &GRPCAuthZ{authorizer: authorizer, l: l}, nil
 }
 
-// Authorize checks the authenticated token's capabilities against the procedure.
 func (a *GRPCAuthZ) Authorize(ctx context.Context, procedure string) error {
 	d, err := a.authorizer.Authorize(ctx, pkgauthz.Request{Principal: pkgauthz.PrincipalFrom(ctx), Action: pkgauthz.GRPC(procedure)})
 	if err != nil {

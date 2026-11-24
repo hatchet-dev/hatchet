@@ -18,7 +18,6 @@ type requestMemo struct {
 
 type requestMemoCtxKey struct{}
 
-// WithRequestCache lets every check in one request share loaded rows; without it Fetch always loads.
 func WithRequestCache(ctx context.Context) context.Context {
 	if _, ok := ctx.Value(requestMemoCtxKey{}).(*requestMemo); ok {
 		return ctx
@@ -27,7 +26,6 @@ func WithRequestCache(ctx context.Context) context.Context {
 	return context.WithValue(ctx, requestMemoCtxKey{}, &requestMemo{rows: map[Key]any{}})
 }
 
-// Fetch returns rows for keys, calling load once for the misses; errors and missing rows are never cached.
 func Fetch[T any](ctx context.Context, keys []Key, load func(ctx context.Context, missing []Key) (map[Key]T, error)) (map[Key]T, error) {
 	memo, _ := ctx.Value(requestMemoCtxKey{}).(*requestMemo)
 

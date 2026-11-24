@@ -30,7 +30,8 @@ func NewAuthZ(config *server.ServerConfig) (*AuthZ, error) {
 		return nil, err
 	}
 
-	// Extension operations are not in the OSS spec, so they are granted after validation.
+	// Extension operations are not in the OSS spec, so they are granted after users.yaml is validated
+	// against it. Users() returns a fresh copy each call, so these grants stay local to this authorizer.
 	if err := perms.Grant(string(enums.TenantMemberRoleVIEWER), config.Auth.AllowedOperations...); err != nil {
 		return nil, err
 	}
@@ -44,16 +45,18 @@ func NewAuthZ(config *server.ServerConfig) (*AuthZ, error) {
 		return nil, err
 	}
 
-	// read-only tokens keep the extension reads VIEWER gets; "all" already grants every operation
+	// Read-only tokens keep the extension reads VIEWER gets; "all" already grants every operation.
+	// Tokens() returns a fresh copy, so the gRPC authorizer never sees these REST grants.
 	if err := tokens.GrantREST(pkgauthz.ReadOnlyCapability, config.Auth.AllowedOperations...); err != nil {
 		return nil, err
 	}
 
 	roles := &tenantRoleResolver{repo: config.V1}
+	// role-based permissions take every request the token permissions did not handle
 	everyoneElse := func(pkgauthz.Request) bool { return true }
 
 	authorizer, err := pkgauthz.New(
-		// tokens first: they handle tenant API tokens, and roles handle users and management tokens
+		// the order here determines precedence. tokens first, then role based authentication
 		pkgauthz.WithPermissions(tokens, pkgauthz.RoleBased(perms, roles, everyoneElse)),
 		// supplied policies run after the built-in ones so their errors never mask an unverified email
 		pkgauthz.WithPolicies(append(buildPolicies(config, perms), config.Auth.Policies...)...),
@@ -84,6 +87,8 @@ func (a *AuthZ) authorize(c echo.Context, r *middleware.RouteInfo) error {
 }
 
 func (a *AuthZ) authorizeSecured(c echo.Context, r *middleware.RouteInfo) error {
+	// Every check in this request (role resolution, setTenantMember below) shares loaded rows through
+	// this cache; without it each pkgauthz.Fetch goes to the database.
 	ctx := pkgauthz.WithRequestCache(c.Request().Context())
 	c.SetRequest(c.Request().WithContext(ctx))
 
@@ -115,13 +120,15 @@ func (a *AuthZ) authorizeSecured(c echo.Context, r *middleware.RouteInfo) error 
 	if !d.Allowed {
 		a.l.Debug().Ctx(ctx).Msgf("denied %s: %s", r.OperationID, d.Reason)
 
+		// keeps the status codes and messages the old cookie and bearer paths returned
 		return httpErrorFor(req.Principal, d.Reason)
 	}
 
+	// Handlers and CanViewPayloads still read the tenant member from the echo context, so set it here.
+	// The row is already cached from role resolution, so this does not hit the database again.
 	return a.setTenantMember(c, req.Principal, tenantID)
 }
 
-// setTenantMember keeps the tenant-member context value that handlers and CanViewPayloads still read.
 func (a *AuthZ) setTenantMember(c echo.Context, p pkgauthz.Principal, tenantID *uuid.UUID) error {
 	user, ok := p.(pkgauthz.UserPrincipal)
 	if !ok || tenantID == nil {
@@ -153,7 +160,6 @@ func EchoRequestFrom(ctx context.Context) (echo.Context, *middleware.RouteInfo, 
 	return er.c, er.route, ok
 }
 
-// tenantFromEcho reads the tenant the populator resolved from the route.
 func tenantFromEcho(c echo.Context) *uuid.UUID {
 	if tenant, ok := c.Get("tenant").(*sqlcv1.Tenant); ok && tenant != nil {
 		id := tenant.ID
@@ -163,7 +169,6 @@ func tenantFromEcho(c echo.Context) *uuid.UUID {
 	return nil
 }
 
-// httpErrorFor keeps the status codes and messages the old cookie and bearer paths returned.
 func httpErrorFor(p pkgauthz.Principal, reason pkgauthz.DenyReason) error {
 	switch reason {
 	case pkgauthz.EmailUnverified:

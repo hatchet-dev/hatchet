@@ -15,12 +15,10 @@ type Permissions interface {
 	Decide(ctx context.Context, req Request) (Decision, error)
 }
 
-// RolePermissions answers whether a named role may perform an action.
 type RolePermissions interface {
 	HasPermission(role string, a Action) bool
 }
 
-// RoleBased decides the requests handles accepts by resolving the principal's role and looking it up in perms.
 func RoleBased(perms RolePermissions, resolver RoleResolver, handles func(Request) bool) Permissions {
 	return roleBased{perms: perms, resolver: resolver, handles: handles}
 }
@@ -54,7 +52,6 @@ func (r roleBased) Decide(ctx context.Context, req Request) (Decision, error) {
 	return Allow(), nil
 }
 
-// CapToRole denies principals that applies matches unless role also permits the action, on top of their own role.
 func CapToRole(perms RolePermissions, role string, reason DenyReason, applies func(Principal) bool) Policy {
 	return capPolicy{perms: perms, role: role, reason: reason, applies: applies}
 }

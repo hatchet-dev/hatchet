@@ -26,7 +26,8 @@ func newRequestGate(authn *GRPCAuthN, authz *GRPCAuthZ, limiter *HatchetRateLimi
 			logStartedCall(ctx, l, spec, start)
 			logFinishedCall(l, spec, start, err)
 
-			// a call rejected for its rate limit is authenticated, so its span carries the tenant
+			// admit returns the authenticated context even when authz or the rate limit rejects the call,
+			// so those spans still carry the tenant.
 			recorder.recordRejected(authenticated, ctx, spec, header, start.at, err)
 
 			return nil, err
@@ -36,7 +37,6 @@ func newRequestGate(authn *GRPCAuthN, authz *GRPCAuthZ, limiter *HatchetRateLimi
 	}
 }
 
-// admit returns the authenticated context even when authz or the limiter rejects, so rejected spans keep the tenant.
 func admit(ctx context.Context, header http.Header, procedure string, authn *GRPCAuthN, authz *GRPCAuthZ, limiter *HatchetRateLimiter) (context.Context, error) {
 	authenticated, err := authn.Middleware(ctx, header)
 	if err != nil {
