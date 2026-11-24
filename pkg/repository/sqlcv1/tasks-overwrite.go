@@ -353,7 +353,6 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 }
 
 const createTaskEvents = `-- name: CreateTaskEvents :exec
--- IMPORTANT: the payload_inputs CTE must apply the same key rules as WritePayloads.
 -- We get a FOR UPDATE lock on tasks to prevent concurrent writes to the task events
 -- tables for each task
 WITH locked_tasks AS (
@@ -379,7 +378,6 @@ WITH locked_tasks AS (
 		UNNEST($8::UUID[]) as external_id,
 		UNNEST($9::UUID[]) as child_external_id,
 		UNNEST($10::UUID[]) as payload_reference_id,
-		-- NULL: the event gets no payload row
 		UNNEST($11::JSONB[]) AS payload_inline_content,
 		UNNEST(CAST($12::TEXT[] AS v1_payload_type[])) AS payload_type
 ), inserted_events AS (
@@ -413,6 +411,16 @@ WITH locked_tasks AS (
         v1_task_event.id,
         v1_task_event.inserted_at,
         v1_task_event.tenant_id,
+		v1_task_event.task_id,
+		v1_task_event.task_inserted_at,
+		v1_task_event.retry_count,
+		v1_task_event.event_type,
+		v1_task_event.event_key,
+		v1_task_event.created_at,
+		v1_task_event.data,
+		v1_task_event.external_id,
+		v1_task_event.child_external_id,
+		v1_task_event.payload_reference_id,
         v1_task_event.external_id
 ), payload_inputs AS (
     SELECT DISTINCT
