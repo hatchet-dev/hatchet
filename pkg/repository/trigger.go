@@ -2129,10 +2129,10 @@ func (r *sharedRepository) registerChildWorkflows(
 
 	potentialMatchTaskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(potentialMatchTaskInsertedAts)
 
-	matchingEvents, err := r.queries.LockSignalCreatedEvents(
+	matchingEvents, err := r.queries.ListSignalCreatedEventsWithChildLookup(
 		ctx,
 		tx,
-		sqlcv1.LockSignalCreatedEventsParams{
+		sqlcv1.ListSignalCreatedEventsWithChildLookupParams{
 			Tenantid:          tenantId,
 			Taskids:           potentialMatchTaskIds,
 			Taskinsertedats:   potentialMatchTaskInsertedAts,
@@ -2205,16 +2205,28 @@ func (r *sharedRepository) registerChildWorkflows(
 	}
 
 	// get the child external IDs that have already been written
-	existingExternalIds, err := r.queries.LookupExternalIds(ctx, tx, sqlcv1.LookupExternalIdsParams{
-		Tenantid:    tenantId,
-		Externalids: rootExternalIdsToLookup,
-	})
+	if len(retrievePayloadOpts) == 0 {
+		// every event carries its child external id, so the read of the events has already
+		// looked each of them up
+		tuplesToSkip = make(map[uuid.UUID]struct{})
 
-	if err != nil {
-		return nil, err
+		for _, event := range matchingEvents {
+			if event.ChildExists && event.ChildExternalID != nil && *event.ChildExternalID != uuid.Nil {
+				tuplesToSkip[*event.ChildExternalID] = struct{}{}
+			}
+		}
+	} else {
+		existingExternalIds, err := r.queries.LookupExternalIds(ctx, tx, sqlcv1.LookupExternalIdsParams{
+			Tenantid:    tenantId,
+			Externalids: rootExternalIdsToLookup,
+		})
+
+		if err != nil {
+			return nil, err
+		}
+
+		tuplesToSkip = enumerables.ToSet(existingExternalIds, func(dbExternalId *sqlcv1.V1LookupTable) uuid.UUID { return dbExternalId.ExternalID })
 	}
-
-	tuplesToSkip = enumerables.ToSet(existingExternalIds, func(dbExternalId *sqlcv1.V1LookupTable) uuid.UUID { return dbExternalId.ExternalID })
 
 	if r.childRunDirectSpawn {
 		return tuplesToSkip, nil
