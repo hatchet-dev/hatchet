@@ -115,10 +115,8 @@ func ToWorkerSqlc(worker *sqlcv1.Worker, slotConfig map[string]gen.WorkerSlotCon
 		res.OperatorId = worker.OperatorId
 	}
 
-	if maxHeartbeatDelay := sqlchelpers.MaybePgIntervalToDuration(worker.MaxHeartbeatDelayBeforeDeclaredDead); maxHeartbeatDelay != nil {
-		maxHeartbeatDelaySeconds := int(maxHeartbeatDelay.Seconds())
-		res.MaxHeartbeatDelayBeforeDeclaredDeadSeconds = &maxHeartbeatDelaySeconds
-	}
+	maxHeartbeatDelaySeconds := int(sqlchelpers.PgIntervalToDuration(worker.MaxHeartbeatDelayBeforeDeclaredDead).Seconds())
+	res.MaxHeartbeatDelayBeforeDeclaredDeadSeconds = &maxHeartbeatDelaySeconds
 
 	res.Actions = &actions
 

@@ -183,7 +183,7 @@ Worker:
       description: The number of durable task runs owned by this operator that are currently evicted while waiting on durable events. Evicted runs hold no slots. Only set for operator workers.
     maxHeartbeatDelayBeforeDeclaredDeadSeconds:
       type: integer
-      description: How long, in seconds, the worker can go without sending a heartbeat before it is declared dead and its tasks are reassigned. Unset when the worker uses the engine default of 30 seconds.
+      description: How long, in seconds, the worker can go without sending a heartbeat before it is declared dead and its tasks are reassigned.
   required:
     - metadata
     - name

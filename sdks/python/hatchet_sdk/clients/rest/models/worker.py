@@ -104,7 +104,7 @@ class Worker(BaseModel):
     )
     max_heartbeat_delay_before_declared_dead_seconds: Optional[StrictInt] = Field(
         default=None,
-        description="How long, in seconds, the worker can go without sending a heartbeat before it is declared dead and its tasks are reassigned. Unset when the worker uses the engine default of 30 seconds.",
+        description="How long, in seconds, the worker can go without sending a heartbeat before it is declared dead and its tasks are reassigned.",
         alias="maxHeartbeatDelayBeforeDeclaredDeadSeconds",
     )
     __properties: ClassVar[List[str]] = [

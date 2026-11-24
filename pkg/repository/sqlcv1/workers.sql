@@ -883,7 +883,7 @@ INSERT INTO "Worker" (
     sqlc.narg('operatorId')::uuid,
     -- true only for workers the in-process operator host creates; the limit queries skip them
     @isExemptFromLimits::boolean,
-    sqlc.narg('maxHeartbeatDelayBeforeDeclaredDead')::interval
+    @maxHeartbeatDelayBeforeDeclaredDead::interval
 ) RETURNING *;
 
 -- name: LinkServicesToWorker :exec

@@ -16,24 +16,8 @@ func DurationToPgInterval(d time.Duration) pgtype.Interval {
 	}
 }
 
-// MaybePgIntervalToDuration reads only the interval's microseconds and ignores its days and months,
-// so it is only correct for intervals written by DurationToPgInterval.
-func MaybePgIntervalToDuration(interval pgtype.Interval) *time.Duration {
-	if !interval.Valid {
-		return nil
-	}
-
-	duration := time.Duration(interval.Microseconds) * time.Microsecond
-
-	return &duration
-}
-
-func MaybeDurationToPgInterval(d *time.Duration) pgtype.Interval {
-	if d == nil {
-		return pgtype.Interval{
-			Valid: false,
-		}
-	}
-
-	return DurationToPgInterval(*d)
+// PgIntervalToDuration reads only the interval's microseconds and ignores its days and months,
+// so it is only correct for intervals with no day or month part, such as those DurationToPgInterval writes.
+func PgIntervalToDuration(interval pgtype.Interval) time.Duration {
+	return time.Duration(interval.Microseconds) * time.Microsecond
 }

@@ -888,9 +888,10 @@ CREATE TABLE "Worker" (
     "operatorActionCount" INTEGER NOT NULL DEFAULT 0,
     -- Set at creation by the host: in-process operator workers are exempt, wire-registered ones are metered.
     "isExemptFromLimits" BOOLEAN NOT NULL DEFAULT false,
-    "maxHeartbeatDelayBeforeDeclaredDead" INTERVAL,
+    "maxHeartbeatDelayBeforeDeclaredDead" INTERVAL NOT NULL DEFAULT INTERVAL '30 seconds',
 
-    CONSTRAINT "Worker_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "Worker_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "Worker_maxHeartbeatDelayBeforeDeclaredDead_bounds" CHECK ("maxHeartbeatDelayBeforeDeclaredDead" BETWEEN INTERVAL '4 seconds' AND INTERVAL '1 hour')
 );
 
 -- CreateTable

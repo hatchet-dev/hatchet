@@ -2646,7 +2646,7 @@ type Worker struct {
 	// LastListenerEstablished The time this worker last sent a heartbeat.
 	LastListenerEstablished *time.Time `json:"lastListenerEstablished,omitempty"`
 
-	// MaxHeartbeatDelayBeforeDeclaredDeadSeconds How long, in seconds, the worker can go without sending a heartbeat before it is declared dead and its tasks are reassigned. Unset when the worker uses the engine default of 30 seconds.
+	// MaxHeartbeatDelayBeforeDeclaredDeadSeconds How long, in seconds, the worker can go without sending a heartbeat before it is declared dead and its tasks are reassigned.
 	MaxHeartbeatDelayBeforeDeclaredDeadSeconds *int            `json:"maxHeartbeatDelayBeforeDeclaredDeadSeconds,omitempty"`
 	Metadata                                   APIResourceMeta `json:"metadata"`
 

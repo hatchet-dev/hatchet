@@ -66,7 +66,7 @@ module HatchetSdkRest
     # The number of durable task runs owned by this operator that are currently evicted while waiting on durable events. Evicted runs hold no slots. Only set for operator workers.
     attr_accessor :evicted_durable_task_count
 
-    # How long, in seconds, the worker can go without sending a heartbeat before it is declared dead and its tasks are reassigned. Unset when the worker uses the engine default of 30 seconds.
+    # How long, in seconds, the worker can go without sending a heartbeat before it is declared dead and its tasks are reassigned.
     attr_accessor :max_heartbeat_delay_before_declared_dead_seconds
 
     class EnumAttributeValidator
