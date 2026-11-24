@@ -4,7 +4,6 @@ package hatchet
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"testing"
@@ -280,34 +279,6 @@ func TestDurableChildTrigger_TriggerContextCanceledBeforeAck(t *testing.T) {
 	}
 }
 
-func TestDurableChildTrigger_NilTriggerContextUsesParentContext(t *testing.T) {
-	for name, spawn := range spawners() {
-		t.Run(name, func(t *testing.T) {
-			h := newTriggerContextHarness(t)
-
-			done := startRunNoWait(h, spawn, WithTriggerContext(nil)) //nolint:staticcheck // SA1012: nil is the documented default
-			h.stream.awaitTriggerRuns(t)
-			h.cancelParent()
-
-			res := awaitResult(t, done)
-			require.ErrorIs(t, res.err, context.Canceled)
-			assert.Nil(t, res.ref)
-		})
-	}
-}
-
-func TestDurableChildTrigger_NilTriggerContextSpawnsChild(t *testing.T) {
-	h := newTriggerContextHarness(t)
-	spawn := spawners()["Workflow.RunNoWait"]
-
-	done := startRunNoWait(h, spawn, WithTriggerContext(nil)) //nolint:staticcheck // SA1012: nil is the documented default
-	h.stream.ack(h.stream.awaitTriggerRuns(t))
-
-	res := awaitResult(t, done)
-	require.NoError(t, res.err)
-	assert.Equal(t, triggerTestChildRunID, res.ref.RunId)
-}
-
 type runManyResult struct {
 	refs []WorkflowRunRef
 	err  error
@@ -380,78 +351,6 @@ func TestDurableChildTrigger_RunManyTriggerContextReturnsRunIDs(t *testing.T) {
 
 			_, err := res.refs[0].Result()
 			require.ErrorIs(t, err, context.Canceled)
-		})
-	}
-}
-
-func TestDurableChildTrigger_RunManyRejectsDifferentTriggerContexts(t *testing.T) {
-	h := newTriggerContextHarness(t)
-	spawn := runManySpawners()["Workflow.RunMany"]
-
-	ctxA, cancelA := context.WithCancel(context.Background())
-	defer cancelA()
-	ctxB, cancelB := context.WithCancel(context.Background())
-	defer cancelB()
-
-	done := startRunMany(h, spawn, []RunManyOpt{
-		{Input: 1, Opts: []RunOptFunc{WithTriggerContext(ctxA)}},
-		{Input: 2, Opts: []RunOptFunc{WithTriggerContext(ctxB)}},
-	})
-
-	res := awaitResult(t, done)
-	require.Error(t, res.err)
-	assert.False(t, errors.Is(res.err, context.Canceled))
-	assert.Contains(t, res.err.Error(), "different trigger contexts")
-	assert.Zero(t, h.hctx.CurChildIndex(), "validation failure must not consume child indices")
-}
-
-func TestDurableChildTrigger_RunManySameTriggerContextOnAllItems(t *testing.T) {
-	h := newTriggerContextHarness(t)
-	spawn := runManySpawners()["Workflow.RunMany"]
-
-	ackCtx, cancelAck := context.WithTimeout(context.WithoutCancel(h.hctx.GetContext()), 10*time.Second)
-	defer cancelAck()
-
-	done := startRunMany(h, spawn, []RunManyOpt{
-		{Input: 1, Opts: []RunOptFunc{WithTriggerContext(ackCtx)}},
-		{Input: 2, Opts: []RunOptFunc{WithTriggerContext(ackCtx)}},
-	})
-	tr := h.stream.awaitTriggerRuns(t)
-	h.cancelParent()
-	assertPending(t, done)
-	h.stream.ack(tr)
-
-	res := awaitResult(t, done)
-	require.NoError(t, res.err)
-	require.Len(t, res.refs, 2)
-}
-
-type nonComparableContext struct {
-	context.Context
-	tags []string // makes the struct non-comparable
-}
-
-func TestDurableChildTrigger_RunManyNonComparableTriggerContextDoesNotPanic(t *testing.T) {
-	base := nonComparableContext{Context: context.Background(), tags: []string{"a"}}
-	cases := map[string]context.Context{
-		"direct":         base,
-		"without_cancel": context.WithoutCancel(base),
-	}
-
-	for name, ctx := range cases {
-		t.Run(name, func(t *testing.T) {
-			h := newTriggerContextHarness(t)
-			spawn := runManySpawners()["Workflow.RunMany"]
-
-			done := startRunMany(h, spawn, []RunManyOpt{
-				{Input: 1, Opts: []RunOptFunc{WithTriggerContext(ctx)}},
-				{Input: 2, Opts: []RunOptFunc{WithTriggerContext(ctx)}},
-			})
-
-			res := awaitResult(t, done)
-			require.Error(t, res.err)
-			assert.Contains(t, res.err.Error(), "different trigger contexts")
-			assert.Zero(t, h.hctx.CurChildIndex())
 		})
 	}
 }

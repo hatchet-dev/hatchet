@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"reflect"
 
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client" //nolint:staticcheck
@@ -115,27 +114,18 @@ func runManyDurableChildWorkflows(
 	}
 
 	var triggerCtx context.Context
-	parsedOpts := make([]*runOpts, len(inputs))
-	for i, input := range inputs {
-		opts := &runOpts{}
-		for _, opt := range input.Opts {
-			opt(opts)
-		}
-		if opts.TriggerContext != nil {
-			if triggerCtx != nil && !sameContext(triggerCtx, opts.TriggerContext) {
-				return nil, true, fmt.Errorf("failed to spawn durable child workflows: items set different trigger contexts; RunMany sends one trigger request")
-			}
-			triggerCtx = opts.TriggerContext
-		}
-		parsedOpts[i] = opts
-	}
-
 	triggers := make([]*v1.TriggerWorkflowRequest, len(inputs))
 	for i, input := range inputs {
-		opts := parsedOpts[i]
-		opts.AdditionalMetadata = injectTraceparentToMap(otelCtx, opts.AdditionalMetadata)
+		runOpts := &runOpts{}
+		for _, opt := range input.Opts {
+			opt(runOpts)
+		}
+		if triggerCtx == nil && runOpts.TriggerContext != nil {
+			triggerCtx = runOpts.TriggerContext
+		}
+		runOpts.AdditionalMetadata = injectTraceparentToMap(otelCtx, runOpts.AdditionalMetadata)
 
-		childOpts, err := durableChildWorkflowOpts(hCtx, workflowName, opts)
+		childOpts, err := durableChildWorkflowOpts(hCtx, workflowName, runOpts)
 		if err != nil {
 			return nil, true, err
 		}
@@ -262,12 +252,4 @@ func waitForDurableChildResult(
 	}
 
 	return payload, nil
-}
-
-func sameContext(a, b context.Context) bool {
-	va, vb := reflect.ValueOf(a), reflect.ValueOf(b)
-	if !va.Comparable() || !vb.Comparable() {
-		return false
-	}
-	return a == b
 }

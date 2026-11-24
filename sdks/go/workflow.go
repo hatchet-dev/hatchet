@@ -166,26 +166,18 @@ func WithDesiredWorkerLabels(labels map[string]*DesiredWorkerLabel) RunOptFunc {
 }
 
 // WithTriggerContext sets the context used to send a durable child workflow
-// trigger to the engine and wait for its acknowledgement, which carries the
-// child's run ID. It applies only when the run is spawned from a durable task
-// (a DurableContext passed to Run, RunNoWait or RunMany).
-//
+// trigger and wait for its acknowledgement (which carries the child's RunId).
 // By default the trigger uses the parent task's context, so cancelling the
-// parent while the acknowledgement is in flight returns context.Canceled with no
-// run reference, even though the engine may already have created the child. A
-// context detached from the parent, for example
-// context.WithTimeout(context.WithoutCancel(ctx.GetContext()), 10*time.Second),
-// lets the call return the child's RunId so the caller can still track or
-// cancel it.
+// parent while the acknowledgement is in flight returns context.Canceled with
+// no run reference; a detached context such as
+// context.WithTimeout(context.WithoutCancel(ctx.GetContext()), 10*time.Second)
+// lets the call return the RunId so the caller can track or cancel the child.
 //
-// The trigger context does not affect waiting for the child's result:
-// WorkflowRunRef.Result and Run keep waiting on the parent task's context.
-// A nil ctx is the same as not setting the option. Outside durable tasks the
-// option is ignored, because those spawn paths do not take a context.
-//
-// RunMany sends all of its children in one trigger request, so every item that
-// sets WithTriggerContext must pass the same context; RunMany returns an error
-// otherwise.
+// Waiting for the child's result (WorkflowRunRef.Result and Run) still follows
+// the parent task's context. A nil ctx defaults to the parent context, and the
+// option is ignored outside durable tasks. In RunMany, the first non-nil
+// trigger context set on any item governs the entire batch (including across
+// chunks).
 func WithTriggerContext(ctx context.Context) RunOptFunc {
 	return func(opts *runOpts) {
 		opts.TriggerContext = ctx
