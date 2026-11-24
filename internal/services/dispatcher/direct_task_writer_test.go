@@ -74,3 +74,45 @@ func TestAckOverflowGoesThroughThePublishBuffer(t *testing.T) {
 	close(release)
 	require.NoError(t, w.Close(context.Background()))
 }
+
+// A batch's completed and failed parts are written at once, so the RPC waits for one flush, not two.
+func TestBatchPartsAreWrittenConcurrently(t *testing.T) {
+	var arrived sync.WaitGroup
+	arrived.Add(2)
+
+	l := zerolog.Nop()
+	w, err := directwrite.New(func(uuid.UUID, string, [][]byte) error {
+		// Blocks until both parts are being handled, which never happens if they are sent in turn.
+		arrived.Done()
+		arrived.Wait()
+		return nil
+	}, &recordingMQ{}, &l, directwrite.Opts{Slots: 10})
+	require.NoError(t, err)
+	// Bounded so a sequential regression, whose first write never returns, fails instead of hanging.
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = w.Close(ctx)
+	})
+
+	s := &DispatcherImpl{directTaskWriter: w}
+	tenantID := uuid.New()
+
+	newMsg := func(id string) *msgqueue.Message {
+		msg, err := msgqueue.NewTenantMessage(tenantID, id, false, true, map[string]string{"k": "v"})
+		require.NoError(t, err)
+		return msg
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- s.sendTaskMessages(context.Background(), newMsg(msgqueue.MsgIDTaskCompleted), newMsg(msgqueue.MsgIDTaskFailed))
+	}()
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("the second part was not sent until the first one finished")
+	}
+}

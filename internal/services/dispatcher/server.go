@@ -17,6 +17,7 @@ import (
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/attribute"
 	telemetry_codes "go.opentelemetry.io/otel/codes"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
@@ -1527,6 +1528,18 @@ func (s *DispatcherImpl) sendTaskMessage(ctx context.Context, msg *msgqueue.Mess
 	return s.directTaskWriter.Write(ctx, msg)
 }
 
+// sendTaskMessages sends messages for disjoint sets of tasks at once. Each direct write waits for its
+// own flush, so sending them one after the other would make the caller wait for the sum.
+func (s *DispatcherImpl) sendTaskMessages(ctx context.Context, msgs ...*msgqueue.Message) error {
+	var sends errgroup.Group
+
+	for _, msg := range msgs {
+		sends.Go(func() error { return s.sendTaskMessage(ctx, msg) })
+	}
+
+	return sends.Wait()
+}
+
 // sendTenantTaskMessage is sendTaskMessage for events that the tenant's workflow-run streams also
 // consume.
 func (s *DispatcherImpl) sendTenantTaskMessage(ctx context.Context, msg *msgqueue.Message) error {
@@ -2074,6 +2087,8 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 		})
 	}
 
+	var parts []*msgqueue.Message
+
 	if len(completedPayloads) > 0 {
 		msg, err := msgqueue.NewTenantMessage(
 			tenantId,
@@ -2087,9 +2102,7 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 			return nil, err
 		}
 
-		if err := s.sendTaskMessage(inputCtx, msg); err != nil {
-			return nil, err
-		}
+		parts = append(parts, msg)
 	}
 
 	if len(failedPayloads) > 0 {
@@ -2105,9 +2118,11 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 			return nil, err
 		}
 
-		if err := s.sendTaskMessage(inputCtx, msg); err != nil {
-			return nil, err
-		}
+		parts = append(parts, msg)
+	}
+
+	if err := s.sendTaskMessages(inputCtx, parts...); err != nil {
+		return nil, err
 	}
 
 	if len(olapPayloads) > 0 {
@@ -2123,8 +2138,10 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 			return nil, err
 		}
 
+		// The task writes are already applied, and failing the RPC would make the worker resend them and
+		// write a second COMPLETED event, so a lost monitoring event is only logged, as handleTaskCompleted does.
 		if err := s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
-			return nil, err
+			s.l.Error().Ctx(inputCtx).Err(err).Msg("could not publish monitoring event message")
 		}
 	}
 
