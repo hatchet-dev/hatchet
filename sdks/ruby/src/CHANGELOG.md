@@ -5,10 +5,11 @@ All notable changes to Hatchet's Ruby SDK will be documented in this changelog.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.13.0] - 2026-11-20
+## [0.13.0] - 2026-11-23
 
 ### Added
 
+- `max_reassignments_allowed:` option on tasks and durable tasks, the number of times a task can be reassigned to a new worker (when its worker stops heartbeating or never acknowledges the assignment) before it fails instead. Set it to `0` to never reassign a task, for example when re-running it is unsafe or when it crashes its worker. When unset, the server's default limit applies; the server's limit also caps this value. Raises `ArgumentError` for negative values.
 - `Hatchet::Features::Workflows#pause` accepts `paused_workflow_queue_behavior:`. With `"DROP"`, runs triggered while the workflow is paused are never created. Runs queued before the pause are held as with `"QUEUE"`. The default, `"QUEUE"`, holds them until the workflow is unpaused or their TTL expires, as before.
 
 ### Fixed

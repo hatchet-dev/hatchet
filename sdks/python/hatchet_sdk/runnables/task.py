@@ -225,6 +225,7 @@ class Task(Generic[TWorkflowInput, R]):
         batch: BatchTaskConfig | None = None,
         slot_requests: dict[str, int] | None = None,
         eviction_policy: EvictionPolicy | None = None,
+        max_reassignments_allowed: int | None = None,
     ) -> None:
         self._is_durable = is_durable
         self._batch = batch
@@ -255,6 +256,11 @@ class Task(Generic[TWorkflowInput, R]):
         self._backoff_factor = backoff_factor
         self._backoff_max = backoff_max
         self._concurrency = concurrency or []
+
+        if max_reassignments_allowed is not None and max_reassignments_allowed < 0:
+            raise ValueError("max_reassignments_allowed must be a non-negative integer")
+
+        self._max_reassignments_allowed = max_reassignments_allowed
 
         self._wait_for = flatten_conditions(wait_for or [])
         self._skip_if = flatten_conditions(skip_if or [])
@@ -411,6 +417,7 @@ class Task(Generic[TWorkflowInput, R]):
             schedule_timeout=timedelta_to_expr(self._schedule_timeout),
             is_durable=self._is_durable,
             slot_requests=self._slot_requests,
+            max_reassignments_allowed=self._max_reassignments_allowed,
         )
 
         if self._batch is not None:

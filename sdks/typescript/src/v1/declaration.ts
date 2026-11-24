@@ -237,7 +237,7 @@ export type CreateBatchTaskWorkflowOpts<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
 > = CreateBaseWorkflowOpts &
-  CreateBaseTaskOpts<I, O, BatchTaskFn<I, O>> & {
+  Omit<CreateBaseTaskOpts<I, O, BatchTaskFn<I, O>>, 'maxReassignmentsAllowed'> & {
     batch: BatchTaskConfig;
   };
 

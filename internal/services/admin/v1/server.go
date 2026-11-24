@@ -850,6 +850,10 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New(apiErrors.String()))
 	}
 
+	if err := validateMaxReassignmentsAllowed(createOpts, a.maxInternalRetryCount); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+
 	currWorkflow, err := a.repo.Workflows().PutWorkflowVersion(
 		ctx,
 		tenantId,
@@ -944,6 +948,31 @@ func getActionsForTasks(tasks []*contracts.CreateTaskOpts) ([]string, error) {
 	}
 
 	return actions, nil
+}
+
+func validateMaxReassignmentsAllowed(createOpts *v1.CreateWorkflowVersionOpts, maxInternalRetryCount int32) error {
+	for _, task := range createOpts.Tasks {
+		if err := validateTaskMaxReassignmentsAllowed(task, maxInternalRetryCount); err != nil {
+			return err
+		}
+	}
+
+	if createOpts.OnFailure != nil {
+		return validateTaskMaxReassignmentsAllowed(*createOpts.OnFailure, maxInternalRetryCount)
+	}
+
+	return nil
+}
+
+func validateTaskMaxReassignmentsAllowed(task v1.CreateStepOpts, maxInternalRetryCount int32) error {
+	if task.MaxReassignmentsAllowed != nil && *task.MaxReassignmentsAllowed > maxInternalRetryCount {
+		return fmt.Errorf(
+			"task %s sets max_reassignments_allowed to %d, which is above the maximum allowed of %d",
+			task.ReadableId, *task.MaxReassignmentsAllowed, maxInternalRetryCount,
+		)
+	}
+
+	return nil
 }
 
 func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.CreateWorkflowVersionOpts, error) {
@@ -1173,16 +1202,17 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 
 		// Create the step with minimal required fields
 		steps[j] = v1.CreateStepOpts{
-			ReadableId:          stepCp.ReadableId,
-			Action:              parsedAction.String(),
-			Parents:             nil, // Will be set safely below
-			Retries:             &retries,
-			DesiredWorkerLabels: affinity,
-			TriggerConditions:   make([]v1.CreateStepMatchConditionOpt, 0),
-			RateLimits:          make([]v1.CreateWorkflowStepRateLimitOpts, 0), // Initialize to avoid nil
-			ScheduleTimeout:     stepCp.ScheduleTimeout,
-			IsDurable:           stepCp.IsDurable,
-			SlotRequests:        nil,
+			ReadableId:              stepCp.ReadableId,
+			Action:                  parsedAction.String(),
+			Parents:                 nil, // Will be set safely below
+			Retries:                 &retries,
+			DesiredWorkerLabels:     affinity,
+			TriggerConditions:       make([]v1.CreateStepMatchConditionOpt, 0),
+			RateLimits:              make([]v1.CreateWorkflowStepRateLimitOpts, 0), // Initialize to avoid nil
+			ScheduleTimeout:         stepCp.ScheduleTimeout,
+			IsDurable:               stepCp.IsDurable,
+			SlotRequests:            nil,
+			MaxReassignmentsAllowed: stepCp.MaxReassignmentsAllowed,
 		}
 
 		if stepCp.SlotRequests != nil {

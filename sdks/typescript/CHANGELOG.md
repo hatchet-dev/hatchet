@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `PauseWorkflowOpts` accepts `pausedWorkflowQueueBehavior`. With `DROP`, runs triggered while the workflow is paused are never created. Runs queued before the pause are held as with `QUEUE`. The default, `QUEUE`, holds them until the workflow is unpaused or their TTL expires, as before.
+- `maxReassignmentsAllowed` on task and durable task options (`hatchet.task`, `hatchet.durableTask`, `workflow.task`, `workflow.durableTask`) sets the maximum number of times Hatchet will reassign the task to a new worker when the worker running it stops heartbeating or never acknowledges it. Once reached, the task fails instead of being reassigned. Set it to `0` to never reassign the task. If not set, the server's default limit applies, and the server's limit also caps this value. A negative or non-integer value throws when the workflow is registered.
 
 ### Fixed
 
