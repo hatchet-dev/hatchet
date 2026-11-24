@@ -4218,19 +4218,17 @@ func (r *sharedRepository) createTaskEvents(
 		}
 	}
 
-	err := r.queries.CreateTaskEventsWithPayloads(ctx, dbtx, sqlcv1.CreateTaskEventsWithPayloadsParams{
-		CreateTaskEventsParams: sqlcv1.CreateTaskEventsParams{
-			Tenantid:            tenantId,
-			Taskids:             taskIds,
-			Taskinsertedats:     taskInsertedAts,
-			Retrycounts:         retryCounts,
-			Eventtypes:          eventTypesStrs,
-			Datas:               paramDatas,
-			Eventkeys:           paramKeys,
-			Externalids:         externalIds,
-			Childexternalids:    childExternalIds,
-			Payloadreferenceids: payloadReferenceIds,
-		},
+	err := r.queries.CreateTaskEvents(ctx, dbtx, sqlcv1.CreateTaskEventsParams{
+		Tenantid:              tenantId,
+		Taskids:               taskIds,
+		Taskinsertedats:       taskInsertedAts,
+		Retrycounts:           retryCounts,
+		Eventtypes:            eventTypesStrs,
+		Datas:                 paramDatas,
+		Eventkeys:             paramKeys,
+		Externalids:           externalIds,
+		Childexternalids:      childExternalIds,
+		Payloadreferenceids:   payloadReferenceIds,
 		Payloadinlinecontents: payloadInlineContents,
 		Payloadtypes:          payloadTypes,
 	})

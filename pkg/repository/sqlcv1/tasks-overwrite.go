@@ -352,7 +352,7 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 	return items, nil
 }
 
-const createTaskEventsWithPayloads = `-- name: CreateTaskEventsWithPayloads :exec
+const createTaskEvents = `-- name: CreateTaskEvents :exec
 -- IMPORTANT: the payload_inputs CTE must apply the same key rules as WritePayloads.
 -- We get a FOR UPDATE lock on tasks to prevent concurrent writes to the task events
 -- tables for each task
@@ -461,28 +461,24 @@ ON CONFLICT DO NOTHING
 `
 
 type CreateTaskEventsParams struct {
-	Tenantid            uuid.UUID            `json:"tenantid"`
-	Taskids             []int64              `json:"taskids"`
-	Taskinsertedats     []pgtype.Timestamptz `json:"taskinsertedats"`
-	Retrycounts         []int32              `json:"retrycounts"`
-	Eventtypes          []string             `json:"eventtypes"`
-	Eventkeys           []pgtype.Text        `json:"eventkeys"`
-	Datas               [][]byte             `json:"datas"`
-	Externalids         []uuid.UUID          `json:"externalids"`
-	Childexternalids    []uuid.UUID          `json:"childexternalids"`
-	Payloadreferenceids []uuid.UUID          `json:"payloadreferenceids"`
+	Tenantid              uuid.UUID            `json:"tenantid"`
+	Taskids               []int64              `json:"taskids"`
+	Taskinsertedats       []pgtype.Timestamptz `json:"taskinsertedats"`
+	Retrycounts           []int32              `json:"retrycounts"`
+	Eventtypes            []string             `json:"eventtypes"`
+	Eventkeys             []pgtype.Text        `json:"eventkeys"`
+	Datas                 [][]byte             `json:"datas"`
+	Externalids           []uuid.UUID          `json:"externalids"`
+	Childexternalids      []uuid.UUID          `json:"childexternalids"`
+	Payloadreferenceids   []uuid.UUID          `json:"payloadreferenceids"`
+	Payloadinlinecontents [][]byte             `json:"payloadinlinecontents"`
+	Payloadtypes          []string             `json:"payloadtypes"`
 }
 
-// We get a FOR UPDATE lock on tasks to prevent concurrent writes to the task events
-// tables for each task
-type CreateTaskEventsWithPayloadsParams struct {
-	CreateTaskEventsParams
-	Payloadinlinecontents [][]byte `json:"payloadinlinecontents"`
-	Payloadtypes          []string `json:"payloadtypes"`
-}
-
-func (q *Queries) CreateTaskEventsWithPayloads(ctx context.Context, db DBTX, arg CreateTaskEventsWithPayloadsParams) error {
-	_, err := db.Exec(ctx, createTaskEventsWithPayloads,
+func (q *Queries) CreateTaskEvents(ctx context.Context, db DBTX, arg CreateTaskEventsParams) error {
+	_, err := db.Exec(
+		ctx,
+		createTaskEvents,
 		arg.Tenantid,
 		arg.Taskids,
 		arg.Taskinsertedats,
