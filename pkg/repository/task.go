@@ -4140,6 +4140,11 @@ func (r *sharedRepository) createTaskEvents(
 		}
 
 		if payloadReferenceIdsByIndex != nil && payloadReferenceIdsByIndex[i] != nil {
+			// the readers of signal event payloads look them up under the event's own key
+			if eventTypes[i] == sqlcv1.V1TaskEventTypeSIGNALCREATED || eventTypes[i] == sqlcv1.V1TaskEventTypeSIGNALCOMPLETED {
+				return nil, fmt.Errorf("a %s event cannot store its payload under a payload reference id", eventTypes[i])
+			}
+
 			payloadReferenceIds[i] = *payloadReferenceIdsByIndex[i]
 		} else {
 			payloadReferenceIds[i] = uuid.Nil
