@@ -460,6 +460,7 @@ CREATE TABLE "Step" (
     "scheduleTimeout" TEXT NOT NULL DEFAULT '5m',
     "isDurable" BOOLEAN NOT NULL DEFAULT false,
     "isDagOrchestrator" BOOLEAN NOT NULL DEFAULT false,
+    "maxReassignmentsAllowed" INTEGER,
 
     CONSTRAINT "Step_pkey" PRIMARY KEY ("id")
 );

@@ -195,6 +195,7 @@ message CreateTaskOpts {
     bool is_durable = 14; // (optional) whether the task is durable
     map<string, int32> slot_requests = 15; // (optional) slot requests (slot_type -> units)
     optional TaskBatchConfig batch = 16; // (optional) batch execution configuration
+    optional int32 max_reassignments_allowed = 17; // (optional) the max number of times the task can be reassigned before failing
 }
 
 message CreateTaskRateLimit {
