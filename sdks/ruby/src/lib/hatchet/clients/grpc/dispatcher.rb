@@ -89,6 +89,7 @@ module Hatchet
               actions: actions,
               slots: slots,
               labels: label_map,
+              max_heartbeat_delay_before_declared_dead_seconds: max_heartbeat_delay_before_declared_dead_seconds,
             )
             response = @stub.register(request, metadata: @config.auth_metadata)
             @logger.warn("Registered without runtime_info/slot_config after #{e.class}; " \
