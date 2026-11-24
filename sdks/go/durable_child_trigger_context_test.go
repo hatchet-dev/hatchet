@@ -70,7 +70,6 @@ func (s *fakeDurableTaskStream) awaitTriggerRuns(t *testing.T) *v1.DurableTaskTr
 	}
 }
 
-// ack acknowledges a TriggerRuns request, assigning child-run-<i> run IDs.
 func (s *fakeDurableTaskStream) ack(tr *v1.DurableTaskTriggerRunsRequest) {
 	entries := make([]*v1.DurableTaskRunAckEntry, len(tr.GetTriggerOpts()))
 	for i := range entries {
@@ -162,7 +161,6 @@ type runNoWaitResult struct {
 	err error
 }
 
-// spawners covers each public entry point that spawns a single durable child.
 func spawners() map[string]func(ctx context.Context, opts ...RunOptFunc) (*WorkflowRunRef, error) {
 	client := &Client{legacyClient: &stubV0Client{}}
 	wf := client.NewWorkflow("child")
