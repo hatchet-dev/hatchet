@@ -160,11 +160,6 @@ func TestAuthorizeTenantOperationsViewerRepresentativeSample(t *testing.T) {
 	}
 }
 
-func TestValidateSpec(t *testing.T) {
-	_, err := Users()
-	assert.Nil(t, err)
-}
-
 func TestAuthorizeApiTokenOperationsByRole(t *testing.T) {
 	r, err := Users()
 	assert.Nil(t, err)

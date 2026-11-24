@@ -69,6 +69,7 @@ func (fakeTenantRepo) GetTenantByID(_ context.Context, id uuid.UUID) (*sqlcv1.Te
 type fakeRepository struct {
 	v1.Repository
 	capabilities []string // stored on the token the fake returns; nil is a token from before capabilities
+	readOnly     bool
 }
 
 func (fakeRepository) Tenant() v1.TenantRepository {
@@ -186,11 +187,12 @@ func authContext(tok string, headers ...string) context.Context {
 type fakeAPITokenRepo struct {
 	v1.APITokenRepository
 	capabilities []string
+	readOnly     bool
 }
 
 func (r fakeAPITokenRepo) GetAPITokenById(_ context.Context, id uuid.UUID) (*sqlcv1.APIToken, error) {
-	return &sqlcv1.APIToken{ID: id, Capabilities: r.capabilities}, nil
+	return &sqlcv1.APIToken{ID: id, Capabilities: r.capabilities, ReadOnly: r.readOnly}, nil
 }
 func (r fakeRepository) APIToken() v1.APITokenRepository {
-	return fakeAPITokenRepo{capabilities: r.capabilities}
+	return fakeAPITokenRepo{capabilities: r.capabilities, readOnly: r.readOnly}
 }
