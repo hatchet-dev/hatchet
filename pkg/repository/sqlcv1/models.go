@@ -4139,6 +4139,7 @@ type V1Task struct {
 	ChildTaskDesiredWorkerLabels []byte             `json:"child_task_desired_worker_labels"`
 	TaskInputPayloadVersion      int16              `json:"task_input_payload_version"`
 	MaxReassignmentsAllowed      pgtype.Int4        `json:"max_reassignments_allowed"`
+	DynamicDagNodes              []byte             `json:"dynamic_dag_nodes"`
 }
 
 type V1TaskEvent struct {
