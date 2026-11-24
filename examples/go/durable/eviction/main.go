@@ -116,7 +116,6 @@ func main() {
 		hatchet.WithEvictionPolicy(evictionPolicy),
 	)
 
-
 	// > Cancel Child With Trigger Context
 	cancelChildOnParentCancel := client.NewStandaloneDurableTask("cancel-child-on-parent-cancel",
 		func(ctx hatchet.DurableContext, input EmptyInput) (EvictionOutput, error) {

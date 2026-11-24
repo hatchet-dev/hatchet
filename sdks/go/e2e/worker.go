@@ -4,8 +4,8 @@ package e2e
 
 import (
 	"context"
-	"errors"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -96,36 +96,36 @@ func recordInterruptCause(ctx hatchet.Context) {
 
 // Durable test workflow definitions and worker tasks
 var (
-	testDurableWorkflow           *hatchet.Workflow
-	testDurableTask               *hatchet.Task
-	testWaitForOrGroup1           *hatchet.Task
-	testWaitForOrGroup2           *hatchet.Task
-	testWaitForSleepTwice         *hatchet.StandaloneTask
-	testEventLookback             *hatchet.StandaloneTask
-	testOrEventLookback           *hatchet.StandaloneTask
-	testTwoEventsLookback         *hatchet.StandaloneTask
-	testSpawnChildTask            *hatchet.StandaloneTask
-	testDurableWithSpawn          *hatchet.StandaloneTask
-	testDurableWithBulkSpawn      *hatchet.StandaloneTask
-	testErrorRaisingTask          *hatchet.StandaloneTask
-	testErrorRaisingDurableParent *hatchet.StandaloneTask
-	testDurableWithLoopSpawn      *hatchet.StandaloneTask
-	testDurableSleepEventSpawn    *hatchet.StandaloneTask
-	testDurableNonDeterminism     *hatchet.StandaloneTask
-	testDurableReplayReset        *hatchet.StandaloneTask
-	testMemoTask                  *hatchet.StandaloneTask
-	testMemoNowCaching            *hatchet.StandaloneTask
-	testDurableSpawnDAG           *hatchet.StandaloneTask
-	testDagChildWorkflow          *hatchet.Workflow
-	testEvictableSleep            *hatchet.StandaloneTask
-	testEvictableWaitForEvent     *hatchet.StandaloneTask
-	testEvictableChildSpawn       *hatchet.StandaloneTask
-	testEvictableChildBulkSpawn   *hatchet.StandaloneTask
-	testMultipleEviction          *hatchet.StandaloneTask
-	testCapacityEvictableSleep    *hatchet.StandaloneTask
-	testNonEvictableSleep         *hatchet.StandaloneTask
-	testEvictionChildTask         *hatchet.StandaloneTask
-	testEvictionBulkChildTask     *hatchet.StandaloneTask
+	testDurableWorkflow              *hatchet.Workflow
+	testDurableTask                  *hatchet.Task
+	testWaitForOrGroup1              *hatchet.Task
+	testWaitForOrGroup2              *hatchet.Task
+	testWaitForSleepTwice            *hatchet.StandaloneTask
+	testEventLookback                *hatchet.StandaloneTask
+	testOrEventLookback              *hatchet.StandaloneTask
+	testTwoEventsLookback            *hatchet.StandaloneTask
+	testSpawnChildTask               *hatchet.StandaloneTask
+	testDurableWithSpawn             *hatchet.StandaloneTask
+	testDurableWithBulkSpawn         *hatchet.StandaloneTask
+	testErrorRaisingTask             *hatchet.StandaloneTask
+	testErrorRaisingDurableParent    *hatchet.StandaloneTask
+	testDurableWithLoopSpawn         *hatchet.StandaloneTask
+	testDurableSleepEventSpawn       *hatchet.StandaloneTask
+	testDurableNonDeterminism        *hatchet.StandaloneTask
+	testDurableReplayReset           *hatchet.StandaloneTask
+	testMemoTask                     *hatchet.StandaloneTask
+	testMemoNowCaching               *hatchet.StandaloneTask
+	testDurableSpawnDAG              *hatchet.StandaloneTask
+	testDagChildWorkflow             *hatchet.Workflow
+	testEvictableSleep               *hatchet.StandaloneTask
+	testEvictableWaitForEvent        *hatchet.StandaloneTask
+	testEvictableChildSpawn          *hatchet.StandaloneTask
+	testEvictableChildBulkSpawn      *hatchet.StandaloneTask
+	testMultipleEviction             *hatchet.StandaloneTask
+	testCapacityEvictableSleep       *hatchet.StandaloneTask
+	testNonEvictableSleep            *hatchet.StandaloneTask
+	testEvictionChildTask            *hatchet.StandaloneTask
+	testEvictionBulkChildTask        *hatchet.StandaloneTask
 	testDurableTriggerCtxAfterCancel *hatchet.StandaloneTask
 
 	// dag payload propagation test workflow
