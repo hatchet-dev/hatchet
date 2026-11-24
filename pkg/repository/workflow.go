@@ -52,8 +52,12 @@ type CreateWorkflowVersionOpts struct {
 	// (optional) the input bytes for the cron triggers
 	CronInput []byte
 
-	// (required) the tasks in the workflow
-	Tasks []CreateStepOpts `validate:"required,min=1,dive"`
+	// (required unless IsDynamicDag) the tasks in the workflow
+	Tasks []CreateStepOpts `validate:"required_unless=IsDynamicDag true,omitempty,min=1,dive"`
+
+	// (optional) creates a workflow holding only the orchestrator step, whose runs get their
+	// tasks from the trigger instead of from the workflow version (see ResolveDynamicDagNodes)
+	IsDynamicDag bool `json:"isDynamicDag,omitempty"`
 
 	OnFailure *CreateStepOpts `json:"onFailureJob,omitempty" validate:"omitempty"`
 
@@ -260,6 +264,7 @@ type WorkflowMetrics struct {
 type WorkflowRepository interface {
 	ListWorkflowNamesByIds(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) (map[uuid.UUID]string, error)
 	PutWorkflowVersion(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkflowVersionOpts) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
+	ResolveDynamicDagNodes(ctx context.Context, tenantId uuid.UUID, dagName string, nodes []DynamicDagNodeOpts) ([]DynamicDagNode, error)
 	GetWorkflowShape(ctx context.Context, workflowVersionId uuid.UUID) ([]*sqlcv1.GetWorkflowShapeRow, error)
 	ListStepsByWorkflowVersionId(ctx context.Context, tenantId uuid.UUID, workflowVersionId uuid.UUID) ([]*sqlcv1.ListStepsByWorkflowVersionIdsRow, error)
 	ListStepMatchConditions(ctx context.Context, tenantId uuid.UUID, stepIds []uuid.UUID) ([]*sqlcv1.V1StepMatchCondition, error)
@@ -750,6 +755,12 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 	})
 
 	if err != nil && errors.Is(err, pgx.ErrNoRows) {
+		var description string
+
+		if opts.Description != nil {
+			description = *opts.Description
+		}
+
 		// Concurrent registrations of the same name race to create the workflow: the insert
 		// yields to the one that wins, and the loser continues on the row it created.
 		created, createErr := r.queries.CreateWorkflow(
@@ -759,7 +770,7 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 				ID:          uuid.New(),
 				Tenantid:    tenantId,
 				Name:        opts.Name,
-				Description: *opts.Description,
+				Description: description,
 			},
 		)
 
@@ -907,7 +918,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 	mergeWorkflowConcurrencyOntoSingleTask(opts)
 
 	// todo: maybe don't need `len` check here?
-	isUsingDagOperator := (len(opts.Tasks) > 1 || opts.OnFailure != nil)
+	isUsingDagOperator := len(opts.Tasks) > 1 || opts.OnFailure != nil || opts.IsDynamicDag
 
 	if isUsingDagOperator {
 		var retentionPeriod *string

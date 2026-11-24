@@ -117,6 +117,9 @@ type TriggerTaskData struct {
 	// (optional) the reference id of the orchestrator's TASK_INPUT row, which operator children
 	// share instead of storing their own copy of the same input
 	OrchestratorPayloadReferenceId *uuid.UUID `json:"orchestrator_payload_reference_id,omitempty"`
+
+	// (optional) the resolved nodes of a dynamic DAG run, stored on its orchestrator task
+	DynamicDagNodes []DynamicDagNode `json:"dynamic_dag_nodes,omitempty"`
 }
 
 func ProtoToDesiredWorkerLabel(key string, strValue *string, intValue *int32, required *bool, weight *int32, comparator *v1contracts.WorkerLabelComparator) *sqlcv1.GetDesiredLabelsRow {
@@ -765,6 +768,8 @@ type triggerTuple struct {
 	payloadReferenceId        *uuid.UUID
 
 	orchestratorPayloadReferenceId *uuid.UUID
+
+	dynamicDagNodes []DynamicDagNode
 }
 
 // runInputPayloadReferenceId is the row holding the input every task in this run shares: the orchestrator's row
@@ -1197,6 +1202,7 @@ func (r *sharedRepository) triggerWorkflowsWrite(
 		if useOperatorPath {
 			orchestratorInput := r.newTaskInput(tuple.input, nil, tuple.filterPayload, tuple.dagParentTaskRunIds)
 			orchestratorInput.DesiredWorkerLabels = tuple.desiredWorkerLabels
+			orchestratorInput.DynamicDagNodes = tuple.dynamicDagNodes
 
 			operatorDagTuples[tuple.externalId] = tuple
 
@@ -2517,6 +2523,10 @@ func meteredTaskCount(tuple triggerTuple, steps []*sqlcv1.ListStepsByWorkflowVer
 		return 0
 	}
 
+	if len(tuple.dynamicDagNodes) > 0 {
+		return len(tuple.dynamicDagNodes)
+	}
+
 	return len(regularUserSteps(steps))
 }
 
@@ -3087,6 +3097,8 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 				olapDagInsertedAt:         opt.OlapDagInsertedAt,
 
 				orchestratorPayloadReferenceId: opt.OrchestratorPayloadReferenceId,
+
+				dynamicDagNodes: opt.DynamicDagNodes,
 			})
 
 			continue
@@ -3152,6 +3164,8 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 				olapDagInsertedAt:         opt.OlapDagInsertedAt,
 
 				orchestratorPayloadReferenceId: opt.OrchestratorPayloadReferenceId,
+
+				dynamicDagNodes: opt.DynamicDagNodes,
 			})
 		}
 	}

@@ -712,6 +712,25 @@ func (a *AdminServiceImpl) newTriggerOpt(
 		t.Priority = req.Priority
 	}
 
+	if len(req.DynamicDagNodes) > 0 {
+		nodes := make([]v1.DynamicDagNodeOpts, len(req.DynamicDagNodes))
+
+		for i, node := range req.DynamicDagNodes {
+			nodes[i] = v1.DynamicDagNodeOpts{
+				TaskName:        node.TaskName,
+				ParentTaskNames: node.ParentTaskNames,
+			}
+		}
+
+		resolved, err := a.repo.Workflows().ResolveDynamicDagNodes(ctx, tenantId, req.WorkflowName, nodes)
+
+		if err != nil {
+			return nil, err
+		}
+
+		t.DynamicDagNodes = resolved
+	}
+
 	return &v1.WorkflowNameTriggerOpts{
 		TriggerTaskData: t,
 	}, nil

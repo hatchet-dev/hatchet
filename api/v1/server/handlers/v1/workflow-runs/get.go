@@ -97,6 +97,15 @@ func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 		return nil, err
 	}
 
+	// a dynamic DAG's workflow version holds only the orchestrator step; its shape is stored per run
+	if len(shape) == 0 {
+		shape, err = t.config.V1.Tasks().GetDynamicDagShape(ctx, tenantId, workflowRunId)
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	var workflowVersion *sqlcv1.GetWorkflowVersionByIdRow
 
 	workflowVersion, _, _, _, _, _, err = t.config.V1.Workflows().GetWorkflowVersionWithTriggers(ctx, tenantId, workflowRun.WorkflowVersionId)

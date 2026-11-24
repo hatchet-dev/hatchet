@@ -44,6 +44,14 @@ func (e *dagChildFailedError) Error() string {
 	return fmt.Sprintf("child task %q failed: %s", e.taskActionId, e.errorMessage)
 }
 
+type dagHasNoTasksError struct {
+	workflowVersionId string
+}
+
+func (e *dagHasNoTasksError) Error() string {
+	return fmt.Sprintf("workflow version %s has no tasks to run; a dynamic dag must be triggered with its nodes", e.workflowVersionId)
+}
+
 func isDagChildFailedErr(err error) bool {
 	var e *dagChildFailedError
 	return errors.As(err, &e)
@@ -69,12 +77,15 @@ func clientErrorMessageForDagErr(err error) (message string, ok bool) {
 	var celFailureErr *operator.DAGStepCELFailureError
 	var nonDeterminismErr *repository.NonDeterminismError
 	var engineErr *dagEngineError
+	var hasNoTasksErr *dagHasNoTasksError
 
 	switch {
 	case errors.As(err, &childFailedErr):
 		return childFailedErr.errorMessage, true
 	case errors.As(err, &cancelledErr):
 		return repository.TaskCancelledErrorMessage, true
+	case errors.As(err, &hasNoTasksErr):
+		return hasNoTasksErr.Error(), true
 	case errors.As(err, &celFailureErr):
 		return celFailureErr.Error(), true
 	case errors.As(err, &nonDeterminismErr):
@@ -114,13 +125,14 @@ func isDagEvictedErr(err error) bool {
 
 // stepTriggerRequest is one ready step of the batch the dag hands to triggerSteps.
 type stepTriggerRequest struct {
-	actionId         string
-	workflowName     string
-	childIndex       int32
-	parentTaskRunIds []uuid.UUID
-	isSkipped        bool
-	isCancelled      bool
-	parentReExecuted bool
+	actionId          string
+	workflowName      string
+	workflowVersionId uuid.UUID
+	childIndex        int32
+	parentTaskRunIds  []uuid.UUID
+	isSkipped         bool
+	isCancelled       bool
+	parentReExecuted  bool
 }
 
 // triggerStepsFn triggers a batch of ready steps together and returns one result per
@@ -180,18 +192,19 @@ type pendingWaitAck struct {
 }
 
 type task struct {
-	actionId     string
-	workflowName string
-	readableId   string
-	index        int32
-	parents      []*task
-	isCompleted  bool
-	isFailed     bool
-	isCancelled  bool
-	isTriggered  bool
-	isSkipped    bool
-	errorMessage string
-	output       map[string]interface{}
+	actionId          string
+	workflowName      string
+	workflowVersionId uuid.UUID
+	readableId        string
+	index             int32
+	parents           []*task
+	isCompleted       bool
+	isFailed          bool
+	isCancelled       bool
+	isTriggered       bool
+	isSkipped         bool
+	errorMessage      string
+	output            map[string]interface{}
 
 	// reExecuted is true when the task ran as part of the current replay rather than being a
 	// cached result from an earlier branch; children of a re-executed parent must re-run too
@@ -598,13 +611,14 @@ func (d *dag) triggerReadySteps(ctx context.Context, readySteps []readyStep) err
 
 	for i, step := range readySteps {
 		reqs[i] = stepTriggerRequest{
-			actionId:         step.task.actionId,
-			workflowName:     step.task.workflowName,
-			childIndex:       step.task.index,
-			parentTaskRunIds: parentTaskRunIds,
-			isSkipped:        step.isSkipped,
-			isCancelled:      step.isCancelled,
-			parentReExecuted: step.parentReExecuted,
+			actionId:          step.task.actionId,
+			workflowName:      step.task.workflowName,
+			workflowVersionId: step.task.workflowVersionId,
+			childIndex:        step.task.index,
+			parentTaskRunIds:  parentTaskRunIds,
+			isSkipped:         step.isSkipped,
+			isCancelled:       step.isCancelled,
+			parentReExecuted:  step.parentReExecuted,
 		}
 	}
 
@@ -964,11 +978,12 @@ func (d *dag) evaluateOnFailure(ctx context.Context) (bool, error) {
 	)
 
 	results, err := d.triggerSteps(ctx, []stepTriggerRequest{{
-		actionId:         d.onFailureTask.actionId,
-		workflowName:     d.onFailureTask.workflowName,
-		childIndex:       d.onFailureTask.index,
-		parentTaskRunIds: d.finishedTaskRunIds(),
-		isSkipped:        skip,
+		actionId:          d.onFailureTask.actionId,
+		workflowName:      d.onFailureTask.workflowName,
+		workflowVersionId: d.onFailureTask.workflowVersionId,
+		childIndex:        d.onFailureTask.index,
+		parentTaskRunIds:  d.finishedTaskRunIds(),
+		isSkipped:         skip,
 	}})
 	if err != nil {
 		d.err = fmt.Errorf("failed to trigger on-failure step %q: %w", d.onFailureTask.actionId, err)

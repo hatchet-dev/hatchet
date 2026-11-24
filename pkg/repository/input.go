@@ -22,6 +22,8 @@ type TaskInput struct {
 	// run-level desired worker labels, carried on the DAG orchestrator task so it can
 	// propagate them to the child steps it triggers (child steps route to the same worker pool)
 	DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow `json:"desired_worker_labels,omitempty"`
+
+	DynamicDagNodes []DynamicDagNode `json:"dynamic_dag_nodes,omitempty"`
 }
 
 func (s *sharedRepository) DesiredWorkerId(t *TaskInput) *uuid.UUID {
@@ -53,6 +55,7 @@ func (s *sharedRepository) newTaskInputFromTaskInputPayload(version taskInputPay
 		userInput = stepRunData.Input
 		i.DagParentTaskRunIds = stepRunData.DagParentTaskRunIds
 		i.DesiredWorkerLabels = stepRunData.DesiredWorkerLabels
+		i.DynamicDagNodes = stepRunData.DynamicDagNodes
 	case taskInputPayloadVersionUserInputOnly:
 		userInput = taskInputPayload
 	default:
@@ -176,6 +179,7 @@ func (s *sharedRepository) ToV1StepRunData(t *TaskInput) *V1StepRunData {
 		StepRunErrors:       stepRunErrors,
 		DagParentTaskRunIds: t.DagParentTaskRunIds,
 		DesiredWorkerLabels: t.DesiredWorkerLabels,
+		DynamicDagNodes:     t.DynamicDagNodes,
 	}
 }
 
@@ -256,6 +260,14 @@ func newV1StepRunDataFromTaskAndUserInput(task *sqlcv1.V1Task, userInput []byte)
 		}
 	}
 
+	var dynamicDagNodes []DynamicDagNode
+
+	if len(task.DynamicDagNodes) > 0 {
+		if err := json.Unmarshal(task.DynamicDagNodes, &dynamicDagNodes); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal dynamic dag nodes: %w", err)
+		}
+	}
+
 	input := json.RawMessage(userInput)
 
 	if len(input) == 0 {
@@ -268,6 +280,7 @@ func newV1StepRunDataFromTaskAndUserInput(task *sqlcv1.V1Task, userInput []byte)
 		Triggers:            triggers,
 		DagParentTaskRunIds: task.DagParentTaskRunIds,
 		DesiredWorkerLabels: childTaskDesiredWorkerLabels,
+		DynamicDagNodes:     dynamicDagNodes,
 	}, nil
 }
 
@@ -286,6 +299,9 @@ type V1StepRunData struct {
 	// run-level desired worker labels, carried on the DAG orchestrator task so it can
 	// propagate them to the child steps it triggers
 	DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow `json:"desired_worker_labels,omitempty"`
+
+	// only set on orchestrator tasks of dynamic DAG runs
+	DynamicDagNodes []DynamicDagNode `json:"dynamic_dag_nodes,omitempty"`
 }
 
 func (v1 *V1StepRunData) taskInputPayload(version taskInputPayloadVersion) []byte {
@@ -307,6 +323,7 @@ type stepRunDataTaskColumns struct {
 	triggers                     []byte
 	dagParentTaskRunIds          []byte
 	childTaskDesiredWorkerLabels []byte
+	dynamicDagNodes              []byte
 }
 
 func (v1 *V1StepRunData) taskColumns() (stepRunDataTaskColumns, error) {
@@ -333,6 +350,12 @@ func (v1 *V1StepRunData) taskColumns() (stepRunDataTaskColumns, error) {
 	if len(v1.DesiredWorkerLabels) > 0 {
 		if columns.childTaskDesiredWorkerLabels, err = json.Marshal(v1.DesiredWorkerLabels); err != nil {
 			return columns, fmt.Errorf("failed to marshal child task desired worker labels: %w", err)
+		}
+	}
+
+	if len(v1.DynamicDagNodes) > 0 {
+		if columns.dynamicDagNodes, err = json.Marshal(v1.DynamicDagNodes); err != nil {
+			return columns, fmt.Errorf("failed to marshal dynamic dag nodes: %w", err)
 		}
 	}
 
