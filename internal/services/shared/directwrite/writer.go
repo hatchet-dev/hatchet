@@ -306,10 +306,10 @@ func (w *Writer) release() {
 	}
 }
 
-func (w *Writer) record(msgId, result string, d time.Duration) {
-	prometheus.DirectTaskWrites.WithLabelValues(msgId, result).Inc()
+func (w *Writer) record(msgType, result string, d time.Duration) {
+	prometheus.DirectTaskWrites.WithLabelValues(msgType, result).Inc()
 
 	if result != resultFallbackNoSlot {
-		prometheus.DirectTaskWriteDuration.WithLabelValues(msgId, result).Observe(d.Seconds())
+		prometheus.DirectTaskWriteDuration.WithLabelValues(msgType, result).Observe(d.Seconds())
 	}
 }

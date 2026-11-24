@@ -261,7 +261,7 @@ func newTasksController(opts *TasksControllerOpts) (*TasksControllerImpl, error)
 	}
 
 	if opts.repov1 == nil {
-		return nil, fmt.Errorf("v2 repository is required. use WithV2Repository")
+		return nil, fmt.Errorf("v1 repository is required. use WithV1Repository")
 	}
 
 	newLogger := opts.l.With().Str("service", "tasks-controller").Logger()
