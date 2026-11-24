@@ -1760,7 +1760,7 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 
 	defer rollbackOpenTransactionAndRelease()
 
-	writesSentWithCommit := newQueuedWrites()
+	pendingWrites := newWriteBatch()
 
 	lockParams := sqlcv1.GetAndLockLogFilesWithBranchPointsParams{
 		Durabletaskids:         make([]int64, 0, len(batch)),
@@ -1940,7 +1940,7 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 	}
 
 	if len(entryStorePayloadOpts) > 0 {
-		if storeErr := r.payloadStore.Store(ctx, writesSentWithCommit, entryStorePayloadOpts...); storeErr != nil {
+		if storeErr := r.payloadStore.Store(ctx, pendingWrites, entryStorePayloadOpts...); storeErr != nil {
 			return nil, nil, fmt.Errorf("failed to store payloads for new entries: %w", storeErr)
 		}
 	}
@@ -2054,14 +2054,14 @@ func (r *durableEventsRepository) appendDurableEventLogBatch(ctx context.Context
 		nodeIdUpdateParams.Mindurabletaskinsertedat = durableTaskInsertedAtBounds.Min
 		nodeIdUpdateParams.Maxdurabletaskinsertedat = durableTaskInsertedAtBounds.Max
 
-		if updateErr := r.queries.UpdateLogFileLatestNodeIds(ctx, writesSentWithCommit, nodeIdUpdateParams); updateErr != nil {
+		if updateErr := r.queries.UpdateLogFileLatestNodeIds(ctx, pendingWrites, nodeIdUpdateParams); updateErr != nil {
 			return nil, nil, fmt.Errorf("failed to update latest node ids: %w", updateErr)
 		}
 	}
 
 	commitCtx, commitSpan := telemetry.NewSpan(ctx, "commit-durable-event-ingest-batch")
 
-	if err := writesSentWithCommit.sendThenCommit(commitCtx, tx); err != nil {
+	if err := pendingWrites.sendWithCommit(commitCtx, tx); err != nil {
 		commitSpan.End()
 		return nil, nil, err
 	}
@@ -2322,11 +2322,11 @@ func (r *durableEventsRepository) TriggerPendingRunEntries(ctx context.Context, 
 		return nil, nil, nil, fmt.Errorf("failed to prepare tx: %w", err)
 	}
 
-	writesSentWithCommit := newQueuedWrites()
+	pendingWrites := newWriteBatch()
 
 	optTx := &OptimisticTx{
 		tx:         conn,
-		commit:     func(ctx context.Context) error { return writesSentWithCommit.sendThenCommit(ctx, conn) },
+		commit:     func(ctx context.Context) error { return pendingWrites.sendWithCommit(ctx, conn) },
 		rollback:   rollbackOpenTransactionAndRelease,
 		postCommit: make([]func(), 0),
 	}
@@ -2396,7 +2396,7 @@ func (r *durableEventsRepository) TriggerPendingRunEntries(ctx context.Context, 
 	}
 
 	if len(triggerStorePayloadOpts) > 0 {
-		if err := r.payloadStore.Store(ctx, writesSentWithCommit, triggerStorePayloadOpts...); err != nil {
+		if err := r.payloadStore.Store(ctx, pendingWrites, triggerStorePayloadOpts...); err != nil {
 			return nil, nil, nil, fmt.Errorf("failed to store payloads for triggered runs: %w", err)
 		}
 	}

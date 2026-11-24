@@ -11,43 +11,43 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-// queuedWrites implements sqlcv1.DBTX so that generated :exec queries can be queued in one batch.
-// Nothing is sent until send or sendThenCommit, and it cannot run a query that returns rows.
-type queuedWrites struct {
+// writeBatch implements sqlcv1.DBTX so that generated :exec queries can be queued in one batch.
+// Nothing is sent until send or sendWithCommit, and it cannot run a query that returns rows.
+type writeBatch struct {
 	batch *pgx.Batch
 }
 
-var _ sqlcv1.DBTX = (*queuedWrites)(nil)
+var _ sqlcv1.DBTX = (*writeBatch)(nil)
 
-var errQueuedWritesCannotReturnRows = errors.New("queued writes cannot run a statement that returns rows")
+var errWriteBatchCannotReturnRows = errors.New("a write batch cannot run a statement that returns rows")
 
-func newQueuedWrites() *queuedWrites {
-	return &queuedWrites{batch: &pgx.Batch{}}
+func newWriteBatch() *writeBatch {
+	return &writeBatch{batch: &pgx.Batch{}}
 }
 
-func (q *queuedWrites) Exec(_ context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+func (q *writeBatch) Exec(_ context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
 	q.batch.Queue(sql, args...)
 
 	return pgconn.CommandTag{}, nil
 }
 
-func (q *queuedWrites) Query(context.Context, string, ...any) (pgx.Rows, error) {
-	return nil, errQueuedWritesCannotReturnRows
+func (q *writeBatch) Query(context.Context, string, ...any) (pgx.Rows, error) {
+	return nil, errWriteBatchCannotReturnRows
 }
 
-func (q *queuedWrites) QueryRow(context.Context, string, ...any) pgx.Row {
-	return failedRow{err: errQueuedWritesCannotReturnRows}
+func (q *writeBatch) QueryRow(context.Context, string, ...any) pgx.Row {
+	return failedRow{err: errWriteBatchCannotReturnRows}
 }
 
-func (q *queuedWrites) CopyFrom(context.Context, pgx.Identifier, []string, pgx.CopyFromSource) (int64, error) {
-	return 0, errQueuedWritesCannotReturnRows
+func (q *writeBatch) CopyFrom(context.Context, pgx.Identifier, []string, pgx.CopyFromSource) (int64, error) {
+	return 0, errWriteBatchCannotReturnRows
 }
 
-func (q *queuedWrites) SendBatch(_ context.Context, batch *pgx.Batch) pgx.BatchResults {
-	return pgx.FailedBatchResults(batch, errQueuedWritesCannotReturnRows)
+func (q *writeBatch) SendBatch(_ context.Context, batch *pgx.Batch) pgx.BatchResults {
+	return pgx.FailedBatchResults(batch, errWriteBatchCannotReturnRows)
 }
 
-func (q *queuedWrites) send(ctx context.Context, db sqlcv1.DBTX) error {
+func (q *writeBatch) send(ctx context.Context, db sqlcv1.DBTX) error {
 	if q.batch.Len() == 0 {
 		return nil
 	}
@@ -58,7 +58,7 @@ func (q *queuedWrites) send(ctx context.Context, db sqlcv1.DBTX) error {
 	return db.SendBatch(ctx, batch).Close()
 }
 
-func (q *queuedWrites) sendThenCommit(ctx context.Context, db sqlcv1.DBTX) error {
+func (q *writeBatch) sendWithCommit(ctx context.Context, db sqlcv1.DBTX) error {
 	batch := q.batch
 	q.batch = &pgx.Batch{}
 
@@ -100,7 +100,7 @@ func (r failedRow) Scan(...any) error {
 }
 
 // The caller queues "begin" as the first statement of its first batch, commits with
-// queuedWrites.sendThenCommit, and must defer the returned function.
+// writeBatch.sendWithCommit, and must defer the returned function.
 func (s *sharedRepository) acquireConnForBatchedTransaction(ctx context.Context, pool fairpool.Handle) (*fairpool.Conn, func(), error) {
 	conn, err := pool.Acquire(ctx)
 

@@ -1010,10 +1010,10 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 
 	defer rollbackOpenTransactionAndRelease()
 
-	writesSentWithCommit := newQueuedWrites()
+	pendingWrites := newWriteBatch()
 
 	// release queue items
-	releasedTasks, err := r.beginAndReleaseTasks(ctx, conn, writesSentWithCommit, tenantId, uniqueTaskIdRetryCounts)
+	releasedTasks, err := r.beginAndReleaseTasks(ctx, conn, pendingWrites, tenantId, uniqueTaskIdRetryCounts)
 
 	if err != nil {
 		err = fmt.Errorf("failed to release tasks: %w", err)
@@ -1054,7 +1054,7 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 	internalEvents, satisfiedEntries, err := r.createTaskEventsAfterRelease(
 		ctx,
 		conn,
-		writesSentWithCommit,
+		pendingWrites,
 		tenantId,
 		reportTaskIdRetryCounts,
 		outputs,
@@ -1071,7 +1071,7 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 	}
 
 	// commit the transaction
-	if err := writesSentWithCommit.sendThenCommit(ctx, conn); err != nil {
+	if err := pendingWrites.sendWithCommit(ctx, conn); err != nil {
 		err = fmt.Errorf("failed to commit transaction: %w", err)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to commit transaction")
@@ -1308,10 +1308,12 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 		outputs[i] = out
 	}
 
+	pendingWrites := newWriteBatch()
+
 	internalEvents, satisfiedEntries, err := r.createTaskEventsAfterRelease(
 		ctx,
 		tx,
-		nil,
+		pendingWrites,
 		tenantId,
 		tasks,
 		outputs,
@@ -1321,6 +1323,10 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 	)
 
 	if err != nil {
+		return nil, err
+	}
+
+	if err := pendingWrites.send(ctx, tx); err != nil {
 		return nil, err
 	}
 
@@ -1543,10 +1549,12 @@ func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, te
 		outputs[i] = out
 	}
 
+	pendingWrites := newWriteBatch()
+
 	internalEvents, satisfiedEntries, err := r.createTaskEventsAfterRelease(
 		ctx,
 		dbtx,
-		nil,
+		pendingWrites,
 		tenantId,
 		tasks,
 		outputs,
@@ -1556,6 +1564,10 @@ func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, te
 	)
 
 	if err != nil {
+		return nil, err
+	}
+
+	if err := pendingWrites.send(ctx, dbtx); err != nil {
 		return nil, err
 	}
 
@@ -2479,7 +2491,7 @@ func (r *sharedRepository) releaseTasks(ctx context.Context, tx sqlcv1.DBTX, ten
 	return orderReleasedTasks(tenantId, tasks, releasedTasks)
 }
 
-func (r *sharedRepository) beginAndReleaseTasks(ctx context.Context, conn sqlcv1.DBTX, writes *queuedWrites, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) ([]*sqlcv1.ReleaseTasksRow, error) {
+func (r *sharedRepository) beginAndReleaseTasks(ctx context.Context, conn sqlcv1.DBTX, pendingWrites *writeBatch, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) ([]*sqlcv1.ReleaseTasksRow, error) {
 	params := releaseTasksParams(tasks)
 
 	releasedTasks, err := r.queries.BeginAndReleaseTasksFirstStatements(ctx, conn, params)
@@ -2488,7 +2500,7 @@ func (r *sharedRepository) beginAndReleaseTasks(ctx context.Context, conn sqlcv1
 		return nil, err
 	}
 
-	if err := r.queries.ReleaseTasksRemainingStatements(ctx, writes, params, releasedTasks); err != nil {
+	if err := r.queries.ReleaseTasksRemainingStatements(ctx, pendingWrites, params, releasedTasks); err != nil {
 		return nil, err
 	}
 
@@ -3919,10 +3931,12 @@ func (r *sharedRepository) getStepExpressions(
 	return stepIdToExpressions, nil
 }
 
+// createTaskEventsAfterRelease queues the writes whose results nobody reads in pendingWrites. The
+// caller must send them.
 func (r *sharedRepository) createTaskEventsAfterRelease(
 	ctx context.Context,
 	tx sqlcv1.DBTX,
-	writesSentWithCommit *queuedWrites,
+	pendingWrites *writeBatch,
 	tenantId uuid.UUID,
 	taskIdRetryCounts []TaskIdInsertedAtRetryCount,
 	outputs [][]byte,
@@ -3988,15 +4002,9 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 		}
 	}
 
-	writes := tx
-
-	if writesSentWithCommit != nil {
-		writes = writesSentWithCommit
-	}
-
 	internalEvents, err := r.createTaskEvents(
 		ctx,
-		writes,
+		pendingWrites,
 		tenantId,
 		filteredTaskIdRetryCounts,
 		filteredExternalIds,
@@ -4012,11 +4020,10 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 		return nil, nil, err
 	}
 
-	// Satisfying the parents' entries locks their log files. Every other path writes the release
-	// and the events before it takes that lock, so the queued writes are sent first to keep one
-	// lock order.
-	if writesSentWithCommit != nil && len(operatorStepChildCompletions) > 0 {
-		if err := writesSentWithCommit.send(ctx, tx); err != nil {
+	// Satisfying the parents' entries locks their log files. The release and the events must be
+	// written before that lock is taken, so that every finalization locks in the same order.
+	if len(operatorStepChildCompletions) > 0 {
+		if err := pendingWrites.send(ctx, tx); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -4027,7 +4034,7 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 		return nil, nil, err
 	}
 
-	satisfiedEntries, err := r.satisfyOperatorStepChildEntries(ctx, tx, writes, tenantId, directCompletions)
+	satisfiedEntries, err := r.satisfyOperatorStepChildEntries(ctx, tx, pendingWrites, tenantId, directCompletions)
 
 	if err != nil {
 		return nil, nil, err
