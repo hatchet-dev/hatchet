@@ -985,8 +985,6 @@ func createCompletionReportUniqueKey(report CompleteTaskOpts) string {
 }
 
 func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UUID, tasks []CompleteTaskOpts) (*FinalizedTaskResponse, error) {
-	db := r.pool.ForTenant(tenantId)
-
 	ctx, span := telemetry.NewSpan(ctx, "TaskRepositoryImpl.CompleteTasks")
 	defer span.End()
 
@@ -1001,7 +999,7 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 
 	uniqueTaskIdRetryCounts := enumerables.UniqBy(taskIdRetryCounts, createTaskUniqueKey)
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, db, r.l)
+	conn, rollbackOpenTransactionAndRelease, err := r.acquireConnForBatchedTransaction(ctx, r.pool.ForTenant(tenantId))
 
 	if err != nil {
 		err = fmt.Errorf("failed to prepare tx: %w", err)
@@ -1010,10 +1008,12 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 		return nil, err
 	}
 
-	defer rollback()
+	defer rollbackOpenTransactionAndRelease()
+
+	writesSentWithCommit := newQueuedWrites()
 
 	// release queue items
-	releasedTasks, err := r.releaseTasks(ctx, tx, tenantId, uniqueTaskIdRetryCounts)
+	releasedTasks, err := r.beginAndReleaseTasks(ctx, conn, writesSentWithCommit, tenantId, uniqueTaskIdRetryCounts)
 
 	if err != nil {
 		err = fmt.Errorf("failed to release tasks: %w", err)
@@ -1053,7 +1053,8 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 
 	internalEvents, satisfiedEntries, err := r.createTaskEventsAfterRelease(
 		ctx,
-		tx,
+		conn,
+		writesSentWithCommit,
 		tenantId,
 		reportTaskIdRetryCounts,
 		outputs,
@@ -1070,7 +1071,7 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 	}
 
 	// commit the transaction
-	if err := commit(ctx); err != nil {
+	if err := writesSentWithCommit.sendThenCommit(ctx, conn); err != nil {
 		err = fmt.Errorf("failed to commit transaction: %w", err)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to commit transaction")
@@ -1310,6 +1311,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 	internalEvents, satisfiedEntries, err := r.createTaskEventsAfterRelease(
 		ctx,
 		tx,
+		nil,
 		tenantId,
 		tasks,
 		outputs,
@@ -1544,6 +1546,7 @@ func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, te
 	internalEvents, satisfiedEntries, err := r.createTaskEventsAfterRelease(
 		ctx,
 		dbtx,
+		nil,
 		tenantId,
 		tasks,
 		outputs,
@@ -2467,33 +2470,45 @@ func (r *TaskRepositoryImpl) ListEvictedTaskRuntimeWindow(ctx context.Context, t
 }
 
 func (r *sharedRepository) releaseTasks(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) ([]*sqlcv1.ReleaseTasksRow, error) {
-	taskIds := make([]int64, len(tasks))
-	taskInsertedAts := make([]pgtype.Timestamptz, len(tasks))
-	retryCounts := make([]int32, len(tasks))
-	orderedMap := make(map[string]int)
-
-	for i, task := range tasks {
-		taskIds[i] = task.Id
-		taskInsertedAts[i] = task.InsertedAt
-		retryCounts[i] = task.RetryCount
-
-		orderedMap[fmt.Sprintf("%d:%d", task.Id, task.RetryCount)] = i
-	}
-
-	taskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(taskInsertedAts)
-
-	releasedTasks, err := r.queries.ReleaseTasks(ctx, tx, sqlcv1.ReleaseTasksParams{
-		Taskids:           taskIds,
-		Taskinsertedats:   taskInsertedAts,
-		Retrycounts:       retryCounts,
-		Mintaskinsertedat: taskInsertedAtBounds.Min,
-		Maxtaskinsertedat: taskInsertedAtBounds.Max,
-	})
+	releasedTasks, err := r.queries.ReleaseTasks(ctx, tx, releaseTasksParams(tasks))
 
 	if err != nil {
 		return nil, err
 	}
 
+	return orderReleasedTasks(tenantId, tasks, releasedTasks)
+}
+
+func (r *sharedRepository) beginAndReleaseTasks(ctx context.Context, conn sqlcv1.DBTX, writes *queuedWrites, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) ([]*sqlcv1.ReleaseTasksRow, error) {
+	params := releaseTasksParams(tasks)
+
+	releasedTasks, err := r.queries.BeginAndReleaseTasksFirstStatements(ctx, conn, params)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := r.queries.ReleaseTasksRemainingStatements(ctx, writes, params, releasedTasks); err != nil {
+		return nil, err
+	}
+
+	return orderReleasedTasks(tenantId, tasks, releasedTasks)
+}
+
+func releaseTasksParams(tasks []TaskIdInsertedAtRetryCount) sqlcv1.ReleaseTasksParams {
+	taskInsertedAts := enumerables.Map(tasks, func(task TaskIdInsertedAtRetryCount) pgtype.Timestamptz { return task.InsertedAt })
+	taskInsertedAtBounds := sqlchelpers.PartitionPruningTimeBounds(taskInsertedAts)
+
+	return sqlcv1.ReleaseTasksParams{
+		Taskids:           enumerables.Map(tasks, func(task TaskIdInsertedAtRetryCount) int64 { return task.Id }),
+		Taskinsertedats:   taskInsertedAts,
+		Retrycounts:       enumerables.Map(tasks, func(task TaskIdInsertedAtRetryCount) int32 { return task.RetryCount }),
+		Mintaskinsertedat: taskInsertedAtBounds.Min,
+		Maxtaskinsertedat: taskInsertedAtBounds.Max,
+	}
+}
+
+func orderReleasedTasks(tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount, releasedTasks []*sqlcv1.ReleaseTasksRow) ([]*sqlcv1.ReleaseTasksRow, error) {
 	if len(releasedTasks) != len(tasks) {
 		size := min(10, len(tasks))
 
@@ -2503,6 +2518,12 @@ func (r *sharedRepository) releaseTasks(ctx context.Context, tx sqlcv1.DBTX, ten
 		}
 
 		return nil, fmt.Errorf("failed to release all tasks for tenant %s: %d/%d. Relevant task IDs: %v", tenantId, len(releasedTasks), size, taskIds)
+	}
+
+	orderedMap := make(map[string]int, len(tasks))
+
+	for i, task := range tasks {
+		orderedMap[fmt.Sprintf("%d:%d", task.Id, task.RetryCount)] = i
 	}
 
 	res := make([]*sqlcv1.ReleaseTasksRow, len(tasks))
@@ -3901,6 +3922,7 @@ func (r *sharedRepository) getStepExpressions(
 func (r *sharedRepository) createTaskEventsAfterRelease(
 	ctx context.Context,
 	tx sqlcv1.DBTX,
+	writesSentWithCommit *queuedWrites,
 	tenantId uuid.UUID,
 	taskIdRetryCounts []TaskIdInsertedAtRetryCount,
 	outputs [][]byte,
@@ -3966,9 +3988,15 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 		}
 	}
 
+	writes := tx
+
+	if writesSentWithCommit != nil {
+		writes = writesSentWithCommit
+	}
+
 	internalEvents, err := r.createTaskEvents(
 		ctx,
-		tx,
+		writes,
 		tenantId,
 		filteredTaskIdRetryCounts,
 		filteredExternalIds,
@@ -3984,13 +4012,22 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 		return nil, nil, err
 	}
 
+	// Satisfying the parents' entries locks their log files. Every other path writes the release
+	// and the events before it takes that lock, so the queued writes are sent first to keep one
+	// lock order.
+	if writesSentWithCommit != nil && len(operatorStepChildCompletions) > 0 {
+		if err := writesSentWithCommit.send(ctx, tx); err != nil {
+			return nil, nil, err
+		}
+	}
+
 	directCompletions, err := r.operatorStepChildrenCompletingDirectly(ctx, tx, tenantId, operatorStepChildCompletions)
 
 	if err != nil {
 		return nil, nil, err
 	}
 
-	satisfiedEntries, err := r.satisfyOperatorStepChildEntries(ctx, tx, tenantId, directCompletions)
+	satisfiedEntries, err := r.satisfyOperatorStepChildEntries(ctx, tx, writes, tenantId, directCompletions)
 
 	if err != nil {
 		return nil, nil, err
@@ -4114,7 +4151,6 @@ func (r *sharedRepository) createTaskEvents(
 
 	internalTaskEvents := make([]InternalTaskEvent, len(tasks))
 
-	externalIdToData := make(map[uuid.UUID][]byte, len(tasks))
 	releaseIdempotencyKeysOpts := make([]ReleaseIdempotencyKeysOpt, 0, len(tasks))
 
 	for i, task := range tasks {
@@ -4137,11 +4173,6 @@ func (r *sharedRepository) createTaskEvents(
 		} else {
 			payloadReferenceIds[i] = uuid.Nil
 		}
-
-		// important: if we don't set this to `eventDatas[i]` and instead allow it to be nil optionally
-		// we'll get errors downstream when we try to read the payload back and parse it in `registerChildWorkflows`
-		// because it'll try to unmarshal the `nil` value.
-		externalIdToData[externalId] = eventDatas[i]
 
 		if eventKeys[i] != "" {
 			paramKeys[i] = pgtype.Text{
@@ -4174,17 +4205,34 @@ func (r *sharedRepository) createTaskEvents(
 		}
 	}
 
-	taskEvents, err := r.queries.CreateTaskEvents(ctx, dbtx, sqlcv1.CreateTaskEventsParams{
-		Tenantid:            tenantId,
-		Taskids:             taskIds,
-		Taskinsertedats:     taskInsertedAts,
-		Retrycounts:         retryCounts,
-		Eventtypes:          eventTypesStrs,
-		Datas:               paramDatas,
-		Eventkeys:           paramKeys,
-		Externalids:         externalIds,
-		Childexternalids:    childExternalIds,
-		Payloadreferenceids: payloadReferenceIds,
+	payloadInlineContents := make([][]byte, len(tasks))
+	payloadTypes := make([]string, len(tasks))
+
+	for i := range tasks {
+		storeOpts := taskEventDataStoreOpts(tenantId, &sqlcv1.V1TaskEvent{EventType: eventTypes[i]}, eventDatas[i])
+
+		payloadTypes[i] = string(storeOpts.key.Type)
+
+		if !storeOpts.payload.IsEmpty() {
+			payloadInlineContents[i] = storeOpts.payload.Bytes()
+		}
+	}
+
+	err := r.queries.CreateTaskEventsWithPayloads(ctx, dbtx, sqlcv1.CreateTaskEventsWithPayloadsParams{
+		CreateTaskEventsParams: sqlcv1.CreateTaskEventsParams{
+			Tenantid:            tenantId,
+			Taskids:             taskIds,
+			Taskinsertedats:     taskInsertedAts,
+			Retrycounts:         retryCounts,
+			Eventtypes:          eventTypesStrs,
+			Datas:               paramDatas,
+			Eventkeys:           paramKeys,
+			Externalids:         externalIds,
+			Childexternalids:    childExternalIds,
+			Payloadreferenceids: payloadReferenceIds,
+		},
+		Payloadinlinecontents: payloadInlineContents,
+		Payloadtypes:          payloadTypes,
 	})
 
 	if err != nil {
@@ -4195,18 +4243,6 @@ func (r *sharedRepository) createTaskEvents(
 		if err := r.releaseIdempotencyKeysForStatusPolicies(ctx, dbtx, releaseIdempotencyKeysOpts); err != nil {
 			return nil, fmt.Errorf("failed to release idempotency keys: %w", err)
 		}
-	}
-
-	storePayloadOpts := make([]StorePayloadOpts, len(taskEvents))
-
-	for i, taskEvent := range taskEvents {
-		storePayloadOpts[i] = taskEventDataStoreOpts(tenantId, taskEvent, externalIdToData[taskEvent.ExternalID])
-	}
-
-	err = r.payloadStore.Store(ctx, dbtx, storePayloadOpts...)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to store task event payloads: %w", err)
 	}
 
 	return internalTaskEvents, nil
