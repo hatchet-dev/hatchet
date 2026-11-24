@@ -91,6 +91,7 @@ class WorkerActionListenerProcess:
         worker_id_queue: "Queue[str]",
         stop_event: "multiprocessing.synchronize.Event",
         shared_slot_usage_by_pool: SharedSlotUsageByPool | None = None,
+        max_heartbeat_delay_before_declared_dead: timedelta | None = None,
     ) -> None:
         self.shared_slot_usage_by_pool = shared_slot_usage_by_pool or {}
         self.name = name
@@ -102,6 +103,9 @@ class WorkerActionListenerProcess:
         self.action_queue = action_queue
         self.event_queue = event_queue
         self.labels = labels
+        self.max_heartbeat_delay_before_declared_dead = (
+            max_heartbeat_delay_before_declared_dead
+        )
         self.worker_id_queue = worker_id_queue
         self._stop_event = stop_event
 
@@ -361,6 +365,7 @@ class WorkerActionListenerProcess:
                 actions=self.actions,
                 slot_config=self.slot_config,
                 labels=self.labels,
+                max_heartbeat_delay_before_declared_dead=self.max_heartbeat_delay_before_declared_dead,
             )
 
             logger.debug(f"acquired action listener: {self.listener.worker_id}")
@@ -647,6 +652,7 @@ def worker_action_listener_process(
     worker_id_queue: "Queue[str]",
     stop_event: "multiprocessing.synchronize.Event",
     shared_slot_usage_by_pool: SharedSlotUsageByPool | None = None,
+    max_heartbeat_delay_before_declared_dead: timedelta | None = None,
 ) -> None:
     async def run() -> None:
         process = WorkerActionListenerProcess(
@@ -660,6 +666,7 @@ def worker_action_listener_process(
             worker_id_queue=worker_id_queue,
             stop_event=stop_event,
             shared_slot_usage_by_pool=shared_slot_usage_by_pool,
+            max_heartbeat_delay_before_declared_dead=max_heartbeat_delay_before_declared_dead,
         )
         await process.start_health_server()
         try:

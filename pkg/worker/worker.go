@@ -139,6 +139,8 @@ type Worker struct {
 
 	labels map[string]interface{}
 
+	maxHeartbeatDelayBeforeDeclaredDead *time.Duration
+
 	id *string
 
 	panicHandler func(ctx HatchetContext, recovered any)
@@ -165,6 +167,8 @@ type WorkerOpts struct {
 	actions []string
 
 	labels map[string]interface{}
+
+	maxHeartbeatDelayBeforeDeclaredDead *time.Duration
 }
 
 func defaultWorkerOpts() *WorkerOpts {
@@ -260,6 +264,14 @@ func WithLegacySlots(slots int32) WorkerOpt {
 func WithLabels(labels map[string]interface{}) WorkerOpt {
 	return func(opts *WorkerOpts) {
 		opts.labels = labels
+	}
+}
+
+// Deprecated: WithMaxHeartbeatDelayBeforeDeclaredDead is an internal function used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+func WithMaxHeartbeatDelayBeforeDeclaredDead(maxHeartbeatDelay time.Duration) WorkerOpt {
+	return func(opts *WorkerOpts) {
+		opts.maxHeartbeatDelayBeforeDeclaredDead = &maxHeartbeatDelay
 	}
 }
 
@@ -363,6 +375,8 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 		initActionNames:      opts.actions,
 		labels:               opts.labels,
 		registered_workflows: map[string]bool{},
+
+		maxHeartbeatDelayBeforeDeclaredDead: opts.maxHeartbeatDelayBeforeDeclaredDead,
 	}
 
 	mws.add(w.panicMiddleware)
@@ -595,6 +609,8 @@ func (w *Worker) startBlocking(ctx context.Context) error {
 		Labels:      w.labels,
 		SlotConfig:  w.slotConfig,
 		LegacySlots: w.legacySlots,
+
+		MaxHeartbeatDelayBeforeDeclaredDead: w.maxHeartbeatDelayBeforeDeclaredDead,
 	})
 
 	w.id = id

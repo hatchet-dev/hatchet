@@ -66,6 +66,9 @@ module HatchetSdkRest
     # The number of durable task runs owned by this operator that are currently evicted while waiting on durable events. Evicted runs hold no slots. Only set for operator workers.
     attr_accessor :evicted_durable_task_count
 
+    # How long, in seconds, the worker can go without sending a heartbeat before it is declared dead and its tasks are reassigned. Unset when the worker uses the engine default of 30 seconds.
+    attr_accessor :max_heartbeat_delay_before_declared_dead_seconds
+
     class EnumAttributeValidator
       attr_reader :datatype
       attr_reader :allowable_values
@@ -108,7 +111,8 @@ module HatchetSdkRest
         :'webhook_id' => :'webhookId',
         :'runtime_info' => :'runtimeInfo',
         :'operator_id' => :'operatorId',
-        :'evicted_durable_task_count' => :'evictedDurableTaskCount'
+        :'evicted_durable_task_count' => :'evictedDurableTaskCount',
+        :'max_heartbeat_delay_before_declared_dead_seconds' => :'maxHeartbeatDelayBeforeDeclaredDeadSeconds'
       }
     end
 
@@ -142,7 +146,8 @@ module HatchetSdkRest
         :'webhook_id' => :'String',
         :'runtime_info' => :'WorkerRuntimeInfo',
         :'operator_id' => :'String',
-        :'evicted_durable_task_count' => :'Integer'
+        :'evicted_durable_task_count' => :'Integer',
+        :'max_heartbeat_delay_before_declared_dead_seconds' => :'Integer'
       }
     end
 
@@ -257,6 +262,10 @@ module HatchetSdkRest
       if attributes.key?(:'evicted_durable_task_count')
         self.evicted_durable_task_count = attributes[:'evicted_durable_task_count']
       end
+
+      if attributes.key?(:'max_heartbeat_delay_before_declared_dead_seconds')
+        self.max_heartbeat_delay_before_declared_dead_seconds = attributes[:'max_heartbeat_delay_before_declared_dead_seconds']
+      end
     end
 
     # Show invalid properties with the reasons. Usually used together with valid?
@@ -369,7 +378,8 @@ module HatchetSdkRest
           webhook_id == o.webhook_id &&
           runtime_info == o.runtime_info &&
           operator_id == o.operator_id &&
-          evicted_durable_task_count == o.evicted_durable_task_count
+          evicted_durable_task_count == o.evicted_durable_task_count &&
+          max_heartbeat_delay_before_declared_dead_seconds == o.max_heartbeat_delay_before_declared_dead_seconds
     end
 
     # @see the `==` method
@@ -381,7 +391,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [metadata, name, type, last_heartbeat_at, last_listener_established, actions, registered_workflows, slots, recent_step_runs, status, slot_config, dispatcher_id, labels, webhook_url, webhook_id, runtime_info, operator_id, evicted_durable_task_count].hash
+      [metadata, name, type, last_heartbeat_at, last_listener_established, actions, registered_workflows, slots, recent_step_runs, status, slot_config, dispatcher_id, labels, webhook_url, webhook_id, runtime_info, operator_id, evicted_durable_task_count, max_heartbeat_delay_before_declared_dead_seconds].hash
     end
 
     # Builds the object from hash

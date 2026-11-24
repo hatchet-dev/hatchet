@@ -11,7 +11,8 @@ module Hatchet
           actions: Array[String],
           slots: Integer,
           ?slot_config: Hash[String, Integer]?,
-          ?labels: Hash[String, String | Integer]
+          ?labels: Hash[String, String | Integer],
+          ?max_heartbeat_delay_before_declared_dead_seconds: Integer?
         ) -> untyped
 
         def listen: (worker_id: String) -> untyped

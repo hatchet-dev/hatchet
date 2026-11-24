@@ -78,6 +78,16 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 		opts.SlotConfig = map[string]int32{v1.SlotTypeDefault: *request.Slots}
 	}
 
+	if request.MaxHeartbeatDelayBeforeDeclaredDeadSeconds != nil {
+		maxHeartbeatDelay := time.Duration(*request.MaxHeartbeatDelayBeforeDeclaredDeadSeconds) * time.Second
+
+		if maxHeartbeatDelay < HeartbeatInterval {
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("max_heartbeat_delay_before_declared_dead_seconds must be at least the heartbeat interval (%s)", HeartbeatInterval))
+		}
+
+		opts.MaxHeartbeatDelayBeforeDeclaredDead = &maxHeartbeatDelay
+	}
+
 	if apiErrors, err := s.v.ValidateAPI(opts); err != nil {
 		return nil, err
 	} else if apiErrors != nil {

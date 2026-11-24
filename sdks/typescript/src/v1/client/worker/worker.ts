@@ -13,6 +13,7 @@ import {
   emitDeprecationNotice,
 } from './deprecated';
 import { MinEngineVersion, supportsEviction } from './engine-version';
+import type { Duration } from '../duration';
 
 /**
  * Options for creating a new hatchet worker
@@ -23,6 +24,11 @@ export interface CreateWorkerOpts extends WorkerSlotOptions {
   labels?: WorkerLabels;
   /** (optional) Whether to handle kill signals */
   handleKill?: boolean;
+  /**
+   * (optional) How long the worker can go without sending a heartbeat before Hatchet declares it dead
+   * and reassigns its tasks to other workers. Sent to the engine in whole seconds. Defaults to 30 seconds.
+   */
+  maxHeartbeatDelayBeforeDeclaredDead?: Duration;
 }
 
 /**

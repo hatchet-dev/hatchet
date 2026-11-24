@@ -64,6 +64,8 @@ type GetActionListenerRequest struct {
 	// `slots` proto field instead of `slot_config`. This is for backward
 	// compatibility with engines that do not support multiple slot types.
 	LegacySlots *int32
+
+	MaxHeartbeatDelayBeforeDeclaredDead *time.Duration
 }
 
 // ActionPayload unmarshals the action payload into the target. It also validates the resulting target.
@@ -336,6 +338,11 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 
 			registerReq.Labels[k] = &label
 		}
+	}
+
+	if req.MaxHeartbeatDelayBeforeDeclaredDead != nil {
+		maxHeartbeatDelaySeconds := int32(req.MaxHeartbeatDelayBeforeDeclaredDead.Seconds()) // nolint: gosec // developer-configured
+		registerReq.MaxHeartbeatDelayBeforeDeclaredDeadSeconds = &maxHeartbeatDelaySeconds
 	}
 
 	switch {

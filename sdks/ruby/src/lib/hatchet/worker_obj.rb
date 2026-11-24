@@ -42,13 +42,17 @@ module Hatchet
     # @param slots [Integer] Number of concurrent task slots (default: 10)
     # @param durable_slots [Integer, nil] Number of durable-task slots; defaults to ``slots``
     # @param labels [Hash] Worker labels (default: {})
-    def initialize(name:, client:, workflows: [], slots: 10, durable_slots: nil, labels: {})
+    # @param max_heartbeat_delay_before_declared_dead_seconds [Integer, nil] How long the worker can go without
+    #   sending a heartbeat before Hatchet declares it dead and reassigns its tasks (default: 30 seconds on the engine)
+    def initialize(name:, client:, workflows: [], slots: 10, durable_slots: nil, labels: {},
+                   max_heartbeat_delay_before_declared_dead_seconds: nil)
       @name = name
       @client = client
       @workflows = workflows
       @slots = slots
       @durable_slots = durable_slots || slots
       @labels = client.config.worker_preset_labels.merge(labels)
+      @max_heartbeat_delay_before_declared_dead_seconds = max_heartbeat_delay_before_declared_dead_seconds
       @worker_id = nil
       @shutdown = false
       @engine_version = nil
@@ -184,6 +188,7 @@ module Hatchet
           "durable" => @durable_slots,
         },
         labels: @labels,
+        max_heartbeat_delay_before_declared_dead_seconds: @max_heartbeat_delay_before_declared_dead_seconds,
       )
 
       @worker_id = response.worker_id

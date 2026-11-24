@@ -1,6 +1,8 @@
 package hatchet
 
 import (
+	"time"
+
 	"github.com/rs/zerolog"
 
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -19,6 +21,8 @@ type workerConfig struct {
 	labels          map[string]any
 	logger          *zerolog.Logger
 	panicHandler    func(ctx Context, recovered any)
+
+	maxHeartbeatDelayBeforeDeclaredDead *time.Duration
 }
 
 type WorkflowBase interface {
@@ -49,6 +53,15 @@ func WithSlots(slots int) WorkerOption {
 func WithLabels(labels map[string]any) WorkerOption {
 	return func(config *workerConfig) {
 		config.labels = labels
+	}
+}
+
+// WithMaxHeartbeatDelayBeforeDeclaredDead sets how long the worker can go without sending a heartbeat
+// before the engine declares it dead and reassigns its tasks to other workers. Defaults to 30 seconds.
+// The value is sent to the engine in whole seconds.
+func WithMaxHeartbeatDelayBeforeDeclaredDead(maxHeartbeatDelay time.Duration) WorkerOption {
+	return func(config *workerConfig) {
+		config.maxHeartbeatDelayBeforeDeclaredDead = &maxHeartbeatDelay
 	}
 }
 
