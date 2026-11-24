@@ -78,8 +78,8 @@ type DispatcherImpl struct {
 	refreshTimeoutGroup                 singleflight.Group
 	refreshTimeoutBuf                   *refreshTimeoutBuffer
 
-	// directTaskWriter is nil when direct task writes are turned off (zero slots); every worker task
-	// event then goes over the durable task queue.
+	// directTaskWriter is nil when direct task writes are turned off (zero slots) or the task controller
+	// is paused; every worker task event then goes over the durable task queue.
 	directTaskWriter *directwrite.Writer
 }
 

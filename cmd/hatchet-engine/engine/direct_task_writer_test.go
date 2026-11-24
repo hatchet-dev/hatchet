@@ -5,6 +5,8 @@ package engine
 import (
 	"testing"
 
+	"github.com/rs/zerolog"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -25,9 +27,12 @@ func TestNewDirectTaskWriterIsOffAtZeroSlots(t *testing.T) {
 
 // The config has no repository or queue, so this also fails if anything is built before the check.
 func TestNewDirectTaskWriterIsOffWhenTheTaskControllerIsPaused(t *testing.T) {
+	l := zerolog.Nop()
+
 	w, err := newDirectTaskWriter(&server.ServerConfig{
 		Runtime:           server.ConfigFileRuntime{DirectTaskWriteSlots: 10},
 		PausedControllers: map[string]bool{string(TaskController): true},
+		Logger:            &l,
 	})
 
 	require.NoError(t, err)

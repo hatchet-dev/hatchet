@@ -213,6 +213,25 @@ func WithPrometheusGate(gate *prometheus.Gate) TasksControllerOpt {
 // controller's queue consumer: an error means the batch should be delivered again. The returned
 // stop function stops the publish buffer the handler sends monitoring and tenant events through;
 // call it only once nothing can call the handler anymore.
+//
+// A task's worker events can then arrive over two paths, applied here or through the task queue
+// when slots run out or a direct write falls back, so they may be applied out of order or twice.
+// Task state stays correct because every change is keyed on (task, retry count):
+//   - a failure only retries when the event's retry count is the task's current one and that retry
+//     still holds its runtime, which the first application deletes, so a duplicate uses no retry;
+//   - release, and the slot and queue item cleanup with it, is keyed on the retry count, and no task
+//     event is written for a retry that is no longer current;
+//   - an ack only marks a runtime row of its own retry that isn't acked yet, so an ack that arrives
+//     after release is a no-op. One exception: if the same retry was evicted and assigned again, a
+//     late ack from the first assignment acks the new one.
+//
+// What is not deduplicated are the side effects of an event that changed nothing. A second terminal
+// event for the current retry (a duplicate completion, or a cancel or failure after a completion)
+// writes another task event and emits another internal event; OLAP keeps the higher-priority status
+// (COMPLETED over FAILED over CANCELLED). A stale failure still publishes its OLAP FAILED event, and
+// stale completions still count towards the succeeded-tasks metric.
+// pkg/repository/task_event_order_test.go covers the task-state guards; the handler-level side
+// effects are not tested.
 func NewMessageHandler(fs ...TasksControllerOpt) (msgqueue.DstFunc, func(), error) {
 	opts := defaultTasksControllerOpts()
 

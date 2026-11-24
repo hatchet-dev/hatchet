@@ -1287,7 +1287,13 @@ func isControllerActive(pausedControllers map[string]bool, controllerName Contro
 // built with the controller's settings, so worker events applied in the gRPC process behave the same
 // as when the controller consumes them from the task queue.
 func newDirectTaskWriter(sc *server.ServerConfig) (*directwrite.Writer, error) {
-	if sc.Runtime.DirectTaskWriteSlots == 0 || !isControllerActive(sc.PausedControllers, TaskController) {
+	if sc.Runtime.DirectTaskWriteSlots == 0 {
+		return nil, nil
+	}
+
+	// logged so operators can confirm on each gRPC pod that the pause reached it
+	if !isControllerActive(sc.PausedControllers, TaskController) {
+		sc.Logger.Info().Msg("task controller is paused, so worker task events go over the task queue instead of direct writes")
 		return nil, nil
 	}
 
