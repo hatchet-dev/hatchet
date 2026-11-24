@@ -1280,11 +1280,14 @@ func isControllerActive(pausedControllers map[string]bool, controllerName Contro
 }
 
 // newDirectTaskWriter returns nil when DirectTaskWriteSlots is 0, so every worker event goes over the
-// task queue and no second task controller is built. The handler it wraps is the task controller's,
-// built with the controller's settings, so worker events applied in the gRPC process behave the same as
-// when the controller consumes them from the task queue.
+// task queue and no second task controller is built. It also returns nil when the task controller is
+// paused: the handler is the controller's own, and pausing the controller is how an operator stops
+// worker events from being applied, so they have to wait on the task queue as they did before. The
+// pause is read per process, so in split deployments the gRPC pods need it set too. The handler is
+// built with the controller's settings, so worker events applied in the gRPC process behave the same
+// as when the controller consumes them from the task queue.
 func newDirectTaskWriter(sc *server.ServerConfig) (*directwrite.Writer, error) {
-	if sc.Runtime.DirectTaskWriteSlots == 0 {
+	if sc.Runtime.DirectTaskWriteSlots == 0 || !isControllerActive(sc.PausedControllers, TaskController) {
 		return nil, nil
 	}
 
