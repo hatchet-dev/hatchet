@@ -171,7 +171,9 @@ func WithDesiredWorkerLabels(labels map[string]*DesiredWorkerLabel) RunOptFunc {
 // parent while the acknowledgement is in flight returns context.Canceled with
 // no run reference; a detached context such as
 // context.WithTimeout(context.WithoutCancel(ctx.GetContext()), 10*time.Second)
-// lets the call return the RunId so the caller can track or cancel the child.
+// lets RunNoWait or RunMany return the RunId so the caller can track or cancel
+// the child (Run waits for the result internally and does not return a ref on
+// cancellation).
 //
 // Waiting for the child's result (WorkflowRunRef.Result and Run) still follows
 // the parent task's context. A nil ctx defaults to the parent context, and the
