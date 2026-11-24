@@ -17,6 +17,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/digest"
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
+	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -264,7 +265,7 @@ type WorkflowMetrics struct {
 type WorkflowRepository interface {
 	ListWorkflowNamesByIds(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) (map[uuid.UUID]string, error)
 	PutWorkflowVersion(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkflowVersionOpts) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
-	PutDynamicDagWorkflowVersion(ctx context.Context, tenantId uuid.UUID, dagName string, nodes []DynamicDagNodeOpts) (uuid.UUID, error)
+	PutDynamicDagWorkflowVersion(ctx context.Context, tenantId uuid.UUID, dagName string, nodes []*v1contracts.DynamicDagNode) (uuid.UUID, error)
 	GetWorkflowShape(ctx context.Context, workflowVersionId uuid.UUID) ([]*sqlcv1.GetWorkflowShapeRow, error)
 	ListStepsByWorkflowVersionId(ctx context.Context, tenantId uuid.UUID, workflowVersionId uuid.UUID) ([]*sqlcv1.ListStepsByWorkflowVersionIdsRow, error)
 	ListStepMatchConditions(ctx context.Context, tenantId uuid.UUID, stepIds []uuid.UUID) ([]*sqlcv1.V1StepMatchCondition, error)
@@ -755,12 +756,6 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 	})
 
 	if err != nil && errors.Is(err, pgx.ErrNoRows) {
-		var description string
-
-		if opts.Description != nil {
-			description = *opts.Description
-		}
-
 		// Concurrent registrations of the same name race to create the workflow: the insert
 		// yields to the one that wins, and the loser continues on the row it created.
 		created, createErr := r.queries.CreateWorkflow(
@@ -770,7 +765,7 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 				ID:          uuid.New(),
 				Tenantid:    tenantId,
 				Name:        opts.Name,
-				Description: description,
+				Description: *opts.Description,
 			},
 		)
 
@@ -918,7 +913,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 	mergeWorkflowConcurrencyOntoSingleTask(opts)
 
 	// todo: maybe don't need `len` check here?
-	isUsingDagOperator := len(opts.Tasks) > 1 || opts.OnFailure != nil || opts.IsDynamicDag
+	isUsingDagOperator := (len(opts.Tasks) > 1 || opts.OnFailure != nil)
 
 	if isUsingDagOperator {
 		var retentionPeriod *string

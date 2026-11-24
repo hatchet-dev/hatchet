@@ -713,16 +713,7 @@ func (a *AdminServiceImpl) newTriggerOpt(
 	}
 
 	if len(req.DynamicDagNodes) > 0 {
-		nodes := make([]v1.DynamicDagNodeOpts, len(req.DynamicDagNodes))
-
-		for i, node := range req.DynamicDagNodes {
-			nodes[i] = v1.DynamicDagNodeOpts{
-				TaskName:        node.TaskName,
-				ParentTaskNames: node.ParentTaskNames,
-			}
-		}
-
-		workflowVersionId, err := a.repo.Workflows().PutDynamicDagWorkflowVersion(ctx, tenantId, req.WorkflowName, nodes)
+		workflowVersionId, err := a.repo.Workflows().PutDynamicDagWorkflowVersion(ctx, tenantId, req.WorkflowName, req.DynamicDagNodes)
 
 		if err != nil {
 			return nil, err
