@@ -138,6 +138,9 @@ type TaskOperationLimitsConfigFile struct {
 	// ChildRunDirectSpawn determines whether child runs should use the matching logic or be spawned directly without it
 	ChildRunDirectSpawn bool `mapstructure:"childRunDirectSpawn" json:"childRunDirectSpawn,omitempty" default:"false"`
 
+	// ReplayPriorityWorkflows lists tenant UUID/workflow name pairs that raise the minimum manual replay priority to medium.
+	ReplayPriorityWorkflows string `mapstructure:"replayPriorityWorkflows" json:"replayPriorityWorkflows,omitempty"`
+
 	// RetryQueueLimit is the limit for how many retry queue items to process in a single operation
 	RetryQueueLimit int `mapstructure:"retryQueueLimit" json:"retryQueueLimit,omitempty" default:"1000"`
 
@@ -1327,6 +1330,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.streamEventBufferTimeout", "SERVER_STREAM_EVENT_BUFFER_TIMEOUT")
 	_ = v.BindEnv("runtime.taskOperationLimits.reassignUnackedTasks", "SERVER_REASSIGN_UNACKED_TASKS")
 	_ = v.BindEnv("runtime.taskOperationLimits.childRunDirectSpawn", "SERVER_CHILD_RUN_DIRECT_SPAWN")
+	_ = v.BindEnv("runtime.taskOperationLimits.replayPriorityWorkflows", "SERVER_REPLAY_PRIORITY_WORKFLOWS")
 
 	// payload store options
 	_ = v.BindEnv("payloadStore.externalCutoverProcessInterval", "SERVER_PAYLOAD_STORE_EXTERNAL_CUTOVER_PROCESS_INTERVAL")

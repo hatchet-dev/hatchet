@@ -134,6 +134,8 @@ type ReplayTasksResult struct {
 }
 
 type ReplayTaskOpts struct {
+	ManualReplay bool
+
 	// (required) the task id
 	TaskId int64
 
@@ -3555,6 +3557,7 @@ func (r *sharedRepository) replayTasks(
 
 		if !ok {
 			params = sqlcv1.ReplayTasksParams{
+				MinimumPriorities:            make([]int32, 0),
 				Taskids:                      make([]int64, 0),
 				Taskinsertedats:              make([]pgtype.Timestamptz, 0),
 				InitialStates:                make([]string, 0),
@@ -3580,6 +3583,11 @@ func (r *sharedRepository) replayTasks(
 		params.Triggers = append(params.Triggers, stepRunDataColumns.triggers)
 		params.DagParentTaskRunIds = append(params.DagParentTaskRunIds, stepRunDataColumns.dagParentTaskRunIds)
 		params.ChildTaskDesiredWorkerLabels = append(params.ChildTaskDesiredWorkerLabels, stepRunDataColumns.childTaskDesiredWorkerLabels)
+		minimumPriority := int32(0)
+		if task.ManualReplay && slices.Contains(r.replayPriorityWorkflows, tenantId.String()+"/"+stepIdsToConfig[task.StepId].WorkflowName) {
+			minimumPriority = 2
+		}
+		params.MinimumPriorities = append(params.MinimumPriorities, minimumPriority)
 		params.Taskids = append(params.Taskids, taskIds[i])
 		params.Taskinsertedats = append(params.Taskinsertedats, taskInsertedAts[i])
 		params.InitialStates = append(params.InitialStates, initialStates[i])
@@ -4436,6 +4444,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		}
 
 		replayOpts = append(replayOpts, ReplayTaskOpts{
+			ManualReplay:              true,
 			TaskId:                    task.ID,
 			InsertedAt:                task.InsertedAt,
 			StepId:                    task.StepID,

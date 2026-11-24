@@ -2,7 +2,9 @@ package repository
 
 import (
 	"fmt"
+	"strings"
 	"time"
+	"unicode"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/limits"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -14,12 +16,13 @@ import (
 )
 
 type TaskOperationLimits struct {
-	TimeoutLimit         int
-	ReassignLimit        int
-	RetryQueueLimit      int
-	DurableSleepLimit    int
-	ReassignUnackedTasks bool
-	ChildRunDirectSpawn  bool
+	TimeoutLimit            int
+	ReassignLimit           int
+	RetryQueueLimit         int
+	DurableSleepLimit       int
+	ReassignUnackedTasks    bool
+	ChildRunDirectSpawn     bool
+	ReplayPriorityWorkflows string
 }
 
 type Repository interface {
@@ -122,6 +125,10 @@ func NewRepository(
 	v := validator.NewDefaultValidator()
 
 	shared, cleanupShared := newSharedRepository(pool, ddlPool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration, taskLimits.ReassignUnackedTasks, taskLimits.ChildRunDirectSpawn)
+
+	shared.replayPriorityWorkflows = strings.FieldsFunc(taskLimits.ReplayPriorityWorkflows, func(r rune) bool {
+		return r == ',' || unicode.IsSpace(r)
+	})
 
 	mq, cleanupMq := newMessageQueueRepository(shared)
 

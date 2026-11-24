@@ -3085,7 +3085,14 @@ func (q *Queries) RunParentCancelQueuedExceptOldest(ctx context.Context, db DBTX
 }
 
 const runParentGroupRoundRobin = `-- name: RunParentGroupRoundRobin :exec
-WITH eligible_slots_per_group AS (
+WITH occupied_slots_per_group AS (
+    SELECT key, COUNT(*) AS occupied
+    FROM v1_workflow_concurrency_slot
+    WHERE tenant_id = $1::uuid
+        AND strategy_id = $2::bigint
+        AND is_filled
+    GROUP BY key
+), eligible_slots_per_group AS (
     SELECT wsc.sort_id, wsc.tenant_id, wsc.workflow_id, wsc.workflow_version_id, wsc.workflow_run_id, wsc.strategy_id, wsc.completed_child_strategy_ids, wsc.child_strategy_ids, wsc.priority, wsc.key, wsc.is_filled
     FROM (
         SELECT DISTINCT key
@@ -3094,6 +3101,7 @@ WITH eligible_slots_per_group AS (
             tenant_id = $1::uuid
             AND strategy_id = $2::bigint
     ) distinct_keys
+    LEFT JOIN occupied_slots_per_group occupied ON occupied.key = distinct_keys.key
     JOIN LATERAL (
         SELECT sort_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, completed_child_strategy_ids, child_strategy_ids, priority, key, is_filled
         FROM v1_workflow_concurrency_slot wcs_all
@@ -3101,8 +3109,9 @@ WITH eligible_slots_per_group AS (
             wcs_all.key = distinct_keys.key
             AND wcs_all.tenant_id = $1::uuid
             AND wcs_all.strategy_id = $2::bigint
+            AND NOT wcs_all.is_filled
         ORDER BY wcs_all.priority DESC, wcs_all.sort_id ASC
-        LIMIT $3::int
+        LIMIT GREATEST($3::int - COALESCE(occupied.occupied, 0), 0)
     ) wsc ON true
 ), eligible_slots AS (
     SELECT

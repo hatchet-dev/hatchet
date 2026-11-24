@@ -502,13 +502,15 @@ WITH input AS (
 		unnest_nd_1d($11::integer[][]) AS concurrency_max_runs,
 		unnest($12::jsonb[]) AS triggers,
 		unnest($13::jsonb[]) AS dag_parent_task_run_ids,
-		unnest($14::jsonb[]) AS child_task_desired_worker_labels
+		unnest($14::jsonb[]) AS child_task_desired_worker_labels,
+		unnest($15::integer[]) AS minimum_priority
 )
 
 UPDATE
     v1_task
 SET
     retry_count = retry_count + 1,
+    priority = GREATEST(v1_task.priority, i.minimum_priority),
     app_retry_count = 0,
     internal_retry_count = 0,
     input = '{}'::jsonb,
@@ -538,6 +540,8 @@ RETURNING
 `
 
 type ReplayTasksParams struct {
+	MinimumPriorities []int32
+
 	Taskids         []int64              `json:"taskids"`
 	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
 	Inputs          [][]byte             `json:"inputs"`
@@ -574,6 +578,7 @@ func (q *Queries) ReplayTasks(ctx context.Context, db DBTX, arg ReplayTasksParam
 		arg.Triggers,
 		arg.DagParentTaskRunIds,
 		arg.ChildTaskDesiredWorkerLabels,
+		arg.MinimumPriorities,
 	)
 	if err != nil {
 		return nil, err

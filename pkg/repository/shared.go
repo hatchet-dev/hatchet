@@ -40,6 +40,8 @@ type eventKeyTenantIdTuple struct {
 }
 
 type sharedRepository struct {
+	replayPriorityWorkflows []string
+
 	pool    *fairpool.Pool
 	ddlPool *pgxpool.Pool // bypasses pgbouncer for DDL operations
 	v       validator.Validator

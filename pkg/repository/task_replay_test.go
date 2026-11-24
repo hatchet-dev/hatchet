@@ -111,6 +111,7 @@ func TestConcurrentReplaysWithDagOperatorEnabledIncrementRetryCountOnce(t *testi
 	ctx := context.Background()
 
 	workflowOpts := minimalWorkflowOpts("replay-concurrent-dag-operator", "v1", nil)
+	shared.replayPriorityWorkflows = []string{internalTenantId.String() + "/" + workflowOpts.Name}
 	workflowOpts.Tasks = append(workflowOpts.Tasks, CreateStepOpts{
 		ReadableId: "step2",
 		Action:     "integration:step2",
@@ -195,4 +196,66 @@ func TestConcurrentReplaysWithDagOperatorEnabledIncrementRetryCountOnce(t *testi
 	require.Len(t, flattened, 1)
 	require.True(t, flattened[0].IsDagOrchestrator)
 	require.Equal(t, task.RetryCount+1, flattened[0].RetryCount)
+	require.Equal(t, task.ExternalID, flattened[0].ExternalID)
+	require.Equal(t, task.WorkflowRunID, flattened[0].WorkflowRunID)
+
+	var priority int32
+	require.NoError(t, pool.QueryRow(ctx, `
+		SELECT priority FROM v1_task WHERE id = $1 AND inserted_at = $2`,
+		task.ID, task.InsertedAt).Scan(&priority))
+	require.Equal(t, int32(2), priority)
+
+}
+
+func TestParentRoundRobinKeepsOccupiedSlotsWhenPriorityChanges(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	repo := newBatchTestRepository(pool)
+	workflowID, versionID := uuid.New(), uuid.New()
+	const strategyID int64 = 42
+	for i := 1; i <= 22; i++ {
+		priority := 1
+		if i == 22 {
+			priority = 2
+		}
+		_, err := pool.Exec(ctx, `
+			INSERT INTO v1_workflow_concurrency_slot
+				(sort_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, priority, key, is_filled)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, 'shared', $8)`,
+			i, internalTenantId, workflowID, versionID, uuid.New(), strategyID, priority, i <= 20)
+		require.NoError(t, err)
+	}
+
+	schedule := func() {
+		require.NoError(t, repo.queries.RunParentGroupRoundRobin(ctx, pool, sqlcv1.RunParentGroupRoundRobinParams{
+			Tenantid: internalTenantId, Strategyid: strategyID, Maxruns: 20,
+		}))
+	}
+	admitted := func(sortID int) bool {
+		var filled bool
+		require.NoError(t, pool.QueryRow(ctx, `
+			SELECT is_filled FROM v1_workflow_concurrency_slot
+			WHERE tenant_id = $1 AND strategy_id = $2 AND sort_id = $3`,
+			internalTenantId, strategyID, sortID).Scan(&filled))
+		return filled
+	}
+	schedule()
+	require.False(t, admitted(22), "a full group cannot admit another run")
+
+	_, err := pool.Exec(ctx, `
+		DELETE FROM v1_workflow_concurrency_slot WHERE tenant_id = $1 AND strategy_id = $2 AND sort_id = 1`,
+		internalTenantId, strategyID)
+	require.NoError(t, err)
+	schedule()
+	require.True(t, admitted(22), "higher priority takes the next available slot")
+	require.False(t, admitted(21), "the older low-priority run still waits")
+	var occupied int
+	require.NoError(t, pool.QueryRow(ctx, `
+		SELECT COUNT(*) FROM v1_workflow_concurrency_slot
+		WHERE tenant_id = $1 AND strategy_id = $2 AND is_filled`,
+		internalTenantId, strategyID).Scan(&occupied))
+	require.Equal(t, 20, occupied)
+
 }
