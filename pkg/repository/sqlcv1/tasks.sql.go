@@ -2780,7 +2780,11 @@ WITH tasks_on_inactive_workers AS (
         runtime.task_id,
         runtime.task_inserted_at,
         runtime.retry_count,
-        'Worker did not send a heartbeat for 30 seconds'::text AS reason
+        (
+            'Worker did not send a heartbeat for '
+            || EXTRACT(EPOCH FROM COALESCE(w."maxHeartbeatDelayBeforeDeclaredDead", INTERVAL '30 seconds'))::bigint
+            || ' seconds'
+        )::text AS reason
     FROM
         "Worker" w
     JOIN
