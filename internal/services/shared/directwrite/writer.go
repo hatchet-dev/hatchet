@@ -87,19 +87,15 @@ func (w *Writer) WriteAsync(ctx context.Context, msg *msgqueue.Message) {
 	ctx = context.WithoutCancel(ctx)
 
 	go func() {
-		if err := w.write(ctx, msg, true); err != nil {
-			w.l.Error().Ctx(ctx).Err(err).
-				Str("message_id", msg.ID).
-				Str("tenant_id", msg.TenantID.String()).
-				Msg("could not write task message")
-		}
+		// the only error write can return here comes from sendToQueue, which already logs it
+		_ = w.write(ctx, msg, true)
 	}()
 }
 
 func (w *Writer) write(ctx context.Context, msg *msgqueue.Message, fallback bool) error {
 	if !w.tryAcquire() {
 		w.record(msg.ID, resultFallbackNoSlot, 0)
-		return w.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+		return w.sendToQueue(ctx, msg)
 	}
 
 	start := time.Now()
@@ -123,7 +119,47 @@ func (w *Writer) write(ctx context.Context, msg *msgqueue.Message, fallback bool
 		Str("tenant_id", msg.TenantID.String()).
 		Msg("direct task write failed, sending the message over the task queue")
 
-	return w.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+	return w.sendToQueue(ctx, msg)
+}
+
+// fallbackAttempts bounds how often sendToQueue tries the publish. The queue backends don't retry a failed
+// publish themselves (rabbitmq only retries acquiring a channel that turned out to be closed).
+const fallbackAttempts = 3
+
+// fallbackRetryBackoff is a var so tests can shorten it.
+var fallbackRetryBackoff = 100 * time.Millisecond
+
+// sendToQueue publishes on a context detached from the caller's. A handler can commit part of a message
+// before it fails (CompleteTasks commits before the internal events are published), and the queue's
+// redelivery is then the only thing that finishes it; the worker's RPC may be cancelled by the time the
+// handler returns, which would otherwise fail this publish too. Every attempt shares one PUB_TIMEOUT budget,
+// so a caller that is still waiting is held for at most that long.
+func (w *Writer) sendToQueue(ctx context.Context, msg *msgqueue.Message) error {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), msgqueue.PUB_TIMEOUT)
+	defer cancel()
+
+	var err error
+
+	for attempt := 1; attempt <= fallbackAttempts && ctx.Err() == nil; attempt++ {
+		if attempt > 1 {
+			select {
+			case <-ctx.Done():
+				continue
+			case <-time.After(time.Duration(attempt-1) * fallbackRetryBackoff):
+			}
+		}
+
+		if err = w.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err == nil {
+			return nil
+		}
+	}
+
+	w.l.Error().Ctx(ctx).Err(err).
+		Str("message_id", msg.ID).
+		Str("tenant_id", msg.TenantID.String()).
+		Msg("could not send task message over the task queue")
+
+	return err
 }
 
 func (w *Writer) tryAcquire() bool {

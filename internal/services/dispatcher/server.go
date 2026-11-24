@@ -1539,8 +1539,12 @@ func (s *DispatcherImpl) sendTenantTaskMessage(ctx context.Context, msg *msgqueu
 	}
 
 	// The event is already applied, so a failed stream publish is logged rather than returned, the same
-	// way it is when the event goes over the task queue.
-	if err := msgqueue.PubTenantMessage(ctx, s.l, s.mqv1, s.pubsub, nil, msg); err != nil {
+	// way it is when the event goes over the task queue. The publish is detached from the RPC: the worker
+	// may have gone while the event was applied, and the stream should still hear about it.
+	pubCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), msgqueue.PUB_TIMEOUT)
+	defer cancel()
+
+	if err := msgqueue.PubTenantMessage(pubCtx, s.l, s.mqv1, s.pubsub, nil, msg); err != nil {
 		s.l.Warn().Ctx(ctx).Err(err).Str("message_id", msg.ID).Msg("could not publish message to tenant stream")
 	}
 
