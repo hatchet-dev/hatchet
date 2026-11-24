@@ -656,7 +656,7 @@ func TestTwoEventWaitsSecondPushedFirst(t *testing.T) {
 func runCancelledTriggerContextMode(t *testing.T, ctx context.Context, mode string) triggerContextE2EResult {
 	t.Helper()
 
-	ref, err := testDurableTriggerCtxAfterCancel.RunNoWait(ctx, TriggerContextE2EInput{Mode: mode})
+	ref, err := testDurableTriggerCtxAfterCancel.RunNoWait(ctx, triggerContextE2EInput{Mode: mode})
 	require.NoError(t, err)
 
 	pollUntilRunStatus(t, ctx, sharedClient, ref.RunId, string(rest.V1TaskStatusRUNNING))
@@ -722,7 +722,7 @@ func TestDurableWithTriggerContextAfterCancel(t *testing.T) {
 	})
 
 	t.Run("canceled_trigger_context_fails_while_parent_active", func(t *testing.T) {
-		ref, err := testDurableTriggerCtxAfterCancel.RunNoWait(ctx, TriggerContextE2EInput{Mode: "canceled_trigger_ctx"})
+		ref, err := testDurableTriggerCtxAfterCancel.RunNoWait(ctx, triggerContextE2EInput{Mode: "canceled_trigger_ctx"})
 		require.NoError(t, err)
 		_ = workflowResultWithin(t, ref, 30*time.Second)
 

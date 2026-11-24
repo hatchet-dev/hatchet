@@ -77,7 +77,7 @@ type ErrorRaisingInput struct {
 // when a durable wait was interrupted, so tests can check cancellation vs eviction.
 var interruptCauses sync.Map
 
-type TriggerContextE2EInput struct {
+type triggerContextE2EInput struct {
 	Mode string `json:"mode"`
 }
 
@@ -703,7 +703,7 @@ func registerAllWorkflows(client *hatchet.Client) {
 	)
 
 	testDurableTriggerCtxAfterCancel = client.NewStandaloneDurableTask("durable-trigger-ctx-after-cancel",
-		func(ctx hatchet.DurableContext, input TriggerContextE2EInput) (map[string]any, error) {
+		func(ctx hatchet.DurableContext, input triggerContextE2EInput) (map[string]any, error) {
 			if input.Mode == "canceled_trigger_ctx" {
 				canceledAck, cancelAck := context.WithCancel(context.Background())
 				cancelAck()
