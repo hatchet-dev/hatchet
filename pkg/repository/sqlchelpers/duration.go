@@ -15,3 +15,13 @@ func DurationToPgInterval(d time.Duration) pgtype.Interval {
 		Valid:        true,
 	}
 }
+
+func MaybeDurationToPgInterval(d *time.Duration) pgtype.Interval {
+	if d == nil {
+		return pgtype.Interval{
+			Valid: false,
+		}
+	}
+
+	return DurationToPgInterval(*d)
+}

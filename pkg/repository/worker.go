@@ -63,6 +63,8 @@ type CreateWorkerOpts struct {
 	// workers of its own; the wire never sets it, so a worker registered over OperatorService
 	// or by an SDK is metered.
 	IsExemptFromLimits bool
+
+	MaxHeartbeatDelayBeforeDeclaredDead *time.Duration
 }
 
 type UpdateWorkerOpts struct {
@@ -710,13 +712,14 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 	initialActions := dedupeActionIds(opts.Actions)
 
 	createParams := sqlcv1.CreateWorkerParams{
-		Tenantid:            tenantId,
-		Dispatcherid:        opts.DispatcherId,
-		Name:                opts.Name,
-		Actionhash:          hashActions(initialActions),
-		Operatoractioncount: int32(len(initialActions)), // nolint: gosec // bounded by the request size
-		OperatorId:          opts.OperatorId,
-		Isexemptfromlimits:  opts.IsExemptFromLimits,
+		Tenantid:                            tenantId,
+		Dispatcherid:                        opts.DispatcherId,
+		Name:                                opts.Name,
+		Actionhash:                          hashActions(initialActions),
+		Operatoractioncount:                 int32(len(initialActions)), // nolint: gosec // bounded by the request size
+		OperatorId:                          opts.OperatorId,
+		Isexemptfromlimits:                  opts.IsExemptFromLimits,
+		MaxHeartbeatDelayBeforeDeclaredDead: sqlchelpers.MaybeDurationToPgInterval(opts.MaxHeartbeatDelayBeforeDeclaredDead),
 	}
 
 	// Default to self hosted

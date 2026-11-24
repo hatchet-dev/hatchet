@@ -247,7 +247,8 @@ INSERT INTO "Worker" (
     "actionHash",
     "operatorActionCount",
     "operatorId",
-    "isExemptFromLimits"
+    "isExemptFromLimits",
+    "maxHeartbeatDelayBeforeDeclaredDead"
 ) VALUES (
     gen_random_uuid(),
     CURRENT_TIMESTAMP,
@@ -267,24 +268,26 @@ INSERT INTO "Worker" (
     -- set for workers backing an operator connection; NULL for SDK workers
     $12::uuid,
     -- true only for workers the in-process operator host creates; the limit queries skip them
-    $13::boolean
+    $13::boolean,
+    $14::interval
 ) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "lastListenerSessionId", "isPaused", type, "webhookId", "operatorId", language, "languageVersion", os, "runtimeExtra", "sdkVersion", "durableTaskDispatcherId", "actionHash", "operatorActionCount", "isExemptFromLimits", "maxHeartbeatDelayBeforeDeclaredDead"
 `
 
 type CreateWorkerParams struct {
-	Tenantid            uuid.UUID         `json:"tenantid"`
-	Name                string            `json:"name"`
-	Dispatcherid        uuid.UUID         `json:"dispatcherid"`
-	Type                *enums.WorkerType `json:"type"`
-	SdkVersion          pgtype.Text       `json:"sdkVersion"`
-	Language            NullWorkerSDKS    `json:"language"`
-	LanguageVersion     pgtype.Text       `json:"languageVersion"`
-	Os                  pgtype.Text       `json:"os"`
-	RuntimeExtra        pgtype.Text       `json:"runtimeExtra"`
-	Actionhash          []byte            `json:"actionhash"`
-	Operatoractioncount int32             `json:"operatoractioncount"`
-	OperatorId          *uuid.UUID        `json:"operatorId"`
-	Isexemptfromlimits  bool              `json:"isexemptfromlimits"`
+	Tenantid                            uuid.UUID         `json:"tenantid"`
+	Name                                string            `json:"name"`
+	Dispatcherid                        uuid.UUID         `json:"dispatcherid"`
+	Type                                *enums.WorkerType `json:"type"`
+	SdkVersion                          pgtype.Text       `json:"sdkVersion"`
+	Language                            NullWorkerSDKS    `json:"language"`
+	LanguageVersion                     pgtype.Text       `json:"languageVersion"`
+	Os                                  pgtype.Text       `json:"os"`
+	RuntimeExtra                        pgtype.Text       `json:"runtimeExtra"`
+	Actionhash                          []byte            `json:"actionhash"`
+	Operatoractioncount                 int32             `json:"operatoractioncount"`
+	OperatorId                          *uuid.UUID        `json:"operatorId"`
+	Isexemptfromlimits                  bool              `json:"isexemptfromlimits"`
+	MaxHeartbeatDelayBeforeDeclaredDead pgtype.Interval   `json:"maxHeartbeatDelayBeforeDeclaredDead"`
 }
 
 func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerParams) (*Worker, error) {
@@ -302,6 +305,7 @@ func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerPar
 		arg.Operatoractioncount,
 		arg.OperatorId,
 		arg.Isexemptfromlimits,
+		arg.MaxHeartbeatDelayBeforeDeclaredDead,
 	)
 	var i Worker
 	err := row.Scan(
