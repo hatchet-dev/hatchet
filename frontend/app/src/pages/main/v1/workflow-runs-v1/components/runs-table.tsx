@@ -36,7 +36,7 @@ import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { queries, V1TaskStatus } from '@/lib/api';
 import { withPolling } from '@/lib/api/polling';
 import { docsPages } from '@/lib/generated/docs';
-import { formatRetentionPeriod } from '@/lib/utils/retention';
+import { timeWindowLabel } from '@/lib/utils/retention';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -92,6 +92,7 @@ const GetWorkflowChart = () => {
       zoom={zoom}
       showYAxis={false}
       stacked
+      yScale="sqrt"
       className="h-24 min-h-24"
     />
   );
@@ -238,9 +239,7 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
     !!filters.apiFilters.runningFilter ||
     filters.isCustomTimeRange ||
     filters.timeWindow !== '1d';
-  const retainedLabel = filters.retentionPeriod
-    ? formatRetentionPeriod(filters.retentionPeriod)
-    : '1 day';
+  const windowLabel = timeWindowLabel(filters.timeWindow);
 
   const endActions =
     sidebarLayout && !hideCounts && !hideMetrics
@@ -327,7 +326,7 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
             ) : (
               <EmptyState
                 title="No runs found"
-                description={`No runs in the last ${retainedLabel}.`}
+                description={`No runs in the last ${windowLabel}.`}
                 docPage={docsPages.v1.quickstart}
                 docLabel="Learn about running tasks"
                 buttons={

@@ -126,6 +126,7 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 
 ### Added
 
+- `max_reassignments_allowed` on `task` and `durable_task`, the maximum number of times Hatchet reassigns a task to a new worker after its worker stops heartbeating or never acknowledges it. Once reached, the task fails instead of being reassigned; `0` disables reassignment entirely. Older engines ignore it.
 - `CancelledRunError`, exported from `hatchet_sdk`, which `result` and `aio_result` raise for a cancelled run. It has a `workflow_run_id` attribute and is a subclass of `ValueError`, which `result` raised for a cancelled run before.
 - `result` and `aio_result` on `WorkflowRunRef` and `TaskRunRef` accept an optional `timeout` (a `timedelta`) and raise `TimeoutError` when it elapses.
 - `CronTrigger`, `ScheduledRun`, and `TaskRunSummary`, the SDK's own models for cron triggers, scheduled runs, and task run summaries.

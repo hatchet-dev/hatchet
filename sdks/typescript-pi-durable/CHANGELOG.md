@@ -4,7 +4,11 @@ All notable changes to `@hatchet-dev/pi-durable`.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Each release reads its notes from the matching section here.
 
-## [Unreleased]
+## [0.2.0] - 2026-11-20
+
+### Added
+
+- `openHatchetStorage` (experimental), a pi-durable `Storage` kept in a Hatchet durable stream topic, so a session fails over to any worker. It refuses to open a topic whose oldest messages are past retention, or one two owners wrote. The e2e suite runs pi-durable's storage conformance suite against it, and the session flow on both SQLite and Hatchet storage.
 
 ## [0.1.0] - 2026-11-16
 

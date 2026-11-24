@@ -5,11 +5,21 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.49.0] - 2026-11-23
+
+### Added
+
+- `maxReassignmentsAllowed` on task and durable task options (`hatchet.task`, `hatchet.durableTask`, `workflow.task`, `workflow.durableTask`) sets the maximum number of times Hatchet will reassign the task to a new worker when the worker running it stops heartbeating or never acknowledges it. Once reached, the task fails instead of being reassigned. Set it to `0` to never reassign the task. If not set, the server's default limit applies, and the server's limit also caps this value. A negative or non-integer value throws when the workflow is registered.
 
 ### Fixed
 
 - The `BatchTaskConfig` docs no longer say a batch flushes once `groupMaxRuns` is exceeded. While a group has `groupMaxRuns` batches running, its ready batches stay buffered. The docs also give the engine defaults: `maxInterval` is 1s, measured from when a batch's first item is buffered, and `groupMaxRuns` is 100.
+
+## [1.48.0] - 2026-11-21
+
+### Changed
+
+- The worker `/metrics` endpoint now uses `@prometheus-io/client` instead of `prom-client`. If you use worker metrics, replace your `prom-client` dependency with `@prometheus-io/client` when upgrading.
 
 ## [1.47.4] - 2026-11-17
 

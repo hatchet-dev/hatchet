@@ -321,15 +321,8 @@ func (p *Partition) runSchedulerPartitionHeartbeat(ctx context.Context) func() {
 
 		p.l.Debug().Ctx(ctx).Str("scheduler_partition_id", p.schedulerPartitionId).Msg("running scheduler partition heartbeat")
 
-		partitionId, err := p.repo.UpdateSchedulerPartitionHeartbeat(ctx, p.GetSchedulerPartitionId())
-
-		if err != nil {
+		if err := p.repo.UpdateSchedulerPartitionHeartbeat(ctx, p.GetSchedulerPartitionId()); err != nil {
 			p.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", p.schedulerPartitionId).Msg("could not heartbeat partition")
-			return
-		}
-
-		if partitionId != p.GetSchedulerPartitionId() {
-			p.schedulerPartitionId = partitionId
 		}
 	}
 }

@@ -399,14 +399,15 @@ WITH active_partitions AS (
 DELETE FROM "TenantWorkerPartition"
 WHERE "id" IN (SELECT "id" FROM inactive_partitions);
 
--- name: SchedulerPartitionHeartbeat :one
-UPDATE
-    "SchedulerPartition" p
-SET
-    "lastHeartbeat" = NOW()
-WHERE
-    p."id" = sqlc.arg('schedulerPartitionId')::text
-RETURNING *;
+-- name: SchedulerPartitionHeartbeat :exec
+-- A scheduler subscribes to its partition topic once, by partition id, so the id must stay the same
+-- for the life of the process. If a rebalance deleted the partition as inactive (for example after
+-- the database was unreachable for longer than the staleness threshold), the heartbeat recreates it
+-- under the same id, and the next rebalance hands tenants back to the topic the scheduler listens on.
+INSERT INTO "SchedulerPartition" ("id", "createdAt", "lastHeartbeat", "name")
+VALUES (sqlc.arg('schedulerPartitionId')::text, NOW(), NOW(), sqlc.narg('name')::text)
+ON CONFLICT ("id") DO UPDATE
+SET "lastHeartbeat" = NOW();
 
 -- name: CreateSchedulerPartition :one
 INSERT INTO "SchedulerPartition" ("id", "createdAt", "lastHeartbeat", "name")

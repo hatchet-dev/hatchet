@@ -1,6 +1,6 @@
 {
   "name": "@hatchet-dev/pi-durable",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": false,
   "description": "Run pi-durable agents on Hatchet: tools in Hatchet sandboxes, one owner per session, failover and wake-ups.",
   "license": "MIT",

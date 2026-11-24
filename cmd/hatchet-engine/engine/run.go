@@ -501,6 +501,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			adminv1.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
 			adminv1.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 			adminv1.WithPrometheusGate(sc.PrometheusGate),
+			adminv1.WithMaxInternalRetryCount(sc.Runtime.MaxInternalRetryCount),
 		)
 
 		if err != nil {
@@ -1037,6 +1038,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			adminv1.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
 			adminv1.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 			adminv1.WithPrometheusGate(sc.PrometheusGate),
+			adminv1.WithMaxInternalRetryCount(sc.Runtime.MaxInternalRetryCount),
 		)
 
 		if err != nil {

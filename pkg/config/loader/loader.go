@@ -3,6 +3,7 @@
 package loader
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"io"
@@ -165,6 +166,10 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		return nil, fmt.Errorf("DATABASE_FAIRPOOL_SHARED_MAX_PERCENT must be from 1 to 100, got %d", cf.FairpoolSharedMaxPercent)
 	}
 
+	if cf.AcquireTimeout < 0 {
+		return nil, fmt.Errorf("DATABASE_ACQUIRE_TIMEOUT must be 0 or positive, got %s", cf.AcquireTimeout)
+	}
+
 	serverSharedFilePath := filepath.Join(c.directory, "server.yaml")
 	serverConfigFileBytes, err := loaderutils.GetConfigBytes(serverSharedFilePath)
 
@@ -256,6 +261,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		MaxPercent:       cf.FairpoolTenantMaxPercent,
 		SharedMaxPercent: cf.FairpoolSharedMaxPercent,
 		MaxWait:          cf.FairpoolTenantMaxWait,
+		AcquireTimeout:   cf.AcquireTimeout,
 		PoolName:         "main",
 		L:                &l,
 	})
@@ -309,6 +315,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 			MaxPercent:       cf.FairpoolTenantMaxPercent,
 			SharedMaxPercent: cf.FairpoolSharedMaxPercent,
 			MaxWait:          cf.FairpoolTenantMaxWait,
+			AcquireTimeout:   cf.AcquireTimeout,
 			PoolName:         "read-replica",
 			L:                &l,
 		})
@@ -413,6 +420,89 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		durableEventBufferOpts,
 	)
 
+	cleanupOLAP := func() error { return nil }
+
+	// a pool for a separate OLAP database, if configured. Reads and writes of the OLAP tables go
+	// there; the main database keeps the core tables only.
+	if cf.OLAP.DatabaseURL != "" {
+		olapConfig, err := NewPgxPoolConfig(cf.OLAP.DatabaseURL, PgxPoolOpts{
+			ApplicationName: appName + ":olap",
+			MaxConns:        int32(cmp.Or(cf.OLAP.MaxConns, cf.MaxConns)), // nolint: gosec
+			MinConns:        int32(cmp.Or(cf.OLAP.MinConns, cf.MinConns)), // nolint: gosec
+			MaxConnLifetime: cmp.Or(cf.OLAP.MaxConnLifetime, cf.MaxConnLifetime),
+			MaxConnIdleTime: cmp.Or(cf.OLAP.MaxConnIdleTime, cf.MaxConnIdleTime),
+			DialTimeout:     cmp.Or(cf.OLAP.DialTimeout, cf.DialTimeout),
+			ConnectTimeout:  cmp.Or(cf.OLAP.ConnectTimeout, cf.ConnectTimeout),
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("could not parse olap database url: %w", err)
+		}
+
+		if cf.LogQueries {
+			olapConfig.ConnConfig.Tracer = &tracelog.TraceLog{
+				Logger:   pgxzero.NewLogger(l),
+				LogLevel: tracelog.LogLevelDebug,
+			}
+		}
+
+		if cf.EnforceUTCTimezone {
+			if err := checkDatabaseTimezone(olapConfig.ConnConfig, "", "olap database", &l); err != nil {
+				return nil, err
+			}
+		}
+
+		olapTenantMaxPercent := cmp.Or(cf.OLAP.FairpoolTenantMaxPercent, cf.FairpoolTenantMaxPercent)
+		olapSharedMaxPercent := cmp.Or(cf.OLAP.FairpoolSharedMaxPercent, cf.FairpoolSharedMaxPercent)
+
+		if olapTenantMaxPercent < 1 || olapTenantMaxPercent > 100 {
+			return nil, fmt.Errorf("OLAP_DATABASE_FAIRPOOL_TENANT_MAX_PERCENT must be from 1 to 100, got %d", olapTenantMaxPercent)
+		}
+
+		if olapSharedMaxPercent < 1 || olapSharedMaxPercent > 100 {
+			return nil, fmt.Errorf("OLAP_DATABASE_FAIRPOOL_SHARED_MAX_PERCENT must be from 1 to 100, got %d", olapSharedMaxPercent)
+		}
+
+		olapPool, err := fairpool.NewWithConfig(context.Background(), olapConfig, fairpool.Options{
+			MaxPercent:       olapTenantMaxPercent,
+			SharedMaxPercent: olapSharedMaxPercent,
+			MaxWait:          cmp.Or(cf.OLAP.FairpoolTenantMaxWait, cf.FairpoolTenantMaxWait),
+			PoolName:         "olap",
+			L:                &l,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("could not connect to olap database: %w", err)
+		}
+
+		olap, cleanupOLAPRepo := repov1.NewOLAPRepositoryFromFairPool(
+			olapPool,
+			&l,
+			olapPartitionRetention,
+			scf.Runtime.Limits,
+			scf.Runtime.EnforceLimits,
+			payloadStoreOpts,
+			statusUpdateOpts,
+			cf.CacheDuration,
+			true,
+		)
+
+		// Shared payloads (referenced payloads, and inputs left out of OLAP under payload
+		// consolidation) live in the main database, so the OLAP repository reads them through the
+		// core payload store.
+		olap.SetPayloadStoreOnSeparateDatabase(v1.Payloads())
+
+		v1.OverwriteOLAPRepository(olap)
+
+		cleanupOLAP = func() error {
+			err := cleanupOLAPRepo()
+
+			olapPool.Close()
+
+			return err
+		}
+	}
+
 	if readReplicaPool != nil {
 		v1.OLAP().SetReadReplicaPool(readReplicaPool)
 	}
@@ -421,7 +511,13 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		Disconnect: func() error {
 			ch.Stop()
 
-			return cleanupV1()
+			olapErr := cleanupOLAP()
+
+			if err := cleanupV1(); err != nil {
+				return err
+			}
+
+			return olapErr
 		},
 		Pool:              pool,
 		DirectDatabaseURL: databaseUrl,

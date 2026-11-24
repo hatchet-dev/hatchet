@@ -1499,27 +1499,25 @@ func (q *Queries) RebalanceInactiveTenantWorkerPartitions(ctx context.Context, d
 	return err
 }
 
-const schedulerPartitionHeartbeat = `-- name: SchedulerPartitionHeartbeat :one
-UPDATE
-    "SchedulerPartition" p
-SET
-    "lastHeartbeat" = NOW()
-WHERE
-    p."id" = $1::text
-RETURNING id, "createdAt", "updatedAt", "lastHeartbeat", name
+const schedulerPartitionHeartbeat = `-- name: SchedulerPartitionHeartbeat :exec
+INSERT INTO "SchedulerPartition" ("id", "createdAt", "lastHeartbeat", "name")
+VALUES ($1::text, NOW(), NOW(), $2::text)
+ON CONFLICT ("id") DO UPDATE
+SET "lastHeartbeat" = NOW()
 `
 
-func (q *Queries) SchedulerPartitionHeartbeat(ctx context.Context, db DBTX, schedulerpartitionid string) (*SchedulerPartition, error) {
-	row := db.QueryRow(ctx, schedulerPartitionHeartbeat, schedulerpartitionid)
-	var i SchedulerPartition
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.LastHeartbeat,
-		&i.Name,
-	)
-	return &i, err
+type SchedulerPartitionHeartbeatParams struct {
+	SchedulerPartitionId string      `json:"schedulerPartitionId"`
+	Name                 pgtype.Text `json:"name"`
+}
+
+// A scheduler subscribes to its partition topic once, by partition id, so the id must stay the same
+// for the life of the process. If a rebalance deleted the partition as inactive (for example after
+// the database was unreachable for longer than the staleness threshold), the heartbeat recreates it
+// under the same id, and the next rebalance hands tenants back to the topic the scheduler listens on.
+func (q *Queries) SchedulerPartitionHeartbeat(ctx context.Context, db DBTX, arg SchedulerPartitionHeartbeatParams) error {
+	_, err := db.Exec(ctx, schedulerPartitionHeartbeat, arg.SchedulerPartitionId, arg.Name)
+	return err
 }
 
 const updateTenant = `-- name: UpdateTenant :one

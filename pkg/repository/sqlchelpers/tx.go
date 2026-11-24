@@ -83,42 +83,25 @@ func PrepareTxWithStatementTimeout(ctx context.Context, pool Pool, l *zerolog.Lo
 		).Caller(1).Msg("long transaction start")
 	}
 
-	commit := func(ctx context.Context) error {
-		// reset statement and idle-in-transaction timeouts
-		_, err = tx.Exec(ctx, "SET statement_timeout=30000")
-
-		if err != nil {
-			return err
-		}
-
-		_, err = tx.Exec(ctx, "SET idle_in_transaction_session_timeout=30000")
-
-		if err != nil {
-			return err
-		}
-
-		return tx.Commit(ctx)
-	}
-
 	rollback := func() {
 		DeferRollback(ctx, l, tx.Rollback)
 	}
 
-	_, err = tx.Exec(ctx, fmt.Sprintf("SET statement_timeout=%d", timeoutMs))
+	_, err = tx.Exec(ctx, fmt.Sprintf("SET LOCAL statement_timeout=%d", timeoutMs))
 
 	if err != nil {
 		rollback()
 		return nil, nil, nil, err
 	}
 
-	_, err = tx.Exec(ctx, fmt.Sprintf("SET idle_in_transaction_session_timeout=%d", timeoutMs))
+	_, err = tx.Exec(ctx, fmt.Sprintf("SET LOCAL idle_in_transaction_session_timeout=%d", timeoutMs))
 
 	if err != nil {
 		rollback()
 		return nil, nil, nil, err
 	}
 
-	return tx, commit, rollback, nil
+	return tx, tx.Commit, rollback, nil
 }
 
 // rawAcquirer is implemented by *pgxpool.Pool. The DDL pool stays on that concrete

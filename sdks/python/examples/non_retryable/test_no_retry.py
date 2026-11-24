@@ -1,5 +1,3 @@
-import asyncio
-
 import pytest
 
 from examples.non_retryable.worker import (
@@ -8,6 +6,7 @@ from examples.non_retryable.worker import (
     should_not_retry_successful_task,
     should_retry_wrong_exception_type,
 )
+from examples.test_utils import poll_until
 from hatchet_sdk import Hatchet
 from hatchet_sdk.clients.rest.models.v1_task_event_type import V1TaskEventType
 from hatchet_sdk.clients.rest.models.v1_workflow_run_details import V1WorkflowRunDetails
@@ -42,18 +41,19 @@ async def test_no_retry(hatchet: Hatchet) -> None:
     assert len(non_retries) == 1
     assert len(other_errors) == 1
 
-    runs = None
-    for _ in range(60):
-        runs = await hatchet.runs.aio_get(ref.workflow_run_id)
-        event_types = [e.event_type for e in runs.task_events]
-        if (
+    def has_all_failure_and_retry_events(details: V1WorkflowRunDetails) -> bool:
+        event_types = [e.event_type for e in details.task_events]
+        return (
             event_types.count(V1TaskEventType.FAILED) >= 3
             and V1TaskEventType.RETRYING in event_types
-        ):
-            break
-        await asyncio.sleep(0.5)
+        )
 
-    assert runs is not None
+    runs = await poll_until(
+        lambda: hatchet.runs.aio_get(ref.workflow_run_id),
+        has_all_failure_and_retry_events,
+        description="three FAILED events and one RETRYING event",
+        timeout=30.0,
+    )
     task_to_id = {
         task: find_id(runs, task.name)
         for task in [

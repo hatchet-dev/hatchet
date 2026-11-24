@@ -105,8 +105,31 @@ it rejected. A reader that connects starts at the newest view.
 ### Storage
 
 The host does not store anything itself: failover reaches as far as the storage you open in `openHarness`. SQLite or
-JSONL on the worker's disk only fails over to a worker on the same machine (or one with the same volume). pi-durable
-has no cross-process locking, so there must be one owner at a time. The task's concurrency gives you that.
+JSONL on the worker's disk only fails over to a worker on the same machine (or one with the same volume).
+
+`openHatchetStorage` (experimental) keeps the session in a Hatchet durable stream topic instead, so any worker can
+reopen it:
+
+```ts
+openHarness: async (sessionId, onReport, context) =>
+  Harness.open(
+    await openHatchetStorage(hatchet, `pi-storage-${sessionId}`),
+    { models, registry, env: sandboxEnvs(hatchet, { template: 'node:24-alpine' }), onReport },
+    context
+  ),
+```
+
+Each commit is one message on the topic, and opening the storage reads the topic from its first message, so opening
+takes longer as a session grows. Limits:
+
+- **Retention.** Stream messages expire after the tenant's stream retention (30 days by default). A storage whose
+  oldest messages expired refuses to open with a `HatchetStorageError`, and a topic that sat idle past retention is
+  removed, so its session starts over empty.
+- **One owner at a time.** pi-durable has no cross-process locking. The task's concurrency runs one session at a time,
+  but a worker that loses contact with the engine for 30 seconds while still running can overlap with the run that
+  replaces it. If both write the storage, it refuses to open afterwards.
+- **What is stored.** Prompts, model answers and tool output go to the topic, and stream topics are visible in the
+  dashboard.
 
 ### Options
 
@@ -167,9 +190,11 @@ script the model with pi-ai's faux provider.
 
 ## Release
 
-Bump `version` in `package.json` and move the `[Unreleased]` notes in `CHANGELOG.md` under the new version. On a push
-to `main`, CI publishes the version to npm if it is not there yet and creates a `pi-durable/<version>` GitHub release.
-A version containing `alpha` is published under the `alpha` tag.
+Bump `version` in `package.json` and rename the `[Unreleased]` heading in `CHANGELOG.md` to the new version and date,
+without leaving an empty `[Unreleased]` above it: the GitHub release takes its notes from the first section of the
+changelog, and an `[Unreleased]` one is marked as a release candidate. On a push to `main`, CI publishes the version to
+npm if it is not there yet and creates a `pi-durable/<version>` GitHub release. A version containing `alpha` is
+published under the `alpha` tag.
 
 ## License
 

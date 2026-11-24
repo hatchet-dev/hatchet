@@ -14,6 +14,7 @@ from examples.concurrency_workflow_level.worker import (
     WorkflowInput,
     concurrency_workflow_level_workflow,
 )
+from examples.test_utils import poll_until
 from hatchet_sdk import Hatchet, TaskRunSummary
 
 Character = Literal["Anna", "Vronsky", "Stiva", "Dolly", "Levin", "Karenin"]
@@ -164,29 +165,17 @@ async def test_workflow_level_concurrency(hatchet: Hatchet, test_run_id: str) ->
 
     # The OLAP rows are written asynchronously, so wait until every task of
     # every run has both timestamps before measuring.
-    tasks: list[TaskRunSummary] = []
-    deadline = asyncio.get_running_loop().time() + 60
-
-    while True:
-        tasks = await hatchet.runs.aio_list(
+    tasks = await poll_until(
+        lambda: hatchet.runs.aio_list(
             workflow_ids=[workflow.metadata.id],
-            additional_metadata={
-                "test_run_id": test_run_id,
-            },
+            additional_metadata={"test_run_id": test_run_id},
             limit=1_000,
             only_tasks=True,
-        )
-
-        if len(tasks) == NUM_RUNS * TASKS_PER_RUN and all(
-            t.started_at is not None and t.finished_at is not None for t in tasks
-        ):
-            break
-
-        assert (
-            asyncio.get_running_loop().time() < deadline
-        ), f"timed out waiting for task rows with timestamps, have {len(tasks)}"
-
-        await asyncio.sleep(0.5)
+        ),
+        lambda tasks: len(tasks) == NUM_RUNS * TASKS_PER_RUN
+        and all(t.started_at is not None and t.finished_at is not None for t in tasks),
+        description="every task row to have both timestamps",
+    )
 
     windows = build_run_windows(tasks)
 

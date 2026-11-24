@@ -265,7 +265,7 @@ class TaskBatchConfig(_message.Message):
     def __init__(self, batch_max_size: _Optional[int] = ..., batch_max_interval_ms: _Optional[int] = ..., batch_group_key: _Optional[str] = ..., batch_group_max_runs: _Optional[int] = ..., broadcast_output: bool = ...) -> None: ...
 
 class CreateTaskOpts(_message.Message):
-    __slots__ = ("readable_id", "action", "timeout", "inputs", "parents", "retries", "rate_limits", "worker_labels", "backoff_factor", "backoff_max_seconds", "concurrency", "conditions", "schedule_timeout", "is_durable", "slot_requests", "batch")
+    __slots__ = ("readable_id", "action", "timeout", "inputs", "parents", "retries", "rate_limits", "worker_labels", "backoff_factor", "backoff_max_seconds", "concurrency", "conditions", "schedule_timeout", "is_durable", "slot_requests", "batch", "max_reassignments_allowed")
     class WorkerLabelsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -296,6 +296,7 @@ class CreateTaskOpts(_message.Message):
     IS_DURABLE_FIELD_NUMBER: _ClassVar[int]
     SLOT_REQUESTS_FIELD_NUMBER: _ClassVar[int]
     BATCH_FIELD_NUMBER: _ClassVar[int]
+    MAX_REASSIGNMENTS_ALLOWED_FIELD_NUMBER: _ClassVar[int]
     readable_id: str
     action: str
     timeout: str
@@ -312,7 +313,8 @@ class CreateTaskOpts(_message.Message):
     is_durable: bool
     slot_requests: _containers.ScalarMap[str, int]
     batch: TaskBatchConfig
-    def __init__(self, readable_id: _Optional[str] = ..., action: _Optional[str] = ..., timeout: _Optional[str] = ..., inputs: _Optional[str] = ..., parents: _Optional[_Iterable[str]] = ..., retries: _Optional[int] = ..., rate_limits: _Optional[_Iterable[_Union[CreateTaskRateLimit, _Mapping]]] = ..., worker_labels: _Optional[_Mapping[str, _trigger_pb2.DesiredWorkerLabels]] = ..., backoff_factor: _Optional[float] = ..., backoff_max_seconds: _Optional[int] = ..., concurrency: _Optional[_Iterable[_Union[Concurrency, _Mapping]]] = ..., conditions: _Optional[_Union[_condition_pb2.TaskConditions, _Mapping]] = ..., schedule_timeout: _Optional[str] = ..., is_durable: bool = ..., slot_requests: _Optional[_Mapping[str, int]] = ..., batch: _Optional[_Union[TaskBatchConfig, _Mapping]] = ...) -> None: ...
+    max_reassignments_allowed: int
+    def __init__(self, readable_id: _Optional[str] = ..., action: _Optional[str] = ..., timeout: _Optional[str] = ..., inputs: _Optional[str] = ..., parents: _Optional[_Iterable[str]] = ..., retries: _Optional[int] = ..., rate_limits: _Optional[_Iterable[_Union[CreateTaskRateLimit, _Mapping]]] = ..., worker_labels: _Optional[_Mapping[str, _trigger_pb2.DesiredWorkerLabels]] = ..., backoff_factor: _Optional[float] = ..., backoff_max_seconds: _Optional[int] = ..., concurrency: _Optional[_Iterable[_Union[Concurrency, _Mapping]]] = ..., conditions: _Optional[_Union[_condition_pb2.TaskConditions, _Mapping]] = ..., schedule_timeout: _Optional[str] = ..., is_durable: bool = ..., slot_requests: _Optional[_Mapping[str, int]] = ..., batch: _Optional[_Union[TaskBatchConfig, _Mapping]] = ..., max_reassignments_allowed: _Optional[int] = ...) -> None: ...
 
 class CreateTaskRateLimit(_message.Message):
     __slots__ = ("key", "units", "key_expr", "units_expr", "limit_values_expr", "duration")

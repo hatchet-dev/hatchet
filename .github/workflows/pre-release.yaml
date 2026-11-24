@@ -11,17 +11,8 @@ jobs:
   build-push-hatchet-api-amd:
     name: hatchet-api
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
-      - &update-ca-certificates
-        name: Update CA certificates
-        # Runner images predate Ubuntu's ca-certificates fix for the compromised eMudhra CAs (USN-8944-1); drop this step once they ship 20260816ubuntu0.* or later.
-        run: |
-          sudo DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 -o DPkg::Lock::Timeout=120 update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=120 install -y --only-upgrade ca-certificates
-          v=$(dpkg-query -W -f='${Version}' ca-certificates)
-          dpkg --compare-versions "$v" ge 20260816 || { echo "::error::ca-certificates $v predates USN-8944-1"; exit 1; }
-          # dockerd keeps the roots it loaded at first use.
-          sudo systemctl restart docker
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -34,7 +25,7 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-amd64 \
             --build-arg SERVER_TARGET=api \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
@@ -42,15 +33,15 @@ jobs:
             .
       - name: Push to GHCR
         run: |
-          docker push ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-amd64
+          .github/scripts/retry docker push ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-amd64
       - uses: ./.github/actions/sign-image
         with:
           images: ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-api-arm:
     name: hatchet-api
     runs-on: hatchet-arm64-2
+    timeout-minutes: 20
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -63,7 +54,7 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-arm64 \
             --build-arg SERVER_TARGET=api \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
@@ -71,20 +62,20 @@ jobs:
             .
       - name: Push to GHCR
         run: |
-          docker push ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-arm64
+          .github/scripts/retry docker push ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-arm64
       - uses: ./.github/actions/sign-image
         with:
           images: ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-arm64
   build-push-hatchet-api:
     name: Combine hatchet-api
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     needs:
       - build-push-hatchet-api-amd
       - build-push-hatchet-api-arm
       - auth-enabled
       - non-fips
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -96,9 +87,9 @@ jobs:
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Pull amd64
-        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-amd64
+        run: .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-amd64
       - name: Pull arm64
-        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-arm64
+        run: .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-arm64
       - name: Combine
         run: |
           docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}} \
@@ -112,8 +103,8 @@ jobs:
   build-push-hatchet-api-dev-amd:
     name: hatchet-api-dev
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -126,7 +117,7 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build dev image
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-api-dev:${{steps.tag_name.outputs.tag}}-amd64 \
             --build-arg SERVER_TARGET=api \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
@@ -134,15 +125,15 @@ jobs:
             --platform linux/amd64 \
             .
       - name: Push to GHCR
-        run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-api-dev:${{steps.tag_name.outputs.tag}}-amd64
+        run: .github/scripts/retry docker push ghcr.io/hatchet-dev/hatchet/hatchet-api-dev:${{steps.tag_name.outputs.tag}}-amd64
       - uses: ./.github/actions/sign-image
         with:
           images: ghcr.io/hatchet-dev/hatchet/hatchet-api-dev:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-api-dev-arm:
     name: hatchet-api-dev
     runs-on: hatchet-arm64-2
+    timeout-minutes: 20
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -155,7 +146,7 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build dev image
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-api-dev:${{steps.tag_name.outputs.tag}}-arm64 \
             --build-arg SERVER_TARGET=api \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
@@ -163,18 +154,18 @@ jobs:
             --platform linux/arm64 \
             .
       - name: Push to GHCR
-        run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-api-dev:${{steps.tag_name.outputs.tag}}-arm64
+        run: .github/scripts/retry docker push ghcr.io/hatchet-dev/hatchet/hatchet-api-dev:${{steps.tag_name.outputs.tag}}-arm64
       - uses: ./.github/actions/sign-image
         with:
           images: ghcr.io/hatchet-dev/hatchet/hatchet-api-dev:${{steps.tag_name.outputs.tag}}-arm64
   build-push-hatchet-api-dev:
     name: Combine hatchet-api-dev
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     needs:
       - build-push-hatchet-api-dev-amd
       - build-push-hatchet-api-dev-arm
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -187,8 +178,8 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Combine dev image
         run: |
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-api-dev:${{steps.tag_name.outputs.tag}}-amd64
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-api-dev:${{steps.tag_name.outputs.tag}}-arm64
+          .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-api-dev:${{steps.tag_name.outputs.tag}}-amd64
+          .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-api-dev:${{steps.tag_name.outputs.tag}}-arm64
           docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-api-dev:${{steps.tag_name.outputs.tag}} \
             ghcr.io/hatchet-dev/hatchet/hatchet-api-dev:${{steps.tag_name.outputs.tag}}-amd64 \
             ghcr.io/hatchet-dev/hatchet/hatchet-api-dev:${{steps.tag_name.outputs.tag}}-arm64
@@ -200,8 +191,8 @@ jobs:
   build-push-hatchet-admin-amd:
     name: hatchet-admin
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -214,22 +205,22 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-amd64 \
             --build-arg SERVER_TARGET=admin \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/amd64 \
             .
       - name: Push to GHCR
-        run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-amd64
+        run: .github/scripts/retry docker push ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-amd64
       - uses: ./.github/actions/sign-image
         with:
           images: ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-admin-arm:
     name: hatchet-admin
     runs-on: hatchet-arm64-2
+    timeout-minutes: 20
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -242,26 +233,26 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-arm64 \
             --build-arg SERVER_TARGET=admin \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/arm64 \
             .
       - name: Push to GHCR
-        run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-arm64
+        run: .github/scripts/retry docker push ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-arm64
       - uses: ./.github/actions/sign-image
         with:
           images: ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-arm64
   build-push-hatchet-admin:
     name: Combine hatchet-admin
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     needs:
       - build-push-hatchet-admin-amd
       - build-push-hatchet-admin-arm
       - non-fips
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -273,9 +264,9 @@ jobs:
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Pull amd64
-        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-amd64
+        run: .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-amd64
       - name: Pull arm64
-        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-arm64
+        run: .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-arm64
       - name: Combine
         run: |
           docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}} \
@@ -289,8 +280,8 @@ jobs:
   build-push-hatchet-admin-dev-amd:
     name: hatchet-admin-dev
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -303,7 +294,7 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build dev image
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:${{steps.tag_name.outputs.tag}}-amd64 \
             --build-arg SERVER_TARGET=admin \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
@@ -311,15 +302,15 @@ jobs:
             --platform linux/amd64 \
             .
       - name: Push to GHCR
-        run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:${{steps.tag_name.outputs.tag}}-amd64
+        run: .github/scripts/retry docker push ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:${{steps.tag_name.outputs.tag}}-amd64
       - uses: ./.github/actions/sign-image
         with:
           images: ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-admin-dev-arm:
     name: hatchet-admin-dev
     runs-on: hatchet-arm64-2
+    timeout-minutes: 20
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -332,7 +323,7 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build dev image
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:${{steps.tag_name.outputs.tag}}-arm64 \
             --build-arg SERVER_TARGET=admin \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
@@ -340,18 +331,18 @@ jobs:
             --platform linux/arm64 \
             .
       - name: Push to GHCR
-        run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:${{steps.tag_name.outputs.tag}}-arm64
+        run: .github/scripts/retry docker push ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:${{steps.tag_name.outputs.tag}}-arm64
       - uses: ./.github/actions/sign-image
         with:
           images: ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:${{steps.tag_name.outputs.tag}}-arm64
   build-push-hatchet-admin-dev:
     name: Combine hatchet-admin-dev
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     needs:
       - build-push-hatchet-admin-dev-amd
       - build-push-hatchet-admin-dev-arm
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -364,8 +355,8 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Combine dev image
         run: |
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:${{steps.tag_name.outputs.tag}}-amd64
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:${{steps.tag_name.outputs.tag}}-arm64
+          .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:${{steps.tag_name.outputs.tag}}-amd64
+          .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:${{steps.tag_name.outputs.tag}}-arm64
           docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:${{steps.tag_name.outputs.tag}} \
             ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:${{steps.tag_name.outputs.tag}}-amd64 \
             ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:${{steps.tag_name.outputs.tag}}-arm64
@@ -377,8 +368,8 @@ jobs:
   build-push-hatchet-engine-amd:
     name: hatchet-engine
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -391,22 +382,22 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-amd64 \
             --build-arg SERVER_TARGET=engine \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/amd64 \
             .
       - name: Push to GHCR
-        run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-amd64
+        run: .github/scripts/retry docker push ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-amd64
       - uses: ./.github/actions/sign-image
         with:
           images: ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-engine-arm:
     name: hatchet-engine
     runs-on: hatchet-arm64-2
+    timeout-minutes: 20
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -419,26 +410,26 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-arm64 \
             --build-arg SERVER_TARGET=engine \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/arm64 \
             .
       - name: Push to GHCR
-        run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-arm64
+        run: .github/scripts/retry docker push ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-arm64
       - uses: ./.github/actions/sign-image
         with:
           images: ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-arm64
   build-push-hatchet-engine:
     name: Combine hatchet-engine
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     needs:
       - build-push-hatchet-engine-amd
       - build-push-hatchet-engine-arm
       - non-fips
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -450,9 +441,9 @@ jobs:
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Pull amd64
-        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-amd64
+        run: .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-amd64
       - name: Pull arm64
-        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-arm64
+        run: .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-arm64
       - name: Combine
         run: |
           docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}} \
@@ -466,8 +457,8 @@ jobs:
   build-push-hatchet-engine-dev-amd:
     name: hatchet-engine-dev
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -480,7 +471,7 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build dev image
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:${{steps.tag_name.outputs.tag}}-amd64 \
             --build-arg SERVER_TARGET=engine \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
@@ -488,15 +479,15 @@ jobs:
             --platform linux/amd64 \
             .
       - name: Push to GHCR
-        run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:${{steps.tag_name.outputs.tag}}-amd64
+        run: .github/scripts/retry docker push ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:${{steps.tag_name.outputs.tag}}-amd64
       - uses: ./.github/actions/sign-image
         with:
           images: ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-engine-dev-arm:
     name: hatchet-engine-dev
     runs-on: hatchet-arm64-2
+    timeout-minutes: 20
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -509,7 +500,7 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build dev image
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:${{steps.tag_name.outputs.tag}}-arm64 \
             --build-arg SERVER_TARGET=engine \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
@@ -517,18 +508,18 @@ jobs:
             --platform linux/arm64 \
             .
       - name: Push to GHCR
-        run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:${{steps.tag_name.outputs.tag}}-arm64
+        run: .github/scripts/retry docker push ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:${{steps.tag_name.outputs.tag}}-arm64
       - uses: ./.github/actions/sign-image
         with:
           images: ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:${{steps.tag_name.outputs.tag}}-arm64
   build-push-hatchet-engine-dev:
     name: Combine hatchet-engine-dev
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     needs:
       - build-push-hatchet-engine-dev-amd
       - build-push-hatchet-engine-dev-arm
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -541,8 +532,8 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Combine dev image
         run: |
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:${{steps.tag_name.outputs.tag}}-amd64
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:${{steps.tag_name.outputs.tag}}-arm64
+          .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:${{steps.tag_name.outputs.tag}}-amd64
+          .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:${{steps.tag_name.outputs.tag}}-arm64
           docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:${{steps.tag_name.outputs.tag}} \
             ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:${{steps.tag_name.outputs.tag}}-amd64 \
             ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:${{steps.tag_name.outputs.tag}}-arm64
@@ -554,8 +545,8 @@ jobs:
   build-push-hatchet-migrate-amd:
     name: hatchet-migrate
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -568,7 +559,7 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=migrate \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-amd64 \
@@ -576,15 +567,15 @@ jobs:
             .
       - name: Push to GHCR
         run: |
-          docker push ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-amd64
+          .github/scripts/retry docker push ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-amd64
       - uses: ./.github/actions/sign-image
         with:
           images: ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-migrate-arm:
     name: hatchet-migrate
     runs-on: hatchet-arm64-2
+    timeout-minutes: 20
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -597,7 +588,7 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=migrate \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-arm64 \
@@ -605,19 +596,19 @@ jobs:
             .
       - name: Push to GHCR
         run: |
-          docker push ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-arm64
+          .github/scripts/retry docker push ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-arm64
       - uses: ./.github/actions/sign-image
         with:
           images: ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-arm64
   build-push-hatchet-migrate:
     name: Combine hatchet-migrate
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     needs:
       - build-push-hatchet-migrate-amd
       - build-push-hatchet-migrate-arm
       - non-fips
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -629,9 +620,9 @@ jobs:
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Pull amd64
-        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-amd64
+        run: .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-amd64
       - name: Pull arm64
-        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-arm64
+        run: .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-arm64
       - name: Combine
         run: |
           docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}} \
@@ -645,8 +636,8 @@ jobs:
   build-push-hatchet-frontend-amd:
     name: hatchet-frontend
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -654,7 +645,7 @@ jobs:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.14'
       - name: Generate docs snippets and examples
@@ -665,21 +656,21 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/frontend.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/frontend.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-amd64 \
             --platform linux/amd64 \
             .
       - name: Push to GHCR
         run: |
-          docker push ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-amd64
+          .github/scripts/retry docker push ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-amd64
       - uses: ./.github/actions/sign-image
         with:
           images: ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-frontend-arm:
     name: hatchet-frontend
     runs-on: hatchet-arm64-2
+    timeout-minutes: 20
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -687,7 +678,7 @@ jobs:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.14'
       - name: Generate docs snippets and examples
@@ -698,25 +689,25 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/frontend.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/frontend.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-arm64 \
             --platform linux/arm64 \
             .
       - name: Push to GHCR
         run: |
-          docker push ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-arm64
+          .github/scripts/retry docker push ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-arm64
       - uses: ./.github/actions/sign-image
         with:
           images: ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-arm64
   build-push-hatchet-frontend:
     name: Combine hatchet-frontend
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     needs:
       - build-push-hatchet-frontend-amd
       - build-push-hatchet-frontend-arm
       - non-fips
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -728,9 +719,9 @@ jobs:
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Pull amd64
-        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-amd64
+        run: .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-amd64
       - name: Pull arm64
-        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-arm64
+        run: .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-arm64
       - name: Combine
         run: |
           docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}} \
@@ -744,8 +735,8 @@ jobs:
   build-push-hatchet-lite-amd:
     name: hatchet-lite-amd
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -753,7 +744,7 @@ jobs:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.14'
       - name: Generate docs snippets and examples
@@ -768,21 +759,21 @@ jobs:
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Build
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=lite \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/amd64 \
             -t hatchet-lite-tmp:amd64 \
             . &
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=admin \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/amd64 \
             -t hatchet-admin-tmp:amd64 \
             . &
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=migrate \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/amd64 \
@@ -791,7 +782,7 @@ jobs:
 
           wait
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/lite.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-amd64 \
             --platform linux/amd64 \
             --build-arg HATCHET_LITE_IMAGE=hatchet-lite-tmp:amd64 \
@@ -799,15 +790,15 @@ jobs:
             --build-arg HATCHET_MIGRATE_IMAGE=hatchet-migrate-tmp:amd64 \
             .
       - name: Push to GHCR
-        run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-amd64
+        run: .github/scripts/retry docker push ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-amd64
       - uses: ./.github/actions/sign-image
         with:
           images: ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-lite-arm:
     name: hatchet-lite-arm
     runs-on: hatchet-arm64-2
+    timeout-minutes: 20
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -815,7 +806,7 @@ jobs:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.14'
       - name: Generate docs snippets and examples
@@ -830,21 +821,21 @@ jobs:
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Build
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=lite \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/arm64 \
             -t hatchet-lite-tmp:arm64 \
             . &
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=admin \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/arm64 \
             -t hatchet-admin-tmp:arm64 \
             . &
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=migrate \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/arm64 \
@@ -853,7 +844,7 @@ jobs:
 
           wait
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/lite.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-arm64 \
             --platform linux/arm64 \
             --build-arg HATCHET_LITE_IMAGE=hatchet-lite-tmp:arm64 \
@@ -861,13 +852,14 @@ jobs:
             --build-arg HATCHET_MIGRATE_IMAGE=hatchet-migrate-tmp:arm64 \
             .
       - name: Push to GHCR
-        run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-arm64
+        run: .github/scripts/retry docker push ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-arm64
       - uses: ./.github/actions/sign-image
         with:
           images: ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-arm64
   auth-enabled:
     name: Verify auth enabled (non-dev)
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     needs:
       - build-push-hatchet-api-amd
       - build-push-hatchet-admin-amd
@@ -875,7 +867,6 @@ jobs:
       - build-push-hatchet-lite-amd
       - build-push-hatchet-dashboard-amd
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -897,6 +888,7 @@ jobs:
   non-fips:
     name: Verify non-fips images do not link the FIPS module
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     needs:
       - build-push-hatchet-api-amd
       - build-push-hatchet-api-arm
@@ -913,7 +905,6 @@ jobs:
       - build-push-hatchet-frontend-amd
       - build-push-hatchet-frontend-arm
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -941,13 +932,13 @@ jobs:
   combine-hatchet-lite:
     name: Combine hatchet-lite
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     needs:
       - build-push-hatchet-lite-amd
       - build-push-hatchet-lite-arm
       - auth-enabled
       - non-fips
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -959,9 +950,9 @@ jobs:
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Pull amd64
-        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-amd64
+        run: .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-amd64
       - name: Pull arm64
-        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-arm64
+        run: .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-arm64
       - name: Combine
         run: |
           docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}} \
@@ -975,8 +966,8 @@ jobs:
   build-push-hatchet-lite-dev-amd:
     name: hatchet-lite-dev-amd
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -984,7 +975,7 @@ jobs:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.14'
       - name: Generate docs snippets and examples
@@ -999,7 +990,7 @@ jobs:
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Build dev image
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=lite \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --build-arg GO_BUILD_TAGS=authdisabled \
@@ -1007,7 +998,7 @@ jobs:
             -t hatchet-lite-dev-tmp:amd64 \
             . &
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=admin \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --build-arg GO_BUILD_TAGS=authdisabled \
@@ -1015,7 +1006,7 @@ jobs:
             -t hatchet-admin-dev-tmp:amd64 \
             . &
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=migrate \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/amd64 \
@@ -1024,7 +1015,7 @@ jobs:
 
           wait
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/lite.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev:${{steps.tag_name.outputs.tag}}-amd64 \
             --platform linux/amd64 \
             --build-arg HATCHET_LITE_IMAGE=hatchet-lite-dev-tmp:amd64 \
@@ -1032,15 +1023,15 @@ jobs:
             --build-arg HATCHET_MIGRATE_IMAGE=hatchet-migrate-tmp:amd64 \
             .
       - name: Push to GHCR
-        run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev:${{steps.tag_name.outputs.tag}}-amd64
+        run: .github/scripts/retry docker push ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev:${{steps.tag_name.outputs.tag}}-amd64
       - uses: ./.github/actions/sign-image
         with:
           images: ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-lite-dev-arm:
     name: hatchet-lite-dev-arm
     runs-on: hatchet-arm64-2
+    timeout-minutes: 20
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -1048,7 +1039,7 @@ jobs:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.14'
       - name: Generate docs snippets and examples
@@ -1063,7 +1054,7 @@ jobs:
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Build dev image
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=lite \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --build-arg GO_BUILD_TAGS=authdisabled \
@@ -1071,7 +1062,7 @@ jobs:
             -t hatchet-lite-dev-tmp:arm64 \
             . &
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=admin \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --build-arg GO_BUILD_TAGS=authdisabled \
@@ -1079,7 +1070,7 @@ jobs:
             -t hatchet-admin-dev-tmp:arm64 \
             . &
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=migrate \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/arm64 \
@@ -1088,7 +1079,7 @@ jobs:
 
           wait
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/lite.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev:${{steps.tag_name.outputs.tag}}-arm64 \
             --platform linux/arm64 \
             --build-arg HATCHET_LITE_IMAGE=hatchet-lite-dev-tmp:arm64 \
@@ -1096,18 +1087,18 @@ jobs:
             --build-arg HATCHET_MIGRATE_IMAGE=hatchet-migrate-tmp:arm64 \
             .
       - name: Push to GHCR
-        run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev:${{steps.tag_name.outputs.tag}}-arm64
+        run: .github/scripts/retry docker push ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev:${{steps.tag_name.outputs.tag}}-arm64
       - uses: ./.github/actions/sign-image
         with:
           images: ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev:${{steps.tag_name.outputs.tag}}-arm64
   combine-hatchet-lite-dev:
     name: Combine hatchet-lite-dev
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     needs:
       - build-push-hatchet-lite-dev-amd
       - build-push-hatchet-lite-dev-arm
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -1120,8 +1111,8 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Combine dev image
         run: |
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev:${{steps.tag_name.outputs.tag}}-amd64
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev:${{steps.tag_name.outputs.tag}}-arm64
+          .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev:${{steps.tag_name.outputs.tag}}-amd64
+          .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev:${{steps.tag_name.outputs.tag}}-arm64
           docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev:${{steps.tag_name.outputs.tag}} \
             ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev:${{steps.tag_name.outputs.tag}}-amd64 \
             ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev:${{steps.tag_name.outputs.tag}}-arm64
@@ -1133,8 +1124,8 @@ jobs:
   build-push-hatchet-dashboard-amd:
     name: hatchet-dashboard-amd
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -1142,7 +1133,7 @@ jobs:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.14'
       - name: Generate docs snippets and examples
@@ -1157,29 +1148,29 @@ jobs:
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Build
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=api \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/amd64 \
             -t hatchet-api-tmp:amd64 \
             .
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/dashboard.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/dashboard.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-amd64 \
             --platform linux/amd64 \
             --build-arg HATCHET_API_IMAGE=hatchet-api-tmp:amd64 \
             .
       - name: Push to GHCR
         run: |
-          docker push ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-amd64
+          .github/scripts/retry docker push ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-amd64
       - uses: ./.github/actions/sign-image
         with:
           images: ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-dashboard-arm:
     name: hatchet-dashboard-arm
     runs-on: hatchet-arm64-2
+    timeout-minutes: 20
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -1187,7 +1178,7 @@ jobs:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.14'
       - name: Generate docs snippets and examples
@@ -1202,34 +1193,34 @@ jobs:
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Build
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=api \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/arm64 \
             -t hatchet-api-tmp:arm64 \
             .
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/dashboard.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/dashboard.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-arm64 \
             --platform linux/arm64 \
             --build-arg HATCHET_API_IMAGE=hatchet-api-tmp:arm64 \
             .
       - name: Push to GHCR
         run: |
-          docker push ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-arm64
+          .github/scripts/retry docker push ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-arm64
       - uses: ./.github/actions/sign-image
         with:
           images: ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-arm64
   combine-hatchet-dashboard:
     name: Combine hatchet-dashboard
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     needs:
       - build-push-hatchet-dashboard-amd
       - build-push-hatchet-dashboard-arm
       - auth-enabled
       - non-fips
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -1241,9 +1232,9 @@ jobs:
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Pull amd64
-        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-amd64
+        run: .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-amd64
       - name: Pull arm64
-        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-arm64
+        run: .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-arm64
       - name: Combine
         run: |
           docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}} \
@@ -1257,8 +1248,8 @@ jobs:
   build-push-hatchet-dashboard-dev-amd:
     name: hatchet-dashboard-dev-amd
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -1266,7 +1257,7 @@ jobs:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.14'
       - name: Generate docs snippets and examples
@@ -1281,7 +1272,7 @@ jobs:
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Build dev image
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=api \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --build-arg GO_BUILD_TAGS=authdisabled \
@@ -1289,21 +1280,21 @@ jobs:
             -t hatchet-api-dev-tmp:amd64 \
             .
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/dashboard.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/dashboard.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-dashboard-dev:${{steps.tag_name.outputs.tag}}-amd64 \
             --platform linux/amd64 \
             --build-arg HATCHET_API_IMAGE=hatchet-api-dev-tmp:amd64 \
             .
       - name: Push to GHCR
-        run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-dashboard-dev:${{steps.tag_name.outputs.tag}}-amd64
+        run: .github/scripts/retry docker push ghcr.io/hatchet-dev/hatchet/hatchet-dashboard-dev:${{steps.tag_name.outputs.tag}}-amd64
       - uses: ./.github/actions/sign-image
         with:
           images: ghcr.io/hatchet-dev/hatchet/hatchet-dashboard-dev:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-dashboard-dev-arm:
     name: hatchet-dashboard-dev-arm
     runs-on: hatchet-arm64-2
+    timeout-minutes: 20
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -1311,7 +1302,7 @@ jobs:
           GITHUB_TAG: ${{ github.ref }}
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.14'
       - name: Generate docs snippets and examples
@@ -1326,7 +1317,7 @@ jobs:
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Build dev image
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=api \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --build-arg GO_BUILD_TAGS=authdisabled \
@@ -1334,24 +1325,24 @@ jobs:
             -t hatchet-api-dev-tmp:arm64 \
             .
 
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/dashboard.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/dashboard.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-dashboard-dev:${{steps.tag_name.outputs.tag}}-arm64 \
             --platform linux/arm64 \
             --build-arg HATCHET_API_IMAGE=hatchet-api-dev-tmp:arm64 \
             .
       - name: Push to GHCR
-        run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-dashboard-dev:${{steps.tag_name.outputs.tag}}-arm64
+        run: .github/scripts/retry docker push ghcr.io/hatchet-dev/hatchet/hatchet-dashboard-dev:${{steps.tag_name.outputs.tag}}-arm64
       - uses: ./.github/actions/sign-image
         with:
           images: ghcr.io/hatchet-dev/hatchet/hatchet-dashboard-dev:${{steps.tag_name.outputs.tag}}-arm64
   combine-hatchet-dashboard-dev:
     name: Combine hatchet-dashboard-dev
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     needs:
       - build-push-hatchet-dashboard-dev-amd
       - build-push-hatchet-dashboard-dev-arm
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -1364,8 +1355,8 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Combine dev image
         run: |
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-dashboard-dev:${{steps.tag_name.outputs.tag}}-amd64
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-dashboard-dev:${{steps.tag_name.outputs.tag}}-arm64
+          .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-dashboard-dev:${{steps.tag_name.outputs.tag}}-amd64
+          .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-dashboard-dev:${{steps.tag_name.outputs.tag}}-arm64
           docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-dashboard-dev:${{steps.tag_name.outputs.tag}} \
             ghcr.io/hatchet-dev/hatchet/hatchet-dashboard-dev:${{steps.tag_name.outputs.tag}}-amd64 \
             ghcr.io/hatchet-dev/hatchet/hatchet-dashboard-dev:${{steps.tag_name.outputs.tag}}-arm64
@@ -1377,8 +1368,8 @@ jobs:
   build-push-hatchet-loadtest-amd:
     name: hatchet-loadtest
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -1391,21 +1382,21 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/loadtest.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/loadtest.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-amd64 \
             --platform linux/amd64 \
             .
       - name: Push to GHCR
         run: |
-          docker push ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-amd64
+          .github/scripts/retry docker push ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-amd64
       - uses: ./.github/actions/sign-image
         with:
           images: ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-loadtest-arm:
     name: hatchet-loadtest
     runs-on: hatchet-arm64-2
+    timeout-minutes: 20
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -1418,24 +1409,24 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build
         run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/loadtest.dockerfile \
+          DOCKER_BUILDKIT=1 .github/scripts/retry docker build -f ./build/package/loadtest.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-arm64 \
             --platform linux/arm64 \
             .
       - name: Push to GHCR
         run: |
-          docker push ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-arm64
+          .github/scripts/retry docker push ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-arm64
       - uses: ./.github/actions/sign-image
         with:
           images: ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-arm64
   build-push-hatchet-loadtest:
     name: Combine hatchet-loadtest
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     needs:
       - build-push-hatchet-loadtest-amd
       - build-push-hatchet-loadtest-arm
     steps:
-      - *update-ca-certificates
       - name: Get tag name
         id: tag_name
         run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
@@ -1447,9 +1438,9 @@ jobs:
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Pull amd64
-        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-amd64
+        run: .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-amd64
       - name: Pull arm64
-        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-arm64
+        run: .github/scripts/retry docker pull ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-arm64
       - name: Combine
         run: |
           docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}} \
