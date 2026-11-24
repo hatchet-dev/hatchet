@@ -300,10 +300,6 @@ type TaskRepository interface {
 	// GetTaskByExternalId is a heavily cached method to return task metadata by its external id
 	GetTaskByExternalId(ctx context.Context, tenantId, taskExternalId uuid.UUID, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error)
 
-	// GetDynamicDagShape returns the shape of a dynamic DAG run from the nodes stored on its
-	// orchestrator task, in the form GetWorkflowShape returns for a declared DAG.
-	GetDynamicDagShape(ctx context.Context, tenantId, workflowRunExternalId uuid.UUID) ([]*sqlcv1.GetWorkflowShapeRow, error)
-
 	// FlattenExternalIds is a non-cached method to look up all tasks in a workflow run by their external ids.
 	// This is non-cacheable because tasks can be added to a workflow run as it executes.
 	FlattenExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.FlattenExternalIdsRow, error)
@@ -3148,7 +3144,6 @@ func (r *sharedRepository) insertTasks(
 				ChildTaskDesiredWorkerLabels: make([][]byte, 0),
 				TaskInputPayloadVersions:     make([]int16, 0),
 				MaxReassignmentsAlloweds:     make([]pgtype.Int4, 0),
-				DynamicDagNodes:              make([][]byte, 0),
 			}
 		}
 
@@ -3163,7 +3158,6 @@ func (r *sharedRepository) insertTasks(
 		params.ChildTaskDesiredWorkerLabels = append(params.ChildTaskDesiredWorkerLabels, stepRunDataColumns.childTaskDesiredWorkerLabels)
 		params.TaskInputPayloadVersions = append(params.TaskInputPayloadVersions, int16(taskInputPayloadVersionForNewTasks))
 		params.MaxReassignmentsAlloweds = append(params.MaxReassignmentsAlloweds, maxReassignmentsAlloweds[i])
-		params.DynamicDagNodes = append(params.DynamicDagNodes, stepRunDataColumns.dynamicDagNodes)
 		params.Tenantids = append(params.Tenantids, tenantIds[i])
 		params.Queues = append(params.Queues, queues[i])
 		params.Actionids = append(params.Actionids, actionIds[i])

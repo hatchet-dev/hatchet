@@ -57,8 +57,7 @@ WITH input AS (
 		unnest($43::jsonb[]) AS dag_parent_task_run_ids,
 		unnest($44::jsonb[]) AS child_task_desired_worker_labels,
 		unnest($45::smallint[]) AS task_input_payload_version,
-		unnest($46::integer[]) AS max_reassignments_allowed,
-		unnest($47::jsonb[]) AS dynamic_dag_nodes
+		unnest($46::integer[]) AS max_reassignments_allowed
 )
 INSERT INTO v1_task (
     tenant_id,
@@ -107,8 +106,7 @@ INSERT INTO v1_task (
 	dag_parent_task_run_ids,
 	child_task_desired_worker_labels,
 	task_input_payload_version,
-	max_reassignments_allowed,
-	dynamic_dag_nodes
+	max_reassignments_allowed
 )
 SELECT
     i.tenant_id,
@@ -163,14 +161,13 @@ SELECT
 	END,
 	i.child_task_desired_worker_labels,
 	i.task_input_payload_version,
-	i.max_reassignments_allowed,
-	i.dynamic_dag_nodes
+	i.max_reassignments_allowed
 FROM
     input i
 LEFT JOIN
 	v1_step_batch_config sbc ON sbc.step_id = i.step_id
 RETURNING
-    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, batch_key, is_dag_orchestrator, concurrency_max_runs, payload_reference_id, task_input_payload_version, max_reassignments_allowed, dynamic_dag_nodes
+    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, batch_key, is_dag_orchestrator, concurrency_max_runs, payload_reference_id, task_input_payload_version, max_reassignments_allowed
 `
 
 type CreateTasksParams struct {
@@ -223,7 +220,6 @@ type CreateTasksParams struct {
 	ChildTaskDesiredWorkerLabels [][]byte             `json:"childTaskDesiredWorkerLabels"`
 	TaskInputPayloadVersions     []int16              `json:"taskInputPayloadVersions"`
 	MaxReassignmentsAlloweds     []pgtype.Int4        `json:"maxReassignmentsAlloweds"`
-	DynamicDagNodes              [][]byte             `json:"dynamicDagNodes"`
 }
 
 func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParams) ([]*V1Task, error) {
@@ -287,7 +283,6 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 		arg.ChildTaskDesiredWorkerLabels,
 		arg.TaskInputPayloadVersions,
 		arg.MaxReassignmentsAlloweds,
-		arg.DynamicDagNodes,
 	)
 	if err != nil {
 		return nil, err
@@ -345,7 +340,6 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 			&i.PayloadReferenceID,
 			&i.TaskInputPayloadVersion,
 			&i.MaxReassignmentsAllowed,
-			&i.DynamicDagNodes,
 		); err != nil {
 			return nil, err
 		}
@@ -1250,7 +1244,7 @@ func (q *Queries) ListDurableOrchestratorChildTaskExternalIds(ctx context.Contex
 
 const listTasksForDispatch = `-- name: ListTasksForDispatch :many
 SELECT
-    v1_task.id, v1_task.inserted_at, v1_task.tenant_id, v1_task.queue, v1_task.action_id, v1_task.step_id, v1_task.step_readable_id, v1_task.workflow_id, v1_task.workflow_version_id, v1_task.workflow_run_id, v1_task.schedule_timeout, v1_task.step_timeout, v1_task.priority, v1_task.sticky, v1_task.desired_worker_id, v1_task.external_id, v1_task.display_name, v1_task.input, v1_task.retry_count, v1_task.internal_retry_count, v1_task.app_retry_count, v1_task.step_index, v1_task.additional_metadata, v1_task.dag_id, v1_task.dag_inserted_at, v1_task.parent_task_external_id, v1_task.parent_task_id, v1_task.parent_task_inserted_at, v1_task.child_index, v1_task.child_key, v1_task.initial_state, v1_task.initial_state_reason, v1_task.concurrency_parent_strategy_ids, v1_task.concurrency_strategy_ids, v1_task.concurrency_keys, v1_task.batch_key, v1_task.retry_backoff_factor, v1_task.retry_max_backoff, v1_task.is_durable, v1_task.desired_worker_label, v1_task.triggering_event_external_id, v1_task.triggering_event_key, v1_task.idempotency_key, v1_task.is_dag_orchestrator, v1_task.concurrency_max_runs, v1_task.payload_reference_id, v1_task.triggers, v1_task.dag_parent_task_run_ids, v1_task.child_task_desired_worker_labels, v1_task.task_input_payload_version, v1_task.dynamic_dag_nodes,
+    v1_task.id, v1_task.inserted_at, v1_task.tenant_id, v1_task.queue, v1_task.action_id, v1_task.step_id, v1_task.step_readable_id, v1_task.workflow_id, v1_task.workflow_version_id, v1_task.workflow_run_id, v1_task.schedule_timeout, v1_task.step_timeout, v1_task.priority, v1_task.sticky, v1_task.desired_worker_id, v1_task.external_id, v1_task.display_name, v1_task.input, v1_task.retry_count, v1_task.internal_retry_count, v1_task.app_retry_count, v1_task.step_index, v1_task.additional_metadata, v1_task.dag_id, v1_task.dag_inserted_at, v1_task.parent_task_external_id, v1_task.parent_task_id, v1_task.parent_task_inserted_at, v1_task.child_index, v1_task.child_key, v1_task.initial_state, v1_task.initial_state_reason, v1_task.concurrency_parent_strategy_ids, v1_task.concurrency_strategy_ids, v1_task.concurrency_keys, v1_task.batch_key, v1_task.retry_backoff_factor, v1_task.retry_max_backoff, v1_task.is_durable, v1_task.desired_worker_label, v1_task.triggering_event_external_id, v1_task.triggering_event_key, v1_task.idempotency_key, v1_task.is_dag_orchestrator, v1_task.concurrency_max_runs, v1_task.payload_reference_id, v1_task.triggers, v1_task.dag_parent_task_run_ids, v1_task.child_task_desired_worker_labels, v1_task.task_input_payload_version,
     tr.task_id, tr.task_inserted_at, tr.retry_count, tr.worker_id, tr.batch_id, tr.batch_size, tr.batch_index, tr.batch_key, tr.tenant_id, tr.timeout_at, tr.evicted_at, tr.assigned_at, tr.acked_at,
     p.id AS payload_id,
     p.inserted_at AS payload_inserted_at,
@@ -1360,7 +1354,6 @@ func (q *Queries) ListTasksForDispatch(ctx context.Context, db DBTX, tenantId uu
 			&i.V1Task.DagParentTaskRunIds,
 			&i.V1Task.ChildTaskDesiredWorkerLabels,
 			&i.V1Task.TaskInputPayloadVersion,
-			&i.V1Task.DynamicDagNodes,
 			&i.V1TaskRuntime.TaskID,
 			&i.V1TaskRuntime.TaskInsertedAt,
 			&i.V1TaskRuntime.RetryCount,

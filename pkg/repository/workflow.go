@@ -52,11 +52,11 @@ type CreateWorkflowVersionOpts struct {
 	// (optional) the input bytes for the cron triggers
 	CronInput []byte
 
-	// (required unless IsDynamicDag) the tasks in the workflow
-	Tasks []CreateStepOpts `validate:"required_unless=IsDynamicDag true,omitempty,min=1,dive"`
+	// (required) the tasks in the workflow
+	Tasks []CreateStepOpts `validate:"required,min=1,dive"`
 
-	// (optional) creates a workflow holding only the orchestrator step, whose runs get their
-	// tasks from the trigger instead of from the workflow version (see ResolveDynamicDagNodes)
+	// (optional) set on workflows registered from a trigger's nodes instead of by a worker
+	// (see PutDynamicDagWorkflowVersion)
 	IsDynamicDag bool `json:"isDynamicDag,omitempty"`
 
 	OnFailure *CreateStepOpts `json:"onFailureJob,omitempty" validate:"omitempty"`
@@ -264,7 +264,7 @@ type WorkflowMetrics struct {
 type WorkflowRepository interface {
 	ListWorkflowNamesByIds(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) (map[uuid.UUID]string, error)
 	PutWorkflowVersion(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkflowVersionOpts) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
-	ResolveDynamicDagNodes(ctx context.Context, tenantId uuid.UUID, dagName string, nodes []DynamicDagNodeOpts) ([]DynamicDagNode, error)
+	PutDynamicDagWorkflowVersion(ctx context.Context, tenantId uuid.UUID, dagName string, nodes []DynamicDagNodeOpts) (uuid.UUID, error)
 	GetWorkflowShape(ctx context.Context, workflowVersionId uuid.UUID) ([]*sqlcv1.GetWorkflowShapeRow, error)
 	ListStepsByWorkflowVersionId(ctx context.Context, tenantId uuid.UUID, workflowVersionId uuid.UUID) ([]*sqlcv1.ListStepsByWorkflowVersionIdsRow, error)
 	ListStepMatchConditions(ctx context.Context, tenantId uuid.UUID, stepIds []uuid.UUID) ([]*sqlcv1.V1StepMatchCondition, error)

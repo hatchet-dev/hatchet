@@ -349,37 +349,18 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 		runCancel()
 	}()
 
-	var payloadWrapper struct {
-		Input               json.RawMessage               `json:"input"`
-		DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow `json:"desired_worker_labels"`
-		DynamicDagNodes     []repository.DynamicDagNode   `json:"dynamic_dag_nodes"`
-	}
-	workflowInput := "{}"
-	if err := json.Unmarshal([]byte(action.ActionPayload), &payloadWrapper); err == nil && len(payloadWrapper.Input) > 0 {
-		workflowInput = string(payloadWrapper.Input)
-	}
-
-	var tasks []*task
-	var onFailureTask *task
-
-	if len(payloadWrapper.DynamicDagNodes) > 0 {
-		tasks, err = buildDynamicDAG(payloadWrapper.DynamicDagNodes)
-	} else {
-		tasks, onFailureTask, err = d.buildDAG(runCtx, action)
-	}
+	tasks, onFailureTask, err := d.buildDAG(runCtx, action)
 
 	awaitStarted()
 
 	if err != nil {
-		// a dynamic dag is built only from its stored nodes, which never change between attempts
-		isDynamicDag := len(payloadWrapper.DynamicDagNodes) > 0
-		return d.fail(span, action, fmt.Errorf("could not build dag: %w", err), isDynamicDag)
+		return d.fail(span, action, fmt.Errorf("could not build dag: %w", err), false)
 	}
 
-	// a dynamic dag workflow's version has no task steps, so a run of it triggered without its
-	// nodes (e.g. by name) would otherwise complete at once without running anything
-	if len(tasks) == 0 {
-		return d.fail(span, action, &dagHasNoTasksError{workflowVersionId: action.GetWorkflowVersionId()}, true)
+	workflowVersionId, err := uuid.Parse(action.GetWorkflowVersionId())
+
+	if err != nil {
+		return d.fail(span, action, fmt.Errorf("invalid workflow_version_id %q: %w", action.GetWorkflowVersionId(), err), false)
 	}
 
 	// The host does the register-worker handshake and holds any response the engine sends
@@ -396,6 +377,15 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 
 	defer func() { _ = ch.Close() }()
 
+	var payloadWrapper struct {
+		Input               json.RawMessage               `json:"input"`
+		DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow `json:"desired_worker_labels"`
+	}
+	workflowInput := "{}"
+	if err := json.Unmarshal([]byte(action.ActionPayload), &payloadWrapper); err == nil && len(payloadWrapper.Input) > 0 {
+		workflowInput = string(payloadWrapper.Input)
+	}
+
 	var additionalMetadata []byte
 	if meta := action.GetAdditionalMetadata(); meta != "" {
 		additionalMetadata = []byte(meta)
@@ -409,7 +399,7 @@ func (d *DAGOperator) run(action *contracts.AssignedAction) error {
 				ParentTaskExternalId: externalId,
 				InvocationCount:      action.GetDurableTaskInvocationCount(),
 				WorkflowName:         req.workflowName,
-				WorkflowVersionId:    req.workflowVersionId,
+				WorkflowVersionId:    workflowVersionId,
 				ActionId:             req.actionId,
 				ChildIndex:           req.childIndex,
 				Input:                workflowInput,
@@ -709,11 +699,10 @@ func (d *DAGOperator) buildDAG(ctx context.Context, action *contracts.AssignedAc
 		}
 
 		t := &task{
-			actionId:          s.ActionId,
-			workflowName:      s.WorkflowName,
-			workflowVersionId: versionId,
-			readableId:        s.ReadableId.String,
-			index:             int32(taskIndex), // nolint:gosec // a workflow has far fewer steps than int32 holds
+			actionId:     s.ActionId,
+			workflowName: s.WorkflowName,
+			readableId:   s.ReadableId.String,
+			index:        int32(taskIndex), // nolint:gosec // a workflow has far fewer steps than int32 holds
 		}
 		taskIndex++
 
@@ -763,34 +752,4 @@ func (d *DAGOperator) buildDAG(ctx context.Context, action *contracts.AssignedAc
 	)
 
 	return tasks, onFailureTask, nil
-}
-
-func buildDynamicDAG(nodes []repository.DynamicDagNode) ([]*task, error) {
-	tasks := make([]*task, len(nodes))
-	taskNameToTask := make(map[string]*task, len(nodes))
-
-	for i, node := range nodes {
-		tasks[i] = &task{
-			actionId:          node.ActionId,
-			workflowName:      node.TaskName,
-			workflowVersionId: node.WorkflowVersionId,
-			readableId:        node.StepReadableId,
-			index:             int32(i), // nolint:gosec // a dag has far fewer nodes than int32 holds
-		}
-		taskNameToTask[node.TaskName] = tasks[i]
-	}
-
-	for i, node := range nodes {
-		for _, parentTaskName := range node.ParentTaskNames {
-			parent, ok := taskNameToTask[parentTaskName]
-
-			if !ok {
-				return nil, fmt.Errorf("dynamic dag node %q has unknown parent %q", node.TaskName, parentTaskName)
-			}
-
-			tasks[i].parents = append(tasks[i].parents, parent)
-		}
-	}
-
-	return tasks, nil
 }

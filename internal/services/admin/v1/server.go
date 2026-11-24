@@ -722,13 +722,13 @@ func (a *AdminServiceImpl) newTriggerOpt(
 			}
 		}
 
-		resolved, err := a.repo.Workflows().ResolveDynamicDagNodes(ctx, tenantId, req.WorkflowName, nodes)
+		workflowVersionId, err := a.repo.Workflows().PutDynamicDagWorkflowVersion(ctx, tenantId, req.WorkflowName, nodes)
 
 		if err != nil {
 			return nil, err
 		}
 
-		t.DynamicDagNodes = resolved
+		t.WorkflowVersionId = &workflowVersionId
 	}
 
 	return &v1.WorkflowNameTriggerOpts{

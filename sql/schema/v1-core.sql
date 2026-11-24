@@ -579,7 +579,6 @@ CREATE TABLE v1_task (
     child_task_desired_worker_labels JSONB,
     task_input_payload_version SMALLINT NOT NULL DEFAULT 1,
     max_reassignments_allowed INTEGER,
-    dynamic_dag_nodes JSONB,
     CONSTRAINT v1_task_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 

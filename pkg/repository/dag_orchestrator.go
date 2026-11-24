@@ -10,8 +10,6 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -41,21 +39,10 @@ func IsDAGOrchestratorActionId(id string) bool {
 }
 
 // DynamicDagNodeOpts is one node of a dynamic DAG as the caller submits it: a registered
-// single-task workflow and the nodes (by task name) it depends on.
+// standalone task and the nodes (by task name) it depends on.
 type DynamicDagNodeOpts struct {
 	TaskName        string   `validate:"required,hatchetName"`
 	ParentTaskNames []string `validate:"dive,hatchetName"`
-}
-
-// DynamicDagNode is a dynamic DAG node resolved at trigger time. The workflow version is pinned
-// so that replays and deploys of the task mid-run cannot change what the node runs.
-type DynamicDagNode struct {
-	TaskName          string    `json:"task_name"`
-	WorkflowVersionId uuid.UUID `json:"workflow_version_id"`
-	StepId            uuid.UUID `json:"step_id"`
-	ActionId          string    `json:"action_id"`
-	StepReadableId    string    `json:"step_readable_id"`
-	ParentTaskNames   []string  `json:"parent_task_names,omitempty"`
 }
 
 // Step names must be unique within a workflow, so the orchestrator can only take the workflow
@@ -70,40 +57,34 @@ func dagOrchestratorReadableId(workflowName string, taskReadableIds []string) st
 	return readableId
 }
 
-// ResolveDynamicDagNodes checks that the nodes form a DAG of registered single-task workflows and
-// pins each node to its workflow's latest version. The first time a dynamic DAG is triggered
-// under dagName, it registers the orchestrator-only workflow its runs belong to.
-func (r *workflowRepository) ResolveDynamicDagNodes(ctx context.Context, tenantId uuid.UUID, dagName string, nodes []DynamicDagNodeOpts) ([]DynamicDagNode, error) {
+// PutDynamicDagWorkflowVersion registers dagName as a workflow whose steps are copies of the
+// nodes' standalone tasks as they are registered now, and returns the version to run. Sending
+// the same nodes again returns the existing version.
+func (r *workflowRepository) PutDynamicDagWorkflowVersion(ctx context.Context, tenantId uuid.UUID, dagName string, nodes []DynamicDagNodeOpts) (uuid.UUID, error) {
 	invalid := func(format string, args ...any) error {
 		return &TriggerOptInvalidArgumentError{Err: fmt.Errorf(format, args...)}
 	}
 
 	taskNames := make([]string, 0, len(nodes))
-	stepsForCycleCheck := make([]CreateStepOpts, 0, len(nodes))
 
 	for _, node := range nodes {
 		if err := r.v.Validate(node); err != nil {
-			return nil, invalid("invalid node %q: %w", node.TaskName, err)
+			return uuid.Nil, invalid("invalid node %q: %w", node.TaskName, err)
 		}
 
 		if slices.Contains(taskNames, node.TaskName) {
-			return nil, invalid("task %q appears in more than one node", node.TaskName)
+			return uuid.Nil, invalid("task %q appears in more than one node", node.TaskName)
 		}
 
 		taskNames = append(taskNames, node.TaskName)
-		stepsForCycleCheck = append(stepsForCycleCheck, CreateStepOpts{ReadableId: node.TaskName, Parents: node.ParentTaskNames})
 	}
 
 	for _, node := range nodes {
 		for _, parent := range node.ParentTaskNames {
 			if !slices.Contains(taskNames, parent) {
-				return nil, invalid("node %q has parent %q, which is not a node of the dag", node.TaskName, parent)
+				return uuid.Nil, invalid("node %q has parent %q, which is not a node of the dag", node.TaskName, parent)
 			}
 		}
-	}
-
-	if hasCycleV1(stepsForCycleCheck) {
-		return nil, invalid("the dag's nodes contain a cycle")
 	}
 
 	db := r.pool.ForTenant(tenantId)
@@ -111,103 +92,88 @@ func (r *workflowRepository) ResolveDynamicDagNodes(ctx context.Context, tenantI
 	workflows, err := r.listWorkflowsByNames(ctx, db, tenantId, append([]string{dagName}, taskNames...))
 
 	if err != nil {
-		return nil, err
+		return uuid.Nil, err
 	}
 
-	workflowNameToVersionId := make(map[string]uuid.UUID, len(workflows))
-	versionIds := make([]uuid.UUID, 0, len(workflows))
+	versionIds := make([]uuid.UUID, len(workflows))
 
-	for _, w := range workflows {
-		workflowNameToVersionId[w.WorkflowName] = w.WorkflowVersionId
-		versionIds = append(versionIds, w.WorkflowVersionId)
+	for i, w := range workflows {
+		versionIds[i] = w.WorkflowVersionId
 	}
 
-	versionIdToSteps, err := r.listStepsByWorkflowVersionIds(ctx, db, tenantId, versionIds)
-
-	if err != nil {
-		return nil, err
-	}
-
-	resolved := make([]DynamicDagNode, 0, len(nodes))
-
-	for _, node := range nodes {
-		versionId, ok := workflowNameToVersionId[node.TaskName]
-
-		if !ok {
-			return nil, invalid("task %q is not registered", node.TaskName)
-		}
-
-		steps := versionIdToSteps[versionId]
-
-		if len(steps) != 1 || steps[0].IsDagOrchestrator {
-			return nil, invalid("%q is not a standalone task; dynamic dag nodes must be standalone tasks", node.TaskName)
-		}
-
-		resolved = append(resolved, DynamicDagNode{
-			TaskName:          node.TaskName,
-			WorkflowVersionId: versionId,
-			StepId:            steps[0].ID,
-			ActionId:          steps[0].ActionId,
-			StepReadableId:    steps[0].ReadableId.String,
-			ParentTaskNames:   node.ParentTaskNames,
-		})
-	}
-
-	if dagVersionId, ok := workflowNameToVersionId[dagName]; ok {
-		if len(regularUserSteps(versionIdToSteps[dagVersionId])) > 0 {
-			return nil, invalid("workflow %q already exists and is not a dynamic dag", dagName)
-		}
-	} else if _, err := r.PutWorkflowVersion(ctx, tenantId, &CreateWorkflowVersionOpts{Name: dagName, IsDynamicDag: true}); err != nil {
-		return nil, fmt.Errorf("could not register dynamic dag workflow %q: %w", dagName, err)
-	}
-
-	return resolved, nil
-}
-
-func (r *TaskRepositoryImpl) GetDynamicDagShape(ctx context.Context, tenantId, workflowRunExternalId uuid.UUID) ([]*sqlcv1.GetWorkflowShapeRow, error) {
-	orchestrator, err := r.queries.GetTaskByExternalId(ctx, r.pool.ForTenant(tenantId), sqlcv1.GetTaskByExternalIdParams{
-		Tenantid:   tenantId,
-		Externalid: workflowRunExternalId,
+	versions, err := r.queries.GetWorkflowVersionForEngine(ctx, db, sqlcv1.GetWorkflowVersionForEngineParams{
+		Tenantid: tenantId,
+		Ids:      versionIds,
 	})
 
-	// core retention can drop the orchestrator task while OLAP still holds the run
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("failed to get workflow versions: %w", err)
+	}
+
+	workflowNameToRegisteredOpts := make(map[string]CreateWorkflowVersionOpts, len(versions))
+
+	for _, version := range versions {
+		var registeredOpts CreateWorkflowVersionOpts
+
+		// versions created before the options were stored have none
+		if len(version.WorkflowVersion.CreateWorkflowVersionOpts) == 0 {
+			return uuid.Nil, invalid("%q was registered before workflow options were stored; change and re-register it to use it in a dynamic dag", version.WorkflowName)
+		}
+
+		if err := json.Unmarshal(version.WorkflowVersion.CreateWorkflowVersionOpts, &registeredOpts); err != nil {
+			return uuid.Nil, fmt.Errorf("failed to unmarshal the registered options of %q: %w", version.WorkflowName, err)
+		}
+
+		workflowNameToRegisteredOpts[version.WorkflowName] = registeredOpts
+	}
+
+	if registeredOpts, ok := workflowNameToRegisteredOpts[dagName]; ok && !registeredOpts.IsDynamicDag {
+		return uuid.Nil, invalid("workflow %q already exists and is not a dynamic dag", dagName)
+	}
+
+	steps := make([]CreateStepOpts, len(nodes))
+
+	for i, node := range nodes {
+		registeredOpts, ok := workflowNameToRegisteredOpts[node.TaskName]
+
+		if !ok {
+			return uuid.Nil, invalid("task %q is not registered", node.TaskName)
+		}
+
+		if len(registeredOpts.Tasks) != 1 || registeredOpts.OnFailure != nil {
+			return uuid.Nil, invalid("%q is not a standalone task; dynamic dag nodes must be standalone tasks", node.TaskName)
+		}
+
+		step := registeredOpts.Tasks[0]
+		step.ReadableId = node.TaskName
+		step.Parents = node.ParentTaskNames
+
+		// OrGroupId is not stored with the registered options, only the index that conditions
+		// of the same or-group share
+		orGroupIdIndexToOrGroupId := make(map[int32]uuid.UUID)
+
+		for j, condition := range step.TriggerConditions {
+			if _, ok := orGroupIdIndexToOrGroupId[condition.OrGroupIdIndex]; !ok {
+				orGroupIdIndexToOrGroupId[condition.OrGroupIdIndex] = uuid.New()
+			}
+
+			step.TriggerConditions[j].OrGroupId = orGroupIdIndexToOrGroupId[condition.OrGroupIdIndex]
+		}
+
+		steps[i] = step
+	}
+
+	version, err := r.PutWorkflowVersion(ctx, tenantId, &CreateWorkflowVersionOpts{Name: dagName, Tasks: steps, IsDynamicDag: true})
+
+	var cycleErr *JobRunHasCycleError
+
+	if errors.As(err, &cycleErr) {
+		return uuid.Nil, invalid("the dag's nodes contain a cycle")
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to get orchestrator task: %w", err)
+		return uuid.Nil, fmt.Errorf("could not register dynamic dag workflow %q: %w", dagName, err)
 	}
 
-	if len(orchestrator.DynamicDagNodes) == 0 {
-		return nil, nil
-	}
-
-	var nodes []DynamicDagNode
-
-	if err := json.Unmarshal(orchestrator.DynamicDagNodes, &nodes); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal dynamic dag nodes: %w", err)
-	}
-
-	shape := make([]*sqlcv1.GetWorkflowShapeRow, len(nodes))
-	taskNameToShapeIndex := make(map[string]int, len(nodes))
-
-	for i, node := range nodes {
-		shape[i] = &sqlcv1.GetWorkflowShapeRow{
-			Parentstepid:    node.StepId,
-			Stepname:        pgtype.Text{String: node.TaskName, Valid: true},
-			Childrenstepids: []uuid.UUID{},
-		}
-		taskNameToShapeIndex[node.TaskName] = i
-	}
-
-	for _, node := range nodes {
-		for _, parentTaskName := range node.ParentTaskNames {
-			if parentIndex, ok := taskNameToShapeIndex[parentTaskName]; ok {
-				shape[parentIndex].Childrenstepids = append(shape[parentIndex].Childrenstepids, node.StepId)
-			}
-		}
-	}
-
-	return shape, nil
+	return version.WorkflowVersion.ID, nil
 }
