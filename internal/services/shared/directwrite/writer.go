@@ -2,6 +2,7 @@ package directwrite
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -21,27 +22,41 @@ const (
 // batched by tenant and message id with the same buffer the controller consumes the queue through, so
 // the database sees the same batch sizes either way.
 type Writer struct {
-	mq     msgqueue.MessageQueue
-	l      *zerolog.Logger
-	handle msgqueue.MsgHandler
-	slots  chan struct{}
+	mq        msgqueue.MessageQueue
+	l         *zerolog.Logger
+	handle    msgqueue.MsgHandler
+	slots     chan struct{}
+	stopBuf   func() error
+	onDrained func()
+
+	mu       sync.Mutex
+	closed   bool
+	inflight int
+	drained  chan struct{}
 }
 
 // Opts bounds the database load a Writer adds to its process.
 type Opts struct {
+	// OnDrained runs in Close once every write has finished, before Close returns. It is where the
+	// handler's own resources are released, such as the task controller's publish buffer that the
+	// handler's monitoring events go through, since no write can publish into them afterwards.
+	OnDrained func()
+
 	// Slots caps how many messages are applied in-process at once; messages beyond it go over the
 	// durable task queue. Zero sends every message over the queue, and a negative value removes the cap.
 	Slots int
 }
 
 // New returns a Writer that applies messages with dst, normally the task controller's handler from
-// task.NewMessageHandler, and sends them over mq when they can't be applied in-process. The Writer has
-// no cleanup: its batching buffer is never stopped, since stopping it would strand writes still waiting
-// on a flush, and the gRPC server keeps accepting worker events while the engine's services shut down.
+// task.NewMessageHandler, and sends them over mq when they can't be applied in-process. Call Close
+// once the gRPC server has stopped and before mq disconnects: writes still in flight can fall back to
+// mq, and the handler publishes its own events through it.
 func New(dst msgqueue.DstFunc, mq msgqueue.MessageQueue, l *zerolog.Logger, opts Opts) (*Writer, error) {
 	w := &Writer{
-		mq: mq,
-		l:  l,
+		mq:        mq,
+		l:         l,
+		onDrained: opts.OnDrained,
+		drained:   make(chan struct{}),
 	}
 
 	// An unbuffered channel never has a free slot (nothing receives until a slot is held), so zero
@@ -58,11 +73,76 @@ func New(dst msgqueue.DstFunc, mq msgqueue.MessageQueue, l *zerolog.Logger, opts
 		return func() error { return nil }, nil
 	}, dst)
 
-	if _, err := buf.Start(); err != nil {
+	stopBuf, err := buf.Start()
+
+	if err != nil {
 		return nil, err
 	}
 
+	w.stopBuf = stopBuf
+
 	return w, nil
+}
+
+// Close stops applying messages in-process and waits, up to ctx, for the writes already in flight.
+// Writes that arrive afterwards go straight over the task queue. The batching buffer is only stopped
+// once nothing waits on it: it doesn't flush on shutdown, so stopping it early would leave those
+// writes blocked forever. If ctx ends first, Close returns its error and leaves the buffer running.
+func (w *Writer) Close(ctx context.Context) error {
+	w.mu.Lock()
+
+	if !w.closed {
+		w.closed = true
+
+		if w.inflight == 0 {
+			close(w.drained)
+		}
+	}
+
+	w.mu.Unlock()
+
+	// checked on its own first, so an already expired ctx still finishes a writer with nothing in flight
+	select {
+	case <-w.drained:
+	default:
+		select {
+		case <-w.drained:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
+	if w.onDrained != nil {
+		w.onDrained()
+	}
+
+	return w.stopBuf()
+}
+
+// begin registers a write that will use the batching buffer. It fails once Close has started, which
+// sends the write over the queue instead.
+func (w *Writer) begin() bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if w.closed {
+		return false
+	}
+
+	w.inflight++
+
+	return true
+}
+
+func (w *Writer) end() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	w.inflight--
+
+	if w.closed && w.inflight == 0 {
+		close(w.drained)
+	}
 }
 
 // Write applies msg in-process and returns once its batch has been handled. It sends msg over the
@@ -73,23 +153,57 @@ func (w *Writer) Write(ctx context.Context, msg *msgqueue.Message) error {
 	return w.write(ctx, msg)
 }
 
-// WriteAsync is Write for senders that don't wait for the outcome. It outlives the caller's context,
+// TryWriteAsync applies msg in-process in the background when a slot is free, and returns false
+// without doing anything otherwise. The caller then sends msg its own way, typically through a
+// batching publish buffer, which keeps the batching and backpressure that a burst of overflow would
+// lose if every message were published on its own. The background write holds its slot until it
+// finishes, so slots also bound how many of these goroutines exist. It outlives the caller's context,
 // since the caller typically returns before the batch flushes.
-func (w *Writer) WriteAsync(ctx context.Context, msg *msgqueue.Message) {
+func (w *Writer) TryWriteAsync(ctx context.Context, msg *msgqueue.Message) bool {
+	// Without a cap nothing would bound the goroutines, so uncapped writers leave async messages to the
+	// caller's batching path.
+	if w.slots == nil {
+		return false
+	}
+
+	if !w.begin() {
+		return false
+	}
+
+	if !w.tryAcquire() {
+		w.end()
+		w.record(msg.ID, resultFallbackNoSlot, 0)
+		return false
+	}
+
 	ctx = context.WithoutCancel(ctx)
 
 	go func() {
-		// the only error write can return here comes from sendToQueue, which already logs it
-		_ = w.write(ctx, msg)
+		defer w.end()
+
+		// the only error apply can return here comes from sendToQueue, which already logs it
+		_ = w.apply(ctx, msg)
 	}()
+
+	return true
 }
 
 func (w *Writer) write(ctx context.Context, msg *msgqueue.Message) error {
+	if !w.begin() {
+		return w.sendToQueue(ctx, msg)
+	}
+
+	defer w.end()
+
 	if !w.tryAcquire() {
 		w.record(msg.ID, resultFallbackNoSlot, 0)
 		return w.sendToQueue(ctx, msg)
 	}
 
+	return w.apply(ctx, msg)
+}
+
+func (w *Writer) apply(ctx context.Context, msg *msgqueue.Message) error {
 	start := time.Now()
 	err := w.handle(msg)
 	w.release()

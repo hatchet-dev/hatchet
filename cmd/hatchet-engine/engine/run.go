@@ -1151,6 +1151,21 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		}
 
 		grpcApiCleanup := func() error {
+			// Deferred so it runs once the gRPC server has stopped and no new worker events arrive, and
+			// also when an earlier step fails: the writes still in flight (acks run in the background)
+			// then finish while the queue and the database are up for them and for the monitoring events
+			// they publish. It shares the gRPC drain budget, since both wait on the same in-flight events.
+			if directTaskWriter != nil {
+				defer func() {
+					drainCtx, cancel := context.WithTimeout(context.Background(), directTaskWriterDrainTimeout(sc))
+					defer cancel()
+
+					if err := directTaskWriter.Close(drainCtx); err != nil {
+						l.Error().Err(err).Msg("direct task writes were still in flight at shutdown")
+					}
+				}()
+			}
+
 			// flag this dispatcher as leaving first, so other dispatchers start claiming its
 			// operators now rather than after the drain, and it claims nothing more itself
 			if err := d.MarkDraining(context.Background()); err != nil {
@@ -1281,7 +1296,7 @@ func newDirectTaskWriter(sc *server.ServerConfig) (*directwrite.Writer, error) {
 		return nil, err
 	}
 
-	handler, err := task.NewMessageHandler(
+	handler, stopHandler, err := task.NewMessageHandler(
 		task.WithAlerter(sc.Alerter),
 		task.WithMessageQueue(sc.MessageQueueV1),
 		task.WithPubSub(sc.PubSubV1),
@@ -1299,7 +1314,8 @@ func newDirectTaskWriter(sc *server.ServerConfig) (*directwrite.Writer, error) {
 	}
 
 	w, err := directwrite.New(handler, sc.MessageQueueV1, sc.Logger, directwrite.Opts{
-		Slots: sc.Runtime.DirectTaskWriteSlots,
+		Slots:     sc.Runtime.DirectTaskWriteSlots,
+		OnDrained: stopHandler,
 	})
 
 	if err != nil {
@@ -1307,6 +1323,17 @@ func newDirectTaskWriter(sc *server.ServerConfig) (*directwrite.Writer, error) {
 	}
 
 	return w, nil
+}
+
+// directTaskWriterDrainTimeout shares the gRPC drain budget, since both wait on the same in-flight
+// worker events. The gRPC server ignores a non-positive timeout and keeps its own default, so this
+// does the same rather than giving the writer no time at all.
+func directTaskWriterDrainTimeout(sc *server.ServerConfig) time.Duration {
+	if sc.Runtime.GRPCShutdownTimeout > 0 {
+		return sc.Runtime.GRPCShutdownTimeout
+	}
+
+	return 10 * time.Second
 }
 
 // warnOnDirectTaskWriteSlots flags slot counts that let direct writes take most of the engine pool.

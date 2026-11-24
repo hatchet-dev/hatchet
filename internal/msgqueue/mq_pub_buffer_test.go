@@ -2,9 +2,12 @@ package msgqueue
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // mockMessageQueue satisfies MessageQueue for tests. Only SendMessage is wired up.
@@ -108,5 +111,109 @@ func TestPubBufferFlushesWhenFull(t *testing.T) {
 	case <-overflowDone:
 	case <-time.After(2 * time.Second):
 		t.Error("overflow Pub did not unblock after buffer was drained")
+	}
+}
+
+func countingMQ(sent *atomic.Int32) *mockMessageQueue {
+	return &mockMessageQueue{sendMessageFn: func(_ context.Context, _ Queue, msg *Message) error {
+		sent.Add(int32(len(msg.Payloads))) // nolint: gosec
+		return nil
+	}}
+}
+
+func newTestMessage(t *testing.T, tenantID uuid.UUID) *Message {
+	t.Helper()
+
+	msg, err := NewTenantMessage(tenantID, MsgIDTaskAcked, false, true, map[string]string{"k": "v"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return msg
+}
+
+// Messages enqueued right after a flush sit out the flush interval, and the flusher's own shutdown
+// flush skips them; Stop must still publish them before it returns.
+func TestPubBufferStopPublishesEverythingBeforeReturning(t *testing.T) {
+	var sent atomic.Int32
+
+	b := NewMQPubBuffer(countingMQ(&sent))
+	tenantID := uuid.New()
+
+	if err := b.Pub(context.Background(), TASK_PROCESSING_QUEUE, newTestMessage(t, tenantID), true); err != nil {
+		t.Fatal(err)
+	}
+
+	for range 3 {
+		if err := b.Pub(context.Background(), TASK_PROCESSING_QUEUE, newTestMessage(t, tenantID), false); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	b.Stop()
+
+	if got := sent.Load(); got != 4 {
+		t.Fatalf("expected all 4 messages published when Stop returned, got %d", got)
+	}
+}
+
+func TestPubBufferPubAfterStopPublishesDirectly(t *testing.T) {
+	var sent atomic.Int32
+
+	b := NewMQPubBuffer(countingMQ(&sent))
+	tenantID := uuid.New()
+
+	// the tenant's buffer exists before Stop, so its flusher has exited by the time of the second Pub
+	if err := b.Pub(context.Background(), TASK_PROCESSING_QUEUE, newTestMessage(t, tenantID), true); err != nil {
+		t.Fatal(err)
+	}
+
+	b.Stop()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- b.Pub(context.Background(), TASK_PROCESSING_QUEUE, newTestMessage(t, tenantID), true)
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Pub after Stop blocked")
+	}
+
+	if got := sent.Load(); got != 2 {
+		t.Fatalf("expected 2 messages published, got %d", got)
+	}
+}
+
+// Pub calls racing with Stop either land in a buffer that Stop drains or publish themselves; none is
+// lost or left blocked.
+func TestPubBufferPubRacingWithStop(t *testing.T) {
+	var sent atomic.Int32
+
+	b := NewMQPubBuffer(countingMQ(&sent))
+
+	const pubs = 200
+
+	var wg sync.WaitGroup
+
+	for i := range pubs {
+		wg.Go(func() {
+			// a handful of tenants, so messages share buffers and flush windows
+			tenantID := uuid.NewSHA1(uuid.Nil, []byte{byte(i % 5)})
+			if err := b.Pub(context.Background(), TASK_PROCESSING_QUEUE, newTestMessage(t, tenantID), i%3 == 0); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+
+	b.Stop()
+	wg.Wait()
+
+	if got := sent.Load(); got != pubs {
+		t.Fatalf("expected %d messages published, got %d", pubs, got)
 	}
 }

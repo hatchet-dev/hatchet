@@ -2,6 +2,7 @@ package msgqueue
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -62,8 +63,31 @@ func (m *MQPubBuffer) runEvictor(ctx context.Context) {
 	}
 }
 
+// Stop flushes every buffered message and returns once they are all published. A flusher's own
+// shutdown flush isn't enough: it runs in the background, and it is skipped when the buffer flushed
+// within the last flush interval, which is exactly when messages were just enqueued. Callers stop the
+// buffer before disconnecting the queue, so anything still buffered after Stop would be lost. Buffers
+// drain in parallel, so a slow broker costs Stop about one publish timeout rather than one per buffer.
 func (m *MQPubBuffer) Stop() {
 	m.cancel()
+
+	var wg sync.WaitGroup
+
+	m.buffers.Range(func(_ string, b *msgIdPubBuffer) bool {
+		wg.Go(b.drainAll)
+		return true
+	})
+
+	wg.Wait()
+}
+
+// pubNow publishes msg on its own, for messages that arrive once the buffer is stopped and nothing
+// flushes it anymore.
+func (m *MQPubBuffer) pubNow(queue Queue, msg *Message) error {
+	ctx, cancel := context.WithTimeout(context.Background(), PUB_TIMEOUT)
+	defer cancel()
+
+	return m.mq.SendMessage(ctx, queue, msg)
 }
 
 type msgWithErrCh struct {
@@ -74,6 +98,10 @@ type msgWithErrCh struct {
 func (m *MQPubBuffer) Pub(ctx context.Context, queue Queue, msg *Message, wait bool) error {
 	if msg.TenantID == uuid.Nil {
 		return nil
+	}
+
+	if m.ctx.Err() != nil {
+		return m.pubNow(queue, msg)
 	}
 
 	k := getPubKey(queue, msg.TenantID, msg.ID)
@@ -109,7 +137,8 @@ func (m *MQPubBuffer) Pub(ctx context.Context, queue Queue, msg *Message, wait b
 
 	msgWithErr := &msgWithErrCh{msg: msg}
 	if wait {
-		msgWithErr.errCh = make(chan error)
+		// buffered, since after Stop this goroutine may flush its own message before it waits on it
+		msgWithErr.errCh = make(chan error, 1)
 	}
 
 	// Signal early flush if the channel is already at capacity — the send below may block.
@@ -120,9 +149,22 @@ func (m *MQPubBuffer) Pub(ctx context.Context, queue Queue, msg *Message, wait b
 		}
 	}
 
-	// this places some backpressure on the consumer if buffers are full
-	msgBuf.msgIdPubBufferCh <- msgWithErr
-	msgBuf.notifier <- struct{}{}
+	// this places some backpressure on the consumer if buffers are full. Once the buffer is stopped
+	// nothing reads these channels, so a Pub racing with Stop publishes its message itself.
+	select {
+	case msgBuf.msgIdPubBufferCh <- msgWithErr:
+	case <-m.ctx.Done():
+		msgBuf.release()
+		return m.pubNow(queue, msg)
+	}
+
+	select {
+	case msgBuf.notifier <- struct{}{}:
+	case <-m.ctx.Done():
+		// Stop may have drained this buffer before the message landed in it.
+		msgBuf.drainAll()
+	}
+
 	msgBuf.release()
 
 	if wait {
@@ -143,6 +185,10 @@ type msgIdPubBuffer struct {
 	msgId            string
 	msgIdPubBufferCh chan *msgWithErrCh
 	pub              PubFunc
+
+	// flushMu lets drainAll wait for flushes in progress, which have taken messages off the channel
+	// but not published them yet; flushes share it so they still run concurrently with each other.
+	flushMu sync.RWMutex
 }
 
 func newMsgIDPubBuffer(ctx context.Context, tenantID uuid.UUID, msgID string, pub PubFunc) *msgIdPubBuffer {
@@ -175,11 +221,34 @@ func (m *msgIdPubBuffer) flush() {
 		}()
 	}()
 
+	m.flushMu.RLock()
+	defer m.flushMu.RUnlock()
+
 	drained := drainN(m.msgIdPubBufferCh, m.bufferSize)
 	if len(drained) == 0 {
 		return
 	}
 
+	m.publish(drained)
+}
+
+// drainAll publishes everything left in the buffer, ignoring the flush rate limit, once flushes in
+// progress have finished.
+func (m *msgIdPubBuffer) drainAll() {
+	m.flushMu.Lock()
+	defer m.flushMu.Unlock()
+
+	for {
+		drained := drainN(m.msgIdPubBufferCh, m.bufferSize)
+		if len(drained) == 0 {
+			return
+		}
+
+		m.publish(drained)
+	}
+}
+
+func (m *msgIdPubBuffer) publish(drained []*msgWithErrCh) {
 	payloadBytes := make([][]byte, 0, len(drained))
 	var isPersistent *bool
 	var immediatelyExpire *bool

@@ -210,8 +210,10 @@ func WithPrometheusGate(gate *prometheus.Gate) TasksControllerOpt {
 // NewMessageHandler returns the task controller's message handler without starting any of the
 // controller's background operations, so a process that doesn't run the controller (the
 // dispatcher) can apply task-processing messages in-process. It has the same contract as the
-// controller's queue consumer: an error means the batch should be delivered again.
-func NewMessageHandler(fs ...TasksControllerOpt) (msgqueue.DstFunc, error) {
+// controller's queue consumer: an error means the batch should be delivered again. The returned
+// stop function stops the publish buffer the handler sends monitoring and tenant events through;
+// call it only once nothing can call the handler anymore.
+func NewMessageHandler(fs ...TasksControllerOpt) (msgqueue.DstFunc, func(), error) {
 	opts := defaultTasksControllerOpts()
 
 	for _, f := range fs {
@@ -221,10 +223,10 @@ func NewMessageHandler(fs ...TasksControllerOpt) (msgqueue.DstFunc, error) {
 	t, err := newTasksController(opts)
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return t.handleBufferedMsgs, nil
+	return t.handleBufferedMsgs, t.pubBuffer.Stop, nil
 }
 
 // newTasksController builds the parts of the controller that its message handlers use. The

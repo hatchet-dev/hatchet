@@ -1552,15 +1552,14 @@ func (s *DispatcherImpl) sendTenantTaskMessage(ctx context.Context, msg *msgqueu
 }
 
 // sendAckedTaskMessage sends a task-acked event without waiting for it to be applied, since the worker's
-// STARTED event doesn't wait on it either way.
+// STARTED event doesn't wait on it either way. Acks the direct writer has no slot for go through the
+// publish buffer, which batches them and pushes back on the caller when the queue falls behind.
 func (s *DispatcherImpl) sendAckedTaskMessage(ctx context.Context, msg *msgqueue.Message) error {
-	if s.directTaskWriter == nil {
-		return s.pubBuffer.Pub(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg, false)
+	if s.directTaskWriter != nil && s.directTaskWriter.TryWriteAsync(ctx, msg) {
+		return nil
 	}
 
-	s.directTaskWriter.WriteAsync(ctx, msg)
-
-	return nil
+	return s.pubBuffer.Pub(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg, false)
 }
 
 // handleTaskCancelledEvent processes a worker/operator-reported cancellation for a single

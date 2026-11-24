@@ -144,16 +144,116 @@ func TestWriteFallsBackWhenSlotsAreTaken(t *testing.T) {
 	assert.Equal(t, 1, mq.sentCount())
 }
 
-func TestWriteAsyncFallsBackOnHandlerError(t *testing.T) {
+func TestTryWriteAsyncFallsBackOnHandlerError(t *testing.T) {
 	mq := &fakeMQ{}
 
 	w := newWriter(t, func(uuid.UUID, string, [][]byte) error {
 		return errors.New("deadlock detected")
 	}, mq, Opts{Slots: 10})
 
-	w.WriteAsync(context.Background(), newMsg(t))
+	require.True(t, w.TryWriteAsync(context.Background(), newMsg(t)))
 
 	require.Eventually(t, func() bool { return mq.sentCount() == 1 }, 5*time.Second, 10*time.Millisecond)
+}
+
+// Without a free slot TryWriteAsync leaves the message to the caller's batching publish path, and
+// doesn't publish it itself or start a goroutine for it.
+func TestTryWriteAsyncLeavesOverflowToTheCaller(t *testing.T) {
+	mq := &fakeMQ{}
+	release := make(chan struct{})
+
+	w := newWriter(t, func(uuid.UUID, string, [][]byte) error {
+		<-release
+		return nil
+	}, mq, Opts{Slots: 2})
+
+	require.True(t, w.TryWriteAsync(context.Background(), newMsg(t)))
+	require.True(t, w.TryWriteAsync(context.Background(), newMsg(t)))
+	assert.False(t, w.TryWriteAsync(context.Background(), newMsg(t)))
+	assert.Equal(t, 0, mq.sentCount())
+
+	close(release)
+	require.NoError(t, w.Close(context.Background()))
+	assert.Equal(t, 0, mq.sentCount())
+}
+
+func TestCloseWaitsForBackgroundWrites(t *testing.T) {
+	mq := &fakeMQ{}
+	release := make(chan struct{})
+	started := make(chan struct{})
+
+	var handled, drainedAfterHandled atomic.Bool
+
+	w := newWriter(t, func(uuid.UUID, string, [][]byte) error {
+		close(started)
+		<-release
+		handled.Store(true)
+		return nil
+	}, mq, Opts{Slots: 10, OnDrained: func() { drainedAfterHandled.Store(handled.Load()) }})
+
+	require.True(t, w.TryWriteAsync(context.Background(), newMsg(t)))
+	<-started
+
+	closed := make(chan error)
+	go func() { closed <- w.Close(context.Background()) }()
+
+	select {
+	case <-closed:
+		t.Fatal("Close returned while a write was still in flight")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	close(release)
+	require.NoError(t, <-closed)
+	assert.True(t, drainedAfterHandled.Load(), "OnDrained must run after the in-flight write finished")
+}
+
+func TestCloseGivesUpAtItsDeadline(t *testing.T) {
+	mq := &fakeMQ{}
+	release := make(chan struct{})
+	started := make(chan struct{})
+
+	var drained atomic.Bool
+
+	w := newWriter(t, func(uuid.UUID, string, [][]byte) error {
+		close(started)
+		<-release
+		return nil
+	}, mq, Opts{Slots: 10, OnDrained: func() { drained.Store(true) }})
+
+	require.True(t, w.TryWriteAsync(context.Background(), newMsg(t)))
+	<-started
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+
+	require.ErrorIs(t, w.Close(ctx), context.DeadlineExceeded)
+	assert.False(t, drained.Load(), "the handler's resources stay up while a write still uses them")
+
+	close(release)
+}
+
+func TestWritesAfterCloseGoOverTheQueue(t *testing.T) {
+	mq := &fakeMQ{}
+
+	var applied atomic.Bool
+
+	w := newWriter(t, func(uuid.UUID, string, [][]byte) error {
+		applied.Store(true)
+		return nil
+	}, mq, Opts{Slots: 10})
+
+	expired, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// nothing is in flight, so even an expired ctx lets Close finish
+	require.NoError(t, w.Close(expired))
+	require.NoError(t, w.Close(context.Background()), "a second Close must not panic")
+
+	require.NoError(t, w.Write(context.Background(), newMsg(t)))
+	assert.False(t, w.TryWriteAsync(context.Background(), newMsg(t)))
+	assert.False(t, applied.Load())
+	assert.Equal(t, 1, mq.sentCount())
 }
 
 func TestWriteReturnsQueueErrorOnFallback(t *testing.T) {
@@ -282,6 +382,89 @@ func TestNegativeSlotsRemovesTheCap(t *testing.T) {
 
 	close(release)
 	wg.Wait()
+}
+
+func TestCloseWaitsForSynchronousWrites(t *testing.T) {
+	mq := &fakeMQ{}
+	release := make(chan struct{})
+	started := make(chan struct{})
+
+	w := newWriter(t, func(uuid.UUID, string, [][]byte) error {
+		close(started)
+		<-release
+		return nil
+	}, mq, Opts{Slots: 10})
+
+	written := make(chan error)
+	go func() { written <- w.Write(context.Background(), newMsg(t)) }()
+	<-started
+
+	closed := make(chan error)
+	go func() { closed <- w.Close(context.Background()) }()
+
+	select {
+	case <-closed:
+		t.Fatal("Close returned while a synchronous write was still in flight")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	close(release)
+	require.NoError(t, <-written)
+	require.NoError(t, <-closed)
+	assert.Equal(t, 0, mq.sentCount())
+}
+
+// Close racing with writes: every write either gets applied or goes over the queue, none is lost
+// or blocked, and Close returns once the applied ones have finished.
+func TestCloseRacingWithWrites(t *testing.T) {
+	mq := &fakeMQ{}
+
+	var applied atomic.Int32
+
+	w := newWriter(t, func(_ uuid.UUID, _ string, payloads [][]byte) error {
+		applied.Add(int32(len(payloads))) // nolint: gosec
+		return nil
+	}, mq, Opts{Slots: 4})
+
+	const writers = 50
+
+	var wg sync.WaitGroup
+
+	var async atomic.Int32
+
+	for i := range writers {
+		wg.Go(func() {
+			if i%2 == 0 {
+				assert.NoError(t, w.Write(context.Background(), newMsg(t)))
+				return
+			}
+
+			if !w.TryWriteAsync(context.Background(), newMsg(t)) {
+				async.Add(1)
+			}
+		})
+	}
+
+	require.NoError(t, w.Close(context.Background()))
+	wg.Wait()
+
+	// TryWriteAsync calls that returned false are the caller's to send, so they appear in neither count.
+	assert.Equal(t, int32(writers), applied.Load()+int32(mq.sentCount())+async.Load()) // nolint: gosec
+}
+
+func TestTryWriteAsyncLeavesEverythingToTheCallerWithoutACap(t *testing.T) {
+	mq := &fakeMQ{}
+
+	var applied atomic.Bool
+
+	w := newWriter(t, func(uuid.UUID, string, [][]byte) error {
+		applied.Store(true)
+		return nil
+	}, mq, Opts{Slots: -1})
+
+	assert.False(t, w.TryWriteAsync(context.Background(), newMsg(t)))
+	assert.False(t, applied.Load())
+	assert.Equal(t, 0, mq.sentCount())
 }
 
 func setFastBackoff(t *testing.T) {
