@@ -377,6 +377,11 @@ export interface WorkerRegisterRequest {
     | undefined;
   /** (optional) slot config for this worker (slot_type -> units) */
   slotConfig: { [key: string]: number };
+  /**
+   * (optional) how long the worker can go without a heartbeat before the engine declares it dead
+   * and reassigns its tasks (defaults to 30 seconds, must be between the 4 second heartbeat interval and 1 hour)
+   */
+  maxHeartbeatDelayBeforeDeclaredDeadSeconds?: number | undefined;
 }
 
 export interface WorkerRegisterRequest_LabelsEntry {
@@ -962,6 +967,7 @@ function createBaseWorkerRegisterRequest(): WorkerRegisterRequest {
     webhookId: undefined,
     runtimeInfo: undefined,
     slotConfig: {},
+    maxHeartbeatDelayBeforeDeclaredDeadSeconds: undefined,
   };
 }
 
@@ -991,6 +997,9 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
     globalThis.Object.entries(message.slotConfig).forEach(([key, value]: [string, number]) => {
       WorkerRegisterRequest_SlotConfigEntry.encode({ key: key as any, value }, writer.uint32(74).fork()).join();
     });
+    if (message.maxHeartbeatDelayBeforeDeclaredDeadSeconds !== undefined) {
+      writer.uint32(80).int32(message.maxHeartbeatDelayBeforeDeclaredDeadSeconds);
+    }
     return writer;
   },
 
@@ -1071,6 +1080,14 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
           }
           continue;
         }
+        case 10: {
+          if (tag !== 80) {
+            break;
+          }
+
+          message.maxHeartbeatDelayBeforeDeclaredDeadSeconds = reader.int32();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1126,6 +1143,11 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
           {},
         )
         : {},
+      maxHeartbeatDelayBeforeDeclaredDeadSeconds: isSet(object.maxHeartbeatDelayBeforeDeclaredDeadSeconds)
+        ? globalThis.Number(object.maxHeartbeatDelayBeforeDeclaredDeadSeconds)
+        : isSet(object.max_heartbeat_delay_before_declared_dead_seconds)
+        ? globalThis.Number(object.max_heartbeat_delay_before_declared_dead_seconds)
+        : undefined,
     };
   },
 
@@ -1167,6 +1189,9 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
         });
       }
     }
+    if (message.maxHeartbeatDelayBeforeDeclaredDeadSeconds !== undefined) {
+      obj.maxHeartbeatDelayBeforeDeclaredDeadSeconds = Math.round(message.maxHeartbeatDelayBeforeDeclaredDeadSeconds);
+    }
     return obj;
   },
 
@@ -1201,6 +1226,7 @@ export const WorkerRegisterRequest: MessageFns<WorkerRegisterRequest> = {
       },
       {},
     );
+    message.maxHeartbeatDelayBeforeDeclaredDeadSeconds = object.maxHeartbeatDelayBeforeDeclaredDeadSeconds ?? undefined;
     return message;
   },
 };

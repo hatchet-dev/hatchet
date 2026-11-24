@@ -287,7 +287,7 @@ type CreateWorkerParams struct {
 	Operatoractioncount                 int32             `json:"operatoractioncount"`
 	OperatorId                          *uuid.UUID        `json:"operatorId"`
 	Isexemptfromlimits                  bool              `json:"isexemptfromlimits"`
-	Maxheartbeatdelaybeforedeclareddead pgtype.Interval   `json:"maxheartbeatdelaybeforedeclareddead"`
+	MaxHeartbeatDelayBeforeDeclaredDead pgtype.Interval   `json:"maxHeartbeatDelayBeforeDeclaredDead"`
 }
 
 func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerParams) (*Worker, error) {
@@ -305,7 +305,7 @@ func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerPar
 		arg.Operatoractioncount,
 		arg.OperatorId,
 		arg.Isexemptfromlimits,
-		arg.Maxheartbeatdelaybeforedeclareddead,
+		arg.MaxHeartbeatDelayBeforeDeclaredDead,
 	)
 	var i Worker
 	err := row.Scan(
