@@ -410,37 +410,38 @@ func runManualNonInteractive(profile *profileconfig.Profile, hatchetClient clien
 		cli.Logger.Fatalf("invalid tenant ID: %v", err)
 	}
 
-	// Fetch workflows
-	response, err := hatchetClient.API().WorkflowListWithResponse(ctx, tenantUUID, &rest.WorkflowListParams{})
+	// Fetch workflows — use Name search to find the workflow directly
+	response, err := hatchetClient.API().WorkflowListWithResponse(ctx, tenantUUID, &rest.WorkflowListParams{
+		Name: &workflowName,
+	})
 	if err != nil {
 		cli.Logger.Fatalf("could not fetch workflows: %v", err)
 	}
 
 	if response.JSON200 == nil || response.JSON200.Rows == nil || len(*response.JSON200.Rows) == 0 {
+		// Name search missed — check whether any workflows exist at all
+		limit := 1
+		anyResp, err := hatchetClient.API().WorkflowListWithResponse(ctx, tenantUUID, &rest.WorkflowListParams{
+			Limit: &limit,
+		})
+		if err != nil {
+			cli.Logger.Fatalf("could not fetch workflows: %v", err)
+		}
+		if anyResp.JSON200 != nil && anyResp.JSON200.Rows != nil && len(*anyResp.JSON200.Rows) > 0 {
+			cli.Logger.Fatalf("workflow '%s' not found", workflowName)
+		}
 		cli.Logger.Fatal("no workflows available. Deploy a workflow first.")
 	}
 
-	// Find workflow by name
-	var selectedWorkflow *WorkflowInfo
-	for _, wf := range *response.JSON200.Rows {
-		if wf.Name == workflowName {
-			version := "latest"
-			if wf.Versions != nil && len(*wf.Versions) > 0 {
-				firstVersion := (*wf.Versions)[0]
-				version = firstVersion.Version
-			}
-			selectedWorkflow = &WorkflowInfo{
-				ID:      wf.Metadata.Id,
-				Name:    wf.Name,
-				Version: version,
-			}
-			break
-		}
+	wf := (*response.JSON200.Rows)[0]
+	version := "latest"
+	if wf.Versions != nil && len(*wf.Versions) > 0 {
+		version = (*wf.Versions)[0].Version
 	}
-
-	if selectedWorkflow == nil {
-		cli.Logger.Fatalf("workflow '%s' not found", workflowName)
-		return // Make linter happy
+	selectedWorkflow := &WorkflowInfo{
+		ID:      wf.Metadata.Id,
+		Name:    wf.Name,
+		Version: version,
 	}
 
 	// Read JSON from file
