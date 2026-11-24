@@ -2788,7 +2788,7 @@ WITH tasks_on_inactive_workers AS (
     WHERE
         w."tenantId" = $1::uuid
         AND w."tenantId" = runtime.tenant_id
-        AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
+        AND w."lastHeartbeatAt" < NOW() - COALESCE(w."maxHeartbeatDelayBeforeDeclaredDead", INTERVAL '30 seconds')
         -- evicted tasks are not eligible for re-assignment
         AND runtime.evicted_at IS NULL
     -- NOTE: without this ORDER BY, the planner assumes most runtimes belong to the tenant's many stale workers and
