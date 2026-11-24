@@ -106,6 +106,14 @@ export const TIME_WINDOW_LABELS: Record<TimeWindowPreset, string> = {
   '7d': '7 days',
 };
 
+// Empty states only render on the default window (any other window counts as an
+// active filter), so falling back to the default label covers custom ranges.
+export function timeWindowLabel(timeWindow: string): string {
+  return isTimeWindowPreset(timeWindow)
+    ? TIME_WINDOW_LABELS[timeWindow]
+    : '1 day';
+}
+
 const TIME_WINDOWS_DESC = [...TIME_WINDOW_PRESETS].reverse();
 
 export function isTimeWindowPreset(value: string): value is TimeWindowPreset {
