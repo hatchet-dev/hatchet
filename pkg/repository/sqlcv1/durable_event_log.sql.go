@@ -387,10 +387,10 @@ func (q *Queries) BulkUpsertDurableChildSignalCreatedEvents(ctx context.Context,
 const claimDurableEventLogEntriesForTrigger = `-- name: ClaimDurableEventLogEntriesForTrigger :many
 WITH inputs AS (
     SELECT
-        UNNEST($3::BIGINT[]) AS node_id,
-        UNNEST($4::BIGINT[]) AS branch_id,
-        UNNEST($5::BIGINT[]) AS durable_task_id,
-        UNNEST($6::TIMESTAMPTZ[]) AS durable_task_inserted_at
+        UNNEST((SELECT $3::BIGINT[])) AS node_id,
+        UNNEST((SELECT $4::BIGINT[])) AS branch_id,
+        UNNEST((SELECT $5::BIGINT[])) AS durable_task_id,
+        UNNEST((SELECT $6::TIMESTAMPTZ[])) AS durable_task_inserted_at
 ), to_claim AS (
     SELECT
         e.durable_task_id,
