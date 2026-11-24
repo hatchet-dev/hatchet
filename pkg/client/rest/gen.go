@@ -1788,6 +1788,15 @@ type V1DurableWaitCondition struct {
 // V1DurableWaitConditionKind defines model for V1DurableWaitConditionKind.
 type V1DurableWaitConditionKind string
 
+// V1DynamicDagNode defines model for V1DynamicDagNode.
+type V1DynamicDagNode struct {
+	// ParentTaskNames The task names of the nodes this node depends on.
+	ParentTaskNames *[]string `json:"parentTaskNames,omitempty"`
+
+	// TaskName The name of a registered standalone task.
+	TaskName string `json:"taskName"`
+}
+
 // V1Event defines model for V1Event.
 type V1Event struct {
 	// AdditionalMetadata Additional metadata for the event.
@@ -2318,7 +2327,10 @@ type V1TaskTimingList struct {
 // V1TriggerWorkflowRunRequest defines model for V1TriggerWorkflowRunRequest.
 type V1TriggerWorkflowRunRequest struct {
 	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
-	Input              map[string]interface{}  `json:"input"`
+
+	// DynamicDagNodes When set, runs workflowName as a dynamic DAG of these nodes instead of a registered workflow. Each node names a registered standalone task.
+	DynamicDagNodes *[]V1DynamicDagNode    `json:"dynamicDagNodes,omitempty"`
+	Input           map[string]interface{} `json:"input"`
 
 	// Priority The priority of the workflow run.
 	Priority *int `json:"priority,omitempty"`
