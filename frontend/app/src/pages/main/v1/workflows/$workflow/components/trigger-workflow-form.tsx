@@ -1,3 +1,4 @@
+import { DynamicDag, TriggerDynamicDagForm } from './trigger-dynamic-dag-form';
 import { Combobox } from '@/components/v1/molecules/combobox/combobox';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { hasFormFields } from '@/components/v1/molecules/json-schema-form/prepare-schema';
@@ -50,6 +51,7 @@ const JsonSchemaForm = lazy(
 
 type TimingOption = 'now' | 'schedule' | 'cron';
 type InputMode = 'editor' | 'form';
+type TriggerMode = 'workflow' | 'dynamic-dag';
 
 export function TriggerWorkflowForm({
   defaultWorkflow,
@@ -59,6 +61,7 @@ export function TriggerWorkflowForm({
   show,
   onClose,
   defaultTimingOption = 'now',
+  defaultDynamicDag,
 }: {
   defaultWorkflow?: Workflow;
   defaultWorkflowId?: string;
@@ -67,6 +70,7 @@ export function TriggerWorkflowForm({
   show: boolean;
   onClose: () => void;
   defaultTimingOption?: TimingOption;
+  defaultDynamicDag?: DynamicDag;
 }) {
   const queryClient = useQueryClient();
   const { tenantId } = useCurrentTenantId();
@@ -77,6 +81,11 @@ export function TriggerWorkflowForm({
   const [addlMeta, setAddlMeta] = useState<string | undefined>(defaultAddlMeta);
   const [errors, setErrors] = useState<string[]>([]);
 
+  const defaultTriggerMode: TriggerMode = defaultDynamicDag
+    ? 'dynamic-dag'
+    : 'workflow';
+  const [triggerMode, setTriggerMode] =
+    useState<TriggerMode>(defaultTriggerMode);
   const [inputMode, setInputMode] = useState<InputMode>('editor');
   // the form only reads its value on mount, so snapshot the input on switch
   const [formInitialValue, setFormInitialValue] = useState<unknown>({});
@@ -126,6 +135,7 @@ export function TriggerWorkflowForm({
     setInput(defaultInput);
     setAddlMeta(defaultAddlMeta);
     setErrors([]);
+    setTriggerMode(defaultTriggerMode);
     setInputMode('editor');
     setSelectedWorkflowId(defaultWorkflowId);
     setTimingOption(defaultTimingOption);
@@ -141,6 +151,7 @@ export function TriggerWorkflowForm({
     defaultInput,
     defaultAddlMeta,
     defaultTimingOption,
+    defaultTriggerMode,
     debouncedSetSearch,
   ]);
 
@@ -378,225 +389,244 @@ export function TriggerWorkflowForm({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="font-bold">Workflow</div>
-        <Combobox
-          values={selectedWorkflowId ? [selectedWorkflowId] : []}
-          setValues={(values) => {
-            setSelectedWorkflowId(values[0]);
-            setInputMode('editor');
-          }}
-          title="Select Workflow"
-          options={workflowKeys?.rows?.map((w) => ({
-            value: w.metadata.id,
-            label: w.name,
-          }))}
-          type={ToolbarType.Radio}
-          icon={
-            <BiDownArrowCircle className="mr-2 h-5 w-5 text-gray-700 dark:text-gray-300" />
-          }
-          searchValue={workflowSearch}
-          onSearchChange={handleSearchChange}
-          emptyMessage={
-            debouncedWorkflowSearch
-              ? `No workflows matching "${debouncedWorkflowSearch}"`
-              : 'No workflows found'
-          }
-        />
-        <div className="flex items-center justify-between">
-          <div className="font-bold">
-            Input
-            {isLoadingWorkflow && (
-              <span className="ml-2 text-sm font-normal text-muted-foreground">
-                (Loading schema...)
-              </span>
-            )}
-          </div>
-          {hasJsonSchema && !isLoadingWorkflow && (
-            <Tabs
-              value={inputMode}
-              onValueChange={(value) =>
-                handleInputModeChange(value as InputMode)
-              }
-            >
-              <TabsList>
-                <TabsTrigger value="editor">Editor</TabsTrigger>
-                <TabsTrigger value="form">Form</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          )}
-        </div>
-        {isLoadingWorkflow ? (
-          <Skeleton className="h-[180px] w-full" />
-        ) : hasJsonSchema && inputMode === 'form' ? (
-          <Suspense fallback={<Skeleton className="h-[180px] w-full" />}>
-            <JsonSchemaForm
-              key={selectedWorkflowId}
-              schema={jsonSchema}
-              initialValue={formInitialValue}
-              onChange={handleFormChange}
-            />
-          </Suspense>
-        ) : (
-          <CodeEditor
-            code={input || '{}'}
-            setCode={setInput}
-            language="json"
-            height="180px"
-            jsonSchema={jsonSchema}
-          />
-        )}
-        <div className="font-bold">Additional Metadata</div>
-        {isLoadingWorkflow ? (
-          <Skeleton className="h-[90px] w-full" />
-        ) : (
-          <CodeEditor
-            code={addlMeta || '{}'}
-            setCode={setAddlMeta}
-            height="90px"
-            language="json"
-          />
-        )}
-        <div>
-          <div className="mb-2 font-bold">Timing</div>
-          <Tabs
-            defaultValue={timingOption}
-            onValueChange={(value) =>
-              setTimingOption(value as 'now' | 'schedule' | 'cron')
-            }
-          >
-            <TabsList>
-              <TabsTrigger value="now">Now</TabsTrigger>
-              <TabsTrigger value="schedule">Schedule</TabsTrigger>
-              <TabsTrigger value="cron">Cron</TabsTrigger>
-            </TabsList>
-            <TabsContent value="now"></TabsContent>
-            <TabsContent value="schedule">
-              <div className="mt-4">
-                <div className="mb-2 font-bold">Select Date and Time</div>
-                <div className="flex gap-2">
-                  <DateTimePicker
-                    date={scheduleTime}
-                    setDate={setScheduleTime}
-                    label="Trigger at"
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setScheduleTime(new Date())}
-                  >
-                    Now
-                  </Button>
-                </div>
-                <div className="mt-2 flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const newTime = new Date(scheduleTime || new Date());
-                      newTime.setSeconds(newTime.getSeconds() + 15);
-                      setScheduleTime(newTime);
-                    }}
-                  >
-                    +15s
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const newTime = new Date(scheduleTime || new Date());
-                      newTime.setMinutes(newTime.getMinutes() + 1);
-                      setScheduleTime(newTime);
-                    }}
-                  >
-                    +1m
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const newTime = new Date(scheduleTime || new Date());
-                      newTime.setMinutes(newTime.getMinutes() + 5);
-                      setScheduleTime(newTime);
-                    }}
-                  >
-                    +5m
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const newTime = new Date(scheduleTime || new Date());
-                      newTime.setMinutes(newTime.getMinutes() + 15);
-                      setScheduleTime(newTime);
-                    }}
-                  >
-                    +15m
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const newTime = new Date(scheduleTime || new Date());
-                      newTime.setMinutes(newTime.getMinutes() + 60);
-                      setScheduleTime(newTime);
-                    }}
-                  >
-                    +60m
-                  </Button>
-                </div>
-              </div>
-            </TabsContent>
-            <TabsContent value="cron">
-              <div className="mt-4">
-                <div className="mb-2 font-bold">Cron Name</div>
-                <Input
-                  type="text"
-                  value={cronName}
-                  onChange={(e) => setCronName(e.target.value)}
-                  placeholder="e.g., cron-name"
-                  className="mb-2 w-full"
-                />
-                <div className="mb-2 font-bold">Cron Expression</div>
-                <Input
-                  type="text"
-                  value={cronExpression}
-                  onChange={(e) => setCronExpression(e.target.value)}
-                  placeholder="e.g., 0 0 * * *"
-                  className="w-full"
-                />
-                <div className="text-sm text-gray-500">
-                  {cronPretty?.error || `(runs ${cronPretty?.pretty})`}
-                </div>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </div>
+        <Tabs
+          value={triggerMode}
+          onValueChange={(value) => setTriggerMode(value as TriggerMode)}
+        >
+          <TabsList>
+            <TabsTrigger value="workflow">Workflow</TabsTrigger>
+            <TabsTrigger value="dynamic-dag">Dynamic DAG</TabsTrigger>
+          </TabsList>
+        </Tabs>
 
-        <div className="flex justify-end">
-          <Button
-            disabled={
-              triggerNowMutation.isPending ||
-              triggerScheduleMutation.isPending ||
-              triggerCronMutation.isPending ||
-              !selectedWorkflow ||
-              isLoadingWorkflow
-            }
-            onClick={handleSubmit}
-          >
-            Submit
-          </Button>
-        </div>
-        {(errors.length > 0 ||
-          triggerNowMutation.error ||
-          triggerScheduleMutation.error ||
-          triggerCronMutation.error) && (
-          <div className="mt-4">
-            {errors.map((error, index) => (
-              <div key={index} className="text-sm text-red-500">
-                {error}
+        {triggerMode === 'dynamic-dag' ? (
+          <TriggerDynamicDagForm
+            defaultDynamicDag={defaultDynamicDag}
+            defaultInput={defaultInput}
+          />
+        ) : (
+          <>
+            <div className="font-bold">Workflow</div>
+            <Combobox
+              values={selectedWorkflowId ? [selectedWorkflowId] : []}
+              setValues={(values) => {
+                setSelectedWorkflowId(values[0]);
+                setInputMode('editor');
+              }}
+              title="Select Workflow"
+              options={workflowKeys?.rows?.map((w) => ({
+                value: w.metadata.id,
+                label: w.name,
+              }))}
+              type={ToolbarType.Radio}
+              icon={
+                <BiDownArrowCircle className="mr-2 h-5 w-5 text-gray-700 dark:text-gray-300" />
+              }
+              searchValue={workflowSearch}
+              onSearchChange={handleSearchChange}
+              emptyMessage={
+                debouncedWorkflowSearch
+                  ? `No workflows matching "${debouncedWorkflowSearch}"`
+                  : 'No workflows found'
+              }
+            />
+            <div className="flex items-center justify-between">
+              <div className="font-bold">
+                Input
+                {isLoadingWorkflow && (
+                  <span className="ml-2 text-sm font-normal text-muted-foreground">
+                    (Loading schema...)
+                  </span>
+                )}
               </div>
-            ))}
-          </div>
+              {hasJsonSchema && !isLoadingWorkflow && (
+                <Tabs
+                  value={inputMode}
+                  onValueChange={(value) =>
+                    handleInputModeChange(value as InputMode)
+                  }
+                >
+                  <TabsList>
+                    <TabsTrigger value="editor">Editor</TabsTrigger>
+                    <TabsTrigger value="form">Form</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              )}
+            </div>
+            {isLoadingWorkflow ? (
+              <Skeleton className="h-[180px] w-full" />
+            ) : hasJsonSchema && inputMode === 'form' ? (
+              <Suspense fallback={<Skeleton className="h-[180px] w-full" />}>
+                <JsonSchemaForm
+                  key={selectedWorkflowId}
+                  schema={jsonSchema}
+                  initialValue={formInitialValue}
+                  onChange={handleFormChange}
+                />
+              </Suspense>
+            ) : (
+              <CodeEditor
+                code={input || '{}'}
+                setCode={setInput}
+                language="json"
+                height="180px"
+                jsonSchema={jsonSchema}
+              />
+            )}
+            <div className="font-bold">Additional Metadata</div>
+            {isLoadingWorkflow ? (
+              <Skeleton className="h-[90px] w-full" />
+            ) : (
+              <CodeEditor
+                code={addlMeta || '{}'}
+                setCode={setAddlMeta}
+                height="90px"
+                language="json"
+              />
+            )}
+            <div>
+              <div className="mb-2 font-bold">Timing</div>
+              <Tabs
+                defaultValue={timingOption}
+                onValueChange={(value) =>
+                  setTimingOption(value as 'now' | 'schedule' | 'cron')
+                }
+              >
+                <TabsList>
+                  <TabsTrigger value="now">Now</TabsTrigger>
+                  <TabsTrigger value="schedule">Schedule</TabsTrigger>
+                  <TabsTrigger value="cron">Cron</TabsTrigger>
+                </TabsList>
+                <TabsContent value="now"></TabsContent>
+                <TabsContent value="schedule">
+                  <div className="mt-4">
+                    <div className="mb-2 font-bold">Select Date and Time</div>
+                    <div className="flex gap-2">
+                      <DateTimePicker
+                        date={scheduleTime}
+                        setDate={setScheduleTime}
+                        label="Trigger at"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setScheduleTime(new Date())}
+                      >
+                        Now
+                      </Button>
+                    </div>
+                    <div className="mt-2 flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const newTime = new Date(scheduleTime || new Date());
+                          newTime.setSeconds(newTime.getSeconds() + 15);
+                          setScheduleTime(newTime);
+                        }}
+                      >
+                        +15s
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const newTime = new Date(scheduleTime || new Date());
+                          newTime.setMinutes(newTime.getMinutes() + 1);
+                          setScheduleTime(newTime);
+                        }}
+                      >
+                        +1m
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const newTime = new Date(scheduleTime || new Date());
+                          newTime.setMinutes(newTime.getMinutes() + 5);
+                          setScheduleTime(newTime);
+                        }}
+                      >
+                        +5m
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const newTime = new Date(scheduleTime || new Date());
+                          newTime.setMinutes(newTime.getMinutes() + 15);
+                          setScheduleTime(newTime);
+                        }}
+                      >
+                        +15m
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const newTime = new Date(scheduleTime || new Date());
+                          newTime.setMinutes(newTime.getMinutes() + 60);
+                          setScheduleTime(newTime);
+                        }}
+                      >
+                        +60m
+                      </Button>
+                    </div>
+                  </div>
+                </TabsContent>
+                <TabsContent value="cron">
+                  <div className="mt-4">
+                    <div className="mb-2 font-bold">Cron Name</div>
+                    <Input
+                      type="text"
+                      value={cronName}
+                      onChange={(e) => setCronName(e.target.value)}
+                      placeholder="e.g., cron-name"
+                      className="mb-2 w-full"
+                    />
+                    <div className="mb-2 font-bold">Cron Expression</div>
+                    <Input
+                      type="text"
+                      value={cronExpression}
+                      onChange={(e) => setCronExpression(e.target.value)}
+                      placeholder="e.g., 0 0 * * *"
+                      className="w-full"
+                    />
+                    <div className="text-sm text-gray-500">
+                      {cronPretty?.error || `(runs ${cronPretty?.pretty})`}
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </div>
+
+            <div className="flex justify-end">
+              <Button
+                disabled={
+                  triggerNowMutation.isPending ||
+                  triggerScheduleMutation.isPending ||
+                  triggerCronMutation.isPending ||
+                  !selectedWorkflow ||
+                  isLoadingWorkflow
+                }
+                onClick={handleSubmit}
+              >
+                Submit
+              </Button>
+            </div>
+            {(errors.length > 0 ||
+              triggerNowMutation.error ||
+              triggerScheduleMutation.error ||
+              triggerCronMutation.error) && (
+              <div className="mt-4">
+                {errors.map((error, index) => (
+                  <div key={index} className="text-sm text-red-500">
+                    {error}
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </DialogContent>
     </Dialog>
