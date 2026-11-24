@@ -3178,6 +3178,10 @@ CREATE TABLE v1_durable_event_log_entry (
     -- transactions and uses a null value to mark an entry whose trigger has not yet run.
     triggered_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
 
+    -- Only meaningful for RUN entries: when true, cancelling the durable task cancels the child run
+    -- if it has not finished.
+    cancel_on_parent_cancel BOOLEAN NOT NULL DEFAULT FALSE,
+
     CONSTRAINT v1_durable_event_log_entry_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, branch_id, node_id)
 ) PARTITION BY RANGE(durable_task_inserted_at);
 

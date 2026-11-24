@@ -120,6 +120,11 @@ export interface TriggerWorkflowRequest {
   priority?: number | undefined;
   /** (optional) the desired worker labels for the workflow run, which will be used to determine which workers can pick up the workflow's tasks. if not set, defaults to an empty set of labels, which means any worker can pick up the tasks. */
   desiredWorkerLabels: { [key: string]: DesiredWorkerLabels };
+  /**
+   * (optional) only honored when the run is spawned by a durable task: when true, cancelling that
+   * durable task cancels this run if it has not finished. Defaults to false.
+   */
+  cancelOnParentCancel?: boolean | undefined;
 }
 
 export interface TriggerWorkflowRequest_DesiredWorkerLabelsEntry {
@@ -279,6 +284,7 @@ function createBaseTriggerWorkflowRequest(): TriggerWorkflowRequest {
     desiredWorkerId: undefined,
     priority: undefined,
     desiredWorkerLabels: {},
+    cancelOnParentCancel: undefined,
   };
 }
 
@@ -319,6 +325,9 @@ export const TriggerWorkflowRequest: MessageFns<TriggerWorkflowRequest> = {
         ).join();
       }
     );
+    if (message.cancelOnParentCancel !== undefined) {
+      writer.uint32(88).bool(message.cancelOnParentCancel);
+    }
     return writer;
   },
 
@@ -415,6 +424,14 @@ export const TriggerWorkflowRequest: MessageFns<TriggerWorkflowRequest> = {
           }
           continue;
         }
+        case 11: {
+          if (tag !== 88) {
+            break;
+          }
+
+          message.cancelOnParentCancel = reader.bool();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -476,6 +493,11 @@ export const TriggerWorkflowRequest: MessageFns<TriggerWorkflowRequest> = {
               {}
             )
           : {},
+      cancelOnParentCancel: isSet(object.cancelOnParentCancel)
+        ? globalThis.Boolean(object.cancelOnParentCancel)
+        : isSet(object.cancel_on_parent_cancel)
+          ? globalThis.Boolean(object.cancel_on_parent_cancel)
+          : undefined,
     };
   },
 
@@ -520,6 +542,9 @@ export const TriggerWorkflowRequest: MessageFns<TriggerWorkflowRequest> = {
         });
       }
     }
+    if (message.cancelOnParentCancel !== undefined) {
+      obj.cancelOnParentCancel = message.cancelOnParentCancel;
+    }
     return obj;
   },
 
@@ -551,6 +576,7 @@ export const TriggerWorkflowRequest: MessageFns<TriggerWorkflowRequest> = {
       },
       {}
     );
+    message.cancelOnParentCancel = object.cancelOnParentCancel ?? undefined;
     return message;
   },
 };

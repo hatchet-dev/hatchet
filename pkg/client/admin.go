@@ -37,6 +37,9 @@ type ChildWorkflowOpts struct {
 	AdditionalMetadata  *map[string]string
 	Priority            *int32
 	DesiredWorkerLabels map[string]*types.DesiredWorkerLabel
+	// CancelOnParentCancel asks the engine to cancel the child when its durable parent task is
+	// cancelled. The engine honors it only for children spawned by a durable task.
+	CancelOnParentCancel bool
 }
 
 // NewChildWorkflowTriggerRequest builds the trigger request used to start a child workflow.
@@ -74,6 +77,9 @@ func NewChildWorkflowTriggerRequest(workflowName string, input interface{}, opts
 	}
 	if opts.ParentTaskRunId != "" {
 		request.ParentTaskRunExternalId = &opts.ParentTaskRunId
+	}
+	if opts.CancelOnParentCancel {
+		request.CancelOnParentCancel = &opts.CancelOnParentCancel
 	}
 
 	additionalMetadata := mergeAdditionalMetadata(sharedMeta, opts.AdditionalMetadata)

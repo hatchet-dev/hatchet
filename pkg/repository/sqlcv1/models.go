@@ -3459,6 +3459,7 @@ type V1DurableEventLogEntry struct {
 	UserMessage             pgtype.Text                 `json:"user_message"`
 	WaitData                []byte                      `json:"wait_data"`
 	TriggeredAt             pgtype.Timestamptz          `json:"triggered_at"`
+	CancelOnParentCancel    bool                        `json:"cancel_on_parent_cancel"`
 }
 
 type V1DurableEventLogFile struct {

@@ -314,6 +314,11 @@ type TaskRepository interface {
 
 	ListUnfinishedDurableOrchestratorChildren(ctx context.Context, tenantId uuid.UUID, orchestratorExternalIds []uuid.UUID) ([]TaskIdInsertedAtRetryCount, error)
 
+	// ListUnfinishedCancelOnParentCancelChildren returns the unfinished tasks of the runs that the
+	// given durable tasks spawned with cancel_on_parent_cancel; a DAG run contributes all its tasks.
+	// The durable tasks' retry counts are ignored.
+	ListUnfinishedCancelOnParentCancelChildren(ctx context.Context, tenantId uuid.UUID, durableTasks []TaskIdInsertedAtRetryCount) ([]TaskIdInsertedAtRetryCount, error)
+
 	CompleteTasks(ctx context.Context, tenantId uuid.UUID, tasks []CompleteTaskOpts) (*FinalizedTaskResponse, error)
 
 	FailTasks(ctx context.Context, tenantId uuid.UUID, tasks []FailTaskOpts) (*FailTasksResponse, error)
@@ -1670,6 +1675,41 @@ func (r *TaskRepositoryImpl) ListUnfinishedDurableOrchestratorChildren(ctx conte
 		Tenantid:                tenantId,
 		Orchestratorexternalids: orchestratorExternalIds,
 	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	children := make([]TaskIdInsertedAtRetryCount, len(rows))
+
+	for i, row := range rows {
+		children[i] = TaskIdInsertedAtRetryCount{
+			Id:         row.ID,
+			InsertedAt: row.InsertedAt,
+			RetryCount: row.RetryCount,
+		}
+	}
+
+	return children, nil
+}
+
+func (r *TaskRepositoryImpl) ListUnfinishedCancelOnParentCancelChildren(ctx context.Context, tenantId uuid.UUID, durableTasks []TaskIdInsertedAtRetryCount) ([]TaskIdInsertedAtRetryCount, error) {
+	if len(durableTasks) == 0 {
+		return nil, nil
+	}
+
+	params := sqlcv1.ListUnfinishedCancelOnParentCancelChildrenParams{
+		Tenantid:               tenantId,
+		Durabletaskids:         make([]int64, len(durableTasks)),
+		Durabletaskinsertedats: make([]pgtype.Timestamptz, len(durableTasks)),
+	}
+
+	for i, t := range durableTasks {
+		params.Durabletaskids[i] = t.Id
+		params.Durabletaskinsertedats[i] = t.InsertedAt
+	}
+
+	rows, err := r.queries.ListUnfinishedCancelOnParentCancelChildren(ctx, r.pool.ForTenant(tenantId), params)
 
 	if err != nil {
 		return nil, err
