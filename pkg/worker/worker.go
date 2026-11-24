@@ -701,7 +701,7 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 		return fmt.Errorf("could not decode args to interface: %w", err)
 	}
 
-	runContext, cancel := context.WithCancel(context.Background())
+	runContext, cancel := context.WithCancelCause(context.Background())
 
 	w.cancelMap.Store(assignedAction.StepRunId, cancel)
 	defer w.cancelMap.Delete(assignedAction.StepRunId)
@@ -725,7 +725,7 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 	// the service-specific middleware
 	return w.middlewares.runAll(hCtx, func(ctx HatchetContext) error {
 		return svc.mws.runAll(ctx, func(ctx HatchetContext) error {
-			defer cancel()
+			defer cancel(nil)
 
 			args := []any{ctx}
 
@@ -1061,22 +1061,21 @@ func (w *Worker) cancelStepRun(ctx context.Context, assignedAction *client.Actio
 
 	w.l.Debug().Msgf("cancelling step run %s", assignedAction.StepRunId)
 
-	cancelFn := cancel.(context.CancelFunc)
-
-	cancelFn()
+	cancel.(context.CancelCauseFunc)(ErrTaskCancelled)
 
 	return nil
 }
 
-// CancelStepRun cancels a running step by its step run ID. Used by the eviction system
-// to interrupt durable tasks that need to be evicted.
+// CancelStepRun cancels a running step by its step run ID with ErrTaskEvicted as the
+// cause. Only the durable eviction system calls it, to interrupt durable tasks that need
+// to be evicted.
 func (w *Worker) CancelStepRun(stepRunId string) {
 	cancel, ok := w.cancelMap.Load(stepRunId)
 	if !ok {
 		return
 	}
 	w.l.Debug().Msgf("eviction: cancelling step run %s", stepRunId)
-	cancel.(context.CancelFunc)()
+	cancel.(context.CancelCauseFunc)(ErrTaskEvicted)
 }
 
 func (w *Worker) getActionEvent(action *client.Action, eventType client.ActionEventType) *client.ActionEvent {
