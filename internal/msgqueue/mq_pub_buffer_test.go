@@ -198,12 +198,14 @@ func TestPubBufferPubRacingWithStop(t *testing.T) {
 
 	const pubs = 200
 
+	// a handful of tenants, so messages share buffers and flush windows
+	tenants := []uuid.UUID{uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()}
+
 	var wg sync.WaitGroup
 
 	for i := range pubs {
 		wg.Go(func() {
-			// a handful of tenants, so messages share buffers and flush windows
-			tenantID := uuid.NewSHA1(uuid.Nil, []byte{byte(i % 5)})
+			tenantID := tenants[i%len(tenants)]
 			if err := b.Pub(context.Background(), TASK_PROCESSING_QUEUE, newTestMessage(t, tenantID), i%3 == 0); err != nil {
 				t.Error(err)
 			}
