@@ -61,6 +61,16 @@ When working with cancellation in Hatchet tasks, consider the following best pra
 
 5. **Durable Task Eviction**: Evicting a durable task also cancels its context even though the run is not canceled and will resume later. In the Go SDK, check `context.Cause(ctx)` before running cancellation cleanup; see [Distinguishing Eviction from Cancellation](/v1/task-eviction#distinguishing-eviction-from-cancellation).
 
+## Cancelling Child Runs (Go SDK)
+
+When a parent task spawns a child with `RunNoWait` or `RunMany` and cancels that child on parent cancellation, the parent can be cancelled while the trigger acknowledgement carrying the child's `RunId` is still in flight. By default, `RunNoWait` aborts on the parent's context and returns `context.Canceled` without a run reference.
+
+Pass `hatchet.WithTriggerContext` with a detached, bounded context so `RunNoWait` still returns the child's `RunId` while `ref.Result()` continues waiting on the parent context, and guard child cancellation with `hatchet.ErrTaskCancelled` so routine evictions do not cancel healthy children:
+
+<Snippet
+  src={snippets.go.durable.eviction.main.cancel_child_with_trigger_context}
+/>
+
 ## Additional Features
 
 In addition to the methods of cancellation listed here, Hatchet also supports [bulk cancellation](/v1/bulk-retries-and-cancellations), which allows you to cancel many tasks in bulk using either their IDs or a set of filters, which is often the easiest way to cancel many things at once.

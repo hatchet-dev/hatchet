@@ -77,11 +77,15 @@ type ErrorRaisingInput struct {
 // when a durable wait was interrupted, so tests can check cancellation vs eviction.
 var interruptCauses sync.Map
 
+type TriggerContextE2EInput struct {
+	Mode string `json:"mode"`
+}
+
 type triggerContextE2EResult struct {
-	defaultErr  error
-	runID       string
-	detachedErr error
-	resultErr   error
+	runIDs    []string
+	spawnErr  error
+	resultErr error
+	parentErr error
 }
 
 var triggerContextE2EResults sync.Map
@@ -699,32 +703,61 @@ func registerAllWorkflows(client *hatchet.Client) {
 	)
 
 	testDurableTriggerCtxAfterCancel = client.NewStandaloneDurableTask("durable-trigger-ctx-after-cancel",
-		func(ctx hatchet.DurableContext, input EmptyInput) (map[string]any, error) {
+		func(ctx hatchet.DurableContext, input TriggerContextE2EInput) (map[string]any, error) {
+			if input.Mode == "canceled_trigger_ctx" {
+				canceledAck, cancelAck := context.WithCancel(context.Background())
+				cancelAck()
+				_, spawnErr := testSpawnChildTask.RunNoWait(
+					ctx,
+					DurableBulkSpawnInput{N: 1},
+					hatchet.WithTriggerContext(canceledAck),
+				)
+				triggerContextE2EResults.Store(ctx.StepRunId(), triggerContextE2EResult{
+					spawnErr:  spawnErr,
+					parentErr: ctx.GetContext().Err(),
+				})
+				return map[string]any{"status": "completed"}, nil
+			}
+
 			if _, err := ctx.SleepFor(30 * time.Second); err != nil {
 				if errors.Is(context.Cause(ctx), hatchet.ErrTaskCancelled) {
-					_, defaultErr := testSpawnChildTask.RunNoWait(ctx, DurableBulkSpawnInput{N: 1})
+					var res triggerContextE2EResult
+					switch input.Mode {
+					case "default":
+						_, res.spawnErr = testSpawnChildTask.RunNoWait(ctx, DurableBulkSpawnInput{N: 1})
+					case "detached":
+						ackCtx, cancelAck := context.WithTimeout(context.WithoutCancel(ctx.GetContext()), 10*time.Second)
+						defer cancelAck()
 
-					ackCtx, cancelAck := context.WithTimeout(context.WithoutCancel(ctx.GetContext()), 10*time.Second)
-					defer cancelAck()
+						ref, spawnErr := testSpawnChildTask.RunNoWait(
+							ctx,
+							DurableBulkSpawnInput{N: 1},
+							hatchet.WithTriggerContext(ackCtx),
+						)
+						res.spawnErr = spawnErr
+						if ref != nil {
+							res.runIDs = []string{ref.RunId}
+							_, res.resultErr = ref.Result()
+						}
+					case "run_many":
+						ackCtx, cancelAck := context.WithTimeout(context.WithoutCancel(ctx.GetContext()), 10*time.Second)
+						defer cancelAck()
+						ignoredCtx, cancelIgnored := context.WithCancel(context.Background())
+						cancelIgnored()
 
-					ref, detachedErr := testSpawnChildTask.RunNoWait(
-						ctx,
-						DurableBulkSpawnInput{N: 1},
-						hatchet.WithTriggerContext(ackCtx),
-					)
-					var runID string
-					var resultErr error
-					if ref != nil {
-						runID = ref.RunId
-						_, resultErr = ref.Result()
+						refs, spawnErr := testSpawnChildTask.RunMany(ctx, []hatchet.RunManyOpt{
+							{Input: DurableBulkSpawnInput{N: 1}, Opts: []hatchet.RunOptFunc{hatchet.WithTriggerContext(ackCtx)}},
+							{Input: DurableBulkSpawnInput{N: 2}, Opts: []hatchet.RunOptFunc{hatchet.WithTriggerContext(ignoredCtx)}},
+						})
+						res.spawnErr = spawnErr
+						for _, ref := range refs {
+							res.runIDs = append(res.runIDs, ref.RunId)
+						}
+						if len(refs) > 0 {
+							_, res.resultErr = refs[0].Result()
+						}
 					}
-
-					triggerContextE2EResults.Store(ctx.StepRunId(), triggerContextE2EResult{
-						defaultErr:  defaultErr,
-						runID:       runID,
-						detachedErr: detachedErr,
-						resultErr:   resultErr,
-					})
+					triggerContextE2EResults.Store(ctx.StepRunId(), res)
 				}
 				return nil, err
 			}

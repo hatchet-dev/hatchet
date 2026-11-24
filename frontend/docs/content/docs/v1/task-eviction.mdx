@@ -126,11 +126,3 @@ In the Go SDK, both events cancel the task's `context.Context`, so `ctx.Err()` r
 - `hatchet.ErrTaskEvicted`: the task was evicted from the worker to free its slot (TTL, capacity pressure, a server request, or worker shutdown). Skip cancellation cleanup because the run will resume later.
 
 <Snippet src={snippets.go.durable.eviction.main.eviction_vs_cancellation} />
-
-### Cancelling Child Runs on Parent Cancellation
-
-When a durable parent spawns a child with `RunNoWait` or `RunMany` and cancels that child if the parent is cancelled, the parent can be cancelled while the trigger acknowledgement carrying the child's `RunId` is still in flight. By default, `RunNoWait` aborts on the parent's context and returns `context.Canceled` without a run reference.
-
-Pass `hatchet.WithTriggerContext` with a detached, bounded context so `RunNoWait` still returns the child's `RunId` while `ref.Result()` continues waiting on the parent context, and guard the child cancellation with `hatchet.ErrTaskCancelled` so routine evictions do not cancel healthy children:
-
-<Snippet src={snippets.go.durable.eviction.main.cancel_child_with_trigger_context} />
