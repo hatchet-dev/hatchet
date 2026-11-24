@@ -4343,31 +4343,32 @@ type WebhookWorkerWorkflow struct {
 }
 
 type Worker struct {
-	ID                      uuid.UUID        `json:"id"`
-	CreatedAt               pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt               pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt               pgtype.Timestamp `json:"deletedAt"`
-	TenantId                uuid.UUID        `json:"tenantId"`
-	LastHeartbeatAt         pgtype.Timestamp `json:"lastHeartbeatAt"`
-	Name                    string           `json:"name"`
-	DispatcherId            *uuid.UUID       `json:"dispatcherId"`
-	MaxRuns                 int32            `json:"maxRuns"`
-	IsActive                bool             `json:"isActive"`
-	LastListenerEstablished pgtype.Timestamp `json:"lastListenerEstablished"`
-	LastListenerSessionId   *uuid.UUID       `json:"lastListenerSessionId"`
-	IsPaused                bool             `json:"isPaused"`
-	Type                    enums.WorkerType `json:"type"`
-	WebhookId               *uuid.UUID       `json:"webhookId"`
-	OperatorId              *uuid.UUID       `json:"operatorId"`
-	Language                NullWorkerSDKS   `json:"language"`
-	LanguageVersion         pgtype.Text      `json:"languageVersion"`
-	Os                      pgtype.Text      `json:"os"`
-	RuntimeExtra            pgtype.Text      `json:"runtimeExtra"`
-	SdkVersion              pgtype.Text      `json:"sdkVersion"`
-	DurableTaskDispatcherId *uuid.UUID       `json:"durableTaskDispatcherId"`
-	ActionHash              []byte           `json:"actionHash"`
-	OperatorActionCount     int32            `json:"operatorActionCount"`
-	IsExemptFromLimits      bool             `json:"isExemptFromLimits"`
+	ID                                  uuid.UUID        `json:"id"`
+	CreatedAt                           pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt                           pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt                           pgtype.Timestamp `json:"deletedAt"`
+	TenantId                            uuid.UUID        `json:"tenantId"`
+	LastHeartbeatAt                     pgtype.Timestamp `json:"lastHeartbeatAt"`
+	Name                                string           `json:"name"`
+	DispatcherId                        *uuid.UUID       `json:"dispatcherId"`
+	MaxRuns                             int32            `json:"maxRuns"`
+	IsActive                            bool             `json:"isActive"`
+	LastListenerEstablished             pgtype.Timestamp `json:"lastListenerEstablished"`
+	LastListenerSessionId               *uuid.UUID       `json:"lastListenerSessionId"`
+	IsPaused                            bool             `json:"isPaused"`
+	Type                                enums.WorkerType `json:"type"`
+	WebhookId                           *uuid.UUID       `json:"webhookId"`
+	OperatorId                          *uuid.UUID       `json:"operatorId"`
+	Language                            NullWorkerSDKS   `json:"language"`
+	LanguageVersion                     pgtype.Text      `json:"languageVersion"`
+	Os                                  pgtype.Text      `json:"os"`
+	RuntimeExtra                        pgtype.Text      `json:"runtimeExtra"`
+	SdkVersion                          pgtype.Text      `json:"sdkVersion"`
+	DurableTaskDispatcherId             *uuid.UUID       `json:"durableTaskDispatcherId"`
+	ActionHash                          []byte           `json:"actionHash"`
+	OperatorActionCount                 int32            `json:"operatorActionCount"`
+	IsExemptFromLimits                  bool             `json:"isExemptFromLimits"`
+	MaxHeartbeatDelayBeforeDeclaredDead pgtype.Interval  `json:"maxHeartbeatDelayBeforeDeclaredDead"`
 }
 
 type WorkerAssignEvent struct {

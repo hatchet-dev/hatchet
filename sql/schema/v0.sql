@@ -888,6 +888,7 @@ CREATE TABLE "Worker" (
     "operatorActionCount" INTEGER NOT NULL DEFAULT 0,
     -- Set at creation by the host: in-process operator workers are exempt, wire-registered ones are metered.
     "isExemptFromLimits" BOOLEAN NOT NULL DEFAULT false,
+    "maxHeartbeatDelayBeforeDeclaredDead" INTERVAL,
 
     CONSTRAINT "Worker_pkey" PRIMARY KEY ("id")
 );
