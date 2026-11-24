@@ -21,16 +21,7 @@ func newRequestGate(authn *GRPCAuthN, authz *GRPCAuthZ, limiter *HatchetRateLimi
 	return func(ctx context.Context, spec connect.Spec, peer connect.Peer, header http.Header) (context.Context, error) {
 		start := callStart{at: time.Now(), peer: peer}
 
-		authenticated, err := authn.Middleware(ctx, header)
-
-		if err == nil {
-			err = authz.Authorize(authenticated, spec.Procedure)
-		}
-
-		if err == nil {
-			err = rateLimit(authenticated, limiter, spec.Procedure)
-		}
-
+		authenticated, err := admit(ctx, header, spec.Procedure, authn, authz, limiter)
 		if err != nil {
 			logStartedCall(ctx, l, spec, start)
 			logFinishedCall(l, spec, start, err)
@@ -43,6 +34,20 @@ func newRequestGate(authn *GRPCAuthN, authz *GRPCAuthZ, limiter *HatchetRateLimi
 
 		return authenticated, nil
 	}
+}
+
+// admit returns the authenticated context even when authz or the limiter rejects, so rejected spans keep the tenant.
+func admit(ctx context.Context, header http.Header, procedure string, authn *GRPCAuthN, authz *GRPCAuthZ, limiter *HatchetRateLimiter) (context.Context, error) {
+	authenticated, err := authn.Middleware(ctx, header)
+	if err != nil {
+		return authenticated, err
+	}
+
+	if err := authz.Authorize(authenticated, procedure); err != nil {
+		return authenticated, err
+	}
+
+	return authenticated, rateLimit(authenticated, limiter, procedure)
 }
 
 // rateLimit reports every limiter error as resource exhausted with the message clients have

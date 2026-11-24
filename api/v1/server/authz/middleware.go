@@ -55,7 +55,8 @@ func NewAuthZ(config *server.ServerConfig) (*AuthZ, error) {
 	authorizer, err := pkgauthz.New(
 		// tokens first: they handle tenant API tokens, and roles handle users and management tokens
 		pkgauthz.WithPermissions(tokens, pkgauthz.RoleBased(perms, roles, everyoneElse)),
-		pkgauthz.WithPolicies(buildPolicies(config, perms)...),
+		// supplied policies run after the built-in ones so their errors never mask an unverified email
+		pkgauthz.WithPolicies(append(buildPolicies(config, perms), config.Auth.Policies...)...),
 	)
 	if err != nil {
 		return nil, err
@@ -95,9 +96,10 @@ func (a *AuthZ) authorizeSecured(c echo.Context, r *middleware.RouteInfo) error 
 
 	d, err := a.authorizer.Authorize(context.WithValue(ctx, echoRequestCtxKey{}, echoRequest{c: c, route: r}), req)
 	if err != nil {
-		var hookErr hookError
-		if errors.As(err, &hookErr) {
-			return hookErr.err
+		// policies can choose the response by returning an HTTP error
+		var httpErr *echo.HTTPError
+		if errors.As(err, &httpErr) {
+			return httpErr
 		}
 
 		var limitErr *fairpool.LimitError
@@ -140,20 +142,16 @@ func (a *AuthZ) setTenantMember(c echo.Context, p pkgauthz.Principal, tenantID *
 
 type echoRequestCtxKey struct{}
 
-// echoRequest lets the extension hook policies reach the echo request they were written against.
 type echoRequest struct {
 	c     echo.Context
 	route *middleware.RouteInfo
 }
 
-// hookError carries an extension hook's own HTTP error through Authorize unchanged.
-type hookError struct {
-	err error
+// EchoRequestFrom gives policies the echo request and route for REST checks; ok is false for any other caller.
+func EchoRequestFrom(ctx context.Context) (echo.Context, *middleware.RouteInfo, bool) {
+	er, ok := ctx.Value(echoRequestCtxKey{}).(echoRequest)
+	return er.c, er.route, ok
 }
-
-func (e hookError) Error() string { return e.err.Error() }
-
-func (e hookError) Unwrap() error { return e.err }
 
 // tenantFromEcho reads the tenant the populator resolved from the route.
 func tenantFromEcho(c echo.Context) *uuid.UUID {

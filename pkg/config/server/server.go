@@ -17,6 +17,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/auth/authz"
 	"github.com/hatchet-dev/hatchet/pkg/auth/cookie"
 	"github.com/hatchet-dev/hatchet/pkg/auth/exchangetoken"
 	"github.com/hatchet-dev/hatchet/pkg/auth/token"
@@ -855,6 +856,10 @@ type AuthConfig struct {
 	ExchangeTokenClient exchangetoken.ExchangeTokenClient
 
 	CustomAuthenticator CustomAuthenticator
+
+	// Policies are extra deny-only REST checks, run after the built-in ones; api/v1/server/authz.EchoRequestFrom
+	// gives them the echo request, and returning an *echo.HTTPError sets the response.
+	Policies []authz.Policy
 
 	// Read-only extension operations (e.g. cloud) that aren't in the base OpenAPI spec. They are
 	// granted to VIEWER (and so every user role) in users.yaml and to the read-only token

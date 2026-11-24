@@ -284,3 +284,34 @@ func TestAPITokenSkipsHooks(t *testing.T) {
 	c := newTestContext(tenantID, "bearer", pkgauthz.TokenPrincipal{TokenID: uuid.New(), Kind: pkgauthz.TenantAPIToken, TenantID: &tenantID, Capabilities: []string{pkgauthz.AllCapabilities}})
 	require.NoError(t, auth.authorizeSecured(c, &middleware.RouteInfo{OperationID: "WorkflowRunList"}))
 }
+
+type headerPolicy struct{}
+
+func (headerPolicy) Evaluate(ctx context.Context, _ pkgauthz.Request) (pkgauthz.Decision, error) {
+	c, _, ok := EchoRequestFrom(ctx)
+	if !ok || c.Request().Header.Get("X-Allowed") == "" {
+		return pkgauthz.Decision{}, echo.NewHTTPError(http.StatusForbidden, "missing header")
+	}
+
+	return pkgauthz.Allow(), nil
+}
+
+func TestSuppliedPoliciesRun(t *testing.T) {
+	tenantID := uuid.New()
+	logger := zerolog.Nop()
+	config := &server.ServerConfig{Layer: &database.Layer{V1: authzRepo{tenants: &memberTenantRepo{}}}, Logger: &logger}
+	config.Auth.Policies = []pkgauthz.Policy{headerPolicy{}}
+
+	auth, err := NewAuthZ(config)
+	require.NoError(t, err)
+
+	route := &middleware.RouteInfo{OperationID: "WorkflowRunList"}
+	c := newTestContext(tenantID, "bearer", pkgauthz.TokenPrincipal{TokenID: uuid.New(), Kind: pkgauthz.TenantAPIToken, TenantID: &tenantID, Capabilities: []string{pkgauthz.AllCapabilities}})
+
+	var httpErr *echo.HTTPError
+	require.ErrorAs(t, auth.authorizeSecured(c, route), &httpErr)
+	require.Equal(t, "missing header", httpErr.Message, "the policy's own error is returned unchanged")
+
+	c.Request().Header.Set("X-Allowed", "1")
+	require.NoError(t, auth.authorizeSecured(c, route))
+}

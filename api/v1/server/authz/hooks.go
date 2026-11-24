@@ -12,12 +12,12 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 )
 
-// customAuthorizePolicy runs the extension's Authorize hook for principals its own authenticator created.
-type customAuthorizePolicy struct {
+// managementTokenHookPolicy defers management tokens to the extension that issued them, since no tenant role applies.
+type managementTokenHookPolicy struct {
 	auth server.CustomAuthenticator
 }
 
-func (p customAuthorizePolicy) Evaluate(ctx context.Context, req pkgauthz.Request) (pkgauthz.Decision, error) {
+func (p managementTokenHookPolicy) Evaluate(ctx context.Context, req pkgauthz.Request) (pkgauthz.Decision, error) {
 	t, ok := req.Principal.(pkgauthz.TokenPrincipal)
 	if !ok || t.Kind != pkgauthz.ManagementToken {
 		return pkgauthz.Allow(), nil
@@ -26,12 +26,12 @@ func (p customAuthorizePolicy) Evaluate(ctx context.Context, req pkgauthz.Reques
 	return runHook(ctx, req, p.auth.Authorize)
 }
 
-// cookieHookPolicy runs the extension's cookie hook, which cloud uses for organization-owner checks.
-type cookieHookPolicy struct {
+// cookieSessionHookPolicy lets the extension add checks for cookie sessions, which cloud uses for organization-owner access.
+type cookieSessionHookPolicy struct {
 	auth server.CustomAuthenticator
 }
 
-func (p cookieHookPolicy) Evaluate(ctx context.Context, req pkgauthz.Request) (pkgauthz.Decision, error) {
+func (p cookieSessionHookPolicy) Evaluate(ctx context.Context, req pkgauthz.Request) (pkgauthz.Decision, error) {
 	u, ok := req.Principal.(pkgauthz.UserPrincipal)
 	if !ok || u.Via != pkgauthz.ViaCookie {
 		return pkgauthz.Allow(), nil
@@ -40,26 +40,25 @@ func (p cookieHookPolicy) Evaluate(ctx context.Context, req pkgauthz.Request) (p
 	return runHook(ctx, req, p.auth.CookieAuthorizerHook)
 }
 
-func extensionPolicies(config *server.ServerConfig) []pkgauthz.Policy {
+func customAuthenticatorPolicies(config *server.ServerConfig) []pkgauthz.Policy {
 	if config.Auth.CustomAuthenticator == nil {
 		return nil
 	}
 
 	return []pkgauthz.Policy{
-		customAuthorizePolicy{auth: config.Auth.CustomAuthenticator},
-		cookieHookPolicy{auth: config.Auth.CustomAuthenticator},
+		managementTokenHookPolicy{auth: config.Auth.CustomAuthenticator},
+		cookieSessionHookPolicy{auth: config.Auth.CustomAuthenticator},
 	}
 }
 
-// runHook only fires for the route-level check, which is the only caller that attaches the echo request.
 func runHook(ctx context.Context, req pkgauthz.Request, hook func(echo.Context, *middleware.RouteInfo) error) (pkgauthz.Decision, error) {
-	er, ok := ctx.Value(echoRequestCtxKey{}).(echoRequest)
+	c, route, ok := EchoRequestFrom(ctx)
 	if !ok || req.Action.Type() != pkgauthz.RESTEndpoint {
 		return pkgauthz.Allow(), nil
 	}
 
-	if err := hook(er.c, er.route); err != nil {
-		return pkgauthz.Decision{}, hookError{err: err}
+	if err := hook(c, route); err != nil {
+		return pkgauthz.Decision{}, err
 	}
 
 	return pkgauthz.Allow(), nil
