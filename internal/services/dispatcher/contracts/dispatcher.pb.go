@@ -549,7 +549,7 @@ type WorkerRegisterRequest struct {
 	// (optional) slot config for this worker (slot_type -> units)
 	SlotConfig map[string]int32 `protobuf:"bytes,9,rep,name=slot_config,json=slotConfig,proto3" json:"slot_config,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"varint,2,opt,name=value,proto3"`
 	// (optional) how long the worker can go without a heartbeat before the engine declares it dead
-	// and reassigns its tasks (defaults to 30 seconds)
+	// and reassigns its tasks (defaults to 30 seconds, must be between the 4 second heartbeat interval and 1 hour)
 	MaxHeartbeatDelayBeforeDeclaredDeadSeconds *int32 `protobuf:"varint,10,opt,name=max_heartbeat_delay_before_declared_dead_seconds,json=maxHeartbeatDelayBeforeDeclaredDeadSeconds,proto3,oneof" json:"max_heartbeat_delay_before_declared_dead_seconds,omitempty"`
 }
 

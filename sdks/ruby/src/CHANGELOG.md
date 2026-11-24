@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `max_heartbeat_delay_before_declared_dead_seconds:` option on `hatchet.worker` and `Hatchet::Worker.new`, how long the worker can go without sending a heartbeat before Hatchet declares it dead and reassigns its tasks to other workers. Defaults to 30 seconds, and must be at least the 4 second heartbeat interval, or registration fails. Older engines ignore it.
+- `max_heartbeat_delay_before_declared_dead_seconds:` option on `hatchet.worker` and `Hatchet::Worker.new`, how long the worker can go without sending a heartbeat before Hatchet declares it dead and reassigns its tasks to other workers. Defaults to 30 seconds, and must be between the 4 second heartbeat interval and 1 hour; raises `ArgumentError` otherwise. Older engines ignore it.
 
 ## [0.13.0] - 2026-11-23
 

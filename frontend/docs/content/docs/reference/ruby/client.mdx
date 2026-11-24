@@ -134,14 +134,14 @@ worker.start
 
 Parameters:
 
-| Name                                               | Type                    | Description                                                                                                                                        | Default    |
-| -------------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| `name`                                             | `String`                | The name of the worker.                                                                                                                            | _required_ |
-| `workflows`                                        | `Array<Workflow, Task>` | A list of workflows (or standalone tasks) to register on the worker.                                                                               | `[]`       |
-| `slots`                                            | `Integer`               | Slot count for standard tasks, i.e. the number of tasks the worker can run concurrently.                                                           | `10`       |
-| `durable_slots`                                    | `Integer \| nil`        | Slot count for durable tasks; defaults to `slots` if not provided.                                                                                 | `nil`      |
-| `labels`                                           | `Hash`                  | A hash of labels to assign to the worker, for use with worker affinity; merged with the client's `worker_preset_labels`.                           | `{}`       |
-| `max_heartbeat_delay_before_declared_dead_seconds` | `Integer \| nil`        | How long the worker can go without sending a heartbeat before Hatchet declares it dead and reassigns its tasks; the engine defaults to 30 seconds. | `nil`      |
+| Name                                               | Type                    | Description                                                                                                                                                                    | Default    |
+| -------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| `name`                                             | `String`                | The name of the worker.                                                                                                                                                        | _required_ |
+| `workflows`                                        | `Array<Workflow, Task>` | A list of workflows (or standalone tasks) to register on the worker.                                                                                                           | `[]`       |
+| `slots`                                            | `Integer`               | Slot count for standard tasks, i.e. the number of tasks the worker can run concurrently.                                                                                       | `10`       |
+| `durable_slots`                                    | `Integer \| nil`        | Slot count for durable tasks; defaults to `slots` if not provided.                                                                                                             | `nil`      |
+| `labels`                                           | `Hash`                  | A hash of labels to assign to the worker, for use with worker affinity; merged with the client's `worker_preset_labels`.                                                       | `{}`       |
+| `max_heartbeat_delay_before_declared_dead_seconds` | `Integer \| nil`        | How long the worker can go without sending a heartbeat before Hatchet declares it dead and reassigns its tasks; the engine defaults to 30 seconds. Must be between 4 and 3600. | `nil`      |
 
 Returns:
 

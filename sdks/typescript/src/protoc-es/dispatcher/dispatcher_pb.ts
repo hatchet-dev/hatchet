@@ -138,7 +138,7 @@ export type WorkerRegisterRequest = Message<"WorkerRegisterRequest"> & {
 
   /**
    * (optional) how long the worker can go without a heartbeat before the engine declares it dead
-   * and reassigns its tasks (defaults to 30 seconds)
+   * and reassigns its tasks (defaults to 30 seconds, must be between the 4 second heartbeat interval and 1 hour)
    *
    * @generated from field: optional int32 max_heartbeat_delay_before_declared_dead_seconds = 10;
    */

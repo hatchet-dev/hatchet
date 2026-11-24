@@ -57,7 +57,8 @@ func WithLabels(labels map[string]any) WorkerOption {
 }
 
 // WithMaxHeartbeatDelayBeforeDeclaredDead sets how long the worker can go without sending a heartbeat
-// before the engine declares it dead and reassigns its tasks to other workers. Defaults to 30 seconds.
+// before the engine declares it dead and reassigns its tasks to other workers. Defaults to 30 seconds, and
+// must be between 4 seconds and 1 hour.
 // The value is sent to the engine in whole seconds.
 func WithMaxHeartbeatDelayBeforeDeclaredDead(maxHeartbeatDelay time.Duration) WorkerOption {
 	return func(config *workerConfig) {

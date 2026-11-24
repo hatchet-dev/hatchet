@@ -26,7 +26,7 @@ export interface CreateWorkerOpts extends WorkerSlotOptions {
   handleKill?: boolean;
   /**
    * (optional) How long the worker can go without sending a heartbeat before Hatchet declares it dead
-   * and reassigns its tasks to other workers. Sent to the engine in whole seconds. Defaults to 30 seconds.
+   * and reassigns its tasks to other workers. Sent to the engine in whole seconds. Defaults to 30 seconds, and must be between 4 seconds and 1 hour.
    */
   maxHeartbeatDelayBeforeDeclaredDead?: Duration;
 }

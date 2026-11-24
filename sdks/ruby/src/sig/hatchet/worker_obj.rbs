@@ -1,5 +1,7 @@
 module Hatchet
   class Worker
+    MAX_HEARTBEAT_DELAY_BEFORE_DECLARED_DEAD_SECONDS_RANGE: Range[Integer]
+
     attr_reader name: String
     attr_reader workflows: Array[Workflow | Task]
     attr_reader slots: Integer
