@@ -1264,13 +1264,16 @@ func isControllerActive(pausedControllers map[string]bool, controllerName Contro
 	return false
 }
 
-// newDirectTaskWriter returns nil unless direct task writes are enabled. The handler it wraps is the
-// task controller's, built with the controller's settings, so worker events applied in the gRPC process
-// behave the same as when the controller consumes them from the task queue.
+// newDirectTaskWriter returns nil when DirectTaskWriteSlots is 0, so every worker event goes over the
+// task queue and no second task controller is built. The handler it wraps is the task controller's,
+// built with the controller's settings, so worker events applied in the gRPC process behave the same as
+// when the controller consumes them from the task queue.
 func newDirectTaskWriter(sc *server.ServerConfig) (*directwrite.Writer, error) {
-	if !sc.Runtime.DirectTaskWritesEnabled {
+	if sc.Runtime.DirectTaskWriteSlots == 0 {
 		return nil, nil
 	}
+
+	warnOnDirectTaskWriteSlots(sc)
 
 	retention, err := corePartitionRetention(sc)
 
@@ -1296,8 +1299,7 @@ func newDirectTaskWriter(sc *server.ServerConfig) (*directwrite.Writer, error) {
 	}
 
 	w, err := directwrite.New(handler, sc.MessageQueueV1, sc.Logger, directwrite.Opts{
-		Slots:    sc.Runtime.DirectTaskWriteSlots,
-		Fallback: sc.Runtime.DirectTaskWritesFallbackEnabled,
+		Slots: sc.Runtime.DirectTaskWriteSlots,
 	})
 
 	if err != nil {
@@ -1305,6 +1307,30 @@ func newDirectTaskWriter(sc *server.ServerConfig) (*directwrite.Writer, error) {
 	}
 
 	return w, nil
+}
+
+// warnOnDirectTaskWriteSlots flags slot counts that let direct writes take most of the engine pool.
+// Heartbeats and assignment share that pool, and a worker whose heartbeat waits more than about a
+// second stops being assignable. It warns instead of clamping, since an operator may have sized the
+// pool for it on purpose.
+func warnOnDirectTaskWriteSlots(sc *server.ServerConfig) {
+	slots := sc.Runtime.DirectTaskWriteSlots
+
+	if slots < 0 {
+		sc.Logger.Warn().Msg("SERVER_DIRECT_TASK_WRITE_SLOTS is negative, so direct task writes are uncapped and can take the whole database pool")
+		return
+	}
+
+	if sc.Layer == nil || sc.Pool == nil {
+		return
+	}
+
+	if maxConns := sc.Pool.Config().MaxConns; int64(slots) > int64(maxConns)/2 {
+		sc.Logger.Warn().
+			Int("slots", slots).
+			Int32("max_conns", maxConns).
+			Msg("SERVER_DIRECT_TASK_WRITE_SLOTS is more than half of DATABASE_MAX_CONNS, so worker task events can starve heartbeats")
+	}
 }
 
 // corePartitionRetention caps task-requested retry delays, since a task's rows are dropped once its partition ages out.

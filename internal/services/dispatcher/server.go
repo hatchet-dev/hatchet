@@ -1517,8 +1517,8 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 	return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid task external run id %s", request.TaskRunExternalId))
 }
 
-// sendTaskMessage hands a worker task event to the task controller's handlers: in-process when
-// direct task writes are enabled, otherwise over the durable task queue.
+// sendTaskMessage hands a worker task event to the task controller's handlers: in-process through the
+// direct task writer, or over the durable task queue when direct writes are turned off.
 func (s *DispatcherImpl) sendTaskMessage(ctx context.Context, msg *msgqueue.Message) error {
 	if s.directTaskWriter == nil {
 		return s.mqv1.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)

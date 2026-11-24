@@ -14,7 +14,6 @@ const (
 	resultDirect         = "direct"
 	resultFallbackNoSlot = "fallback_no_slot"
 	resultFallbackError  = "fallback_error"
-	resultError          = "error"
 )
 
 // Writer applies task-processing messages in the calling process with the task controller's handler,
@@ -22,23 +21,17 @@ const (
 // batched by tenant and message id with the same buffer the controller consumes the queue through, so
 // the database sees the same batch sizes either way.
 type Writer struct {
-	mq       msgqueue.MessageQueue
-	l        *zerolog.Logger
-	handle   msgqueue.MsgHandler
-	slots    chan struct{}
-	fallback bool
+	mq     msgqueue.MessageQueue
+	l      *zerolog.Logger
+	handle msgqueue.MsgHandler
+	slots  chan struct{}
 }
 
-// Opts bounds the database load a Writer adds to its process and sets what a failed write does.
+// Opts bounds the database load a Writer adds to its process.
 type Opts struct {
 	// Slots caps how many messages are applied in-process at once; messages beyond it go over the
-	// durable task queue. Zero means no cap.
+	// durable task queue. Zero sends every message over the queue, and a negative value removes the cap.
 	Slots int
-
-	// Fallback sends a message over the durable task queue when the handler fails, instead of
-	// returning the error to the caller. WriteAsync always falls back, since it has no caller to
-	// return the error to.
-	Fallback bool
 }
 
 // New returns a Writer that applies messages with dst, normally the task controller's handler from
@@ -47,12 +40,13 @@ type Opts struct {
 // on a flush, and the gRPC server keeps accepting worker events while the engine's services shut down.
 func New(dst msgqueue.DstFunc, mq msgqueue.MessageQueue, l *zerolog.Logger, opts Opts) (*Writer, error) {
 	w := &Writer{
-		mq:       mq,
-		l:        l,
-		fallback: opts.Fallback,
+		mq: mq,
+		l:  l,
 	}
 
-	if opts.Slots > 0 {
+	// An unbuffered channel never has a free slot (nothing receives until a slot is held), so zero
+	// slots sends every message over the queue.
+	if opts.Slots >= 0 {
 		w.slots = make(chan struct{}, opts.Slots)
 	}
 
@@ -72,27 +66,25 @@ func New(dst msgqueue.DstFunc, mq msgqueue.MessageQueue, l *zerolog.Logger, opts
 }
 
 // Write applies msg in-process and returns once its batch has been handled. It sends msg over the
-// durable task queue instead when every slot is taken, or when the handler fails and fallback is
-// enabled. Sending a message the handler partly applied is safe: the controller already handles
-// messages the queue redelivers after a failed attempt.
+// durable task queue instead when every slot is taken or the handler fails, so an error only means the
+// queue could not take it either. Sending a message the handler partly applied is safe: the controller
+// already handles messages the queue redelivers after a failed attempt.
 func (w *Writer) Write(ctx context.Context, msg *msgqueue.Message) error {
-	return w.write(ctx, msg, w.fallback)
+	return w.write(ctx, msg)
 }
 
 // WriteAsync is Write for senders that don't wait for the outcome. It outlives the caller's context,
-// since the caller typically returns before the batch flushes. A failed write always falls back to the
-// durable task queue, even with fallback disabled: nothing is left to retry the message, so returning
-// the error would drop it.
+// since the caller typically returns before the batch flushes.
 func (w *Writer) WriteAsync(ctx context.Context, msg *msgqueue.Message) {
 	ctx = context.WithoutCancel(ctx)
 
 	go func() {
 		// the only error write can return here comes from sendToQueue, which already logs it
-		_ = w.write(ctx, msg, true)
+		_ = w.write(ctx, msg)
 	}()
 }
 
-func (w *Writer) write(ctx context.Context, msg *msgqueue.Message, fallback bool) error {
+func (w *Writer) write(ctx context.Context, msg *msgqueue.Message) error {
 	if !w.tryAcquire() {
 		w.record(msg.ID, resultFallbackNoSlot, 0)
 		return w.sendToQueue(ctx, msg)
@@ -105,11 +97,6 @@ func (w *Writer) write(ctx context.Context, msg *msgqueue.Message, fallback bool
 	if err == nil {
 		w.record(msg.ID, resultDirect, time.Since(start))
 		return nil
-	}
-
-	if !fallback {
-		w.record(msg.ID, resultError, time.Since(start))
-		return err
 	}
 
 	w.record(msg.ID, resultFallbackError, time.Since(start))

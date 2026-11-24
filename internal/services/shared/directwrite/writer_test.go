@@ -98,7 +98,7 @@ func TestWriteAppliesInProcess(t *testing.T) {
 		assert.Equal(t, msgqueue.MsgIDTaskCompleted, msgId)
 		handled.Add(int32(len(payloads)))
 		return nil
-	}, mq, Opts{Slots: 10, Fallback: true})
+	}, mq, Opts{Slots: 10})
 
 	require.NoError(t, w.Write(context.Background(), newMsg(t)))
 	assert.Equal(t, int32(1), handled.Load())
@@ -110,21 +110,10 @@ func TestWriteFallsBackOnHandlerError(t *testing.T) {
 
 	w := newWriter(t, func(uuid.UUID, string, [][]byte) error {
 		return errors.New("deadlock detected")
-	}, mq, Opts{Slots: 10, Fallback: true})
+	}, mq, Opts{Slots: 10})
 
 	require.NoError(t, w.Write(context.Background(), newMsg(t)))
 	assert.Equal(t, 1, mq.sentCount())
-}
-
-func TestWriteReturnsHandlerErrorWithoutFallback(t *testing.T) {
-	mq := &fakeMQ{}
-
-	w := newWriter(t, func(uuid.UUID, string, [][]byte) error {
-		return errors.New("deadlock detected")
-	}, mq, Opts{Slots: 10, Fallback: false})
-
-	require.Error(t, w.Write(context.Background(), newMsg(t)))
-	assert.Equal(t, 0, mq.sentCount())
 }
 
 func TestWriteFallsBackWhenSlotsAreTaken(t *testing.T) {
@@ -136,7 +125,7 @@ func TestWriteFallsBackWhenSlotsAreTaken(t *testing.T) {
 		close(started)
 		<-release
 		return nil
-	}, mq, Opts{Slots: 1, Fallback: false})
+	}, mq, Opts{Slots: 1})
 
 	done := make(chan error)
 	go func() { done <- w.Write(context.Background(), newMsg(t)) }()
@@ -147,7 +136,6 @@ func TestWriteFallsBackWhenSlotsAreTaken(t *testing.T) {
 		t.Fatal("first write was never handled")
 	}
 
-	// The slot cap applies even with fallback disabled, which only covers handler errors.
 	require.NoError(t, w.Write(context.Background(), newMsg(t)))
 	assert.Equal(t, 1, mq.sentCount())
 
@@ -156,12 +144,12 @@ func TestWriteFallsBackWhenSlotsAreTaken(t *testing.T) {
 	assert.Equal(t, 1, mq.sentCount())
 }
 
-func TestWriteAsyncFallsBackEvenWithFallbackDisabled(t *testing.T) {
+func TestWriteAsyncFallsBackOnHandlerError(t *testing.T) {
 	mq := &fakeMQ{}
 
 	w := newWriter(t, func(uuid.UUID, string, [][]byte) error {
 		return errors.New("deadlock detected")
-	}, mq, Opts{Slots: 10, Fallback: false})
+	}, mq, Opts{Slots: 10})
 
 	w.WriteAsync(context.Background(), newMsg(t))
 
@@ -175,7 +163,7 @@ func TestWriteReturnsQueueErrorOnFallback(t *testing.T) {
 
 	w := newWriter(t, func(uuid.UUID, string, [][]byte) error {
 		return errors.New("deadlock detected")
-	}, mq, Opts{Slots: 10, Fallback: true})
+	}, mq, Opts{Slots: 10})
 
 	require.Error(t, w.Write(context.Background(), newMsg(t)))
 }
@@ -188,7 +176,7 @@ func TestWriteFallsBackEvenWhenTheCallerIsGone(t *testing.T) {
 		// the worker's RPC is cancelled while the handler runs, after it has committed part of the message
 		cancel()
 		return errors.New("could not send internal events")
-	}, mq, Opts{Slots: 10, Fallback: true})
+	}, mq, Opts{Slots: 10})
 
 	require.NoError(t, w.Write(ctx, newMsg(t)))
 
@@ -207,7 +195,7 @@ func TestNoSlotFallbackIgnoresACancelledCaller(t *testing.T) {
 		close(started)
 		<-release
 		return nil
-	}, mq, Opts{Slots: 1, Fallback: true})
+	}, mq, Opts{Slots: 1})
 
 	first := make(chan error)
 	go func() { first <- w.Write(context.Background(), newMsg(t)) }()
@@ -234,7 +222,7 @@ func TestFallbackRetriesAFailedPublish(t *testing.T) {
 
 	w := newWriter(t, func(uuid.UUID, string, [][]byte) error {
 		return errors.New("could not send internal events")
-	}, mq, Opts{Slots: 10, Fallback: true})
+	}, mq, Opts{Slots: 10})
 
 	require.NoError(t, w.Write(context.Background(), newMsg(t)))
 	assert.Len(t, mq.callsSnapshot(), 3)
@@ -248,10 +236,52 @@ func TestFallbackGivesUpAfterItsAttempts(t *testing.T) {
 
 	w := newWriter(t, func(uuid.UUID, string, [][]byte) error {
 		return errors.New("could not send internal events")
-	}, mq, Opts{Slots: 10, Fallback: true})
+	}, mq, Opts{Slots: 10})
 
 	require.Error(t, w.Write(context.Background(), newMsg(t)))
 	assert.Len(t, mq.callsSnapshot(), fallbackAttempts)
+}
+
+func TestZeroSlotsSendsEverythingOverTheQueue(t *testing.T) {
+	mq := &fakeMQ{}
+	var applied atomic.Bool
+
+	w := newWriter(t, func(uuid.UUID, string, [][]byte) error {
+		applied.Store(true)
+		return nil
+	}, mq, Opts{Slots: 0})
+
+	require.NoError(t, w.Write(context.Background(), newMsg(t)))
+	assert.False(t, applied.Load())
+	assert.Equal(t, 1, mq.sentCount())
+}
+
+func TestNegativeSlotsRemovesTheCap(t *testing.T) {
+	mq := &fakeMQ{}
+	release := make(chan struct{})
+
+	var handled atomic.Int32
+
+	w := newWriter(t, func(_ uuid.UUID, _ string, payloads [][]byte) error {
+		handled.Add(int32(len(payloads))) // nolint: gosec
+		<-release
+		return nil
+	}, mq, Opts{Slots: -1})
+
+	// More concurrent writes than any small cap would admit, all held in the handler at once.
+	const writes = 25
+
+	var wg sync.WaitGroup
+
+	for range writes {
+		wg.Go(func() { assert.NoError(t, w.Write(context.Background(), newMsg(t))) })
+	}
+
+	require.Eventually(t, func() bool { return handled.Load() == writes }, 5*time.Second, 10*time.Millisecond)
+	assert.Equal(t, 0, mq.sentCount())
+
+	close(release)
+	wg.Wait()
 }
 
 func setFastBackoff(t *testing.T) {

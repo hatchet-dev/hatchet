@@ -78,8 +78,8 @@ type DispatcherImpl struct {
 	refreshTimeoutGroup                 singleflight.Group
 	refreshTimeoutBuf                   *refreshTimeoutBuffer
 
-	// directTaskWriter is nil unless direct task writes are enabled, in which case worker task events
-	// are applied in-process instead of being sent over the durable task queue.
+	// directTaskWriter is nil when direct task writes are turned off (zero slots); every worker task
+	// event then goes over the durable task queue.
 	directTaskWriter *directwrite.Writer
 }
 
