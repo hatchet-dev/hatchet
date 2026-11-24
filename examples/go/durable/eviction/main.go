@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log"
 	"time"
 
@@ -91,12 +93,33 @@ func main() {
 		hatchet.WithEvictionPolicy(capacityEvictionPolicy),
 	)
 
+	// > Eviction vs Cancellation
+	evictionVsCancellation := client.NewStandaloneDurableTask("eviction-vs-cancellation",
+		func(ctx hatchet.DurableContext, input EmptyInput) (EvictionOutput, error) {
+			if _, err := ctx.SleepFor(longSleepSeconds * time.Second); err != nil {
+				switch {
+				case errors.Is(context.Cause(ctx), hatchet.ErrTaskCancelled):
+					// Run was cancelled; clean up external resources or child runs.
+					log.Println("task cancelled, running cleanup")
+				case errors.Is(context.Cause(ctx), hatchet.ErrTaskEvicted):
+					// Evicted to free the worker slot; the run will resume later.
+					log.Println("task evicted, skipping cleanup")
+				}
+				return EvictionOutput{}, err
+			}
+			return EvictionOutput{Status: "completed"}, nil
+		},
+		hatchet.WithExecutionTimeout(5*time.Minute),
+		hatchet.WithEvictionPolicy(evictionPolicy),
+	)
+
 	worker, err := client.NewWorker("eviction-worker",
 		hatchet.WithWorkflows(
 			evictableSleep,
 			evictableWaitForEvent,
 			nonEvictableSleep,
 			capacityEvictableSleep,
+			evictionVsCancellation,
 		),
 		hatchet.WithDurableSlots(10),
 	)

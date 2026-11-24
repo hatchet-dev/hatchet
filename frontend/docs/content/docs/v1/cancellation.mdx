@@ -59,6 +59,8 @@ When working with cancellation in Hatchet tasks, consider the following best pra
 
 4. **Error Handling**: Handle cancellation errors appropriately. Distinguish between cancellation errors and other types of errors to provide meaningful error messages and take appropriate actions.
 
+5. **Durable Task Eviction**: Evicting a durable task also cancels its context even though the run is not canceled and will resume later. In the Go SDK, check `context.Cause(ctx)` before running cancellation cleanup; see [Distinguishing Eviction from Cancellation](/v1/task-eviction#distinguishing-eviction-from-cancellation).
+
 ## Additional Features
 
 In addition to the methods of cancellation listed here, Hatchet also supports [bulk cancellation](/v1/bulk-retries-and-cancellations), which allows you to cancel many tasks in bulk using either their IDs or a set of filters, which is often the easiest way to cancel many things at once.
