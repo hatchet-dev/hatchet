@@ -165,21 +165,19 @@ func WithDesiredWorkerLabels(labels map[string]*DesiredWorkerLabel) RunOptFunc {
 	}
 }
 
-// WithTriggerContext sets the context used to send a durable child workflow
-// trigger and wait for its acknowledgement (which carries the child's RunId).
-// By default the trigger uses the parent task's context, so cancelling the
-// parent while the acknowledgement is in flight returns context.Canceled with
-// no run reference; a detached context such as
-// context.WithTimeout(context.WithoutCancel(ctx.GetContext()), 10*time.Second)
-// lets RunNoWait or RunMany return the RunId so the caller can track or cancel
-// the child (Run waits for the result internally and does not return a ref on
-// cancellation).
+// WithTriggerContext sets the context used to send a durable child trigger and
+// wait for the engine's acknowledgement carrying the child's RunId. By default
+// the parent task's context is used, so cancelling the parent mid-ACK returns
+// context.Canceled with no reference; passing a detached bounded context such
+// as context.WithTimeout(context.WithoutCancel(ctx.GetContext()), 10*time.Second)
+// lets RunNoWait or RunMany still return the RunId. Typically paired with
+// ErrTaskCancelled cleanup (skip cleanup on ErrTaskEvicted, since the task
+// resumes and replays the spawn).
 //
 // Waiting for the child's result (WorkflowRunRef.Result and Run) still follows
 // the parent task's context. A nil ctx defaults to the parent context, and the
 // option is ignored outside durable tasks. In RunMany, the first non-nil
-// trigger context set on any item governs the entire batch (including across
-// chunks).
+// trigger context set on any item governs the batch.
 func WithTriggerContext(ctx context.Context) RunOptFunc {
 	return func(opts *runOpts) {
 		opts.TriggerContext = ctx

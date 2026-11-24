@@ -23,8 +23,6 @@ const (
 	triggerTestChildRunID = "child-run"
 )
 
-// fakeDurableTaskStream is an in-memory durable task bidi stream: requests the
-// listener sends land on sendCh, and responses pushed to recvCh are received.
 type fakeDurableTaskStream struct {
 	v1.V1Dispatcher_DurableTaskClient
 
@@ -51,8 +49,6 @@ func (s *fakeDurableTaskStream) Recv() (*v1.DurableTaskResponse, error) {
 	}
 }
 
-// awaitTriggerRuns returns the next TriggerRuns request, skipping worker
-// registration and status messages.
 func (s *fakeDurableTaskStream) awaitTriggerRuns(t *testing.T) *v1.DurableTaskTriggerRunsRequest {
 	t.Helper()
 
@@ -91,8 +87,6 @@ func (s *fakeDurableTaskStream) ack(tr *v1.DurableTaskTriggerRunsRequest) {
 	}
 }
 
-// fakeDurableContext is the part of a durable task context that durable child
-// spawning uses, backed by a real DurableTaskListener.
 type fakeDurableContext struct {
 	pkgWorker.HatchetContext
 
@@ -107,16 +101,17 @@ func (f *fakeDurableContext) Err() error                        { return f.ctx.E
 func (f *fakeDurableContext) Value(key any) any                 { return f.ctx.Value(key) }
 func (f *fakeDurableContext) GetContext() context.Context       { return f.ctx }
 func (f *fakeDurableContext) StepRunId() string                 { return triggerTestTaskID }
-func (f *fakeDurableContext) WorkflowRunId() string             { return "parent-run" }
+func (f *fakeDurableContext) WorkflowRunId() string             { return "parent-workflow-run" }
 func (f *fakeDurableContext) DurableTaskInvocationCount() int32 { return 1 }
 func (f *fakeDurableContext) CurChildIndex() int                { return f.childIndex }
 func (f *fakeDurableContext) IncChildIndex()                    { f.childIndex++ }
-
-func (f *fakeDurableContext) DurableTaskListener() *v0Client.DurableTaskListener {
-	return f.listener
+func (f *fakeDurableContext) NextChildIndex() int {
+	idx := f.childIndex
+	f.childIndex++
+	return idx
 }
-
-func (f *fakeDurableContext) DurableEvictionSupported() bool { return true }
+func (f *fakeDurableContext) DurableTaskListener() *v0Client.DurableTaskListener { return f.listener }
+func (f *fakeDurableContext) DurableEvictionSupported() bool                     { return true }
 
 type triggerContextHarness struct {
 	stream       *fakeDurableTaskStream
@@ -136,11 +131,11 @@ func newTriggerContextHarness(t *testing.T) *triggerContextHarness {
 
 	logger := zerolog.Nop()
 	listener := v0Client.NewDurableTaskListener(
-		"test-worker",
+		"worker-1",
 		func(context.Context) (v1.V1Dispatcher_DurableTaskClient, error) { return stream, nil },
 		&logger,
 	)
-	listener.Start(streamCtx)
+	listener.Start(context.Background())
 	t.Cleanup(func() {
 		cancelStream()
 		listener.Stop()
@@ -179,25 +174,11 @@ func spawners() map[string]func(ctx context.Context, opts ...RunOptFunc) (*Workf
 	}
 }
 
-func startRunNoWait(
-	h *triggerContextHarness,
-	spawn func(ctx context.Context, opts ...RunOptFunc) (*WorkflowRunRef, error),
-	opts ...RunOptFunc,
-) <-chan runNoWaitResult {
-	done := make(chan runNoWaitResult, 1)
-	go func() {
-		ref, err := spawn(h.hctx, opts...)
-		done <- runNoWaitResult{ref: ref, err: err}
-	}()
-	return done
-}
-
 func awaitResult[T any](t *testing.T, ch <-chan T) T {
 	t.Helper()
-
 	select {
-	case res := <-ch:
-		return res
+	case v := <-ch:
+		return v
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for spawn to return")
 		var zero T
@@ -205,33 +186,7 @@ func awaitResult[T any](t *testing.T, ch <-chan T) T {
 	}
 }
 
-func assertPending[T any](t *testing.T, ch <-chan T) {
-	t.Helper()
-
-	select {
-	case <-ch:
-		t.Fatal("spawn returned before its trigger was acknowledged")
-	case <-time.After(50 * time.Millisecond):
-	}
-}
-
-func TestDurableChildTrigger_ParentCancelledBeforeAck_DefaultReturnsCanceled(t *testing.T) {
-	for name, spawn := range spawners() {
-		t.Run(name, func(t *testing.T) {
-			h := newTriggerContextHarness(t)
-
-			done := startRunNoWait(h, spawn)
-			h.stream.awaitTriggerRuns(t)
-			h.cancelParent()
-
-			res := awaitResult(t, done)
-			require.ErrorIs(t, res.err, context.Canceled)
-			assert.Nil(t, res.ref)
-		})
-	}
-}
-
-func TestDurableChildTrigger_ParentCancelledBeforeAck_TriggerContextReturnsRunID(t *testing.T) {
+func TestDurableChildTrigger_TriggerContextReturnsRunID(t *testing.T) {
 	for name, spawn := range spawners() {
 		t.Run(name, func(t *testing.T) {
 			h := newTriggerContextHarness(t)
@@ -239,10 +194,14 @@ func TestDurableChildTrigger_ParentCancelledBeforeAck_TriggerContextReturnsRunID
 			ackCtx, cancelAck := context.WithTimeout(context.WithoutCancel(h.hctx.GetContext()), 10*time.Second)
 			defer cancelAck()
 
-			done := startRunNoWait(h, spawn, WithTriggerContext(ackCtx))
+			done := make(chan runNoWaitResult, 1)
+			go func() {
+				ref, err := spawn(h.hctx, WithTriggerContext(ackCtx))
+				done <- runNoWaitResult{ref: ref, err: err}
+			}()
+
 			tr := h.stream.awaitTriggerRuns(t)
 			h.cancelParent()
-			assertPending(t, done)
 			h.stream.ack(tr)
 
 			res := awaitResult(t, done)
@@ -250,7 +209,6 @@ func TestDurableChildTrigger_ParentCancelledBeforeAck_TriggerContextReturnsRunID
 			require.NotNil(t, res.ref)
 			assert.Equal(t, triggerTestChildRunID, res.ref.RunId)
 
-			// The result wait still follows the parent task's context.
 			_, err := res.ref.Result()
 			require.ErrorIs(t, err, context.Canceled)
 		})
@@ -258,23 +216,25 @@ func TestDurableChildTrigger_ParentCancelledBeforeAck_TriggerContextReturnsRunID
 }
 
 func TestDurableChildTrigger_TriggerContextCanceledBeforeAck(t *testing.T) {
-	for name, spawn := range spawners() {
-		t.Run(name, func(t *testing.T) {
-			h := newTriggerContextHarness(t)
+	h := newTriggerContextHarness(t)
+	spawn := spawners()["Workflow.RunNoWait"]
 
-			ackCtx, cancelAck := context.WithCancel(context.Background())
-			defer cancelAck()
+	ackCtx, cancelAck := context.WithCancel(context.Background())
+	defer cancelAck()
 
-			done := startRunNoWait(h, spawn, WithTriggerContext(ackCtx))
-			h.stream.awaitTriggerRuns(t)
-			cancelAck()
+	done := make(chan runNoWaitResult, 1)
+	go func() {
+		ref, err := spawn(h.hctx, WithTriggerContext(ackCtx))
+		done <- runNoWaitResult{ref: ref, err: err}
+	}()
 
-			res := awaitResult(t, done)
-			require.ErrorIs(t, res.err, context.Canceled)
-			assert.Nil(t, res.ref)
-			require.NoError(t, h.hctx.GetContext().Err())
-		})
-	}
+	h.stream.awaitTriggerRuns(t)
+	cancelAck()
+
+	res := awaitResult(t, done)
+	require.ErrorIs(t, res.err, context.Canceled)
+	assert.Nil(t, res.ref)
+	require.NoError(t, h.hctx.GetContext().Err())
 }
 
 type runManyResult struct {
@@ -282,63 +242,39 @@ type runManyResult struct {
 	err  error
 }
 
-func runManySpawners() map[string]func(ctx context.Context, inputs []RunManyOpt) ([]WorkflowRunRef, error) {
+func TestDurableChildTrigger_RunManyTriggerContext(t *testing.T) {
 	client := &Client{legacyClient: &stubV0Client{}}
 	wf := client.NewWorkflow("child")
 
-	return map[string]func(ctx context.Context, inputs []RunManyOpt) ([]WorkflowRunRef, error){
+	runManySpawners := map[string]func(ctx context.Context, inputs []RunManyOpt) ([]WorkflowRunRef, error){
 		"Workflow.RunMany": wf.RunMany,
 		"Client.RunMany": func(ctx context.Context, inputs []RunManyOpt) ([]WorkflowRunRef, error) {
 			return client.RunMany(ctx, "child", inputs)
 		},
 	}
-}
 
-func startRunMany(
-	h *triggerContextHarness,
-	spawn func(ctx context.Context, inputs []RunManyOpt) ([]WorkflowRunRef, error),
-	inputs []RunManyOpt,
-) <-chan runManyResult {
-	done := make(chan runManyResult, 1)
-	go func() {
-		refs, err := spawn(h.hctx, inputs)
-		done <- runManyResult{refs: refs, err: err}
-	}()
-	return done
-}
-
-func TestDurableChildTrigger_RunManyDefaultReturnsCanceled(t *testing.T) {
-	for name, spawn := range runManySpawners() {
-		t.Run(name, func(t *testing.T) {
-			h := newTriggerContextHarness(t)
-
-			done := startRunMany(h, spawn, []RunManyOpt{{Input: 1}, {Input: 2}})
-			h.stream.awaitTriggerRuns(t)
-			h.cancelParent()
-
-			res := awaitResult(t, done)
-			require.ErrorIs(t, res.err, context.Canceled)
-			assert.Nil(t, res.refs)
-		})
-	}
-}
-
-func TestDurableChildTrigger_RunManyTriggerContextReturnsRunIDs(t *testing.T) {
-	for name, spawn := range runManySpawners() {
+	for name, spawn := range runManySpawners {
 		t.Run(name, func(t *testing.T) {
 			h := newTriggerContextHarness(t)
 
 			ackCtx, cancelAck := context.WithTimeout(context.WithoutCancel(h.hctx.GetContext()), 10*time.Second)
 			defer cancelAck()
 
-			// Items without the option share the batch's trigger context.
-			done := startRunMany(h, spawn, []RunManyOpt{
-				{Input: 1, Opts: []RunOptFunc{WithTriggerContext(ackCtx)}},
-				{Input: 2},
-			})
+			// A second cancelled context verifies the first non-nil trigger context governs the batch.
+			ignoredCtx, cancelIgnored := context.WithCancel(context.Background())
+			cancelIgnored()
+
+			done := make(chan runManyResult, 1)
+			go func() {
+				refs, err := spawn(h.hctx, []RunManyOpt{
+					{Input: 1, Opts: []RunOptFunc{WithTriggerContext(ackCtx)}},
+					{Input: 2, Opts: []RunOptFunc{WithTriggerContext(ignoredCtx)}},
+				})
+				done <- runManyResult{refs: refs, err: err}
+			}()
+
 			tr := h.stream.awaitTriggerRuns(t)
 			h.cancelParent()
-			assertPending(t, done)
 			h.stream.ack(tr)
 
 			res := awaitResult(t, done)

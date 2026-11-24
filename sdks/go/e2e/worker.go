@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"context"
+	"errors"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -76,6 +77,15 @@ type ErrorRaisingInput struct {
 // when a durable wait was interrupted, so tests can check cancellation vs eviction.
 var interruptCauses sync.Map
 
+type triggerContextE2EResult struct {
+	defaultErr  error
+	runID       string
+	detachedErr error
+	resultErr   error
+}
+
+var triggerContextE2EResults sync.Map
+
 func recordInterruptCause(ctx hatchet.Context) {
 	interruptCauses.Store(ctx.StepRunId(), context.Cause(ctx))
 }
@@ -112,6 +122,7 @@ var (
 	testNonEvictableSleep         *hatchet.StandaloneTask
 	testEvictionChildTask         *hatchet.StandaloneTask
 	testEvictionBulkChildTask     *hatchet.StandaloneTask
+	testDurableTriggerCtxAfterCancel *hatchet.StandaloneTask
 
 	// dag payload propagation test workflow
 	testDAGPayloadWorkflow *hatchet.Workflow
@@ -687,6 +698,41 @@ func registerAllWorkflows(client *hatchet.Client) {
 		hatchet.WithEvictionPolicy(nonEvictablePolicy),
 	)
 
+	testDurableTriggerCtxAfterCancel = client.NewStandaloneDurableTask("durable-trigger-ctx-after-cancel",
+		func(ctx hatchet.DurableContext, input EmptyInput) (map[string]any, error) {
+			if _, err := ctx.SleepFor(30 * time.Second); err != nil {
+				if errors.Is(context.Cause(ctx), hatchet.ErrTaskCancelled) {
+					_, defaultErr := testSpawnChildTask.RunNoWait(ctx, DurableBulkSpawnInput{N: 1})
+
+					ackCtx, cancelAck := context.WithTimeout(context.WithoutCancel(ctx.GetContext()), 10*time.Second)
+					defer cancelAck()
+
+					ref, detachedErr := testSpawnChildTask.RunNoWait(
+						ctx,
+						DurableBulkSpawnInput{N: 1},
+						hatchet.WithTriggerContext(ackCtx),
+					)
+					var runID string
+					var resultErr error
+					if ref != nil {
+						runID = ref.RunId
+						_, resultErr = ref.Result()
+					}
+
+					triggerContextE2EResults.Store(ctx.StepRunId(), triggerContextE2EResult{
+						defaultErr:  defaultErr,
+						runID:       runID,
+						detachedErr: detachedErr,
+						resultErr:   resultErr,
+					})
+				}
+				return nil, err
+			}
+			return map[string]any{"status": "completed"}, nil
+		},
+		hatchet.WithExecutionTimeout(5*time.Minute),
+	)
+
 	// --- DAG payload propagation test workflow ---
 	// Reproduces the bug where downstream tasks don't receive the workflow input or
 	// parent outputs. Both steps fail immediately if their payload is null/empty,
@@ -775,6 +821,7 @@ func startTestWorker(client *hatchet.Client) (*hatchet.Worker, func() error, err
 			testNonEvictableSleep,
 			testEvictionChildTask,
 			testEvictionBulkChildTask,
+			testDurableTriggerCtxAfterCancel,
 			testErrorRaisingTask,
 			testErrorRaisingDurableParent,
 			testBatchSimple,

@@ -652,3 +652,46 @@ func TestTwoEventWaitsSecondPushedFirst(t *testing.T) {
 	assert.Equal(t, "second", output["order2"],
 		"the second wait should find the event pushed before the task started via lookback")
 }
+
+func TestDurableWithTriggerContextAfterCancel(t *testing.T) {
+	requireDurableEviction(t)
+	ctx := newTestContext(t)
+
+	ref, err := testDurableTriggerCtxAfterCancel.RunNoWait(ctx, EmptyInput{})
+	require.NoError(t, err)
+
+	pollUntilRunStatus(t, ctx, sharedClient, ref.RunId, string(rest.V1TaskStatusRUNNING))
+
+	_, err = sharedClient.Runs().Cancel(ctx, rest.V1CancelTaskRequest{
+		ExternalIds: toUUIDs(ref.RunId),
+	})
+	require.NoError(t, err)
+
+	pollUntil(t, ctx, func() (bool, error) {
+		status, err := sharedClient.Runs().GetStatus(ctx, ref.RunId)
+		if err != nil {
+			return false, err
+		}
+		return *status == rest.V1TaskStatusCANCELLED, nil
+	})
+
+	taskID := getFirstTaskExternalID(t, ctx, ref.RunId)
+	var raw any
+	pollUntil(t, ctx, func() (bool, error) {
+		var ok bool
+		raw, ok = triggerContextE2EResults.Load(taskID)
+		return ok, nil
+	})
+
+	got := raw.(triggerContextE2EResult)
+	require.ErrorIs(t, got.defaultErr, context.Canceled)
+	require.NoError(t, got.detachedErr)
+	require.NotEmpty(t, got.runID)
+	_, parseErr := uuid.Parse(got.runID)
+	require.NoError(t, parseErr)
+	require.ErrorIs(t, got.resultErr, context.Canceled)
+
+	_, _ = sharedClient.Runs().Cancel(ctx, rest.V1CancelTaskRequest{
+		ExternalIds: toUUIDs(got.runID),
+	})
+}
