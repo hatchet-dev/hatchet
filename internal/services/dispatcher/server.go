@@ -1603,7 +1603,9 @@ func (s *DispatcherImpl) handleTaskCancelledEvent(inputCtx context.Context, task
 		return nil, err
 	}
 
-	if err := s.sendTaskMessage(inputCtx, msg); err != nil {
+	// The cancel handler does no database work, it only publishes MsgIDTaskCancelled to the task
+	// queue, so a direct write would hold a slot just to publish there anyway.
+	if err := s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
 		return nil, err
 	}
 
@@ -2256,7 +2258,9 @@ func (s *DispatcherImpl) handleBatchTaskCancelled(
 		return nil, err
 	}
 
-	if err := s.sendTaskMessage(inputCtx, msg); err != nil {
+	// The cancel handler does no database work, it only publishes MsgIDTaskCancelled to the task
+	// queue, so a direct write would hold a slot just to publish there anyway.
+	if err := s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
 		return nil, err
 	}
 

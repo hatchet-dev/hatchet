@@ -261,7 +261,7 @@ type ConfigFileRuntime struct {
 	// The number of slots for gRPC writes
 	GRPCTriggerWriteSlots int `mapstructure:"grpcTriggerWriteSlots" json:"grpcTriggerWriteSlots,omitempty" default:"5"`
 
-	// The number of worker task events (completed, failed, started, cancelled) the gRPC process applies
+	// The number of worker task events (completed, failed, started) the gRPC process applies
 	// itself at once, through the task controller's handlers. Events beyond it, and events whose direct
 	// write fails, go over the durable task queue. Each slot can hold a pool connection for a full
 	// completion transaction, and heartbeats share that pool, so the default stays well below

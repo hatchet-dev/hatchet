@@ -5,6 +5,7 @@ package dispatcher
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -13,7 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/directwrite"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type recordingMQ struct {
@@ -115,4 +118,27 @@ func TestBatchPartsAreWrittenConcurrently(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("the second part was not sent until the first one finished")
 	}
+}
+
+// A cancel goes straight to the task queue, because its handler only republishes it there.
+func TestCancelsSkipTheDirectWriter(t *testing.T) {
+	var handled atomic.Int32
+
+	l := zerolog.Nop()
+	w, err := directwrite.New(func(uuid.UUID, string, [][]byte) error {
+		handled.Add(1)
+		return nil
+	}, &recordingMQ{}, &l, directwrite.Opts{Slots: 10})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = w.Close(context.Background()) })
+
+	queue := &recordingMQ{}
+	s := &DispatcherImpl{directTaskWriter: w, mqv1: queue}
+
+	_, err = s.handleBatchTaskCancelled(context.Background(), uuid.New(), []*sqlcv1.FlattenExternalIdsRow{{ID: 1}}, &contracts.BatchActionEvent{WorkerId: uuid.NewString()})
+	require.NoError(t, err)
+
+	require.Equal(t, 1, queue.count())
+	require.Equal(t, msgqueue.MsgIDCancelTasks, queue.sent[0].ID)
+	require.Zero(t, handled.Load())
 }
