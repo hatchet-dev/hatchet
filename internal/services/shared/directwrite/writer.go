@@ -15,6 +15,7 @@ const (
 	resultDirect         = "direct"
 	resultFallbackNoSlot = "fallback_no_slot"
 	resultFallbackError  = "fallback_error"
+	resultDirectAlone    = "direct_alone"
 )
 
 // Writer applies task-processing messages in the calling process with the task controller's handler,
@@ -25,6 +26,7 @@ type Writer struct {
 	mq        msgqueue.MessageQueue
 	l         *zerolog.Logger
 	handle    msgqueue.MsgHandler
+	dst       msgqueue.DstFunc
 	slots     chan struct{}
 	stopBuf   func() error
 	onDrained func()
@@ -55,6 +57,7 @@ func New(dst msgqueue.DstFunc, mq msgqueue.MessageQueue, l *zerolog.Logger, opts
 	w := &Writer{
 		mq:        mq,
 		l:         l,
+		dst:       dst,
 		onDrained: opts.OnDrained,
 		drained:   make(chan struct{}),
 	}
@@ -145,9 +148,9 @@ func (w *Writer) end() {
 	}
 }
 
-// Write applies msg in-process and returns once its batch has been handled. It sends msg over the
-// durable task queue instead when every slot is taken or the handler fails, so an error only means the
-// queue could not take it either. Sending a message the handler partly applied is safe: the controller
+// Write applies msg in-process and returns once its batch has been handled. When the batch fails it
+// runs msg once more on its own, and sends it over the durable task queue only if that fails too, or
+// when every slot is taken, so an error only means the queue could not take it either. Sending a message the handler partly applied is safe: the controller
 // already handles messages the queue redelivers after a failed attempt.
 func (w *Writer) Write(ctx context.Context, msg *msgqueue.Message) error {
 	return w.write(ctx, msg)
@@ -206,12 +209,33 @@ func (w *Writer) write(ctx context.Context, msg *msgqueue.Message) error {
 func (w *Writer) apply(ctx context.Context, msg *msgqueue.Message) error {
 	start := time.Now()
 	err := w.handle(msg)
-	w.release()
 
 	if err == nil {
+		w.release()
 		w.record(msg.ID, resultDirect, time.Since(start))
 		return nil
 	}
+
+	// The buffer merges up to a batch of messages from different callers into one handler call and
+	// hands its error to all of them, so one bad message fails its neighbours. Running this message
+	// on its own, on the slot it still holds, keeps a healthy one off the queue. It is as safe as the
+	// queue's redelivery of a failed batch, which also re-runs messages the handler partly applied.
+	batchErr := err
+
+	if err = w.dst(msg.TenantID, msg.ID, msg.Payloads); err == nil {
+		w.release()
+		w.record(msg.ID, resultDirectAlone, time.Since(start))
+
+		// the batch error belongs to another message in the batch, which reports it when it fails alone
+		w.l.Debug().Ctx(ctx).Err(batchErr).
+			Str("message_id", msg.ID).
+			Str("tenant_id", msg.TenantID.String()).
+			Msg("direct task write applied on its own after its batch failed")
+
+		return nil
+	}
+
+	w.release()
 
 	w.record(msg.ID, resultFallbackError, time.Since(start))
 

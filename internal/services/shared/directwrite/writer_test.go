@@ -3,6 +3,7 @@ package directwrite
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -465,6 +466,117 @@ func TestTryWriteAsyncLeavesEverythingToTheCallerWithoutACap(t *testing.T) {
 	assert.False(t, w.TryWriteAsync(context.Background(), newMsg(t)))
 	assert.False(t, applied.Load())
 	assert.Equal(t, 0, mq.sentCount())
+}
+
+// A message whose batch failed, for example because another caller's message in it was bad, is
+// applied on its own instead of going over the queue.
+func TestFailedBatchMessageIsAppliedAlone(t *testing.T) {
+	mq := &fakeMQ{}
+
+	var calls atomic.Int32
+
+	w := newWriter(t, func(uuid.UUID, string, [][]byte) error {
+		if calls.Add(1) == 1 {
+			return errors.New("invalid input syntax for type json")
+		}
+
+		return nil
+	}, mq, Opts{Slots: 10})
+
+	require.NoError(t, w.Write(context.Background(), newMsg(t)))
+	assert.Equal(t, int32(2), calls.Load())
+	assert.Equal(t, 0, mq.sentCount())
+}
+
+func TestMessageThatFailsAloneFallsBack(t *testing.T) {
+	mq := &fakeMQ{}
+
+	var calls atomic.Int32
+
+	w := newWriter(t, func(uuid.UUID, string, [][]byte) error {
+		calls.Add(1)
+		return errors.New("invalid input syntax for type json")
+	}, mq, Opts{Slots: 10})
+
+	require.NoError(t, w.Write(context.Background(), newMsg(t)))
+	assert.Equal(t, int32(2), calls.Load(), "one batched attempt and one alone")
+	assert.Equal(t, 1, mq.sentCount())
+}
+
+// A real multi-message batch with one bad message in it: the healthy messages are applied on their
+// own, and only the bad one goes over the queue.
+func TestBadMessageInABatchOnlySendsItselfOverTheQueue(t *testing.T) {
+	// One flush at a time per (tenant, message type), so the messages written while the first flush
+	// is held pile up and go into the next flush together.
+	orig := msgqueue.SUB_MAX_CONCURRENCY
+	msgqueue.SUB_MAX_CONCURRENCY = 1
+	t.Cleanup(func() { msgqueue.SUB_MAX_CONCURRENCY = orig })
+
+	mq := &fakeMQ{}
+	tenantID := uuid.New()
+	gate := make(chan struct{})
+	gateHeld := make(chan struct{})
+
+	var (
+		mu         sync.Mutex
+		batchSizes []int
+		applied    []string
+	)
+
+	msgWith := func(body string) *msgqueue.Message {
+		msg, err := msgqueue.NewTenantMessage(tenantID, msgqueue.MsgIDTaskCompleted, false, true, map[string]string{"body": body})
+		require.NoError(t, err)
+		return msg
+	}
+
+	w := newWriter(t, func(_ uuid.UUID, _ string, payloads [][]byte) error {
+		mu.Lock()
+		batchSizes = append(batchSizes, len(payloads))
+		first := len(batchSizes) == 1
+		mu.Unlock()
+
+		if first {
+			close(gateHeld)
+			<-gate
+		}
+
+		for _, p := range payloads {
+			if strings.Contains(string(p), "bad") {
+				return errors.New("invalid input syntax for type json")
+			}
+		}
+
+		mu.Lock()
+		for _, p := range payloads {
+			applied = append(applied, string(p))
+		}
+		mu.Unlock()
+
+		return nil
+	}, mq, Opts{Slots: 10})
+
+	var wg sync.WaitGroup
+
+	wg.Go(func() { assert.NoError(t, w.Write(context.Background(), msgWith("gate"))) })
+	<-gateHeld
+
+	for _, body := range []string{"good-1", "bad", "good-2"} {
+		wg.Go(func() { assert.NoError(t, w.Write(context.Background(), msgWith(body))) })
+	}
+
+	// Nothing reports when a message has landed in the buffer; this leaves the three writes time to
+	// enqueue behind the held flush.
+	time.Sleep(100 * time.Millisecond)
+	close(gate)
+	wg.Wait()
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	require.Contains(t, batchSizes, 3, "the three messages were not flushed as one batch: %v", batchSizes)
+	require.Equal(t, 1, mq.sentCount())
+	assert.Contains(t, string(mq.sent[0].Payloads[0]), "bad")
+	assert.Len(t, applied, 3, "gate, good-1 and good-2 applied in-process: %v", applied)
 }
 
 func setFastBackoff(t *testing.T) {

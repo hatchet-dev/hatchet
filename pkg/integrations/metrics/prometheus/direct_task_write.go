@@ -14,8 +14,9 @@ const (
 	DirectTaskWriteDurationSeconds DirectTaskWriteHatchetMetric = "hatchet_direct_task_write_duration_seconds"
 )
 
-// The result label is one of: direct (applied in-process), and fallback_no_slot or fallback_error (sent
-// over the durable task queue instead).
+// The result label is one of: direct (applied in-process), direct_alone (applied in-process on its own
+// after the batch it was in failed), and fallback_no_slot or fallback_error (sent over the durable task
+// queue instead).
 var (
 	DirectTaskWrites = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: string(DirectTaskWritesTotal),
