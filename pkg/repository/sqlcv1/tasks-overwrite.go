@@ -420,22 +420,16 @@ WITH locked_tasks AS (
 		v1_task_event.data,
 		v1_task_event.external_id,
 		v1_task_event.child_external_id,
-		v1_task_event.payload_reference_id,
-        v1_task_event.external_id
+		v1_task_event.payload_reference_id
 ), payload_inputs AS (
-    SELECT DISTINCT
+    SELECT
+        e.tenant_id,
         e.id,
-        v1_payload_inserted_at(
-            NULLIF(i.payload_reference_id, '00000000-0000-0000-0000-000000000000'::UUID),
-            e.inserted_at
-        ) AS inserted_at,
-        COALESCE(
-            NULLIF(i.payload_reference_id, '00000000-0000-0000-0000-000000000000'::UUID),
-            e.external_id
-        ) AS external_id,
-        i.payload_type AS type,
-        i.payload_inline_content AS inline_content,
-        e.tenant_id
+        e.inserted_at,
+        e.external_id,
+        i.payload_type,
+        i.payload_inline_content,
+        i.payload_reference_id
     FROM
         inserted_events e
     JOIN
@@ -443,29 +437,18 @@ WITH locked_tasks AS (
     WHERE
         i.payload_inline_content IS NOT NULL
 )
-INSERT INTO v1_payload (
-    tenant_id,
-    id,
-    inserted_at,
-    external_id,
-    type,
-    location,
-    external_location_key,
-    inline_content
+SELECT write_payloads(
+    ARRAY_AGG(p.tenant_id),
+    ARRAY_AGG(p.id),
+    ARRAY_AGG(p.inserted_at),
+    ARRAY_AGG(p.external_id),
+    ARRAY_AGG(p.payload_type),
+    ARRAY_AGG(p.payload_inline_content),
+    ARRAY_AGG(p.payload_reference_id),
+    FALSE
 )
-SELECT
-    p.tenant_id,
-    p.id,
-    p.inserted_at,
-    p.external_id,
-    p.type,
-    'INLINE',
-    NULL,
-    p.inline_content
 FROM
     payload_inputs p
-ORDER BY p.tenant_id, p.inserted_at, p.id, p.type
-ON CONFLICT DO NOTHING
 `
 
 type CreateTaskEventsParams struct {
