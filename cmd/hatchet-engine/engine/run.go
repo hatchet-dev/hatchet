@@ -326,25 +326,16 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	}
 
 	if sc.HasService("queue") || sc.HasService("jobscontroller") || sc.HasService("workflowscontroller") {
-		retention, err := corePartitionRetention(sc)
+		opts, err := taskControllerOpts(sc)
 
 		if err != nil {
 			return err
 		}
 
-		tasks, err := task.New(
-			task.WithAlerter(sc.Alerter),
-			task.WithMessageQueue(sc.MessageQueueV1),
-			task.WithPubSub(sc.PubSubV1),
-			task.WithV1Repository(sc.V1),
-			task.WithLogger(sc.Logger),
+		tasks, err := task.New(append(opts,
 			task.WithPartition(p),
-			task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
-			task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
-			task.WithMaxRetryAfter(retention),
 			task.WithAnalyzeCronInterval(sc.CronOperations.TaskAnalyzeCronInterval),
-			task.WithPrometheusGate(sc.PrometheusGate),
-		)
+		)...)
 
 		if err != nil {
 			return fmt.Errorf("could not create tasks controller: %w", err)
@@ -804,27 +795,17 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		)
 
 		if isControllerActive(sc.PausedControllers, TaskController) {
-			retention, err := corePartitionRetention(sc)
+			opts, err := taskControllerOpts(sc)
 
 			if err != nil {
 				return err
 			}
 
-			tasks, err := task.New(
-				task.WithAlerter(sc.Alerter),
-				task.WithMessageQueue(sc.MessageQueueV1),
-				task.WithPubSub(sc.PubSubV1),
-				task.WithV1Repository(sc.V1),
-				task.WithLogger(sc.Logger),
+			tasks, err := task.New(append(opts,
 				task.WithPartition(p),
-				task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
-				task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
 				task.WithOpsPoolJitter(sc.Operations),
-				task.WithReplayEnabled(sc.Runtime.ReplayEnabled),
-				task.WithMaxRetryAfter(retention),
 				task.WithAnalyzeCronInterval(sc.CronOperations.TaskAnalyzeCronInterval),
-				task.WithPrometheusGate(sc.PrometheusGate),
-			)
+			)...)
 
 			if err != nil {
 				return fmt.Errorf("could not create tasks controller: %w", err)
@@ -1279,13 +1260,36 @@ func isControllerActive(pausedControllers map[string]bool, controllerName Contro
 	return false
 }
 
+// taskControllerOpts are the settings that decide how the task controller's handlers apply a message.
+// Every task controller and the direct task writer's handler start from them, so a worker event is
+// applied the same way whichever process handles it. In split deployments that still relies on the
+// gRPC pods having the same config (replay, retention) as the controller pods.
+func taskControllerOpts(sc *server.ServerConfig) ([]task.TasksControllerOpt, error) {
+	retention, err := corePartitionRetention(sc)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return []task.TasksControllerOpt{
+		task.WithAlerter(sc.Alerter),
+		task.WithMessageQueue(sc.MessageQueueV1),
+		task.WithPubSub(sc.PubSubV1),
+		task.WithV1Repository(sc.V1),
+		task.WithLogger(sc.Logger),
+		task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
+		task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
+		task.WithReplayEnabled(sc.Runtime.ReplayEnabled),
+		task.WithMaxRetryAfter(retention),
+		task.WithPrometheusGate(sc.PrometheusGate),
+	}, nil
+}
+
 // newDirectTaskWriter returns nil when DirectTaskWriteSlots is 0, so every worker event goes over the
 // task queue and no second task controller is built. It also returns nil when the task controller is
 // paused: the handler is the controller's own, and pausing the controller is how an operator stops
 // worker events from being applied, so they have to wait on the task queue as they did before. The
-// pause is read per process, so in split deployments the gRPC pods need it set too. The handler is
-// built with the controller's settings, so worker events applied in the gRPC process behave the same
-// as when the controller consumes them from the task queue.
+// pause is read per process, so in split deployments the gRPC pods need it set too.
 func newDirectTaskWriter(sc *server.ServerConfig) (*directwrite.Writer, error) {
 	if sc.Runtime.DirectTaskWriteSlots == 0 {
 		return nil, nil
@@ -1299,24 +1303,13 @@ func newDirectTaskWriter(sc *server.ServerConfig) (*directwrite.Writer, error) {
 
 	warnOnDirectTaskWriteSlots(sc)
 
-	retention, err := corePartitionRetention(sc)
+	opts, err := taskControllerOpts(sc)
 
 	if err != nil {
 		return nil, err
 	}
 
-	handler, stopHandler, err := task.NewMessageHandler(
-		task.WithAlerter(sc.Alerter),
-		task.WithMessageQueue(sc.MessageQueueV1),
-		task.WithPubSub(sc.PubSubV1),
-		task.WithV1Repository(sc.V1),
-		task.WithLogger(sc.Logger),
-		task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
-		task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
-		task.WithReplayEnabled(sc.Runtime.ReplayEnabled),
-		task.WithMaxRetryAfter(retention),
-		task.WithPrometheusGate(sc.PrometheusGate),
-	)
+	handler, stopHandler, err := task.NewMessageHandler(opts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create task message handler: %w", err)
