@@ -20,7 +20,11 @@ after(async () => {
 });
 
 test('create, exec, files, kill, connect, fork, list, delete', opts, async () => {
-  const sandbox = await hatchet.sandbox.create({ provider, template, metadata: { ...tags, role: 'parent' } });
+  const sandbox = await hatchet.sandbox.create({
+    provider,
+    template,
+    metadata: { ...tags, role: 'parent' },
+  });
   log('created', sandbox.sandboxId, 'metadata', sandbox.metadata);
   assert.equal(sandbox.metadata['hatchet.sandbox.provider'], provider);
   assert.equal(sandbox.metadata.role, 'parent');
@@ -43,11 +47,21 @@ test('create, exec, files, kill, connect, fork, list, delete', opts, async () =>
   ]);
   assert.equal(await sandbox.files.read('a.txt'), 'alpha');
   assert.equal(await sandbox.files.read('nested/deep/b.txt'), 'bravo');
-  assert.deepEqual([...(await sandbox.files.read('nested/c.bin', { format: 'bytes' }))], [0, 1, 2, 255]);
+  assert.deepEqual(
+    [...(await sandbox.files.read('nested/c.bin', { format: 'bytes' }))],
+    [0, 1, 2, 255]
+  );
 
   const entries = await sandbox.files.list('nested', { depth: 2 });
-  log('list nested', entries.map((e) => `${e.type}:${e.path}`));
-  assert.deepEqual(entries.map((e) => e.path).sort(), ['nested/c.bin', 'nested/deep', 'nested/deep/b.txt']);
+  log(
+    'list nested',
+    entries.map((e) => `${e.type}:${e.path}`)
+  );
+  assert.deepEqual(entries.map((e) => e.path).sort(), [
+    'nested/c.bin',
+    'nested/deep',
+    'nested/deep/b.txt',
+  ]);
   const info = await sandbox.files.getInfo('a.txt');
   log('getInfo', info);
   assert.equal(info.type, 'file');
@@ -75,14 +89,22 @@ test('create, exec, files, kill, connect, fork, list, delete', opts, async () =>
   assert.equal((await back.exec('cat made/dir/a.txt')).stdout, 'alpha');
   assert.equal(back.metadata.role, 'parent');
 
-  const fork = await hatchet.sandbox.create({ provider, from: killed.latestSnapshot, inheritParentMetadata: true, metadata: { role: 'fork' } });
+  const fork = await hatchet.sandbox.create({
+    provider,
+    from: killed.latestSnapshot,
+    inheritParentMetadata: true,
+    metadata: { role: 'fork' },
+  });
   log('fork', fork.sandboxId, 'metadata', fork.metadata);
   assert.equal((await fork.exec('cat made/dir/a.txt')).stdout, 'alpha');
   await fork.exec('echo forked > only-here.txt');
   assert.equal(await back.files.exists('only-here.txt'), false);
 
   const found = await hatchet.sandbox.list({ metadata: tags });
-  log('list by tags', found.map((s) => `${s.sandboxId}:${s.metadata?.role}:${s.live}`));
+  log(
+    'list by tags',
+    found.map((s) => `${s.sandboxId}:${s.metadata?.role}:${s.live}`)
+  );
   assert.deepEqual(found.map((s) => s.metadata?.role).sort(), ['fork', 'parent']);
 
   const deleted = await hatchet.sandbox.delete({ metadata: { ...tags, role: 'fork' } });
@@ -96,9 +118,14 @@ test('create, exec, files, kill, connect, fork, list, delete', opts, async () =>
 });
 
 test('resources: one vcpu is honoured', opts, async () => {
-  const small = await hatchet.sandbox.create({ provider, template, metadata: { ...tags, role: 'small' }, resources: { vcpu: 1 } });
+  const small = await hatchet.sandbox.create({
+    provider,
+    template,
+    metadata: { ...tags, role: 'small' },
+    resources: { vcpu: 1 },
+  });
   const nproc = await small.exec('nproc');
   log('nproc', nproc.stdout.trim());
-  assert.equal(nproc.exitCode, 0);
+  assert.equal(nproc.stdout.trim(), '1');
   await small.delete();
 });
