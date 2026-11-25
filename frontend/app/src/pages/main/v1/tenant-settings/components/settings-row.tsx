@@ -38,7 +38,10 @@ export function ReadOnlyValue({ value }: { value: string }) {
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="max-w-[280px] truncate font-mono text-sm text-muted-foreground md:max-w-md xl:max-w-2xl">
+            <span
+              tabIndex={0}
+              className="max-w-[280px] truncate font-mono text-sm text-muted-foreground md:max-w-md xl:max-w-2xl"
+            >
               {value}
             </span>
           </TooltipTrigger>
