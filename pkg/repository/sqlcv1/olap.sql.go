@@ -2609,11 +2609,28 @@ WITH input AS (
     SELECT
         e.run_id,
         MIN(e.inserted_at)::timestamptz AS created_at,
-        MIN(e.inserted_at) FILTER (WHERE e.readable_status = 'RUNNING')::timestamptz AS started_at,
         MAX(e.inserted_at) FILTER (WHERE e.readable_status IN ('COMPLETED', 'CANCELLED', 'FAILED'))::timestamptz AS finished_at
     FROM
         relevant_events e
     JOIN max_retry_count mrc ON (e.run_id, e.retry_count) = (mrc.run_id, mrc.max_retry_count)
+    GROUP BY e.run_id
+), task_max_retry_count AS (
+    SELECT run_id, MAX(retry_count) AS max_retry_count
+    FROM relevant_events
+    WHERE NOT is_dag_orchestrator
+    GROUP BY run_id
+), task_timings AS (
+    -- An operator DAG's orchestrator starts before the DAG's first task and finishes after its last one, so
+    -- the run's times come from its tasks, and the orchestrator's events only stand in for the finish time of
+    -- a run that ended before any task did.
+    SELECT
+        e.run_id,
+        MIN(e.inserted_at) FILTER (WHERE e.readable_status = 'RUNNING')::timestamptz AS started_at,
+        MAX(e.inserted_at) FILTER (WHERE e.readable_status IN ('COMPLETED', 'CANCELLED', 'FAILED'))::timestamptz AS finished_at
+    FROM
+        relevant_events e
+    JOIN task_max_retry_count mrc ON (e.run_id, e.retry_count) = (mrc.run_id, mrc.max_retry_count)
+    WHERE NOT e.is_dag_orchestrator
     GROUP BY e.run_id
 ), error_message AS (
     SELECT
@@ -2644,8 +2661,8 @@ WITH input AS (
 SELECT
     r.dag_id, r.run_id, r.tenant_id, r.inserted_at, r.external_id, r.readable_status, r.kind, r.workflow_id, r.display_name, r.input, r.additional_metadata, r.workflow_version_id, r.parent_task_external_id, r.idempotency_key, r.payload_reference_id,
     m.created_at,
-    m.started_at,
-    m.finished_at,
+    tt.started_at,
+    COALESCE(tt.finished_at, m.finished_at)::timestamptz AS finished_at,
     e.error_message,
     CASE
         WHEN $1::BOOLEAN THEN o.output::JSONB
@@ -2657,6 +2674,7 @@ SELECT
     COALESCE(mrc.max_retry_count, 0)::int as retry_count
 FROM runs r
 LEFT JOIN metadata m ON r.run_id = m.run_id
+LEFT JOIN task_timings tt ON r.run_id = tt.run_id
 LEFT JOIN error_message e ON r.run_id = e.run_id
 LEFT JOIN task_output o ON r.run_id = o.run_id
 LEFT JOIN max_retry_count mrc ON r.run_id = mrc.run_id
@@ -3651,10 +3669,15 @@ WITH runs AS (
     FROM relevant_events
     GROUP BY task_id
 ), metadata AS (
+    -- An operator DAG's orchestrator starts before the DAG's first task and finishes after its last one, so
+    -- its events only stand in for the finish time of a run that ended before any task did.
     SELECT
         MIN(e.inserted_at)::timestamptz AS created_at,
-        MIN(e.inserted_at) FILTER (WHERE e.readable_status = 'RUNNING')::timestamptz AS started_at,
-        MAX(e.inserted_at) FILTER (WHERE e.readable_status IN ('COMPLETED', 'CANCELLED', 'FAILED'))::timestamptz AS finished_at,
+        MIN(e.inserted_at) FILTER (WHERE e.readable_status = 'RUNNING' AND NOT e.is_dag_orchestrator)::timestamptz AS started_at,
+        COALESCE(
+            MAX(e.inserted_at) FILTER (WHERE e.readable_status IN ('COMPLETED', 'CANCELLED', 'FAILED') AND NOT e.is_dag_orchestrator),
+            MAX(e.inserted_at) FILTER (WHERE e.readable_status IN ('COMPLETED', 'CANCELLED', 'FAILED'))
+        )::timestamptz AS finished_at,
         JSON_AGG(JSON_BUILD_OBJECT('task_id', e.task_id,'task_inserted_at', e.task_inserted_at)) AS task_metadata
     FROM
         relevant_events e
