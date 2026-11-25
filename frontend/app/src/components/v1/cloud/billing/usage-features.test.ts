@@ -4,6 +4,7 @@ import {
   formatBytes,
   formatObservedUsage,
   formatTimeUntil,
+  isHiddenUsageFeature,
   nextRefillAt,
   selectDailyMeters,
   inventoryAllowancesFromPlan,
@@ -231,6 +232,13 @@ describe('shardUsageRows', () => {
         },
       ],
     );
+  });
+});
+
+describe('isHiddenUsageFeature', () => {
+  it('hides ingested bytes from the billing page and header alerts', () => {
+    assert.equal(isHiddenUsageFeature('ingested_bytes'), true);
+    assert.equal(isHiddenUsageFeature('task_runs'), false);
   });
 });
 

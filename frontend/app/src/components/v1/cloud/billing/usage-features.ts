@@ -17,7 +17,8 @@ const PERIOD_USAGE_FEATURE_IDS = new Set([
   ...BYTE_USAGE_FEATURE_IDS,
 ]);
 
-// Plan allowances we do not meter. Showing them as 0 / limit reads as usage.
+// Plan allowances we neither show nor alert on: ones we do not meter (0 / limit
+// reads as usage) and ingested_bytes, which we only track internally for now.
 const HIDDEN_USAGE_FEATURE_IDS = new Set([
   'throughput_rps',
   'active_storage_gb',
@@ -213,6 +214,10 @@ export function shardUsageRows(
 export type UsageSeverity = 'ok' | 'warn' | 'critical';
 
 export type UsageRangePreset = 'period' | '7d' | '30d';
+
+export function isHiddenUsageFeature(featureId: string) {
+  return HIDDEN_USAGE_FEATURE_IDS.has(featureId);
+}
 
 export function isPeriodUsageFeature(featureId: string) {
   return PERIOD_USAGE_FEATURE_IDS.has(featureId);

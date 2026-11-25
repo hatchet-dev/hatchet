@@ -3,6 +3,7 @@ import { Notification, NotificationColor } from './types';
 import {
   dailyLimitAlerts,
   isDailyLimitFeature,
+  isHiddenUsageFeature,
   isPeriodUsageFeature,
 } from '@/components/v1/cloud/billing/usage-features';
 import useControlPlane from '@/hooks/use-control-plane';
@@ -40,8 +41,10 @@ const featureToNotification = (
 ): Notification | null => {
   // Period included amounts for task runs / events are billing thresholds,
   // not hard caps. Daily caps notify from the shard meter. Tenant count stays
-  // on the billing page and does not raise the header alert.
+  // on the billing page and does not raise the header alert. Features hidden
+  // from the billing page do not alert either.
   if (
+    isHiddenUsageFeature(feature.featureId) ||
     isPeriodUsageFeature(feature.featureId) ||
     isDailyLimitFeature(feature.featureId) ||
     feature.featureId === 'tenants'
