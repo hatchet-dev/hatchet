@@ -270,21 +270,19 @@ type ConfigFileRuntime struct {
 
 	// Whether completing a task writes its internal events (the triggers for the next DAG step) to a
 	// transactional outbox in the same database transaction, instead of sending them over the durable
-	// task queue after the commit
+	// task queue after the commit. Only the writes are switched: every engine drains the outbox, so
+	// turning this off, or a rollout where only some engines write, leaves nothing behind.
 	InternalEventOutboxEnabled bool `mapstructure:"internalEventOutboxEnabled" json:"internalEventOutboxEnabled,omitempty" default:"false"`
-
-	// The number of outbox topics internal events are spread over. pgoutbox processes one batch per topic
-	// at a time, so this bounds how many batches the engine fleet processes concurrently.
-	InternalEventOutboxShards int `mapstructure:"internalEventOutboxShards" json:"internalEventOutboxShards,omitempty" default:"8"`
 
 	// How often every engine drains each internal event topic, which bounds how long a batch written by an
 	// engine that crashed before processing it waits
 	InternalEventOutboxPollInterval time.Duration `mapstructure:"internalEventOutboxPollInterval" json:"internalEventOutboxPollInterval,omitempty" default:"1s"`
 
-	// Whether task assignments and durable callbacks for a dispatcher go over best-effort pub/sub instead of
-	// the dispatcher's durable queue. Cancellations and batch starts stay on the queue, since nothing
-	// recovers them yet. The dispatcher pulls the assignments it never received from the database, so this
-	// requires ReassignUnackedTasks.
+	// Whether this engine sends task assignments and durable callbacks for a dispatcher over best-effort
+	// pub/sub instead of the dispatcher's durable queue. Cancellations and batch starts stay on the queue,
+	// since nothing recovers them yet. Only the sending is switched: every dispatcher subscribes to its
+	// topic, and pulls the assignments it never received from the database whenever ReassignUnackedTasks
+	// is on, so a rollout where only some engines send works. This requires ReassignUnackedTasks.
 	DispatcherPubSubDeliveryEnabled bool `mapstructure:"dispatcherPubSubDeliveryEnabled" json:"dispatcherPubSubDeliveryEnabled,omitempty" default:"false"`
 
 	// How often a dispatcher looks in the database for assignments to its workers that it never received
@@ -1262,7 +1260,6 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.grpcTriggerWriteSlots", "SERVER_GRPC_TRIGGER_WRITE_SLOTS")
 	_ = v.BindEnv("runtime.directTaskWriteSlots", "SERVER_DIRECT_TASK_WRITE_SLOTS")
 	_ = v.BindEnv("runtime.internalEventOutboxEnabled", "SERVER_INTERNAL_EVENT_OUTBOX_ENABLED")
-	_ = v.BindEnv("runtime.internalEventOutboxShards", "SERVER_INTERNAL_EVENT_OUTBOX_SHARDS")
 	_ = v.BindEnv("runtime.internalEventOutboxPollInterval", "SERVER_INTERNAL_EVENT_OUTBOX_POLL_INTERVAL")
 	_ = v.BindEnv("runtime.dispatcherPubSubDeliveryEnabled", "SERVER_DISPATCHER_PUBSUB_DELIVERY_ENABLED")
 	_ = v.BindEnv("runtime.dispatcherPullInterval", "SERVER_DISPATCHER_PULL_INTERVAL")

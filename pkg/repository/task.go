@@ -1076,7 +1076,7 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 
 	internalEventsOutboxed := false
 
-	if r.internalEventOutbox != nil && len(internalEvents) > 0 {
+	if r.internalEventOutbox.writesEnabled() && len(internalEvents) > 0 {
 		if err := r.internalEventOutbox.enqueue(ctx, tx, tenantId, internalEvents); err != nil {
 			err = fmt.Errorf("failed to write internal events to the outbox: %w", err)
 			span.RecordError(err)

@@ -61,3 +61,29 @@ func TestPubSubDeliveryClaimOneBlocksLaterPulls(t *testing.T) {
 	b.claim(fromPubSub)
 	assert.Empty(t, fromPubSub.WorkerIdToTaskIds, "a late pub/sub message doesn't resend a local assignment")
 }
+
+// Until something sends over pub/sub, a dispatcher's assignments all come over the durable queue, so
+// tracking stays off: its key would drop a restored durable task as a duplicate of its first assignment.
+func TestPubSubDeliveryTracksNothingUntilTheFirstPubSubMessage(t *testing.T) {
+	var unwired *pubSubDelivery
+	assert.False(t, unwired.active())
+
+	b := newPubSubDelivery(PubSubDeliveryOpts{Pull: true, PullInterval: time.Second, PullGrace: time.Second})
+	assert.False(t, b.active())
+
+	select {
+	case <-b.activated:
+		t.Fatal("pull released before any pub/sub message")
+	default:
+	}
+
+	b.markActive()
+	b.markActive()
+	assert.True(t, b.active())
+
+	select {
+	case <-b.activated:
+	default:
+		t.Fatal("pull not released by the first pub/sub message")
+	}
+}

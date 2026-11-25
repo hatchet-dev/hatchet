@@ -1262,12 +1262,12 @@ func isControllerActive(pausedControllers map[string]bool, controllerName Contro
 	return false
 }
 
+// newDispatcherPubSubDelivery doesn't look at DispatcherPubSubDeliveryEnabled: that only switches
+// sending, and a dispatcher has to receive from engines that send whatever its own setting is.
 func newDispatcherPubSubDelivery(sc *server.ServerConfig) *dispatcher.PubSubDeliveryOpts {
-	if !sc.Runtime.DispatcherPubSubDeliveryEnabled {
-		return nil
-	}
-
 	return &dispatcher.PubSubDeliveryOpts{
+		// assigned_at, which the pull finds assignments by, is only written when unacked tasks are reassigned
+		Pull:         sc.Runtime.TaskOperationLimits.ReassignUnackedTasks,
 		PullInterval: sc.Runtime.DispatcherPullInterval,
 		PullGrace:    sc.Runtime.DispatcherPullGrace,
 	}

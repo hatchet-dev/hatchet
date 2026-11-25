@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,7 +16,11 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 )
 
+// PubSubDeliveryOpts configures how a dispatcher receives the messages other engines send it over pub/sub.
+// Pull recovers the assignments pub/sub lost. Without it nothing does: the pull needs assigned_at, which
+// only ReassignUnackedTasks writes, so it is off exactly when that is.
 type PubSubDeliveryOpts struct {
+	Pull         bool
 	PullInterval time.Duration
 	PullGrace    time.Duration
 }
@@ -35,13 +40,20 @@ type assignmentKey struct {
 // pubSubDelivery tracks which assignments this dispatcher already handled, from pub/sub or from a pull, so
 // that a pull doesn't resend a task the worker already has and a late pub/sub message doesn't resend a
 // task the pull already sent.
+//
+// Every dispatcher subscribes, but tracking and the pull only start with the first message that arrives
+// over pub/sub. Until then every sender uses the durable queue, which needs neither, and the tracking
+// would only cost: its key can't tell a restored durable task from a duplicate of its first assignment.
 type pubSubDelivery struct {
 	opts PubSubDeliveryOpts
 
-	// startedAt bounds the pull to assignments made while this dispatcher was up. Older ones were
-	// addressed to whichever dispatcher the worker used before, which may have sent them, so they are
-	// left to ReassignUnackedTasks rather than risk a duplicate.
-	startedAt time.Time
+	// activatedAt is zero until the first pub/sub message, and then bounds the pull to assignments made
+	// since. Older ones went over the queue or to whichever dispatcher the worker used before, which may
+	// have sent them, so they are left to ReassignUnackedTasks rather than risk a duplicate.
+	// That includes pub/sub messages lost before the first one arrived, which only reassign recovers.
+	activatedAt atomic.Int64
+	activated   chan struct{}
+	activate    sync.Once
 
 	mu       sync.Mutex
 	received *expirable.LRU[assignmentKey, struct{}]
@@ -58,9 +70,21 @@ func newPubSubDeliveryFromOpts(opts *PubSubDeliveryOpts) *pubSubDelivery {
 func newPubSubDelivery(opts PubSubDeliveryOpts) *pubSubDelivery {
 	return &pubSubDelivery{
 		opts:      opts,
-		startedAt: time.Now(),
+		activated: make(chan struct{}),
 		received:  expirable.NewLRU[assignmentKey, struct{}](1_000_000, nil, receivedTTL),
 	}
+}
+
+func (b *pubSubDelivery) markActive() {
+	b.activate.Do(func() {
+		b.activatedAt.Store(time.Now().UnixNano())
+		close(b.activated)
+	})
+}
+
+// active is nil-safe so callers can skip tracking without checking whether pub/sub delivery is wired.
+func (b *pubSubDelivery) active() bool {
+	return b != nil && b.activatedAt.Load() != 0
 }
 
 // claim drops the assignments already handled and marks the rest as handled. Without retry counts
@@ -119,21 +143,32 @@ func (b *pubSubDelivery) seen(key assignmentKey) bool {
 	return b.received.Contains(key)
 }
 
-// startPubSubDelivery subscribes to the dispatcher's pub/sub topic alongside its durable queue, so engines
-// that still send over the queue keep working during a rollout.
+// startPubSubDelivery subscribes to the dispatcher's pub/sub topic alongside its durable queue, so it
+// receives from engines that send over either.
 func (d *DispatcherImpl) startPubSubDelivery(ctx context.Context, dispatcherId uuid.UUID, handler msgqueue.MsgHandler) (func() error, error) {
-	cleanup, err := d.pubsub.Sub(msgqueue.DispatcherTopic(dispatcherId), handler)
+	cleanup, err := d.pubsub.Sub(msgqueue.DispatcherTopic(dispatcherId), func(msg *msgqueue.Message) error {
+		d.pubSubDelivery.markActive()
+		return handler(msg)
+	})
 
 	if err != nil {
 		return nil, fmt.Errorf("could not subscribe to dispatcher topic: %w", err)
 	}
 
-	go d.runPull(ctx)
+	if d.pubSubDelivery.opts.Pull {
+		go d.runPull(ctx)
+	}
 
 	return cleanup, nil
 }
 
 func (d *DispatcherImpl) runPull(ctx context.Context) {
+	select {
+	case <-ctx.Done():
+		return
+	case <-d.pubSubDelivery.activated:
+	}
+
 	ticker := time.NewTicker(d.pubSubDelivery.opts.PullInterval)
 	defer ticker.Stop()
 
@@ -160,7 +195,7 @@ func (d *DispatcherImpl) pullOnce(ctx context.Context) error {
 	rows, err := d.repov1.Dispatcher().ListUnackedAssignments(
 		ctx,
 		workerIds,
-		d.pubSubDelivery.startedAt,
+		time.Unix(0, d.pubSubDelivery.activatedAt.Load()),
 		time.Now().Add(-d.pubSubDelivery.opts.PullGrace),
 		pullLimitPerWorker,
 	)
@@ -197,7 +232,7 @@ func (d *DispatcherImpl) pullOnce(ctx context.Context) error {
 		}
 
 		prometheus.DispatcherPulledAssignments.Add(float64(count))
-		d.l.Warn().Ctx(ctx).Int("tasks", count).Str("tenant", tenantId.String()).Msg("pulled assignments that never arrived over pub/sub")
+		d.l.Warn().Ctx(ctx).Int("tasks", count).Str("tenant", tenantId.String()).Msg("pulled assignments that this dispatcher never received")
 
 		if err := d.handleTaskBulkAssignedTask(ctx, msg); err != nil {
 			return err

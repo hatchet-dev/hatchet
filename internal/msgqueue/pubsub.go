@@ -31,8 +31,8 @@ const (
 	// TopicKindWorkflowVersionCreated fans new workflow versions out to every engine.
 	TopicKindWorkflowVersionCreated TopicKind = "workflow-version-created"
 
-	// TopicKindDispatcher carries the messages for one dispatcher. Losing one costs latency, not
-	// correctness: the dispatcher pulls the assignments it missed from the database.
+	// TopicKindDispatcher carries the messages for one dispatcher. Senders only use it when the
+	// dispatcher can recover a lost assignment from the database, which needs ReassignUnackedTasks.
 	TopicKindDispatcher TopicKind = "dispatcher"
 )
 
@@ -44,11 +44,10 @@ func (k TopicKind) Fanout() bool {
 	switch k {
 	case TopicKindTenantStream, TopicKindStreamWake, TopicKindCronRefresh, TopicKindWorkflowVersionCreated:
 		return true
-	case TopicKindDispatcher:
-		// one subscriber, so fanout changes nothing for delivery, but on the rabbitmq backend it gives
-		// the subscription an auto-deleted queue instead of a shared one left behind by a dead dispatcher
-		return true
-	case TopicKindSchedulerPartition:
+	case TopicKindSchedulerPartition, TopicKindDispatcher:
+		// A dispatcher topic has one subscriber and a new name per dispatcher process. On the rabbitmq
+		// backend fanout would declare a durable exchange per name that nothing deletes, one more on every
+		// engine restart; the default exchange needs none, and the exclusive queue goes with the dispatcher.
 		return false
 	}
 

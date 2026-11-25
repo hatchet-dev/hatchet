@@ -82,7 +82,8 @@ type DispatcherImpl struct {
 	// is paused; every worker task event then goes over the durable task queue.
 	directTaskWriter *directwrite.Writer
 
-	// pubSubDelivery is nil unless dispatcher messages go over pub/sub, with a database pull for lost ones
+	// pubSubDelivery is nil only when the dispatcher is built without WithPubSubDelivery (tests); engines
+	// always receive over pub/sub, since whether to send over it is each sender's setting.
 	pubSubDelivery *pubSubDelivery
 }
 
@@ -298,7 +299,8 @@ func WithPrometheusGate(gate *prometheus.Gate) DispatcherOpt {
 	}
 }
 
-// WithPubSubDelivery leaves dispatcher messages on the durable queue when opts is nil.
+// WithPubSubDelivery makes the dispatcher also receive its messages over pub/sub. With nil opts it only
+// receives over its durable queue.
 func WithPubSubDelivery(opts *PubSubDeliveryOpts) DispatcherOpt {
 	return func(o *DispatcherOpts) {
 		o.pubSubDelivery = opts
@@ -611,7 +613,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 	}
 
 	for _, innerMsg := range msgs {
-		if d.pubSubDelivery != nil {
+		if d.pubSubDelivery.active() {
 			d.pubSubDelivery.claim(innerMsg)
 		}
 
@@ -700,7 +702,7 @@ func (d *DispatcherImpl) HandleLocalAssignments(ctx context.Context, tenantId, w
 
 	// optimistic scheduling skips the pub/sub message, so the pull would otherwise see these assignments
 	// as never received and send them again once the worker's ack is past the grace period
-	if d.pubSubDelivery != nil {
+	if d.pubSubDelivery.active() {
 		tasks = enumerables.Filter(tasks, func(assigned *schedulingv1.AssignedItemWithTask) bool {
 			return d.pubSubDelivery.claimOne(assignmentKey{taskId: assigned.Task.ID, retryCount: assigned.Task.RetryCount})
 		})

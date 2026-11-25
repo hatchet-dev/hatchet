@@ -962,24 +962,18 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		return nil, nil, fmt.Errorf("could not create outbox: %w", err)
 	}
 
-	cleanupInternalEventOutbox := func() {}
+	internalEventOutbox, cleanupInternalEventOutbox, err := newInternalEventOutbox(dc.Pool, l)
 
-	if cf.Runtime.InternalEventOutboxEnabled {
-		internalEventOutbox, cleanupIEO, err := newInternalEventOutbox(dc.Pool, cf.Runtime.InternalEventOutboxShards, l)
-
-		if err != nil {
-			return nil, nil, err
-		}
-
-		cleanupInternalEventOutbox = cleanupIEO
-
-		dc.V1.SetInternalEventOutbox(repov1.NewInternalEventOutbox(
-			internalEventOutbox,
-			cf.Runtime.InternalEventOutboxShards,
-			cf.Runtime.InternalEventOutboxPollInterval,
-			&l,
-		))
+	if err != nil {
+		return nil, nil, err
 	}
+
+	dc.V1.SetInternalEventOutbox(repov1.NewInternalEventOutbox(
+		internalEventOutbox,
+		cf.Runtime.InternalEventOutboxEnabled,
+		cf.Runtime.InternalEventOutboxPollInterval,
+		&l,
+	))
 
 	schedulingPoolV1, cleanupSchedulingPoolV1, err := v1.NewSchedulingPool(
 		dc.V1.Scheduler(),
@@ -1594,10 +1588,10 @@ func firstNWords(s string, n int) string {
 // transaction (and its topic lock) while the handler opens transactions on the engine's pool; with a
 // shared pool, busy drains could hold every connection while waiting for another. Writes are unaffected:
 // they go through the completing transaction, which comes from the engine's pool.
-func newInternalEventOutbox(enginePool *pgxpool.Pool, shards int, l zerolog.Logger) (pgoutbox.Outbox, func(), error) {
+func newInternalEventOutbox(enginePool *pgxpool.Pool, l zerolog.Logger) (pgoutbox.Outbox, func(), error) {
 	cfg := enginePool.Config().Copy()
 	// one connection per shard's held transaction, plus headroom for pgoutbox's maintenance
-	cfg.MaxConns = int32(shards + 2) // nolint: gosec
+	cfg.MaxConns = int32(repov1.InternalEventOutboxShards + 2) // nolint: gosec
 	cfg.MinConns = 0
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), cfg)

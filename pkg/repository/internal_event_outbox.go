@@ -21,6 +21,11 @@ import (
 // every other engine's pass over the shard, until the batch's matches are processed.
 const internalEventOutboxBatchSize = 100
 
+// InternalEventOutboxShards is fixed rather than configurable: every engine drains exactly these topics,
+// so a different count on some engines would leave the other topics undrained and split a tenant's
+// events across two shards, losing their order.
+const InternalEventOutboxShards = 8
+
 // InternalEventHandler processes one tenant's internal events. It must be idempotent: a batch whose
 // processing succeeded is processed again if the outbox transaction then fails to commit.
 type InternalEventHandler func(ctx context.Context, tenantId uuid.UUID, events []*InternalTaskEvent) error
@@ -29,10 +34,14 @@ type InternalEventHandler func(ctx context.Context, tenantId uuid.UUID, events [
 // the completion's own transaction, so a crash after the commit can't lose the trigger for the next
 // DAG step. Events are spread over several topics because pgoutbox processes one batch per topic at
 // a time.
+//
+// Every engine drains the topics whether or not it writes to them, so turning writes off, or a rollout
+// where only some engines write, never strands events that are already in the outbox.
 type InternalEventOutbox struct {
 	outbox       pgoutbox.Outbox
 	shards       int
 	pollInterval time.Duration
+	writes       bool
 	l            *zerolog.Logger
 
 	// kicks wake this process's drain loop for a shard right after a commit, so the common path
@@ -46,10 +55,10 @@ type internalEventOutboxMessage struct {
 	Events   []InternalTaskEvent `json:"events"`
 }
 
-func NewInternalEventOutbox(outbox pgoutbox.Outbox, shards int, pollInterval time.Duration, l *zerolog.Logger) *InternalEventOutbox {
-	if shards <= 0 {
-		shards = 1
-	}
+// NewInternalEventOutbox only routes completions through the outbox when writes is true; otherwise they
+// keep sending internal events over the task queue and the outbox only drains.
+func NewInternalEventOutbox(outbox pgoutbox.Outbox, writes bool, pollInterval time.Duration, l *zerolog.Logger) *InternalEventOutbox {
+	shards := InternalEventOutboxShards
 
 	kicks := make([]chan struct{}, shards)
 
@@ -61,6 +70,7 @@ func NewInternalEventOutbox(outbox pgoutbox.Outbox, shards int, pollInterval tim
 		outbox:       outbox,
 		shards:       shards,
 		pollInterval: pollInterval,
+		writes:       writes,
 		l:            l,
 		kicks:        kicks,
 	}
@@ -77,6 +87,10 @@ func (o *InternalEventOutbox) shardFor(tenantId uuid.UUID) int {
 	_, _ = h.Write(tenantId[:])
 
 	return int(h.Sum32() % uint32(o.shards)) // nolint: gosec
+}
+
+func (o *InternalEventOutbox) writesEnabled() bool {
+	return o != nil && o.writes
 }
 
 func (o *InternalEventOutbox) enqueue(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, events []InternalTaskEvent) error {
@@ -98,17 +112,48 @@ func (o *InternalEventOutbox) Kick(tenantId uuid.UUID) {
 	}
 }
 
+// idleDrainInterval is how often an engine that doesn't write to the outbox drains it. Only events from
+// engines that write, and whose own loops died with them, wait on it, so a slow poll from a single loop
+// keeps the outbox's cost near zero while the feature is off.
+const idleDrainInterval = 10 * time.Second
+
 // Start drains every shard until ctx is cancelled. Only the first call starts the loops, so any
 // process that can apply internal events may call it.
 func (o *InternalEventOutbox) Start(ctx context.Context, handler InternalEventHandler) {
 	o.startOnce.Do(func() {
-		for shard := 0; shard < o.shards; shard++ {
-			topic := internalEventOutboxTopic(shard)
-			o.outbox.AddFlusher(topic, &internalEventFlusher{handler: handler})
+		topics := make([]string, o.shards)
 
+		for shard := range topics {
+			topics[shard] = internalEventOutboxTopic(shard)
+			o.outbox.AddFlusher(topics[shard], &internalEventFlusher{handler: handler})
+		}
+
+		if !o.writes {
+			go o.drainIdle(ctx, topics)
+			return
+		}
+
+		for shard, topic := range topics {
 			go o.drain(ctx, topic, o.kicks[shard])
 		}
 	})
+}
+
+func (o *InternalEventOutbox) drainIdle(ctx context.Context, topics []string) {
+	ticker := time.NewTicker(idleDrainInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+
+		for _, topic := range topics {
+			o.drainTopic(ctx, topic)
+		}
+	}
 }
 
 func (o *InternalEventOutbox) drain(ctx context.Context, topic string, kick <-chan struct{}) {
@@ -123,23 +168,27 @@ func (o *InternalEventOutbox) drain(ctx context.Context, topic string, kick <-ch
 		case <-ticker.C:
 		}
 
-		for ctx.Err() == nil {
-			msgs, err := o.outbox.ProcessMessages(ctx, topic, pgoutbox.WithBatchSize(internalEventOutboxBatchSize))
+		o.drainTopic(ctx, topic)
+	}
+}
 
-			if err != nil {
-				// the batch stays in the outbox and is retried on the next kick or poll
-				prometheus.InternalEventOutboxBatches.WithLabelValues("error").Inc()
-				o.l.Error().Err(err).Str("topic", topic).Msg("could not process internal event outbox batch")
+func (o *InternalEventOutbox) drainTopic(ctx context.Context, topic string) {
+	for ctx.Err() == nil {
+		msgs, err := o.outbox.ProcessMessages(ctx, topic, pgoutbox.WithBatchSize(internalEventOutboxBatchSize))
 
-				break
-			}
+		if err != nil {
+			// the batch stays in the outbox and is retried on the next kick or poll
+			prometheus.InternalEventOutboxBatches.WithLabelValues("error").Inc()
+			o.l.Error().Err(err).Str("topic", topic).Msg("could not process internal event outbox batch")
 
-			if len(msgs) == 0 {
-				break
-			}
-
-			prometheus.InternalEventOutboxBatches.WithLabelValues("ok").Inc()
+			return
 		}
+
+		if len(msgs) == 0 {
+			return
+		}
+
+		prometheus.InternalEventOutboxBatches.WithLabelValues("ok").Inc()
 	}
 }
 

@@ -353,7 +353,7 @@ func (r *repositoryImpl) Sync() SyncRepository {
 	return r.sync
 }
 
-// InternalEventOutbox is nil unless the internal event outbox is enabled.
+// InternalEventOutbox is nil only for repositories built outside the config loader, such as in tests.
 func (r *repositoryImpl) InternalEventOutbox() *InternalEventOutbox {
 	return r.shared.internalEventOutbox
 }
