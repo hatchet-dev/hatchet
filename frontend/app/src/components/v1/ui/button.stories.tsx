@@ -6,7 +6,7 @@ const meta = {
   title: 'UI/Button',
   component: Button,
   args: {
-    children: 'Button',
+    children: 'Storybook preview test',
   },
   argTypes: {
     variant: {
