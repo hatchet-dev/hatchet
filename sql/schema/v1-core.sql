@@ -2523,8 +2523,6 @@ CREATE TABLE v1_payload (
     )
 ) PARTITION BY RANGE(inserted_at);
 
-CREATE INDEX v1_payload_external_id_idx ON v1_payload (external_id ASC);
-
 -- can't use the built-in version of this since it was only introduced in pg 18
 CREATE OR REPLACE FUNCTION extract_uuid7_timestamp(
     id UUID
@@ -3086,8 +3084,6 @@ DECLARE
     temp_table_name varchar;
     old_pk_name varchar;
     new_pk_name varchar;
-    old_ext_id_idx_name varchar;
-    new_ext_id_idx_name varchar;
     partition_start date;
     partition_end date;
     trigger_function_name varchar;
@@ -3102,8 +3098,6 @@ BEGIN
     SELECT format('v1_payload_offload_tmp_%s', partition_date_str) INTO temp_table_name;
     SELECT format('v1_payload_offload_tmp_%s_pkey', partition_date_str) INTO old_pk_name;
     SELECT format('v1_payload_%s_pkey', partition_date_str) INTO new_pk_name;
-    SELECT format('v1_payload_offload_tmp_%s_external_id_idx', partition_date_str) INTO old_ext_id_idx_name;
-    SELECT format('v1_payload_%s_external_id_idx', partition_date_str) INTO new_ext_id_idx_name;
     SELECT format('sync_to_%s', temp_table_name) INTO trigger_function_name;
     SELECT format('trigger_sync_to_%s', temp_table_name) INTO trigger_name;
 
@@ -3143,9 +3137,6 @@ BEGIN
 
     RAISE NOTICE 'Renaming primary key % to %', old_pk_name, new_pk_name;
     EXECUTE format('ALTER INDEX %I RENAME TO %I', old_pk_name, new_pk_name);
-
-    RAISE NOTICE 'Renaming external_id index % to %', old_ext_id_idx_name, new_ext_id_idx_name;
-    EXECUTE format('ALTER INDEX %I RENAME TO %I', old_ext_id_idx_name, new_ext_id_idx_name);
 
     RAISE NOTICE 'Renaming temp table % to %', temp_table_name, source_partition_name;
     EXECUTE format('ALTER TABLE %I RENAME TO %I', temp_table_name, source_partition_name);
