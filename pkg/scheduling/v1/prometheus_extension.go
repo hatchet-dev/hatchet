@@ -110,6 +110,10 @@ func (p *PrometheusExtension) ReportSnapshot(ctx context.Context, tenantId uuid.
 			continue
 		}
 
+		if worker.IsDagOperatorWorker {
+			continue
+		}
+
 		promLabels := WorkerPromLabels{
 			ID:   worker.WorkerId,
 			Name: worker.Name,

@@ -125,6 +125,7 @@ type runOpts struct {
 	Sticky              *bool
 	Key                 *string
 	DesiredWorkerLabels map[string]*DesiredWorkerLabel
+	TriggerContext      context.Context
 }
 
 type RunOptFunc func(*runOpts)
@@ -161,6 +162,25 @@ func WithRunKey(key string) RunOptFunc {
 func WithDesiredWorkerLabels(labels map[string]*DesiredWorkerLabel) RunOptFunc {
 	return func(opts *runOpts) {
 		opts.DesiredWorkerLabels = labels
+	}
+}
+
+// WithTriggerContext sets the context used to send a durable child trigger and
+// wait for the engine's acknowledgement carrying the child's RunId. By default
+// the parent task's context is used, so cancelling the parent mid-ACK returns
+// context.Canceled with no reference; passing a detached bounded context such
+// as context.WithTimeout(context.WithoutCancel(ctx.GetContext()), 10*time.Second)
+// lets RunNoWait or RunMany still return the RunId. Typically paired with
+// ErrTaskCancelled cleanup (skip cleanup on ErrTaskEvicted, since the task
+// resumes and replays the spawn).
+//
+// Waiting for the child's result (WorkflowRunRef.Result and Run) still follows
+// the parent task's context. A nil ctx defaults to the parent context, and the
+// option is ignored outside durable tasks. In RunMany, the first non-nil
+// trigger context set on any item governs the batch.
+func WithTriggerContext(ctx context.Context) RunOptFunc {
+	return func(opts *runOpts) {
+		opts.TriggerContext = ctx
 	}
 }
 

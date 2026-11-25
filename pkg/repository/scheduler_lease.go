@@ -13,9 +13,10 @@ import (
 )
 
 type ListActiveWorkersResult struct {
-	ID     uuid.UUID
-	Name   string
-	Labels []*sqlcv1.ListManyWorkerLabelsRow
+	ID                  uuid.UUID
+	Name                string
+	Labels              []*sqlcv1.ListManyWorkerLabelsRow
+	IsDagOperatorWorker bool
 
 	// TotalSlotsByType is the worker's total slot capacity keyed by slot type.
 	TotalSlotsByType map[string]int
@@ -142,9 +143,10 @@ func (d *leaseRepository) ListActiveWorkers(ctx context.Context, tenantId uuid.U
 		worker, ok := workerIdsToResults[row.ID]
 		if !ok {
 			worker = &ListActiveWorkersResult{
-				ID:               row.ID,
-				Name:             row.Name,
-				TotalSlotsByType: make(map[string]int),
+				ID:                  row.ID,
+				Name:                row.Name,
+				IsDagOperatorWorker: row.IsDagOperatorWorker,
+				TotalSlotsByType:    make(map[string]int),
 			}
 
 			workerIdsToResults[row.ID] = worker
@@ -234,10 +236,11 @@ func (d *leaseRepository) GetActiveWorker(ctx context.Context, tenantId, workerI
 	}
 
 	return &ListActiveWorkersResult{
-		ID:               worker.Worker.ID,
-		Labels:           workerIdsToLabels[worker.Worker.ID],
-		Name:             worker.Worker.Name,
-		TotalSlotsByType: workerIdsToTotalSlots[worker.Worker.ID],
+		ID:                  worker.Worker.ID,
+		Labels:              workerIdsToLabels[worker.Worker.ID],
+		Name:                worker.Worker.Name,
+		IsDagOperatorWorker: worker.IsDagOperatorWorker,
+		TotalSlotsByType:    workerIdsToTotalSlots[worker.Worker.ID],
 	}, nil
 }
 

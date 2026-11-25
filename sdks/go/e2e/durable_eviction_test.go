@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
+	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
 func getFirstTaskExternalID(t *testing.T, ctx context.Context, runID string) string {
@@ -37,6 +39,23 @@ func hasEvictedTask(t *testing.T, ctx context.Context, runID string) bool {
 		}
 	}
 	return false
+}
+
+// requireInterruptCause waits until the handler of the run's task records the context
+// cause of its interrupted durable wait, and checks it is want.
+func requireInterruptCause(t *testing.T, ctx context.Context, runID string, want error) {
+	t.Helper()
+	taskID := getFirstTaskExternalID(t, ctx, runID)
+
+	var cause any
+	pollUntil(t, ctx, func() (bool, error) {
+		var ok bool
+		cause, ok = interruptCauses.Load(taskID)
+		return ok, nil
+	})
+
+	err, _ := cause.(error)
+	assert.True(t, errors.Is(err, want), "context.Cause = %v, want %v", err, want)
 }
 
 // pollUntilEvictedOrTerminal waits until a run is either evicted or reaches a terminal status.
@@ -111,6 +130,7 @@ func TestEvictableTaskIsEvicted(t *testing.T) {
 	pollUntilEvicted(t, ctx, sharedClient, ref.RunId)
 
 	assert.True(t, hasEvictedTask(t, ctx, ref.RunId))
+	requireInterruptCause(t, ctx, ref.RunId, hatchet.ErrTaskEvicted)
 }
 
 func TestEvictableTaskRestore(t *testing.T) {

@@ -567,13 +567,14 @@ Options for `Workflow.NewTask` and the other task constructors:
 
 Options for the `Run`, `RunNoWait`, and `RunMany` methods:
 
-| Name                      | Signature                                                        | Description                                                                                          |
-| ------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `WithDesiredWorkerLabels` | `WithDesiredWorkerLabels(labels map[string]*DesiredWorkerLabel)` | WithDesiredWorkerLabels sets desired worker labels for routing the workflow run to specific workers. |
-| `WithRunKey`              | `WithRunKey(key string)`                                         | WithRunKey sets the key for the child workflow run.                                                  |
-| `WithRunMetadata`         | `WithRunMetadata(metadata map[string]string)`                    | WithRunMetadata sets the additional metadata for the workflow run.                                   |
-| `WithRunPriority`         | `WithRunPriority(priority RunPriority)`                          | WithRunPriority sets the priority for the workflow run.                                              |
-| `WithRunSticky`           | `WithRunSticky(sticky bool)`                                     | WithRunSticky enables stickiness for the child workflow run.                                         |
+| Name                      | Signature                                                        | Description                                                                                                                                    |
+| ------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `WithDesiredWorkerLabels` | `WithDesiredWorkerLabels(labels map[string]*DesiredWorkerLabel)` | WithDesiredWorkerLabels sets desired worker labels for routing the workflow run to specific workers.                                           |
+| `WithRunKey`              | `WithRunKey(key string)`                                         | WithRunKey sets the key for the child workflow run.                                                                                            |
+| `WithRunMetadata`         | `WithRunMetadata(metadata map[string]string)`                    | WithRunMetadata sets the additional metadata for the workflow run.                                                                             |
+| `WithRunPriority`         | `WithRunPriority(priority RunPriority)`                          | WithRunPriority sets the priority for the workflow run.                                                                                        |
+| `WithRunSticky`           | `WithRunSticky(sticky bool)`                                     | WithRunSticky enables stickiness for the child workflow run.                                                                                   |
+| `WithTriggerContext`      | `WithTriggerContext(ctx context.Context)`                        | WithTriggerContext sets the context used to send a durable child trigger and wait for the engine's acknowledgement carrying the child's RunId. |
 
 ## Other types
 
