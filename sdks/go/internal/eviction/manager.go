@@ -158,21 +158,25 @@ func (m *DurableEvictionManager) tick(ctx context.Context) error {
 		evicted[key] = true
 
 		rec := m.cache.Get(key)
-		if rec == nil || rec.EvictionPolicy == nil {
+		if rec == nil {
+			continue
+		}
+		snap := rec.snapshot()
+		if snap.EvictionPolicy == nil {
 			continue
 		}
 
 		if m.l != nil {
 			m.l.Debug().
-				Str("step_run_id", rec.StepRunID).
-				Str("wait_kind", rec.WaitKind).
-				Str("resource_id", rec.WaitResourceID).
+				Str("step_run_id", snap.StepRunID).
+				Str("wait_kind", snap.WaitKind).
+				Str("resource_id", snap.WaitResourceID).
 				Msg("DurableEvictionManager: evicting durable run")
 		}
 
-		if err := m.requestEvict(ctx, key, rec); err != nil {
+		if err := m.requestEvict(ctx, key, snap); err != nil {
 			if m.l != nil {
-				m.l.Error().Err(err).Str("step_run_id", rec.StepRunID).Msg("DurableEvictionManager: failed to request eviction")
+				m.l.Error().Err(err).Str("step_run_id", snap.StepRunID).Msg("DurableEvictionManager: failed to request eviction")
 			}
 			continue
 		}
@@ -213,22 +217,23 @@ func (m *DurableEvictionManager) EvictAllWaiting(ctx context.Context) int {
 	for _, rec := range waiting {
 		rec.mu.Lock()
 		rec.EvictionReason = buildEvictionReason(EvictionCauseWorkerShutdown, rec, 0)
+		snap := rec.snapshotLocked()
 		rec.mu.Unlock()
 
 		if m.l != nil {
 			m.l.Debug().
-				Str("step_run_id", rec.StepRunID).
-				Str("wait_kind", rec.WaitKind).
+				Str("step_run_id", snap.StepRunID).
+				Str("wait_kind", snap.WaitKind).
 				Msg("DurableEvictionManager: shutdown-evicting durable run")
 		}
 
-		if err := m.requestEvict(ctx, rec.Key, rec); err != nil {
+		if err := m.requestEvict(ctx, snap.Key, snap); err != nil {
 			if m.l != nil {
-				m.l.Error().Err(err).Str("step_run_id", rec.StepRunID).Msg("DurableEvictionManager: failed to send eviction")
+				m.l.Error().Err(err).Str("step_run_id", snap.StepRunID).Msg("DurableEvictionManager: failed to send eviction")
 			}
 		}
 
-		m.evictRun(rec.Key)
+		m.evictRun(snap.Key)
 		evicted++
 	}
 
