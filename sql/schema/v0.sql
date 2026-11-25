@@ -189,7 +189,7 @@ CREATE TABLE "Dispatcher" (
     "deletedAt" TIMESTAMP(3),
     "lastHeartbeatAt" TIMESTAMP(3),
     "isActive" BOOLEAN NOT NULL DEFAULT true,
-    "heartbeatingSince" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "heartbeatingSince" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "Dispatcher_pkey" PRIMARY KEY ("id")
 );
