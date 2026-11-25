@@ -1593,8 +1593,9 @@ func firstNWords(s string, n int) string {
 // they go through the completing transaction, which comes from the engine's pool.
 func newInternalEventOutbox(enginePool *pgxpool.Pool, l zerolog.Logger) (pgoutbox.Outbox, func(), error) {
 	cfg := enginePool.Config().Copy()
-	// one connection per shard's held transaction, plus headroom for pgoutbox's maintenance
-	cfg.MaxConns = int32(repov1.InternalEventOutboxShards + 2) // nolint: gosec
+	// one connection per shard's held transaction, one for the retry loop, plus headroom for pgoutbox's
+	// maintenance
+	cfg.MaxConns = int32(repov1.InternalEventOutboxShards + 3) // nolint: gosec
 	cfg.MinConns = 0
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), cfg)
@@ -1603,15 +1604,32 @@ func newInternalEventOutbox(enginePool *pgxpool.Pool, l zerolog.Logger) (pgoutbo
 		return nil, nil, fmt.Errorf("could not create internal event outbox pool: %w", err)
 	}
 
-	outbox, cleanupOutbox, err := newOutbox(pool, l)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Internal events must never expire: a dropped event is a DAG step that never runs. pgoutbox has no
+	// "never" for a topic (zero is stored as unset, which takes the 24h default of the engine's main
+	// outbox, sharing the same topics table), so the topics get an explicit expiration nothing reaches.
+	const noExpiration = 100 * 365 * 24 * time.Hour
+
+	opts := []pgoutbox.OutboxOpt{pgoutbox.WithAutoMigrate(false), pgoutbox.WithLogger(l)}
+
+	for shard := range repov1.InternalEventOutboxShards {
+		opts = append(opts,
+			pgoutbox.WithTopicExpiration(repov1.InternalEventOutboxTopic(shard), noExpiration),
+			pgoutbox.WithTopicExpiration(repov1.InternalEventRetryTopic(shard), noExpiration),
+		)
+	}
+
+	outbox, err := pgoutbox.NewOutbox(ctx, pool, opts...)
 
 	if err != nil {
+		cancel()
 		pool.Close()
 		return nil, nil, fmt.Errorf("could not create internal event outbox: %w", err)
 	}
 
 	return outbox, func() {
-		cleanupOutbox()
+		cancel()
 		pool.Close()
 	}, nil
 }
