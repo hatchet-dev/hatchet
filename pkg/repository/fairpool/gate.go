@@ -39,6 +39,21 @@ func (e *LimitError) Error() string {
 	return fmt.Sprintf("fairpool-exhausted: tenant %s had the maximum of %d database checkouts in flight for %s", e.TenantID, e.Limit, e.Waited)
 }
 
+// ThrottledMessage tells a caller its request was throttled without saying whose requests
+// filled the limit. It is the text for shared work, and for callers that cannot tell the bucket.
+const ThrottledMessage = "too many requests in flight, retry shortly"
+
+// ClientMessage is the text for the caller whose request was rejected. Error is for engine logs:
+// it names the database and the limit, which a caller cannot act on. Only a full tenant bucket
+// is attributed to the tenant; shared work is filled by every tenant and by the engine itself.
+func (e *LimitError) ClientMessage() string {
+	if e.Key == sharedKey {
+		return ThrottledMessage
+	}
+
+	return "too many requests in flight for this tenant, retry shortly"
+}
+
 // bucketLabel is the bounded metrics label for key: "shared" or "tenant".
 func bucketLabel(key string) string {
 	if key == sharedKey {

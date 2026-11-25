@@ -47,7 +47,7 @@ func expectedStatus(ctx context.Context, err error) error {
 	// marks it as transient, which tells it apart from a tenant quota of the same code.
 	var limitErr *fairpool.LimitError
 	if goerrors.As(err, &limitErr) {
-		throttled := connect.NewError(connect.CodeResourceExhausted, goerrors.New("resource exhausted: too many concurrent database operations for this tenant, retry shortly"))
+		throttled := connect.NewError(connect.CodeResourceExhausted, goerrors.New("resource exhausted: "+limitErr.ClientMessage()))
 
 		if detail, detailErr := connect.NewErrorDetail(&errdetails.RetryInfo{RetryDelay: durationpb.New(fairpool.RetryAfter)}); detailErr == nil {
 			throttled.AddDetail(detail)

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/stretchr/testify/require"
@@ -33,15 +34,24 @@ func TestRetryableLimitErrorHandler(t *testing.T) {
 	e := echo.New()
 	e.HTTPErrorHandler = retryableLimitErrorHandler(e.DefaultHTTPErrorHandler)
 
+	tenantId := uuid.New()
+
+	const (
+		throttled       = "too many requests in flight, retry shortly"
+		tenantThrottled = "too many requests in flight for this tenant, retry shortly"
+	)
+
 	for name, tc := range map[string]struct {
 		err        error
 		retryAfter string
+		message    string
 		want       int
 	}{
-		"limit error":                    {err: fmt.Errorf("trigger: %w", &fairpool.LimitError{Key: "shared", Limit: 2}), want: http.StatusTooManyRequests, retryAfter: "1"},
-		"proxied throttle":               {err: throttledStatus(t, 2*time.Second), want: http.StatusTooManyRequests, retryAfter: "2"},
-		"proxied throttle rounds up":     {err: throttledStatus(t, 1500*time.Millisecond), want: http.StatusTooManyRequests, retryAfter: "2"},
-		"proxied throttle without delay": {err: throttledStatus(t, 0), want: http.StatusTooManyRequests, retryAfter: "1"},
+		"shared limit error":             {err: fmt.Errorf("trigger: %w", &fairpool.LimitError{Key: "shared", Limit: 2}), want: http.StatusTooManyRequests, retryAfter: "1", message: throttled},
+		"tenant limit error":             {err: fmt.Errorf("trigger: %w", &fairpool.LimitError{Key: tenantId.String(), TenantID: tenantId, Limit: 2}), want: http.StatusTooManyRequests, retryAfter: "1", message: tenantThrottled},
+		"proxied throttle":               {err: throttledStatus(t, 2*time.Second), want: http.StatusTooManyRequests, retryAfter: "2", message: throttled},
+		"proxied throttle rounds up":     {err: throttledStatus(t, 1500*time.Millisecond), want: http.StatusTooManyRequests, retryAfter: "2", message: throttled},
+		"proxied throttle without delay": {err: throttledStatus(t, 0), want: http.StatusTooManyRequests, retryAfter: "1", message: throttled},
 		"proxied resource exhausted":     {err: status.Error(codes.ResourceExhausted, "limit"), want: http.StatusInternalServerError},
 		"proxied unavailable":            {err: status.Error(codes.Unavailable, "down"), want: http.StatusInternalServerError},
 		"other error":                    {err: fmt.Errorf("boom"), want: http.StatusInternalServerError},
@@ -66,7 +76,7 @@ func TestRetryableLimitErrorHandler(t *testing.T) {
 			var body gen.APIErrors
 			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 			require.Len(t, body.Errors, 1)
-			require.Equal(t, "too many concurrent database operations, retry shortly", body.Errors[0].Description)
+			require.Equal(t, tc.message, body.Errors[0].Description)
 		})
 	}
 }
