@@ -43,7 +43,9 @@ There are a number of common reasons a worker might miss heartbeats:
 - **Network disruption** - the connection between the worker and the Hatchet engine is interrupted (DNS failure, firewall change, cloud network blip).
 - **Resource pressure** - High CPU or memory usage can starve the worker for resources
 
-A missed heartbeat only counts against a worker while the engine was able to record heartbeats. If the engine could not reach its database for a while, for example during a database failover, it pauses reassignment until it has been recording heartbeats again for a minute. Workers that kept running through the interruption keep their tasks. A worker that really stopped during it has its tasks reassigned about a minute later than usual. On a self-hosted engine, the [`hatchet_reassignments_paused_total` metric](/self-hosting/prometheus-metrics) counts the paused checks.
+Missed heartbeats aren't always the worker's fault. Sometimes the engine can't record heartbeats for a while because it can't reach its database, for example during a database failover or maintenance. Your workers are healthy and still running their tasks, but their heartbeats aren't being recorded. The engine doesn't hold that against them. After the interruption, it pauses reassignment until it has been recording heartbeats again for one minute, so healthy workers have time to check in and keep their tasks.
+
+The trade-off: if a worker really did stop during the interruption, its tasks are reassigned about a minute later than usual. If you self-host the engine, the Prometheus metric [`hatchet_reassignments_paused_total`](/self-hosting/prometheus-metrics) counts the reassignment checks that were skipped.
 
 ## What happens to running tasks when a worker shuts down?
 
