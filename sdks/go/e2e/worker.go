@@ -5,6 +5,7 @@ package e2e
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -76,42 +77,56 @@ type ErrorRaisingInput struct {
 // when a durable wait was interrupted, so tests can check cancellation vs eviction.
 var interruptCauses sync.Map
 
+type triggerContextE2EInput struct {
+	Mode string `json:"mode"`
+}
+
+type triggerContextE2EResult struct {
+	runIDs    []string
+	spawnErr  error
+	resultErr error
+	parentErr error
+}
+
+var triggerContextE2EResults sync.Map
+
 func recordInterruptCause(ctx hatchet.Context) {
 	interruptCauses.Store(ctx.StepRunId(), context.Cause(ctx))
 }
 
 // Durable test workflow definitions and worker tasks
 var (
-	testDurableWorkflow           *hatchet.Workflow
-	testDurableTask               *hatchet.Task
-	testWaitForOrGroup1           *hatchet.Task
-	testWaitForOrGroup2           *hatchet.Task
-	testWaitForSleepTwice         *hatchet.StandaloneTask
-	testEventLookback             *hatchet.StandaloneTask
-	testOrEventLookback           *hatchet.StandaloneTask
-	testTwoEventsLookback         *hatchet.StandaloneTask
-	testSpawnChildTask            *hatchet.StandaloneTask
-	testDurableWithSpawn          *hatchet.StandaloneTask
-	testDurableWithBulkSpawn      *hatchet.StandaloneTask
-	testErrorRaisingTask          *hatchet.StandaloneTask
-	testErrorRaisingDurableParent *hatchet.StandaloneTask
-	testDurableWithLoopSpawn      *hatchet.StandaloneTask
-	testDurableSleepEventSpawn    *hatchet.StandaloneTask
-	testDurableNonDeterminism     *hatchet.StandaloneTask
-	testDurableReplayReset        *hatchet.StandaloneTask
-	testMemoTask                  *hatchet.StandaloneTask
-	testMemoNowCaching            *hatchet.StandaloneTask
-	testDurableSpawnDAG           *hatchet.StandaloneTask
-	testDagChildWorkflow          *hatchet.Workflow
-	testEvictableSleep            *hatchet.StandaloneTask
-	testEvictableWaitForEvent     *hatchet.StandaloneTask
-	testEvictableChildSpawn       *hatchet.StandaloneTask
-	testEvictableChildBulkSpawn   *hatchet.StandaloneTask
-	testMultipleEviction          *hatchet.StandaloneTask
-	testCapacityEvictableSleep    *hatchet.StandaloneTask
-	testNonEvictableSleep         *hatchet.StandaloneTask
-	testEvictionChildTask         *hatchet.StandaloneTask
-	testEvictionBulkChildTask     *hatchet.StandaloneTask
+	testDurableWorkflow              *hatchet.Workflow
+	testDurableTask                  *hatchet.Task
+	testWaitForOrGroup1              *hatchet.Task
+	testWaitForOrGroup2              *hatchet.Task
+	testWaitForSleepTwice            *hatchet.StandaloneTask
+	testEventLookback                *hatchet.StandaloneTask
+	testOrEventLookback              *hatchet.StandaloneTask
+	testTwoEventsLookback            *hatchet.StandaloneTask
+	testSpawnChildTask               *hatchet.StandaloneTask
+	testDurableWithSpawn             *hatchet.StandaloneTask
+	testDurableWithBulkSpawn         *hatchet.StandaloneTask
+	testErrorRaisingTask             *hatchet.StandaloneTask
+	testErrorRaisingDurableParent    *hatchet.StandaloneTask
+	testDurableWithLoopSpawn         *hatchet.StandaloneTask
+	testDurableSleepEventSpawn       *hatchet.StandaloneTask
+	testDurableNonDeterminism        *hatchet.StandaloneTask
+	testDurableReplayReset           *hatchet.StandaloneTask
+	testMemoTask                     *hatchet.StandaloneTask
+	testMemoNowCaching               *hatchet.StandaloneTask
+	testDurableSpawnDAG              *hatchet.StandaloneTask
+	testDagChildWorkflow             *hatchet.Workflow
+	testEvictableSleep               *hatchet.StandaloneTask
+	testEvictableWaitForEvent        *hatchet.StandaloneTask
+	testEvictableChildSpawn          *hatchet.StandaloneTask
+	testEvictableChildBulkSpawn      *hatchet.StandaloneTask
+	testMultipleEviction             *hatchet.StandaloneTask
+	testCapacityEvictableSleep       *hatchet.StandaloneTask
+	testNonEvictableSleep            *hatchet.StandaloneTask
+	testEvictionChildTask            *hatchet.StandaloneTask
+	testEvictionBulkChildTask        *hatchet.StandaloneTask
+	testDurableTriggerCtxAfterCancel *hatchet.StandaloneTask
 
 	// dag payload propagation test workflow
 	testDAGPayloadWorkflow *hatchet.Workflow
@@ -687,6 +702,70 @@ func registerAllWorkflows(client *hatchet.Client) {
 		hatchet.WithEvictionPolicy(nonEvictablePolicy),
 	)
 
+	testDurableTriggerCtxAfterCancel = client.NewStandaloneDurableTask("durable-trigger-ctx-after-cancel",
+		func(ctx hatchet.DurableContext, input triggerContextE2EInput) (map[string]any, error) {
+			if input.Mode == "canceled_trigger_ctx" {
+				canceledAck, cancelAck := context.WithCancel(context.Background())
+				cancelAck()
+				_, spawnErr := testSpawnChildTask.RunNoWait(
+					ctx,
+					DurableBulkSpawnInput{N: 1},
+					hatchet.WithTriggerContext(canceledAck),
+				)
+				triggerContextE2EResults.Store(ctx.StepRunId(), triggerContextE2EResult{
+					spawnErr:  spawnErr,
+					parentErr: ctx.GetContext().Err(),
+				})
+				return map[string]any{"status": "completed"}, nil
+			}
+
+			if _, err := ctx.SleepFor(30 * time.Second); err != nil {
+				if errors.Is(context.Cause(ctx), hatchet.ErrTaskCancelled) {
+					var res triggerContextE2EResult
+					switch input.Mode {
+					case "default":
+						_, res.spawnErr = testSpawnChildTask.RunNoWait(ctx, DurableBulkSpawnInput{N: 1})
+					case "detached":
+						ackCtx, cancelAck := context.WithTimeout(context.WithoutCancel(ctx.GetContext()), 10*time.Second)
+						defer cancelAck()
+
+						ref, spawnErr := testSpawnChildTask.RunNoWait(
+							ctx,
+							DurableBulkSpawnInput{N: 1},
+							hatchet.WithTriggerContext(ackCtx),
+						)
+						res.spawnErr = spawnErr
+						if ref != nil {
+							res.runIDs = []string{ref.RunId}
+							_, res.resultErr = ref.Result()
+						}
+					case "run_many":
+						ackCtx, cancelAck := context.WithTimeout(context.WithoutCancel(ctx.GetContext()), 10*time.Second)
+						defer cancelAck()
+						ignoredCtx, cancelIgnored := context.WithCancel(context.Background())
+						cancelIgnored()
+
+						refs, spawnErr := testSpawnChildTask.RunMany(ctx, []hatchet.RunManyOpt{
+							{Input: DurableBulkSpawnInput{N: 1}, Opts: []hatchet.RunOptFunc{hatchet.WithTriggerContext(ackCtx)}},
+							{Input: DurableBulkSpawnInput{N: 2}, Opts: []hatchet.RunOptFunc{hatchet.WithTriggerContext(ignoredCtx)}},
+						})
+						res.spawnErr = spawnErr
+						for _, ref := range refs {
+							res.runIDs = append(res.runIDs, ref.RunId)
+						}
+						if len(refs) > 0 {
+							_, res.resultErr = refs[0].Result()
+						}
+					}
+					triggerContextE2EResults.Store(ctx.StepRunId(), res)
+				}
+				return nil, err
+			}
+			return map[string]any{"status": "completed"}, nil
+		},
+		hatchet.WithExecutionTimeout(5*time.Minute),
+	)
+
 	// --- DAG payload propagation test workflow ---
 	// Reproduces the bug where downstream tasks don't receive the workflow input or
 	// parent outputs. Both steps fail immediately if their payload is null/empty,
@@ -775,6 +854,7 @@ func startTestWorker(client *hatchet.Client) (*hatchet.Worker, func() error, err
 			testNonEvictableSleep,
 			testEvictionChildTask,
 			testEvictionBulkChildTask,
+			testDurableTriggerCtxAfterCancel,
 			testErrorRaisingTask,
 			testErrorRaisingDurableParent,
 			testBatchSimple,
