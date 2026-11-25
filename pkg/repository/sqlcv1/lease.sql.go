@@ -108,6 +108,11 @@ const listActiveWorkers = `-- name: ListActiveWorkers :many
 SELECT
     w."id",
     w."name",
+    EXISTS (
+        SELECT 1
+        FROM v1_operator op
+        WHERE op.id = w."operatorId" AND op.kind = 'DAG'
+    ) AS "isDagOperatorWorker",
     wsc."slot_type" AS "slotType",
     SUM(wsc."max_units")::int AS "maxUnits"
 FROM
@@ -123,14 +128,16 @@ WHERE
 GROUP BY
     w."id",
     w."name",
+    w."operatorId",
     wsc."slot_type"
 `
 
 type ListActiveWorkersRow struct {
-	ID       uuid.UUID `json:"id"`
-	Name     string    `json:"name"`
-	SlotType string    `json:"slotType"`
-	MaxUnits int32     `json:"maxUnits"`
+	ID                  uuid.UUID `json:"id"`
+	Name                string    `json:"name"`
+	IsDagOperatorWorker bool      `json:"isDagOperatorWorker"`
+	SlotType            string    `json:"slotType"`
+	MaxUnits            int32     `json:"maxUnits"`
 }
 
 func (q *Queries) ListActiveWorkers(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*ListActiveWorkersRow, error) {
@@ -145,6 +152,7 @@ func (q *Queries) ListActiveWorkers(ctx context.Context, db DBTX, tenantid uuid.
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
+			&i.IsDagOperatorWorker,
 			&i.SlotType,
 			&i.MaxUnits,
 		); err != nil {
