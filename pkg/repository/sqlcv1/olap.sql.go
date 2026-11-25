@@ -2614,22 +2614,22 @@ WITH input AS (
         relevant_events e
     JOIN max_retry_count mrc ON (e.run_id, e.retry_count) = (mrc.run_id, mrc.max_retry_count)
     GROUP BY e.run_id
-), task_max_retry_count AS (
-    SELECT run_id, MAX(retry_count) AS max_retry_count
+), task_max_retry_counts AS (
+    SELECT run_id, task_id, task_inserted_at, MAX(retry_count) AS max_retry_count
     FROM relevant_events
     WHERE NOT is_dag_orchestrator
-    GROUP BY run_id
+    GROUP BY run_id, task_id, task_inserted_at
 ), task_timings AS (
     -- An operator DAG's orchestrator starts before the DAG's first task and finishes after its last one, so
     -- the run's times come from its tasks, and the orchestrator's events only stand in for the finish time of
     -- a run that ended before any task did.
     SELECT
         e.run_id,
-        MIN(e.inserted_at) FILTER (WHERE e.readable_status = 'RUNNING')::timestamptz AS started_at,
+        MIN(e.inserted_at) FILTER (WHERE e.event_type = 'STARTED')::timestamptz AS started_at,
         MAX(e.inserted_at) FILTER (WHERE e.readable_status IN ('COMPLETED', 'CANCELLED', 'FAILED'))::timestamptz AS finished_at
     FROM
         relevant_events e
-    JOIN task_max_retry_count mrc ON (e.run_id, e.retry_count) = (mrc.run_id, mrc.max_retry_count)
+    JOIN task_max_retry_counts mrc ON (e.run_id, e.task_id, e.task_inserted_at, e.retry_count) = (mrc.run_id, mrc.task_id, mrc.task_inserted_at, mrc.max_retry_count)
     WHERE NOT e.is_dag_orchestrator
     GROUP BY e.run_id
 ), error_message AS (
@@ -3673,7 +3673,7 @@ WITH runs AS (
     -- its events only stand in for the finish time of a run that ended before any task did.
     SELECT
         MIN(e.inserted_at)::timestamptz AS created_at,
-        MIN(e.inserted_at) FILTER (WHERE e.readable_status = 'RUNNING' AND NOT e.is_dag_orchestrator)::timestamptz AS started_at,
+        MIN(e.inserted_at) FILTER (WHERE e.event_type = 'STARTED' AND NOT e.is_dag_orchestrator)::timestamptz AS started_at,
         COALESCE(
             MAX(e.inserted_at) FILTER (WHERE e.readable_status IN ('COMPLETED', 'CANCELLED', 'FAILED') AND NOT e.is_dag_orchestrator),
             MAX(e.inserted_at) FILTER (WHERE e.readable_status IN ('COMPLETED', 'CANCELLED', 'FAILED'))
