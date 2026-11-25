@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"go.yaml.in/yaml/v3"
 )
 
 // AllActions grants every action of a type, including ones no spec knows about.
@@ -155,6 +157,42 @@ func (g grantGraph) grant(role string, names ...string) error {
 	def.grants = append(def.grants, names...)
 
 	return nil
+}
+
+func (g grantGraph) inherited(name string) []string {
+	var out []string
+
+	seen := map[string]bool{name: true}
+	queue := append([]string{}, g[name].inherits...)
+
+	for len(queue) > 0 {
+		next := queue[0]
+		queue = queue[1:]
+
+		if seen[next] {
+			continue
+		}
+
+		seen[next] = true
+		out = append(out, next)
+		queue = append(queue, g[next].inherits...)
+	}
+
+	return out
+}
+
+func (g grantGraph) grantsAnything(name string) bool {
+	return g.has(name, func(string) bool { return true })
+}
+
+func keysInFileOrder(node yaml.Node) []string {
+	var keys []string
+
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		keys = append(keys, node.Content[i].Value)
+	}
+
+	return keys
 }
 
 func (g grantGraph) defines(name string) bool {

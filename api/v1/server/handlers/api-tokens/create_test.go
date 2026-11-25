@@ -8,21 +8,20 @@ import (
 
 func TestValidateCapabilities(t *testing.T) {
 	cases := []struct {
-		name     string
-		caps     []string
-		readOnly bool
-		ok       bool
+		name string
+		caps []string
+		ok   bool
 	}{
-		{"known capabilities", []string{"worker", "events:push"}, false, true},
-		{"all", []string{"all"}, false, true},
-		{"unknown capability", []string{"worker", "workers:fly"}, false, false},
-		{"empty list", []string{}, false, false},
-		{"read-only token", []string{"worker"}, true, false},
+		{"known capabilities", []string{"worker", "events:push"}, true},
+		{"read preset", []string{"read-only"}, true},
+		{"unknown capability", []string{"worker", "workers:fly"}, false},
+		{"empty list", []string{}, false},
+		{"all", []string{"all"}, true},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			apiErr, err := validateCapabilities(c.caps, c.readOnly)
+			apiErr, err := validateCapabilities(c.caps)
 			require.NoError(t, err)
 			require.Equal(t, c.ok, apiErr == nil)
 		})

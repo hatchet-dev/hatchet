@@ -1,14 +1,14 @@
 package apitokens
 
 import (
-	"fmt"
+	"errors"
+	"strings"
 	"time"
 
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/internal/permissions"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	authtoken "github.com/hatchet-dev/hatchet/pkg/auth/token"
 	"github.com/hatchet-dev/hatchet/pkg/constants"
@@ -43,12 +43,18 @@ func (a *APITokenService) ApiTokenCreate(ctx echo.Context, request gen.ApiTokenC
 
 	readOnly := request.Body.ReadOnly != nil && *request.Body.ReadOnly
 
+	// readOnly keeps working for existing clients; combined with capabilities it would restrict gRPC
+	// while REST followed the list, so the two are exclusive.
+	if readOnly && request.Body.Capabilities != nil {
+		return gen.ApiTokenCreate400JSONResponse(apierrors.NewAPIErrors("readOnly cannot be combined with capabilities; pass [\"read-only\"] instead")), nil
+	}
+
+	// Omitted capabilities fall through to the engine's default of "all".
 	var opts []authtoken.GenerateOption
 
 	if request.Body.Capabilities != nil {
-		// Reject names tokens.yaml does not define: an unknown capability would be stored and then
-		// silently grant nothing, leaving a token that fails every call.
-		if apiErr, err := validateCapabilities(*request.Body.Capabilities, readOnly); err != nil {
+		// GenerateTenantToken rejects the same lists, but only as an internal error; checking first makes it a 400.
+		if apiErr, err := validateCapabilities(*request.Body.Capabilities); err != nil {
 			return nil, err
 		} else if apiErr != nil {
 			return gen.ApiTokenCreate400JSONResponse(*apiErr), nil
@@ -83,28 +89,12 @@ func (a *APITokenService) ApiTokenCreate(ctx echo.Context, request gen.ApiTokenC
 	}, nil
 }
 
-func validateCapabilities(capabilities []string, readOnly bool) (*gen.APIErrors, error) {
-	if readOnly {
-		e := apierrors.NewAPIErrors("read-only tokens already hold the read-only capability; omit readOnly to choose capabilities")
+func validateCapabilities(capabilities []string) (*gen.APIErrors, error) {
+	err := authtoken.ValidateCapabilities(capabilities)
+	if errors.Is(err, authtoken.ErrInvalidCapabilities) {
+		e := apierrors.NewAPIErrors(strings.TrimPrefix(err.Error(), authtoken.ErrInvalidCapabilities.Error()+": "))
 		return &e, nil
 	}
 
-	if len(capabilities) == 0 {
-		e := apierrors.NewAPIErrors("capabilities cannot be empty; omit the field to grant all")
-		return &e, nil
-	}
-
-	for _, c := range capabilities {
-		ok, err := permissions.TokenCapabilityExists(c)
-		if err != nil {
-			return nil, err
-		}
-
-		if !ok {
-			e := apierrors.NewAPIErrors(fmt.Sprintf("unknown capability %q", c))
-			return &e, nil
-		}
-	}
-
-	return nil, nil
+	return nil, err
 }

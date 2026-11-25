@@ -6,7 +6,7 @@ import { Button } from '@/components/v1/ui/button';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
-import { TenantMemberRole } from '@/lib/api';
+import { useTenantRoles } from '@/hooks/use-tenant-roles';
 import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { globalEmitter } from '@/lib/global-emitter';
 import { appRoutes } from '@/router';
@@ -18,7 +18,7 @@ import { useMemo } from 'react';
 
 export default function Members() {
   const { tenantId } = useCurrentTenantId();
-  const { membership, organizationId } = useTenantDetails();
+  const { organizationId } = useTenantDetails();
   const { isControlPlaneEnabled } = useControlPlane();
   const { organizations } = useOrganizations();
   const { tenantMemberListQuery, tenantInviteListQuery } = useTenantApi();
@@ -27,10 +27,8 @@ export default function Members() {
     organizations.find((o) => o.metadata.id === organizationId)?.isOwner ??
     false;
 
-  // `membership` is the current user's role in this tenant
-  const isTenantAdmin =
-    membership === TenantMemberRole.OWNER ||
-    membership === TenantMemberRole.ADMIN;
+  const { can } = useTenantRoles();
+  const isTenantAdmin = can('TenantInviteCreate');
 
   // Without the control plane, tenant admins/owners can manage members
   // directly (org-based "Add members" isn't available), whether they're on

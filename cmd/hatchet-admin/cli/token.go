@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 
-	"github.com/hatchet-dev/hatchet/internal/permissions"
 	authtoken "github.com/hatchet-dev/hatchet/pkg/auth/token"
 	"github.com/hatchet-dev/hatchet/pkg/authmode"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
@@ -84,6 +83,16 @@ func runCreateAPIToken(expiresIn time.Duration) error {
 		return nil
 	}
 
+	var opts []authtoken.GenerateOption
+
+	if len(tokenCaps) > 0 {
+		if err := authtoken.ValidateCapabilities(tokenCaps); err != nil {
+			return err
+		}
+
+		opts = append(opts, authtoken.WithCapabilities(tokenCaps))
+	}
+
 	// read in the local config
 	configLoader := loader.NewConfigLoader(configDirectory)
 
@@ -108,23 +117,6 @@ func runCreateAPIToken(expiresIn time.Duration) error {
 	tenantId, err := tenantIDForTokenCreate(srv.Seed.DefaultTenantID)
 	if err != nil {
 		return err
-	}
-
-	var opts []authtoken.GenerateOption
-
-	if len(tokenCaps) > 0 {
-		for _, c := range tokenCaps {
-			ok, err := permissions.TokenCapabilityExists(c)
-			if err != nil {
-				return err
-			}
-
-			if !ok {
-				return fmt.Errorf("unknown capability %q", c)
-			}
-		}
-
-		opts = append(opts, authtoken.WithCapabilities(tokenCaps))
 	}
 
 	defaultTok, err := srv.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, tokenName, false, false, &expiresAt, opts...)

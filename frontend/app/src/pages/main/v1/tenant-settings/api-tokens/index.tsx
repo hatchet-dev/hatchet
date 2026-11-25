@@ -1,5 +1,8 @@
 import { SettingsPageHeader } from '../components/settings-page-header';
-import { TokenActions } from './components/api-tokens-columns';
+import {
+  API_TOKEN_MANAGE_DISABLED_REASON,
+  TokenActions,
+} from './components/api-tokens-columns';
 import { CreateTokenDialog } from './components/create-token-dialog';
 import { RevokeTokenForm } from './components/revoke-token-form';
 import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
@@ -15,12 +18,10 @@ import {
   TooltipTrigger,
 } from '@/components/v1/ui/tooltip';
 import useAuthDisabled from '@/hooks/use-auth-disabled';
-import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useTenantRoles } from '@/hooks/use-tenant-roles';
 import api, { APIToken, CreateAPITokenRequest, queries } from '@/lib/api';
-import {
-  API_TOKEN_MANAGE_DISABLED_REASON,
-  canManageApiTokens,
-} from '@/lib/api-token-permissions';
+import { describeTokenAccess } from '@/lib/api-token-capabilities';
 import { getErrorStatus } from '@/lib/error-utils';
 import { useApiError } from '@/lib/hooks';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
@@ -29,14 +30,23 @@ import { useState, useMemo } from 'react';
 
 export default function APITokens() {
   const { tenantId } = useCurrentTenantId();
-  const { membership } = useTenantDetails();
-  const canManageTokens = canManageApiTokens(membership);
+  const { can } = useTenantRoles();
+  const canManageTokens = can('ApiTokenCreate');
   const authDisabled = useAuthDisabled();
   const { meta } = useApiMeta();
   const authDisabledToken =
     meta && 'authDisabledToken' in meta ? meta.authDisabledToken : undefined;
   const [showTokenDialog, setShowTokenDialog] = useState(false);
   const [revokeToken, setRevokeToken] = useState<APIToken | null>(null);
+
+  const capabilitiesQuery = useQuery({
+    ...queries.tokens.capabilities(tenantId),
+    enabled: !authDisabled,
+  });
+  const capabilityRows = useMemo(
+    () => capabilitiesQuery.data?.rows ?? [],
+    [capabilitiesQuery.data],
+  );
 
   const listTokensQuery = useQuery({
     ...queries.tokens.list(tenantId),
@@ -53,7 +63,7 @@ export default function APITokens() {
       {
         columnLabel: 'Access',
         cellRenderer: (token: APIToken) => (
-          <div>{token.readOnly ? 'Read-only' : 'Unrestricted'}</div>
+          <div>{describeTokenAccess(token, capabilityRows)}</div>
         ),
       },
       {
@@ -80,7 +90,7 @@ export default function APITokens() {
         ),
       },
     ],
-    [],
+    [capabilityRows],
   );
 
   if (authDisabled) {

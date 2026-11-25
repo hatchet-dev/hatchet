@@ -10,10 +10,8 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
-	"github.com/hatchet-dev/hatchet/internal/permissions"
 	pkgauthz "github.com/hatchet-dev/hatchet/pkg/auth/authz"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
-	"github.com/hatchet-dev/hatchet/pkg/enums"
 	"github.com/hatchet-dev/hatchet/pkg/repository/fairpool"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -25,29 +23,8 @@ type AuthZ struct {
 }
 
 func NewAuthZ(config *server.ServerConfig) (*AuthZ, error) {
-	perms, err := permissions.Users()
+	perms, tokens, err := LoadPermissions(config)
 	if err != nil {
-		return nil, err
-	}
-
-	// Extension operations are not in the OSS spec, so they are granted after users.yaml is validated
-	// against it. Users() returns a fresh copy each call, so these grants stay local to this authorizer.
-	if err := perms.Grant(string(enums.TenantMemberRoleVIEWER), config.Auth.AllowedOperations...); err != nil {
-		return nil, err
-	}
-
-	if err := perms.Grant(string(enums.TenantMemberRoleMEMBER), config.Auth.AllowedWriteOperations...); err != nil {
-		return nil, err
-	}
-
-	tokens, err := permissions.Tokens()
-	if err != nil {
-		return nil, err
-	}
-
-	// Read-only tokens keep the extension reads VIEWER gets; "all" already grants every operation.
-	// Tokens() returns a fresh copy, so the gRPC authorizer never sees these REST grants.
-	if err := tokens.GrantREST(pkgauthz.ReadOnlyCapability, config.Auth.AllowedOperations...); err != nil {
 		return nil, err
 	}
 

@@ -318,6 +318,14 @@ CreateAPITokenResponse:
   $ref: "./api_tokens.yaml#/CreateAPITokenResponse"
 ListAPITokensResponse:
   $ref: "./api_tokens.yaml#/ListAPITokensResponse"
+TokenCapability:
+  $ref: "./api_tokens.yaml#/TokenCapability"
+TokenCapabilityList:
+  $ref: "./api_tokens.yaml#/TokenCapabilityList"
+TenantRole:
+  $ref: "./api_tokens.yaml#/TenantRole"
+TenantRoleList:
+  $ref: "./api_tokens.yaml#/TenantRoleList"
 RerunStepRunRequest:
   $ref: "./workflow_run.yaml#/RerunStepRunRequest"
 TriggerWorkflowRunRequest:

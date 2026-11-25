@@ -67,11 +67,19 @@ roles:
   rest: [Mint]
 capabilities:
   all:
+    bundle: true
+    label: Read and write
+    description: Everything
     rest: ["*"]
     grpc: ["*"]
   read-only:
+    bundle: true
+    label: Read
+    description: Reads
     rest: [Read]
   events:
+    group: Events
+    description: Events
     rest: [Write]
     grpc: [` + strings.Join(procedures, ", ") + `]
 `
@@ -83,6 +91,7 @@ capabilities:
 		"bearer operation and procedures not listed": strings.Replace(tokens, "    rest: [Write]\n    grpc: ["+strings.Join(procedures, ", ")+"]\n", "    rest: []\n", 1),
 		"no all capability":                          strings.Replace(tokens, "all:", "everything:", 1),
 		"granted and unavailable":                    strings.Replace(tokens, "rest: [Read]", "rest: [Read, Mint]", 1),
+		"capability without a description":           strings.Replace(tokens, "    description: Events\n", "", 1),
 	} {
 		_, err := LoadTokenPermissions([]byte(file), spec, svc)
 		require.Error(t, err, name)

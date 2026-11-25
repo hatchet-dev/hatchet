@@ -2,6 +2,8 @@ package authz
 
 import (
 	"errors"
+	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -18,11 +20,23 @@ type restFile struct {
 	Roles map[string]struct {
 		Inherits    []string `yaml:"inherits"`
 		Permissions []string `yaml:"permissions"`
+		Assignable  bool     `yaml:"assignable"`
+		Label       string   `yaml:"label"`
+		Description string   `yaml:"description"`
 	} `yaml:"roles"`
 }
 
+type AssignableRole struct {
+	Name        string
+	Label       string
+	Description string
+	Operations  []string
+}
+
 type RESTPermissions struct {
-	roles grantGraph
+	roles      grantGraph
+	assignable []AssignableRole
+	operations map[string]struct{}
 }
 
 func LoadRESTPermissions(yamlBytes []byte, spec *openapi3.T) (*RESTPermissions, error) {
@@ -44,11 +58,34 @@ func LoadRESTPermissions(yamlBytes []byte, spec *openapi3.T) (*RESTPermissions, 
 		return nil, err
 	}
 
-	if err := checkCoverage("operation", specOperations(spec, nil), roles.grantedNames()); err != nil {
+	operations := specOperations(spec, nil)
+	if err := checkCoverage("operation", operations, roles.grantedNames()); err != nil {
 		return nil, err
 	}
 
-	return &RESTPermissions{roles: roles}, nil
+	var order struct {
+		Roles yaml.Node `yaml:"roles"`
+	}
+	if err := yaml.Unmarshal(yamlBytes, &order); err != nil {
+		return nil, err
+	}
+
+	p := &RESTPermissions{roles: roles, operations: operations}
+
+	for _, name := range keysInFileOrder(order.Roles) {
+		r := f.Roles[name]
+		if !r.Assignable {
+			continue
+		}
+
+		if r.Label == "" || r.Description == "" {
+			return nil, fmt.Errorf("assignable role %s needs a label and a description", name)
+		}
+
+		p.assignable = append(p.assignable, AssignableRole{Name: name, Label: r.Label, Description: r.Description})
+	}
+
+	return p, nil
 }
 
 func (p *RESTPermissions) HasPermission(role string, a Action) bool {
@@ -64,7 +101,35 @@ func (p *RESTPermissions) Defines(role string) bool {
 }
 
 func (p *RESTPermissions) Grant(role string, operationIDs ...string) error {
-	return p.roles.grant(role, operationIDs...)
+	if err := p.roles.grant(role, operationIDs...); err != nil {
+		return err
+	}
+
+	for _, op := range operationIDs {
+		p.operations[op] = struct{}{}
+	}
+
+	return nil
+}
+
+func (p *RESTPermissions) AssignableRoles() []AssignableRole {
+	out := make([]AssignableRole, 0, len(p.assignable))
+
+	// resolved per call rather than at load, so operations the extension grants afterwards are included
+	for _, r := range p.assignable {
+		r.Operations = []string{}
+
+		for op := range p.operations {
+			if p.HasPermission(r.Name, REST(op, nil)) {
+				r.Operations = append(r.Operations, op)
+			}
+		}
+
+		sort.Strings(r.Operations)
+		out = append(out, r)
+	}
+
+	return out
 }
 
 // specOperations lists operation ids in spec, keeping only those accepting scheme when one is given.

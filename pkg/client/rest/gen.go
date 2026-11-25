@@ -420,7 +420,7 @@ type ConcurrencyStat struct {
 
 // CreateAPITokenRequest defines model for CreateAPITokenRequest.
 type CreateAPITokenRequest struct {
-	// Capabilities Limit the REST operations and gRPC procedures the token can call, e.g. ["worker"] or ["events:push"]. Defaults to ["all"]. Cannot be combined with readOnly.
+	// Capabilities The capabilities that decide which REST operations and gRPC procedures the token can call, e.g. ["worker"] or ["events:push"]. Defaults to ["all"].
 	Capabilities *[]string `json:"capabilities,omitempty"`
 
 	// ExpiresIn The duration for which the token is valid.
@@ -1259,6 +1259,26 @@ type TenantResourcePolicy struct {
 	Limits []TenantResourceLimit `json:"limits"`
 }
 
+// TenantRole defines model for TenantRole.
+type TenantRole struct {
+	// Description What a member with the role can do.
+	Description string `json:"description"`
+
+	// Label A short display name, e.g. "Admin".
+	Label string `json:"label"`
+
+	// Name The role's name, as a tenant member's role.
+	Name string `json:"name"`
+
+	// Operations The REST operations the role allows, by operation id.
+	Operations []string `json:"operations"`
+}
+
+// TenantRoleList defines model for TenantRoleList.
+type TenantRoleList struct {
+	Rows []TenantRole `json:"rows"`
+}
+
 // TenantStepRunQueueMetrics defines model for TenantStepRunQueueMetrics.
 type TenantStepRunQueueMetrics struct {
 	Queues *map[string]interface{} `json:"queues,omitempty"`
@@ -1266,6 +1286,32 @@ type TenantStepRunQueueMetrics struct {
 
 // TenantVersion defines model for TenantVersion.
 type TenantVersion = enums.TenantMajorEngineVersion
+
+// TokenCapability defines model for TokenCapability.
+type TokenCapability struct {
+	// Bundle Whether the capability only stands for the capabilities in includes.
+	Bundle bool `json:"bundle"`
+
+	// Description What the capability lets a token do.
+	Description string `json:"description"`
+
+	// Group The section the capability is listed under.
+	Group *string `json:"group,omitempty"`
+
+	// Includes The listed capabilities this one grants through inheritance, for a bundle every one it stands for.
+	Includes []string `json:"includes"`
+
+	// Label A short display name for a bundle, e.g. "Read".
+	Label *string `json:"label,omitempty"`
+
+	// Name The name to pass in an API token's capabilities.
+	Name string `json:"name"`
+}
+
+// TokenCapabilityList defines model for TokenCapabilityList.
+type TokenCapabilityList struct {
+	Rows []TokenCapability `json:"rows"`
+}
 
 // TriggerRunResult defines model for TriggerRunResult.
 type TriggerRunResult struct {
@@ -4273,6 +4319,9 @@ type ClientInterface interface {
 
 	ApiTokenCreate(ctx context.Context, tenant openapi_types.UUID, body ApiTokenCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ApiTokenCapabilityList request
+	ApiTokenCapabilityList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// TenantEntitlementsGet request
 	TenantEntitlementsGet(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -4354,6 +4403,9 @@ type ClientInterface interface {
 
 	// TenantResourcePolicyGet request
 	TenantResourcePolicyGet(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TenantRoleList request
+	TenantRoleList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// SlackWebhookList request
 	SlackWebhookList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -5648,6 +5700,18 @@ func (c *Client) ApiTokenCreate(ctx context.Context, tenant openapi_types.UUID, 
 	return c.Client.Do(req)
 }
 
+func (c *Client) ApiTokenCapabilityList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewApiTokenCapabilityListRequest(c.Server, tenant)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) TenantEntitlementsGet(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewTenantEntitlementsGetRequest(c.Server, tenant)
 	if err != nil {
@@ -5998,6 +6062,18 @@ func (c *Client) RateLimitList(ctx context.Context, tenant openapi_types.UUID, p
 
 func (c *Client) TenantResourcePolicyGet(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewTenantResourcePolicyGetRequest(c.Server, tenant)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TenantRoleList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTenantRoleListRequest(c.Server, tenant)
 	if err != nil {
 		return nil, err
 	}
@@ -11667,6 +11743,40 @@ func NewApiTokenCreateRequestWithBody(server string, tenant openapi_types.UUID, 
 	return req, nil
 }
 
+// NewApiTokenCapabilityListRequest generates requests for ApiTokenCapabilityList
+func NewApiTokenCapabilityListRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/api-tokens/capabilities", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewTenantEntitlementsGetRequest generates requests for TenantEntitlementsGet
 func NewTenantEntitlementsGetRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
 	var err error
@@ -12875,6 +12985,40 @@ func NewTenantResourcePolicyGetRequest(server string, tenant openapi_types.UUID)
 	}
 
 	operationPath := fmt.Sprintf("/api/v1/tenants/%s/resource-policy", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewTenantRoleListRequest generates requests for TenantRoleList
+func NewTenantRoleListRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/roles", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -16483,6 +16627,9 @@ type ClientWithResponsesInterface interface {
 
 	ApiTokenCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body ApiTokenCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*ApiTokenCreateResponse, error)
 
+	// ApiTokenCapabilityListWithResponse request
+	ApiTokenCapabilityListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*ApiTokenCapabilityListResponse, error)
+
 	// TenantEntitlementsGetWithResponse request
 	TenantEntitlementsGetWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantEntitlementsGetResponse, error)
 
@@ -16564,6 +16711,9 @@ type ClientWithResponsesInterface interface {
 
 	// TenantResourcePolicyGetWithResponse request
 	TenantResourcePolicyGetWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantResourcePolicyGetResponse, error)
+
+	// TenantRoleListWithResponse request
+	TenantRoleListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantRoleListResponse, error)
 
 	// SlackWebhookListWithResponse request
 	SlackWebhookListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*SlackWebhookListResponse, error)
@@ -18635,6 +18785,31 @@ func (r ApiTokenCreateResponse) StatusCode() int {
 	return 0
 }
 
+type ApiTokenCapabilityListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *TokenCapabilityList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON429      *TooManyRequests
+}
+
+// Status returns HTTPResponse.Status
+func (r ApiTokenCapabilityListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ApiTokenCapabilityListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type TenantEntitlementsGetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -19182,6 +19357,31 @@ func (r TenantResourcePolicyGetResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r TenantResourcePolicyGetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type TenantRoleListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *TenantRoleList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON429      *TooManyRequests
+}
+
+// Status returns HTTPResponse.Status
+func (r TenantRoleListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TenantRoleListResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -21528,6 +21728,15 @@ func (c *ClientWithResponses) ApiTokenCreateWithResponse(ctx context.Context, te
 	return ParseApiTokenCreateResponse(rsp)
 }
 
+// ApiTokenCapabilityListWithResponse request returning *ApiTokenCapabilityListResponse
+func (c *ClientWithResponses) ApiTokenCapabilityListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*ApiTokenCapabilityListResponse, error) {
+	rsp, err := c.ApiTokenCapabilityList(ctx, tenant, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseApiTokenCapabilityListResponse(rsp)
+}
+
 // TenantEntitlementsGetWithResponse request returning *TenantEntitlementsGetResponse
 func (c *ClientWithResponses) TenantEntitlementsGetWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantEntitlementsGetResponse, error) {
 	rsp, err := c.TenantEntitlementsGet(ctx, tenant, reqEditors...)
@@ -21788,6 +21997,15 @@ func (c *ClientWithResponses) TenantResourcePolicyGetWithResponse(ctx context.Co
 		return nil, err
 	}
 	return ParseTenantResourcePolicyGetResponse(rsp)
+}
+
+// TenantRoleListWithResponse request returning *TenantRoleListResponse
+func (c *ClientWithResponses) TenantRoleListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantRoleListResponse, error) {
+	rsp, err := c.TenantRoleList(ctx, tenant, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTenantRoleListResponse(rsp)
 }
 
 // SlackWebhookListWithResponse request returning *SlackWebhookListResponse
@@ -26071,6 +26289,53 @@ func ParseApiTokenCreateResponse(rsp *http.Response) (*ApiTokenCreateResponse, e
 	return response, nil
 }
 
+// ParseApiTokenCapabilityListResponse parses an HTTP response from a ApiTokenCapabilityListWithResponse call
+func ParseApiTokenCapabilityListResponse(rsp *http.Response) (*ApiTokenCapabilityListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ApiTokenCapabilityListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TokenCapabilityList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseTenantEntitlementsGetResponse parses an HTTP response from a TenantEntitlementsGetWithResponse call
 func ParseTenantEntitlementsGetResponse(rsp *http.Response) (*TenantEntitlementsGetResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -27097,6 +27362,53 @@ func ParseTenantResourcePolicyGetResponse(rsp *http.Response) (*TenantResourcePo
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest APIError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTenantRoleListResponse parses an HTTP response from a TenantRoleListWithResponse call
+func ParseTenantRoleListResponse(rsp *http.Response) (*TenantRoleListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TenantRoleListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TenantRoleList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

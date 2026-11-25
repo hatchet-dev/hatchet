@@ -36,12 +36,21 @@ class CreateAPITokenRequest(BaseModel):
         description="Limit the token to viewer access over REST and deny all gRPC calls. Defaults to false.",
         alias="readOnly",
     )
+    capabilities: Optional[Annotated[List[StrictStr], Field(min_length=1)]] = Field(
+        default=None,
+        description='The capabilities that decide which REST operations and gRPC procedures the token can call, e.g. ["worker"] or ["events:push"]. Defaults to ["all"].',
+    )
     expires_in: Optional[StrictStr] = Field(
         default=None,
         description="The duration for which the token is valid.",
         alias="expiresIn",
     )
-    __properties: ClassVar[List[str]] = ["name", "readOnly", "expiresIn"]
+    __properties: ClassVar[List[str]] = [
+        "name",
+        "readOnly",
+        "capabilities",
+        "expiresIn",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -95,6 +104,7 @@ class CreateAPITokenRequest(BaseModel):
             {
                 "name": obj.get("name"),
                 "readOnly": obj.get("readOnly"),
+                "capabilities": obj.get("capabilities"),
                 "expiresIn": obj.get("expiresIn"),
             }
         )

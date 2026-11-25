@@ -77,7 +77,9 @@ import {
   TenantMemberList,
   TenantQueueMetrics,
   TenantResourcePolicy,
+  TenantRoleList,
   TenantStepRunQueueMetrics,
+  TokenCapabilityList,
   TriggerRunResult,
   TriggerWorkflowRunRequest,
   UpdateCronWorkflowTriggerRequest,
@@ -2529,6 +2531,42 @@ export class Api<
   apiTokenList = Object.assign((tenant: string, params: RequestParams = {}) =>
     this.request<ListAPITokensResponse, APIErrors>({
       path: `/api/v1/tenants/${tenant}/api-tokens`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
+  /**
+   * @description List the capabilities an API token in this tenant can hold, with the bundles that group them
+   *
+   * @tags API Token
+   * @name ApiTokenCapabilityList
+   * @summary List API token capabilities
+   * @request GET:/api/v1/tenants/{tenant}/api-tokens/capabilities
+   * @secure
+   */
+  apiTokenCapabilityList = Object.assign((tenant: string, params: RequestParams = {}) =>
+    this.request<TokenCapabilityList, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/api-tokens/capabilities`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
+  /**
+   * @description List the roles a tenant member can hold, with the operations each allows
+   *
+   * @tags Tenant
+   * @name TenantRoleList
+   * @summary List tenant roles
+   * @request GET:/api/v1/tenants/{tenant}/roles
+   * @secure
+   */
+  tenantRoleList = Object.assign((tenant: string, params: RequestParams = {}) =>
+    this.request<TenantRoleList, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/roles`,
       method: "GET",
       secure: true,
       format: "json",

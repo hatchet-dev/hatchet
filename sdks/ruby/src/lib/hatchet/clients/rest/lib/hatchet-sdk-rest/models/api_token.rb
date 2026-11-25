@@ -23,6 +23,9 @@ module HatchetSdkRest
     # Whether the token is limited to viewer access over REST and cannot use gRPC.
     attr_accessor :read_only
 
+    # The capabilities the token holds, which grant REST operations and gRPC procedures. Tokens created without capabilities hold \"all\", or \"read-only\" if they are read-only.
+    attr_accessor :capabilities
+
     # When the API token expires.
     attr_accessor :expires_at
 
@@ -32,6 +35,7 @@ module HatchetSdkRest
         :'metadata' => :'metadata',
         :'name' => :'name',
         :'read_only' => :'readOnly',
+        :'capabilities' => :'capabilities',
         :'expires_at' => :'expiresAt'
       }
     end
@@ -52,6 +56,7 @@ module HatchetSdkRest
         :'metadata' => :'APIResourceMeta',
         :'name' => :'String',
         :'read_only' => :'Boolean',
+        :'capabilities' => :'Array<String>',
         :'expires_at' => :'Time'
       }
     end
@@ -96,6 +101,14 @@ module HatchetSdkRest
         self.read_only = nil
       end
 
+      if attributes.key?(:'capabilities')
+        if (value = attributes[:'capabilities']).is_a?(Array)
+          self.capabilities = value
+        end
+      else
+        self.capabilities = nil
+      end
+
       if attributes.key?(:'expires_at')
         self.expires_at = attributes[:'expires_at']
       else
@@ -124,6 +137,10 @@ module HatchetSdkRest
         invalid_properties.push('invalid value for "read_only", read_only cannot be nil.')
       end
 
+      if @capabilities.nil?
+        invalid_properties.push('invalid value for "capabilities", capabilities cannot be nil.')
+      end
+
       if @expires_at.nil?
         invalid_properties.push('invalid value for "expires_at", expires_at cannot be nil.')
       end
@@ -139,6 +156,7 @@ module HatchetSdkRest
       return false if @name.nil?
       return false if @name.to_s.length > 255
       return false if @read_only.nil?
+      return false if @capabilities.nil?
       return false if @expires_at.nil?
       true
     end
@@ -178,6 +196,16 @@ module HatchetSdkRest
     end
 
     # Custom attribute writer method with validation
+    # @param [Object] capabilities Value to be assigned
+    def capabilities=(capabilities)
+      if capabilities.nil?
+        fail ArgumentError, 'capabilities cannot be nil'
+      end
+
+      @capabilities = capabilities
+    end
+
+    # Custom attribute writer method with validation
     # @param [Object] expires_at Value to be assigned
     def expires_at=(expires_at)
       if expires_at.nil?
@@ -195,6 +223,7 @@ module HatchetSdkRest
           metadata == o.metadata &&
           name == o.name &&
           read_only == o.read_only &&
+          capabilities == o.capabilities &&
           expires_at == o.expires_at
     end
 
@@ -207,7 +236,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [metadata, name, read_only, expires_at].hash
+      [metadata, name, read_only, capabilities, expires_at].hash
     end
 
     # Builds the object from hash

@@ -5,6 +5,13 @@ All notable changes to Hatchet's Ruby SDK will be documented in this changelog.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.1] - 2026-11-24
+
+### Added
+
+- `capabilities` on the `APIToken` and `CreateAPITokenRequest` REST models, the capabilities that limit which REST operations and gRPC procedures an API token can call. Tokens created without it hold `all`.
+- `api_token_capability_list` and `tenant_role_list` REST methods, which list the capabilities an API token can hold and the roles a tenant member can hold.
+
 ## [0.13.0] - 2026-11-23
 
 ### Added

@@ -48,10 +48,24 @@ type tokenFile struct {
 		REST []string `yaml:"rest"`
 	} `yaml:"unavailable"`
 	Capabilities map[string]struct {
-		Inherits []string `yaml:"inherits"`
-		REST     []string `yaml:"rest"`
-		GRPC     []string `yaml:"grpc"`
+		Inherits    []string `yaml:"inherits"`
+		REST        []string `yaml:"rest"`
+		GRPC        []string `yaml:"grpc"`
+		Bundle      bool     `yaml:"bundle"`
+		Label       string   `yaml:"label"`
+		Description string   `yaml:"description"`
+		Group       string   `yaml:"group"`
 	} `yaml:"capabilities"`
+}
+
+type CapabilityInfo struct {
+	Name        string
+	Label       string
+	Description string
+	Group       string
+	Bundle      bool
+	// the listed, non-bundle capabilities granted through inheritance; for a bundle, every one it stands for
+	Includes []string
 }
 
 // TokenPermissions decides every call a tenant API token makes, over REST and gRPC, from its capabilities.
@@ -59,6 +73,7 @@ type TokenPermissions struct {
 	rest        grantGraph
 	grpc        grantGraph
 	unavailable map[string]struct{} // lower-cased REST operation ids
+	info        []CapabilityInfo    // file order, without Includes
 }
 
 func LoadTokenPermissions(yamlBytes []byte, spec *openapi3.T, services ...protoreflect.ServiceDescriptor) (*TokenPermissions, error) {
@@ -76,6 +91,23 @@ func LoadTokenPermissions(yamlBytes []byte, spec *openapi3.T, services ...protor
 	for name, c := range f.Capabilities {
 		p.rest[name] = &grantDef{inherits: c.Inherits, grants: c.REST}
 		p.grpc[name] = &grantDef{inherits: c.Inherits, grants: c.GRPC}
+	}
+
+	var order struct {
+		Capabilities yaml.Node `yaml:"capabilities"`
+	}
+	if err := yaml.Unmarshal(yamlBytes, &order); err != nil {
+		return nil, err
+	}
+
+	for _, name := range keysInFileOrder(order.Capabilities) {
+		c := f.Capabilities[name]
+
+		if c.Description == "" || (c.Bundle && c.Label == "") || (!c.Bundle && c.Group == "") {
+			return nil, fmt.Errorf("capability %s needs a description, and a label if it is a bundle or a group if it is not", name)
+		}
+
+		p.info = append(p.info, CapabilityInfo{Name: name, Label: c.Label, Description: c.Description, Group: c.Group, Bundle: c.Bundle})
 	}
 
 	if err := p.rest.validate(); err != nil {
@@ -182,6 +214,57 @@ func (p *TokenPermissions) allows(capabilities []string, a Action) bool {
 
 func (p *TokenPermissions) Defines(capability string) bool {
 	return p.rest.defines(capability)
+}
+
+func (p *TokenPermissions) Capabilities() []CapabilityInfo {
+	// capabilities this deployment leaves empty, such as infra:* without the cloud extension, are never offered
+	listed := map[string]bool{}
+	for _, c := range p.info {
+		listed[c.Name] = p.rest.grantsAnything(c.Name) || p.grpc.grantsAnything(c.Name)
+	}
+
+	var selectable []string
+	for _, c := range p.info {
+		if listed[c.Name] && !c.Bundle {
+			selectable = append(selectable, c.Name)
+		}
+	}
+
+	var out []CapabilityInfo
+
+	for _, c := range p.info {
+		if !listed[c.Name] {
+			continue
+		}
+
+		c.Includes = []string{}
+
+		grantsWildcard := p.rest.has(c.Name, func(string) bool { return false })
+
+		if grantsWildcard {
+			c.Includes = append(c.Includes, selectable...)
+		} else {
+			for _, name := range p.rest.inherited(c.Name) {
+				if listed[name] && !p.isBundle(name) {
+					c.Includes = append(c.Includes, name)
+				}
+			}
+		}
+
+		out = append(out, c)
+	}
+
+	return out
+}
+
+func (p *TokenPermissions) isBundle(name string) bool {
+	for _, c := range p.info {
+		if c.Name == name {
+			return c.Bundle
+		}
+	}
+
+	return false
 }
 
 func (p *TokenPermissions) GrantREST(capability string, operationIDs ...string) error {

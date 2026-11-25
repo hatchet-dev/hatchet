@@ -41,7 +41,7 @@ CreateAPITokenRequest:
       items:
         type: string
       minItems: 1
-      description: Limit the REST operations and gRPC procedures the token can call, e.g. ["worker"] or ["events:push"]. Defaults to ["all"]. Cannot be combined with readOnly.
+      description: The capabilities that decide which REST operations and gRPC procedures the token can call, e.g. ["worker"] or ["events:push"]. Defaults to ["all"].
     expiresIn:
       type: string
       description: The duration for which the token is valid.
@@ -67,3 +67,75 @@ ListAPITokensResponse:
       items:
         $ref: "#/APIToken"
       type: array
+
+TokenCapability:
+  type: object
+  properties:
+    name:
+      type: string
+      description: The name to pass in an API token's capabilities.
+    label:
+      type: string
+      description: A short display name for a bundle, e.g. "Read".
+    description:
+      type: string
+      description: What the capability lets a token do.
+    group:
+      type: string
+      description: The section the capability is listed under.
+    bundle:
+      type: boolean
+      description: Whether the capability only stands for the capabilities in includes.
+    includes:
+      type: array
+      items:
+        type: string
+      description: The listed capabilities this one grants through inheritance, for a bundle every one it stands for.
+  required:
+    - name
+    - description
+    - bundle
+    - includes
+
+TokenCapabilityList:
+  type: object
+  properties:
+    rows:
+      type: array
+      items:
+        $ref: "#/TokenCapability"
+  required:
+    - rows
+
+TenantRole:
+  type: object
+  properties:
+    name:
+      type: string
+      description: The role's name, as a tenant member's role.
+    label:
+      type: string
+      description: A short display name, e.g. "Admin".
+    description:
+      type: string
+      description: What a member with the role can do.
+    operations:
+      type: array
+      items:
+        type: string
+      description: The REST operations the role allows, by operation id.
+  required:
+    - name
+    - label
+    - description
+    - operations
+
+TenantRoleList:
+  type: object
+  properties:
+    rows:
+      type: array
+      items:
+        $ref: "#/TenantRole"
+  required:
+    - rows

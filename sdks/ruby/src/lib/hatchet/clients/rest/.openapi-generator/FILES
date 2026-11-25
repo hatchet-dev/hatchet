@@ -158,8 +158,12 @@ lib/hatchet-sdk-rest/models/tenant_queue_metrics.rb
 lib/hatchet-sdk-rest/models/tenant_resource.rb
 lib/hatchet-sdk-rest/models/tenant_resource_limit.rb
 lib/hatchet-sdk-rest/models/tenant_resource_policy.rb
+lib/hatchet-sdk-rest/models/tenant_role.rb
+lib/hatchet-sdk-rest/models/tenant_role_list.rb
 lib/hatchet-sdk-rest/models/tenant_step_run_queue_metrics.rb
 lib/hatchet-sdk-rest/models/tenant_version.rb
+lib/hatchet-sdk-rest/models/token_capability.rb
+lib/hatchet-sdk-rest/models/token_capability_list.rb
 lib/hatchet-sdk-rest/models/trigger_run_result.rb
 lib/hatchet-sdk-rest/models/trigger_workflow_run_request.rb
 lib/hatchet-sdk-rest/models/update_cron_workflow_trigger_request.rb

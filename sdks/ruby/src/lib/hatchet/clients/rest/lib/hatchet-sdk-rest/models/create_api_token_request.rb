@@ -21,6 +21,9 @@ module HatchetSdkRest
     # Limit the token to viewer access over REST and deny all gRPC calls. Defaults to false.
     attr_accessor :read_only
 
+    # The capabilities that decide which REST operations and gRPC procedures the token can call, e.g. [\"worker\"] or [\"events:push\"]. Defaults to [\"all\"].
+    attr_accessor :capabilities
+
     # The duration for which the token is valid.
     attr_accessor :expires_in
 
@@ -29,6 +32,7 @@ module HatchetSdkRest
       {
         :'name' => :'name',
         :'read_only' => :'readOnly',
+        :'capabilities' => :'capabilities',
         :'expires_in' => :'expiresIn'
       }
     end
@@ -48,6 +52,7 @@ module HatchetSdkRest
       {
         :'name' => :'String',
         :'read_only' => :'Boolean',
+        :'capabilities' => :'Array<String>',
         :'expires_in' => :'String'
       }
     end
@@ -84,6 +89,12 @@ module HatchetSdkRest
         self.read_only = attributes[:'read_only']
       end
 
+      if attributes.key?(:'capabilities')
+        if (value = attributes[:'capabilities']).is_a?(Array)
+          self.capabilities = value
+        end
+      end
+
       if attributes.key?(:'expires_in')
         self.expires_in = attributes[:'expires_in']
       end
@@ -102,6 +113,10 @@ module HatchetSdkRest
         invalid_properties.push('invalid value for "name", the character length must be smaller than or equal to 255.')
       end
 
+      if !@capabilities.nil? && @capabilities.length < 1
+        invalid_properties.push('invalid value for "capabilities", number of items must be greater than or equal to 1.')
+      end
+
       invalid_properties
     end
 
@@ -111,6 +126,7 @@ module HatchetSdkRest
       warn '[DEPRECATED] the `valid?` method is obsolete'
       return false if @name.nil?
       return false if @name.to_s.length > 255
+      return false if !@capabilities.nil? && @capabilities.length < 1
       true
     end
 
@@ -128,6 +144,20 @@ module HatchetSdkRest
       @name = name
     end
 
+    # Custom attribute writer method with validation
+    # @param [Object] capabilities Value to be assigned
+    def capabilities=(capabilities)
+      if capabilities.nil?
+        fail ArgumentError, 'capabilities cannot be nil'
+      end
+
+      if capabilities.length < 1
+        fail ArgumentError, 'invalid value for "capabilities", number of items must be greater than or equal to 1.'
+      end
+
+      @capabilities = capabilities
+    end
+
     # Checks equality by comparing each attribute.
     # @param [Object] Object to be compared
     def ==(o)
@@ -135,6 +165,7 @@ module HatchetSdkRest
       self.class == o.class &&
           name == o.name &&
           read_only == o.read_only &&
+          capabilities == o.capabilities &&
           expires_in == o.expires_in
     end
 
@@ -147,7 +178,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [name, read_only, expires_in].hash
+      [name, read_only, capabilities, expires_in].hash
     end
 
     # Builds the object from hash

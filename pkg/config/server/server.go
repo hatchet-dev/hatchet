@@ -862,12 +862,13 @@ type AuthConfig struct {
 	Policies []authz.Policy
 
 	// Read-only extension operations (e.g. cloud) that aren't in the base OpenAPI spec. They are
-	// granted to VIEWER (and so every user role) in users.yaml and to the read-only token
+	// granted to VIEWER (and so every user role) in users.yaml and to the infra:read token
 	// capability in tokens.yaml; tokens holding "all" reach them through its wildcard.
 	AllowedOperations []string
 
 	// Mutating extension operations that aren't in the base OpenAPI spec. They are granted to
-	// MEMBER (and so ADMIN and OWNER) in users.yaml, never to VIEWER or read-only tokens.
+	// MEMBER (and so ADMIN and OWNER) in users.yaml and to the infra:write token capability in
+	// tokens.yaml, never to VIEWER.
 	AllowedWriteOperations []string
 }
 

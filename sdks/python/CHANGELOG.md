@@ -126,6 +126,8 @@ V2 removes everything that was deprecated in V1 and tightens the types that were
 
 ### Added
 
+- `capabilities` on the `APIToken` and `CreateAPITokenRequest` REST models, the capabilities that limit which REST operations and gRPC procedures an API token can call. Tokens created without it hold `all`.
+- `api_token_capability_list` and `tenant_role_list` REST methods, which list the capabilities an API token can hold and the roles a tenant member can hold.
 - `max_reassignments_allowed` on `task` and `durable_task`, the maximum number of times Hatchet reassigns a task to a new worker after its worker stops heartbeating or never acknowledges it. Once reached, the task fails instead of being reassigned; `0` disables reassignment entirely. Older engines ignore it.
 - `CancelledRunError`, exported from `hatchet_sdk`, which `result` and `aio_result` raise for a cancelled run. It has a `workflow_run_id` attribute and is a subclass of `ValueError`, which `result` raised for a cancelled run before.
 - `result` and `aio_result` on `WorkflowRunRef` and `TaskRunRef` accept an optional `timeout` (a `timedelta`) and raise `TimeoutError` when it elapses.

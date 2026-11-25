@@ -19,6 +19,77 @@ module HatchetSdkRest
     def initialize(api_client = ApiClient.default)
       @api_client = api_client
     end
+    # List API token capabilities
+    # List the capabilities an API token in this tenant can hold, with the bundles that group them
+    # @param tenant [String] The tenant id
+    # @param [Hash] opts the optional parameters
+    # @return [TokenCapabilityList]
+    def api_token_capability_list(tenant, opts = {})
+      data, _status_code, _headers = api_token_capability_list_with_http_info(tenant, opts)
+      data
+    end
+
+    # List API token capabilities
+    # List the capabilities an API token in this tenant can hold, with the bundles that group them
+    # @param tenant [String] The tenant id
+    # @param [Hash] opts the optional parameters
+    # @return [Array<(TokenCapabilityList, Integer, Hash)>] TokenCapabilityList data, response status code and response headers
+    def api_token_capability_list_with_http_info(tenant, opts = {})
+      if @api_client.config.debugging
+        @api_client.config.logger.debug 'Calling API: APITokenApi.api_token_capability_list ...'
+      end
+      # verify the required parameter 'tenant' is set
+      if @api_client.config.client_side_validation && tenant.nil?
+        fail ArgumentError, "Missing the required parameter 'tenant' when calling APITokenApi.api_token_capability_list"
+      end
+      if @api_client.config.client_side_validation && tenant.to_s.length > 36
+        fail ArgumentError, 'invalid value for "tenant" when calling APITokenApi.api_token_capability_list, the character length must be smaller than or equal to 36.'
+      end
+
+      if @api_client.config.client_side_validation && tenant.to_s.length < 36
+        fail ArgumentError, 'invalid value for "tenant" when calling APITokenApi.api_token_capability_list, the character length must be greater than or equal to 36.'
+      end
+
+      # resource path
+      local_var_path = '/api/v1/tenants/{tenant}/api-tokens/capabilities'.sub('{' + 'tenant' + '}', CGI.escape(tenant.to_s))
+
+      # query parameters
+      query_params = opts[:query_params] || {}
+
+      # header parameters
+      header_params = opts[:header_params] || {}
+      # HTTP header 'Accept' (if needed)
+      header_params['Accept'] = @api_client.select_header_accept(['application/json']) unless header_params['Accept']
+
+      # form parameters
+      form_params = opts[:form_params] || {}
+
+      # http body (model)
+      post_body = opts[:debug_body]
+
+      # return_type
+      return_type = opts[:debug_return_type] || 'TokenCapabilityList'
+
+      # auth_names
+      auth_names = opts[:debug_auth_names] || ['cookieAuth', 'bearerAuth']
+
+      new_options = opts.merge(
+        :operation => :"APITokenApi.api_token_capability_list",
+        :header_params => header_params,
+        :query_params => query_params,
+        :form_params => form_params,
+        :body => post_body,
+        :auth_names => auth_names,
+        :return_type => return_type
+      )
+
+      data, status_code, headers = @api_client.call_api(:GET, local_var_path, new_options)
+      if @api_client.config.debugging
+        @api_client.config.logger.debug "API called: APITokenApi#api_token_capability_list\nData: #{data.inspect}\nStatus code: #{status_code}\nHeaders: #{headers}"
+      end
+      return data, status_code, headers
+    end
+
     # Create API Token
     # Create an API token for a tenant
     # @param tenant [String] The tenant id

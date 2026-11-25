@@ -118,3 +118,83 @@ revoke:
     summary: Revoke API Token
     tags:
       - API Token
+capabilities:
+  get:
+    x-resources: ["tenant"]
+    description: List the capabilities an API token in this tenant can hold, with the bundles that group them
+    operationId: api-token:capability-list
+    x-payloads: false
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/TokenCapabilityList"
+        description: Successfully listed
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
+    summary: List API token capabilities
+    tags:
+      - API Token
+roles:
+  get:
+    x-resources: ["tenant"]
+    description: List the roles a tenant member can hold, with the operations each allows
+    operationId: tenant:role-list
+    x-payloads: false
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/TenantRoleList"
+        description: Successfully listed
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "429":
+        $ref: "../../components/responses/_index.yaml#/TooManyRequests"
+    summary: List tenant roles
+    tags:
+      - Tenant

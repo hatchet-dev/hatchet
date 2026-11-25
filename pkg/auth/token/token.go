@@ -10,6 +10,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/tink-crypto/tink-go/jwt"
 
+	"github.com/hatchet-dev/hatchet/internal/permissions"
+	"github.com/hatchet-dev/hatchet/pkg/auth/authz"
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
@@ -51,15 +53,39 @@ func NewJWTManager(encryptionSvc encryption.EncryptionService, tokenRepo v1.APIT
 }
 
 type generateOpts struct {
-	capabilities []string
+	capabilities    []string
+	hasCapabilities bool
 }
 
 // GenerateOption is variadic so callers in other repos keep compiling when options are added.
 type GenerateOption func(*generateOpts)
 
-// WithCapabilities limits what the token can call over REST and gRPC; without it the token keeps every capability.
 func WithCapabilities(capabilities []string) GenerateOption {
-	return func(o *generateOpts) { o.capabilities = capabilities }
+	return func(o *generateOpts) {
+		o.capabilities = capabilities
+		o.hasCapabilities = true
+	}
+}
+
+var ErrInvalidCapabilities = errors.New("invalid capabilities")
+
+func ValidateCapabilities(capabilities []string) error {
+	if len(capabilities) == 0 {
+		return fmt.Errorf("%w: capabilities cannot be empty; omit them to grant all", ErrInvalidCapabilities)
+	}
+
+	for _, c := range capabilities {
+		ok, err := permissions.TokenCapabilityExists(c)
+		if err != nil {
+			return err
+		}
+
+		if !ok {
+			return fmt.Errorf("%w: unknown capability %q", ErrInvalidCapabilities, c)
+		}
+	}
+
+	return nil
 }
 
 type Token struct {
@@ -101,6 +127,19 @@ func (j *jwtManagerImpl) GenerateTenantToken(ctx context.Context, tenantId uuid.
 	var o generateOpts
 	for _, opt := range opts {
 		opt(&o)
+	}
+
+	switch {
+	// An explicit empty list is a caller mistake, not a request for every capability.
+	case o.hasCapabilities:
+		if err := ValidateCapabilities(o.capabilities); err != nil {
+			return nil, err
+		}
+	// The read-only flag only narrows gRPC, so storing "all" beside it would open every REST operation.
+	case readOnly:
+		o.capabilities = []string{authz.ReadOnlyCapability}
+	default:
+		o.capabilities = []string{authz.AllCapabilities}
 	}
 
 	token, err := j.createToken(ctx, tenantId, name, nil, expires)

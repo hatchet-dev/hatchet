@@ -1,3 +1,4 @@
+import { RoleSelectItems } from '@/components/v1/molecules/role-select-items';
 import { Button } from '@/components/v1/ui/button';
 import { Checkbox } from '@/components/v1/ui/checkbox';
 import {
@@ -341,12 +342,9 @@ const CreateTenantInviteForm = ({
                           <SelectValue id="role" placeholder="Role..." />
                         </SelectTrigger>
                         <SelectContent>
-                          {!props.isControlPlaneEnabled && (
-                            <SelectItem value="OWNER">Owner</SelectItem>
-                          )}
-                          <SelectItem value="ADMIN">Admin</SelectItem>
-                          <SelectItem value="MEMBER">Member</SelectItem>
-                          <SelectItem value="VIEWER">Viewer</SelectItem>
+                          <RoleSelectItems
+                            allowOwner={!props.isControlPlaneEnabled}
+                          />
                         </SelectContent>
                       </Select>
                     );
