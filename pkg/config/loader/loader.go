@@ -968,12 +968,14 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		return nil, nil, err
 	}
 
-	dc.V1.SetInternalEventOutbox(repov1.NewInternalEventOutbox(
+	ieo := repov1.NewInternalEventOutbox(
 		internalEventOutbox,
 		cf.Runtime.InternalEventOutboxEnabled,
 		cf.Runtime.InternalEventOutboxPollInterval,
 		&l,
-	))
+	)
+
+	dc.V1.SetInternalEventOutbox(ieo)
 
 	schedulingPoolV1, cleanupSchedulingPoolV1, err := v1.NewSchedulingPool(
 		dc.V1.Scheduler(),
@@ -1005,6 +1007,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		cleanupSecurityCheck()
 
 		cleanupOutbox()
+		ieo.Close()
 		cleanupInternalEventOutbox()
 
 		if err := cleanupSchedulingPoolV1(); err != nil {

@@ -210,8 +210,9 @@ func WithPrometheusGate(gate *prometheus.Gate) TasksControllerOpt {
 // NewMessageHandler returns the task controller's handler without its background operations, so the
 // dispatcher can apply worker events in-process. An event can then arrive twice or out of order, here
 // and through the task queue; task state stays correct because every change is keyed on (task, retry
-// count), which pkg/repository/task_event_order_test.go pins. The returned stop function stops the
-// publish buffer the handler sends through; call it once nothing can call the handler anymore.
+// count), which pkg/repository/task_event_order_test.go pins. The returned stop function stops this
+// handler's share of the internal event outbox, then the publish buffer the handler sends through;
+// call it once nothing can call the handler anymore.
 func NewMessageHandler(fs ...TasksControllerOpt) (msgqueue.DstFunc, func(), error) {
 	opts := defaultTasksControllerOpts()
 
@@ -227,17 +228,21 @@ func NewMessageHandler(fs ...TasksControllerOpt) (msgqueue.DstFunc, func(), erro
 
 	// the dispatcher's direct writes commit task completions in this process, so it drains the outbox
 	// too: its kicks then reach a running loop even when no task controller runs here
-	t.startInternalEventOutbox()
+	stopOutbox := t.startInternalEventOutbox()
 
-	return t.handleBufferedMsgs, t.pubBuffer.Stop, nil
+	// the outbox's handler publishes through the pub buffer, so it stops first
+	return t.handleBufferedMsgs, func() {
+		stopOutbox()
+		t.pubBuffer.Stop()
+	}, nil
 }
 
-// startInternalEventOutbox runs for the life of the process: the outbox starts its loops once, for
-// whichever controller asks first, and a controller that stops would otherwise stop them for both.
-func (tc *TasksControllerImpl) startInternalEventOutbox() {
+func (tc *TasksControllerImpl) startInternalEventOutbox() (stop func()) {
 	if ob := tc.repov1.InternalEventOutbox(); ob != nil {
-		ob.Start(context.Background(), tc.processInternalEvents)
+		return ob.Start(tc.processInternalEvents)
 	}
+
+	return func() {}
 }
 
 // newTasksController builds the parts of the controller that its message handlers use. The
@@ -400,8 +405,6 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 func (tc *TasksControllerImpl) Start() (func() error, error) {
 	mqBuffer := msgqueue.NewMQSubBuffer(msgqueue.TASK_PROCESSING_QUEUE, tc.mq, tc.handleBufferedMsgs)
 
-	tc.startInternalEventOutbox()
-
 	tc.s.Start()
 
 	cleanupBuffer, err := mqBuffer.Start()
@@ -501,6 +504,8 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 		return nil, wrappedErr
 	}
 
+	stopOutbox := tc.startInternalEventOutbox()
+
 	cleanup := func() error {
 		cancel()
 
@@ -509,6 +514,9 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 			span.SetStatus(codes.Error, "could not cleanup buffer")
 			return err
 		}
+
+		// the outbox's handler publishes through the pub buffer, so it stops first
+		stopOutbox()
 
 		tc.timeoutTaskOperations.Cleanup()
 		tc.reassignTaskOperations.Cleanup()

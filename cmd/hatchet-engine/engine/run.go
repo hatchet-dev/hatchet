@@ -1334,6 +1334,7 @@ func newDirectTaskWriter(sc *server.ServerConfig) (*directwrite.Writer, error) {
 	})
 
 	if err != nil {
+		stopHandler()
 		return nil, fmt.Errorf("could not create direct task writer: %w", err)
 	}
 

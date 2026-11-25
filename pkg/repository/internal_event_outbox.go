@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"sync"
@@ -35,8 +36,9 @@ type InternalEventHandler func(ctx context.Context, tenantId uuid.UUID, events [
 // DAG step. Events are spread over several topics because pgoutbox processes one batch per topic at
 // a time.
 //
-// Every engine drains the topics whether or not it writes to them, so turning writes off, or a rollout
-// where only some engines write, never strands events that are already in the outbox.
+// Every process that can apply internal events (one with a task controller or the dispatcher's direct
+// writer) drains the topics whether or not it writes to them, so turning writes off, or a rollout where
+// only some engines write, never strands events that are already in the outbox.
 type InternalEventOutbox struct {
 	outbox       pgoutbox.Outbox
 	shards       int
@@ -44,10 +46,31 @@ type InternalEventOutbox struct {
 	writes       bool
 	l            *zerolog.Logger
 
+	// copies of idleDrainInterval and drainStopTimeout, so tests don't wait on them
+	idleInterval time.Duration
+	stopTimeout  time.Duration
+
 	// kicks wake this process's drain loop for a shard right after a commit, so the common path
 	// doesn't wait for the poll; the poll only covers batches whose writer died before draining them.
-	kicks     []chan struct{}
-	startOnce sync.Once
+	kicks []chan struct{}
+
+	flushersOnce sync.Once
+
+	// mu guards the handlers and the loops' lifecycle. The loops run while any handler is registered:
+	// in a process with both a task controller and the dispatcher's direct-write handler, either can
+	// stop first, and the other's handler keeps the outbox drained.
+	mu       sync.Mutex
+	handlers []*registeredHandler
+	gen      *drainGeneration
+	closed   bool
+
+	// inFlight is read-held while a batch runs a handler, so a stopping controller can wait until
+	// nothing still runs its handler before tearing down what that handler uses.
+	inFlight sync.RWMutex
+}
+
+type registeredHandler struct {
+	handler InternalEventHandler
 }
 
 type internalEventOutboxMessage struct {
@@ -72,6 +95,8 @@ func NewInternalEventOutbox(outbox pgoutbox.Outbox, writes bool, pollInterval ti
 		pollInterval: pollInterval,
 		writes:       writes,
 		l:            l,
+		idleInterval: idleDrainInterval,
+		stopTimeout:  drainStopTimeout,
 		kicks:        kicks,
 	}
 }
@@ -117,64 +142,193 @@ func (o *InternalEventOutbox) Kick(tenantId uuid.UUID) {
 // keeps the outbox's cost near zero while the feature is off.
 const idleDrainInterval = 10 * time.Second
 
-// Start drains every shard until ctx is cancelled. Only the first call starts the loops, so any
-// process that can apply internal events may call it.
-func (o *InternalEventOutbox) Start(ctx context.Context, handler InternalEventHandler) {
-	o.startOnce.Do(func() {
-		topics := make([]string, o.shards)
+// drainStopTimeout bounds how long stopping waits for a batch already running before cancelling it.
+// A cancelled batch rolls back and is processed again, but a handler cancelled after committing its
+// matches can't redo the signalling that follows them, so letting the batch finish is preferred. It is
+// short because it adds to the gRPC stop and the direct writer's drain within the pod's grace period.
+const drainStopTimeout = 5 * time.Second
 
-		for shard := range topics {
-			topics[shard] = internalEventOutboxTopic(shard)
-			o.outbox.AddFlusher(topics[shard], &internalEventFlusher{handler: handler})
-		}
+var errNoInternalEventHandler = errors.New("no internal event handler is registered")
 
-		if !o.writes {
-			go o.drainIdle(ctx, topics)
-			return
-		}
-
-		for shard, topic := range topics {
-			go o.drain(ctx, topic, o.kicks[shard])
-		}
-	})
+// drainGeneration is one run of the loops, from the first Start to the last stop. Each has its own
+// WaitGroup so a Start racing the previous run's stop never reuses a WaitGroup that is still waited on.
+type drainGeneration struct {
+	// stopLoops ends the loops after their current batch; abort cancels that batch too
+	stopLoops context.CancelFunc
+	abort     context.CancelFunc
+	loops     sync.WaitGroup
 }
 
-func (o *InternalEventOutbox) drainIdle(ctx context.Context, topics []string) {
-	ticker := time.NewTicker(idleDrainInterval)
+func (g *drainGeneration) stop(timeout time.Duration) {
+	g.stopLoops()
+
+	done := make(chan struct{})
+
+	go func() {
+		g.loops.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(timeout):
+		g.abort()
+		<-done
+	}
+
+	g.abort()
+}
+
+// Start registers handler and drains every shard until the returned stop is called for every
+// registered handler. Stop returns once no batch still runs this handler, and once the loops have
+// exited if it was the last one, so the caller can then tear down what the handler uses. After Close,
+// Start registers nothing and starts no loops, since the outbox's pool is closing.
+func (o *InternalEventOutbox) Start(handler InternalEventHandler) (stop func()) {
+	topics := make([]string, o.shards)
+
+	for shard := range topics {
+		topics[shard] = internalEventOutboxTopic(shard)
+	}
+
+	o.flushersOnce.Do(func() {
+		for _, topic := range topics {
+			o.outbox.AddFlusher(topic, &internalEventFlusher{o: o})
+		}
+	})
+
+	reg := &registeredHandler{handler: handler}
+
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	if o.closed {
+		return func() {}
+	}
+
+	o.handlers = append(o.handlers, reg)
+
+	if o.gen == nil {
+		loopCtx, stopLoops := context.WithCancel(context.Background())
+		flushCtx, abort := context.WithCancel(context.Background())
+		gen := &drainGeneration{stopLoops: stopLoops, abort: abort}
+		o.gen = gen
+
+		if o.writes {
+			for shard, topic := range topics {
+				gen.loops.Go(func() { o.drain(loopCtx, flushCtx, topic, o.kicks[shard]) })
+			}
+		} else {
+			gen.loops.Go(func() { o.drainIdle(loopCtx, flushCtx, topics) })
+		}
+	}
+
+	var once sync.Once
+
+	return func() { once.Do(func() { o.unregister(reg) }) }
+}
+
+func (o *InternalEventOutbox) unregister(reg *registeredHandler) {
+	o.mu.Lock()
+
+	for i, h := range o.handlers {
+		if h == reg {
+			o.handlers = append(o.handlers[:i], o.handlers[i+1:]...)
+			break
+		}
+	}
+
+	var gen *drainGeneration
+
+	if len(o.handlers) == 0 {
+		gen = o.gen
+		o.gen = nil
+	}
+
+	o.mu.Unlock()
+
+	if gen != nil {
+		gen.stop(o.stopTimeout)
+		return
+	}
+
+	o.inFlight.Lock()
+	o.inFlight.Unlock() // nolint: staticcheck
+}
+
+// Close stops the loops whatever is still registered, and keeps them from starting again. It runs
+// before the outbox's pool closes, as a backstop for a registered handler whose owner never stopped
+// it: a startup that failed after the direct writer was built, or a direct writer whose drain timed out.
+func (o *InternalEventOutbox) Close() {
+	if o == nil {
+		return
+	}
+
+	o.mu.Lock()
+	o.closed = true
+	o.handlers = nil
+	gen := o.gen
+	o.gen = nil
+	o.mu.Unlock()
+
+	if gen != nil {
+		gen.stop(o.stopTimeout)
+	}
+}
+
+// currentHandler picks the oldest registered handler; every handler applies events the same way.
+func (o *InternalEventOutbox) currentHandler() InternalEventHandler {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	if len(o.handlers) == 0 {
+		return nil
+	}
+
+	return o.handlers[0].handler
+}
+
+func (o *InternalEventOutbox) drainIdle(loopCtx, flushCtx context.Context, topics []string) {
+	ticker := time.NewTicker(o.idleInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case <-ctx.Done():
+		case <-loopCtx.Done():
 			return
 		case <-ticker.C:
 		}
 
 		for _, topic := range topics {
-			o.drainTopic(ctx, topic)
+			o.drainTopic(loopCtx, flushCtx, topic)
 		}
 	}
 }
 
-func (o *InternalEventOutbox) drain(ctx context.Context, topic string, kick <-chan struct{}) {
+func (o *InternalEventOutbox) drain(loopCtx, flushCtx context.Context, topic string, kick <-chan struct{}) {
 	ticker := time.NewTicker(o.pollInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case <-ctx.Done():
+		case <-loopCtx.Done():
 			return
 		case <-kick:
 		case <-ticker.C:
 		}
 
-		o.drainTopic(ctx, topic)
+		o.drainTopic(loopCtx, flushCtx, topic)
 	}
 }
 
-func (o *InternalEventOutbox) drainTopic(ctx context.Context, topic string) {
-	for ctx.Err() == nil {
-		msgs, err := o.outbox.ProcessMessages(ctx, topic, pgoutbox.WithBatchSize(internalEventOutboxBatchSize))
+func (o *InternalEventOutbox) drainTopic(loopCtx, flushCtx context.Context, topic string) {
+	for loopCtx.Err() == nil {
+		msgs, err := o.outbox.ProcessMessages(flushCtx, topic, pgoutbox.WithBatchSize(internalEventOutboxBatchSize))
+
+		// a batch cancelled by a stop, or picked up just after the last handler left, is shutdown and
+		// not an error; it stays in the outbox for the next run
+		if err != nil && (flushCtx.Err() != nil || errors.Is(err, errNoInternalEventHandler)) {
+			return
+		}
 
 		if err != nil {
 			// the batch stays in the outbox and is retried on the next kick or poll
@@ -193,12 +347,21 @@ func (o *InternalEventOutbox) drainTopic(ctx context.Context, topic string) {
 }
 
 type internalEventFlusher struct {
-	handler InternalEventHandler
+	o *InternalEventOutbox
 }
 
 // Flush fails the whole batch on any error, so every message is retried; a message that can never be
 // processed holds up its shard, the same way a poison message is redelivered forever on the task queue.
 func (f *internalEventFlusher) Flush(ctx pgoutbox.FlushContext, msgs []*outboxsqlc.Message) error {
+	f.o.inFlight.RLock()
+	defer f.o.inFlight.RUnlock()
+
+	handler := f.o.currentHandler()
+
+	if handler == nil {
+		return errNoInternalEventHandler
+	}
+
 	byTenant := make(map[uuid.UUID][]*InternalTaskEvent)
 	tenantOrder := make([]uuid.UUID, 0)
 
@@ -221,7 +384,7 @@ func (f *internalEventFlusher) Flush(ctx pgoutbox.FlushContext, msgs []*outboxsq
 	}
 
 	for _, tenantId := range tenantOrder {
-		if err := f.handler(ctx, tenantId, byTenant[tenantId]); err != nil {
+		if err := handler(ctx, tenantId, byTenant[tenantId]); err != nil {
 			return fmt.Errorf("could not process internal events for tenant %s: %w", tenantId, err)
 		}
 	}
