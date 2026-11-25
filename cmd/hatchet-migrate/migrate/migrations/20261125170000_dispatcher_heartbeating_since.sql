@@ -1,6 +1,6 @@
 -- +goose Up
 -- +goose StatementBegin
-ALTER TABLE "Dispatcher" ADD COLUMN IF NOT EXISTS "heartbeatingSince" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE "Dispatcher" ADD COLUMN IF NOT EXISTS "heartbeatingSince" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
 -- +goose StatementEnd
 
 -- +goose Down
