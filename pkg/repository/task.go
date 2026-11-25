@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/sync/errgroup"
@@ -25,6 +26,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	"github.com/hatchet-dev/hatchet/internal/statusutils"
 	"github.com/hatchet-dev/hatchet/pkg/enums"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -1915,6 +1917,10 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId u
 
 const ReachedMaxReassignmentsErrorMessage = "Task reached its maximum reassignment count"
 
+// reassignmentsPausedLogSampler keeps the paused line to one per minute per process; the poll
+// that emits it runs every second for every tenant.
+var reassignmentsPausedLogSampler = &zerolog.BurstSampler{Burst: 1, Period: time.Minute}
+
 func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenantId uuid.UUID) (*FailTasksResponse, bool, error) {
 	db := r.pool.ForTenant(tenantId)
 
@@ -1925,6 +1931,30 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 	}
 
 	defer rollback()
+
+	// Reassignment reads worker heartbeats as proof of life, which only holds while the engine
+	// could record them. After a database outage every healthy worker's heartbeat is stale, and
+	// reassigning then would run their tasks a second time.
+	recording, err := r.queries.HasDispatcherHeartbeatingThroughout(ctx, tx)
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	if !recording {
+		prometheus.ReassignmentsPaused.Inc()
+
+		pl := r.l.Sample(reassignmentsPausedLogSampler)
+		pl.Warn().Ctx(ctx).Msg("task reassignment is paused: no dispatcher has recorded heartbeats without a gap for the last minute")
+
+		return &FailTasksResponse{
+			FinalizedTaskResponse: &FinalizedTaskResponse{
+				ReleasedTasks:  make([]*sqlcv1.ReleaseTasksRow, 0),
+				InternalEvents: make([]InternalTaskEvent, 0),
+			},
+			RetriedTasks: make([]RetriedTask, 0),
+		}, false, nil
+	}
 
 	limit := r.reassignLimit
 
