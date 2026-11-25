@@ -84,10 +84,10 @@ const heartbeatDispatcher = `-- name: HeartbeatDispatcher :exec
 UPDATE
     "Dispatcher" as dispatchers
 SET
-    "lastHeartbeatAt" = NOW(),
+    "lastHeartbeatAt" = clock_timestamp(),
     -- a heartbeat that follows a gap starts a new unbroken run
     "heartbeatingSince" = CASE
-        WHEN "lastHeartbeatAt" IS NULL OR "lastHeartbeatAt" < NOW() - INTERVAL '15 seconds' THEN NOW()
+        WHEN "lastHeartbeatAt" IS NULL OR "lastHeartbeatAt" < clock_timestamp() - INTERVAL '15 seconds' THEN clock_timestamp()
         ELSE "heartbeatingSince"
     END
 WHERE
@@ -96,6 +96,8 @@ WHERE
 
 // Both columns are set from the database clock in one statement, so a reader sees either the
 // stale heartbeat or the restarted "heartbeatingSince", never a fresh heartbeat that hides a gap.
+// The clock is read when the row is written, not when the statement started: heartbeats that
+// queued behind a stalled one must count the wait as a gap, not bridge it with their start times.
 func (q *Queries) HeartbeatDispatcher(ctx context.Context, db DBTX, id uuid.UUID) error {
 	_, err := db.Exec(ctx, heartbeatDispatcher, id)
 	return err

@@ -5,6 +5,7 @@ package repository
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -102,4 +103,62 @@ func TestHasDispatcherHeartbeatingThroughoutIgnoresInactiveDispatchers(t *testin
 	recording, err = repo.queries.HasDispatcherHeartbeatingThroughout(ctx, pool)
 	require.NoError(t, err)
 	require.True(t, recording)
+}
+
+// A stalled database can accept heartbeat statements without finishing them. A heartbeat that
+// queued behind the stalled one started within seconds of it, but nothing was recorded until the
+// stall ended, so it starts a new run.
+func TestDispatcherHeartbeatCountsTimeSpentWaitingAsAGap(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	repo := newBatchTestRepository(pool)
+	dispatchers := newDispatcherRepository(repo.sharedRepository)
+
+	dispatcherId := uuid.New()
+	_, err := pool.Exec(ctx, `
+		INSERT INTO "Dispatcher" ("id", "lastHeartbeatAt", "heartbeatingSince")
+		VALUES ($1, NOW(), NOW() - INTERVAL '10 minutes')
+	`, dispatcherId)
+	require.NoError(t, err)
+
+	// the stalled heartbeat: written 14 seconds ago and still not committed
+	stalled, err := pool.Begin(ctx)
+	require.NoError(t, err)
+	defer stalled.Rollback(ctx) // nolint:errcheck
+
+	_, err = stalled.Exec(ctx, `UPDATE "Dispatcher" SET "lastHeartbeatAt" = NOW() - INTERVAL '14 seconds' WHERE "id" = $1`, dispatcherId)
+	require.NoError(t, err)
+
+	queued := make(chan error, 1)
+
+	go func() {
+		queued <- dispatchers.Heartbeat(ctx, dispatcherId)
+	}()
+
+	require.Eventually(t, func() bool {
+		var waiting bool
+
+		err := pool.QueryRow(ctx, `
+			SELECT EXISTS (
+				SELECT 1 FROM pg_stat_activity
+				WHERE wait_event_type = 'Lock' AND query LIKE '%heartbeatingSince%'
+			)
+		`).Scan(&waiting)
+
+		return err == nil && waiting
+	}, 10*time.Second, 50*time.Millisecond, "the queued heartbeat should wait on the row the stalled one holds")
+
+	// the stall ends 16 seconds after the stalled heartbeat was written
+	time.Sleep(2 * time.Second)
+
+	require.NoError(t, stalled.Commit(ctx))
+	require.NoError(t, <-queued)
+
+	var restarted bool
+	err = pool.QueryRow(ctx, `SELECT "heartbeatingSince" > NOW() - INTERVAL '1 minute' FROM "Dispatcher" WHERE "id" = $1`, dispatcherId).Scan(&restarted)
+	require.NoError(t, err)
+	require.True(t, restarted, "no heartbeat was recorded for 16 seconds, so the run starts over")
 }
