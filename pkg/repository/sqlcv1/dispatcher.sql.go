@@ -9,7 +9,6 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createDispatcher = `-- name: CreateDispatcher :one
@@ -17,7 +16,7 @@ INSERT INTO
     "Dispatcher" ("id", "lastHeartbeatAt", "isActive")
 VALUES
     ($1::uuid, CURRENT_TIMESTAMP, 't')
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "lastHeartbeatAt", "isActive"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "lastHeartbeatAt", "isActive", "heartbeatingSince"
 `
 
 func (q *Queries) CreateDispatcher(ctx context.Context, db DBTX, id uuid.UUID) (*Dispatcher, error) {
@@ -30,6 +29,7 @@ func (q *Queries) CreateDispatcher(ctx context.Context, db DBTX, id uuid.UUID) (
 		&i.DeletedAt,
 		&i.LastHeartbeatAt,
 		&i.IsActive,
+		&i.HeartbeatingSince,
 	)
 	return &i, err
 }
@@ -39,7 +39,7 @@ DELETE FROM
     "Dispatcher" as dispatchers
 WHERE
     "id" = $1::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "lastHeartbeatAt", "isActive"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "lastHeartbeatAt", "isActive", "heartbeatingSince"
 `
 
 func (q *Queries) DeleteDispatcher(ctx context.Context, db DBTX, id uuid.UUID) (*Dispatcher, error) {
@@ -52,13 +52,58 @@ func (q *Queries) DeleteDispatcher(ctx context.Context, db DBTX, id uuid.UUID) (
 		&i.DeletedAt,
 		&i.LastHeartbeatAt,
 		&i.IsActive,
+		&i.HeartbeatingSince,
 	)
 	return &i, err
 }
 
+const hasDispatcherHeartbeatingThroughout = `-- name: HasDispatcherHeartbeatingThroughout :one
+SELECT EXISTS (
+    SELECT 1
+    FROM "Dispatcher"
+    WHERE
+        "isActive" = true
+        AND "lastHeartbeatAt" > NOW() - INTERVAL '15 seconds'
+        AND "heartbeatingSince" < NOW() - INTERVAL '60 seconds'
+)
+`
+
+// Whether some dispatcher is live and has written its own heartbeat without a gap for the last
+// minute. Dispatchers write worker heartbeats through the same process and database, so without
+// one a stale worker heartbeat may be the engine's failure to record it, not the worker's to send it.
+// The minute is the 30 seconds a worker has before it counts as inactive, plus time for workers
+// to get a heartbeat recorded once the engine can record them again.
+func (q *Queries) HasDispatcherHeartbeatingThroughout(ctx context.Context, db DBTX) (bool, error) {
+	row := db.QueryRow(ctx, hasDispatcherHeartbeatingThroughout)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const heartbeatDispatcher = `-- name: HeartbeatDispatcher :exec
+UPDATE
+    "Dispatcher" as dispatchers
+SET
+    "lastHeartbeatAt" = NOW(),
+    -- a heartbeat that follows a gap starts a new unbroken run
+    "heartbeatingSince" = CASE
+        WHEN "lastHeartbeatAt" IS NULL OR "lastHeartbeatAt" < NOW() - INTERVAL '15 seconds' THEN NOW()
+        ELSE "heartbeatingSince"
+    END
+WHERE
+    "id" = $1::uuid
+`
+
+// Both columns are set from the database clock in one statement, so a reader sees either the
+// stale heartbeat or the restarted "heartbeatingSince", never a fresh heartbeat that hides a gap.
+func (q *Queries) HeartbeatDispatcher(ctx context.Context, db DBTX, id uuid.UUID) error {
+	_, err := db.Exec(ctx, heartbeatDispatcher, id)
+	return err
+}
+
 const listActiveDispatchers = `-- name: ListActiveDispatchers :many
 SELECT
-    dispatchers.id, dispatchers."createdAt", dispatchers."updatedAt", dispatchers."deletedAt", dispatchers."lastHeartbeatAt", dispatchers."isActive"
+    dispatchers.id, dispatchers."createdAt", dispatchers."updatedAt", dispatchers."deletedAt", dispatchers."lastHeartbeatAt", dispatchers."isActive", dispatchers."heartbeatingSince"
 FROM "Dispatcher" as dispatchers
 WHERE
     -- last heartbeat greater than 15 seconds
@@ -87,6 +132,7 @@ func (q *Queries) ListActiveDispatchers(ctx context.Context, db DBTX) ([]*ListAc
 			&i.Dispatcher.DeletedAt,
 			&i.Dispatcher.LastHeartbeatAt,
 			&i.Dispatcher.IsActive,
+			&i.Dispatcher.HeartbeatingSince,
 		); err != nil {
 			return nil, err
 		}
@@ -100,7 +146,7 @@ func (q *Queries) ListActiveDispatchers(ctx context.Context, db DBTX) ([]*ListAc
 
 const listDispatchers = `-- name: ListDispatchers :many
 SELECT
-    dispatchers.id, dispatchers."createdAt", dispatchers."updatedAt", dispatchers."deletedAt", dispatchers."lastHeartbeatAt", dispatchers."isActive"
+    dispatchers.id, dispatchers."createdAt", dispatchers."updatedAt", dispatchers."deletedAt", dispatchers."lastHeartbeatAt", dispatchers."isActive", dispatchers."heartbeatingSince"
 FROM
     "Dispatcher" as dispatchers
 `
@@ -125,6 +171,7 @@ func (q *Queries) ListDispatchers(ctx context.Context, db DBTX) ([]*ListDispatch
 			&i.Dispatcher.DeletedAt,
 			&i.Dispatcher.LastHeartbeatAt,
 			&i.Dispatcher.IsActive,
+			&i.Dispatcher.HeartbeatingSince,
 		); err != nil {
 			return nil, err
 		}
@@ -138,7 +185,7 @@ func (q *Queries) ListDispatchers(ctx context.Context, db DBTX) ([]*ListDispatch
 
 const listStaleDispatchers = `-- name: ListStaleDispatchers :many
 SELECT
-    dispatchers.id, dispatchers."createdAt", dispatchers."updatedAt", dispatchers."deletedAt", dispatchers."lastHeartbeatAt", dispatchers."isActive"
+    dispatchers.id, dispatchers."createdAt", dispatchers."updatedAt", dispatchers."deletedAt", dispatchers."lastHeartbeatAt", dispatchers."isActive", dispatchers."heartbeatingSince"
 FROM "Dispatcher" as dispatchers
 WHERE
     -- last heartbeat older than 15 seconds
@@ -167,6 +214,7 @@ func (q *Queries) ListStaleDispatchers(ctx context.Context, db DBTX) ([]*ListSta
 			&i.Dispatcher.DeletedAt,
 			&i.Dispatcher.LastHeartbeatAt,
 			&i.Dispatcher.IsActive,
+			&i.Dispatcher.HeartbeatingSince,
 		); err != nil {
 			return nil, err
 		}
@@ -186,7 +234,7 @@ SET
 WHERE
     "id" = ANY ($1::uuid[])
 RETURNING
-    dispatchers.id, dispatchers."createdAt", dispatchers."updatedAt", dispatchers."deletedAt", dispatchers."lastHeartbeatAt", dispatchers."isActive"
+    dispatchers.id, dispatchers."createdAt", dispatchers."updatedAt", dispatchers."deletedAt", dispatchers."lastHeartbeatAt", dispatchers."isActive", dispatchers."heartbeatingSince"
 `
 
 type SetDispatchersInactiveRow struct {
@@ -209,6 +257,7 @@ func (q *Queries) SetDispatchersInactive(ctx context.Context, db DBTX, ids []uui
 			&i.Dispatcher.DeletedAt,
 			&i.Dispatcher.LastHeartbeatAt,
 			&i.Dispatcher.IsActive,
+			&i.Dispatcher.HeartbeatingSince,
 		); err != nil {
 			return nil, err
 		}
@@ -218,33 +267,4 @@ func (q *Queries) SetDispatchersInactive(ctx context.Context, db DBTX, ids []uui
 		return nil, err
 	}
 	return items, nil
-}
-
-const updateDispatcher = `-- name: UpdateDispatcher :one
-UPDATE
-    "Dispatcher" as dispatchers
-SET
-    "lastHeartbeatAt" = $1::timestamp
-WHERE
-    "id" = $2::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "lastHeartbeatAt", "isActive"
-`
-
-type UpdateDispatcherParams struct {
-	LastHeartbeatAt pgtype.Timestamp `json:"lastHeartbeatAt"`
-	ID              uuid.UUID        `json:"id"`
-}
-
-func (q *Queries) UpdateDispatcher(ctx context.Context, db DBTX, arg UpdateDispatcherParams) (*Dispatcher, error) {
-	row := db.QueryRow(ctx, updateDispatcher, arg.LastHeartbeatAt, arg.ID)
-	var i Dispatcher
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-		&i.LastHeartbeatAt,
-		&i.IsActive,
-	)
-	return &i, err
 }

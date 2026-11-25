@@ -2535,12 +2535,13 @@ type ControllerPartition struct {
 }
 
 type Dispatcher struct {
-	ID              uuid.UUID        `json:"id"`
-	CreatedAt       pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt       pgtype.Timestamp `json:"deletedAt"`
-	LastHeartbeatAt pgtype.Timestamp `json:"lastHeartbeatAt"`
-	IsActive        bool             `json:"isActive"`
+	ID                uuid.UUID        `json:"id"`
+	CreatedAt         pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt         pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt         pgtype.Timestamp `json:"deletedAt"`
+	LastHeartbeatAt   pgtype.Timestamp `json:"lastHeartbeatAt"`
+	IsActive          bool             `json:"isActive"`
+	HeartbeatingSince pgtype.Timestamp `json:"heartbeatingSince"`
 }
 
 type Event struct {

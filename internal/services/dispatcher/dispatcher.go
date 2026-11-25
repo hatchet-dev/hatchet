@@ -542,14 +542,7 @@ func (d *DispatcherImpl) runUpdateHeartbeat(ctx context.Context) func() {
 	return func() {
 		d.l.Debug().Ctx(ctx).Msgf("dispatcher: updating heartbeat")
 
-		now := time.Now().UTC()
-
-		// update the heartbeat
-		_, err := d.repov1.Dispatcher().UpdateDispatcher(ctx, d.dispatcherId, &v1.UpdateDispatcherOpts{
-			LastHeartbeatAt: &now,
-		})
-
-		if err != nil {
+		if err := d.repov1.Dispatcher().Heartbeat(ctx, d.dispatcherId); err != nil {
 			d.l.Err(err).Ctx(ctx).Msg("dispatcher: could not update heartbeat")
 		}
 	}
