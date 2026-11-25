@@ -388,7 +388,7 @@ func (b *durableEventIngestBuffer) flush(requests []*durableEventIngestRequest, 
 type NonDeterminismDetail struct {
 	Expected        string
 	Received        string
-	InputDifference string
+	InputDifference *string
 }
 
 type NonDeterminismError struct {
@@ -414,8 +414,8 @@ func (m *NonDeterminismError) Error() string {
 	if m.Detail != nil {
 		msg += "\n  expected: " + m.Detail.Expected + "\n  received: " + m.Detail.Received
 
-		if m.Detail.InputDifference != "" {
-			msg += "\n  " + m.Detail.InputDifference
+		if m.Detail.InputDifference != nil && *m.Detail.InputDifference != "" {
+			msg += "\n  " + *m.Detail.InputDifference
 		}
 	}
 
@@ -2264,11 +2264,11 @@ func (r *durableEventsRepository) enrichNonDeterminismErrorDetail(ctx context.Co
 	}
 }
 
-func runInputDifference(existingPayload []byte, received *WorkflowNameTriggerOpts) string {
+func runInputDifference(existingPayload []byte, received *WorkflowNameTriggerOpts) *string {
 	var existing WorkflowNameTriggerOpts
 
 	if err := json.Unmarshal(existingPayload, &existing); err != nil || existing.TriggerTaskData == nil || bytes.Equal(existing.Data, received.Data) {
-		return ""
+		return nil
 	}
 
 	position := 0
@@ -2281,10 +2281,12 @@ func runInputDifference(existingPayload []byte, received *WorkflowNameTriggerOpt
 		return strings.ToValidUTF8(string(input[max(0, position-20):min(len(input), position+40)]), "")
 	}
 
-	return fmt.Sprintf(
+	msg := fmt.Sprintf(
 		"input differs at byte %d:\n    expected: %s\n    received: %s",
 		position, excerptAroundPosition(existing.Data), excerptAroundPosition(received.Data),
 	)
+
+	return &msg
 }
 
 func (r *durableEventsRepository) TriggerPendingRunEntries(ctx context.Context, tenantId uuid.UUID, tasks []TriggerPendingRunEntriesOpt) ([]*V1TaskWithPayload, []*DAGWithData, []CELEvaluationFailure, error) {
