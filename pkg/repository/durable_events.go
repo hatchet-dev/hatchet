@@ -2277,8 +2277,8 @@ func runInputDifference(existingPayload []byte, received *WorkflowNameTriggerOpt
 		position++
 	}
 
-	excerptAroundPosition := func(input []byte) []byte {
-		return input[max(0, position-20):min(len(input), position+40)]
+	excerptAroundPosition := func(input []byte) string {
+		return strings.ToValidUTF8(string(input[max(0, position-20):min(len(input), position+40)]), "")
 	}
 
 	return fmt.Sprintf(
