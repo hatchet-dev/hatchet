@@ -115,3 +115,14 @@ Hatchet will **resume** a task in an evicted state when the thing it was waiting
   candidates for the kinds of things to do in a durable task, since that logic
   will be rerun every time the task is resumed.
 </Callout>
+
+### Distinguishing Eviction from Cancellation
+
+When a worker evicts a durable task, it interrupts the running handler the same way it interrupts a cancelled task. If your handler runs cleanup whenever the task is interrupted (such as cancelling child runs or releasing external resources), that cleanup will run on every eviction, even though the task is not cancelled and will resume later.
+
+In the Go SDK, both events cancel the task's `context.Context`, so `ctx.Err()` returns `context.Canceled` in either case. To tell them apart, inspect `context.Cause(ctx)` with `errors.Is`:
+
+- `hatchet.ErrTaskCancelled`: the run was cancelled (for example by a user, API call, or `CANCEL_IN_PROGRESS` concurrency). Run your cancellation cleanup.
+- `hatchet.ErrTaskEvicted`: the task was evicted from the worker to free its slot (TTL, capacity pressure, a server request, or worker shutdown). Skip cancellation cleanup because the run will resume later.
+
+<Snippet src={snippets.go.durable.eviction.main.eviction_vs_cancellation} />

@@ -3,8 +3,10 @@
 package e2e
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/worker"
@@ -68,6 +70,14 @@ type EmptyInput struct{}
 
 type ErrorRaisingInput struct {
 	ErrorMessage string `json:"error_message"`
+}
+
+// interruptCauses maps a task run's external ID to the context.Cause its handler saw
+// when a durable wait was interrupted, so tests can check cancellation vs eviction.
+var interruptCauses sync.Map
+
+func recordInterruptCause(ctx hatchet.Context) {
+	interruptCauses.Store(ctx.StepRunId(), context.Cause(ctx))
 }
 
 // Durable test workflow definitions and worker tasks
@@ -213,6 +223,7 @@ func registerAllWorkflows(client *hatchet.Client) {
 	testWaitForSleepTwice = client.NewStandaloneDurableTask("wait-for-sleep-twice", func(ctx hatchet.DurableContext, input EmptyInput) (map[string]float64, error) {
 		start := time.Now()
 		if _, err := ctx.SleepFor(time.Duration(sleepTime) * time.Second); err != nil {
+			recordInterruptCause(ctx)
 			return map[string]float64{"runtime": -1.0}, nil
 		}
 		return map[string]float64{"runtime": time.Since(start).Seconds()}, nil
@@ -574,6 +585,7 @@ func registerAllWorkflows(client *hatchet.Client) {
 	testEvictableSleep = client.NewStandaloneDurableTask("evictable-sleep",
 		func(ctx hatchet.DurableContext, input EmptyInput) (map[string]any, error) {
 			if _, err := ctx.SleepFor(time.Duration(longSleepSeconds) * time.Second); err != nil {
+				recordInterruptCause(ctx)
 				return nil, err
 			}
 			return map[string]any{"status": "completed"}, nil

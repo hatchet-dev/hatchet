@@ -108,6 +108,7 @@ func TestDurableSleepCancelReplay(t *testing.T) {
 		}
 		return *status == rest.V1TaskStatusCANCELLED, nil
 	})
+	requireInterruptCause(t, ctx, ref.RunId, hatchet.ErrTaskCancelled)
 
 	replayStart := time.Now()
 	_, err = sharedClient.Runs().Replay(ctx, rest.V1ReplayTaskRequest{

@@ -34,6 +34,18 @@ func NewRetryAfterError(after time.Duration, err error) error {
 	return worker.NewRetryAfterError(after, err) //nolint:staticcheck // SA1019
 }
 
+// ErrTaskCancelled is the cause of a task's context when the run is cancelled,
+// for example by a user or by the engine. ctx.Err() still returns context.Canceled;
+// tell cancellation apart from eviction with errors.Is(context.Cause(ctx), ErrTaskCancelled).
+var ErrTaskCancelled = worker.ErrTaskCancelled //nolint:staticcheck // SA1019
+
+// ErrTaskEvicted is the cause of a durable task's context when the worker evicts the
+// run (TTL, capacity pressure, a server request or worker shutdown). The run is not
+// cancelled: it resumes on a worker later, so cleanup meant for cancellation should
+// not run. ctx.Err() still returns context.Canceled; check
+// errors.Is(context.Cause(ctx), ErrTaskEvicted).
+var ErrTaskEvicted = worker.ErrTaskEvicted //nolint:staticcheck // SA1019
+
 // AsRetryAfterError reports whether err is (or wraps) a RetryAfterError and returns it if so.
 func AsRetryAfterError(err error) (*RetryAfterError, bool) {
 	return worker.AsRetryAfterError(err) //nolint:staticcheck // SA1019
