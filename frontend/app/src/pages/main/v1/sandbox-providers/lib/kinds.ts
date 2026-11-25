@@ -4,6 +4,7 @@ export type ConfigField = {
   key: string;
   label: string;
   help: string;
+  required?: boolean;
 } & (
   | { type: 'text'; placeholder?: string; mono?: boolean }
   | { type: 'number'; placeholder?: string }
@@ -48,6 +49,8 @@ export const KINDS: Record<
   {
     label: string;
     description: string;
+    keyLabel?: string;
+    keyPlaceholder?: string;
     keyHint: string;
     templatePlaceholder: string;
     fields: ConfigField[];
@@ -106,13 +109,16 @@ export const KINDS: Record<
   [SandboxProviderKind.MODAL]: {
     label: 'Modal',
     description: 'Sandboxes with filesystem snapshots.',
-    keyHint: 'The token secret (as-…) of a Modal API token.',
+    keyLabel: 'Token secret',
+    keyPlaceholder: 'as-…',
+    keyHint: 'The secret half of a Modal API token.',
     templatePlaceholder: 'debian:bookworm-slim',
     fields: [
       {
         key: 'tokenId',
         label: 'Token ID',
-        help: 'The ak-… half of the same Modal API token. Required.',
+        help: 'The ID half of the same Modal API token.',
+        required: true,
         type: 'text',
         placeholder: 'ak-…',
         mono: true,
@@ -139,23 +145,25 @@ export const KINDS: Record<
   [SandboxProviderKind.VERCEL]: {
     label: 'Vercel',
     description: 'MicroVMs with persistent snapshots.',
+    keyPlaceholder: 'vcp_…',
     keyHint: 'A Vercel access token.',
     templatePlaceholder: 'vercel/sandbox/universal',
     fields: [
       {
         key: 'teamId',
         label: 'Team ID',
-        help: 'Required.',
+        help: 'The team the access token belongs to.',
+        required: true,
         type: 'text',
         placeholder: 'team_…',
         mono: true,
       },
       {
         key: 'projectId',
-        label: 'Project ID',
-        help: 'Sandboxes are created in this project. Required.',
+        label: 'Project',
+        help: 'ID or name of the project sandboxes are created in.',
+        required: true,
         type: 'text',
-        placeholder: 'prj_…',
         mono: true,
       },
       { ...workdir, placeholder: '/vercel/sandbox' },

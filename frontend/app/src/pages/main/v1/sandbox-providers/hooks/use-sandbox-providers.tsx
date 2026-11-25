@@ -205,11 +205,30 @@ const sharedFields = {
   enabled: z.boolean(),
 };
 
-export const providerCreateFormSchema = z.object({
-  kind: z.nativeEnum(SandboxProviderKind),
-  apiKey: z.string().min(1, 'API key is required'),
-  ...sharedFields,
-});
+const requireConfig = (
+  kind: SandboxProviderKind,
+  values: ConfigValues,
+  ctx: z.RefinementCtx,
+) => {
+  for (const f of KINDS[kind].fields) {
+    const v = values[f.key];
+    if (f.required && (typeof v !== 'string' || v.trim() === '')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `${f.label} is required`,
+        path: ['config', f.key],
+      });
+    }
+  }
+};
+
+export const providerCreateFormSchema = z
+  .object({
+    kind: z.nativeEnum(SandboxProviderKind),
+    apiKey: z.string().min(1, 'Required'),
+    ...sharedFields,
+  })
+  .superRefine((d, ctx) => requireConfig(d.kind, d.config, ctx));
 
 export type ProviderCreateFormData = z.infer<typeof providerCreateFormSchema>;
 
@@ -239,12 +258,17 @@ export const buildCreateRequest = (
   enabled: data.enabled,
 });
 
-export const providerUpdateFormSchema = z.object({
-  apiKey: z.string(),
-  ...sharedFields,
-});
+export const providerUpdateFormSchema = (kind: SandboxProviderKind) =>
+  z
+    .object({
+      apiKey: z.string(),
+      ...sharedFields,
+    })
+    .superRefine((d, ctx) => requireConfig(kind, d.config, ctx));
 
-export type ProviderUpdateFormData = z.infer<typeof providerUpdateFormSchema>;
+export type ProviderUpdateFormData = z.infer<
+  ReturnType<typeof providerUpdateFormSchema>
+>;
 
 export const updateFormValues = (
   provider: SandboxProvider,
