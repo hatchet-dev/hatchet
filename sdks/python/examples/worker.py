@@ -135,6 +135,7 @@ from examples.dependency_injection.worker import (
 )
 from examples.dict_input.worker import say_hello_unsafely
 from examples.durable.worker import (
+    child_with_dict_input,
     dag_child_workflow,
     durable_child_key_dedup_replay,
     durable_non_determinism,
@@ -142,6 +143,7 @@ from examples.durable.worker import (
     durable_sleep_event_spawn,
     durable_spawn_dag,
     durable_spawn_many_dags,
+    durable_spawn_with_reordered_child_input,
     durable_with_bulk_spawn,
     durable_with_spawn,
     durable_workflow,
@@ -337,6 +339,8 @@ def main() -> None:
             durable_spawn_dag,
             dag_child_workflow,
             durable_non_determinism,
+            child_with_dict_input,
+            durable_spawn_with_reordered_child_input,
             durable_replay_reset,
             memo_task,
             evictable_sleep,

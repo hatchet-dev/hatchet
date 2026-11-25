@@ -20,7 +20,7 @@ import { RetentionUpgradeDialog } from '@/components/v1/retention-upgrade-dialog
 import { Button } from '@/components/v1/ui/button';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { docsPages } from '@/lib/generated/docs';
-import { formatRetentionPeriod } from '@/lib/utils/retention';
+import { timeWindowLabel } from '@/lib/utils/retention';
 import { XCircleIcon } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
@@ -69,9 +69,7 @@ function TenantLogs() {
     retentionPeriod,
     retentionGate,
   } = useTenantLogs();
-  const retainedLabel = retentionPeriod
-    ? formatRetentionPeriod(retentionPeriod)
-    : '1 day';
+  const windowLabel = timeWindowLabel(timeWindow);
 
   const sidePanel = useSidePanel();
 
@@ -203,7 +201,7 @@ function TenantLogs() {
           ) : (
             <EmptyState
               title="No logs found"
-              description={`No logs in the last ${retainedLabel}.`}
+              description={`No logs in the last ${windowLabel}.`}
               links={[
                 {
                   href: docsPages.v1.logging.href,

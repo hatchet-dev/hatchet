@@ -3032,9 +3032,7 @@ func TestScheduler_Replenish_RestoresQueueMissedOnUnknownAction(t *testing.T) {
 	require.True(t, res[0].succeeded)
 }
 
-// A placeholder for an action nobody registers is dropped by the next apply
-// phase rather than kept for the scheduler's lifetime.
-func TestScheduler_Replenish_DropsPlaceholderWithoutWorkers(t *testing.T) {
+func TestScheduler_Replenish_KeepsStarvedPlaceholderWithoutWorkers(t *testing.T) {
 	tenantId := uuid.New()
 	workerId := uuid.New()
 
@@ -3057,10 +3055,10 @@ func TestScheduler_Replenish_DropsPlaceholderWithoutWorkers(t *testing.T) {
 	require.True(t, res[0].noSlots)
 	onLoop(t, s, func() { require.NotNil(t, s.actions["A"]) })
 
-	// B is new, so the apply phase runs and prunes the workerless placeholder
 	require.NoError(t, s.replenish(context.Background(), false))
 	onLoop(t, s, func() {
-		require.Nil(t, s.actions["A"])
+		require.NotNil(t, s.actions["A"])
+		require.True(t, s.actions["A"].IsStarved())
 		require.NotNil(t, s.actions["B"])
 	})
 }

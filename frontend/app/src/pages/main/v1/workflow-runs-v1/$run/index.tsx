@@ -414,6 +414,11 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
   const inputData = JSON.stringify(workflowRun.input || {});
   const additionalMetadata = workflowRun.additionalMetadata;
 
+  const displayedStatus =
+    workflowRun.status === V1TaskStatus.RUNNING && !workflowRun.startedAt
+      ? V1TaskStatus.QUEUED
+      : workflowRun.status;
+
   // A failed run shows its error in the Output tab.
   const failed = workflowRun.status === V1TaskStatus.FAILED;
   const output: ReturnType<typeof formatErrorForDisplay> = failed
@@ -427,8 +432,8 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
         <Separator className="my-4" />
         <div className="mb-4 flex flex-row gap-x-4">
           <p className="font-semibold">Status</p>
-          <Badge variant={statusToBadgeVariant(workflowRun.status)}>
-            {workflowRun.status}
+          <Badge variant={statusToBadgeVariant(displayedStatus)}>
+            {displayedStatus}
           </Badge>
         </div>
         <div className="h-4" />
@@ -450,7 +455,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
           </TabsList>
           <PausedWorkflowNotice
             workflowId={workflowRun.workflowId}
-            status={workflowRun.status}
+            status={displayedStatus}
           />
           <TabsContent
             value="overview"

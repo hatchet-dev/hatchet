@@ -21,6 +21,7 @@ const (
 	QueuedToAssignedTotal       GlobalHatchetMetric = "hatchet_queued_to_assigned"
 	QueuedToAssignedTimeSeconds GlobalHatchetMetric = "hatchet_queued_to_assigned_time_seconds"
 	ReassignedTasksTotal        GlobalHatchetMetric = "hatchet_reassigned_tasks"
+	ReassignmentsPausedTotal    GlobalHatchetMetric = "hatchet_reassignments_paused_total"
 )
 
 var (
@@ -88,5 +89,10 @@ var (
 	ReassignedTasks = promauto.NewCounter(prometheus.CounterOpts{
 		Name: string(ReassignedTasksTotal),
 		Help: "The total number of tasks that were reassigned to a worker",
+	})
+
+	ReassignmentsPaused = promauto.NewCounter(prometheus.CounterOpts{
+		Name: string(ReassignmentsPausedTotal),
+		Help: "The total number of reassignment polls skipped because no dispatcher had recorded heartbeats without a gap for the last minute",
 	})
 )

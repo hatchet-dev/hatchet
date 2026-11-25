@@ -732,9 +732,9 @@ WHERE
 -- modify the events.
 WITH input AS (
     SELECT
-        UNNEST(@taskIds::BIGINT[]) AS task_id,
-        UNNEST(@taskInsertedAts::TIMESTAMPTZ[]) AS task_inserted_at,
-        UNNEST(@eventKeys::TEXT[]) AS event_key
+        UNNEST((SELECT @taskIds::BIGINT[])) AS task_id,
+        UNNEST((SELECT @taskInsertedAts::TIMESTAMPTZ[])) AS task_inserted_at,
+        UNNEST((SELECT @eventKeys::TEXT[])) AS event_key
 ), distinct_events AS (
     SELECT DISTINCT
         task_id, task_inserted_at
@@ -772,6 +772,57 @@ SELECT
 	e.data,
     e.external_id,
     e.child_external_id
+FROM
+	events_to_lock e;
+
+-- name: ListSignalCreatedEventsWithChildLookup :many
+WITH input AS (
+    SELECT
+        UNNEST((SELECT @taskIds::BIGINT[])) AS task_id,
+        UNNEST((SELECT @taskInsertedAts::TIMESTAMPTZ[])) AS task_inserted_at,
+        UNNEST((SELECT @eventKeys::TEXT[])) AS event_key
+), distinct_events AS (
+    SELECT DISTINCT
+        task_id, task_inserted_at
+    FROM
+        input
+), events_to_lock AS (
+    SELECT
+        e.id,
+        e.event_key,
+        e.data,
+		e.task_id,
+		e.task_inserted_at,
+        e.inserted_at,
+        e.external_id,
+        e.child_external_id
+    FROM
+        v1_task_event e
+    JOIN
+        distinct_events de
+		ON e.task_id = de.task_id
+		AND e.task_inserted_at = de.task_inserted_at
+    WHERE
+        e.tenant_id = @tenantId::uuid
+        AND e.event_type = 'SIGNAL_CREATED'
+        AND e.task_inserted_at >= @minTaskInsertedAt::TIMESTAMPTZ
+        AND e.task_inserted_at <= @maxTaskInsertedAt::TIMESTAMPTZ
+        AND e.event_key = ANY(@eventKeys::TEXT[])
+)
+SELECT
+	e.id,
+    e.inserted_at,
+	e.event_key,
+	e.data,
+    e.external_id,
+    e.child_external_id,
+    EXISTS (
+        SELECT 1
+        FROM v1_lookup_table l
+        WHERE
+            l.external_id = e.child_external_id
+            AND l.tenant_id = @tenantId::uuid
+    )::BOOLEAN AS child_exists
 FROM
 	events_to_lock e;
 
