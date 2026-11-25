@@ -3097,9 +3097,9 @@ func (q *Queries) LockDAGsForReplay(ctx context.Context, db DBTX, arg LockDAGsFo
 const lockSignalCreatedEvents = `-- name: LockSignalCreatedEvents :many
 WITH input AS (
     SELECT
-        UNNEST($1::BIGINT[]) AS task_id,
-        UNNEST($2::TIMESTAMPTZ[]) AS task_inserted_at,
-        UNNEST($3::TEXT[]) AS event_key
+        UNNEST((SELECT $1::BIGINT[])) AS task_id,
+        UNNEST((SELECT $2::TIMESTAMPTZ[])) AS task_inserted_at,
+        UNNEST((SELECT $3::TEXT[])) AS event_key
 ), distinct_events AS (
     SELECT DISTINCT
         task_id, task_inserted_at

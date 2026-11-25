@@ -445,10 +445,10 @@ WHERE (lf.durable_task_id, lf.durable_task_inserted_at, lf.tenant_id) IN (
 -- name: ClaimDurableEventLogEntriesForTrigger :many
 WITH inputs AS (
     SELECT
-        UNNEST(@nodeIds::BIGINT[]) AS node_id,
-        UNNEST(@branchIds::BIGINT[]) AS branch_id,
-        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
-        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at
+        UNNEST((SELECT @nodeIds::BIGINT[])) AS node_id,
+        UNNEST((SELECT @branchIds::BIGINT[])) AS branch_id,
+        UNNEST((SELECT @durableTaskIds::BIGINT[])) AS durable_task_id,
+        UNNEST((SELECT @durableTaskInsertedAts::TIMESTAMPTZ[])) AS durable_task_inserted_at
 ), to_claim AS (
     SELECT
         e.durable_task_id,

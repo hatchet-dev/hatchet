@@ -728,9 +728,9 @@ WHERE
 -- modify the events.
 WITH input AS (
     SELECT
-        UNNEST(@taskIds::BIGINT[]) AS task_id,
-        UNNEST(@taskInsertedAts::TIMESTAMPTZ[]) AS task_inserted_at,
-        UNNEST(@eventKeys::TEXT[]) AS event_key
+        UNNEST((SELECT @taskIds::BIGINT[])) AS task_id,
+        UNNEST((SELECT @taskInsertedAts::TIMESTAMPTZ[])) AS task_inserted_at,
+        UNNEST((SELECT @eventKeys::TEXT[])) AS event_key
 ), distinct_events AS (
     SELECT DISTINCT
         task_id, task_inserted_at
