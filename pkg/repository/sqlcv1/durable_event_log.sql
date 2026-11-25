@@ -449,18 +449,22 @@ WITH inputs AS (
         UNNEST(@branchIds::BIGINT[]) AS branch_id,
         UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
         UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at
-), cancelled_durable_tasks AS (
+), cancelled_durable_tasks AS MATERIALIZED (
     -- a durable task whose current retry is cancelled must not spawn new work. Earlier retries'
     -- events don't count, so a replayed task triggers its entries again. Eviction writes no task
     -- event, so an evicted task still triggers.
+    -- MATERIALIZED + DISTINCT probes v1_task and v1_task_event once per distinct parent rather than
+    -- once per entry in bulk-spawn batches.
     SELECT
         t.id,
         t.inserted_at
     FROM
-        v1_task t
+        (SELECT DISTINCT durable_task_id, durable_task_inserted_at FROM inputs) p
+    JOIN
+        v1_task t ON t.id = p.durable_task_id
+            AND t.inserted_at = p.durable_task_inserted_at
     WHERE
-        (t.id, t.inserted_at) IN (SELECT durable_task_id, durable_task_inserted_at FROM inputs)
-        AND t.inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
+        t.inserted_at >= @minDurableTaskInsertedAt::TIMESTAMPTZ
         AND t.inserted_at <= @maxDurableTaskInsertedAt::TIMESTAMPTZ
         AND EXISTS (
             SELECT 1
