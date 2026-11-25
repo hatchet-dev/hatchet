@@ -1990,6 +1990,112 @@ func (q *Queries) ListPartitionsBeforeDate(ctx context.Context, db DBTX, date pg
 	return items, nil
 }
 
+const listSignalCreatedEventsWithChildLookup = `-- name: ListSignalCreatedEventsWithChildLookup :many
+WITH input AS (
+    SELECT
+        UNNEST((SELECT $2::BIGINT[])) AS task_id,
+        UNNEST((SELECT $3::TIMESTAMPTZ[])) AS task_inserted_at,
+        UNNEST((SELECT $4::TEXT[])) AS event_key
+), distinct_events AS (
+    SELECT DISTINCT
+        task_id, task_inserted_at
+    FROM
+        input
+), events_to_lock AS (
+    SELECT
+        e.id,
+        e.event_key,
+        e.data,
+		e.task_id,
+		e.task_inserted_at,
+        e.inserted_at,
+        e.external_id,
+        e.child_external_id
+    FROM
+        v1_task_event e
+    JOIN
+        distinct_events de
+		ON e.task_id = de.task_id
+		AND e.task_inserted_at = de.task_inserted_at
+    WHERE
+        e.tenant_id = $1::uuid
+        AND e.event_type = 'SIGNAL_CREATED'
+        AND e.task_inserted_at >= $5::TIMESTAMPTZ
+        AND e.task_inserted_at <= $6::TIMESTAMPTZ
+        AND e.event_key = ANY($4::TEXT[])
+)
+SELECT
+	e.id,
+    e.inserted_at,
+	e.event_key,
+	e.data,
+    e.external_id,
+    e.child_external_id,
+    EXISTS (
+        SELECT 1
+        FROM v1_lookup_table l
+        WHERE
+            l.external_id = e.child_external_id
+            AND l.tenant_id = $1::uuid
+    )::BOOLEAN AS child_exists
+FROM
+	events_to_lock e
+`
+
+type ListSignalCreatedEventsWithChildLookupParams struct {
+	Tenantid          uuid.UUID            `json:"tenantid"`
+	Taskids           []int64              `json:"taskids"`
+	Taskinsertedats   []pgtype.Timestamptz `json:"taskinsertedats"`
+	Eventkeys         []string             `json:"eventkeys"`
+	Mintaskinsertedat pgtype.Timestamptz   `json:"mintaskinsertedat"`
+	Maxtaskinsertedat pgtype.Timestamptz   `json:"maxtaskinsertedat"`
+}
+
+type ListSignalCreatedEventsWithChildLookupRow struct {
+	ID              int64              `json:"id"`
+	InsertedAt      pgtype.Timestamptz `json:"inserted_at"`
+	EventKey        pgtype.Text        `json:"event_key"`
+	Data            []byte             `json:"data"`
+	ExternalID      uuid.UUID          `json:"external_id"`
+	ChildExternalID *uuid.UUID         `json:"child_external_id"`
+	ChildExists     bool               `json:"child_exists"`
+}
+
+func (q *Queries) ListSignalCreatedEventsWithChildLookup(ctx context.Context, db DBTX, arg ListSignalCreatedEventsWithChildLookupParams) ([]*ListSignalCreatedEventsWithChildLookupRow, error) {
+	rows, err := db.Query(ctx, listSignalCreatedEventsWithChildLookup,
+		arg.Tenantid,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Eventkeys,
+		arg.Mintaskinsertedat,
+		arg.Maxtaskinsertedat,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListSignalCreatedEventsWithChildLookupRow
+	for rows.Next() {
+		var i ListSignalCreatedEventsWithChildLookupRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.InsertedAt,
+			&i.EventKey,
+			&i.Data,
+			&i.ExternalID,
+			&i.ChildExternalID,
+			&i.ChildExists,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTaskExpressionEvals = `-- name: ListTaskExpressionEvals :many
 WITH input AS (
     SELECT
