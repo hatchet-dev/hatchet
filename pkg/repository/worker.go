@@ -112,6 +112,12 @@ type DurableTaskDispatcherLookup struct {
 	IsEvicted    bool
 }
 
+type WorkerHeartbeat struct {
+	TenantId        uuid.UUID
+	WorkerId        uuid.UUID
+	LastHeartbeatAt time.Time
+}
+
 type WorkerRepository interface {
 	ListWorkers(ctx context.Context, tenantId uuid.UUID, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersRow, int64, error)
 	GetWorkerById(ctx context.Context, workerId uuid.UUID) (*sqlcv1.GetWorkerByIdRow, error)
@@ -183,6 +189,10 @@ type WorkerRepository interface {
 
 	// UpdateWorkerHeartbeats updates the heartbeat timestamp for many workers in a single statement.
 	UpdateWorkerHeartbeats(ctx context.Context, workerIds []uuid.UUID, lastHeartbeatAt time.Time) error
+
+	// FlushWorkerHeartbeats records per-worker heartbeat timestamps in one statement,
+	// scoped by tenant and only moving lastHeartbeatAt forward.
+	FlushWorkerHeartbeats(ctx context.Context, heartbeats []WorkerHeartbeat) error
 
 	// PauseWorkers pauses many workers in a single statement.
 	PauseWorkers(ctx context.Context, workerIds []uuid.UUID) error
@@ -1341,6 +1351,32 @@ func (w *workerRepository) UpdateWorkerHeartbeats(ctx context.Context, workerIds
 
 	if err != nil {
 		return fmt.Errorf("could not update worker heartbeats: %w", err)
+	}
+
+	return nil
+}
+
+func (w *workerRepository) FlushWorkerHeartbeats(ctx context.Context, heartbeats []WorkerHeartbeat) error {
+	if len(heartbeats) == 0 {
+		return nil
+	}
+
+	tenantIds := make([]uuid.UUID, len(heartbeats))
+	workerIds := make([]uuid.UUID, len(heartbeats))
+	lastHeartbeatAts := make([]pgtype.Timestamp, len(heartbeats))
+
+	for i, hb := range heartbeats {
+		tenantIds[i] = hb.TenantId
+		workerIds[i] = hb.WorkerId
+		lastHeartbeatAts[i] = sqlchelpers.TimestampFromTime(hb.LastHeartbeatAt.UTC())
+	}
+
+	if err := w.queries.FlushWorkerHeartbeats(ctx, w.pool.ForShared(), sqlcv1.FlushWorkerHeartbeatsParams{
+		Tenantids:        tenantIds,
+		Workerids:        workerIds,
+		Lastheartbeatats: lastHeartbeatAts,
+	}); err != nil {
+		return fmt.Errorf("could not flush worker heartbeats: %w", err)
 	}
 
 	return nil

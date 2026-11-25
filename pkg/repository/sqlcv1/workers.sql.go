@@ -466,6 +466,41 @@ func (q *Queries) DeleteWorker(ctx context.Context, db DBTX, id uuid.UUID) (*Wor
 	return &i, err
 }
 
+const flushWorkerHeartbeats = `-- name: FlushWorkerHeartbeats :exec
+WITH pending AS (
+    SELECT
+        UNNEST($1::uuid[]) AS tenant_id,
+        UNNEST($2::uuid[]) AS worker_id,
+        UNNEST($3::timestamp[]) AS last_heartbeat_at
+)
+UPDATE "Worker" w
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "lastHeartbeatAt" = pending.last_heartbeat_at
+FROM pending
+WHERE
+    w."id" = pending.worker_id
+    AND w."tenantId" = pending.tenant_id
+    AND (
+        w."lastHeartbeatAt" IS NULL
+        OR w."lastHeartbeatAt" < pending.last_heartbeat_at
+    )
+`
+
+type FlushWorkerHeartbeatsParams struct {
+	Tenantids        []uuid.UUID        `json:"tenantids"`
+	Workerids        []uuid.UUID        `json:"workerids"`
+	Lastheartbeatats []pgtype.Timestamp `json:"lastheartbeatats"`
+}
+
+// Writes per-worker heartbeats held in memory while the database was unavailable.
+// Each update is scoped by tenant and only advances lastHeartbeatAt so a flush
+// cannot overwrite a newer heartbeat written directly or by another dispatcher.
+func (q *Queries) FlushWorkerHeartbeats(ctx context.Context, db DBTX, arg FlushWorkerHeartbeatsParams) error {
+	_, err := db.Exec(ctx, flushWorkerHeartbeats, arg.Tenantids, arg.Workerids, arg.Lastheartbeatats)
+	return err
+}
+
 const getActiveWorkerById = `-- name: GetActiveWorkerById :one
 SELECT
     w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w."lastHeartbeatAt", w.name, w."dispatcherId", w."maxRuns", w."isActive", w."lastListenerEstablished", w."lastListenerSessionId", w."isPaused", w.type, w."webhookId", w."operatorId", w.language, w."languageVersion", w.os, w."runtimeExtra", w."sdkVersion", w."durableTaskDispatcherId", w."actionHash", w."operatorActionCount", w."isExemptFromLimits",

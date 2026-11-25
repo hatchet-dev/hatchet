@@ -76,6 +76,7 @@ type DispatcherImpl struct {
 	dispatcherId                        uuid.UUID
 	refreshTimeoutGroup                 singleflight.Group
 	refreshTimeoutBuf                   *refreshTimeoutBuffer
+	pendingHeartbeats                   pendingHeartbeats
 }
 
 // CancelStreamSessions hangs up all registered long-lived subscriber streams. It is
@@ -374,6 +375,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 		gocron.NewTask(
 			d.runUpdateHeartbeat(ctx),
 		),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
 
 	if err != nil {
@@ -538,14 +540,54 @@ func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, tas
 	return nil
 }
 
+// bufferedHeartbeatLogSampler keeps the fallback warning to one per minute per process
+// while workers continue heartbeating every few seconds through a database outage.
+var bufferedHeartbeatLogSampler = &zerolog.BurstSampler{Burst: 1, Period: time.Minute}
+
+func (d *DispatcherImpl) recordPendingHeartbeat(ctx context.Context, tenantId, workerId uuid.UUID, heartbeatAt time.Time, err error) {
+	pending := d.pendingHeartbeats.record(tenantId, workerId, heartbeatAt)
+	prometheus.BufferedWorkerHeartbeats.Inc()
+
+	pl := d.l.Sample(bufferedHeartbeatLogSampler)
+	pl.Warn().Ctx(ctx).Err(err).Int("pending_workers", pending).Msg("dispatcher: buffered worker heartbeat in memory while database is unavailable")
+}
+
 func (d *DispatcherImpl) runUpdateHeartbeat(ctx context.Context) func() {
 	return func() {
-		d.l.Debug().Ctx(ctx).Msgf("dispatcher: updating heartbeat")
-
-		if err := d.repov1.Dispatcher().Heartbeat(ctx, d.dispatcherId); err != nil {
-			d.l.Err(err).Ctx(ctx).Msg("dispatcher: could not update heartbeat")
-		}
+		d.updateHeartbeat(ctx)
 	}
+}
+
+func (d *DispatcherImpl) updateHeartbeat(ctx context.Context) {
+	d.l.Debug().Ctx(ctx).Msgf("dispatcher: updating heartbeat")
+
+	// Flush buffered worker heartbeats before recording the dispatcher's own heartbeat,
+	// so a dispatcher whose heartbeat is recorded holds no worker heartbeats older than
+	// one tick that are missing from the database.
+	if err := d.flushPendingHeartbeats(ctx); err != nil {
+		d.l.Err(err).Ctx(ctx).Msg("dispatcher: could not flush pending worker heartbeats")
+		return
+	}
+
+	if err := d.repov1.Dispatcher().Heartbeat(ctx, d.dispatcherId); err != nil {
+		d.l.Err(err).Ctx(ctx).Msg("dispatcher: could not update heartbeat")
+	}
+}
+
+func (d *DispatcherImpl) flushPendingHeartbeats(ctx context.Context) error {
+	batch := d.pendingHeartbeats.snapshot()
+	if len(batch) == 0 {
+		return nil
+	}
+
+	if err := d.repov1.Workers().FlushWorkerHeartbeats(ctx, batch); err != nil {
+		return err
+	}
+
+	d.pendingHeartbeats.removeFlushed(batch)
+	d.l.Info().Ctx(ctx).Int("count", len(batch)).Msg("dispatcher: flushed buffered worker heartbeats")
+
+	return nil
 }
 
 func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *msgqueue.Message) error {

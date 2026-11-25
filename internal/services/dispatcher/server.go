@@ -282,8 +282,17 @@ func (s *DispatcherImpl) Listen(ctx context.Context, request *contracts.WorkerLi
 					s.l.Debug().Ctx(ctx).Msgf("updating worker %s heartbeat", request.WorkerId)
 
 					if err := s.repov1.Workers().UpdateWorkerHeartbeat(ctx, tenantId, workerId, now); err != nil {
-						s.l.Error().Ctx(ctx).Err(err).Msgf("could not update worker %s heartbeat", request.WorkerId)
-						return
+						if ctx.Err() != nil {
+							s.l.Debug().Ctx(ctx).Msgf("worker id %s has disconnected", request.WorkerId)
+							return
+						}
+
+						if errors.Is(err, pgx.ErrNoRows) {
+							s.l.Error().Ctx(ctx).Err(err).Msgf("could not update worker %s heartbeat", request.WorkerId)
+							return
+						}
+
+						s.recordPendingHeartbeat(ctx, tenantId, workerId, now, err)
 					}
 
 					lastHeartbeat = time.Now().UTC()
@@ -461,7 +470,11 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 			return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("worker not found: %s", req.WorkerId))
 		}
 
-		return nil, err
+		// The heartbeat arrived on an authenticated request and failed only because the
+		// database could not be reached; hold it in memory to flush before this
+		// dispatcher's next heartbeat and return OK so the worker does not back off.
+		s.recordPendingHeartbeat(ctx, tenantId, workerId, heartbeatAt, err)
+		return &contracts.HeartbeatResponse{}, nil
 	}
 
 	err = s.repov1.Workers().UpdateWorkerHeartbeat(ctx, tenantId, workerId, heartbeatAt)
@@ -471,10 +484,11 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 		span.SetStatus(telemetry_codes.Error, "could not update worker heartbeat")
 		if errors.Is(err, pgx.ErrNoRows) {
 			s.l.Error().Ctx(ctx).Msgf("could not update worker heartbeat: worker %s not found", req.WorkerId)
-			return nil, err
+			return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("worker not found: %s", req.WorkerId))
 		}
 
-		return nil, err
+		s.recordPendingHeartbeat(ctx, tenantId, workerId, heartbeatAt, err)
+		return &contracts.HeartbeatResponse{}, nil
 	}
 
 	// If the worker's listen stream is down, tell it to reconnect — but only after
