@@ -52,6 +52,11 @@ RETURNING l.*;
 SELECT
     w."id",
     w."name",
+    EXISTS (
+        SELECT 1
+        FROM v1_operator op
+        WHERE op.id = w."operatorId" AND op.kind = 'DAG'
+    ) AS "isDagOperatorWorker",
     wsc."slot_type" AS "slotType",
     SUM(wsc."max_units")::int AS "maxUnits"
 FROM
@@ -67,4 +72,5 @@ WHERE
 GROUP BY
     w."id",
     w."name",
+    w."operatorId",
     wsc."slot_type";

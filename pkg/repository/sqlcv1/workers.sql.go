@@ -470,6 +470,11 @@ const getActiveWorkerById = `-- name: GetActiveWorkerById :one
 SELECT
     w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w."lastHeartbeatAt", w.name, w."dispatcherId", w."maxRuns", w."isActive", w."lastListenerEstablished", w."lastListenerSessionId", w."isPaused", w.type, w."webhookId", w."operatorId", w.language, w."languageVersion", w.os, w."runtimeExtra", w."sdkVersion", w."durableTaskDispatcherId", w."actionHash", w."operatorActionCount", w."isExemptFromLimits",
     ww."url" AS "webhookUrl",
+    EXISTS (
+        SELECT 1
+        FROM v1_operator op
+        WHERE op.id = w."operatorId" AND op.kind = 'DAG'
+    ) AS "isDagOperatorWorker",
     w."maxRuns" - (
         SELECT COUNT(*)
         FROM v1_task_runtime runtime
@@ -496,9 +501,10 @@ type GetActiveWorkerByIdParams struct {
 }
 
 type GetActiveWorkerByIdRow struct {
-	Worker         Worker      `json:"worker"`
-	WebhookUrl     pgtype.Text `json:"webhookUrl"`
-	RemainingSlots int32       `json:"remainingSlots"`
+	Worker              Worker      `json:"worker"`
+	WebhookUrl          pgtype.Text `json:"webhookUrl"`
+	IsDagOperatorWorker bool        `json:"isDagOperatorWorker"`
+	RemainingSlots      int32       `json:"remainingSlots"`
 }
 
 func (q *Queries) GetActiveWorkerById(ctx context.Context, db DBTX, arg GetActiveWorkerByIdParams) (*GetActiveWorkerByIdRow, error) {
@@ -531,6 +537,7 @@ func (q *Queries) GetActiveWorkerById(ctx context.Context, db DBTX, arg GetActiv
 		&i.Worker.OperatorActionCount,
 		&i.Worker.IsExemptFromLimits,
 		&i.WebhookUrl,
+		&i.IsDagOperatorWorker,
 		&i.RemainingSlots,
 	)
 	return &i, err
@@ -1006,6 +1013,11 @@ WHERE
     AND "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND "isActive" = true
     AND "isPaused" = false
+    AND NOT EXISTS (
+        SELECT 1
+        FROM v1_operator op
+        WHERE op.id = "Worker"."operatorId" AND op.kind = 'DAG'
+    )
 GROUP BY "tenantId", "language", "languageVersion", "sdkVersion", "os"
 `
 
@@ -1098,6 +1110,11 @@ WHERE
     AND "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND "isActive" = true
     AND "isPaused" = false
+    AND NOT EXISTS (
+        SELECT 1
+        FROM v1_operator op
+        WHERE op.id = "Worker"."operatorId" AND op.kind = 'DAG'
+    )
 GROUP BY "tenantId"
 `
 
