@@ -31,12 +31,6 @@ type ClientConfigFile struct {
 
 	NoRetry bool `mapstructure:"noRetry" json:"noRetry,omitempty"`
 
-	CloudRegisterID *string `mapstructure:"cloudRegisterID" json:"cloudRegisterID,omitempty"`
-
-	RawRunnableActions []string `mapstructure:"runnableActions" json:"runnableActions,omitempty"`
-
-	AutoscalingTarget string `mapstructure:"autoscalingTarget" json:"autoscalingTarget,omitempty"`
-
 	DisableGzipCompression bool `mapstructure:"disableGzipCompression" json:"disableGzipCompression,omitempty"`
 }
 
@@ -62,9 +56,6 @@ type ClientConfig struct {
 
 	Namespace string
 
-	CloudRegisterID *string
-	RunnableActions []string
-
 	PresetWorkerLabels map[string]string
 
 	DisableGzipCompression bool
@@ -84,11 +75,8 @@ func BindAllEnv(v *viper.Viper) {
 	v.SetDefault("log.level", "debug")
 	v.SetDefault("log.format", "json")
 
-	_ = v.BindEnv("cloudRegisterID", "HATCHET_CLOUD_REGISTER_ID")
-	_ = v.BindEnv("runnableActions", "HATCHET_CLOUD_ACTIONS")
 	_ = v.BindEnv("noGrpcRetry", "HATCHET_CLIENT_NO_GRPC_RETRY")
 	_ = v.BindEnv("noRetry", "HATCHET_CLIENT_NO_RETRY")
-	_ = v.BindEnv("autoscalingTarget", "HATCHET_CLIENT_AUTOSCALING_TARGET")
 	_ = v.BindEnv("disableGzipCompression", "HATCHET_CLIENT_DISABLE_GZIP_COMPRESSION")
 
 	// tls options
