@@ -31,8 +31,6 @@ func mapOlapStatus[S ~string](olapStatus S) (gen.V1TaskStatus, bool) {
 	return status, false
 }
 
-// workflowRunStatus reports a DAG run none of whose tasks has started as queued. An operator DAG's run turns
-// RUNNING when its orchestrator starts, which can be long before the DAG's first task does.
 func workflowRunStatus(run *v1.WorkflowRunData) (gen.V1TaskStatus, bool) {
 	status, isEvicted := mapOlapStatus(run.ReadableStatus)
 
