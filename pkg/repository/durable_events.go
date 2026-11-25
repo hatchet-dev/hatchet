@@ -386,8 +386,9 @@ func (b *durableEventIngestBuffer) flush(requests []*durableEventIngestRequest, 
 }
 
 type NonDeterminismDetail struct {
-	Expected string
-	Received string
+	Expected        string
+	Received        string
+	InputDifference string
 }
 
 type NonDeterminismError struct {
@@ -404,6 +405,7 @@ type NonDeterminismError struct {
 	ExistingEntryTenantId                uuid.UUID
 	ExistingEntryExternalId              uuid.UUID
 	ExistingEntryResultPayloadExternalId uuid.UUID
+	ReceivedChildExternalId              uuid.UUID
 }
 
 func (m *NonDeterminismError) Error() string {
@@ -411,6 +413,10 @@ func (m *NonDeterminismError) Error() string {
 
 	if m.Detail != nil {
 		msg += "\n  expected: " + m.Detail.Expected + "\n  received: " + m.Detail.Received
+
+		if m.Detail.InputDifference != "" {
+			msg += "\n  " + m.Detail.InputDifference
+		}
 	}
 
 	return msg
@@ -1110,6 +1116,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 					ExistingEntryId:         e.ID,
 					ExistingEntryInsertedAt: e.InsertedAt,
 					ExistingEntryTenantId:   e.TenantID,
+					ReceivedChildExternalId: o.ChildTaskExternalId,
 				}
 				break
 			}
@@ -1270,6 +1277,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntriesForTasks(
 					ExistingEntryInsertedAt: e.InsertedAt,
 					ExistingEntryTenantId:   e.TenantID,
 					ExistingEntryExternalId: e.ExternalID,
+					ReceivedChildExternalId: o.ChildTaskExternalId,
 				}
 			}
 		}
@@ -2243,6 +2251,40 @@ func (r *durableEventsRepository) enrichNonDeterminismErrorDetail(ctx context.Co
 	}
 
 	nde.Detail = nonDeterminismDetail(opts, nde.ExpectedKind, existingPayload.Bytes())
+
+	if nde.ExpectedKind != enums.V1DurableEventLogKindRUN || nde.ActualKind != enums.V1DurableEventLogKindRUN || opts.TriggerRuns == nil {
+		return
+	}
+
+	for _, received := range opts.TriggerRuns.TriggerOpts {
+		if received.ExternalId == nde.ReceivedChildExternalId {
+			nde.Detail.InputDifference = runInputDifference(existingPayload.Bytes(), received)
+			return
+		}
+	}
+}
+
+func runInputDifference(existingPayload []byte, received *WorkflowNameTriggerOpts) string {
+	var existing WorkflowNameTriggerOpts
+
+	if err := json.Unmarshal(existingPayload, &existing); err != nil || existing.TriggerTaskData == nil || bytes.Equal(existing.Data, received.Data) {
+		return ""
+	}
+
+	position := 0
+
+	for position < len(existing.Data) && position < len(received.Data) && existing.Data[position] == received.Data[position] {
+		position++
+	}
+
+	excerptAroundPosition := func(input []byte) []byte {
+		return input[max(0, position-20):min(len(input), position+40)]
+	}
+
+	return fmt.Sprintf(
+		"input differs at byte %d: expected %q, received %q",
+		position, excerptAroundPosition(existing.Data), excerptAroundPosition(received.Data),
+	)
 }
 
 func (r *durableEventsRepository) TriggerPendingRunEntries(ctx context.Context, tenantId uuid.UUID, tasks []TriggerPendingRunEntriesOpt) ([]*V1TaskWithPayload, []*DAGWithData, []CELEvaluationFailure, error) {
