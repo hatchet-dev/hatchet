@@ -728,6 +728,21 @@ func (r *sharedRepository) GetTaskByExternalId(ctx context.Context, tenantId, ta
 		return nil, err
 	}
 
+	additionalMetadata := res.AdditionalMetadata
+
+	if res.AdditionalMetadataPayload != nil {
+		additionalMetadata = res.AdditionalMetadataPayload
+	} else if res.AdditionalMetadataPayloadReferenceID != nil {
+		ref := TaskAdditionalMetadataPayloadRef(tenantId, res.ID, res.InsertedAt, res.AdditionalMetadataPayloadReferenceID)
+		offloadedPayloads, err := r.payloadStore.TaskAdditionalMetadata().Retrieve(ctx, db, ref)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to retrieve offloaded task additional metadata: %w", err)
+		}
+
+		additionalMetadata = RetrievePayloadOrFallback(offloadedPayloads, ref, res.AdditionalMetadata).Bytes()
+	}
+
 	key := taskExternalIdTenantIdTuple{
 		externalId: taskExternalId,
 		tenantId:   tenantId,
@@ -739,7 +754,7 @@ func (r *sharedRepository) GetTaskByExternalId(ctx context.Context, tenantId, ta
 		RetryCount:                           res.RetryCount,
 		ExternalID:                           res.ExternalID,
 		WorkflowRunID:                        res.WorkflowRunID,
-		AdditionalMetadata:                   res.AdditionalMetadata,
+		AdditionalMetadata:                   additionalMetadata,
 		AdditionalMetadataPayloadReferenceID: res.AdditionalMetadataPayloadReferenceID,
 		DagID:                                res.DagID,
 		DagInsertedAt:                        res.DagInsertedAt,

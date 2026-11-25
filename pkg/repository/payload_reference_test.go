@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func TestTriggeredDagStoresItsOwnInputPayloadWithoutPayloadConsolidation(t *testing.T) {
@@ -330,17 +329,12 @@ func TestTaskAdditionalMetadataIsReadFromItsPayloadRowAndNotFromTheTaskColumn(t 
 	parentRow, err := shared.GetTaskByExternalId(ctx, internalTenantId, parent.ExternalID, true)
 	require.NoError(t, err)
 
-	parentAdditionalMetadataPayloads, err := shared.payloadStore.TaskAdditionalMetadata().Retrieve(
-		ctx, nil, TaskAdditionalMetadataPayloadRefs(internalTenantId, []*sqlcv1.FlattenExternalIdsRow{parentRow})...,
-	)
-	require.NoError(t, err)
-
 	parentExternalId := parent.ExternalID.String()
 	child, err := shared.NewTriggerTaskData(ctx, internalTenantId, &v1contracts.TriggerWorkflowRequest{
 		Name:                    workflowOpts.Name,
 		Input:                   `{}`,
 		ParentTaskRunExternalId: &parentExternalId,
-	}, parentRow, parentAdditionalMetadataPayloads)
+	}, parentRow)
 	require.NoError(t, err)
 
 	childMetadata := make(map[string]interface{})

@@ -200,9 +200,7 @@ type TriggerRepository interface {
 
 	PreflightVerifyWorkflowNameOpts(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error
 
-	// NewTriggerTaskData reads the parent's additional metadata from parentAdditionalMetadataPayloads, which the
-	// caller retrieves once for every parent in the request.
-	NewTriggerTaskData(ctx context.Context, tenantId uuid.UUID, req *v1contracts.TriggerWorkflowRequest, parentTask *sqlcv1.FlattenExternalIdsRow, parentAdditionalMetadataPayloads map[PayloadRef[TaskAdditionalMetadataShape]]Payload[TaskAdditionalMetadataShape]) (*TriggerTaskData, error)
+	NewTriggerTaskData(ctx context.Context, tenantId uuid.UUID, req *v1contracts.TriggerWorkflowRequest, parentTask *sqlcv1.FlattenExternalIdsRow) (*TriggerTaskData, error)
 
 	// InvalidateEventKeyWorkflows drops the cached lists of workflows that the tenant's event
 	// keys trigger, for when any engine has created a workflow version for the tenant.
@@ -3188,7 +3186,6 @@ func (r *sharedRepository) NewTriggerTaskData(
 	tenantId uuid.UUID,
 	req *v1contracts.TriggerWorkflowRequest,
 	parentTask *sqlcv1.FlattenExternalIdsRow,
-	parentAdditionalMetadataPayloads map[PayloadRef[TaskAdditionalMetadataShape]]Payload[TaskAdditionalMetadataShape],
 ) (*TriggerTaskData, error) {
 	_, span := telemetry.NewSpan(ctx, "sharedRepository.NewTriggerTaskData")
 	defer span.End()
@@ -3272,7 +3269,7 @@ func (r *sharedRepository) NewTriggerTaskData(
 
 		t.AdditionalMetadata = injectParentIDs(
 			t.AdditionalMetadata,
-			TaskAdditionalMetadataFromPayloadOrColumn(parentAdditionalMetadataPayloads, tenantId, parentTask),
+			parentTask.AdditionalMetadata,
 			parentTask.WorkflowRunID,
 			parentTask.ExternalID,
 		)

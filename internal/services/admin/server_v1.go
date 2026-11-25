@@ -9,6 +9,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/enumerables"
@@ -48,7 +49,7 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *v1contrac
 		return nil, connect.NewError(connect.CodeResourceExhausted, fmt.Errorf("tenant has reached %d%% of its task runs limit", trLimit))
 	}
 
-	opts, err := a.newTriggerOpts(ctx, tenantId, []*v1contracts.TriggerWorkflowRequest{req})
+	opt, err := a.newTriggerOpt(ctx, tenantId, req)
 
 	if err != nil {
 		if re, ok := err.(*v1.TriggerOptInvalidArgumentError); ok {
@@ -57,8 +58,6 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *v1contrac
 
 		return nil, fmt.Errorf("could not create trigger opt: %w", err)
 	}
-
-	opt := opts[0]
 
 	if err := v1.ValidateJSONB(opt.Data, "payload"); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", err))
@@ -124,17 +123,19 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
-	opts, err := a.newTriggerOpts(ctx, tenantId, req.Workflows)
+	opts := make([]*v1.WorkflowNameTriggerOpts, len(req.Workflows))
 
-	if err != nil {
-		if re, ok := err.(*v1.TriggerOptInvalidArgumentError); ok {
-			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", re.Err))
+	for i, workflow := range req.Workflows {
+		opt, err := a.newTriggerOpt(ctx, tenantId, workflow)
+
+		if err != nil {
+			if re, ok := err.(*v1.TriggerOptInvalidArgumentError); ok {
+				return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", re.Err))
+			}
+
+			return nil, fmt.Errorf("could not create trigger opt: %w", err)
 		}
 
-		return nil, fmt.Errorf("could not create trigger opt: %w", err)
-	}
-
-	for _, opt := range opts {
 		if err := v1.ValidateJSONB(opt.Data, "payload"); err != nil {
 			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", err))
 		}
@@ -143,9 +144,10 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("Invalid request: %s", err))
 		}
 
+		opts[i] = opt
 	}
 
-	err = a.generateExternalIds(ctx, tenantId, opts)
+	err := a.generateExternalIds(ctx, tenantId, opts)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not generate external ids: %w", err)
@@ -223,28 +225,30 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 	}, nil
 }
 
-func (i *AdminServiceImpl) newTriggerOpts(
+func (i *AdminServiceImpl) newTriggerOpt(
 	ctx context.Context,
 	tenantId uuid.UUID,
-	reqs []*v1contracts.TriggerWorkflowRequest,
-) ([]*v1.WorkflowNameTriggerOpts, error) {
-	ctx, span := telemetry.NewSpan(ctx, "admin_service.new_trigger_opts")
+	req *v1contracts.TriggerWorkflowRequest,
+) (*v1.WorkflowNameTriggerOpts, error) {
+	ctx, span := telemetry.NewSpan(ctx, "admin_service.new_trigger_opt")
 	defer span.End()
 
-	parentTasks := make([]*sqlcv1.FlattenExternalIdsRow, len(reqs))
+	span.SetAttributes(
+		attribute.String("admin_service.new_trigger_opt.workflow_name", req.Name),
+		attribute.Int("admin_service.new_trigger_opt.payload_size", len(req.Input)),
+		attribute.Bool("admin_service.new_trigger_opt.is_child_workflow", req.ParentTaskRunExternalId != nil),
+	)
 
-	for ix, req := range reqs {
-		if req.ParentTaskRunExternalId == nil {
-			continue
-		}
+	var parentTask *sqlcv1.FlattenExternalIdsRow
 
+	if req.ParentTaskRunExternalId != nil {
 		parentTaskExternalId, err := uuid.Parse(*req.ParentTaskRunExternalId)
 
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("parentStepRunId must be a valid UUID: %s", err))
 		}
 
-		parentTask, err := i.repov1.Tasks().GetTaskByExternalId(
+		maybeParentTask, err := i.repov1.Tasks().GetTaskByExternalId(
 			ctx,
 			tenantId,
 			parentTaskExternalId,
@@ -255,36 +259,22 @@ func (i *AdminServiceImpl) newTriggerOpts(
 			return nil, fmt.Errorf("could not find parent task: %w", err)
 		}
 
-		parentTasks[ix] = parentTask
+		parentTask = maybeParentTask
 	}
 
-	parentAdditionalMetadataPayloads, err := i.repov1.Payloads().TaskAdditionalMetadata().Retrieve(
-		ctx, nil, v1.TaskAdditionalMetadataPayloadRefs(tenantId, parentTasks)...,
-	)
+	t, err := i.repov1.Triggers().NewTriggerTaskData(ctx, tenantId, req, parentTask)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not retrieve parent task additional metadata: %w", err)
-	}
-
-	opts := make([]*v1.WorkflowNameTriggerOpts, len(reqs))
-
-	for ix, req := range reqs {
-		t, err := i.repov1.Triggers().NewTriggerTaskData(ctx, tenantId, req, parentTasks[ix], parentAdditionalMetadataPayloads)
-
-		if err != nil {
-			if re, ok := err.(*v1.TriggerOptInvalidArgumentError); ok {
-				return nil, re
-			}
-
-			return nil, fmt.Errorf("could not create trigger opt: %w", err)
+		if re, ok := err.(*v1.TriggerOptInvalidArgumentError); ok {
+			return nil, re
 		}
 
-		opts[ix] = &v1.WorkflowNameTriggerOpts{
-			TriggerTaskData: t,
-		}
+		return nil, fmt.Errorf("could not create trigger opt: %w", err)
 	}
 
-	return opts, nil
+	return &v1.WorkflowNameTriggerOpts{
+		TriggerTaskData: t,
+	}, nil
 }
 
 func (i *AdminServiceImpl) generateExternalIds(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts) error {

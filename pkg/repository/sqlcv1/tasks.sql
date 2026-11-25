@@ -206,7 +206,22 @@ WHERE
 -- name: GetTaskByExternalId :one
 -- Resolve the task key before reading v1_task. Joining the lookup row directly
 -- is planned as a merge across every daily partition.
-SELECT t.*
+-- additional_metadata_payload is NULL both for a task without a payload row and for one whose row has been
+-- offloaded to the external store.
+SELECT
+    t.*,
+    CASE
+        WHEN t.additional_metadata_payload_reference_id IS NOT NULL THEN (
+            SELECT p.inline_content
+            FROM read_payloads(
+                ARRAY[t.tenant_id],
+                ARRAY[t.id],
+                ARRAY[t.inserted_at],
+                ARRAY['TASK_ADDITIONAL_METADATA'::v1_payload_type],
+                ARRAY[t.additional_metadata_payload_reference_id]
+            ) p
+        )
+    END::JSONB AS additional_metadata_payload
 FROM v1_task t
 WHERE (t.id, t.inserted_at) = (
     SELECT l.task_id, l.inserted_at
