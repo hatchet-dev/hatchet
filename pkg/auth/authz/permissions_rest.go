@@ -3,11 +3,14 @@ package authz
 import (
 	"errors"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"go.yaml.in/yaml/v3"
+
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 )
 
 // restFile is the REST role format: roles grant OpenAPI operation ids.
@@ -113,23 +116,16 @@ func (p *RESTPermissions) Grant(role string, operationIDs ...string) error {
 }
 
 func (p *RESTPermissions) AssignableRoles() []AssignableRole {
-	out := make([]AssignableRole, 0, len(p.assignable))
+	operations := slices.Sorted(maps.Keys(p.operations))
 
 	// resolved per call rather than at load, so operations the extension grants afterwards are included
-	for _, r := range p.assignable {
-		r.Operations = []string{}
+	return enumerables.Map(p.assignable, func(r AssignableRole) AssignableRole {
+		r.Operations = enumerables.Filter(operations, func(op string) bool {
+			return p.HasPermission(r.Name, REST(op, nil))
+		})
 
-		for op := range p.operations {
-			if p.HasPermission(r.Name, REST(op, nil)) {
-				r.Operations = append(r.Operations, op)
-			}
-		}
-
-		sort.Strings(r.Operations)
-		out = append(out, r)
-	}
-
-	return out
+		return r
+	})
 }
 
 // specOperations lists operation ids in spec, keeping only those accepting scheme when one is given.

@@ -3,9 +3,13 @@ package authz
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
+
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 )
 
 // AllActions grants every action of a type, including ones no spec knows about.
@@ -201,17 +205,12 @@ func (g grantGraph) defines(name string) bool {
 }
 
 func (g grantGraph) grantedNames() map[string]struct{} {
-	out := map[string]struct{}{}
+	grants := enumerables.FlatMap(slices.Collect(maps.Values(g)), func(def *grantDef) []string { return def.grants })
 
-	for _, def := range g {
-		for _, grant := range def.grants {
-			if grant != AllActions {
-				out[grant] = struct{}{}
-			}
-		}
-	}
-
-	return out
+	return enumerables.ToSet(
+		enumerables.Filter(grants, func(grant string) bool { return grant != AllActions }),
+		func(grant string) string { return grant },
+	)
 }
 
 // checkCoverage requires the file and the source of truth to list exactly the same names.

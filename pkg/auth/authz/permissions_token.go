@@ -3,11 +3,14 @@ package authz
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"go.yaml.in/yaml/v3"
 	"google.golang.org/protobuf/reflect/protoreflect"
+
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 )
 
 const (
@@ -218,43 +221,29 @@ func (p *TokenPermissions) Defines(capability string) bool {
 
 func (p *TokenPermissions) Capabilities() []CapabilityInfo {
 	// capabilities this deployment leaves empty, such as infra:* without the cloud extension, are never offered
-	listed := map[string]bool{}
-	for _, c := range p.info {
-		listed[c.Name] = p.rest.grantsAnything(c.Name) || p.grpc.grantsAnything(c.Name)
-	}
+	listed := enumerables.ToMap(p.info,
+		func(c CapabilityInfo) string { return c.Name },
+		func(c CapabilityInfo) bool { return p.rest.grantsAnything(c.Name) || p.grpc.grantsAnything(c.Name) },
+	)
 
-	var selectable []string
-	for _, c := range p.info {
-		if listed[c.Name] && !c.Bundle {
-			selectable = append(selectable, c.Name)
-		}
-	}
+	selectable := enumerables.Map(
+		enumerables.Filter(p.info, func(c CapabilityInfo) bool { return listed[c.Name] && !c.Bundle }),
+		func(c CapabilityInfo) string { return c.Name },
+	)
 
-	var out []CapabilityInfo
+	offered := enumerables.Filter(p.info, func(c CapabilityInfo) bool { return listed[c.Name] })
 
-	for _, c := range p.info {
-		if !listed[c.Name] {
-			continue
-		}
-
-		c.Includes = []string{}
-
-		grantsWildcard := p.rest.has(c.Name, func(string) bool { return false })
-
-		if grantsWildcard {
-			c.Includes = append(c.Includes, selectable...)
+	return enumerables.Map(offered, func(c CapabilityInfo) CapabilityInfo {
+		if p.rest.has(c.Name, func(string) bool { return false }) {
+			c.Includes = slices.Clone(selectable)
 		} else {
-			for _, name := range p.rest.inherited(c.Name) {
-				if listed[name] && !p.isBundle(name) {
-					c.Includes = append(c.Includes, name)
-				}
-			}
+			c.Includes = enumerables.Filter(p.rest.inherited(c.Name), func(name string) bool {
+				return listed[name] && !p.isBundle(name)
+			})
 		}
 
-		out = append(out, c)
-	}
-
-	return out
+		return c
+	})
 }
 
 func (p *TokenPermissions) isBundle(name string) bool {

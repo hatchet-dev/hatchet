@@ -5,18 +5,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/hatchet-dev/hatchet/internal/enumerables"
 	pkgauthz "github.com/hatchet-dev/hatchet/pkg/auth/authz"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 )
 
 func TestListedCapabilitiesAndRolesFollowTheExtension(t *testing.T) {
 	byName := func(caps []pkgauthz.CapabilityInfo) map[string]pkgauthz.CapabilityInfo {
-		out := map[string]pkgauthz.CapabilityInfo{}
-		for _, c := range caps {
-			out[c.Name] = c
-		}
-
-		return out
+		return enumerables.KeyBy(caps, func(c pkgauthz.CapabilityInfo) string { return c.Name })
 	}
 
 	// without an extension the infrastructure capabilities grant nothing, so they are never offered
@@ -43,21 +39,14 @@ func TestListedCapabilitiesAndRolesFollowTheExtension(t *testing.T) {
 
 	all := cloudCaps[pkgauthz.AllCapabilities]
 	require.True(t, all.Bundle)
-	require.ElementsMatch(t, all.Includes, func() []string {
-		var selectable []string
-		for _, c := range cloud.Capabilities() {
-			if !c.Bundle {
-				selectable = append(selectable, c.Name)
-			}
-		}
+	selectable := enumerables.Filter(cloud.Capabilities(), func(c pkgauthz.CapabilityInfo) bool { return !c.Bundle })
+	require.ElementsMatch(t, all.Includes, enumerables.Map(selectable, func(c pkgauthz.CapabilityInfo) string { return c.Name }),
+		"all stands for every listed capability")
 
-		return selectable
-	}(), "all stands for every listed capability")
-
-	roles := map[string][]string{}
-	for _, r := range perms.AssignableRoles() {
-		roles[r.Name] = r.Operations
-	}
+	roles := enumerables.ToMap(perms.AssignableRoles(),
+		func(r pkgauthz.AssignableRole) string { return r.Name },
+		func(r pkgauthz.AssignableRole) []string { return r.Operations },
+	)
 
 	require.Len(t, roles, 4, "only assignable roles are listed")
 	require.Contains(t, roles["VIEWER"], "ManagedWorkerList")
